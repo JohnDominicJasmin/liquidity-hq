@@ -13,6 +13,7 @@ const NAV = [
   { path: '/bible', icon: '📖', label: 'Bible' },
   null,
   { path: '/arena', icon: '🤖', label: 'AI Arena' },
+  { path: '/signals', icon: '📈', label: 'Signals' },
   null,
   { path: '/about', icon: 'ℹ️', label: 'About' },
 ];

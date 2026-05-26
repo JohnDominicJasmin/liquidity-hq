@@ -1,6 +1,17 @@
 'use client';
 import { createContext, useContext } from 'react';
 
+export interface LiqWall {
+  price: number;
+  size: number;
+}
+
+export interface LiqLevel {
+  price: number;
+  amount: number;
+  side: 'long' | 'short';
+}
+
 export interface CoinData {
   price: number;
   change: number;
@@ -14,6 +25,15 @@ export interface CoinData {
   shortRatio: number | null;
   rsi14: number | null;
   ma20: number | null;
+  perpPrice: number | null;
+  /* multi-timeframe RSI */
+  rsi1h: number | null;
+  rsi4h: number | null;
+  /* cumulative volume delta */
+  cvd: number | null;
+  /* order book walls (BTC/ETH only) */
+  orderBidWalls: LiqWall[] | null;
+  orderAskWalls: LiqWall[] | null;
 }
 
 export type CoinId = 'btc' | 'eth' | 'sol' | 'xrp' | 'bnb' | 'hype' | 'near' | 'zec';
@@ -75,12 +95,24 @@ export type MarketStore = {
   fngLabel: string;
   fngPrev: number | null;
   btcDom: number | null;
+  btcDomHistory: number[];
   wsStatus: string;
   newsCache: string[];
   oilPrice: number | null;
   bonds10y: number | null;
-  etfNetFlow: number | null;   // BTC spot ETF total net flow today in $M
-  ethEtfNetFlow: number | null; // ETH spot ETF total net flow today in $M
+  etfNetFlow: number | null;     // BTC spot ETF total net flow today in $M
+  ethEtfNetFlow: number | null;  // ETH spot ETF total net flow today in $M
+  /* Deribit options */
+  btcPcRatio: number | null;
+  btcMaxPain: number | null;
+  /* Stablecoin supply */
+  stablecoinSupply: number | null;   // $B
+  stablecoinPrev: number | null;     // $B previous reading
+  /* Coinglass */
+  btcExchangeNetFlow: number | null;
+  btcLiqLevels: LiqLevel[];
+  /* Google Trends */
+  googleTrendsBtc: number | null;
 };
 
 export const defaultStore: MarketStore = {
@@ -90,12 +122,20 @@ export const defaultStore: MarketStore = {
   fngLabel: '',
   fngPrev: null,
   btcDom: null,
+  btcDomHistory: [],
   wsStatus: 'Connecting...',
   newsCache: [],
   oilPrice: null,
   bonds10y: null,
   etfNetFlow: null,
   ethEtfNetFlow: null,
+  btcPcRatio: null,
+  btcMaxPain: null,
+  stablecoinSupply: null,
+  stablecoinPrev: null,
+  btcExchangeNetFlow: null,
+  btcLiqLevels: [],
+  googleTrendsBtc: null,
 };
 
 export const MarketContext = createContext<{
@@ -108,4 +148,69 @@ export function useMarket() {
   const ctx = useContext(MarketContext);
   if (!ctx) throw new Error('useMarket must be inside MarketProvider');
   return ctx;
+}
+
+/* ── Squeeze Score ── */
+export function computeSqueezeScore(coin: CoinData | undefined): {
+  score: number;
+  dir: 'LONG_LIQ' | 'SHORT_SQ' | 'NEUTRAL';
+  label: string;
+  color: string;
+} {
+  if (!coin) return { score: 0, dir: 'NEUTRAL', label: 'No data', color: '#444' };
+  let longRisk = 0;   // longs overleveraged → price dump incoming
+  let shortRisk = 0;  // shorts overleveraged → price pump incoming
+  if (coin.fundingRate != null) {
+    const fr = coin.fundingRate * 100;
+    if (fr >= 0.05) longRisk += 40;
+    else if (fr >= 0.02) longRisk += 22;
+    else if (fr >= 0.01) longRisk += 10;
+    else if (fr <= -0.03) shortRisk += 40;
+    else if (fr <= -0.015) shortRisk += 22;
+    else if (fr <= -0.005) shortRisk += 10;
+  }
+  if (coin.longRatio != null && coin.shortRatio != null) {
+    if (coin.longRatio >= 0.65) longRisk += 40;
+    else if (coin.longRatio >= 0.58) longRisk += 22;
+    else if (coin.longRatio >= 0.52) longRisk += 10;
+    else if (coin.shortRatio >= 0.65) shortRisk += 40;
+    else if (coin.shortRatio >= 0.58) shortRisk += 22;
+    else if (coin.shortRatio >= 0.52) shortRisk += 10;
+  }
+  const volBonus = coin.volRatio != null
+    ? (coin.volRatio >= 2 ? 20 : coin.volRatio >= 1.5 ? 12 : coin.volRatio >= 1.2 ? 5 : 0)
+    : 0;
+  const dominant = Math.max(longRisk, shortRisk);
+  const score = Math.min(100, dominant + (dominant > 10 ? volBonus : 0));
+  if (longRisk > shortRisk && longRisk > 10)
+    return { score, dir: 'LONG_LIQ', label: 'Long liq risk ↓', color: '#ff9a92' };
+  if (shortRisk > longRisk && shortRisk > 10)
+    return { score, dir: 'SHORT_SQ', label: 'Short squeeze ↑', color: '#7de0a4' };
+  return { score, dir: 'NEUTRAL', label: 'Balanced', color: '#606060' };
+}
+
+/* ── Fibonacci Levels ── */
+export function computeFibLevels(high: number, low: number, price: number): {
+  label: string; price: number; dist: string; near: boolean;
+}[] {
+  const range = high - low;
+  if (range <= 0) return [];
+  return [
+    { label: '100%', ratio: 1 },
+    { label: '78.6%', ratio: 0.786 },
+    { label: '61.8%', ratio: 0.618 },
+    { label: '50%', ratio: 0.5 },
+    { label: '38.2%', ratio: 0.382 },
+    { label: '23.6%', ratio: 0.236 },
+    { label: '0%', ratio: 0 },
+  ].map(({ label, ratio }) => {
+    const fibPrice = low + range * ratio;
+    const pctDist = fibPrice > 0 ? ((price - fibPrice) / fibPrice) * 100 : 0;
+    return {
+      label,
+      price: fibPrice,
+      dist: (pctDist >= 0 ? '+' : '') + pctDist.toFixed(2) + '%',
+      near: Math.abs(pctDist) < 0.5,
+    };
+  });
 }

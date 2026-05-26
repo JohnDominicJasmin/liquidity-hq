@@ -27,8 +27,12 @@ create table if not exists signals (
   entry_zone  text,
   reasoning   text,
   session     text,
+  result      text    default 'pending',
   created_at  timestamptz not null default now()
 );
+
+-- If you already have the signals table, run this once to add the result column:
+-- alter table signals add column if not exists result text default 'pending';
 
 -- ─────────────────────────────────────────
 -- Row-level security

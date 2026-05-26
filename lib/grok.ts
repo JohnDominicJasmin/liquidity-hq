@@ -22,6 +22,31 @@ export interface GrokContext {
   upcomingEvents: string;
   /* ETF flows */
   etfFlows: string;
+  /* multi-timeframe RSI */
+  rsi1h: string;
+  rsi4h: string;
+  /* cumulative volume delta */
+  cvd: string;
+  /* basis (perp premium vs spot) */
+  basis: string;
+  /* fibonacci nearest level */
+  fibNearest: string;
+  /* order book walls */
+  orderWalls: string;
+  /* Bollinger Squeeze score */
+  squeezeScore: string;
+  /* Deribit options */
+  pcRatio: string;
+  maxPain: string;
+  /* exchange & on-chain flows */
+  exchangeNetFlow: string;
+  stablecoinFlow: string;
+  /* retail sentiment */
+  googleTrends: string;
+  /* liquidation clusters */
+  liqLevels: string;
+  /* BTC dominance trend */
+  btcDomTrend: string;
 }
 
 export interface GrokResult {
@@ -44,15 +69,43 @@ export function buildPrompt(ctx: GrokContext): string {
     `Volume ratio (current/avg): ${ctx.volRatio}`,
     `Long/Short ratio: ${ctx.longShortRatio}`,
     '',
+    '=== TECHNICALS (MULTI-TIMEFRAME) ===',
+    `RSI (14, 1h):  ${ctx.rsi1h}`,
+    `RSI (14, 4h):  ${ctx.rsi4h}`,
+    `CVD (last 200 trades):  ${ctx.cvd}`,
+    `Fibonacci nearest level:  ${ctx.fibNearest}`,
+    '',
     '=== DERIVATIVES / POSITIONING ===',
     `Funding rate: ${ctx.fundingRate}`,
     `Open Interest: ${ctx.openInterest}`,
     '',
+    '=== DERIVATIVES — EXTENDED ===',
+    `Basis (perp premium vs spot):  ${ctx.basis}`,
+    `Squeeze score:  ${ctx.squeezeScore}`,
+    '',
+    '=== OPTIONS MARKET (DERIBIT) ===',
+    `BTC Put/Call Ratio:  ${ctx.pcRatio}`,
+    `BTC Max Pain Strike:  ${ctx.maxPain}`,
+    '(Max pain = price where max option value is destroyed at expiry — acts as magnet)',
+    '',
+    '=== ORDER BOOK LIQUIDITY ===',
+    ctx.orderWalls,
+    '',
     '=== MACRO ===',
     `US Oil (CL=F): ${ctx.oilPrice}`,
     `US 10Y Bond Yield: ${ctx.bonds10y}`,
-    `BTC Dominance: ${ctx.btcDominance}`,
+    `BTC Dominance (trend): ${ctx.btcDomTrend}`,
     `Fear & Greed: ${ctx.fearGreed}`,
+    '',
+    '=== EXCHANGE & ON-CHAIN FLOWS ===',
+    `BTC exchange net flow (24h):  ${ctx.exchangeNetFlow}`,
+    `USDT+USDC stablecoin supply:  ${ctx.stablecoinFlow}`,
+    '',
+    '=== RETAIL SENTIMENT ===',
+    `Google Trends 'Bitcoin' (7d):  ${ctx.googleTrends}`,
+    '',
+    '=== LIQUIDATION CLUSTERS ===',
+    ctx.liqLevels,
     '',
     '=== UPCOMING ECONOMIC EVENTS ===',
     ctx.upcomingEvents || 'None in next 24h',
@@ -85,6 +138,12 @@ export function buildPrompt(ctx: GrokContext): string {
     '6. TRUMP/WHITE HOUSE: Presidential posts or executive orders about crypto cause immediate 5–15% swings. Rate policy signals affect risk appetite.',
     '7. SENTIMENT: Fear & Greed extreme readings as contrarian signals',
     '8. SESSION: NY session (high liquidity) vs Asia/London',
+    '9. FIBONACCI: Price approaching a key fib level (61.8%, 38.2%) is a high-probability reversal/bounce zone.',
+    '10. ORDER FLOW (CVD): Positive CVD = net buying = confirms longs. Negative = selling pressure. Divergence from price is a trap signal.',
+    '11. OPTIONS (DERIBIT): P/C ratio > 1.2 = bearish positioning. Max pain acts as a price magnet especially near expiry. Positive basis = healthy bull market.',
+    '12. ORDER BOOK: Large bid walls = support. Large ask walls = resistance. Price often hunts walls before reversing.',
+    '13. STABLECOIN FLOWS: Growing USDT+USDC supply = dry powder entering market = bullish medium-term. Shrinking = cashing out.',
+    '14. EXCHANGE FLOWS: BTC flowing INTO exchanges = sell pressure incoming. Flowing OUT = accumulation/hodling.',
     '',
     'Output in EXACTLY this format — no extra text before or after:',
     'SIGNAL: [LONG or SHORT or FLAT]',
@@ -97,14 +156,14 @@ export function buildPrompt(ctx: GrokContext): string {
 
 export function parseResponse(text: string): GrokResult {
   const result: GrokResult = { signal: 'FLAT', confidence: 0, entry: '—', reasoning: text };
-  const sigMatch   = text.match(/SIGNAL:\s*(LONG|SHORT|FLAT)/i);
-  const confMatch  = text.match(/CONFIDENCE:\s*(\d+)/i);
-  const entryMatch = text.match(/ENTRY_ZONE:\s*([^\n]+)/i);
+  const sigMatch    = text.match(/SIGNAL:\s*(LONG|SHORT|FLAT)/i);
+  const confMatch   = text.match(/CONFIDENCE:\s*(\d+)/i);
+  const entryMatch  = text.match(/ENTRY_ZONE:\s*([^\n]+)/i);
   const reasonMatch = text.match(/REASONING:\s*([\s\S]+)/i);
-  if (sigMatch)   result.signal     = sigMatch[1].toUpperCase() as GrokResult['signal'];
-  if (confMatch)  result.confidence = parseInt(confMatch[1]);
-  if (entryMatch) result.entry      = entryMatch[1].trim();
-  if (reasonMatch) result.reasoning = reasonMatch[1].trim();
+  if (sigMatch)    result.signal     = sigMatch[1].toUpperCase() as GrokResult['signal'];
+  if (confMatch)   result.confidence = parseInt(confMatch[1]);
+  if (entryMatch)  result.entry      = entryMatch[1].trim();
+  if (reasonMatch) result.reasoning  = reasonMatch[1].trim();
   return result;
 }
 
@@ -117,7 +176,7 @@ export async function callGrok(apiKey: string, prompt: string): Promise<GrokResu
     },
     body: JSON.stringify({
       model: 'grok-4.3',
-      max_tokens: 1500,
+      max_tokens: 2000,
       search_parameters: {
         mode: 'on',
         sources: [

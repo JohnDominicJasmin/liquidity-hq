@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   MarketContext, MarketStore, defaultStore, CoinId,
-  BINANCE_SYMS, BYBIT_SYMS, classifyFunding,
+  BINANCE_SYMS, BYBIT_SYMS,
 } from '@/lib/marketStore';
 
 const WS_URLS = [
@@ -14,6 +14,17 @@ const SYM_MAP: Record<string, CoinId> = {
   BTCUSDT: 'btc', ETHUSDT: 'eth', SOLUSDT: 'sol',
   XRPUSDT: 'xrp', BNBUSDT: 'bnb', NEARUSDT: 'near', ZECUSDT: 'zec',
 };
+
+/* Helper: compute RSI14 from an array of close prices */
+function computeRSI14(closes: number[]): number | null {
+  if (closes.length < 15) return null;
+  const changes = closes.slice(1).map((c, i) => c - closes[i]);
+  const gains   = changes.slice(-14).map(c => Math.max(c, 0));
+  const losses  = changes.slice(-14).map(c => Math.max(-c, 0));
+  const avgGain = gains.reduce((a, b) => a + b, 0) / 14;
+  const avgLoss = losses.reduce((a, b) => a + b, 0) / 14;
+  return avgLoss === 0 ? 100 : Math.round(100 - (100 / (1 + avgGain / avgLoss)));
+}
 
 export default function MarketProvider({ children }: { children: React.ReactNode }) {
   const [store, setStore] = useState<MarketStore>(defaultStore);
@@ -96,7 +107,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     };
   }, [restPoll, updateCoin]);
 
-  /* ── Bybit: HYPE price + funding rates + OI ── */
+  /* ── Bybit: HYPE price + funding rates + OI + perpPrice for all ── */
   const fetchBybit = useCallback(async () => {
     const coins = Object.keys(BYBIT_SYMS);
     await Promise.allSettled(coins.map(async (coin) => {
@@ -109,6 +120,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         const patch: Partial<MarketStore['coins'][CoinId]> = {
           fundingRate: parseFloat(item.fundingRate || '0'),
           oi: parseFloat(item.openInterestValue || '0'),
+          perpPrice: parseFloat(item.lastPrice || '0'),
         };
         if (coin === 'hype') {
           patch.price = parseFloat(item.lastPrice || '0');
@@ -178,16 +190,262 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       const ma20 = ma20Slice.reduce((a: number, b: number) => a + b, 0) / ma20Slice.length;
 
       /* RSI14 */
-      const changes = closes.slice(1).map((c: number, i: number) => c - closes[i]);
-      const gains   = changes.slice(-14).map((c: number) => Math.max(c, 0));
-      const losses  = changes.slice(-14).map((c: number) => Math.max(-c, 0));
-      const avgGain = gains.reduce((a: number, b: number) => a + b, 0) / 14;
-      const avgLoss = losses.reduce((a: number, b: number) => a + b, 0) / 14;
-      const rsi14   = avgLoss === 0 ? 100 : Math.round(100 - (100 / (1 + avgGain / avgLoss)));
+      const rsi14 = computeRSI14(closes);
 
       updateCoin(coin, { volRatio: avg > 0 ? current / avg : 1, ma20, rsi14 });
     } catch { /* */ }
   }, [updateCoin]);
+
+  /* ── Multi-timeframe RSI (1h + 4h) ── */
+  const fetchMultiTFRSI = useCallback(async () => {
+    const binanceCoins = Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype');
+    await Promise.allSettled(
+      binanceCoins.flatMap(([coin, sym]) =>
+        (['1h', '4h'] as const).map(async (tf) => {
+          try {
+            const res = await fetch(
+              `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${tf}&limit=16`
+            );
+            const klines = await res.json();
+            if (!Array.isArray(klines) || klines.length < 15) return;
+            const closes = klines.map((k: string[]) => parseFloat(k[4]));
+            const rsi = computeRSI14(closes);
+            if (rsi === null) return;
+            updateCoin(coin as CoinId, tf === '1h' ? { rsi1h: rsi } : { rsi4h: rsi });
+          } catch { /* */ }
+        })
+      )
+    );
+  }, [updateCoin]);
+
+  /* ── CVD (BTC + ETH only) ── */
+  const fetchCVD = useCallback(async () => {
+    await Promise.allSettled(
+      (['btc', 'eth'] as CoinId[]).map(async (coin) => {
+        const sym = BINANCE_SYMS[coin];
+        try {
+          const res = await fetch(
+            `https://api.binance.com/api/v3/aggTrades?symbol=${sym}&limit=200`
+          );
+          const trades = await res.json();
+          if (!Array.isArray(trades)) return;
+          let buyVol = 0;
+          let sellVol = 0;
+          trades.forEach((t: { m: boolean; q: string }) => {
+            const qty = parseFloat(t.q);
+            if (t.m) {
+              sellVol += qty; // maker is buyer → taker is seller
+            } else {
+              buyVol += qty; // maker is seller → taker is buyer
+            }
+          });
+          updateCoin(coin, { cvd: buyVol - sellVol });
+        } catch { /* */ }
+      })
+    );
+  }, [updateCoin]);
+
+  /* ── Order Book walls (BTC + ETH only) ── */
+  const fetchOrderBook = useCallback(async () => {
+    await Promise.allSettled(
+      (['btc', 'eth'] as CoinId[]).map(async (coin) => {
+        const sym = BINANCE_SYMS[coin];
+        try {
+          const res = await fetch(
+            `https://api.binance.com/api/v3/depth?symbol=${sym}&limit=50`
+          );
+          const data = await res.json();
+          if (!data.bids || !data.asks) return;
+
+          const parseSide = (arr: string[][]): { price: number; size: number }[] =>
+            arr
+              .map(([p, s]) => ({ price: parseFloat(p), size: parseFloat(s) }))
+              .sort((a, b) => b.size - a.size)
+              .slice(0, 3);
+
+          updateCoin(coin, {
+            orderBidWalls: parseSide(data.bids),
+            orderAskWalls: parseSide(data.asks),
+          });
+        } catch { /* */ }
+      })
+    );
+  }, [updateCoin]);
+
+  /* ── Deribit options: Put/Call ratio + Max Pain ── */
+  const fetchDeribitOptions = useCallback(async () => {
+    try {
+      const res = await fetch(
+        'https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=BTC&kind=option'
+      );
+      const data = await res.json();
+      const summaries: Array<{
+        instrument_name: string;
+        open_interest: number;
+      }> = data?.result ?? [];
+      if (!summaries.length) return;
+
+      const callsOI: Record<number, number> = {};
+      const putsOI: Record<number, number> = {};
+      let totalCallOI = 0;
+      let totalPutOI = 0;
+
+      summaries.forEach(({ instrument_name, open_interest }) => {
+        // e.g. BTC-26MAY24-40000-C
+        const parts = instrument_name.split('-');
+        if (parts.length < 4) return;
+        const strike = parseFloat(parts[2]);
+        const type = parts[3]; // 'C' or 'P'
+        if (isNaN(strike)) return;
+        const oi = open_interest || 0;
+        if (type === 'C') {
+          callsOI[strike] = (callsOI[strike] ?? 0) + oi;
+          totalCallOI += oi;
+        } else if (type === 'P') {
+          putsOI[strike] = (putsOI[strike] ?? 0) + oi;
+          totalPutOI += oi;
+        }
+      });
+
+      const pcRatio = totalCallOI > 0 ? totalPutOI / totalCallOI : null;
+
+      /* Max Pain: find strike that minimises total ITM payout */
+      const allStrikes = Array.from(
+        new Set([...Object.keys(callsOI), ...Object.keys(putsOI)].map(Number))
+      ).sort((a, b) => a - b);
+
+      let minPain = Infinity;
+      let maxPain: number | null = null;
+
+      allStrikes.forEach(testPrice => {
+        let pain = 0;
+        allStrikes.forEach(k => {
+          pain += (callsOI[k] ?? 0) * Math.max(0, testPrice - k);
+          pain += (putsOI[k] ?? 0) * Math.max(0, k - testPrice);
+        });
+        if (pain < minPain) {
+          minPain = pain;
+          maxPain = testPrice;
+        }
+      });
+
+      setStore(s => ({ ...s, btcPcRatio: pcRatio, btcMaxPain: maxPain }));
+    } catch { /* fail silently */ }
+  }, []);
+
+  /* ── Stablecoin supply (DefiLlama) ── */
+  const fetchStablecoinFlows = useCallback(async () => {
+    try {
+      const res = await fetch(
+        'https://stablecoins.llama.fi/stablecoins?includePrices=true',
+        { cache: 'no-cache' }
+      );
+      const data = await res.json();
+      const coins: Array<{ symbol: string; circulating: { peggedUSD?: number } }> =
+        data?.peggedAssets ?? [];
+
+      let total = 0;
+      coins.forEach(({ symbol, circulating }) => {
+        if (symbol === 'USDT' || symbol === 'USDC') {
+          total += circulating?.peggedUSD ?? 0;
+        }
+      });
+
+      const supplyB = total / 1e9;
+      if (supplyB === 0) return;
+
+      setStore(s => ({
+        ...s,
+        stablecoinPrev: s.stablecoinSupply,
+        stablecoinSupply: supplyB,
+      }));
+    } catch { /* fail silently */ }
+  }, []);
+
+  /* ── Coinglass: exchange net flow + liquidation levels ── */
+  const fetchCoinglassData = useCallback(async () => {
+    const proxy = (url: string) => 'https://corsproxy.io/?' + encodeURIComponent(url);
+
+    /* 1. Exchange net flow */
+    try {
+      const res = await fetch(
+        proxy('https://open-api.coinglass.com/public/v2/exchange_amount_chart?symbol=BTC&time_type=h24'),
+        { cache: 'no-cache' }
+      );
+      const data = await res.json();
+      const netInflow =
+        data?.data?.netInflow ??
+        data?.data?.[data?.data?.length - 1]?.netInflow ??
+        null;
+      if (netInflow != null) {
+        setStore(s => ({ ...s, btcExchangeNetFlow: parseFloat(String(netInflow)) }));
+      }
+    } catch { /* fail silently */ }
+
+    /* 2. Liquidation levels */
+    try {
+      const res = await fetch(
+        proxy('https://open-api.coinglass.com/public/v2/liquidation_chart?symbol=BTC&time_type=h4'),
+        { cache: 'no-cache' }
+      );
+      const data = await res.json();
+      const arr: Array<{ price: number; amount: number; side: string }> =
+        data?.data ?? [];
+      if (!Array.isArray(arr) || arr.length === 0) return;
+      const levels = arr
+        .filter(item => item.price != null && item.amount != null)
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 8)
+        .map(item => ({
+          price: parseFloat(String(item.price)),
+          amount: parseFloat(String(item.amount)),
+          side: (String(item.side).toLowerCase().includes('long') ? 'long' : 'short') as 'long' | 'short',
+        }));
+      setStore(s => ({ ...s, btcLiqLevels: levels }));
+    } catch { /* fail silently */ }
+  }, []);
+
+  /* ── Google Trends 'bitcoin' (7-day) ── */
+  const fetchGoogleTrends = useCallback(async () => {
+    const proxy = (url: string) => 'https://corsproxy.io/?' + encodeURIComponent(url);
+    try {
+      /* Step 1 — explore endpoint to get token + request object */
+      const exploreReq = JSON.stringify({
+        comparisonItem: [{ keyword: 'bitcoin', geo: '', time: 'now 7-d' }],
+        category: 0,
+        property: '',
+      });
+      const exploreUrl =
+        'https://trends.google.com/trends/api/explore?hl=en-US&tz=480&req=' +
+        encodeURIComponent(exploreReq);
+
+      const exploreRes = await fetch(proxy(exploreUrl), { cache: 'no-cache' });
+      const exploreRaw = await exploreRes.text();
+      const exploreJson = JSON.parse(exploreRaw.replace(/^\)\]\}'\\n/, '').replace(/^\)\]\}'\n/, ''));
+      const widgets: Array<{ id: string; token: string; request: unknown }> =
+        exploreJson?.widgets ?? [];
+      const tsWidget = widgets.find(w => w.id === 'TIMESERIES');
+      if (!tsWidget?.token || !tsWidget?.request) return;
+
+      /* Step 2 — fetch actual timeline data */
+      const dataUrl =
+        'https://trends.google.com/trends/api/widgetdata/multiline?hl=en-US&tz=480&req=' +
+        encodeURIComponent(JSON.stringify(tsWidget.request)) +
+        '&token=' +
+        encodeURIComponent(tsWidget.token);
+
+      const dataRes = await fetch(proxy(dataUrl), { cache: 'no-cache' });
+      const dataRaw = await dataRes.text();
+      const dataJson = JSON.parse(dataRaw.replace(/^\)\]\}'\\n/, '').replace(/^\)\]\}'\n/, ''));
+      const timelineData: Array<{ value: number[] }> =
+        dataJson?.default?.timelineData ?? [];
+      if (!timelineData.length) return;
+      const score = timelineData[timelineData.length - 1]?.value?.[0];
+      if (score != null) {
+        setStore(s => ({ ...s, googleTrendsBtc: score }));
+      }
+    } catch { /* fail silently */ }
+  }, []);
 
   /* ── Oil + Bond yields ── */
   const fetchMacro = useCallback(async () => {
@@ -249,7 +507,6 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       ]);
       if (btcRes.status === 'fulfilled' && btcRes.value.ok) {
         const d = await btcRes.value.json();
-        // SoSoValue returns totalNetInflow in $M — try multiple shapes
         const raw = d?.data?.list?.[0]?.totalNetInflow
           ?? d?.data?.totalNetInflow
           ?? d?.list?.[0]?.totalNetInflow
@@ -267,13 +524,19 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     } catch { /* fail silently */ }
   }, []);
 
-  /* ── BTC Dominance ── */
+  /* ── BTC Dominance (with history) ── */
   const fetchBTCDom = useCallback(async () => {
     try {
       const res = await fetch('https://api.coingecko.com/api/v3/global');
       const d = await res.json();
       const dom = d?.data?.market_cap_percentage?.btc;
-      if (dom) setStore(s => ({ ...s, btcDom: dom }));
+      if (dom) {
+        setStore(s => ({
+          ...s,
+          btcDom: dom,
+          btcDomHistory: [...s.btcDomHistory.slice(-9), dom],
+        }));
+      }
     } catch { /* */ }
   }, []);
 
@@ -288,15 +551,29 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     fetchBTCDom();
     fetchMacro();
     fetchETF();
+    fetchMultiTFRSI();
+    fetchCVD();
+    fetchOrderBook();
+    fetchDeribitOptions();
+    fetchStablecoinFlows();
+    fetchCoinglassData();
+    fetchGoogleTrends();
 
     const intervals = [
-      setInterval(fetchBybit, 8 * 60 * 1000),
-      setInterval(fetchLSR, 5 * 60 * 1000),
-      setInterval(fetchVolume, 3 * 60 * 1000),
-      setInterval(fetchFNG, 24 * 60 * 60 * 1000),
-      setInterval(fetchBTCDom, 5 * 60 * 1000),
-      setInterval(fetchMacro, 10 * 60 * 1000),
-      setInterval(fetchETF, 30 * 60 * 1000),
+      setInterval(fetchBybit,          8  * 60 * 1000),
+      setInterval(fetchLSR,            5  * 60 * 1000),
+      setInterval(fetchVolume,         3  * 60 * 1000),
+      setInterval(fetchFNG,           24  * 60 * 60 * 1000),
+      setInterval(fetchBTCDom,         5  * 60 * 1000),
+      setInterval(fetchMacro,         10  * 60 * 1000),
+      setInterval(fetchETF,           30  * 60 * 1000),
+      setInterval(fetchMultiTFRSI,    15  * 60 * 1000),
+      setInterval(fetchCVD,            5  * 60 * 1000),
+      setInterval(fetchOrderBook,      2  * 60 * 1000),
+      setInterval(fetchDeribitOptions, 15  * 60 * 1000),
+      setInterval(fetchStablecoinFlows, 30 * 60 * 1000),
+      setInterval(fetchCoinglassData,  15  * 60 * 1000),
+      setInterval(fetchGoogleTrends,   60  * 60 * 1000),
     ];
 
     return () => {

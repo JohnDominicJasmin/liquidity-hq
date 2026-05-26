@@ -18,5 +18,6 @@ export interface Signal {
   entry_zone: string;
   reasoning: string;
   session: string;
+  result?: string;   // 'win' | 'loss' | 'pending' | undefined
   created_at?: string;
 }
