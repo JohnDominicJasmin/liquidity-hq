@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useMarket, classifyFunding, CoinId } from '@/lib/marketStore';
 import { buildPrompt, callGrok, GrokResult, GrokContext } from '@/lib/grok';
 import { getPHT, getSessionName } from '@/lib/session';
@@ -7,7 +7,7 @@ import { useNews } from '@/components/NewsProvider';
 import { getSupabase } from '@/lib/supabase';
 
 const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype'];
-const KEY_STORE = 'lhq_arena_key';
+const GROK_API_KEY = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5Bepv2POY4L6EdBULh4GYNCO';
 
 interface HistItem { signal: string; confidence: number; coin: string; time: string; }
 
@@ -15,34 +15,17 @@ export default function Arena() {
   const { store } = useMarket();
   const { latestHeadlines } = useNews();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>('btc');
-  const [apiKey, setApiKey] = useState('');
-  const [keyStatus, setKeyStatus] = useState('');
-  const [hasKey, setHasKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GrokResult | null>(null);
   const [error, setError] = useState('');
   const [history, setHistory] = useState<HistItem[]>([]);
   const [loadingMsg, setLoadingMsg] = useState('');
 
-  useEffect(() => {
-    const k = localStorage.getItem(KEY_STORE) || '';
-    setHasKey(!!k);
-  }, []);
-
-  const saveKey = () => {
-    const k = apiKey.trim();
-    if (!k) { setKeyStatus('Enter your xAI API key first'); return; }
-    localStorage.setItem(KEY_STORE, k);
-    setApiKey('');
-    setHasKey(true);
-    setKeyStatus('✓ Key saved. Ready to hunt.');
-  };
-
   const gatherContext = (): GrokContext => {
     const coin = store.coins[selectedCoin];
     const pht = getPHT();
     const session = getSessionName(pht);
-    const clusters = '—'; // no cluster access here — future enhancement
+    const clusters = '—';
 
     return {
       coin: selectedCoin.toUpperCase() + '/USDT',
@@ -59,8 +42,6 @@ export default function Arena() {
   };
 
   const fire = async () => {
-    const key = localStorage.getItem(KEY_STORE) || '';
-    if (!key) { setKeyStatus('⚠ Save your xAI API key first'); return; }
     setLoading(true);
     setError('');
     setResult(null);
@@ -73,12 +54,11 @@ export default function Arena() {
     try {
       const ctx = gatherContext();
       const prompt = buildPrompt(ctx);
-      const res = await callGrok(key, prompt);
+      const res = await callGrok(GROK_API_KEY, prompt);
       setResult(res);
       const item: HistItem = { signal: res.signal, confidence: res.confidence, coin: ctx.coin, time: new Date().toLocaleTimeString() };
       setHistory(h => [item, ...h].slice(0, 8));
 
-      /* save to Supabase if configured */
       if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
         getSupabase()!.from('signals').insert({
           coin: ctx.coin, signal: res.signal, confidence: res.confidence,
@@ -100,32 +80,10 @@ export default function Arena() {
       <div style={{ padding: '1rem 0 0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
           <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8' }}>AI Arena</div>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>GROK-3</span>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>GROK-4.3</span>
         </div>
         <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>News-based signal engine — LONG / SHORT / FLAT</div>
       </div>
-
-      {/* API Key */}
-      <div className="arena-key-row">
-        <input
-          className="arena-key-input"
-          type="password"
-          placeholder="xAI Grok API key (stored locally)"
-          value={apiKey}
-          onChange={e => setApiKey(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && saveKey()}
-        />
-        <button className="arena-key-save" onClick={saveKey}>Save key</button>
-      </div>
-      {keyStatus && <div style={{ fontSize: 12, color: hasKey ? '#7de0a4' : '#f5cc7a', marginBottom: 10 }}>{keyStatus}</div>}
-
-      {!hasKey && (
-        <div className="arena-no-key">
-          <div className="arena-no-key-icon">🔑</div>
-          <div className="arena-no-key-title">xAI API key required</div>
-          <div className="arena-no-key-sub">Enter your Grok API key above to enable the signal engine. Keys are stored only in your browser localStorage — never sent to any server.</div>
-        </div>
-      )}
 
       {/* Coin selector */}
       <div className="arena-coin-row">
@@ -153,7 +111,7 @@ export default function Arena() {
         ))}
       </div>
 
-      <button className="arena-fire-btn" disabled={loading || !hasKey} onClick={fire}>
+      <button className="arena-fire-btn" disabled={loading} onClick={fire}>
         {loading ? '⚡ Grok is thinking...' : '⚡ Run Grok Signal'}
       </button>
 
