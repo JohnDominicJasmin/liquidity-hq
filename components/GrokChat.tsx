@@ -4,6 +4,7 @@ import {
   useMarket, CoinId, COINS, computeSqueezeScore, classifyFunding,
 } from '@/lib/marketStore';
 import { getPHT, getSessionName } from '@/lib/session';
+import { useNews, GeoEvent } from '@/components/NewsProvider';
 
 const GROK_KEY = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5Bepv2POY4L6EdBULh4GYNCO';
 
@@ -23,6 +24,8 @@ const QUICK = [
 function buildSystemCtx(
   store: ReturnType<typeof useMarket>['store'],
   coin: CoinId,
+  latestHeadlines: string[],
+  geoEvents: GeoEvent[],
 ): string {
   const c  = store.coins[coin];
   const sq = computeSqueezeScore(c);
@@ -63,11 +66,31 @@ function buildSystemCtx(
     line('Exchange net flow', store.btcExchangeNetFlow != null ? (store.btcExchangeNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.btcExchangeNetFlow).toFixed(1) + 'M' : '—'),
     line('Google Trends', store.googleTrendsBtc != null ? store.googleTrendsBtc + '/100' : '—'),
     line('Session', session),
+    '',
+    '=== LIVE NEWS FEED (Finnhub + CryptoPanic) ===',
+    latestHeadlines.length > 0
+      ? latestHeadlines.slice(0, 8).map((h, i) => `${i + 1}. ${h}`).join('\n')
+      : 'No alerts yet — use your live search tools to find latest news.',
+    '',
+    '=== GEOPOLITICAL EVENTS (last 12h) ===',
+    geoEvents.length > 0
+      ? geoEvents.slice(0, 5).map(g => `[${g.tag}] ${g.headline} (${g.timeStr})`).join('\n')
+      : 'None detected locally — search X and web for current war/sanctions/tariff news.',
+    '',
+    '=== SEARCH INSTRUCTIONS ===',
+    'You have web_search and x_search tools. Use them proactively to find:',
+    '1. WHY is BTC/crypto pumping or dumping RIGHT NOW — search "bitcoin price today why" and "crypto market news"',
+    '2. Latest war, conflict, sanctions, or geopolitical news affecting risk assets',
+    '3. Fed, CPI, FOMC, Treasury statements from last 48h',
+    '4. Trump/White House crypto or tariff posts on X in last 48h',
+    '5. Any exchange hacks, large liquidations, whale moves on X',
+    'Always cite the source and timestamp when you find something significant.',
   ].join('\n');
 }
 
 export default function GrokChat() {
   const { store } = useMarket();
+  const { latestHeadlines, geoEvents } = useNews();
   const [open,    setOpen]    = useState(false);
   const [coin,    setCoin]    = useState<CoinId>('btc');
   const [msgs,    setMsgs]    = useState<Msg[]>([]);
@@ -98,7 +121,7 @@ export default function GrokChat() {
     setError('');
 
     try {
-      const sysCtx = buildSystemCtx(store, activeCoin);
+      const sysCtx = buildSystemCtx(store, activeCoin, latestHeadlines, geoEvents);
       const inputArr = [
         { role: 'system', content: sysCtx },
         ...history.map(m => ({ role: m.role, content: m.content })),
@@ -129,7 +152,7 @@ export default function GrokChat() {
     } finally {
       setLoading(false);
     }
-  }, [msgs, coin, store]);
+  }, [msgs, coin, store, latestHeadlines, geoEvents]);
 
   /* listen for open-with-prompt events from Arena */
   useEffect(() => {
