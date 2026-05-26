@@ -1,0 +1,121 @@
+'use client';
+import { useState, useEffect } from 'react';
+import { useMarket, classifyFunding, CoinId } from '@/lib/marketStore';
+import { getPHT, getCurrentWindow, isDead, isLondon, isPrime, isGodTier, isMonEvening } from '@/lib/session';
+
+function calcRPM(fng: number, rpmFunding: 'pos' | 'neg' | 'neu') {
+  const pht = getPHT();
+  const day = pht.getDay();
+  const mins = pht.getHours() * 60 + pht.getMinutes();
+
+  const isSunNight = (day === 0 && mins >= 23 * 60) || (day === 1 && mins < 3 * 60);
+  const isPrimeTm = mins >= 2 * 60 && mins < 5 * 60;
+  const isLondonTm = mins >= 15 * 60 && mins < 18 * 60;
+  const isDeadTm = mins >= 12 * 60 && mins < 15 * 60;
+  const isMondayEve = day === 1 && mins >= 20 * 60 && mins < 23 * 60;
+
+  let timeScore = 0; let timeLabel = '';
+  if (isSunNight) { timeScore = 30; timeLabel = 'God Tier'; }
+  else if (isPrimeTm) { timeScore = 26; timeLabel = 'Prime'; }
+  else if (isMondayEve) { timeScore = 22; timeLabel = 'Mon Evening'; }
+  else if (isLondonTm) { timeScore = 16; timeLabel = 'London Open'; }
+  else if (isDeadTm) { timeScore = 2; timeLabel = 'Dead Zone'; }
+  else { timeScore = 10; timeLabel = 'Off-peak'; }
+
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const dayScores = [15, 14, 11, 10, 9, 4, 12];
+  const dayScore = dayScores[day];
+  const dayLabel = days[day];
+
+  let fngScore = 0; let fngLabel = '';
+  if (fng <= 15) { fngScore = 25; fngLabel = 'Extreme Fear'; }
+  else if (fng <= 30) { fngScore = 22; fngLabel = 'Fear'; }
+  else if (fng <= 45) { fngScore = 18; fngLabel = 'Mild Fear'; }
+  else if (fng <= 55) { fngScore = 12; fngLabel = 'Neutral'; }
+  else if (fng <= 70) { fngScore = 18; fngLabel = 'Greed'; }
+  else if (fng <= 85) { fngScore = 22; fngLabel = 'High Greed'; }
+  else { fngScore = 25; fngLabel = 'Extreme Greed'; }
+
+  let fundScore = 0; let fundLabel = '';
+  if (rpmFunding === 'pos') { fundScore = 30; fundLabel = 'Heavily +ve'; }
+  else if (rpmFunding === 'neg') { fundScore = 30; fundLabel = 'Heavily -ve'; }
+  else { fundScore = 8; fundLabel = 'Neutral'; }
+
+  const total = Math.min(100, Math.max(0, timeScore + dayScore + fngScore + fundScore));
+  let col = 'col-low', barCl = 'bar-low', verdict = '', sub = '';
+  if (total >= 80) { col = 'col-max'; barCl = 'bar-max'; verdict = 'Extreme raid conditions'; sub = 'All signals aligned. Whales are likely positioning RIGHT NOW. Have your cluster zones ready and stay glued to the heatmap.'; }
+  else if (total >= 60) { col = 'col-high'; barCl = 'bar-high'; verdict = 'High raid probability'; sub = 'Strong conditions for a liquidity hunt. Watch for price approaching bright clusters. This is a prime entry window.'; }
+  else if (total >= 40) { col = 'col-med'; barCl = 'bar-med'; verdict = 'Moderate conditions'; sub = 'Some signals are aligned but not ideal. Only trade if a very bright, tight cluster is within 1.5% of price.'; }
+  else { col = 'col-low'; barCl = 'bar-low'; verdict = 'Low raid probability'; sub = 'Conditions are not favourable right now. High chance of choppy fake moves. Best move is to stay in cash and wait.'; }
+
+  return { total, col, barCl, verdict, sub, timeLabel, timeScore, dayLabel, dayScore, fngLabel, fngScore, fundLabel, fundScore };
+}
+
+export default function RaidMeter() {
+  const { store } = useMarket();
+  const { fng, coins, selectedCoin } = store;
+  const coin = coins[selectedCoin];
+  const fundRpm = coin?.fundingRate != null ? classifyFunding(coin.fundingRate).rpm : 'neu';
+  const [manualFund, setManualFund] = useState<'pos' | 'neg' | 'neu' | null>(null);
+  const rpmFunding = manualFund ?? fundRpm;
+
+  const [rpm, setRpm] = useState(() => calcRPM(fng ?? 50, rpmFunding));
+
+  useEffect(() => {
+    setRpm(calcRPM(fng ?? 50, rpmFunding));
+    const t = setInterval(() => setRpm(calcRPM(fng ?? 50, rpmFunding)), 60 * 1000);
+    return () => clearInterval(t);
+  }, [fng, rpmFunding]);
+
+  return (
+    <div className="rpm-wrap" style={{ marginBottom: 10 }}>
+      <div className="rpm-card">
+        <div className="rpm-header">
+          <div className="rpm-title-row">
+            <div className="rpm-pulse" />
+            <div className="rpm-title">Raid Probability Meter</div>
+          </div>
+          <div className="rpm-score-wrap">
+            <div className={`rpm-score ${rpm.col}`}>{rpm.total}</div>
+            <div className="rpm-max">/ 100</div>
+          </div>
+        </div>
+        <div className={`rpm-verdict ${rpm.col}`}>{rpm.verdict}</div>
+        <div className="rpm-sub">{rpm.sub}</div>
+        <div className="rpm-bar-track">
+          <div className={`rpm-bar-fill ${rpm.barCl}`} style={{ width: rpm.total + '%' }} />
+        </div>
+        <div className="rpm-factors">
+          {[
+            { l: 'Session', v: rpm.timeLabel, p: rpm.timeScore },
+            { l: 'Day', v: rpm.dayLabel, p: rpm.dayScore },
+            { l: 'Fear & Greed', v: rpm.fngLabel, p: rpm.fngScore },
+            { l: 'Funding', v: rpm.fundLabel, p: rpm.fundScore },
+          ].map(f => (
+            <div key={f.l} className="rpm-factor">
+              <div className="rpm-factor-label">{f.l}</div>
+              <div className="rpm-factor-row">
+                <div className="rpm-factor-val">{f.v}</div>
+                <div className="rpm-factor-pts">{f.p} pts</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="rpm-funding-row">
+          <div className="rpm-funding-label">Override funding:</div>
+          <div className="rpm-funding-opts">
+            {(['pos', 'neg', 'neu'] as const).map(opt => (
+              <button
+                key={opt}
+                className={`rpm-fopt${rpmFunding === opt ? ` active-${opt}` : ''}`}
+                onClick={() => setManualFund(f => f === opt ? null : opt)}
+              >
+                {opt === 'pos' ? '+ve / Long heavy' : opt === 'neg' ? '-ve / Short heavy' : 'Neutral'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

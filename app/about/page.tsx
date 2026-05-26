@@ -1,0 +1,59 @@
+export default function About() {
+  return (
+    <div>
+      <div style={{ padding: '1rem 0 0.5rem' }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8', marginBottom: 2 }}>About</div>
+        <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>Liquidity Hunter HQ — private trading intelligence tool</div>
+      </div>
+
+      <div className="card">
+        <div className="lbl">What this is</div>
+        <div style={{ fontSize: 13, color: '#a0a0a0', lineHeight: 1.7 }}>
+          A personal crypto trading intelligence tool built around one core belief: the market is a machine for hunting stop losses.
+          This app helps you read the liquidation map, identify the highest-probability raid setups, and time your entries around institutional windows.
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="lbl">Data sources</div>
+        {[
+          ['Prices', 'Binance WebSocket + REST (BTC/ETH/SOL/XRP/BNB/NEAR/ZEC)'],
+          ['HYPE', 'Bybit REST API'],
+          ['Funding & OI', 'Bybit Public API'],
+          ['Long/Short Ratio', 'Bybit Account Ratio'],
+          ['Fear & Greed', 'Alternative.me'],
+          ['BTC Dominance', 'CoinGecko'],
+          ['Breaking News', 'Finnhub WebSocket'],
+          ['Crypto News', 'CryptoPanic (90s poll)'],
+          ['Econ Calendar', 'Finnhub Calendar API'],
+          ['AI Signal', 'xAI Grok-3 (your API key)'],
+        ].map(([k, v]) => (
+          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '0.5px solid rgba(255,255,255,0.05)', fontSize: 12 }}>
+            <span style={{ color: '#606060' }}>{k}</span>
+            <span style={{ color: '#a0a0a0', textAlign: 'right', maxWidth: '60%' }}>{v}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="card">
+        <div className="lbl">How to use</div>
+        <div style={{ fontSize: 13, color: '#a0a0a0', lineHeight: 1.8 }}>
+          1. <strong style={{ color: '#e8e8e8' }}>Open Coinglass</strong> — 24h Model 2. Find the brightest, tightest cluster.<br />
+          2. <strong style={{ color: '#e8e8e8' }}>Check the Raid Meter</strong> — needs at least 60/100 to be worth trading.<br />
+          3. <strong style={{ color: '#e8e8e8' }}>Run the Scanner</strong> — 7-question system. If it says NO, stay flat.<br />
+          4. <strong style={{ color: '#e8e8e8' }}>Check Best Hours</strong> — God Tier or Prime window only.<br />
+          5. <strong style={{ color: '#e8e8e8' }}>Run AI Arena</strong> — Grok confirms news sentiment aligns with setup.<br />
+          6. <strong style={{ color: '#e8e8e8' }}>Enter 0.8–1.5% before the cluster.</strong> Exit the second it touches. Never hold.
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="lbl">Reminder</div>
+        <div className="pbox">
+          <div className="pt">This is a private tool — not financial advice</div>
+          <div className="pb">Built for one trader. No warranties. No signals service. All decisions are yours. The market does not care about your analysis.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
