@@ -11,7 +11,6 @@ const NAV = [
   { path: '/news', icon: '📰', label: 'News' },
   null,
   { path: '/bible', icon: '📖', label: 'Bible' },
-  { path: '/clusters', icon: '🎯', label: 'Clusters' },
   null,
   { path: '/arena', icon: '🤖', label: 'AI Arena' },
   null,

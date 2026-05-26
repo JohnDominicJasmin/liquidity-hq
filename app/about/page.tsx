@@ -26,7 +26,7 @@ export default function About() {
           ['Breaking News', 'Finnhub WebSocket'],
           ['Crypto News', 'CryptoPanic (90s poll)'],
           ['Econ Calendar', 'Finnhub Calendar API'],
-          ['AI Signal', 'xAI Grok-3 (your API key)'],
+          ['AI Signal', 'xAI Grok-4.3'],
         ].map(([k, v]) => (
           <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '0.5px solid rgba(255,255,255,0.05)', fontSize: 12 }}>
             <span style={{ color: '#606060' }}>{k}</span>

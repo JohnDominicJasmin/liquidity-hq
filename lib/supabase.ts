@@ -10,17 +10,6 @@ export function getSupabase(): SupabaseClient | null {
   return _client;
 }
 
-export interface Cluster {
-  id?: number;
-  coin: string;
-  level: number;
-  side: 'above' | 'below';
-  note?: string;
-  status: 'pending' | 'raided' | 'expired';
-  added_at?: string;
-  raided_at?: string | null;
-}
-
 export interface Signal {
   id?: number;
   coin: string;
