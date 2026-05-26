@@ -2,6 +2,7 @@
 import MarketProvider from './MarketProvider';
 import NewsProvider from './NewsProvider';
 import NavDrawer from './NavDrawer';
+import GrokChat from './GrokChat';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -9,6 +10,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <NewsProvider>
         <NavDrawer />
         <div className="app-content">{children}</div>
+        <GrokChat />
       </NewsProvider>
     </MarketProvider>
   );

@@ -337,6 +337,19 @@ export default function Arena() {
         {loading ? '⚡ Grok is thinking...' : '⚡ Run Grok Signal'}
       </button>
 
+      {/* Ask Grok chat button */}
+      <button
+        className="arena-ask-grok-btn"
+        onClick={() => window.dispatchEvent(new CustomEvent('grok-chat', {
+          detail: {
+            coin: selectedCoin,
+            prompt: `Give me a complete analysis of ${selectedCoin.toUpperCase()}/USDT right now. What's the trend, key levels, directional bias, best entry if any, and should I trade or wait?`,
+          },
+        }))}
+      >
+        💬 Ask Grok about {selectedCoin.toUpperCase()}
+      </button>
+
       {loading && (
         <div className="arena-loading">
           <div className="arena-loading-dots">···</div>
