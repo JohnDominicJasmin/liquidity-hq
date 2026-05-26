@@ -47,7 +47,7 @@ export default function NewsFeed() {
           )}
         </div>
         <div style={{ fontSize: 10, color: '#444' }}>
-          {alerts.length} alerts · 5m refresh
+          {alerts.length} alerts · {nySession ? '5m refresh' : '15m refresh'}
         </div>
       </div>
 
@@ -81,6 +81,10 @@ export default function NewsFeed() {
           ))}
         </div>
       )}
+
+      <div style={{ fontSize: 10, color: '#333', marginTop: 10, paddingTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)' }}>
+        Sources: Finnhub WebSocket (real-time) · CryptoPanic free API · Finnhub Calendar &amp; Geo news — classified by keyword. Not Grok API.
+      </div>
     </div>
   );
 }

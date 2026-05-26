@@ -163,15 +163,52 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
   const fetchKlines = useCallback(async (coin: CoinId, sym: string) => {
     try {
-      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=15m&limit=20`);
+      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=15m&limit=22`);
       const klines = await res.json();
-      if (!Array.isArray(klines) || klines.length < 2) return;
-      const vols = klines.map((k: string[]) => parseFloat(k[7]));
+      if (!Array.isArray(klines) || klines.length < 15) return;
+      const closes = klines.map((k: string[]) => parseFloat(k[4]));
+      const vols   = klines.map((k: string[]) => parseFloat(k[7]));
+
+      /* Volume ratio */
       const current = vols[vols.length - 2];
-      const avg = vols.slice(0, -1).reduce((a, b) => a + b, 0) / (vols.length - 1);
-      updateCoin(coin, { volRatio: avg > 0 ? current / avg : 1 });
+      const avg = vols.slice(0, -1).reduce((a: number, b: number) => a + b, 0) / (vols.length - 1);
+
+      /* MA20 */
+      const ma20Slice = closes.slice(-20);
+      const ma20 = ma20Slice.reduce((a: number, b: number) => a + b, 0) / ma20Slice.length;
+
+      /* RSI14 */
+      const changes = closes.slice(1).map((c: number, i: number) => c - closes[i]);
+      const gains   = changes.slice(-14).map((c: number) => Math.max(c, 0));
+      const losses  = changes.slice(-14).map((c: number) => Math.max(-c, 0));
+      const avgGain = gains.reduce((a: number, b: number) => a + b, 0) / 14;
+      const avgLoss = losses.reduce((a: number, b: number) => a + b, 0) / 14;
+      const rsi14   = avgLoss === 0 ? 100 : Math.round(100 - (100 / (1 + avgGain / avgLoss)));
+
+      updateCoin(coin, { volRatio: avg > 0 ? current / avg : 1, ma20, rsi14 });
     } catch { /* */ }
   }, [updateCoin]);
+
+  /* ── Oil + Bond yields ── */
+  const fetchMacro = useCallback(async () => {
+    const proxy = (url: string) => 'https://corsproxy.io/?' + encodeURIComponent(url);
+    try {
+      const [oilRes, bondRes] = await Promise.allSettled([
+        fetch(proxy('https://query1.finance.yahoo.com/v8/finance/chart/CL=F?interval=1d&range=2d'), { cache: 'no-cache' }),
+        fetch(proxy('https://query1.finance.yahoo.com/v8/finance/chart/%5ETNX?interval=1d&range=2d'), { cache: 'no-cache' }),
+      ]);
+      if (oilRes.status === 'fulfilled' && oilRes.value.ok) {
+        const d = await oilRes.value.json();
+        const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
+        if (p) setStore(s => ({ ...s, oilPrice: parseFloat(p) }));
+      }
+      if (bondRes.status === 'fulfilled' && bondRes.value.ok) {
+        const d = await bondRes.value.json();
+        const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
+        if (p) setStore(s => ({ ...s, bonds10y: parseFloat(p) }));
+      }
+    } catch { /* fail silently */ }
+  }, []);
 
   /* ── Fear & Greed ── */
   const fetchFNG = useCallback(async () => {
@@ -221,6 +258,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     fetchVolume();
     fetchFNG();
     fetchBTCDom();
+    fetchMacro();
 
     const intervals = [
       setInterval(fetchBybit, 8 * 60 * 1000),
@@ -228,6 +266,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       setInterval(fetchVolume, 3 * 60 * 1000),
       setInterval(fetchFNG, 24 * 60 * 60 * 1000),
       setInterval(fetchBTCDom, 5 * 60 * 1000),
+      setInterval(fetchMacro, 10 * 60 * 1000),
     ];
 
     return () => {

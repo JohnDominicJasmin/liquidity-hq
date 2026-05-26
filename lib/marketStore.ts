@@ -12,6 +12,8 @@ export interface CoinData {
   volRatio: number | null;
   longRatio: number | null;
   shortRatio: number | null;
+  rsi14: number | null;
+  ma20: number | null;
 }
 
 export type CoinId = 'btc' | 'eth' | 'sol' | 'xrp' | 'bnb' | 'hype' | 'near' | 'zec';
@@ -75,6 +77,8 @@ export type MarketStore = {
   btcDom: number | null;
   wsStatus: string;
   newsCache: string[];
+  oilPrice: number | null;
+  bonds10y: number | null;
 };
 
 export const defaultStore: MarketStore = {
@@ -86,6 +90,8 @@ export const defaultStore: MarketStore = {
   btcDom: null,
   wsStatus: 'Connecting...',
   newsCache: [],
+  oilPrice: null,
+  bonds10y: null,
 };
 
 export const MarketContext = createContext<{

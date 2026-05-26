@@ -6,14 +6,14 @@ import { getPHT, getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
 import { getSupabase } from '@/lib/supabase';
 
-const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype'];
+const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'zec'];
 const GROK_API_KEY = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5Bepv2POY4L6EdBULh4GYNCO';
 
 interface HistItem { signal: string; confidence: number; coin: string; time: string; }
 
 export default function Arena() {
   const { store } = useMarket();
-  const { latestHeadlines } = useNews();
+  const { latestHeadlines, econEvents } = useNews();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>('btc');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GrokResult | null>(null);
@@ -25,7 +25,35 @@ export default function Arena() {
     const coin = store.coins[selectedCoin];
     const pht = getPHT();
     const session = getSessionName(pht);
-    const clusters = '—';
+
+    /* Technicals */
+    const rsi14 = coin?.rsi14 != null
+      ? coin.rsi14.toFixed(1) + (coin.rsi14 >= 70 ? ' (Overbought)' : coin.rsi14 <= 30 ? ' (Oversold)' : ' (Neutral)')
+      : '—';
+    const ma20 = coin?.ma20 != null ? '$' + coin.ma20.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—';
+    const priceVsMA = coin?.price && coin?.ma20
+      ? coin.price > coin.ma20
+        ? 'ABOVE MA20 (+' + ((coin.price / coin.ma20 - 1) * 100).toFixed(2) + '% — bullish)'
+        : 'BELOW MA20 (' + ((coin.price / coin.ma20 - 1) * 100).toFixed(2) + '% — bearish)'
+      : '—';
+    const volRatio = coin?.volRatio != null
+      ? coin.volRatio.toFixed(2) + 'x' + (coin.volRatio >= 1.5 ? ' (spike — confirms move)' : coin.volRatio <= 0.6 ? ' (dry — low conviction)' : ' (normal)')
+      : '—';
+    const longShortRatio = coin?.longRatio != null && coin?.shortRatio != null
+      ? 'Long ' + (coin.longRatio * 100).toFixed(1) + '% / Short ' + (coin.shortRatio * 100).toFixed(1) + '%'
+        + (coin.longRatio > 0.6 ? ' (overleveraged longs — squeeze risk DOWN)' : coin.shortRatio > 0.6 ? ' (overleveraged shorts — squeeze risk UP)' : ' (balanced)')
+      : '—';
+
+    /* Macro */
+    const oilPrice = store.oilPrice != null ? '$' + store.oilPrice.toFixed(2) + '/bbl' : '—';
+    const bonds10y = store.bonds10y != null ? store.bonds10y.toFixed(3) + '%' : '—';
+
+    /* Upcoming events (next 24h) */
+    const upcoming = econEvents
+      .filter(e => e.h < 24)
+      .slice(0, 5)
+      .map(e => `${e.name} (${e.dateStr}, impact: ${e.impact})`)
+      .join('\n') || 'None in next 24h';
 
     return {
       coin: selectedCoin.toUpperCase() + '/USDT',
@@ -36,8 +64,11 @@ export default function Arena() {
       fearGreed: store.fng != null ? store.fng + ' (' + store.fngLabel + ')' : '—',
       btcDominance: store.btcDom != null ? store.btcDom.toFixed(2) + '%' : '—',
       session,
-      clusters,
-      news: latestHeadlines.length > 0 ? latestHeadlines.slice(0, 6).join(' | ') : 'No recent alerts',
+      clusters: '—',
+      news: latestHeadlines.length > 0 ? latestHeadlines.slice(0, 6).join('\n') : 'No recent alerts',
+      rsi14, ma20, priceVsMA, volRatio, longShortRatio,
+      oilPrice, bonds10y,
+      upcomingEvents: upcoming,
     };
   };
 
@@ -46,7 +77,12 @@ export default function Arena() {
     setError('');
     setResult(null);
 
-    const msgs = ['Grok is reading the liquidity map...', 'Analyzing cluster positions...', 'Checking session and macro context...', 'Formulating the hunt thesis...'];
+    const msgs = [
+      'Grok is reading technicals and macro...',
+      'Analyzing derivatives positioning...',
+      'Checking Fed, SEC, oil, bonds context...',
+      'Formulating the hunt thesis...',
+    ];
     let mi = 0;
     setLoadingMsg(msgs[mi]);
     const msgTimer = setInterval(() => { mi = (mi + 1) % msgs.length; setLoadingMsg(msgs[mi]); }, 2000);
@@ -82,7 +118,7 @@ export default function Arena() {
           <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8' }}>AI Arena</div>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>GROK-4.3</span>
         </div>
-        <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>News-based signal engine — LONG / SHORT / FLAT</div>
+        <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>Multi-factor signal engine — technicals + macro + news → LONG / SHORT / FLAT</div>
       </div>
 
       {/* Coin selector */}
@@ -99,10 +135,14 @@ export default function Arena() {
         <div className="arena-context-title">Live context being sent to Grok</div>
         {[
           ['Coin', ctx.coin], ['Price', ctx.price], ['24h Change', ctx.change24h],
+          ['RSI 14', ctx.rsi14], ['MA20 (15m)', ctx.ma20], ['Price vs MA', ctx.priceVsMA],
+          ['Vol Ratio', ctx.volRatio], ['L/S Ratio', ctx.longShortRatio],
           ['Funding', ctx.fundingRate], ['Open Interest', ctx.openInterest],
+          ['Oil (CL=F)', ctx.oilPrice], ['10Y Yield', ctx.bonds10y],
           ['Fear & Greed', ctx.fearGreed], ['BTC Dom', ctx.btcDominance],
           ['Session', ctx.session],
-          ['News feed', ctx.news.slice(0, 80) + (ctx.news.length > 80 ? '…' : '')],
+          ['Upcoming events', ctx.upcomingEvents.split('\n')[0] + (ctx.upcomingEvents.includes('\n') ? ' +more' : '')],
+          ['News feed', ctx.news.split('\n')[0].slice(0, 70) + '…'],
         ].map(([k, v]) => (
           <div key={k} className="arena-context-row">
             <span className="arena-context-key">{k}</span>
