@@ -239,6 +239,34 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     }
   }, []);
 
+  /* ── BTC + ETH Spot ETF Net Flows (SoSoValue) ── */
+  const fetchETF = useCallback(async () => {
+    const proxy = (url: string) => 'https://corsproxy.io/?' + encodeURIComponent(url);
+    try {
+      const [btcRes, ethRes] = await Promise.allSettled([
+        fetch(proxy('https://sosovalue.xyz/api/etf/us-btc-spot?language=en'), { cache: 'no-cache' }),
+        fetch(proxy('https://sosovalue.xyz/api/etf/us-eth-spot?language=en'), { cache: 'no-cache' }),
+      ]);
+      if (btcRes.status === 'fulfilled' && btcRes.value.ok) {
+        const d = await btcRes.value.json();
+        // SoSoValue returns totalNetInflow in $M — try multiple shapes
+        const raw = d?.data?.list?.[0]?.totalNetInflow
+          ?? d?.data?.totalNetInflow
+          ?? d?.list?.[0]?.totalNetInflow
+          ?? d?.totalNetInflow;
+        if (raw != null) setStore(s => ({ ...s, etfNetFlow: parseFloat(String(raw)) }));
+      }
+      if (ethRes.status === 'fulfilled' && ethRes.value.ok) {
+        const d = await ethRes.value.json();
+        const raw = d?.data?.list?.[0]?.totalNetInflow
+          ?? d?.data?.totalNetInflow
+          ?? d?.list?.[0]?.totalNetInflow
+          ?? d?.totalNetInflow;
+        if (raw != null) setStore(s => ({ ...s, ethEtfNetFlow: parseFloat(String(raw)) }));
+      }
+    } catch { /* fail silently */ }
+  }, []);
+
   /* ── BTC Dominance ── */
   const fetchBTCDom = useCallback(async () => {
     try {
@@ -259,6 +287,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     fetchFNG();
     fetchBTCDom();
     fetchMacro();
+    fetchETF();
 
     const intervals = [
       setInterval(fetchBybit, 8 * 60 * 1000),
@@ -267,6 +296,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       setInterval(fetchFNG, 24 * 60 * 60 * 1000),
       setInterval(fetchBTCDom, 5 * 60 * 1000),
       setInterval(fetchMacro, 10 * 60 * 1000),
+      setInterval(fetchETF, 30 * 60 * 1000),
     ];
 
     return () => {

@@ -55,6 +55,17 @@ export default function Arena() {
       .map(e => `${e.name} (${e.dateStr}, impact: ${e.impact})`)
       .join('\n') || 'None in next 24h';
 
+    /* ETF flows */
+    const fmtFlow = (v: number | null, asset: string) => {
+      if (v == null) return null;
+      const sign = v >= 0 ? '+' : '';
+      const tag = v > 200 ? ' (strong inflow)' : v > 0 ? ' (inflow)' : v < -200 ? ' (heavy outflow)' : ' (outflow)';
+      return `${asset} ${sign}$${Math.abs(v).toFixed(0)}M${tag}`;
+    };
+    const btcFlow = fmtFlow(store.etfNetFlow, 'BTC ETF');
+    const ethFlow = fmtFlow(store.ethEtfNetFlow, 'ETH ETF');
+    const etfFlows = [btcFlow, ethFlow].filter(Boolean).join(' | ') || 'Grok will search live';
+
     return {
       coin: selectedCoin.toUpperCase() + '/USDT',
       price: coin?.price ? '$' + coin.price.toLocaleString() : '—',
@@ -69,6 +80,7 @@ export default function Arena() {
       rsi14, ma20, priceVsMA, volRatio, longShortRatio,
       oilPrice, bonds10y,
       upcomingEvents: upcoming,
+      etfFlows,
     };
   };
 
@@ -79,8 +91,8 @@ export default function Arena() {
 
     const msgs = [
       'Grok is reading technicals and macro...',
-      'Analyzing derivatives positioning...',
-      'Checking Fed, SEC, oil, bonds context...',
+      'Searching X for Trump posts & crypto news...',
+      'Checking ETF flows, Fed, SEC, oil, bonds...',
       'Formulating the hunt thesis...',
     ];
     let mi = 0;
@@ -116,7 +128,7 @@ export default function Arena() {
       <div style={{ padding: '1rem 0 0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
           <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8' }}>AI Arena</div>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>GROK-4.3</span>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>GROK-4.3 + LIVE X</span>
         </div>
         <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>Multi-factor signal engine — technicals + macro + news → LONG / SHORT / FLAT</div>
       </div>
@@ -140,6 +152,8 @@ export default function Arena() {
           ['Funding', ctx.fundingRate], ['Open Interest', ctx.openInterest],
           ['Oil (CL=F)', ctx.oilPrice], ['10Y Yield', ctx.bonds10y],
           ['Fear & Greed', ctx.fearGreed], ['BTC Dom', ctx.btcDominance],
+          ['ETF Flows', ctx.etfFlows],
+          ['X / Social', 'Grok searches X live (Trump, SEC, Fed)'],
           ['Session', ctx.session],
           ['Upcoming events', ctx.upcomingEvents.split('\n')[0] + (ctx.upcomingEvents.includes('\n') ? ' +more' : '')],
           ['News feed', ctx.news.split('\n')[0].slice(0, 70) + '…'],

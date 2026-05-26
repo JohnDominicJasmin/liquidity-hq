@@ -20,6 +20,8 @@ export interface GrokContext {
   bonds10y: string;
   /* upcoming events */
   upcomingEvents: string;
+  /* ETF flows */
+  etfFlows: string;
 }
 
 export interface GrokResult {
@@ -58,17 +60,31 @@ export function buildPrompt(ctx: GrokContext): string {
     '=== LIVE NEWS FEED (last 6 alerts — Finnhub WS + CryptoPanic) ===',
     ctx.news,
     '',
+    '=== BTC + ETH SPOT ETF FLOWS ===',
+    ctx.etfFlows,
+    '(Positive net flow = institutional inflows = demand. Negative = outflows = distribution/de-risking.)',
+    '',
     '=== SESSION ===',
     `Current session: ${ctx.session}`,
     '',
-    '=== YOUR TASK ===',
-    'Analyze ALL signals above as an elite trader would. Consider:',
+    '=== LIVE SEARCH TASK ===',
+    'Use your live X and web search to find RIGHT NOW:',
+    '1. Any posts from @realDonaldTrump or @WhiteHouse mentioning Bitcoin, crypto, tariffs, the Fed, or interest rates.',
+    '2. Any SEC, CFTC, Treasury, or Federal Reserve statements or rulings on crypto from the last 48h.',
+    '3. Latest BTC and ETH spot ETF flow updates (IBIT, FBTC, ARKB, BITB, ETHA, FETH, EZET).',
+    '4. Any executive orders, Congressional crypto bills, or US regulatory announcements.',
+    '5. Any major exchange news (Binance, Coinbase, Bybit hacks, listings, delistings, regulatory actions).',
+    '',
+    '=== YOUR ANALYSIS TASK ===',
+    'Synthesize ALL data above as an elite trader would. Consider:',
     '1. TECHNICALS: RSI overbought/oversold, price above/below MA20, volume confirmation',
     '2. DERIVATIVES: Funding rate direction bias, OI changes, long/short imbalance',
     '3. MACRO: Oil price direction (risk-on/off signal), bond yields (rising = risk-off), BTC dominance',
-    '4. NEWS: Fed/FOMC statements, SEC rulings, inflation prints (CPI/PPI), geopolitical risk, crypto-specific catalysts (ETF flows, regulatory clarity like FIT21/Clarity Act, exchange news)',
-    '5. SENTIMENT: Fear & Greed extreme readings as contrarian signals',
-    '6. SESSION: NY session (high liquidity) vs Asia/London',
+    '4. ETF FLOWS: Net inflows = institutional accumulation (bullish). Net outflows = distribution (bearish). Large flows can drive 3–8% moves.',
+    '5. NEWS & SOCIAL: Fed/FOMC statements, SEC rulings, inflation prints (CPI/PPI), geopolitical risk',
+    '6. TRUMP/WHITE HOUSE: Presidential posts or executive orders about crypto cause immediate 5–15% swings. Rate policy signals affect risk appetite.',
+    '7. SENTIMENT: Fear & Greed extreme readings as contrarian signals',
+    '8. SESSION: NY session (high liquidity) vs Asia/London',
     '',
     'Output in EXACTLY this format — no extra text before or after:',
     'SIGNAL: [LONG or SHORT or FLAT]',
@@ -101,7 +117,16 @@ export async function callGrok(apiKey: string, prompt: string): Promise<GrokResu
     },
     body: JSON.stringify({
       model: 'grok-4.3',
-      max_tokens: 1200,
+      max_tokens: 1500,
+      search_parameters: {
+        mode: 'on',
+        sources: [
+          { type: 'x' },
+          { type: 'news' },
+          { type: 'web' },
+        ],
+        return_citations: false,
+      },
       messages: [{ role: 'user', content: prompt }],
     }),
   });

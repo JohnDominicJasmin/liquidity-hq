@@ -79,6 +79,8 @@ export type MarketStore = {
   newsCache: string[];
   oilPrice: number | null;
   bonds10y: number | null;
+  etfNetFlow: number | null;   // BTC spot ETF total net flow today in $M
+  ethEtfNetFlow: number | null; // ETH spot ETF total net flow today in $M
 };
 
 export const defaultStore: MarketStore = {
@@ -92,6 +94,8 @@ export const defaultStore: MarketStore = {
   newsCache: [],
   oilPrice: null,
   bonds10y: null,
+  etfNetFlow: null,
+  ethEtfNetFlow: null,
 };
 
 export const MarketContext = createContext<{
