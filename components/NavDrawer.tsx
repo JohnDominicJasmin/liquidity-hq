@@ -2,12 +2,13 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useNews } from './NewsProvider';
+import { useMarket } from '@/lib/marketStore';
 
 const NAV = [
   { path: '/', icon: '📊', label: 'Dashboard' },
-  { path: '/scanner', icon: '🔍', label: 'Trade Scanner' },
+  { path: '/scanner', icon: '🔍', label: 'Scanner' },
   { path: '/hours', icon: '🕐', label: 'Best Hours' },
+  { path: '/news', icon: '📰', label: 'News' },
   null,
   { path: '/bible', icon: '📖', label: 'Bible' },
   { path: '/clusters', icon: '🎯', label: 'Clusters' },
@@ -17,19 +18,46 @@ const NAV = [
   { path: '/about', icon: 'ℹ️', label: 'About' },
 ];
 
+// Desktop nav excludes dividers and About
+const DESKTOP_NAV = NAV.filter(Boolean) as NonNullable<typeof NAV[0]>[];
+
+function useStatusDot() {
+  const { store } = useMarket();
+  const ws = store.wsStatus;
+  if (!ws || ws === 'Connecting...') return { cls: 'dot-connecting', title: 'Connecting…' };
+  if (ws.includes('WebSocket')) return { cls: 'dot-live', title: 'Live · Binance WebSocket' };
+  if (ws.includes('REST')) return { cls: 'dot-rest', title: 'Live via REST fallback' };
+  return { cls: 'dot-error', title: 'Connection error' };
+}
+
 export default function NavDrawer() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-  const { newsActive } = useNews();
+  const dot = useStatusDot();
 
   return (
     <>
       <div className="app-bar">
         <div className="app-bar-inner">
-          <div className="app-logo" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Link href="/" className="app-logo" style={{ display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}>
             Liquidity<span>HQ</span>
-            <div className={`news-dot${newsActive ? ' active' : ''}`} title="Breaking news" />
-          </div>
+            <span className={`status-dot ${dot.cls}`} title={dot.title} />
+          </Link>
+
+          {/* Desktop nav — hidden on mobile */}
+          <nav className="desktop-nav">
+            {DESKTOP_NAV.map(item => (
+              <Link
+                key={item.path}
+                href={item.path}
+                className={`desktop-nav-item${pathname === item.path ? ' on' : ''}`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          {/* Hamburger — mobile only */}
           <div className={`hamburger${open ? ' open' : ''}`} onClick={() => setOpen(v => !v)}>
             <div className="ham-line" />
             <div className="ham-line" />
@@ -38,6 +66,7 @@ export default function NavDrawer() {
         </div>
       </div>
 
+      {/* Mobile drawer */}
       <div className={`nav-drawer${open ? ' open' : ''}`}>
         <div className="nav-overlay" onClick={() => setOpen(false)} />
         <div className="nav-menu">

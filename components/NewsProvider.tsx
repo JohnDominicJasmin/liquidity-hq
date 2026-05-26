@@ -236,14 +236,26 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     fetchGeoEvents();
     pollCryptoPanic();
 
+    /* CryptoPanic: every 5 min during NY session (8PM–7AM PHT), every 15 min otherwise */
+    const cpInterval = () => {
+      const pht = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+      const h = pht.getHours();
+      return (h >= 20 || h < 7) ? 5 * 60 * 1000 : 15 * 60 * 1000;
+    };
+    let cpTimer: ReturnType<typeof setTimeout>;
+    const scheduleCryptoPanic = () => {
+      cpTimer = setTimeout(() => { pollCryptoPanic(); scheduleCryptoPanic(); }, cpInterval());
+    };
+    scheduleCryptoPanic();
+
     const intervals = [
       setInterval(fetchEconEvents, 60 * 60 * 1000),
       setInterval(fetchGeoEvents, 15 * 60 * 1000),
-      setInterval(pollCryptoPanic, 90 * 1000),
     ];
 
     return () => {
       intervals.forEach(clearInterval);
+      clearTimeout(cpTimer);
       newsWSRef.current?.close();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
