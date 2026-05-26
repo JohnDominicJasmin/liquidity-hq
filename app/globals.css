@@ -633,6 +633,75 @@ body {
 .sig-undo-btn { background: #202020; color: #a0a0a0; border-color: rgba(255,255,255,0.14); }
 .sig-undo-btn:hover { color: #e8e8e8; }
 
+/* ── NEWS TABS ── */
+.ntab-bar {
+  display: flex; gap: 6px; overflow-x: auto; margin-bottom: 14px;
+  scrollbar-width: none; padding-bottom: 2px;
+}
+.ntab-bar::-webkit-scrollbar { display: none; }
+.ntab-btn {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 600; padding: 7px 14px; border-radius: 20px; flex-shrink: 0;
+  border: 0.5px solid rgba(255,255,255,0.1); background: #1a1a1a; color: #606060;
+  cursor: pointer; white-space: nowrap; transition: all 0.15s;
+  box-shadow: var(--nm-raise-sm);
+}
+.ntab-btn:hover { color: #a0a0a0; border-color: rgba(255,255,255,0.2); }
+.ntab-btn.on { background: #252040; color: #b8aeff; border-color: #4a3f80; box-shadow: var(--nm-inset); }
+.ntab-count {
+  font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 10px;
+  background: #ff9a92; color: #1a0000; line-height: 1.4;
+}
+
+/* ── NEWS FEED CARDS ── */
+.nfeed { display: flex; flex-direction: column; gap: 10px; }
+.nfeed-empty {
+  text-align: center; padding: 3rem 1rem; display: flex; flex-direction: column; align-items: center;
+}
+.ncard {
+  border: 0.5px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 12px 14px;
+  transition: border-color 0.15s;
+}
+.ncard-catalyst {
+  border-left: 3px solid;
+  box-shadow: var(--nm-raise);
+}
+.ncard-top {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px;
+}
+.ncard-type-badge {
+  font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 4px; border: 0.5px solid;
+  letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; flex-shrink: 0;
+}
+.ncard-meta { font-size: 10px; color: #444; white-space: nowrap; }
+.ncard-dot  { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.ncard-geo-tag {
+  font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 4px;
+  background: rgba(255,154,146,0.12); color: #ff9a92; border: 0.5px solid #662222;
+  letter-spacing: .04em; text-transform: uppercase;
+}
+.ncard-headline {
+  font-size: 13px; font-weight: 600; color: #e0e0e0; line-height: 1.5; margin-bottom: 0;
+}
+.ncard-catalyst .ncard-headline { font-size: 14px; margin-bottom: 10px; }
+.ncard-impact {
+  display: flex; gap: 8px; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px;
+}
+.ncard-impact-icon { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+.ncard-impact-text { font-size: 11px; color: #a0a0a0; line-height: 1.5; }
+.ncard-ask-btn {
+  font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 8px; cursor: pointer;
+  background: rgba(184,174,255,0.08); color: #b8aeff; border: 0.5px solid #4a3f80;
+  transition: all 0.12s; letter-spacing: .03em;
+}
+.ncard-ask-btn:hover { background: rgba(184,174,255,0.16); }
+.ncard-ask-sm {
+  font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 6px; cursor: pointer;
+  background: rgba(184,174,255,0.06); color: #8b80d0; border: 0.5px solid rgba(184,174,255,0.2);
+  transition: all 0.12s;
+}
+.ncard-ask-sm:hover { color: #b8aeff; border-color: #4a3f80; }
+
 /* ── ARENA ASK BUTTON ── */
 .arena-ask-grok-btn {
   width: 100%; padding: 10px; border-radius: 10px; margin-bottom: 14px;
