@@ -168,7 +168,8 @@ export function parseResponse(text: string): GrokResult {
 }
 
 export async function callGrok(apiKey: string, prompt: string): Promise<GrokResult> {
-  const res = await fetch('https://api.x.ai/v1/chat/completions', {
+  // xAI Responses API — search_parameters deprecated, use tools array
+  const res = await fetch('https://api.x.ai/v1/responses', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -176,15 +177,20 @@ export async function callGrok(apiKey: string, prompt: string): Promise<GrokResu
     },
     body: JSON.stringify({
       model: 'grok-4.3',
-      max_tokens: 2000,
-      search_parameters: {
-        mode: 'on',
-      },
-      messages: [{ role: 'user', content: prompt }],
+      input: [{ role: 'user', content: prompt }],
+      tools: [
+        { type: 'web_search' },
+        { type: 'x_search' },
+      ],
     }),
   });
-  if (!res.ok) throw new Error(`Grok API error: ${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => ({}));
+    throw new Error(`Grok API error: ${res.status} — ${errJson?.error ?? res.statusText}`);
+  }
   const data = await res.json();
-  const text = data.choices?.[0]?.message?.content || '';
+  // Response format: data.output[] — find the message item, grab first text content
+  const msgItem = data.output?.find((o: { type: string }) => o.type === 'message');
+  const text: string = msgItem?.content?.[0]?.text ?? '';
   return parseResponse(text);
 }
