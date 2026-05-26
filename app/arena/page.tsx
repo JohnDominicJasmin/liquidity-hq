@@ -251,7 +251,7 @@ export default function Arena() {
       <div style={{ padding: '1rem 0 0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
           <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8' }}>AI Arena</div>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>GROK-3 + LIVE X</span>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>GROK-4.3 + LIVE X</span>
         </div>
         <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>29-signal engine — technicals · derivatives · options · macro · ETF · on-chain · social → LONG / SHORT / FLAT</div>
       </div>

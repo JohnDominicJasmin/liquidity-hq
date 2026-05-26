@@ -175,16 +175,10 @@ export async function callGrok(apiKey: string, prompt: string): Promise<GrokResu
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'grok-3',
+      model: 'grok-4.3',
       max_tokens: 2000,
       search_parameters: {
         mode: 'on',
-        sources: [
-          { type: 'x' },
-          { type: 'news' },
-          { type: 'web' },
-        ],
-        return_citations: false,
       },
       messages: [{ role: 'user', content: prompt }],
     }),
