@@ -4,10 +4,9 @@ import { useMarket, CoinId } from '@/lib/marketStore';
 
 const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'zec'];
 
-/* ─── Leverage tiers ─────────────────────────────────────────────────────────
-   dist  = % move from entry that triggers liquidation at this leverage
-   weight = rough fraction of total OI sitting at this leverage tier
-   Source: observed retail distribution on Binance/Bybit
+/* ─── All leverage tiers ─────────────────────────────────────────────────────
+   dist   = % drop/pump from entry that triggers liquidation at this leverage
+   w      = rough fraction of total OI sitting at this leverage tier
    ─────────────────────────────────────────────────────────────────────────── */
 const TIERS = [
   { lev: 100, dist: 0.010, w: 0.08 },
@@ -20,33 +19,55 @@ const TIERS = [
   { lev: 3,   dist: 0.330, w: 0.08 },
 ];
 
+/* ─── Time range config ──────────────────────────────────────────────────────
+   maxDist = maximum price-distance shown (filters which tiers are visible)
+   Each range shows tiers that are realistically reachable in that window
+   ─────────────────────────────────────────────────────────────────────────── */
+type TimeRange = '12h' | '24h' | '48h' | '3d' | '1w';
+
+const RANGES: {
+  key: TimeRange;
+  label: string;
+  maxDist: number;   // show tiers up to this % away from current price
+  hint: string;
+}[] = [
+  { key: '12h', label: '12h',    maxDist: 0.05,  hint: 'Scalp targets · ±5% price range · high-leverage clusters only' },
+  { key: '24h', label: '24h',    maxDist: 0.10,  hint: 'Day trade targets · ±10% price range' },
+  { key: '48h', label: '48h',    maxDist: 0.15,  hint: '2-day swing targets · ±15% price range' },
+  { key: '3d',  label: '3 days', maxDist: 0.25,  hint: 'Multi-day swing · ±25% price range' },
+  { key: '1w',  label: '1 week', maxDist: 0.35,  hint: 'Full weekly exposure · all 8 leverage tiers' },
+];
+
 interface Band {
   price:    number;
   distPct:  number;
-  usdM:     number;   // estimated $M liquidated if price reaches this level
+  usdM:     number;
   lev:      string;
   side:     'long' | 'short';
-  barPct:   number;   // 0-100 for bar rendering
-  isMagnet: boolean;  // nearest dense cluster
+  barPct:   number;
+  isMagnet: boolean;
 }
 
 /* ─── Core computation ─────────────────────────────────────────────────────── */
 function computeBands(
-  price:  number,
-  oi:     number,
-  longR:  number,
-  shortR: number,
+  price:   number,
+  oi:      number,
+  longR:   number,
+  shortR:  number,
+  maxDist: number,          // from selected time range
 ): {
   longs:         Band[];
-  shortsDisplay: Band[];   // ordered farthest→closest for top-to-bottom layout
+  shortsDisplay: Band[];
   magnetLong:    Band | null;
   magnetShort:   Band | null;
   totalLongM:    number;
   totalShortM:   number;
+  tierCount:     number;
 } {
   const oiM = oi / 1e6;
+  const activeTiers = TIERS.filter(t => t.dist <= maxDist);
 
-  const longs: Band[] = TIERS.map(t => ({
+  const longs: Band[] = activeTiers.map(t => ({
     price:    price * (1 - t.dist),
     distPct:  t.dist * 100,
     usdM:     oiM * longR * t.w,
@@ -56,7 +77,7 @@ function computeBands(
     isMagnet: false,
   }));
 
-  const shorts: Band[] = TIERS.map(t => ({
+  const shorts: Band[] = activeTiers.map(t => ({
     price:    price * (1 + t.dist),
     distPct:  t.dist * 100,
     usdM:     oiM * shortR * t.w,
@@ -66,23 +87,24 @@ function computeBands(
     isMagnet: false,
   }));
 
-  // Normalise bar widths relative to the global max
+  // Normalise bar widths against the global max for this range
   const maxUSD = Math.max(...longs.map(b => b.usdM), ...shorts.map(b => b.usdM), 1);
   [...longs, ...shorts].forEach(b => { b.barPct = (b.usdM / maxUSD) * 100; });
 
-  // Magnet = nearest high-density cluster within 10% of current price
-  const nearL = longs.filter(b => b.distPct <= 10).sort((a, b) => b.usdM - a.usdM)[0] ?? null;
-  const nearS = shorts.filter(b => b.distPct <= 10).sort((a, b) => b.usdM - a.usdM)[0] ?? null;
-  if (nearL) nearL.isMagnet = true;
-  if (nearS) nearS.isMagnet = true;
+  // Magnet = largest cluster (by $ at risk) per side within the visible range
+  const magnetLong  = longs.length  ? [...longs].sort((a, b)  => b.usdM - a.usdM)[0]  : null;
+  const magnetShort = shorts.length ? [...shorts].sort((a, b) => b.usdM - a.usdM)[0] : null;
+  if (magnetLong)  magnetLong.isMagnet  = true;
+  if (magnetShort) magnetShort.isMagnet = true;
 
   return {
     longs,
-    shortsDisplay:  [...shorts].reverse(), // farthest first → closest is nearest to current price line
-    magnetLong:     nearL,
-    magnetShort:    nearS,
-    totalLongM:     longs.reduce((s, b) => s + b.usdM, 0),
+    shortsDisplay:  [...shorts].reverse(),   // farthest first → closest nearest to price bar
+    magnetLong,
+    magnetShort,
+    totalLongM:     longs.reduce((s, b)  => s + b.usdM, 0),
     totalShortM:    shorts.reduce((s, b) => s + b.usdM, 0),
+    tierCount:      activeTiers.length,
   };
 }
 
@@ -109,11 +131,12 @@ function BandRow({ b }: { b: Band }) {
   return (
     <div className={`liq-row${b.isMagnet ? ' liq-row-magnet' : ''}`}>
       <span className="liq-row-price">{fmtP(b.price)}</span>
-
+      <span className="liq-row-dist" style={{ color: '#444' }}>
+        {b.distPct < 1 ? b.distPct.toFixed(1) : Math.round(b.distPct)}%
+      </span>
       <span className="liq-row-lev" style={{ color: accent }}>
         {b.lev}{b.isMagnet ? ' 🧲' : ''}
       </span>
-
       <div className="liq-row-bar-wrap">
         <div
           className="liq-row-bar"
@@ -124,7 +147,6 @@ function BandRow({ b }: { b: Band }) {
           }}
         />
       </div>
-
       <span className="liq-row-usd" style={{ color: accent }}>{fmtM(b.usdM)}</span>
     </div>
   );
@@ -132,23 +154,34 @@ function BandRow({ b }: { b: Band }) {
 
 /* ─── Page ──────────────────────────────────────────────────────────────────── */
 export default function LiqPage() {
-  const { store }  = useMarket();
-  const [coin, setCoin] = useState<CoinId>('btc');
+  const { store } = useMarket();
+  const [coin, setCoin]   = useState<CoinId>('btc');
+  const [range, setRange] = useState<TimeRange>('24h');
   const cd = store.coins[coin];
+
+  const rangeConf = RANGES.find(r => r.key === range)!;
 
   const bands = useMemo(() => {
     if (!cd?.price || !cd?.oi) return null;
-    return computeBands(cd.price, cd.oi, cd.longRatio ?? 0.5, cd.shortRatio ?? 0.5);
-  }, [cd?.price, cd?.oi, cd?.longRatio, cd?.shortRatio]);
+    return computeBands(
+      cd.price, cd.oi,
+      cd.longRatio ?? 0.5, cd.shortRatio ?? 0.5,
+      rangeConf.maxDist,
+    );
+  }, [cd?.price, cd?.oi, cd?.longRatio, cd?.shortRatio, rangeConf.maxDist]);
 
-  /* Bias: which side has more $ at risk — tells you who whales will hunt */
+  /* Bias: which side whales are incentivised to raid */
   const bias = bands
     ? bands.totalLongM > bands.totalShortM * 1.15
       ? { txt: 'Long-heavy', sub: 'More long liq below — whales incentivised to dump', col: '#f87171' }
       : bands.totalShortM > bands.totalLongM * 1.15
       ? { txt: 'Short-heavy', sub: 'More short liq above — whales incentivised to pump', col: '#34d399' }
-      : { txt: 'Balanced', sub: 'Roughly equal long/short liq risk on both sides', col: '#606060' }
+      : { txt: 'Balanced', sub: 'Roughly equal liq risk on both sides', col: '#606060' }
     : null;
+
+  /* Price range bounds for the selected time window */
+  const priceLow  = cd?.price ? fmtP(cd.price * (1 - rangeConf.maxDist)) : '—';
+  const priceHigh = cd?.price ? fmtP(cd.price * (1 + rangeConf.maxDist)) : '—';
 
   return (
     <div>
@@ -163,7 +196,7 @@ export default function LiqPage() {
       </div>
 
       {/* Coin selector */}
-      <div className="arena-coin-row" style={{ marginBottom: 14 }}>
+      <div className="arena-coin-row" style={{ marginBottom: 12 }}>
         {COINS.map(c => (
           <button
             key={c}
@@ -175,6 +208,27 @@ export default function LiqPage() {
         ))}
       </div>
 
+      {/* ── Time range selector ── */}
+      <div className="liq-range-row">
+        {RANGES.map(r => (
+          <button
+            key={r.key}
+            className={`liq-range-btn${range === r.key ? ' on' : ''}`}
+            onClick={() => setRange(r.key)}
+          >
+            {r.label}
+          </button>
+        ))}
+      </div>
+      <div className="liq-range-hint">
+        {rangeConf.hint}
+        {cd?.price && (
+          <span style={{ color: '#555', marginLeft: 8 }}>
+            · {priceLow} – {priceHigh}
+          </span>
+        )}
+      </div>
+
       {/* Loading / no-data states */}
       {!cd?.price && (
         <div className="card" style={{ textAlign: 'center', color: '#444', padding: '2rem' }}>
@@ -183,7 +237,7 @@ export default function LiqPage() {
       )}
       {cd?.price && !cd?.oi && (
         <div className="card" style={{ textAlign: 'center', color: '#444', padding: '2rem' }}>
-          No open interest data available for {coin.toUpperCase()}
+          No open interest data for {coin.toUpperCase()}
         </div>
       )}
 
@@ -197,6 +251,14 @@ export default function LiqPage() {
               <div className="liq-stat-sub">
                 L/S: {((cd.longRatio ?? 0.5) * 100).toFixed(0)}% / {((cd.shortRatio ?? 0.5) * 100).toFixed(0)}%
               </div>
+            </div>
+            <div className="liq-stat-sep" />
+            <div className="liq-stat-item" style={{ textAlign: 'center' }}>
+              <div className="liq-stat-label" style={{ textAlign: 'center' }}>Tiers shown</div>
+              <div className="liq-stat-val" style={{ color: '#a78bfa', textAlign: 'center' }}>
+                {bands.tierCount}<span style={{ fontSize: 11, color: '#444', fontWeight: 500 }}>/8</span>
+              </div>
+              <div className="liq-stat-sub" style={{ textAlign: 'center' }}>{range} window</div>
             </div>
             <div className="liq-stat-sep" />
             <div className="liq-stat-item" style={{ textAlign: 'right' }}>
@@ -223,11 +285,14 @@ export default function LiqPage() {
             <div className="liq-magnet-box">
               <span style={{ fontSize: 20, flexShrink: 0 }}>🧲</span>
               <div>
-                <div className="liq-magnet-box-title">Nearest Liquidity Magnets</div>
+                <div className="liq-magnet-box-title">
+                  Largest Clusters · {rangeConf.label} window
+                </div>
                 <div className="liq-magnet-box-body">
                   {bands.magnetShort && (
                     <span style={{ color: '#34d399' }}>
-                      Short squeeze {fmtP(bands.magnetShort.price)} (+{bands.magnetShort.distPct.toFixed(1)}%, {fmtM(bands.magnetShort.usdM)} at risk)
+                      Short squeeze {fmtP(bands.magnetShort.price)}{' '}
+                      (+{bands.magnetShort.distPct.toFixed(1)}%, {fmtM(bands.magnetShort.usdM)} at risk)
                     </span>
                   )}
                   {bands.magnetLong && bands.magnetShort && (
@@ -235,7 +300,8 @@ export default function LiqPage() {
                   )}
                   {bands.magnetLong && (
                     <span style={{ color: '#f87171' }}>
-                      Long wipeout {fmtP(bands.magnetLong.price)} (-{bands.magnetLong.distPct.toFixed(1)}%, {fmtM(bands.magnetLong.usdM)} at risk)
+                      Long wipeout {fmtP(bands.magnetLong.price)}{' '}
+                      (-{bands.magnetLong.distPct.toFixed(1)}%, {fmtM(bands.magnetLong.usdM)} at risk)
                     </span>
                   )}
                 </div>
@@ -243,14 +309,26 @@ export default function LiqPage() {
             </div>
           )}
 
-          {/* ── Main heatmap ─────────────────────────────── */}
+          {/* ── Main heatmap ─────────────────────────────────────── */}
           <div className="liq-card">
 
-            {/* Short squeeze section — top (farthest first) */}
+            {/* Short squeeze section — farthest first, closest nearest to price bar */}
             <div className="liq-section-hdr liq-section-hdr-short">
               <span>↑ SHORT SQUEEZE ZONES</span>
-              <span className="liq-section-sub">price pumps → shorts get force-closed</span>
+              <span className="liq-section-sub">
+                price pumps → shorts get force-closed · {rangeConf.label}
+              </span>
             </div>
+
+            {/* Column headers */}
+            <div className="liq-col-hdr">
+              <span>Price</span>
+              <span>Away</span>
+              <span>Lev</span>
+              <span style={{ flex: 1 }}>Liq density</span>
+              <span>Est. $</span>
+            </div>
+
             {bands.shortsDisplay.map((b, i) => <BandRow key={`s${i}`} b={b} />)}
 
             {/* Current price bar */}
@@ -266,10 +344,12 @@ export default function LiqPage() {
               <span className="liq-current-oi">{fmtM(cd.oi / 1e6)} OI</span>
             </div>
 
-            {/* Long liq section — bottom (closest first) */}
+            {/* Long liq section — closest first */}
             <div className="liq-section-hdr liq-section-hdr-long">
               <span>↓ LONG LIQUIDATION ZONES</span>
-              <span className="liq-section-sub">price dumps → longs get force-closed</span>
+              <span className="liq-section-sub">
+                price dumps → longs get force-closed · {rangeConf.label}
+              </span>
             </div>
             {bands.longs.map((b, i) => <BandRow key={`l${i}`} b={b} />)}
 
@@ -283,7 +363,7 @@ export default function LiqPage() {
               <span>
                 <strong style={{ color: '#34d399' }}>Short Squeeze Zones</strong>{' '}
                 — price levels above current where short positions get force-closed.
-                Whales can push price UP into these to trigger a cascade of buy orders.
+                Whales push price UP into these to trigger a cascade of buy orders.
               </span>
             </div>
             <div className="liq-howto-row">
@@ -291,31 +371,30 @@ export default function LiqPage() {
               <span>
                 <strong style={{ color: '#f87171' }}>Long Liq Zones</strong>{' '}
                 — price levels below current where long positions get force-closed.
-                Whales dump DOWN into these to sweep stop-losses, then buy cheaper.
+                Whales dump DOWN into these to sweep stops, then buy cheaper.
               </span>
             </div>
             <div className="liq-howto-row">
               <span style={{ flexShrink: 0 }}>🧲</span>
               <span>
                 <strong>Magnet</strong>{' '}
-                — nearest dense cluster within ±10%. Price is most likely to be pulled
-                here on the next big move. Use as your raid target.
+                — largest $ cluster in the selected window. Price is most likely pulled
+                here first. Use as your raid target.
               </span>
             </div>
             <div className="liq-howto-row">
-              <span style={{ flexShrink: 0 }}>📏</span>
+              <span style={{ flexShrink: 0 }}>🕐</span>
               <span>
-                <strong>Bar width</strong>{' '}
-                — relative dollar value at risk. Wider = more $ gets liquidated
-                if price reaches that level = stronger magnet effect.
+                <strong>Time range</strong>{' '}
+                — narrows or widens the price window. 12h shows only tight high-leverage
+                clusters (100x–20x, ±5%). 1 week shows all 8 tiers across ±35%.
               </span>
             </div>
           </div>
 
           <div className="liq-disclaimer">
-            ⚠️ Estimated from live OI × leverage tier weights (100x → 3x). Long/short split from
-            Binance L/S ratio. Wider bars = more money at risk = stronger price magnet.
-            For exact data use Coinglass Liquidation Heatmap.
+            ⚠️ Estimated from live OI × leverage tier weights. Long/short split from Binance L/S ratio.
+            Wider bars = more $ at risk = stronger price magnet. For exact data use Coinglass.
           </div>
         </>
       )}
