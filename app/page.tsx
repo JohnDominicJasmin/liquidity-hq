@@ -1,5 +1,5 @@
 'use client';
-import { useMarket, COINS, BYBIT_SYMS, COIN_DEC, fmtPrice } from '@/lib/marketStore';
+import { useMarket, COINS, BYBIT_SYMS, COIN_DEC, fmtPrice, fmtChg, fmtOI, classifyFunding } from '@/lib/marketStore';
 import Ticker from '@/components/Ticker';
 import FearGreed from '@/components/FearGreed';
 import RaidMeter from '@/components/RaidMeter';
@@ -75,6 +75,68 @@ const OI_TREND_META: Record<string, { txt: string; sub: string; hint: string; co
   weak_up:     { txt: '↓OI ↑P', sub: 'Short covering — weak',   hint: 'Shorts exiting, not new longs. Fake pump — no fresh conviction.',  col: '#fbbf24' },
   weak_down:   { txt: '↓OI ↓P', sub: 'Long exits — no panic',   hint: 'Longs taking profit/exiting. Not new shorts — capitulation risk.', col: '#fbbf24' },
 };
+
+/* ── Coin Sidebar — desktop only ── */
+function CoinSidebar() {
+  const { store, selectCoin } = useMarket();
+
+  const OI_SIG: Record<string, { txt: string; col: string }> = {
+    strong_up:   { txt: '↑↑ OI', col: '#34d399' },
+    strong_down: { txt: '↑↓ OI', col: '#f87171' },
+    weak_up:     { txt: '↓↑ OI', col: '#fbbf24' },
+    weak_down:   { txt: '↓↓ OI', col: '#fbbf24' },
+  };
+
+  return (
+    <div className="csb-container">
+      <div className="csb-header-row">Live Prices · tap to select</div>
+      {COINS.map(id => {
+        const d   = store.coins[id];
+        const dec = COIN_DEC[id];
+        const up  = (d?.change ?? 0) >= 0;
+        const sel = store.selectedCoin === id;
+        const fund = d?.fundingRate != null ? classifyFunding(d.fundingRate) : null;
+        const oiSig = d?.oiTrend ? OI_SIG[d.oiTrend] : null;
+        const tbp = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : null;
+        const tkrCol = tbp == null ? '' : tbp >= 65 ? '#34d399' : tbp <= 35 ? '#f87171' : '#606060';
+        const tkrBg  = tbp == null ? '' : tbp >= 65 ? 'rgba(52,211,153,0.1)' : tbp <= 35 ? 'rgba(248,113,113,0.1)' : 'rgba(255,255,255,0.03)';
+
+        return (
+          <div key={id} className={`csb-row${sel ? ' csb-sel' : ''}`} onClick={() => selectCoin(id)}>
+            <div className="csb-top">
+              <span className="csb-name">{id.toUpperCase()}</span>
+              <span className="csb-price">{d?.price ? '$' + fmtPrice(d.price, dec) : '—'}</span>
+            </div>
+            <div className="csb-top" style={{ marginTop: 1 }}>
+              <span className="csb-oi">
+                {d?.oi != null ? fmtOI(d.oi) + ' OI' : ''}
+              </span>
+              <span className={`csb-chg ${up ? 'chg-up' : 'chg-dn'}`}>{d ? fmtChg(d.change) : '--'}</span>
+            </div>
+            <div className="csb-sub">
+              {fund && (
+                <span className={`csb-fr ${fund.cls}`}>
+                  FR {(d!.fundingRate! * 100 >= 0 ? '+' : '') + (d!.fundingRate! * 100).toFixed(4)}%
+                </span>
+              )}
+              {oiSig && (
+                <span className="csb-badge" style={{ color: oiSig.col, background: oiSig.col + '18' }}>
+                  {oiSig.txt}
+                </span>
+              )}
+              {tbp != null && (
+                <span className="csb-badge" style={{ color: tkrCol, background: tkrBg }}>
+                  {tbp}% buy
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      <div className="csb-status">{store.wsStatus}</div>
+    </div>
+  );
+}
 
 function EdgeSignals() {
   const { store } = useMarket();
@@ -391,50 +453,60 @@ function BTCDominance() {
 
 export default function Dashboard() {
   return (
-    <div>
-      <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8', marginBottom: 2 }}>Liquidity Hunter HQ</div>
-        <div style={{ fontSize: 12, color: '#606060' }}>The complete system — read the map, hunt the stops, get out fast</div>
-      </div>
+    <div className="dashboard-grid">
 
-      <NewsBanner />
+      {/* ── Desktop sticky sidebar (hidden on mobile) ── */}
+      <aside className="dash-sidebar">
+        <CoinSidebar />
+        <div className="ind-row" style={{ margin: 0 }}><FearGreed /></div>
+        <div className="ind-row" style={{ margin: 0 }}><BTCDominance /></div>
+      </aside>
 
-      <div className="dash-section">Live prices — tap a coin to select</div>
-      <Ticker />
+      {/* ── Main content ── */}
+      <div className="dash-main">
+        <div style={{ padding: '1rem 0 0.75rem' }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8', marginBottom: 2 }}>Liquidity Hunter HQ</div>
+          <div style={{ fontSize: 12, color: '#606060' }}>The complete system — read the map, hunt the stops, get out fast</div>
+        </div>
 
-      <div className="dash-section">Raid conditions</div>
-      <RaidMeter />
+        <NewsBanner />
 
-      <div className="dash-section">Market indicators</div>
-      <div className="ind-row">
-        <FearGreed />
-      </div>
-      <div className="ind-row">
-        <BTCDominance />
-      </div>
+        {/* Mobile-only ticker + market indicators (desktop shows these in sidebar) */}
+        <div className="mobile-only">
+          <div className="dash-section">Live prices — tap a coin to select</div>
+          <Ticker />
+          <div className="dash-section">Market indicators</div>
+          <div className="ind-row"><FearGreed /></div>
+          <div className="ind-row"><BTCDominance /></div>
+        </div>
 
-      <div className="dash-section">Edge signals</div>
-      <EdgeSignals />
+        <div className="dash-section">Raid conditions</div>
+        <RaidMeter />
 
-      <div className="dash-section">Macro correlations</div>
-      <MacroStrip />
+        <div className="dash-section">Edge signals</div>
+        <EdgeSignals />
 
-      <div className="dash-section">Secret of the Day</div>
-      <SOTD />
+        <div className="dash-section">Macro correlations</div>
+        <MacroStrip />
 
-      <div className="dash-section">The 8 commandments</div>
-      <div className="card">
-        <div className="lbl">Core rules — never break these</div>
-        {RULES.map(r => (
-          <div key={r.n} className="row" style={{ marginBottom: 14 }}>
-            <div className={`num ${r.c}`}>{r.n}</div>
-            <div>
-              <div className="st">{r.t}</div>
-              <div className="sb">{r.b}</div>
+        <div className="dash-section">Secret of the Day</div>
+        <SOTD />
+
+        <div className="dash-section">The 8 commandments</div>
+        <div className="card">
+          <div className="lbl">Core rules — never break these</div>
+          {RULES.map(r => (
+            <div key={r.n} className="row" style={{ marginBottom: 14 }}>
+              <div className={`num ${r.c}`}>{r.n}</div>
+              <div>
+                <div className="st">{r.t}</div>
+                <div className="sb">{r.b}</div>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
+
     </div>
   );
 }

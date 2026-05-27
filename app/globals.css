@@ -88,6 +88,59 @@ body {
 .app-logo span { color: var(--purple); }
 .app-content { max-width: 700px; margin: 0 auto; padding: 68px 1rem 2rem; }
 
+/* ── DESKTOP WIDE LAYOUT (≥1100px) ── */
+@media (min-width: 1100px) {
+  .app-bar-inner { max-width: 1300px; }
+  .app-content   { max-width: 1300px; padding-left: 24px; padding-right: 24px; }
+
+  /* Dashboard 2-column grid */
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+
+  /* Sticky sidebar */
+  .dash-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: sticky;
+    top: 68px;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  .dash-sidebar::-webkit-scrollbar { display: none; }
+
+  /* Hide mobile-only elements on desktop */
+  .mobile-only { display: none !important; }
+}
+
+/* Hide sidebar on mobile */
+@media (max-width: 1099px) {
+  .dashboard-grid { display: block; }
+  .dash-sidebar   { display: none; }
+}
+
+/* ── COIN SIDEBAR (desktop) ── */
+.csb-container  { background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: 14px; overflow: hidden; }
+.csb-header-row { font-size: 9px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 12px 6px; border-bottom: 0.5px solid var(--bdr); }
+.csb-row        { padding: 8px 12px; cursor: pointer; border-bottom: 0.5px solid rgba(255,255,255,0.02); transition: background 0.12s; }
+.csb-row:last-child { border-bottom: none; }
+.csb-row:hover  { background: rgba(255,255,255,0.025); }
+.csb-row.csb-sel { background: rgba(167,139,250,0.06); border-left: 2px solid var(--purple); padding-left: 10px; }
+.csb-top        { display: flex; align-items: baseline; justify-content: space-between; }
+.csb-name       { font-size: 11px; font-weight: 800; color: var(--txt); letter-spacing: 0.04em; }
+.csb-price      { font-size: 12px; font-weight: 700; color: var(--txt); font-variant-numeric: tabular-nums; }
+.csb-chg        { font-size: 10px; font-weight: 600; }
+.csb-sub        { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 3px; }
+.csb-oi         { font-size: 9px; color: #333; }
+.csb-fr         { font-size: 9px; font-weight: 600; }
+.csb-badge      { font-size: 8.5px; font-weight: 700; padding: 1px 4px; border-radius: 4px; white-space: nowrap; }
+.csb-status     { padding: 8px 12px; font-size: 9px; color: #2a2a2a; border-top: 0.5px solid var(--bdr); }
+
 /* ── HAMBURGER ── */
 .hamburger {
   display: flex; flex-direction: column; justify-content: center; gap: 5px;
