@@ -10,6 +10,51 @@ const GROK_KEY = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5B
 
 interface Msg { role: 'user' | 'assistant'; content: string; ts: string; }
 
+/** Minimal markdown → HTML for chat bubbles.
+ *  Handles: **bold**, *italic*, [text](url), [[n]](url), bullet lists, headings, newlines.
+ *  Uses DOMParser-safe escaping — no XSS risk from trusted LLM output.
+ */
+function renderMd(raw: string): string {
+  // Escape HTML entities first
+  let s = raw
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Citations: [[1]](url) or [[1, 2]](url) → superscript link
+  s = s.replace(/\[\[([^\]]+)\]\]\((https?:\/\/[^)]+)\)/g,
+    (_, num, url) => `<sup><a href="${url}" target="_blank" rel="noopener">[${num}]</a></sup>`);
+
+  // Normal links: [text](url)
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
+    (_, text, url) => `<a href="${url}" target="_blank" rel="noopener">${text}</a>`);
+
+  // Bare URLs
+  s = s.replace(/(^|[\s(])((https?:\/\/)[^\s)]+)/g,
+    (_, pre, url) => `${pre}<a href="${url}" target="_blank" rel="noopener">${url}</a>`);
+
+  // **bold**
+  s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  // *italic* (not already inside **)
+  s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+
+  // ### Headings → bold line
+  s = s.replace(/^#{1,3}\s+(.+)$/gm, '<strong>$1</strong>');
+
+  // Bullet lines: "- item" or "• item"
+  s = s.replace(/^[-•]\s+(.+)$/gm, '&bull; $1');
+
+  // Numbered list: "1. item"
+  s = s.replace(/^\d+\.\s+(.+)$/gm, (_, item) => `&emsp;${item}`);
+
+  // Double newline → paragraph break
+  s = s.replace(/\n{2,}/g, '<br/><br/>');
+  // Single newline → line break
+  s = s.replace(/\n/g, '<br/>');
+
+  return s;
+}
+
 const QUICK = [
   'Full analysis now',
   'Best entry zone?',
@@ -240,7 +285,14 @@ export default function GrokChat() {
               {m.role === 'assistant' && (
                 <div className="gchat-grok-label">GROK · {m.ts}</div>
               )}
-              <div className="gchat-bubble">{m.content}</div>
+              {m.role === 'assistant' ? (
+                <div
+                  className="gchat-bubble"
+                  dangerouslySetInnerHTML={{ __html: renderMd(m.content) }}
+                />
+              ) : (
+                <div className="gchat-bubble">{m.content}</div>
+              )}
               {m.role === 'user' && (
                 <div className="gchat-user-ts">{m.ts}</div>
               )}
