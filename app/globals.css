@@ -708,6 +708,18 @@ body {
 .gchat-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; border-bottom: 0.5px solid var(--bdr); flex-shrink: 0; }
 .gchat-icon-btn { font-size: 14px; color: var(--txt3); cursor: pointer; background: none; border: none; padding: 3px 6px; border-radius: 6px; transition: color 0.15s; }
 .gchat-icon-btn:hover { color: var(--txt2); }
+/* Live search toggle pill */
+.gchat-search-toggle {
+  font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; cursor: pointer;
+  border: 0.5px solid var(--bdr); background: var(--bg2); color: var(--txt3);
+  transition: all 0.15s; white-space: nowrap; letter-spacing: .02em;
+}
+.gchat-search-toggle:hover { color: var(--txt2); border-color: var(--bdr2); }
+.gchat-search-toggle.on {
+  background: rgba(52,211,153,0.12); color: var(--green);
+  border-color: rgba(52,211,153,0.3);
+  box-shadow: 0 0 8px rgba(52,211,153,0.15);
+}
 .gchat-coins { display: flex; gap: 4px; padding: 8px 14px 6px; overflow-x: auto; scrollbar-width: none; flex-shrink: 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
 .gchat-coins::-webkit-scrollbar { display: none; }
 .gchat-coin { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 20px; border: 0.5px solid var(--bdr); background: var(--bg2); color: var(--txt3); cursor: pointer; white-space: nowrap; transition: all 0.12s; flex-shrink: 0; }

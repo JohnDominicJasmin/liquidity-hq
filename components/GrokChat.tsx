@@ -136,8 +136,9 @@ function buildSystemCtx(
 export default function GrokChat() {
   const { store } = useMarket();
   const { latestHeadlines, geoEvents } = useNews();
-  const [open,     setOpen]     = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [open,       setOpen]       = useState(false);
+  const [expanded,   setExpanded]   = useState(false);
+  const [liveSearch, setLiveSearch] = useState(false);
   const [coin,    setCoin]    = useState<CoinId>('btc');
   const [msgs,    setMsgs]    = useState<Msg[]>([]);
   const [input,   setInput]   = useState('');
@@ -179,7 +180,7 @@ export default function GrokChat() {
         body: JSON.stringify({
           model: 'grok-4.3',
           input: inputArr,
-          tools: [{ type: 'web_search' }, { type: 'x_search' }],
+          ...(liveSearch && { tools: [{ type: 'web_search' }, { type: 'x_search' }] }),
         }),
       });
 
@@ -198,7 +199,7 @@ export default function GrokChat() {
     } finally {
       setLoading(false);
     }
-  }, [msgs, coin, store, latestHeadlines, geoEvents]);
+  }, [msgs, coin, liveSearch, store, latestHeadlines, geoEvents]);
 
   /* listen for open-with-prompt events from Arena */
   useEffect(() => {
@@ -253,6 +254,14 @@ export default function GrokChat() {
             }}>LIVE X</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* Live search toggle */}
+            <button
+              className={`gchat-search-toggle${liveSearch ? ' on' : ''}`}
+              onClick={() => setLiveSearch(v => !v)}
+              title={liveSearch ? 'Live search ON — click to disable (saves cost)' : 'Live search OFF — click to enable X + web search'}
+            >
+              🌐 {liveSearch ? 'Live' : 'Off'}
+            </button>
             {msgs.length > 0 && (
               <button className="gchat-icon-btn" onClick={clearChat} title="Clear chat">🗑</button>
             )}
@@ -291,7 +300,7 @@ export default function GrokChat() {
                 {coin.toUpperCase()}/USDT
               </div>
               <div style={{ fontSize: 11, color: '#444' }}>
-                Live market data · X search · web search
+                Live market data · {liveSearch ? '🌐 X + web search ON' : '🌐 search off — toggle to enable'}
               </div>
             </div>
           )}
