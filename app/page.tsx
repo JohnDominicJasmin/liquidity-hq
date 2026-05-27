@@ -358,13 +358,50 @@ function GexTable() {
 
       {/* Signal interpretation */}
       <div className="gex-signal-row">
-        {gexLoaded ? (
-          isLongGamma ? (
-            <>Dealers <span style={{ color: '#34d399' }}>LONG gamma</span> — market makers buy dips, sell rips → price tends to <span>pin and mean-revert</span> near large strikes</>
-          ) : (
-            <>Dealers <span style={{ color: '#f87171' }}>SHORT gamma</span> — market makers amplify moves → expect <span>accelerated trending</span> and wider ranges</>
-          )
-        ) : (
+        {gexLoaded ? (() => {
+          // Directional lean: flip level is primary judge, largest GEX magnet is fallback
+          const largestGexLevel = btcGexLevels.length > 0
+            ? btcGexLevels.reduce((a, b) => Math.abs(a.gex) > Math.abs(b.gex) ? a : b)
+            : null;
+
+          let lean: 'bull' | 'bear' | 'neutral' = 'neutral';
+          let leanReason = '';
+          if (btcGexFlip != null && spotPrice > 0) {
+            if (spotPrice > btcGexFlip) {
+              lean = 'bull';
+              leanReason = `price above gamma flip ($${btcGexFlip.toLocaleString()})`;
+            } else {
+              lean = 'bear';
+              leanReason = `price below gamma flip ($${btcGexFlip.toLocaleString()})`;
+            }
+          } else if (largestGexLevel && spotPrice > 0) {
+            if (largestGexLevel.strike > spotPrice) {
+              lean = 'bull';
+              leanReason = `magnet at $${(largestGexLevel.strike / 1000).toFixed(0)}K is above`;
+            } else {
+              lean = 'bear';
+              leanReason = `magnet at $${(largestGexLevel.strike / 1000).toFixed(0)}K is below`;
+            }
+          }
+
+          const leanColor = lean === 'bull' ? '#34d399' : lean === 'bear' ? '#f87171' : '#9ca3af';
+          const leanLabel = lean === 'bull' ? '↑ BULLISH LEAN' : lean === 'bear' ? '↓ BEARISH LEAN' : '→ NEUTRAL';
+          const regimeLabel = isLongGamma ? 'RANGING' : 'TRENDING';
+          const regimeColor = isLongGamma ? '#34d399' : '#f87171';
+          const regimeDesc  = isLongGamma
+            ? 'price pins & mean-reverts between levels'
+            : 'breakouts follow through, no fading';
+
+          return (
+            <>
+              <span style={{ color: leanColor, fontWeight: 700 }}>{leanLabel}</span>
+              {leanReason && <span style={{ color: '#555' }}> — {leanReason}</span>}
+              <span style={{ color: '#3a3a3a' }}> · </span>
+              <span style={{ color: regimeColor }}>{regimeLabel}</span>
+              <span style={{ color: '#555' }}> regime — {regimeDesc}</span>
+            </>
+          );
+        })() : (
           <span style={{ color: '#2a2a2a' }}>Calculating from Deribit options chain…</span>
         )}
       </div>
