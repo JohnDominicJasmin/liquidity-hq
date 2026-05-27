@@ -1,6 +1,6 @@
 'use client';
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { useMarket, CoinId, BINANCE_SYMS } from '@/lib/marketStore';
+import { useMarket, CoinId, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
 
 const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'zec'];
 
@@ -159,101 +159,154 @@ export default function LiqPage() {
   const [realLoading, setRealLoading] = useState(false);
   const [realErr,     setRealErr]     = useState('');
   const [realMeta,    setRealMeta]    = useState('');
+  const [realSource,  setRealSource]  = useState<'binance' | 'bybit' | ''>('');
   const [fetchedAt,   setFetchedAt]   = useState(0);
 
   const cd         = store.coins[coin];
   const rangeConf  = RANGES.find(r => r.key === range)!;
 
-  /* ── Fetch real liq from Binance allForceOrders ── */
+  /* ── Fetch real liq: Binance allForceOrders → Bybit fallback ── */
   const fetchReal = useCallback(async () => {
-    const sym = (BINANCE_SYMS as Record<string, string>)[coin];
-    if (!sym) {
-      setRealErr(`${coin.toUpperCase()} trades on Bybit — Binance perp data unavailable`);
+    const binanceSym = (BINANCE_SYMS as Record<string, string>)[coin];
+    const bybitSym   = (BYBIT_SYMS   as Record<string, string>)[coin];
+
+    if (!binanceSym && !bybitSym) {
+      setRealErr(`No perpetuals data available for ${coin.toUpperCase()}`);
       setRealBuckets([]);
       return;
     }
+
     const curPrice = store.coins[coin]?.price;
     if (!curPrice) return;
 
     setRealLoading(true);
     setRealErr('');
 
-    try {
-      /* allForceOrders max limit = 100 per request.
-         Paginate backward (up to 5 pages = 500 orders) for better coverage. */
-      type Order = { price: string; avragePrice: string; executedQty: string; side: 'BUY' | 'SELL'; time: number };
-      const data: Order[] = [];
-      let endTime: number | undefined;
-      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    // Normalised order shape used internally
+    type NOrder = { side: 'BUY' | 'SELL'; price: number; qty: number; time: number };
+    let orders: NOrder[] = [];
+    let usedSource: 'binance' | 'bybit' = 'binance';
 
-      for (let page = 0; page < 5; page++) {
-        const params = new URLSearchParams({ symbol: sym, limit: '100' });
-        if (endTime !== undefined) params.set('endTime', String(endTime));
-        const res = await fetch(`https://fapi.binance.com/fapi/v1/allForceOrders?${params}`);
-        if (!res.ok) {
-          const errJson = await res.json().catch(() => ({}));
-          throw new Error(`Binance API error ${res.status}${errJson?.msg ? ': ' + errJson.msg : ''}`);
+    /* ── 1. Try Binance allForceOrders ── */
+    if (binanceSym) {
+      try {
+        type BOrder = { price: string; avragePrice: string; executedQty: string; side: 'BUY' | 'SELL'; time: number };
+        const raw: BOrder[] = [];
+        let endTime: number | undefined;
+        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+        for (let page = 0; page < 5; page++) {
+          const p = new URLSearchParams({ symbol: binanceSym, limit: '100' });
+          if (endTime !== undefined) p.set('endTime', String(endTime));
+          const res = await fetch(`https://fapi.binance.com/fapi/v1/allForceOrders?${p}`);
+          if (!res.ok) {
+            const e = await res.json().catch(() => ({}));
+            throw new Error(`Binance ${res.status}${e?.msg ? ': ' + e.msg : ''}`);
+          }
+          const batch: BOrder[] = await res.json();
+          if (!Array.isArray(batch) || batch.length === 0) break;
+          raw.push(...batch);
+          const oldest = Math.min(...batch.map(o => o.time));
+          if (oldest <= sevenDaysAgo || batch.length < 100) break;
+          endTime = oldest - 1;
         }
-        const batch: Order[] = await res.json();
-        if (!Array.isArray(batch) || batch.length === 0) break;
-        data.push(...batch);
-        const oldest = Math.min(...batch.map(o => o.time));
-        if (oldest <= sevenDaysAgo || batch.length < 100) break;
-        endTime = oldest - 1;
-      }
 
-      if (!Array.isArray(data) || data.length === 0) {
-        setRealBuckets([]);
-        setRealMeta('No liquidations in recent window');
-        return;
-      }
-
-      /* Group into 0.3% price buckets */
-      const BUCKET = curPrice * 0.003;
-      const map = new Map<number, { long: number; short: number; count: number }>();
-
-      for (const o of data) {
-        const p   = parseFloat(o.avragePrice || o.price);
-        const qty = parseFloat(o.executedQty);
-        const usd = (p * qty) / 1_000_000;            // → $M
-        const key = Math.round(p / BUCKET) * BUCKET;
-
-        if (!map.has(key)) map.set(key, { long: 0, short: 0, count: 0 });
-        const b = map.get(key)!;
-        b.count++;
-        /* SELL order = long position was force-closed (exchange sold to close long)
-           BUY  order = short position was force-closed (exchange bought to close short) */
-        if (o.side === 'SELL') b.long  += usd;
-        else                   b.short += usd;
-      }
-
-      const vals       = Array.from(map.values());
-      const maxTotal   = Math.max(...vals.map(v => v.long + v.short), 1);
-
-      const buckets: RealBucket[] = Array.from(map.entries())
-        .map(([price, b]) => ({
-          price,
-          longUSD:  b.long,
-          shortUSD: b.short,
-          totalUSD: b.long + b.short,
-          count:    b.count,
-          pct:      ((b.long + b.short) / maxTotal) * 100,
-        }))
-        .filter(b => b.totalUSD > 0.05)           // drop < $50k noise
-        .sort((a, b) => b.price - a.price);        // highest price first
-
-      /* Time window */
-      const ts = data.map(o => o.time);
-      const windowH = ((Math.max(...ts) - Math.min(...ts)) / 3_600_000).toFixed(1);
-      const fetchTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-      setRealMeta(`${data.length.toLocaleString()} orders · ~${windowH}h window · fetched ${fetchTime}`);
-      setRealBuckets(buckets);
-      setFetchedAt(Date.now());
-    } catch (e) {
-      setRealErr(e instanceof Error ? e.message : 'Fetch failed');
-    } finally {
-      setRealLoading(false);
+        if (raw.length > 0) {
+          orders = raw.map(o => ({
+            side:  o.side,
+            price: parseFloat(o.avragePrice || o.price),
+            qty:   parseFloat(o.executedQty),
+            time:  o.time,
+          })).filter(o => o.price > 0 && o.qty > 0);
+          usedSource = 'binance';
+        }
+      } catch { /* Binance down — fall through to Bybit */ }
     }
+
+    /* ── 2. Bybit fallback (also used for Bybit-only coins like HYPE) ── */
+    if (orders.length === 0 && bybitSym) {
+      try {
+        type BYOrder = { side: 'Buy' | 'Sell'; price: string; size: string; updatedTime: string };
+        const raw: BYOrder[] = [];
+        let cursor: string | undefined;
+
+        for (let page = 0; page < 5; page++) {
+          const p = new URLSearchParams({ category: 'linear', symbol: bybitSym, limit: '200' });
+          if (cursor) p.set('cursor', cursor);
+          const res  = await fetch(`https://api.bybit.com/v5/market/liquidation?${p}`);
+          const json = await res.json();
+          if (json.retCode !== 0) break;
+          const list: BYOrder[] = json.result?.list ?? [];
+          if (!list.length) break;
+          raw.push(...list);
+          cursor = json.result?.nextPageCursor || undefined;
+          if (!cursor) break;
+        }
+
+        if (raw.length > 0) {
+          orders = raw.map(o => ({
+            // Bybit: "Sell" = sell order = LONG position closed; "Buy" = BUY order = SHORT closed
+            side:  (o.side === 'Sell' ? 'SELL' : 'BUY') as 'SELL' | 'BUY',
+            price: parseFloat(o.price),
+            qty:   parseFloat(o.size),
+            time:  parseInt(o.updatedTime),
+          })).filter(o => o.price > 0 && o.qty > 0);
+          usedSource = 'bybit';
+        }
+      } catch { /* Bybit also failed */ }
+    }
+
+    if (orders.length === 0) {
+      setRealBuckets([]);
+      setRealMeta('No recent liquidation data available');
+      setRealSource('');
+      setFetchedAt(Date.now());
+      setRealLoading(false);
+      return;
+    }
+
+    /* ── Group into 0.3% price buckets ── */
+    const BUCKET = curPrice * 0.003;
+    const map = new Map<number, { long: number; short: number; count: number }>();
+
+    for (const o of orders) {
+      const usd = (o.price * o.qty) / 1_000_000;   // → $M
+      const key = Math.round(o.price / BUCKET) * BUCKET;
+      if (!map.has(key)) map.set(key, { long: 0, short: 0, count: 0 });
+      const b = map.get(key)!;
+      b.count++;
+      // SELL = long liq; BUY = short liq (same convention on both exchanges)
+      if (o.side === 'SELL') b.long  += usd;
+      else                   b.short += usd;
+    }
+
+    const vals     = Array.from(map.values());
+    const maxTotal = Math.max(...vals.map(v => v.long + v.short), 1);
+
+    const buckets: RealBucket[] = Array.from(map.entries())
+      .map(([price, b]) => ({
+        price,
+        longUSD:  b.long,
+        shortUSD: b.short,
+        totalUSD: b.long + b.short,
+        count:    b.count,
+        pct:      ((b.long + b.short) / maxTotal) * 100,
+      }))
+      .filter(b => b.totalUSD > 0.001)             // drop < $1k noise
+      .sort((a, b) => b.price - a.price);
+
+    const ts      = orders.map(o => o.time);
+    const windowH = ts.length > 1
+      ? ((Math.max(...ts) - Math.min(...ts)) / 3_600_000).toFixed(1)
+      : '—';
+    const fetchTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const sourceLabel = usedSource === 'bybit' ? 'Bybit' : 'Binance';
+
+    setRealMeta(`${orders.length.toLocaleString()} orders · ~${windowH}h window · ${sourceLabel} · ${fetchTime}`);
+    setRealSource(usedSource);
+    setRealBuckets(buckets);
+    setFetchedAt(Date.now());
+    setRealLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coin]);
 
