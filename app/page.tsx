@@ -306,8 +306,6 @@ function EdgeSignals() {
         })}
       </div>
 
-      {/* Row 4: GEX (Gamma Exposure) */}
-      <GexTable />
     </>
   );
 }
@@ -455,7 +453,7 @@ export default function Dashboard() {
   return (
     <div className="dashboard-grid">
 
-      {/* ── Desktop sticky sidebar (hidden on mobile) ── */}
+      {/* ── Left sticky sidebar (desktop only) ── */}
       <aside className="dash-sidebar">
         <CoinSidebar />
         <div className="ind-row" style={{ margin: 0 }}><FearGreed /></div>
@@ -465,15 +463,15 @@ export default function Dashboard() {
       {/* ── Main content ── */}
       <div className="dash-main">
         <div style={{ padding: '1rem 0 0.75rem' }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8', marginBottom: 2 }}>Liquidity Hunter HQ</div>
-          <div style={{ fontSize: 12, color: '#606060' }}>The complete system — read the map, hunt the stops, get out fast</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2, letterSpacing: '-0.3px' }}>Liquidity Hunter HQ</div>
+          <div style={{ fontSize: 12, color: 'var(--txt3)' }}>The complete system — read the map, hunt the stops, get out fast</div>
         </div>
 
         <NewsBanner />
 
-        {/* Mobile-only ticker + market indicators (desktop shows these in sidebar) */}
+        {/* Mobile-only ticker + market indicators (desktop shows in sidebar) */}
         <div className="mobile-only">
-          <div className="dash-section">Live prices — tap a coin to select</div>
+          <div className="dash-section">Live prices</div>
           <Ticker />
           <div className="dash-section">Market indicators</div>
           <div className="ind-row"><FearGreed /></div>
@@ -486,8 +484,13 @@ export default function Dashboard() {
         <div className="dash-section">Edge signals</div>
         <EdgeSignals />
 
-        <div className="dash-section">Macro correlations</div>
-        <MacroStrip />
+        {/* GEX + Macro: shown inline on mobile/tablet, hidden when right panel is visible */}
+        <div className="hide-on-desktop">
+          <div className="dash-section">Gamma exposure</div>
+          <GexTable />
+          <div className="dash-section">Macro correlations</div>
+          <MacroStrip />
+        </div>
 
         <div className="dash-section">Secret of the Day</div>
         <SOTD />
@@ -506,6 +509,14 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      {/* ── Right panel (desktop ≥1100px only) ── */}
+      <aside className="dash-right">
+        <div className="dash-section" style={{ marginTop: 0, marginBottom: 8 }}>Gamma exposure</div>
+        <GexTable />
+        <div className="dash-section" style={{ marginBottom: 8 }}>Macro</div>
+        <MacroStrip />
+      </aside>
 
     </div>
   );

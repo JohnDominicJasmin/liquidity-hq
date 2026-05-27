@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useMarket } from '@/lib/marketStore';
@@ -31,8 +31,24 @@ function useStatusDot() {
 
 export default function NavDrawer() {
   const [open, setOpen] = useState(false);
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const pathname = usePathname();
   const dot = useStatusDot();
+
+  // Initialise from localStorage on first mount
+  useEffect(() => {
+    const saved = (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) as 'dark' | 'light' | null;
+    const initial: 'dark' | 'light' = saved === 'light' ? 'light' : 'dark';
+    setTheme(initial);
+    document.documentElement.setAttribute('data-theme', initial);
+  }, []);
+
+  const toggleTheme = () => {
+    const next: 'dark' | 'light' = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+  };
 
   return (
     <>
@@ -55,6 +71,16 @@ export default function NavDrawer() {
               </Link>
             ))}
           </nav>
+
+          {/* Theme toggle — always visible */}
+          <button
+            className="theme-btn"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? '☀' : '◑'}
+          </button>
 
           {/* Hamburger — mobile only */}
           <div className={`hamburger${open ? ' open' : ''}`} onClick={() => setOpen(v => !v)}>

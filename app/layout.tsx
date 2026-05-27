@@ -24,6 +24,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        {/* Anti-flash: apply saved theme before first paint */}
+        <script dangerouslySetInnerHTML={{
+          __html: `try{var t=localStorage.getItem('theme')||'dark';document.documentElement.setAttribute('data-theme',t);}catch(e){}`
+        }} />
         <script dangerouslySetInnerHTML={{
           __html: `
             if ('serviceWorker' in navigator) {
