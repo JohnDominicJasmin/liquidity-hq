@@ -179,13 +179,28 @@ export default function LiqPage() {
     setRealErr('');
 
     try {
-      const res = await fetch(
-        `https://fapi.binance.com/fapi/v1/allForceOrders?symbol=${sym}&limit=1000`,
-      );
-      if (!res.ok) throw new Error(`Binance API error ${res.status}`);
-
+      /* allForceOrders max limit = 100 per request.
+         Paginate backward (up to 5 pages = 500 orders) for better coverage. */
       type Order = { price: string; avragePrice: string; executedQty: string; side: 'BUY' | 'SELL'; time: number };
-      const data: Order[] = await res.json();
+      const data: Order[] = [];
+      let endTime: number | undefined;
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+      for (let page = 0; page < 5; page++) {
+        const params = new URLSearchParams({ symbol: sym, limit: '100' });
+        if (endTime !== undefined) params.set('endTime', String(endTime));
+        const res = await fetch(`https://fapi.binance.com/fapi/v1/allForceOrders?${params}`);
+        if (!res.ok) {
+          const errJson = await res.json().catch(() => ({}));
+          throw new Error(`Binance API error ${res.status}${errJson?.msg ? ': ' + errJson.msg : ''}`);
+        }
+        const batch: Order[] = await res.json();
+        if (!Array.isArray(batch) || batch.length === 0) break;
+        data.push(...batch);
+        const oldest = Math.min(...batch.map(o => o.time));
+        if (oldest <= sevenDaysAgo || batch.length < 100) break;
+        endTime = oldest - 1;
+      }
 
       if (!Array.isArray(data) || data.length === 0) {
         setRealBuckets([]);
@@ -444,7 +459,7 @@ export default function LiqPage() {
             {/* Loading */}
             {realLoading && (
               <div style={{ padding: '18px', textAlign: 'center', color: '#444', fontSize: 12 }}>
-                Fetching Binance /fapi/v1/allForceOrders…
+                Fetching Binance allForceOrders (up to 5 × 100 orders)…
               </div>
             )}
 
@@ -495,8 +510,8 @@ export default function LiqPage() {
             )}
 
             <div className="liq-real-footer">
-              Source: Binance <code>/fapi/v1/allForceOrders</code> (1 000 most recent force orders, public endpoint, no API key) ·
-              Coverage window varies — volatile markets fill 1 000 orders in ~30 min, quiet markets in ~12h
+              Source: Binance <code>/fapi/v1/allForceOrders</code> (up to 500 force orders via 5×100 pagination, public endpoint, no API key) ·
+              Coverage window varies — volatile markets fill 500 orders in ~15 min, quiet markets in ~6h
             </div>
           </div>
 
