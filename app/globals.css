@@ -110,6 +110,12 @@ body::after {
     align-items: start;
   }
 
+  /* CRITICAL: prevent grid columns from expanding past their track size.
+     Without min-width: 0, a 1fr column expands to fit its widest child
+     (e.g. the horizontal-scroll news banner) and overflows the viewport. */
+  .dash-main  { min-width: 0; overflow-x: hidden; }
+  .dash-right { min-width: 0; }
+
   /* Sticky left sidebar */
   .dash-sidebar {
     display: flex;
@@ -424,7 +430,7 @@ body::after {
 .news-title   { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--txt3); }
 .news-toggle  { font-size: 11px; color: var(--txt3); cursor: pointer; padding: 2px 8px; border-radius: 10px; border: 0.5px solid var(--bdr); background: none; }
 .news-toggle:hover { color: var(--txt); }
-.news-scroll  { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.news-scroll  { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
 .news-row     { display: flex; gap: 8px; min-width: max-content; }
 .nc { border-radius: 12px; padding: 10px 12px; min-width: 175px; max-width: 210px; border: 0.5px solid; flex-shrink: 0; }
 .nc-econ   { background: var(--amber-bg);  border-color: var(--amber-bdr); }
