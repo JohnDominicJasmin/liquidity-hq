@@ -149,7 +149,18 @@ function EdgeSignals() {
 
       {/* Row 2: OI Trend table */}
       <div className="oi-trend-table">
-        <div className="oi-trend-title">📊 OI Trend vs Price</div>
+        <div className="oi-trend-title">
+          📊 OI Trend vs Price
+          <span className="oi-info-wrap">
+            <span className="oi-info-icon">ⓘ</span>
+            <div className="oi-info-tip">
+              <div className="oi-tip-row"><span className="oi-tip-badge tip-green">↑OI ↑P</span><span>Real trend — new money entering longs</span></div>
+              <div className="oi-tip-row"><span className="oi-tip-badge tip-red">↑OI ↓P</span><span>Real downtrend — new shorts being added</span></div>
+              <div className="oi-tip-row"><span className="oi-tip-badge tip-amber">↓OI ↑P</span><span>Short covering — no conviction, likely fake</span></div>
+              <div className="oi-tip-row"><span className="oi-tip-badge tip-amber">↓OI ↓P</span><span>Long exits — capitulation, not fresh shorts</span></div>
+            </div>
+          </span>
+        </div>
         <div className="oi-trend-hdr">
           <div>Coin</div><div>Signal</div><div>Meaning</div>
         </div>
