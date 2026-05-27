@@ -136,7 +136,8 @@ function buildSystemCtx(
 export default function GrokChat() {
   const { store } = useMarket();
   const { latestHeadlines, geoEvents } = useNews();
-  const [open,    setOpen]    = useState(false);
+  const [open,     setOpen]     = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [coin,    setCoin]    = useState<CoinId>('btc');
   const [msgs,    setMsgs]    = useState<Msg[]>([]);
   const [input,   setInput]   = useState('');
@@ -218,14 +219,21 @@ export default function GrokChat() {
     sendMsg(input.trim());
   };
 
-  const clearChat = () => { setMsgs([]); setError(''); };
+  const clearChat  = () => { setMsgs([]); setError(''); };
+  const closeAll   = () => { setOpen(false); setExpanded(false); };
+  const toggleExpand = () => setExpanded(v => !v);
 
   return (
     <>
+      {/* ── Backdrop (expanded mode only) ── */}
+      {open && expanded && (
+        <div className="gchat-backdrop" onClick={closeAll} aria-hidden />
+      )}
+
       {/* ── Floating action button ── */}
       <button
         className={`gchat-fab${open ? ' gchat-fab-open' : ''}`}
-        onClick={() => setOpen(v => !v)}
+        onClick={() => { setOpen(v => !v); if (open) setExpanded(false); }}
         title={open ? 'Close chat' : 'Ask Grok'}
         aria-label={open ? 'Close Grok chat' : 'Open Grok chat'}
       >
@@ -233,7 +241,7 @@ export default function GrokChat() {
       </button>
 
       {/* ── Chat panel ── */}
-      <div className={`gchat-panel${open ? ' gchat-open' : ''}`}>
+      <div className={`gchat-panel${open ? ' gchat-open' : ''}${expanded ? ' gchat-expanded' : ''}`}>
 
         {/* Header */}
         <div className="gchat-header">
@@ -248,7 +256,15 @@ export default function GrokChat() {
             {msgs.length > 0 && (
               <button className="gchat-icon-btn" onClick={clearChat} title="Clear chat">🗑</button>
             )}
-            <button className="gchat-icon-btn" onClick={() => setOpen(false)} title="Close">✕</button>
+            <button
+              className="gchat-icon-btn"
+              onClick={toggleExpand}
+              title={expanded ? 'Collapse' : 'Pop out / expand'}
+              aria-label={expanded ? 'Collapse chat' : 'Expand chat'}
+            >
+              {expanded ? '⊡' : '⊞'}
+            </button>
+            <button className="gchat-icon-btn" onClick={closeAll} title="Close">✕</button>
           </div>
         </div>
 

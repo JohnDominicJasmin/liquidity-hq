@@ -640,6 +640,16 @@ body {
 .gchat-fab:hover { box-shadow: 0 6px 32px rgba(0,0,0,0.9), 0 0 30px rgba(167,139,250,0.2); transform: scale(1.06); }
 .gchat-fab-open { background: var(--bg2); border-color: var(--bdr2); font-size: 16px; color: var(--txt3); box-shadow: 0 4px 24px rgba(0,0,0,0.8); }
 
+/* ── backdrop (expanded mode) ── */
+.gchat-backdrop {
+  position: fixed; inset: 0; z-index: 9993;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: gchat-fade-in 0.18s ease;
+}
+@keyframes gchat-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
 .gchat-panel {
   position: fixed; bottom: 86px; right: 20px; z-index: 9994;
   width: 360px; height: 560px;
@@ -647,14 +657,52 @@ body {
   border-radius: 20px; display: flex; flex-direction: column; overflow: hidden;
   box-shadow: 0 8px 48px rgba(0,0,0,0.9), 0 0 0 0.5px rgba(167,139,250,0.08);
   transform: scale(0.92) translateY(16px); opacity: 0; pointer-events: none;
-  transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1), opacity 0.2s;
+  transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.2s,
+              width 0.3s cubic-bezier(0.4,0,0.2,1), height 0.3s cubic-bezier(0.4,0,0.2,1),
+              top 0.3s cubic-bezier(0.4,0,0.2,1), bottom 0.3s cubic-bezier(0.4,0,0.2,1),
+              left 0.3s cubic-bezier(0.4,0,0.2,1), right 0.3s cubic-bezier(0.4,0,0.2,1),
+              border-radius 0.3s ease;
   transform-origin: bottom right;
 }
 .gchat-panel.gchat-open { transform: scale(1) translateY(0); opacity: 1; pointer-events: all; }
 
+/* ── Expanded / pop-out mode ── */
+.gchat-panel.gchat-expanded {
+  top: 50%; left: 50%; right: auto; bottom: auto;
+  transform: translate(-50%, -50%);
+  width: min(860px, calc(100vw - 32px));
+  height: min(90vh, 760px);
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.95), 0 0 0 0.5px rgba(167,139,250,0.14);
+  border-color: rgba(255,255,255,0.13);
+  transform-origin: center center;
+}
+/* Keep it visible + centered when also open */
+.gchat-panel.gchat-open.gchat-expanded {
+  transform: translate(-50%, -50%);
+  opacity: 1; pointer-events: all;
+}
+
+/* In expanded mode: messages get bigger, bubbles wider */
+.gchat-expanded .gchat-bubble { font-size: 14px; }
+.gchat-expanded .gchat-msg    { max-width: 72%; }
+.gchat-expanded .gchat-msgs   { padding: 14px 20px; gap: 14px; }
+
+/* Scrollbar visible in expanded mode */
+.gchat-expanded .gchat-msgs { scrollbar-width: thin; scrollbar-color: rgba(167,139,250,0.2) transparent; }
+.gchat-expanded .gchat-msgs::-webkit-scrollbar { display: block; width: 4px; }
+.gchat-expanded .gchat-msgs::-webkit-scrollbar-thumb { background: rgba(167,139,250,0.2); border-radius: 2px; }
+
 @media (max-width: 420px) {
   .gchat-panel { width: calc(100vw - 24px); right: 12px; bottom: 84px; height: 65vh; }
   .gchat-fab   { bottom: 20px; right: 16px; }
+  .gchat-panel.gchat-expanded {
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 100vw; height: 100dvh;
+    border-radius: 0;
+    transform: none;
+  }
+  .gchat-panel.gchat-open.gchat-expanded { transform: none; }
 }
 
 .gchat-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; border-bottom: 0.5px solid var(--bdr); flex-shrink: 0; }
