@@ -243,7 +243,120 @@ function EdgeSignals() {
           );
         })}
       </div>
+
+      {/* Row 4: GEX (Gamma Exposure) */}
+      <GexTable />
     </>
+  );
+}
+
+/* ── GEX Table component ── */
+function fmtGex(v: number): string {
+  const abs = Math.abs(v);
+  const sign = v >= 0 ? '+' : '−';
+  if (abs >= 1e9) return sign + '$' + (abs / 1e9).toFixed(2) + 'B';
+  if (abs >= 1e6) return sign + '$' + (abs / 1e6).toFixed(0) + 'M';
+  return sign + '$' + abs.toFixed(0);
+}
+
+function GexTable() {
+  const { store } = useMarket();
+  const { btcNetGex, btcGexFlip, btcGexLevels, btcMaxPain } = store;
+
+  const gexLoaded = btcNetGex !== null && btcGexLevels.length > 0;
+  const isLongGamma = (btcNetGex ?? 0) >= 0;
+
+  const gexCol     = isLongGamma ? '#34d399' : '#f87171';
+  const gexBg      = isLongGamma ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)';
+  const gexBorder  = isLongGamma ? 'rgba(52,211,153,0.3)'  : 'rgba(248,113,113,0.3)';
+
+  const maxAbsGex = btcGexLevels.length
+    ? Math.max(...btcGexLevels.map(l => Math.abs(l.gex)))
+    : 1;
+
+  const spotPrice = store.coins.btc?.price ?? 0;
+
+  return (
+    <div className="gex-table">
+      {/* Title + net GEX chip */}
+      <div className="gex-title-row">
+        <div className="gex-title">🔬 BTC Gamma Exposure (GEX)</div>
+        {gexLoaded ? (
+          <div
+            className="gex-net-chip"
+            style={{ color: gexCol, background: gexBg, border: `0.5px solid ${gexBorder}` }}
+          >
+            {fmtGex(btcNetGex!)} net
+          </div>
+        ) : (
+          <div className="gex-net-chip" style={{ color: '#333', background: 'transparent' }}>Fetching…</div>
+        )}
+        {btcMaxPain != null && (
+          <div className="gex-meta">Max pain: ${btcMaxPain.toLocaleString()}</div>
+        )}
+      </div>
+
+      {/* Signal interpretation */}
+      <div className="gex-signal-row">
+        {gexLoaded ? (
+          isLongGamma ? (
+            <>Dealers <span style={{ color: '#34d399' }}>LONG gamma</span> — market makers buy dips, sell rips → price tends to <span>pin and mean-revert</span> near large strikes</>
+          ) : (
+            <>Dealers <span style={{ color: '#f87171' }}>SHORT gamma</span> — market makers amplify moves → expect <span>accelerated trending</span> and wider ranges</>
+          )
+        ) : (
+          <span style={{ color: '#2a2a2a' }}>Calculating from Deribit options chain…</span>
+        )}
+      </div>
+
+      {/* Strike chart */}
+      {gexLoaded && btcGexLevels.length > 0 && (
+        <>
+          <div className="gex-hdr">
+            <div>Strike</div><div>Gamma exposure</div><div>Net GEX</div>
+          </div>
+          {btcGexLevels.map(({ strike, gex }) => {
+            const pct   = maxAbsGex > 0 ? Math.abs(gex) / maxAbsGex * 100 : 0;
+            const col   = gex >= 0 ? 'rgba(52,211,153,0.65)' : 'rgba(248,113,113,0.65)';
+            const vcol  = gex >= 0 ? '#34d399' : '#f87171';
+            const isAtm = spotPrice > 0 && Math.abs(strike - spotPrice) / spotPrice < 0.005;
+            return (
+              <div key={strike} className="gex-row" style={isAtm ? { background: 'rgba(255,255,255,0.03)' } : {}}>
+                <div className="gex-strike" style={isAtm ? { color: '#e8e8e8' } : {}}>
+                  ${strike >= 1000 ? (strike / 1000).toFixed(0) + 'K' : strike}
+                  {isAtm && <span style={{ fontSize: 8, color: '#606060', marginLeft: 4 }}>ATM</span>}
+                </div>
+                <div className="gex-bar-wrap">
+                  <div className="gex-bar-fill" style={{ width: `${pct}%`, background: col }} />
+                </div>
+                <div className="gex-value" style={{ color: vcol }}>{fmtGex(gex)}</div>
+              </div>
+            );
+          })}
+        </>
+      )}
+
+      {/* Flip level + pin */}
+      {gexLoaded && (
+        <div className="gex-flip-row">
+          {btcGexFlip != null && (
+            <div>
+              Zero-gamma flip: <span>${btcGexFlip.toLocaleString()}</span>
+              <span style={{ color: '#2a2a2a', fontWeight: 400 }}> — break {(btcGexFlip < (spotPrice || btcGexFlip)) ? 'below' : 'above'} = vol acceleration</span>
+            </div>
+          )}
+          {btcGexLevels.length > 0 && (() => {
+            const top = btcGexLevels.reduce((a, b) => Math.abs(a.gex) > Math.abs(b.gex) ? a : b);
+            return (
+              <div>
+                Largest GEX: <span>${top.strike.toLocaleString()}</span>
+                <span style={{ color: '#2a2a2a', fontWeight: 400 }}> — options pin / magnet strike</span>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+    </div>
   );
 }
 

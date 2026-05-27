@@ -38,6 +38,8 @@ export interface GrokContext {
   /* Deribit options */
   pcRatio: string;
   maxPain: string;
+  /* Gamma Exposure (GEX) */
+  btcGex: string;
   /* exchange & on-chain flows */
   exchangeNetFlow: string;
   stablecoinFlow: string;
@@ -105,6 +107,8 @@ export function buildPrompt(ctx: GrokContext): string {
     `BTC Put/Call Ratio:  ${ctx.pcRatio}`,
     `BTC Max Pain Strike:  ${ctx.maxPain}`,
     '(Max pain = price where max option value is destroyed at expiry — acts as magnet)',
+    `BTC Gamma Exposure (GEX):  ${ctx.btcGex}`,
+    '(Positive GEX = dealers LONG gamma = buy dips/sell rips = price pins near large strikes. Negative GEX = dealers SHORT gamma = moves amplified = trending conditions. Zero-gamma flip level is key — crossing it changes dealer hedging direction.)',
     '',
     '=== COINBASE PREMIUM INDEX ===',
     `CB Premium (Coinbase BTC − Binance BTC):  ${ctx.cbPremium}`,
@@ -169,6 +173,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '9. FIBONACCI: Price approaching a key fib level (61.8%, 38.2%) is a high-probability reversal/bounce zone.',
     '10. ORDER FLOW (CVD): Positive CVD = net buying = confirms longs. Negative = selling pressure. Divergence from price is a trap signal.',
     '11. OPTIONS (DERIBIT): P/C ratio > 1.2 = bearish positioning. Max pain acts as a price magnet especially near expiry. Positive basis = healthy bull market.',
+    '19. GEX (GAMMA EXPOSURE): Positive net GEX = dealers LONG gamma = they hedge by buying dips and selling rips = range-bound/mean-reverting market. Negative net GEX = dealers SHORT gamma = they amplify moves = trending/explosive volatility expected. Zero-gamma flip level crossing = sudden regime shift. Large GEX strike = options pin magnet (price gravitates there near expiry).',
     '12. ORDER BOOK: Large bid walls = support. Large ask walls = resistance. Price often hunts walls before reversing.',
     '13. STABLECOIN FLOWS: Growing USDT+USDC supply = dry powder entering market = bullish medium-term. Shrinking = cashing out.',
     '14. EXCHANGE FLOWS: BTC flowing INTO exchanges = sell pressure incoming. Flowing OUT = accumulation/hodling.',

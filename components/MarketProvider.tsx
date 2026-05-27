@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  MarketContext, MarketStore, defaultStore, CoinId, CoinData,
+  MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel,
   BINANCE_SYMS, BYBIT_SYMS,
 } from '@/lib/marketStore';
 
@@ -407,7 +407,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     );
   }, [updateCoin]);
 
-  /* ── Deribit options: Put/Call ratio + Max Pain ── */
+  /* ── Deribit options: Put/Call ratio + Max Pain + GEX ── */
   const fetchDeribitOptions = useCallback(async () => {
     try {
       const res = await fetch(
@@ -417,54 +417,127 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       const summaries: Array<{
         instrument_name: string;
         open_interest: number;
+        mark_iv: number;           // implied volatility %
+        underlying_price: number;  // BTC spot at time of snapshot
       }> = data?.result ?? [];
       if (!summaries.length) return;
 
-      const callsOI: Record<number, number> = {};
-      const putsOI: Record<number, number> = {};
-      let totalCallOI = 0;
-      let totalPutOI = 0;
+      const now = Date.now();
 
-      summaries.forEach(({ instrument_name, open_interest }) => {
-        // e.g. BTC-26MAY24-40000-C
+      /* ── Black-Scholes helpers ── */
+      const normalPDF = (x: number): number =>
+        Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
+
+      // Gamma = N'(d1) / (S × σ × √T)
+      const bsGamma = (S: number, K: number, T: number, sigma: number): number => {
+        if (T <= 0 || sigma <= 0 || S <= 0 || K <= 0) return 0;
+        const sqrtT = Math.sqrt(T);
+        const d1 = (Math.log(S / K) + 0.5 * sigma * sigma * T) / (sigma * sqrtT);
+        return normalPDF(d1) / (S * sigma * sqrtT);
+      };
+
+      const MON: Record<string, number> = {
+        JAN:0,FEB:1,MAR:2,APR:3,MAY:4,JUN:5,JUL:6,AUG:7,SEP:8,OCT:9,NOV:10,DEC:11,
+      };
+
+      // Deribit format: BTC-27JUN25-100000-C
+      const expiryMs = (expStr: string): number => {
+        const d = parseInt(expStr.slice(0, 2));
+        const m = MON[expStr.slice(2, 5)];
+        const y = 2000 + parseInt(expStr.slice(5, 7));
+        return new Date(y, m, d, 8, 0, 0, 0).getTime(); // 08:00 UTC expiry
+      };
+
+      const callsOI: Record<number, number> = {};
+      const putsOI:  Record<number, number> = {};
+      let totalCallOI = 0, totalPutOI = 0;
+
+      // GEX accumulators keyed by strike
+      const gexByStrike: Record<number, number> = {};
+      let spotForGex = 0;
+
+      summaries.forEach(({ instrument_name, open_interest, mark_iv, underlying_price }) => {
         const parts = instrument_name.split('-');
         if (parts.length < 4) return;
         const strike = parseFloat(parts[2]);
-        const type = parts[3]; // 'C' or 'P'
+        const type   = parts[3]; // 'C' or 'P'
         if (isNaN(strike)) return;
         const oi = open_interest || 0;
-        if (type === 'C') {
-          callsOI[strike] = (callsOI[strike] ?? 0) + oi;
-          totalCallOI += oi;
-        } else if (type === 'P') {
-          putsOI[strike] = (putsOI[strike] ?? 0) + oi;
-          totalPutOI += oi;
-        }
+
+        /* ── P/C ratio OI tracking ── */
+        if (type === 'C') { callsOI[strike] = (callsOI[strike] ?? 0) + oi; totalCallOI += oi; }
+        if (type === 'P') { putsOI[strike]  = (putsOI[strike]  ?? 0) + oi; totalPutOI  += oi; }
+
+        /* ── GEX calculation ── */
+        if (oi <= 0) return;
+        const iv = mark_iv;
+        const S  = underlying_price;
+        if (!iv || iv <= 0 || iv > 500 || !S || S <= 0) return;
+        if (!spotForGex) spotForGex = S;
+
+        const T     = Math.max(0, (expiryMs(parts[1]) - now) / (365.25 * 24 * 3600 * 1000));
+        if (T <= 0) return; // expired
+        const sigma = iv / 100;
+        const gamma = bsGamma(S, strike, T, sigma);
+
+        // Calls add positive GEX (dealers long gamma above); puts subtract (dealers short gamma below)
+        const sign = type === 'C' ? 1 : -1;
+        gexByStrike[strike] = (gexByStrike[strike] ?? 0) + sign * gamma * oi * S * S;
       });
 
+      /* ── P/C Ratio ── */
       const pcRatio = totalCallOI > 0 ? totalPutOI / totalCallOI : null;
 
-      /* Max Pain: find strike that minimises total ITM payout */
+      /* ── Max Pain ── */
       const allStrikes = Array.from(
         new Set([...Object.keys(callsOI), ...Object.keys(putsOI)].map(Number))
       ).sort((a, b) => a - b);
 
-      let minPain = Infinity;
-      let maxPain: number | null = null;
-
+      let minPain = Infinity, maxPain: number | null = null;
       allStrikes.forEach(testPrice => {
         let pain = 0;
         allStrikes.forEach(k => {
           pain += (callsOI[k] ?? 0) * Math.max(0, testPrice - k);
           pain += (putsOI[k] ?? 0) * Math.max(0, k - testPrice);
         });
-        if (pain < minPain) {
-          minPain = pain;
-          maxPain = testPrice;
-        }
+        if (pain < minPain) { minPain = pain; maxPain = testPrice; }
       });
 
-      setStore(s => ({ ...s, btcPcRatio: pcRatio, btcMaxPain: maxPain }));
+      /* ── GEX summary ── */
+      const btcNetGex = Object.values(gexByStrike).reduce((a, b) => a + b, 0);
+
+      // Zero-gamma flip level: cumulative GEX from lowest strike crosses zero
+      const sortedByStrike = Object.keys(gexByStrike)
+        .map(Number).sort((a, b) => a - b);
+      let cumGex = 0, btcGexFlip: number | null = null;
+      for (let i = 0; i < sortedByStrike.length; i++) {
+        const prev = cumGex;
+        cumGex += gexByStrike[sortedByStrike[i]];
+        if (i > 0 && prev !== 0 && Math.sign(prev) !== Math.sign(cumGex)) {
+          // Linear interpolation between two adjacent strikes
+          const sA = sortedByStrike[i - 1], sB = sortedByStrike[i];
+          btcGexFlip = Math.round(sA + (sB - sA) * Math.abs(prev) / (Math.abs(prev) + Math.abs(cumGex)));
+          break;
+        }
+      }
+
+      // Top strikes near ATM for chart (±25% from spot, sorted descending by strike, top 8)
+      const btcGexLevels: GexLevel[] = Object.entries(gexByStrike)
+        .map(([k, v]) => ({ strike: Number(k), gex: v }))
+        .filter(e => spotForGex > 0
+          ? Math.abs(e.strike - spotForGex) / spotForGex <= 0.25
+          : true)
+        .sort((a, b) => b.strike - a.strike)   // highest strike at top
+        .slice(0, 8);
+
+      setStore(s => ({
+        ...s,
+        btcPcRatio: pcRatio,
+        btcMaxPain: maxPain,
+        btcNetGex:  btcNetGex  || null,
+        btcGexFlip: btcGexFlip || null,
+        btcGexLevels,
+      }));
     } catch { /* fail silently */ }
   }, []);
 

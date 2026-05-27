@@ -223,6 +223,24 @@ export default function Arena() {
     };
     const oiTrend = coin?.oiTrend ? OI_TREND_LABELS[coin.oiTrend] : '—';
 
+    /* GEX (Gamma Exposure) */
+    const btcGex = (() => {
+      const net = store.btcNetGex;
+      const flip = store.btcGexFlip;
+      if (net == null) return 'Calculating…';
+      const absN = Math.abs(net);
+      const netStr = (net >= 0 ? '+' : '−') + '$' + (absN >= 1e9 ? (absN / 1e9).toFixed(2) + 'B' : (absN / 1e6).toFixed(0) + 'M');
+      const regime = net >= 0
+        ? 'Dealers LONG gamma — market pins/mean-reverts near large strikes'
+        : 'Dealers SHORT gamma — moves accelerate, expect trending/explosive vol';
+      const flipStr = flip ? ` | Flip level: $${flip.toLocaleString()} (break = regime shift)` : '';
+      const topStrike = store.btcGexLevels.length > 0
+        ? store.btcGexLevels.reduce((a, b) => Math.abs(a.gex) > Math.abs(b.gex) ? a : b)
+        : null;
+      const pinStr = topStrike ? ` | Pin strike: $${topStrike.strike.toLocaleString()}` : '';
+      return `${netStr} — ${regime}${flipStr}${pinStr}`;
+    })();
+
     /* Macro */
     const oilPrice  = store.oilPrice  != null ? '$' + store.oilPrice.toFixed(2)  + '/bbl' : '—';
     const bonds10y  = store.bonds10y  != null ? store.bonds10y.toFixed(3)  + '%'   : '—';
@@ -259,7 +277,8 @@ export default function Arena() {
       rsi14, ma20, priceVsMA, volRatio, longShortRatio,
       oilPrice, bonds10y, upcomingEvents: upcoming, etfFlows,
       rsi1h, rsi4h, cvd, basis, fibNearest, orderWalls, squeezeScore,
-      pcRatio, maxPain, exchangeNetFlow, stablecoinFlow, googleTrends, liqLevels, btcDomTrend,
+      pcRatio, maxPain, btcGex,
+      exchangeNetFlow, stablecoinFlow, googleTrends, liqLevels, btcDomTrend,
       pocLine, dxyLine, spxLine, goldLine,
       cbPremium, vwap, oiTrend, takerRatio,
     };
@@ -352,7 +371,7 @@ export default function Arena() {
           onClick={() => setCtxOpen(v => !v)}
         >
           <span>
-            {selectedCoin.toUpperCase()} · {[ctx.rsi14, ctx.rsi1h, ctx.rsi4h, ctx.cvd, ctx.basis, ctx.orderWalls, ctx.pcRatio, ctx.exchangeNetFlow, ctx.cbPremium, ctx.vwap, ctx.oiTrend, ctx.takerRatio].filter(v => v !== '—').length + 21} signals loaded
+            {selectedCoin.toUpperCase()} · {[ctx.rsi14, ctx.rsi1h, ctx.rsi4h, ctx.cvd, ctx.basis, ctx.orderWalls, ctx.pcRatio, ctx.exchangeNetFlow, ctx.cbPremium, ctx.vwap, ctx.oiTrend, ctx.takerRatio, ctx.btcGex].filter(v => v !== '—' && v !== 'Calculating…').length + 21} signals loaded
           </span>
           <span style={{ fontSize: 9, color: '#444' }}>{ctxOpen ? '▲ hide' : '▼ show context'}</span>
         </div>
@@ -367,6 +386,7 @@ export default function Arena() {
           ['Vol Profile POC', ctx.pocLine],
           ['Order Walls', ctx.orderWalls.length > 55 ? ctx.orderWalls.slice(0, 55) + '…' : ctx.orderWalls],
           ['P/C Ratio', ctx.pcRatio], ['Max Pain', ctx.maxPain],
+          ['BTC GEX', ctx.btcGex.length > 55 ? ctx.btcGex.slice(0, 55) + '…' : ctx.btcGex],
           ['Oil (CL=F)', ctx.oilPrice], ['10Y Yield', ctx.bonds10y],
           ['Taker B/S', ctx.takerRatio.length > 55 ? ctx.takerRatio.slice(0, 55) + '…' : ctx.takerRatio],
           ['CB Premium', ctx.cbPremium],

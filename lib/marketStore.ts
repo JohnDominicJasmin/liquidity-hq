@@ -1,6 +1,11 @@
 'use client';
 import { createContext, useContext } from 'react';
 
+export interface GexLevel {
+  strike: number;
+  gex: number;     // net GEX at this strike (positive = long gamma = stabilising, negative = short gamma = amplifying)
+}
+
 export interface LiqWall {
   price: number;
   size: number;
@@ -135,6 +140,10 @@ export type MarketStore = {
   /* Coinbase Premium Index */
   cbPremium: number | null;    // Coinbase BTC − Binance BTC (USD)
   cbPremiumPct: number | null; // as % of Binance price
+  /* GEX — Gamma Exposure from Deribit options */
+  btcNetGex: number | null;    // total net GEX in $ (positive = dealers long gamma)
+  btcGexFlip: number | null;   // zero-gamma strike — cross = regime change
+  btcGexLevels: GexLevel[];    // top strikes near ATM for chart
 };
 
 export const defaultStore: MarketStore = {
@@ -162,6 +171,9 @@ export const defaultStore: MarketStore = {
   spx: null, spxChg: null,
   gold: null, goldChg: null,
   cbPremium: null, cbPremiumPct: null,
+  btcNetGex: null,
+  btcGexFlip: null,
+  btcGexLevels: [],
 };
 
 export const MarketContext = createContext<{
