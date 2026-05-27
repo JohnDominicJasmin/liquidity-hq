@@ -719,43 +719,45 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     } catch { /* fail silently */ }
   }, []);
 
-  /* ── Oil + Bond yields + DXY + SPX + Gold ── */
+  /* ── Oil + Bond yields + DXY + SPX + Gold (Stooq.com — native CORS, no key) ── */
   const fetchMacro = useCallback(async () => {
-    const proxy = (url: string) => 'https://corsproxy.io/?' + encodeURIComponent(url);
-    const yf = (sym: string) => proxy(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=5d`);
+    // Stooq JSON endpoint: returns latest quote with open/high/low/close
+    // N/D fields are returned when market is closed or symbol not found
+    const stooq = (sym: string) =>
+      `https://stooq.com/q/l/?s=${sym}&f=sd2t2ohlcv&h&e=json`;
 
-    const extract = (d: Record<string, unknown>) => {
-      const meta = (d?.chart as Record<string, unknown>)?.result as Record<string, unknown>[] | undefined;
-      const m = meta?.[0]?.meta as Record<string, number> | undefined;
-      if (!m) return null;
-      const price = m.regularMarketPrice;
-      const prev  = m.previousClose ?? m.chartPreviousClose ?? 0;
-      const chg   = prev > 0 ? ((price - prev) / prev) * 100 : (m.regularMarketChangePercent ?? 0);
-      return { price, chg };
+    const extractStooq = (d: Record<string, unknown>) => {
+      const item = (d?.symbols as Record<string, number | string>[])?.[0];
+      if (!item) return null;
+      const close = typeof item.close === 'number' ? item.close : parseFloat(String(item.close));
+      const open  = typeof item.open  === 'number' ? item.open  : parseFloat(String(item.open));
+      if (!close || isNaN(close) || close <= 0) return null;  // covers 'N/D' → NaN
+      const chg = open > 0 && !isNaN(open) ? ((close - open) / open) * 100 : 0;
+      return { price: close, chg };
     };
 
     const results = await Promise.allSettled([
-      fetch(yf('CL%3DF'),    { cache: 'no-cache' }),   // Oil
-      fetch(yf('%5ETNX'),    { cache: 'no-cache' }),   // US 10Y
-      fetch(yf('DX-Y.NYB'), { cache: 'no-cache' }),   // DXY
-      fetch(yf('%5EGSPC'),   { cache: 'no-cache' }),   // SPX
-      fetch(yf('GC%3DF'),    { cache: 'no-cache' }),   // Gold
+      fetch(stooq('cl.f'),    { cache: 'no-cache' }),   // WTI Crude Oil
+      fetch(stooq('%5etnx'),  { cache: 'no-cache' }),   // US 10Y Treasury Yield
+      fetch(stooq('%5edxy'),  { cache: 'no-cache' }),   // DXY (Dollar Index)
+      fetch(stooq('%5espx'),  { cache: 'no-cache' }),   // S&P 500
+      fetch(stooq('xauusd'), { cache: 'no-cache' }),   // Gold (XAU/USD)
     ]);
 
     const parse = async (r: PromiseSettledResult<Response>) => {
       if (r.status !== 'fulfilled' || !r.value.ok) return null;
-      return extract(await r.value.json());
+      try { return extractStooq(await r.value.json()); } catch { return null; }
     };
 
     const [oil, bond, dxyData, spxData, goldData] = await Promise.all(results.map(parse));
 
     setStore(s => ({
       ...s,
-      ...(oil  ? { oilPrice: oil.price }   : {}),
-      ...(bond ? { bonds10y: bond.price }  : {}),
-      ...(dxyData  ? { dxy:  dxyData.price,  dxyChg:  dxyData.chg  } : {}),
-      ...(spxData  ? { spx:  spxData.price,  spxChg:  spxData.chg  } : {}),
-      ...(goldData ? { gold: goldData.price, goldChg: goldData.chg  } : {}),
+      ...(oil      ? { oilPrice: oil.price }                             : {}),
+      ...(bond     ? { bonds10y: bond.price }                            : {}),
+      ...(dxyData  ? { dxy:  dxyData.price,  dxyChg:  dxyData.chg  }   : {}),
+      ...(spxData  ? { spx:  spxData.price,  spxChg:  spxData.chg  }   : {}),
+      ...(goldData ? { gold: goldData.price, goldChg: goldData.chg  }   : {}),
     }));
   }, []);
 

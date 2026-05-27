@@ -1,6 +1,6 @@
 'use client';
-import { useState, useMemo, useEffect, useCallback } from 'react';
-import { useMarket, CoinId, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
+import { useState, useMemo } from 'react';
+import { useMarket, CoinId } from '@/lib/marketStore';
 
 const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'zec'];
 
@@ -39,16 +39,6 @@ const RANGES: { key: TimeRange; label: string; maxDist: number; hint: string }[]
 interface Band {
   price: number; distPct: number; usdM: number;
   lev: string; side: 'long' | 'short'; barPct: number; isMagnet: boolean;
-}
-
-/* ─── Real liquidation bucket (from Binance allForceOrders) ────────────────── */
-interface RealBucket {
-  price:    number;
-  longUSD:  number;   // SELL orders = long position force-closed
-  shortUSD: number;   // BUY  orders = short position force-closed
-  totalUSD: number;
-  count:    number;
-  pct:      number;   // 0-100 for bar width, relative to hottest bucket
 }
 
 /* ─── Estimated bands computation ─────────────────────────────────────────── */
@@ -122,201 +112,14 @@ function BandRow({ b }: { b: Band }) {
   );
 }
 
-/* ─── Real liq bucket row ──────────────────────────────────────────────────── */
-function RealRow({ b, hot }: { b: RealBucket; hot: boolean }) {
-  const longDom  = b.longUSD > b.shortUSD * 1.3;
-  const shortDom = b.shortUSD > b.longUSD * 1.3;
-  const accent   = longDom ? '#f87171' : shortDom ? '#34d399' : '#fbbf24';
-  const tag      = longDom ? 'LONG' : shortDom ? 'SHORT' : 'MIXED';
-
-  return (
-    <div className={`liq-real-row${hot ? ' liq-real-hot' : ''}`}>
-      <span className="liq-real-price">{fmtP(b.price)}</span>
-
-      {/* Stacked split bar: red = long liq | green = short liq */}
-      <div className="liq-real-bar-wrap">
-        <div className="liq-real-bar-inner" style={{ width: Math.max(b.pct, 2) + '%' }}>
-          {b.longUSD  > 0 && <div style={{ flex: b.longUSD,  background: 'rgba(248,113,113,0.72)', height: '100%' }} />}
-          {b.shortUSD > 0 && <div style={{ flex: b.shortUSD, background: 'rgba(52,211,153,0.72)',  height: '100%' }} />}
-        </div>
-      </div>
-
-      <span className="liq-real-tag" style={{ color: accent }}>{hot ? '🔥 ' : ''}{tag}</span>
-      <span className="liq-real-total" style={{ color: accent }}>{fmtM(b.totalUSD)}</span>
-      <span className="liq-real-count">{b.count}</span>
-    </div>
-  );
-}
-
 /* ─── Page ─────────────────────────────────────────────────────────────────── */
 export default function LiqPage() {
   const { store }  = useMarket();
   const [coin, setCoin]   = useState<CoinId>('btc');
   const [range, setRange] = useState<TimeRange>('24h');
 
-  /* Real liq state */
-  const [realBuckets, setRealBuckets] = useState<RealBucket[]>([]);
-  const [realLoading, setRealLoading] = useState(false);
-  const [realErr,     setRealErr]     = useState('');
-  const [realMeta,    setRealMeta]    = useState('');
-  const [realSource,  setRealSource]  = useState<'binance' | 'bybit' | ''>('');
-  const [fetchedAt,   setFetchedAt]   = useState(0);
-
   const cd         = store.coins[coin];
   const rangeConf  = RANGES.find(r => r.key === range)!;
-
-  /* ── Fetch real liq: Binance allForceOrders → Bybit fallback ── */
-  const fetchReal = useCallback(async () => {
-    const binanceSym = (BINANCE_SYMS as Record<string, string>)[coin];
-    const bybitSym   = (BYBIT_SYMS   as Record<string, string>)[coin];
-
-    if (!binanceSym && !bybitSym) {
-      setRealErr(`No perpetuals data available for ${coin.toUpperCase()}`);
-      setRealBuckets([]);
-      return;
-    }
-
-    const curPrice = store.coins[coin]?.price;
-    if (!curPrice) return;
-
-    setRealLoading(true);
-    setRealErr('');
-
-    // Normalised order shape used internally
-    type NOrder = { side: 'BUY' | 'SELL'; price: number; qty: number; time: number };
-    let orders: NOrder[] = [];
-    let usedSource: 'binance' | 'bybit' = 'binance';
-
-    /* ── 1. Try Binance allForceOrders ── */
-    if (binanceSym) {
-      try {
-        type BOrder = { price: string; avragePrice: string; executedQty: string; side: 'BUY' | 'SELL'; time: number };
-        const raw: BOrder[] = [];
-        let endTime: number | undefined;
-        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-
-        for (let page = 0; page < 5; page++) {
-          const p = new URLSearchParams({ symbol: binanceSym, limit: '100' });
-          if (endTime !== undefined) p.set('endTime', String(endTime));
-          const res = await fetch(`https://fapi.binance.com/fapi/v1/allForceOrders?${p}`);
-          if (!res.ok) {
-            const e = await res.json().catch(() => ({}));
-            throw new Error(`Binance ${res.status}${e?.msg ? ': ' + e.msg : ''}`);
-          }
-          const batch: BOrder[] = await res.json();
-          if (!Array.isArray(batch) || batch.length === 0) break;
-          raw.push(...batch);
-          const oldest = Math.min(...batch.map(o => o.time));
-          if (oldest <= sevenDaysAgo || batch.length < 100) break;
-          endTime = oldest - 1;
-        }
-
-        if (raw.length > 0) {
-          orders = raw.map(o => ({
-            side:  o.side,
-            price: parseFloat(o.avragePrice || o.price),
-            qty:   parseFloat(o.executedQty),
-            time:  o.time,
-          })).filter(o => o.price > 0 && o.qty > 0);
-          usedSource = 'binance';
-        }
-      } catch { /* Binance down — fall through to Bybit */ }
-    }
-
-    /* ── 2. Bybit fallback (also used for Bybit-only coins like HYPE) ── */
-    if (orders.length === 0 && bybitSym) {
-      try {
-        type BYOrder = { side: 'Buy' | 'Sell'; price: string; size: string; updatedTime: string };
-        const raw: BYOrder[] = [];
-        let cursor: string | undefined;
-
-        for (let page = 0; page < 5; page++) {
-          const p = new URLSearchParams({ category: 'linear', symbol: bybitSym, limit: '200' });
-          if (cursor) p.set('cursor', cursor);
-          const res  = await fetch(`https://api.bybit.com/v5/market/liquidation?${p}`);
-          const json = await res.json();
-          if (json.retCode !== 0) break;
-          const list: BYOrder[] = json.result?.list ?? [];
-          if (!list.length) break;
-          raw.push(...list);
-          cursor = json.result?.nextPageCursor || undefined;
-          if (!cursor) break;
-        }
-
-        if (raw.length > 0) {
-          orders = raw.map(o => ({
-            // Bybit: "Sell" = sell order = LONG position closed; "Buy" = BUY order = SHORT closed
-            side:  (o.side === 'Sell' ? 'SELL' : 'BUY') as 'SELL' | 'BUY',
-            price: parseFloat(o.price),
-            qty:   parseFloat(o.size),
-            time:  parseInt(o.updatedTime),
-          })).filter(o => o.price > 0 && o.qty > 0);
-          usedSource = 'bybit';
-        }
-      } catch { /* Bybit also failed */ }
-    }
-
-    if (orders.length === 0) {
-      setRealBuckets([]);
-      setRealMeta('No recent liquidation data available');
-      setRealSource('');
-      setFetchedAt(Date.now());
-      setRealLoading(false);
-      return;
-    }
-
-    /* ── Group into 0.3% price buckets ── */
-    const BUCKET = curPrice * 0.003;
-    const map = new Map<number, { long: number; short: number; count: number }>();
-
-    for (const o of orders) {
-      const usd = (o.price * o.qty) / 1_000_000;   // → $M
-      const key = Math.round(o.price / BUCKET) * BUCKET;
-      if (!map.has(key)) map.set(key, { long: 0, short: 0, count: 0 });
-      const b = map.get(key)!;
-      b.count++;
-      // SELL = long liq; BUY = short liq (same convention on both exchanges)
-      if (o.side === 'SELL') b.long  += usd;
-      else                   b.short += usd;
-    }
-
-    const vals     = Array.from(map.values());
-    const maxTotal = Math.max(...vals.map(v => v.long + v.short), 1);
-
-    const buckets: RealBucket[] = Array.from(map.entries())
-      .map(([price, b]) => ({
-        price,
-        longUSD:  b.long,
-        shortUSD: b.short,
-        totalUSD: b.long + b.short,
-        count:    b.count,
-        pct:      ((b.long + b.short) / maxTotal) * 100,
-      }))
-      .filter(b => b.totalUSD > 0.001)             // drop < $1k noise
-      .sort((a, b) => b.price - a.price);
-
-    const ts      = orders.map(o => o.time);
-    const windowH = ts.length > 1
-      ? ((Math.max(...ts) - Math.min(...ts)) / 3_600_000).toFixed(1)
-      : '—';
-    const fetchTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    const sourceLabel = usedSource === 'bybit' ? 'Bybit' : 'Binance';
-
-    setRealMeta(`${orders.length.toLocaleString()} orders · ~${windowH}h window · ${sourceLabel} · ${fetchTime}`);
-    setRealSource(usedSource);
-    setRealBuckets(buckets);
-    setFetchedAt(Date.now());
-    setRealLoading(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coin]);
-
-  /* Auto-fetch when coin changes */
-  useEffect(() => {
-    setRealBuckets([]);
-    setRealMeta('');
-    setRealErr('');
-    fetchReal();
-  }, [coin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Estimated bands */
   const bands = useMemo(() => {
@@ -333,14 +136,6 @@ export default function LiqPage() {
       : { txt: 'Balanced', sub: 'Roughly equal liq risk on both sides', col: '#606060' }
     : null;
 
-  /* Real liq: split at current price */
-  const curPrice      = cd?.price ?? 0;
-  const realAbove     = realBuckets.filter(b => b.price >= curPrice);
-  const realBelow     = realBuckets.filter(b => b.price <  curPrice);
-  const hotAbove      = realAbove.length  ? realAbove.reduce((a, b)  => b.totalUSD > a.totalUSD ? b : a) : null;
-  const hotBelow      = realBelow.length  ? realBelow.reduce((a, b)  => b.totalUSD > a.totalUSD ? b : a) : null;
-  const hasRealData   = realBuckets.length > 0;
-
   return (
     <div>
       {/* Header */}
@@ -349,7 +144,7 @@ export default function LiqPage() {
           🔥 Liquidation Heatmap
         </div>
         <div style={{ fontSize: 12, color: '#606060' }}>
-          Estimated zones + real Binance force orders · nearest dense cluster = price magnet
+          Estimated liquidation zones · nearest dense cluster = price magnet
         </div>
       </div>
 
@@ -475,99 +270,6 @@ export default function LiqPage() {
             {bands.longs.map((b, i) => <BandRow key={`l${i}`} b={b} />)}
           </div>
 
-          {/* ══ REAL LIQ ACTIVITY (Binance allForceOrders) ════════ */}
-          <div className="liq-real-card">
-            {/* Header */}
-            <div className="liq-real-hdr">
-              <span>⚡ Real Liquidation Activity</span>
-              <span className="liq-real-source">{realMeta || 'Binance Force Orders'}</span>
-              <button
-                className="liq-real-refresh-btn"
-                onClick={fetchReal}
-                disabled={realLoading}
-                title="Refresh real liq data"
-              >
-                {realLoading ? '···' : '↻ Refresh'}
-              </button>
-            </div>
-
-            {/* What this data is */}
-            <div className="liq-real-explainer">
-              <span style={{ color: '#f87171' }}>■</span> Long liq (SELL orders — forced closes of long positions)
-              <span style={{ margin: '0 10px', color: '#2a2a2a' }}>|</span>
-              <span style={{ color: '#34d399' }}>■</span> Short liq (BUY orders — forced closes of short positions)
-              <span style={{ margin: '0 10px', color: '#2a2a2a' }}>|</span>
-              <span style={{ color: '#fbbf24' }}>🔥</span> Hottest bucket in window
-            </div>
-
-            {/* Column header */}
-            <div className="liq-real-col-hdr">
-              <span>Price</span>
-              <span>Swept liquidity</span>
-              <span>Type</span>
-              <span>Total</span>
-              <span title="Number of force orders in this price bucket">n</span>
-            </div>
-
-            {/* Loading */}
-            {realLoading && (
-              <div style={{ padding: '18px', textAlign: 'center', color: '#444', fontSize: 12 }}>
-                Fetching Binance allForceOrders (up to 5 × 100 orders)…
-              </div>
-            )}
-
-            {/* Error */}
-            {!realLoading && realErr && (
-              <div style={{ padding: '10px 14px', color: '#f87171', fontSize: 11, lineHeight: 1.5 }}>
-                {realErr}
-              </div>
-            )}
-
-            {/* Empty */}
-            {!realLoading && !realErr && fetchedAt > 0 && !hasRealData && (
-              <div style={{ padding: '18px', textAlign: 'center', color: '#444', fontSize: 12 }}>
-                No significant liquidations in the most recent 1 000 force orders
-              </div>
-            )}
-
-            {/* Data rows — split at current price */}
-            {!realLoading && hasRealData && (
-              <>
-                {/* Above current price: shorts got swept up here */}
-                {realAbove.length > 0 && (
-                  <div className="liq-real-zone-label liq-real-zone-short">
-                    ↑ Short stops swept above · price pumped through here
-                  </div>
-                )}
-                {realAbove.map(b => (
-                  <RealRow key={b.price} b={b} hot={b === hotAbove} />
-                ))}
-
-                {/* Current price divider */}
-                <div className="liq-real-price-bar">
-                  <span className="liq-current-dot" style={{ width: 6, height: 6 }} />
-                  <span style={{ fontSize: 13, fontWeight: 800, color: '#e8e8e8' }}>{fmtP(curPrice)}</span>
-                  <span style={{ fontSize: 10, color: '#444', marginLeft: 6 }}>CURRENT PRICE</span>
-                </div>
-
-                {/* Below current price: longs got swept down here */}
-                {realBelow.length > 0 && (
-                  <div className="liq-real-zone-label liq-real-zone-long">
-                    ↓ Long stops swept below · price dumped through here
-                  </div>
-                )}
-                {realBelow.map(b => (
-                  <RealRow key={b.price} b={b} hot={b === hotBelow} />
-                ))}
-              </>
-            )}
-
-            <div className="liq-real-footer">
-              Source: Binance <code>/fapi/v1/allForceOrders</code> (up to 500 force orders via 5×100 pagination, public endpoint, no API key) ·
-              Coverage window varies — volatile markets fill 500 orders in ~15 min, quiet markets in ~6h
-            </div>
-          </div>
-
           {/* Legend */}
           <div className="liq-howto">
             <div className="liq-howto-title">How to read this</div>
@@ -580,17 +282,13 @@ export default function LiqPage() {
               <span><strong style={{ color: '#f87171' }}>Long Liq Zones (estimated)</strong> — price levels below current where modelled long positions get force-closed. Whales dump DOWN into these.</span>
             </div>
             <div className="liq-howto-row">
-              <span style={{ flexShrink: 0 }}>⚡</span>
-              <span><strong>Real Activity</strong> — actual Binance force-closed orders. Splits into long liq (red) and short liq (green) per price bucket. Hot bucket 🔥 = most $ in window.</span>
-            </div>
-            <div className="liq-howto-row">
               <span style={{ flexShrink: 0 }}>🧲</span>
               <span><strong>Magnet</strong> — largest estimated cluster in selected window. Most likely price target for the next big move.</span>
             </div>
           </div>
 
           <div className="liq-disclaimer">
-            Estimated bands: live OI × leverage tier weights (17 tiers). Real activity: Binance allForceOrders, last 1 000 force orders.
+            Estimated bands: live OI × leverage tier weights (17 tiers).
             For full historical heatmap data use Coinglass (paid API).
           </div>
         </>
