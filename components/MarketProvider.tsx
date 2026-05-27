@@ -429,11 +429,13 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
 
       // Gamma = N'(d1) / (S × σ × √T)
+      // Minimum T of 1 day avoids 0/0 → NaN for options expiring today/imminently
       const bsGamma = (S: number, K: number, T: number, sigma: number): number => {
-        if (T <= 0 || sigma <= 0 || S <= 0 || K <= 0) return 0;
+        if (T < 1 / 365 || sigma <= 0 || S <= 0 || K <= 0) return 0;
         const sqrtT = Math.sqrt(T);
         const d1 = (Math.log(S / K) + 0.5 * sigma * sigma * T) / (sigma * sqrtT);
-        return normalPDF(d1) / (S * sigma * sqrtT);
+        const g = normalPDF(d1) / (S * sigma * sqrtT);
+        return isFinite(g) ? g : 0;   // guard against any residual Inf/NaN
       };
 
       const MON: Record<string, number> = {
@@ -479,10 +481,13 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         if (T <= 0) return; // expired
         const sigma = iv / 100;
         const gamma = bsGamma(S, strike, T, sigma);
+        if (!gamma || !isFinite(gamma)) return; // skip NaN / Inf / 0 gamma
 
         // Calls add positive GEX (dealers long gamma above); puts subtract (dealers short gamma below)
         const sign = type === 'C' ? 1 : -1;
-        gexByStrike[strike] = (gexByStrike[strike] ?? 0) + sign * gamma * oi * S * S;
+        const gexContrib = sign * gamma * oi * S * S;
+        if (!isFinite(gexContrib)) return; // guard against overflow
+        gexByStrike[strike] = (gexByStrike[strike] ?? 0) + gexContrib;
       });
 
       /* ── P/C Ratio ── */
@@ -504,7 +509,15 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       });
 
       /* ── GEX summary ── */
-      const btcNetGex = Object.values(gexByStrike).reduce((a, b) => a + b, 0);
+      const hasGexData = Object.keys(gexByStrike).length > 0;
+      // Use ?? 0 inside reduce so a stray NaN entry doesn't sink everything;
+      // store null only when we genuinely have no options data.
+      const rawNetGex = hasGexData
+        ? Object.values(gexByStrike).reduce((a, b) => a + (isFinite(b) ? b : 0), 0)
+        : null;
+      const btcNetGex: number | null = hasGexData
+        ? (isFinite(rawNetGex as number) ? (rawNetGex as number) : 0)
+        : null;
 
       // Zero-gamma flip level: cumulative GEX from lowest strike crosses zero
       const sortedByStrike = Object.keys(gexByStrike)
@@ -512,30 +525,31 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       let cumGex = 0, btcGexFlip: number | null = null;
       for (let i = 0; i < sortedByStrike.length; i++) {
         const prev = cumGex;
-        cumGex += gexByStrike[sortedByStrike[i]];
+        const v = gexByStrike[sortedByStrike[i]];
+        if (!isFinite(v)) continue;
+        cumGex += v;
         if (i > 0 && prev !== 0 && Math.sign(prev) !== Math.sign(cumGex)) {
-          // Linear interpolation between two adjacent strikes
           const sA = sortedByStrike[i - 1], sB = sortedByStrike[i];
           btcGexFlip = Math.round(sA + (sB - sA) * Math.abs(prev) / (Math.abs(prev) + Math.abs(cumGex)));
           break;
         }
       }
 
-      // Top strikes near ATM for chart (±25% from spot, sorted descending by strike, top 8)
+      // Top strikes near ATM for chart (±35% from spot, sorted descending, top 8)
       const btcGexLevels: GexLevel[] = Object.entries(gexByStrike)
         .map(([k, v]) => ({ strike: Number(k), gex: v }))
-        .filter(e => spotForGex > 0
-          ? Math.abs(e.strike - spotForGex) / spotForGex <= 0.25
-          : true)
-        .sort((a, b) => b.strike - a.strike)   // highest strike at top
+        .filter(e => isFinite(e.gex) && (spotForGex > 0
+          ? Math.abs(e.strike - spotForGex) / spotForGex <= 0.35
+          : true))
+        .sort((a, b) => b.strike - a.strike)
         .slice(0, 8);
 
       setStore(s => ({
         ...s,
         btcPcRatio: pcRatio,
         btcMaxPain: maxPain,
-        btcNetGex:  btcNetGex  || null,
-        btcGexFlip: btcGexFlip || null,
+        btcNetGex,                         // proper null only when no data
+        btcGexFlip: btcGexFlip ?? null,
         btcGexLevels,
       }));
     } catch { /* fail silently */ }
