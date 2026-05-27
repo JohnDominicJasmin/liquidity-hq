@@ -53,6 +53,8 @@ export interface GrokContext {
   dxyLine: string;
   spxLine: string;
   goldLine: string;
+  /* Taker Buy/Sell aggression ratio */
+  takerRatio: string;
   /* Coinbase Premium Index */
   cbPremium: string;
   /* VWAP vs current price */
@@ -88,6 +90,7 @@ export function buildPrompt(ctx: GrokContext): string {
     `Fibonacci nearest level:  ${ctx.fibNearest}`,
     `Volume Profile POC/VAH/VAL:  ${ctx.pocLine}`,
     `VWAP (15m, 100 candles):  ${ctx.vwap}`,
+    `Taker Buy/Sell ratio (last 5h):  ${ctx.takerRatio}`,
     '',
     '=== DERIVATIVES / POSITIONING ===',
     `Funding rate: ${ctx.fundingRate}`,
@@ -172,6 +175,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '15. COINBASE PREMIUM: CB premium > +$30 = US institutions buying aggressively (strong bullish). Negative premium = US selling/risk-off.',
     '16. VWAP: Price above VWAP = institutions paying up (bullish). Price below VWAP = distributing (bearish). VWAP is the #1 institutional reference level.',
     '17. OI TREND: OI↑+Price↑ = real trend with conviction. OI↑+Price↓ = new short conviction. OI↓+Price↑ = short covering only (weak). OI↓+Price↓ = long exits (panic). Weak signals = high fade probability.',
+    '18. TAKER RATIO: Taker buy >65% = aggressive buyers hitting asks = real demand signal (bullish). Taker sell >65% = sellers dumping into bids = distribution/panic (bearish). Taker ratio diverging from price = trap. Check against CVD for confirmation.',
     '',
     'Output in EXACTLY this format — no extra text before or after:',
     'SIGNAL: [LONG or SHORT or FLAT]',

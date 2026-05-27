@@ -265,6 +265,17 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       const val = minP + lo * bSize;
       const vah = minP + (hi + 1) * bSize;
 
+      /* ── Taker Buy/Sell ratio (last 20 candles ≈ 5h) ──
+         k[9] = taker buy base volume, k[5] = total base volume
+         takerBuyRatio > 0.55 = buyers hitting asks (aggression = bullish)
+         takerBuyRatio < 0.45 = sellers hitting bids (aggression = bearish) */
+      let totalBuyVol = 0, totalBaseVol = 0;
+      klines.slice(-20).forEach((k: string[]) => {
+        totalBuyVol  += parseFloat(k[9]);   // taker buy base vol
+        totalBaseVol += parseFloat(k[5]);   // total base vol
+      });
+      const takerBuyRatio = totalBaseVol > 0 ? totalBuyVol / totalBaseVol : null;
+
       /* ── VWAP — use BASE volume (k[5]) for standard formula ── */
       // quoteVol (k[7]) biases the average; base vol gives true VWAP
       let sumTPV = 0, sumVol = 0;
@@ -276,7 +287,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       });
       const vwap = sumVol > 0 ? sumTPV / sumVol : null;
 
-      updateCoin(coin, { volRatio: avg > 0 ? current / avg : 1, ma20, rsi14, poc, vah, val, vwap });
+      updateCoin(coin, { volRatio: avg > 0 ? current / avg : 1, ma20, rsi14, poc, vah, val, vwap, takerBuyRatio });
     } catch { /* */ }
   }, [updateCoin]);
 

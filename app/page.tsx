@@ -192,6 +192,63 @@ function EdgeSignals() {
           );
         })}
       </div>
+
+      {/* Row 3: Taker Buy/Sell ratio table */}
+      <div className="taker-table">
+        <div className="taker-title">
+          ⚡ Taker Buy/Sell Pressure
+          <span className="taker-subtitle">Who&apos;s being aggressive — last 5h of 15m candles</span>
+        </div>
+        <div className="taker-hdr">
+          <div>Coin</div><div>Buy/Sell split</div><div>Signal</div>
+        </div>
+        {COINS.map(id => {
+          const c = store.coins[id];
+          const ratio = c?.takerBuyRatio;   // 0.0–1.0
+          const buyPct  = ratio != null ? Math.round(ratio * 100) : null;
+          const sellPct = buyPct != null ? 100 - buyPct : null;
+
+          const isAggBuy  = buyPct != null && buyPct >= 65;
+          const isMildBuy = buyPct != null && buyPct >= 55 && buyPct < 65;
+          const isAggSell = buyPct != null && buyPct <= 35;
+          const isMildSell = buyPct != null && buyPct > 35 && buyPct <= 45;
+          const isBalanced = buyPct != null && buyPct > 45 && buyPct < 55;
+
+          const sigTxt = buyPct == null  ? '—'
+            : isAggBuy   ? `${buyPct}% buyers ▲`
+            : isMildBuy  ? `${buyPct}% mild buy`
+            : isAggSell  ? `${sellPct}% sellers ▼`
+            : isMildSell ? `${sellPct}% mild sell`
+            : `Balanced`;
+
+          const sigCol = buyPct == null ? 'var(--txt3)'
+            : isAggBuy   ? '#34d399'
+            : isMildBuy  ? '#86efac'
+            : isAggSell  ? '#f87171'
+            : isMildSell ? '#fca5a5'
+            : 'var(--txt3)';
+
+          return (
+            <div key={id} className="taker-row">
+              <div className="taker-coin">{id.toUpperCase()}</div>
+              <div className="taker-bar-wrap">
+                {buyPct != null ? (
+                  <>
+                    <div
+                      className="taker-buy-bar"
+                      style={{ width: `${buyPct}%` }}
+                    />
+                    <div className="taker-mid-line" />
+                  </>
+                ) : (
+                  <span style={{ fontSize: 10, color: '#333', paddingLeft: 6 }}>Fetching…</span>
+                )}
+              </div>
+              <div className="taker-signal" style={{ color: sigCol }}>{sigTxt}</div>
+            </div>
+          );
+        })}
+      </div>
     </>
   );
 }

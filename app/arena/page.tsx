@@ -184,6 +184,17 @@ export default function Arena() {
         + (coin.price && coin.poc ? (coin.price > coin.poc ? ' — price ABOVE POC (bullish)' : ' — price BELOW POC (bearish)') : '')
       : '—';
 
+    /* Taker Buy/Sell ratio */
+    const takerBuy = coin?.takerBuyRatio;
+    const takerRatio = takerBuy != null
+      ? `Buy ${Math.round(takerBuy * 100)}% / Sell ${Math.round((1 - takerBuy) * 100)}%`
+        + (takerBuy >= 0.65 ? ' — aggressive buyers hitting asks (BULLISH)'
+        :  takerBuy >= 0.55 ? ' — mild buy pressure'
+        :  takerBuy <= 0.35 ? ' — aggressive sellers hitting bids (BEARISH)'
+        :  takerBuy <= 0.45 ? ' — mild sell pressure'
+        :                     ' — balanced flow')
+      : '—';
+
     /* Coinbase Premium */
     const cbPremium = store.cbPremium != null && store.cbPremiumPct != null
       ? (store.cbPremium >= 0 ? '+' : '') + '$' + Math.abs(store.cbPremium).toFixed(1)
@@ -250,7 +261,7 @@ export default function Arena() {
       rsi1h, rsi4h, cvd, basis, fibNearest, orderWalls, squeezeScore,
       pcRatio, maxPain, exchangeNetFlow, stablecoinFlow, googleTrends, liqLevels, btcDomTrend,
       pocLine, dxyLine, spxLine, goldLine,
-      cbPremium, vwap, oiTrend,
+      cbPremium, vwap, oiTrend, takerRatio,
     };
   };
 
@@ -294,7 +305,7 @@ export default function Arena() {
           <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8' }}>AI Arena</div>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>GROK-4.3 + LIVE X</span>
         </div>
-        <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>32-signal engine — technicals · derivatives · VWAP · CB premium · OI trend · macro · ETF · on-chain · social → LONG / SHORT / FLAT</div>
+        <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>33-signal engine — technicals · VWAP · taker aggression · CB premium · OI trend · derivatives · macro · ETF · on-chain · social → LONG / SHORT / FLAT</div>
       </div>
 
       {/* Coin selector + notification bell */}
@@ -341,7 +352,7 @@ export default function Arena() {
           onClick={() => setCtxOpen(v => !v)}
         >
           <span>
-            {selectedCoin.toUpperCase()} · {[ctx.rsi14, ctx.rsi1h, ctx.rsi4h, ctx.cvd, ctx.basis, ctx.orderWalls, ctx.pcRatio, ctx.exchangeNetFlow, ctx.cbPremium, ctx.vwap, ctx.oiTrend].filter(v => v !== '—').length + 21} signals loaded
+            {selectedCoin.toUpperCase()} · {[ctx.rsi14, ctx.rsi1h, ctx.rsi4h, ctx.cvd, ctx.basis, ctx.orderWalls, ctx.pcRatio, ctx.exchangeNetFlow, ctx.cbPremium, ctx.vwap, ctx.oiTrend, ctx.takerRatio].filter(v => v !== '—').length + 21} signals loaded
           </span>
           <span style={{ fontSize: 9, color: '#444' }}>{ctxOpen ? '▲ hide' : '▼ show context'}</span>
         </div>
@@ -357,6 +368,7 @@ export default function Arena() {
           ['Order Walls', ctx.orderWalls.length > 55 ? ctx.orderWalls.slice(0, 55) + '…' : ctx.orderWalls],
           ['P/C Ratio', ctx.pcRatio], ['Max Pain', ctx.maxPain],
           ['Oil (CL=F)', ctx.oilPrice], ['10Y Yield', ctx.bonds10y],
+          ['Taker B/S', ctx.takerRatio.length > 55 ? ctx.takerRatio.slice(0, 55) + '…' : ctx.takerRatio],
           ['CB Premium', ctx.cbPremium],
           ['VWAP (15m)', ctx.vwap],
           ['OI Trend', ctx.oiTrend.length > 55 ? ctx.oiTrend.slice(0, 55) + '…' : ctx.oiTrend],

@@ -44,6 +44,8 @@ export interface CoinData {
   vwap: number | null;
   /* OI Trend vs Price divergence signal */
   oiTrend: 'strong_up' | 'weak_up' | 'strong_down' | 'weak_down' | null;
+  /* Taker Buy/Sell ratio — who's being aggressive (last 20 × 15m candles ≈ 5h) */
+  takerBuyRatio: number | null;  // 0.0–1.0 (buy vol / total vol)
 }
 
 export type CoinId = 'btc' | 'eth' | 'sol' | 'xrp' | 'bnb' | 'hype' | 'near' | 'zec';

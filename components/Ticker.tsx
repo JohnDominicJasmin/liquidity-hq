@@ -70,6 +70,16 @@ export default function Ticker() {
                     OI: {d.oiTrend === 'strong_up' ? '↑↑ real' : d.oiTrend === 'strong_down' ? '↑↓ real' : d.oiTrend === 'weak_up' ? '↓↑ weak' : '↓↓ weak'}
                   </div>
                 )}
+                {d?.takerBuyRatio != null && (() => {
+                  const bp = Math.round(d.takerBuyRatio! * 100);
+                  const col = bp >= 65 ? '#34d399' : bp <= 35 ? '#f87171' : '#606060';
+                  const lbl = bp >= 65 ? `${bp}% buy ▲` : bp <= 35 ? `${100 - bp}% sell ▼` : `${bp}% / ${100 - bp}%`;
+                  return (
+                    <div className="ticker-vol" style={{ color: col }}>
+                      TKR: {lbl}
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}
