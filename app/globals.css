@@ -458,6 +458,25 @@ body {
 .arena-coin-row { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
 .arena-coin-btn { padding: 6px 14px; border-radius: 20px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt3); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
 .arena-coin-btn.sel { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-bdr); box-shadow: var(--glow-purple); }
+/* ── CVD Divergence banner ── */
+.arena-cvd-div {
+  display: flex; align-items: flex-start; gap: 10px;
+  border-radius: 12px; padding: 10px 12px; margin-bottom: 12px;
+  border: 0.5px solid; border-left: 3px solid;
+  animation: cvd-pop 0.3s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes cvd-pop { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+.arena-cvd-div-bullish { background: rgba(52,211,153,0.07); border-color: rgba(52,211,153,0.25); border-left-color: var(--green); }
+.arena-cvd-div-bearish { background: rgba(248,113,113,0.07); border-color: rgba(248,113,113,0.25); border-left-color: var(--red); }
+.arena-cvd-div-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.arena-cvd-div-title { font-size: 12px; font-weight: 700; margin-bottom: 2px; }
+.arena-cvd-div-bullish .arena-cvd-div-title { color: var(--green); }
+.arena-cvd-div-bearish .arena-cvd-div-title { color: var(--red); }
+.arena-cvd-div-desc { font-size: 11px; color: var(--txt2); line-height: 1.5; }
+
+/* ── Whale alert card ── */
+.ncard-whale { border-left-width: 3px !important; }
+
 .arena-fire-btn {
   width: 100%; padding: 13px; border-radius: 14px;
   border: 0.5px solid var(--purple-bdr);

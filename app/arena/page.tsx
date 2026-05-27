@@ -333,6 +333,28 @@ export default function Arena() {
         ))}
       </div>
 
+      {/* CVD Divergence alert banner */}
+      {(() => {
+        const div = store.coins[selectedCoin]?.cvdDivergence;
+        if (!div) return null;
+        const isBull = div === 'bullish';
+        return (
+          <div className={`arena-cvd-div arena-cvd-div-${div}`}>
+            <span className="arena-cvd-div-icon">{isBull ? '📈' : '📉'}</span>
+            <div>
+              <div className="arena-cvd-div-title">
+                {isBull ? 'Bullish CVD Divergence' : 'Bearish CVD Divergence'}
+              </div>
+              <div className="arena-cvd-div-desc">
+                {isBull
+                  ? 'Price falling but net buying pressure rising — smart money accumulating. Potential reversal up.'
+                  : 'Price rising but net selling pressure increasing — distribution trap. Watch for reversal down.'}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <button className="arena-fire-btn" disabled={loading} onClick={fire}>
         {loading ? '⚡ Grok is thinking...' : '⚡ Run Grok Signal'}
       </button>

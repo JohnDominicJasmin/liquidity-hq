@@ -1,9 +1,11 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  MarketContext, MarketStore, defaultStore, CoinId,
+  MarketContext, MarketStore, defaultStore, CoinId, CoinData,
   BINANCE_SYMS, BYBIT_SYMS,
 } from '@/lib/marketStore';
+
+const WHALE_USD_THRESHOLD = 500_000; // $500k single trade = whale
 
 const WS_URLS = [
   'wss://stream.binance.com:9443/stream?streams=btcusdt@ticker/ethusdt@ticker/solusdt@ticker/xrpusdt@ticker/bnbusdt@ticker/nearusdt@ticker/zecusdt@ticker',
@@ -32,6 +34,10 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   const retriesRef = useRef(0);
   const urlIdxRef = useRef(0);
   const restTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /* CVD divergence: 5-snapshot sliding window per coin */
+  const cvdSnapsRef = useRef<Partial<Record<CoinId, Array<{ price: number; cvd: number }>>>>({});
+  /* Whale dedup: track last seen aggTrade id per symbol */
+  const lastAggIdRef = useRef<Partial<Record<CoinId, number>>>({});
 
   const updateCoin = useCallback((id: CoinId, patch: Partial<MarketStore['coins'][CoinId]>) => {
     setStore(s => ({
@@ -218,7 +224,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     );
   }, [updateCoin]);
 
-  /* ── CVD (BTC + ETH only) ── */
+  /* ── CVD + Divergence + Whale detection (BTC + ETH) ── */
   const fetchCVD = useCallback(async () => {
     await Promise.allSettled(
       (['btc', 'eth'] as CoinId[]).map(async (coin) => {
@@ -229,21 +235,61 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           );
           const trades = await res.json();
           if (!Array.isArray(trades)) return;
-          let buyVol = 0;
-          let sellVol = 0;
-          trades.forEach((t: { m: boolean; q: string }) => {
+
+          let buyVol = 0, sellVol = 0;
+          const lastSeenId = lastAggIdRef.current[coin] ?? 0;
+          let newLastId = lastSeenId;
+
+          trades.forEach((t: { m: boolean; q: string; p: string; a: number }) => {
             const qty = parseFloat(t.q);
-            if (t.m) {
-              sellVol += qty; // maker is buyer → taker is seller
-            } else {
-              buyVol += qty; // maker is seller → taker is buyer
+            const price = parseFloat(t.p);
+            const usd = price * qty;
+
+            // CVD
+            if (t.m) sellVol += qty; else buyVol += qty;
+
+            // Whale detection — only emit for truly new trades
+            if (t.a > lastSeenId && usd >= WHALE_USD_THRESHOLD) {
+              const side = t.m ? 'SELL' : 'BUY';
+              window.dispatchEvent(new CustomEvent('whale-trade', {
+                detail: { id: t.a, symbol: coin.toUpperCase(), side, usdValue: usd, price, qty, ts: Math.floor(Date.now() / 1000) },
+              }));
             }
+            if (t.a > newLastId) newLastId = t.a;
           });
-          updateCoin(coin, { cvd: buyVol - sellVol });
+
+          lastAggIdRef.current[coin] = newLastId;
+          const cvdValue = buyVol - sellVol;
+
+          // CVD divergence: compare first vs last of 5-snapshot window
+          setStore(prev => {
+            const currentPrice = prev.coins[coin]?.price ?? 0;
+            const snaps = [...(cvdSnapsRef.current[coin] ?? []), { price: currentPrice, cvd: cvdValue }].slice(-5);
+            cvdSnapsRef.current[coin] = snaps;
+
+            let cvdDivergence: 'bullish' | 'bearish' | null = null;
+            if (snaps.length >= 4 && snaps[0].price > 0) {
+              const first = snaps[0], last = snaps[snaps.length - 1];
+              const pricePct = (last.price - first.price) / first.price;
+              const cvdDelta = last.cvd - first.cvd;
+              // Bearish: price up but CVD net selling (delta < -10 BTC equivalent)
+              if (pricePct > 0.003 && cvdDelta < -10) cvdDivergence = 'bearish';
+              // Bullish: price down but CVD net buying (delta > +10)
+              if (pricePct < -0.003 && cvdDelta > 10) cvdDivergence = 'bullish';
+            }
+
+            return {
+              ...prev,
+              coins: {
+                ...prev.coins,
+                [coin]: { ...prev.coins[coin], cvd: cvdValue, cvdDivergence } as CoinData,
+              },
+            };
+          });
         } catch { /* */ }
       })
     );
-  }, [updateCoin]);
+  }, []);  // no deps — uses refs + setStore callback
 
   /* ── Order Book walls (BTC + ETH only) ── */
   const fetchOrderBook = useCallback(async () => {

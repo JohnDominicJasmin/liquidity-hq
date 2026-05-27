@@ -31,6 +31,8 @@ export interface CoinData {
   rsi4h: number | null;
   /* cumulative volume delta */
   cvd: number | null;
+  /* CVD vs price divergence signal */
+  cvdDivergence: 'bullish' | 'bearish' | null;
   /* order book walls (BTC/ETH only) */
   orderBidWalls: LiqWall[] | null;
   orderAskWalls: LiqWall[] | null;

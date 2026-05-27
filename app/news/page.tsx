@@ -44,8 +44,13 @@ function askGrok(headline: string) {
   }));
 }
 
+function fmtUSD(v: number): string {
+  if (v >= 1_000_000) return '$' + (v / 1_000_000).toFixed(2) + 'M';
+  return '$' + (v / 1000).toFixed(0) + 'K';
+}
+
 export default function NewsPage() {
-  const { alerts, geoEvents, econEvents } = useNews();
+  const { alerts, geoEvents, econEvents, whaleAlerts } = useNews();
   const [tab, setTab] = useState<Tab>('foryou');
 
   /* ── For You: red + amber alerts enriched with impact note ── */
@@ -87,8 +92,8 @@ export default function NewsPage() {
             onClick={() => setTab(t.id)}
           >
             {t.label}
-            {t.id === 'foryou' && catalysts.length > 0 && (
-              <span className="ntab-count">{catalysts.length}</span>
+            {t.id === 'foryou' && (catalysts.length + whaleAlerts.length) > 0 && (
+              <span className="ntab-count">{catalysts.length + whaleAlerts.length}</span>
             )}
           </button>
         ))}
@@ -97,13 +102,46 @@ export default function NewsPage() {
       {/* ── For You tab ── */}
       {tab === 'foryou' && (
         <div className="nfeed">
-          {catalysts.length === 0 && extraGeo.length === 0 && (
+          {catalysts.length === 0 && extraGeo.length === 0 && whaleAlerts.length === 0 && (
             <div className="nfeed-empty">
               <div style={{ fontSize: 28, marginBottom: 8 }}>📡</div>
               <div style={{ fontSize: 14, color: '#a0a0a0', fontWeight: 600 }}>Scanning for catalysts…</div>
-              <div style={{ fontSize: 12, color: '#444', marginTop: 4 }}>High-impact news will appear here</div>
+              <div style={{ fontSize: 12, color: '#444', marginTop: 4 }}>High-impact news + whale trades will appear here</div>
             </div>
           )}
+
+          {/* 🐋 Whale trade alerts — shown first */}
+          {whaleAlerts.slice(0, 8).map((w) => {
+            const isBuy = w.side === 'BUY';
+            return (
+              <div key={w.id} className="ncard ncard-catalyst ncard-whale"
+                style={{ background: isBuy ? '#0d1a10' : '#1a0d0d', borderColor: isBuy ? '#1a5c2a' : '#5c1a1a' }}>
+                <div className="ncard-top">
+                  <span className="ncard-type-badge" style={{ color: isBuy ? '#34d399' : '#f87171', borderColor: isBuy ? '#1a5c2a' : '#5c1a1a' }}>
+                    🐋 {w.symbol} Whale {isBuy ? 'BUY' : 'SELL'}
+                  </span>
+                  <span className="ncard-meta">{timeAgo(w.ts)}</span>
+                </div>
+                <div className="ncard-headline" style={{ color: isBuy ? '#6ee7b7' : '#fca5a5' }}>
+                  {fmtUSD(w.usdValue)} {isBuy ? 'bought' : 'sold'} at ${w.price.toLocaleString()}
+                  <span style={{ color: '#606060', fontSize: 11, marginLeft: 6 }}>({w.qty.toFixed(3)} {w.symbol})</span>
+                </div>
+                <div className="ncard-impact">
+                  <span className="ncard-impact-icon">💡</span>
+                  <span className="ncard-impact-text">
+                    {isBuy
+                      ? 'Large aggressive buy — institutional accumulation signal. Watch for follow-through momentum.'
+                      : 'Large aggressive sell — institutional distribution. Could signal incoming sell pressure.'}
+                  </span>
+                </div>
+                <button className="ncard-ask-btn" onClick={() =>
+                  window.dispatchEvent(new CustomEvent('grok-chat', {
+                    detail: { coin: w.symbol.toLowerCase() as 'btc' | 'eth', prompt: `A whale just ${isBuy ? 'bought' : 'sold'} ${fmtUSD(w.usdValue)} of ${w.symbol} at $${w.price.toLocaleString()}. What does this mean for the next 1-4 hours? Should I enter or exit?` },
+                  }))
+                }>Ask Grok →</button>
+              </div>
+            );
+          })}
 
           {catalysts.map(a => {
             const cfg = TYPE_CONFIG[a.type];

@@ -31,6 +31,16 @@ export interface GeoEvent {
   ts: number;
 }
 
+export interface WhaleAlert {
+  id: number;
+  symbol: string;       // 'BTC' | 'ETH'
+  side: 'BUY' | 'SELL';
+  usdValue: number;     // USD
+  price: number;
+  qty: number;
+  ts: number;
+}
+
 interface NewsCtx {
   alerts: Alert[];
   dismissAlert: (id: number) => void;
@@ -38,6 +48,7 @@ interface NewsCtx {
   geoEvents: GeoEvent[];
   newsActive: boolean;
   latestHeadlines: string[];
+  whaleAlerts: WhaleAlert[];
 }
 
 const NewsContext = createContext<NewsCtx | null>(null);
@@ -71,11 +82,14 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const [econEvents, setEconEvents] = useState<EconEvent[]>([]);
   const [geoEvents, setGeoEvents] = useState<GeoEvent[]>([]);
   const [latestHeadlines, setLatestHeadlines] = useState<string[]>([]);
+  const [whaleAlerts, setWhaleAlerts] = useState<WhaleAlert[]>([]);
   const seenRef = useRef<Set<string>>(new Set());
   const alertIdRef = useRef(0);
   const cpLastRef = useRef(0);
   const newsWSRef = useRef<WebSocket | null>(null);
   const wsRetriesRef = useRef(0);
+  const whaleIdRef = useRef(0);
+  const seenWhaleIds = useRef<Set<number>>(new Set());
 
   const pushAlert = useCallback((headline: string, source: string, ts: number, type: 'red' | 'amber' | 'purple') => {
     const key = headline.slice(0, 60);
@@ -226,6 +240,21 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     } catch { /* */ }
   }, [pushAlert]);
 
+  /* ── Whale trade listener (events from MarketProvider) ── */
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const d = (e as CustomEvent).detail as WhaleAlert & { id: number };
+      if (seenWhaleIds.current.has(d.id)) return;
+      seenWhaleIds.current.add(d.id);
+      // Keep set small
+      if (seenWhaleIds.current.size > 500) seenWhaleIds.current.clear();
+      const alert: WhaleAlert = { ...d, id: whaleIdRef.current++ };
+      setWhaleAlerts(prev => [alert, ...prev].slice(0, 30));
+    };
+    window.addEventListener('whale-trade', handler);
+    return () => window.removeEventListener('whale-trade', handler);
+  }, []);
+
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
@@ -263,7 +292,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const newsActive = alerts.some(a => Date.now() / 1000 - a.ts < 5 * 60);
 
   return (
-    <NewsContext.Provider value={{ alerts, dismissAlert, econEvents, geoEvents, newsActive, latestHeadlines }}>
+    <NewsContext.Provider value={{ alerts, dismissAlert, econEvents, geoEvents, newsActive, latestHeadlines, whaleAlerts }}>
       {children}
     </NewsContext.Provider>
   );
