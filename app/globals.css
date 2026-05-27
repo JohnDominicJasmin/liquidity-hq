@@ -924,8 +924,8 @@ body {
 .tip-green  { color: #34d399; background: rgba(52,211,153,0.12);  border: 0.5px solid rgba(52,211,153,0.3); }
 .tip-red    { color: #f87171; background: rgba(248,113,113,0.12); border: 0.5px solid rgba(248,113,113,0.3); }
 .tip-amber  { color: #fbbf24; background: rgba(251,191,36,0.12);  border: 0.5px solid rgba(251,191,36,0.3); }
-.oi-trend-hdr  { display: grid; grid-template-columns: 44px 1fr auto; gap: 6px; padding: 4px 14px 5px; font-size: 9px; font-weight: 700; color: #2e2e2e; text-transform: uppercase; letter-spacing: 0.07em; border-bottom: 0.5px solid var(--bdr); }
-.oi-trend-row  { display: grid; grid-template-columns: 44px 1fr auto; gap: 6px; padding: 5.5px 14px; border-bottom: 0.5px solid rgba(255,255,255,0.02); align-items: center; transition: background 0.1s; }
+.oi-trend-hdr  { display: grid; grid-template-columns: 44px auto 1fr; gap: 8px; padding: 4px 14px 5px; font-size: 9px; font-weight: 700; color: #2e2e2e; text-transform: uppercase; letter-spacing: 0.07em; border-bottom: 0.5px solid var(--bdr); }
+.oi-trend-row  { display: grid; grid-template-columns: 44px auto 1fr; gap: 8px; padding: 5.5px 14px; border-bottom: 0.5px solid rgba(255,255,255,0.02); align-items: center; transition: background 0.1s; }
 .oi-trend-row:last-child { border-bottom: none; }
 .oi-trend-row:hover { background: rgba(255,255,255,0.015); }
 .oi-trend-coin  { font-size: 11px; font-weight: 700; color: var(--txt2); }

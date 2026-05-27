@@ -162,7 +162,7 @@ function EdgeSignals() {
           </span>
         </div>
         <div className="oi-trend-hdr">
-          <div>Coin</div><div>Signal</div><div>Meaning</div>
+          <div>Coin</div><div>Meaning</div><div>Signal</div>
         </div>
         {COINS.map(id => {
           const c       = store.coins[id];
@@ -171,13 +171,6 @@ function EdgeSignals() {
           return (
             <div key={id} className="oi-trend-row">
               <div className="oi-trend-coin">{id.toUpperCase()}</div>
-              <div className="oi-trend-desc">
-                {!hasPerp
-                  ? <span style={{ color: '#2a2a2a' }}>No Bybit perp</span>
-                  : meta
-                    ? meta.sub
-                    : <span style={{ color: '#333' }}>Warming up…</span>}
-              </div>
               {meta ? (
                 <div
                   className="oi-trend-badge"
@@ -188,6 +181,13 @@ function EdgeSignals() {
               ) : (
                 <div style={{ fontSize: 9, color: '#2a2a2a' }}>—</div>
               )}
+              <div className="oi-trend-desc">
+                {!hasPerp
+                  ? <span style={{ color: '#2a2a2a' }}>No Bybit perp</span>
+                  : meta
+                    ? meta.sub
+                    : <span style={{ color: '#333' }}>Warming up…</span>}
+              </div>
             </div>
           );
         })}
