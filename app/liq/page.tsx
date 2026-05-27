@@ -4,38 +4,50 @@ import { useMarket, CoinId } from '@/lib/marketStore';
 
 const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'zec'];
 
-/* ─── All leverage tiers ─────────────────────────────────────────────────────
-   dist   = % drop/pump from entry that triggers liquidation at this leverage
-   w      = rough fraction of total OI sitting at this leverage tier
+/* ─── All leverage tiers — every real level Binance/Bybit offers ─────────────
+   dist = 1/leverage (isolated margin liq distance from entry)
+   w    = estimated % of total OI sitting at this leverage tier
+   Sum of w ≈ 1.00
    ─────────────────────────────────────────────────────────────────────────── */
 const TIERS = [
-  { lev: 100, dist: 0.010, w: 0.08 },
-  { lev: 50,  dist: 0.020, w: 0.10 },
-  { lev: 25,  dist: 0.040, w: 0.14 },
-  { lev: 20,  dist: 0.050, w: 0.16 },
-  { lev: 15,  dist: 0.067, w: 0.14 },
-  { lev: 10,  dist: 0.100, w: 0.18 },
-  { lev: 5,   dist: 0.200, w: 0.12 },
-  { lev: 3,   dist: 0.330, w: 0.08 },
+  { lev: 125, dist: 0.0080, w: 0.02 },
+  { lev: 100, dist: 0.0100, w: 0.04 },
+  { lev: 75,  dist: 0.0133, w: 0.03 },
+  { lev: 50,  dist: 0.0200, w: 0.07 },
+  { lev: 40,  dist: 0.0250, w: 0.04 },
+  { lev: 30,  dist: 0.0333, w: 0.06 },
+  { lev: 25,  dist: 0.0400, w: 0.08 },
+  { lev: 20,  dist: 0.0500, w: 0.10 },
+  { lev: 15,  dist: 0.0667, w: 0.08 },
+  { lev: 12,  dist: 0.0833, w: 0.06 },
+  { lev: 10,  dist: 0.1000, w: 0.10 },
+  { lev: 8,   dist: 0.1250, w: 0.05 },
+  { lev: 6,   dist: 0.1667, w: 0.04 },
+  { lev: 5,   dist: 0.2000, w: 0.07 },
+  { lev: 4,   dist: 0.2500, w: 0.05 },
+  { lev: 3,   dist: 0.3333, w: 0.06 },
+  { lev: 2,   dist: 0.5000, w: 0.05 },
 ];
+//  ↑ 17 tiers · total w = 1.00
 
 /* ─── Time range config ──────────────────────────────────────────────────────
    maxDist = maximum price-distance shown (filters which tiers are visible)
-   Each range shows tiers that are realistically reachable in that window
+   12h → 125x–20x (8 tiers), 24h → +15x/12x/10x (11), 48h → +8x (12),
+   3d  → +6x/5x/4x (15),     1w  → +3x/2x (17, all)
    ─────────────────────────────────────────────────────────────────────────── */
 type TimeRange = '12h' | '24h' | '48h' | '3d' | '1w';
 
 const RANGES: {
   key: TimeRange;
   label: string;
-  maxDist: number;   // show tiers up to this % away from current price
+  maxDist: number;
   hint: string;
 }[] = [
-  { key: '12h', label: '12h',    maxDist: 0.05,  hint: 'Scalp targets · ±5% price range · high-leverage clusters only' },
-  { key: '24h', label: '24h',    maxDist: 0.10,  hint: 'Day trade targets · ±10% price range' },
-  { key: '48h', label: '48h',    maxDist: 0.15,  hint: '2-day swing targets · ±15% price range' },
-  { key: '3d',  label: '3 days', maxDist: 0.25,  hint: 'Multi-day swing · ±25% price range' },
-  { key: '1w',  label: '1 week', maxDist: 0.35,  hint: 'Full weekly exposure · all 8 leverage tiers' },
+  { key: '12h', label: '12h',    maxDist: 0.05,   hint: 'Intraday scalp · ±5% · 125x → 20x' },
+  { key: '24h', label: '24h',    maxDist: 0.10,   hint: 'Day trade · ±10% · 125x → 10x' },
+  { key: '48h', label: '48h',    maxDist: 0.13,   hint: '2-day swing · ±13% · 125x → 8x' },
+  { key: '3d',  label: '3 days', maxDist: 0.25,   hint: 'Multi-day swing · ±25% · 125x → 4x' },
+  { key: '1w',  label: '1 week', maxDist: 0.50,   hint: 'Full weekly · ±50% · all 17 tiers' },
 ];
 
 interface Band {
