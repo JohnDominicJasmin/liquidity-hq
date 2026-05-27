@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { classifyNews, tagLabel, GEO_KEYWORDS, classifyEcon, ECON_NOTES } from '@/lib/classify';
+import { classifyNews, GEO_KEYWORDS, classifyEcon } from '@/lib/classify';
 
 const FINNHUB_KEY = 'd7f177pr01qi33g80jm0d7f177pr01qi33g80jmg';
 
@@ -35,7 +35,7 @@ export interface WhaleAlert {
   id: number;
   symbol: string;       // 'BTC' | 'ETH'
   side: 'BUY' | 'SELL';
-  usdValue: number;     // USD
+  usdValue: number;
   price: number;
   qty: number;
   ts: number;
@@ -114,7 +114,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     setAlerts(prev => prev.filter(a => a.id !== id));
   }, []);
 
-  /* ── Finnhub WS ── */
+  /* ── Finnhub WS (supplementary live stream) ── */
   const startNewsWS = useCallback(() => {
     if (newsWSRef.current) { try { newsWSRef.current.close(); } catch { /* */ } }
     const ws = new WebSocket(`wss://ws.finnhub.io?token=${FINNHUB_KEY}`);
@@ -148,18 +148,57 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     };
   }, [pushAlert]);
 
-  /* ── CryptoPanic poll ── */
+  /* ── Finnhub REST news — primary source (crypto + general) ── */
+  const fetchFinnhubNews = useCallback(async () => {
+    try {
+      const [cryptoRes, generalRes] = await Promise.allSettled([
+        fetch(`https://finnhub.io/api/v1/news?category=crypto&token=${FINNHUB_KEY}`).then(r => r.json()),
+        fetch(`https://finnhub.io/api/v1/news?category=general&minId=0&token=${FINNHUB_KEY}`).then(r => r.json()),
+      ]);
+
+      const cryptoItems: Record<string, string | number>[] =
+        cryptoRes.status === 'fulfilled' && Array.isArray(cryptoRes.value) ? cryptoRes.value : [];
+      const generalItems: Record<string, string | number>[] =
+        generalRes.status === 'fulfilled' && Array.isArray(generalRes.value) ? generalRes.value : [];
+
+      // Crypto: always classify as at least 'purple' even if keywords miss
+      cryptoItems.slice(0, 40).forEach(a => {
+        const headline = (a.headline || '') as string;
+        if (!headline) return;
+        const type = classifyNews(headline) ?? 'purple';
+        const ts = (a.datetime as number) || Math.floor(Date.now() / 1000);
+        pushAlert(headline, (a.source as string) || 'Finnhub', ts, type);
+      });
+
+      // General: only include if keyword matches
+      generalItems.slice(0, 30).forEach(a => {
+        const headline = (a.headline || '') as string;
+        if (!headline) return;
+        const type = classifyNews(headline);
+        if (!type) return;
+        const ts = (a.datetime as number) || Math.floor(Date.now() / 1000);
+        pushAlert(headline, (a.source as string) || 'Finnhub', ts, type);
+      });
+    } catch { /* */ }
+  }, [pushAlert]);
+
+  /* ── CryptoPanic poll — fixed URL (removed invalid /free/ path and filter=important) ── */
   const pollCryptoPanic = useCallback(async () => {
     try {
-      const res = await fetch('https://cryptopanic.com/api/free/v1/posts/?auth_token=free&filter=important&kind=news&public=true');
+      const res = await fetch(
+        'https://cryptopanic.com/api/v1/posts/?auth_token=free&kind=news&public=true'
+      );
+      if (!res.ok) return;
       const d = await res.json();
       const results = d.results || [];
       results.forEach((n: Record<string, string | Record<string, string>>) => {
-        const ts = n.published_at ? Math.floor(new Date(n.published_at as string).getTime() / 1000) : Math.floor(Date.now() / 1000);
+        const ts = n.published_at
+          ? Math.floor(new Date(n.published_at as string).getTime() / 1000)
+          : Math.floor(Date.now() / 1000);
         if (ts <= cpLastRef.current) return;
-        const headline = n.title as string || '';
+        const headline = (n.title as string) || '';
         if (!headline) return;
-        const type = classifyNews(headline) || 'purple';
+        const type = classifyNews(headline) ?? 'purple';
         const src = (n.source as Record<string, string>)?.title || 'CryptoPanic';
         pushAlert(headline, src, ts, type);
       });
@@ -199,7 +238,6 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
       out.sort((a, b) => a.dt.getTime() - b.dt.getTime());
       setEconEvents(out);
 
-      /* inject upcoming events as amber alerts */
       out.filter(e => e.h < 1).forEach(e => {
         pushAlert(`Upcoming: ${e.name} — ${countdown(e.h)}`, 'Finnhub Calendar', Math.floor(Date.now() / 1000), 'amber');
       });
@@ -230,7 +268,6 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
           const timeStr = h < 1 ? Math.round(h * 60) + 'm ago' : h.toFixed(1) + 'h ago';
           matched.push({ headline: a.headline as string || '', source: a.source as string || 'Finnhub', tag: g.tag, style: g.style, note: g.note, timeStr, ts: a.datetime as number || now });
 
-          /* push as alert too */
           const type = classifyNews(a.headline as string || '') || 'amber';
           pushAlert(a.headline as string || '', a.source as string || 'Finnhub', a.datetime as number || now, type);
         }
@@ -240,13 +277,12 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     } catch { /* */ }
   }, [pushAlert]);
 
-  /* ── Whale trade listener (events from MarketProvider) ── */
+  /* ── Whale trade listener ── */
   useEffect(() => {
     const handler = (e: Event) => {
       const d = (e as CustomEvent).detail as WhaleAlert & { id: number };
       if (seenWhaleIds.current.has(d.id)) return;
       seenWhaleIds.current.add(d.id);
-      // Keep set small
       if (seenWhaleIds.current.size > 500) seenWhaleIds.current.clear();
       const alert: WhaleAlert = { ...d, id: whaleIdRef.current++ };
       setWhaleAlerts(prev => [alert, ...prev].slice(0, 30));
@@ -260,12 +296,14 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
       Notification.requestPermission();
     }
 
+    // Fire all sources immediately on mount
     startNewsWS();
+    fetchFinnhubNews();   // PRIMARY: REST poll — most reliable
     fetchEconEvents();
     fetchGeoEvents();
-    pollCryptoPanic();
+    pollCryptoPanic();    // SECONDARY: CryptoPanic
 
-    /* CryptoPanic: every 5 min during NY session (8PM–7AM PHT), every 15 min otherwise */
+    /* Polling intervals */
     const cpInterval = () => {
       const pht = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
       const h = pht.getHours();
@@ -278,8 +316,9 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     scheduleCryptoPanic();
 
     const intervals = [
-      setInterval(fetchEconEvents, 60 * 60 * 1000),
-      setInterval(fetchGeoEvents, 15 * 60 * 1000),
+      setInterval(fetchFinnhubNews,  5 * 60 * 1000),    // every 5 min
+      setInterval(fetchEconEvents,   60 * 60 * 1000),   // every 1h
+      setInterval(fetchGeoEvents,    15 * 60 * 1000),   // every 15 min
     ];
 
     return () => {
