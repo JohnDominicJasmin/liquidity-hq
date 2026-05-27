@@ -1,5 +1,5 @@
 'use client';
-import { useMarket, COINS } from '@/lib/marketStore';
+import { useMarket, COINS, BYBIT_SYMS, COIN_DEC, fmtPrice } from '@/lib/marketStore';
 import Ticker from '@/components/Ticker';
 import FearGreed from '@/components/FearGreed';
 import RaidMeter from '@/components/RaidMeter';
@@ -121,18 +121,28 @@ function EdgeSignals() {
 
         <div className="edge-card" style={{ borderColor: vwapBdr }}>
           <div className="edge-card-label">VWAP · {store.selectedCoin.toUpperCase()}</div>
+          {/* Show LIVE price as the hero number */}
           <div className="edge-card-value" style={{ color: vwapCol, fontSize: 15 }}>
-            {vwap != null
-              ? '$' + vwap.toLocaleString(undefined, { maximumFractionDigits: 2 })
+            {price != null
+              ? '$' + fmtPrice(price, COIN_DEC[store.selectedCoin])
               : '—'}
           </div>
-          {vwapPct != null && (
-            <div className="edge-card-sub" style={{ color: vwapCol }}>
-              Price {vwapAbove ? 'above' : 'below'} by {Math.abs(vwapPct).toFixed(2)}%
+          {/* VWAP reference line */}
+          {vwap != null && (
+            <div className="edge-card-sub">
+              <span style={{ color: 'var(--txt3)' }}>VWAP </span>
+              <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>
+                ${vwap.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              </span>
+              {vwapPct != null && (
+                <span style={{ color: vwapCol }}>
+                  {' '}({vwapPct >= 0 ? '+' : ''}{vwapPct.toFixed(2)}%)
+                </span>
+              )}
             </div>
           )}
           <div className="edge-card-signal" style={{ color: vwapCol }}>
-            {vwapAbove === null ? 'Calculating…' : vwapAbove ? 'Paying up — bullish' : 'Below VWAP — bearish'}
+            {vwapAbove === null ? 'Calculating…' : vwapAbove ? '▲ Above VWAP — bullish' : '▼ Below VWAP — bearish'}
           </div>
         </div>
       </div>
@@ -144,12 +154,19 @@ function EdgeSignals() {
           <div>Coin</div><div>Signal</div><div>Meaning</div>
         </div>
         {COINS.map(id => {
-          const c    = store.coins[id];
-          const meta = c?.oiTrend ? OI_TREND_META[c.oiTrend] : null;
+          const c       = store.coins[id];
+          const meta    = c?.oiTrend ? OI_TREND_META[c.oiTrend] : null;
+          const hasPerp = id in BYBIT_SYMS;
           return (
             <div key={id} className="oi-trend-row">
               <div className="oi-trend-coin">{id.toUpperCase()}</div>
-              <div className="oi-trend-desc">{meta ? meta.sub : <span style={{ color: '#333' }}>Tracking…</span>}</div>
+              <div className="oi-trend-desc">
+                {!hasPerp
+                  ? <span style={{ color: '#2a2a2a' }}>No Bybit perp</span>
+                  : meta
+                    ? meta.sub
+                    : <span style={{ color: '#333' }}>Warming up…</span>}
+              </div>
               {meta ? (
                 <div
                   className="oi-trend-badge"

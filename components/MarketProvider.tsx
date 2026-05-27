@@ -265,12 +265,14 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       const val = minP + lo * bSize;
       const vah = minP + (hi + 1) * bSize;
 
-      /* ── VWAP — typical price × volume ── */
+      /* ── VWAP — use BASE volume (k[5]) for standard formula ── */
+      // quoteVol (k[7]) biases the average; base vol gives true VWAP
       let sumTPV = 0, sumVol = 0;
       klines.forEach((k: string[], i: number) => {
-        const tp = (highs[i] + lows[i] + closes[i]) / 3;
-        sumTPV += tp * vols[i];
-        sumVol += vols[i];
+        const tp       = (highs[i] + lows[i] + closes[i]) / 3;
+        const baseVol  = parseFloat(k[5]);                      // BTC (base) volume
+        sumTPV += tp * baseVol;
+        sumVol += baseVol;
       });
       const vwap = sumVol > 0 ? sumTPV / sumVol : null;
 
@@ -569,6 +571,53 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     } catch { /* fail silently */ }
   }, []);
 
+  /* ── OI Trend bootstrap — Bybit historical OI + klines ── */
+  // Fires once on mount to populate OI trend without waiting for two 8-min Bybit polls
+  const bootstrapOITrend = useCallback(async () => {
+    await Promise.allSettled(
+      Object.entries(BYBIT_SYMS).map(async ([coin, sym]) => {
+        try {
+          const [oiRes, klRes] = await Promise.all([
+            fetch(`https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${sym}&intervalTime=1h&limit=3`),
+            fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${sym}&interval=60&limit=4`),
+          ]);
+          const oiData = await oiRes.json();
+          const klData = await klRes.json();
+
+          // Both are newest-first — reverse to oldest-first
+          const oiList: Array<{ openInterest: string }> = [...(oiData?.result?.list ?? [])].reverse();
+          const klList: string[][] = [...(klData?.result?.list ?? [])].reverse();
+
+          if (oiList.length < 2 || klList.length < 2) return;
+
+          const readings = [
+            { oi: parseFloat(oiList[0].openInterest), price: parseFloat(klList[0][4]) },
+            { oi: parseFloat(oiList[oiList.length - 1].openInterest), price: parseFloat(klList[klList.length - 1][4]) },
+          ].filter(r => r.oi > 0 && r.price > 0);
+
+          if (readings.length < 2) return;
+
+          // Pre-populate history so live polls have a baseline
+          oiHistRef.current[coin as CoinId] = readings;
+
+          const first = readings[0], last = readings[1];
+          const oiChg    = (last.oi    - first.oi)    / first.oi;
+          const priceChg = (last.price - first.price) / first.price;
+
+          if (Math.abs(oiChg) > 0.002 || Math.abs(priceChg) > 0.001) {
+            const oiUp = oiChg > 0, priceUp = priceChg > 0;
+            const oiTrend: 'strong_up' | 'weak_up' | 'strong_down' | 'weak_down' =
+                  oiUp && priceUp   ? 'strong_up'
+                : oiUp && !priceUp  ? 'strong_down'
+                : !oiUp && priceUp  ? 'weak_up'
+                :                     'weak_down';
+            updateCoin(coin as CoinId, { oiTrend });
+          }
+        } catch { /* fail silently */ }
+      })
+    );
+  }, [updateCoin]);
+
   /* ── Coinbase Premium Index (Coinbase BTC − Binance BTC) ── */
   const fetchCoinbasePremium = useCallback(async () => {
     try {
@@ -718,6 +767,8 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     fetchGoogleTrends();
     // CB Premium needs BTC price first — wait 3s for WS/REST to populate
     setTimeout(fetchCoinbasePremium, 3000);
+    // OI bootstrap — gives immediate trend signal without waiting for two 8-min Bybit polls
+    bootstrapOITrend();
 
     const intervals = [
       setInterval(fetchBybit,            8  * 60 * 1000),
