@@ -69,11 +69,11 @@ function MacroStrip() {
   );
 }
 
-const OI_TREND_META: Record<string, { txt: string; sub: string; col: string }> = {
-  strong_up:   { txt: '↑OI ↑P', sub: 'New longs — real trend',  col: '#34d399' },
-  strong_down: { txt: '↑OI ↓P', sub: 'New shorts — real dump',  col: '#f87171' },
-  weak_up:     { txt: '↓OI ↑P', sub: 'Short covering — weak',   col: '#fbbf24' },
-  weak_down:   { txt: '↓OI ↓P', sub: 'Long exits — no panic',   col: '#fbbf24' },
+const OI_TREND_META: Record<string, { txt: string; sub: string; hint: string; col: string }> = {
+  strong_up:   { txt: '↑OI ↑P', sub: 'New longs — real trend',  hint: 'New money entering longs. Trend has conviction — follow it.',      col: '#34d399' },
+  strong_down: { txt: '↑OI ↓P', sub: 'New shorts — real dump',  hint: 'Fresh shorts being added. Real downtrend — not a dip to buy.',     col: '#f87171' },
+  weak_up:     { txt: '↓OI ↑P', sub: 'Short covering — weak',   hint: 'Shorts exiting, not new longs. Fake pump — no fresh conviction.',  col: '#fbbf24' },
+  weak_down:   { txt: '↓OI ↓P', sub: 'Long exits — no panic',   hint: 'Longs taking profit/exiting. Not new shorts — capitulation risk.', col: '#fbbf24' },
 };
 
 function EdgeSignals() {
@@ -149,20 +149,9 @@ function EdgeSignals() {
 
       {/* Row 2: OI Trend table */}
       <div className="oi-trend-table">
-        <div className="oi-trend-title">
-          📊 OI Trend vs Price
-          <span className="oi-info-wrap">
-            <span className="oi-info-icon">ⓘ</span>
-            <div className="oi-info-tip">
-              <div className="oi-tip-row"><span className="oi-tip-badge tip-green">↑OI ↑P</span><span>Real trend — new money entering longs</span></div>
-              <div className="oi-tip-row"><span className="oi-tip-badge tip-red">↑OI ↓P</span><span>Real downtrend — new shorts being added</span></div>
-              <div className="oi-tip-row"><span className="oi-tip-badge tip-amber">↓OI ↑P</span><span>Short covering — no conviction, likely fake</span></div>
-              <div className="oi-tip-row"><span className="oi-tip-badge tip-amber">↓OI ↓P</span><span>Long exits — capitulation, not fresh shorts</span></div>
-            </div>
-          </span>
-        </div>
+        <div className="oi-trend-title">📊 OI Trend vs Price</div>
         <div className="oi-trend-hdr">
-          <div>Coin</div><div>Meaning</div><div>Signal</div>
+          <div>Coin</div><div>Signal</div><div>What it means</div>
         </div>
         {COINS.map(id => {
           const c       = store.coins[id];
@@ -182,11 +171,16 @@ function EdgeSignals() {
                 <div style={{ fontSize: 9, color: '#2a2a2a' }}>—</div>
               )}
               <div className="oi-trend-desc">
-                {!hasPerp
-                  ? <span style={{ color: '#2a2a2a' }}>No Bybit perp</span>
-                  : meta
-                    ? meta.sub
-                    : <span style={{ color: '#333' }}>Warming up…</span>}
+                {!hasPerp ? (
+                  <span style={{ color: '#2a2a2a' }}>No Bybit perp</span>
+                ) : meta ? (
+                  <>
+                    <div>{meta.sub}</div>
+                    <div className="oi-trend-hint">{meta.hint}</div>
+                  </>
+                ) : (
+                  <span style={{ color: '#333' }}>Warming up…</span>
+                )}
               </div>
             </div>
           );
