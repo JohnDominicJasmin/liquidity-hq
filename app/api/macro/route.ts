@@ -1,33 +1,43 @@
 import { NextResponse } from 'next/server';
 
-// Stooq symbols confirmed to return OHLCV data:
-//   dx.f   = DXY futures (close tracks spot DXY ~±0.1)
-//   ^spx   = S&P 500 index
-//   xauusd = Gold spot (XAU/USD)
-//   cl.f   = WTI Crude Oil futures
+// Yahoo Finance v8 works fine server-to-server (no CORS restriction from a server).
+// It only blocks browser requests via proxies (proxy IPs get 401).
+// Confirmed working symbols:
+//   DX-Y.NYB = DXY (99.24)   ^GSPC = SPX (7524)
+//   GC=F     = Gold (4487)   CL=F  = Oil (88.85)
 
-type StooqItem = {
-  symbol?: string;
-  close?:  number | string;
-  open?:   number | string;
+const YF_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart';
+
+type YFMeta = {
+  regularMarketPrice?: number;
+  previousClose?: number;
+  chartPreviousClose?: number;
+  regularMarketChangePercent?: number;
 };
 
 function extract(json: unknown): { price: number; chg: number } | null {
-  const item = (json as { symbols?: StooqItem[] })?.symbols?.[0];
-  if (!item) return null;
-  const close = typeof item.close === 'number' ? item.close : parseFloat(String(item.close ?? ''));
-  const open  = typeof item.open  === 'number' ? item.open  : parseFloat(String(item.open  ?? ''));
-  if (!close || isNaN(close) || close <= 0) return null;
-  const chg = (open > 0 && !isNaN(open)) ? ((close - open) / open) * 100 : 0;
-  return { price: close, chg };
+  try {
+    const result = (json as { chart?: { result?: Array<{ meta?: YFMeta }> } })
+      ?.chart?.result?.[0]?.meta;
+    if (!result) return null;
+    const price = result.regularMarketPrice;
+    if (!price || price <= 0) return null;
+    const prev = result.previousClose ?? result.chartPreviousClose ?? 0;
+    const chg  = prev > 0
+      ? ((price - prev) / prev) * 100
+      : (result.regularMarketChangePercent ?? 0);
+    return { price, chg };
+  } catch { return null; }
 }
 
-async function stooq(sym: string) {
+async function yf(sym: string) {
   try {
-    const url = `https://stooq.com/q/l/?s=${encodeURIComponent(sym)}&f=sd2t2ohlcv&e=json`;
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0' },
-      next: { revalidate: 300 },   // cache 5 min on the server
+    const res = await fetch(`${YF_BASE}/${sym}?interval=1d&range=2d`, {
+      cache: 'no-store',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json',
+      },
     });
     if (!res.ok) return null;
     return extract(await res.json());
@@ -36,10 +46,10 @@ async function stooq(sym: string) {
 
 export async function GET() {
   const [oil, dxy, spx, gold] = await Promise.all([
-    stooq('cl.f'),
-    stooq('dx.f'),     // DXY futures — confirmed working
-    stooq('^spx'),
-    stooq('xauusd'),
+    yf('CL%3DF'),      // WTI Crude Oil
+    yf('DX-Y.NYB'),    // DXY (US Dollar Index)
+    yf('%5EGSPC'),     // S&P 500
+    yf('GC%3DF'),      // Gold futures
   ]);
 
   return NextResponse.json(
