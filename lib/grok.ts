@@ -53,6 +53,12 @@ export interface GrokContext {
   dxyLine: string;
   spxLine: string;
   goldLine: string;
+  /* Coinbase Premium Index */
+  cbPremium: string;
+  /* VWAP vs current price */
+  vwap: string;
+  /* OI Trend vs Price divergence */
+  oiTrend: string;
 }
 
 export interface GrokResult {
@@ -81,10 +87,12 @@ export function buildPrompt(ctx: GrokContext): string {
     `CVD (last 200 trades):  ${ctx.cvd}`,
     `Fibonacci nearest level:  ${ctx.fibNearest}`,
     `Volume Profile POC/VAH/VAL:  ${ctx.pocLine}`,
+    `VWAP (15m, 100 candles):  ${ctx.vwap}`,
     '',
     '=== DERIVATIVES / POSITIONING ===',
     `Funding rate: ${ctx.fundingRate}`,
     `Open Interest: ${ctx.openInterest}`,
+    `OI Trend vs Price:  ${ctx.oiTrend}`,
     '',
     '=== DERIVATIVES — EXTENDED ===',
     `Basis (perp premium vs spot):  ${ctx.basis}`,
@@ -94,6 +102,10 @@ export function buildPrompt(ctx: GrokContext): string {
     `BTC Put/Call Ratio:  ${ctx.pcRatio}`,
     `BTC Max Pain Strike:  ${ctx.maxPain}`,
     '(Max pain = price where max option value is destroyed at expiry — acts as magnet)',
+    '',
+    '=== COINBASE PREMIUM INDEX ===',
+    `CB Premium (Coinbase BTC − Binance BTC):  ${ctx.cbPremium}`,
+    '(Positive premium = US buyers paying above Binance = institutional demand = bullish. Negative = US selling = bearish.)',
     '',
     '=== ORDER BOOK LIQUIDITY ===',
     ctx.orderWalls,
@@ -157,6 +169,9 @@ export function buildPrompt(ctx: GrokContext): string {
     '12. ORDER BOOK: Large bid walls = support. Large ask walls = resistance. Price often hunts walls before reversing.',
     '13. STABLECOIN FLOWS: Growing USDT+USDC supply = dry powder entering market = bullish medium-term. Shrinking = cashing out.',
     '14. EXCHANGE FLOWS: BTC flowing INTO exchanges = sell pressure incoming. Flowing OUT = accumulation/hodling.',
+    '15. COINBASE PREMIUM: CB premium > +$30 = US institutions buying aggressively (strong bullish). Negative premium = US selling/risk-off.',
+    '16. VWAP: Price above VWAP = institutions paying up (bullish). Price below VWAP = distributing (bearish). VWAP is the #1 institutional reference level.',
+    '17. OI TREND: OI↑+Price↑ = real trend with conviction. OI↑+Price↓ = new short conviction. OI↓+Price↑ = short covering only (weak). OI↓+Price↓ = long exits (panic). Weak signals = high fade probability.',
     '',
     'Output in EXACTLY this format — no extra text before or after:',
     'SIGNAL: [LONG or SHORT or FLAT]',

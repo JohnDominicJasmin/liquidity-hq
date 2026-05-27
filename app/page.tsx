@@ -1,5 +1,5 @@
 'use client';
-import { useMarket } from '@/lib/marketStore';
+import { useMarket, COINS } from '@/lib/marketStore';
 import Ticker from '@/components/Ticker';
 import FearGreed from '@/components/FearGreed';
 import RaidMeter from '@/components/RaidMeter';
@@ -69,6 +69,105 @@ function MacroStrip() {
   );
 }
 
+const OI_TREND_META: Record<string, { txt: string; sub: string; col: string }> = {
+  strong_up:   { txt: '↑OI ↑P', sub: 'New longs — real trend',  col: '#34d399' },
+  strong_down: { txt: '↑OI ↓P', sub: 'New shorts — real dump',  col: '#f87171' },
+  weak_up:     { txt: '↓OI ↑P', sub: 'Short covering — weak',   col: '#fbbf24' },
+  weak_down:   { txt: '↓OI ↓P', sub: 'Long exits — no panic',   col: '#fbbf24' },
+};
+
+function EdgeSignals() {
+  const { store } = useMarket();
+  const coin = store.coins[store.selectedCoin];
+
+  /* ── Coinbase Premium ── */
+  const cbAmt = store.cbPremium;
+  const cbPct = store.cbPremiumPct;
+  const cbCol  = cbPct == null ? 'var(--txt3)' : cbPct > 0.02 ? 'var(--green)' : cbPct < -0.02 ? 'var(--red)' : 'var(--txt2)';
+  const cbBdr  = cbPct == null ? 'var(--bdr)'  : cbPct > 0.05 ? 'var(--green-bdr)' : cbPct < -0.05 ? 'var(--red-bdr)' : 'var(--bdr)';
+  const cbSig  = cbPct == null ? 'Loading…'
+               : cbPct > 0.05  ? '🇺🇸 US institutional buying'
+               : cbPct > 0.01  ? 'CB slight premium'
+               : cbPct < -0.05 ? '⚡ US selling — CB discount'
+               : cbPct < -0.01 ? 'CB slight discount'
+               : 'Neutral spread';
+
+  /* ── VWAP ── */
+  const vwap  = coin?.vwap;
+  const price = coin?.price;
+  const vwapAbove = vwap != null && price != null ? price > vwap : null;
+  const vwapPct   = vwap && price ? ((price - vwap) / vwap) * 100 : null;
+  const vwapCol   = vwapAbove === null ? 'var(--txt3)' : vwapAbove ? 'var(--green)' : 'var(--red)';
+  const vwapBdr   = vwapAbove === null ? 'var(--bdr)' : vwapAbove ? 'var(--green-bdr)' : 'var(--red-bdr)';
+
+  return (
+    <>
+      {/* Row 1: CB Premium + VWAP */}
+      <div className="edge-grid">
+        <div className="edge-card" style={{ borderColor: cbBdr }}>
+          <div className="edge-card-label">Coinbase Premium</div>
+          <div className="edge-card-value" style={{ color: cbCol }}>
+            {cbAmt != null
+              ? (cbAmt >= 0 ? '+$' : '−$') + Math.abs(cbAmt).toFixed(1)
+              : '—'}
+          </div>
+          {cbPct != null && (
+            <div className="edge-card-sub" style={{ color: cbCol }}>
+              {(cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%'}
+            </div>
+          )}
+          <div className="edge-card-signal" style={{ color: cbCol }}>{cbSig}</div>
+        </div>
+
+        <div className="edge-card" style={{ borderColor: vwapBdr }}>
+          <div className="edge-card-label">VWAP · {store.selectedCoin.toUpperCase()}</div>
+          <div className="edge-card-value" style={{ color: vwapCol, fontSize: 15 }}>
+            {vwap != null
+              ? '$' + vwap.toLocaleString(undefined, { maximumFractionDigits: 2 })
+              : '—'}
+          </div>
+          {vwapPct != null && (
+            <div className="edge-card-sub" style={{ color: vwapCol }}>
+              Price {vwapAbove ? 'above' : 'below'} by {Math.abs(vwapPct).toFixed(2)}%
+            </div>
+          )}
+          <div className="edge-card-signal" style={{ color: vwapCol }}>
+            {vwapAbove === null ? 'Calculating…' : vwapAbove ? 'Paying up — bullish' : 'Below VWAP — bearish'}
+          </div>
+        </div>
+      </div>
+
+      {/* Row 2: OI Trend table */}
+      <div className="oi-trend-table">
+        <div className="oi-trend-title">📊 OI Trend vs Price</div>
+        <div className="oi-trend-hdr">
+          <div>Coin</div><div>Signal</div><div>Meaning</div>
+        </div>
+        {COINS.map(id => {
+          const c    = store.coins[id];
+          const meta = c?.oiTrend ? OI_TREND_META[c.oiTrend] : null;
+          return (
+            <div key={id} className="oi-trend-row">
+              <div className="oi-trend-coin">{id.toUpperCase()}</div>
+              <div className="oi-trend-desc">{meta ? meta.sub : <span style={{ color: '#333' }}>Tracking…</span>}</div>
+              {meta ? (
+                <div
+                  className="oi-trend-badge"
+                  style={{ color: meta.col, background: meta.col + '1a', border: '0.5px solid ' + meta.col + '44' }}
+                >
+                  {meta.txt}
+                </div>
+              ) : (
+                <div style={{ fontSize: 9, color: '#2a2a2a' }}>—</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 const RULES = [
   { n: 1, c: 'np', t: 'No bright cluster = no trade. Period.', b: 'If you cannot point to a bright, tight yellow/white zone on Coinglass 24h Model 2, you are guessing.' },
   { n: 2, c: 'np', t: 'Funding rate tells you direction.', b: '+ve funding = too many longs = whales dump DOWN. -ve funding = too many shorts = whales squeeze UP.' },
@@ -121,6 +220,9 @@ export default function Dashboard() {
       <div className="ind-row">
         <BTCDominance />
       </div>
+
+      <div className="dash-section">Edge signals</div>
+      <EdgeSignals />
 
       <div className="dash-section">Macro correlations</div>
       <MacroStrip />

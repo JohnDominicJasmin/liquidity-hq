@@ -184,6 +184,34 @@ export default function Arena() {
         + (coin.price && coin.poc ? (coin.price > coin.poc ? ' — price ABOVE POC (bullish)' : ' — price BELOW POC (bearish)') : '')
       : '—';
 
+    /* Coinbase Premium */
+    const cbPremium = store.cbPremium != null && store.cbPremiumPct != null
+      ? (store.cbPremium >= 0 ? '+' : '') + '$' + Math.abs(store.cbPremium).toFixed(1)
+        + ' (' + (store.cbPremiumPct >= 0 ? '+' : '') + store.cbPremiumPct.toFixed(3) + '%)'
+        + (store.cbPremiumPct > 0.05  ? ' — US institutional buying (BULLISH)'
+        :  store.cbPremiumPct < -0.05 ? ' — US institutional selling (BEARISH)'
+        :                               ' — neutral')
+      : '—';
+
+    /* VWAP */
+    const vwap = coin?.vwap != null
+      ? '$' + coin.vwap.toLocaleString(undefined, { maximumFractionDigits: 2 })
+        + (coin.price
+          ? (coin.price > coin.vwap
+              ? ' — price ABOVE VWAP (bullish, paying up)'
+              : ' — price BELOW VWAP (bearish, distributing)')
+          : '')
+      : '—';
+
+    /* OI Trend vs Price */
+    const OI_TREND_LABELS: Record<string, string> = {
+      strong_up:   'OI ↑ + Price ↑ — real bullish trend (new money entering longs)',
+      strong_down: 'OI ↑ + Price ↓ — real bearish trend (new money entering shorts)',
+      weak_up:     'OI ↓ + Price ↑ — short covering rally (no conviction, likely fake)',
+      weak_down:   'OI ↓ + Price ↓ — long exits (capitulation, not fresh shorts)',
+    };
+    const oiTrend = coin?.oiTrend ? OI_TREND_LABELS[coin.oiTrend] : '—';
+
     /* Macro */
     const oilPrice  = store.oilPrice  != null ? '$' + store.oilPrice.toFixed(2)  + '/bbl' : '—';
     const bonds10y  = store.bonds10y  != null ? store.bonds10y.toFixed(3)  + '%'   : '—';
@@ -222,6 +250,7 @@ export default function Arena() {
       rsi1h, rsi4h, cvd, basis, fibNearest, orderWalls, squeezeScore,
       pcRatio, maxPain, exchangeNetFlow, stablecoinFlow, googleTrends, liqLevels, btcDomTrend,
       pocLine, dxyLine, spxLine, goldLine,
+      cbPremium, vwap, oiTrend,
     };
   };
 
@@ -265,7 +294,7 @@ export default function Arena() {
           <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8' }}>AI Arena</div>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>GROK-4.3 + LIVE X</span>
         </div>
-        <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>29-signal engine — technicals · derivatives · options · macro · ETF · on-chain · social → LONG / SHORT / FLAT</div>
+        <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>32-signal engine — technicals · derivatives · VWAP · CB premium · OI trend · macro · ETF · on-chain · social → LONG / SHORT / FLAT</div>
       </div>
 
       {/* Coin selector + notification bell */}
@@ -312,7 +341,7 @@ export default function Arena() {
           onClick={() => setCtxOpen(v => !v)}
         >
           <span>
-            {selectedCoin.toUpperCase()} · {[ctx.rsi14, ctx.rsi1h, ctx.rsi4h, ctx.cvd, ctx.basis, ctx.orderWalls, ctx.pcRatio, ctx.exchangeNetFlow].filter(v => v !== '—').length + 21} signals loaded
+            {selectedCoin.toUpperCase()} · {[ctx.rsi14, ctx.rsi1h, ctx.rsi4h, ctx.cvd, ctx.basis, ctx.orderWalls, ctx.pcRatio, ctx.exchangeNetFlow, ctx.cbPremium, ctx.vwap, ctx.oiTrend].filter(v => v !== '—').length + 21} signals loaded
           </span>
           <span style={{ fontSize: 9, color: '#444' }}>{ctxOpen ? '▲ hide' : '▼ show context'}</span>
         </div>
@@ -328,6 +357,9 @@ export default function Arena() {
           ['Order Walls', ctx.orderWalls.length > 55 ? ctx.orderWalls.slice(0, 55) + '…' : ctx.orderWalls],
           ['P/C Ratio', ctx.pcRatio], ['Max Pain', ctx.maxPain],
           ['Oil (CL=F)', ctx.oilPrice], ['10Y Yield', ctx.bonds10y],
+          ['CB Premium', ctx.cbPremium],
+          ['VWAP (15m)', ctx.vwap],
+          ['OI Trend', ctx.oiTrend.length > 55 ? ctx.oiTrend.slice(0, 55) + '…' : ctx.oiTrend],
           ['DXY', ctx.dxyLine], ['SPX', ctx.spxLine], ['Gold', ctx.goldLine],
           ['ETF Flows', ctx.etfFlows],
           ['Exch. Flow', ctx.exchangeNetFlow],

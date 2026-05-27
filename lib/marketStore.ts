@@ -40,6 +40,10 @@ export interface CoinData {
   /* order book walls (BTC/ETH only) */
   orderBidWalls: LiqWall[] | null;
   orderAskWalls: LiqWall[] | null;
+  /* VWAP — volume-weighted average price from 100 candles */
+  vwap: number | null;
+  /* OI Trend vs Price divergence signal */
+  oiTrend: 'strong_up' | 'weak_up' | 'strong_down' | 'weak_down' | null;
 }
 
 export type CoinId = 'btc' | 'eth' | 'sol' | 'xrp' | 'bnb' | 'hype' | 'near' | 'zec';
@@ -126,6 +130,9 @@ export type MarketStore = {
   spxChg: number | null;
   gold: number | null;       // Gold spot $/oz
   goldChg: number | null;
+  /* Coinbase Premium Index */
+  cbPremium: number | null;    // Coinbase BTC − Binance BTC (USD)
+  cbPremiumPct: number | null; // as % of Binance price
 };
 
 export const defaultStore: MarketStore = {
@@ -152,6 +159,7 @@ export const defaultStore: MarketStore = {
   dxy: null, dxyChg: null,
   spx: null, spxChg: null,
   gold: null, goldChg: null,
+  cbPremium: null, cbPremiumPct: null,
 };
 
 export const MarketContext = createContext<{

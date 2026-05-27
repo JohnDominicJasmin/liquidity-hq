@@ -58,6 +58,18 @@ export default function Ticker() {
                   <div className="ticker-vol">VOL: <span>{fmtVol(d.vol24)}</span></div>
                 )}
                 <VolRatioText ratio={d?.volRatio} />
+                {d?.vwap != null && d.price != null && (
+                  <div className="ticker-vol" style={{ color: d.price > d.vwap ? '#34d399' : '#f87171' }}>
+                    VWAP: ${d.vwap.toLocaleString(undefined, { maximumFractionDigits: 2 })} {d.price > d.vwap ? '▲' : '▼'}
+                  </div>
+                )}
+                {d?.oiTrend && (
+                  <div className="ticker-vol" style={{
+                    color: d.oiTrend === 'strong_up' ? '#34d399' : d.oiTrend === 'strong_down' ? '#f87171' : '#fbbf24',
+                  }}>
+                    OI: {d.oiTrend === 'strong_up' ? '↑↑ real' : d.oiTrend === 'strong_down' ? '↑↓ real' : d.oiTrend === 'weak_up' ? '↓↑ weak' : '↓↓ weak'}
+                  </div>
+                )}
               </div>
             );
           })}

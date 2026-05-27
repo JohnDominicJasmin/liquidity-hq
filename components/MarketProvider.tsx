@@ -38,6 +38,8 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   const cvdSnapsRef = useRef<Partial<Record<CoinId, Array<{ price: number; cvd: number }>>>>({});
   /* Whale dedup: track last seen aggTrade id per symbol */
   const lastAggIdRef = useRef<Partial<Record<CoinId, number>>>({});
+  /* OI Trend: sliding window of last 4 OI + price readings per coin */
+  const oiHistRef = useRef<Partial<Record<CoinId, Array<{ oi: number; price: number }>>>>({});
 
   const updateCoin = useCallback((id: CoinId, patch: Partial<MarketStore['coins'][CoinId]>) => {
     setStore(s => ({
@@ -113,7 +115,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     };
   }, [restPoll, updateCoin]);
 
-  /* ── Bybit: HYPE price + funding rates + OI + perpPrice for all ── */
+  /* ── Bybit: HYPE price + funding rates + OI + perpPrice + OI Trend ── */
   const fetchBybit = useCallback(async () => {
     const coins = Object.keys(BYBIT_SYMS);
     await Promise.allSettled(coins.map(async (coin) => {
@@ -123,16 +125,42 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         const d = await res.json();
         const item = d.result?.list?.[0];
         if (!item) return;
+
+        const curOI    = parseFloat(item.openInterestValue || '0');
+        const curPrice = parseFloat(item.lastPrice || '0');
+
+        /* ── OI Trend vs Price divergence ── */
+        const hist    = oiHistRef.current[coin as CoinId] ?? [];
+        const newHist = [...hist, { oi: curOI, price: curPrice }].slice(-4);
+        oiHistRef.current[coin as CoinId] = newHist;
+
+        let oiTrend: 'strong_up' | 'weak_up' | 'strong_down' | 'weak_down' | null = null;
+        if (newHist.length >= 2) {
+          const first = newHist[0], last = newHist[newHist.length - 1];
+          if (first.oi > 0 && first.price > 0) {
+            const oiChg    = (last.oi    - first.oi)    / first.oi;
+            const priceChg = (last.price - first.price) / first.price;
+            if (Math.abs(oiChg) > 0.003 || Math.abs(priceChg) > 0.002) {
+              const oiUp = oiChg > 0, priceUp = priceChg > 0;
+              if      (oiUp && priceUp)    oiTrend = 'strong_up';
+              else if (oiUp && !priceUp)   oiTrend = 'strong_down';
+              else if (!oiUp && priceUp)   oiTrend = 'weak_up';
+              else                         oiTrend = 'weak_down';
+            }
+          }
+        }
+
         const patch: Partial<MarketStore['coins'][CoinId]> = {
           fundingRate: parseFloat(item.fundingRate || '0'),
-          oi: parseFloat(item.openInterestValue || '0'),
-          perpPrice: parseFloat(item.lastPrice || '0'),
+          oi: curOI,
+          perpPrice: curPrice,
+          oiTrend,
         };
         if (coin === 'hype') {
-          patch.price = parseFloat(item.lastPrice || '0');
+          patch.price  = curPrice;
           patch.change = parseFloat(item.price24hPcnt || '0') * 100;
-          patch.high = parseFloat(item.highPrice24h || '0');
-          patch.low = parseFloat(item.lowPrice24h || '0');
+          patch.high   = parseFloat(item.highPrice24h || '0');
+          patch.low    = parseFloat(item.lowPrice24h || '0');
         }
         updateCoin(coin as CoinId, patch);
       } catch { /* */ }
@@ -237,7 +265,16 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       const val = minP + lo * bSize;
       const vah = minP + (hi + 1) * bSize;
 
-      updateCoin(coin, { volRatio: avg > 0 ? current / avg : 1, ma20, rsi14, poc, vah, val });
+      /* ── VWAP — typical price × volume ── */
+      let sumTPV = 0, sumVol = 0;
+      klines.forEach((k: string[], i: number) => {
+        const tp = (highs[i] + lows[i] + closes[i]) / 3;
+        sumTPV += tp * vols[i];
+        sumVol += vols[i];
+      });
+      const vwap = sumVol > 0 ? sumTPV / sumVol : null;
+
+      updateCoin(coin, { volRatio: avg > 0 ? current / avg : 1, ma20, rsi14, poc, vah, val, vwap });
     } catch { /* */ }
   }, [updateCoin]);
 
@@ -532,6 +569,23 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     } catch { /* fail silently */ }
   }, []);
 
+  /* ── Coinbase Premium Index (Coinbase BTC − Binance BTC) ── */
+  const fetchCoinbasePremium = useCallback(async () => {
+    try {
+      const res = await fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot', { cache: 'no-cache' });
+      const data = await res.json();
+      const cbPrice = parseFloat(data?.data?.amount);
+      if (isNaN(cbPrice)) return;
+      setStore(s => {
+        const binancePrice = s.coins.btc?.price;
+        if (!binancePrice) return { ...s, cbPremium: null, cbPremiumPct: null };
+        const premium    = cbPrice - binancePrice;
+        const premiumPct = (premium / binancePrice) * 100;
+        return { ...s, cbPremium: premium, cbPremiumPct: premiumPct };
+      });
+    } catch { /* fail silently */ }
+  }, []);
+
   /* ── Oil + Bond yields + DXY + SPX + Gold ── */
   const fetchMacro = useCallback(async () => {
     const proxy = (url: string) => 'https://corsproxy.io/?' + encodeURIComponent(url);
@@ -662,22 +716,25 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     fetchStablecoinFlows();
     fetchCoinglassData();
     fetchGoogleTrends();
+    // CB Premium needs BTC price first — wait 3s for WS/REST to populate
+    setTimeout(fetchCoinbasePremium, 3000);
 
     const intervals = [
-      setInterval(fetchBybit,          8  * 60 * 1000),
-      setInterval(fetchLSR,            5  * 60 * 1000),
-      setInterval(fetchVolume,         3  * 60 * 1000),
-      setInterval(fetchFNG,           24  * 60 * 60 * 1000),
-      setInterval(fetchBTCDom,         5  * 60 * 1000),
-      setInterval(fetchMacro,         10  * 60 * 1000),
-      setInterval(fetchETF,           30  * 60 * 1000),
-      setInterval(fetchMultiTFRSI,    15  * 60 * 1000),
-      setInterval(fetchCVD,            5  * 60 * 1000),
-      setInterval(fetchOrderBook,      2  * 60 * 1000),
-      setInterval(fetchDeribitOptions, 15  * 60 * 1000),
-      setInterval(fetchStablecoinFlows, 30 * 60 * 1000),
-      setInterval(fetchCoinglassData,  15  * 60 * 1000),
-      setInterval(fetchGoogleTrends,   60  * 60 * 1000),
+      setInterval(fetchBybit,            8  * 60 * 1000),
+      setInterval(fetchLSR,              5  * 60 * 1000),
+      setInterval(fetchVolume,           3  * 60 * 1000),
+      setInterval(fetchFNG,             24  * 60 * 60 * 1000),
+      setInterval(fetchBTCDom,           5  * 60 * 1000),
+      setInterval(fetchMacro,           10  * 60 * 1000),
+      setInterval(fetchETF,             30  * 60 * 1000),
+      setInterval(fetchMultiTFRSI,      15  * 60 * 1000),
+      setInterval(fetchCVD,              5  * 60 * 1000),
+      setInterval(fetchOrderBook,        2  * 60 * 1000),
+      setInterval(fetchDeribitOptions,  15  * 60 * 1000),
+      setInterval(fetchStablecoinFlows, 30  * 60 * 1000),
+      setInterval(fetchCoinglassData,   15  * 60 * 1000),
+      setInterval(fetchGoogleTrends,    60  * 60 * 1000),
+      setInterval(fetchCoinbasePremium,  30 * 1000),      // every 30s
     ];
 
     return () => {
