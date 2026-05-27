@@ -719,49 +719,26 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     } catch { /* fail silently */ }
   }, []);
 
-  /* ── Oil + Bond yields + DXY + SPX + Gold ── */
+  /* ── Oil + DXY + SPX + Gold — fetched via /api/macro (server-side, no CORS) ── */
   const fetchMacro = useCallback(async () => {
-    // Stooq.com: free financial data, no API key
-    // allorigins.win: free CORS proxy — Stooq doesn't send CORS headers natively
-    // so direct browser fetches are blocked; this proxy adds the headers
-    const proxy = (sym: string) =>
-      `https://api.allorigins.win/raw?url=${encodeURIComponent(
-        `https://stooq.com/q/l/?s=${sym}&f=sd2t2ohlcv&e=json`
-      )}`;
+    try {
+      const res = await fetch('/api/macro', { cache: 'no-store' });
+      if (!res.ok) return;
+      const d: {
+        oil:  { price: number; chg: number } | null;
+        dxy:  { price: number; chg: number } | null;
+        spx:  { price: number; chg: number } | null;
+        gold: { price: number; chg: number } | null;
+      } = await res.json();
 
-    const extract = (d: Record<string, unknown>) => {
-      const item = (d?.symbols as Record<string, number | string>[])?.[0];
-      if (!item) return null;
-      const close = typeof item.close === 'number' ? item.close : parseFloat(String(item.close));
-      const open  = typeof item.open  === 'number' ? item.open  : parseFloat(String(item.open));
-      if (!close || isNaN(close) || close <= 0) return null;  // handles 'N/D' → NaN
-      const chg = (open > 0 && !isNaN(open)) ? ((close - open) / open) * 100 : 0;
-      return { price: close, chg };
-    };
-
-    const results = await Promise.allSettled([
-      fetch(proxy('cl.f'),   { cache: 'no-cache' }),   // WTI Crude Oil
-      fetch(proxy('^tnx'),   { cache: 'no-cache' }),   // US 10Y Treasury Yield
-      fetch(proxy('^dxy'),   { cache: 'no-cache' }),   // DXY (Dollar Index)
-      fetch(proxy('^spx'),   { cache: 'no-cache' }),   // S&P 500
-      fetch(proxy('xauusd'), { cache: 'no-cache' }),   // Gold (XAU/USD)
-    ]);
-
-    const parse = async (r: PromiseSettledResult<Response>) => {
-      if (r.status !== 'fulfilled' || !r.value.ok) return null;
-      try { return extract(await r.value.json()); } catch { return null; }
-    };
-
-    const [oil, bond, dxyData, spxData, goldData] = await Promise.all(results.map(parse));
-
-    setStore(s => ({
-      ...s,
-      ...(oil      ? { oilPrice: oil.price }                            : {}),
-      ...(bond     ? { bonds10y: bond.price }                           : {}),
-      ...(dxyData  ? { dxy:  dxyData.price,  dxyChg:  dxyData.chg  }  : {}),
-      ...(spxData  ? { spx:  spxData.price,  spxChg:  spxData.chg  }  : {}),
-      ...(goldData ? { gold: goldData.price, goldChg: goldData.chg  }  : {}),
-    }));
+      setStore(s => ({
+        ...s,
+        ...(d.oil  ? { oilPrice: d.oil.price }                           : {}),
+        ...(d.dxy  ? { dxy:  d.dxy.price,  dxyChg:  d.dxy.chg  }       : {}),
+        ...(d.spx  ? { spx:  d.spx.price,  spxChg:  d.spx.chg  }       : {}),
+        ...(d.gold ? { gold: d.gold.price, goldChg: d.gold.chg  }       : {}),
+      }));
+    } catch { /* fail silently */ }
   }, []);
 
   /* ── Fear & Greed ── */
