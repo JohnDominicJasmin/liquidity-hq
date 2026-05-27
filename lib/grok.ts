@@ -47,6 +47,12 @@ export interface GrokContext {
   liqLevels: string;
   /* BTC dominance trend */
   btcDomTrend: string;
+  /* volume profile */
+  pocLine: string;
+  /* macro correlations */
+  dxyLine: string;
+  spxLine: string;
+  goldLine: string;
 }
 
 export interface GrokResult {
@@ -74,6 +80,7 @@ export function buildPrompt(ctx: GrokContext): string {
     `RSI (14, 4h):  ${ctx.rsi4h}`,
     `CVD (last 200 trades):  ${ctx.cvd}`,
     `Fibonacci nearest level:  ${ctx.fibNearest}`,
+    `Volume Profile POC/VAH/VAL:  ${ctx.pocLine}`,
     '',
     '=== DERIVATIVES / POSITIONING ===',
     `Funding rate: ${ctx.fundingRate}`,
@@ -94,6 +101,9 @@ export function buildPrompt(ctx: GrokContext): string {
     '=== MACRO ===',
     `US Oil (CL=F): ${ctx.oilPrice}`,
     `US 10Y Bond Yield: ${ctx.bonds10y}`,
+    `DXY (US Dollar Index): ${ctx.dxyLine}`,
+    `S&P 500: ${ctx.spxLine}`,
+    `Gold (XAU/USD): ${ctx.goldLine}`,
     `BTC Dominance (trend): ${ctx.btcDomTrend}`,
     `Fear & Greed: ${ctx.fearGreed}`,
     '',

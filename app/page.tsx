@@ -6,6 +6,69 @@ import RaidMeter from '@/components/RaidMeter';
 import SOTD from '@/components/SOTD';
 import NewsBanner from '@/components/NewsBanner';
 
+function MacroStrip() {
+  const { store } = useMarket();
+  const items = [
+    {
+      label: 'DXY',
+      price: store.dxy,
+      chg: store.dxyChg,
+      fmt: (v: number) => v.toFixed(2),
+      // DXY UP = bad for BTC (dollar strengthens = risk off)
+      signal: (chg: number) => chg > 0.2 ? { txt: 'USD strength → BTC headwind', col: 'var(--red)' }
+                              : chg < -0.2 ? { txt: 'USD weakness → BTC tailwind', col: 'var(--green)' }
+                              : { txt: 'Neutral', col: 'var(--txt3)' },
+    },
+    {
+      label: 'SPX',
+      price: store.spx,
+      chg: store.spxChg,
+      fmt: (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 0 }),
+      // SPX UP = risk-on = good for BTC
+      signal: (chg: number) => chg > 0.3 ? { txt: 'Risk-on → crypto tailwind', col: 'var(--green)' }
+                              : chg < -0.5 ? { txt: 'Risk-off → crypto headwind', col: 'var(--red)' }
+                              : { txt: 'Neutral', col: 'var(--txt3)' },
+    },
+    {
+      label: 'Gold',
+      price: store.gold,
+      chg: store.goldChg,
+      fmt: (v: number) => '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }),
+      // Gold UP = safe haven demand = mild risk-off
+      signal: (chg: number) => chg > 0.5 ? { txt: 'Safe haven bid → mild risk-off', col: 'var(--amber)' }
+                              : chg < -0.5 ? { txt: 'Gold falling → risk appetite up', col: 'var(--green)' }
+                              : { txt: 'Neutral', col: 'var(--txt3)' },
+    },
+  ];
+
+  return (
+    <div className="macro-strip">
+      <div className="macro-strip-title">🌐 Macro Correlations</div>
+      <div className="macro-strip-row">
+        {items.map(({ label, price, chg, fmt, signal }) => {
+          const sig = chg != null ? signal(chg) : null;
+          return (
+            <div key={label} className="macro-item">
+              <div className="macro-item-label">{label}</div>
+              <div className="macro-item-price">
+                {price != null ? fmt(price) : '—'}
+              </div>
+              <div className="macro-item-chg" style={{
+                color: chg == null ? 'var(--txt3)' : chg >= 0 ? 'var(--green)' : 'var(--red)',
+              }}>
+                {chg != null ? (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%' : '—'}
+              </div>
+              {sig && (
+                <div className="macro-item-signal" style={{ color: sig.col }}>{sig.txt}</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const RULES = [
   { n: 1, c: 'np', t: 'No bright cluster = no trade. Period.', b: 'If you cannot point to a bright, tight yellow/white zone on Coinglass 24h Model 2, you are guessing.' },
   { n: 2, c: 'np', t: 'Funding rate tells you direction.', b: '+ve funding = too many longs = whales dump DOWN. -ve funding = too many shorts = whales squeeze UP.' },
@@ -58,6 +121,9 @@ export default function Dashboard() {
       <div className="ind-row">
         <BTCDominance />
       </div>
+
+      <div className="dash-section">Macro correlations</div>
+      <MacroStrip />
 
       <div className="dash-section">Secret of the Day</div>
       <SOTD />

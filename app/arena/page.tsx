@@ -176,9 +176,20 @@ export default function Arena() {
         })()
       : (store.btcDom != null ? store.btcDom.toFixed(2) + '%' : '—');
 
+    /* Volume Profile POC */
+    const pocLine = coin?.poc != null
+      ? '$' + coin.poc.toLocaleString(undefined, { maximumFractionDigits: 2 })
+        + (coin.vah != null ? ' | VAH $' + coin.vah.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '')
+        + (coin.val != null ? ' | VAL $' + coin.val.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '')
+        + (coin.price && coin.poc ? (coin.price > coin.poc ? ' — price ABOVE POC (bullish)' : ' — price BELOW POC (bearish)') : '')
+      : '—';
+
     /* Macro */
-    const oilPrice = store.oilPrice != null ? '$' + store.oilPrice.toFixed(2) + '/bbl' : '—';
-    const bonds10y = store.bonds10y != null ? store.bonds10y.toFixed(3) + '%' : '—';
+    const oilPrice  = store.oilPrice  != null ? '$' + store.oilPrice.toFixed(2)  + '/bbl' : '—';
+    const bonds10y  = store.bonds10y  != null ? store.bonds10y.toFixed(3)  + '%'   : '—';
+    const dxyLine   = store.dxy       != null ? store.dxy.toFixed(2) + (store.dxyChg != null ? ' (' + (store.dxyChg >= 0 ? '+' : '') + store.dxyChg.toFixed(2) + '%)' : '') + (store.dxyChg != null && store.dxyChg > 0.2 ? ' → BTC headwind' : store.dxyChg != null && store.dxyChg < -0.2 ? ' → BTC tailwind' : '') : '—';
+    const spxLine   = store.spx       != null ? store.spx.toLocaleString(undefined, { maximumFractionDigits: 0 }) + (store.spxChg != null ? ' (' + (store.spxChg >= 0 ? '+' : '') + store.spxChg.toFixed(2) + '%)' : '') + (store.spxChg != null && store.spxChg > 0.3 ? ' → risk-on' : store.spxChg != null && store.spxChg < -0.5 ? ' → risk-off' : '') : '—';
+    const goldLine  = store.gold      != null ? '$' + store.gold.toLocaleString(undefined, { maximumFractionDigits: 0 }) + (store.goldChg != null ? ' (' + (store.goldChg >= 0 ? '+' : '') + store.goldChg.toFixed(2) + '%)' : '') : '—';
 
     /* Upcoming events */
     const upcoming = econEvents
@@ -210,6 +221,7 @@ export default function Arena() {
       oilPrice, bonds10y, upcomingEvents: upcoming, etfFlows,
       rsi1h, rsi4h, cvd, basis, fibNearest, orderWalls, squeezeScore,
       pcRatio, maxPain, exchangeNetFlow, stablecoinFlow, googleTrends, liqLevels, btcDomTrend,
+      pocLine, dxyLine, spxLine, goldLine,
     };
   };
 
@@ -312,9 +324,11 @@ export default function Arena() {
           ['L/S Ratio', ctx.longShortRatio], ['Squeeze', squeezeToLine(sq)],
           ['Funding', ctx.fundingRate], ['Open Interest', ctx.openInterest],
           ['Basis', ctx.basis], ['Fib Level', ctx.fibNearest],
+          ['Vol Profile POC', ctx.pocLine],
           ['Order Walls', ctx.orderWalls.length > 55 ? ctx.orderWalls.slice(0, 55) + '…' : ctx.orderWalls],
           ['P/C Ratio', ctx.pcRatio], ['Max Pain', ctx.maxPain],
           ['Oil (CL=F)', ctx.oilPrice], ['10Y Yield', ctx.bonds10y],
+          ['DXY', ctx.dxyLine], ['SPX', ctx.spxLine], ['Gold', ctx.goldLine],
           ['ETF Flows', ctx.etfFlows],
           ['Exch. Flow', ctx.exchangeNetFlow],
           ['Stablecoin', ctx.stablecoinFlow],

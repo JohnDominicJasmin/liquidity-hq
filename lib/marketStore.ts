@@ -33,6 +33,10 @@ export interface CoinData {
   cvd: number | null;
   /* CVD vs price divergence signal */
   cvdDivergence: 'bullish' | 'bearish' | null;
+  /* volume profile */
+  poc: number | null;   // Point of Control — price with most volume
+  vah: number | null;   // Value Area High (top of 70% vol range)
+  val: number | null;   // Value Area Low  (bottom of 70% vol range)
   /* order book walls (BTC/ETH only) */
   orderBidWalls: LiqWall[] | null;
   orderAskWalls: LiqWall[] | null;
@@ -115,6 +119,13 @@ export type MarketStore = {
   btcLiqLevels: LiqLevel[];
   /* Google Trends */
   googleTrendsBtc: number | null;
+  /* Macro correlations */
+  dxy: number | null;        // US Dollar Index
+  dxyChg: number | null;     // 24h % change
+  spx: number | null;        // S&P 500
+  spxChg: number | null;
+  gold: number | null;       // Gold spot $/oz
+  goldChg: number | null;
 };
 
 export const defaultStore: MarketStore = {
@@ -138,6 +149,9 @@ export const defaultStore: MarketStore = {
   btcExchangeNetFlow: null,
   btcLiqLevels: [],
   googleTrendsBtc: null,
+  dxy: null, dxyChg: null,
+  spx: null, spxChg: null,
+  gold: null, goldChg: null,
 };
 
 export const MarketContext = createContext<{

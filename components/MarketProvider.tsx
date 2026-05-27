@@ -181,11 +181,15 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
   const fetchKlines = useCallback(async (coin: CoinId, sym: string) => {
     try {
-      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=15m&limit=22`);
+      // Fetch 100 candles: enough for RSI, MA20, vol ratio AND volume profile
+      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=15m&limit=100`);
       const klines = await res.json();
       if (!Array.isArray(klines) || klines.length < 15) return;
+
       const closes = klines.map((k: string[]) => parseFloat(k[4]));
-      const vols   = klines.map((k: string[]) => parseFloat(k[7]));
+      const highs  = klines.map((k: string[]) => parseFloat(k[2]));
+      const lows   = klines.map((k: string[]) => parseFloat(k[3]));
+      const vols   = klines.map((k: string[]) => parseFloat(k[7])); // quote volume
 
       /* Volume ratio */
       const current = vols[vols.length - 2];
@@ -198,7 +202,42 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       /* RSI14 */
       const rsi14 = computeRSI14(closes);
 
-      updateCoin(coin, { volRatio: avg > 0 ? current / avg : 1, ma20, rsi14 });
+      /* ── Volume Profile / POC ── */
+      const allPrices = [...highs, ...lows];
+      const minP = Math.min(...allPrices);
+      const maxP = Math.max(...allPrices);
+      const range = maxP - minP;
+      const BUCKETS = 60;
+      const bSize = range / BUCKETS;
+      const buckets = new Array<number>(BUCKETS).fill(0);
+
+      klines.forEach((k: string[], i: number) => {
+        const h = highs[i], l = lows[i], v = vols[i];
+        const lo = Math.max(0, Math.floor((l - minP) / bSize));
+        const hi = Math.min(BUCKETS - 1, Math.floor((h - minP) / bSize));
+        const span = Math.max(1, hi - lo + 1);
+        for (let b = lo; b <= hi; b++) buckets[b] += v / span;
+      });
+
+      // POC = bucket with max volume
+      let maxVol = 0, pocBucket = 0;
+      buckets.forEach((v, i) => { if (v > maxVol) { maxVol = v; pocBucket = i; } });
+      const poc = minP + (pocBucket + 0.5) * bSize;
+
+      // Value Area: expand from POC to capture 70% of total volume
+      const totalVol = buckets.reduce((a, b) => a + b, 0);
+      let lo = pocBucket, hi = pocBucket, captured = buckets[pocBucket];
+      while (captured < totalVol * 0.70 && (lo > 0 || hi < BUCKETS - 1)) {
+        const addLo = lo > 0 ? buckets[lo - 1] : 0;
+        const addHi = hi < BUCKETS - 1 ? buckets[hi + 1] : 0;
+        if (addLo >= addHi && lo > 0) { lo--; captured += buckets[lo]; }
+        else if (hi < BUCKETS - 1)    { hi++; captured += buckets[hi]; }
+        else                           { lo--; captured += buckets[lo]; }
+      }
+      const val = minP + lo * bSize;
+      const vah = minP + (hi + 1) * bSize;
+
+      updateCoin(coin, { volRatio: avg > 0 ? current / avg : 1, ma20, rsi14, poc, vah, val });
     } catch { /* */ }
   }, [updateCoin]);
 
@@ -493,25 +532,44 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     } catch { /* fail silently */ }
   }, []);
 
-  /* ── Oil + Bond yields ── */
+  /* ── Oil + Bond yields + DXY + SPX + Gold ── */
   const fetchMacro = useCallback(async () => {
     const proxy = (url: string) => 'https://corsproxy.io/?' + encodeURIComponent(url);
-    try {
-      const [oilRes, bondRes] = await Promise.allSettled([
-        fetch(proxy('https://query1.finance.yahoo.com/v8/finance/chart/CL=F?interval=1d&range=2d'), { cache: 'no-cache' }),
-        fetch(proxy('https://query1.finance.yahoo.com/v8/finance/chart/%5ETNX?interval=1d&range=2d'), { cache: 'no-cache' }),
-      ]);
-      if (oilRes.status === 'fulfilled' && oilRes.value.ok) {
-        const d = await oilRes.value.json();
-        const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
-        if (p) setStore(s => ({ ...s, oilPrice: parseFloat(p) }));
-      }
-      if (bondRes.status === 'fulfilled' && bondRes.value.ok) {
-        const d = await bondRes.value.json();
-        const p = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
-        if (p) setStore(s => ({ ...s, bonds10y: parseFloat(p) }));
-      }
-    } catch { /* fail silently */ }
+    const yf = (sym: string) => proxy(`https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=5d`);
+
+    const extract = (d: Record<string, unknown>) => {
+      const meta = (d?.chart as Record<string, unknown>)?.result as Record<string, unknown>[] | undefined;
+      const m = meta?.[0]?.meta as Record<string, number> | undefined;
+      if (!m) return null;
+      const price = m.regularMarketPrice;
+      const prev  = m.previousClose ?? m.chartPreviousClose ?? 0;
+      const chg   = prev > 0 ? ((price - prev) / prev) * 100 : (m.regularMarketChangePercent ?? 0);
+      return { price, chg };
+    };
+
+    const results = await Promise.allSettled([
+      fetch(yf('CL%3DF'),    { cache: 'no-cache' }),   // Oil
+      fetch(yf('%5ETNX'),    { cache: 'no-cache' }),   // US 10Y
+      fetch(yf('DX-Y.NYB'), { cache: 'no-cache' }),   // DXY
+      fetch(yf('%5EGSPC'),   { cache: 'no-cache' }),   // SPX
+      fetch(yf('GC%3DF'),    { cache: 'no-cache' }),   // Gold
+    ]);
+
+    const parse = async (r: PromiseSettledResult<Response>) => {
+      if (r.status !== 'fulfilled' || !r.value.ok) return null;
+      return extract(await r.value.json());
+    };
+
+    const [oil, bond, dxyData, spxData, goldData] = await Promise.all(results.map(parse));
+
+    setStore(s => ({
+      ...s,
+      ...(oil  ? { oilPrice: oil.price }   : {}),
+      ...(bond ? { bonds10y: bond.price }  : {}),
+      ...(dxyData  ? { dxy:  dxyData.price,  dxyChg:  dxyData.chg  } : {}),
+      ...(spxData  ? { spx:  spxData.price,  spxChg:  spxData.chg  } : {}),
+      ...(goldData ? { gold: goldData.price, goldChg: goldData.chg  } : {}),
+    }));
   }, []);
 
   /* ── Fear & Greed ── */
