@@ -6,14 +6,12 @@ import { useMarket } from '@/lib/marketStore';
 
 const NAV = [
   { path: '/', icon: '📊', label: 'Dashboard' },
-  { path: '/scanner', icon: '🔍', label: 'Scanner' },
   { path: '/hours', icon: '🕐', label: 'Best Hours' },
   { path: '/news', icon: '📰', label: 'News' },
   null,
   { path: '/bible', icon: '📖', label: 'Bible' },
   null,
   { path: '/arena', icon: '🤖', label: 'AI Arena' },
-  { path: '/signals', icon: '📈', label: 'Signals' },
   null,
   { path: '/about', icon: 'ℹ️', label: 'About' },
 ];
