@@ -264,7 +264,6 @@ export default function GrokChat() {
       const btn = tooltipElRef.current;
       if (!btn) return;
       tooltipTextRef.current = text;
-      // Position ABOVE the selection (like Claude) — centre-aligned horizontally
       btn.style.left    = rect.left + rect.width / 2 + 'px';
       btn.style.top     = rect.top - 38 + 'px';
       btn.style.display = 'block';
@@ -292,27 +291,24 @@ export default function GrokChat() {
       } catch { /* ignore */ }
     };
 
-    /* mousedown: lock scroll when inside a bubble, always hide stale tooltip */
+    /* mousedown: just track state + hide stale tooltip.
+       NO overflow toggle — toggling overflow shifts the layout on
+       mousedown and repositions the selection anchor to the wrong spot. */
     const onDown = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
       if (!t.closest('.gchat-sel-tooltip')) hideTooltip();
-
       inBubble = !!t.closest('.gchat-msg-assistant');
-      if (inBubble) {
-        pressing = true;
-        container.style.overflowY = 'hidden';
-      }
+      if (inBubble) pressing = true;
     };
 
-    /* mouseup: unlock scroll, read finalised selection */
+    /* mouseup: read finalised selection, show tooltip */
     const onUp = () => {
       pressing = false;
-      setTimeout(() => { container.style.overflowY = 'auto'; }, 80);
-      if (inBubble) setTimeout(readSelection, 120);
+      if (inBubble) setTimeout(readSelection, 80);
     };
 
-    /* selectionchange: handles keyboard selection (Shift+arrows etc.)
-       Skip while mouse is pressed — no DOM updates during drag        */
+    /* selectionchange: keyboard selection (Shift+arrows etc.)
+       Skip while mouse is pressed — preserves selection highlight  */
     const onSelChange = () => {
       if (pressing) return;
       clearTimeout(kbTimer);
