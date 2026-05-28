@@ -212,10 +212,43 @@ export default function GrokChat() {
     if (open && !histView) setTimeout(() => inputRef.current?.focus(), 200);
   }, [open, histView]);
 
-  /* ── Text selection → quote tooltip ────────────────────────────
-     selectionchange fires for ANY selection method: mouse drag,
-     trackpad, keyboard, triple-click, shift-click — no dependency
-     on mouseup so it never competes with the scroll container.
+  /* ── Suppress scroll-during-drag so trackpad can select text ───
+     On mousedown inside an assistant bubble, lock the scroll
+     container to overflow:hidden so the browser treats the drag
+     as text selection, not scroll. Restore on mouseup.
+  ─────────────────────────────────────────────────────────────── */
+  useEffect(() => {
+    const container = msgsRef.current;
+    if (!container) return;
+
+    let locked = false;
+
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      // Only lock when pressing inside an assistant bubble (not tooltip/buttons)
+      if (t.closest('.gchat-msg-assistant') && !t.closest('.gchat-msg-actions')) {
+        locked = true;
+        container.style.overflowY = 'hidden';
+      }
+    };
+
+    const onUp = () => {
+      if (!locked) return;
+      locked = false;
+      // Small delay — let browser commit the selection range before re-enabling scroll
+      setTimeout(() => { container.style.overflowY = 'auto'; }, 80);
+    };
+
+    container.addEventListener('mousedown', onDown);
+    document.addEventListener('mouseup',   onUp);
+    return () => {
+      container.removeEventListener('mousedown', onDown);
+      document.removeEventListener('mouseup',   onUp);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── selectionchange → show floating ↩ Reply chip ───────────────
+     Fires for any selection method (drag, keyboard, triple-click).
      300ms debounce waits for the selection to stabilise.
   ─────────────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -228,7 +261,6 @@ export default function GrokChat() {
         const text = sel?.toString().trim();
         if (!text || text.length < 3) { setSelTooltip(null); return; }
 
-        // Only activate inside an assistant bubble
         const anchor = sel!.anchorNode?.parentElement;
         if (!anchor?.closest('.gchat-msg-assistant')) { setSelTooltip(null); return; }
 
@@ -241,7 +273,6 @@ export default function GrokChat() {
       }, 300);
     };
 
-    // Dismiss when clicking anything other than the tooltip
     const onMouseDown = (e: MouseEvent) => {
       if (!(e.target as HTMLElement).closest('.gchat-sel-tooltip')) setSelTooltip(null);
     };
@@ -532,7 +563,7 @@ export default function GrokChat() {
                     Live data · {liveSearch ? '🌐 X + web search ON' : '🌐 search off — toggle to enable'}
                   </div>
                   <div style={{ fontSize: 10, color: '#333', marginTop: 8 }}>
-                    💡 Select any AI response text to quote &amp; reply
+                    💡 Select text in any response to quote &amp; reply
                   </div>
                 </div>
               )}
@@ -561,29 +592,6 @@ export default function GrokChat() {
                     />
                   ) : (
                     <div className="gchat-bubble">{m.content}</div>
-                  )}
-
-                  {/* Per-message actions (assistant only) — visible on hover */}
-                  {m.role === 'assistant' && (
-                    <div className="gchat-msg-actions">
-                      <button
-                        className="gchat-msg-action-btn"
-                        title="Reply to this message"
-                        onClick={() => {
-                          setQuotedText(m.content.slice(0, 200));
-                          setTimeout(() => inputRef.current?.focus(), 60);
-                        }}
-                      >
-                        ↩ Reply
-                      </button>
-                      <button
-                        className="gchat-msg-action-btn"
-                        title="Copy response"
-                        onClick={() => navigator.clipboard?.writeText(m.content)}
-                      >
-                        📋 Copy
-                      </button>
-                    </div>
                   )}
 
                   {m.role === 'user' && (
