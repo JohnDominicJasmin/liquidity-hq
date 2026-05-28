@@ -141,15 +141,6 @@ export default function LiqPage() {
 
   return (
     <div>
-      {/* Live Liquidation Feed */}
-      <LiqFeed />
-
-      {/* Whale Trade Feed */}
-      <WhaleTradesFeed />
-
-      {/* Multi-Exchange Funding Rates */}
-      <FundingComparison />
-
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8', marginBottom: 2 }}>
@@ -305,6 +296,15 @@ export default function LiqPage() {
           </div>
         </>
       )}
+
+      {/* Live Liquidation Feed */}
+      <LiqFeed />
+
+      {/* Whale Trade Feed */}
+      <WhaleTradesFeed />
+
+      {/* Multi-Exchange Funding Rates */}
+      <FundingComparison />
     </div>
   );
 }
