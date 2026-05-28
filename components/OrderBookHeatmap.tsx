@@ -2,79 +2,86 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-/* ─── Constants ─────────────────────────────────────────────── */
-const COINS = ['BTC', 'ETH', 'SOL', 'XRP', 'BNB'] as const;
+/* ─── Config ─────────────────────────────────────────────────── */
+const COINS    = ['BTC', 'ETH', 'SOL', 'XRP', 'BNB'] as const;
 type Coin = typeof COINS[number];
 
 const SYMS: Record<Coin, string> = {
   BTC: 'btcusdt', ETH: 'ethusdt', SOL: 'solusdt', XRP: 'xrpusdt', BNB: 'bnbusdt',
 };
 
-const LEVELS   = 20;         // levels per side
-const ROWS     = LEVELS * 2; // 40 total rows
-const LERP     = 0.15;       // animation speed (0 = frozen, 1 = instant)
-const BG       = '#0d0d0d';
-const GREEN    = '#7de0a4';
-const GREEN_DIM = 'rgba(125,224,164,';
-const RED      = '#ff9a92';
-const RED_DIM  = 'rgba(255,154,146,';
-const MID_LINE = 'rgba(255,255,255,0.55)';
+const BUFFER  = 300;   // max snapshots (5 min @ 1/sec)
+const SNAP_MS = 1000;  // 1 snapshot per second
 
-/* ─── Types ─────────────────────────────────────────────────── */
-interface Level { price: number; qty: number; }
-
-interface Tooltip {
-  side:  'bid' | 'ask';
-  price: number;
-  qty:   number;
-  cssx:  number;   // CSS x (for DOM tooltip)
-  cssy:  number;   // CSS y (for DOM tooltip)
+/* ─── Types ──────────────────────────────────────────────────── */
+interface Level    { price: number; qty: number; }
+interface Snapshot {
+  ts:       number;
+  bids:     Level[];   // highest first
+  asks:     Level[];   // lowest first
+  midPrice: number;
 }
 
-/* ─── Helpers ────────────────────────────────────────────────── */
-function fmtPrice(p: number): string {
-  if (p < 1)    return p.toFixed(5);
-  if (p < 10)   return p.toFixed(4);
-  if (p < 1000) return p.toFixed(2);
-  return Math.round(p).toLocaleString();
+/* ─── Heat-map color function ────────────────────────────────── */
+// Maps normalised qty 0→1 to a Bookmap-style colour.
+// dark → navy → cyan → green → yellow → orange → white
+function heatColor(norm: number): string | null {
+  if (norm < 0.012) return null;           // skip near-invisible cells
+
+  const t = Math.pow(norm, 0.52);          // sqrt-ish curve for visual spread
+
+  // [threshold, r, g, b, alpha]
+  const S = [
+    [0.00,   4,   8,  28, 0.00],
+    [0.07,   8,  38,  90, 0.28],
+    [0.18,   0, 100, 155, 0.58],
+    [0.34,   0, 175, 165, 0.78],
+    [0.52,  30, 200,  75, 0.88],
+    [0.68, 195, 215,   0, 0.94],
+    [0.84, 255, 140,   0, 1.00],
+    [1.00, 255, 252, 155, 1.00],
+  ] as const;
+
+  for (let i = 1; i < S.length; i++) {
+    if (t <= S[i][0]) {
+      const p = S[i - 1], n = S[i];
+      const f = (t - p[0]) / (n[0] - p[0]);
+      const r = Math.round(p[1] + (n[1] - p[1]) * f);
+      const g = Math.round(p[2] + (n[2] - p[2]) * f);
+      const b = Math.round(p[3] + (n[3] - p[3]) * f);
+      const a = p[4] + (n[4] - p[4]) * f;
+      return `rgba(${r},${g},${b},${a.toFixed(3)})`;
+    }
+  }
+  return 'rgba(255,252,155,1.0)';
 }
-function fmtQty(q: number, coin: Coin): string {
-  const s = coin === 'BTC' || coin === 'ETH' ? 4 : 2;
-  return q >= 1000 ? (q / 1000).toFixed(1) + 'K' : q.toFixed(s);
-}
 
-/* ─── Component ─────────────────────────────────────────────── */
-export default function OrderBookDepth() {
-  /* refs */
-  const canvasRef    = useRef<HTMLCanvasElement>(null);
-  const wrapRef      = useRef<HTMLDivElement>(null);
-  const wsRef        = useRef<WebSocket | null>(null);
-  const rafRef       = useRef<number>(0);
-  const dpRef        = useRef<number>(1);
+/* ─── Component ──────────────────────────────────────────────── */
+export default function BookmapChart() {
+  const canvasRef   = useRef<HTMLCanvasElement>(null);
+  const wrapRef     = useRef<HTMLDivElement>(null);
+  const wsRef       = useRef<WebSocket | null>(null);
+  const rafRef      = useRef<number>(0);
+  const dpRef       = useRef<number>(1);
+  const lastSnapRef = useRef<number>(0);
 
-  // data refs (never trigger re-render)
-  const targetBids   = useRef<Level[]>([]);
-  const targetAsks   = useRef<Level[]>([]);
-  const animBids     = useRef<Level[]>([]);
-  const animAsks     = useRef<Level[]>([]);
-  const hoverRowRef  = useRef<number | null>(null); // row index under mouse
+  // Circular buffer (all in refs — zero re-renders during live data)
+  const bufRef   = useRef<Snapshot[]>(new Array(BUFFER));
+  const headRef  = useRef<number>(0);
+  const cntRef   = useRef<number>(0);
+  const drawCntRef = useRef<number>(-1);
 
-  /* state (triggers re-render only for UI chrome) */
   const [coin, setCoin]         = useState<Coin>('BTC');
   const [wsStatus, setWsStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
   const [spread, setSpread]     = useState<{ abs: number; pct: number } | null>(null);
-  const [tooltip, setTooltip]   = useState<Tooltip | null>(null);
 
   /* ── WebSocket ─────────────────────────────────────────────── */
   useEffect(() => {
-    // reset data on coin switch
-    targetBids.current = [];
-    targetAsks.current = [];
-    animBids.current   = [];
-    animAsks.current   = [];
+    // Reset buffer on coin switch
+    cntRef.current  = 0;
+    headRef.current = 0;
+    drawCntRef.current = -1;
     setSpread(null);
-    setTooltip(null);
-    hoverRowRef.current = null;
 
     let closed = false;
     let reconnTimer: ReturnType<typeof setTimeout> | null = null;
@@ -85,7 +92,6 @@ export default function OrderBookDepth() {
       const url = fallback
         ? `wss://stream.binance.com/ws/${sym}@depth20@100ms`
         : `wss://stream.binance.com:9443/ws/${sym}@depth20@100ms`;
-
       const ws = new WebSocket(url);
       wsRef.current = ws;
       setWsStatus('connecting');
@@ -100,23 +106,30 @@ export default function OrderBookDepth() {
 
       ws.onmessage = (ev: MessageEvent) => {
         if (closed) return;
+        const now = Date.now();
+        if (now - lastSnapRef.current < SNAP_MS) return;
+        lastSnapRef.current = now;
+
         try {
           const d = JSON.parse(ev.data as string) as {
             bids: [string, string][];
             asks: [string, string][];
           };
+          if (!d.bids?.length || !d.asks?.length) return;
 
-          // Binance: bids descending (best bid first), asks ascending (best ask first)
-          targetBids.current = d.bids.map(([p, q]) => ({ price: +p, qty: +q }));
-          targetAsks.current = d.asks.map(([p, q]) => ({ price: +p, qty: +q }));
+          const bids = d.bids.map(([p, q]) => ({ price: +p, qty: +q }));
+          const asks = d.asks.map(([p, q]) => ({ price: +p, qty: +q }));
+          const mid  = (bids[0].price + asks[0].price) / 2;
 
-          if (d.bids.length && d.asks.length) {
-            const bestBid = +d.bids[0][0];
-            const bestAsk = +d.asks[0][0];
-            const mid     = (bestBid + bestAsk) / 2;
-            setSpread({ abs: bestAsk - bestBid, pct: ((bestAsk - bestBid) / mid) * 100 });
-          }
-        } catch { /* ignore malformed */ }
+          // Write into circular buffer
+          bufRef.current[headRef.current] = { ts: now, bids, asks, midPrice: mid };
+          headRef.current = (headRef.current + 1) % BUFFER;
+          if (cntRef.current < BUFFER) cntRef.current++;
+
+          // Update spread in React state (cheap – only every snap)
+          const sp = asks[0].price - bids[0].price;
+          setSpread({ abs: sp, pct: (sp / mid) * 100 });
+        } catch { /* ignore */ }
       };
     }
 
@@ -131,14 +144,16 @@ export default function OrderBookDepth() {
   /* ── rAF loop ──────────────────────────────────────────────── */
   useEffect(() => {
     function loop() {
-      lerpBook();
-      render();
+      if (cntRef.current !== drawCntRef.current) {
+        drawCntRef.current = cntRef.current;
+        render();
+      }
       rafRef.current = requestAnimationFrame(loop);
     }
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coin]); // re-start loop on coin change so fmtQty picks up new coin
+  }, []);
 
   /* ── ResizeObserver ────────────────────────────────────────── */
   useEffect(() => {
@@ -149,42 +164,17 @@ export default function OrderBookDepth() {
       if (!canvas) return;
       const w   = entries[0].contentRect.width;
       const dpr = window.devicePixelRatio || 1;
-      dpRef.current     = dpr;
-      const logH        = w < 480 ? 520 : 620;
+      dpRef.current = dpr;
+      const logH = w < 520 ? 340 : 480;
       canvas.style.width  = '100%';
       canvas.style.height = logH + 'px';
       canvas.width  = Math.floor(w * dpr);
       canvas.height = logH * dpr;
+      drawCntRef.current = -1;
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-
-  /* ── Lerp ──────────────────────────────────────────────────── */
-  function lerpBook() {
-    const tb = targetBids.current;
-    const ta = targetAsks.current;
-    if (!tb.length || !ta.length) return;
-
-    // Init from target on first data or length change
-    if (animBids.current.length !== tb.length) {
-      animBids.current = tb.map(l => ({ ...l }));
-    }
-    if (animAsks.current.length !== ta.length) {
-      animAsks.current = ta.map(l => ({ ...l }));
-    }
-
-    const n = Math.min(animBids.current.length, tb.length);
-    for (let i = 0; i < n; i++) {
-      animBids.current[i].price = tb[i].price; // price snaps (no visual drift needed)
-      animBids.current[i].qty  += (tb[i].qty - animBids.current[i].qty) * LERP;
-    }
-    const m = Math.min(animAsks.current.length, ta.length);
-    for (let i = 0; i < m; i++) {
-      animAsks.current[i].price = ta[i].price;
-      animAsks.current[i].qty  += (ta[i].qty - animAsks.current[i].qty) * LERP;
-    }
-  }
 
   /* ── Renderer ──────────────────────────────────────────────── */
   function render() {
@@ -196,231 +186,225 @@ export default function OrderBookDepth() {
     const W   = canvas.width;
     const H   = canvas.height;
     const dpr = dpRef.current;
+    const cnt = cntRef.current;
 
-    const bids = animBids.current;
-    const asks = animAsks.current;
-
-    // ── Background ──
-    ctx.fillStyle = BG;
+    // Dark base
+    ctx.fillStyle = '#050507';
     ctx.fillRect(0, 0, W, H);
 
-    if (!bids.length || !asks.length) {
-      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    if (cnt === 0) {
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
       ctx.font      = `${13 * dpr}px Inter, system-ui, sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillText('Connecting to order book…', W / 2, H / 2);
+      ctx.fillText('Connecting to Binance order book…', W / 2, H / 2);
       return;
     }
 
-    // ── Layout metrics ──
-    const PRICE_W  = 78 * dpr;              // center price column width
-    const SIDE_W   = (W - PRICE_W) / 2;     // left (bids) and right (asks) bar area
-    const PRICE_X  = SIDE_W;                // X where price column starts
-    const ASK_X    = PRICE_X + PRICE_W;     // X where ask bars start
-    const ROW_H    = H / ROWS;
-    const BAR_PAD  = Math.max(1, ROW_H * 0.1);   // vertical padding inside row
-    const BAR_H    = ROW_H - BAR_PAD * 2;
+    // ── Collect snapshots (chronological order) ──
+    const start = cnt < BUFFER ? 0 : headRef.current;
+    const snaps: Snapshot[] = new Array(cnt);
+    for (let i = 0; i < cnt; i++) {
+      snaps[i] = bufRef.current[(start + i) % BUFFER];
+    }
+    const latest = snaps[snaps.length - 1];
 
-    // ── Global max qty (normalize both sides together for fair comparison) ──
-    let maxAll = 0;
-    for (const b of bids) if (b.qty > maxAll) maxAll = b.qty;
-    for (const a of asks) if (a.qty > maxAll) maxAll = a.qty;
-    if (maxAll < 1e-9) maxAll = 1;
+    // ── Dynamic Y-axis price range (based on latest book spread) ──
+    // Covers the full depth of the order book + 25% padding
+    const allLatestPrices = [
+      ...latest.bids.map(b => b.price),
+      ...latest.asks.map(a => a.price),
+    ];
+    const rawLow  = Math.min(...allLatestPrices);
+    const rawHigh = Math.max(...allLatestPrices);
+    const spread  = rawHigh - rawLow;
+    const pad     = spread * 0.25;
+    const topPx   = rawHigh + pad;   // top price on canvas
+    const botPx   = rawLow  - pad;   // bottom price on canvas
+    const pxRange = topPx - botPx;
+    if (pxRange <= 0) return;
 
-    // ── Top 3 wall thresholds ──
-    const bidsSorted = [...bids].sort((a, b) => b.qty - a.qty);
-    const asksSorted = [...asks].sort((a, b) => b.qty - a.qty);
-    const bidTop3    = bidsSorted[2]?.qty ?? 0;
-    const askTop3    = asksSorted[2]?.qty ?? 0;
+    function priceToY(p: number): number {
+      return ((topPx - p) / pxRange) * H;
+    }
 
-    // ── Draw rows ──
-    // Layout:
-    //  rows  0..LEVELS-1 → asks (yi=0 = highest ask, yi=LEVELS-1 = best ask nearest spread)
-    //  rows LEVELS..ROWS-1 → bids (yi=LEVELS = best bid nearest spread, yi=ROWS-1 = lowest bid)
-    //
-    // Binance: asks ascending (asks[0]=best), bids descending (bids[0]=best)
-    //  ask row yi → asks[LEVELS-1 - yi]    (flip: row 0 = asks[19] = highest)
-    //  bid row yi → bids[yi - LEVELS]      (row LEVELS = bids[0] = best bid)
+    // ── 95th-percentile normalization for vivid colour contrast ──
+    const allQty: number[] = [];
+    for (const s of snaps) {
+      for (const b of s.bids) allQty.push(b.qty);
+      for (const a of s.asks) allQty.push(a.qty);
+    }
+    allQty.sort((a, b) => a - b);
+    const p95 = allQty[Math.floor(allQty.length * 0.95)] || 1;
 
-    const hoverRow = hoverRowRef.current;
+    // ── Cell dimensions ──
+    const cellW  = W / cnt;
+    // Level height = height of one price bucket in pixels
+    const levelH = Math.max(dpr * 1.5, (spread / 20) / pxRange * H);
 
-    for (let yi = 0; yi < ROWS; yi++) {
-      const isAsk  = yi < LEVELS;
-      const idx    = isAsk ? (LEVELS - 1 - yi) : (yi - LEVELS);
-      const levels = isAsk ? asks : bids;
-      if (idx >= levels.length) continue;
-      const lv = levels[idx];
+    // ── Draw heatmap cells ──
+    for (let xi = 0; xi < cnt; xi++) {
+      const snap  = snaps[xi];
+      const xLeft = Math.floor(xi * cellW);
+      const colW  = Math.max(1, Math.ceil((xi + 1) * cellW) - xLeft);
 
-      const rowY  = yi * ROW_H;
-      const barY  = rowY + BAR_PAD;
-      const norm  = lv.qty / maxAll;
-      const barW  = norm * SIDE_W;
-
-      const isTop3 = isAsk ? lv.qty >= askTop3 && askTop3 > 0
-                           : lv.qty >= bidTop3 && bidTop3 > 0;
-      const isHovered = hoverRow === yi;
-
-      // ── Row background (hover + alternating subtle stripe) ──
-      if (isHovered) {
-        ctx.fillStyle = 'rgba(255,255,255,0.06)';
-        ctx.fillRect(0, rowY, W, ROW_H);
-      } else if (yi % 2 === 0) {
-        ctx.fillStyle = 'rgba(255,255,255,0.012)';
-        ctx.fillRect(0, rowY, W, ROW_H);
+      // Bids
+      for (const lv of snap.bids) {
+        const y = priceToY(lv.price);
+        if (y < -levelH || y > H + levelH) continue;
+        const norm  = Math.min(1, lv.qty / p95);
+        const color = heatColor(norm);
+        if (!color) continue;
+        ctx.fillStyle = color;
+        ctx.fillRect(xLeft, y - levelH * 0.5, colW, levelH);
       }
 
-      // ── Bar ──
-      // Top-3 walls: full opacity + slightly lighter colour
-      // Others: alpha based on relative size (min 0.2 so thin walls are visible)
-      const alpha  = isTop3 ? 1.0 : Math.max(0.18, 0.18 + norm * 0.82);
-      const colStr = isAsk
-        ? (isTop3 ? RED      : RED_DIM   + alpha.toFixed(3) + ')')
-        : (isTop3 ? GREEN    : GREEN_DIM + alpha.toFixed(3) + ')');
-
-      ctx.fillStyle = colStr;
-      if (isAsk) {
-        ctx.fillRect(ASK_X, barY, barW, BAR_H);
-      } else {
-        ctx.fillRect(PRICE_X - barW, barY, barW, BAR_H);
-      }
-
-      // ── Top-3 accent line (bright edge) ──
-      if (isTop3) {
-        ctx.fillStyle = isAsk ? 'rgba(255,220,210,0.7)' : 'rgba(200,255,225,0.7)';
-        if (isAsk) {
-          ctx.fillRect(ASK_X + barW - dpr, barY, dpr * 2, BAR_H);
-        } else {
-          ctx.fillRect(PRICE_X - barW, barY, dpr * 2, BAR_H);
-        }
-      }
-
-      // ── Price label (center column) ──
-      const rowMidY = rowY + ROW_H / 2 + 3.5 * dpr;
-      ctx.fillStyle = isTop3
-        ? (isAsk ? 'rgba(255,200,195,0.95)' : 'rgba(170,255,210,0.95)')
-        : 'rgba(200,200,200,0.55)';
-      ctx.font      = `${isTop3 ? 'bold ' : ''}${10 * dpr}px Inter, system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillText('$' + fmtPrice(lv.price), PRICE_X + PRICE_W / 2, rowMidY);
-
-      // ── Qty label (outside the bar end) ──
-      if (norm > 0.04) { // only show if bar is wide enough
-        ctx.fillStyle = isTop3 ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.28)';
-        ctx.font      = `${9 * dpr}px Inter, system-ui, sans-serif`;
-        if (isAsk) {
-          ctx.textAlign = 'left';
-          ctx.fillText(fmtQty(lv.qty, coin), ASK_X + barW + 3 * dpr, rowMidY);
-        } else {
-          ctx.textAlign = 'right';
-          ctx.fillText(fmtQty(lv.qty, coin), PRICE_X - barW - 3 * dpr, rowMidY);
-        }
+      // Asks
+      for (const lv of snap.asks) {
+        const y = priceToY(lv.price);
+        if (y < -levelH || y > H + levelH) continue;
+        const norm  = Math.min(1, lv.qty / p95);
+        const color = heatColor(norm);
+        if (!color) continue;
+        ctx.fillStyle = color;
+        ctx.fillRect(xLeft, y - levelH * 0.5, colW, levelH);
       }
     }
 
-    // ── Thin horizontal separators ──
-    ctx.fillStyle = 'rgba(255,255,255,0.035)';
-    for (let yi = 1; yi < ROWS; yi++) {
-      ctx.fillRect(0, Math.round(yi * ROW_H), W, 1);
-    }
-
-    // ── Center price column borders ──
-    ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    ctx.fillRect(PRICE_X,             0, 1,       H);
-    ctx.fillRect(PRICE_X + PRICE_W - 1, 0, 1,     H);
-
-    // ── Mid-price dashed line ──
-    const midY = LEVELS * ROW_H;
+    // ── Mid-price trajectory line ──
     ctx.save();
-    ctx.strokeStyle = MID_LINE;
-    ctx.lineWidth   = dpr;
-    ctx.setLineDash([5 * dpr, 4 * dpr]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth   = dpr * 1.5;
+    ctx.lineJoin    = 'round';
     ctx.beginPath();
-    ctx.moveTo(0, midY);
-    ctx.lineTo(W, midY);
+    for (let xi = 0; xi < cnt; xi++) {
+      const y = priceToY(snaps[xi].midPrice);
+      const x = (xi + 0.5) * cellW;
+      xi === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
     ctx.stroke();
-    ctx.setLineDash([]);
     ctx.restore();
 
-    // ── Mid-price label ──
-    if (bids.length > 0 && asks.length > 0) {
-      const midPrice  = (bids[0].price + asks[0].price) / 2;
-      const midLabel  = '  $' + fmtPrice(midPrice) + '  ';
-      ctx.font        = `bold ${10 * dpr}px Inter, system-ui, sans-serif`;
-      const lblW      = ctx.measureText(midLabel).width;
-      const lblX      = PRICE_X + (PRICE_W - lblW) / 2;
-      ctx.fillStyle   = 'rgba(10,10,10,0.85)';
-      ctx.fillRect(lblX, midY - 12 * dpr, lblW, 12 * dpr);
-      ctx.fillStyle   = '#ffffff';
-      ctx.textAlign   = 'left';
-      ctx.fillText(midLabel, lblX, midY - 3 * dpr);
+    // ── Current price dot ──
+    const curY = priceToY(latest.midPrice);
+    ctx.save();
+    ctx.fillStyle   = '#ffffff';
+    ctx.shadowColor = 'rgba(255,255,255,0.7)';
+    ctx.shadowBlur  = 6 * dpr;
+    ctx.beginPath();
+    ctx.arc(W - cellW * 0.5, curY, 3.5 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // ── Price axis (right edge) ──
+    const labelStep = pxRange / 6;   // ~6 labels
+    const firstLabelPrice = Math.ceil(botPx / labelStep) * labelStep;
+    ctx.save();
+    ctx.fillStyle  = 'rgba(255,255,255,0.28)';
+    ctx.font       = `${10 * dpr}px Inter, system-ui, sans-serif`;
+    ctx.textAlign  = 'right';
+    for (let p = firstLabelPrice; p <= topPx; p += labelStep) {
+      const y = priceToY(p);
+      if (y < 8 * dpr || y > H - 8 * dpr) continue;
+      // Subtle tick line
+      ctx.fillStyle = 'rgba(255,255,255,0.04)';
+      ctx.fillRect(0, y, W, dpr);
+      // Price label
+      ctx.fillStyle = 'rgba(255,255,255,0.28)';
+      const lbl = p >= 1000 ? '$' + Math.round(p).toLocaleString()
+                : p >= 1    ? '$' + p.toFixed(2)
+                :              '$' + p.toFixed(4);
+      ctx.fillText(lbl, W - 5 * dpr, y - 2 * dpr);
+    }
+    ctx.restore();
+
+    // ── Current price label ──
+    const priceStr = latest.midPrice >= 1000
+      ? '$' + Math.round(latest.midPrice).toLocaleString()
+      : latest.midPrice >= 1
+        ? '$' + latest.midPrice.toFixed(2)
+        : '$' + latest.midPrice.toFixed(4);
+    ctx.save();
+    ctx.font         = `bold ${11 * dpr}px Inter, system-ui, sans-serif`;
+    const lblW       = ctx.measureText(priceStr).width + 10 * dpr;
+    const lblH       = 14 * dpr;
+    const lblX       = W - lblW - 3 * dpr;
+    const lblY       = curY - lblH * 0.65;
+    ctx.fillStyle    = 'rgba(255,255,255,0.92)';
+    ctx.beginPath();
+    // rounded pill background
+    ctx.roundRect(lblX, lblY, lblW, lblH, 3 * dpr);
+    ctx.fill();
+    ctx.fillStyle    = '#050507';
+    ctx.textAlign    = 'right';
+    ctx.fillText(priceStr, W - 8 * dpr, lblY + 10 * dpr);
+    ctx.restore();
+
+    // ── Time labels (bottom row) ──
+    if (cnt > 15) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.font      = `${10 * dpr}px Inter, system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      const step = Math.max(30, Math.floor(cnt / 5));
+      for (let xi = 0; xi < cnt; xi += step) {
+        const lbl = new Date(snaps[xi].ts).toLocaleTimeString([], {
+          hour: '2-digit', minute: '2-digit', second: '2-digit',
+        });
+        ctx.fillText(lbl, (xi + 0.5) * cellW, H - 5 * dpr);
+      }
+      ctx.restore();
     }
 
-    // ── Column headers ──
-    ctx.font      = `bold ${10 * dpr}px Inter, system-ui, sans-serif`;
-    ctx.fillStyle = 'rgba(125,224,164,0.5)';
-    ctx.textAlign = 'right';
-    ctx.fillText('◄ BIDS', PRICE_X - 8 * dpr, 15 * dpr);
-    ctx.fillStyle = 'rgba(255,154,146,0.5)';
-    ctx.textAlign = 'left';
-    ctx.fillText('ASKS ►', ASK_X + 8 * dpr, 15 * dpr);
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
-    ctx.textAlign = 'center';
-    ctx.fillText('PRICE', PRICE_X + PRICE_W / 2, 15 * dpr);
+    // ── Spread / bid-ask band ──
+    // Draw a subtle band between best bid and best ask
+    const yAsk = priceToY(latest.asks[0].price);
+    const yBid = priceToY(latest.bids[0].price);
+    if (yAsk < yBid) {
+      ctx.fillStyle = 'rgba(255,255,255,0.04)';
+      ctx.fillRect(0, yAsk, W, yBid - yAsk);
+    }
 
-    // ── Top-3 legend (bottom-right corner) ──
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    // ── Colour scale legend ──
+    const legW  = 80 * dpr;
+    const legH  = 8 * dpr;
+    const legX  = 8 * dpr;
+    const legY  = H - 28 * dpr;
+    const grad  = ctx.createLinearGradient(legX, 0, legX + legW, 0);
+    grad.addColorStop(0,    'rgba(4,8,28,0.6)');
+    grad.addColorStop(0.2,  'rgba(0,100,155,0.7)');
+    grad.addColorStop(0.45, 'rgba(0,175,165,0.85)');
+    grad.addColorStop(0.65, 'rgba(195,215,0,0.95)');
+    grad.addColorStop(0.85, 'rgba(255,140,0,1)');
+    grad.addColorStop(1.0,  'rgba(255,252,155,1)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(legX, legY, legW, legH);
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth   = dpr * 0.5;
+    ctx.strokeRect(legX, legY, legW, legH);
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
     ctx.font      = `${9 * dpr}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText('small', legX, legY + legH + 10 * dpr);
     ctx.textAlign = 'right';
-    ctx.fillText('★ = top 3 wall', W - 8 * dpr, H - 6 * dpr);
-  }
+    ctx.fillText('wall', legX + legW, legY + legH + 10 * dpr);
 
-  /* ── Mouse handlers ────────────────────────────────────────── */
-  function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect  = canvas.getBoundingClientRect();
-    const cssY  = e.clientY - rect.top;
-    const dpr   = dpRef.current;
-    const H     = canvas.height;
-    const ROW_H = H / ROWS;
-    const yi    = Math.floor((cssY * dpr) / ROW_H);
-
-    if (yi < 0 || yi >= ROWS) {
-      hoverRowRef.current = null;
-      setTooltip(null);
-      return;
+    // ── Progress bar (history filling) ──
+    if (cnt < BUFFER) {
+      const pct = cnt / BUFFER;
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.fillRect(0, H - dpr, W * pct, dpr);
     }
-
-    hoverRowRef.current = yi;
-
-    const isAsk = yi < LEVELS;
-    const idx   = isAsk ? (LEVELS - 1 - yi) : (yi - LEVELS);
-    const lv    = isAsk ? animAsks.current[idx] : animBids.current[idx];
-    if (!lv) { setTooltip(null); return; }
-
-    setTooltip({
-      side:  isAsk ? 'ask' : 'bid',
-      price: lv.price,
-      qty:   lv.qty,
-      cssx:  e.clientX - rect.left,
-      cssy:  cssY,
-    });
   }
 
-  function handleMouseLeave() {
-    hoverRowRef.current = null;
-    setTooltip(null);
-  }
-
-  /* ── Spread formatting ─────────────────────────────────────── */
+  /* ── Spread text ─────────────────────────────────────────────── */
   const spreadTxt = spread
     ? `$${spread.abs < 1 ? spread.abs.toFixed(4) : spread.abs.toFixed(2)}  (${spread.pct.toFixed(3)}%)`
     : '—';
 
-  /* ── JSX ───────────────────────────────────────────────────── */
+  /* ── JSX ─────────────────────────────────────────────────────── */
   return (
     <div className="depth-outer">
-      {/* Header: coin tabs + spread + status dot */}
+      {/* Header */}
       <div className="depth-header">
         <div className="depth-tabs">
           {COINS.map(c => (
@@ -440,59 +424,28 @@ export default function OrderBookDepth() {
         <div
           className={`heatmap-dot heatmap-dot-${wsStatus}`}
           style={{ marginLeft: 6 }}
-          title={wsStatus === 'live' ? 'Live' : wsStatus === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
+          title={wsStatus}
         />
       </div>
 
-      {/* Canvas + tooltip */}
-      <div ref={wrapRef} style={{ position: 'relative', background: BG }}>
-        <canvas
-          ref={canvasRef}
-          className="heatmap-canvas"
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-        />
-
-        {/* HTML tooltip overlay */}
-        {tooltip && (
-          <div
-            style={{
-              position:      'absolute',
-              left:          Math.min(tooltip.cssx + 14, (wrapRef.current?.clientWidth ?? 400) - 160),
-              top:           Math.max(tooltip.cssy - 12, 4),
-              background:    'rgba(12,12,12,0.96)',
-              border:        `1px solid ${tooltip.side === 'ask' ? RED : GREEN}`,
-              borderRadius:  6,
-              padding:       '7px 11px',
-              pointerEvents: 'none',
-              zIndex:        20,
-              minWidth:      140,
-            }}
-          >
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#fff', marginBottom: 3 }}>
-              ${fmtPrice(tooltip.price)}
-            </div>
-            <div style={{ fontSize: 10, color: tooltip.side === 'ask' ? RED : GREEN }}>
-              {fmtQty(tooltip.qty, coin)} {coin}
-            </div>
-            <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
-              {tooltip.side === 'ask' ? 'ASK (sell wall)' : 'BID (buy wall)'}
-            </div>
-          </div>
-        )}
+      {/* Canvas */}
+      <div ref={wrapRef} style={{ background: '#050507' }}>
+        <canvas ref={canvasRef} className="heatmap-canvas" />
       </div>
 
       {/* Footer */}
       <div className="depth-footer">
-        <span style={{ color: GREEN, fontWeight: 600 }}>■</span> Bids
-        <span style={{ margin: '0 10px', opacity: 0.3 }}>|</span>
-        <span style={{ color: RED, fontWeight: 600 }}>■</span> Asks
-        <span style={{ margin: '0 10px', opacity: 0.3 }}>|</span>
-        Bar width = order size
-        <span style={{ margin: '0 10px', opacity: 0.3 }}>|</span>
-        Brighter edge = top 3 wall
-        <span style={{ marginLeft: 'auto', opacity: 0.45 }}>
-          {wsStatus === 'live' ? `LIVE · ${coin}/USDT · 20-level depth` : wsStatus}
+        <span style={{ color: 'rgba(255,252,155,0.8)', fontWeight: 600 }}>■</span> Large wall
+        <span style={{ margin: '0 8px', opacity: 0.3 }}>|</span>
+        <span style={{ color: 'rgba(0,175,165,0.9)', fontWeight: 600 }}>■</span> Medium
+        <span style={{ margin: '0 8px', opacity: 0.3 }}>|</span>
+        <span style={{ color: 'rgba(8,38,90,0.9)', fontWeight: 600 }}>■</span> Small
+        <span style={{ margin: '0 8px', opacity: 0.3 }}>|</span>
+        White line = price path
+        <span style={{ marginLeft: 'auto', opacity: 0.4 }}>
+          {wsStatus === 'live'
+            ? `LIVE · ${coin}/USDT · ${cntRef.current}s history`
+            : wsStatus}
         </span>
       </div>
     </div>
