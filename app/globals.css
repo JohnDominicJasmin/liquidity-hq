@@ -1543,3 +1543,45 @@ body::after {
 .cf-action-journal:hover { box-shadow: 0 0 16px rgba(52,211,153,.15); }
 [data-theme="light"] .cf-signals { background: #fafafa; }
 [data-theme="light"] .cf-score-card { background: #f9f9f9 !important; }
+
+/* ── WHALE TRADES FEED ──────────────────────────────────────────────────── */
+.wf-wrap        { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 16px; overflow: hidden; margin-bottom: 10px; }
+.wf-header      { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; border-bottom: 0.5px solid var(--bdr); }
+.wf-dot         { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.wf-dot-live       { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+.wf-dot-connecting { background: #d97706; box-shadow: 0 0 6px #d97706; animation: pulse 1s infinite; }
+.wf-dot-error      { background: var(--red); box-shadow: 0 0 6px var(--red); }
+
+/* stats bar */
+.wf-stats       { display: flex; align-items: center; padding: 10px 14px; gap: 0; border-bottom: 0.5px solid var(--bdr); }
+.wf-stat        { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.wf-stat-lbl    { font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--txt3); }
+.wf-stat-val    { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.wf-stat-sep    { width: 0.5px; height: 32px; background: var(--bdr); margin: 0 12px; flex-shrink: 0; }
+
+/* bias bar */
+.wf-bias-wrap   { display: flex; height: 3px; background: var(--bg3); }
+.wf-bias-bar    { height: 100%; transition: width .6s ease; }
+.wf-bias-buy    { background: #22d3ee; }
+.wf-bias-sell   { background: #f97316; }
+.wf-bias-label  { padding: 6px 14px 8px; font-size: 11px; font-weight: 600; border-bottom: 0.5px solid var(--bdr); }
+
+/* feed list */
+.wf-list        { display: flex; flex-direction: column; }
+.wf-row         { display: grid; grid-template-columns: 44px 80px 80px 1fr 56px; align-items: center; gap: 4px; padding: 7px 14px; border-bottom: 0.5px solid var(--bdr); border-left: 2px solid transparent; transition: background .12s; }
+.wf-row:last-child { border-bottom: none; }
+.wf-row-big     { background: rgba(255,255,255,.025); }
+.wf-row-coin    { font-size: 12px; font-weight: 800; }
+.wf-row-side    { font-size: 10px; font-weight: 700; letter-spacing: .04em; }
+.wf-row-side-buy  { color: #22d3ee; }
+.wf-row-side-sell { color: #f97316; }
+.wf-row-usd     { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wf-row-price   { font-size: 11px; color: var(--txt3); font-variant-numeric: tabular-nums; }
+.wf-row-time    { font-size: 10px; color: var(--txt3); text-align: right; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 480px) {
+  .wf-row         { grid-template-columns: 38px 70px 70px 1fr 46px; padding: 7px 10px; gap: 2px; }
+  .wf-stat-val    { font-size: 14px; }
+}
+[data-theme="light"] .wf-wrap  { background: #fafafa; }
+[data-theme="light"] .wf-row-big { background: rgba(0,0,0,.025); }
