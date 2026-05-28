@@ -64,7 +64,7 @@ function Inner() {
   const [stopLoss,  setStopLoss]  = useState(sp.get('stop') || '');
   const [tpPrice,   setTpPrice]   = useState(sp.get('tp') || '');
   const [posUSD,    setPosUSD]    = useState('');
-  const [leverage,  setLeverage]  = useState(10);
+  const [leverage,  setLeverage]  = useState(8);
   const [notes,     setNotes]     = useState('');
 
   /* Auto risk_usd if coming from Position Sizer */
@@ -130,7 +130,7 @@ function Inner() {
 
     if (!error) {
       await loadTrades();
-      setEntry(''); setStopLoss(''); setTpPrice(''); setPosUSD(''); setLeverage(10); setNotes('');
+      setEntry(''); setStopLoss(''); setTpPrice(''); setPosUSD(''); setLeverage(8); setNotes('');
       setTab('history');
       router.replace('/journal');
     }
