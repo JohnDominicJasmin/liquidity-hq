@@ -1629,3 +1629,14 @@ body::after {
 
 .reasoning-link { color: #a78bfa; text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
 .reasoning-link:hover { color: #c4b5fd; }
+
+/* ── HEATMAP ── */
+.heatmap-wrap   { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 16px; overflow: hidden; margin-bottom: 10px; position: relative; }
+.heatmap-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px 8px; border-bottom: 0.5px solid var(--bdr); }
+.heatmap-canvas { display: block; width: 100%; }
+.heatmap-status { display: flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: 11px; color: var(--txt3); border-top: 0.5px solid var(--bdr); }
+.heatmap-dot              { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.heatmap-dot-live         { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+.heatmap-dot-connecting   { background: #d97706; box-shadow: 0 0 6px #d97706; animation: pulse 1s infinite; }
+.heatmap-dot-error        { background: var(--red); box-shadow: 0 0 6px var(--red); }
+[data-theme="light"] .heatmap-wrap { background: #fafafa; }
