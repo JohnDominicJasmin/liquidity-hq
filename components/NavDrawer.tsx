@@ -14,7 +14,6 @@ const NAV = [
   { path: '/arena', icon: '🤖', label: 'AI Arena' },
   { path: '/liq',     icon: '🔥', label: 'Liq Map' },
   null,
-  { path: '/calc',    icon: '🧮', label: 'Calc' },
   { path: '/journal', icon: '📓', label: 'Journal' },
   null,
   { path: '/about', icon: 'ℹ️', label: 'About' },
