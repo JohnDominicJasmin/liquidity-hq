@@ -5,6 +5,7 @@ import { buildPrompt, callGrok, GrokResult, GrokContext } from '@/lib/grok';
 import { getPHT, getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
 import { getSupabase } from '@/lib/supabase';
+import SetupScanner from '@/components/SetupScanner';
 
 const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'zec'];
 const GROK_API_KEY = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5Bepv2POY4L6EdBULh4GYNCO';
@@ -22,6 +23,7 @@ export default function Arena() {
   const [loadingMsg, setLoadingMsg] = useState('');
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [ctxOpen, setCtxOpen] = useState(false);
+  const [tab, setTab] = useState<'signal' | 'scanner'>('signal');
   const notifCooldown = useRef<Set<string>>(new Set());
 
   /* ── Push notifications ── */
@@ -319,13 +321,36 @@ export default function Arena() {
 
   return (
     <div>
+      {/* Page header */}
       <div style={{ padding: '1rem 0 0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
           <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8' }}>AI Arena</div>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>GROK-4.3 + LIVE X</span>
         </div>
-        <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>33-signal engine — technicals · VWAP · taker aggression · CB premium · OI trend · derivatives · macro · ETF · on-chain · social → LONG / SHORT / FLAT</div>
       </div>
+
+      {/* Tab switcher */}
+      <div className="arena-tab-row">
+        <button
+          className={`arena-tab-btn${tab === 'signal' ? ' on' : ''}`}
+          onClick={() => setTab('signal')}
+        >
+          ⚡ AI Signal
+        </button>
+        <button
+          className={`arena-tab-btn${tab === 'scanner' ? ' on' : ''}`}
+          onClick={() => setTab('scanner')}
+        >
+          🎯 Scanner
+        </button>
+      </div>
+
+      {/* Scanner tab */}
+      {tab === 'scanner' && <SetupScanner />}
+
+      {/* AI Signal tab */}
+      {tab === 'signal' && <>
+      <div style={{ fontSize: 12, color: '#606060', marginBottom: 14, marginTop: 4 }}>33-signal engine — technicals · VWAP · taker aggression · CB premium · OI trend · derivatives · macro · ETF · on-chain · social → LONG / SHORT / FLAT</div>
 
       {/* Coin selector + notification bell */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -507,6 +532,7 @@ export default function Arena() {
           ))}
         </div>
       )}
+      </> /* end tab === 'signal' */}
     </div>
   );
 }

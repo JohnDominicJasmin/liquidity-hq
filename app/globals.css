@@ -1364,3 +1364,23 @@ body::after {
 
 [data-theme="light"] .liqfeed-wrap { background: var(--bg1); }
 [data-theme="light"] .liqfeed-row-big { background: rgba(0,0,0,0.02); }
+
+/* ── ARENA TABS ── */
+.arena-tab-row {
+  display: flex; gap: 6px; margin-bottom: 14px;
+}
+.arena-tab-btn {
+  flex: 1; padding: 9px 0; border-radius: 10px;
+  border: 0.5px solid var(--bdr2);
+  background: var(--bg2); color: var(--txt2);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.arena-tab-btn:hover:not(.on) { background: var(--bg3); color: var(--txt); }
+.arena-tab-btn.on {
+  background: var(--purple-dim);
+  border-color: var(--purple-bdr);
+  color: var(--purple);
+}
+[data-theme="light"] .arena-tab-btn { background: #f2f2f7; color: #555; }
+[data-theme="light"] .arena-tab-btn.on { background: #ede9fe; color: #7c3aed; border-color: #c4b5fd; }
