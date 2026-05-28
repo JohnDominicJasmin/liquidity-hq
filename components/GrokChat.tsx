@@ -283,7 +283,7 @@ export default function GrokChat() {
             <button
               key={c}
               className={`gchat-coin${c === coin ? ' on' : ''}`}
-              onClick={() => setCoin(c)}
+              onClick={() => { if (c !== coin) { setCoin(c); setMsgs([]); setError(''); } }}
             >
               {c.toUpperCase()}
             </button>
