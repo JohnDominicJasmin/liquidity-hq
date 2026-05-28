@@ -1557,6 +1557,63 @@ body::after {
   .tj-price-grid  { grid-template-columns: 1fr 1fr; }
   .tj-stats-grid  { grid-template-columns: 1fr 1fr; }
 }
+/* ── Leverage slider ── */
+.tj-lev-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.tj-lev-badge  { font-size: 18px; font-weight: 800; padding: 2px 12px; border-radius: 10px; border: 0.5px solid; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; line-height: 1.6; }
+
+.tj-lev-slider-wrap { margin-bottom: 4px; }
+.tj-lev-slider {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 4px; border-radius: 2px;
+  outline: none; cursor: pointer; display: block;
+  margin-bottom: 6px; border: none;
+}
+.tj-lev-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--bg1); border: 2.5px solid currentColor;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  transition: transform 0.1s;
+}
+.tj-lev-slider:active::-webkit-slider-thumb { transform: scale(1.25); }
+.tj-lev-slider::-moz-range-thumb {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--bg1); border: 2.5px solid currentColor;
+  cursor: pointer; box-sizing: border-box;
+}
+.tj-lev-ticks {
+  display: flex; justify-content: space-between;
+  font-size: 9px; color: var(--txt3); padding: 0 2px;
+  pointer-events: none;
+}
+
+.tj-lev-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.tj-lev-presets { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; }
+.tj-lev-preset {
+  font-size: 10px; font-weight: 600; padding: 4px 9px; border-radius: 20px;
+  border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt3);
+  cursor: pointer; transition: all 0.12s; white-space: nowrap;
+}
+.tj-lev-preset:hover { color: var(--txt2); background: var(--bg3); border-color: var(--bdr2); }
+.tj-lev-preset.on { font-weight: 700; }
+
+.tj-lev-num {
+  width: 56px; flex-shrink: 0; padding: 6px 8px; border-radius: 8px;
+  border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt);
+  font-size: 14px; font-weight: 700; text-align: center; outline: none;
+  font-variant-numeric: tabular-nums; font-family: inherit;
+  -moz-appearance: textfield;
+}
+.tj-lev-num::-webkit-inner-spin-button,
+.tj-lev-num::-webkit-outer-spin-button { -webkit-appearance: none; }
+.tj-lev-num:focus { border-color: var(--purple-bdr); }
+
+.tj-lev-warn { font-size: 11px; font-weight: 600; margin-top: 10px; line-height: 1.5; }
+
+/* Leverage badge on history cards */
+.tj-lev-tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; border: 0.5px solid; font-variant-numeric: tabular-nums; }
+
 [data-theme="light"] .tj-card   { background: #fafafa; }
 [data-theme="light"] .tj-trade  { background: #fafafa; }
 [data-theme="light"] .tj-irow   { background: #fff; border-color: #ddd; }
@@ -1564,6 +1621,7 @@ body::after {
 [data-theme="light"] .tj-notes  { background: #fff; border-color: #ddd; color: #111; }
 [data-theme="light"] .tj-stat   { background: #fafafa; }
 [data-theme="light"] .tj-breakdown { background: #fafafa; }
+[data-theme="light"] .tj-lev-num { background: #fff; border-color: #ddd; color: #111; }
 
 /* ── CONFLUENCE SCORER ──────────────────────────────────────────────────── */
 .cf-coins   { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }

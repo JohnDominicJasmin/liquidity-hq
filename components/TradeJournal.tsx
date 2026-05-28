@@ -21,6 +21,7 @@ interface Trade {
   take_profit?: number | null;
   position_size_usd?: number | null;
   risk_usd?: number | null;
+  leverage?: number | null;
   result: TradeResult;
   pnl_usd?: number | null;
   pnl_r?: number | null;
@@ -63,6 +64,7 @@ function Inner() {
   const [stopLoss,  setStopLoss]  = useState(sp.get('stop') || '');
   const [tpPrice,   setTpPrice]   = useState(sp.get('tp') || '');
   const [posUSD,    setPosUSD]    = useState('');
+  const [leverage,  setLeverage]  = useState(10);
   const [notes,     setNotes]     = useState('');
 
   /* Auto risk_usd if coming from Position Sizer */
@@ -110,16 +112,25 @@ function Inner() {
       take_profit:      tpPrice ? parseFloat(tpPrice) : null,
       position_size_usd: posUSD ? parseFloat(posUSD) : null,
       risk_usd:         autoRiskUSD,
+      leverage,
       result:           'OPEN',
       pnl_usd:          null,
       pnl_r:            null,
       notes, session,
     };
 
-    const { error } = await db.from('trades').insert(payload);
+    let { error } = await db.from('trades').insert(payload);
+
+    // Graceful fallback: if leverage column doesn't exist yet, retry without it
+    if (error && error.message?.includes('leverage')) {
+      const { leverage: _lev, ...payloadNoLev } = payload;
+      const res2 = await db.from('trades').insert(payloadNoLev);
+      error = res2.error;
+    }
+
     if (!error) {
       await loadTrades();
-      setEntry(''); setStopLoss(''); setTpPrice(''); setPosUSD(''); setNotes('');
+      setEntry(''); setStopLoss(''); setTpPrice(''); setPosUSD(''); setLeverage(10); setNotes('');
       setTab('history');
       router.replace('/journal');
     }
@@ -283,6 +294,77 @@ function Inner() {
             )}
           </div>
 
+          {/* Leverage */}
+          {(() => {
+            const levColor = leverage >= 25 ? '#f87171' : leverage >= 10 ? '#fbbf24' : '#34d399';
+            const levPct   = ((leverage - 1) / (125 - 1)) * 100;
+            const trackBg  = `linear-gradient(to right, ${levColor} 0%, ${levColor} ${levPct}%, rgba(255,255,255,0.08) ${levPct}%, rgba(255,255,255,0.08) 100%)`;
+            return (
+              <div className="tj-card">
+                <div className="tj-lev-header">
+                  <span className="tj-card-lbl" style={{ margin: 0 }}>Leverage</span>
+                  <span
+                    className="tj-lev-badge"
+                    style={{ background: levColor + '18', color: levColor, borderColor: levColor + '44' }}
+                  >
+                    {leverage}×
+                  </span>
+                </div>
+
+                {/* Slider */}
+                <div className="tj-lev-slider-wrap">
+                  <input
+                    type="range"
+                    className="tj-lev-slider"
+                    min={1} max={125} step={1}
+                    value={leverage}
+                    onChange={e => setLeverage(Number(e.target.value))}
+                    style={{ background: trackBg, color: levColor }}
+                  />
+                  <div className="tj-lev-ticks">
+                    {['1×', '25×', '50×', '75×', '100×', '125×'].map(t => (
+                      <span key={t}>{t}</span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Preset chips + number input */}
+                <div className="tj-lev-row">
+                  <div className="tj-lev-presets">
+                    {[1, 3, 5, 10, 20, 50, 75, 100, 125].map(v => (
+                      <button
+                        key={v}
+                        className={`tj-lev-preset${leverage === v ? ' on' : ''}`}
+                        style={leverage === v ? { background: levColor + '18', color: levColor, borderColor: levColor + '44' } : {}}
+                        onClick={() => setLeverage(v)}
+                      >
+                        {v}×
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="number"
+                    className="tj-lev-num"
+                    min={1} max={125}
+                    value={leverage}
+                    onChange={e => setLeverage(Math.max(1, Math.min(125, parseInt(e.target.value) || 1)))}
+                  />
+                </div>
+
+                {/* Risk warning */}
+                {leverage >= 25 && (
+                  <div className="tj-lev-warn" style={{ color: levColor }}>
+                    {leverage >= 75
+                      ? '⚠ Liquidation risk is extreme — positions can vanish instantly'
+                      : leverage >= 50
+                      ? '⚠ Very high leverage — use micro position sizes only'
+                      : '⚠ High leverage — ensure your stop loss is tight'}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Notes */}
           <div className="tj-card">
             <div className="tj-card-lbl">Notes</div>
@@ -316,6 +398,15 @@ function Inner() {
                   <span className={`tj-trade-dir-tag ${trade.direction === 'LONG' ? 'tj-long' : 'tj-short'}`}>
                     {trade.direction === 'LONG' ? '▲' : '▼'} {trade.direction}
                   </span>
+                  {trade.leverage != null && trade.leverage > 1 && (
+                    <span className="tj-lev-tag" style={{
+                      color:       trade.leverage >= 25 ? '#f87171' : trade.leverage >= 10 ? '#fbbf24' : '#34d399',
+                      background:  (trade.leverage >= 25 ? '#f87171' : trade.leverage >= 10 ? '#fbbf24' : '#34d399') + '14',
+                      borderColor: (trade.leverage >= 25 ? '#f87171' : trade.leverage >= 10 ? '#fbbf24' : '#34d399') + '40',
+                    }}>
+                      {trade.leverage}×
+                    </span>
+                  )}
                   <span className="tj-trade-setup-tag">{trade.setup_type}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
