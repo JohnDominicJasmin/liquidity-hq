@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react';
 import { useMarket, CoinId } from '@/lib/marketStore';
 import LiqFeed from '@/components/LiqFeed';
 import WhaleTradesFeed from '@/components/WhaleTradesFeed';
+import FundingComparison from '@/components/FundingComparison';
 
 const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'zec'];
 
@@ -145,6 +146,9 @@ export default function LiqPage() {
 
       {/* Whale Trade Feed */}
       <WhaleTradesFeed />
+
+      {/* Multi-Exchange Funding Rates */}
+      <FundingComparison />
 
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>

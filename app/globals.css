@@ -1585,3 +1585,23 @@ body::after {
 }
 [data-theme="light"] .wf-wrap  { background: #fafafa; }
 [data-theme="light"] .wf-row-big { background: rgba(0,0,0,.025); }
+
+/* ── FUNDING COMPARISON ──────────────────────────────────────────────────── */
+.fc-wrap      { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 16px; overflow: hidden; margin-bottom: 10px; }
+.fc-header    { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; border-bottom: 0.5px solid var(--bdr); }
+.fc-legend    { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 14px 7px; border-bottom: 0.5px solid var(--bdr); font-size: 10px; font-weight: 600; }
+.fc-col-hdr   { display: grid; grid-template-columns: 44px repeat(4, 1fr) 46px; gap: 2px; padding: 5px 14px; background: var(--bg2); border-bottom: 0.5px solid var(--bdr); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--txt3); }
+.fc-row       { display: grid; grid-template-columns: 44px repeat(4, 1fr) 46px; gap: 2px; padding: 7px 14px; border-bottom: 0.5px solid var(--bdr); align-items: center; transition: background .1s; }
+.fc-row:last-child { border-bottom: none; }
+.fc-row:hover { background: var(--bg2); }
+.fc-coin      { font-size: 12px; font-weight: 800; color: var(--txt); }
+.fc-cell      { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 3px 5px; border-radius: 6px; text-align: center; white-space: nowrap; }
+.fc-next      { font-size: 11px; color: var(--txt3); text-align: right; font-variant-numeric: tabular-nums; }
+.fc-footer    { padding: 7px 14px; font-size: 10px; color: var(--txt3); border-top: 0.5px solid var(--bdr); line-height: 1.5; }
+@media (max-width: 480px) {
+  .fc-col-hdr { grid-template-columns: 38px repeat(4, 1fr) 36px; padding: 5px 10px; font-size: 9px; gap: 1px; }
+  .fc-row     { grid-template-columns: 38px repeat(4, 1fr) 36px; padding: 7px 10px; gap: 1px; }
+  .fc-cell    { font-size: 10px; padding: 2px 3px; }
+  .fc-next    { font-size: 10px; }
+}
+[data-theme="light"] .fc-wrap { background: #fafafa; }
