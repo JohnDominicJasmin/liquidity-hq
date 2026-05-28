@@ -1515,3 +1515,31 @@ body::after {
 [data-theme="light"] .tj-notes  { background: #fff; border-color: #ddd; color: #111; }
 [data-theme="light"] .tj-stat   { background: #fafafa; }
 [data-theme="light"] .tj-breakdown { background: #fafafa; }
+
+/* ── CONFLUENCE SCORER ──────────────────────────────────────────────────── */
+.cf-coins   { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.cf-coin    { padding: 5px 10px; border-radius: 20px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt2); font-size: 11px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
+.cf-coin.on { background: rgba(167,139,250,.12); border-color: var(--purple-bdr); color: var(--purple); }
+.cf-dir-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.cf-dir-btn { flex: 1; padding: 9px; border-radius: 10px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt2); font-size: 13px; font-weight: 700; cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
+.cf-score-card { border: 0.5px solid; border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; }
+.cf-signals { display: flex; flex-direction: column; gap: 0; background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 14px; overflow: hidden; margin-bottom: 10px; }
+.cf-signal  { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 0.5px solid var(--bdr); transition: background .1s; }
+.cf-signal:last-child { border-bottom: none; }
+.cf-signal.cf-hit { background: rgba(52,211,153,.03); }
+.cf-signal-icon { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; flex-shrink: 0; background: var(--bg3); color: var(--txt3); border: 0.5px solid var(--bdr); }
+.cf-icon-hit    { background: rgba(52,211,153,.15); color: #34d399; border-color: rgba(52,211,153,.3); }
+.cf-signal-body { flex: 1; display: flex; align-items: center; gap: 6px; }
+.cf-signal-label  { font-size: 12px; color: var(--txt2); }
+.cf-hit .cf-signal-label { color: var(--txt); }
+.cf-signal-strong { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; background: rgba(167,139,250,.12); color: var(--purple); border: 0.5px solid var(--purple-bdr); letter-spacing: .04em; text-transform: uppercase; }
+.cf-signal-detail { font-size: 11px; color: var(--txt3); font-variant-numeric: tabular-nums; }
+.cf-detail-hit    { color: #34d399; font-weight: 600; }
+.cf-actions { display: flex; gap: 8px; }
+.cf-action-btn { flex: 1; padding: 12px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; transition: box-shadow .15s; }
+.cf-action-grok    { border: 0.5px solid var(--purple-bdr); background: rgba(167,139,250,.1); color: var(--purple); }
+.cf-action-grok:hover { box-shadow: 0 0 16px rgba(167,139,250,.2); }
+.cf-action-journal { border: 0.5px solid var(--green-bdr); background: var(--green-bg); color: var(--green); }
+.cf-action-journal:hover { box-shadow: 0 0 16px rgba(52,211,153,.15); }
+[data-theme="light"] .cf-signals { background: #fafafa; }
+[data-theme="light"] .cf-score-card { background: #f9f9f9 !important; }

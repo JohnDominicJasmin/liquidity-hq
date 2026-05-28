@@ -6,6 +6,7 @@ import { getPHT, getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
 import { getSupabase } from '@/lib/supabase';
 import SetupScanner from '@/components/SetupScanner';
+import ConfluenceScorer from '@/components/ConfluenceScorer';
 
 const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'zec'];
 const GROK_API_KEY = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5Bepv2POY4L6EdBULh4GYNCO';
@@ -23,7 +24,7 @@ export default function Arena() {
   const [loadingMsg, setLoadingMsg] = useState('');
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [ctxOpen, setCtxOpen] = useState(false);
-  const [tab, setTab] = useState<'signal' | 'scanner'>('signal');
+  const [tab, setTab] = useState<'signal' | 'scanner' | 'confluence'>('signal');
   const notifCooldown = useRef<Set<string>>(new Set());
 
   /* ── Push notifications ── */
@@ -338,12 +339,25 @@ export default function Arena() {
           ⚡ AI Signal
         </button>
         <button
+          className={`arena-tab-btn${tab === 'confluence' ? ' on' : ''}`}
+          onClick={() => setTab('confluence')}
+        >
+          📊 Confluence
+        </button>
+        <button
           className={`arena-tab-btn${tab === 'scanner' ? ' on' : ''}`}
           onClick={() => setTab('scanner')}
         >
           🎯 Scanner
         </button>
       </div>
+
+      {/* Confluence tab */}
+      {tab === 'confluence' && (
+        <ConfluenceScorer
+          onRunSignal={(coin) => { setSelectedCoin(coin); setTab('signal'); }}
+        />
+      )}
 
       {/* Scanner tab */}
       {tab === 'scanner' && <SetupScanner />}
