@@ -1,20 +1,20 @@
-import OrderBookHeatmap from '@/components/OrderBookHeatmap';
+import OrderBookDepth from '@/components/OrderBookHeatmap';
 
 export const metadata = {
   title: 'Book Map · Liquidity HQ',
-  description: 'Real-time BTC/USDT order book depth heatmap',
+  description: 'Real-time order book depth chart — live bid/ask walls with size visualization',
 };
 
 export default function HeatmapPage() {
   return (
     <div className="heatmap-page">
       <div className="heatmap-page-header">
-        <div className="heatmap-page-title">📈 Order Book Heatmap</div>
+        <div className="heatmap-page-title">📈 Order Book Depth</div>
         <div className="heatmap-page-sub">
-          LIVE BTC/USDT · 20-level depth · bids = green · asks = red · brighter = bigger wall · white line = mid-price
+          LIVE · real Binance order book · green = buy walls · red = sell walls · wider bar = bigger order
         </div>
       </div>
-      <OrderBookHeatmap />
+      <OrderBookDepth />
     </div>
   );
 }
