@@ -212,51 +212,70 @@ export default function GrokChat() {
     if (open && !histView) setTimeout(() => inputRef.current?.focus(), 200);
   }, [open, histView]);
 
-  /* ── Suppress scroll-during-drag so trackpad can select text ───
-     On mousedown inside an assistant bubble, lock the scroll
-     container to overflow:hidden so the browser treats the drag
-     as text selection, not scroll. Restore on mouseup.
+  /* ── Text selection: lock scroll + show ↩ Reply chip ───────────
+     Core rule: ZERO state changes while the mouse button is pressed.
+     Any setSelTooltip() call during drag causes a React re-render
+     which destroys the browser's selection highlight (blue fill).
+
+     Flow:
+       mousedown in bubble → lock scroll (overflow:hidden), set pressing=true
+       selectionchange     → skip entirely while pressing (no state changes)
+       mouseup             → unlock scroll, read finalised selection, show tooltip
+       mousedown elsewhere → dismiss tooltip
   ─────────────────────────────────────────────────────────────── */
   useEffect(() => {
     const container = msgsRef.current;
     if (!container) return;
 
-    let locked = false;
+    let pressing      = false;
+    let inBubble      = false;
+    let kbDebounce: ReturnType<typeof setTimeout>;
 
+    /* ── mousedown: lock scroll when pressing inside a bubble ── */
     const onDown = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
-      // Only lock when pressing inside an assistant bubble (not tooltip/buttons)
-      if (t.closest('.gchat-msg-assistant') && !t.closest('.gchat-msg-actions')) {
-        locked = true;
+      inBubble = !!t.closest('.gchat-msg-assistant');
+
+      if (inBubble) {
+        pressing = true;
         container.style.overflowY = 'hidden';
       }
+
+      // Dismiss existing tooltip when starting a new action
+      if (!t.closest('.gchat-sel-tooltip')) setSelTooltip(null);
     };
 
+    /* ── mouseup: read selection AFTER browser commits it ── */
     const onUp = () => {
-      if (!locked) return;
-      locked = false;
-      // Small delay — let browser commit the selection range before re-enabling scroll
+      pressing = false;
+      // Re-enable scroll with a tiny delay so selection is preserved
       setTimeout(() => { container.style.overflowY = 'auto'; }, 80);
+
+      if (!inBubble) return;
+
+      // Read selection ~120ms after release — browser needs time to finalise
+      setTimeout(() => {
+        const sel  = window.getSelection();
+        const text = sel?.toString().trim();
+        if (!text || text.length < 3) return; // don't clear — user may have selected little
+
+        const anchor = sel!.anchorNode?.parentElement;
+        if (!anchor?.closest('.gchat-msg-assistant')) return;
+
+        try {
+          const range = sel!.getRangeAt(0);
+          const rect  = range.getBoundingClientRect();
+          if (!rect.width && !rect.height) return;
+          setSelTooltip({ text, x: rect.left + rect.width / 2, y: rect.bottom + 8 });
+        } catch { /* ignore */ }
+      }, 120);
     };
 
-    container.addEventListener('mousedown', onDown);
-    document.addEventListener('mouseup',   onUp);
-    return () => {
-      container.removeEventListener('mousedown', onDown);
-      document.removeEventListener('mouseup',   onUp);
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  /* ── selectionchange → show floating ↩ Reply chip ───────────────
-     Fires for any selection method (drag, keyboard, triple-click).
-     300ms debounce waits for the selection to stabilise.
-  ─────────────────────────────────────────────────────────────── */
-  useEffect(() => {
-    let debounce: ReturnType<typeof setTimeout>;
-
+    /* ── selectionchange: keyboard selection only (skip during mouse drag) ── */
     const onSelChange = () => {
-      clearTimeout(debounce);
-      debounce = setTimeout(() => {
+      if (pressing) return; // ← KEY: no state updates while button held
+      clearTimeout(kbDebounce);
+      kbDebounce = setTimeout(() => {
         const sel  = window.getSelection();
         const text = sel?.toString().trim();
         if (!text || text.length < 3) { setSelTooltip(null); return; }
@@ -267,24 +286,22 @@ export default function GrokChat() {
         try {
           const range = sel!.getRangeAt(0);
           const rect  = range.getBoundingClientRect();
-          if (!rect.width && !rect.height) { setSelTooltip(null); return; }
+          if (!rect.width && !rect.height) return;
           setSelTooltip({ text, x: rect.left + rect.width / 2, y: rect.bottom + 8 });
-        } catch { setSelTooltip(null); }
-      }, 300);
+        } catch { /* ignore */ }
+      }, 250);
     };
 
-    const onMouseDown = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest('.gchat-sel-tooltip')) setSelTooltip(null);
-    };
-
-    document.addEventListener('selectionchange', onSelChange);
-    document.addEventListener('mousedown',       onMouseDown);
+    container.addEventListener('mousedown',          onDown);
+    document.addEventListener('mouseup',             onUp);
+    document.addEventListener('selectionchange',     onSelChange);
     return () => {
-      clearTimeout(debounce);
+      clearTimeout(kbDebounce);
+      container.removeEventListener('mousedown',      onDown);
+      document.removeEventListener('mouseup',         onUp);
       document.removeEventListener('selectionchange', onSelChange);
-      document.removeEventListener('mousedown',       onMouseDown);
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Send message ── */
   const sendMsg = useCallback(async (text: string, coinOverride?: CoinId, quoteOverride?: string | null) => {
