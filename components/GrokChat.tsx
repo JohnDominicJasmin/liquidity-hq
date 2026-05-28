@@ -213,38 +213,45 @@ export default function GrokChat() {
   }, [open, histView]);
 
   /* ── Text selection → quote tooltip ────────────────────────────
-     Use document-level mouseup so it fires AFTER the browser has
-     finalised the selection (not mid-drag). A 50ms delay lets the
-     browser commit the range before we read it.
+     selectionchange fires for ANY selection method: mouse drag,
+     trackpad, keyboard, triple-click, shift-click — no dependency
+     on mouseup so it never competes with the scroll container.
+     300ms debounce waits for the selection to stabilise.
   ─────────────────────────────────────────────────────────────── */
   useEffect(() => {
-    const onMouseUp = () => {
-      setTimeout(() => {
+    let debounce: ReturnType<typeof setTimeout>;
+
+    const onSelChange = () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => {
         const sel  = window.getSelection();
         const text = sel?.toString().trim();
         if (!text || text.length < 3) { setSelTooltip(null); return; }
 
-        // Only show tooltip when selection is inside an assistant bubble
+        // Only activate inside an assistant bubble
         const anchor = sel!.anchorNode?.parentElement;
         if (!anchor?.closest('.gchat-msg-assistant')) { setSelTooltip(null); return; }
 
-        const range = sel!.getRangeAt(0);
-        const rect  = range.getBoundingClientRect();
-        if (!rect.width && !rect.height) return; // not a real range yet
-        setSelTooltip({ text, x: rect.left + rect.width / 2, y: rect.bottom + 8 });
-      }, 50);
+        try {
+          const range = sel!.getRangeAt(0);
+          const rect  = range.getBoundingClientRect();
+          if (!rect.width && !rect.height) { setSelTooltip(null); return; }
+          setSelTooltip({ text, x: rect.left + rect.width / 2, y: rect.bottom + 8 });
+        } catch { setSelTooltip(null); }
+      }, 300);
     };
 
-    // Dismiss when clicking anything other than the tooltip itself
+    // Dismiss when clicking anything other than the tooltip
     const onMouseDown = (e: MouseEvent) => {
       if (!(e.target as HTMLElement).closest('.gchat-sel-tooltip')) setSelTooltip(null);
     };
 
-    document.addEventListener('mouseup',   onMouseUp);
-    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('selectionchange', onSelChange);
+    document.addEventListener('mousedown',       onMouseDown);
     return () => {
-      document.removeEventListener('mouseup',   onMouseUp);
-      document.removeEventListener('mousedown', onMouseDown);
+      clearTimeout(debounce);
+      document.removeEventListener('selectionchange', onSelChange);
+      document.removeEventListener('mousedown',       onMouseDown);
     };
   }, []);
 
