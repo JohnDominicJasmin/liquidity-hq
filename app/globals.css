@@ -1214,3 +1214,85 @@ body::after {
 [data-theme="light"] .macro-strip {
   background: linear-gradient(135deg, rgba(29,78,216,0.05) 0%, rgba(109,40,217,0.05) 100%);
 }
+
+/* ── ORDER BOOK HEATMAP ── */
+.heatmap-page {
+  padding: 0 0 40px;
+}
+.heatmap-page-header {
+  padding: 1rem 0 0.75rem;
+}
+.heatmap-page-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--txt);
+  letter-spacing: 0.01em;
+  margin-bottom: 2px;
+}
+.heatmap-page-sub {
+  font-size: 11px;
+  color: var(--txt3);
+  letter-spacing: 0.04em;
+}
+.heatmap-wrap {
+  background: var(--bg1);
+  border: 0.5px solid var(--bdr);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  position: relative;
+}
+.heatmap-canvas {
+  display: block;
+  width: 100%;
+}
+.heatmap-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 11px;
+  color: var(--txt3);
+  border-top: 0.5px solid var(--bdr);
+  letter-spacing: 0.03em;
+}
+.heatmap-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.heatmap-dot-live {
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  animation: pulse 2s infinite;
+}
+.heatmap-dot-connecting {
+  background: #d97706;
+  box-shadow: 0 0 6px #d97706;
+  animation: pulse 1s infinite;
+}
+.heatmap-dot-error {
+  background: var(--red);
+  box-shadow: 0 0 6px var(--red);
+}
+.heatmap-legend {
+  display: flex;
+  gap: 16px;
+  padding: 0 14px 10px;
+  font-size: 11px;
+  color: var(--txt3);
+  letter-spacing: 0.03em;
+}
+.heatmap-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.heatmap-legend-swatch {
+  width: 14px;
+  height: 8px;
+  border-radius: 2px;
+}
+[data-theme="light"] .heatmap-wrap { border-color: var(--bdr2); }
+[data-theme="light"] .heatmap-status { border-top-color: var(--bdr2); }
