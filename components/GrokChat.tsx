@@ -315,12 +315,16 @@ export default function GrokChat() {
       kbTimer = setTimeout(readSelection, 250);
     };
 
-    container.addEventListener('mousedown',      onDown);
+    /* Use capture phase on document so our tracking fires BEFORE
+       the assistant-message div's stopPropagation blocks bubbling.
+       This way pressing=true / inBubble=true are always set correctly
+       even though the event never reaches the scroll container.        */
+    document.addEventListener('mousedown',      onDown,      { capture: true });
     document.addEventListener('mouseup',         onUp);
     document.addEventListener('selectionchange', onSelChange);
     return () => {
       clearTimeout(kbTimer);
-      container.removeEventListener('mousedown',      onDown);
+      document.removeEventListener('mousedown',      onDown,      { capture: true } as EventListenerOptions);
       document.removeEventListener('mouseup',         onUp);
       document.removeEventListener('selectionchange', onSelChange);
     };
@@ -590,7 +594,15 @@ export default function GrokChat() {
               )}
 
               {msgs.map((m, i) => (
-                <div key={i} className={`gchat-msg gchat-msg-${m.role}`}>
+                <div
+                  key={i}
+                  className={`gchat-msg gchat-msg-${m.role}`}
+                  /* Stop pointer/mouse events from reaching the scroll container
+                     so it never arms scroll-tracking while dragging over text.
+                     Two-finger trackpad scroll still works via wheel events.  */
+                  onPointerDown={m.role === 'assistant' ? (e) => e.stopPropagation() : undefined}
+                  onMouseDown={m.role === 'assistant' ? (e) => e.stopPropagation() : undefined}
+                >
                   {m.role === 'assistant' && (
                     <div className="gchat-grok-label">GROK · {m.ts}</div>
                   )}
