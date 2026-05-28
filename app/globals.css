@@ -1626,3 +1626,6 @@ body::after {
 }
 [data-theme="light"] .fc-wrap      { background: #fafafa; }
 [data-theme="light"] .fc-explainer { background: #f0f0f0; }
+
+.reasoning-link { color: #a78bfa; text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
+.reasoning-link:hover { color: #c4b5fd; }

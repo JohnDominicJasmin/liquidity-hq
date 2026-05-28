@@ -8,6 +8,32 @@ import { getSupabase } from '@/lib/supabase';
 import SetupScanner from '@/components/SetupScanner';
 import ConfluenceScorer from '@/components/ConfluenceScorer';
 
+/* ── Reasoning markdown renderer ─────────────────────────────────────────── */
+function ReasoningText({ text }: { text: string }) {
+  // Split on **bold**, [text](url), [[n]](url), or newlines
+  const parts = text.split(/(\*\*[\s\S]*?\*\*|\[\[?[^\]]*\]?\]\([^)]+\)|\n)/g);
+  return (
+    <>
+      {parts.map((seg, i) => {
+        if (!seg) return null;
+        if (seg === '\n') return <br key={i} />;
+        if (seg.startsWith('**') && seg.endsWith('**') && seg.length > 4)
+          return <strong key={i}>{seg.slice(2, -2)}</strong>;
+        const link = seg.match(/^\[(\[?[^\]]*\]?)\]\(([^)]+)\)$/);
+        if (link) {
+          const label = link[1].replace(/^\[/, '').replace(/\]$/, '') || '🔗';
+          return (
+            <a key={i} href={link[2]} target="_blank" rel="noopener noreferrer" className="reasoning-link">
+              {label}
+            </a>
+          );
+        }
+        return <span key={i}>{seg}</span>;
+      })}
+    </>
+  );
+}
+
 const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'zec'];
 const GROK_API_KEY = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5Bepv2POY4L6EdBULh4GYNCO';
 
@@ -26,6 +52,26 @@ export default function Arena() {
   const [ctxOpen, setCtxOpen] = useState(false);
   const [tab, setTab] = useState<'signal' | 'scanner' | 'confluence'>('signal');
   const notifCooldown = useRef<Set<string>>(new Set());
+
+  /* ── Cross-exchange funding data ── */
+  type FundingRow = { coin: string; binance: number|null; bybit: number|null; okx: number|null };
+  const [fundingData, setFundingData] = useState<Record<string, FundingRow>>({});
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res  = await fetch('/api/funding');
+        const json = await res.json();
+        if (json.data) {
+          const map: Record<string, FundingRow> = {};
+          (json.data as FundingRow[]).forEach(r => { map[r.coin] = r; });
+          setFundingData(map);
+        }
+      } catch { /* silent */ }
+    };
+    load();
+    const iv = setInterval(load, 60_000);
+    return () => clearInterval(iv);
+  }, []);
 
   /* ── Push notifications ── */
   const enableNotifications = async () => {
@@ -267,6 +313,24 @@ export default function Arena() {
     const etfFlows = [fmtFlow(store.etfNetFlow, 'BTC ETF'), fmtFlow(store.ethEtfNetFlow, 'ETH ETF')]
       .filter(Boolean).join(' | ') || 'Grok will search live';
 
+    /* Cross-exchange funding */
+    const cf = fundingData[selectedCoin];
+    const crossExchangeFunding = cf
+      ? (() => {
+          const fmt = (v: number | null) => v !== null ? (v >= 0 ? '+' : '') + (v * 100).toFixed(4) + '%' : '—';
+          const vals = [cf.binance, cf.bybit, cf.okx].filter((v): v is number => v !== null);
+          const avg  = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+          const divergent = avg !== null && [cf.binance, cf.bybit, cf.okx]
+            .some(v => v !== null && Math.abs(v - avg) * 100 >= 0.02);
+          const sentiment = avg === null ? '' : avg * 100 >= 0.05 ? ' — extreme long crowding (flush risk)'
+            : avg * 100 >= 0.01 ? ' — longs paying, mild crowding'
+            : avg * 100 <= -0.05 ? ' — extreme short crowding (squeeze risk)'
+            : avg * 100 <= -0.01 ? ' — shorts paying, mild crowding'
+            : ' — neutral';
+          return `Binance ${fmt(cf.binance)} | Bybit ${fmt(cf.bybit)} | OKX ${fmt(cf.okx)} | Avg ${fmt(avg)}${sentiment}${divergent ? ' ⚡ DIVERGENCE: one exchange significantly different — flow imbalance' : ''}`;
+        })()
+      : '—';
+
     return {
       coin: selectedCoin.toUpperCase() + '/USDT',
       price: coin?.price ? '$' + coin.price.toLocaleString() : '—',
@@ -283,7 +347,7 @@ export default function Arena() {
       pcRatio, maxPain, btcGex,
       exchangeNetFlow, stablecoinFlow, googleTrends, liqLevels, btcDomTrend,
       pocLine, dxyLine, spxLine, goldLine,
-      cbPremium, vwap, oiTrend, takerRatio,
+      cbPremium, vwap, oiTrend, takerRatio, crossExchangeFunding,
     };
   };
 
@@ -364,7 +428,7 @@ export default function Arena() {
 
       {/* AI Signal tab */}
       {tab === 'signal' && <>
-      <div style={{ fontSize: 12, color: '#606060', marginBottom: 14, marginTop: 4 }}>33-signal engine — technicals · VWAP · taker aggression · CB premium · OI trend · derivatives · macro · ETF · on-chain · social → LONG / SHORT / FLAT</div>
+      <div style={{ fontSize: 12, color: '#606060', marginBottom: 14, marginTop: 4 }}>35-signal engine — technicals · VWAP · taker aggression · CB premium · OI trend · derivatives · cross-exchange funding · macro · ETF · on-chain · social → LONG / SHORT / FLAT</div>
 
       {/* Coin selector + notification bell */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -431,6 +495,7 @@ export default function Arena() {
           ['CB Premium', ctx.cbPremium],
           ['VWAP (15m)', ctx.vwap],
           ['OI Trend', ctx.oiTrend.length > 55 ? ctx.oiTrend.slice(0, 55) + '…' : ctx.oiTrend],
+          ['X-Exch FR', ctx.crossExchangeFunding.length > 55 ? ctx.crossExchangeFunding.slice(0, 55) + '…' : ctx.crossExchangeFunding],
           ['DXY', ctx.dxyLine], ['SPX', ctx.spxLine], ['Gold', ctx.goldLine],
           ['ETF Flows', ctx.etfFlows],
           ['Exch. Flow', ctx.exchangeNetFlow],
@@ -522,7 +587,7 @@ export default function Arena() {
           </div>
           <div className="arena-reasoning">
             <div className="arena-reasoning-title">Reasoning</div>
-            <div className="arena-reasoning-text">{result.reasoning}</div>
+            <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
           </div>
         </div>
       )}

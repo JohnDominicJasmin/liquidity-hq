@@ -63,6 +63,8 @@ export interface GrokContext {
   vwap: string;
   /* OI Trend vs Price divergence */
   oiTrend: string;
+  /* cross-exchange funding rate comparison */
+  crossExchangeFunding: string;
 }
 
 export interface GrokResult {
@@ -95,7 +97,9 @@ export function buildPrompt(ctx: GrokContext): string {
     `Taker Buy/Sell ratio (last 5h):  ${ctx.takerRatio}`,
     '',
     '=== DERIVATIVES / POSITIONING ===',
-    `Funding rate: ${ctx.fundingRate}`,
+    `Funding rate (Binance, single): ${ctx.fundingRate}`,
+    `Cross-exchange funding (Binance | Bybit | OKX | Avg): ${ctx.crossExchangeFunding}`,
+    '(Divergence between exchanges = different trader bases are positioned differently = potential flow imbalance or arb. Extreme positive = longs overcrowded = flush risk. Extreme negative = shorts overcrowded = squeeze risk.)',
     `Open Interest: ${ctx.openInterest}`,
     `OI Trend vs Price:  ${ctx.oiTrend}`,
     '',
