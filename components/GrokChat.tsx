@@ -177,8 +177,12 @@ export default function GrokChat() {
   const currentIdRef                = useRef<string>(genId());
 
   /* quote-reply */
-  const [quotedText,  setQuotedText]  = useState<string | null>(null);
-  const [selTooltip,  setSelTooltip]  = useState<{ text: string; x: number; y: number } | null>(null);
+  const [quotedText, setQuotedText] = useState<string | null>(null);
+
+  /* Tooltip is a raw DOM element — no React state so it never triggers
+     a re-render that would wipe the browser's selection highlight      */
+  const tooltipElRef   = useRef<HTMLButtonElement | null>(null);
+  const tooltipTextRef = useRef('');
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLInputElement>(null);
@@ -186,6 +190,30 @@ export default function GrokChat() {
 
   /* ── Load history on mount ── */
   useEffect(() => { setConvos(loadHistory()); }, []);
+
+  /* ── Create tooltip DOM node (no React state → no re-renders) ── */
+  useEffect(() => {
+    const btn = document.createElement('button');
+    btn.className  = 'gchat-sel-tooltip';
+    btn.innerHTML  = '↩&nbsp;Reply';
+    btn.style.display = 'none';
+
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const text = tooltipTextRef.current;
+      if (!text) return;
+      btn.style.display    = 'none';
+      tooltipTextRef.current = '';
+      window.getSelection()?.removeAllRanges();
+      setQuotedText(text);                     // only state change — after tooltip hides
+      setTimeout(() => inputRef.current?.focus(), 60);
+    });
+
+    document.body.appendChild(btn);
+    tooltipElRef.current = btn;
+    return () => { btn.remove(); tooltipElRef.current = null; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Auto-save current conversation whenever messages change ── */
   useEffect(() => {
@@ -213,90 +241,89 @@ export default function GrokChat() {
   }, [open, histView]);
 
   /* ── Text selection: lock scroll + show ↩ Reply chip ───────────
-     Core rule: ZERO state changes while the mouse button is pressed.
-     Any setSelTooltip() call during drag causes a React re-render
-     which destroys the browser's selection highlight (blue fill).
+     ZERO React state changes during selection — tooltip is a raw
+     DOM element (tooltipElRef) so nothing triggers re-renders that
+     would wipe the browser's blue selection highlight.
 
      Flow:
-       mousedown in bubble → lock scroll (overflow:hidden), set pressing=true
-       selectionchange     → skip entirely while pressing (no state changes)
-       mouseup             → unlock scroll, read finalised selection, show tooltip
-       mousedown elsewhere → dismiss tooltip
+       mousedown in bubble  → lock scroll, set pressing=true
+       drag / double-click  → browser selects freely, no interference
+       mouseup              → unlock scroll, position & show tooltip
+       mousedown elsewhere  → hide tooltip (direct DOM, no setState)
+       keyboard selection   → selectionchange debounce shows tooltip
   ─────────────────────────────────────────────────────────────── */
   useEffect(() => {
     const container = msgsRef.current;
     if (!container) return;
 
-    let pressing      = false;
-    let inBubble      = false;
-    let kbDebounce: ReturnType<typeof setTimeout>;
+    let pressing = false;
+    let inBubble = false;
+    let kbTimer: ReturnType<typeof setTimeout>;
 
-    /* ── mousedown: lock scroll when pressing inside a bubble ── */
+    const showTooltip = (text: string, rect: DOMRect) => {
+      const btn = tooltipElRef.current;
+      if (!btn) return;
+      tooltipTextRef.current = text;
+      // Position ABOVE the selection (like Claude) — centre-aligned horizontally
+      btn.style.left    = rect.left + rect.width / 2 + 'px';
+      btn.style.top     = rect.top - 38 + 'px';
+      btn.style.display = 'block';
+    };
+
+    const hideTooltip = () => {
+      const btn = tooltipElRef.current;
+      if (btn) btn.style.display = 'none';
+      tooltipTextRef.current = '';
+    };
+
+    const readSelection = () => {
+      const sel  = window.getSelection();
+      const text = sel?.toString().trim();
+      if (!text || text.length < 3) return;
+
+      const anchor = sel!.anchorNode?.parentElement;
+      if (!anchor?.closest('.gchat-msg-assistant')) return;
+
+      try {
+        const range = sel!.getRangeAt(0);
+        const rect  = range.getBoundingClientRect();
+        if (!rect.width && !rect.height) return;
+        showTooltip(text, rect);
+      } catch { /* ignore */ }
+    };
+
+    /* mousedown: lock scroll when inside a bubble, always hide stale tooltip */
     const onDown = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
-      inBubble = !!t.closest('.gchat-msg-assistant');
+      if (!t.closest('.gchat-sel-tooltip')) hideTooltip();
 
+      inBubble = !!t.closest('.gchat-msg-assistant');
       if (inBubble) {
         pressing = true;
         container.style.overflowY = 'hidden';
       }
-
-      // Dismiss existing tooltip when starting a new action
-      if (!t.closest('.gchat-sel-tooltip')) setSelTooltip(null);
     };
 
-    /* ── mouseup: read selection AFTER browser commits it ── */
+    /* mouseup: unlock scroll, read finalised selection */
     const onUp = () => {
       pressing = false;
-      // Re-enable scroll with a tiny delay so selection is preserved
       setTimeout(() => { container.style.overflowY = 'auto'; }, 80);
-
-      if (!inBubble) return;
-
-      // Read selection ~120ms after release — browser needs time to finalise
-      setTimeout(() => {
-        const sel  = window.getSelection();
-        const text = sel?.toString().trim();
-        if (!text || text.length < 3) return; // don't clear — user may have selected little
-
-        const anchor = sel!.anchorNode?.parentElement;
-        if (!anchor?.closest('.gchat-msg-assistant')) return;
-
-        try {
-          const range = sel!.getRangeAt(0);
-          const rect  = range.getBoundingClientRect();
-          if (!rect.width && !rect.height) return;
-          setSelTooltip({ text, x: rect.left + rect.width / 2, y: rect.bottom + 8 });
-        } catch { /* ignore */ }
-      }, 120);
+      if (inBubble) setTimeout(readSelection, 120);
     };
 
-    /* ── selectionchange: keyboard selection only (skip during mouse drag) ── */
+    /* selectionchange: handles keyboard selection (Shift+arrows etc.)
+       Skip while mouse is pressed — no DOM updates during drag        */
     const onSelChange = () => {
-      if (pressing) return; // ← KEY: no state updates while button held
-      clearTimeout(kbDebounce);
-      kbDebounce = setTimeout(() => {
-        const sel  = window.getSelection();
-        const text = sel?.toString().trim();
-        if (!text || text.length < 3) { setSelTooltip(null); return; }
-
-        const anchor = sel!.anchorNode?.parentElement;
-        if (!anchor?.closest('.gchat-msg-assistant')) { setSelTooltip(null); return; }
-
-        try {
-          const range = sel!.getRangeAt(0);
-          const rect  = range.getBoundingClientRect();
-          if (!rect.width && !rect.height) return;
-          setSelTooltip({ text, x: rect.left + rect.width / 2, y: rect.bottom + 8 });
-        } catch { /* ignore */ }
-      }, 250);
+      if (pressing) return;
+      clearTimeout(kbTimer);
+      kbTimer = setTimeout(readSelection, 250);
     };
 
-    container.addEventListener('mousedown',          onDown);
-    document.addEventListener('mouseup',             onUp);
-    document.addEventListener('selectionchange',     onSelChange);
+    container.addEventListener('mousedown',      onDown);
+    document.addEventListener('mouseup',         onUp);
+    document.addEventListener('selectionchange', onSelChange);
     return () => {
-      clearTimeout(kbDebounce);
+      clearTimeout(kbTimer);
       container.removeEventListener('mousedown',      onDown);
       document.removeEventListener('mouseup',         onUp);
       document.removeEventListener('selectionchange', onSelChange);
@@ -405,14 +432,6 @@ export default function GrokChat() {
   const closeAll      = () => { setOpen(false); setExpanded(false); setHistView(false); };
   const toggleExpand  = () => setExpanded(v => !v);
 
-  const applyQuote = () => {
-    if (!selTooltip) return;
-    setQuotedText(selTooltip.text);
-    setSelTooltip(null);
-    window.getSelection()?.removeAllRanges();
-    setTimeout(() => inputRef.current?.focus(), 60);
-  };
-
   /* ── Coin badge color ── */
   const COIN_COLORS: Record<string, string> = {
     btc: '#f7931a', eth: '#627eea', sol: '#9945ff',
@@ -424,17 +443,6 @@ export default function GrokChat() {
     <>
       {/* ── Backdrop (expanded only) ── */}
       {open && expanded && <div className="gchat-backdrop" onClick={closeAll} aria-hidden />}
-
-      {/* ── Selection quote tooltip (fixed, viewport-relative) ── */}
-      {selTooltip && (
-        <button
-          className="gchat-sel-tooltip"
-          style={{ left: selTooltip.x, top: selTooltip.y }}
-          onMouseDown={e => { e.preventDefault(); applyQuote(); }}
-        >
-          ↩ Reply to this
-        </button>
-      )}
 
       {/* ── Floating action button ── */}
       <button
