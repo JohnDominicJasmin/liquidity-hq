@@ -1,6 +1,7 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { useMarket, CoinId } from '@/lib/marketStore';
+import LiqFeed from '@/components/LiqFeed';
 
 const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'zec'];
 
@@ -138,6 +139,9 @@ export default function LiqPage() {
 
   return (
     <div>
+      {/* Live Liquidation Feed */}
+      <LiqFeed />
+
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8', marginBottom: 2 }}>
