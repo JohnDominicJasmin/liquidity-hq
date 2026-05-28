@@ -212,29 +212,40 @@ export default function GrokChat() {
     if (open && !histView) setTimeout(() => inputRef.current?.focus(), 200);
   }, [open, histView]);
 
-  /* ── Text selection → quote tooltip ── */
-  const handleMsgsMouseUp = useCallback(() => {
-    const sel  = window.getSelection();
-    const text = sel?.toString().trim();
-    if (!text || text.length < 3) { setSelTooltip(null); return; }
-
-    // Only trigger on assistant bubble text
-    const anchor = sel!.anchorNode?.parentElement;
-    if (!anchor?.closest('.gchat-msg-assistant')) { setSelTooltip(null); return; }
-
-    const range = sel!.getRangeAt(0);
-    const rect  = range.getBoundingClientRect();
-    setSelTooltip({ text, x: rect.left + rect.width / 2, y: rect.bottom + 8 });
-  }, []);
-
-  // Dismiss tooltip on click elsewhere
+  /* ── Text selection → quote tooltip ────────────────────────────
+     Use document-level mouseup so it fires AFTER the browser has
+     finalised the selection (not mid-drag). A 50ms delay lets the
+     browser commit the range before we read it.
+  ─────────────────────────────────────────────────────────────── */
   useEffect(() => {
-    const dismiss = (e: MouseEvent) => {
-      const t = e.target as HTMLElement;
-      if (!t.closest('.gchat-sel-tooltip')) setSelTooltip(null);
+    const onMouseUp = () => {
+      setTimeout(() => {
+        const sel  = window.getSelection();
+        const text = sel?.toString().trim();
+        if (!text || text.length < 3) { setSelTooltip(null); return; }
+
+        // Only show tooltip when selection is inside an assistant bubble
+        const anchor = sel!.anchorNode?.parentElement;
+        if (!anchor?.closest('.gchat-msg-assistant')) { setSelTooltip(null); return; }
+
+        const range = sel!.getRangeAt(0);
+        const rect  = range.getBoundingClientRect();
+        if (!rect.width && !rect.height) return; // not a real range yet
+        setSelTooltip({ text, x: rect.left + rect.width / 2, y: rect.bottom + 8 });
+      }, 50);
     };
-    document.addEventListener('mousedown', dismiss);
-    return () => document.removeEventListener('mousedown', dismiss);
+
+    // Dismiss when clicking anything other than the tooltip itself
+    const onMouseDown = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.gchat-sel-tooltip')) setSelTooltip(null);
+    };
+
+    document.addEventListener('mouseup',   onMouseUp);
+    document.addEventListener('mousedown', onMouseDown);
+    return () => {
+      document.removeEventListener('mouseup',   onMouseUp);
+      document.removeEventListener('mousedown', onMouseDown);
+    };
   }, []);
 
   /* ── Send message ── */
@@ -501,12 +512,8 @@ export default function GrokChat() {
               ))}
             </div>
 
-            {/* Messages */}
-            <div
-              className="gchat-msgs"
-              ref={msgsRef}
-              onMouseUp={handleMsgsMouseUp}
-            >
+            {/* Messages — NO onMouseUp here; selection is captured at document level */}
+            <div className="gchat-msgs" ref={msgsRef}>
               {msgs.length === 0 && (
                 <div className="gchat-empty">
                   <div style={{ fontSize: 32, marginBottom: 8 }}>🤖</div>
@@ -528,7 +535,8 @@ export default function GrokChat() {
                   {m.role === 'assistant' && (
                     <div className="gchat-grok-label">GROK · {m.ts}</div>
                   )}
-                  {/* Quote block — shown above user message if they replied to something */}
+
+                  {/* Quote ref block — shown above user bubble when replying */}
                   {m.role === 'user' && m.quotedText && (
                     <div className="gchat-quote-ref">
                       <span className="gchat-quote-ref-bar" />
@@ -537,6 +545,8 @@ export default function GrokChat() {
                       </span>
                     </div>
                   )}
+
+                  {/* Bubble */}
                   {m.role === 'assistant' ? (
                     <div
                       className="gchat-bubble"
@@ -545,6 +555,30 @@ export default function GrokChat() {
                   ) : (
                     <div className="gchat-bubble">{m.content}</div>
                   )}
+
+                  {/* Per-message actions (assistant only) — visible on hover */}
+                  {m.role === 'assistant' && (
+                    <div className="gchat-msg-actions">
+                      <button
+                        className="gchat-msg-action-btn"
+                        title="Reply to this message"
+                        onClick={() => {
+                          setQuotedText(m.content.slice(0, 200));
+                          setTimeout(() => inputRef.current?.focus(), 60);
+                        }}
+                      >
+                        ↩ Reply
+                      </button>
+                      <button
+                        className="gchat-msg-action-btn"
+                        title="Copy response"
+                        onClick={() => navigator.clipboard?.writeText(m.content)}
+                      >
+                        📋 Copy
+                      </button>
+                    </div>
+                  )}
+
                   {m.role === 'user' && (
                     <div className="gchat-user-ts">{m.ts}</div>
                   )}
