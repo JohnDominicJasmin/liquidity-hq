@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { COINS, CoinId } from '@/lib/marketStore';
 
 interface CalcResult {
   riskUSD:      number;
@@ -42,7 +41,6 @@ function fmtUSD(v: number) {
 
 export default function PositionSizer() {
   const router = useRouter();
-  const [coin,    setCoin]    = useState<CoinId>('btc');
   const [account, setAccount] = useState('');
   const [riskPct, setRiskPct] = useState('1');
   const [entry,   setEntry]   = useState('');
@@ -70,7 +68,6 @@ export default function PositionSizer() {
 
   const logTrade = () => {
     const p = new URLSearchParams();
-    p.set('coin', coin);
     p.set('dir',  result?.isLong ? 'LONG' : 'SHORT');
     p.set('entry', entry);
     p.set('stop',  stop);
@@ -86,15 +83,6 @@ export default function PositionSizer() {
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8', marginBottom: 2 }}>🧮 Position Sizer</div>
         <div style={{ fontSize: 12, color: '#606060' }}>Account · risk % · entry · stop → size, leverage & R:R</div>
-      </div>
-
-      {/* Coin selector */}
-      <div className="ps-coins">
-        {COINS.map(c => (
-          <button key={c} className={`ps-coin${c === coin ? ' on' : ''}`} onClick={() => setCoin(c)}>
-            {c.toUpperCase()}
-          </button>
-        ))}
       </div>
 
       {/* Account & Risk */}
@@ -162,7 +150,7 @@ export default function PositionSizer() {
       {result ? (
         <>
           <div className={`ps-banner${result.isLong ? ' ps-banner-long' : ' ps-banner-short'}`}>
-            {result.isLong ? '▲ LONG' : '▼ SHORT'}&nbsp;&nbsp;·&nbsp;&nbsp;{coin.toUpperCase()}/USDT
+            {result.isLong ? '▲ LONG' : '▼ SHORT'}
           </div>
 
           <div className="ps-results">
@@ -175,7 +163,7 @@ export default function PositionSizer() {
               <div className="ps-rval">{fmtUSD(result.posUSD)}</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">Units ({coin.toUpperCase()})</div>
+              <div className="ps-rlbl">Units</div>
               <div className="ps-rval">
                 {result.posUnits < 1 ? result.posUnits.toFixed(6) : result.posUnits.toFixed(4)}
               </div>
