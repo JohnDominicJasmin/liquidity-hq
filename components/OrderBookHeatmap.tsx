@@ -9,25 +9,28 @@ interface Level { price: number; qty: number; }
 
 interface Snapshot {
   ts:   number;
-  bids: Level[];   // 20 levels, highest bid first
-  asks: Level[];   // 20 levels, lowest ask first
+  bids: Level[];   // 20 levels, highest bid first  (Binance order)
+  asks: Level[];   // 20 levels, lowest ask first   (Binance order)
 }
 
 /* ─────────────────────────────────────────────
    Constants
 ───────────────────────────────────────────── */
-const BUFFER_SIZE  = 300;   // 5 min at 1 snap/sec
-const SNAP_MS      = 1000;  // throttle: 1 snapshot per second
-const ROWS         = 40;    // 20 asks (top) + 20 bids (bottom)
-const H_DESKTOP    = 420;
-const H_MOBILE     = 260;
-const MOBILE_BP    = 520;
+const BUFFER_SIZE = 300;    // 5 min at 1 snap/sec
+const SNAP_MS     = 1000;   // 1 snapshot per second
+const ASK_ROWS    = 20;
+const BID_ROWS    = 20;
+const ROWS        = ASK_ROWS + BID_ROWS;
+const H_DESKTOP   = 440;
+const H_MOBILE    = 280;
+const MOBILE_BP   = 520;
 
-const WS_PRIMARY   = 'wss://stream.binance.com:9443/stream?streams=btcusdt@depth20@100ms';
-const WS_FALLBACK  = 'wss://stream.binance.com/stream?streams=btcusdt@depth20@100ms';
+const WS_PRIMARY  = 'wss://stream.binance.com:9443/stream?streams=btcusdt@depth20@100ms';
+const WS_FALLBACK = 'wss://stream.binance.com/stream?streams=btcusdt@depth20@100ms';
 
-const BID_COLOR    = [52,  211, 153] as const;  // --green
-const ASK_COLOR    = [248, 113, 113] as const;  // --red
+const BG_COLOR    = '#0a0a0a';
+const ASK_R = 248; const ASK_G = 100; const ASK_B = 100;
+const BID_R =  52; const BID_G = 211; const BID_B = 153;
 
 /* ─────────────────────────────────────────────
    Component
@@ -42,7 +45,6 @@ export default function OrderBookHeatmap() {
   const lastDrawCntRef  = useRef<number>(-1);
   const dpRef           = useRef<number>(1);
 
-  // Circular buffer stored entirely in refs — zero React state churn during live data
   const bufferRef = useRef<Snapshot[]>(new Array(BUFFER_SIZE));
   const headRef   = useRef<number>(0);
   const countRef  = useRef<number>(0);
@@ -50,7 +52,7 @@ export default function OrderBookHeatmap() {
   const [wsStatus,  setWsStatus]  = useState<'connecting' | 'live' | 'error'>('connecting');
   const [snapCount, setSnapCount] = useState<number>(0);
 
-  /* ── WebSocket ─────────────────────────────── */
+  /* ── WebSocket ──────────────────────────────── */
   useEffect(() => {
     let useFallback = false;
 
@@ -63,7 +65,6 @@ export default function OrderBookHeatmap() {
       ws.onopen = () => setWsStatus('live');
 
       ws.onmessage = (ev: MessageEvent) => {
-        // Throttle: only record 1 snapshot per second
         const now = Date.now();
         if (now - lastSnapTimeRef.current < SNAP_MS) return;
         lastSnapTimeRef.current = now;
@@ -81,29 +82,23 @@ export default function OrderBookHeatmap() {
             asks: d.asks.map(([p, q]) => ({ price: parseFloat(p), qty: parseFloat(q) })),
           };
 
-          // Write into circular buffer
           bufferRef.current[headRef.current] = snap;
           headRef.current = (headRef.current + 1) % BUFFER_SIZE;
           if (countRef.current < BUFFER_SIZE) countRef.current++;
 
-          // Update React state only every 10 snaps (for the progress label)
-          if (countRef.current % 10 === 0) {
-            setSnapCount(countRef.current);
-          }
-        } catch { /* malformed frame — ignore */ }
+          if (countRef.current % 10 === 0) setSnapCount(countRef.current);
+        } catch { /* ignore malformed frames */ }
       };
 
       ws.onclose = () => {
         setWsStatus('error');
-        if (!useFallback) useFallback = true;
+        useFallback = true;
         reconnTimerRef.current = setTimeout(connect, 3000);
       };
-
       ws.onerror = () => ws.close();
     }
 
     connect();
-
     return () => {
       if (reconnTimerRef.current) clearTimeout(reconnTimerRef.current);
       wsRef.current?.close();
@@ -111,17 +106,16 @@ export default function OrderBookHeatmap() {
     };
   }, []);
 
-  /* ── rAF draw loop ─────────────────────────── */
+  /* ── rAF draw loop ──────────────────────────── */
   useEffect(() => {
-    function draw() {
-      // Skip if no new data arrived since last paint
+    function loop() {
       if (countRef.current !== lastDrawCntRef.current) {
         lastDrawCntRef.current = countRef.current;
-        renderHeatmap();
+        render();
       }
-      rafRef.current = requestAnimationFrame(draw);
+      rafRef.current = requestAnimationFrame(loop);
     }
-    rafRef.current = requestAnimationFrame(draw);
+    rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
   }, []);
 
@@ -129,34 +123,27 @@ export default function OrderBookHeatmap() {
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-
     const ro = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
-
-      const w       = entry.contentRect.width;
-      const isMob   = w < MOBILE_BP;
-      const logH    = isMob ? H_MOBILE : H_DESKTOP;
-      const dpr     = window.devicePixelRatio || 1;
-      dpRef.current = dpr;
-
+      const w     = entry.contentRect.width;
+      const logH  = w < MOBILE_BP ? H_MOBILE : H_DESKTOP;
+      const dpr   = window.devicePixelRatio || 1;
+      dpRef.current    = dpr;
       canvas.style.width  = '100%';
       canvas.style.height = logH + 'px';
-      canvas.width        = Math.floor(w * dpr);
-      canvas.height       = logH * dpr;
-
-      // Force a redraw on resize
-      lastDrawCntRef.current = -1;
+      canvas.width  = Math.floor(w * dpr);
+      canvas.height = logH * dpr;
+      lastDrawCntRef.current = -1; // force redraw
     });
-
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  /* ── Canvas renderer ─────────────────────────── */
-  function renderHeatmap() {
+  /* ── Renderer ───────────────────────────────── */
+  function render() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -167,183 +154,214 @@ export default function OrderBookHeatmap() {
     const dpr = dpRef.current;
     const cnt = countRef.current;
 
-    ctx.clearRect(0, 0, W, H);
+    // Dark base
+    ctx.fillStyle = BG_COLOR;
+    ctx.fillRect(0, 0, W, H);
 
     if (cnt === 0) {
-      // Loading placeholder
-      ctx.fillStyle = 'rgba(255,255,255,0.1)';
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
       ctx.font      = `${13 * dpr}px Inter, system-ui, sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillText('Waiting for order book data…', W / 2, H / 2);
+      ctx.fillText('Connecting to Binance order book…', W / 2, H / 2);
       return;
     }
 
-    // ── Collect snapshots in chronological order ──
+    // ── Build chronological snapshot array ──
     const start = cnt < BUFFER_SIZE ? 0 : headRef.current;
     const snaps: Snapshot[] = new Array(cnt);
     for (let i = 0; i < cnt; i++) {
       snaps[i] = bufferRef.current[(start + i) % BUFFER_SIZE];
     }
-
     const latest = snaps[snaps.length - 1];
 
-    // ── Build stable Y axis from latest snapshot ──
-    // Rows: 0..19 = asks (highest ask first), 20..39 = bids (highest bid first)
-    const asksSorted = latest.asks.slice().sort((a, b) => b.price - a.price);
-    const bidsSorted = latest.bids.slice().sort((a, b) => b.price - a.price);
-    const priceLevels = [...asksSorted, ...bidsSorted];
-
-    if (priceLevels.length < ROWS) return; // not enough data yet
-
     // ── Global max qty per side (for colour normalisation) ──
-    let maxBid = 0;
-    let maxAsk = 0;
+    let maxBid = 0, maxAsk = 0;
     for (const s of snaps) {
       for (const b of s.bids) if (b.qty > maxBid) maxBid = b.qty;
       for (const a of s.asks) if (a.qty > maxAsk) maxAsk = a.qty;
     }
-    if (maxBid === 0) maxBid = 1;
-    if (maxAsk === 0) maxAsk = 1;
+    if (maxBid < 1) maxBid = 1;
+    if (maxAsk < 1) maxAsk = 1;
 
-    // ── Cell dimensions ──
-    const cols  = cnt;
-    const cellW = W / cols;
+    const cellW = W / cnt;
     const cellH = H / ROWS;
 
-    // ── Draw cells ──
-    for (let xi = 0; xi < cols; xi++) {
-      const snap = snaps[xi];
+    // ── Draw cells (index-based — no price matching needed) ──
+    // Layout:
+    //   rows  0–19 = asks (yi=0 = highest ask / farthest from spread)
+    //   rows 20–39 = bids (yi=20 = highest bid / closest to spread)
+    //
+    // Binance order: asks ascending (asks[0]=best), bids descending (bids[0]=best)
+    // Mapping:
+    //   ask yi   → asks[19 - yi]   (flip so closest-to-spread is at bottom of ask zone)
+    //   bid yi   → bids[yi - 20]   (bids[0]=best bid = just below spread)
+
+    for (let xi = 0; xi < cnt; xi++) {
+      const snap  = snaps[xi];
+      const xLeft = Math.floor(xi * cellW);
+      const colW  = Math.ceil((xi + 1) * cellW) - xLeft;
 
       for (let yi = 0; yi < ROWS; yi++) {
-        const isAsk   = yi < 20;
-        const level   = priceLevels[yi];
-        const side    = isAsk ? snap.asks : snap.bids;
-        const maxQ    = isAsk ? maxAsk   : maxBid;
-        const col     = isAsk ? ASK_COLOR : BID_COLOR;
+        const yTop = Math.floor(yi * cellH);
+        const rowH = Math.ceil((yi + 1) * cellH) - yTop;
 
-        // Find matching level (price within 0.01%)
-        let qty = 0;
-        for (let k = 0; k < side.length; k++) {
-          if (Math.abs(side[k].price - level.price) / level.price < 0.0001) {
-            qty = side[k].qty;
-            break;
-          }
+        let qty: number;
+        let maxQ: number;
+        let isAsk: boolean;
+
+        if (yi < ASK_ROWS) {
+          isAsk = true;
+          const idx = (ASK_ROWS - 1) - yi;           // flip: yi=0 → asks[19], yi=19 → asks[0]
+          qty  = idx < snap.asks.length ? snap.asks[idx].qty : 0;
+          maxQ = maxAsk;
+        } else {
+          isAsk = false;
+          const idx = yi - ASK_ROWS;                  // yi=20 → bids[0], yi=39 → bids[19]
+          qty  = idx < snap.bids.length ? snap.bids[idx].qty : 0;
+          maxQ = maxBid;
         }
 
-        const alpha = 0.05 + (qty / maxQ) * 0.95;
-        ctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${alpha.toFixed(3)})`;
-        ctx.fillRect(
-          Math.floor(xi * cellW),
-          Math.floor(yi * cellH),
-          Math.ceil(cellW),
-          Math.ceil(cellH),
-        );
+        // Non-linear alpha: large walls pop, small orders fade
+        const norm  = maxQ > 0 ? qty / maxQ : 0;
+        const alpha = Math.pow(norm, 1.4);            // 0→0, small→dim, large→bright
+
+        if (alpha < 0.015) continue;                  // skip near-invisible cells
+
+        const r = isAsk ? ASK_R : BID_R;
+        const g = isAsk ? ASK_G : BID_G;
+        const b = isAsk ? ASK_B : BID_B;
+
+        // Shift toward white for the very largest walls (>85% intensity)
+        if (alpha > 0.85) {
+          const blend = (alpha - 0.85) / 0.15;        // 0→1 as alpha goes 0.85→1.0
+          const wr = Math.round(r + (255 - r) * blend * 0.6);
+          const wg = Math.round(g + (255 - g) * blend * 0.6);
+          const wb = Math.round(b + (255 - b) * blend * 0.6);
+          ctx.fillStyle = `rgba(${wr},${wg},${wb},${alpha.toFixed(3)})`;
+        } else {
+          ctx.fillStyle = `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
+        }
+        ctx.fillRect(xLeft, yTop, colW, rowH);
       }
     }
 
-    // ── Mid-price line ──
-    const midPrice    = (latest.asks[0].price + latest.bids[0].price) / 2;
-    const topPrice    = priceLevels[0].price;
-    const botPrice    = priceLevels[ROWS - 1].price;
-    const priceRange  = topPrice - botPrice;
-    const midY        = priceRange > 0
-      ? ((topPrice - midPrice) / priceRange) * H
-      : H / 2;
+    // ── Thin separator lines between rows (grid) ──
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    for (let yi = 1; yi < ROWS; yi++) {
+      const y = Math.floor(yi * cellH);
+      ctx.fillRect(0, y, W, 1);
+    }
 
+    // ── Spread zone (divider between asks and bids) ──
+    const spreadY = ASK_ROWS * cellH;
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(0, spreadY - 1, W, 2);
+
+    // ── Mid-price dashed line ──
+    const midPrice = (latest.asks[0].price + latest.bids[0].price) / 2;
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
     ctx.lineWidth   = dpr;
-    ctx.setLineDash([4 * dpr, 4 * dpr]);
-    ctx.beginPath();
-    ctx.moveTo(0, midY);
-    ctx.lineTo(W, midY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // Mid-price label
-    ctx.fillStyle = '#ffffff';
-    ctx.font      = `bold ${11 * dpr}px Inter, system-ui, sans-serif`;
-    ctx.textAlign = 'left';
-    ctx.fillText('$' + Math.round(midPrice).toLocaleString(), 6 * dpr, midY - 4 * dpr);
-    ctx.restore();
-
-    // ── Price labels (Y axis, right edge) ──
-    ctx.save();
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.font      = `${10 * dpr}px Inter, system-ui, sans-serif`;
-    ctx.textAlign = 'right';
-    for (let yi = 0; yi < ROWS; yi += 5) {
-      const price = priceLevels[yi].price;
-      const yPx   = (yi + 0.5) * cellH;
-      ctx.fillText('$' + Math.round(price).toLocaleString(), W - 4 * dpr, yPx + 3 * dpr);
-    }
-    ctx.restore();
-
-    // ── Time labels (X axis, bottom) ──
-    if (cols > 10) {
-      ctx.save();
-      ctx.fillStyle = 'rgba(255,255,255,0.2)';
-      ctx.font      = `${10 * dpr}px Inter, system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      const step = Math.max(30, Math.floor(cols / 5));
-      for (let xi = 0; xi < cols; xi += step) {
-        const ts  = snaps[xi].ts;
-        const lbl = new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        const xPx = (xi + 0.5) * cellW;
-        ctx.fillText(lbl, xPx, H - 3 * dpr);
-      }
-      ctx.restore();
-    }
-
-    // ── Spread zone divider (thin line between bids and asks rows) ──
-    const spreadY = 20 * cellH;
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-    ctx.lineWidth   = dpr * 0.5;
+    ctx.setLineDash([4 * dpr, 3 * dpr]);
     ctx.beginPath();
     ctx.moveTo(0, spreadY);
     ctx.lineTo(W, spreadY);
     ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Mid-price label background
+    const priceLabel = '$' + Math.round(midPrice).toLocaleString();
+    ctx.font = `bold ${11 * dpr}px Inter, system-ui, sans-serif`;
+    const lblW = ctx.measureText(priceLabel).width + 8 * dpr;
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(4 * dpr, spreadY - 16 * dpr, lblW, 14 * dpr);
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'left';
+    ctx.fillText(priceLabel, 8 * dpr, spreadY - 5 * dpr);
+    ctx.restore();
+
+    // ── Price axis labels (right edge) ──
+    ctx.save();
+    ctx.fillStyle  = 'rgba(255,255,255,0.28)';
+    ctx.font       = `${10 * dpr}px Inter, system-ui, sans-serif`;
+    ctx.textAlign  = 'right';
+
+    // Ask labels: asks are ascending (asks[0]=best ask=closest to spread=row 19)
+    for (let yi = 0; yi < ASK_ROWS; yi += 4) {
+      const idx = (ASK_ROWS - 1) - yi;
+      if (idx < latest.asks.length) {
+        const yPx = (yi + 0.5) * cellH;
+        ctx.fillText('$' + Math.round(latest.asks[idx].price).toLocaleString(), W - 4 * dpr, yPx + 3 * dpr);
+      }
+    }
+    // Bid labels: bids[0]=best bid=closest to spread=row 20
+    for (let yi = ASK_ROWS; yi < ROWS; yi += 4) {
+      const idx = yi - ASK_ROWS;
+      if (idx < latest.bids.length) {
+        const yPx = (yi + 0.5) * cellH;
+        ctx.fillText('$' + Math.round(latest.bids[idx].price).toLocaleString(), W - 4 * dpr, yPx + 3 * dpr);
+      }
+    }
+    ctx.restore();
+
+    // ── Time labels (bottom) ──
+    if (cnt > 15) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.font      = `${10 * dpr}px Inter, system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      const step = Math.max(20, Math.floor(cnt / 6));
+      for (let xi = 0; xi < cnt; xi += step) {
+        const lbl = new Date(snaps[xi].ts).toLocaleTimeString([], {
+          hour: '2-digit', minute: '2-digit', second: '2-digit',
+        });
+        ctx.fillText(lbl, (xi + 0.5) * cellW, H - 4 * dpr);
+      }
+      ctx.restore();
+    }
+
+    // ── Zone labels (ASKS / BIDS) ──
+    ctx.save();
+    ctx.fillStyle = 'rgba(248,100,100,0.35)';
+    ctx.font      = `bold ${9 * dpr}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText('ASKS', 6 * dpr, 12 * dpr);
+    ctx.fillStyle = 'rgba(52,211,153,0.35)';
+    ctx.fillText('BIDS', 6 * dpr, spreadY + 12 * dpr);
     ctx.restore();
   }
 
-  /* ── Status text ─────────────────────────────── */
+  /* ── Status / progress ─────────────────────── */
   const pct    = Math.min(100, Math.round((snapCount / BUFFER_SIZE) * 100));
   const secStr = snapCount >= BUFFER_SIZE
-    ? '5m of history'
-    : `${snapCount}s / ${BUFFER_SIZE}s`;
+    ? '5 min · 1s resolution · 20-level depth'
+    : `Building: ${snapCount}s / ${BUFFER_SIZE}s  (${pct}%)`;
 
   return (
     <div ref={containerRef} className="heatmap-wrap">
       <canvas ref={canvasRef} className="heatmap-canvas" />
 
-      {/* Legend */}
       <div className="heatmap-legend">
         <div className="heatmap-legend-item">
-          <div className="heatmap-legend-swatch" style={{ background: 'rgba(52,211,153,0.8)' }} />
-          <span>Bids (buy orders)</span>
+          <div className="heatmap-legend-swatch" style={{ background: 'rgba(248,100,100,0.9)' }} />
+          <span>Asks — sell orders</span>
         </div>
         <div className="heatmap-legend-item">
-          <div className="heatmap-legend-swatch" style={{ background: 'rgba(248,113,113,0.8)' }} />
-          <span>Asks (sell orders)</span>
+          <div className="heatmap-legend-swatch" style={{ background: 'rgba(52,211,153,0.9)' }} />
+          <span>Bids — buy orders</span>
         </div>
-        <div className="heatmap-legend-item" style={{ marginLeft: 'auto', opacity: 0.6 }}>
-          <span>Brighter = bigger wall</span>
+        <div className="heatmap-legend-item" style={{ opacity: 0.5 }}>
+          <span>Brighter = bigger wall · near-white = massive wall</span>
         </div>
       </div>
 
-      {/* Status bar */}
       <div className="heatmap-status">
         <div className={`heatmap-dot heatmap-dot-${wsStatus}`} />
-        {wsStatus === 'live' && <span>LIVE · BTC/USDT depth</span>}
+        {wsStatus === 'live'       && <span>LIVE · BTC/USDT depth</span>}
         {wsStatus === 'connecting' && <span>Connecting to Binance…</span>}
-        {wsStatus === 'error' && <span>Reconnecting…</span>}
+        {wsStatus === 'error'      && <span>Reconnecting…</span>}
         {wsStatus === 'live' && snapCount > 0 && (
-          <span style={{ marginLeft: 'auto' }}>
-            {pct < 100
-              ? `Building history: ${secStr} (${pct}%)`
-              : `5 min · 1s resolution · 20-level depth`}
-          </span>
+          <span style={{ marginLeft: 'auto' }}>{secStr}</span>
         )}
       </div>
     </div>
