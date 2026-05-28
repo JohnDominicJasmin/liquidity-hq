@@ -12,9 +12,9 @@ const COIN_MAP: Record<string, string> = {
 const STREAMS  = SYMBOLS.map(s => `${s}@aggTrade`).join('/');
 const WS_URL   = `wss://fstream.binance.com/stream?streams=${STREAMS}`;
 
-const MIN_USD  = 500_000;     // $500K — whale threshold
-const BIG_USD  = 2_000_000;   // $2M   — confirmed whale 🐋
-const MEGA_USD = 10_000_000;  // $10M  — mega whale 🔱
+const MIN_USD  = 50_000;      // $50K  — large trade threshold
+const BIG_USD  = 200_000;     // $200K — whale 🐋
+const MEGA_USD = 1_000_000;   // $1M   — mega whale 🔱
 const FEED_MAX = 30;
 const STATS_WIN = 60 * 60 * 1000; // 1h
 
@@ -46,11 +46,13 @@ function fmtTime(ts: number): string {
 }
 
 export default function WhaleTradesFeed() {
-  const [feed,   setFeed]   = useState<WhaleTrade[]>([]);
-  const [stats,  setStats]  = useState<Stats>({ buyUsd: 0, sellUsd: 0, count: 0 });
-  const [status, setStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
+  const [feed,     setFeed]     = useState<WhaleTrade[]>([]);
+  const [stats,    setStats]    = useState<Stats>({ buyUsd: 0, sellUsd: 0, count: 0 });
+  const [status,   setStatus]   = useState<'connecting' | 'live' | 'error'>('connecting');
+  const [msgCount, setMsgCount] = useState(0);
   const wsRef      = useRef<WebSocket | null>(null);
   const historyRef = useRef<WhaleTrade[]>([]);
+  const msgRef     = useRef(0);
 
   function rebuildStats(history: WhaleTrade[]) {
     const cutoff = Date.now() - STATS_WIN;
@@ -76,6 +78,8 @@ export default function WhaleTradesFeed() {
 
     ws.onmessage = (ev) => {
       try {
+        msgRef.current += 1;
+        if (msgRef.current % 50 === 0) setMsgCount(msgRef.current);
         const msg = JSON.parse(ev.data as string);
         const d   = msg?.data;
         if (d?.e !== 'aggTrade') return;
@@ -118,7 +122,7 @@ export default function WhaleTradesFeed() {
           <span style={{ fontSize: 16, fontWeight: 700, color: '#e8e8e8' }}>🐋 Whale Trades</span>
           <span className={`wf-dot wf-dot-${status}`} title={status} />
         </div>
-        <span style={{ fontSize: 11, color: '#444' }}>All markets · &gt;$500K · intentional moves</span>
+        <span style={{ fontSize: 11, color: '#444' }}>All markets · &gt;$50K · {msgCount > 0 ? `${msgCount} msgs` : 'waiting…'}</span>
       </div>
 
       {/* Stats bar */}
@@ -167,7 +171,7 @@ export default function WhaleTradesFeed() {
       )}
       {feed.length === 0 && status === 'live' && (
         <div style={{ textAlign: 'center', padding: '1.5rem', color: '#444', fontSize: 12 }}>
-          Watching for whale trades &gt; $500K…
+          Watching for trades &gt; $50K…
         </div>
       )}
 

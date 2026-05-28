@@ -42,11 +42,13 @@ function coinFromSymbol(sym: string): string {
 }
 
 export default function LiqFeed() {
-  const [feed, setFeed]     = useState<LiqEvent[]>([]);
-  const [stats, setStats]   = useState<Stats>({ longUsd: 0, shortUsd: 0, count: 0 });
-  const [status, setStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
+  const [feed,     setFeed]     = useState<LiqEvent[]>([]);
+  const [stats,    setStats]    = useState<Stats>({ longUsd: 0, shortUsd: 0, count: 0 });
+  const [status,   setStatus]   = useState<'connecting' | 'live' | 'error'>('connecting');
+  const [msgCount, setMsgCount] = useState(0);
   const wsRef               = useRef<WebSocket | null>(null);
-  const historyRef          = useRef<LiqEvent[]>([]);  // full history for stats window
+  const historyRef          = useRef<LiqEvent[]>([]);
+  const msgRef              = useRef(0);
 
   // Recompute stats from history
   function rebuildStats(history: LiqEvent[]) {
@@ -73,6 +75,8 @@ export default function LiqFeed() {
 
     ws.onmessage = (ev) => {
       try {
+        msgRef.current += 1;
+        if (msgRef.current % 10 === 0) setMsgCount(msgRef.current);
         const msg = JSON.parse(ev.data as string);
         const o = msg?.o;
         if (!o) return;
@@ -129,7 +133,7 @@ export default function LiqFeed() {
           <span style={{ fontSize: 16, fontWeight: 700, color: '#e8e8e8' }}>⚡ Live Liquidations</span>
           <span className={`liqfeed-dot liqfeed-dot-${status}`} title={status} />
         </div>
-        <span style={{ fontSize: 11, color: '#444' }}>All markets · {'>'}$10K</span>
+        <span style={{ fontSize: 11, color: '#444' }}>All markets · &gt;$10K · {msgCount > 0 ? `${msgCount} msgs` : 'waiting…'}</span>
       </div>
 
       {/* Stats bar */}
