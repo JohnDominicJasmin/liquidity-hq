@@ -1589,19 +1589,40 @@ body::after {
 /* ── FUNDING COMPARISON ──────────────────────────────────────────────────── */
 .fc-wrap      { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 16px; overflow: hidden; margin-bottom: 10px; }
 .fc-header    { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; border-bottom: 0.5px solid var(--bdr); }
+.fc-info-btn  { font-size: 11px; color: var(--txt3); background: var(--bg2); border: 0.5px solid var(--bdr2); border-radius: 20px; padding: 3px 9px; cursor: pointer; transition: color .15s; white-space: nowrap; }
+.fc-info-btn:hover { color: var(--txt); }
+
+/* explainer */
+.fc-explainer       { padding: 12px 14px 10px; border-bottom: 0.5px solid var(--bdr); background: var(--bg2); }
+.fc-explainer-title { font-size: 12px; font-weight: 700; color: var(--txt); margin-bottom: 8px; }
+.fc-explainer-p     { font-size: 12px; color: var(--txt2); line-height: 1.6; margin: 0 0 8px; }
+.fc-explainer-row   { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 7px; }
+.fc-explainer-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; border: 0.5px solid; white-space: nowrap; flex-shrink: 0; }
+.fc-explainer-text  { font-size: 12px; color: var(--txt2); line-height: 1.55; }
+.fc-explainer-tip   { font-size: 11px; color: var(--txt3); line-height: 1.55; background: rgba(167,139,250,.06); border: 0.5px solid var(--purple-bdr); border-radius: 8px; padding: 7px 10px; margin-top: 6px; }
+
+/* market reading */
+.fc-reading       { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-bottom: 0.5px solid; border-left: 3px solid; margin-bottom: 0; }
+.fc-reading-emoji { font-size: 18px; flex-shrink: 0; line-height: 1.2; }
+.fc-reading-title { font-size: 12px; font-weight: 700; margin-bottom: 3px; }
+.fc-reading-sub   { font-size: 11px; color: var(--txt3); line-height: 1.5; }
+
 .fc-legend    { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 14px 7px; border-bottom: 0.5px solid var(--bdr); font-size: 10px; font-weight: 600; }
-.fc-col-hdr   { display: grid; grid-template-columns: 44px repeat(4, 1fr) 46px; gap: 2px; padding: 5px 14px; background: var(--bg2); border-bottom: 0.5px solid var(--bdr); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--txt3); }
-.fc-row       { display: grid; grid-template-columns: 44px repeat(4, 1fr) 46px; gap: 2px; padding: 7px 14px; border-bottom: 0.5px solid var(--bdr); align-items: center; transition: background .1s; }
+.fc-col-hdr   { display: grid; grid-template-columns: 70px repeat(4, 1fr) 46px; gap: 2px; padding: 5px 14px; background: var(--bg2); border-bottom: 0.5px solid var(--bdr); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--txt3); }
+.fc-row       { display: grid; grid-template-columns: 70px repeat(4, 1fr) 46px; gap: 2px; padding: 7px 14px; border-bottom: 0.5px solid var(--bdr); align-items: center; transition: background .1s; border-left: 2px solid transparent; }
 .fc-row:last-child { border-bottom: none; }
 .fc-row:hover { background: var(--bg2); }
+.fc-coin-cell { display: flex; flex-direction: column; gap: 2px; }
 .fc-coin      { font-size: 12px; font-weight: 800; color: var(--txt); }
+.fc-signal-tag { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; border: 0.5px solid; letter-spacing: .04em; text-transform: uppercase; align-self: flex-start; }
 .fc-cell      { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 3px 5px; border-radius: 6px; text-align: center; white-space: nowrap; }
 .fc-next      { font-size: 11px; color: var(--txt3); text-align: right; font-variant-numeric: tabular-nums; }
 .fc-footer    { padding: 7px 14px; font-size: 10px; color: var(--txt3); border-top: 0.5px solid var(--bdr); line-height: 1.5; }
 @media (max-width: 480px) {
-  .fc-col-hdr { grid-template-columns: 38px repeat(4, 1fr) 36px; padding: 5px 10px; font-size: 9px; gap: 1px; }
-  .fc-row     { grid-template-columns: 38px repeat(4, 1fr) 36px; padding: 7px 10px; gap: 1px; }
+  .fc-col-hdr { grid-template-columns: 60px repeat(4, 1fr) 36px; padding: 5px 10px; font-size: 9px; gap: 1px; }
+  .fc-row     { grid-template-columns: 60px repeat(4, 1fr) 36px; padding: 7px 10px; gap: 1px; }
   .fc-cell    { font-size: 10px; padding: 2px 3px; }
   .fc-next    { font-size: 10px; }
 }
-[data-theme="light"] .fc-wrap { background: #fafafa; }
+[data-theme="light"] .fc-wrap      { background: #fafafa; }
+[data-theme="light"] .fc-explainer { background: #f0f0f0; }

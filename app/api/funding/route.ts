@@ -19,7 +19,7 @@ interface BBTicker  { symbol: string; fundingRate: string }
 interface OKXResult { data: Array<{ fundingRate: string }> }
 
 async function getBinance(): Promise<{ rates: Record<string, number>; nextMs: Record<string, number> }> {
-  const res = await fetch('https://fstream.binance.com/fapi/v1/premiumIndex', { cache: 'no-store' });
+  const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store' });
   if (!res.ok) throw new Error(`Binance ${res.status}`);
   const data = await res.json() as BNTicker[];
   const rates: Record<string, number> = {};

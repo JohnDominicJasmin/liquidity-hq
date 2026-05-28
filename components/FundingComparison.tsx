@@ -54,10 +54,21 @@ function fmtCountdown(ms: number | null): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+/* ── signal logic ── */
+type Signal = 'LONG EDGE' | 'SHORT EDGE' | 'NEUTRAL';
+function getSignal(avg: number | null): Signal {
+  if (avg === null) return 'NEUTRAL';
+  const p = avg * 100;
+  if (p >=  0.03) return 'SHORT EDGE';
+  if (p <= -0.03) return 'LONG EDGE';
+  return 'NEUTRAL';
+}
+
 export default function FundingComparison() {
   const [rows,   setRows]   = useState<FundingRow[]>([]);
   const [ts,     setTs]     = useState<number | null>(null);
   const [status, setStatus] = useState<'loading' | 'ok' | 'error'>('loading');
+  const [showInfo, setShowInfo] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -84,9 +95,14 @@ export default function FundingComparison() {
     return () => clearInterval(iv);
   }, [load]);
 
-  const dotCls =
-    status === 'ok'    ? 'wf-dot-live'       :
-    status === 'error' ? 'wf-dot-error'      : 'wf-dot-connecting';
+  /* ── market reading ── */
+  const longHeavy  = rows.filter(r => (avgOf([r.binance, r.bybit, r.okx]) ?? 0) >  0.01).length;
+  const shortHeavy = rows.filter(r => (avgOf([r.binance, r.bybit, r.okx]) ?? 0) < -0.01).length;
+  const mktBias    = longHeavy  > shortHeavy ? 'long'
+                   : shortHeavy > longHeavy  ? 'short'
+                   : 'neutral';
+
+  const dotCls = status === 'ok' ? 'wf-dot-live' : status === 'error' ? 'wf-dot-error' : 'wf-dot-connecting';
 
   return (
     <div className="fc-wrap">
@@ -96,8 +112,81 @@ export default function FundingComparison() {
           <span style={{ fontSize: 16, fontWeight: 700, color: '#e8e8e8' }}>💸 Funding Rates</span>
           <span className={`wf-dot ${dotCls}`} />
         </div>
-        <span style={{ fontSize: 11, color: '#444' }}>Binance · Bybit · OKX · 30s refresh</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 11, color: '#444' }}>Binance · Bybit · OKX · 30s</span>
+          <button
+            className="fc-info-btn"
+            onClick={() => setShowInfo(v => !v)}
+            title="What does this mean?"
+          >
+            {showInfo ? '✕ hide' : 'ℹ️ what is this?'}
+          </button>
+        </div>
       </div>
+
+      {/* Explainer — shown when info toggled on */}
+      {showInfo && (
+        <div className="fc-explainer">
+          <div className="fc-explainer-title">📚 What is the Funding Rate?</div>
+          <p className="fc-explainer-p">
+            In crypto futures, there are no expiry dates. Instead, every <strong>8 hours</strong> a fee called the <em>funding rate</em> is exchanged between traders holding long (buy) and short (sell) positions.
+          </p>
+          <div className="fc-explainer-row">
+            <span className="fc-explainer-badge" style={{ color: '#f97316', background: 'rgba(249,115,22,.10)', borderColor: 'rgba(249,115,22,.25)' }}>Positive rate</span>
+            <span className="fc-explainer-text">
+              <strong>Longs pay shorts.</strong> The market has <em>too many longs</em>. The exchange charges longs to balance out the crowd. This is a warning sign — when too many people are long, smart money can dump and liquidate them.
+            </span>
+          </div>
+          <div className="fc-explainer-row">
+            <span className="fc-explainer-badge" style={{ color: '#34d399', background: 'rgba(52,211,153,.10)', borderColor: 'rgba(52,211,153,.25)' }}>Negative rate</span>
+            <span className="fc-explainer-text">
+              <strong>Shorts pay longs.</strong> The market has <em>too many shorts</em>. The exchange charges shorts. When the crowd is too bearish, smart money can squeeze them upward.
+            </span>
+          </div>
+          <div className="fc-explainer-tip">
+            💡 <strong>Tip:</strong> Extreme rates (+0.05% or −0.05%) signal very crowded trades. These often reverse hard. Use this to find <em>contrarian</em> setups — trade against the crowd.
+          </div>
+        </div>
+      )}
+
+      {/* Market reading */}
+      {rows.length > 0 && (
+        <div
+          className="fc-reading"
+          style={{
+            borderColor: mktBias === 'long' ? 'rgba(249,115,22,.20)'
+                       : mktBias === 'short' ? 'rgba(52,211,153,.20)'
+                       : 'var(--bdr)',
+          }}
+        >
+          <div className="fc-reading-emoji">
+            {mktBias === 'long' ? '🔴' : mktBias === 'short' ? '🟢' : '⚪'}
+          </div>
+          <div>
+            <div
+              className="fc-reading-title"
+              style={{
+                color: mktBias === 'long'  ? '#f97316'
+                     : mktBias === 'short' ? '#34d399'
+                     : '#606060',
+              }}
+            >
+              {mktBias === 'long'
+                ? `${longHeavy}/${rows.length} coins: longs are paying — crowd is bullish`
+                : mktBias === 'short'
+                ? `${shortHeavy}/${rows.length} coins: shorts are paying — crowd is bearish`
+                : 'Balanced — no strong crowd bias right now'}
+            </div>
+            <div className="fc-reading-sub">
+              {mktBias === 'long'
+                ? 'Too many longs paying fees → whales can dump to liquidate them. Favour SHORT setups or wait for funding to flush.'
+                : mktBias === 'short'
+                ? 'Too many shorts paying fees → whales can pump to squeeze them. Favour LONG setups or wait for shorts to cover.'
+                : 'Market is neither overcrowded long or short. Use price action and other signals to pick direction.'}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Legend */}
       <div className="fc-legend">
@@ -105,7 +194,7 @@ export default function FundingComparison() {
         <span style={{ color: '#ef4444' }}>▲ +0.05%+ extreme</span>
         <span style={{ color: '#34d399' }}>▼ −0.01%− shorts paying</span>
         <span style={{ color: '#22d3ee' }}>▼ −0.05%− extreme</span>
-        <span style={{ color: '#555' }}>⚡ &gt;0.02% divergence</span>
+        <span style={{ color: '#555' }}>⚡ &gt;0.02% cross-exchange divergence</span>
       </div>
 
       {/* Column headers */}
@@ -120,11 +209,28 @@ export default function FundingComparison() {
 
       {/* Data rows */}
       {rows.map(row => {
-        const vals = [row.binance, row.bybit, row.okx];
-        const mean = avgOf(vals);
+        const vals    = [row.binance, row.bybit, row.okx];
+        const mean    = avgOf(vals);
+        const signal  = getSignal(mean);
+        const sigColor = signal === 'LONG EDGE'  ? '#34d399'
+                       : signal === 'SHORT EDGE' ? '#f97316'
+                       : undefined;
+        const borderColor = sigColor ?? 'transparent';
+
         return (
-          <div key={row.coin} className="fc-row">
-            <span className="fc-coin">{row.coin.toUpperCase()}</span>
+          <div
+            key={row.coin}
+            className="fc-row"
+            style={{ borderLeftColor: borderColor }}
+          >
+            <div className="fc-coin-cell">
+              <span className="fc-coin">{row.coin.toUpperCase()}</span>
+              {signal !== 'NEUTRAL' && (
+                <span className="fc-signal-tag" style={{ color: sigColor, borderColor: sigColor + '44', background: sigColor + '14' }}>
+                  {signal}
+                </span>
+              )}
+            </div>
 
             {vals.map((v, i) => (
               <span
@@ -164,7 +270,7 @@ export default function FundingComparison() {
       {/* Footer */}
       {ts && (
         <div className="fc-footer">
-          Sorted by |avg|. Positive = longs paying. ⚡ = one exchange &gt;0.02% from avg.
+          Rows sorted by |avg|. ⚡ = one exchange differs &gt;0.02% from avg — potential cross-exchange imbalance.
           Updated {new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.
         </div>
       )}
