@@ -12,7 +12,7 @@ interface Msg {
   role: 'user' | 'assistant';
   content: string;
   ts: string;
-  quotedText?: string; // for reply-to feature
+  followUps?: string[];  // suggested follow-up question chips
 }
 
 interface SavedConvo {
@@ -47,6 +47,31 @@ function relTime(ts: number): string {
   if (h < 24) return `${h}h ago`;
   if (dy < 7) return `${dy}d ago`;
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+/* ── Generate follow-up question chips via Grok ────────────────── */
+async function generateFollowUps(response: string, coin: string): Promise<string[]> {
+  try {
+    const res = await fetch('https://api.x.ai/v1/responses', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROK_KEY}` },
+      body: JSON.stringify({
+        model: 'grok-4.3',
+        input: [{
+          role:    'user',
+          content: `Based on this ${coin.toUpperCase()} trading analysis, write exactly 3 short follow-up questions a trader would ask next. Each question must be 4–8 words. Output ONLY the 3 questions, one per line, no numbering, no bullets, no extra text.\n\n${response.slice(0, 600)}`,
+        }],
+      }),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const text: string = data.output?.find((o: { type: string }) => o.type === 'message')?.content?.[0]?.text ?? '';
+    return text
+      .split('\n')
+      .map((q: string) => q.trim().replace(/^\d+[\.\)]\s*/, '').replace(/^[-•]\s*/, ''))
+      .filter((q: string) => q.length > 5 && q.length < 100)
+      .slice(0, 3);
+  } catch { return []; }
 }
 
 /* ── Markdown renderer ─────────────────────────────────────────── */
@@ -165,7 +190,7 @@ export default function GrokChat() {
   const [open,       setOpen]       = useState(false);
   const [expanded,   setExpanded]   = useState(false);
   const [liveSearch, setLiveSearch] = useState(false);
-  const [histView,   setHistView]   = useState(false);   // ← history panel toggle
+  const [histView,   setHistView]   = useState(false);
   const [coin,       setCoin]       = useState<CoinId>('btc');
   const [msgs,       setMsgs]       = useState<Msg[]>([]);
   const [input,      setInput]      = useState('');
@@ -176,44 +201,12 @@ export default function GrokChat() {
   const [convos,     setConvos]     = useState<SavedConvo[]>([]);
   const currentIdRef                = useRef<string>(genId());
 
-  /* quote-reply */
-  const [quotedText, setQuotedText] = useState<string | null>(null);
-
-  /* Tooltip is a raw DOM element — no React state so it never triggers
-     a re-render that would wipe the browser's selection highlight      */
-  const tooltipElRef   = useRef<HTMLButtonElement | null>(null);
-  const tooltipTextRef = useRef('');
-
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLInputElement>(null);
   const msgsRef   = useRef<HTMLDivElement>(null);
 
   /* ── Load history on mount ── */
   useEffect(() => { setConvos(loadHistory()); }, []);
-
-  /* ── Create tooltip DOM node (no React state → no re-renders) ── */
-  useEffect(() => {
-    const btn = document.createElement('button');
-    btn.className  = 'gchat-sel-tooltip';
-    btn.innerHTML  = '↩&nbsp;Reply';
-    btn.style.display = 'none';
-
-    btn.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const text = tooltipTextRef.current;
-      if (!text) return;
-      btn.style.display    = 'none';
-      tooltipTextRef.current = '';
-      window.getSelection()?.removeAllRanges();
-      setQuotedText(text);                     // only state change — after tooltip hides
-      setTimeout(() => inputRef.current?.focus(), 60);
-    });
-
-    document.body.appendChild(btn);
-    tooltipElRef.current = btn;
-    return () => { btn.remove(); tooltipElRef.current = null; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Auto-save current conversation whenever messages change ── */
   useEffect(() => {
@@ -240,125 +233,21 @@ export default function GrokChat() {
     if (open && !histView) setTimeout(() => inputRef.current?.focus(), 200);
   }, [open, histView]);
 
-  /* ── Text selection: lock scroll + show ↩ Reply chip ───────────
-     ZERO React state changes during selection — tooltip is a raw
-     DOM element (tooltipElRef) so nothing triggers re-renders that
-     would wipe the browser's blue selection highlight.
-
-     Flow:
-       mousedown in bubble  → lock scroll, set pressing=true
-       drag / double-click  → browser selects freely, no interference
-       mouseup              → unlock scroll, position & show tooltip
-       mousedown elsewhere  → hide tooltip (direct DOM, no setState)
-       keyboard selection   → selectionchange debounce shows tooltip
-  ─────────────────────────────────────────────────────────────── */
-  useEffect(() => {
-    const container = msgsRef.current;
-    if (!container) return;
-
-    let pressing = false;
-    let inBubble = false;
-    let kbTimer: ReturnType<typeof setTimeout>;
-
-    const showTooltip = (text: string, rect: DOMRect) => {
-      const btn = tooltipElRef.current;
-      if (!btn) return;
-      tooltipTextRef.current = text;
-      btn.style.left    = rect.left + rect.width / 2 + 'px';
-      btn.style.top     = rect.top - 38 + 'px';
-      btn.style.display = 'block';
-    };
-
-    const hideTooltip = () => {
-      const btn = tooltipElRef.current;
-      if (btn) btn.style.display = 'none';
-      tooltipTextRef.current = '';
-    };
-
-    const readSelection = () => {
-      const sel  = window.getSelection();
-      const text = sel?.toString().trim();
-      if (!text || text.length < 3) return;
-
-      const anchor = sel!.anchorNode?.parentElement;
-      if (!anchor?.closest('.gchat-msg-assistant')) return;
-
-      try {
-        const range = sel!.getRangeAt(0);
-        const rect  = range.getBoundingClientRect();
-        if (!rect.width && !rect.height) return;
-        showTooltip(text, rect);
-      } catch { /* ignore */ }
-    };
-
-    /* mousedown: just track state + hide stale tooltip.
-       NO overflow toggle — toggling overflow shifts the layout on
-       mousedown and repositions the selection anchor to the wrong spot. */
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as HTMLElement;
-      if (!t.closest('.gchat-sel-tooltip')) hideTooltip();
-      inBubble = !!t.closest('.gchat-msg-assistant');
-      if (inBubble) pressing = true;
-    };
-
-    /* mouseup: read finalised selection, show tooltip */
-    const onUp = () => {
-      pressing = false;
-      if (inBubble) setTimeout(readSelection, 80);
-    };
-
-    /* selectionchange: keyboard selection (Shift+arrows etc.)
-       Skip while mouse is pressed — preserves selection highlight  */
-    const onSelChange = () => {
-      if (pressing) return;
-      clearTimeout(kbTimer);
-      kbTimer = setTimeout(readSelection, 250);
-    };
-
-    /* Use capture phase on document so our tracking fires BEFORE
-       the assistant-message div's stopPropagation blocks bubbling.
-       This way pressing=true / inBubble=true are always set correctly
-       even though the event never reaches the scroll container.        */
-    document.addEventListener('mousedown',      onDown,      { capture: true });
-    document.addEventListener('mouseup',         onUp);
-    document.addEventListener('selectionchange', onSelChange);
-    return () => {
-      clearTimeout(kbTimer);
-      document.removeEventListener('mousedown',      onDown,      { capture: true } as EventListenerOptions);
-      document.removeEventListener('mouseup',         onUp);
-      document.removeEventListener('selectionchange', onSelChange);
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   /* ── Send message ── */
-  const sendMsg = useCallback(async (text: string, coinOverride?: CoinId, quoteOverride?: string | null) => {
-    const activeCoin  = coinOverride ?? coin;
-    const activeQuote = quoteOverride !== undefined ? quoteOverride : quotedText;
+  const sendMsg = useCallback(async (text: string, coinOverride?: CoinId) => {
+    const activeCoin = coinOverride ?? coin;
     const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    const userMsg: Msg = {
-      role: 'user',
-      content: text,
-      ts,
-      quotedText: activeQuote ?? undefined,
-    };
-
+    const userMsg: Msg = { role: 'user', content: text, ts };
     const history = [...msgs, userMsg];
     setMsgs(history);
     setInput('');
-    setQuotedText(null);
     setLoading(true);
     setError('');
 
     try {
       const sysCtx  = buildSystemCtx(store, activeCoin, latestHeadlines, geoEvents);
-      // Include quoted text in the API message so Grok understands the context
-      const apiMsgs = history.map(m => ({
-        role:    m.role,
-        content: m.quotedText
-          ? `[The user is replying to this text: "${m.quotedText.slice(0, 200)}"]\n\n${m.content}`
-          : m.content,
-      }));
+      const apiMsgs = history.map(m => ({ role: m.role, content: m.content }));
       const inputArr = [{ role: 'system', content: sysCtx }, ...apiMsgs];
 
       const res = await fetch('https://api.x.ai/v1/responses', {
@@ -380,13 +269,29 @@ export default function GrokChat() {
       const msgItem = data.output?.find((o: { type: string }) => o.type === 'message');
       const reply   = msgItem?.content?.[0]?.text ?? '(no response)';
       const replyTs = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      // Show reply immediately
       setMsgs(prev => [...prev, { role: 'assistant', content: reply, ts: replyTs }]);
+
+      // Generate follow-up chips in background (non-blocking)
+      generateFollowUps(reply, activeCoin).then(followUps => {
+        if (followUps.length > 0) {
+          setMsgs(prev => {
+            const updated = [...prev];
+            const lastIdx = updated.length - 1;
+            if (updated[lastIdx]?.role === 'assistant') {
+              updated[lastIdx] = { ...updated[lastIdx], followUps };
+            }
+            return updated;
+          });
+        }
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
-  }, [msgs, coin, quotedText, liveSearch, store, latestHeadlines, geoEvents]);
+  }, [msgs, coin, liveSearch, store, latestHeadlines, geoEvents]);
 
   /* ── Open-with-prompt event from Arena ── */
   useEffect(() => {
@@ -395,7 +300,7 @@ export default function GrokChat() {
       setCoin(ev.detail.coin);
       setOpen(true);
       setHistView(false);
-      if (ev.detail.prompt) setTimeout(() => sendMsg(ev.detail.prompt!, ev.detail.coin, null), 200);
+      if (ev.detail.prompt) setTimeout(() => sendMsg(ev.detail.prompt!, ev.detail.coin), 200);
     };
     window.addEventListener('grok-chat', handler);
     return () => window.removeEventListener('grok-chat', handler);
@@ -406,7 +311,6 @@ export default function GrokChat() {
     currentIdRef.current = genId();
     setMsgs([]);
     setError('');
-    setQuotedText(null);
     setHistView(false);
   }
 
@@ -415,7 +319,6 @@ export default function GrokChat() {
     setCoin(c.coin);
     setMsgs(c.messages);
     setError('');
-    setQuotedText(null);
     setHistView(false);
   }
 
@@ -427,10 +330,10 @@ export default function GrokChat() {
   }
 
   /* ── Misc ── */
-  const handleSend    = () => { if (!input.trim() || loading) return; sendMsg(input.trim()); };
-  const clearChat     = () => { setMsgs([]); setError(''); setQuotedText(null); };
-  const closeAll      = () => { setOpen(false); setExpanded(false); setHistView(false); };
-  const toggleExpand  = () => setExpanded(v => !v);
+  const handleSend   = () => { if (!input.trim() || loading) return; sendMsg(input.trim()); };
+  const clearChat    = () => { setMsgs([]); setError(''); };
+  const closeAll     = () => { setOpen(false); setExpanded(false); setHistView(false); };
+  const toggleExpand = () => setExpanded(v => !v);
 
   /* ── Coin badge color ── */
   const COIN_COLORS: Record<string, string> = {
@@ -575,7 +478,7 @@ export default function GrokChat() {
               ))}
             </div>
 
-            {/* Messages — NO onMouseUp here; selection is captured at document level */}
+            {/* Messages */}
             <div className="gchat-msgs" ref={msgsRef}>
               {msgs.length === 0 && (
                 <div className="gchat-empty">
@@ -587,34 +490,13 @@ export default function GrokChat() {
                   <div style={{ fontSize: 11, color: '#444' }}>
                     Live data · {liveSearch ? '🌐 X + web search ON' : '🌐 search off — toggle to enable'}
                   </div>
-                  <div style={{ fontSize: 10, color: '#333', marginTop: 8 }}>
-                    💡 Select text in any response to quote &amp; reply
-                  </div>
                 </div>
               )}
 
               {msgs.map((m, i) => (
-                <div
-                  key={i}
-                  className={`gchat-msg gchat-msg-${m.role}`}
-                  /* Stop pointer/mouse events from reaching the scroll container
-                     so it never arms scroll-tracking while dragging over text.
-                     Two-finger trackpad scroll still works via wheel events.  */
-                  onPointerDown={m.role === 'assistant' ? (e) => e.stopPropagation() : undefined}
-                  onMouseDown={m.role === 'assistant' ? (e) => e.stopPropagation() : undefined}
-                >
+                <div key={i} className={`gchat-msg gchat-msg-${m.role}`}>
                   {m.role === 'assistant' && (
                     <div className="gchat-grok-label">GROK · {m.ts}</div>
-                  )}
-
-                  {/* Quote ref block — shown above user bubble when replying */}
-                  {m.role === 'user' && m.quotedText && (
-                    <div className="gchat-quote-ref">
-                      <span className="gchat-quote-ref-bar" />
-                      <span className="gchat-quote-ref-text">
-                        {m.quotedText.slice(0, 120)}{m.quotedText.length > 120 ? '…' : ''}
-                      </span>
-                    </div>
                   )}
 
                   {/* Bubble */}
@@ -629,6 +511,21 @@ export default function GrokChat() {
 
                   {m.role === 'user' && (
                     <div className="gchat-user-ts">{m.ts}</div>
+                  )}
+
+                  {/* Follow-up question chips — appear below each assistant response */}
+                  {m.role === 'assistant' && m.followUps && m.followUps.length > 0 && !loading && (
+                    <div className="gchat-followup-row">
+                      {m.followUps.map((q, qi) => (
+                        <button
+                          key={qi}
+                          className="gchat-followup-chip"
+                          onClick={() => sendMsg(q)}
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
               ))}
@@ -667,21 +564,6 @@ export default function GrokChat() {
               ))}
             </div>
 
-            {/* Quote bar (shown when user selected text to reply to) */}
-            {quotedText && (
-              <div className="gchat-quote-bar">
-                <span className="gchat-quote-bar-icon">↩</span>
-                <span className="gchat-quote-bar-text">
-                  {quotedText.slice(0, 90)}{quotedText.length > 90 ? '…' : ''}
-                </span>
-                <button
-                  className="gchat-quote-bar-dismiss"
-                  onClick={() => setQuotedText(null)}
-                  title="Cancel reply"
-                >✕</button>
-              </div>
-            )}
-
             {/* Input */}
             <div className="gchat-input-row">
               <input
@@ -690,7 +572,7 @@ export default function GrokChat() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
-                placeholder={quotedText ? 'Add your reply…' : `Ask about ${coin.toUpperCase()}…`}
+                placeholder={`Ask about ${coin.toUpperCase()}…`}
                 disabled={loading}
                 maxLength={500}
               />
