@@ -194,9 +194,9 @@ function drawChart(canvas: HTMLCanvasElement, candles: Candle[], result: ChartRe
   });
 }
 
-export default function GrokSignalChart() {
+export default function GrokSignalChart({ coin: coinProp }: { coin?: string }) {
   const { store }  = useMarket();
-  const coin       = store.selectedCoin;
+  const coin       = (coinProp ?? store.selectedCoin) as string;
   const canvasRef  = useRef<HTMLCanvasElement>(null);
   const roRef      = useRef<ResizeObserver | null>(null);
 

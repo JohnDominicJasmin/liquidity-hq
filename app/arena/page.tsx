@@ -7,6 +7,7 @@ import { useNews } from '@/components/NewsProvider';
 import { getSupabase } from '@/lib/supabase';
 import SetupScanner from '@/components/SetupScanner';
 import ConfluenceScorer from '@/components/ConfluenceScorer';
+import GrokSignalChart from '@/components/GrokSignalChart';
 
 /* ── Reasoning markdown renderer ─────────────────────────────────────────── */
 function ReasoningText({ text }: { text: string }) {
@@ -61,7 +62,7 @@ export default function Arena() {
   const [loadingMsg, setLoadingMsg] = useState('');
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [ctxOpen, setCtxOpen] = useState(false);
-  const [tab, setTab] = useState<'signal' | 'scanner' | 'confluence'>('signal');
+  const [tab, setTab] = useState<'signal' | 'chart' | 'confluence' | 'scanner'>('signal');
   const notifCooldown = useRef<Set<string>>(new Set());
 
   /* ── Persist history in sessionStorage (survives nav away + back) ── */
@@ -434,6 +435,12 @@ export default function Arena() {
           ⚡ AI Signal
         </button>
         <button
+          className={`arena-tab-btn${tab === 'chart' ? ' on' : ''}`}
+          onClick={() => setTab('chart')}
+        >
+          📈 Chart
+        </button>
+        <button
           className={`arena-tab-btn${tab === 'confluence' ? ' on' : ''}`}
           onClick={() => setTab('confluence')}
         >
@@ -446,6 +453,21 @@ export default function Arena() {
           🎯 Scanner
         </button>
       </div>
+
+      {/* Chart tab */}
+      {tab === 'chart' && (
+        <div style={{ marginTop: 8 }}>
+          {/* Coin selector — shared with signal tab */}
+          <div className="arena-coin-row" style={{ marginBottom: 12 }}>
+            {COINS.map(c => (
+              <button key={c} className={`arena-coin-btn${selectedCoin === c ? ' sel' : ''}`} onClick={() => setSelectedCoin(c)}>
+                {c.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <GrokSignalChart coin={selectedCoin} />
+        </div>
+      )}
 
       {/* Confluence tab */}
       {tab === 'confluence' && (
