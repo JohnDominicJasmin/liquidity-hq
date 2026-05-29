@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useMarket, classifyFunding, CoinId, computeSqueezeScore, computeFibLevels } from '@/lib/marketStore';
-import { buildPrompt, callGrok, GrokResult, GrokContext } from '@/lib/grok';
+import { useMarket, classifyFunding, CoinId, computeSqueezeScore, computeFibLevels, BINANCE_SYMS } from '@/lib/marketStore';
+import { buildPrompt, callGrok, GrokResult, GrokContext, buildCombinedPrompt, callGrokCombined, CombinedResult, ChartData, calcEMA, calcRSI } from '@/lib/grok';
 import { getPHT, getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
 import { getSupabase } from '@/lib/supabase';
@@ -54,14 +54,18 @@ export default function Arena() {
   const { store } = useMarket();
   const { latestHeadlines, econEvents } = useNews();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>('btc');
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<GrokResult | null>(null);
-  const [error, setError] = useState('');
-  const [history, setHistory] = useState<HistItem[]>([]);
-  const [detailIdx, setDetailIdx] = useState<number | null>(null);
-  const [loadingMsg, setLoadingMsg] = useState('');
+  const [readTf, setReadTf]         = useState<'15m'|'1h'|'4h'>('15m');
+  const [readLoading, setReadLoading] = useState(false);
+  const [readStep, setReadStep]       = useState('');
+  const [readError, setReadError]     = useState('');
+  const [resultsCache, setResultsCache] = useState<Partial<Record<CoinId, CombinedResult>>>({});
+  const [history, setHistory]         = useState<HistItem[]>([]);
+  const [detailIdx, setDetailIdx]     = useState<number | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(false);
-  const [ctxOpen, setCtxOpen] = useState(false);
+  const [ctxOpen, setCtxOpen]         = useState(false);
+
+  // Derived — current coin's cached result (persists across coin switches)
+  const result = resultsCache[selectedCoin] ?? null;
   const notifCooldown = useRef<Set<string>>(new Set());
 
   /* ── Persist history in sessionStorage (survives nav away + back) ── */
@@ -373,44 +377,63 @@ export default function Arena() {
     };
   };
 
-  const fire = async () => {
-    setLoading(true); setError(''); setResult(null);
-    const msgs = [
-      'Grok is reading technicals and multi-TF RSI...',
-      'Searching X for Trump posts & crypto news...',
-      'Checking ETF flows, options, liquidation levels...',
-      'Analysing CVD, order book, squeeze score...',
-      'Formulating the hunt thesis...',
-    ];
-    let mi = 0;
-    setLoadingMsg(msgs[mi]);
-    const msgTimer = setInterval(() => { mi = (mi + 1) % msgs.length; setLoadingMsg(msgs[mi]); }, 2000);
+  const readMarket = useCallback(async () => {
+    const sym = BINANCE_SYMS[selectedCoin] as string | undefined;
+    if (!sym) { setReadError('No Binance symbol for ' + selectedCoin.toUpperCase()); return; }
+
+    setReadLoading(true); setReadError('');
+
     try {
+      // Step 1 — fetch candles
+      setReadStep('Reading chart…');
+      const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${readTf}&limit=300`);
+      if (!r.ok) throw new Error('Binance API error');
+      const raw: (string|number)[][] = await r.json();
+      const candles = raw.map(k => ({ t: Number(k[0]), o: Number(k[1]), h: Number(k[2]), l: Number(k[3]), c: Number(k[4]), v: Number(k[5]) }));
+      const closes  = candles.map(c => c.c);
+      const vis     = candles.slice(-80);
+      const ema9    = calcEMA(closes, 9).at(-1) ?? null;
+      const ema200  = calcEMA(closes, 200).at(-1) ?? null;
+      const rsi     = calcRSI(closes, 14).at(-1) ?? null;
+      const recent20 = vis.slice(-20).map(c => `O:${c.o.toFixed(0)} H:${c.h.toFixed(0)} L:${c.l.toFixed(0)} C:${c.c.toFixed(0)}`).join(' | ');
+      const chartData: ChartData = {
+        tf: readTf, ema9, ema200, rsi, recent20,
+        hi: Math.max(...vis.map(c => c.h)),
+        lo: Math.min(...vis.map(c => c.l)),
+        lastClose: vis[vis.length - 1].c,
+      };
+
+      // Step 2 — gather 34 market signals
+      setReadStep('Reading market…');
       const ctx = gatherContext();
-      const res = await callGrok(GROK_API_KEY, buildPrompt(ctx));
-      setResult(res);
-      setDetailIdx(null); // collapse any open detail when new result comes in
+
+      // Step 3 — ask Grok with everything
+      setReadStep('Asking Grok…');
+      const res = await callGrokCombined(GROK_API_KEY, buildCombinedPrompt(ctx, chartData), readTf, ctx.session);
+
+      // Cache result per coin + save history
+      setResultsCache(prev => ({ ...prev, [selectedCoin]: res }));
+      setDetailIdx(null);
+      const entryStr = res.entryLow && res.entryHigh
+        ? `$${res.entryLow.toLocaleString(undefined, { maximumFractionDigits: 0 })} – $${res.entryHigh.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+        : '—';
       setHistory(h => [{
-        signal: res.signal,
-        confidence: res.confidence,
-        coin: ctx.coin,
-        time: new Date().toLocaleTimeString(),
-        entry: res.entry,
-        reasoning: res.reasoning,
-        session: ctx.session,
+        signal: res.signal, confidence: res.confidence,
+        coin: ctx.coin, time: new Date().toLocaleTimeString(),
+        entry: entryStr, reasoning: res.reasoning, session: ctx.session,
       }, ...h].slice(0, 10));
       if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
         getSupabase()!.from('signals').insert({
           coin: ctx.coin, signal: res.signal, confidence: res.confidence,
-          entry_zone: res.entry, reasoning: res.reasoning, session: ctx.session,
+          entry_zone: entryStr, reasoning: res.reasoning, session: ctx.session,
         }).then(() => {});
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Unknown error');
+      setReadError(e instanceof Error ? e.message : 'Unknown error');
     } finally {
-      clearInterval(msgTimer); setLoading(false);
+      setReadLoading(false); setReadStep('');
     }
-  };
+  }, [selectedCoin, readTf, store, latestHeadlines, econEvents, fundingData]);
 
   const ctx = gatherContext();
   const sq = computeSqueezeScore(store.coins[selectedCoin]);
@@ -487,11 +510,16 @@ export default function Arena() {
         );
       })()}
 
-      {/* Run signal + Ask Grok — side by side, auto width */}
-      <div style={{ display: 'flex', gap: 8, margin: '10px 0' }}>
-        <button className="arena-fire-btn" disabled={loading} onClick={fire}
-          style={{ width: 'auto', marginBottom: 0 }}>
-          {loading ? '⚡ Thinking...' : '⚡ Run Full Signal'}
+      {/* TF selector + buttons */}
+      <div style={{ margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 10, color: 'var(--txt3)', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' }}>TF</span>
+        {(['15m','1h','4h'] as const).map(t => (
+          <button key={t} className={`gsc-tf-btn${readTf === t ? ' on' : ''}`} onClick={() => setReadTf(t)} style={{ padding: '3px 8px', fontSize: 11 }}>{t}</button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        <button className="arena-fire-btn" disabled={readLoading} onClick={readMarket} style={{ width: 'auto', marginBottom: 0 }}>
+          {readLoading ? readStep || 'Working…' : 'Read the Market'}
         </button>
         <button
           className="arena-ask-grok-btn"
@@ -499,51 +527,97 @@ export default function Arena() {
           onClick={() => window.dispatchEvent(new CustomEvent('grok-chat', {
             detail: {
               coin: selectedCoin,
-              prompt: `Give me a complete analysis of ${selectedCoin.toUpperCase()}/USDT right now. What's the trend, key levels, directional bias, best entry if any, and should I trade or wait?`,
+              prompt: result
+                ? `I just ran a full market read on ${selectedCoin.toUpperCase()}: ${result.signal} signal at ${result.confidence}% confidence. Entry zone: ${result.entryLow && result.entryHigh ? `$${result.entryLow.toLocaleString(undefined,{maximumFractionDigits:0})} – $${result.entryHigh.toLocaleString(undefined,{maximumFractionDigits:0})}` : '—'}. ${result.reasoning} What should I watch out for, and are there any scenarios that would invalidate this signal?`
+                : `Give me a complete analysis of ${selectedCoin.toUpperCase()}/USDT right now. What's the trend, key levels, directional bias, best entry if any, and should I trade or wait?`,
             },
           }))}
         >
-          💬 Ask Grok
+          Ask Grok
         </button>
       </div>
 
-      {loading && (
+      {readLoading && (
         <div className="arena-loading">
           <div className="arena-loading-dots">···</div>
-          <div className="arena-loading-text">{loadingMsg}</div>
+          <div className="arena-loading-text">{readStep}</div>
         </div>
       )}
 
-      {error && <div className="arena-err">{error}</div>}
+      {readError && <div className="arena-err">{readError}</div>}
 
-      {result && (
-        <div className={`arena-signal-card sig-${result.signal.toLowerCase()}`}>
-          <div className="arena-sig-top">
-            <div>
-              <div className="arena-sig-pair">{ctx.coin}</div>
-              <div className="arena-sig-time">{new Date().toLocaleTimeString()}</div>
+      {result && (() => {
+        const sigCol   = result.signal === 'LONG' ? '#34d399' : result.signal === 'SHORT' ? '#f87171' : '#9ca3af';
+        const fmt0     = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+        const secsDiff = Math.floor((Date.now() - result.analyzedAt) / 1000);
+        const freshness = secsDiff < 60 ? `${secsDiff}s ago` : secsDiff < 3600 ? `${Math.floor(secsDiff/60)}m ago` : `${Math.floor(secsDiff/3600)}h ago`;
+        return (
+          <div className={`arena-signal-card sig-${result.signal.toLowerCase()}`}>
+            {/* Header row */}
+            <div className="arena-sig-top">
+              <div>
+                <div className="arena-sig-pair">{selectedCoin.toUpperCase()}/USDT</div>
+                <div className="arena-sig-time">Analysed {freshness} · {result.tf}</div>
+              </div>
+              <span className={`arena-sig-badge badge-${result.signal.toLowerCase()}`}>
+                {result.signal === 'LONG' ? '▲ LONG' : result.signal === 'SHORT' ? '▼ SHORT' : '— FLAT'}
+              </span>
             </div>
-            <span className={`arena-sig-badge badge-${result.signal.toLowerCase()}`}>
-              {result.signal === 'LONG' ? '▲ LONG' : result.signal === 'SHORT' ? '▼ SHORT' : '— FLAT'}
-            </span>
+
+            {/* Confidence bar */}
+            <div className="arena-sig-stats">
+              <div className="arena-stat"><div className="arena-stat-label">Confidence</div><div className="arena-stat-val">{result.confidence}%</div></div>
+              {result.entryLow && result.entryHigh && (
+                <div className="arena-stat"><div className="arena-stat-label">Entry Zone</div><div className="arena-stat-val" style={{ fontSize: 12 }}>${fmt0(result.entryLow)} – ${fmt0(result.entryHigh)}</div></div>
+              )}
+              <div className="arena-stat"><div className="arena-stat-label">Session</div><div className="arena-stat-val" style={{ fontSize: 12 }}>{result.session}</div></div>
+            </div>
+            <div className="arena-conf-bar">
+              <div className="arena-conf-fill" style={{ width: result.confidence + '%', background: sigCol }} />
+            </div>
+
+            {/* Entry / TP / SL chips */}
+            {(result.entryLow || result.tp || result.sl) && (
+              <div className="gsc-levels-row" style={{ marginTop: 10 }}>
+                {result.entryLow && result.entryHigh && (
+                  <div className="gsc-chip gsc-chip-entry"><span>Entry</span><span>${fmt0(result.entryLow)} – ${fmt0(result.entryHigh)}</span></div>
+                )}
+                {result.tp && <div className="gsc-chip gsc-chip-tp"><span>TP</span><span>${fmt0(result.tp)}</span></div>}
+                {result.sl && <div className="gsc-chip gsc-chip-sl"><span>SL</span><span>${fmt0(result.sl)}</span></div>}
+              </div>
+            )}
+
+            {/* Key levels */}
+            {result.levels.length > 0 && (
+              <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {result.levels.map((lv, i) => (
+                  <span key={i} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 5, fontWeight: 600,
+                    background: lv.type === 'support' ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)',
+                    color: lv.type === 'support' ? '#34d399' : '#f87171',
+                    border: `0.5px solid ${lv.type === 'support' ? 'rgba(52,211,153,0.25)' : 'rgba(248,113,113,0.25)'}`,
+                  }}>
+                    ${fmt0(lv.price)} {lv.label}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Chart analysis */}
+            {result.chartAnalysis && (
+              <div className="arena-reasoning" style={{ marginTop: 10, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
+                <div className="arena-reasoning-title">Chart</div>
+                <div className="arena-reasoning-text">{result.chartAnalysis}</div>
+              </div>
+            )}
+
+            {/* Full reasoning */}
+            <div className="arena-reasoning" style={{ marginTop: 8 }}>
+              <div className="arena-reasoning-title">Reasoning</div>
+              <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
+            </div>
           </div>
-          <div className="arena-sig-stats">
-            <div className="arena-stat"><div className="arena-stat-label">Confidence</div><div className="arena-stat-val">{result.confidence}%</div></div>
-            <div className="arena-stat"><div className="arena-stat-label">Entry Zone</div><div className="arena-stat-val" style={{ fontSize: 12 }}>{result.entry}</div></div>
-            <div className="arena-stat"><div className="arena-stat-label">Session</div><div className="arena-stat-val" style={{ fontSize: 12 }}>{ctx.session}</div></div>
-          </div>
-          <div className="arena-conf-bar">
-            <div className="arena-conf-fill" style={{
-              width: result.confidence + '%',
-              background: result.signal === 'LONG' ? '#7de0a4' : result.signal === 'SHORT' ? '#ff9a92' : '#606060',
-            }} />
-          </div>
-          <div className="arena-reasoning">
-            <div className="arena-reasoning-title">Reasoning</div>
-            <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── DATA CONTEXT (collapsible) ── */}
       <div className="arena-context" style={{ marginTop: 8 }}>

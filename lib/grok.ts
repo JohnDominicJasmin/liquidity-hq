@@ -195,6 +195,143 @@ export function buildPrompt(ctx: GrokContext): string {
   ].join('\n');
 }
 
+// ── Indicator helpers (used by readMarket in Arena) ───────────────────────
+
+export function calcEMA(closes: number[], period: number): (number | null)[] {
+  const n = closes.length;
+  const out: (number | null)[] = new Array(n).fill(null);
+  if (n < period) return out;
+  const k = 2 / (period + 1);
+  let ema = closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  out[period - 1] = ema;
+  for (let i = period; i < n; i++) { ema = closes[i] * k + ema * (1 - k); out[i] = ema; }
+  return out;
+}
+
+export function calcRSI(closes: number[], period = 14): (number | null)[] {
+  const n = closes.length;
+  const out: (number | null)[] = new Array(n).fill(null);
+  if (n <= period) return out;
+  const gains: number[] = [], losses: number[] = [];
+  for (let i = 1; i < n; i++) {
+    const d = closes[i] - closes[i - 1];
+    gains.push(d > 0 ? d : 0); losses.push(d < 0 ? -d : 0);
+  }
+  let ag = gains.slice(0, period).reduce((s, v) => s + v, 0) / period;
+  let al = losses.slice(0, period).reduce((s, v) => s + v, 0) / period;
+  const rsi = (g: number, l: number) => l === 0 ? 100 : 100 - 100 / (1 + g / l);
+  out[period] = rsi(ag, al);
+  for (let i = period; i < n - 1; i++) {
+    ag = (ag * (period - 1) + gains[i]) / period;
+    al = (al * (period - 1) + losses[i]) / period;
+    out[i + 1] = rsi(ag, al);
+  }
+  return out;
+}
+
+// ── Combined chart + market prompt ────────────────────────────────────────
+
+export interface ChartData {
+  tf: string;
+  ema9: number | null;
+  ema200: number | null;
+  rsi: number | null;
+  recent20: string;
+  hi: number;
+  lo: number;
+  lastClose: number;
+}
+
+export interface CombinedResult {
+  signal: 'LONG' | 'SHORT' | 'FLAT';
+  confidence: number;
+  entryLow: number | null;
+  entryHigh: number | null;
+  tp: number | null;
+  sl: number | null;
+  levels: { price: number; label: string; type: 'support' | 'resistance' }[];
+  chartAnalysis: string;
+  reasoning: string;
+  analyzedAt: number;
+  tf: string;
+  session: string;
+}
+
+export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string {
+  const base = buildPrompt(ctx);
+  // Inject chart section + replace output format
+  const splitAt = base.indexOf('Output in EXACTLY this format');
+  const body = splitAt > -1 ? base.slice(0, splitAt) : base;
+
+  const chartSection = [
+    '=== CHART DATA (CANDLES + INDICATORS) ===',
+    `Timeframe: ${chart.tf}  |  Last Close: $${chart.lastClose.toFixed(0)}`,
+    `Range (visible 80 candles): High $${chart.hi.toFixed(0)} / Low $${chart.lo.toFixed(0)}`,
+    `EMA 9:   ${chart.ema9   != null ? '$' + chart.ema9.toFixed(0)   : '—'}`,
+    `EMA 200: ${chart.ema200 != null ? '$' + chart.ema200.toFixed(0) : '—'}`,
+    `RSI(14): ${chart.rsi    != null ? chart.rsi.toFixed(1) + (chart.rsi >= 70 ? ' (Overbought)' : chart.rsi <= 30 ? ' (Oversold)' : ' (Neutral)') : '—'}`,
+    `EMA cross: ${chart.ema9 != null && chart.ema200 != null ? (chart.ema9 > chart.ema200 ? 'EMA 9 ABOVE EMA 200 — bullish structure' : 'EMA 9 BELOW EMA 200 — bearish structure') : '—'}`,
+    `Last 20 candles (OHLC): ${chart.recent20}`,
+    '',
+    'Cross-reference the candle key levels with order book walls, liquidation clusters, and derivatives data above.',
+    '',
+    'Output in EXACTLY this format — no extra text before or after:',
+    'SIGNAL: [LONG or SHORT or FLAT]',
+    'CONFIDENCE: [0-100]',
+    'ENTRY_LOW: [number — no commas or symbols]',
+    'ENTRY_HIGH: [number — no commas or symbols]',
+    'TAKE_PROFIT: [number — no commas or symbols]',
+    'STOP_LOSS: [number — no commas or symbols]',
+    'LEVELS:',
+    '- [number]: [label max 15 chars] | [support or resistance]',
+    '- [number]: [label max 15 chars] | [support or resistance]',
+    '- [number]: [label max 15 chars] | [support or resistance]',
+    'CHART_ANALYSIS: [1-2 sentences on what the candles and indicators show]',
+    'REASONING: [3-4 sentences citing specific signals from BOTH chart AND derivatives/flow/macro data]',
+  ].join('\n');
+
+  return body + '\n' + chartSection;
+}
+
+export function parseCombinedResponse(text: string, tf: string, session: string): CombinedResult {
+  const pn = (s?: string): number | null => { const v = parseFloat((s ?? '').replace(/,/g, '')); return isNaN(v) || v <= 0 ? null : v; };
+  const signal = (text.match(/SIGNAL:\s*(LONG|SHORT|FLAT)/i)?.[1]?.toUpperCase() ?? 'FLAT') as CombinedResult['signal'];
+  const confidence = parseInt(text.match(/CONFIDENCE:\s*(\d+)/i)?.[1] ?? '0');
+  const entryLow  = pn(text.match(/ENTRY_LOW:\s*([\d,.]+)/i)?.[1]);
+  const entryHigh = pn(text.match(/ENTRY_HIGH:\s*([\d,.]+)/i)?.[1]);
+  const tp = pn(text.match(/TAKE_PROFIT:\s*([\d,.]+)/i)?.[1]);
+  const sl = pn(text.match(/STOP_LOSS:\s*([\d,.]+)/i)?.[1]);
+  const levels: CombinedResult['levels'] = [];
+  const levSect = text.match(/LEVELS:\s*\n([\s\S]*?)(?=CHART_ANALYSIS:|REASONING:|$)/i)?.[1] ?? '';
+  for (const line of levSect.split('\n')) {
+    const m = line.match(/-\s*\$?([\d,.]+):\s*([^|]+)\|\s*(support|resistance)/i);
+    if (m) { const p = pn(m[1]); if (p) levels.push({ price: p, label: m[2].trim(), type: m[3].toLowerCase() as 'support'|'resistance' }); }
+  }
+  const chartAnalysis = text.match(/CHART_ANALYSIS:\s*(.+?)(?=\nREASONING:|$)/is)?.[1]?.trim() ?? '';
+  const reasoning = text.match(/REASONING:\s*([\s\S]+)/i)?.[1]?.trim() ?? '';
+  return { signal, confidence, entryLow, entryHigh, tp, sl, levels, chartAnalysis, reasoning, analyzedAt: Date.now(), tf, session };
+}
+
+export async function callGrokCombined(apiKey: string, prompt: string, tf: string, session: string): Promise<CombinedResult> {
+  const res = await fetch('https://api.x.ai/v1/responses', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: 'grok-4.3',
+      input: [{ role: 'user', content: prompt }],
+      tools: [{ type: 'web_search' }, { type: 'x_search' }],
+    }),
+  });
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => ({}));
+    throw new Error(`Grok API error: ${res.status} — ${(errJson as {error?: string})?.error ?? res.statusText}`);
+  }
+  const data = await res.json();
+  const msgItem = data.output?.find((o: { type: string }) => o.type === 'message');
+  const text: string = msgItem?.content?.[0]?.text ?? '';
+  return parseCombinedResponse(text, tf, session);
+}
+
 export function parseResponse(text: string): GrokResult {
   const result: GrokResult = { signal: 'FLAT', confidence: 0, entry: '—', reasoning: text };
   const sigMatch    = text.match(/SIGNAL:\s*(LONG|SHORT|FLAT)/i);
