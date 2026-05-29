@@ -202,7 +202,7 @@ export default function GrokChat() {
   const currentIdRef                = useRef<string>(genId());
 
   const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef  = useRef<HTMLInputElement>(null);
+  const inputRef  = useRef<HTMLTextAreaElement>(null);
   const msgsRef   = useRef<HTMLDivElement>(null);
 
   /* ── Load history on mount ── */
@@ -242,6 +242,7 @@ export default function GrokChat() {
     const history = [...msgs, userMsg];
     setMsgs(history);
     setInput('');
+    if (inputRef.current) inputRef.current.style.height = 'auto';
     setLoading(true);
     setError('');
 
@@ -566,15 +567,21 @@ export default function GrokChat() {
 
             {/* Input */}
             <div className="gchat-input-row">
-              <input
+              <textarea
                 ref={inputRef}
                 className="gchat-input"
+                rows={1}
                 value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
+                onChange={e => {
+                  setInput(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+                }}
                 placeholder={`Ask about ${coin.toUpperCase()}…`}
                 disabled={loading}
-                maxLength={500}
               />
               <button
                 className="gchat-send"
