@@ -489,15 +489,15 @@ export default function Arena() {
         );
       })()}
 
-      {/* Run signal + Ask Grok — side by side */}
+      {/* Run signal + Ask Grok — side by side, auto width */}
       <div style={{ display: 'flex', gap: 8, margin: '10px 0' }}>
         <button className="arena-fire-btn" disabled={loading} onClick={fire}
-          style={{ flex: 2, width: 'auto', marginBottom: 0 }}>
+          style={{ width: 'auto', marginBottom: 0 }}>
           {loading ? '⚡ Thinking...' : '⚡ Run Full Signal'}
         </button>
         <button
           className="arena-ask-grok-btn"
-          style={{ flex: 1, width: 'auto', marginBottom: 0 }}
+          style={{ width: 'auto', marginBottom: 0 }}
           onClick={() => window.dispatchEvent(new CustomEvent('grok-chat', {
             detail: {
               coin: selectedCoin,

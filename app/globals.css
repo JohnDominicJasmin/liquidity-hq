@@ -595,7 +595,7 @@ body::after {
 .ncard-whale { border-left-width: 3px !important; }
 
 .arena-fire-btn {
-  width: 100%; padding: 8px 14px; border-radius: 10px;
+  width: auto; padding: 8px 18px; border-radius: 10px;
   border: 0.5px solid var(--purple-bdr);
   background: linear-gradient(135deg, rgba(167,139,250,0.15), rgba(139,92,246,0.1));
   color: var(--purple); font-size: 13px; font-weight: 700; cursor: pointer;
@@ -764,7 +764,7 @@ body::after {
 
 /* ── ARENA ASK BUTTON ── */
 .arena-ask-grok-btn {
-  width: 100%; padding: 8px 14px; border-radius: 10px; margin-bottom: 0;
+  width: auto; padding: 8px 16px; border-radius: 10px; margin-bottom: 0;
   border: 0.5px solid var(--purple-bdr); background: var(--purple-bg);
   color: var(--purple); font-size: 12px; font-weight: 600; cursor: pointer;
   transition: all 0.15s; letter-spacing: .02em;
