@@ -62,8 +62,6 @@ export default function Arena() {
   const [loadingMsg, setLoadingMsg] = useState('');
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [ctxOpen, setCtxOpen] = useState(false);
-  const [confOpen, setConfOpen] = useState(false);
-  const [scanOpen, setScanOpen] = useState(false);
   const notifCooldown = useRef<Set<string>>(new Set());
 
   /* ── Persist history in sessionStorage (survives nav away + back) ── */
@@ -592,33 +590,13 @@ export default function Arena() {
         ))}
       </div>
 
-      {/* ── CONFLUENCE SCORER (collapsible) ── */}
-      <div
-        className="dash-section"
-        style={{ cursor: 'pointer', userSelect: 'none', marginTop: 16 }}
-        onClick={() => setConfOpen(v => !v)}
-      >
-        📊 Confluence Score
-        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
-          {confOpen ? '▲ hide' : '▼ show'}
-        </span>
-      </div>
-      {confOpen && (
-        <ConfluenceScorer coin={selectedCoin} onRunSignal={(coin) => { setSelectedCoin(coin); }} />
-      )}
+      {/* ── CONFLUENCE SCORER ── */}
+      <div className="dash-section" style={{ marginTop: 16 }}>Confluence Score</div>
+      <ConfluenceScorer coin={selectedCoin} onRunSignal={(coin) => { setSelectedCoin(coin); }} />
 
-      {/* ── SETUP SCANNER (collapsible) ── */}
-      <div
-        className="dash-section"
-        style={{ cursor: 'pointer', userSelect: 'none' }}
-        onClick={() => setScanOpen(v => !v)}
-      >
-        🎯 Setup Scanner
-        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
-          {scanOpen ? '▲ hide' : '▼ show'}
-        </span>
-      </div>
-      {scanOpen && <SetupScanner coin={selectedCoin} />}
+      {/* ── SETUP SCANNER ── */}
+      <div className="dash-section">Setup Scanner</div>
+      <SetupScanner coin={selectedCoin} />
 
       {/* ── SESSION HISTORY ── */}
       {history.length > 0 && (
