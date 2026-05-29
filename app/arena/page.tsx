@@ -604,7 +604,7 @@ export default function Arena() {
         </span>
       </div>
       {confOpen && (
-        <ConfluenceScorer onRunSignal={(coin) => { setSelectedCoin(coin); }} />
+        <ConfluenceScorer coin={selectedCoin} onRunSignal={(coin) => { setSelectedCoin(coin); }} />
       )}
 
       {/* ── SETUP SCANNER (collapsible) ── */}
@@ -618,7 +618,7 @@ export default function Arena() {
           {scanOpen ? '▲ hide' : '▼ show'}
         </span>
       </div>
-      {scanOpen && <SetupScanner />}
+      {scanOpen && <SetupScanner coin={selectedCoin} />}
 
       {/* ── SESSION HISTORY ── */}
       {history.length > 0 && (

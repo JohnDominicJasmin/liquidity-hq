@@ -144,7 +144,7 @@ function CoinCard({ row, rank }: { row: ScanRow; rank: number }) {
   );
 }
 
-export default function SetupScanner() {
+export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
   const { store } = useMarket();
   const [filter, setFilter] = useState<FilterDir>('all');
 
@@ -177,6 +177,17 @@ export default function SetupScanner() {
 
   const highestLongLiq = sorted.find(r => r.dir === 'LONG_LIQ');
   const highestShortSq = sorted.find(r => r.dir === 'SHORT_SQ');
+
+  // ── Single-coin mode (used by Arena) ──────────────────────────────────────
+  if (coinProp) {
+    const row = rows.find(r => r.id === coinProp);
+    if (!row) return <div style={{ padding: '1rem 0', fontSize: 12, color: '#444' }}>No data for {coinProp.toUpperCase()}</div>;
+    return (
+      <div style={{ paddingTop: 8 }}>
+        <CoinCard row={row} rank={sorted.indexOf(row) + 1} />
+      </div>
+    );
+  }
 
   return (
     <div>

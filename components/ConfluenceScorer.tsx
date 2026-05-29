@@ -178,12 +178,14 @@ function getVerdict(score: number, max: number): { label: string; color: string;
 
 interface Props {
   onRunSignal?: (coin: CoinId) => void;
+  coin?: CoinId; // when set, locks scorer to this coin (hides selector)
 }
 
-export default function ConfluenceScorer({ onRunSignal }: Props) {
+export default function ConfluenceScorer({ onRunSignal, coin: coinProp }: Props) {
   const { store } = useMarket();
   const router    = useRouter();
-  const [coin, setCoin] = useState<CoinId>('btc');
+  const [coinState, setCoinState] = useState<CoinId>('btc');
+  const coin = coinProp ?? coinState;
   const [dir,  setDir]  = useState<Dir>('LONG');
 
   const coinData = store.coins[coin];
@@ -211,18 +213,20 @@ export default function ConfluenceScorer({ onRunSignal }: Props) {
         </div>
       </div>
 
-      {/* Coin selector */}
-      <div className="cf-coins">
-        {COINS.map(c => (
-          <button
-            key={c}
-            className={`cf-coin${c === coin ? ' on' : ''}`}
-            onClick={() => setCoin(c)}
-          >
-            {c.toUpperCase()}
-          </button>
-        ))}
-      </div>
+      {/* Coin selector — hidden when coin is controlled by parent */}
+      {!coinProp && (
+        <div className="cf-coins">
+          {COINS.map(c => (
+            <button
+              key={c}
+              className={`cf-coin${c === coin ? ' on' : ''}`}
+              onClick={() => setCoinState(c)}
+            >
+              {c.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Direction toggle */}
       <div className="cf-dir-row">
