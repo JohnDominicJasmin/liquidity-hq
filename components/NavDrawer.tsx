@@ -9,7 +9,7 @@ const NAV = [
   { path: '/hours', icon: '🕐', label: 'Best Hours' },
   { path: '/news', icon: '📰', label: 'News' },
   null,
-  { path: '/bible', icon: '📖', label: 'Bible' },
+  { path: '/bible', icon: '📖', label: 'Playbook' },
   null,
   { path: '/arena', icon: '🤖', label: 'AI Arena' },
   { path: '/liq',   icon: '🔥', label: 'Liq Map' },
