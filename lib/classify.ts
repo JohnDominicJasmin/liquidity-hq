@@ -1,7 +1,20 @@
 export type NewsType = 'red' | 'amber' | 'purple';
 
-const RED_KW = ['war','military','attack','sanction','ban','crash','collapse','default','emergency','invasion','missile','nuclear','tariff','trade war','block','freeze'];
-const AMBER_KW = ['fed','federal reserve','powell','fomc','rate hike','rate cut','interest rate','cpi','inflation','gdp','unemployment','recession','jobs report','nonfarm','nfp','sec','regulation','congress','senate','bill','law','executive order','china','russia','iran'];
+const RED_KW = [
+  'war','military','attack','sanction','ban','crash','collapse','default','emergency',
+  'invasion','missile','nuclear','tariff','trade war','block','freeze',
+  // geopolitical breaking news
+  'trump','white house','pentagon','nato','ceasefire','blockade','naval','strait',
+  'hormuz','airstrike','air strike','bomb','explosion','troops','conflict',
+  'executive order','deploy','carrier','warship','sanctions',
+];
+const AMBER_KW = [
+  'fed','federal reserve','powell','fomc','rate hike','rate cut','interest rate',
+  'cpi','inflation','gdp','unemployment','recession','jobs report','nonfarm','nfp',
+  'sec','regulation','congress','senate','bill','law',
+  'china','russia','iran','israel','ukraine','north korea',
+  'opec','oil','crude','energy',
+];
 const PURPLE_KW = ['bitcoin','btc','ethereum','eth','crypto','blockchain','defi','stablecoin','usdt','usdc','binance','coinbase','sec crypto','etf','halving'];
 
 export function classifyNews(text: string): NewsType | null {

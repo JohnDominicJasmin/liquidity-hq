@@ -316,9 +316,9 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     scheduleCryptoPanic();
 
     const intervals = [
-      setInterval(fetchFinnhubNews,  5 * 60 * 1000),    // every 5 min
+      setInterval(fetchFinnhubNews,  2 * 60 * 1000),    // every 2 min
       setInterval(fetchEconEvents,   60 * 60 * 1000),   // every 1h
-      setInterval(fetchGeoEvents,    15 * 60 * 1000),   // every 15 min
+      setInterval(fetchGeoEvents,     3 * 60 * 1000),   // every 3 min
     ];
 
     return () => {
