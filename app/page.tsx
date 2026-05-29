@@ -6,6 +6,7 @@ import FearGreed from '@/components/FearGreed';
 import RaidMeter from '@/components/RaidMeter';
 import SOTD from '@/components/SOTD';
 import NewsBanner from '@/components/NewsBanner';
+import GrokSignalChart from '@/components/GrokSignalChart';
 
 function MacroStrip() {
   const { store } = useMarket();
@@ -532,6 +533,9 @@ export default function Dashboard() {
 
         <div className="dash-section dash-section-hot">Edge signals</div>
         <EdgeSignals />
+
+        <div className="dash-section dash-section-hot">Signal chart</div>
+        <GrokSignalChart />
 
         {/* GEX + Macro: shown inline on mobile/tablet, hidden when right panel is visible */}
         <div className="hide-on-desktop">

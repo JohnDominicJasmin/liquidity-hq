@@ -1519,6 +1519,68 @@ body::after {
 [data-theme="light"] .ps-affix { background: #f5f5f5; border-color: #ddd; }
 [data-theme="light"] .ps-result { background: #fafafa; }
 
+/* ── GROK SIGNAL CHART ──────────────────────────────────────────────────── */
+.gsc-wrap {
+  background: var(--bg1);
+  border: 0.5px solid var(--bdr);
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.gsc-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px 8px; gap: 8px; flex-wrap: wrap;
+  border-bottom: 0.5px solid var(--bdr);
+}
+.gsc-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 700; color: var(--txt2);
+}
+.gsc-sig-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; letter-spacing: 0.04em;
+}
+.gsc-controls { display: flex; align-items: center; gap: 4px; }
+.gsc-tf-btn {
+  font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px;
+  border: 0.5px solid var(--bdr); background: transparent; color: var(--txt3);
+  cursor: pointer; transition: all 0.12s;
+}
+.gsc-tf-btn:hover { color: var(--txt2); border-color: rgba(255,255,255,0.1); }
+.gsc-tf-btn.on { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-bdr); }
+.gsc-analyze-btn {
+  font-size: 10px; font-weight: 700; padding: 4px 12px; border-radius: 6px;
+  border: 0.5px solid var(--purple-bdr); background: var(--purple-bg); color: var(--purple);
+  cursor: pointer; transition: all 0.12s; margin-left: 4px; white-space: nowrap;
+}
+.gsc-analyze-btn:hover:not(:disabled) { background: rgba(139,92,246,0.2); }
+.gsc-analyze-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.gsc-canvas-wrap { position: relative; background: #0f0f0f; }
+.gsc-canvas { display: block; width: 100%; }
+.gsc-overlay {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: var(--txt3); background: rgba(0,0,0,0.55); z-index: 2;
+}
+.gsc-overlay-err { color: var(--red); }
+.gsc-analysis {
+  padding: 10px 14px; display: flex; flex-direction: column; gap: 4px;
+  border-top: 0.5px solid var(--bdr);
+}
+.gsc-analysis-label { font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--txt3); }
+.gsc-analysis-text  { font-size: 12px; color: var(--txt2); line-height: 1.65; }
+.gsc-levels-row {
+  display: flex; gap: 6px; padding: 8px 14px 10px;
+  flex-wrap: wrap; border-top: 0.5px solid var(--bdr);
+}
+.gsc-chip {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px; padding: 5px 12px; border-radius: 10px; flex-shrink: 0;
+}
+.gsc-chip span:first-child { font-size: 8px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.65; }
+.gsc-chip span:last-child  { font-size: 11px; font-weight: 700; }
+.gsc-chip-entry { color: #a78bfa; background: rgba(167,139,250,0.1); border: 0.5px solid rgba(167,139,250,0.3); }
+.gsc-chip-tp    { color: #34d399; background: rgba(52,211,153,0.1);  border: 0.5px solid rgba(52,211,153,0.3); }
+.gsc-chip-sl    { color: #f87171; background: rgba(248,113,113,0.1); border: 0.5px solid rgba(248,113,113,0.3); }
+
 /* ── TRADE JOURNAL ──────────────────────────────────────────────────────── */
 .tj-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
 .tj-tab  { flex: 1; padding: 9px 0; border-radius: 10px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt2); font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
