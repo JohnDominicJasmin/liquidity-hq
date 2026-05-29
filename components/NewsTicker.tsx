@@ -14,7 +14,14 @@ export default function NewsTicker() {
   const spanRef = useRef<HTMLSpanElement>(null);
   const [duration, setDuration] = useState(60);
 
-  // Filter by severity + recency
+  // Tick every 60s so aged-out items drop from the ticker without waiting for new alerts
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Filter by severity + recency — re-evaluated every tick
   const items = useMemo(() => {
     const now = Date.now() / 1000;
     return alerts
@@ -24,7 +31,8 @@ export default function NewsTicker() {
         return now - a.ts < 900;                            // 15 min for purple
       })
       .slice(0, 12);
-  }, [alerts]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alerts, tick]);  // tick forces re-evaluation of timestamps every 60s
 
   // Sort: red first → amber → purple → newest within each tier
   const sorted = useMemo(() => {
