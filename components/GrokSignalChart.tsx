@@ -1,14 +1,15 @@
 'use client';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMarket, BINANCE_SYMS } from '@/lib/marketStore';
 
 const TFS = ['5m', '15m', '1h', '4h'] as const;
 type TF = typeof TFS[number];
+type WsStatus = 'connecting' | 'live' | 'error';
 
-const API_KEY    = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5Bepv2POY4L6EdBULh4GYNCO';
-const CHART_H    = 480;  // total canvas display height (bigger)
-const DISPLAY_N  = 80;   // candles to show visually
-const FETCH_N    = 300;  // candles to fetch (needed for EMA 200 accuracy)
+const API_KEY   = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5Bepv2POY4L6EdBULh4GYNCO';
+const CHART_H   = 480;
+const DISPLAY_N = 80;
+const FETCH_N   = 300;
 
 interface Candle { t: number; o: number; h: number; l: number; c: number; v: number; }
 interface ChartLevel { price: number; label: string; type: 'support' | 'resistance' | 'tp' | 'sl' | 'entry'; }
@@ -59,30 +60,16 @@ function calcRSI(closes: number[], period = 14): (number | null)[] {
   return out;
 }
 
-// ── Data fetch ─────────────────────────────────────────────────────────────
-
-async function fetchCandles(symbol: string, interval: string): Promise<Candle[]> {
-  const res = await fetch(
-    `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${FETCH_N}`
-  );
-  if (!res.ok) throw new Error('Binance API error');
-  const data: (string | number)[][] = await res.json();
-  return data.map(k => ({
-    t: Number(k[0]), o: Number(k[1]), h: Number(k[2]),
-    l: Number(k[3]), c: Number(k[4]), v: Number(k[5]),
-  }));
-}
-
 // ── Grok chart prompt / parse ──────────────────────────────────────────────
 
 function buildChartPrompt(coin: string, tf: string, candles: Candle[]): string {
-  const vis   = candles.slice(-DISPLAY_N);
-  const last  = vis[vis.length - 1];
-  const hi    = Math.max(...vis.map(c => c.h));
-  const lo    = Math.min(...vis.map(c => c.l));
+  const vis    = candles.slice(-DISPLAY_N);
+  const last   = vis[vis.length - 1];
+  const hi     = Math.max(...vis.map(c => c.h));
+  const lo     = Math.min(...vis.map(c => c.l));
   const closes = candles.map(c => c.c);
-  const e9    = calcEMA(closes, 9).at(-1);
-  const e200  = calcEMA(closes, 200).at(-1);
+  const e9     = calcEMA(closes, 9).at(-1);
+  const e200   = calcEMA(closes, 200).at(-1);
   const recent = vis.slice(-20).map(c =>
     `O:${c.o.toFixed(0)} H:${c.h.toFixed(0)} L:${c.l.toFixed(0)} C:${c.c.toFixed(0)}`
   ).join(' | ');
@@ -137,15 +124,15 @@ function drawChart(canvas: HTMLCanvasElement, candles: Candle[], result: ChartRe
   canvas.height = H * dpr;
   ctx.scale(dpr, dpr);
 
-  const dark     = document.documentElement.getAttribute('data-theme') !== 'light';
-  const BG       = dark ? '#0f0f0f' : '#f9f9f9';
-  const GRID     = dark ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.04)';
-  const LABEL    = dark ? '#383838' : '#aaa';
-  const GREEN    = '#34d399';
-  const RED      = '#f87171';
-  const EMA9C    = '#fbbf24';    // amber — fast
-  const EMA200C  = '#818cf8';   // indigo — slow
-  const RSIC     = '#a78bfa';   // purple
+  const dark    = document.documentElement.getAttribute('data-theme') !== 'light';
+  const BG      = dark ? '#0f0f0f' : '#f9f9f9';
+  const GRID    = dark ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.04)';
+  const LABEL   = dark ? '#383838' : '#aaa';
+  const GREEN   = '#34d399';
+  const RED     = '#f87171';
+  const EMA9C   = '#fbbf24';
+  const EMA200C = '#818cf8';
+  const RSIC    = '#a78bfa';
 
   // ── Panel layout ──
   const MAIN_RATIO = 0.70;
@@ -153,8 +140,8 @@ function drawChart(canvas: HTMLCanvasElement, candles: Candle[], result: ChartRe
   const SEP        = 5;
   const rsiY0      = mainH + SEP;
   const rsiTotalH  = H - rsiY0;
-  const MP = { t: 14, r: 72, b: 2, l: 4 };   // main panel padding
-  const RP = { t: 6,  r: 72, b: 18, l: 4 };  // RSI panel padding
+  const MP = { t: 14, r: 72, b: 2, l: 4 };
+  const RP = { t: 6,  r: 72, b: 18, l: 4 };
   const mcW = W - MP.l - MP.r;
   const mcH = mainH - MP.t - MP.b;
   const rcH = rsiTotalH - RP.t - RP.b;
@@ -281,13 +268,11 @@ function drawChart(canvas: HTMLCanvasElement, candles: Candle[], result: ChartRe
   }
 
   // ── RSI PANEL ──────────────────────────────────────────────────────────
-  // Separator
   ctx.fillStyle = dark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)';
   ctx.fillRect(0, mainH, W, SEP);
   ctx.fillStyle = dark ? '#0d0d0d' : '#f5f5f5';
   ctx.fillRect(0, rsiY0, W, rsiTotalH);
 
-  // Reference lines: 70, 50, 30
   const refLines = [{ v: 70, col: RED + '44', lbl: '70' }, { v: 50, col: GRID, lbl: '50' }, { v: 30, col: GREEN + '44', lbl: '30' }];
   refLines.forEach(({ v, col, lbl }) => {
     const y = toRY(v);
@@ -298,7 +283,6 @@ function drawChart(canvas: HTMLCanvasElement, candles: Candle[], result: ChartRe
     ctx.fillText(lbl, W - 3, y - 1);
   });
 
-  // RSI line
   ctx.strokeStyle = RSIC; ctx.lineWidth = 1.5; ctx.setLineDash([]);
   ctx.beginPath(); let sr = false;
   rsiv.forEach((v, i) => {
@@ -310,7 +294,6 @@ function drawChart(canvas: HTMLCanvasElement, candles: Candle[], result: ChartRe
   });
   ctx.stroke();
 
-  // RSI label + current value (top-left of RSI panel)
   let lastRsi: number | null = null;
   for (let i = rsiv.length - 1; i >= 0; i--) { if (rsiv[i] != null) { lastRsi = rsiv[i] as number; break; } }
   const rsiValCol = lastRsi != null ? (lastRsi >= 70 ? RED : lastRsi <= 30 ? GREEN : RSIC) : RSIC;
@@ -325,51 +308,143 @@ function drawChart(canvas: HTMLCanvasElement, candles: Candle[], result: ChartRe
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function GrokSignalChart({ coin: coinProp }: { coin?: string }) {
-  const { store }  = useMarket();
-  const coin       = (coinProp ?? store.selectedCoin) as string;
+  const { store } = useMarket();
+  const coin      = (coinProp ?? store.selectedCoin) as string;
+
   const canvasRef  = useRef<HTMLCanvasElement>(null);
   const roRef      = useRef<ResizeObserver | null>(null);
+  const wsRef      = useRef<WebSocket | null>(null);
+  const retryRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const candlesRef = useRef<Candle[]>([]);   // always-fresh mirror for WS handler
+  const resultRef  = useRef<ChartResult | null>(null); // for ResizeObserver
 
   const [tf, setTf]               = useState<TF>('15m');
   const [candles, setCandles]     = useState<Candle[]>([]);
   const [result, setResult]       = useState<ChartResult | null>(null);
-  const [loading, setLoading]     = useState(false);
+  const [wsStatus, setWsStatus]   = useState<WsStatus>('connecting');
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError]         = useState('');
 
-  const loadCandles = useCallback(async () => {
-    const sym = BINANCE_SYMS[coin];
-    if (!sym) { setError('No Binance spot for ' + coin.toUpperCase()); return; }
-    setLoading(true); setError(''); setResult(null);
-    try   { setCandles(await fetchCandles(sym, tf)); }
-    catch { setError('Failed to load chart data'); }
-    finally { setLoading(false); }
+  // Keep refs in sync with state (for WS/rO callbacks)
+  useEffect(() => { candlesRef.current = candles; }, [candles]);
+  useEffect(() => { resultRef.current = result; },  [result]);
+
+  // ── REST fetch + WebSocket — runs on coin or tf change ──────────────────
+  useEffect(() => {
+    const sym = BINANCE_SYMS[coin] as string | undefined;
+    if (!sym) { setError('No Binance symbol for ' + coin.toUpperCase()); return; }
+
+    let active = true;
+    setError('');
+    setResult(null);
+    resultRef.current = null;
+    setWsStatus('connecting');
+
+    // 1. Load historical candles via REST
+    fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${tf}&limit=${FETCH_N}`)
+      .then(r => { if (!r.ok) throw new Error('Binance API error'); return r.json(); })
+      .then((data: (string | number)[][]) => {
+        if (!active) return;
+        const cs: Candle[] = data.map(k => ({
+          t: Number(k[0]), o: Number(k[1]), h: Number(k[2]),
+          l: Number(k[3]), c: Number(k[4]), v: Number(k[5]),
+        }));
+        candlesRef.current = cs;
+        setCandles(cs);
+      })
+      .catch(() => { if (active) setError('Failed to load chart data'); });
+
+    // 2. Connect Binance kline WebSocket
+    function connect() {
+      if (!active) return;
+      const stream = `${sym!.toLowerCase()}@kline_${tf}`;
+      const ws = new WebSocket(`wss://stream.binance.com/ws/${stream}`);
+      wsRef.current = ws;
+
+      ws.onopen = () => { if (active) setWsStatus('live'); };
+
+      ws.onerror = () => { if (active) setWsStatus('error'); };
+
+      ws.onclose = () => {
+        if (!active) return;
+        setWsStatus('error');
+        retryRef.current = setTimeout(() => { if (active) connect(); }, 3000);
+      };
+
+      ws.onmessage = (evt) => {
+        if (!active) return;
+        try {
+          const msg = JSON.parse(evt.data as string);
+          if (msg.e !== 'kline') return;
+          const k = msg.k;
+          const incoming: Candle = {
+            t: k.t,
+            o: parseFloat(k.o),
+            h: parseFloat(k.h),
+            l: parseFloat(k.l),
+            c: parseFloat(k.c),
+            v: parseFloat(k.v),
+          };
+
+          const cur = candlesRef.current;
+          if (!cur.length) return; // REST not loaded yet — skip
+
+          let updated: Candle[];
+          if (cur[cur.length - 1].t === incoming.t) {
+            // Same open-time → update forming candle in place
+            updated = [...cur.slice(0, -1), incoming];
+          } else {
+            // New candle opened (previous closed) → append + trim to FETCH_N
+            updated = [...cur, incoming].slice(-FETCH_N);
+          }
+
+          candlesRef.current = updated;
+          setCandles(updated);
+        } catch {
+          // ignore malformed frames
+        }
+      };
+    }
+
+    connect();
+
+    return () => {
+      active = false;
+      retryRef.current && clearTimeout(retryRef.current);
+      wsRef.current?.close();
+      wsRef.current = null;
+    };
   }, [coin, tf]);
 
-  useEffect(() => { loadCandles(); }, [loadCandles]);
-
+  // ── Redraw on new candle data or new Grok result ─────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !candles.length) return;
     drawChart(canvas, candles, result);
   }, [candles, result]);
 
+  // ── ResizeObserver — uses refs so no deps churn ──────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    roRef.current = new ResizeObserver(() => { if (candles.length) drawChart(canvas, candles, result); });
+    roRef.current = new ResizeObserver(() => {
+      const c = candlesRef.current;
+      if (c.length) drawChart(canvas, c, resultRef.current);
+    });
     roRef.current.observe(canvas.parentElement ?? canvas);
     return () => roRef.current?.disconnect();
-  }, [candles, result]);
+  }, []); // intentionally empty — always reads from refs
 
+  // ── Grok analysis ────────────────────────────────────────────────────────
   const analyze = async () => {
-    if (!candles.length || analyzing) return;
+    const cur = candlesRef.current;
+    if (!cur.length || analyzing) return;
     setAnalyzing(true); setError('');
     try {
       const res = await fetch('https://api.x.ai/v1/responses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
-        body: JSON.stringify({ model: 'grok-4.3', input: [{ role: 'user', content: buildChartPrompt(coin, tf, candles) }] }),
+        body: JSON.stringify({ model: 'grok-4.3', input: [{ role: 'user', content: buildChartPrompt(coin, tf, cur) }] }),
       });
       if (!res.ok) throw new Error(`API ${res.status}`);
       const data = await res.json();
@@ -386,6 +461,7 @@ export default function GrokSignalChart({ coin: coinProp }: { coin?: string }) {
 
   const sigCol = result?.signal === 'LONG' ? '#34d399' : result?.signal === 'SHORT' ? '#f87171' : '#9ca3af';
   const fmt0   = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  const noData = candles.length === 0;
 
   return (
     <div className="gsc-wrap">
@@ -394,6 +470,8 @@ export default function GrokSignalChart({ coin: coinProp }: { coin?: string }) {
         <div className="gsc-title">
           <span>📈</span>
           <span>{coin.toUpperCase()} / USDT</span>
+          {/* Live WS status dot */}
+          <span className={`gsc-live-dot gsc-live-dot-${wsStatus}`} title={wsStatus} />
           {result && (
             <span className="gsc-sig-badge" style={{ color: sigCol, background: sigCol + '18', border: `0.5px solid ${sigCol}44` }}>
               {result.signal}
@@ -406,7 +484,7 @@ export default function GrokSignalChart({ coin: coinProp }: { coin?: string }) {
               {t}
             </button>
           ))}
-          <button className="gsc-analyze-btn" onClick={analyze} disabled={analyzing || loading || !candles.length}>
+          <button className="gsc-analyze-btn" onClick={analyze} disabled={analyzing || noData}>
             {analyzing ? '⏳ Analyzing…' : '⚡ Analyze'}
           </button>
         </div>
@@ -414,8 +492,8 @@ export default function GrokSignalChart({ coin: coinProp }: { coin?: string }) {
 
       {/* Canvas */}
       <div className="gsc-canvas-wrap">
-        {loading    && <div className="gsc-overlay">Loading chart…</div>}
-        {error && !loading && <div className="gsc-overlay gsc-overlay-err">{error}</div>}
+        {noData && wsStatus !== 'error' && <div className="gsc-overlay">Connecting…</div>}
+        {error && <div className="gsc-overlay gsc-overlay-err">{error}</div>}
         <canvas ref={canvasRef} className="gsc-canvas" style={{ height: CHART_H }} />
       </div>
 
