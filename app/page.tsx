@@ -529,7 +529,7 @@ export default function Dashboard() {
           <MacroStrip />
         </div>
 
-        <div className="dash-section">Secret of the Day</div>
+        <div className="dash-section">Play of the Day</div>
         <SOTD />
 
         <div

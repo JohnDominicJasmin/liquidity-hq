@@ -13,13 +13,13 @@ export default function SOTD() {
   return (
     <div className="sotd-wrap">
       <div className="sotd-label">
-        <span>Secret of the Day</span>
-        <button className="sotd-refresh" onClick={newSecret}>new secret</button>
+        <span>Play of the Day</span>
+        <button className="sotd-refresh" onClick={newSecret}>new play</button>
       </div>
-      <div className="sotd-num">SECRET #{secret.n} of {SECRETS.length}</div>
+      <div className="sotd-num">PLAY #{secret.n} of {SECRETS.length}</div>
       <div className="sotd-name">{secret.name}</div>
       <div className="sotd-text">{secret.text}</div>
-      <div className="sotd-footer">Tap &ldquo;new secret&rdquo; to get another. Every day a different secret loads automatically.</div>
+      <div className="sotd-footer">Tap &ldquo;new play&rdquo; to get another. Every day a different play loads automatically.</div>
     </div>
   );
 }

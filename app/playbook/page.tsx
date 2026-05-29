@@ -7,7 +7,7 @@ type Cat = 'all' | 'hunt' | 'time' | 'trap' | 'psych';
 const CAT_LABELS: Record<string, string> = { hunt: 'Hunt', time: 'Timing', trap: 'Trap', psych: 'Psychology' };
 const CAT_CLS: Record<string, string> = { hunt: 'cat-hunt', time: 'cat-time', trap: 'cat-trap', psych: 'cat-psych' };
 
-export default function LiquidityBible() {
+export default function LiquidityPlaybook() {
   const [query, setQuery] = useState('');
   const [cat, setCat] = useState<Cat>('all');
 
@@ -20,13 +20,13 @@ export default function LiquidityBible() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.5rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8', marginBottom: 2 }}>Liquidity Bible</div>
-        <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>{SECRETS.length} secrets — the complete predator rulebook</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8', marginBottom: 2 }}>Liquidity Playbook</div>
+        <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>{SECRETS.length} plays — the complete predator playbook</div>
       </div>
 
       <input
         className="bible-search"
-        placeholder="Search secrets..."
+        placeholder="Search plays..."
         value={query}
         onChange={e => setQuery(e.target.value)}
       />
@@ -40,13 +40,13 @@ export default function LiquidityBible() {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="empty">No secrets match that search.</div>
+        <div className="empty">No plays match that search.</div>
       ) : (
         filtered.map(s => (
           <div key={s.n} className="secret">
             <div className="s-num">
               <span className={`cat-badge ${CAT_CLS[s.cat]}`}>{CAT_LABELS[s.cat]}</span>
-              SECRET #{s.n}
+              PLAY #{s.n}
             </div>
             <div className="s-name">{s.name}</div>
             <div className="s-text">{s.text}</div>
