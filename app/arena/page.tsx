@@ -37,7 +37,17 @@ function ReasoningText({ text }: { text: string }) {
 const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'zec'];
 const GROK_API_KEY = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5Bepv2POY4L6EdBULh4GYNCO';
 
-interface HistItem { signal: string; confidence: number; coin: string; time: string; }
+interface HistItem {
+  signal: string;
+  confidence: number;
+  coin: string;
+  time: string;
+  entry?: string;
+  reasoning?: string;
+  session?: string;
+}
+
+const ARENA_HIST_KEY = 'arena-session-history-v1';
 
 export default function Arena() {
   const { store } = useMarket();
@@ -47,11 +57,23 @@ export default function Arena() {
   const [result, setResult] = useState<GrokResult | null>(null);
   const [error, setError] = useState('');
   const [history, setHistory] = useState<HistItem[]>([]);
+  const [detailIdx, setDetailIdx] = useState<number | null>(null);
   const [loadingMsg, setLoadingMsg] = useState('');
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [ctxOpen, setCtxOpen] = useState(false);
   const [tab, setTab] = useState<'signal' | 'scanner' | 'confluence'>('signal');
   const notifCooldown = useRef<Set<string>>(new Set());
+
+  /* ── Persist history in sessionStorage (survives nav away + back) ── */
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(ARENA_HIST_KEY);
+      if (saved) setHistory(JSON.parse(saved));
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    try { sessionStorage.setItem(ARENA_HIST_KEY, JSON.stringify(history)); } catch { /* ignore */ }
+  }, [history]);
 
   /* ── Cross-exchange funding data ── */
   type FundingRow = { coin: string; binance: number|null; bybit: number|null; okx: number|null };
@@ -367,7 +389,16 @@ export default function Arena() {
       const ctx = gatherContext();
       const res = await callGrok(GROK_API_KEY, buildPrompt(ctx));
       setResult(res);
-      setHistory(h => [{ signal: res.signal, confidence: res.confidence, coin: ctx.coin, time: new Date().toLocaleTimeString() }, ...h].slice(0, 8));
+      setDetailIdx(null); // collapse any open detail when new result comes in
+      setHistory(h => [{
+        signal: res.signal,
+        confidence: res.confidence,
+        coin: ctx.coin,
+        time: new Date().toLocaleTimeString(),
+        entry: res.entry,
+        reasoning: res.reasoning,
+        session: ctx.session,
+      }, ...h].slice(0, 10));
       if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
         getSupabase()!.from('signals').insert({
           coin: ctx.coin, signal: res.signal, confidence: res.confidence,
@@ -592,26 +623,87 @@ export default function Arena() {
         </div>
       )}
 
+      </> /* end tab === 'signal' */}
+
+      {/* ── Session history — always visible on all tabs ── */}
       {history.length > 0 && (
-        <div style={{ marginTop: 16 }}>
-          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: '#444', marginBottom: 8 }}>Session history</div>
+        <div style={{ marginTop: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: '#444' }}>
+              Session History
+            </div>
+            <button
+              onClick={() => { setHistory([]); setDetailIdx(null); try { sessionStorage.removeItem(ARENA_HIST_KEY); } catch {} }}
+              style={{ fontSize: 10, color: '#444', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+            >
+              Clear
+            </button>
+          </div>
+
           {history.map((h, i) => (
-            <div key={i} className="arena-hist-item">
-              <div className="arena-hist-left">
-                <span className={`arena-hist-badge tag ${h.signal === 'LONG' ? 'tg' : h.signal === 'SHORT' ? 'tr' : 'tp'}`}>
-                  {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'SHORT' ? '▼ SHORT' : '— FLAT'}
-                </span>
-                <div>
-                  <div className="arena-hist-pair">{h.coin}</div>
-                  <div className="arena-hist-time">{h.time}</div>
+            <div key={i}>
+              {/* Summary row — clickable */}
+              <div
+                className={`arena-hist-item${detailIdx === i ? ' arena-hist-open' : ''}`}
+                onClick={() => setDetailIdx(detailIdx === i ? null : i)}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="arena-hist-left">
+                  <span className={`arena-hist-badge tag ${h.signal === 'LONG' ? 'tg' : h.signal === 'SHORT' ? 'tr' : 'tp'}`}>
+                    {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'SHORT' ? '▼ SHORT' : '— FLAT'}
+                  </span>
+                  <div>
+                    <div className="arena-hist-pair">{h.coin}</div>
+                    <div className="arena-hist-time">{h.time}{h.session ? ` · ${h.session}` : ''}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div className="arena-hist-conf">{h.confidence}%</div>
+                  <span style={{ fontSize: 9, color: '#444' }}>{detailIdx === i ? '▲' : '▼'}</span>
                 </div>
               </div>
-              <div className="arena-hist-conf">{h.confidence}%</div>
+
+              {/* Expanded detail */}
+              {detailIdx === i && (
+                <div className={`arena-hist-detail sig-${h.signal.toLowerCase()}`}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <div>
+                      <span className={`arena-sig-badge badge-${h.signal.toLowerCase()}`} style={{ fontSize: 11 }}>
+                        {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'SHORT' ? '▼ SHORT' : '— FLAT'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#b8aeff' }}>{h.confidence}% confidence</div>
+                  </div>
+
+                  {h.entry && (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+                      <span style={{ fontSize: 10, color: '#606060', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Entry Zone</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: '#e8e8e8', fontFamily: 'monospace' }}>{h.entry}</span>
+                    </div>
+                  )}
+
+                  {/* Confidence bar */}
+                  <div className="arena-conf-bar" style={{ marginBottom: 10 }}>
+                    <div className="arena-conf-fill" style={{
+                      width: h.confidence + '%',
+                      background: h.signal === 'LONG' ? '#7de0a4' : h.signal === 'SHORT' ? '#ff9a92' : '#606060',
+                    }} />
+                  </div>
+
+                  {h.reasoning && (
+                    <div className="arena-reasoning">
+                      <div className="arena-reasoning-title">Reasoning</div>
+                      <div className="arena-reasoning-text">
+                        <ReasoningText text={h.reasoning} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
-      </> /* end tab === 'signal' */}
     </div>
   );
 }
