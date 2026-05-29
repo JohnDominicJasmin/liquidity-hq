@@ -62,7 +62,8 @@ export default function Arena() {
   const [loadingMsg, setLoadingMsg] = useState('');
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [ctxOpen, setCtxOpen] = useState(false);
-  const [tab, setTab] = useState<'signal' | 'chart' | 'confluence' | 'scanner'>('signal');
+  const [confOpen, setConfOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
   const notifCooldown = useRef<Set<string>>(new Set());
 
   /* ── Persist history in sessionStorage (survives nav away + back) ── */
@@ -418,73 +419,18 @@ export default function Arena() {
 
   return (
     <div>
-      {/* Page header */}
-      <div style={{ padding: '1rem 0 0.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8' }}>AI Arena</div>
+
+      {/* ── PAGE HEADER ── */}
+      <div style={{ padding: '1rem 0 0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>AI Arena</div>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>GROK-4.3 + LIVE X</span>
         </div>
+        <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Chart · 35-signal engine · confluence · scanner — one page</div>
       </div>
 
-      {/* Tab switcher */}
-      <div className="arena-tab-row">
-        <button
-          className={`arena-tab-btn${tab === 'signal' ? ' on' : ''}`}
-          onClick={() => setTab('signal')}
-        >
-          ⚡ AI Signal
-        </button>
-        <button
-          className={`arena-tab-btn${tab === 'chart' ? ' on' : ''}`}
-          onClick={() => setTab('chart')}
-        >
-          📈 Chart
-        </button>
-        <button
-          className={`arena-tab-btn${tab === 'confluence' ? ' on' : ''}`}
-          onClick={() => setTab('confluence')}
-        >
-          📊 Confluence
-        </button>
-        <button
-          className={`arena-tab-btn${tab === 'scanner' ? ' on' : ''}`}
-          onClick={() => setTab('scanner')}
-        >
-          🎯 Scanner
-        </button>
-      </div>
-
-      {/* Chart tab */}
-      {tab === 'chart' && (
-        <div style={{ marginTop: 8 }}>
-          {/* Coin selector — shared with signal tab */}
-          <div className="arena-coin-row" style={{ marginBottom: 12 }}>
-            {COINS.map(c => (
-              <button key={c} className={`arena-coin-btn${selectedCoin === c ? ' sel' : ''}`} onClick={() => setSelectedCoin(c)}>
-                {c.toUpperCase()}
-              </button>
-            ))}
-          </div>
-          <GrokSignalChart coin={selectedCoin} />
-        </div>
-      )}
-
-      {/* Confluence tab */}
-      {tab === 'confluence' && (
-        <ConfluenceScorer
-          onRunSignal={(coin) => { setSelectedCoin(coin); setTab('signal'); }}
-        />
-      )}
-
-      {/* Scanner tab */}
-      {tab === 'scanner' && <SetupScanner />}
-
-      {/* AI Signal tab */}
-      {tab === 'signal' && <>
-      <div style={{ fontSize: 12, color: '#606060', marginBottom: 14, marginTop: 4 }}>35-signal engine — technicals · VWAP · taker aggression · CB premium · OI trend · derivatives · cross-exchange funding · macro · ETF · on-chain · social → LONG / SHORT / FLAT</div>
-
-      {/* Coin selector + notification bell */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+      {/* ── COIN SELECTOR ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <div className="arena-coin-row" style={{ margin: 0, flex: 1 }}>
           {COINS.map(c => (
             <button key={c} className={`arena-coin-btn${selectedCoin === c ? ' sel' : ''}`} onClick={() => setSelectedCoin(c)}>
@@ -505,8 +451,12 @@ export default function Arena() {
         >{notifEnabled ? '🔔' : '🔕'}</button>
       </div>
 
-      {/* Squeeze score bar */}
-      <div className="arena-squeeze-card">
+      {/* ── CHART — visual anchor ── */}
+      <GrokSignalChart coin={selectedCoin} />
+
+      {/* ── SIGNAL ENGINE ── */}
+      {/* Squeeze score */}
+      <div className="arena-squeeze-card" style={{ marginTop: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: '#444' }}>Squeeze Score — {selectedCoin.toUpperCase()}</span>
           <span style={{ fontSize: 11, fontWeight: 700, color: sq.color }}>{sq.label}</span>
@@ -519,56 +469,7 @@ export default function Arena() {
         </div>
       </div>
 
-      {/* Live context panel — collapsible */}
-      <div className="arena-context" style={{ marginBottom: 14 }}>
-        <div
-          className="arena-context-title"
-          style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: ctxOpen ? 8 : 0 }}
-          onClick={() => setCtxOpen(v => !v)}
-        >
-          <span>
-            {selectedCoin.toUpperCase()} · {[ctx.rsi14, ctx.rsi1h, ctx.rsi4h, ctx.cvd, ctx.basis, ctx.orderWalls, ctx.pcRatio, ctx.exchangeNetFlow, ctx.cbPremium, ctx.vwap, ctx.oiTrend, ctx.takerRatio, ctx.btcGex].filter(v => v !== '—' && v !== 'Calculating…').length + 21} signals loaded
-          </span>
-          <span style={{ fontSize: 9, color: '#444' }}>{ctxOpen ? '▲ hide' : '▼ show context'}</span>
-        </div>
-        {ctxOpen && [
-          ['Coin', ctx.coin], ['Price', ctx.price], ['24h Δ', ctx.change24h],
-          ['RSI 15m', ctx.rsi14], ['RSI 1h', ctx.rsi1h], ['RSI 4h', ctx.rsi4h],
-          ['MA20 (15m)', ctx.ma20], ['vs MA20', ctx.priceVsMA],
-          ['Vol Ratio', ctx.volRatio], ['CVD', ctx.cvd],
-          ['L/S Ratio', ctx.longShortRatio], ['Squeeze', squeezeToLine(sq)],
-          ['Funding', ctx.fundingRate], ['Open Interest', ctx.openInterest],
-          ['Basis', ctx.basis], ['Fib Level', ctx.fibNearest],
-          ['Vol Profile POC', ctx.pocLine],
-          ['Order Walls', ctx.orderWalls.length > 55 ? ctx.orderWalls.slice(0, 55) + '…' : ctx.orderWalls],
-          ['P/C Ratio', ctx.pcRatio], ['Max Pain', ctx.maxPain],
-          ['BTC GEX', ctx.btcGex.length > 55 ? ctx.btcGex.slice(0, 55) + '…' : ctx.btcGex],
-          ['Oil (CL=F)', ctx.oilPrice], ['10Y Yield', ctx.bonds10y],
-          ['Taker B/S', ctx.takerRatio.length > 55 ? ctx.takerRatio.slice(0, 55) + '…' : ctx.takerRatio],
-          ['CB Premium', ctx.cbPremium],
-          ['VWAP (15m)', ctx.vwap],
-          ['OI Trend', ctx.oiTrend.length > 55 ? ctx.oiTrend.slice(0, 55) + '…' : ctx.oiTrend],
-          ['X-Exch FR', ctx.crossExchangeFunding.length > 55 ? ctx.crossExchangeFunding.slice(0, 55) + '…' : ctx.crossExchangeFunding],
-          ['DXY', ctx.dxyLine], ['SPX', ctx.spxLine], ['Gold', ctx.goldLine],
-          ['ETF Flows', ctx.etfFlows],
-          ['Exch. Flow', ctx.exchangeNetFlow],
-          ['Stablecoin', ctx.stablecoinFlow],
-          ['G. Trends', ctx.googleTrends],
-          ['Liq Levels', ctx.liqLevels],
-          ['Fear & Greed', ctx.fearGreed], ['BTC Dom', ctx.btcDomTrend],
-          ['X / Social', 'Grok searches X live'],
-          ['Session', ctx.session],
-          ['Events', ctx.upcomingEvents.split('\n')[0] + (ctx.upcomingEvents.includes('\n') ? ' +more' : '')],
-          ['News', ctx.news.split('\n')[0].slice(0, 55) + '…'],
-        ].map(([k, v]) => (
-          <div key={k} className="arena-context-row">
-            <span className="arena-context-key">{k}</span>
-            <span className="arena-context-val">{v}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* CVD Divergence alert banner */}
+      {/* CVD Divergence banner */}
       {(() => {
         const div = store.coins[selectedCoin]?.cvdDivergence;
         if (!div) return null;
@@ -577,9 +478,7 @@ export default function Arena() {
           <div className={`arena-cvd-div arena-cvd-div-${div}`}>
             <span className="arena-cvd-div-icon">{isBull ? '📈' : '📉'}</span>
             <div>
-              <div className="arena-cvd-div-title">
-                {isBull ? 'Bullish CVD Divergence' : 'Bearish CVD Divergence'}
-              </div>
+              <div className="arena-cvd-div-title">{isBull ? 'Bullish CVD Divergence' : 'Bearish CVD Divergence'}</div>
               <div className="arena-cvd-div-desc">
                 {isBull
                   ? 'Price falling but net buying pressure rising — smart money accumulating. Potential reversal up.'
@@ -590,11 +489,11 @@ export default function Arena() {
         );
       })()}
 
+      {/* Run signal */}
       <button className="arena-fire-btn" disabled={loading} onClick={fire}>
-        {loading ? '⚡ Grok is thinking...' : '⚡ Run Grok Signal'}
+        {loading ? '⚡ Grok is thinking...' : '⚡ Run Full Signal'}
       </button>
 
-      {/* Ask Grok chat button */}
       <button
         className="arena-ask-grok-btn"
         onClick={() => window.dispatchEvent(new CustomEvent('grok-chat', {
@@ -645,26 +544,92 @@ export default function Arena() {
         </div>
       )}
 
-      </> /* end tab === 'signal' */}
+      {/* ── DATA CONTEXT (collapsible) ── */}
+      <div className="arena-context" style={{ marginTop: 8 }}>
+        <div
+          className="arena-context-title"
+          style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: ctxOpen ? 8 : 0 }}
+          onClick={() => setCtxOpen(v => !v)}
+        >
+          <span>
+            {selectedCoin.toUpperCase()} · {[ctx.rsi14, ctx.rsi1h, ctx.rsi4h, ctx.cvd, ctx.basis, ctx.orderWalls, ctx.pcRatio, ctx.exchangeNetFlow, ctx.cbPremium, ctx.vwap, ctx.oiTrend, ctx.takerRatio, ctx.btcGex].filter(v => v !== '—' && v !== 'Calculating…').length + 21} signals loaded
+          </span>
+          <span style={{ fontSize: 9, color: '#444' }}>{ctxOpen ? '▲ hide' : '▼ show context'}</span>
+        </div>
+        {ctxOpen && [
+          ['Coin', ctx.coin], ['Price', ctx.price], ['24h Δ', ctx.change24h],
+          ['RSI 15m', ctx.rsi14], ['RSI 1h', ctx.rsi1h], ['RSI 4h', ctx.rsi4h],
+          ['MA20 (15m)', ctx.ma20], ['vs MA20', ctx.priceVsMA],
+          ['Vol Ratio', ctx.volRatio], ['CVD', ctx.cvd],
+          ['L/S Ratio', ctx.longShortRatio], ['Squeeze', squeezeToLine(sq)],
+          ['Funding', ctx.fundingRate], ['Open Interest', ctx.openInterest],
+          ['Basis', ctx.basis], ['Fib Level', ctx.fibNearest],
+          ['Vol Profile POC', ctx.pocLine],
+          ['Order Walls', ctx.orderWalls.length > 55 ? ctx.orderWalls.slice(0, 55) + '…' : ctx.orderWalls],
+          ['P/C Ratio', ctx.pcRatio], ['Max Pain', ctx.maxPain],
+          ['BTC GEX', ctx.btcGex.length > 55 ? ctx.btcGex.slice(0, 55) + '…' : ctx.btcGex],
+          ['Oil (CL=F)', ctx.oilPrice], ['10Y Yield', ctx.bonds10y],
+          ['Taker B/S', ctx.takerRatio.length > 55 ? ctx.takerRatio.slice(0, 55) + '…' : ctx.takerRatio],
+          ['CB Premium', ctx.cbPremium], ['VWAP (15m)', ctx.vwap],
+          ['OI Trend', ctx.oiTrend.length > 55 ? ctx.oiTrend.slice(0, 55) + '…' : ctx.oiTrend],
+          ['X-Exch FR', ctx.crossExchangeFunding.length > 55 ? ctx.crossExchangeFunding.slice(0, 55) + '…' : ctx.crossExchangeFunding],
+          ['DXY', ctx.dxyLine], ['SPX', ctx.spxLine], ['Gold', ctx.goldLine],
+          ['ETF Flows', ctx.etfFlows], ['Exch. Flow', ctx.exchangeNetFlow],
+          ['Stablecoin', ctx.stablecoinFlow], ['G. Trends', ctx.googleTrends],
+          ['Liq Levels', ctx.liqLevels], ['Fear & Greed', ctx.fearGreed],
+          ['BTC Dom', ctx.btcDomTrend], ['X / Social', 'Grok searches X live'],
+          ['Session', ctx.session],
+          ['Events', ctx.upcomingEvents.split('\n')[0] + (ctx.upcomingEvents.includes('\n') ? ' +more' : '')],
+          ['News', ctx.news.split('\n')[0].slice(0, 55) + '…'],
+        ].map(([k, v]) => (
+          <div key={k} className="arena-context-row">
+            <span className="arena-context-key">{k}</span>
+            <span className="arena-context-val">{v}</span>
+          </div>
+        ))}
+      </div>
 
-      {/* ── Session history — always visible on all tabs ── */}
+      {/* ── CONFLUENCE SCORER (collapsible) ── */}
+      <div
+        className="dash-section"
+        style={{ cursor: 'pointer', userSelect: 'none', marginTop: 16 }}
+        onClick={() => setConfOpen(v => !v)}
+      >
+        📊 Confluence Score
+        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
+          {confOpen ? '▲ hide' : '▼ show'}
+        </span>
+      </div>
+      {confOpen && (
+        <ConfluenceScorer onRunSignal={(coin) => { setSelectedCoin(coin); }} />
+      )}
+
+      {/* ── SETUP SCANNER (collapsible) ── */}
+      <div
+        className="dash-section"
+        style={{ cursor: 'pointer', userSelect: 'none' }}
+        onClick={() => setScanOpen(v => !v)}
+      >
+        🎯 Setup Scanner
+        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
+          {scanOpen ? '▲ hide' : '▼ show'}
+        </span>
+      </div>
+      {scanOpen && <SetupScanner />}
+
+      {/* ── SESSION HISTORY ── */}
       {history.length > 0 && (
         <div style={{ marginTop: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: '#444' }}>
-              Session History
-            </div>
+            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: '#444' }}>Session History</div>
             <button
               onClick={() => { setHistory([]); setDetailIdx(null); try { sessionStorage.removeItem(ARENA_HIST_KEY); } catch {} }}
               style={{ fontSize: 10, color: '#444', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
-            >
-              Clear
-            </button>
+            >Clear</button>
           </div>
 
           {history.map((h, i) => (
             <div key={i}>
-              {/* Summary row — clickable */}
               <div
                 className={`arena-hist-item${detailIdx === i ? ' arena-hist-open' : ''}`}
                 onClick={() => setDetailIdx(detailIdx === i ? null : i)}
@@ -685,39 +650,30 @@ export default function Arena() {
                 </div>
               </div>
 
-              {/* Expanded detail */}
               {detailIdx === i && (
                 <div className={`arena-hist-detail sig-${h.signal.toLowerCase()}`}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <div>
-                      <span className={`arena-sig-badge badge-${h.signal.toLowerCase()}`} style={{ fontSize: 11 }}>
-                        {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'SHORT' ? '▼ SHORT' : '— FLAT'}
-                      </span>
-                    </div>
+                    <span className={`arena-sig-badge badge-${h.signal.toLowerCase()}`} style={{ fontSize: 11 }}>
+                      {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'SHORT' ? '▼ SHORT' : '— FLAT'}
+                    </span>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#b8aeff' }}>{h.confidence}% confidence</div>
                   </div>
-
                   {h.entry && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
                       <span style={{ fontSize: 10, color: '#606060', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Entry Zone</span>
                       <span style={{ fontSize: 12, fontWeight: 700, color: '#e8e8e8', fontFamily: 'monospace' }}>{h.entry}</span>
                     </div>
                   )}
-
-                  {/* Confidence bar */}
                   <div className="arena-conf-bar" style={{ marginBottom: 10 }}>
                     <div className="arena-conf-fill" style={{
                       width: h.confidence + '%',
                       background: h.signal === 'LONG' ? '#7de0a4' : h.signal === 'SHORT' ? '#ff9a92' : '#606060',
                     }} />
                   </div>
-
                   {h.reasoning && (
                     <div className="arena-reasoning">
                       <div className="arena-reasoning-title">Reasoning</div>
-                      <div className="arena-reasoning-text">
-                        <ReasoningText text={h.reasoning} />
-                      </div>
+                      <div className="arena-reasoning-text"><ReasoningText text={h.reasoning} /></div>
                     </div>
                   )}
                 </div>
@@ -726,6 +682,7 @@ export default function Arena() {
           ))}
         </div>
       )}
+
     </div>
   );
 }
