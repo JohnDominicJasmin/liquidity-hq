@@ -553,7 +553,7 @@ export default function Arena() {
           onClick={() => setCtxOpen(v => !v)}
         >
           <span>
-            {selectedCoin.toUpperCase()} · {[ctx.rsi14, ctx.rsi1h, ctx.rsi4h, ctx.cvd, ctx.basis, ctx.orderWalls, ctx.pcRatio, ctx.exchangeNetFlow, ctx.cbPremium, ctx.vwap, ctx.oiTrend, ctx.takerRatio, ctx.btcGex].filter(v => v !== '—' && v !== 'Calculating…').length + 21} signals loaded
+            Analysing {selectedCoin.toUpperCase()} across {[ctx.rsi14, ctx.rsi1h, ctx.rsi4h, ctx.cvd, ctx.basis, ctx.orderWalls, ctx.pcRatio, ctx.exchangeNetFlow, ctx.cbPremium, ctx.vwap, ctx.oiTrend, ctx.takerRatio, ctx.btcGex].filter(v => v !== '—' && v !== 'Calculating…').length + 21} market signals
           </span>
           <span style={{ fontSize: 9, color: '#444' }}>{ctxOpen ? '▲ hide' : '▼ show context'}</span>
         </div>
