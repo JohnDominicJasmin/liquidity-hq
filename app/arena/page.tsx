@@ -618,7 +618,7 @@ export default function Arena() {
             {result.chartAnalysis && (
               <div className="arena-reasoning" style={{ marginTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
                 <div className="arena-reasoning-title">Chart</div>
-                <div className="arena-reasoning-text">{result.chartAnalysis}</div>
+                <div className="arena-reasoning-text"><ReasoningText text={result.chartAnalysis} /></div>
               </div>
             )}
 

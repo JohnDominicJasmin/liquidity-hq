@@ -276,50 +276,75 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     '',
     'Cross-reference the candle key levels with order book walls, liquidation clusters, and derivatives data above.',
     '',
-    'Output in EXACTLY this format — no extra text before or after:',
+    'CRITICAL: Output ONLY these exact lines, no markdown, no bold (**), no extra text:',
     'SIGNAL: [LONG or SHORT or FLAT]',
     'CONFIDENCE: [0-100]',
-    'ENTRY_LOW: [number — no commas or symbols]',
-    'ENTRY_HIGH: [number — no commas or symbols]',
-    'TAKE_PROFIT: [number — no commas or symbols]',
-    'STOP_LOSS: [number — no commas or symbols]',
+    'ENTRY_LOW: [number]',
+    'ENTRY_HIGH: [number]',
+    'TAKE_PROFIT: [number]',
+    'STOP_LOSS: [number]',
     'LEVELS:',
-    '- [number]: [label max 15 chars] | [support or resistance]',
-    '- [number]: [label max 15 chars] | [support or resistance]',
-    '- [number]: [label max 15 chars] | [support or resistance]',
+    '- [price]: [label] | [support or resistance]',
+    '- [price]: [label] | [support or resistance]',
+    '- [price]: [label] | [support or resistance]',
     'CATALYSTS:',
-    '- [most important macro/geo/news event currently driving or opposing this trade — war, Trump, Fed, ETF flow, whale move, OPEC, sanctions, etc.]',
-    '- [second catalyst]',
-    '- [third catalyst if relevant, otherwise omit]',
-    'CHART_ANALYSIS: [1-2 sentences on what the candles and indicators show]',
-    'REASONING: [3-4 sentences citing specific signals from BOTH chart AND derivatives/flow/macro/news data. Be direct about what matters most right now.]',
+    '- [war/geopolitical event, Trump announcement, Fed action, ETF flow, or major news driving price RIGHT NOW]',
+    '- [second catalyst — must be specific, not generic]',
+    '- [third catalyst if relevant]',
+    'CHART_ANALYSIS: [1-2 sentences on candles and indicators only — no mention of macro here]',
+    'REASONING: [3-4 sentences combining chart + derivatives + macro + news into one directional thesis]',
   ].join('\n');
 
   return body + '\n' + chartSection;
 }
 
+// Strip markdown bold/italic formatting Grok sometimes injects
+function stripMd(s: string): string {
+  return s.replace(/\*\*/g, '').replace(/\*/g, '').trim();
+}
+
+// Match a field label that Grok may wrap in **bold**
+function fieldRx(name: string): RegExp {
+  return new RegExp('\\*{0,2}' + name + '\\*{0,2}:\\s*', 'i');
+}
+
 export function parseCombinedResponse(text: string, tf: string, session: string): CombinedResult {
-  const pn = (s?: string): number | null => { const v = parseFloat((s ?? '').replace(/,/g, '')); return isNaN(v) || v <= 0 ? null : v; };
-  const signal = (text.match(/SIGNAL:\s*(LONG|SHORT|FLAT)/i)?.[1]?.toUpperCase() ?? 'FLAT') as CombinedResult['signal'];
-  const confidence = parseInt(text.match(/CONFIDENCE:\s*(\d+)/i)?.[1] ?? '0');
-  const entryLow  = pn(text.match(/ENTRY_LOW:\s*([\d,.]+)/i)?.[1]);
-  const entryHigh = pn(text.match(/ENTRY_HIGH:\s*([\d,.]+)/i)?.[1]);
-  const tp = pn(text.match(/TAKE_PROFIT:\s*([\d,.]+)/i)?.[1]);
-  const sl = pn(text.match(/STOP_LOSS:\s*([\d,.]+)/i)?.[1]);
+  // Normalise: strip leading ** from every line so field detection works
+  const clean = text.split('\n').map(l => l.replace(/^\*{1,2}/, '').replace(/\*{1,2}$/, '')).join('\n');
+
+  const pn = (s?: string): number | null => { const v = parseFloat((s ?? '').replace(/[,$]/g, '')); return isNaN(v) || v <= 0 ? null : v; };
+
+  const signal     = (clean.match(/SIGNAL:\s*(LONG|SHORT|FLAT)/i)?.[1]?.toUpperCase() ?? 'FLAT') as CombinedResult['signal'];
+  const confidence = parseInt(clean.match(/CONFIDENCE:\s*(\d+)/i)?.[1] ?? '0');
+  const entryLow   = pn(clean.match(/ENTRY_LOW:\s*([\d,.]+)/i)?.[1]);
+  const entryHigh  = pn(clean.match(/ENTRY_HIGH:\s*([\d,.]+)/i)?.[1]);
+  const tp         = pn(clean.match(/TAKE_PROFIT:\s*([\d,.]+)/i)?.[1]);
+  const sl         = pn(clean.match(/STOP_LOSS:\s*([\d,.]+)/i)?.[1]);
+
   const levels: CombinedResult['levels'] = [];
-  const levSect = text.match(/LEVELS:\s*\n([\s\S]*?)(?=CATALYSTS:|CHART_ANALYSIS:|REASONING:|$)/i)?.[1] ?? '';
+  const levSect = clean.match(/LEVELS:\s*\n([\s\S]*?)(?=CATALYSTS:|CHART_ANALYSIS:|REASONING:|$)/i)?.[1] ?? '';
   for (const line of levSect.split('\n')) {
     const m = line.match(/-\s*\$?([\d,.]+):\s*([^|]+)\|\s*(support|resistance)/i);
     if (m) { const p = pn(m[1]); if (p) levels.push({ price: p, label: m[2].trim(), type: m[3].toLowerCase() as 'support'|'resistance' }); }
   }
+
   const catalysts: string[] = [];
-  const catSect = text.match(/CATALYSTS:\s*\n([\s\S]*?)(?=CHART_ANALYSIS:|REASONING:|$)/i)?.[1] ?? '';
+  const catSect = clean.match(/CATALYSTS:\s*\n([\s\S]*?)(?=CHART_ANALYSIS:|REASONING:|$)/i)?.[1] ?? '';
   for (const line of catSect.split('\n')) {
     const m = line.match(/^-\s*(.+)/);
-    if (m) catalysts.push(m[1].trim());
+    if (m) { const c = stripMd(m[1]); if (c) catalysts.push(c); }
   }
-  const chartAnalysis = text.match(/CHART_ANALYSIS:\s*([\s\S]*?)(?=\nREASONING:|$)/i)?.[1]?.trim() ?? '';
-  const reasoning = text.match(/REASONING:\s*([\s\S]+)/i)?.[1]?.trim() ?? '';
+
+  // CHART_ANALYSIS — stop at REASONING (handle **REASONING:** pattern)
+  const chartAnalysis = stripMd(
+    clean.match(/CHART_ANALYSIS:\s*([\s\S]*?)(?=\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? ''
+  );
+
+  // REASONING — handle **REASONING:** pattern
+  const reasoning = stripMd(
+    clean.match(/\*{0,2}REASONING\*{0,2}:\s*([\s\S]+)/i)?.[1] ?? ''
+  );
+
   return { signal, confidence, entryLow, entryHigh, tp, sl, levels, catalysts, chartAnalysis, reasoning, analyzedAt: Date.now(), tf, session };
 }
 
