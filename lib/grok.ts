@@ -307,7 +307,7 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
     const m = line.match(/-\s*\$?([\d,.]+):\s*([^|]+)\|\s*(support|resistance)/i);
     if (m) { const p = pn(m[1]); if (p) levels.push({ price: p, label: m[2].trim(), type: m[3].toLowerCase() as 'support'|'resistance' }); }
   }
-  const chartAnalysis = text.match(/CHART_ANALYSIS:\s*(.+?)(?=\nREASONING:|$)/is)?.[1]?.trim() ?? '';
+  const chartAnalysis = text.match(/CHART_ANALYSIS:\s*([\s\S]*?)(?=\nREASONING:|$)/i)?.[1]?.trim() ?? '';
   const reasoning = text.match(/REASONING:\s*([\s\S]+)/i)?.[1]?.trim() ?? '';
   return { signal, confidence, entryLow, entryHigh, tp, sl, levels, chartAnalysis, reasoning, analyzedAt: Date.now(), tf, session };
 }
