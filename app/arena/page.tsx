@@ -592,7 +592,7 @@ export default function Arena() {
 
       {/* ── CONFLUENCE SCORER ── */}
       <div className="dash-section" style={{ marginTop: 16 }}>Confluence Score</div>
-      <ConfluenceScorer coin={selectedCoin} onRunSignal={(coin) => { setSelectedCoin(coin); }} />
+      <ConfluenceScorer coin={selectedCoin} />
 
       {/* ── SETUP SCANNER ── */}
       <div className="dash-section">Setup Scanner</div>
