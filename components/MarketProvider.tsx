@@ -161,6 +161,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           patch.change = parseFloat(item.price24hPcnt || '0') * 100;
           patch.high   = parseFloat(item.highPrice24h || '0');
           patch.low    = parseFloat(item.lowPrice24h || '0');
+          patch.vol24  = parseFloat(item.turnover24h  || '0');
         }
         updateCoin(coin as CoinId, patch);
       } catch { /* */ }
@@ -170,7 +171,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   /* ── Bybit LSR ── */
   const fetchLSR = useCallback(async () => {
     await Promise.allSettled(
-      Object.entries(BYBIT_SYMS).filter(([c]) => c !== 'hype').map(async ([coin, sym]) => {
+      Object.entries(BYBIT_SYMS).map(async ([coin, sym]) => {
         try {
           const res = await fetch(`https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${sym}&period=1h&limit=1`);
           const d = await res.json();
@@ -289,6 +290,104 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
       updateCoin(coin, { volRatio: avg > 0 ? current / avg : 1, ma20, rsi14, poc, vah, val, vwap, takerBuyRatio });
     } catch { /* */ }
+  }, [updateCoin]);
+
+  /* ── Bybit klines for HYPE (RSI, MA20, VWAP, POC, volRatio) ── */
+  // Bybit kline format (newest-first): [startTime, open, high, low, close, volume, turnover]
+  const fetchBybitKlines = useCallback(async () => {
+    const bybitOnly = (['hype'] as CoinId[]).filter(c => BYBIT_SYMS[c] && !BINANCE_SYMS[c]);
+    await Promise.allSettled(bybitOnly.map(async (coin) => {
+      const sym = BYBIT_SYMS[coin];
+      try {
+        const res = await fetch(
+          `https://api.bybit.com/v5/market/kline?category=linear&symbol=${sym}&interval=15&limit=100`
+        );
+        const d = await res.json();
+        // Bybit returns newest-first — reverse to oldest-first
+        const klines: string[][] = [...(d?.result?.list ?? [])].reverse();
+        if (klines.length < 15) return;
+
+        const closes = klines.map(k => parseFloat(k[4]));
+        const highs  = klines.map(k => parseFloat(k[2]));
+        const lows   = klines.map(k => parseFloat(k[3]));
+        const vols   = klines.map(k => parseFloat(k[6])); // turnover = quote vol (USD)
+
+        const rsi14     = computeRSI14(closes);
+        const ma20Slice = closes.slice(-20);
+        const ma20      = ma20Slice.reduce((a, b) => a + b, 0) / ma20Slice.length;
+
+        // Volume ratio (current candle vs rolling avg)
+        const current = vols[vols.length - 2];
+        const avg     = vols.slice(0, -1).reduce((a, b) => a + b, 0) / (vols.length - 1);
+        const volRatio = avg > 0 ? current / avg : 1;
+
+        // VWAP (base volume k[5])
+        let sumTPV = 0, sumVol = 0;
+        klines.forEach((k, i) => {
+          const tp      = (highs[i] + lows[i] + closes[i]) / 3;
+          const baseVol = parseFloat(k[5]);
+          sumTPV += tp * baseVol;
+          sumVol += baseVol;
+        });
+        const vwap = sumVol > 0 ? sumTPV / sumVol : null;
+
+        // Volume Profile / POC / VAH / VAL
+        const allPrices = [...highs, ...lows];
+        const minP = Math.min(...allPrices);
+        const maxP = Math.max(...allPrices);
+        const range = maxP - minP;
+        const BUCKETS = 60;
+        const bSize = range / BUCKETS;
+        const buckets = new Array<number>(BUCKETS).fill(0);
+        klines.forEach((k, i) => {
+          const h = highs[i], l = lows[i], v = vols[i];
+          const lo = Math.max(0, Math.floor((l - minP) / bSize));
+          const hi = Math.min(BUCKETS - 1, Math.floor((h - minP) / bSize));
+          const span = Math.max(1, hi - lo + 1);
+          for (let b = lo; b <= hi; b++) buckets[b] += v / span;
+        });
+        let maxVb = 0, pocBucket = 0;
+        buckets.forEach((v, i) => { if (v > maxVb) { maxVb = v; pocBucket = i; } });
+        const poc = minP + (pocBucket + 0.5) * bSize;
+        const totalVol = buckets.reduce((a, b) => a + b, 0);
+        let lo = pocBucket, hi = pocBucket, captured = buckets[pocBucket];
+        while (captured < totalVol * 0.70 && (lo > 0 || hi < BUCKETS - 1)) {
+          const addLo = lo > 0 ? buckets[lo - 1] : 0;
+          const addHi = hi < BUCKETS - 1 ? buckets[hi + 1] : 0;
+          if (addLo >= addHi && lo > 0) { lo--; captured += buckets[lo]; }
+          else if (hi < BUCKETS - 1)    { hi++; captured += buckets[hi]; }
+          else                           { lo--; captured += buckets[lo]; }
+        }
+        const val = minP + lo * bSize;
+        const vah = minP + (hi + 1) * bSize;
+
+        updateCoin(coin, { rsi14, ma20, volRatio, vwap, poc, vah, val });
+      } catch { /* */ }
+    }));
+  }, [updateCoin]);
+
+  /* ── Bybit multi-TF RSI for HYPE (1h + 4h) ── */
+  const fetchBybitMultiTFRSI = useCallback(async () => {
+    const bybitOnly = (['hype'] as CoinId[]).filter(c => BYBIT_SYMS[c] && !BINANCE_SYMS[c]);
+    await Promise.allSettled(
+      bybitOnly.flatMap(coin => {
+        const sym = BYBIT_SYMS[coin];
+        return (['60', '240'] as const).map(async (interval) => {
+          try {
+            const res = await fetch(
+              `https://api.bybit.com/v5/market/kline?category=linear&symbol=${sym}&interval=${interval}&limit=16`
+            );
+            const d = await res.json();
+            const klines: string[][] = [...(d?.result?.list ?? [])].reverse();
+            if (klines.length < 15) return;
+            const closes = klines.map(k => parseFloat(k[4]));
+            const rsi = computeRSI14(closes);
+            if (rsi === null) return;
+            updateCoin(coin, interval === '60' ? { rsi1h: rsi } : { rsi4h: rsi });
+          } catch { /* */ }
+        });
+      })
+    );
   }, [updateCoin]);
 
   /* ── Multi-timeframe RSI (1h + 4h) ── */
@@ -834,6 +933,8 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     fetchBybit();
     fetchLSR();
     fetchVolume();
+    fetchBybitKlines();       // RSI/MA20/VWAP/POC for HYPE
+    fetchBybitMultiTFRSI();   // 1h + 4h RSI for HYPE
     fetchFNG();
     fetchBTCDom();
     fetchMacro();
@@ -851,21 +952,23 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     bootstrapOITrend();
 
     const intervals = [
-      setInterval(fetchBybit,            8  * 60 * 1000),
-      setInterval(fetchLSR,              5  * 60 * 1000),
-      setInterval(fetchVolume,           3  * 60 * 1000),
+      setInterval(fetchBybit,             8  * 60 * 1000),
+      setInterval(fetchLSR,               5  * 60 * 1000),
+      setInterval(fetchVolume,            3  * 60 * 1000),
+      setInterval(fetchBybitKlines,       3  * 60 * 1000),  // same cadence as Binance klines
+      setInterval(fetchBybitMultiTFRSI,  15  * 60 * 1000),  // same as Binance multi-TF
       setInterval(fetchFNG,             24  * 60 * 60 * 1000),
-      setInterval(fetchBTCDom,           5  * 60 * 1000),
-      setInterval(fetchMacro,           10  * 60 * 1000),
-      setInterval(fetchETF,             30  * 60 * 1000),
-      setInterval(fetchMultiTFRSI,      15  * 60 * 1000),
-      setInterval(fetchCVD,              5  * 60 * 1000),
-      setInterval(fetchOrderBook,        2  * 60 * 1000),
-      setInterval(fetchDeribitOptions,  15  * 60 * 1000),
-      setInterval(fetchStablecoinFlows, 30  * 60 * 1000),
-      setInterval(fetchCoinglassData,   15  * 60 * 1000),
-      setInterval(fetchGoogleTrends,    60  * 60 * 1000),
-      setInterval(fetchCoinbasePremium,  30 * 1000),      // every 30s
+      setInterval(fetchBTCDom,            5  * 60 * 1000),
+      setInterval(fetchMacro,            10  * 60 * 1000),
+      setInterval(fetchETF,              30  * 60 * 1000),
+      setInterval(fetchMultiTFRSI,       15  * 60 * 1000),
+      setInterval(fetchCVD,               5  * 60 * 1000),
+      setInterval(fetchOrderBook,         2  * 60 * 1000),
+      setInterval(fetchDeribitOptions,   15  * 60 * 1000),
+      setInterval(fetchStablecoinFlows,  30  * 60 * 1000),
+      setInterval(fetchCoinglassData,    15  * 60 * 1000),
+      setInterval(fetchGoogleTrends,     60  * 60 * 1000),
+      setInterval(fetchCoinbasePremium,   30 * 1000),      // every 30s
     ];
 
     return () => {
