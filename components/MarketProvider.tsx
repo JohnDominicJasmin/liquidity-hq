@@ -126,8 +126,10 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         const item = d.result?.list?.[0];
         if (!item) return;
 
-        const curOI    = parseFloat(item.openInterestValue || '0');
         const curPrice = parseFloat(item.lastPrice || '0');
+        // openInterestValue = USD-denominated OI; fall back to base-qty × price if missing
+        const rawOIValue = parseFloat(item.openInterestValue || '0');
+        const curOI = rawOIValue || (parseFloat(item.openInterest || '0') * curPrice);
 
         /* ── OI Trend vs Price divergence ── */
         const hist    = oiHistRef.current[coin as CoinId] ?? [];

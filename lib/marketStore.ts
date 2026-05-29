@@ -64,7 +64,7 @@ export const BINANCE_SYMS: Record<string, string> = {
 
 export const BYBIT_SYMS: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
-  xrp: 'XRPUSDT', bnb: 'BNBUSDT', hype: 'HYPEUSDT',
+  xrp: 'XRPUSDT', bnb: 'BNBUSDT', hype: 'HYPEUSDT', near: 'NEARUSDT',
 };
 
 export const COIN_DEC: Record<CoinId, number> = {
