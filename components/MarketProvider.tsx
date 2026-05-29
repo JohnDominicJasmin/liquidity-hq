@@ -364,6 +364,23 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         const vah = minP + (hi + 1) * bSize;
 
         updateCoin(coin, { rsi14, ma20, volRatio, vwap, poc, vah, val });
+
+        // Taker buy ratio from recent trades (Bybit klines don't split maker/taker)
+        try {
+          const tradeRes = await fetch(
+            `https://api.bybit.com/v5/market/recent-trade?category=linear&symbol=${sym}&limit=500`
+          );
+          const tradeData = await tradeRes.json();
+          const trades: Array<{ side: string; size: string }> = tradeData?.result?.list ?? [];
+          let buyVol = 0, totalVol = 0;
+          trades.forEach(t => {
+            const qty = parseFloat(t.size || '0');
+            totalVol += qty;
+            if (t.side === 'Buy') buyVol += qty;
+          });
+          if (totalVol > 0) updateCoin(coin, { takerBuyRatio: buyVol / totalVol });
+        } catch { /* */ }
+
       } catch { /* */ }
     }));
   }, [updateCoin]);

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useMarket, classifyFunding, CoinId, computeSqueezeScore, computeFibLevels, BINANCE_SYMS } from '@/lib/marketStore';
+import { useMarket, classifyFunding, CoinId, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
 import { buildPrompt, callGrok, GrokResult, GrokContext, buildCombinedPrompt, callGrokCombined, CombinedResult, ChartData, calcEMA, calcRSI } from '@/lib/grok';
 import { getPHT, getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
@@ -378,17 +378,32 @@ export default function Arena() {
   };
 
   const readMarket = useCallback(async () => {
-    const sym = BINANCE_SYMS[selectedCoin] as string | undefined;
-    if (!sym) { setReadError('No Binance symbol for ' + selectedCoin.toUpperCase()); return; }
+    const binanceSym = BINANCE_SYMS[selectedCoin] as string | undefined;
+    const bybitSym   = BYBIT_SYMS[selectedCoin]   as string | undefined;
+    if (!binanceSym && !bybitSym) {
+      setReadError('No market data source for ' + selectedCoin.toUpperCase());
+      return;
+    }
 
     setReadLoading(true); setReadError('');
 
     try {
-      // Step 1 — fetch candles
+      // Step 1 — fetch candles (Binance preferred; fall back to Bybit for HYPE etc.)
       setReadStep('Reading chart…');
-      const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${readTf}&limit=300`);
-      if (!r.ok) throw new Error('Binance API error');
-      const raw: (string|number)[][] = await r.json();
+      let raw: (string|number)[][];
+      if (binanceSym) {
+        const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=${readTf}&limit=300`);
+        if (!r.ok) throw new Error('Binance API error');
+        raw = await r.json();
+      } else {
+        // Bybit klines: interval uses numbers (15, 60, 240); response is newest-first
+        const bybitInterval = readTf === '15m' ? '15' : readTf === '1h' ? '60' : '240';
+        const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${bybitInterval}&limit=300`);
+        if (!r.ok) throw new Error('Bybit API error');
+        const data = await r.json();
+        raw = [...(data?.result?.list ?? [])].reverse(); // oldest-first to match Binance
+      }
+      // k[0]=time k[1]=open k[2]=high k[3]=low k[4]=close k[5]=vol — same index for both
       const candles = raw.map(k => ({ t: Number(k[0]), o: Number(k[1]), h: Number(k[2]), l: Number(k[3]), c: Number(k[4]), v: Number(k[5]) }));
       const closes  = candles.map(c => c.c);
       const vis     = candles.slice(-80);
