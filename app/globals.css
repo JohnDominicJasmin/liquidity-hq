@@ -595,11 +595,11 @@ body::after {
 .ncard-whale { border-left-width: 3px !important; }
 
 .arena-fire-btn {
-  width: 100%; padding: 13px; border-radius: 14px;
+  width: 100%; padding: 8px 14px; border-radius: 10px;
   border: 0.5px solid var(--purple-bdr);
   background: linear-gradient(135deg, rgba(167,139,250,0.15), rgba(139,92,246,0.1));
-  color: var(--purple); font-size: 14px; font-weight: 700; cursor: pointer;
-  letter-spacing: .04em; margin-bottom: 14px; transition: all 0.2s;
+  color: var(--purple); font-size: 13px; font-weight: 700; cursor: pointer;
+  letter-spacing: .03em; margin-bottom: 0; transition: all 0.2s;
   box-shadow: 0 2px 16px rgba(167,139,250,0.1);
 }
 .arena-fire-btn:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
@@ -764,9 +764,9 @@ body::after {
 
 /* ── ARENA ASK BUTTON ── */
 .arena-ask-grok-btn {
-  width: 100%; padding: 10px; border-radius: 10px; margin-bottom: 14px;
+  width: 100%; padding: 8px 14px; border-radius: 10px; margin-bottom: 0;
   border: 0.5px solid var(--purple-bdr); background: var(--purple-bg);
-  color: var(--purple); font-size: 13px; font-weight: 600; cursor: pointer;
+  color: var(--purple); font-size: 12px; font-weight: 600; cursor: pointer;
   transition: all 0.15s; letter-spacing: .02em;
 }
 .arena-ask-grok-btn:hover { box-shadow: var(--glow-purple); }
