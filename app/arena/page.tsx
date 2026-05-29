@@ -602,9 +602,21 @@ export default function Arena() {
               </div>
             )}
 
+            {/* Catalysts — events/news driving the trade */}
+            {result.catalysts && result.catalysts.length > 0 && (
+              <div className="arena-reasoning" style={{ marginTop: 10, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
+                <div className="arena-reasoning-title">Catalysts</div>
+                <ul style={{ margin: '6px 0 0', padding: '0 0 0 14px', listStyle: 'disc' }}>
+                  {result.catalysts.map((c, i) => (
+                    <li key={i} style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.7 }}>{c}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* Chart analysis */}
             {result.chartAnalysis && (
-              <div className="arena-reasoning" style={{ marginTop: 10, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
+              <div className="arena-reasoning" style={{ marginTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
                 <div className="arena-reasoning-title">Chart</div>
                 <div className="arena-reasoning-text">{result.chartAnalysis}</div>
               </div>

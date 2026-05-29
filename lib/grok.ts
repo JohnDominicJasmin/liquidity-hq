@@ -252,6 +252,7 @@ export interface CombinedResult {
   levels: { price: number; label: string; type: 'support' | 'resistance' }[];
   chartAnalysis: string;
   reasoning: string;
+  catalysts: string[];
   analyzedAt: number;
   tf: string;
   session: string;
@@ -286,8 +287,12 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     '- [number]: [label max 15 chars] | [support or resistance]',
     '- [number]: [label max 15 chars] | [support or resistance]',
     '- [number]: [label max 15 chars] | [support or resistance]',
+    'CATALYSTS:',
+    '- [most important macro/geo/news event currently driving or opposing this trade — war, Trump, Fed, ETF flow, whale move, OPEC, sanctions, etc.]',
+    '- [second catalyst]',
+    '- [third catalyst if relevant, otherwise omit]',
     'CHART_ANALYSIS: [1-2 sentences on what the candles and indicators show]',
-    'REASONING: [3-4 sentences citing specific signals from BOTH chart AND derivatives/flow/macro data]',
+    'REASONING: [3-4 sentences citing specific signals from BOTH chart AND derivatives/flow/macro/news data. Be direct about what matters most right now.]',
   ].join('\n');
 
   return body + '\n' + chartSection;
@@ -302,14 +307,20 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
   const tp = pn(text.match(/TAKE_PROFIT:\s*([\d,.]+)/i)?.[1]);
   const sl = pn(text.match(/STOP_LOSS:\s*([\d,.]+)/i)?.[1]);
   const levels: CombinedResult['levels'] = [];
-  const levSect = text.match(/LEVELS:\s*\n([\s\S]*?)(?=CHART_ANALYSIS:|REASONING:|$)/i)?.[1] ?? '';
+  const levSect = text.match(/LEVELS:\s*\n([\s\S]*?)(?=CATALYSTS:|CHART_ANALYSIS:|REASONING:|$)/i)?.[1] ?? '';
   for (const line of levSect.split('\n')) {
     const m = line.match(/-\s*\$?([\d,.]+):\s*([^|]+)\|\s*(support|resistance)/i);
     if (m) { const p = pn(m[1]); if (p) levels.push({ price: p, label: m[2].trim(), type: m[3].toLowerCase() as 'support'|'resistance' }); }
   }
+  const catalysts: string[] = [];
+  const catSect = text.match(/CATALYSTS:\s*\n([\s\S]*?)(?=CHART_ANALYSIS:|REASONING:|$)/i)?.[1] ?? '';
+  for (const line of catSect.split('\n')) {
+    const m = line.match(/^-\s*(.+)/);
+    if (m) catalysts.push(m[1].trim());
+  }
   const chartAnalysis = text.match(/CHART_ANALYSIS:\s*([\s\S]*?)(?=\nREASONING:|$)/i)?.[1]?.trim() ?? '';
   const reasoning = text.match(/REASONING:\s*([\s\S]+)/i)?.[1]?.trim() ?? '';
-  return { signal, confidence, entryLow, entryHigh, tp, sl, levels, chartAnalysis, reasoning, analyzedAt: Date.now(), tf, session };
+  return { signal, confidence, entryLow, entryHigh, tp, sl, levels, catalysts, chartAnalysis, reasoning, analyzedAt: Date.now(), tf, session };
 }
 
 export async function callGrokCombined(apiKey: string, prompt: string, tf: string, session: string): Promise<CombinedResult> {

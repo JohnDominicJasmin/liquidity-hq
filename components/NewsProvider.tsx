@@ -277,6 +277,22 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     } catch { /* */ }
   }, [pushAlert]);
 
+  /* ── Reuters / AP / CoinDesk / CoinTelegraph RSS (server-side proxy) ── */
+  const fetchRSSNews = useCallback(async () => {
+    try {
+      const res = await fetch('/api/news-rss');
+      if (!res.ok) return;
+      const { items } = await res.json() as { items: { title: string; source: string; pubDate: number }[] };
+      const cutoff = Math.floor(Date.now() / 1000) - 6 * 3600; // ignore articles older than 6h
+      items.forEach(item => {
+        if (item.pubDate < cutoff) return;
+        const type = classifyNews(item.title);
+        if (!type) return;
+        pushAlert(item.title, item.source, item.pubDate, type);
+      });
+    } catch { /* ignore */ }
+  }, [pushAlert]);
+
   /* ── Whale trade listener ── */
   useEffect(() => {
     const handler = (e: Event) => {
@@ -298,10 +314,11 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
 
     // Fire all sources immediately on mount
     startNewsWS();
-    fetchFinnhubNews();   // PRIMARY: REST poll — most reliable
+    fetchFinnhubNews();   // PRIMARY: Finnhub REST
+    fetchRSSNews();       // SECONDARY: Reuters/AP/CoinDesk/CoinTelegraph RSS
     fetchEconEvents();
     fetchGeoEvents();
-    pollCryptoPanic();    // SECONDARY: CryptoPanic
+    pollCryptoPanic();    // TERTIARY: CryptoPanic
 
     /* Polling intervals */
     const cpInterval = () => {
@@ -317,8 +334,9 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
 
     const intervals = [
       setInterval(fetchFinnhubNews,  2 * 60 * 1000),    // every 2 min
-      setInterval(fetchEconEvents,   60 * 60 * 1000),   // every 1h
-      setInterval(fetchGeoEvents,     3 * 60 * 1000),   // every 3 min
+      setInterval(fetchRSSNews,      2 * 60 * 1000),    // every 2 min — Reuters/AP/CoinDesk
+      setInterval(fetchEconEvents,  60 * 60 * 1000),    // every 1h
+      setInterval(fetchGeoEvents,    3 * 60 * 1000),    // every 3 min
     ];
 
     return () => {
