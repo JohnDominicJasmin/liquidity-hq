@@ -489,22 +489,25 @@ export default function Arena() {
         );
       })()}
 
-      {/* Run signal */}
-      <button className="arena-fire-btn" disabled={loading} onClick={fire}>
-        {loading ? '⚡ Grok is thinking...' : '⚡ Run Full Signal'}
-      </button>
-
-      <button
-        className="arena-ask-grok-btn"
-        onClick={() => window.dispatchEvent(new CustomEvent('grok-chat', {
-          detail: {
-            coin: selectedCoin,
-            prompt: `Give me a complete analysis of ${selectedCoin.toUpperCase()}/USDT right now. What's the trend, key levels, directional bias, best entry if any, and should I trade or wait?`,
-          },
-        }))}
-      >
-        💬 Ask Grok about {selectedCoin.toUpperCase()}
-      </button>
+      {/* Run signal + Ask Grok — side by side */}
+      <div style={{ display: 'flex', gap: 8, margin: '10px 0' }}>
+        <button className="arena-fire-btn" disabled={loading} onClick={fire}
+          style={{ flex: 2, width: 'auto', marginBottom: 0 }}>
+          {loading ? '⚡ Thinking...' : '⚡ Run Full Signal'}
+        </button>
+        <button
+          className="arena-ask-grok-btn"
+          style={{ flex: 1, width: 'auto', marginBottom: 0 }}
+          onClick={() => window.dispatchEvent(new CustomEvent('grok-chat', {
+            detail: {
+              coin: selectedCoin,
+              prompt: `Give me a complete analysis of ${selectedCoin.toUpperCase()}/USDT right now. What's the trend, key levels, directional bias, best entry if any, and should I trade or wait?`,
+            },
+          }))}
+        >
+          💬 Ask Grok
+        </button>
+      </div>
 
       {loading && (
         <div className="arena-loading">
