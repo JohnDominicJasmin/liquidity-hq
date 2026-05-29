@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import { useMarket, COINS, BYBIT_SYMS, COIN_DEC, fmtPrice, fmtChg, fmtOI, classifyFunding } from '@/lib/marketStore';
 import Ticker from '@/components/Ticker';
 import FearGreed from '@/components/FearGreed';
@@ -72,8 +73,8 @@ function MacroStrip() {
 const OI_TREND_META: Record<string, { txt: string; sub: string; hint: string; col: string }> = {
   strong_up:   { txt: '↑OI ↑P', sub: 'New longs — real trend',  hint: 'New money entering longs. Trend has conviction — follow it.',      col: '#34d399' },
   strong_down: { txt: '↑OI ↓P', sub: 'New shorts — real dump',  hint: 'Fresh shorts being added. Real downtrend — not a dip to buy.',     col: '#f87171' },
-  weak_up:     { txt: '↓OI ↑P', sub: 'Short covering — weak',   hint: 'Shorts exiting, not new longs. Fake pump — no fresh conviction.',  col: '#fbbf24' },
-  weak_down:   { txt: '↓OI ↓P', sub: 'Long exits — no panic',   hint: 'Longs taking profit/exiting. Not new shorts — capitulation risk.', col: '#fbbf24' },
+  weak_up:     { txt: '↓OI ↑P', sub: 'Short covering — weak',   hint: 'Shorts exiting, not new longs. Fake pump — no fresh conviction.',  col: '#86efac' },
+  weak_down:   { txt: '↓OI ↓P', sub: 'Long exits — no panic',   hint: 'Longs taking profit/exiting. Not new shorts — capitulation risk.', col: '#fca5a5' },
 };
 
 /* ── Coin Sidebar — desktop only ── */
@@ -83,8 +84,8 @@ function CoinSidebar() {
   const OI_SIG: Record<string, { txt: string; col: string }> = {
     strong_up:   { txt: '↑↑ OI', col: '#34d399' },
     strong_down: { txt: '↑↓ OI', col: '#f87171' },
-    weak_up:     { txt: '↓↑ OI', col: '#fbbf24' },
-    weak_down:   { txt: '↓↓ OI', col: '#fbbf24' },
+    weak_up:     { txt: '↓↑ OI', col: '#86efac' },
+    weak_down:   { txt: '↓↓ OI', col: '#fca5a5' },
   };
 
   return (
@@ -230,18 +231,15 @@ function EdgeSignals() {
                   {meta.txt}
                 </div>
               ) : (
-                <div style={{ fontSize: 9, color: '#2a2a2a' }}>—</div>
+                <div style={{ fontSize: 10, color: 'var(--txt3)' }}>—</div>
               )}
               <div className="oi-trend-desc">
                 {!hasPerp ? (
-                  <span style={{ color: '#2a2a2a' }}>No Bybit perp</span>
+                  <span style={{ color: 'var(--txt3)' }}>No perp</span>
                 ) : meta ? (
-                  <>
-                    <div>{meta.sub}</div>
-                    <div className="oi-trend-hint">{meta.hint}</div>
-                  </>
+                  <div>{meta.sub}</div>
                 ) : (
-                  <span style={{ color: '#333' }}>Warming up…</span>
+                  <span style={{ color: 'var(--txt3)' }}>Warming up…</span>
                 )}
               </div>
             </div>
@@ -487,6 +485,8 @@ function BTCDominance() {
 }
 
 export default function Dashboard() {
+  const [cmdsOpen, setCmdsOpen] = useState(false);
+
   return (
     <div className="dashboard-grid">
 
@@ -532,19 +532,30 @@ export default function Dashboard() {
         <div className="dash-section">Secret of the Day</div>
         <SOTD />
 
-        <div className="dash-section">The 8 commandments</div>
-        <div className="card">
-          <div className="lbl">Core rules — never break these</div>
-          {RULES.map(r => (
-            <div key={r.n} className="row" style={{ marginBottom: 14 }}>
-              <div className={`num ${r.c}`}>{r.n}</div>
-              <div>
-                <div className="st">{r.t}</div>
-                <div className="sb">{r.b}</div>
-              </div>
-            </div>
-          ))}
+        <div
+          className="dash-section"
+          style={{ cursor: 'pointer', userSelect: 'none' }}
+          onClick={() => setCmdsOpen(o => !o)}
+        >
+          The 8 commandments
+          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
+            {cmdsOpen ? '▲ hide' : '▼ show'}
+          </span>
         </div>
+        {cmdsOpen && (
+          <div className="card">
+            <div className="lbl">Core rules — never break these</div>
+            {RULES.map(r => (
+              <div key={r.n} className="row" style={{ marginBottom: 14 }}>
+                <div className={`num ${r.c}`}>{r.n}</div>
+                <div>
+                  <div className="st">{r.t}</div>
+                  <div className="sb">{r.b}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Right panel (desktop ≥1100px only) ── */}
