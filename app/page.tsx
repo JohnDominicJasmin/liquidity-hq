@@ -71,10 +71,10 @@ function MacroStrip() {
 }
 
 const OI_TREND_META: Record<string, { txt: string; sub: string; hint: string; col: string }> = {
-  strong_up:   { txt: '↑OI ↑P', sub: 'New longs — real trend',  hint: 'New money entering longs. Trend has conviction — follow it.',      col: '#34d399' },
-  strong_down: { txt: '↑OI ↓P', sub: 'New shorts — real dump',  hint: 'Fresh shorts being added. Real downtrend — not a dip to buy.',     col: '#f87171' },
-  weak_up:     { txt: '↓OI ↑P', sub: 'Short covering — weak',   hint: 'Shorts exiting, not new longs. Fake pump — no fresh conviction.',  col: '#86efac' },
-  weak_down:   { txt: '↓OI ↓P', sub: 'Long exits — no panic',   hint: 'Longs taking profit/exiting. Not new shorts — capitulation risk.', col: '#fca5a5' },
+  strong_up:   { txt: '▲ ↑OI ↑P', sub: 'New longs — real trend',  hint: 'New money entering longs. Trend has conviction — follow it.',      col: '#34d399' },
+  strong_down: { txt: '▼ ↑OI ↓P', sub: 'New shorts — real dump',  hint: 'Fresh shorts being added. Real downtrend — not a dip to buy.',     col: '#f87171' },
+  weak_up:     { txt: '△ ↓OI ↑P', sub: 'Short covering — weak',   hint: 'Shorts exiting, not new longs. Fake pump — no fresh conviction.',  col: '#86efac' },
+  weak_down:   { txt: '▽ ↓OI ↓P', sub: 'Long exits — no panic',   hint: 'Longs taking profit/exiting. Not new shorts — capitulation risk.', col: '#fca5a5' },
 };
 
 /* ── Coin Sidebar — desktop only ── */
@@ -82,10 +82,10 @@ function CoinSidebar() {
   const { store, selectCoin } = useMarket();
 
   const OI_SIG: Record<string, { txt: string; col: string }> = {
-    strong_up:   { txt: '↑↑ OI', col: '#34d399' },
-    strong_down: { txt: '↑↓ OI', col: '#f87171' },
-    weak_up:     { txt: '↓↑ OI', col: '#86efac' },
-    weak_down:   { txt: '↓↓ OI', col: '#fca5a5' },
+    strong_up:   { txt: '▲ OI', col: '#34d399' },
+    strong_down: { txt: '▼ OI', col: '#f87171' },
+    weak_up:     { txt: '△ OI', col: '#86efac' },
+    weak_down:   { txt: '▽ OI', col: '#fca5a5' },
   };
 
   return (
@@ -142,6 +142,7 @@ function CoinSidebar() {
 function EdgeSignals() {
   const { store } = useMarket();
   const coin = store.coins[store.selectedCoin];
+  const [tipOpen, setTipOpen] = useState(false);
 
   /* ── Coinbase Premium ── */
   const cbAmt = store.cbPremium;
@@ -212,7 +213,18 @@ function EdgeSignals() {
 
       {/* Row 2: OI Trend table */}
       <div className="oi-trend-table">
-        <div className="oi-trend-title">📊 OI Trend vs Price</div>
+        <div className="oi-trend-title">
+          📊 OI Trend vs Price
+          <div className={`oi-info-wrap${tipOpen ? ' open' : ''}`} onClick={() => setTipOpen(o => !o)}>
+            <span className="oi-info-icon">ⓘ</span>
+            <div className="oi-info-tip">
+              <div className="oi-tip-row"><span className="oi-tip-badge tip-green">▲ ↑OI ↑P</span><span>New longs — real trend, follow it</span></div>
+              <div className="oi-tip-row"><span className="oi-tip-badge tip-red">▼ ↑OI ↓P</span><span>New shorts — real dump, not a dip</span></div>
+              <div className="oi-tip-row"><span className="oi-tip-badge tip-weak-up">△ ↓OI ↑P</span><span>Short covering — no new longs, fake pump</span></div>
+              <div className="oi-tip-row"><span className="oi-tip-badge tip-weak-down">▽ ↓OI ↓P</span><span>Long exits — no new shorts, no panic</span></div>
+            </div>
+          </div>
+        </div>
         <div className="oi-trend-hdr">
           <div>Coin</div><div>Signal</div><div>What it means</div>
         </div>
@@ -504,8 +516,6 @@ export default function Dashboard() {
           <div style={{ fontSize: 12, color: 'var(--txt3)' }}>The complete system — read the map, hunt the stops, get out fast</div>
         </div>
 
-        <NewsBanner />
-
         {/* Mobile-only ticker + market indicators (desktop shows in sidebar) */}
         <div className="mobile-only">
           <div className="dash-section">Live prices</div>
@@ -515,10 +525,12 @@ export default function Dashboard() {
           <div className="ind-row"><BTCDominance /></div>
         </div>
 
-        <div className="dash-section">Raid conditions</div>
+        <div className="dash-section dash-section-hot">Raid conditions</div>
         <RaidMeter />
 
-        <div className="dash-section">Edge signals</div>
+        <NewsBanner />
+
+        <div className="dash-section dash-section-hot">Edge signals</div>
         <EdgeSignals />
 
         {/* GEX + Macro: shown inline on mobile/tablet, hidden when right panel is visible */}
