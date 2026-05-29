@@ -2,11 +2,8 @@
 import { useState } from 'react';
 import { useMarket, BINANCE_SYMS } from '@/lib/marketStore';
 
-const TFS = ['5m', '15m', '1h', '4h'] as const;
-type TF = typeof TFS[number];
-
-// TradingView interval codes
-const TF_IV: Record<TF, string> = { '5m': '5', '15m': '15', '1h': '60', '4h': '240' };
+// TF used when fetching candles for Grok analysis context
+const GROK_TF = '15m';
 
 const API_KEY   = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5Bepv2POY4L6EdBULh4GYNCO';
 const FETCH_N   = 300;
@@ -117,14 +114,13 @@ export default function GrokSignalChart({ coin: coinProp }: { coin?: string }) {
   const { store } = useMarket();
   const coin      = (coinProp ?? store.selectedCoin) as string;
 
-  const [tf, setTf]               = useState<TF>('15m');
   const [result, setResult]       = useState<ChartResult | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError]         = useState('');
 
-  const sym      = BINANCE_SYMS[coin] as string | undefined;
-  const tvSym    = sym ? `BINANCE:${sym}` : 'BINANCE:BTCUSDT';
-  const tvSrc    = `https://www.tradingview.com/widgetembed/?symbol=${encodeURIComponent(tvSym)}&interval=${TF_IV[tf]}&theme=dark&style=1&locale=en&hide_top_toolbar=0&save_image=0&allow_symbol_change=0&timezone=${encodeURIComponent('Asia/Manila')}`;
+  const sym   = BINANCE_SYMS[coin] as string | undefined;
+  const tvSym = sym ? `BINANCE:${sym}` : 'BINANCE:BTCUSDT';
+  const tvSrc = `https://www.tradingview.com/widgetembed/?symbol=${encodeURIComponent(tvSym)}&interval=15&theme=dark&style=1&locale=en&hide_top_toolbar=0&save_image=0&allow_symbol_change=0&timezone=${encodeURIComponent('Asia/Manila')}`;
 
   const analyze = async () => {
     if (!sym || analyzing) return;
@@ -132,7 +128,7 @@ export default function GrokSignalChart({ coin: coinProp }: { coin?: string }) {
     try {
       // Fetch candles for Grok context (indicators: EMA 9/200, RSI)
       const r = await fetch(
-        `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${tf}&limit=${FETCH_N}`
+        `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${GROK_TF}&limit=${FETCH_N}`
       );
       if (!r.ok) throw new Error('Binance API error');
       const data: (string | number)[][] = await r.json();
@@ -144,7 +140,7 @@ export default function GrokSignalChart({ coin: coinProp }: { coin?: string }) {
       const gr = await fetch('https://api.x.ai/v1/responses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
-        body: JSON.stringify({ model: 'grok-4.3', input: [{ role: 'user', content: buildChartPrompt(coin, tf, candles) }] }),
+        body: JSON.stringify({ model: 'grok-4.3', input: [{ role: 'user', content: buildChartPrompt(coin, GROK_TF, candles) }] }),
       });
       if (!gr.ok) throw new Error(`Grok API ${gr.status}`);
       const gd = await gr.json();
@@ -175,15 +171,6 @@ export default function GrokSignalChart({ coin: coinProp }: { coin?: string }) {
           )}
         </div>
         <div className="gsc-controls">
-          {TFS.map(t => (
-            <button
-              key={t}
-              className={`gsc-tf-btn${tf === t ? ' on' : ''}`}
-              onClick={() => { setTf(t); setResult(null); }}
-            >
-              {t}
-            </button>
-          ))}
           <button className="gsc-analyze-btn" onClick={analyze} disabled={analyzing}>
             {analyzing ? '⏳ Analyzing…' : '⚡ Analyze'}
           </button>
@@ -193,7 +180,7 @@ export default function GrokSignalChart({ coin: coinProp }: { coin?: string }) {
       {/* TradingView chart — key forces full reload on coin/tf change */}
       <div className="gsc-tv-wrap">
         <iframe
-          key={`${coin}-${tf}`}
+          key={coin}
           src={tvSrc}
           className="gsc-tv-frame"
           frameBorder="0"

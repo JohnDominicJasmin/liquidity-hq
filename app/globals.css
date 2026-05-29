@@ -1582,9 +1582,9 @@ body::after {
 .gsc-chip-sl    { color: #f87171; background: rgba(248,113,113,0.1); border: 0.5px solid rgba(248,113,113,0.3); }
 /* TradingView iframe embed */
 .gsc-tv-wrap  { position: relative; width: 100%; background: #000; overflow: hidden; }
-.gsc-tv-frame { display: block; width: 100%; height: 500px; border: none; }
+.gsc-tv-frame { display: block; width: 100%; height: 620px; border: none; }
 .gsc-error    { padding: 8px 14px; font-size: 11px; color: var(--red); }
-@media (max-width: 639px) { .gsc-tv-frame { height: 320px; } }
+@media (max-width: 639px) { .gsc-tv-frame { height: 360px; } }
 
 /* ── TRADE JOURNAL ──────────────────────────────────────────────────────── */
 .tj-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
