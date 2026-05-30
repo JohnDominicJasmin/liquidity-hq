@@ -26,11 +26,15 @@ export function isMonEvening(pht: Date): boolean {
 }
 
 export function isLondon(pht: Date): boolean {
+  const day = pht.getDay(); // 0=Sun 6=Sat
+  if (day === 0 || day === 6) return false; // no London on weekends
   const mins = pht.getHours() * 60 + pht.getMinutes();
   return mins >= 900 && mins < 1080;
 }
 
 export function isDead(pht: Date): boolean {
+  const day = pht.getDay();
+  if (day === 0 || day === 6) return false; // weekends — crypto still moves, not a dead zone
   const mins = pht.getHours() * 60 + pht.getMinutes();
   return mins >= 720 && mins < 900;
 }

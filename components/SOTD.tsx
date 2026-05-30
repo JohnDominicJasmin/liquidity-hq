@@ -13,10 +13,9 @@ export default function SOTD() {
   return (
     <div className="sotd-wrap">
       <div className="sotd-label">
-        <span>Play of the Day</span>
+        <span className="sotd-num-inline">PLAY #{secret.n} of {SECRETS.length}</span>
         <button className="sotd-refresh" onClick={newSecret}>new play</button>
       </div>
-      <div className="sotd-num">PLAY #{secret.n} of {SECRETS.length}</div>
       <div className="sotd-name">{secret.name}</div>
       <div className="sotd-text">{secret.text}</div>
       <div className="sotd-footer">Tap &ldquo;new play&rdquo; to get another. Every day a different play loads automatically.</div>
