@@ -9,6 +9,14 @@ import SetupScanner from '@/components/SetupScanner';
 import ConfluenceScorer from '@/components/ConfluenceScorer';
 import GrokSignalChart from '@/components/GrokSignalChart';
 
+/* ── Smart price formatter — preserves decimals for sub-$100 coins ── */
+function fmtPrice(n: number): string {
+  if (n >= 10000) return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  if (n >= 100)   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  if (n >= 1)     return n.toLocaleString(undefined, { maximumFractionDigits: 3 });
+  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
 /* ── Reasoning markdown renderer ─────────────────────────────────────────── */
 function ReasoningText({ text }: { text: string }) {
   // Split on **bold**, [text](url), [[n]](url), or newlines
@@ -410,7 +418,9 @@ export default function Arena() {
       const ema9    = calcEMA(closes, 9).at(-1) ?? null;
       const ema200  = calcEMA(closes, 200).at(-1) ?? null;
       const rsi     = calcRSI(closes, 14).at(-1) ?? null;
-      const recent20 = vis.slice(-20).map(c => `O:${c.o.toFixed(0)} H:${c.h.toFixed(0)} L:${c.l.toFixed(0)} C:${c.c.toFixed(0)}`).join(' | ');
+      const lastC    = vis[vis.length - 1].c;
+      const pDec     = lastC >= 10000 ? 0 : lastC >= 100 ? 2 : lastC >= 1 ? 3 : 4;
+      const recent20 = vis.slice(-20).map(c => `O:${c.o.toFixed(pDec)} H:${c.h.toFixed(pDec)} L:${c.l.toFixed(pDec)} C:${c.c.toFixed(pDec)}`).join(' | ');
       const chartData: ChartData = {
         tf: readTf, ema9, ema200, rsi, recent20,
         hi: Math.max(...vis.map(c => c.h)),
@@ -430,7 +440,7 @@ export default function Arena() {
       setResultsCache(prev => ({ ...prev, [selectedCoin]: res }));
       setDetailIdx(null);
       const entryStr = res.entryLow && res.entryHigh
-        ? `$${res.entryLow.toLocaleString(undefined, { maximumFractionDigits: 0 })} – $${res.entryHigh.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+        ? `$${fmtPrice(res.entryLow)} – $${fmtPrice(res.entryHigh)}`
         : '—';
       setHistory(h => [{
         signal: res.signal, confidence: res.confidence,
@@ -543,7 +553,7 @@ export default function Arena() {
             detail: {
               coin: selectedCoin,
               prompt: result
-                ? `I just ran a full market read on ${selectedCoin.toUpperCase()}: ${result.signal} signal at ${result.confidence}% confidence. Entry zone: ${result.entryLow && result.entryHigh ? `$${result.entryLow.toLocaleString(undefined,{maximumFractionDigits:0})} – $${result.entryHigh.toLocaleString(undefined,{maximumFractionDigits:0})}` : '—'}. ${result.reasoning} What should I watch out for, and are there any scenarios that would invalidate this signal?`
+                ? `I just ran a full market read on ${selectedCoin.toUpperCase()}: ${result.signal} signal at ${result.confidence}% confidence. Entry zone: ${result.entryLow && result.entryHigh ? `$${fmtPrice(result.entryLow)} – $${fmtPrice(result.entryHigh)}` : '—'}. ${result.reasoning} What should I watch out for, and are there any scenarios that would invalidate this signal?`
                 : `Give me a complete analysis of ${selectedCoin.toUpperCase()}/USDT right now. What's the trend, key levels, directional bias, best entry if any, and should I trade or wait?`,
             },
           }))}
@@ -562,8 +572,7 @@ export default function Arena() {
       {readError && <div className="arena-err">{readError}</div>}
 
       {result && (() => {
-        const sigCol   = result.signal === 'LONG' ? '#34d399' : result.signal === 'SHORT' ? '#f87171' : '#9ca3af';
-        const fmt0     = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+        const sigCol = result.signal === 'LONG' ? '#34d399' : result.signal === 'SHORT' ? '#f87171' : '#9ca3af';
         const secsDiff = Math.floor((Date.now() - result.analyzedAt) / 1000);
         const freshness = secsDiff < 60 ? `${secsDiff}s ago` : secsDiff < 3600 ? `${Math.floor(secsDiff/60)}m ago` : `${Math.floor(secsDiff/3600)}h ago`;
         return (
@@ -583,7 +592,7 @@ export default function Arena() {
             <div className="arena-sig-stats">
               <div className="arena-stat"><div className="arena-stat-label">Confidence</div><div className="arena-stat-val">{result.confidence}%</div></div>
               {result.entryLow && result.entryHigh && (
-                <div className="arena-stat"><div className="arena-stat-label">Entry Zone</div><div className="arena-stat-val" style={{ fontSize: 12 }}>${fmt0(result.entryLow)} – ${fmt0(result.entryHigh)}</div></div>
+                <div className="arena-stat"><div className="arena-stat-label">Entry Zone</div><div className="arena-stat-val" style={{ fontSize: 12 }}>${fmtPrice(result.entryLow)} – ${fmtPrice(result.entryHigh)}</div></div>
               )}
               <div className="arena-stat"><div className="arena-stat-label">Session</div><div className="arena-stat-val" style={{ fontSize: 12 }}>{result.session}</div></div>
             </div>
@@ -595,10 +604,10 @@ export default function Arena() {
             {(result.entryLow || result.tp || result.sl) && (
               <div className="gsc-levels-row" style={{ marginTop: 10 }}>
                 {result.entryLow && result.entryHigh && (
-                  <div className="gsc-chip gsc-chip-entry"><span>Entry</span><span>${fmt0(result.entryLow)} – ${fmt0(result.entryHigh)}</span></div>
+                  <div className="gsc-chip gsc-chip-entry"><span>Entry</span><span>${fmtPrice(result.entryLow)} – ${fmtPrice(result.entryHigh)}</span></div>
                 )}
-                {result.tp && <div className="gsc-chip gsc-chip-tp"><span>TP</span><span>${fmt0(result.tp)}</span></div>}
-                {result.sl && <div className="gsc-chip gsc-chip-sl"><span>SL</span><span>${fmt0(result.sl)}</span></div>}
+                {result.tp && <div className="gsc-chip gsc-chip-tp"><span>TP</span><span>${fmtPrice(result.tp)}</span></div>}
+                {result.sl && <div className="gsc-chip gsc-chip-sl"><span>SL</span><span>${fmtPrice(result.sl)}</span></div>}
               </div>
             )}
 
@@ -611,7 +620,7 @@ export default function Arena() {
                     color: lv.type === 'support' ? '#34d399' : '#f87171',
                     border: `0.5px solid ${lv.type === 'support' ? 'rgba(52,211,153,0.25)' : 'rgba(248,113,113,0.25)'}`,
                   }}>
-                    ${fmt0(lv.price)} {lv.label}
+                    ${fmtPrice(lv.price)} {lv.label}
                   </span>
                 ))}
               </div>
