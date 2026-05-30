@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { getPHT, getCurrentWindow, isDead, getUpcomingWindows } from '@/lib/session';
+import SessionCountdown from '@/components/SessionCountdown';
 
 const WINDOWS = [
   { cls: 'wp-god', badge: '👑 GOD TIER', time: 'Sunday 11PM – Monday 3AM PHT', desc: 'Lowest volume of the week. Retail asleep globally. Minimum capital needed to move price. Highest probability of violent raids. Maximum priority.' },
@@ -37,6 +38,8 @@ export default function BestHours() {
         <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8', marginBottom: 2 }}>Best Hours</div>
         <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>Live PHT clock + session window detector</div>
       </div>
+
+      <SessionCountdown />
 
       <div className="card" style={{ textAlign: 'center', marginBottom: 14 }}>
         <div style={{ fontSize: 36, fontWeight: 700, fontFamily: 'monospace', color: '#e8e8e8', letterSpacing: -1 }}>

@@ -6,6 +6,7 @@ import FearGreed from '@/components/FearGreed';
 import RaidMeter from '@/components/RaidMeter';
 import SOTD from '@/components/SOTD';
 import NewsBanner from '@/components/NewsBanner';
+import SessionCountdown from '@/components/SessionCountdown';
 
 function MacroStrip() {
   const { store } = useMarket();
@@ -526,6 +527,7 @@ export default function Dashboard() {
         </div>
 
         <div className="dash-section dash-section-hot">Raid conditions</div>
+        <SessionCountdown />
         <RaidMeter />
 
         <NewsBanner />
