@@ -1,29 +1,37 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
+/* ── Types ── */
 interface LiqEvent {
-  id: number;
-  symbol: string;       // e.g. "BTCUSDT"
-  coin: string;         // e.g. "BTC"
-  side: 'LONG' | 'SHORT'; // which side was liquidated
-  usd: number;          // notional USD value
-  price: number;        // execution price
-  ts: number;           // unix ms
+  id:     number;
+  symbol: string;
+  coin:   string;
+  side:   'LONG' | 'SHORT';
+  usd:    number;
+  price:  number;
+  ts:     number;
+  source: 'BN' | 'BB';   // Binance | Bybit
 }
 
-interface Stats {
-  longUsd: number;   // total long liq in window
-  shortUsd: number;  // total short liq in window
-  count: number;
-}
+interface Stats  { longUsd: number; shortUsd: number; count: number; }
+interface Cascade { ts: number; totalUsd: number; side: 'LONG' | 'SHORT' | 'MIXED'; coins: string[]; }
+interface Bucket  { label: string; price: number; longUsd: number; shortUsd: number; total: number; }
 
-const FEED_SIZE   = 30;   // events shown in feed
-const STATS_WIN   = 60 * 60 * 1000; // 1 hour window for stats
-const MIN_SHOW    = 10_000;   // minimum USD to appear in feed
-const MIN_ALERT   = 500_000;  // big hit threshold
+/* ── Constants ── */
+const FEED_SIZE          = 30;
+const STATS_WIN          = 60 * 60 * 1000;       // 1h stats window
+const CLUSTER_WIN        = 4  * 60 * 60 * 1000;  // 4h cluster accumulation
+const MIN_SHOW           = 10_000;                // $10K minimum to appear
+const MIN_ALERT          = 500_000;               // $500K = big hit 🔥
+const CASCADE_THRESHOLD  = 3_000_000;             // $3M in 30s = cascade
+const CASCADE_WIN        = 30_000;                // 30-second window
+const CASCADE_HIDE_MS    = 12_000;                // show cascade badge 12s
+const BYBIT_COINS        = ['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT','BNBUSDT','HYPEUSDT','NEARUSDT'];
+const FILTER_COINS       = ['ALL','BTC','ETH','SOL','XRP','BNB','HYPE','NEAR'];
 
 let idCounter = 0;
 
+/* ── Helpers ── */
 function fmtUSD(v: number): string {
   if (v >= 1_000_000) return '$' + (v / 1_000_000).toFixed(2) + 'M';
   if (v >= 1_000)     return '$' + (v / 1_000).toFixed(1) + 'K';
@@ -31,112 +39,207 @@ function fmtUSD(v: number): string {
 }
 function fmtTime(ts: number): string {
   const d = new Date(ts);
-  const h = d.getHours().toString().padStart(2, '0');
-  const m = d.getMinutes().toString().padStart(2, '0');
-  const s = d.getSeconds().toString().padStart(2, '0');
-  return `${h}:${m}:${s}`;
+  return [d.getHours(), d.getMinutes(), d.getSeconds()]
+    .map(n => String(n).padStart(2, '0')).join(':');
 }
-function coinFromSymbol(sym: string): string {
-  // e.g. BTCUSDT → BTC, 1000SHIBUSDT → SHIB
-  return sym.replace(/\d+/, '').replace(/USDT$|BUSD$|USDC$/, '');
+function coinFromSym(sym: string): string {
+  return sym.replace(/^\d+/, '').replace(/USDT$|BUSD$|USDC$/, '');
+}
+function bucketSz(price: number): number {
+  if (price >= 10000) return 200;
+  if (price >= 1000)  return 20;
+  if (price >= 100)   return 2;
+  if (price >= 10)    return 0.5;
+  if (price >= 1)     return 0.1;
+  return 0.01;
+}
+function snapBucket(price: number): number {
+  const sz = bucketSz(price);
+  return Math.round(price / sz) * sz;
+}
+function fmtBucket(price: number): string {
+  const sz  = bucketSz(price);
+  const dec = sz >= 1 ? 0 : sz >= 0.1 ? 1 : 2;
+  return '$' + price.toLocaleString(undefined, { maximumFractionDigits: dec });
+}
+function fmtEventPrice(price: number): string {
+  return '$' + price.toLocaleString('en-US', { maximumFractionDigits: price < 10 ? 3 : 2 });
 }
 
 export default function LiqFeed() {
-  const [feed,     setFeed]     = useState<LiqEvent[]>([]);
-  const [stats,    setStats]    = useState<Stats>({ longUsd: 0, shortUsd: 0, count: 0 });
-  const [status,   setStatus]   = useState<'connecting' | 'live' | 'error'>('connecting');
-  const [msgCount, setMsgCount] = useState(0);
-  const wsRef               = useRef<WebSocket | null>(null);
-  const historyRef          = useRef<LiqEvent[]>([]);
-  const msgRef              = useRef(0);
+  const [feed,       setFeed]       = useState<LiqEvent[]>([]);
+  const [stats,      setStats]      = useState<Stats>({ longUsd: 0, shortUsd: 0, count: 0 });
+  const [cascade,    setCascade]    = useState<Cascade | null>(null);
+  const [clusters,   setClusters]   = useState<Bucket[]>([]);
+  const [filterCoin, setFilterCoin] = useState('ALL');
+  const [bnStatus,   setBnStatus]   = useState<'connecting'|'live'|'error'>('connecting');
+  const [bbStatus,   setBbStatus]   = useState<'connecting'|'live'|'error'>('connecting');
+  const [msgCount,   setMsgCount]   = useState(0);
 
-  // Recompute stats from history
-  function rebuildStats(history: LiqEvent[]) {
-    const cutoff = Date.now() - STATS_WIN;
-    const win = history.filter(e => e.ts >= cutoff);
-    const longUsd  = win.filter(e => e.side === 'LONG').reduce((s, e) => s + e.usd, 0);
-    const shortUsd = win.filter(e => e.side === 'SHORT').reduce((s, e) => s + e.usd, 0);
-    setStats({ longUsd, shortUsd, count: win.length });
-  }
+  const bnWsRef         = useRef<WebSocket | null>(null);
+  const bbWsRef         = useRef<WebSocket | null>(null);
+  const historyRef      = useRef<LiqEvent[]>([]);
+  const msgRef          = useRef(0);
+  const cascadeTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function connect() {
-    const ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
-    wsRef.current = ws;
+  /* ── Rebuild derived state from history ── */
+  const rebuild = useCallback((history: LiqEvent[]) => {
+    const now = Date.now();
 
-    ws.onopen  = () => setStatus('live');
-    ws.onerror = () => setStatus('error');
-    ws.onclose = () => {
-      setStatus('error');
-      // Reconnect after 3 seconds
-      setTimeout(() => {
-        if (wsRef.current?.readyState !== WebSocket.OPEN) connect();
-      }, 3000);
+    // 1h stats
+    const win = history.filter(e => now - e.ts < STATS_WIN);
+    setStats({
+      longUsd:  win.filter(e => e.side === 'LONG').reduce((s, e)  => s + e.usd, 0),
+      shortUsd: win.filter(e => e.side === 'SHORT').reduce((s, e) => s + e.usd, 0),
+      count: win.length,
+    });
+
+    // Cascade: $3M+ in 30s
+    const cascWin   = history.filter(e => now - e.ts < CASCADE_WIN);
+    const cascTotal = cascWin.reduce((s, e) => s + e.usd, 0);
+    if (cascTotal >= CASCADE_THRESHOLD) {
+      const lUsd  = cascWin.filter(e => e.side === 'LONG').reduce((s, e)  => s + e.usd, 0);
+      const sUsd  = cascWin.filter(e => e.side === 'SHORT').reduce((s, e) => s + e.usd, 0);
+      const side: Cascade['side'] = lUsd > sUsd * 1.5 ? 'LONG' : sUsd > lUsd * 1.5 ? 'SHORT' : 'MIXED';
+      const coins = [...new Set(cascWin.map(e => e.coin))].slice(0, 4);
+      setCascade({ ts: now, totalUsd: cascTotal, side, coins });
+      if (cascadeTimer.current) clearTimeout(cascadeTimer.current);
+      cascadeTimer.current = setTimeout(() => setCascade(null), CASCADE_HIDE_MS);
+    }
+
+    // 4h price clusters (all coins combined — shows which price levels are magnetic)
+    const cWin = history.filter(e => now - e.ts < CLUSTER_WIN);
+    const map  = new Map<number, { longUsd: number; shortUsd: number }>();
+    cWin.forEach(e => {
+      const bp  = snapBucket(e.price);
+      const cur = map.get(bp) ?? { longUsd: 0, shortUsd: 0 };
+      if (e.side === 'LONG') cur.longUsd += e.usd; else cur.shortUsd += e.usd;
+      map.set(bp, cur);
+    });
+    const buckets: Bucket[] = Array.from(map.entries())
+      .map(([price, { longUsd, shortUsd }]) => ({
+        label: fmtBucket(price), price, longUsd, shortUsd, total: longUsd + shortUsd,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8);
+    setClusters(buckets);
+  }, []);
+
+  /* ── Common event processor for both exchanges ── */
+  const onLiq = useCallback((
+    sym: string, side: 'LONG' | 'SHORT', usd: number, price: number, source: 'BN' | 'BB'
+  ) => {
+    if (usd < MIN_SHOW || !isFinite(usd)) return;
+    msgRef.current++;
+    if (msgRef.current % 5 === 0) setMsgCount(msgRef.current);
+
+    const ev: LiqEvent = {
+      id: ++idCounter, symbol: sym, coin: coinFromSym(sym),
+      side, usd, price, ts: Date.now(), source,
     };
+    historyRef.current = [...historyRef.current, ev].slice(-5000);
+    rebuild(historyRef.current);
+    setFeed(prev => [ev, ...prev].slice(0, FEED_SIZE));
+  }, [rebuild]);
 
+  /* ── Binance forceOrder WebSocket ── */
+  const connectBN = useCallback(() => {
+    try { bnWsRef.current?.close(); } catch { /* */ }
+    const ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
+    bnWsRef.current = ws;
+    ws.onopen  = () => setBnStatus('live');
+    ws.onerror = () => setBnStatus('error');
+    ws.onclose = () => { setBnStatus('error'); setTimeout(connectBN, 5000); };
     ws.onmessage = (ev) => {
       try {
-        msgRef.current += 1;
-        if (msgRef.current % 10 === 0) setMsgCount(msgRef.current);
-        const msg = JSON.parse(ev.data as string);
-        const o = msg?.o;
+        const o = JSON.parse(ev.data as string)?.o;
         if (!o) return;
-
-        const ap  = parseFloat(o.ap ?? o.p ?? '0');
-        const qty = parseFloat(o.z ?? o.q ?? '0');
-        const usd = ap * qty;
-        if (usd < MIN_SHOW || !isFinite(usd)) return;
-
-        // S: "SELL" means the liq order is a sell → the trader was LONG → LONG liq
-        // S: "BUY"  means the liq order is a buy  → the trader was SHORT → SHORT liq
-        const side: 'LONG' | 'SHORT' = o.S === 'SELL' ? 'LONG' : 'SHORT';
-        const symbol = (o.s ?? '') as string;
-
-        const event: LiqEvent = {
-          id: ++idCounter,
-          symbol,
-          coin: coinFromSymbol(symbol),
-          side,
-          usd,
-          price: ap,
-          ts: Date.now(),
-        };
-
-        historyRef.current = [...historyRef.current, event].slice(-2000);
-        rebuildStats(historyRef.current);
-
-        setFeed(prev => [event, ...prev].slice(0, FEED_SIZE));
-      } catch {
-        // ignore parse errors
-      }
+        const price = parseFloat(o.ap ?? o.p ?? '0');
+        const qty   = parseFloat(o.z  ?? o.q ?? '0');
+        // S:"SELL" = liq order sells → trader was LONG → LONG liquidation
+        onLiq(o.s ?? '', o.S === 'SELL' ? 'LONG' : 'SHORT', price * qty, price, 'BN');
+      } catch { /* */ }
     };
-  }
+  }, [onLiq]);
+
+  /* ── Bybit liquidation WebSocket ── */
+  const connectBB = useCallback(() => {
+    try { bbWsRef.current?.close(); } catch { /* */ }
+    const ws = new WebSocket('wss://stream.bybit.com/v5/public/linear');
+    bbWsRef.current = ws;
+    ws.onopen = () => {
+      setBbStatus('live');
+      ws.send(JSON.stringify({ op: 'subscribe', args: BYBIT_COINS.map(s => `liquidation.${s}`) }));
+    };
+    ws.onerror = () => setBbStatus('error');
+    ws.onclose = () => { setBbStatus('error'); setTimeout(connectBB, 5000); };
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data as string);
+        if (!msg.topic?.startsWith('liquidation.') || !msg.data) return;
+        const d     = msg.data;
+        const price = parseFloat(d.price ?? '0');
+        const qty   = parseFloat(d.size  ?? '0');
+        // Bybit: side "Sell" = liq forced a sell → trader was LONG
+        onLiq(d.symbol ?? '', d.side === 'Sell' ? 'LONG' : 'SHORT', price * qty, price, 'BB');
+      } catch { /* */ }
+    };
+  }, [onLiq]);
 
   useEffect(() => {
-    connect();
-    // Refresh stats every 30s even without new events
-    const interval = setInterval(() => rebuildStats(historyRef.current), 30_000);
+    connectBN();
+    connectBB();
+    const iv = setInterval(() => rebuild(historyRef.current), 30_000);
     return () => {
-      clearInterval(interval);
-      wsRef.current?.close();
+      clearInterval(iv);
+      bnWsRef.current?.close();
+      bbWsRef.current?.close();
+      if (cascadeTimer.current) clearTimeout(cascadeTimer.current);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const longDom  = stats.longUsd  > stats.shortUsd * 1.2;
-  const shortDom = stats.shortUsd > stats.longUsd  * 1.2;
-  const totalUsd = stats.longUsd + stats.shortUsd;
+  /* ── Derived display values ── */
+  const displayed = filterCoin === 'ALL' ? feed : feed.filter(e => e.coin === filterCoin);
+  const totalUsd  = stats.longUsd + stats.shortUsd;
+  const longDom   = stats.longUsd  > stats.shortUsd * 1.2;
+  const shortDom  = stats.shortUsd > stats.longUsd  * 1.2;
+  const maxCluster = clusters.length ? Math.max(...clusters.map(c => c.total)) : 1;
+  const anyLive   = bnStatus === 'live' || bbStatus === 'live';
 
   return (
     <div className="liqfeed-wrap">
-      {/* Header */}
+
+      {/* ── Header ── */}
       <div className="liqfeed-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 16, fontWeight: 700, color: '#e8e8e8' }}>⚡ Live Liquidations</span>
-          <span className={`liqfeed-dot liqfeed-dot-${status}`} title={status} />
+          <span className={`liqfeed-dot liqfeed-dot-${bnStatus}`} title={`Binance: ${bnStatus}`} />
+          <span className={`liqfeed-dot liqfeed-dot-${bbStatus}`} title={`Bybit: ${bbStatus}`} />
         </div>
-        <span style={{ fontSize: 11, color: '#444' }}>All markets · &gt;$10K · {msgCount > 0 ? `${msgCount} msgs` : 'waiting…'}</span>
+        <span style={{ fontSize: 11, color: '#444' }}>
+          Binance + Bybit · &gt;$10K · {msgCount > 0 ? `${msgCount} events` : 'waiting…'}
+        </span>
       </div>
 
-      {/* Stats bar */}
+      {/* ── Cascade alert ── */}
+      {cascade && (
+        <div className={`liq-cascade liq-cascade-${cascade.side.toLowerCase()}`}>
+          <span className="liq-cascade-icon">⚡⚡</span>
+          <div className="liq-cascade-body">
+            <span className="liq-cascade-label">
+              {cascade.side === 'LONG' ? 'LONG CASCADE' : cascade.side === 'SHORT' ? 'SHORT CASCADE' : 'CASCADE'}
+            </span>
+            <span className="liq-cascade-amt">
+              {' '}{fmtUSD(cascade.totalUsd)} wiped in 30s
+            </span>
+            {cascade.coins.length > 0 && (
+              <span className="liq-cascade-coins"> · {cascade.coins.join(', ')}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Stats ── */}
       <div className="liqfeed-stats">
         <div className="liqfeed-stat">
           <span className="liqfeed-stat-lbl">Longs liq'd (1h)</span>
@@ -145,7 +248,7 @@ export default function LiqFeed() {
         <div className="liqfeed-stat-sep" />
         <div className="liqfeed-stat" style={{ textAlign: 'center' }}>
           <span className="liqfeed-stat-lbl">Events</span>
-          <span className="liqfeed-stat-val" style={{ color: '#a78bfa', textAlign: 'center' }}>{stats.count}</span>
+          <span className="liqfeed-stat-val" style={{ color: '#a78bfa' }}>{stats.count}</span>
         </div>
         <div className="liqfeed-stat-sep" />
         <div className="liqfeed-stat" style={{ textAlign: 'right' }}>
@@ -154,65 +257,101 @@ export default function LiqFeed() {
         </div>
       </div>
 
-      {/* Bias bar */}
+      {/* ── Bias bar ── */}
       {totalUsd > 0 && (
-        <div className="liqfeed-bias-wrap">
-          <div
-            className="liqfeed-bias-bar liqfeed-bias-long"
-            style={{ width: `${(stats.longUsd / totalUsd) * 100}%` }}
-          />
-          <div
-            className="liqfeed-bias-bar liqfeed-bias-short"
-            style={{ width: `${(stats.shortUsd / totalUsd) * 100}%` }}
-          />
-        </div>
+        <>
+          <div className="liqfeed-bias-wrap">
+            <div className="liqfeed-bias-bar liqfeed-bias-long"  style={{ width: `${(stats.longUsd  / totalUsd) * 100}%` }} />
+            <div className="liqfeed-bias-bar liqfeed-bias-short" style={{ width: `${(stats.shortUsd / totalUsd) * 100}%` }} />
+          </div>
+          <div className="liqfeed-bias-label">
+            {longDom  && <span style={{ color: '#f87171' }}>⚠ Longs getting wrecked — price accelerating down</span>}
+            {shortDom && <span style={{ color: '#34d399' }}>🚀 Shorts getting wrecked — price accelerating up</span>}
+            {!longDom && !shortDom && <span style={{ color: '#606060' }}>Balanced — no dominant side liquidating</span>}
+          </div>
+        </>
       )}
-      {totalUsd > 0 && (
-        <div className="liqfeed-bias-label">
-          {longDom  && <span style={{ color: '#f87171' }}>⚠ Longs getting wrecked — whales dumping</span>}
-          {shortDom && <span style={{ color: '#34d399' }}>🚀 Shorts getting wrecked — whales pumping</span>}
-          {!longDom && !shortDom && <span style={{ color: '#606060' }}>Balanced — no dominant side</span>}
+
+      {/* ── Price clusters ── */}
+      {clusters.length > 0 && (
+        <div className="liq-clusters">
+          <div className="liq-clusters-title">
+            Hot price levels · 4h cluster
+            <span style={{ color: '#444', fontWeight: 400, marginLeft: 6 }}>— where liqs are concentrating</span>
+          </div>
+          {clusters.map(c => (
+            <div key={c.price} className="liq-cluster-row">
+              <span className="liq-cluster-price">{c.label}</span>
+              <div className="liq-cluster-bars">
+                <div
+                  className="liq-cluster-bar liq-cluster-bar-long"
+                  style={{ width: `${(c.longUsd / maxCluster) * 100}%` }}
+                />
+                <div
+                  className="liq-cluster-bar liq-cluster-bar-short"
+                  style={{ width: `${(c.shortUsd / maxCluster) * 100}%` }}
+                />
+              </div>
+              <span className="liq-cluster-amt">{fmtUSD(c.total)}</span>
+              <span
+                className="liq-cluster-dom"
+                style={{ color: c.longUsd > c.shortUsd ? '#f87171' : '#34d399' }}
+              >
+                {c.longUsd > c.shortUsd ? 'L' : 'S'}
+              </span>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Feed */}
-      {feed.length === 0 && status === 'connecting' && (
+      {/* ── Coin filter ── */}
+      <div className="liq-filter-row">
+        {FILTER_COINS.map(c => (
+          <button
+            key={c}
+            className={`liq-filter-btn${filterCoin === c ? ' on' : ''}`}
+            onClick={() => setFilterCoin(c)}
+          >
+            {c}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Feed ── */}
+      {displayed.length === 0 && (
         <div style={{ textAlign: 'center', padding: '1.5rem', color: '#444', fontSize: 12 }}>
-          Connecting to Binance liquidation stream…
-        </div>
-      )}
-      {feed.length === 0 && status === 'live' && (
-        <div style={{ textAlign: 'center', padding: '1.5rem', color: '#444', fontSize: 12 }}>
-          Waiting for liquidations {'>'} $10K…
+          {anyLive ? `Watching for ${filterCoin === 'ALL' ? 'all markets' : filterCoin} liquidations > $10K…` : 'Connecting to Binance + Bybit…'}
         </div>
       )}
 
       <div className="liqfeed-list">
-        {feed.map(ev => {
-          const isLong  = ev.side === 'LONG';
-          const isBig   = ev.usd >= MIN_ALERT;
-          const accent  = isLong ? '#f87171' : '#34d399';
+        {displayed.map(ev => {
+          const isLong = ev.side === 'LONG';
+          const isBig  = ev.usd >= MIN_ALERT;
+          const accent = isLong ? '#f87171' : '#34d399';
           return (
             <div
               key={ev.id}
               className={`liqfeed-row${isBig ? ' liqfeed-row-big' : ''}`}
               style={{ borderLeftColor: accent }}
             >
-              <span className="liqfeed-row-coin" style={{ color: accent }}>
-                {ev.coin}
-              </span>
+              <span className="liqfeed-row-coin" style={{ color: accent }}>{ev.coin}</span>
               <span className={`liqfeed-row-side liqfeed-row-side-${isLong ? 'long' : 'short'}`}>
                 {isLong ? 'LONG LIQ' : 'SHORT LIQ'}
               </span>
               <span className="liqfeed-row-usd" style={{ color: isBig ? accent : '#8e8e93' }}>
                 {fmtUSD(ev.usd)}{isBig ? ' 🔥' : ''}
               </span>
-              <span className="liqfeed-row-price">${ev.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
-              <span className="liqfeed-row-time">{fmtTime(ev.ts)}</span>
+              <span className="liqfeed-row-price">{fmtEventPrice(ev.price)}</span>
+              <span className="liqfeed-row-time">
+                <span className={`liq-src liq-src-${ev.source.toLowerCase()}`}>{ev.source}</span>
+                {fmtTime(ev.ts)}
+              </span>
             </div>
           );
         })}
       </div>
+
     </div>
   );
 }
