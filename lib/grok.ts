@@ -353,7 +353,7 @@ export async function callGrokCombined(apiKey: string, prompt: string, tf: strin
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
     body: JSON.stringify({
-      model: 'grok-4.1-fast',
+      model: 'grok-4.3',
       input: [{ role: 'user', content: prompt }],
       tools: [{ type: 'web_search' }, { type: 'x_search' }],
     }),
@@ -390,7 +390,7 @@ export async function callGrok(apiKey: string, prompt: string): Promise<GrokResu
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'grok-4.1-fast',
+      model: 'grok-4.3',
       input: [{ role: 'user', content: prompt }],
       tools: [
         { type: 'web_search' },

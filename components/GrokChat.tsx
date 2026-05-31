@@ -56,7 +56,7 @@ async function generateFollowUps(response: string, coin: string): Promise<string
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROK_KEY}` },
       body: JSON.stringify({
-        model: 'grok-4.1-fast',
+        model: 'grok-4.3',
         input: [{
           role:    'user',
           content: `Based on this ${coin.toUpperCase()} trading analysis, write exactly 3 short follow-up questions a trader would ask next. Each question must be 4–8 words. Output ONLY the 3 questions, one per line, no numbering, no bullets, no extra text.\n\n${response.slice(0, 600)}`,
@@ -255,7 +255,7 @@ export default function GrokChat() {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROK_KEY}` },
         body:    JSON.stringify({
-          model: 'grok-4.1-fast',
+          model: 'grok-4.3',
           input: inputArr,
           ...(liveSearch && { tools: [{ type: 'web_search' }, { type: 'x_search' }] }),
         }),
