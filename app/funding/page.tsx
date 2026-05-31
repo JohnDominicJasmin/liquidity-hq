@@ -52,17 +52,17 @@ function frFmt(r: number): string {
   return (r >= 0 ? '+' : '') + (r * 100).toFixed(4) + '%';
 }
 
-interface FRSignal { emoji: string; label: string; desc: string; action: string; color: string; bg: string; }
+interface FRSignal { emoji: string; label: string; short: string; desc: string; action: string; color: string; bg: string; }
 function frSignal(r: number): FRSignal {
   const p = r * 100;
-  if (p >= 0.05)  return { emoji: '🚨', label: 'Extreme Long Overleverage',  color: '#f87171', bg: 'rgba(248,113,113,0.09)', action: 'Avoid longs. Short on weakness.',     desc: 'Longs paying 0.05%+ per 8h — severely overleveraged. Whales have maximum incentive to dump price and liquidate them. High probability raid in next 1–3 sessions.' };
-  if (p >= 0.02)  return { emoji: '⚠️', label: 'Heavy Long Overleverage',    color: '#fb923c', bg: 'rgba(251,146,60,0.08)',   action: 'Reduce longs. Consider short.',    desc: 'Significant long overload. Elevated dump risk. Every 8h settlement the longs pay — they are the fuel for the next raid.' };
-  if (p >= 0.01)  return { emoji: '📈', label: 'Mildly Positive — Long Bias', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)',   action: 'Trade cautiously. Watch FR spikes.', desc: 'Longs slightly dominant. Not dangerous yet but trending toward overload. If FR keeps climbing, exit or hedge long exposure.' };
-  if (p > 0.003)  return { emoji: '🟡', label: 'Slight Long Bias',            color: '#d4b483', bg: 'rgba(212,180,131,0.06)',  action: 'Neutral. No edge here.',           desc: 'Near-neutral, mild long lean. No extreme squeeze or dump setup — price moves driven by spot flow, not derivatives pressure.' };
-  if (p >= -0.003) return { emoji: '⚖️', label: 'Neutral',                   color: '#a0a0a0', bg: 'rgba(255,255,255,0.04)',  action: 'Wait for clearer signal.',         desc: 'Balanced long/short positioning. No extreme bias in either direction. Derivatives market is not a driver right now.' };
-  if (p >= -0.01)  return { emoji: '📉', label: 'Mild Short Bias',            color: '#86efac', bg: 'rgba(134,239,172,0.07)',  action: 'Slight long lean. Small size.',    desc: 'Shorts slightly dominant, paying longs. Mild squeeze pressure building. Not actionable yet but watch for FR going deeper negative.' };
-  if (p >= -0.03)  return { emoji: '🔥', label: 'Short Overleverage',         color: '#34d399', bg: 'rgba(52,211,153,0.09)',   action: 'Look for long entries on dips.',   desc: 'Shorts are overleveraged and paying longs. Whales can pump price to liquidate shorts and collect liquidity. Squeeze probability is high.' };
-  return             { emoji: '🚀', label: 'Extreme Short Overleverage',      color: '#34d399', bg: 'rgba(52,211,153,0.13)',   action: 'Strong long setup. Size up.',      desc: 'Shorts severely overleveraged — paying 0.03%+ per 8h. Maximum squeeze pressure. Historical high probability of violent squeeze pump.' };
+  if (p >= 0.05)  return { emoji: '🚨', short: 'Extreme Long',  label: 'Extreme Long Overleverage',  color: '#f87171', bg: 'rgba(248,113,113,0.09)', action: 'Avoid longs. Short on weakness.',     desc: 'Longs paying 0.05%+ per 8h — severely overleveraged. Whales have maximum incentive to dump price and liquidate them. High probability raid in next 1–3 sessions.' };
+  if (p >= 0.02)  return { emoji: '⚠️', short: 'Heavy Long',    label: 'Heavy Long Overleverage',    color: '#fb923c', bg: 'rgba(251,146,60,0.08)',   action: 'Reduce longs. Consider short.',    desc: 'Significant long overload. Elevated dump risk. Every 8h settlement the longs pay — they are the fuel for the next raid.' };
+  if (p >= 0.01)  return { emoji: '📈', short: 'Mild Long',      label: 'Mildly Positive — Long Bias', color: '#fbbf24', bg: 'rgba(251,191,36,0.07)',  action: 'Trade cautiously. Watch FR spikes.', desc: 'Longs slightly dominant. Not dangerous yet but trending toward overload. If FR keeps climbing, exit or hedge long exposure.' };
+  if (p > 0.003)  return { emoji: '🟡', short: 'Slight Long',    label: 'Slight Long Bias',            color: '#d4b483', bg: 'rgba(212,180,131,0.06)', action: 'Neutral. No edge here.',           desc: 'Near-neutral, mild long lean. No extreme squeeze or dump setup — price moves driven by spot flow, not derivatives pressure.' };
+  if (p >= -0.003) return { emoji: '⚖️', short: 'Neutral',       label: 'Neutral',                    color: '#a0a0a0', bg: 'rgba(255,255,255,0.04)', action: 'Wait for clearer signal.',         desc: 'Balanced long/short positioning. No extreme bias in either direction. Derivatives market is not a driver right now.' };
+  if (p >= -0.01)  return { emoji: '📉', short: 'Mild Short',    label: 'Mild Short Bias',             color: '#86efac', bg: 'rgba(134,239,172,0.07)', action: 'Slight long lean. Small size.',    desc: 'Shorts slightly dominant, paying longs. Mild squeeze pressure building. Not actionable yet but watch for FR going deeper negative.' };
+  if (p >= -0.03)  return { emoji: '🔥', short: 'Short Overload', label: 'Short Overleverage',         color: '#34d399', bg: 'rgba(52,211,153,0.09)',  action: 'Look for long entries on dips.',   desc: 'Shorts are overleveraged and paying longs. Whales can pump price to liquidate shorts and collect liquidity. Squeeze probability is high.' };
+  return             { emoji: '🚀', short: 'Extreme Short',      label: 'Extreme Short Overleverage',  color: '#34d399', bg: 'rgba(52,211,153,0.13)',  action: 'Strong long setup. Size up.',      desc: 'Shorts severely overleveraged — paying 0.03%+ per 8h. Maximum squeeze pressure. Historical high probability of violent squeeze pump.' };
 }
 
 /* ── canvas: sparkline ── */
@@ -368,7 +368,7 @@ export default function FundingHistory() {
                               const sig = frSignal(current);
                               return (
                                 <span className="frh-sig-chip" style={{ color: sig.color, borderColor: sig.color + '44', background: sig.bg }}>
-                                  {sig.emoji} {sig.label}
+                                  {sig.short}
                                 </span>
                               );
                             })()
