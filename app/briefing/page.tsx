@@ -1,0 +1,318 @@
+'use client';
+import { useState, useEffect } from 'react';
+import {
+  useMarket, COINS, COIN_DEC, fmtPrice, fmtChg,
+  classifyFunding, computeSqueezeScore, type CoinId,
+} from '@/lib/marketStore';
+import { useNews } from '@/components/NewsProvider';
+import SessionCountdown from '@/components/SessionCountdown';
+
+/* ── helpers ── */
+const COIN_LABELS: Record<CoinId, string> = {
+  btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP',
+  bnb: 'BNB', hype: 'HYPE', near: 'NEAR', zec: 'ZEC',
+};
+
+const OI_ICONS: Record<string, string> = {
+  strong_up: '▲', strong_down: '▼', weak_up: '△', weak_down: '▽',
+};
+const OI_COLORS: Record<string, string> = {
+  strong_up: '#34d399', strong_down: '#f87171',
+  weak_up: '#86efac', weak_down: '#fca5a5',
+};
+
+function rsiColor(rsi: number | null): string {
+  if (rsi == null) return 'var(--txt3)';
+  if (rsi >= 70) return '#f87171';
+  if (rsi >= 60) return '#fbbf24';
+  if (rsi <= 30) return '#34d399';
+  if (rsi <= 40) return '#86efac';
+  return 'var(--txt2)';
+}
+
+function volRatioColor(vr: number | null): string {
+  if (vr == null) return 'var(--txt3)';
+  if (vr >= 2)   return '#f87171';
+  if (vr >= 1.5) return '#fbbf24';
+  if (vr >= 1.2) return '#86efac';
+  return 'var(--txt3)';
+}
+
+function pad2(n: number) { return String(n).padStart(2, '0'); }
+
+function phtNow() {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+}
+
+/* ── page ── */
+export default function MorningBriefing() {
+  const { store }                           = useMarket();
+  const { econEvents, geoEvents, whaleAlerts } = useNews();
+  const [now, setNow] = useState<Date>(phtNow);
+
+  /* Tick once per minute so header time stays fresh */
+  useEffect(() => {
+    const t = setInterval(() => setNow(phtNow()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const h = now.getHours(), m = now.getMinutes();
+  const timeStr = `${pad2(h % 12 || 12)}:${pad2(m)} ${h >= 12 ? 'PM' : 'AM'} PHT`;
+  const dateStr = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
+
+  /* Coin rows */
+  const coinRows = COINS.map(id => ({
+    id,
+    c: store.coins[id],
+    sq: computeSqueezeScore(store.coins[id]),
+  }));
+
+  /* Hot setups — score > 20, top 3 */
+  const hotSetups = coinRows
+    .filter(r => r.sq.score > 20)
+    .sort((a, b) => b.sq.score - a.sq.score)
+    .slice(0, 4);
+
+  /* Events */
+  const urgentEcon = econEvents.filter(e => e.h < 24).slice(0, 5);
+  const recentGeo  = geoEvents.slice(0, 4);
+
+  /* Macro colors */
+  const fng      = store.fng;
+  const fngColor = fng == null ? 'var(--txt3)'
+    : fng >= 75 ? '#f87171'
+    : fng >= 55 ? '#fbbf24'
+    : fng <= 25 ? '#34d399'
+    : fng <= 45 ? '#86efac'
+    : 'var(--txt2)';
+
+  const etfFlow  = store.etfNetFlow;
+  const etfColor = etfFlow == null ? 'var(--txt3)' : etfFlow > 0 ? '#34d399' : '#f87171';
+
+  const dxyChg    = store.dxyChg;
+  const dxySig    = dxyChg == null    ? '—'
+    : dxyChg > 0.2  ? '↑ BTC headwind'
+    : dxyChg < -0.2 ? '↓ BTC tailwind'
+    : 'Neutral';
+  const dxyColor  = dxyChg == null    ? 'var(--txt3)'
+    : dxyChg > 0.2  ? '#f87171'
+    : dxyChg < -0.2 ? '#34d399'
+    : 'var(--txt3)';
+
+  const btcDomHistory = store.btcDomHistory;
+  const domTrend = btcDomHistory.length >= 2
+    ? btcDomHistory[btcDomHistory.length - 1] > btcDomHistory[0]
+      ? { txt: '↑ Alts weak', col: '#fbbf24' }
+      : { txt: '↓ Alts active', col: '#34d399' }
+    : null;
+
+  const noEvents = urgentEcon.length === 0 && recentGeo.length === 0 && (!whaleAlerts || whaleAlerts.length === 0);
+
+  return (
+    <div>
+
+      {/* ── Header ── */}
+      <div className="mb-header">
+        <div className="mb-title">🌅 Morning Briefing</div>
+        <div className="mb-subtitle">{dateStr} · {timeStr}</div>
+      </div>
+
+      {/* ── Session Countdown ── */}
+      <SessionCountdown />
+
+      {/* ── Macro Pulse ── */}
+      <div className="card" style={{ marginBottom: 10 }}>
+        <div className="lbl">Macro Pulse</div>
+        <div className="mb-macro-row">
+
+          <div className="mb-macro-item">
+            <div className="mb-macro-label">Fear &amp; Greed</div>
+            <div className="mb-macro-val" style={{ color: fngColor }}>
+              {fng != null ? fng : '—'}
+            </div>
+            <div className="mb-macro-sub" style={{ color: fngColor }}>
+              {store.fngLabel || '—'}
+            </div>
+          </div>
+
+          <div className="mb-macro-item">
+            <div className="mb-macro-label">BTC Dom</div>
+            <div className="mb-macro-val">
+              {store.btcDom != null ? store.btcDom.toFixed(1) + '%' : '—'}
+            </div>
+            <div className="mb-macro-sub" style={{ color: domTrend?.col ?? 'var(--txt3)' }}>
+              {domTrend?.txt ?? '—'}
+            </div>
+          </div>
+
+          <div className="mb-macro-item">
+            <div className="mb-macro-label">DXY</div>
+            <div className="mb-macro-val">
+              {store.dxy != null ? store.dxy.toFixed(2) : '—'}
+            </div>
+            <div className="mb-macro-sub" style={{ color: dxyColor }}>{dxySig}</div>
+          </div>
+
+          <div className="mb-macro-item">
+            <div className="mb-macro-label">BTC ETF Flow</div>
+            <div className="mb-macro-val" style={{ color: etfColor }}>
+              {etfFlow != null
+                ? (etfFlow >= 0 ? '+' : '') + '$' + Math.abs(etfFlow).toFixed(0) + 'M'
+                : '—'}
+            </div>
+            <div className="mb-macro-sub" style={{ color: etfColor }}>
+              {etfFlow != null
+                ? etfFlow > 100  ? 'Strong inflow'
+                : etfFlow > 0    ? 'Mild inflow'
+                : etfFlow < -100 ? 'Strong outflow'
+                :                  'Mild outflow'
+                : '—'}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* ── All Coins Table ── */}
+      <div className="card" style={{ marginBottom: 10, overflowX: 'auto' }}>
+        <div className="lbl">All Coins</div>
+        <table className="mb-table">
+          <thead>
+            <tr>
+              <th>Coin</th>
+              <th>Price</th>
+              <th>24h</th>
+              <th>Fund</th>
+              <th>RSI</th>
+              <th>Vol</th>
+              <th>OI</th>
+            </tr>
+          </thead>
+          <tbody>
+            {coinRows.map(({ id, c }) => {
+              const dec   = COIN_DEC[id];
+              const fr    = c?.fundingRate ?? null;
+              const frCls = fr != null ? classifyFunding(fr) : null;
+              const frPct = fr != null ? (fr * 100).toFixed(3) + '%' : '—';
+              const frCol = frCls
+                ? frCls.rpm === 'pos' ? '#f87171'
+                : frCls.rpm === 'neg' ? '#34d399'
+                : 'var(--txt3)'
+                : 'var(--txt3)';
+              const oit  = c?.oiTrend ?? null;
+              return (
+                <tr key={id}>
+                  <td className="mb-coin">{COIN_LABELS[id]}</td>
+                  <td>{c?.price != null ? fmtPrice(c.price, dec) : '—'}</td>
+                  <td style={{ color: c?.change != null ? c.change >= 0 ? '#34d399' : '#f87171' : 'var(--txt3)' }}>
+                    {c?.change != null ? fmtChg(c.change) : '—'}
+                  </td>
+                  <td style={{ color: frCol }}>{frPct}</td>
+                  <td style={{ color: rsiColor(c?.rsi14 ?? null) }}>
+                    {c?.rsi14 != null ? Math.round(c.rsi14) : '—'}
+                  </td>
+                  <td style={{ color: volRatioColor(c?.volRatio ?? null) }}>
+                    {c?.volRatio != null ? c.volRatio.toFixed(1) + 'x' : '—'}
+                  </td>
+                  <td style={{ color: oit ? OI_COLORS[oit] : 'var(--txt3)' }}>
+                    {oit ? OI_ICONS[oit] : '—'}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <div className="mb-table-legend">
+          Fund = funding rate · RSI = 15m · Vol = vs 20-candle avg · OI = trend signal
+        </div>
+      </div>
+
+      {/* ── Hot Setups ── */}
+      {hotSetups.length > 0 && (
+        <div className="card" style={{ marginBottom: 10 }}>
+          <div className="lbl">🔥 Hot Setups</div>
+          {hotSetups.map(({ id, c, sq }) => (
+            <div key={id} className="mb-setup-row">
+              <div className="mb-setup-coin">{COIN_LABELS[id]}</div>
+              <div style={{ flex: 1 }}>
+                <div className="mb-setup-label" style={{ color: sq.color }}>{sq.label}</div>
+                {c?.fundingRate != null && (
+                  <div className="mb-setup-sub">
+                    FR {(c.fundingRate * 100).toFixed(3)}%
+                    {c.longRatio != null ? ` · L/S ${(c.longRatio * 100).toFixed(0)}/${(c.shortRatio! * 100).toFixed(0)}` : ''}
+                  </div>
+                )}
+              </div>
+              <div className="mb-setup-score" style={{ color: sq.color }}>{sq.score}pts</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Events & News ── */}
+      <div className="card" style={{ marginBottom: 10 }}>
+        <div className="lbl">Events &amp; News</div>
+
+        {noEvents && (
+          <div style={{ fontSize: 12, color: 'var(--txt3)', padding: '4px 0' }}>
+            No active events in the next 24h. Clean macro backdrop.
+          </div>
+        )}
+
+        {urgentEcon.map((e, i) => (
+          <div key={i} className="mb-event-row">
+            <div className="mb-event-tag" style={{
+              background: e.h < 2 ? 'rgba(248,113,113,0.15)' : 'rgba(251,191,36,0.1)',
+              color: e.h < 2 ? '#f87171' : '#fbbf24',
+            }}>
+              {e.type}
+            </div>
+            <div className="mb-event-name">{e.name}</div>
+            <div className="mb-event-time" style={{
+              color: e.h < 1 ? '#f87171' : e.h < 6 ? '#fbbf24' : 'var(--txt3)',
+            }}>
+              {e.h < 0.5 ? 'NOW' : e.h < 24 ? Math.round(e.h) + 'h' : e.dateStr}
+            </div>
+          </div>
+        ))}
+
+        {recentGeo.map((e, i) => (
+          <div key={i} className="mb-event-row">
+            <div className="mb-event-tag" style={{
+              background: e.style === 'crypto'
+                ? 'rgba(52,211,153,0.1)'
+                : e.style === 'speech'
+                ? 'rgba(96,165,250,0.1)'
+                : 'rgba(167,139,250,0.1)',
+              color: e.style === 'crypto' ? '#34d399' : e.style === 'speech' ? '#60a5fa' : '#a78bfa',
+            }}>
+              {e.tag}
+            </div>
+            <div className="mb-event-name">{e.headline}</div>
+            <div className="mb-event-time" style={{ color: 'var(--txt3)' }}>{e.timeStr}</div>
+          </div>
+        ))}
+
+        {whaleAlerts && whaleAlerts.slice(0, 4).map((w, i) => (
+          <div key={i} className="mb-event-row">
+            <div className="mb-event-tag" style={{
+              background: w.side === 'BUY' ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)',
+              color: w.side === 'BUY' ? '#34d399' : '#f87171',
+            }}>
+              🐋 {w.side}
+            </div>
+            <div className="mb-event-name">
+              {w.symbol} · ${(w.usdValue / 1_000_000).toFixed(1)}M @ ${w.price.toLocaleString()}
+            </div>
+            <div className="mb-event-time" style={{ color: 'var(--txt3)' }}>
+              {Math.floor((Date.now() / 1000 - w.ts) / 60)}m ago
+            </div>
+          </div>
+        ))}
+      </div>
+
+    </div>
+  );
+}
