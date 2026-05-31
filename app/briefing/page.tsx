@@ -21,6 +21,27 @@ const OI_COLORS: Record<string, string> = {
   weak_up: '#86efac', weak_down: '#fca5a5',
 };
 
+/* Convert decimal hours → "Xh Ym" */
+function hToHM(h: number): string {
+  if (h < 0.017) return 'NOW';          // < 1 min
+  const totalMins = Math.round(h * 60);
+  if (totalMins < 60) return `${totalMins}m`;
+  const hrs = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  return mins > 0 ? `${hrs}h ${mins}m` : `${hrs}h`;
+}
+
+/* Convert unix-second timestamp → "Xh Ym ago" */
+function tsAgo(ts: number): string {
+  const s = Math.floor(Date.now() / 1000 - ts);
+  if (s < 60) return 'just now';
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  return rm > 0 ? `${h}h ${rm}m ago` : `${h}h ago`;
+}
+
 function rsiColor(rsi: number | null): string {
   if (rsi == null) return 'var(--txt3)';
   if (rsi >= 70) return '#f87171';
@@ -273,7 +294,7 @@ export default function MorningBriefing() {
             <div className="mb-event-time" style={{
               color: e.h < 1 ? '#f87171' : e.h < 6 ? '#fbbf24' : 'var(--txt3)',
             }}>
-              {e.h < 0.5 ? 'NOW' : e.h < 24 ? Math.round(e.h) + 'h' : e.dateStr}
+              {e.h < 24 ? hToHM(e.h) : e.dateStr}
             </div>
           </div>
         ))}
@@ -291,7 +312,7 @@ export default function MorningBriefing() {
               {e.tag}
             </div>
             <div className="mb-event-name">{e.headline}</div>
-            <div className="mb-event-time" style={{ color: 'var(--txt3)' }}>{e.timeStr}</div>
+            <div className="mb-event-time" style={{ color: 'var(--txt3)' }}>{tsAgo(e.ts)}</div>
           </div>
         ))}
 
@@ -306,9 +327,7 @@ export default function MorningBriefing() {
             <div className="mb-event-name">
               {w.symbol} · ${(w.usdValue / 1_000_000).toFixed(1)}M @ ${w.price.toLocaleString()}
             </div>
-            <div className="mb-event-time" style={{ color: 'var(--txt3)' }}>
-              {Math.floor((Date.now() / 1000 - w.ts) / 60)}m ago
-            </div>
+            <div className="mb-event-time" style={{ color: 'var(--txt3)' }}>{tsAgo(w.ts)}</div>
           </div>
         ))}
       </div>
