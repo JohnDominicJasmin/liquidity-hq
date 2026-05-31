@@ -2027,3 +2027,29 @@ body.ticker-on .breaking-alert { top: 90px; }
 .mb-event-time   { font-size: 11px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 [data-theme="light"] .mb-macro-item { background: var(--bg2); }
+
+/* ── FUNDING RATE HISTORY ──────────────────────────────────────────────── */
+.frh-range-row   { display: flex; gap: 6px; margin-bottom: 10px; }
+.frh-range-btn   { padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt3); cursor: pointer; transition: all 0.12s; }
+.frh-range-btn:hover { color: var(--txt2); border-color: var(--bdr2); }
+.frh-range-btn.on    { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-bdr); }
+
+.frh-table       { width: 100%; border-collapse: collapse; font-size: 12px; }
+.frh-table th    { text-align: left; color: var(--txt3); font-weight: 600; padding: 3px 8px 7px; border-bottom: 0.5px solid var(--bdr); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+.frh-table td    { padding: 5px 8px; border-bottom: 0.5px solid var(--bdr); color: var(--txt2); font-variant-numeric: tabular-nums; vertical-align: middle; }
+.frh-table tr:last-child td { border-bottom: none; }
+.frh-coin        { font-weight: 700; color: var(--txt) !important; font-size: 12px; width: 46px; }
+.frh-row         { cursor: pointer; transition: background 0.1s; }
+.frh-row:hover   { background: rgba(255,255,255,0.02); }
+.frh-row.on      { background: rgba(167,139,250,0.07) !important; }
+.frh-row.on .frh-coin { color: var(--purple) !important; }
+.frh-spark-th    { min-width: 120px; }
+.frh-spark-cell  { min-width: 120px; width: 160px; padding: 3px 8px !important; }
+
+.frh-chart-card     { overflow: hidden; }
+.frh-chart-header   { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.frh-current-badge  { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.frh-legend         { font-size: 10px; color: var(--txt3); padding: 8px 0 0; border-top: 0.5px solid var(--bdr); margin-top: 8px; line-height: 1.7; }
+
+[data-theme="light"] .frh-row:hover { background: rgba(0,0,0,0.03) !important; }
+[data-theme="light"] .frh-row.on    { background: var(--purple-bg) !important; }
