@@ -159,9 +159,9 @@ export default function NewsPage() {
             const bdr   = isBuy ? 'rgba(52,211,153,0.25)' : 'rgba(248,113,113,0.25)';
             return (
               <div key={w.id} className="ncard ncard-catalyst ncard-whale"
-                style={{ background: bg, borderColor: bdr, borderLeftColor: col }}>
+                style={{ borderTopColor: col }}>
                 <div className="ncard-top">
-                  <span className="ncard-type-badge" style={{ color: col, background: isBuy ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)' }}>
+                  <span className="ncard-type-badge" style={{ color: col }}>
                     {w.symbol} Whale {isBuy ? 'BUY' : 'SELL'}
                   </span>
                   <span className="ncard-meta">{timeAgo(w.ts)}</span>
@@ -194,9 +194,9 @@ export default function NewsPage() {
             const geo = getGeoMeta(a.headline);
             return (
               <div key={a.id} className="ncard ncard-catalyst"
-                style={{ background: cfg.bg, borderColor: cfg.border, borderLeftColor: cfg.dot }}>
+                style={{ borderTopColor: cfg.dot }}>
                 <div className="ncard-top">
-                  <span className="ncard-type-badge" style={{ color: cfg.dot, background: cfg.labelBg }}>
+                  <span className="ncard-type-badge" style={{ color: cfg.dot }}>
                     {geo ? geo.tag : cfg.label}
                   </span>
                   <span className="ncard-meta">{a.source} · {timeAgo(a.ts)}</span>
@@ -215,9 +215,9 @@ export default function NewsPage() {
           {/* Extra geo events (not in alerts) */}
           {extraGeo.map((g, i) => (
             <div key={i} className="ncard ncard-catalyst"
-              style={{ background: 'rgba(167,139,250,0.06)', borderColor: 'rgba(167,139,250,0.25)', borderLeftColor: '#a78bfa' }}>
+              style={{ borderTopColor: '#a78bfa' }}>
               <div className="ncard-top">
-                <span className="ncard-type-badge" style={{ color: '#a78bfa', background: 'rgba(167,139,250,0.12)' }}>
+                <span className="ncard-type-badge" style={{ color: '#a78bfa' }}>
                   {g.tag}
                 </span>
                 <span className="ncard-meta">{g.source} · {g.timeStr}</span>
@@ -249,10 +249,10 @@ export default function NewsPage() {
             const cfg = TYPE_STYLE[a.type];
             const geo = getGeoMeta(a.headline);
             return (
-              <div key={a.id} className="ncard" style={{ background: cfg.bg, borderColor: cfg.border }}>
+              <div key={a.id} className="ncard ncard-catalyst" style={{ borderTopColor: cfg.dot }}>
                 <div className="ncard-top">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className="ncard-type-badge" style={{ color: cfg.dot, background: cfg.labelBg }}>
+                    <span className="ncard-type-badge" style={{ color: cfg.dot }}>
                       {cfg.label}
                     </span>
                     {geo && <span className="ncard-geo-tag">{geo.tag}</span>}
@@ -284,22 +284,11 @@ export default function NewsPage() {
             const urgent = e.h < 2;
             const soon   = e.h < 24;
             return (
-              <div key={i} className="ncard" style={{
-                background: urgent
-                  ? 'rgba(217,119,6,0.08)'
-                  : soon
-                  ? 'rgba(217,119,6,0.04)'
-                  : 'var(--bg1)',
-                borderColor: urgent
-                  ? 'rgba(251,191,36,0.35)'
-                  : soon
-                  ? 'rgba(251,191,36,0.20)'
-                  : 'var(--bdr)',
-              }}>
+              <div key={i} className={`ncard${urgent || soon ? ' ncard-catalyst' : ''}`}
+                style={urgent || soon ? { borderTopColor: '#fbbf24' } : {}}>
                 <div className="ncard-top">
                   <span className="ncard-type-badge" style={{
                     color: urgent ? '#fbbf24' : soon ? '#fbbf24' : 'var(--txt3)',
-                    background: urgent ? 'rgba(251,191,36,0.12)' : soon ? 'rgba(251,191,36,0.07)' : 'rgba(255,255,255,0.05)',
                   }}>
                     {e.type}
                   </span>
