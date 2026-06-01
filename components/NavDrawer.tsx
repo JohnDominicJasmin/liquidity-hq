@@ -104,7 +104,6 @@ export default function NavDrawer() {
                       className={`nav-more-item${pathname === item.path ? ' on' : ''}`}
                       onClick={() => setMoreOpen(false)}
                     >
-                      <span className="nav-more-icon">{item.icon}</span>
                       {item.label}
                     </Link>
                   ))}
