@@ -51,6 +51,7 @@ function relTime(ts: number): string {
 
 /* ── Generate follow-up question chips via Grok (cheap endpoint — no search needed) ── */
 async function generateFollowUps(response: string, coin: string): Promise<string[]> {
+  if (!response) return [];
   try {
     const res = await fetch('https://api.x.ai/v1/chat/completions', {
       method:  'POST',
@@ -285,15 +286,15 @@ export default function GrokChat() {
     setError('');
 
     try {
-      // Smart context: educational questions get minimal ctx (~20 tokens), market questions get full (~400)
-      const educational = isEducational(text);
-      const sysCtx = educational
-        ? buildMinimalCtx(store, activeCoin)
-        : buildSystemCtx(store, activeCoin, latestHeadlines, geoEvents);
-
-      // Auto-detect live search: override toggle if message clearly needs current web data
+      // Auto-detect live search first — needed before context decision
       const autoSearch = !liveSearch && needsLiveSearch(text);
       const useSearch  = liveSearch || autoSearch;
+
+      // Smart context: educational + no search = minimal (~20 tokens)
+      // Anything with live search = full context so Grok can correlate web findings with live data
+      const sysCtx = (isEducational(text) && !useSearch)
+        ? buildMinimalCtx(store, activeCoin)
+        : buildSystemCtx(store, activeCoin, latestHeadlines, geoEvents);
 
       // Cap at last 8 messages (4 pairs) — prevents token cost growing unbounded
       const apiMsgs  = history.slice(-8).map(m => ({ role: m.role, content: m.content }));
@@ -341,8 +342,8 @@ export default function GrokChat() {
       // Show reply immediately
       setMsgs(prev => [...prev, { role: 'assistant', content: reply, ts: replyTs }]);
 
-      // Generate follow-up chips in background (non-blocking)
-      generateFollowUps(reply, activeCoin).then(followUps => {
+      // Generate follow-up chips only for substantial responses (skip 1-liners)
+      generateFollowUps(reply.length > 150 ? reply : '', activeCoin).then(followUps => {
         if (followUps.length > 0) {
           setMsgs(prev => {
             const updated = [...prev];
