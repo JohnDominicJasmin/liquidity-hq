@@ -3,6 +3,27 @@ import { classifyNews } from '@/lib/classify';
 
 export const dynamic = 'force-dynamic';
 
+/* ── Grok API key ── */
+const GROK_KEY = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5Bepv2POY4L6EdBULh4GYNCO';
+
+/* ── Lightweight Grok analysis (no web search — pure reasoning, fast + cheap) ── */
+async function grokAnalyze(prompt: string): Promise<string> {
+  try {
+    const res = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROK_KEY}` },
+      body: JSON.stringify({
+        model: 'grok-4.3',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 180,
+      }),
+    });
+    if (!res.ok) return '';
+    const data = await res.json();
+    return (data.choices?.[0]?.message?.content ?? '').trim();
+  } catch { return ''; }
+}
+
 /* ── Coin maps ── */
 const BINANCE_PERP: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
@@ -216,17 +237,26 @@ async function checkWhales(token: string, chatId: string, now: string): Promise<
             ? `$${(usd / 1_000_000).toFixed(2)}M`
             : `$${(usd / 1000).toFixed(0)}K`;
 
+          const grokTake = await grokAnalyze(
+            `You are an elite crypto trader. A single whale order just ${side === 'BUY' ? 'bought' : 'sold'} ` +
+            `${usdFmt} of ${label} at $${parseFloat(t.p).toLocaleString()}.\n\n` +
+            `In 2-3 sentences: What's the likely short-term (1-4h) market impact? ` +
+            `Is this worth acting on right now, or wait for confirmation? Be direct, no hedging.`,
+          );
+
+          const grokLine = grokTake ? `\n\n🤖 <b>Grok:</b> ${grokTake}` : '';
+
           await tg(token, chatId,
             side === 'BUY'
               ? `🐋 <b>${label} Whale BUY Detected</b>\n\n` +
                 `Size: <b>${usdFmt}</b> at $${parseFloat(t.p).toLocaleString()}\n` +
-                `Signal: Large aggressive buy — institutional accumulation\n` +
-                `Action: Watch for follow-through momentum. Short-term bullish.\n\n` +
+                `Signal: Large aggressive buy — institutional accumulation` +
+                `${grokLine}\n\n` +
                 `<i>⏰ ${now} PHT</i>`
               : `🐋 <b>${label} Whale SELL Detected</b>\n\n` +
                 `Size: <b>${usdFmt}</b> at $${parseFloat(t.p).toLocaleString()}\n` +
-                `Signal: Large aggressive sell — institutional distribution\n` +
-                `Action: Watch for follow-through selling. Short-term bearish.\n\n` +
+                `Signal: Large aggressive sell — institutional distribution` +
+                `${grokLine}\n\n` +
                 `<i>⏰ ${now} PHT</i>`);
           markSent(key);
           fired.push(`${label} whale ${side} ${usdFmt}`);
@@ -273,17 +303,22 @@ async function checkNews(token: string, chatId: string, now: string): Promise<st
       const key = `news_${item.id}`;
       if (onCooldown(key, CD.news)) continue;
 
-      const emoji  = type === 'red' ? '🚨' : '📊';
-      const label  = type === 'red' ? 'Breaking Alert' : 'Macro Alert';
-      const action = type === 'red'
-        ? 'High-impact event. BTC can dump fast then violently recover. Watch key cluster levels.'
-        : 'Macro event. Watch for crypto volatility — first move often exaggerated.';
+      const emoji = type === 'red' ? '🚨' : '📊';
+      const label = type === 'red' ? 'Breaking Alert' : 'Macro Alert';
+
+      const grokTake = await grokAnalyze(
+        `You are an elite crypto trader. Breaking news just dropped:\n"${item.headline}"\n\n` +
+        `In 2-3 sentences: What's the likely short-term (1-4h) crypto market impact? ` +
+        `What should a trader watch for or act on right now? Be direct, no hedging.`,
+      );
+
+      const grokLine = grokTake ? `\n\n🤖 <b>Grok:</b> ${grokTake}` : '';
 
       await tg(token, chatId,
         `${emoji} <b>${label}</b>\n\n` +
         `<b>${item.headline}</b>\n` +
-        `Source: ${item.source}\n\n` +
-        `${action}\n\n` +
+        `Source: ${item.source}` +
+        `${grokLine}\n\n` +
         `<i>⏰ ${now} PHT</i>`);
       markSent(key);
       fired.push(`news: ${item.headline.slice(0, 50)}`);
