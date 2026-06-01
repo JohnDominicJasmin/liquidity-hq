@@ -96,15 +96,15 @@ export default function Arena() {
     try { sessionStorage.setItem(ARENA_HIST_KEY, JSON.stringify(history)); } catch { /* ignore */ }
   }, [history]);
 
-  /* ── Persist results cache in sessionStorage ── */
+  /* ── Persist results cache in localStorage (survives tab close + restarts) ── */
   useEffect(() => {
     try {
-      const saved = sessionStorage.getItem(ARENA_RESULTS_KEY);
+      const saved = localStorage.getItem(ARENA_RESULTS_KEY);
       if (saved) setResultsCache(JSON.parse(saved));
     } catch { /* ignore */ }
   }, []);
   useEffect(() => {
-    try { sessionStorage.setItem(ARENA_RESULTS_KEY, JSON.stringify(resultsCache)); } catch { /* ignore */ }
+    try { localStorage.setItem(ARENA_RESULTS_KEY, JSON.stringify(resultsCache)); } catch { /* ignore */ }
   }, [resultsCache]);
 
   /* ── Cross-exchange funding data ── */
