@@ -23,7 +23,9 @@ const NAV = [
 ];
 
 // Desktop nav: only items flagged desk:true
-const DESKTOP_NAV = NAV.filter(item => item && item.desk) as NonNullable<typeof NAV[0]>[];
+const DESKTOP_NAV = NAV.filter(item => item && item.desk)  as NonNullable<typeof NAV[0]>[];
+// "More" dropdown: items flagged desk:false
+const MORE_NAV    = NAV.filter(item => item && !item.desk) as NonNullable<typeof NAV[0]>[];
 
 function useStatusDot() {
   const { store } = useMarket();
@@ -35,10 +37,19 @@ function useStatusDot() {
 }
 
 export default function NavDrawer() {
-  const [open, setOpen] = useState(false);
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [open, setOpen]         = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [theme, setTheme]       = useState<'dark' | 'light'>('dark');
   const pathname = usePathname();
   const dot = useStatusDot();
+
+  // Close "More" dropdown on outside click
+  useEffect(() => {
+    if (!moreOpen) return;
+    const handler = () => setMoreOpen(false);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [moreOpen]);
 
   // Initialise from localStorage on first mount
   useEffect(() => {
@@ -75,6 +86,31 @@ export default function NavDrawer() {
                 {item.label}
               </Link>
             ))}
+
+            {/* More dropdown */}
+            <div className="nav-more-wrap" onClick={e => e.stopPropagation()}>
+              <button
+                className={`desktop-nav-item nav-more-btn${moreOpen ? ' on' : ''}`}
+                onClick={() => setMoreOpen(v => !v)}
+              >
+                More {moreOpen ? '▴' : '▾'}
+              </button>
+              {moreOpen && (
+                <div className="nav-more-dropdown">
+                  {MORE_NAV.map(item => (
+                    <Link
+                      key={item.path}
+                      href={item.path}
+                      className={`nav-more-item${pathname === item.path ? ' on' : ''}`}
+                      onClick={() => setMoreOpen(false)}
+                    >
+                      <span className="nav-more-icon">{item.icon}</span>
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </nav>
 
           {/* Theme toggle — always visible */}
@@ -87,7 +123,7 @@ export default function NavDrawer() {
             {theme === 'dark' ? '☀' : '◑'}
           </button>
 
-          {/* Hamburger — mobile only */}
+          {/* Hamburger — mobile only (hidden on desktop via CSS) */}
           <div className={`hamburger${open ? ' open' : ''}`} onClick={() => setOpen(v => !v)}>
             <div className="ham-line" />
             <div className="ham-line" />
