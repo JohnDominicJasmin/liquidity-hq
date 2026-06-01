@@ -49,15 +49,16 @@ function relTime(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-/* ── Generate follow-up question chips via Grok ────────────────── */
+/* ── Generate follow-up question chips via Grok (cheap endpoint — no search needed) ── */
 async function generateFollowUps(response: string, coin: string): Promise<string[]> {
   try {
-    const res = await fetch('https://api.x.ai/v1/responses', {
+    const res = await fetch('https://api.x.ai/v1/chat/completions', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROK_KEY}` },
       body: JSON.stringify({
-        model: 'grok-4.3',
-        input: [{
+        model:      'grok-4.3',
+        max_tokens: 100,
+        messages: [{
           role:    'user',
           content: `Based on this ${coin.toUpperCase()} trading analysis, write exactly 3 short follow-up questions a trader would ask next. Each question must be 4–8 words. Output ONLY the 3 questions, one per line, no numbering, no bullets, no extra text.\n\n${response.slice(0, 600)}`,
         }],
@@ -65,7 +66,7 @@ async function generateFollowUps(response: string, coin: string): Promise<string
     });
     if (!res.ok) return [];
     const data = await res.json();
-    const text: string = data.output?.find((o: { type: string }) => o.type === 'message')?.content?.[0]?.text ?? '';
+    const text: string = data.choices?.[0]?.message?.content ?? '';
     return text
       .split('\n')
       .map((q: string) => q.trim().replace(/^\d+[\.\)]\s*/, '').replace(/^[-•]\s*/, ''))
@@ -248,27 +249,47 @@ export default function GrokChat() {
 
     try {
       const sysCtx  = buildSystemCtx(store, activeCoin, latestHeadlines, geoEvents);
-      const apiMsgs = history.map(m => ({ role: m.role, content: m.content }));
-      const inputArr = [{ role: 'system', content: sysCtx }, ...apiMsgs];
+      // Cap at last 8 messages (4 pairs) — prevents token cost growing unbounded
+      const apiMsgs  = history.slice(-8).map(m => ({ role: m.role, content: m.content }));
+      const messages = [{ role: 'system', content: sysCtx }, ...apiMsgs];
 
-      const res = await fetch('https://api.x.ai/v1/responses', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROK_KEY}` },
-        body:    JSON.stringify({
-          model: 'grok-4.3',
-          input: inputArr,
-          ...(liveSearch && { tools: [{ type: 'web_search' }, { type: 'x_search' }] }),
-        }),
-      });
+      let reply: string;
 
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(`${res.status} — ${j?.error ?? res.statusText}`);
+      if (liveSearch) {
+        // Live search ON → /v1/responses with web + X search tools (~$0.05–$0.15)
+        const res = await fetch('https://api.x.ai/v1/responses', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROK_KEY}` },
+          body:    JSON.stringify({
+            model: 'grok-4.3',
+            input: messages,
+            tools: [{ type: 'web_search' }, { type: 'x_search' }],
+          }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(`${res.status} — ${j?.error ?? res.statusText}`);
+        }
+        const data = await res.json();
+        reply = data.output?.find((o: { type: string }) => o.type === 'message')?.content?.[0]?.text ?? '(no response)';
+      } else {
+        // Live search OFF → /v1/chat/completions, no tools (~$0.003)
+        const res = await fetch('https://api.x.ai/v1/chat/completions', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROK_KEY}` },
+          body:    JSON.stringify({
+            model:      'grok-4.3',
+            messages,
+            max_tokens: 600,
+          }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(`${res.status} — ${j?.error ?? res.statusText}`);
+        }
+        const data = await res.json();
+        reply = data.choices?.[0]?.message?.content ?? '(no response)';
       }
-
-      const data    = await res.json();
-      const msgItem = data.output?.find((o: { type: string }) => o.type === 'message');
-      const reply   = msgItem?.content?.[0]?.text ?? '(no response)';
       const replyTs = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       // Show reply immediately
@@ -373,8 +394,11 @@ export default function GrokChat() {
             {!histView && (
               <span style={{
                 fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
-                background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em',
-              }}>LIVE X</span>
+                background: liveSearch ? '#252040' : '#1a1a1a',
+                color: liveSearch ? '#b8aeff' : '#505050',
+                border: liveSearch ? '0.5px solid #4a3f80' : '0.5px solid #2a2a2a',
+                letterSpacing: '.05em',
+              }}>{liveSearch ? 'LIVE X' : 'FAST'}</span>
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -383,9 +407,9 @@ export default function GrokChat() {
                 <button
                   className={`gchat-search-toggle${liveSearch ? ' on' : ''}`}
                   onClick={() => setLiveSearch(v => !v)}
-                  title={liveSearch ? 'Live search ON' : 'Live search OFF'}
+                  title={liveSearch ? 'Live web+X search ON (~$0.10/msg) — click to turn off' : 'Search OFF (~$0.003/msg) — click to enable live web+X search'}
                 >
-                  🌐 {liveSearch ? 'Live' : 'Off'}
+                  {liveSearch ? '🌐 Live' : '⚡ Fast'}
                 </button>
                 {msgs.length > 0 && (
                   <button className="gchat-icon-btn" onClick={clearChat} title="Clear chat">🗑</button>
@@ -489,7 +513,7 @@ export default function GrokChat() {
                     {coin.toUpperCase()}/USDT
                   </div>
                   <div style={{ fontSize: 11, color: '#444' }}>
-                    Live data · {liveSearch ? '🌐 X + web search ON' : '🌐 search off — toggle to enable'}
+                    {liveSearch ? '🌐 Live search ON · ~$0.10/msg' : '⚡ Fast mode · ~$0.003/msg · toggle 🌐 for live search'}
                   </div>
                 </div>
               )}
