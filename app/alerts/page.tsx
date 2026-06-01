@@ -188,28 +188,22 @@ export default function AlertsPage() {
       {/* ── Active alert conditions ── */}
       <div className="card" style={{ marginBottom: 10 }}>
         <div className="lbl" style={{ marginBottom: 10 }}>Active Alert Conditions</div>
-        <div className="tg-condition-row">
-          <span className="tg-cond-dot" style={{ background: '#f87171' }} />
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)' }}>
-              Funding Rate ≥ 0.05% on any coin
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>
-              Longs Overcrowded — Dump Risk · 4h cooldown per coin
-            </div>
-          </div>
-        </div>
-        <div className="tg-condition-row" style={{ borderBottom: 'none' }}>
-          <span className="tg-cond-dot" style={{ background: '#34d399' }} />
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)' }}>
-              Funding Rate ≤ −0.03% on any coin
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>
-              Shorts Crowded — Squeeze Setup · 4h cooldown per coin
+        {[
+          { dot: '#f87171', title: 'Funding Rate ≥ 0.05%', desc: 'Longs Overcrowded — Dump Risk · 4h cooldown per coin' },
+          { dot: '#34d399', title: 'Funding Rate ≤ −0.03%', desc: 'Shorts Crowded — Squeeze Setup · 4h cooldown per coin' },
+          { dot: '#fbbf24', title: '1H RSI > 78 on any coin', desc: 'Overbought — Exhaustion Risk · 4h cooldown per coin' },
+          { dot: '#60a5fa', title: '1H RSI < 22 on any coin', desc: 'Oversold — Bounce Setup · 4h cooldown per coin' },
+          { dot: '#a78bfa', title: 'Whale trade detected', desc: 'BTC >$2M · ETH >$1M · SOL >$400K · 30min cooldown' },
+          { dot: '#f87171', title: 'Breaking news (Finnhub)', desc: 'Geopolitical / macro high-impact headlines · 15min cooldown per story' },
+        ].map((c, i, arr) => (
+          <div key={i} className="tg-condition-row" style={{ borderBottom: i === arr.length - 1 ? 'none' : undefined }}>
+            <span className="tg-cond-dot" style={{ background: c.dot }} />
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)' }}>{c.title}</div>
+              <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>{c.desc}</div>
             </div>
           </div>
-        </div>
+        ))}
         <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 10, padding: '8px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
           Monitored coins: BTC · ETH · SOL · XRP · BNB · HYPE · NEAR
         </div>
