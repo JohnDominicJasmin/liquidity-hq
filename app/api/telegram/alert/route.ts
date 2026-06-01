@@ -92,6 +92,14 @@ function isHighActivity(): boolean {
   const phtHour = (new Date().getUTCHours() + 8) % 24;
   return phtHour >= 20 || phtHour < 4;
 }
+function getSession(): string {
+  const d   = new Date();
+  const pht = ((d.getUTCHours() + 8) % 24) + d.getUTCMinutes() / 60;
+  if (pht >= 21.5 || pht < 4)    return '🇺🇸 NY';
+  if (pht >= 15   && pht < 21.5) return '🌍 London';
+  if (pht >= 8    && pht < 15)   return '🌏 Asia';
+  return '😴 Off';
+}
 const onCooldown = (key: string, ms: number) => { const t = lastSent.get(key); return t !== undefined && Date.now() - t < ms; };
 const markSent   = (key: string) => lastSent.set(key, Date.now());
 
@@ -153,7 +161,7 @@ async function fetchSpotPrices(): Promise<Record<string, number>> {
 /* ════════════════════════════════════════
    1. FR EXTREMES
    ════════════════════════════════════════ */
-async function checkFRExtremes(token: string, chatId: string, now: string, frMap: Record<string, number | null>): Promise<string[]> {
+async function checkFRExtremes(token: string, chatId: string, stamp: string, frMap: Record<string, number | null>): Promise<string[]> {
   const fired: string[] = [];
   for (const coin of COINS) {
     const fr = frMap[coin];
@@ -162,12 +170,12 @@ async function checkFRExtremes(token: string, chatId: string, now: string, frMap
     const label = LABELS[coin];
     if (fr >= 0.05 && !onCooldown(`fr_long_${coin}`, CD.fr)) {
       await tg(token, chatId,
-        `🔴 <b>${label} Funding Extreme — Longs Overcrowded</b>\n\nRate: <b>+${pct}%</b>\nSignal: Longs Overcrowded — Dump Risk\nAction: Consider fading longs or tightening stops.\n\n<i>⏰ ${now} PHT</i>`);
+        `🔴 <b>${label} Funding Extreme — Longs Overcrowded</b>\n\nRate: <b>+${pct}%</b>\nSignal: Longs Overcrowded — Dump Risk\nAction: Consider fading longs or tightening stops.\n\n<i>${stamp}</i>`);
       markSent(`fr_long_${coin}`); fired.push(`${label} FR long extreme`);
     }
     if (fr <= -0.03 && !onCooldown(`fr_short_${coin}`, CD.fr)) {
       await tg(token, chatId,
-        `🟢 <b>${label} Short Squeeze Setup</b>\n\nRate: <b>${pct}%</b>\nSignal: Shorts Crowded — Squeeze Setup\nAction: Watch for a violent squeeze. Long bias above key level.\n\n<i>⏰ ${now} PHT</i>`);
+        `🟢 <b>${label} Short Squeeze Setup</b>\n\nRate: <b>${pct}%</b>\nSignal: Shorts Crowded — Squeeze Setup\nAction: Watch for a violent squeeze. Long bias above key level.\n\n<i>${stamp}</i>`);
       markSent(`fr_short_${coin}`); fired.push(`${label} FR short squeeze`);
     }
   }
@@ -177,7 +185,7 @@ async function checkFRExtremes(token: string, chatId: string, now: string, frMap
 /* ════════════════════════════════════════
    2. FR DIRECTION FLIP (crosses zero)
    ════════════════════════════════════════ */
-async function checkFRFlip(token: string, chatId: string, now: string, frMap: Record<string, number | null>): Promise<string[]> {
+async function checkFRFlip(token: string, chatId: string, stamp: string, frMap: Record<string, number | null>): Promise<string[]> {
   const fired: string[] = [];
   for (const coin of COINS) {
     const fr = frMap[coin];
@@ -193,7 +201,7 @@ async function checkFRFlip(token: string, chatId: string, now: string, frMap: Re
           ? 'FR flipped positive — longs now paying shorts. Early bull bias forming, momentum shifting.'
           : 'FR flipped negative — shorts now paying longs. Early squeeze setup, watch for short covering.';
         await tg(token, chatId,
-          `🔄 <b>${label} FR Flipped ${flippedTo}</b>\n\nRate: <b>${sign > 0 ? '+' : ''}${pct}%</b>\n${desc}\n\n<i>⏰ ${now} PHT</i>`);
+          `🔄 <b>${label} FR Flipped ${flippedTo}</b>\n\nRate: <b>${sign > 0 ? '+' : ''}${pct}%</b>\n${desc}\n\n<i>${stamp}</i>`);
         fired.push(`${label} FR flip to ${flippedTo}`);
       }
       frSignMap.set(coin, sign);
@@ -227,7 +235,7 @@ function computeEMA(closes: number[], period: number): number {
   return ema;
 }
 
-async function checkRSI(token: string, chatId: string, now: string): Promise<string[]> {
+async function checkRSI(token: string, chatId: string, stamp: string): Promise<string[]> {
   const fired: string[] = [];
   await Promise.all(COINS.filter(c => BINANCE_SPOT[c]).map(async coin => {
     try {
@@ -239,11 +247,11 @@ async function checkRSI(token: string, chatId: string, now: string): Promise<str
       const r      = rsi.toFixed(1);
       const label  = LABELS[coin];
       if (rsi > 78 && !onCooldown(`rsi_ob_${coin}`, CD.rsi)) {
-        await tg(token, chatId, `⚡ <b>${label} RSI Overbought (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Exhaustion — Potential Reversal\nAction: Avoid chasing longs. Watch for rejection / reversal candle.\n\n<i>⏰ ${now} PHT</i>`);
+        await tg(token, chatId, `⚡ <b>${label} RSI Overbought (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Exhaustion — Potential Reversal\nAction: Avoid chasing longs. Watch for rejection / reversal candle.\n\n<i>${stamp}</i>`);
         markSent(`rsi_ob_${coin}`); fired.push(`${label} RSI overbought (${r})`);
       }
       if (rsi < 22 && !onCooldown(`rsi_os_${coin}`, CD.rsi)) {
-        await tg(token, chatId, `⚡ <b>${label} RSI Oversold (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Oversold — Bounce Setup\nAction: Watch for bounce from key support. Long bias on confirmation.\n\n<i>⏰ ${now} PHT</i>`);
+        await tg(token, chatId, `⚡ <b>${label} RSI Oversold (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Oversold — Bounce Setup\nAction: Watch for bounce from key support. Long bias on confirmation.\n\n<i>${stamp}</i>`);
         markSent(`rsi_os_${coin}`); fired.push(`${label} RSI oversold (${r})`);
       }
       // RSI 50 centerline cross — momentum shift
@@ -252,12 +260,12 @@ async function checkRSI(token: string, chatId: string, now: string): Promise<str
       if (prevRsi !== undefined) {
         if (prevRsi < 50 && rsi >= 50 && !onCooldown(`rsi50_bull_${coin}`, CD.rsi50)) {
           await tg(token, chatId,
-            `📊 <b>${label} RSI Crossed 50 — Bullish (1H)</b>\n\nRSI: <b>${r}</b> (prev ${prevRsi.toFixed(1)})\nSignal: Momentum shifted bullish — potential long setup\nAction: Confirm with break above nearest resistance.\n\n<i>⏰ ${now} PHT</i>`);
+            `📊 <b>${label} RSI Crossed 50 — Bullish (1H)</b>\n\nRSI: <b>${r}</b> (prev ${prevRsi.toFixed(1)})\nSignal: Momentum shifted bullish — potential long setup\nAction: Confirm with break above nearest resistance.\n\n<i>${stamp}</i>`);
           markSent(`rsi50_bull_${coin}`); fired.push(`${label} RSI 50 cross ↑`);
         }
         if (prevRsi > 50 && rsi < 50 && !onCooldown(`rsi50_bear_${coin}`, CD.rsi50)) {
           await tg(token, chatId,
-            `📊 <b>${label} RSI Crossed 50 — Bearish (1H)</b>\n\nRSI: <b>${r}</b> (prev ${prevRsi.toFixed(1)})\nSignal: Momentum turned bearish — potential short setup\nAction: Confirm with breakdown below nearest support.\n\n<i>⏰ ${now} PHT</i>`);
+            `📊 <b>${label} RSI Crossed 50 — Bearish (1H)</b>\n\nRSI: <b>${r}</b> (prev ${prevRsi.toFixed(1)})\nSignal: Momentum turned bearish — potential short setup\nAction: Confirm with breakdown below nearest support.\n\n<i>${stamp}</i>`);
           markSent(`rsi50_bear_${coin}`); fired.push(`${label} RSI 50 cross ↓`);
         }
       }
@@ -269,7 +277,7 @@ async function checkRSI(token: string, chatId: string, now: string): Promise<str
 /* ════════════════════════════════════════
    3b. EMA 200 CROSS (1H)
    ════════════════════════════════════════ */
-async function checkEMACross(token: string, chatId: string, now: string): Promise<string[]> {
+async function checkEMACross(token: string, chatId: string, stamp: string): Promise<string[]> {
   const fired: string[] = [];
   await Promise.all(COINS.filter(c => BINANCE_SPOT[c]).map(async coin => {
     try {
@@ -304,7 +312,7 @@ async function checkEMACross(token: string, chatId: string, now: string): Promis
           `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
           `Signal: Bullish — price reclaimed major moving average\n` +
           `Action: Watch for EMA retest as support and higher-high confirmation.` +
-          `${fmtGrok(grokTake)}\n\n<i>⏰ ${now} PHT</i>`);
+          `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`);
         markSent(`ema_bull_${coin}`); fired.push(`${label} crossed above 200 EMA`);
       }
       if (side === 'below' && !onCooldown(`ema_bear_${coin}`, CD.ema)) {
@@ -318,7 +326,7 @@ async function checkEMACross(token: string, chatId: string, now: string): Promis
           `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
           `Signal: Bearish — price lost major moving average\n` +
           `Action: Watch for failed EMA retest as resistance and lower-low confirmation.` +
-          `${fmtGrok(grokTake)}\n\n<i>⏰ ${now} PHT</i>`);
+          `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`);
         markSent(`ema_bear_${coin}`); fired.push(`${label} crossed below 200 EMA`);
       }
     } catch { /* skip */ }
@@ -329,7 +337,7 @@ async function checkEMACross(token: string, chatId: string, now: string): Promis
 /* ════════════════════════════════════════
    3c. RAPID PRICE MOVE (5m / 1H / 4H)
    ════════════════════════════════════════ */
-async function checkRapidMove(token: string, chatId: string, now: string): Promise<string[]> {
+async function checkRapidMove(token: string, chatId: string, stamp: string): Promise<string[]> {
   const fired: string[] = [];
   const FRAMES = [
     { interval: '5m',  threshold: 4,  cd: 'move5m', tfLabel: '5m' },
@@ -374,7 +382,7 @@ async function checkRapidMove(token: string, chatId: string, now: string): Promi
             `Price: <b>$${currClose.toLocaleString()}</b>\n` +
             `Signal: ${Math.abs(pct).toFixed(1)}% candle — ${pct > 0 ? 'momentum surge' : 'flash dump'}\n` +
             `Action: Check volume + OI. Next candle direction is key.` +
-            `${fmtGrok(grokTake)}\n\n<i>⏰ ${now} PHT</i>`);
+            `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`);
           markSent(key); fired.push(`${label} rapid ${dir} ${sign}${pct.toFixed(1)}% (${tfLabel})`);
         } catch { /* skip */ }
       })
@@ -388,7 +396,7 @@ async function checkRapidMove(token: string, chatId: string, now: string): Promi
    ════════════════════════════════════════ */
 interface AggTrade { T: number; p: string; q: string; m: boolean }
 
-async function checkWhales(token: string, chatId: string, now: string): Promise<string[]> {
+async function checkWhales(token: string, chatId: string, stamp: string): Promise<string[]> {
   const fired: string[] = [];
   const since = Date.now() - 5 * 60_000;
   await Promise.all(Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
@@ -413,8 +421,8 @@ async function checkWhales(token: string, chatId: string, now: string): Promise<
         const grokLine = fmtGrok(grokTake);
         await tg(token, chatId,
           side === 'BUY'
-            ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${parseFloat(t.p).toLocaleString()}\nSignal: Large aggressive buy — institutional accumulation${grokLine}\n\n<i>⏰ ${now} PHT</i>`
-            : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${parseFloat(t.p).toLocaleString()}\nSignal: Large aggressive sell — institutional distribution${grokLine}\n\n<i>⏰ ${now} PHT</i>`);
+            ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${parseFloat(t.p).toLocaleString()}\nSignal: Large aggressive buy — institutional accumulation${grokLine}\n\n<i>${stamp}</i>`
+            : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${parseFloat(t.p).toLocaleString()}\nSignal: Large aggressive sell — institutional distribution${grokLine}\n\n<i>${stamp}</i>`);
         markSent(key); fired.push(`${label} whale ${side} ${usdFmt}`); break;
       }
     } catch { /* skip */ }
@@ -428,7 +436,7 @@ async function checkWhales(token: string, chatId: string, now: string): Promise<
 interface FinnhubItem { id: number; headline: string; datetime: number; source: string }
 const FINNHUB_KEY = 'd7f177pr01qi33g80jm0d7f177pr01qi33g80jmg';
 
-async function checkNews(token: string, chatId: string, now: string): Promise<string[]> {
+async function checkNews(token: string, chatId: string, stamp: string): Promise<string[]> {
   const fired: string[] = [];
   const since = Math.floor(Date.now() / 1000) - 600;
   try {
@@ -456,7 +464,7 @@ async function checkNews(token: string, chatId: string, now: string): Promise<st
         `Elite crypto trader. Breaking news: "${item.headline}". In 2-3 sentences: short-term (1-4h) crypto market impact? What should a trader watch for right now? Direct, no hedging. ` +
         `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
       const grokLine = fmtGrok(grokTake);
-      await tg(token, chatId, `${emoji} <b>${label}</b>\n\n<b>${item.headline}</b>\nSource: ${item.source}${grokLine}\n\n<i>⏰ ${now} PHT</i>`);
+      await tg(token, chatId, `${emoji} <b>${label}</b>\n\n<b>${item.headline}</b>\nSource: ${item.source}${grokLine}\n\n<i>${stamp}</i>`);
       markSent(key); fired.push(`news: ${item.headline.slice(0, 50)}`);
     }
   } catch { /* skip */ }
@@ -468,7 +476,7 @@ async function checkNews(token: string, chatId: string, now: string): Promise<st
    ════════════════════════════════════════ */
 interface OIHistItem { sumOpenInterest: string; timestamp: number }
 
-async function checkOISpike(token: string, chatId: string, now: string, prices: Record<string, number>): Promise<string[]> {
+async function checkOISpike(token: string, chatId: string, stamp: string, prices: Record<string, number>): Promise<string[]> {
   const fired: string[] = [];
   await Promise.all(Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
     try {
@@ -499,7 +507,7 @@ async function checkOISpike(token: string, chatId: string, now: string, prices: 
           `📈 <b>${label} OI ${pct > 0 ? 'Spike' : 'Drop'} — +${pct.toFixed(1)}% in 1h</b>\n\n` +
           `OI changed from ${(oldest / 1000).toFixed(1)}K to ${(newest / 1000).toFixed(1)}K contracts\n` +
           `Signal: ${pct > 0 ? 'New money entering — big move likely building' : 'Positions closing — potential trend reversal'}` +
-          `${grokLine}\n\n<i>⏰ ${now} PHT</i>`);
+          `${grokLine}\n\n<i>${stamp}</i>`);
         markSent(key); fired.push(`${label} OI ${dir} ${pct.toFixed(1)}%`);
       }
     } catch { /* skip */ }
@@ -512,7 +520,7 @@ async function checkOISpike(token: string, chatId: string, now: string, prices: 
    ════════════════════════════════════════ */
 interface TakerVolItem { buyVol: string; sellVol: string; timestamp: number }
 
-async function checkCVD(token: string, chatId: string, now: string): Promise<string[]> {
+async function checkCVD(token: string, chatId: string, stamp: string): Promise<string[]> {
   const fired: string[] = [];
   await Promise.all(Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
     try {
@@ -539,12 +547,12 @@ async function checkCVD(token: string, chatId: string, now: string): Promise<str
 
       if (priceChangePct > THRESH && netCVD < 0 && !onCooldown(`cvd_bear_${coin}`, CD.cvd)) {
         await tg(token, chatId,
-          `⚠️ <b>${label} Bearish CVD Divergence</b>\n\nPrice: <b>+${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Negative</b> — sellers dominating volume\nSignal: Price pump not supported by buying — likely a fake move\nAction: Avoid chasing longs. Watch for reversal.\n\n<i>⏰ ${now} PHT</i>`);
+          `⚠️ <b>${label} Bearish CVD Divergence</b>\n\nPrice: <b>+${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Negative</b> — sellers dominating volume\nSignal: Price pump not supported by buying — likely a fake move\nAction: Avoid chasing longs. Watch for reversal.\n\n<i>${stamp}</i>`);
         markSent(`cvd_bear_${coin}`); fired.push(`${label} bearish CVD divergence`);
       }
       if (priceChangePct < -THRESH && netCVD > 0 && !onCooldown(`cvd_bull_${coin}`, CD.cvd)) {
         await tg(token, chatId,
-          `⚡ <b>${label} Bullish CVD Divergence</b>\n\nPrice: <b>${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Positive</b> — buyers absorbing the dip\nSignal: Price drop not matched by sell volume — accumulation signal\nAction: Watch for bounce from key support.\n\n<i>⏰ ${now} PHT</i>`);
+          `⚡ <b>${label} Bullish CVD Divergence</b>\n\nPrice: <b>${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Positive</b> — buyers absorbing the dip\nSignal: Price drop not matched by sell volume — accumulation signal\nAction: Watch for bounce from key support.\n\n<i>${stamp}</i>`);
         markSent(`cvd_bull_${coin}`); fired.push(`${label} bullish CVD divergence`);
       }
     } catch { /* skip */ }
@@ -557,7 +565,7 @@ async function checkCVD(token: string, chatId: string, now: string): Promise<str
    ════════════════════════════════════════ */
 interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string }
 
-async function checkPriceAlerts(token: string, chatId: string, now: string, prices: Record<string, number>): Promise<string[]> {
+async function checkPriceAlerts(token: string, chatId: string, stamp: string, prices: Record<string, number>): Promise<string[]> {
   const db = getSupabase();
   if (!db) return [];
   const fired: string[] = [];
@@ -586,7 +594,7 @@ async function checkPriceAlerts(token: string, chatId: string, now: string, pric
         `${dirLabel} <b>$${alert.target_price.toLocaleString()}</b>\n` +
         `Current: $${price.toLocaleString()}` +
         (alert.label ? `\nNote: ${alert.label}` : '') +
-        `${grokLine}\n\n<i>⏰ ${now} PHT</i>`);
+        `${grokLine}\n\n<i>${stamp}</i>`);
 
       await db.from('price_alerts').update({ active: false, triggered_at: new Date().toISOString() }).eq('id', alert.id);
       fired.push(`${label} price alert at $${alert.target_price.toLocaleString()}`);
@@ -609,22 +617,23 @@ export async function GET() {
   CD.whale = nyActive ? 5 * 60_000  : 30 * 60_000;
   CD.news  = nyActive ? 5 * 60_000  : 15 * 60_000;
 
-  const now = new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit' });
+  const now   = new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit' });
+  const stamp = `⏰ ${now} PHT · ${getSession()}`;
 
   // Fetch shared data once
   const [frMap, prices] = await Promise.all([fetchAllFR(), fetchSpotPrices()]);
 
   const results = await Promise.allSettled([
-    checkFRExtremes(token, chatId, now, frMap),
-    checkFRFlip(token, chatId, now, frMap),
-    checkRSI(token, chatId, now),
-    checkEMACross(token, chatId, now),
-    checkRapidMove(token, chatId, now),
-    checkWhales(token, chatId, now),
-    checkNews(token, chatId, now),
-    checkOISpike(token, chatId, now, prices),
-    checkCVD(token, chatId, now),
-    checkPriceAlerts(token, chatId, now, prices),
+    checkFRExtremes(token, chatId, stamp, frMap),
+    checkFRFlip(token, chatId, stamp, frMap),
+    checkRSI(token, chatId, stamp),
+    checkEMACross(token, chatId, stamp),
+    checkRapidMove(token, chatId, stamp),
+    checkWhales(token, chatId, stamp),
+    checkNews(token, chatId, stamp),
+    checkOISpike(token, chatId, stamp, prices),
+    checkCVD(token, chatId, stamp),
+    checkPriceAlerts(token, chatId, stamp, prices),
   ]);
 
   const fired = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
