@@ -295,12 +295,23 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     'REASONING: [3-4 sentences combining chart + derivatives + macro + news into one directional thesis]',
   ].join('\n');
 
-  return body + '\n' + chartSection;
+  return trimPlaceholders(body + '\n' + chartSection);
 }
 
 // Strip markdown bold/italic formatting Grok sometimes injects
 function stripMd(s: string): string {
   return s.replace(/\*\*/g, '').replace(/\*/g, '').trim();
+}
+
+/** Remove placeholder lines that tell Grok to search for data it already searches for.
+ *  e.g. "Google Trends: Grok will search" → removed (LIVE SEARCH TASK already covers it)
+ *  Also collapses any triple-blank-lines left behind. */
+function trimPlaceholders(text: string): string {
+  return text
+    .split('\n')
+    .filter(line => !line.includes('Grok will search'))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n');
 }
 
 // Match a field label that Grok may wrap in **bold**
