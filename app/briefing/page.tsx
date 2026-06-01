@@ -10,7 +10,7 @@ import SessionCountdown from '@/components/SessionCountdown';
 /* ── helpers ── */
 const COIN_LABELS: Record<CoinId, string> = {
   btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP',
-  bnb: 'BNB', hype: 'HYPE', near: 'NEAR', zec: 'ZEC',
+  bnb: 'BNB', hype: 'HYPE', near: 'NEAR', sui: 'SUI',
 };
 
 const OI_ICONS: Record<string, string> = {

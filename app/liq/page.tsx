@@ -5,7 +5,7 @@ import LiqFeed from '@/components/LiqFeed';
 import WhaleTradesFeed from '@/components/WhaleTradesFeed';
 import FundingComparison from '@/components/FundingComparison';
 
-const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'zec'];
+const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui'];
 
 /* ─── All leverage tiers — every real level Binance/Bybit offers ──────────── */
 const TIERS = [

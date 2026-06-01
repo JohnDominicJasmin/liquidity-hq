@@ -5,8 +5,8 @@ type Status = 'loading' | 'configured' | 'not_configured';
 
 interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; created_at: string }
 
-const COIN_OPTIONS = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near'];
-const COIN_LABELS: Record<string, string> = { btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP', bnb: 'BNB', hype: 'HYPE', near: 'NEAR' };
+const COIN_OPTIONS = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui'];
+const COIN_LABELS: Record<string, string> = { btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP', bnb: 'BNB', hype: 'HYPE', near: 'NEAR', sui: 'SUI' };
 
 function CopyBox({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);

@@ -53,13 +53,13 @@ export interface CoinData {
   takerBuyRatio: number | null;  // 0.0–1.0 (buy vol / total vol)
 }
 
-export type CoinId = 'btc' | 'eth' | 'sol' | 'xrp' | 'bnb' | 'hype' | 'near' | 'zec';
+export type CoinId = 'btc' | 'eth' | 'sol' | 'xrp' | 'bnb' | 'hype' | 'near' | 'sui';
 
-export const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'zec'];
+export const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui'];
 
 export const BINANCE_SYMS: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
-  xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT', zec: 'ZECUSDT',
+  xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
 };
 
 export const BYBIT_SYMS: Record<string, string> = {
@@ -68,7 +68,7 @@ export const BYBIT_SYMS: Record<string, string> = {
 };
 
 export const COIN_DEC: Record<CoinId, number> = {
-  btc: 2, eth: 2, sol: 3, xrp: 4, bnb: 2, hype: 3, near: 4, zec: 2,
+  btc: 2, eth: 2, sol: 3, xrp: 4, bnb: 2, hype: 3, near: 4, sui: 4,
 };
 
 export function fmtPrice(p: number, dec: number): string {

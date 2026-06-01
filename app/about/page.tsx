@@ -17,7 +17,7 @@ export default function About() {
       <div className="card">
         <div className="lbl">Data sources</div>
         {[
-          ['Prices', 'Binance WebSocket + REST (BTC/ETH/SOL/XRP/BNB/NEAR/ZEC)'],
+          ['Prices', 'Binance WebSocket + REST (BTC/ETH/SOL/XRP/BNB/NEAR/SUI)'],
           ['HYPE', 'Bybit REST API'],
           ['Funding & OI', 'Bybit Public API'],
           ['Long/Short Ratio', 'Bybit Account Ratio'],

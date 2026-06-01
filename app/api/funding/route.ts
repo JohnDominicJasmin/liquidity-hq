@@ -2,16 +2,16 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const COINS = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'zec'] as const;
+const COINS = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui'] as const;
 
 const BN_MAP: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT', xrp: 'XRPUSDT',
-  bnb: 'BNBUSDT', hype: 'HYPEUSDT', near: 'NEARUSDT', zec: 'ZECUSDT',
+  bnb: 'BNBUSDT', hype: 'HYPEUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
 };
 
 const OKX_MAP: Record<string, string> = {
   btc: 'BTC-USDT-SWAP', eth: 'ETH-USDT-SWAP', sol: 'SOL-USDT-SWAP', xrp: 'XRP-USDT-SWAP',
-  bnb: 'BNB-USDT-SWAP', hype: 'HYPE-USDT-SWAP', near: 'NEAR-USDT-SWAP', zec: 'ZEC-USDT-SWAP',
+  bnb: 'BNB-USDT-SWAP', hype: 'HYPE-USDT-SWAP', near: 'NEAR-USDT-SWAP', sui: 'SUI-USDT-SWAP',
 };
 
 interface BNTicker  { symbol: string; lastFundingRate: string; nextFundingTime: number }

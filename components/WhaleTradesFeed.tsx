@@ -2,11 +2,11 @@
 import { useEffect, useRef, useState } from 'react';
 
 /* ── Binance futures combined aggTrade stream for all 8 coins ── */
-const SYMBOLS = ['btcusdt','ethusdt','solusdt','xrpusdt','bnbusdt','hypeusdt','nearusdt','zecusdt'];
+const SYMBOLS = ['btcusdt','ethusdt','solusdt','xrpusdt','bnbusdt','hypeusdt','nearusdt','suiusdt'];
 
 const COIN_MAP: Record<string, string> = {
   btcusdt:'BTC', ethusdt:'ETH', solusdt:'SOL', xrpusdt:'XRP',
-  bnbusdt:'BNB', hypeusdt:'HYPE', nearusdt:'NEAR', zecusdt:'ZEC',
+  bnbusdt:'BNB', hypeusdt:'HYPE', nearusdt:'NEAR', suiusdt:'SUI',
 };
 
 const STREAMS  = SYMBOLS.map(s => `${s}@aggTrade`).join('/');

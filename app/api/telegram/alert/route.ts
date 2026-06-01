@@ -11,7 +11,7 @@ async function grokAnalyze(prompt: string): Promise<string> {
     const res = await fetch('https://api.x.ai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROK_KEY}` },
-      body: JSON.stringify({ model: 'grok-4.3', messages: [{ role: 'user', content: prompt }], max_tokens: 180 }),
+      body: JSON.stringify({ model: 'grok-4.3', messages: [{ role: 'user', content: prompt }], max_tokens: 200 }),
     });
     if (!res.ok) return '';
     const data = await res.json();
@@ -19,28 +19,48 @@ async function grokAnalyze(prompt: string): Promise<string> {
   } catch { return ''; }
 }
 
+/* ── Conviction parser — extracts confidence label from Grok response ── */
+function parseConviction(raw: string): { text: string; badge: string } {
+  const m = raw.match(/\n?CONVICTION:\s*(High|Moderate|Weak)/i);
+  if (!m) return { text: raw, badge: '' };
+  const level = m[1] as 'High' | 'Moderate' | 'Weak';
+  const text  = raw.replace(/\n?CONVICTION:\s*(High|Moderate|Weak)/i, '').trim();
+  const badges: Record<string, string> = {
+    High:     '🔴 <i>High conviction</i>',
+    Moderate: '🟡 <i>Moderate — wait for confirmation</i>',
+    Weak:     '⚪ <i>Weak signal — observe only</i>',
+  };
+  return { text, badge: badges[level] };
+}
+/* Convenience: format a grokLine string with conviction badge */
+function fmtGrok(raw: string): string {
+  if (!raw) return '';
+  const { text, badge } = parseConviction(raw);
+  return `\n\n🤖 <b>Grok:</b> ${text}${badge ? `\n${badge}` : ''}`;
+}
+
 /* ── Coin maps ── */
 const BINANCE_PERP: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
-  xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT',
+  xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
 };
 const BYBIT_PERP: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
-  xrp: 'XRPUSDT', bnb: 'BNBUSDT', hype: 'HYPEUSDT', near: 'NEARUSDT',
+  xrp: 'XRPUSDT', bnb: 'BNBUSDT', hype: 'HYPEUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
 };
 const BINANCE_SPOT: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
-  xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT',
+  xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
 };
 const LABELS: Record<string, string> = {
   btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP',
-  bnb: 'BNB', hype: 'HYPE', near: 'NEAR',
+  bnb: 'BNB', hype: 'HYPE', near: 'NEAR', sui: 'SUI',
 };
 const COINS = Object.keys(LABELS);
 
 const WHALE_THRESHOLD: Record<string, number> = {
   btc: 2_000_000, eth: 1_000_000, sol: 400_000,
-  xrp: 300_000,   bnb: 300_000,  near: 150_000,
+  xrp: 300_000,   bnb: 300_000,  near: 150_000, sui: 150_000,
 };
 
 /* ── In-memory state ── */
@@ -240,8 +260,9 @@ async function checkWhales(token: string, chatId: string, now: string): Promise<
         const usdFmt = usd >= 1_000_000 ? `$${(usd / 1_000_000).toFixed(2)}M` : `$${(usd / 1000).toFixed(0)}K`;
         const grokTake = await grokAnalyze(
           `Elite crypto trader. A whale just ${side === 'BUY' ? 'bought' : 'sold'} ${usdFmt} of ${label} at $${parseFloat(t.p).toLocaleString()}. ` +
-          `In 2-3 sentences: short-term (1-4h) market impact? Worth acting on now or wait for confirmation? Direct, no hedging.`);
-        const grokLine = grokTake ? `\n\n🤖 <b>Grok:</b> ${grokTake}` : '';
+          `In 2-3 sentences: short-term (1-4h) market impact? Worth acting on now or wait for confirmation? Direct, no hedging. ` +
+          `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
+        const grokLine = fmtGrok(grokTake);
         await tg(token, chatId,
           side === 'BUY'
             ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${parseFloat(t.p).toLocaleString()}\nSignal: Large aggressive buy — institutional accumulation${grokLine}\n\n<i>⏰ ${now} PHT</i>`
@@ -284,8 +305,9 @@ async function checkNews(token: string, chatId: string, now: string): Promise<st
       const emoji = type === 'red' ? '🚨' : '📊';
       const label = type === 'red' ? 'Breaking Alert' : 'Macro Alert';
       const grokTake = await grokAnalyze(
-        `Elite crypto trader. Breaking news: "${item.headline}". In 2-3 sentences: short-term (1-4h) crypto market impact? What should a trader watch for right now? Direct, no hedging.`);
-      const grokLine = grokTake ? `\n\n🤖 <b>Grok:</b> ${grokTake}` : '';
+        `Elite crypto trader. Breaking news: "${item.headline}". In 2-3 sentences: short-term (1-4h) crypto market impact? What should a trader watch for right now? Direct, no hedging. ` +
+        `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
+      const grokLine = fmtGrok(grokTake);
       await tg(token, chatId, `${emoji} <b>${label}</b>\n\n<b>${item.headline}</b>\nSource: ${item.source}${grokLine}\n\n<i>⏰ ${now} PHT</i>`);
       markSent(key); fired.push(`news: ${item.headline.slice(0, 50)}`);
     }
@@ -321,8 +343,9 @@ async function checkOISpike(token: string, chatId: string, now: string, prices: 
         const grokTake = await grokAnalyze(
           `Elite crypto trader. ${label} Open Interest just ${pct > 0 ? 'spiked +' : 'dropped '}${pct.toFixed(1)}% in 1 hour.` +
           (price ? ` Current price: $${price.toLocaleString()}.` : '') +
-          ` In 2-3 sentences: Is this new longs, new shorts, or liquidation-driven? What's the likely next move? Direct, no hedging.`);
-        const grokLine = grokTake ? `\n\n🤖 <b>Grok:</b> ${grokTake}` : '';
+          ` In 2-3 sentences: Is this new longs, new shorts, or liquidation-driven? What's the likely next move? Direct, no hedging. ` +
+          `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
+        const grokLine = fmtGrok(grokTake);
 
         await tg(token, chatId,
           `📈 <b>${label} OI ${pct > 0 ? 'Spike' : 'Drop'} — +${pct.toFixed(1)}% in 1h</b>\n\n` +
@@ -406,8 +429,9 @@ async function checkPriceAlerts(token: string, chatId: string, now: string, pric
       const grokTake   = await grokAnalyze(
         `Elite crypto trader. ${label} just hit $${alert.target_price.toLocaleString()} (now $${price.toLocaleString()}).` +
         (alert.label ? ` Saved alert: "${alert.label}".` : '') +
-        ` In 2-3 sentences: Is this a valid entry/exit level right now? What to watch for to confirm? Direct, no hedging.`);
-      const grokLine   = grokTake ? `\n\n🤖 <b>Grok:</b> ${grokTake}` : '';
+        ` In 2-3 sentences: Is this a valid entry/exit level right now? What to watch for to confirm? Direct, no hedging. ` +
+        `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
+      const grokLine   = fmtGrok(grokTake);
 
       await tg(token, chatId,
         `🎯 <b>${label} Price Alert Triggered</b>\n\n` +

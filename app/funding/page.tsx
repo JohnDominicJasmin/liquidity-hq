@@ -8,7 +8,7 @@ type FRHistory = Partial<Record<CoinId, FRPoint[]>>;
 
 const COIN_LABELS: Record<CoinId, string> = {
   btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP',
-  bnb: 'BNB', hype: 'HYPE', near: 'NEAR', zec: 'ZEC',
+  bnb: 'BNB', hype: 'HYPE', near: 'NEAR', sui: 'SUI',
 };
 
 const RANGES = [

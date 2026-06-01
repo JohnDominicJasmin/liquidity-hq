@@ -340,7 +340,7 @@ export default function GrokChat() {
   const COIN_COLORS: Record<string, string> = {
     btc: '#f7931a', eth: '#627eea', sol: '#9945ff',
     xrp: '#00aae4', bnb: '#f3ba2f', hype: '#a78bfa',
-    near: '#00c08b', zec: '#f4b728',
+    near: '#00c08b', sui: '#6fbcf0',
   };
 
   return (

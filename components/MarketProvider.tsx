@@ -8,13 +8,13 @@ import {
 const WHALE_USD_THRESHOLD = 500_000; // $500k single trade = whale
 
 const WS_URLS = [
-  'wss://stream.binance.com:9443/stream?streams=btcusdt@ticker/ethusdt@ticker/solusdt@ticker/xrpusdt@ticker/bnbusdt@ticker/nearusdt@ticker/zecusdt@ticker',
-  'wss://stream.binance.com/stream?streams=btcusdt@ticker/ethusdt@ticker/solusdt@ticker/xrpusdt@ticker/bnbusdt@ticker/nearusdt@ticker/zecusdt@ticker',
+  'wss://stream.binance.com:9443/stream?streams=btcusdt@ticker/ethusdt@ticker/solusdt@ticker/xrpusdt@ticker/bnbusdt@ticker/nearusdt@ticker/suiusdt@ticker',
+  'wss://stream.binance.com/stream?streams=btcusdt@ticker/ethusdt@ticker/solusdt@ticker/xrpusdt@ticker/bnbusdt@ticker/nearusdt@ticker/suiusdt@ticker',
 ];
 
 const SYM_MAP: Record<string, CoinId> = {
   BTCUSDT: 'btc', ETHUSDT: 'eth', SOLUSDT: 'sol',
-  XRPUSDT: 'xrp', BNBUSDT: 'bnb', NEARUSDT: 'near', ZECUSDT: 'zec',
+  XRPUSDT: 'xrp', BNBUSDT: 'bnb', NEARUSDT: 'near', SUIUSDT: 'sui',
 };
 
 /* Helper: compute RSI14 from an array of close prices */
