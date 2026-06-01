@@ -1,15 +1,16 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 type Status = 'loading' | 'configured' | 'not_configured';
 
+interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; created_at: string }
+
+const COIN_OPTIONS = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near'];
+const COIN_LABELS: Record<string, string> = { btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP', bnb: 'BNB', hype: 'HYPE', near: 'NEAR' };
+
 function CopyBox({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
+  const copy = () => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); };
   return (
     <div className="tg-copy-box">
       <code className="tg-copy-code">{text}</code>
@@ -19,228 +20,266 @@ function CopyBox({ text }: { text: string }) {
 }
 
 export default function AlertsPage() {
-  const [status, setStatus]       = useState<Status>('loading');
-  const [testState, setTestState] = useState<'idle' | 'sending' | 'ok' | 'err'>('idle');
-  const [testErr, setTestErr]     = useState('');
+  const [status, setStatus]         = useState<Status>('loading');
+  const [testState, setTestState]   = useState<'idle' | 'sending' | 'ok' | 'err'>('idle');
+  const [testErr, setTestErr]       = useState('');
   const [checkState, setCheckState] = useState<'idle' | 'checking' | 'done'>('idle');
-  const [checkResult, setCheckResult] = useState<{ fired: string[]; rates: Record<string, number | null> } | null>(null);
+  const [checkResult, setCheckResult] = useState<{ fired: string[]; rates?: Record<string, number | null> } | null>(null);
+
+  // Price alerts state
+  const [priceAlerts, setPriceAlerts]   = useState<PriceAlert[]>([]);
+  const [paLoading, setPaLoading]       = useState(false);
+  const [paCoin, setPaCoin]             = useState('btc');
+  const [paPrice, setPaPrice]           = useState('');
+  const [paDir, setPaDir]               = useState<'above' | 'below'>('above');
+  const [paLabel, setPaLabel]           = useState('');
+  const [paAdding, setPaAdding]         = useState(false);
 
   useEffect(() => {
-    fetch('/api/telegram/status')
-      .then(r => r.json())
+    fetch('/api/telegram/status').then(r => r.json())
       .then(d => setStatus(d.configured ? 'configured' : 'not_configured'))
       .catch(() => setStatus('not_configured'));
   }, []);
 
+  const loadPriceAlerts = useCallback(async () => {
+    setPaLoading(true);
+    try {
+      const res = await fetch('/api/price-alerts');
+      const d   = await res.json();
+      setPriceAlerts(d.alerts ?? []);
+    } catch { /* skip */ }
+    setPaLoading(false);
+  }, []);
+
+  useEffect(() => { loadPriceAlerts(); }, [loadPriceAlerts]);
+
+  const addPriceAlert = async () => {
+    if (!paPrice || isNaN(parseFloat(paPrice))) return;
+    setPaAdding(true);
+    try {
+      await fetch('/api/price-alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ coin: paCoin, target_price: parseFloat(paPrice), direction: paDir, label: paLabel }),
+      });
+      setPaPrice(''); setPaLabel('');
+      await loadPriceAlerts();
+    } catch { /* skip */ }
+    setPaAdding(false);
+  };
+
+  const deletePriceAlert = async (id: number) => {
+    try {
+      await fetch(`/api/price-alerts?id=${id}`, { method: 'DELETE' });
+      setPriceAlerts(prev => prev.filter(a => a.id !== id));
+    } catch { /* skip */ }
+  };
+
   const sendTest = async () => {
-    setTestState('sending');
-    setTestErr('');
+    setTestState('sending'); setTestErr('');
     try {
       const res = await fetch('/api/telegram/test');
       const d   = await res.json();
-      if (d.ok) {
-        setTestState('ok');
-        setTimeout(() => setTestState('idle'), 3000);
-      } else {
-        setTestState('err');
-        setTestErr(d.error ?? 'Unknown error');
-      }
-    } catch {
-      setTestState('err');
-      setTestErr('Network error');
-    }
+      if (d.ok) { setTestState('ok'); setTimeout(() => setTestState('idle'), 3000); }
+      else { setTestState('err'); setTestErr(d.error ?? 'Unknown error'); }
+    } catch { setTestState('err'); setTestErr('Network error'); }
   };
 
   const checkNow = async () => {
-    setCheckState('checking');
-    setCheckResult(null);
+    setCheckState('checking'); setCheckResult(null);
     try {
       const res = await fetch('/api/telegram/alert');
-      const d   = await res.json();
-      setCheckResult(d);
-      setCheckState('done');
-    } catch {
-      setCheckState('done');
-    }
+      setCheckResult(await res.json());
+    } catch { /* skip */ }
+    setCheckState('done');
   };
 
   const CRON_URL = 'https://liquidity-hq.onrender.com/api/telegram/alert';
+
+  const CONDITIONS = [
+    { dot: '#f87171', title: 'FR ≥ 0.05%',           desc: 'Longs Overcrowded — Dump Risk · 4h cooldown', grok: false },
+    { dot: '#34d399', title: 'FR ≤ −0.03%',           desc: 'Shorts Crowded — Squeeze Setup · 4h cooldown', grok: false },
+    { dot: '#60a5fa', title: 'FR Direction Flip',      desc: 'FR crosses zero (pos→neg or neg→pos) · fires on transition', grok: false },
+    { dot: '#fbbf24', title: '1H RSI > 78',            desc: 'Overbought — Exhaustion Risk · 4h cooldown', grok: false },
+    { dot: '#60a5fa', title: '1H RSI < 22',            desc: 'Oversold — Bounce Setup · 4h cooldown', grok: false },
+    { dot: '#a78bfa', title: 'Whale Trade',            desc: 'BTC >$2M · ETH >$1M · SOL >$400K · 30min cooldown', grok: true },
+    { dot: '#f87171', title: 'Breaking News',          desc: 'Geopolitical / macro Finnhub headlines · 15min cooldown', grok: true },
+    { dot: '#fbbf24', title: 'OI Spike ±15% in 1h',   desc: 'New money entering — big move building · 2h cooldown', grok: true },
+    { dot: '#34d399', title: 'CVD Bullish Divergence', desc: 'Price down but buyers absorbing — accumulation signal · 1h cooldown', grok: false },
+    { dot: '#f87171', title: 'CVD Bearish Divergence', desc: 'Price up but sellers dominate — fake pump signal · 1h cooldown', grok: false },
+    { dot: '#c084fc', title: 'Price Level Alert',      desc: 'User-set price targets · fires once then deactivates', grok: true },
+  ];
 
   return (
     <div>
       {/* Header */}
       <div className="mb-header">
         <div className="mb-title">🔔 Telegram Alerts</div>
-        <div className="mb-subtitle">
-          Push alerts to your phone — funding extremes, squeeze setups, and more
-        </div>
+        <div className="mb-subtitle">Push alerts to your phone — funding, RSI, whales, news, OI, CVD, price levels</div>
       </div>
 
-      {/* Status badge */}
+      {/* Status */}
       <div className="card" style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
         <span className={`tg-status-dot ${status === 'configured' ? 'tg-dot-on' : status === 'loading' ? 'tg-dot-loading' : 'tg-dot-off'}`} />
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--txt)' }}>
-            {status === 'loading'       ? 'Checking configuration…'
-            : status === 'configured'   ? 'Telegram connected'
-            : 'Not configured — follow setup below'}
+            {status === 'loading' ? 'Checking configuration…' : status === 'configured' ? 'Telegram connected' : 'Not configured — follow setup below'}
           </div>
           {status === 'not_configured' && (
-            <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>
-              Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in your Render environment variables.
-            </div>
+            <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in Render environment variables.</div>
           )}
         </div>
       </div>
 
-      {/* ── Step-by-step setup ── */}
+      {/* Price Alerts */}
+      <div className="card" style={{ marginBottom: 10 }}>
+        <div className="lbl" style={{ marginBottom: 12 }}>🎯 Price Alerts</div>
+
+        {/* Add form */}
+        <div className="pa-form">
+          <select className="pa-select" value={paCoin} onChange={e => setPaCoin(e.target.value)}>
+            {COIN_OPTIONS.map(c => <option key={c} value={c}>{COIN_LABELS[c]}</option>)}
+          </select>
+          <select className="pa-select" value={paDir} onChange={e => setPaDir(e.target.value as 'above' | 'below')}>
+            <option value="above">↑ Above</option>
+            <option value="below">↓ Below</option>
+          </select>
+          <input
+            className="pa-input"
+            type="number"
+            placeholder="Price (e.g. 95000)"
+            value={paPrice}
+            onChange={e => setPaPrice(e.target.value)}
+          />
+          <input
+            className="pa-input pa-input-label"
+            type="text"
+            placeholder="Note (optional)"
+            value={paLabel}
+            onChange={e => setPaLabel(e.target.value)}
+          />
+          <button
+            className="tg-action-btn"
+            onClick={addPriceAlert}
+            disabled={paAdding || !paPrice}
+          >
+            {paAdding ? 'Adding…' : '+ Add Alert'}
+          </button>
+        </div>
+
+        {/* Active alerts list */}
+        {paLoading ? (
+          <div style={{ fontSize: 12, color: 'var(--txt3)', marginTop: 10 }}>Loading…</div>
+        ) : priceAlerts.length === 0 ? (
+          <div style={{ fontSize: 12, color: 'var(--txt3)', marginTop: 10, padding: '10px 0', textAlign: 'center' }}>
+            No price alerts set. Add one above.
+          </div>
+        ) : (
+          <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {priceAlerts.map(alert => (
+              <div key={alert.id} className="pa-row">
+                <span className="pa-coin">{COIN_LABELS[alert.coin] ?? alert.coin.toUpperCase()}</span>
+                <span className="pa-dir">{alert.direction === 'above' ? '↑' : '↓'}</span>
+                <span className="pa-price">${parseFloat(String(alert.target_price)).toLocaleString()}</span>
+                {alert.label && <span className="pa-note">{alert.label}</span>}
+                <button className="pa-del" onClick={() => deletePriceAlert(alert.id)}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 10, lineHeight: 1.5 }}>
+          Fires once when price crosses your target → Grok analysis included → alert deactivates automatically.
+        </div>
+      </div>
+
+      {/* Test & Manual Check */}
+      <div className="card" style={{ marginBottom: 10 }}>
+        <div className="lbl" style={{ marginBottom: 12 }}>Test Connection</div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button className={`tg-action-btn${testState === 'ok' ? ' tg-btn-ok' : testState === 'err' ? ' tg-btn-err' : ''}`}
+            onClick={sendTest} disabled={testState === 'sending' || status !== 'configured'}>
+            {testState === 'sending' ? 'Sending…' : testState === 'ok' ? '✓ Sent!' : testState === 'err' ? '✕ Failed' : 'Send Test Message'}
+          </button>
+          <button className={`tg-action-btn tg-btn-secondary`} onClick={checkNow} disabled={checkState === 'checking' || status !== 'configured'}>
+            {checkState === 'checking' ? 'Checking…' : 'Check Alerts Now'}
+          </button>
+        </div>
+        {testState === 'err' && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 8 }}>{testErr}</div>}
+        {checkState === 'done' && checkResult && (
+          <div style={{ marginTop: 12, fontSize: 11, color: 'var(--txt2)', lineHeight: 1.7 }}>
+            {checkResult.fired?.length === 0 ? '✓ No alert conditions active right now.' : `🔔 Fired: ${checkResult.fired.join(', ')}`}
+          </div>
+        )}
+      </div>
+
+      {/* Active conditions */}
+      <div className="card" style={{ marginBottom: 10 }}>
+        <div className="lbl" style={{ marginBottom: 10 }}>Active Alert Conditions</div>
+        {CONDITIONS.map((c, i) => (
+          <div key={i} className="tg-condition-row" style={{ borderBottom: i === CONDITIONS.length - 1 ? 'none' : undefined }}>
+            <span className="tg-cond-dot" style={{ background: c.dot }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)' }}>{c.title}</div>
+              <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>{c.desc}</div>
+            </div>
+            {c.grok && <span style={{ fontSize: 10, color: '#a78bfa', fontWeight: 600, flexShrink: 0 }}>🤖 Grok</span>}
+          </div>
+        ))}
+        <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 10, padding: '8px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
+          Monitored: BTC · ETH · SOL · XRP · BNB · HYPE · NEAR
+        </div>
+      </div>
+
+      {/* Setup guide */}
       <div className="card" style={{ marginBottom: 10 }}>
         <div className="lbl" style={{ marginBottom: 12 }}>Setup — 3 Steps</div>
-
-        {/* Step 1 */}
         <div className="tg-step">
           <div className="tg-step-num">1</div>
           <div className="tg-step-body">
             <div className="tg-step-title">Create a bot via BotFather</div>
             <ol className="tg-list">
               <li>Open Telegram → search <strong>@BotFather</strong></li>
-              <li>Send <code>/newbot</code></li>
-              <li>Choose any name (e.g. <em>LiquidityHQ</em>)</li>
-              <li>BotFather gives you a <strong>Bot Token</strong> — copy it</li>
+              <li>Send <code>/newbot</code> → choose a name → copy the <strong>Bot Token</strong></li>
             </ol>
           </div>
         </div>
-
-        {/* Step 2 */}
         <div className="tg-step">
           <div className="tg-step-num">2</div>
           <div className="tg-step-body">
             <div className="tg-step-title">Get your Chat ID</div>
             <ol className="tg-list">
-              <li>Search for your new bot in Telegram and send it any message</li>
-              <li>Open this URL in your browser (replace TOKEN):
-                <CopyBox text={`https://api.telegram.org/bot{TOKEN}/getUpdates`} />
-              </li>
-              <li>Find <code>"chat":{'{'}...,"id": 123456789{'}'}</code> — that number is your Chat ID</li>
+              <li>Message your bot any text</li>
+              <li>Visit <code>api.telegram.org/bot&#123;TOKEN&#125;/getUpdates</code> → find <code>&quot;id&quot;: 123456789</code></li>
             </ol>
           </div>
         </div>
-
-        {/* Step 3 */}
         <div className="tg-step" style={{ borderBottom: 'none', paddingBottom: 0 }}>
           <div className="tg-step-num">3</div>
           <div className="tg-step-body">
-            <div className="tg-step-title">Add env vars in Render</div>
+            <div className="tg-step-title">Add to Render + create Supabase table</div>
             <ol className="tg-list">
-              <li>Go to your Render dashboard → <strong>liquidity-hq</strong> → <strong>Environment</strong></li>
-              <li>Add these two variables:
-                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <CopyBox text="TELEGRAM_BOT_TOKEN" />
-                  <CopyBox text="TELEGRAM_CHAT_ID" />
-                </div>
+              <li>Render → Environment → add <code>TELEGRAM_BOT_TOKEN</code> and <code>TELEGRAM_CHAT_ID</code></li>
+              <li>Supabase dashboard → SQL Editor → run:
+                <CopyBox text={`CREATE TABLE price_alerts (id BIGSERIAL PRIMARY KEY, coin TEXT NOT NULL, target_price NUMERIC NOT NULL, direction TEXT NOT NULL, label TEXT DEFAULT '', active BOOLEAN DEFAULT TRUE, triggered_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW()); ALTER TABLE price_alerts DISABLE ROW LEVEL SECURITY;`} />
               </li>
-              <li>Click <strong>Save Changes</strong> → Render will auto-redeploy</li>
             </ol>
           </div>
         </div>
       </div>
 
-      {/* ── Test & Manual Check ── */}
+      {/* Cron setup */}
       <div className="card" style={{ marginBottom: 10 }}>
-        <div className="lbl" style={{ marginBottom: 12 }}>Test Connection</div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button
-            className={`tg-action-btn${testState === 'ok' ? ' tg-btn-ok' : testState === 'err' ? ' tg-btn-err' : ''}`}
-            onClick={sendTest}
-            disabled={testState === 'sending' || status !== 'configured'}
-          >
-            {testState === 'sending' ? 'Sending…'
-            : testState === 'ok'     ? '✓ Message sent!'
-            : testState === 'err'    ? '✕ Failed'
-            : 'Send Test Message'}
-          </button>
-          <button
-            className={`tg-action-btn tg-btn-secondary${checkState === 'checking' ? ' disabled' : ''}`}
-            onClick={checkNow}
-            disabled={checkState === 'checking' || status !== 'configured'}
-          >
-            {checkState === 'checking' ? 'Checking…' : 'Check Alerts Now'}
-          </button>
-        </div>
-        {testState === 'err' && (
-          <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 8 }}>{testErr}</div>
-        )}
-        {checkState === 'done' && checkResult && (
-          <div style={{ marginTop: 12, fontSize: 11, color: 'var(--txt2)', lineHeight: 1.7 }}>
-            {checkResult.fired.length === 0
-              ? '✓ No alert conditions active right now.'
-              : `🔔 Fired: ${checkResult.fired.join(', ')}`}
-            <div style={{ marginTop: 6, color: 'var(--txt3)' }}>
-              Live rates: {Object.entries(checkResult.rates)
-                .filter(([, v]) => v != null)
-                .map(([k, v]) => `${k.toUpperCase()} ${(v! >= 0 ? '+' : '') + v}%`)
-                .join(' · ')}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Active alert conditions ── */}
-      <div className="card" style={{ marginBottom: 10 }}>
-        <div className="lbl" style={{ marginBottom: 10 }}>Active Alert Conditions</div>
-        {[
-          { dot: '#f87171', title: 'Funding Rate ≥ 0.05%', desc: 'Longs Overcrowded — Dump Risk · 4h cooldown per coin' },
-          { dot: '#34d399', title: 'Funding Rate ≤ −0.03%', desc: 'Shorts Crowded — Squeeze Setup · 4h cooldown per coin' },
-          { dot: '#fbbf24', title: '1H RSI > 78 on any coin', desc: 'Overbought — Exhaustion Risk · 4h cooldown per coin' },
-          { dot: '#60a5fa', title: '1H RSI < 22 on any coin', desc: 'Oversold — Bounce Setup · 4h cooldown per coin' },
-          { dot: '#a78bfa', title: 'Whale trade detected', desc: 'BTC >$2M · ETH >$1M · SOL >$400K · 30min cooldown' },
-          { dot: '#f87171', title: 'Breaking news (Finnhub)', desc: 'Geopolitical / macro high-impact headlines · 15min cooldown per story' },
-        ].map((c, i, arr) => (
-          <div key={i} className="tg-condition-row" style={{ borderBottom: i === arr.length - 1 ? 'none' : undefined }}>
-            <span className="tg-cond-dot" style={{ background: c.dot }} />
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)' }}>{c.title}</div>
-              <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>{c.desc}</div>
-            </div>
-          </div>
-        ))}
-        <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 10, padding: '8px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
-          Monitored coins: BTC · ETH · SOL · XRP · BNB · HYPE · NEAR
-        </div>
-      </div>
-
-      {/* ── Cron setup ── */}
-      <div className="card" style={{ marginBottom: 10 }}>
-        <div className="lbl" style={{ marginBottom: 10 }}>Enable Background Alerts (when app is closed)</div>
+        <div className="lbl" style={{ marginBottom: 10 }}>Enable Background Alerts</div>
         <p style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6, marginBottom: 12 }}>
-          Alerts only fire when the server is pinged. Set up a free external cron to ping
-          the alert endpoint every 5 minutes — you&apos;ll then get Telegram messages even
-          while sleeping.
+          Set up a free cron at <a href="https://cron-job.org" target="_blank" rel="noreferrer" style={{ color: 'var(--purple)' }}>cron-job.org</a> to
+          ping the alert endpoint every 5 minutes:
         </p>
-
-        <div className="tg-step" style={{ borderBottom: 'none', paddingBottom: 0 }}>
-          <div className="tg-step-num">→</div>
-          <div className="tg-step-body">
-            <div className="tg-step-title">
-              <a href="https://cron-job.org" target="_blank" rel="noreferrer" style={{ color: 'var(--purple)', textDecoration: 'none' }}>
-                cron-job.org
-              </a>
-              {' '}(free, no credit card)
-            </div>
-            <ol className="tg-list">
-              <li>Create a free account at cron-job.org</li>
-              <li>New cronjob → URL:
-                <CopyBox text={CRON_URL} />
-              </li>
-              <li>Schedule: <strong>Every 5 minutes</strong></li>
-              <li>Save — done. You now get push alerts 24/7.</li>
-            </ol>
-          </div>
-        </div>
+        <CopyBox text={CRON_URL} />
       </div>
 
-      <div style={{ fontSize: 10, color: 'var(--txt3)', textAlign: 'center', marginBottom: 16, lineHeight: 1.6 }}>
-        Cooldown resets on server restart. Keep UptimeRobot pinging the app to minimise restarts.
+      <div style={{ fontSize: 10, color: 'var(--txt3)', textAlign: 'center', marginBottom: 16 }}>
+        In-memory cooldowns reset on server restart · keep UptimeRobot running to minimise restarts
       </div>
     </div>
   );
