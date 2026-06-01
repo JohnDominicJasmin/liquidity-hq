@@ -106,6 +106,43 @@ function renderMd(raw: string): string {
   return s;
 }
 
+/* ── Smart detectors ──────────────────────────────────────────── */
+
+// Auto-enable live search when message clearly needs current web data
+const SEARCH_TRIGGERS = [
+  'why', 'what happened', 'happening', 'latest', 'today', 'right now',
+  'news', 'trump', 'fed', 'fomc', 'cpi', 'war', 'conflict', 'elon',
+  'just', 'catalyst', 'reason', 'cause', 'narrative',
+];
+function needsLiveSearch(text: string): boolean {
+  const t = text.toLowerCase();
+  return SEARCH_TRIGGERS.some(k => t.includes(k));
+}
+
+// Educational questions don't need the full market snapshot — saves ~350 tokens
+const EDUCATIONAL_TRIGGERS = [
+  'what is', 'what are', 'what does', 'explain', 'how does', 'how do',
+  'define', 'meaning', 'tell me about', 'difference between', 'how to',
+  'what\'s the difference', 'why do traders',
+];
+function isEducational(text: string): boolean {
+  const t = text.toLowerCase();
+  return EDUCATIONAL_TRIGGERS.some(k => t.includes(k));
+}
+
+/* ── Minimal context for educational questions (~20 tokens vs ~400) ── */
+function buildMinimalCtx(
+  store: ReturnType<typeof useMarket>['store'],
+  coin: CoinId,
+): string {
+  const c = store.coins[coin];
+  return [
+    'You are an elite crypto trading analyst assistant embedded in Liquidity Hunter HQ.',
+    'Answer concisely and directly. Flag uncertainty.',
+    `Coin: ${coin.toUpperCase()}/USDT` + (c?.price ? ` · Price: $${c.price.toLocaleString()}` : ''),
+  ].join('\n');
+}
+
 /* ── Quick prompts ─────────────────────────────────────────────── */
 const QUICK = [
   'Full analysis now',
@@ -248,15 +285,24 @@ export default function GrokChat() {
     setError('');
 
     try {
-      const sysCtx  = buildSystemCtx(store, activeCoin, latestHeadlines, geoEvents);
+      // Smart context: educational questions get minimal ctx (~20 tokens), market questions get full (~400)
+      const educational = isEducational(text);
+      const sysCtx = educational
+        ? buildMinimalCtx(store, activeCoin)
+        : buildSystemCtx(store, activeCoin, latestHeadlines, geoEvents);
+
+      // Auto-detect live search: override toggle if message clearly needs current web data
+      const autoSearch = !liveSearch && needsLiveSearch(text);
+      const useSearch  = liveSearch || autoSearch;
+
       // Cap at last 8 messages (4 pairs) — prevents token cost growing unbounded
       const apiMsgs  = history.slice(-8).map(m => ({ role: m.role, content: m.content }));
       const messages = [{ role: 'system', content: sysCtx }, ...apiMsgs];
 
       let reply: string;
 
-      if (liveSearch) {
-        // Live search ON → /v1/responses with web + X search tools (~$0.05–$0.15)
+      if (useSearch) {
+        // Live search ON (manual or auto-detected) → /v1/responses with web + X search tools (~$0.05–$0.15)
         const res = await fetch('https://api.x.ai/v1/responses', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROK_KEY}` },
@@ -273,7 +319,7 @@ export default function GrokChat() {
         const data = await res.json();
         reply = data.output?.find((o: { type: string }) => o.type === 'message')?.content?.[0]?.text ?? '(no response)';
       } else {
-        // Live search OFF → /v1/chat/completions, no tools (~$0.003)
+        // No search needed → /v1/chat/completions, no tools (~$0.003)
         const res = await fetch('https://api.x.ai/v1/chat/completions', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROK_KEY}` },
