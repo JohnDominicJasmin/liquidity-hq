@@ -47,14 +47,24 @@ const WHALE_THRESHOLD: Record<string, number> = {
 const lastSent  = new Map<string, number>();
 const frSignMap = new Map<string, number>(); // for FR flip detection
 
-const CD = {
+const CD: Record<string, number> = {
   fr:    4 * 3600_000,
   rsi:   4 * 3600_000,
-  whale: 30 * 60_000,
-  news:  15 * 60_000,
+  whale: 30 * 60_000,   // overridden per session in main handler
+  news:  15 * 60_000,   // overridden per session in main handler
   oi:    2 * 3600_000,
   cvd:   60 * 60_000,
 };
+
+/* ── Session detector (PHT = UTC+8) ──
+   Pre-NY:  8:00pm – 9:30pm PHT  (20:00–21:30)
+   NY open: 9:30pm – 4:00am PHT  (21:30–04:00)
+   High-activity window: 8pm – 4am PHT
+── */
+function isHighActivity(): boolean {
+  const phtHour = (new Date().getUTCHours() + 8) % 24;
+  return phtHour >= 20 || phtHour < 4;
+}
 const onCooldown = (key: string, ms: number) => { const t = lastSent.get(key); return t !== undefined && Date.now() - t < ms; };
 const markSent   = (key: string) => lastSent.set(key, Date.now());
 
@@ -422,6 +432,11 @@ export async function GET() {
   if (!token || !chatId)
     return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set' }, { status: 503 });
 
+  // Session-based cooldowns — tighter during pre-NY + NY (8pm–4am PHT)
+  const nyActive = isHighActivity();
+  CD.whale = nyActive ? 5 * 60_000  : 30 * 60_000;
+  CD.news  = nyActive ? 5 * 60_000  : 15 * 60_000;
+
   const now = new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit' });
 
   // Fetch shared data once
@@ -443,5 +458,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true, fired,
     checked: ['FR extremes', 'FR flip', 'RSI', 'Whales', 'News', 'OI spike', 'CVD', 'Price alerts'],
+    session: nyActive ? 'NY/Pre-NY (high activity)' : 'Asia/London',
+    cooldowns: { whale: `${CD.whale / 60_000}min`, news: `${CD.news / 60_000}min` },
   });
 }
