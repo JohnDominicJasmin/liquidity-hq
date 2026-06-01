@@ -19,7 +19,7 @@ async function grokAnalyze(prompt: string): Promise<string> {
   } catch { return ''; }
 }
 
-/* ── Conviction parser — extracts confidence label from Grok response ── */
+/* ── Conviction parser ── */
 function parseConviction(raw: string): { text: string; badge: string } {
   const m = raw.match(/\n?CONVICTION:\s*(High|Moderate|Weak)/i);
   if (!m) return { text: raw, badge: '' };
@@ -32,12 +32,14 @@ function parseConviction(raw: string): { text: string; badge: string } {
   };
   return { text, badge: badges[level] };
 }
-/* Convenience: format a grokLine string with conviction badge */
 function fmtGrok(raw: string): string {
   if (!raw) return '';
   const { text, badge } = parseConviction(raw);
   return `\n\n🤖 <b>Grok:</b> ${text}${badge ? `\n${badge}` : ''}`;
 }
+
+/* ── Signal queue — for confluence batching ── */
+interface SignalEntry { coin: string; title: string; body: string; name: string }
 
 /* ── Coin maps ── */
 const BINANCE_PERP: Record<string, string> = {
@@ -65,29 +67,25 @@ const WHALE_THRESHOLD: Record<string, number> = {
 
 /* ── In-memory state ── */
 const lastSent   = new Map<string, number>();
-const frSignMap  = new Map<string, number>(); // for FR flip detection
+const frSignMap  = new Map<string, number>();               // FR flip detection
 const rsiLastMap = new Map<string, number>();               // RSI 50 cross detection
 const emaSideMap = new Map<string, 'above' | 'below'>();   // EMA 200 cross detection
 
 const CD: Record<string, number> = {
   fr:     4 * 3600_000,
   rsi:    4 * 3600_000,
-  rsi50:  6 * 3600_000,   // RSI 50 cross
-  ema:   12 * 3600_000,   // 200 EMA cross
-  move5m: 30 * 60_000,   // rapid move 5m
-  move1h:  2 * 3600_000, // rapid move 1H
-  move4h:  4 * 3600_000, // rapid move 4H
+  rsi50:  6 * 3600_000,
+  ema:   12 * 3600_000,
+  move5m: 30 * 60_000,
+  move1h:  2 * 3600_000,
+  move4h:  4 * 3600_000,
   whale:  30 * 60_000,   // overridden per session in main handler
   news:   15 * 60_000,   // overridden per session in main handler
   oi:     2 * 3600_000,
   cvd:    60 * 60_000,
 };
 
-/* ── Session detector (PHT = UTC+8) ──
-   Pre-NY:  8:00pm – 9:30pm PHT  (20:00–21:30)
-   NY open: 9:30pm – 4:00am PHT  (21:30–04:00)
-   High-activity window: 8pm – 4am PHT
-── */
+/* ── Session helpers ── */
 function isHighActivity(): boolean {
   const phtHour = (new Date().getUTCHours() + 8) % 24;
   return phtHour >= 20 || phtHour < 4;
@@ -112,6 +110,46 @@ async function tg(token: string, chatId: string, text: string): Promise<void> {
       body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
     });
   } catch { /* fire-and-forget */ }
+}
+
+/* ════════════════════════════════════════
+   FLUSH — group signals by coin, send single or confluence
+   ════════════════════════════════════════ */
+async function flushSignals(token: string, chatId: string, stamp: string, queue: SignalEntry[]): Promise<void> {
+  if (queue.length === 0) return;
+
+  // Group by coin
+  const byCoin = new Map<string, SignalEntry[]>();
+  for (const e of queue) {
+    const arr = byCoin.get(e.coin) ?? [];
+    arr.push(e);
+    byCoin.set(e.coin, arr);
+  }
+
+  await Promise.all([...byCoin.entries()].map(async ([coin, entries]) => {
+    if (entries.length === 1) {
+      // Single signal — send as-is
+      await tg(token, chatId, entries[0].body);
+      return;
+    }
+
+    // Confluence — 2+ signals on same coin
+    const label   = LABELS[coin] ?? coin.toUpperCase();
+    const bullets = entries.map(e => `• ${e.title}`).join('\n');
+    const grokTake = await grokAnalyze(
+      `Elite crypto trader. Multiple signals fired simultaneously for ${label}:\n${bullets}\n\n` +
+      `In 3-4 sentences: do these signals reinforce each other or diverge? ` +
+      `What is the highest-conviction trade setup right now considering all signals together? ` +
+      `Direct action bias, no hedging. ` +
+      `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
+    );
+    await tg(token, chatId,
+      `🔀 <b>${label} — ${entries.length} Signals Aligned</b>\n\n` +
+      `${bullets}` +
+      `${fmtGrok(grokTake)}\n\n` +
+      `<i>${stamp}</i>`
+    );
+  }));
 }
 
 /* ════════════════════════════════════════
@@ -161,21 +199,27 @@ async function fetchSpotPrices(): Promise<Record<string, number>> {
 /* ════════════════════════════════════════
    1. FR EXTREMES
    ════════════════════════════════════════ */
-async function checkFRExtremes(token: string, chatId: string, stamp: string, frMap: Record<string, number | null>): Promise<string[]> {
+async function checkFRExtremes(stamp: string, frMap: Record<string, number | null>, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
   for (const coin of COINS) {
     const fr = frMap[coin];
     if (fr == null) continue;
-    const pct = (fr * 100).toFixed(4);
+    const pct   = (fr * 100).toFixed(4);
     const label = LABELS[coin];
     if (fr >= 0.05 && !onCooldown(`fr_long_${coin}`, CD.fr)) {
-      await tg(token, chatId,
-        `🔴 <b>${label} Funding Extreme — Longs Overcrowded</b>\n\nRate: <b>+${pct}%</b>\nSignal: Longs Overcrowded — Dump Risk\nAction: Consider fading longs or tightening stops.\n\n<i>${stamp}</i>`);
+      queue.push({
+        coin, name: `${label} FR long extreme`,
+        title: `FR Extreme +${pct}% — Longs Overcrowded`,
+        body: `🔴 <b>${label} Funding Extreme — Longs Overcrowded</b>\n\nRate: <b>+${pct}%</b>\nSignal: Longs Overcrowded — Dump Risk\nAction: Consider fading longs or tightening stops.\n\n<i>${stamp}</i>`,
+      });
       markSent(`fr_long_${coin}`); fired.push(`${label} FR long extreme`);
     }
     if (fr <= -0.03 && !onCooldown(`fr_short_${coin}`, CD.fr)) {
-      await tg(token, chatId,
-        `🟢 <b>${label} Short Squeeze Setup</b>\n\nRate: <b>${pct}%</b>\nSignal: Shorts Crowded — Squeeze Setup\nAction: Watch for a violent squeeze. Long bias above key level.\n\n<i>${stamp}</i>`);
+      queue.push({
+        coin, name: `${label} FR short squeeze`,
+        title: `FR Extreme ${pct}% — Shorts Crowded`,
+        body: `🟢 <b>${label} Short Squeeze Setup</b>\n\nRate: <b>${pct}%</b>\nSignal: Shorts Crowded — Squeeze Setup\nAction: Watch for a violent squeeze. Long bias above key level.\n\n<i>${stamp}</i>`,
+      });
       markSent(`fr_short_${coin}`); fired.push(`${label} FR short squeeze`);
     }
   }
@@ -183,9 +227,9 @@ async function checkFRExtremes(token: string, chatId: string, stamp: string, frM
 }
 
 /* ════════════════════════════════════════
-   2. FR DIRECTION FLIP (crosses zero)
+   2. FR DIRECTION FLIP
    ════════════════════════════════════════ */
-async function checkFRFlip(token: string, chatId: string, stamp: string, frMap: Record<string, number | null>): Promise<string[]> {
+async function checkFRFlip(stamp: string, frMap: Record<string, number | null>, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
   for (const coin of COINS) {
     const fr = frMap[coin];
@@ -194,14 +238,17 @@ async function checkFRFlip(token: string, chatId: string, stamp: string, frMap: 
     const lastSign = frSignMap.get(coin);
     if (sign !== 0) {
       if (lastSign !== undefined && lastSign !== 0 && sign !== lastSign) {
-        const label    = LABELS[coin];
-        const pct      = (fr * 100).toFixed(4);
+        const label     = LABELS[coin];
+        const pct       = (fr * 100).toFixed(4);
         const flippedTo = sign > 0 ? 'Positive' : 'Negative';
         const desc      = sign > 0
           ? 'FR flipped positive — longs now paying shorts. Early bull bias forming, momentum shifting.'
           : 'FR flipped negative — shorts now paying longs. Early squeeze setup, watch for short covering.';
-        await tg(token, chatId,
-          `🔄 <b>${label} FR Flipped ${flippedTo}</b>\n\nRate: <b>${sign > 0 ? '+' : ''}${pct}%</b>\n${desc}\n\n<i>${stamp}</i>`);
+        queue.push({
+          coin, name: `${label} FR flip to ${flippedTo}`,
+          title: `FR Flipped ${flippedTo}`,
+          body: `🔄 <b>${label} FR Flipped ${flippedTo}</b>\n\nRate: <b>${sign > 0 ? '+' : ''}${pct}%</b>\n${desc}\n\n<i>${stamp}</i>`,
+        });
         fired.push(`${label} FR flip to ${flippedTo}`);
       }
       frSignMap.set(coin, sign);
@@ -211,7 +258,7 @@ async function checkFRFlip(token: string, chatId: string, stamp: string, frMap: 
 }
 
 /* ════════════════════════════════════════
-   3. RSI EXTREMES (1H)
+   3. RSI (extremes + 50 cross)
    ════════════════════════════════════════ */
 function computeRSI(closes: number[], period = 14): number {
   if (closes.length < period + 2) return 50;
@@ -235,11 +282,11 @@ function computeEMA(closes: number[], period: number): number {
   return ema;
 }
 
-async function checkRSI(token: string, chatId: string, stamp: string): Promise<string[]> {
+async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
   await Promise.all(COINS.filter(c => BINANCE_SPOT[c]).map(async coin => {
     try {
-      const res  = await fetch(`https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=20`, { cache: 'no-store' });
+      const res    = await fetch(`https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=20`, { cache: 'no-store' });
       if (!res.ok) return;
       const data   = await res.json() as Array<unknown[]>;
       const closes = data.map(c => parseFloat(c[4] as string));
@@ -247,11 +294,19 @@ async function checkRSI(token: string, chatId: string, stamp: string): Promise<s
       const r      = rsi.toFixed(1);
       const label  = LABELS[coin];
       if (rsi > 78 && !onCooldown(`rsi_ob_${coin}`, CD.rsi)) {
-        await tg(token, chatId, `⚡ <b>${label} RSI Overbought (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Exhaustion — Potential Reversal\nAction: Avoid chasing longs. Watch for rejection / reversal candle.\n\n<i>${stamp}</i>`);
+        queue.push({
+          coin, name: `${label} RSI overbought (${r})`,
+          title: `RSI Overbought ${r} (1H)`,
+          body: `⚡ <b>${label} RSI Overbought (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Exhaustion — Potential Reversal\nAction: Avoid chasing longs. Watch for rejection / reversal candle.\n\n<i>${stamp}</i>`,
+        });
         markSent(`rsi_ob_${coin}`); fired.push(`${label} RSI overbought (${r})`);
       }
       if (rsi < 22 && !onCooldown(`rsi_os_${coin}`, CD.rsi)) {
-        await tg(token, chatId, `⚡ <b>${label} RSI Oversold (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Oversold — Bounce Setup\nAction: Watch for bounce from key support. Long bias on confirmation.\n\n<i>${stamp}</i>`);
+        queue.push({
+          coin, name: `${label} RSI oversold (${r})`,
+          title: `RSI Oversold ${r} (1H)`,
+          body: `⚡ <b>${label} RSI Oversold (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Oversold — Bounce Setup\nAction: Watch for bounce from key support. Long bias on confirmation.\n\n<i>${stamp}</i>`,
+        });
         markSent(`rsi_os_${coin}`); fired.push(`${label} RSI oversold (${r})`);
       }
       // RSI 50 centerline cross — momentum shift
@@ -259,13 +314,19 @@ async function checkRSI(token: string, chatId: string, stamp: string): Promise<s
       rsiLastMap.set(coin, rsi);
       if (prevRsi !== undefined) {
         if (prevRsi < 50 && rsi >= 50 && !onCooldown(`rsi50_bull_${coin}`, CD.rsi50)) {
-          await tg(token, chatId,
-            `📊 <b>${label} RSI Crossed 50 — Bullish (1H)</b>\n\nRSI: <b>${r}</b> (prev ${prevRsi.toFixed(1)})\nSignal: Momentum shifted bullish — potential long setup\nAction: Confirm with break above nearest resistance.\n\n<i>${stamp}</i>`);
+          queue.push({
+            coin, name: `${label} RSI 50 cross ↑`,
+            title: `RSI 50 Cross ↑ — Bullish (1H)`,
+            body: `📊 <b>${label} RSI Crossed 50 — Bullish (1H)</b>\n\nRSI: <b>${r}</b> (prev ${prevRsi.toFixed(1)})\nSignal: Momentum shifted bullish — potential long setup\nAction: Confirm with break above nearest resistance.\n\n<i>${stamp}</i>`,
+          });
           markSent(`rsi50_bull_${coin}`); fired.push(`${label} RSI 50 cross ↑`);
         }
         if (prevRsi > 50 && rsi < 50 && !onCooldown(`rsi50_bear_${coin}`, CD.rsi50)) {
-          await tg(token, chatId,
-            `📊 <b>${label} RSI Crossed 50 — Bearish (1H)</b>\n\nRSI: <b>${r}</b> (prev ${prevRsi.toFixed(1)})\nSignal: Momentum turned bearish — potential short setup\nAction: Confirm with breakdown below nearest support.\n\n<i>${stamp}</i>`);
+          queue.push({
+            coin, name: `${label} RSI 50 cross ↓`,
+            title: `RSI 50 Cross ↓ — Bearish (1H)`,
+            body: `📊 <b>${label} RSI Crossed 50 — Bearish (1H)</b>\n\nRSI: <b>${r}</b> (prev ${prevRsi.toFixed(1)})\nSignal: Momentum turned bearish — potential short setup\nAction: Confirm with breakdown below nearest support.\n\n<i>${stamp}</i>`,
+          });
           markSent(`rsi50_bear_${coin}`); fired.push(`${label} RSI 50 cross ↓`);
         }
       }
@@ -277,7 +338,7 @@ async function checkRSI(token: string, chatId: string, stamp: string): Promise<s
 /* ════════════════════════════════════════
    3b. EMA 200 CROSS (1H)
    ════════════════════════════════════════ */
-async function checkEMACross(token: string, chatId: string, stamp: string): Promise<string[]> {
+async function checkEMACross(stamp: string, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
   await Promise.all(COINS.filter(c => BINANCE_SPOT[c]).map(async coin => {
     try {
@@ -295,7 +356,7 @@ async function checkEMACross(token: string, chatId: string, stamp: string): Prom
       const side     = price > ema200 ? 'above' : 'below';
       const lastSide = emaSideMap.get(coin);
       emaSideMap.set(coin, side);
-      if (!lastSide || lastSide === side) return; // no cross or first run (seed only)
+      if (!lastSide || lastSide === side) return;
 
       const label    = LABELS[coin];
       const priceFmt = price.toLocaleString();
@@ -307,12 +368,15 @@ async function checkEMACross(token: string, chatId: string, stamp: string): Prom
           `Price: $${priceFmt}, EMA(200): $${emaFmt}. ` +
           `In 2-3 sentences: valid bullish reclaim or false breakout? What confluence confirms? Direct, no hedging. ` +
           `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
-        await tg(token, chatId,
-          `📈 <b>${label} Crossed Above 200 EMA (1H)</b>\n\n` +
-          `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
-          `Signal: Bullish — price reclaimed major moving average\n` +
-          `Action: Watch for EMA retest as support and higher-high confirmation.` +
-          `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`);
+        queue.push({
+          coin, name: `${label} crossed above 200 EMA`,
+          title: `200 EMA Cross ↑ (1H)`,
+          body: `📈 <b>${label} Crossed Above 200 EMA (1H)</b>\n\n` +
+            `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
+            `Signal: Bullish — price reclaimed major moving average\n` +
+            `Action: Watch for EMA retest as support and higher-high confirmation.` +
+            `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
+        });
         markSent(`ema_bull_${coin}`); fired.push(`${label} crossed above 200 EMA`);
       }
       if (side === 'below' && !onCooldown(`ema_bear_${coin}`, CD.ema)) {
@@ -321,12 +385,15 @@ async function checkEMACross(token: string, chatId: string, stamp: string): Prom
           `Price: $${priceFmt}, EMA(200): $${emaFmt}. ` +
           `In 2-3 sentences: genuine bearish breakdown or fake-out? What to watch for? Direct, no hedging. ` +
           `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
-        await tg(token, chatId,
-          `📉 <b>${label} Crossed Below 200 EMA (1H)</b>\n\n` +
-          `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
-          `Signal: Bearish — price lost major moving average\n` +
-          `Action: Watch for failed EMA retest as resistance and lower-low confirmation.` +
-          `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`);
+        queue.push({
+          coin, name: `${label} crossed below 200 EMA`,
+          title: `200 EMA Cross ↓ (1H)`,
+          body: `📉 <b>${label} Crossed Below 200 EMA (1H)</b>\n\n` +
+            `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
+            `Signal: Bearish — price lost major moving average\n` +
+            `Action: Watch for failed EMA retest as resistance and lower-low confirmation.` +
+            `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
+        });
         markSent(`ema_bear_${coin}`); fired.push(`${label} crossed below 200 EMA`);
       }
     } catch { /* skip */ }
@@ -337,7 +404,7 @@ async function checkEMACross(token: string, chatId: string, stamp: string): Prom
 /* ════════════════════════════════════════
    3c. RAPID PRICE MOVE (5m / 1H / 4H)
    ════════════════════════════════════════ */
-async function checkRapidMove(token: string, chatId: string, stamp: string): Promise<string[]> {
+async function checkRapidMove(stamp: string, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
   const FRAMES = [
     { interval: '5m',  threshold: 4,  cd: 'move5m', tfLabel: '5m' },
@@ -357,7 +424,6 @@ async function checkRapidMove(token: string, chatId: string, stamp: string): Pro
           const data = await res.json() as Array<unknown[]>;
           if (data.length < 2) return;
 
-          // data[0] = 2 candles ago (completed), data[1] = last completed candle, data[2] = current open
           const prevClose = parseFloat(data[0][4] as string);
           const currClose = parseFloat(data[1][4] as string);
           if (prevClose === 0) return;
@@ -377,12 +443,15 @@ async function checkRapidMove(token: string, chatId: string, stamp: string): Pro
             `In 2-3 sentences: genuine breakout/breakdown or spike reversal? What to watch next candle? Direct, no hedging. ` +
             `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
 
-          await tg(token, chatId,
-            `${emoji} <b>${label} Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})</b>\n\n` +
-            `Price: <b>$${currClose.toLocaleString()}</b>\n` +
-            `Signal: ${Math.abs(pct).toFixed(1)}% candle — ${pct > 0 ? 'momentum surge' : 'flash dump'}\n` +
-            `Action: Check volume + OI. Next candle direction is key.` +
-            `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`);
+          queue.push({
+            coin, name: `${label} rapid ${dir} ${sign}${pct.toFixed(1)}% (${tfLabel})`,
+            title: `Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})`,
+            body: `${emoji} <b>${label} Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})</b>\n\n` +
+              `Price: <b>$${currClose.toLocaleString()}</b>\n` +
+              `Signal: ${Math.abs(pct).toFixed(1)}% candle — ${pct > 0 ? 'momentum surge' : 'flash dump'}\n` +
+              `Action: Check volume + OI. Next candle direction is key.` +
+              `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
+          });
           markSent(key); fired.push(`${label} rapid ${dir} ${sign}${pct.toFixed(1)}% (${tfLabel})`);
         } catch { /* skip */ }
       })
@@ -396,7 +465,7 @@ async function checkRapidMove(token: string, chatId: string, stamp: string): Pro
    ════════════════════════════════════════ */
 interface AggTrade { T: number; p: string; q: string; m: boolean }
 
-async function checkWhales(token: string, chatId: string, stamp: string): Promise<string[]> {
+async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
   const since = Date.now() - 5 * 60_000;
   await Promise.all(Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
@@ -413,16 +482,20 @@ async function checkWhales(token: string, chatId: string, stamp: string): Promis
         const side = t.m ? 'SELL' : 'BUY';
         const key  = `whale_${coin}_${side}`;
         if (onCooldown(key, CD.whale)) continue;
-        const usdFmt = usd >= 1_000_000 ? `$${(usd / 1_000_000).toFixed(2)}M` : `$${(usd / 1000).toFixed(0)}K`;
+        const usdFmt   = usd >= 1_000_000 ? `$${(usd / 1_000_000).toFixed(2)}M` : `$${(usd / 1000).toFixed(0)}K`;
+        const priceStr = parseFloat(t.p).toLocaleString();
         const grokTake = await grokAnalyze(
-          `Elite crypto trader. A whale just ${side === 'BUY' ? 'bought' : 'sold'} ${usdFmt} of ${label} at $${parseFloat(t.p).toLocaleString()}. ` +
+          `Elite crypto trader. A whale just ${side === 'BUY' ? 'bought' : 'sold'} ${usdFmt} of ${label} at $${priceStr}. ` +
           `In 2-3 sentences: short-term (1-4h) market impact? Worth acting on now or wait for confirmation? Direct, no hedging. ` +
           `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
         const grokLine = fmtGrok(grokTake);
-        await tg(token, chatId,
-          side === 'BUY'
-            ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${parseFloat(t.p).toLocaleString()}\nSignal: Large aggressive buy — institutional accumulation${grokLine}\n\n<i>${stamp}</i>`
-            : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${parseFloat(t.p).toLocaleString()}\nSignal: Large aggressive sell — institutional distribution${grokLine}\n\n<i>${stamp}</i>`);
+        queue.push({
+          coin, name: `${label} whale ${side} ${usdFmt}`,
+          title: `Whale ${side} ${usdFmt}`,
+          body: side === 'BUY'
+            ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy — institutional accumulation${grokLine}\n\n<i>${stamp}</i>`
+            : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell — institutional distribution${grokLine}\n\n<i>${stamp}</i>`,
+        });
         markSent(key); fired.push(`${label} whale ${side} ${usdFmt}`); break;
       }
     } catch { /* skip */ }
@@ -431,7 +504,7 @@ async function checkWhales(token: string, chatId: string, stamp: string): Promis
 }
 
 /* ════════════════════════════════════════
-   5. BREAKING NEWS
+   5. BREAKING NEWS (global — stays direct, no coin grouping)
    ════════════════════════════════════════ */
 interface FinnhubItem { id: number; headline: string; datetime: number; source: string }
 const FINNHUB_KEY = 'd7f177pr01qi33g80jm0d7f177pr01qi33g80jmg';
@@ -458,8 +531,8 @@ async function checkNews(token: string, chatId: string, stamp: string): Promise<
       if (!type || type === 'purple') continue;
       const key = `news_${item.id}`;
       if (onCooldown(key, CD.news)) continue;
-      const emoji = type === 'red' ? '🚨' : '📊';
-      const label = type === 'red' ? 'Breaking Alert' : 'Macro Alert';
+      const emoji    = type === 'red' ? '🚨' : '📊';
+      const label    = type === 'red' ? 'Breaking Alert' : 'Macro Alert';
       const grokTake = await grokAnalyze(
         `Elite crypto trader. Breaking news: "${item.headline}". In 2-3 sentences: short-term (1-4h) crypto market impact? What should a trader watch for right now? Direct, no hedging. ` +
         `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
@@ -476,7 +549,7 @@ async function checkNews(token: string, chatId: string, stamp: string): Promise<
    ════════════════════════════════════════ */
 interface OIHistItem { sumOpenInterest: string; timestamp: number }
 
-async function checkOISpike(token: string, chatId: string, stamp: string, prices: Record<string, number>): Promise<string[]> {
+async function checkOISpike(stamp: string, prices: Record<string, number>, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
   await Promise.all(Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
     try {
@@ -503,11 +576,14 @@ async function checkOISpike(token: string, chatId: string, stamp: string, prices
           `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
         const grokLine = fmtGrok(grokTake);
 
-        await tg(token, chatId,
-          `📈 <b>${label} OI ${pct > 0 ? 'Spike' : 'Drop'} — +${pct.toFixed(1)}% in 1h</b>\n\n` +
-          `OI changed from ${(oldest / 1000).toFixed(1)}K to ${(newest / 1000).toFixed(1)}K contracts\n` +
-          `Signal: ${pct > 0 ? 'New money entering — big move likely building' : 'Positions closing — potential trend reversal'}` +
-          `${grokLine}\n\n<i>${stamp}</i>`);
+        queue.push({
+          coin, name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
+          title: `OI ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
+          body: `📈 <b>${label} OI ${pct > 0 ? 'Spike' : 'Drop'} — ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
+            `OI changed from ${(oldest / 1000).toFixed(1)}K to ${(newest / 1000).toFixed(1)}K contracts\n` +
+            `Signal: ${pct > 0 ? 'New money entering — big move likely building' : 'Positions closing — potential trend reversal'}` +
+            `${grokLine}\n\n<i>${stamp}</i>`,
+        });
         markSent(key); fired.push(`${label} OI ${dir} ${pct.toFixed(1)}%`);
       }
     } catch { /* skip */ }
@@ -516,11 +592,11 @@ async function checkOISpike(token: string, chatId: string, stamp: string, prices
 }
 
 /* ════════════════════════════════════════
-   7. CVD DIVERGENCE (taker buy/sell vol vs price)
+   7. CVD DIVERGENCE
    ════════════════════════════════════════ */
 interface TakerVolItem { buyVol: string; sellVol: string; timestamp: number }
 
-async function checkCVD(token: string, chatId: string, stamp: string): Promise<string[]> {
+async function checkCVD(stamp: string, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
   await Promise.all(Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
     try {
@@ -535,8 +611,8 @@ async function checkCVD(token: string, chatId: string, stamp: string): Promise<s
       const tvData  = await tvRes.value.json() as TakerVolItem[];
       if (klines.length < 2 || tvData.length < 6) return;
 
-      const prevClose     = parseFloat(klines[0][4] as string);
-      const currClose     = parseFloat(klines[1][4] as string);
+      const prevClose      = parseFloat(klines[0][4] as string);
+      const currClose      = parseFloat(klines[1][4] as string);
       const priceChangePct = (currClose - prevClose) / prevClose * 100;
 
       let totalBuy = 0, totalSell = 0;
@@ -546,13 +622,19 @@ async function checkCVD(token: string, chatId: string, stamp: string): Promise<s
       const THRESH = 1.5;
 
       if (priceChangePct > THRESH && netCVD < 0 && !onCooldown(`cvd_bear_${coin}`, CD.cvd)) {
-        await tg(token, chatId,
-          `⚠️ <b>${label} Bearish CVD Divergence</b>\n\nPrice: <b>+${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Negative</b> — sellers dominating volume\nSignal: Price pump not supported by buying — likely a fake move\nAction: Avoid chasing longs. Watch for reversal.\n\n<i>${stamp}</i>`);
+        queue.push({
+          coin, name: `${label} bearish CVD divergence`,
+          title: `Bearish CVD Divergence`,
+          body: `⚠️ <b>${label} Bearish CVD Divergence</b>\n\nPrice: <b>+${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Negative</b> — sellers dominating volume\nSignal: Price pump not supported by buying — likely a fake move\nAction: Avoid chasing longs. Watch for reversal.\n\n<i>${stamp}</i>`,
+        });
         markSent(`cvd_bear_${coin}`); fired.push(`${label} bearish CVD divergence`);
       }
       if (priceChangePct < -THRESH && netCVD > 0 && !onCooldown(`cvd_bull_${coin}`, CD.cvd)) {
-        await tg(token, chatId,
-          `⚡ <b>${label} Bullish CVD Divergence</b>\n\nPrice: <b>${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Positive</b> — buyers absorbing the dip\nSignal: Price drop not matched by sell volume — accumulation signal\nAction: Watch for bounce from key support.\n\n<i>${stamp}</i>`);
+        queue.push({
+          coin, name: `${label} bullish CVD divergence`,
+          title: `Bullish CVD Divergence`,
+          body: `⚡ <b>${label} Bullish CVD Divergence</b>\n\nPrice: <b>${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Positive</b> — buyers absorbing the dip\nSignal: Price drop not matched by sell volume — accumulation signal\nAction: Watch for bounce from key support.\n\n<i>${stamp}</i>`,
+        });
         markSent(`cvd_bull_${coin}`); fired.push(`${label} bullish CVD divergence`);
       }
     } catch { /* skip */ }
@@ -565,7 +647,7 @@ async function checkCVD(token: string, chatId: string, stamp: string): Promise<s
    ════════════════════════════════════════ */
 interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string }
 
-async function checkPriceAlerts(token: string, chatId: string, stamp: string, prices: Record<string, number>): Promise<string[]> {
+async function checkPriceAlerts(stamp: string, prices: Record<string, number>, queue: SignalEntry[]): Promise<string[]> {
   const db = getSupabase();
   if (!db) return [];
   const fired: string[] = [];
@@ -580,22 +662,26 @@ async function checkPriceAlerts(token: string, chatId: string, stamp: string, pr
         (alert.direction === 'below' && price <= alert.target_price);
       if (!triggered) continue;
 
-      const label      = LABELS[alert.coin] ?? alert.coin.toUpperCase();
-      const dirLabel   = alert.direction === 'above' ? '📈 Crossed Above' : '📉 Crossed Below';
-      const grokTake   = await grokAnalyze(
+      const label    = LABELS[alert.coin] ?? alert.coin.toUpperCase();
+      const dirLabel = alert.direction === 'above' ? '📈 Crossed Above' : '📉 Crossed Below';
+      const grokTake = await grokAnalyze(
         `Elite crypto trader. ${label} just hit $${alert.target_price.toLocaleString()} (now $${price.toLocaleString()}).` +
         (alert.label ? ` Saved alert: "${alert.label}".` : '') +
         ` In 2-3 sentences: Is this a valid entry/exit level right now? What to watch for to confirm? Direct, no hedging. ` +
         `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
-      const grokLine   = fmtGrok(grokTake);
+      const grokLine = fmtGrok(grokTake);
 
-      await tg(token, chatId,
-        `🎯 <b>${label} Price Alert Triggered</b>\n\n` +
-        `${dirLabel} <b>$${alert.target_price.toLocaleString()}</b>\n` +
-        `Current: $${price.toLocaleString()}` +
-        (alert.label ? `\nNote: ${alert.label}` : '') +
-        `${grokLine}\n\n<i>${stamp}</i>`);
+      queue.push({
+        coin: alert.coin, name: `${label} price alert at $${alert.target_price.toLocaleString()}`,
+        title: `Price Alert ${dirLabel.replace(/📈 |📉 /, '')} $${alert.target_price.toLocaleString()}`,
+        body: `🎯 <b>${label} Price Alert Triggered</b>\n\n` +
+          `${dirLabel} <b>$${alert.target_price.toLocaleString()}</b>\n` +
+          `Current: $${price.toLocaleString()}` +
+          (alert.label ? `\nNote: ${alert.label}` : '') +
+          `${grokLine}\n\n<i>${stamp}</i>`,
+      });
 
+      // Deactivate immediately — don't wait for flush
       await db.from('price_alerts').update({ active: false, triggered_at: new Date().toISOString() }).eq('id', alert.id);
       fired.push(`${label} price alert at $${alert.target_price.toLocaleString()}`);
     }
@@ -623,18 +709,24 @@ export async function GET() {
   // Fetch shared data once
   const [frMap, prices] = await Promise.all([fetchAllFR(), fetchSpotPrices()]);
 
+  // Per-request signal queue — all coin checks push here, flushed after
+  const signalQueue: SignalEntry[] = [];
+
   const results = await Promise.allSettled([
-    checkFRExtremes(token, chatId, stamp, frMap),
-    checkFRFlip(token, chatId, stamp, frMap),
-    checkRSI(token, chatId, stamp),
-    checkEMACross(token, chatId, stamp),
-    checkRapidMove(token, chatId, stamp),
-    checkWhales(token, chatId, stamp),
-    checkNews(token, chatId, stamp),
-    checkOISpike(token, chatId, stamp, prices),
-    checkCVD(token, chatId, stamp),
-    checkPriceAlerts(token, chatId, stamp, prices),
+    checkFRExtremes(stamp, frMap, signalQueue),
+    checkFRFlip(stamp, frMap, signalQueue),
+    checkRSI(stamp, signalQueue),
+    checkEMACross(stamp, signalQueue),
+    checkRapidMove(stamp, signalQueue),
+    checkWhales(stamp, signalQueue),
+    checkNews(token, chatId, stamp),          // global — sends directly
+    checkOISpike(stamp, prices, signalQueue),
+    checkCVD(stamp, signalQueue),
+    checkPriceAlerts(stamp, prices, signalQueue),
   ]);
+
+  // Flush: single signals → send as-is, 2+ same coin → confluence alert
+  await flushSignals(token, chatId, stamp, signalQueue);
 
   const fired = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
 

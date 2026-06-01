@@ -115,6 +115,7 @@ export default function AlertsPage() {
     { dot: '#fb923c', title: 'Rapid Move ±5% (1H)',    desc: 'Momentum surge or flash dump in one 1H candle · 2h cooldown', grok: true },
     { dot: '#fb923c', title: 'Rapid Move ±10% (4H)',   desc: 'Major momentum candle on 4H — trend move · 4h cooldown', grok: true },
     { dot: '#f97316', title: 'Flash Move ±4% (5m)',    desc: 'Stop cascade or news flash — extreme 5-min move · 30min cooldown', grok: true },
+    { dot: '#818cf8', title: 'Confluence Alert',        desc: '2+ signals same coin in one run → single combined ping · Grok weighs all signals together', grok: true },
   ];
 
   return (
