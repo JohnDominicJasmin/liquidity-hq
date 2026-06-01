@@ -307,7 +307,6 @@ body::after {
 .desktop-nav-item.on { color: var(--purple); background: var(--purple-bg); border-color: var(--purple-bdr); }
 
 @media (min-width: 768px) {
-  .hamburger { display: none !important; }
   .desktop-nav { display: flex; }
 }
 
