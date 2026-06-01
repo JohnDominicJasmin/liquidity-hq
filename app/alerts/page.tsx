@@ -108,6 +108,13 @@ export default function AlertsPage() {
     { dot: '#34d399', title: 'CVD Bullish Divergence', desc: 'Price down but buyers absorbing — accumulation signal · 1h cooldown', grok: false },
     { dot: '#f87171', title: 'CVD Bearish Divergence', desc: 'Price up but sellers dominate — fake pump signal · 1h cooldown', grok: false },
     { dot: '#c084fc', title: 'Price Level Alert',      desc: 'User-set price targets · fires once then deactivates', grok: true },
+    { dot: '#34d399', title: 'RSI 50 Cross ↑ (1H)',    desc: 'RSI crosses above 50 — bullish momentum shift · 6h cooldown', grok: false },
+    { dot: '#f87171', title: 'RSI 50 Cross ↓ (1H)',    desc: 'RSI crosses below 50 — bearish momentum shift · 6h cooldown', grok: false },
+    { dot: '#34d399', title: '200 EMA Cross ↑ (1H)',   desc: 'Price reclaims major moving average — bullish · 12h cooldown', grok: true },
+    { dot: '#f87171', title: '200 EMA Cross ↓ (1H)',   desc: 'Price loses major moving average — bearish · 12h cooldown', grok: true },
+    { dot: '#fb923c', title: 'Rapid Move ±5% (1H)',    desc: 'Momentum surge or flash dump in one 1H candle · 2h cooldown', grok: true },
+    { dot: '#fb923c', title: 'Rapid Move ±10% (4H)',   desc: 'Major momentum candle on 4H — trend move · 4h cooldown', grok: true },
+    { dot: '#f97316', title: 'Flash Move ±4% (5m)',    desc: 'Stop cascade or news flash — extreme 5-min move · 30min cooldown', grok: true },
   ];
 
   return (
@@ -115,7 +122,7 @@ export default function AlertsPage() {
       {/* Header */}
       <div className="mb-header">
         <div className="mb-title">🔔 Telegram Alerts</div>
-        <div className="mb-subtitle">Push alerts to your phone — funding, RSI, whales, news, OI, CVD, price levels</div>
+        <div className="mb-subtitle">Push alerts to your phone — funding, RSI, EMA cross, rapid moves, whales, news, OI, CVD, price levels</div>
       </div>
 
       {/* Status */}
@@ -227,7 +234,7 @@ export default function AlertsPage() {
           </div>
         ))}
         <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 10, padding: '8px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
-          Monitored: BTC · ETH · SOL · XRP · BNB · HYPE · NEAR
+          Monitored: BTC · ETH · SOL · XRP · BNB · HYPE · NEAR · SUI
         </div>
       </div>
 

@@ -64,16 +64,23 @@ const WHALE_THRESHOLD: Record<string, number> = {
 };
 
 /* ── In-memory state ── */
-const lastSent  = new Map<string, number>();
-const frSignMap = new Map<string, number>(); // for FR flip detection
+const lastSent   = new Map<string, number>();
+const frSignMap  = new Map<string, number>(); // for FR flip detection
+const rsiLastMap = new Map<string, number>();               // RSI 50 cross detection
+const emaSideMap = new Map<string, 'above' | 'below'>();   // EMA 200 cross detection
 
 const CD: Record<string, number> = {
-  fr:    4 * 3600_000,
-  rsi:   4 * 3600_000,
-  whale: 30 * 60_000,   // overridden per session in main handler
-  news:  15 * 60_000,   // overridden per session in main handler
-  oi:    2 * 3600_000,
-  cvd:   60 * 60_000,
+  fr:     4 * 3600_000,
+  rsi:    4 * 3600_000,
+  rsi50:  6 * 3600_000,   // RSI 50 cross
+  ema:   12 * 3600_000,   // 200 EMA cross
+  move5m: 30 * 60_000,   // rapid move 5m
+  move1h:  2 * 3600_000, // rapid move 1H
+  move4h:  4 * 3600_000, // rapid move 4H
+  whale:  30 * 60_000,   // overridden per session in main handler
+  news:   15 * 60_000,   // overridden per session in main handler
+  oi:     2 * 3600_000,
+  cvd:    60 * 60_000,
 };
 
 /* ── Session detector (PHT = UTC+8) ──
@@ -212,16 +219,25 @@ function computeRSI(closes: number[], period = 14): number {
   return 100 - 100 / (1 + ag / al);
 }
 
+function computeEMA(closes: number[], period: number): number {
+  if (closes.length < period) return closes[closes.length - 1] ?? 0;
+  const k = 2 / (period + 1);
+  let ema = closes.slice(0, period).reduce((s, v) => s + v, 0) / period;
+  for (let i = period; i < closes.length; i++) ema = closes[i] * k + ema * (1 - k);
+  return ema;
+}
+
 async function checkRSI(token: string, chatId: string, now: string): Promise<string[]> {
   const fired: string[] = [];
   await Promise.all(COINS.filter(c => BINANCE_SPOT[c]).map(async coin => {
     try {
       const res  = await fetch(`https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=20`, { cache: 'no-store' });
       if (!res.ok) return;
-      const data = await res.json() as Array<unknown[]>;
-      const rsi  = computeRSI(data.map(c => parseFloat(c[4] as string)));
-      const r    = rsi.toFixed(1);
-      const label = LABELS[coin];
+      const data   = await res.json() as Array<unknown[]>;
+      const closes = data.map(c => parseFloat(c[4] as string));
+      const rsi    = computeRSI(closes);
+      const r      = rsi.toFixed(1);
+      const label  = LABELS[coin];
       if (rsi > 78 && !onCooldown(`rsi_ob_${coin}`, CD.rsi)) {
         await tg(token, chatId, `⚡ <b>${label} RSI Overbought (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Exhaustion — Potential Reversal\nAction: Avoid chasing longs. Watch for rejection / reversal candle.\n\n<i>⏰ ${now} PHT</i>`);
         markSent(`rsi_ob_${coin}`); fired.push(`${label} RSI overbought (${r})`);
@@ -230,8 +246,140 @@ async function checkRSI(token: string, chatId: string, now: string): Promise<str
         await tg(token, chatId, `⚡ <b>${label} RSI Oversold (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Oversold — Bounce Setup\nAction: Watch for bounce from key support. Long bias on confirmation.\n\n<i>⏰ ${now} PHT</i>`);
         markSent(`rsi_os_${coin}`); fired.push(`${label} RSI oversold (${r})`);
       }
+      // RSI 50 centerline cross — momentum shift
+      const prevRsi = rsiLastMap.get(coin);
+      rsiLastMap.set(coin, rsi);
+      if (prevRsi !== undefined) {
+        if (prevRsi < 50 && rsi >= 50 && !onCooldown(`rsi50_bull_${coin}`, CD.rsi50)) {
+          await tg(token, chatId,
+            `📊 <b>${label} RSI Crossed 50 — Bullish (1H)</b>\n\nRSI: <b>${r}</b> (prev ${prevRsi.toFixed(1)})\nSignal: Momentum shifted bullish — potential long setup\nAction: Confirm with break above nearest resistance.\n\n<i>⏰ ${now} PHT</i>`);
+          markSent(`rsi50_bull_${coin}`); fired.push(`${label} RSI 50 cross ↑`);
+        }
+        if (prevRsi > 50 && rsi < 50 && !onCooldown(`rsi50_bear_${coin}`, CD.rsi50)) {
+          await tg(token, chatId,
+            `📊 <b>${label} RSI Crossed 50 — Bearish (1H)</b>\n\nRSI: <b>${r}</b> (prev ${prevRsi.toFixed(1)})\nSignal: Momentum turned bearish — potential short setup\nAction: Confirm with breakdown below nearest support.\n\n<i>⏰ ${now} PHT</i>`);
+          markSent(`rsi50_bear_${coin}`); fired.push(`${label} RSI 50 cross ↓`);
+        }
+      }
     } catch { /* skip */ }
   }));
+  return fired;
+}
+
+/* ════════════════════════════════════════
+   3b. EMA 200 CROSS (1H)
+   ════════════════════════════════════════ */
+async function checkEMACross(token: string, chatId: string, now: string): Promise<string[]> {
+  const fired: string[] = [];
+  await Promise.all(COINS.filter(c => BINANCE_SPOT[c]).map(async coin => {
+    try {
+      const res = await fetch(
+        `https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=300`,
+        { cache: 'no-store' }
+      );
+      if (!res.ok) return;
+      const data   = await res.json() as Array<unknown[]>;
+      const closes = data.map(c => parseFloat(c[4] as string));
+      if (closes.length < 200) return;
+
+      const ema200   = computeEMA(closes, 200);
+      const price    = closes[closes.length - 1];
+      const side     = price > ema200 ? 'above' : 'below';
+      const lastSide = emaSideMap.get(coin);
+      emaSideMap.set(coin, side);
+      if (!lastSide || lastSide === side) return; // no cross or first run (seed only)
+
+      const label    = LABELS[coin];
+      const priceFmt = price.toLocaleString();
+      const emaFmt   = ema200.toLocaleString();
+
+      if (side === 'above' && !onCooldown(`ema_bull_${coin}`, CD.ema)) {
+        const grokTake = await grokAnalyze(
+          `Elite crypto trader. ${label} price just crossed above its 200-period EMA on the 1H chart. ` +
+          `Price: $${priceFmt}, EMA(200): $${emaFmt}. ` +
+          `In 2-3 sentences: valid bullish reclaim or false breakout? What confluence confirms? Direct, no hedging. ` +
+          `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
+        await tg(token, chatId,
+          `📈 <b>${label} Crossed Above 200 EMA (1H)</b>\n\n` +
+          `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
+          `Signal: Bullish — price reclaimed major moving average\n` +
+          `Action: Watch for EMA retest as support and higher-high confirmation.` +
+          `${fmtGrok(grokTake)}\n\n<i>⏰ ${now} PHT</i>`);
+        markSent(`ema_bull_${coin}`); fired.push(`${label} crossed above 200 EMA`);
+      }
+      if (side === 'below' && !onCooldown(`ema_bear_${coin}`, CD.ema)) {
+        const grokTake = await grokAnalyze(
+          `Elite crypto trader. ${label} price just crossed below its 200-period EMA on the 1H chart. ` +
+          `Price: $${priceFmt}, EMA(200): $${emaFmt}. ` +
+          `In 2-3 sentences: genuine bearish breakdown or fake-out? What to watch for? Direct, no hedging. ` +
+          `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
+        await tg(token, chatId,
+          `📉 <b>${label} Crossed Below 200 EMA (1H)</b>\n\n` +
+          `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
+          `Signal: Bearish — price lost major moving average\n` +
+          `Action: Watch for failed EMA retest as resistance and lower-low confirmation.` +
+          `${fmtGrok(grokTake)}\n\n<i>⏰ ${now} PHT</i>`);
+        markSent(`ema_bear_${coin}`); fired.push(`${label} crossed below 200 EMA`);
+      }
+    } catch { /* skip */ }
+  }));
+  return fired;
+}
+
+/* ════════════════════════════════════════
+   3c. RAPID PRICE MOVE (5m / 1H / 4H)
+   ════════════════════════════════════════ */
+async function checkRapidMove(token: string, chatId: string, now: string): Promise<string[]> {
+  const fired: string[] = [];
+  const FRAMES = [
+    { interval: '5m',  threshold: 4,  cd: 'move5m', tfLabel: '5m' },
+    { interval: '1h',  threshold: 5,  cd: 'move1h', tfLabel: '1H' },
+    { interval: '4h',  threshold: 10, cd: 'move4h', tfLabel: '4H' },
+  ] as const;
+
+  await Promise.all(
+    COINS.filter(c => BINANCE_SPOT[c]).flatMap(coin =>
+      FRAMES.map(async ({ interval, threshold, cd, tfLabel }) => {
+        try {
+          const res = await fetch(
+            `https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=${interval}&limit=3`,
+            { cache: 'no-store' }
+          );
+          if (!res.ok) return;
+          const data = await res.json() as Array<unknown[]>;
+          if (data.length < 2) return;
+
+          // data[0] = 2 candles ago (completed), data[1] = last completed candle, data[2] = current open
+          const prevClose = parseFloat(data[0][4] as string);
+          const currClose = parseFloat(data[1][4] as string);
+          if (prevClose === 0) return;
+          const pct = (currClose - prevClose) / prevClose * 100;
+          if (Math.abs(pct) < threshold) return;
+
+          const label = LABELS[coin];
+          const dir   = pct > 0 ? 'up' : 'down';
+          const key   = `move_${dir}_${interval}_${coin}`;
+          if (onCooldown(key, CD[cd])) return;
+
+          const sign     = pct > 0 ? '+' : '';
+          const emoji    = pct > 0 ? '🚀' : '🔻';
+          const grokTake = await grokAnalyze(
+            `Elite crypto trader. ${label} just moved ${sign}${pct.toFixed(1)}% in one ${tfLabel} candle. ` +
+            `Current price: $${currClose.toLocaleString()}. ` +
+            `In 2-3 sentences: genuine breakout/breakdown or spike reversal? What to watch next candle? Direct, no hedging. ` +
+            `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
+
+          await tg(token, chatId,
+            `${emoji} <b>${label} Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})</b>\n\n` +
+            `Price: <b>$${currClose.toLocaleString()}</b>\n` +
+            `Signal: ${Math.abs(pct).toFixed(1)}% candle — ${pct > 0 ? 'momentum surge' : 'flash dump'}\n` +
+            `Action: Check volume + OI. Next candle direction is key.` +
+            `${fmtGrok(grokTake)}\n\n<i>⏰ ${now} PHT</i>`);
+          markSent(key); fired.push(`${label} rapid ${dir} ${sign}${pct.toFixed(1)}% (${tfLabel})`);
+        } catch { /* skip */ }
+      })
+    )
+  );
   return fired;
 }
 
@@ -470,6 +618,8 @@ export async function GET() {
     checkFRExtremes(token, chatId, now, frMap),
     checkFRFlip(token, chatId, now, frMap),
     checkRSI(token, chatId, now),
+    checkEMACross(token, chatId, now),
+    checkRapidMove(token, chatId, now),
     checkWhales(token, chatId, now),
     checkNews(token, chatId, now),
     checkOISpike(token, chatId, now, prices),
@@ -481,7 +631,7 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true, fired,
-    checked: ['FR extremes', 'FR flip', 'RSI', 'Whales', 'News', 'OI spike', 'CVD', 'Price alerts'],
+    checked: ['FR extremes', 'FR flip', 'RSI', 'RSI 50 cross', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'OI spike', 'CVD', 'Price alerts'],
     session: nyActive ? 'NY/Pre-NY (high activity)' : 'Asia/London',
     cooldowns: { whale: `${CD.whale / 60_000}min`, news: `${CD.news / 60_000}min` },
   });
