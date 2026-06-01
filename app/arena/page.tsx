@@ -73,7 +73,6 @@ export default function Arena() {
   const [readStep, setReadStep]       = useState('');
   const [readError, setReadError]     = useState('');
   const [readMode,  setReadMode]      = useState<'quick' | 'deep'>('deep');
-  const [fromCache, setFromCache]     = useState(false);
   const [resultsCache, setResultsCache] = useState<Partial<Record<CoinId, CacheEntry>>>({});
   const [history, setHistory]         = useState<HistItem[]>([]);
   const [detailIdx, setDetailIdx]     = useState<number | null>(null);
@@ -414,22 +413,22 @@ export default function Arena() {
     }
 
     // ── Cache check — skip API call if result is fresh and price hasn't moved >0.5% ──
+    // Quick accepts any cached result (Quick or Deep).
+    // Deep only accepts a cached Deep result — clicking Deep always re-fetches if last was Quick.
     if (!force) {
       const currentPrice = store.coins[selectedCoin]?.price ?? 0;
       const entry = resultsCache[selectedCoin];
-      if (entry) {
+      if (entry && (mode === 'quick' || entry.mode === 'deep')) {
         const ageSecs  = (Date.now() - entry.result.analyzedAt) / 1000;
         const pricePct = currentPrice > 0
           ? Math.abs(currentPrice - entry.priceAtAnalysis) / currentPrice * 100
           : 0;
         if (ageSecs < CACHE_TTL_MS / 1000 && pricePct < PRICE_MOVE_PCT && entry.result.tf === readTf) {
-          setFromCache(true);
-          return;
+          return; // serve cache silently — no banner, no state change
         }
       }
     }
 
-    setFromCache(false);
     setReadMode(mode);
     setReadLoading(true); setReadError('');
 
@@ -608,21 +607,6 @@ export default function Arena() {
           Ask Grok
         </button>
       </div>
-
-      {/* Cache banner — shown when serving a fresh cached result */}
-      {fromCache && result && (() => {
-        const s = Math.floor((Date.now() - result.analyzedAt) / 1000);
-        const age = s < 60 ? `${s}s ago` : `${Math.floor(s / 60)}m ago`;
-        return (
-          <div className="arena-cache-bar">
-            <span>⚡ Cached · {age} · price within 0.5% · {cacheEntry?.mode === 'quick' ? 'Quick' : 'Deep'}</span>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button className="arena-cache-refresh" onClick={() => readMarket('quick', true)}>⚡ Refresh</button>
-              <button className="arena-cache-refresh" onClick={() => readMarket('deep', true)}>🌐 Deep refresh</button>
-            </div>
-          </div>
-        );
-      })()}
 
       {readLoading && (
         <div className="arena-loading">
