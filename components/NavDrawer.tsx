@@ -5,25 +5,25 @@ import { usePathname } from 'next/navigation';
 import { useMarket } from '@/lib/marketStore';
 
 const NAV = [
-  { path: '/', icon: '📊', label: 'Dashboard' },
-  { path: '/briefing', icon: '🌅', label: 'Briefing' },
-  { path: '/hours', icon: '🕐', label: 'Best Hours' },
-  { path: '/news', icon: '📰', label: 'News' },
+  { path: '/',            icon: '📊', label: 'Dashboard',   desk: true  },
+  { path: '/briefing',    icon: '🌅', label: 'Briefing',    desk: true  },
+  { path: '/hours',       icon: '🕐', label: 'Best Hours',  desk: false },
+  { path: '/news',        icon: '📰', label: 'News',        desk: true  },
   null,
-  { path: '/playbook', icon: '📖', label: 'Playbook' },
+  { path: '/playbook',    icon: '📖', label: 'Playbook',    desk: false },
   null,
-  { path: '/arena', icon: '🤖', label: 'AI Arena' },
-  { path: '/liq',   icon: '🔥', label: 'Liq Map' },
-  { path: '/funding', icon: '💸', label: 'FR History' },
-  { path: '/correlation', icon: '🔗', label: 'Correlation' },
+  { path: '/arena',       icon: '🤖', label: 'AI Arena',    desk: true  },
+  { path: '/liq',         icon: '🔥', label: 'Liq Map',     desk: true  },
+  { path: '/funding',     icon: '💸', label: 'FR History',  desk: true  },
+  { path: '/correlation', icon: '🔗', label: 'Correlation', desk: true  },
   null,
-  { path: '/journal', icon: '📓', label: 'Journal' },
+  { path: '/journal',     icon: '📓', label: 'Journal',     desk: true  },
   null,
-  { path: '/about', icon: 'ℹ️', label: 'About' },
+  { path: '/about',       icon: 'ℹ️', label: 'About',       desk: false },
 ];
 
-// Desktop nav excludes dividers and About
-const DESKTOP_NAV = NAV.filter(Boolean) as NonNullable<typeof NAV[0]>[];
+// Desktop nav: only items flagged desk:true
+const DESKTOP_NAV = NAV.filter(item => item && item.desk) as NonNullable<typeof NAV[0]>[];
 
 function useStatusDot() {
   const { store } = useMarket();
