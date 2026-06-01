@@ -48,9 +48,13 @@ const GROK_API_KEY = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6z
 
 /* ── Result cache ── */
 interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep' }
-const CACHE_TTL_MS      = 5 * 60 * 1000;  // 5 minutes
 const PRICE_MOVE_PCT    = 0.5;             // re-analyze when price moves >0.5%
 const ARENA_RESULTS_KEY = 'arena-results-v2';
+/** Dynamic TTL: tighter during NY/pre-NY session (volatile), relaxed off-hours */
+function getCacheTTL(): number {
+  const phtHour = (new Date().getUTCHours() + 8) % 24;
+  return (phtHour >= 20 || phtHour < 4) ? 2 * 60_000 : 15 * 60_000;
+}
 
 interface HistItem {
   signal: string;
@@ -122,8 +126,17 @@ export default function Arena() {
       } catch { /* silent */ }
     };
     load();
-    const iv = setInterval(load, 60_000);
-    return () => clearInterval(iv);
+    let iv = setInterval(load, 60_000);
+    const onVisibility = () => {
+      if (document.hidden) {
+        clearInterval(iv);
+      } else {
+        load();
+        iv = setInterval(load, 60_000);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', onVisibility); };
   }, []);
 
   /* ── Push notifications ── */
@@ -423,7 +436,7 @@ export default function Arena() {
         const pricePct = currentPrice > 0
           ? Math.abs(currentPrice - entry.priceAtAnalysis) / currentPrice * 100
           : 0;
-        if (ageSecs < CACHE_TTL_MS / 1000 && pricePct < PRICE_MOVE_PCT && entry.result.tf === readTf) {
+        if (ageSecs < getCacheTTL() / 1000 && pricePct < PRICE_MOVE_PCT && entry.result.tf === readTf) {
           return; // serve cache silently — no banner, no state change
         }
       }
@@ -457,7 +470,7 @@ export default function Arena() {
       const rsi     = calcRSI(closes, 14).at(-1) ?? null;
       const lastC    = vis[vis.length - 1].c;
       const pDec     = lastC >= 10000 ? 0 : lastC >= 100 ? 2 : lastC >= 1 ? 3 : 4;
-      const recent20 = vis.slice(-20).map(c => `O:${c.o.toFixed(pDec)} H:${c.h.toFixed(pDec)} L:${c.l.toFixed(pDec)} C:${c.c.toFixed(pDec)}`).join(' | ');
+      const recent20 = vis.slice(-10).map(c => `O:${c.o.toFixed(pDec)} H:${c.h.toFixed(pDec)} L:${c.l.toFixed(pDec)} C:${c.c.toFixed(pDec)}`).join(' | ');
       const chartData: ChartData = {
         tf: readTf, ema9, ema200, rsi, recent20,
         hi: Math.max(...vis.map(c => c.h)),
