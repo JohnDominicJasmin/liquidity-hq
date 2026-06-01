@@ -2028,6 +2028,22 @@ body.ticker-on .breaking-alert { top: 90px; }
 
 [data-theme="light"] .mb-macro-item { background: var(--bg2); }
 
+/* ── CORRELATION HEATMAP ──────────────────────────────────────────────── */
+.corr-grid-wrap  { overflow-x: auto; margin-bottom: 10px; -webkit-overflow-scrolling: touch; }
+.corr-grid       { display: grid; gap: 3px; min-width: 340px; }
+.corr-col-hdr    { font-size: 9px; font-weight: 700; color: var(--txt3); text-align: center; padding: 3px 1px 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+.corr-row-hdr    { font-size: 9px; font-weight: 700; color: var(--txt3); display: flex; align-items: center; padding: 0 3px; text-transform: uppercase; letter-spacing: 0.03em; }
+.corr-cell       { height: 34px; display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700; border-radius: 5px; font-variant-numeric: tabular-nums; cursor: default; transition: filter 0.12s; }
+.corr-cell:hover { filter: brightness(1.25); }
+.corr-legend     { font-size: 10px; color: var(--txt3); padding-top: 8px; border-top: 0.5px solid var(--bdr); line-height: 1.6; }
+
+.corr-pair-row        { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 0.5px solid var(--bdr); }
+.corr-pair-row:last-child { border-bottom: none; }
+.corr-pair-coins      { font-size: 12px; font-weight: 700; color: var(--txt); width: 90px; flex-shrink: 0; }
+.corr-pair-bar-wrap   { flex: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; }
+.corr-pair-bar        { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+.corr-pair-val        { font-size: 13px; font-weight: 700; width: 42px; text-align: right; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
 /* ── FUNDING RATE HISTORY ──────────────────────────────────────────────── */
 .frh-range-row   { display: flex; gap: 6px; margin-bottom: 10px; }
 .frh-range-btn   { padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt3); cursor: pointer; transition: all 0.12s; }
