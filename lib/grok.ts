@@ -348,6 +348,35 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
   return { signal, confidence, entryLow, entryHigh, tp, sl, levels, catalysts, chartAnalysis, reasoning, analyzedAt: Date.now(), tf, session };
 }
 
+/* ── Quick prompt — strips the LIVE SEARCH TASK block (no web search needed) ── */
+export function buildQuickPrompt(ctx: GrokContext, chart: ChartData): string {
+  const full = buildCombinedPrompt(ctx, chart);
+  const s = full.indexOf('\n=== LIVE SEARCH TASK ===');
+  const e = full.indexOf('\n=== YOUR ANALYSIS TASK ===');
+  if (s !== -1 && e !== -1) return full.slice(0, s) + full.slice(e);
+  return full;
+}
+
+/* ── Quick call — /v1/chat/completions, no search tools, ~$0.003 ── */
+export async function callGrokQuick(apiKey: string, prompt: string, tf: string, session: string): Promise<CombinedResult> {
+  const res = await fetch('https://api.x.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: 'grok-4.3',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 800,
+    }),
+  });
+  if (!res.ok) {
+    const errJson = await res.json().catch(() => ({}));
+    throw new Error(`Grok API error: ${res.status} — ${(errJson as { error?: string })?.error ?? res.statusText}`);
+  }
+  const data = await res.json();
+  const text: string = data.choices?.[0]?.message?.content ?? '';
+  return parseCombinedResponse(text, tf, session);
+}
+
 export async function callGrokCombined(apiKey: string, prompt: string, tf: string, session: string): Promise<CombinedResult> {
   const res = await fetch('https://api.x.ai/v1/responses', {
     method: 'POST',

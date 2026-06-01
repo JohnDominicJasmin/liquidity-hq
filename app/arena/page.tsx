@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMarket, classifyFunding, CoinId, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
-import { buildPrompt, callGrok, GrokResult, GrokContext, buildCombinedPrompt, callGrokCombined, CombinedResult, ChartData, calcEMA, calcRSI } from '@/lib/grok';
+import { buildPrompt, callGrok, GrokResult, GrokContext, buildCombinedPrompt, callGrokCombined, buildQuickPrompt, callGrokQuick, CombinedResult, ChartData, calcEMA, calcRSI } from '@/lib/grok';
 import { getPHT, getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
 import { getSupabase } from '@/lib/supabase';
@@ -46,6 +46,12 @@ function ReasoningText({ text }: { text: string }) {
 const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui'];
 const GROK_API_KEY = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5Bepv2POY4L6EdBULh4GYNCO';
 
+/* ── Result cache ── */
+interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep' }
+const CACHE_TTL_MS      = 5 * 60 * 1000;  // 5 minutes
+const PRICE_MOVE_PCT    = 0.5;             // re-analyze when price moves >0.5%
+const ARENA_RESULTS_KEY = 'arena-results-v2';
+
 interface HistItem {
   signal: string;
   confidence: number;
@@ -66,14 +72,17 @@ export default function Arena() {
   const [readLoading, setReadLoading] = useState(false);
   const [readStep, setReadStep]       = useState('');
   const [readError, setReadError]     = useState('');
-  const [resultsCache, setResultsCache] = useState<Partial<Record<CoinId, CombinedResult>>>({});
+  const [readMode,  setReadMode]      = useState<'quick' | 'deep'>('deep');
+  const [fromCache, setFromCache]     = useState(false);
+  const [resultsCache, setResultsCache] = useState<Partial<Record<CoinId, CacheEntry>>>({});
   const [history, setHistory]         = useState<HistItem[]>([]);
   const [detailIdx, setDetailIdx]     = useState<number | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [ctxOpen, setCtxOpen]         = useState(false);
 
   // Derived — current coin's cached result (persists across coin switches)
-  const result = resultsCache[selectedCoin] ?? null;
+  const cacheEntry = resultsCache[selectedCoin] ?? null;
+  const result     = cacheEntry?.result ?? null;
   const notifCooldown = useRef<Set<string>>(new Set());
 
   /* ── Persist history in sessionStorage (survives nav away + back) ── */
@@ -86,6 +95,17 @@ export default function Arena() {
   useEffect(() => {
     try { sessionStorage.setItem(ARENA_HIST_KEY, JSON.stringify(history)); } catch { /* ignore */ }
   }, [history]);
+
+  /* ── Persist results cache in sessionStorage ── */
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(ARENA_RESULTS_KEY);
+      if (saved) setResultsCache(JSON.parse(saved));
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    try { sessionStorage.setItem(ARENA_RESULTS_KEY, JSON.stringify(resultsCache)); } catch { /* ignore */ }
+  }, [resultsCache]);
 
   /* ── Cross-exchange funding data ── */
   type FundingRow = { coin: string; binance: number|null; bybit: number|null; okx: number|null };
@@ -385,7 +405,7 @@ export default function Arena() {
     };
   };
 
-  const readMarket = useCallback(async () => {
+  const readMarket = useCallback(async (mode: 'quick' | 'deep' = 'deep', force = false) => {
     const binanceSym = BINANCE_SYMS[selectedCoin] as string | undefined;
     const bybitSym   = BYBIT_SYMS[selectedCoin]   as string | undefined;
     if (!binanceSym && !bybitSym) {
@@ -393,6 +413,24 @@ export default function Arena() {
       return;
     }
 
+    // ── Cache check — skip API call if result is fresh and price hasn't moved >0.5% ──
+    if (!force) {
+      const currentPrice = store.coins[selectedCoin]?.price ?? 0;
+      const entry = resultsCache[selectedCoin];
+      if (entry) {
+        const ageSecs  = (Date.now() - entry.result.analyzedAt) / 1000;
+        const pricePct = currentPrice > 0
+          ? Math.abs(currentPrice - entry.priceAtAnalysis) / currentPrice * 100
+          : 0;
+        if (ageSecs < CACHE_TTL_MS / 1000 && pricePct < PRICE_MOVE_PCT && entry.result.tf === readTf) {
+          setFromCache(true);
+          return;
+        }
+      }
+    }
+
+    setFromCache(false);
+    setReadMode(mode);
     setReadLoading(true); setReadError('');
 
     try {
@@ -432,12 +470,18 @@ export default function Arena() {
       setReadStep('Reading market…');
       const ctx = gatherContext();
 
-      // Step 3 — ask Grok with everything
-      setReadStep('Asking Grok…');
-      const res = await callGrokCombined(GROK_API_KEY, buildCombinedPrompt(ctx, chartData), readTf, ctx.session);
+      // Step 3 — ask Grok (Quick = no web search ~$0.003 | Deep = live search ~$0.10)
+      setReadStep(mode === 'quick' ? 'Quick analysis…' : 'Searching live…');
+      const prompt = mode === 'quick'
+        ? buildQuickPrompt(ctx, chartData)
+        : buildCombinedPrompt(ctx, chartData);
+      const res = mode === 'quick'
+        ? await callGrokQuick(GROK_API_KEY, prompt, readTf, ctx.session)
+        : await callGrokCombined(GROK_API_KEY, prompt, readTf, ctx.session);
 
-      // Cache result per coin + save history
-      setResultsCache(prev => ({ ...prev, [selectedCoin]: res }));
+      // Cache result per coin (with price snapshot for stale-check)
+      const priceNow = store.coins[selectedCoin]?.price ?? 0;
+      setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode } }));
       setDetailIdx(null);
       const entryStr = res.entryLow && res.entryHigh
         ? `$${fmtPrice(res.entryLow)} – $${fmtPrice(res.entryHigh)}`
@@ -458,7 +502,7 @@ export default function Arena() {
     } finally {
       setReadLoading(false); setReadStep('');
     }
-  }, [selectedCoin, readTf, store, latestHeadlines, econEvents, fundingData]);
+  }, [selectedCoin, readTf, store, latestHeadlines, econEvents, fundingData, resultsCache]);
 
   const ctx = gatherContext();
   const sq = computeSqueezeScore(store.coins[selectedCoin]);
@@ -542,9 +586,12 @@ export default function Arena() {
           <button key={t} className={`gsc-tf-btn${readTf === t ? ' on' : ''}`} onClick={() => setReadTf(t)} style={{ padding: '3px 8px', fontSize: 11 }}>{t}</button>
         ))}
       </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-        <button className="arena-fire-btn" disabled={readLoading} onClick={readMarket} style={{ width: 'auto', marginBottom: 0 }}>
-          {readLoading ? readStep || 'Working…' : 'Read the Market'}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+        <button className="arena-fire-btn arena-quick-btn" disabled={readLoading} onClick={() => readMarket('quick')} style={{ width: 'auto', marginBottom: 0 }} title="Uses local data only — no web search. ~$0.003">
+          {readLoading && readMode === 'quick' ? readStep || 'Working…' : '⚡ Quick'}
+        </button>
+        <button className="arena-fire-btn" disabled={readLoading} onClick={() => readMarket('deep')} style={{ width: 'auto', marginBottom: 0 }} title="Searches live web + X for catalysts. ~$0.10">
+          {readLoading && readMode === 'deep' ? readStep || 'Working…' : '🌐 Deep'}
         </button>
         <button
           className="arena-ask-grok-btn"
@@ -561,6 +608,21 @@ export default function Arena() {
           Ask Grok
         </button>
       </div>
+
+      {/* Cache banner — shown when serving a fresh cached result */}
+      {fromCache && result && (() => {
+        const s = Math.floor((Date.now() - result.analyzedAt) / 1000);
+        const age = s < 60 ? `${s}s ago` : `${Math.floor(s / 60)}m ago`;
+        return (
+          <div className="arena-cache-bar">
+            <span>⚡ Cached · {age} · price within 0.5% · {cacheEntry?.mode === 'quick' ? 'Quick' : 'Deep'}</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className="arena-cache-refresh" onClick={() => readMarket('quick', true)}>⚡ Refresh</button>
+              <button className="arena-cache-refresh" onClick={() => readMarket('deep', true)}>🌐 Deep refresh</button>
+            </div>
+          </div>
+        );
+      })()}
 
       {readLoading && (
         <div className="arena-loading">
