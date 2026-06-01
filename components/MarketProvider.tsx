@@ -212,9 +212,13 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
   const fetchKlines = useCallback(async (coin: CoinId, sym: string) => {
     try {
-      // Fetch 100 candles: enough for RSI, MA20, vol ratio AND volume profile
-      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=15m&limit=100`);
-      const klines = await res.json();
+      // Use futures klines (fapi) — more accurate taker buy/sell for perp traders
+      // Falls back to spot if futures endpoint fails (e.g. no perp for that symbol)
+      const futuresUrl = `https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=15m&limit=100`;
+      const spotUrl    = `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=15m&limit=100`;
+      let raw = await fetch(futuresUrl);
+      if (!raw.ok) raw = await fetch(spotUrl);
+      const klines = await raw.json();
       if (!Array.isArray(klines) || klines.length < 15) return;
 
       const closes = klines.map((k: string[]) => parseFloat(k[4]));
@@ -268,12 +272,13 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       const val = minP + lo * bSize;
       const vah = minP + (hi + 1) * bSize;
 
-      /* ── Taker Buy/Sell ratio (last 20 candles ≈ 5h) ──
+      /* ── Taker Buy/Sell ratio (last 8 candles ≈ 2h) ──
          k[9] = taker buy base volume, k[5] = total base volume
+         Smaller window = reacts faster to recent momentum shifts
          takerBuyRatio > 0.55 = buyers hitting asks (aggression = bullish)
          takerBuyRatio < 0.45 = sellers hitting bids (aggression = bearish) */
       let totalBuyVol = 0, totalBaseVol = 0;
-      klines.slice(-20).forEach((k: string[]) => {
+      klines.slice(-8).forEach((k: string[]) => {
         totalBuyVol  += parseFloat(k[9]);   // taker buy base vol
         totalBaseVol += parseFloat(k[5]);   // total base vol
       });
