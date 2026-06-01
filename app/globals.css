@@ -304,7 +304,7 @@ body::after {
   border: 0.5px solid transparent; white-space: nowrap;
 }
 .desktop-nav-item:hover { color: var(--txt); background: rgba(255,255,255,0.05); }
-.desktop-nav-item.on { color: var(--purple); background: var(--purple-bg); border-color: var(--purple-bdr); }
+.desktop-nav-item.on { color: var(--purple); background: var(--purple-bg); border-color: var(--purple-bdr); font-size: 12px; font-weight: 600; }
 
 @media (min-width: 768px) {
   .hamburger   { display: none !important; }
@@ -854,19 +854,19 @@ body.ticker-on .breaking-alert { top: 90px; }
 /* ── NEWS FEED CARDS ── */
 .nfeed { display: flex; flex-direction: column; gap: 10px; }
 .nfeed-empty { text-align: center; padding: 3rem 1rem; display: flex; flex-direction: column; align-items: center; }
-.ncard { border: 0.5px solid var(--bdr); border-radius: 16px; padding: 12px 14px; transition: border-color 0.15s; }
+.ncard { border: 0.5px solid var(--bdr); border-radius: 12px; padding: 14px 16px; transition: border-color 0.15s; }
 .ncard-catalyst { border-left: 3px solid; }
 .ncard-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
-.ncard-type-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; border: 0.5px solid; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; flex-shrink: 0; }
+.ncard-type-badge { font-size: 10px; font-weight: 700; padding: 2px 9px; border-radius: 99px; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; flex-shrink: 0; }
 .ncard-meta   { font-size: 10px; color: var(--txt3); white-space: nowrap; }
-.ncard-dot    { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.ncard-geo-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-bdr); letter-spacing: .04em; text-transform: uppercase; }
-.ncard-headline { font-size: 14px; font-weight: 600; color: var(--txt); line-height: 1.5; margin-bottom: 0; letter-spacing: -0.1px; }
+.ncard-dot    { display: none; }
+.ncard-geo-tag { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: rgba(248,113,113,0.12); color: var(--red); letter-spacing: .04em; text-transform: uppercase; }
+.ncard-headline { font-size: 14px; font-weight: 600; color: var(--txt); line-height: 1.55; margin-bottom: 0; letter-spacing: -0.1px; }
 .ncard-catalyst .ncard-headline { margin-bottom: 10px; }
-.ncard-impact { display: flex; gap: 8px; background: rgba(0,0,0,0.4); border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; border: 0.5px solid var(--bdr); }
-.ncard-impact-icon { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
-.ncard-impact-text { font-size: 11px; color: var(--txt2); line-height: 1.5; }
-.ncard-ask-btn { font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 8px; cursor: pointer; background: var(--purple-bg); color: var(--purple); border: 0.5px solid var(--purple-bdr); transition: all 0.12s; letter-spacing: .03em; }
+.ncard-impact { border-left: 2px solid rgba(255,255,255,0.07); padding: 1px 0 1px 10px; margin-bottom: 10px; }
+.ncard-impact-icon { display: none; }
+.ncard-impact-text { font-size: 11px; color: var(--txt3); line-height: 1.55; }
+.ncard-ask-btn { font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: 8px; cursor: pointer; background: var(--purple-bg); color: var(--purple); border: 0.5px solid var(--purple-bdr); transition: all 0.12s; }
 .ncard-ask-btn:hover { box-shadow: var(--glow-purple); }
 .ncard-ask-sm  { font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 6px; cursor: pointer; background: var(--purple-bg); color: var(--purple); border: 0.5px solid var(--purple-bdr); transition: all 0.12s; }
 .ncard-ask-sm:hover { box-shadow: var(--glow-purple); }
@@ -1400,7 +1400,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 /* Nav drawer on light */
 [data-theme="light"] .hamburger .ham-line { background: var(--txt2); }
 [data-theme="light"] .desktop-nav-item.on {
-  color: var(--purple); background: var(--purple-bg); border-color: var(--purple-bdr);
+  color: var(--purple); background: var(--purple-bg); border-color: var(--purple-bdr); font-size: 12px; font-weight: 600;
 }
 [data-theme="light"] .desktop-nav-item:hover { background: rgba(0,0,0,0.05); color: var(--txt); }
 

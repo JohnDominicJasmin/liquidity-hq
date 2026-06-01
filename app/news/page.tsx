@@ -6,11 +6,11 @@ import { GEO_KEYWORDS, ECON_NOTES } from '@/lib/classify';
 type Tab = 'foryou' | 'all' | 'geo' | 'crypto' | 'events';
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'foryou',  label: '⚡ For You'   },
-  { id: 'all',     label: '📰 All'       },
-  { id: 'geo',     label: '🌍 War & Geo' },
-  { id: 'crypto',  label: '₿ Crypto'    },
-  { id: 'events',  label: '📅 Events'    },
+  { id: 'foryou',  label: 'For You'   },
+  { id: 'all',     label: 'All'       },
+  { id: 'geo',     label: 'War & Geo' },
+  { id: 'crypto',  label: 'Crypto'    },
+  { id: 'events',  label: 'Events'    },
 ];
 
 function timeAgo(ts: number): string {
@@ -45,9 +45,9 @@ function askGrok(headline: string) {
 
 /* ── Card background styles by type (dark-mode friendly) ── */
 const TYPE_STYLE = {
-  red:    { bg: 'rgba(185,28,28,0.08)',   border: 'rgba(220,38,38,0.30)',   dot: '#f87171', label: '🔴 Breaking'  },
-  amber:  { bg: 'rgba(180,83,9,0.08)',    border: 'rgba(217,119,6,0.30)',   dot: '#fbbf24', label: '🟡 Macro'     },
-  purple: { bg: 'rgba(109,40,217,0.06)',  border: 'rgba(124,58,237,0.22)',  dot: '#a78bfa', label: '🟣 Crypto'    },
+  red:    { bg: 'rgba(185,28,28,0.08)',  border: 'rgba(220,38,38,0.30)',  dot: '#f87171', label: 'Breaking', labelBg: 'rgba(248,113,113,0.12)' },
+  amber:  { bg: 'rgba(180,83,9,0.08)',   border: 'rgba(217,119,6,0.30)',  dot: '#fbbf24', label: 'Macro',    labelBg: 'rgba(251,191,36,0.12)'  },
+  purple: { bg: 'rgba(109,40,217,0.06)', border: 'rgba(124,58,237,0.22)', dot: '#a78bfa', label: 'Crypto',   labelBg: 'rgba(167,139,250,0.12)' },
 };
 
 export default function NewsPage() {
@@ -161,8 +161,8 @@ export default function NewsPage() {
               <div key={w.id} className="ncard ncard-catalyst ncard-whale"
                 style={{ background: bg, borderColor: bdr, borderLeftColor: col }}>
                 <div className="ncard-top">
-                  <span className="ncard-type-badge" style={{ color: col, borderColor: bdr }}>
-                    🐋 {w.symbol} Whale {isBuy ? 'BUY' : 'SELL'}
+                  <span className="ncard-type-badge" style={{ color: col, background: isBuy ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)' }}>
+                    {w.symbol} Whale {isBuy ? 'BUY' : 'SELL'}
                   </span>
                   <span className="ncard-meta">{timeAgo(w.ts)}</span>
                 </div>
@@ -173,7 +173,6 @@ export default function NewsPage() {
                   </span>
                 </div>
                 <div className="ncard-impact">
-                  <span className="ncard-impact-icon">💡</span>
                   <span className="ncard-impact-text">
                     {isBuy
                       ? 'Large aggressive buy — institutional accumulation signal. Watch for follow-through momentum.'
@@ -197,7 +196,7 @@ export default function NewsPage() {
               <div key={a.id} className="ncard ncard-catalyst"
                 style={{ background: cfg.bg, borderColor: cfg.border, borderLeftColor: cfg.dot }}>
                 <div className="ncard-top">
-                  <span className="ncard-type-badge" style={{ color: cfg.dot, borderColor: cfg.border }}>
+                  <span className="ncard-type-badge" style={{ color: cfg.dot, background: cfg.labelBg }}>
                     {geo ? geo.tag : cfg.label}
                   </span>
                   <span className="ncard-meta">{a.source} · {timeAgo(a.ts)}</span>
@@ -205,7 +204,6 @@ export default function NewsPage() {
                 <div className="ncard-headline">{a.headline}</div>
                 {geo && (
                   <div className="ncard-impact">
-                    <span className="ncard-impact-icon">💡</span>
                     <span className="ncard-impact-text">{geo.note}</span>
                   </div>
                 )}
@@ -219,14 +217,13 @@ export default function NewsPage() {
             <div key={i} className="ncard ncard-catalyst"
               style={{ background: 'rgba(167,139,250,0.06)', borderColor: 'rgba(167,139,250,0.25)', borderLeftColor: '#a78bfa' }}>
               <div className="ncard-top">
-                <span className="ncard-type-badge" style={{ color: '#a78bfa', borderColor: 'rgba(167,139,250,0.3)' }}>
+                <span className="ncard-type-badge" style={{ color: '#a78bfa', background: 'rgba(167,139,250,0.12)' }}>
                   {g.tag}
                 </span>
                 <span className="ncard-meta">{g.source} · {g.timeStr}</span>
               </div>
               <div className="ncard-headline">{g.headline}</div>
               <div className="ncard-impact">
-                <span className="ncard-impact-icon">💡</span>
                 <span className="ncard-impact-text">{g.note}</span>
               </div>
               <button className="ncard-ask-btn" onClick={() => askGrok(g.headline)}>Ask Grok →</button>
@@ -255,8 +252,7 @@ export default function NewsPage() {
               <div key={a.id} className="ncard" style={{ background: cfg.bg, borderColor: cfg.border }}>
                 <div className="ncard-top">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className="ncard-dot" style={{ background: cfg.dot }} />
-                    <span className="ncard-type-badge" style={{ color: cfg.dot, borderColor: cfg.border }}>
+                    <span className="ncard-type-badge" style={{ color: cfg.dot, background: cfg.labelBg }}>
                       {cfg.label}
                     </span>
                     {geo && <span className="ncard-geo-tag">{geo.tag}</span>}
@@ -303,7 +299,7 @@ export default function NewsPage() {
                 <div className="ncard-top">
                   <span className="ncard-type-badge" style={{
                     color: urgent ? '#fbbf24' : soon ? '#fbbf24' : 'var(--txt3)',
-                    borderColor: urgent ? 'rgba(251,191,36,0.4)' : soon ? 'rgba(251,191,36,0.2)' : 'var(--bdr)',
+                    background: urgent ? 'rgba(251,191,36,0.12)' : soon ? 'rgba(251,191,36,0.07)' : 'rgba(255,255,255,0.05)',
                   }}>
                     {e.type}
                   </span>
@@ -319,7 +315,6 @@ export default function NewsPage() {
                 <div className="ncard-headline">{e.name}</div>
                 {note && (
                   <div className="ncard-impact">
-                    <span className="ncard-impact-icon">💡</span>
                     <span className="ncard-impact-text">{note}</span>
                   </div>
                 )}
