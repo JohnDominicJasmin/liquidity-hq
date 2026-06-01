@@ -871,6 +871,37 @@ body.ticker-on .breaking-alert { top: 90px; }
 .ncard-ask-sm  { display: block; margin-left: auto; background: none; border: none; color: var(--purple); font-size: 11px; font-weight: 600; cursor: pointer; padding: 4px 0; transition: opacity 0.12s; }
 .ncard-ask-sm:hover  { opacity: 0.65; box-shadow: none; }
 
+/* ── TELEGRAM ALERTS PAGE ── */
+.tg-status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.tg-dot-on      { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+.tg-dot-off     { background: var(--red); }
+.tg-dot-loading { background: #d97706; animation: pulse 1s infinite; }
+
+.tg-step { display: flex; gap: 14px; padding: 0 0 16px; border-bottom: 0.5px solid var(--bdr); margin-bottom: 16px; }
+.tg-step-num { width: 24px; height: 24px; border-radius: 50%; background: var(--purple-bg); border: 0.5px solid var(--purple-bdr); color: var(--purple); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+.tg-step-body { flex: 1; min-width: 0; }
+.tg-step-title { font-size: 13px; font-weight: 600; color: var(--txt); margin-bottom: 8px; }
+.tg-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.tg-list li { font-size: 12px; color: var(--txt2); line-height: 1.55; }
+.tg-list li code { font-size: 11px; background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 4px; color: var(--txt); font-family: 'JetBrains Mono', monospace; }
+.tg-list li strong { color: var(--txt); font-weight: 600; }
+
+.tg-copy-box { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); border: 0.5px solid var(--bdr); border-radius: 8px; padding: 7px 10px; margin-top: 6px; }
+.tg-copy-code { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--txt2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-copy-btn { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 5px; cursor: pointer; background: var(--purple-bg); color: var(--purple); border: 0.5px solid var(--purple-bdr); flex-shrink: 0; transition: opacity 0.12s; }
+.tg-copy-btn:hover { opacity: 0.75; }
+
+.tg-action-btn { font-size: 12px; font-weight: 600; padding: 8px 16px; border-radius: 9px; cursor: pointer; background: var(--purple-bg); color: var(--purple); border: 0.5px solid var(--purple-bdr); transition: all 0.12s; }
+.tg-action-btn:hover:not(:disabled) { box-shadow: var(--glow-purple); }
+.tg-action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.tg-btn-ok  { background: rgba(52,211,153,0.1); color: var(--green); border-color: rgba(52,211,153,0.3); }
+.tg-btn-err { background: rgba(248,113,113,0.1); color: var(--red);   border-color: rgba(248,113,113,0.3); }
+.tg-btn-secondary { background: rgba(255,255,255,0.04); color: var(--txt2); border-color: var(--bdr2); }
+.tg-btn-secondary:hover:not(:disabled) { background: rgba(255,255,255,0.07); box-shadow: none; }
+
+.tg-condition-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 0.5px solid var(--bdr); }
+.tg-cond-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 3px; flex-shrink: 0; }
+
 /* ── ARENA ASK BUTTON ── */
 .arena-ask-grok-btn {
   width: auto; padding: 8px 16px; border-radius: 10px; margin-bottom: 0;

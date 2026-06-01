@@ -7,6 +7,7 @@ import { useMarket } from '@/lib/marketStore';
 const NAV = [
   { path: '/',            icon: '📊', label: 'Dashboard',   desk: true  },
   { path: '/briefing',    icon: '🌅', label: 'Briefing',    desk: true  },
+  { path: '/alerts',      icon: '🔔', label: 'Alerts',      desk: false },
   { path: '/hours',       icon: '🕐', label: 'Best Hours',  desk: false },
   { path: '/news',        icon: '📰', label: 'News',        desk: true  },
   null,
