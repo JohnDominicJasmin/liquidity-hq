@@ -934,20 +934,64 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     } catch { /* fail silently */ }
   }, []);
 
-  /* ── BTC Dominance (with history) ── */
-  const fetchBTCDom = useCallback(async () => {
+  /* ── BTC + ETH Dominance via CMC (accurate — excludes stablecoins from total) ── */
+  const fetchCMCGlobal = useCallback(async () => {
     try {
-      const res = await fetch('https://api.coingecko.com/api/v3/global');
+      const res = await fetch('/api/cmc?type=global');
       const d = await res.json();
-      const dom = d?.data?.market_cap_percentage?.btc;
+      const dom    = d?.data?.btc_dominance   as number | undefined;
+      const ethDom = d?.data?.eth_dominance   as number | undefined;
       if (dom) {
         setStore(s => ({
           ...s,
-          btcDom: dom,
-          btcDomHistory: [...s.btcDomHistory.slice(-9), dom],
+          btcDom:       parseFloat(dom.toFixed(2)),
+          btcDomHistory:[...s.btcDomHistory.slice(-9), parseFloat(dom.toFixed(2))],
+          ethDom:       ethDom != null ? parseFloat(ethDom.toFixed(2)) : s.ethDom,
         }));
       }
     } catch { /* */ }
+  }, []);
+
+  /* ── Alt Season Index (top-50 alts vs BTC, 90-day) ── */
+  // Symbols to exclude from the top-50 eligible list
+  const STABLECOINS = new Set([
+    'USDT','USDC','DAI','BUSD','TUSD','FRAX','USDP','GUSD','PYUSD',
+    'USDE','FDUSD','USDS','USDD','LUSD','SUSD','CRVUSD','USDX',
+  ]);
+  const WRAPPED = new Set(['WBTC','WETH','WEETH','WBETH','STETH','CBETH','RETH']);
+
+  const fetchAltSeason = useCallback(async () => {
+    try {
+      const res = await fetch('/api/cmc?type=altseason');
+      const d = await res.json();
+      const coins = (d?.data ?? []) as Array<{
+        symbol: string;
+        tags?: string[];
+        quote?: { USD?: { percent_change_90d?: number } };
+      }>;
+
+      const btc   = coins.find(c => c.symbol === 'BTC');
+      if (!btc) return;
+      const btc90 = btc.quote?.USD?.percent_change_90d ?? 0;
+
+      const eligible = coins
+        .filter(c =>
+          c.symbol !== 'BTC' &&
+          !STABLECOINS.has(c.symbol) &&
+          !WRAPPED.has(c.symbol) &&
+          !c.tags?.includes('stablecoin') &&
+          !c.tags?.includes('wrapped-tokens')
+        )
+        .slice(0, 50);
+
+      if (!eligible.length) return;
+
+      const beat  = eligible.filter(c => (c.quote?.USD?.percent_change_90d ?? -Infinity) > btc90).length;
+      const score = Math.round((beat / eligible.length) * 100);
+
+      setStore(s => ({ ...s, altSeasonScore: score }));
+    } catch { /* */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ── Initialise on mount ── */
@@ -960,7 +1004,8 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     fetchBybitKlines();       // RSI/MA20/VWAP/POC for HYPE
     fetchBybitMultiTFRSI();   // 1h + 4h RSI for HYPE
     fetchFNG();
-    fetchBTCDom();
+    fetchCMCGlobal();
+    fetchAltSeason();
     fetchMacro();
     fetchETF();
     fetchMultiTFRSI();
@@ -982,7 +1027,8 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       setInterval(fetchBybitKlines,       3  * 60 * 1000),  // same cadence as Binance klines
       setInterval(fetchBybitMultiTFRSI,  15  * 60 * 1000),  // same as Binance multi-TF
       setInterval(fetchFNG,             24  * 60 * 60 * 1000),
-      setInterval(fetchBTCDom,            5  * 60 * 1000),
+      setInterval(fetchCMCGlobal,         5  * 60 * 1000),   // BTC/ETH dom — CMC, every 5m
+      setInterval(fetchAltSeason,        15  * 60 * 1000),   // 90d score — slow-moving, every 15m
       setInterval(fetchMacro,            10  * 60 * 1000),
       setInterval(fetchETF,              30  * 60 * 1000),
       setInterval(fetchMultiTFRSI,       15  * 60 * 1000),

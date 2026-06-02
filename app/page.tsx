@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useMarket, COINS, BYBIT_SYMS, COIN_DEC, fmtPrice, fmtChg, fmtOI, classifyFunding } from '@/lib/marketStore';
 import Ticker from '@/components/Ticker';
 import FearGreed from '@/components/FearGreed';
+import AltSeasonIndex from '@/components/AltSeasonIndex';
 import RaidMeter from '@/components/RaidMeter';
 import SOTD from '@/components/SOTD';
 import NewsBanner from '@/components/NewsBanner';
@@ -508,6 +509,7 @@ export default function Dashboard() {
         <CoinSidebar />
         <div className="ind-row" style={{ margin: 0 }}><FearGreed /></div>
         <div className="ind-row" style={{ margin: 0 }}><BTCDominance /></div>
+        <div className="ind-row" style={{ margin: 0 }}><AltSeasonIndex /></div>
       </aside>
 
       {/* ── Main content ── */}
@@ -524,6 +526,7 @@ export default function Dashboard() {
           <div className="dash-section">Market indicators</div>
           <div className="ind-row"><FearGreed /></div>
           <div className="ind-row"><BTCDominance /></div>
+          <div className="ind-row"><AltSeasonIndex /></div>
         </div>
 
         <div className="dash-section dash-section-hot">Raid conditions</div>

@@ -113,6 +113,8 @@ export type MarketStore = {
   fngPrev: number | null;
   btcDom: number | null;
   btcDomHistory: number[];
+  ethDom: number | null;            // ETH market dominance % (from CMC)
+  altSeasonScore: number | null;    // 0–100: % of top-50 alts outperforming BTC (90d)
   wsStatus: string;
   newsCache: string[];
   oilPrice: number | null;
@@ -154,6 +156,8 @@ export const defaultStore: MarketStore = {
   fngPrev: null,
   btcDom: null,
   btcDomHistory: [],
+  ethDom: null,
+  altSeasonScore: null,
   wsStatus: 'Connecting...',
   newsCache: [],
   oilPrice: null,
