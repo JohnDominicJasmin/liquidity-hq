@@ -83,6 +83,8 @@ const CD: Record<string, number> = {
   news:   15 * 60_000,   // overridden per session in main handler
   oi:     2 * 3600_000,
   cvd:    60 * 60_000,
+  fng:   23 * 3600_000,   // Fear & Greed extreme (once per day)
+  daily: 23 * 3600_000,   // Daily 7am summary
 };
 
 /* ── Session helpers ── */
@@ -690,6 +692,123 @@ async function checkPriceAlerts(stamp: string, prices: Record<string, number>, q
 }
 
 /* ════════════════════════════════════════
+   9. FEAR & GREED EXTREME
+   ════════════════════════════════════════ */
+interface FNGData { value: string; value_classification: string }
+
+async function checkFearGreed(token: string, chatId: string, stamp: string): Promise<string[]> {
+  const fired: string[] = [];
+  try {
+    const res  = await fetch('https://api.alternative.me/fng/', { cache: 'no-store' });
+    if (!res.ok) return [];
+    const json = await res.json() as { data: FNGData[] };
+    const val  = parseInt(json.data?.[0]?.value ?? '50');
+    const cls  = json.data?.[0]?.value_classification ?? '';
+    if (isNaN(val)) return [];
+
+    if (val <= 15 && !onCooldown('fng_fear', CD.fng)) {
+      await tg(token, chatId,
+        `🩸 <b>Extreme Fear — Fear &amp; Greed: ${val}</b>\n\n` +
+        `Classification: <b>${cls}</b>\n` +
+        `Signal: Market in panic — historically a contrarian accumulation zone\n` +
+        `Action: Watch for capitulation candle + volume spike as entry signal.\n\n` +
+        `<i>${stamp}</i>`);
+      markSent('fng_fear'); fired.push(`Fear & Greed extreme fear (${val})`);
+    }
+    if (val >= 85 && !onCooldown('fng_greed', CD.fng)) {
+      await tg(token, chatId,
+        `🔥 <b>Extreme Greed — Fear &amp; Greed: ${val}</b>\n\n` +
+        `Classification: <b>${cls}</b>\n` +
+        `Signal: Market euphoria — historically a distribution zone\n` +
+        `Action: Consider tightening stops and reducing position size.\n\n` +
+        `<i>${stamp}</i>`);
+      markSent('fng_greed'); fired.push(`Fear & Greed extreme greed (${val})`);
+    }
+  } catch { /* skip */ }
+  return fired;
+}
+
+/* ════════════════════════════════════════
+   10. DAILY 7AM PHT SUMMARY
+   ════════════════════════════════════════ */
+async function checkDailySummary(
+  token: string, chatId: string, stamp: string,
+  frMap: Record<string, number | null>
+): Promise<string[]> {
+  const d       = new Date();
+  const phtHour = (d.getUTCHours() + 8) % 24;
+  const phtMin  = d.getUTCMinutes();
+  if (phtHour !== 7 || phtMin > 10) return [];
+  if (onCooldown('daily_summary', CD.daily)) return [];
+
+  const dateStr = d.toLocaleString('en-PH', {
+    timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric',
+  });
+
+  // Fear & Greed
+  let fngLine    = '';
+  let fngForGrok = '';
+  try {
+    const fngRes = await fetch('https://api.alternative.me/fng/', { cache: 'no-store' });
+    if (fngRes.ok) {
+      const fngJson = await fngRes.json() as { data: FNGData[] };
+      const val = fngJson.data?.[0]?.value;
+      const cls = fngJson.data?.[0]?.value_classification;
+      if (val) { fngLine = `\n😨 F&amp;G: <b>${val}</b> (${cls})`; fngForGrok = `Fear & Greed: ${val} (${cls}). `; }
+    }
+  } catch { /* skip */ }
+
+  // Funding rates — two rows of 4
+  const frParts = COINS.map(coin => {
+    const fr = frMap[coin];
+    if (fr == null) return null;
+    const sign = fr >= 0 ? '+' : '';
+    return `${LABELS[coin]} ${sign}${(fr * 100).toFixed(4)}%`;
+  }).filter(Boolean) as string[];
+  const frBlock    = [frParts.slice(0, 4).join(' · '), frParts.slice(4).join(' · ')].filter(Boolean).join('\n');
+  const frForGrok  = frParts.join(', ');
+
+  // Active price alerts
+  let alertsBlock = '';
+  try {
+    const db = getSupabase();
+    if (db) {
+      const { data } = await db.from('price_alerts').select('*').eq('active', true);
+      if (data?.length) {
+        const lines = (data as PriceAlert[]).map(a => {
+          const lbl = LABELS[a.coin] ?? a.coin.toUpperCase();
+          const dir = a.direction === 'above' ? '↑' : '↓';
+          return `• ${lbl} ${dir} $${parseFloat(String(a.target_price)).toLocaleString()}${a.label ? ` (${a.label})` : ''}`;
+        }).join('\n');
+        alertsBlock = `\n\n🎯 <b>Active Price Alerts:</b>\n${lines}`;
+      }
+    }
+  } catch { /* skip */ }
+
+  // Grok daily outlook (no conviction label — this is an overview, not a signal)
+  const grokRaw  = await grokAnalyze(
+    `Elite crypto trader. Morning briefing for ${dateStr}. ` +
+    fngForGrok +
+    `Funding rates: ${frForGrok}. ` +
+    `In 2-3 sentences: overall market bias today and which 1-2 coins look most interesting to watch? ` +
+    `Direct and actionable. No conviction label needed.`
+  );
+  const grokLine = grokRaw ? `\n\n🤖 <b>Grok:</b> ${grokRaw}` : '';
+
+  await tg(token, chatId,
+    `☀️ <b>Morning Briefing — ${dateStr}</b>` +
+    `${fngLine}\n\n` +
+    `📊 <b>Funding Rates:</b>\n${frBlock}` +
+    `${grokLine}` +
+    `${alertsBlock}\n\n` +
+    `<i>${stamp}</i>`
+  );
+
+  markSent('daily_summary');
+  return ['Daily 7am summary'];
+}
+
+/* ════════════════════════════════════════
    MAIN HANDLER
    ════════════════════════════════════════ */
 export async function GET() {
@@ -720,6 +839,8 @@ export async function GET() {
     checkRapidMove(stamp, signalQueue),
     checkWhales(stamp, signalQueue),
     checkNews(token, chatId, stamp),          // global — sends directly
+    checkFearGreed(token, chatId, stamp),     // global — sends directly
+    checkDailySummary(token, chatId, stamp, frMap), // global — sends directly
     checkOISpike(stamp, prices, signalQueue),
     checkCVD(stamp, signalQueue),
     checkPriceAlerts(stamp, prices, signalQueue),
@@ -732,7 +853,7 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true, fired,
-    checked: ['FR extremes', 'FR flip', 'RSI', 'RSI 50 cross', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'OI spike', 'CVD', 'Price alerts'],
+    checked: ['FR extremes', 'FR flip', 'RSI', 'RSI 50 cross', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts'],
     session: nyActive ? 'NY/Pre-NY (high activity)' : 'Asia/London',
     cooldowns: { whale: `${CD.whale / 60_000}min`, news: `${CD.news / 60_000}min` },
   });

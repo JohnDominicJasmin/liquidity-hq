@@ -116,6 +116,9 @@ export default function AlertsPage() {
     { dot: '#fb923c', title: 'Rapid Move ±10% (4H)',   desc: 'Major momentum candle on 4H — trend move · 4h cooldown', grok: true },
     { dot: '#f97316', title: 'Flash Move ±4% (5m)',    desc: 'Stop cascade or news flash — extreme 5-min move · 30min cooldown', grok: true },
     { dot: '#818cf8', title: 'Confluence Alert',        desc: '2+ signals same coin in one run → single combined ping · Grok weighs all signals together', grok: true },
+    { dot: '#f87171', title: 'Fear & Greed ≤15',        desc: 'Extreme fear — contrarian accumulation zone · 23h cooldown', grok: false },
+    { dot: '#f97316', title: 'Fear & Greed ≥85',        desc: 'Extreme greed — distribution zone · 23h cooldown', grok: false },
+    { dot: '#fbbf24', title: 'Daily 7am Summary',       desc: 'FR snapshot + F&G + active price alerts + Grok market outlook · fires once daily at 7am PHT', grok: true },
   ];
 
   return (
