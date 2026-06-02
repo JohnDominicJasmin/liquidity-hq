@@ -26,6 +26,8 @@ const MIN_ALERT          = 500_000;               // $500K = big hit 🔥
 const CASCADE_THRESHOLD  = 3_000_000;             // $3M in 30s = cascade
 const CASCADE_WIN        = 30_000;                // 30-second window
 const CASCADE_HIDE_MS    = 12_000;                // show cascade badge 12s
+const STORAGE_KEY        = 'liq-events-v2';       // localStorage key
+const STORAGE_MAX        = 400;                   // max events to persist
 const BYBIT_COINS        = ['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT','BNBUSDT','HYPEUSDT','NEARUSDT'];
 const FILTER_COINS       = ['ALL','BTC','ETH','SOL','XRP','BNB','HYPE','NEAR'];
 
@@ -81,6 +83,7 @@ export default function LiqFeed() {
   const historyRef      = useRef<LiqEvent[]>([]);
   const msgRef          = useRef(0);
   const cascadeTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ── Rebuild derived state from history ── */
   const rebuild = useCallback((history: LiqEvent[]) => {
@@ -125,6 +128,21 @@ export default function LiqFeed() {
     setClusters(buckets);
   }, []);
 
+  /* ── Persist history to localStorage (debounced 5s) ── */
+  const saveToStorage = useCallback(() => {
+    if (saveTimer.current) return;
+    saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
+      try {
+        const now = Date.now();
+        const recent = historyRef.current
+          .filter(e => now - e.ts < CLUSTER_WIN)
+          .slice(-STORAGE_MAX);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(recent));
+      } catch { /* storage full — ignore */ }
+    }, 5000);
+  }, []);
+
   /* ── Common event processor for both exchanges ── */
   const onLiq = useCallback((
     sym: string, side: 'LONG' | 'SHORT', usd: number, price: number, source: 'BN' | 'BB'
@@ -140,7 +158,8 @@ export default function LiqFeed() {
     historyRef.current = [...historyRef.current, ev].slice(-5000);
     rebuild(historyRef.current);
     setFeed(prev => [ev, ...prev].slice(0, FEED_SIZE));
-  }, [rebuild]);
+    saveToStorage();
+  }, [rebuild, saveToStorage]);
 
   /* ── Binance forceOrder WebSocket (individual symbol streams — all-market @arr is deprecated) ── */
   const BN_SYMBOLS = ['btcusdt','ethusdt','solusdt','xrpusdt','bnbusdt','nearusdt','suiusdt'];
@@ -211,11 +230,30 @@ export default function LiqFeed() {
   }, [onLiq]);
 
   useEffect(() => {
+    // ── Seed from localStorage (last session's events) ──────────────────
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed: LiqEvent[] = JSON.parse(stored);
+        const now  = Date.now();
+        // Only keep events within the 4h cluster window — reassign IDs to avoid collisions
+        const valid = parsed
+          .filter(e => now - e.ts < CLUSTER_WIN)
+          .map(e => ({ ...e, id: ++idCounter }));
+        if (valid.length > 0) {
+          historyRef.current = valid;
+          rebuild(valid);
+          setFeed(valid.slice().reverse().slice(0, FEED_SIZE));
+        }
+      }
+    } catch { /* corrupted storage — ignore */ }
+
     connectBN();
     connectBB();
     const iv = setInterval(() => rebuild(historyRef.current), 30_000);
     return () => {
       clearInterval(iv);
+      if (saveTimer.current) clearTimeout(saveTimer.current);
       bnWsRef.current?.close();
       bbWsRef.current?.close();
       if (cascadeTimer.current) clearTimeout(cascadeTimer.current);
