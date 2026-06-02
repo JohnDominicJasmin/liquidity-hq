@@ -2,7 +2,7 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { classifyNews, GEO_KEYWORDS, classifyEcon } from '@/lib/classify';
 
-const FINNHUB_KEY = 'd7f177pr01qi33g80jm0d7f177pr01qi33g80jmg';
+// Finnhub calls go through /api/news/finnhub — key stays server-side
 
 export interface Alert {
   id: number;
@@ -86,8 +86,6 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const seenRef = useRef<Set<string>>(new Set());
   const alertIdRef = useRef(0);
   const cpLastRef = useRef(0);
-  const newsWSRef = useRef<WebSocket | null>(null);
-  const wsRetriesRef = useRef(0);
   const whaleIdRef = useRef(0);
   const seenWhaleIds = useRef<Set<number>>(new Set());
 
@@ -114,46 +112,12 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     setAlerts(prev => prev.filter(a => a.id !== id));
   }, []);
 
-  /* ── Finnhub WS (supplementary live stream) ── */
-  const startNewsWS = useCallback(() => {
-    if (newsWSRef.current) { try { newsWSRef.current.close(); } catch { /* */ } }
-    const ws = new WebSocket(`wss://ws.finnhub.io?token=${FINNHUB_KEY}`);
-    newsWSRef.current = ws;
-
-    ws.onopen = () => {
-      wsRetriesRef.current = 0;
-      ws.send(JSON.stringify({ type: 'subscribe-news', symbol: '*' }));
-    };
-
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === 'news' && msg.data) {
-          const items = Array.isArray(msg.data) ? msg.data : [msg.data];
-          items.forEach((n: Record<string, string | number>) => {
-            const headline = (n.headline || n.summary || '') as string;
-            if (!headline) return;
-            const type = classifyNews(headline);
-            if (!type) return;
-            pushAlert(headline, (n.source as string) || 'Finnhub', (n.datetime as number) || Math.floor(Date.now() / 1000), type);
-          });
-        }
-      } catch { /* */ }
-    };
-
-    ws.onclose = () => {
-      wsRetriesRef.current++;
-      const delay = Math.min(30, wsRetriesRef.current * 5) * 1000;
-      setTimeout(startNewsWS, delay);
-    };
-  }, [pushAlert]);
-
   /* ── Finnhub REST news — primary source (crypto + general) ── */
   const fetchFinnhubNews = useCallback(async () => {
     try {
       const [cryptoRes, generalRes] = await Promise.allSettled([
-        fetch(`https://finnhub.io/api/v1/news?category=crypto&token=${FINNHUB_KEY}`).then(r => r.json()),
-        fetch(`https://finnhub.io/api/v1/news?category=general&minId=0&token=${FINNHUB_KEY}`).then(r => r.json()),
+        fetch('/api/news/finnhub?type=crypto').then(r => r.json()),
+        fetch('/api/news/finnhub?type=general').then(r => r.json()),
       ]);
 
       const cryptoItems: Record<string, string | number>[] =
@@ -215,7 +179,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
       const now = new Date();
       const from = now.toISOString().slice(0, 10);
       const to = new Date(+now + 60 * 864e5).toISOString().slice(0, 10);
-      const res = await fetch(`https://finnhub.io/api/v1/calendar/economic?from=${from}&to=${to}&token=${FINNHUB_KEY}`);
+      const res = await fetch(`/api/news/finnhub?type=calendar&from=${from}&to=${to}`);
       const data = await res.json();
       const raw: Record<string, string | number>[] = data.economicCalendar || data || [];
       const out: EconEvent[] = [];
@@ -247,7 +211,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   /* ── Finnhub geo news ── */
   const fetchGeoEvents = useCallback(async () => {
     try {
-      const res = await fetch(`https://finnhub.io/api/v1/news?category=general&minId=0&token=${FINNHUB_KEY}`);
+      const res = await fetch('/api/news/finnhub?type=general');
       const articles: Record<string, string | number>[] = await res.json();
       if (!Array.isArray(articles)) return;
       const now = Math.floor(Date.now() / 1000);
@@ -313,8 +277,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     }
 
     // Fire all sources immediately on mount
-    startNewsWS();
-    fetchFinnhubNews();   // PRIMARY: Finnhub REST
+    fetchFinnhubNews();   // PRIMARY: Finnhub REST (via server proxy)
     fetchRSSNews();       // SECONDARY: Reuters/AP/CoinDesk/CoinTelegraph RSS
     fetchEconEvents();
     fetchGeoEvents();
@@ -342,7 +305,6 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     return () => {
       intervals.forEach(clearInterval);
       clearTimeout(cpTimer);
-      newsWSRef.current?.close();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
