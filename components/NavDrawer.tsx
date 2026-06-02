@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMarket } from '@/lib/marketStore';
 import { useAuth } from './AuthProvider';
+import { track } from '@/lib/analytics';
 
 const NAV = [
   { path: '/',            icon: '📊', label: 'Dashboard',   desk: true  },
@@ -169,6 +170,7 @@ export default function NavDrawer() {
                       className="auth-signout-btn"
                       onClick={async () => {
                         setAuthOpen(false);
+                        track.signOut();
                         await signOut();
                         router.push('/login');
                       }}
@@ -221,6 +223,7 @@ export default function NavDrawer() {
                   className="nav-item nav-signout"
                   onClick={async () => {
                     setOpen(false);
+                    track.signOut();
                     await signOut();
                     router.push('/login');
                   }}

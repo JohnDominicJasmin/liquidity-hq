@@ -2,6 +2,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
+import posthog from 'posthog-js';
 
 interface AuthCtx {
   user: User | null;
@@ -35,7 +36,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
     // Keep in sync on sign-in / sign-out / token refresh
     const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      const u = session?.user ?? null;
+      setUser(u);
+      // Identify / reset in PostHog so all events are tied to this user
+      try {
+        if (u) posthog.identify(u.id, { email: u.email });
+        else    posthog.reset();
+      } catch { /* PostHog may not be initialised yet */ }
     });
 
     return () => subscription.unsubscribe();

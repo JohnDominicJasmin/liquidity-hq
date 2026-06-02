@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase';
+import { track } from '@/lib/analytics';
 
 export default function LoginPage() {
   const [email, setEmail]               = useState('');
@@ -15,6 +16,7 @@ export default function LoginPage() {
     if (!sb) { setError('Supabase not configured'); return; }
     setGoogleLoading(true);
     setError('');
+    track.signIn('google');
     const { error } = await sb.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -32,6 +34,7 @@ export default function LoginPage() {
     if (!sb) { setError('Supabase not configured'); return; }
     setEmailLoading(true);
     setError('');
+    track.signIn('magic_link');
     const { error } = await sb.auth.signInWithOtp({
       email: trimmed,
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },

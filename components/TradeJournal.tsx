@@ -5,6 +5,7 @@ import { COINS, CoinId } from '@/lib/marketStore';
 import { getPHT, getSessionName } from '@/lib/session';
 import { getSupabase } from '@/lib/supabase';
 import AuthGate from './AuthGate';
+import { track } from '@/lib/analytics';
 
 type Direction = 'LONG' | 'SHORT';
 type TradeResult = 'OPEN' | 'WIN' | 'LOSS' | 'BE';
@@ -130,6 +131,7 @@ function Inner() {
     }
 
     if (!error) {
+      track.journalSaved('OPEN');
       await loadTrades();
       setEntry(''); setStopLoss(''); setTpPrice(''); setPosUSD(''); setLeverage(8); setNotes('');
       setTab('history');

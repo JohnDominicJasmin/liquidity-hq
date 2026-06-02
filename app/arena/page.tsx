@@ -6,6 +6,7 @@ import { getPHT, getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
+import { track } from '@/lib/analytics';
 import SetupScanner from '@/components/SetupScanner';
 import ConfluenceScorer from '@/components/ConfluenceScorer';
 import GrokSignalChart from '@/components/GrokSignalChart';
@@ -491,6 +492,7 @@ export default function Arena() {
         : buildCombinedPrompt(ctx, chartData);
       const { result: res, usage } = await callGrokViaProxy(prompt, readTf, ctx.session, mode);
       if (usage) setGrokUsage(usage);
+      track.arenaAnalysis(mode, selectedCoin);
 
       // Cache result per coin (with price snapshot for stale-check)
       const priceNow = store.coins[selectedCoin]?.price ?? 0;
