@@ -102,7 +102,7 @@ export default function AlertsPage() {
     { dot: '#60a5fa', title: 'FR Direction Flip',      desc: 'FR crosses zero (pos→neg or neg→pos) · fires on transition', grok: false },
     { dot: '#fbbf24', title: '1H RSI > 78',            desc: 'Overbought — Exhaustion Risk · 4h cooldown', grok: false },
     { dot: '#60a5fa', title: '1H RSI < 22',            desc: 'Oversold — Bounce Setup · 4h cooldown', grok: false },
-    { dot: '#a78bfa', title: 'Whale Trade',            desc: 'BTC >$2M · ETH >$1M · SOL >$400K · 30min cooldown', grok: true },
+    { dot: '#a78bfa', title: 'Whale Trade',            desc: 'BTC >$5M · ETH >$2M · SOL >$1M · XRP/BNB >$750K · NEAR/SUI >$500K · 30min cooldown', grok: true },
     { dot: '#f87171', title: 'Breaking News',          desc: 'Geopolitical / macro Finnhub headlines · 15min cooldown', grok: true },
     { dot: '#fbbf24', title: 'OI Spike ±15% in 1h',   desc: 'New money entering — big move building · 2h cooldown', grok: true },
     { dot: '#34d399', title: 'CVD Bullish Divergence', desc: 'Price down but buyers absorbing — accumulation signal · 1h cooldown', grok: false },

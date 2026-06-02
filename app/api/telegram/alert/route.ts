@@ -61,8 +61,8 @@ const LABELS: Record<string, string> = {
 const COINS = Object.keys(LABELS);
 
 const WHALE_THRESHOLD: Record<string, number> = {
-  btc: 2_000_000, eth: 1_000_000, sol: 400_000,
-  xrp: 300_000,   bnb: 300_000,  near: 150_000, sui: 150_000,
+  btc: 5_000_000, eth: 2_000_000, sol: 1_000_000,
+  xrp: 750_000,   bnb: 750_000,  near: 500_000, sui: 500_000,
 };
 
 /* ── In-memory state ── */
