@@ -1,3 +1,39 @@
+import { getSupabase } from './supabase';
+
+export interface GrokUsageInfo {
+  deep_used:  number;
+  deep_limit: number;
+  quick_used: number;
+}
+
+/** Client-side proxy call — routes through /api/grok (key stays server-side, rate-limited). */
+export async function callGrokViaProxy(
+  prompt: string,
+  tf: string,
+  session: string,
+  type: 'quick' | 'deep'
+): Promise<{ result: CombinedResult; usage: GrokUsageInfo | null }> {
+  const sb    = getSupabase();
+  const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined;
+
+  const res = await fetch('/api/grok', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ prompt, tf, session, type }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({})) as { error?: string; code?: string; usage?: GrokUsageInfo };
+    const msg = err.error ?? 'Grok proxy error';
+    throw Object.assign(new Error(msg), { code: err.code, usage: err.usage });
+  }
+
+  return res.json() as Promise<{ result: CombinedResult; usage: GrokUsageInfo | null }>;
+}
+
 export interface GrokContext {
   coin: string;
   price: string;

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMarket, classifyFunding, CoinId, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
-import { buildPrompt, callGrok, GrokResult, GrokContext, buildCombinedPrompt, callGrokCombined, buildQuickPrompt, callGrokQuick, CombinedResult, ChartData, calcEMA, calcRSI } from '@/lib/grok';
+import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
 import { getPHT, getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
 import { getSupabase } from '@/lib/supabase';
@@ -45,7 +45,6 @@ function ReasoningText({ text }: { text: string }) {
 }
 
 const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui'];
-const GROK_API_KEY = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5Bepv2POY4L6EdBULh4GYNCO';
 
 /* ── Result cache ── */
 interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep' }
@@ -84,6 +83,7 @@ export default function Arena() {
   const [detailIdx, setDetailIdx]     = useState<number | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [ctxOpen, setCtxOpen]         = useState(false);
+  const [grokUsage, setGrokUsage]     = useState<GrokUsageInfo | null>(null);
 
   // Derived — current coin's cached result (persists across coin switches)
   const cacheEntry = resultsCache[selectedCoin] ?? null;
@@ -484,14 +484,13 @@ export default function Arena() {
       setReadStep('Reading market…');
       const ctx = gatherContext();
 
-      // Step 3 — ask Grok (Quick = no web search ~$0.003 | Deep = live search ~$0.10)
+      // Step 3 — ask Grok via server proxy (key hidden, rate-limited)
       setReadStep(mode === 'quick' ? 'Quick analysis…' : 'Searching live…');
       const prompt = mode === 'quick'
         ? buildQuickPrompt(ctx, chartData)
         : buildCombinedPrompt(ctx, chartData);
-      const res = mode === 'quick'
-        ? await callGrokQuick(GROK_API_KEY, prompt, readTf, ctx.session)
-        : await callGrokCombined(GROK_API_KEY, prompt, readTf, ctx.session);
+      const { result: res, usage } = await callGrokViaProxy(prompt, readTf, ctx.session, mode);
+      if (usage) setGrokUsage(usage);
 
       // Cache result per coin (with price snapshot for stale-check)
       const priceNow = store.coins[selectedCoin]?.price ?? 0;
@@ -512,7 +511,11 @@ export default function Arena() {
         }).then(() => {});
       }
     } catch (e: unknown) {
-      setReadError(e instanceof Error ? e.message : 'Unknown error');
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      setReadError(msg);
+      // If rate limit error, update usage display so the chip reflects the limit
+      const usageFromErr = (e as { usage?: GrokUsageInfo }).usage;
+      if (usageFromErr) setGrokUsage(usageFromErr);
     } finally {
       setReadLoading(false); setReadStep('');
     }
@@ -607,6 +610,18 @@ export default function Arena() {
         <button className="arena-fire-btn" disabled={readLoading} onClick={() => readMarket('deep')} style={{ width: 'auto', marginBottom: 0 }} title="Searches live web + X for catalysts. ~$0.10">
           {readLoading && readMode === 'deep' ? readStep || 'Working…' : '🌐 Deep'}
         </button>
+        {/* Usage chip — signed-in users only */}
+        {user && grokUsage && (
+          <div className="grok-usage-chip" title={`Quick analyses today: ${grokUsage.quick_used}`}>
+            🔥 {grokUsage.deep_used}/{grokUsage.deep_limit} deep
+          </div>
+        )}
+        {!user && (
+          <div className="grok-usage-chip grok-usage-anon" title="Sign in to use Deep Analysis">
+            🔒 Deep requires sign-in
+          </div>
+        )}
+
         <button
           className="arena-ask-grok-btn"
           style={{ width: 'auto', marginBottom: 0 }}

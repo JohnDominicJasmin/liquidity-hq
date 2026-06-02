@@ -158,6 +158,13 @@ export default function NavDrawer() {
                 {authOpen && (
                   <div className="auth-dropdown">
                     <div className="auth-dropdown-email">{user.email}</div>
+                    <Link
+                      href="/arena"
+                      className="auth-dropdown-usage"
+                      onClick={() => setAuthOpen(false)}
+                    >
+                      🔥 Deep Analysis — <span>view usage</span>
+                    </Link>
                     <button
                       className="auth-signout-btn"
                       onClick={async () => {

@@ -2153,6 +2153,18 @@ body.ticker-on .breaking-alert { top: 90px; }
 [data-theme="light"] .frh-row:hover { background: rgba(0,0,0,0.03) !important; }
 [data-theme="light"] .frh-row.on    { background: var(--purple-bg) !important; }
 
+/* ── GROK USAGE CHIP ──────────────────────────────────────────────────────── */
+.grok-usage-chip {
+  font-size: 11px; font-weight: 600; color: var(--txt3);
+  padding: 5px 10px; border-radius: 20px;
+  border: 0.5px solid var(--bdr2); background: var(--bg2);
+  display: flex; align-items: center; white-space: nowrap;
+  flex-shrink: 0;
+}
+.grok-usage-anon {
+  color: var(--txt3); border-color: var(--bdr);
+}
+
 /* ── AUTH GATE — inline lock screen for gated features ───────────────────── */
 .auth-gate {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -2204,6 +2216,14 @@ body.ticker-on .breaking-alert { top: 90px; }
   border-bottom: 0.5px solid var(--bdr); margin-bottom: 4px;
   word-break: break-all;
 }
+.auth-dropdown-usage {
+  display: block; font-size: 11px; color: var(--txt3);
+  padding: 6px 8px; border-radius: 8px; text-decoration: none;
+  transition: background 0.1s; margin-bottom: 2px;
+}
+.auth-dropdown-usage:hover { background: rgba(255,255,255,0.04); color: var(--txt2); }
+.auth-dropdown-usage span { color: var(--purple); text-decoration: underline; text-underline-offset: 2px; }
+
 .auth-signout-btn {
   width: 100%; text-align: left;
   font-size: 13px; color: var(--red); font-weight: 500;
