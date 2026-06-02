@@ -709,14 +709,9 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
   /* ── Coinglass: exchange net flow + liquidation levels ── */
   const fetchCoinglassData = useCallback(async () => {
-    const proxy = (url: string) => 'https://corsproxy.io/?' + encodeURIComponent(url);
-
     /* 1. Exchange net flow */
     try {
-      const res = await fetch(
-        proxy('https://open-api.coinglass.com/public/v2/exchange_amount_chart?symbol=BTC&time_type=h24'),
-        { cache: 'no-cache' }
-      );
+      const res = await fetch('/api/proxy?type=coinglass-flow', { cache: 'no-cache' });
       const data = await res.json();
       const netInflow =
         data?.data?.netInflow ??
@@ -729,10 +724,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
     /* 2. Liquidation levels */
     try {
-      const res = await fetch(
-        proxy('https://open-api.coinglass.com/public/v2/liquidation_chart?symbol=BTC&time_type=h4'),
-        { cache: 'no-cache' }
-      );
+      const res = await fetch('/api/proxy?type=coinglass-liq', { cache: 'no-cache' });
       const data = await res.json();
       const arr: Array<{ price: number; amount: number; side: string }> =
         data?.data ?? [];
@@ -752,36 +744,9 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
   /* ── Google Trends 'bitcoin' (7-day) ── */
   const fetchGoogleTrends = useCallback(async () => {
-    const proxy = (url: string) => 'https://corsproxy.io/?' + encodeURIComponent(url);
     try {
-      /* Step 1 — explore endpoint to get token + request object */
-      const exploreReq = JSON.stringify({
-        comparisonItem: [{ keyword: 'bitcoin', geo: '', time: 'now 7-d' }],
-        category: 0,
-        property: '',
-      });
-      const exploreUrl =
-        'https://trends.google.com/trends/api/explore?hl=en-US&tz=480&req=' +
-        encodeURIComponent(exploreReq);
-
-      const exploreRes = await fetch(proxy(exploreUrl), { cache: 'no-cache' });
-      const exploreRaw = await exploreRes.text();
-      const exploreJson = JSON.parse(exploreRaw.replace(/^\)\]\}'\\n/, '').replace(/^\)\]\}'\n/, ''));
-      const widgets: Array<{ id: string; token: string; request: unknown }> =
-        exploreJson?.widgets ?? [];
-      const tsWidget = widgets.find(w => w.id === 'TIMESERIES');
-      if (!tsWidget?.token || !tsWidget?.request) return;
-
-      /* Step 2 — fetch actual timeline data */
-      const dataUrl =
-        'https://trends.google.com/trends/api/widgetdata/multiline?hl=en-US&tz=480&req=' +
-        encodeURIComponent(JSON.stringify(tsWidget.request)) +
-        '&token=' +
-        encodeURIComponent(tsWidget.token);
-
-      const dataRes = await fetch(proxy(dataUrl), { cache: 'no-cache' });
-      const dataRaw = await dataRes.text();
-      const dataJson = JSON.parse(dataRaw.replace(/^\)\]\}'\\n/, '').replace(/^\)\]\}'\n/, ''));
+      const res = await fetch('/api/proxy?type=trends', { cache: 'no-cache' });
+      const dataJson = await res.json();
       const timelineData: Array<{ value: number[] }> =
         dataJson?.default?.timelineData ?? [];
       if (!timelineData.length) return;
@@ -893,7 +858,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       }));
     } catch {
       try {
-        const res = await fetch('https://corsproxy.io/?' + encodeURIComponent('https://api.alternative.me/fng/?limit=2'), { cache: 'no-cache' });
+        const res = await fetch('https://api.alternative.me/fng/?limit=2&format=json', { cache: 'no-cache' });
         const d = await res.json();
         const items = d.data;
         if (!items?.[0]?.value) return;
@@ -909,26 +874,21 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
   /* ── BTC + ETH Spot ETF Net Flows (SoSoValue) ── */
   const fetchETF = useCallback(async () => {
-    const proxy = (url: string) => 'https://corsproxy.io/?' + encodeURIComponent(url);
     try {
-      const [btcRes, ethRes] = await Promise.allSettled([
-        fetch(proxy('https://sosovalue.xyz/api/etf/us-btc-spot?language=en'), { cache: 'no-cache' }),
-        fetch(proxy('https://sosovalue.xyz/api/etf/us-eth-spot?language=en'), { cache: 'no-cache' }),
-      ]);
-      if (btcRes.status === 'fulfilled' && btcRes.value.ok) {
-        const d = await btcRes.value.json();
-        const raw = d?.data?.list?.[0]?.totalNetInflow
-          ?? d?.data?.totalNetInflow
-          ?? d?.list?.[0]?.totalNetInflow
-          ?? d?.totalNetInflow;
+      const res = await fetch('/api/proxy?type=etf', { cache: 'no-cache' });
+      const { btc, eth } = await res.json();
+      if (btc) {
+        const raw = btc?.data?.list?.[0]?.totalNetInflow
+          ?? btc?.data?.totalNetInflow
+          ?? btc?.list?.[0]?.totalNetInflow
+          ?? btc?.totalNetInflow;
         if (raw != null) setStore(s => ({ ...s, etfNetFlow: parseFloat(String(raw)) }));
       }
-      if (ethRes.status === 'fulfilled' && ethRes.value.ok) {
-        const d = await ethRes.value.json();
-        const raw = d?.data?.list?.[0]?.totalNetInflow
-          ?? d?.data?.totalNetInflow
-          ?? d?.list?.[0]?.totalNetInflow
-          ?? d?.totalNetInflow;
+      if (eth) {
+        const raw = eth?.data?.list?.[0]?.totalNetInflow
+          ?? eth?.data?.totalNetInflow
+          ?? eth?.list?.[0]?.totalNetInflow
+          ?? eth?.totalNetInflow;
         if (raw != null) setStore(s => ({ ...s, ethEtfNetFlow: parseFloat(String(raw)) }));
       }
     } catch { /* fail silently */ }

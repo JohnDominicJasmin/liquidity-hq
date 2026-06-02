@@ -1,0 +1,98 @@
+/**
+ * Server-side proxy for CORS-restricted external APIs.
+ * Replaces client-side corsproxy.io calls — no CORS issues server-side.
+ *
+ * GET /api/proxy?type=coinglass-flow     → Coinglass BTC exchange net flow
+ * GET /api/proxy?type=coinglass-liq      → Coinglass BTC liquidation levels
+ * GET /api/proxy?type=trends             → Google Trends bitcoin (7-day score)
+ * GET /api/proxy?type=etf                → SoSoValue BTC + ETH ETF net flows
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+
+export async function GET(req: NextRequest) {
+  const type = req.nextUrl.searchParams.get('type');
+
+  try {
+    /* ── Coinglass: BTC exchange net flow ── */
+    if (type === 'coinglass-flow') {
+      const r = await fetch(
+        'https://open-api.coinglass.com/public/v2/exchange_amount_chart?symbol=BTC&time_type=h24',
+        { next: { revalidate: 300 } }
+      );
+      return NextResponse.json(await r.json());
+    }
+
+    /* ── Coinglass: BTC liquidation levels ── */
+    if (type === 'coinglass-liq') {
+      const r = await fetch(
+        'https://open-api.coinglass.com/public/v2/liquidation_chart?symbol=BTC&time_type=h4',
+        { next: { revalidate: 300 } }
+      );
+      return NextResponse.json(await r.json());
+    }
+
+    /* ── Google Trends: bitcoin 7-day search score (2-step) ── */
+    if (type === 'trends') {
+      // Step 1: get widget token
+      const exploreReq = JSON.stringify({
+        comparisonItem: [{ keyword: 'bitcoin', geo: '', time: 'now 7-d' }],
+        category: 0,
+        property: '',
+      });
+      const exploreUrl =
+        'https://trends.google.com/trends/api/explore?hl=en-US&tz=480&req=' +
+        encodeURIComponent(exploreReq);
+
+      const exploreRes = await fetch(exploreUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        next: { revalidate: 3600 },
+      });
+      const raw1 = await exploreRes.text();
+      const json1 = JSON.parse(raw1.replace(/^\)\]\}'\n?/, ''));
+      const widgets: Array<{ id: string; token: string; request: unknown }> =
+        json1?.widgets ?? [];
+      const ts = widgets.find(w => w.id === 'TIMESERIES');
+      if (!ts?.token || !ts?.request) {
+        return NextResponse.json({ error: 'No TIMESERIES widget' }, { status: 502 });
+      }
+
+      // Step 2: fetch timeline data
+      const dataUrl =
+        'https://trends.google.com/trends/api/widgetdata/multiline?hl=en-US&tz=480&req=' +
+        encodeURIComponent(JSON.stringify(ts.request)) +
+        '&token=' + encodeURIComponent(ts.token);
+
+      const dataRes = await fetch(dataUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        next: { revalidate: 3600 },
+      });
+      const raw2 = await dataRes.text();
+      const json2 = JSON.parse(raw2.replace(/^\)\]\}'\n?/, ''));
+      return NextResponse.json(json2);
+    }
+
+    /* ── SoSoValue: BTC + ETH spot ETF net flows ── */
+    if (type === 'etf') {
+      const [btc, eth] = await Promise.allSettled([
+        fetch('https://sosovalue.xyz/api/etf/us-btc-spot?language=en', {
+          next: { revalidate: 1800 },
+        }),
+        fetch('https://sosovalue.xyz/api/etf/us-eth-spot?language=en', {
+          next: { revalidate: 1800 },
+        }),
+      ]);
+      return NextResponse.json({
+        btc: btc.status === 'fulfilled' ? await btc.value.json() : null,
+        eth: eth.status === 'fulfilled' ? await eth.value.json() : null,
+      });
+    }
+
+    return NextResponse.json({ error: 'Unknown type' }, { status: 400 });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Proxy fetch failed' },
+      { status: 500 }
+    );
+  }
+}
