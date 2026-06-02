@@ -5,6 +5,7 @@ import { buildPrompt, callGrok, GrokResult, GrokContext, buildCombinedPrompt, ca
 import { getPHT, getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
 import { getSupabase } from '@/lib/supabase';
+import { useAuth } from '@/components/AuthProvider';
 import SetupScanner from '@/components/SetupScanner';
 import ConfluenceScorer from '@/components/ConfluenceScorer';
 import GrokSignalChart from '@/components/GrokSignalChart';
@@ -71,6 +72,7 @@ const ARENA_HIST_KEY = 'arena-session-history-v1';
 export default function Arena() {
   const { store } = useMarket();
   const { latestHeadlines, econEvents } = useNews();
+  const { user } = useAuth();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>('btc');
   const [readTf, setReadTf]         = useState<'15m'|'1h'|'4h'>('15m');
   const [readLoading, setReadLoading] = useState(false);
@@ -503,7 +505,7 @@ export default function Arena() {
         coin: ctx.coin, time: new Date().toLocaleTimeString(),
         entry: entryStr, reasoning: res.reasoning, session: ctx.session,
       }, ...h].slice(0, 10));
-      if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      if (user && process.env.NEXT_PUBLIC_SUPABASE_URL) {
         getSupabase()!.from('signals').insert({
           coin: ctx.coin, signal: res.signal, confidence: res.confidence,
           entry_zone: entryStr, reasoning: res.reasoning, session: ctx.session,

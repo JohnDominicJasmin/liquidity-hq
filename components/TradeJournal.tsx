@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { COINS, CoinId } from '@/lib/marketStore';
 import { getPHT, getSessionName } from '@/lib/session';
 import { getSupabase } from '@/lib/supabase';
+import AuthGate from './AuthGate';
 
 type Direction = 'LONG' | 'SHORT';
 type TradeResult = 'OPEN' | 'WIN' | 'LOSS' | 'BE';
@@ -553,8 +554,13 @@ function Inner() {
 /* Suspense wrapper required for useSearchParams in App Router */
 export default function TradeJournal() {
   return (
-    <Suspense fallback={<div style={{ padding: '2rem', color: '#444', textAlign: 'center', fontSize: 13 }}>Loading…</div>}>
-      <Inner />
-    </Suspense>
+    <AuthGate
+      title="Sign in to access your Journal"
+      desc="Your trade history, P&amp;L stats, and setups are private to your account."
+    >
+      <Suspense fallback={<div style={{ padding: '2rem', color: '#444', textAlign: 'center', fontSize: 13 }}>Loading…</div>}>
+        <Inner />
+      </Suspense>
+    </AuthGate>
   );
 }

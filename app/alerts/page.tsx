@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import AuthGate from '@/components/AuthGate';
 
 type Status = 'loading' | 'configured' | 'not_configured';
 
@@ -142,7 +143,11 @@ export default function AlertsPage() {
         </div>
       </div>
 
-      {/* Price Alerts */}
+      {/* Price Alerts — requires sign-in */}
+      <AuthGate
+        title="Sign in to use Price Alerts"
+        desc="Save price targets and get Telegram pings when they're hit. Free account required."
+      >
       <div className="card" style={{ marginBottom: 10 }}>
         <div className="lbl" style={{ marginBottom: 12 }}>🎯 Price Alerts</div>
 
@@ -203,6 +208,7 @@ export default function AlertsPage() {
           Fires once when price crosses your target → Grok analysis included → alert deactivates automatically.
         </div>
       </div>
+      </AuthGate>
 
       {/* Test & Manual Check */}
       <div className="card" style={{ marginBottom: 10 }}>
