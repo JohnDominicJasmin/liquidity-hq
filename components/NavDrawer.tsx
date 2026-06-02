@@ -1,8 +1,9 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useMarket } from '@/lib/marketStore';
+import { useAuth } from './AuthProvider';
 
 const NAV = [
   { path: '/',            icon: '📊', label: 'Dashboard',   desk: true  },
@@ -38,11 +39,18 @@ function useStatusDot() {
 }
 
 export default function NavDrawer() {
-  const [open, setOpen]         = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
-  const [theme, setTheme]       = useState<'dark' | 'light'>('dark');
+  const [open, setOpen]             = useState(false);
+  const [moreOpen, setMoreOpen]     = useState(false);
+  const [authOpen, setAuthOpen]     = useState(false);
+  const [theme, setTheme]           = useState<'dark' | 'light'>('dark');
   const pathname = usePathname();
-  const dot = useStatusDot();
+  const router   = useRouter();
+  const dot      = useStatusDot();
+  const { user, loading: authLoading, signOut } = useAuth();
+  const authRef  = useRef<HTMLDivElement>(null);
+
+  // Initials from email (e.g. "dominic@..." → "D")
+  const initials = user?.email?.[0]?.toUpperCase() ?? '?';
 
   // Close "More" dropdown on outside click
   useEffect(() => {
@@ -51,6 +59,18 @@ export default function NavDrawer() {
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
   }, [moreOpen]);
+
+  // Close auth dropdown on outside click
+  useEffect(() => {
+    if (!authOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (authRef.current && !authRef.current.contains(e.target as Node)) {
+        setAuthOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [authOpen]);
 
   // Initialise from localStorage on first mount
   useEffect(() => {
@@ -123,6 +143,39 @@ export default function NavDrawer() {
             {theme === 'dark' ? '☀' : '◑'}
           </button>
 
+          {/* Auth button — avatar when signed in, "Sign In" when not */}
+          {!authLoading && (
+            user ? (
+              <div className="auth-wrap" ref={authRef}>
+                <button
+                  className="auth-avatar-btn"
+                  onClick={() => setAuthOpen(v => !v)}
+                  title={user.email ?? 'Account'}
+                  aria-label="Account menu"
+                >
+                  {initials}
+                </button>
+                {authOpen && (
+                  <div className="auth-dropdown">
+                    <div className="auth-dropdown-email">{user.email}</div>
+                    <button
+                      className="auth-signout-btn"
+                      onClick={async () => {
+                        setAuthOpen(false);
+                        await signOut();
+                        router.push('/login');
+                      }}
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Link href="/login" className="auth-signin-btn">Sign In</Link>
+            )
+          )}
+
           {/* Hamburger — mobile only (hidden on desktop via CSS) */}
           <div className={`hamburger${open ? ' open' : ''}`} onClick={() => setOpen(v => !v)}>
             <div className="ham-line" />
@@ -150,6 +203,35 @@ export default function NavDrawer() {
                 {item.label}
               </Link>
             )
+          )}
+
+          {/* Auth entry at bottom of mobile drawer */}
+          {!authLoading && (
+            <>
+              <div className="nav-divider" />
+              {user ? (
+                <button
+                  className="nav-item nav-signout"
+                  onClick={async () => {
+                    setOpen(false);
+                    await signOut();
+                    router.push('/login');
+                  }}
+                >
+                  <span className="nav-item-icon">👤</span>
+                  Sign Out
+                </button>
+              ) : (
+                <Link
+                  href="/login"
+                  className={`nav-item${pathname === '/login' ? ' on' : ''}`}
+                  onClick={() => setOpen(false)}
+                >
+                  <span className="nav-item-icon">🔑</span>
+                  Sign In
+                </Link>
+              )}
+            </>
           )}
         </div>
       </div>
