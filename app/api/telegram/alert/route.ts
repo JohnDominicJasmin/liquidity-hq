@@ -5,7 +5,7 @@ import { getSupabase } from '@/lib/supabase';
 export const dynamic = 'force-dynamic';
 
 /* ── Grok (lightweight — no web search, pure reasoning) ── */
-const GROK_KEY = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5Bepv2POY4L6EdBULh4GYNCO';
+const GROK_KEY = process.env.GROK_API_KEY ?? '';
 async function grokAnalyze(prompt: string): Promise<string> {
   try {
     const res = await fetch('https://api.x.ai/v1/chat/completions', {
@@ -509,7 +509,7 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
    5. BREAKING NEWS (global — stays direct, no coin grouping)
    ════════════════════════════════════════ */
 interface FinnhubItem { id: number; headline: string; datetime: number; source: string }
-const FINNHUB_KEY = 'd7f177pr01qi33g80jm0d7f177pr01qi33g80jmg';
+const FINNHUB_KEY = process.env.FINNHUB_KEY ?? '';
 
 async function checkNews(token: string, chatId: string, stamp: string): Promise<string[]> {
   const fired: string[] = [];

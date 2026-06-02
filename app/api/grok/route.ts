@@ -3,8 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { parseCombinedResponse } from '@/lib/grok';
 
 // Key stays server-side — never exposed to the browser
-const GROK_KEY   = process.env.GROK_API_KEY
-  ?? 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5Bepv2POY4L6EdBULh4GYNCO';
+const GROK_KEY = process.env.GROK_API_KEY ?? '';
 const DEEP_LIMIT = 20; // per user per calendar day (UTC)
 
 function sb(token?: string) {
