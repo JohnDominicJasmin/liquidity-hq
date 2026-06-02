@@ -22,9 +22,9 @@ export default function About() {
           ['Funding & OI', 'Bybit Public API'],
           ['Long/Short Ratio', 'Bybit Account Ratio'],
           ['Fear & Greed', 'Alternative.me'],
-          ['BTC Dominance', 'CoinGecko'],
+          ['BTC Dominance', 'CoinMarketCap'],
           ['Breaking News', 'Finnhub WebSocket'],
-          ['Crypto News', 'CryptoPanic (90s poll)'],
+          ['Crypto News', 'Finnhub + RSS (Reuters/AP/CoinDesk)'],
           ['Econ Calendar', 'Finnhub Calendar API'],
           ['AI Signal', 'xAI Grok-4.3'],
         ].map(([k, v]) => (

@@ -95,7 +95,7 @@ export default function NewsPage() {
           News
         </div>
         <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 12 }}>
-          Live feed · Finnhub REST + WS + CryptoPanic
+          Live feed · Finnhub REST + WS + RSS
           <span style={{
             marginLeft: 8, fontWeight: 700,
             color: alerts.length > 0 ? 'var(--green)' : 'var(--txt3)',
@@ -146,7 +146,7 @@ export default function NewsPage() {
                 High-impact news + whale trades will appear here
               </div>
               <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 12, opacity: 0.7 }}>
-                Sources: Finnhub · CryptoPanic · Whale detector
+                Sources: Finnhub · RSS · Whale detector
               </div>
             </div>
           )}
@@ -241,7 +241,7 @@ export default function NewsPage() {
               <div style={{ fontSize: 13, color: 'var(--txt3)' }}>
                 {tab === 'geo'    ? 'No war/conflict alerts yet'
                 : tab === 'crypto' ? 'No crypto news yet'
-                : 'Fetching news — Finnhub + CryptoPanic loading…'}
+                : 'Fetching news — Finnhub + RSS loading…'}
               </div>
             </div>
           )}

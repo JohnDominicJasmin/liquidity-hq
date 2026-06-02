@@ -85,7 +85,6 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const [whaleAlerts, setWhaleAlerts] = useState<WhaleAlert[]>([]);
   const seenRef = useRef<Set<string>>(new Set());
   const alertIdRef = useRef(0);
-  const cpLastRef = useRef(0);
   const whaleIdRef = useRef(0);
   const seenWhaleIds = useRef<Set<number>>(new Set());
 
@@ -143,33 +142,6 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
         const ts = (a.datetime as number) || Math.floor(Date.now() / 1000);
         pushAlert(headline, (a.source as string) || 'Finnhub', ts, type);
       });
-    } catch { /* */ }
-  }, [pushAlert]);
-
-  /* ── CryptoPanic poll — fixed URL (removed invalid /free/ path and filter=important) ── */
-  const pollCryptoPanic = useCallback(async () => {
-    try {
-      const res = await fetch(
-        'https://cryptopanic.com/api/v1/posts/?auth_token=free&kind=news&public=true'
-      );
-      if (!res.ok) return;
-      const d = await res.json();
-      const results = d.results || [];
-      results.forEach((n: Record<string, string | Record<string, string>>) => {
-        const ts = n.published_at
-          ? Math.floor(new Date(n.published_at as string).getTime() / 1000)
-          : Math.floor(Date.now() / 1000);
-        if (ts <= cpLastRef.current) return;
-        const headline = (n.title as string) || '';
-        if (!headline) return;
-        const type = classifyNews(headline) ?? 'purple';
-        const src = (n.source as Record<string, string>)?.title || 'CryptoPanic';
-        pushAlert(headline, src, ts, type);
-      });
-      if (results.length > 0) {
-        const latest = Math.floor(new Date((results[0] as Record<string, string>).published_at).getTime() / 1000);
-        if (latest > cpLastRef.current) cpLastRef.current = latest;
-      }
     } catch { /* */ }
   }, [pushAlert]);
 
@@ -281,19 +253,6 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     fetchRSSNews();       // SECONDARY: Reuters/AP/CoinDesk/CoinTelegraph RSS
     fetchEconEvents();
     fetchGeoEvents();
-    pollCryptoPanic();    // TERTIARY: CryptoPanic
-
-    /* Polling intervals */
-    const cpInterval = () => {
-      const pht = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
-      const h = pht.getHours();
-      return (h >= 20 || h < 7) ? 5 * 60 * 1000 : 15 * 60 * 1000;
-    };
-    let cpTimer: ReturnType<typeof setTimeout>;
-    const scheduleCryptoPanic = () => {
-      cpTimer = setTimeout(() => { pollCryptoPanic(); scheduleCryptoPanic(); }, cpInterval());
-    };
-    scheduleCryptoPanic();
 
     const intervals = [
       setInterval(fetchFinnhubNews,  2 * 60 * 1000),    // every 2 min
@@ -304,7 +263,6 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
 
     return () => {
       intervals.forEach(clearInterval);
-      clearTimeout(cpTimer);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

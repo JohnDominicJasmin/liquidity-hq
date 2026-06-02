@@ -83,7 +83,7 @@ export default function NewsFeed() {
       )}
 
       <div style={{ fontSize: 10, color: '#333', marginTop: 10, paddingTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)' }}>
-        Sources: Finnhub WebSocket (real-time) · CryptoPanic free API · Finnhub Calendar &amp; Geo news — classified by keyword. Not Grok API.
+        Sources: Finnhub REST + RSS (Reuters/AP/CoinDesk) · Finnhub Calendar &amp; Geo news — classified by keyword. Not Grok API.
       </div>
     </div>
   );

@@ -179,7 +179,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '=== UPCOMING ECONOMIC EVENTS ===',
     ctx.upcomingEvents || 'None in next 24h',
     '',
-    '=== LIVE NEWS FEED (last 6 alerts — Finnhub WS + CryptoPanic) ===',
+    '=== LIVE NEWS FEED (last 6 alerts — Finnhub + RSS) ===',
     ctx.news,
     '',
     '=== BTC + ETH SPOT ETF FLOWS ===',
