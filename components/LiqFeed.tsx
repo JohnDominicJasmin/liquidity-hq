@@ -152,10 +152,18 @@ export default function LiqFeed() {
     ws.onclose = () => { setBnStatus('error'); setTimeout(connectBN, 5000); };
     ws.onmessage = (ev) => {
       try {
-        const o = JSON.parse(ev.data as string)?.o;
+        const raw = JSON.parse(ev.data as string);
+        // Handle both raw event and wrapped {stream, data} envelope
+        const event = raw?.data ?? raw;
+        const o = event?.o;
         if (!o) return;
-        const price = parseFloat(o.ap ?? o.p ?? '0');
-        const qty   = parseFloat(o.z  ?? o.q ?? '0');
+        // Skip partial fills — ap is "0" until fully executed, giving $0 value
+        if (o.X && o.X !== 'FILLED') return;
+        const priceAp = parseFloat(o.ap ?? '0');
+        const priceP  = parseFloat(o.p  ?? '0');
+        const price   = priceAp > 0 ? priceAp : priceP;  // ap=0 → fall back to order price
+        const qty     = parseFloat(o.z  ?? o.q ?? '0');
+        if (price <= 0 || qty <= 0) return;
         // S:"SELL" = liq order sells → trader was LONG → LONG liquidation
         onLiq(o.s ?? '', o.S === 'SELL' ? 'LONG' : 'SHORT', price * qty, price, 'BN');
       } catch { /* */ }
@@ -177,9 +185,12 @@ export default function LiqFeed() {
       try {
         const msg = JSON.parse(ev.data as string);
         if (!msg.topic?.startsWith('liquidation.') || !msg.data) return;
-        const d     = msg.data;
-        const price = parseFloat(d.price ?? '0');
-        const qty   = parseFloat(d.size  ?? '0');
+        // Handle both object and array variants of msg.data
+        const d = Array.isArray(msg.data) ? msg.data[0] : msg.data;
+        if (!d) return;
+        const price = parseFloat(d.price ?? d.liqPrice ?? '0');
+        const qty   = parseFloat(d.size  ?? d.qty      ?? '0');
+        if (price <= 0 || qty <= 0) return;
         // Bybit: side "Sell" = liq forced a sell → trader was LONG
         onLiq(d.symbol ?? '', d.side === 'Sell' ? 'LONG' : 'SHORT', price * qty, price, 'BB');
       } catch { /* */ }
