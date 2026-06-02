@@ -183,7 +183,8 @@ export default function LiqFeed() {
     bbWsRef.current = ws;
     ws.onopen = () => {
       setBbStatus('live');
-      ws.send(JSON.stringify({ op: 'subscribe', args: BYBIT_COINS.map(s => `liquidation.${s}`) }));
+      // v5 topic is now allLiquidation.{symbol} (liquidation.{symbol} was removed)
+      ws.send(JSON.stringify({ op: 'subscribe', args: BYBIT_COINS.map(s => `allLiquidation.${s}`) }));
     };
     ws.onerror = () => setBbStatus('error');
     ws.onclose = () => {
@@ -195,13 +196,16 @@ export default function LiqFeed() {
       try {
         const msg = JSON.parse(ev.data as string);
         if (msg.op === 'subscribe') return;   // ignore subscription ack
-        if (!msg.topic?.startsWith('liquidation.') || !msg.data) return;
-        const d = Array.isArray(msg.data) ? msg.data[0] : msg.data;
-        if (!d) return;
-        const price = parseFloat(d.price ?? d.liqPrice ?? '0');
-        const qty   = parseFloat(d.size  ?? d.qty      ?? '0');
-        if (price <= 0 || qty <= 0) return;
-        onLiq(d.symbol ?? '', d.side === 'Sell' ? 'LONG' : 'SHORT', price * qty, price, 'BB');
+        if (!msg.topic?.startsWith('allLiquidation.') || !msg.data) return;
+        const items = Array.isArray(msg.data) ? msg.data : [msg.data];
+        items.forEach((d: Record<string, string>) => {
+          // allLiquidation fields: s=symbol, S=side (Buy=long liq), v=size, p=bankruptcy price
+          const price = parseFloat(d.p ?? '0');
+          const qty   = parseFloat(d.v ?? '0');
+          if (price <= 0 || qty <= 0) return;
+          // S:"Buy" = long position was liquidated; S:"Sell" = short position liquidated
+          onLiq(d.s ?? '', d.S === 'Buy' ? 'LONG' : 'SHORT', price * qty, price, 'BB');
+        });
       } catch { /* */ }
     };
   }, [onLiq]);
