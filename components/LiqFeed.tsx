@@ -142,56 +142,65 @@ export default function LiqFeed() {
     setFeed(prev => [ev, ...prev].slice(0, FEED_SIZE));
   }, [rebuild]);
 
-  /* ── Binance forceOrder WebSocket ── */
+  /* ── Binance forceOrder WebSocket (individual symbol streams — all-market @arr is deprecated) ── */
+  const BN_SYMBOLS = ['btcusdt','ethusdt','solusdt','xrpusdt','bnbusdt','nearusdt','suiusdt'];
   const connectBN = useCallback(() => {
     try { bnWsRef.current?.close(); } catch { /* */ }
-    const ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
+    // Combined stream: each symbol has its own forceOrder feed
+    const streams = BN_SYMBOLS.map(s => `${s}@forceOrder`).join('/');
+    const ws = new WebSocket(`wss://fstream.binance.com/stream?streams=${streams}`);
     bnWsRef.current = ws;
     ws.onopen  = () => setBnStatus('live');
     ws.onerror = () => setBnStatus('error');
     ws.onclose = () => { setBnStatus('error'); setTimeout(connectBN, 5000); };
     ws.onmessage = (ev) => {
       try {
-        const raw = JSON.parse(ev.data as string);
-        // Handle both raw event and wrapped {stream, data} envelope
-        const event = raw?.data ?? raw;
-        const o = event?.o;
+        const msg = JSON.parse(ev.data as string);
+        // Combined stream wraps: {stream:"btcusdt@forceOrder", data:{e,E,o}}
+        const o = msg?.data?.o ?? msg?.o;
         if (!o) return;
-        // Skip partial fills — ap is "0" until fully executed, giving $0 value
         if (o.X && o.X !== 'FILLED') return;
         const priceAp = parseFloat(o.ap ?? '0');
         const priceP  = parseFloat(o.p  ?? '0');
-        const price   = priceAp > 0 ? priceAp : priceP;  // ap=0 → fall back to order price
+        const price   = priceAp > 0 ? priceAp : priceP;
         const qty     = parseFloat(o.z  ?? o.q ?? '0');
         if (price <= 0 || qty <= 0) return;
-        // S:"SELL" = liq order sells → trader was LONG → LONG liquidation
         onLiq(o.s ?? '', o.S === 'SELL' ? 'LONG' : 'SHORT', price * qty, price, 'BN');
       } catch { /* */ }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onLiq]);
 
-  /* ── Bybit liquidation WebSocket ── */
+  /* ── Bybit liquidation WebSocket (try primary, fall back to bytick.com mirror) ── */
+  const bbRetriesRef2 = useRef(0);
   const connectBB = useCallback(() => {
     try { bbWsRef.current?.close(); } catch { /* */ }
-    const ws = new WebSocket('wss://stream.bybit.com/v5/public/linear');
+    // bytick.com is Bybit's alternative domain — less likely to be blocked by extensions
+    const host = bbRetriesRef2.current % 2 === 0
+      ? 'wss://stream.bybit.com/v5/public/linear'
+      : 'wss://stream.bytick.com/v5/public/linear';
+    const ws = new WebSocket(host);
     bbWsRef.current = ws;
     ws.onopen = () => {
       setBbStatus('live');
       ws.send(JSON.stringify({ op: 'subscribe', args: BYBIT_COINS.map(s => `liquidation.${s}`) }));
     };
     ws.onerror = () => setBbStatus('error');
-    ws.onclose = () => { setBbStatus('error'); setTimeout(connectBB, 5000); };
+    ws.onclose = () => {
+      setBbStatus('error');
+      bbRetriesRef2.current++;
+      setTimeout(connectBB, 5000);
+    };
     ws.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data as string);
+        if (msg.op === 'subscribe') return;   // ignore subscription ack
         if (!msg.topic?.startsWith('liquidation.') || !msg.data) return;
-        // Handle both object and array variants of msg.data
         const d = Array.isArray(msg.data) ? msg.data[0] : msg.data;
         if (!d) return;
         const price = parseFloat(d.price ?? d.liqPrice ?? '0');
         const qty   = parseFloat(d.size  ?? d.qty      ?? '0');
         if (price <= 0 || qty <= 0) return;
-        // Bybit: side "Sell" = liq forced a sell → trader was LONG
         onLiq(d.symbol ?? '', d.side === 'Sell' ? 'LONG' : 'SHORT', price * qty, price, 'BB');
       } catch { /* */ }
     };
