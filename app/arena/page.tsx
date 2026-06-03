@@ -11,6 +11,58 @@ import SetupScanner from '@/components/SetupScanner';
 import ConfluenceScorer from '@/components/ConfluenceScorer';
 import GrokSignalChart from '@/components/GrokSignalChart';
 
+/* ── Basic chart pattern detector from OHLC candles ── */
+function detectPatterns(candles: Array<{ o: number; h: number; l: number; c: number }>): string {
+  if (candles.length < 10) return '';
+  const found: string[] = [];
+
+  // Trend structure (last 10 candles — sequential highs/lows)
+  const r = candles.slice(-10);
+  const highs = r.map(c => c.h);
+  const lows  = r.map(c => c.l);
+  const allHH = highs.every((h, i) => i === 0 || h >= highs[i - 1]);
+  const allHL = lows.every ((l, i) => i === 0 || l >= lows[i - 1]);
+  const allLH = highs.every((h, i) => i === 0 || h <= highs[i - 1]);
+  const allLL = lows.every ((l, i) => i === 0 || l <= lows[i - 1]);
+  if (allHH && allHL) found.push('Higher highs + higher lows — uptrend structure');
+  else if (allLH && allLL) found.push('Lower highs + lower lows — downtrend structure');
+
+  // Engulfing (last 2 candles)
+  if (candles.length >= 2) {
+    const [p, c] = candles.slice(-2);
+    const pr = Math.abs(p.c - p.o), cr = Math.abs(c.c - c.o);
+    if (p.c > p.o && c.c < c.o && c.o >= p.c && c.c <= p.o && cr >= pr * 0.8)
+      found.push('Bearish engulfing');
+    if (p.c < p.o && c.c > c.o && c.o <= p.c && c.c >= p.o && cr >= pr * 0.8)
+      found.push('Bullish engulfing');
+  }
+
+  // Doji (last candle body < 10% of range)
+  const last = candles[candles.length - 1];
+  const bodySize = Math.abs(last.c - last.o);
+  const wickSize = last.h - last.l;
+  if (wickSize > 0 && bodySize / wickSize < 0.1) found.push('Doji — indecision candle');
+
+  // Tight consolidation (last 6 candles range < 1.5% of price)
+  const last6 = candles.slice(-6);
+  const rangeHi  = Math.max(...last6.map(c => c.h));
+  const rangeLo  = Math.min(...last6.map(c => c.l));
+  if (last6[last6.length - 1].c > 0 && (rangeHi - rangeLo) / last6[last6.length - 1].c < 0.015)
+    found.push('Tight consolidation — compression / potential breakout');
+
+  // Strong prior move (flag pole candidate — last 5 candles moved >3%)
+  if (candles.length >= 10) {
+    const pole = candles.slice(-10, -5);
+    const poleMove = (pole[pole.length - 1].c - pole[0].o) / pole[0].o * 100;
+    if (Math.abs(poleMove) > 3 && found.includes('Tight consolidation — compression / potential breakout')) {
+      found.splice(found.indexOf('Tight consolidation — compression / potential breakout'), 1);
+      found.push(poleMove > 0 ? 'Bull flag (sharp pump + consolidation)' : 'Bear flag (sharp dump + consolidation)');
+    }
+  }
+
+  return found.join('; ');
+}
+
 /* ── Smart price formatter — preserves decimals for sub-$100 coins ── */
 function fmtPrice(n: number): string {
   if (n >= 10000) return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -483,11 +535,13 @@ export default function Arena() {
       const lastC    = vis[vis.length - 1].c;
       const pDec     = lastC >= 10000 ? 0 : lastC >= 100 ? 2 : lastC >= 1 ? 3 : 4;
       const recent20 = vis.slice(-10).map(c => `O:${c.o.toFixed(pDec)} H:${c.h.toFixed(pDec)} L:${c.l.toFixed(pDec)} C:${c.c.toFixed(pDec)}`).join(' | ');
+      const detectedPatterns = detectPatterns(vis);
       const chartData: ChartData = {
         tf: readTf, ema9, ema200, rsi, recent20,
         hi: Math.max(...vis.map(c => c.h)),
         lo: Math.min(...vis.map(c => c.l)),
         lastClose: vis[vis.length - 1].c,
+        detectedPatterns: detectedPatterns || undefined,
       };
 
       // Step 1.5 — fetch daily RSI (parallel, silent fail)
@@ -645,7 +699,7 @@ export default function Arena() {
         >
           {readLoading && readMode === 'deep' ? readStep || 'Working…' : (
             <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1.2 }}>
-              <span>{!user ? '🔒 ' : ''}Deep</span>
+              <span>{!user ? '🔒 ' : ''}Deep Research</span>
               {!user && <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.04em', color: '#a37a2a' }}>sign in →</span>}
             </span>
           )}
@@ -754,6 +808,29 @@ export default function Arena() {
               <div className="arena-reasoning" style={{ marginTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
                 <div className="arena-reasoning-title">Chart</div>
                 <div className="arena-reasoning-text"><ReasoningText text={result.chartAnalysis} /></div>
+              </div>
+            )}
+
+            {/* Pattern chips */}
+            {result.patterns && result.patterns.length > 0 && (
+              <div style={{ marginTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
+                <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>Patterns</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {result.patterns.map((p, i) => {
+                    const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
+                    const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
+                    const col = isBull ? '#34d399' : isBear ? '#f87171' : '#a78bfa';
+                    const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(167,139,250,0.08)';
+                    const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(167,139,250,0.25)';
+                    return (
+                      <span key={i} style={{
+                        fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 6,
+                        background: bg, color: col, border: `0.5px solid ${bdr}`,
+                        letterSpacing: '-0.1px',
+                      }}>{p}</span>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

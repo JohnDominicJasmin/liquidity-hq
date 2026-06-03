@@ -278,6 +278,7 @@ export interface ChartData {
   hi: number;
   lo: number;
   lastClose: number;
+  detectedPatterns?: string; // algorithmically pre-detected basic patterns as context for Grok
 }
 
 export interface CombinedResult {
@@ -289,6 +290,7 @@ export interface CombinedResult {
   sl: number | null;
   levels: { price: number; label: string; type: 'support' | 'resistance' }[];
   chartAnalysis: string;
+  patterns: string[];   // detected chart patterns (e.g. "Bear flag", "H&S", etc.)
   reasoning: string;
   catalysts: string[];
   analyzedAt: number;
@@ -311,6 +313,7 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     `RSI(14): ${chart.rsi    != null ? chart.rsi.toFixed(1) + (chart.rsi >= 70 ? ' (Overbought)' : chart.rsi <= 30 ? ' (Oversold)' : ' (Neutral)') : '—'}`,
     `EMA cross: ${chart.ema9 != null && chart.ema200 != null ? (chart.ema9 > chart.ema200 ? 'EMA 9 ABOVE EMA 200 — bullish structure' : 'EMA 9 BELOW EMA 200 — bearish structure') : '—'}`,
     `Last 20 candles (OHLC): ${chart.recent20}`,
+    chart.detectedPatterns ? `Pre-detected basic patterns: ${chart.detectedPatterns}` : '',
     '',
     'Cross-reference the candle key levels with order book walls, liquidation clusters, and derivatives data above.',
     '',
@@ -330,6 +333,8 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     '- [second catalyst — must be specific, not generic]',
     '- [third catalyst if relevant]',
     'CHART_ANALYSIS: [1-2 sentences on candles and indicators only — no mention of macro here]',
+    'PATTERNS:',
+    '- [identify chart patterns from the candle data: e.g. "Bear flag", "Bull flag", "Head and shoulders", "Double top", "Double bottom", "Ascending triangle", "Descending triangle", "Rising wedge", "Falling wedge", "Bullish engulfing", "Bearish engulfing", "Doji reversal", "Higher highs / higher lows", "Lower highs / lower lows" — be specific with price context. Write "None detected" if no clear pattern]',
     'REASONING: [3-4 sentences combining chart + derivatives + macro + news into one directional thesis]',
   ].join('\n');
 
@@ -384,17 +389,28 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
     if (m) { const c = stripMd(m[1]); if (c) catalysts.push(c); }
   }
 
-  // CHART_ANALYSIS — stop at REASONING (handle **REASONING:** pattern)
+  // CHART_ANALYSIS — stop at PATTERNS or REASONING
   const chartAnalysis = stripMd(
-    clean.match(/CHART_ANALYSIS:\s*([\s\S]*?)(?=\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? ''
+    clean.match(/CHART_ANALYSIS:\s*([\s\S]*?)(?=\n\*{0,2}PATTERNS\*{0,2}:|\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? ''
   );
+
+  // PATTERNS — list of detected chart patterns
+  const patterns: string[] = [];
+  const patSect = clean.match(/PATTERNS:\s*\n([\s\S]*?)(?=\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? '';
+  for (const line of patSect.split('\n')) {
+    const m = line.match(/^-\s*(.+)/);
+    if (m) {
+      const p = stripMd(m[1]);
+      if (p && p.toLowerCase() !== 'none detected' && p.toLowerCase() !== 'none') patterns.push(p);
+    }
+  }
 
   // REASONING — handle **REASONING:** pattern
   const reasoning = stripMd(
     clean.match(/\*{0,2}REASONING\*{0,2}:\s*([\s\S]+)/i)?.[1] ?? ''
   );
 
-  return { signal, confidence, entryLow, entryHigh, tp, sl, levels, catalysts, chartAnalysis, reasoning, analyzedAt: Date.now(), tf, session };
+  return { signal, confidence, entryLow, entryHigh, tp, sl, levels, catalysts, chartAnalysis, patterns, reasoning, analyzedAt: Date.now(), tf, session };
 }
 
 /* ── Quick prompt — strips the LIVE SEARCH TASK block (no web search needed) ── */
