@@ -617,9 +617,9 @@ export default function Arena() {
           title={!user ? 'Sign in to use Deep Analysis' : 'Searches live web + X for catalysts. ~$0.10'}
         >
           {readLoading && readMode === 'deep' ? readStep || 'Working…' : (
-            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, lineHeight: 1.2 }}>
+            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1.2 }}>
               <span>{!user ? '🔒' : '🌐'} Deep</span>
-              {!user && <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.05em', color: '#484848' }}>sign in</span>}
+              {!user && <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.04em', color: '#a37a2a' }}>sign in →</span>}
             </span>
           )}
         </button>
