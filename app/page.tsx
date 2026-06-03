@@ -7,7 +7,7 @@ import AltSeasonIndex from '@/components/AltSeasonIndex';
 import RaidMeter from '@/components/RaidMeter';
 import SOTD from '@/components/SOTD';
 import NewsBanner from '@/components/NewsBanner';
-import SessionCountdown from '@/components/SessionCountdown';
+import SessionContext from '@/components/SessionContext';
 
 function MacroStrip() {
   const { store } = useMarket();
@@ -641,77 +641,12 @@ function BTCDominance() {
   );
 }
 
-/* ── Market Events Strip ── */
-function MarketEventsStrip() {
-  const [now, setNow] = useState(() => new Date());
-  // tick every second for the FR countdown
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  // Next funding settlement: 00:00, 08:00, 16:00 UTC
-  const nextFRCountdown = (() => {
-    const h = now.getUTCHours();
-    let nextH: number;
-    if      (h < 8)  nextH = 8;
-    else if (h < 16) nextH = 16;
-    else             nextH = 24;
-    const next = new Date(now);
-    next.setUTCHours(nextH % 24, 0, 0, 0);
-    if (nextH === 24) next.setUTCDate(next.getUTCDate() + 1);
-    const diff = next.getTime() - now.getTime();
-    const hh   = Math.floor(diff / 3_600_000);
-    const mm   = Math.floor((diff % 3_600_000) / 60_000);
-    const ss   = Math.floor((diff % 60_000) / 1_000);
-    return `${hh}h ${mm.toString().padStart(2, '0')}m ${ss.toString().padStart(2, '0')}s`;
-  })();
-
-  // Next Friday weekly options expiry (Deribit 08:00 UTC)
-  const { nextFriLabel, isFriToday } = (() => {
-    const day = now.getUTCDay();
-    let daysUntil = (5 - day + 7) % 7;
-    if (daysUntil === 0 && now.getUTCHours() >= 8) daysUntil = 7;
-    const next = new Date(now);
-    next.setUTCDate(now.getUTCDate() + daysUntil);
-    return {
-      nextFriLabel: daysUntil === 0
-        ? 'Today ⚡'
-        : next.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }),
-      isFriToday: daysUntil === 0,
-    };
-  })();
-
-  // Last Friday of current (or next) month — monthly expiry
-  const monthlyLabel = (() => {
-    const yr = now.getUTCFullYear();
-    const mo = now.getUTCMonth();
-    const lastDay = new Date(Date.UTC(yr, mo + 1, 0));
-    while (lastDay.getUTCDay() !== 5) lastDay.setUTCDate(lastDay.getUTCDate() - 1);
-    if (lastDay.getTime() <= now.getTime()) {
-      const nxt = new Date(Date.UTC(yr, mo + 2, 0));
-      while (nxt.getUTCDay() !== 5) nxt.setUTCDate(nxt.getUTCDate() - 1);
-      return nxt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-    }
-    return lastDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-  })();
-
+/* ── Dynamic section header for selected coin ── */
+function CoinSignalsHeader() {
+  const { store } = useMarket();
   return (
-    <div className="mev-strip">
-      <div className="mev-item">
-        <span className="mev-label">FR settlement</span>
-        <span className="mev-value mev-mono">{nextFRCountdown}</span>
-      </div>
-      <div className="mev-sep" />
-      <div className="mev-item">
-        <span className="mev-label">Weekly expiry</span>
-        <span className={`mev-value${isFriToday ? ' mev-hot' : ''}`}>{nextFriLabel}</span>
-      </div>
-      <div className="mev-sep" />
-      <div className="mev-item">
-        <span className="mev-label">Monthly expiry</span>
-        <span className="mev-value">{monthlyLabel}</span>
-      </div>
+    <div className="dash-section dash-section-hot">
+      Coin Signals — {store.selectedCoin.toUpperCase()}
     </div>
   );
 }
@@ -743,15 +678,25 @@ export default function Dashboard() {
           <div className="ind-row"><AltSeasonIndex /></div>
         </div>
 
+        {/* 1. Gate: is now a good time to trade? */}
         <RaidMeter />
-        <SessionCountdown />
 
-        <NewsBanner />
-        <MarketEventsStrip />
+        {/* 2. Best play right now — answer up top, not buried */}
+        <div className="dash-section dash-section-hot">Best Setup Now</div>
+        <SOTD />
+
+        {/* 3. Cascade alert — contextual, only renders when active */}
         <CascadeAlertBanner />
 
-        <div className="dash-section dash-section-hot">Edge signals</div>
+        {/* 4. Coin signals — confirm the setup */}
+        <CoinSignalsHeader />
         <EdgeSignals />
+
+        {/* 5. Session context — timing reference (after you know the play) */}
+        <SessionContext />
+
+        {/* 6. Catalysts & market events */}
+        <NewsBanner />
 
         {/* GEX + Macro: shown inline on mobile/tablet, hidden when right panel is visible */}
         <div className="hide-on-desktop">
@@ -769,9 +714,6 @@ export default function Dashboard() {
           <div className="dash-section">Macro correlations</div>
           <MacroStrip />
         </div>
-
-        <div className="dash-section">Play of the Day</div>
-        <SOTD />
 
         <div
           className="dash-section"

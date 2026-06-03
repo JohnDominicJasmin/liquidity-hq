@@ -575,6 +575,23 @@ body.ticker-on .breaking-alert { top: 90px; }
 .sc-next-sep   { font-size: 11px; color: var(--txt3); }
 .sc-next-timer { font-size: 13px; font-weight: 700; color: var(--txt2); font-variant-numeric: tabular-nums; }
 
+/* ── SESSION CONTEXT (merged session + settlement clocks) ── */
+.sctx-wrap        { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 14px; padding: 10px 14px; margin-bottom: 10px; }
+.sctx-session-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sctx-timing      { font-size: 12px; color: var(--txt2); }
+.sctx-note        { font-size: 11px; color: var(--txt3); }
+.sctx-dot         { font-size: 11px; color: var(--bdr); }
+.sctx-divider     { height: 0.5px; background: var(--bdr); margin: 8px 0; }
+.sctx-events-row  { display: flex; align-items: center; overflow-x: auto; gap: 0; }
+.sctx-evt         { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; padding: 0 12px; }
+.sctx-evt:first-child { padding-left: 0; }
+.sctx-evt:last-child  { padding-right: 0; }
+.sctx-evt-label   { font-size: 10px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.07em; }
+.sctx-evt-value   { font-size: 12px; font-weight: 700; color: var(--txt); }
+.sctx-mono        { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--txt2); font-variant-numeric: tabular-nums; }
+.sctx-hot         { color: #f59e0b; }
+.sctx-evt-sep     { width: 0.5px; height: 28px; background: var(--bdr); flex-shrink: 0; }
+
 /* ── RPM ── */
 .rpm-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 16px; padding: 10px 14px; box-shadow: var(--nm-raise); }
 .rpm-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }

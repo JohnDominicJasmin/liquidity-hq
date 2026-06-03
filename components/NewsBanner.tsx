@@ -18,7 +18,7 @@ export default function NewsBanner() {
   if (hidden) return (
     <div className="news-banner">
       <div className="news-header">
-        <span className="news-title">Market events</span>
+        <span className="news-title">Catalysts & Events</span>
         <button className="news-toggle" onClick={() => setHidden(false)}>show</button>
       </div>
     </div>
@@ -29,7 +29,7 @@ export default function NewsBanner() {
   return (
     <div className="news-banner">
       <div className="news-header">
-        <span className="news-title">Market events</span>
+        <span className="news-title">Catalysts & Events</span>
         <button className="news-toggle" onClick={() => setHidden(true)}>hide</button>
       </div>
       <div className="news-scroll">
