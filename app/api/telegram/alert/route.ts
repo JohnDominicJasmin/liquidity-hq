@@ -54,6 +54,8 @@ const BINANCE_SPOT: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
   xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
 };
+/* Coins only available on Bybit — use Bybit klines for RSI / EMA / Rapid Move / OI */
+const BYBIT_KLINE_SYMS: Record<string, string> = { hype: 'HYPEUSDT' };
 const LABELS: Record<string, string> = {
   btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP',
   bnb: 'BNB', hype: 'HYPE', near: 'NEAR', sui: 'SUI',
@@ -62,7 +64,7 @@ const COINS = Object.keys(LABELS);
 
 const WHALE_THRESHOLD: Record<string, number> = {
   btc: 5_000_000, eth: 2_000_000, sol: 1_000_000,
-  xrp: 750_000,   bnb: 750_000,  near: 500_000, sui: 500_000,
+  xrp: 750_000,   bnb: 750_000,  near: 500_000, sui: 500_000, hype: 500_000,
 };
 
 /* ── In-memory state ── */
@@ -198,6 +200,21 @@ async function fetchSpotPrices(): Promise<Record<string, number>> {
   } catch { return {}; }
 }
 
+/* ── Bybit klines helper (newest-first → reversed to oldest-first) ── */
+async function fetchBybitKlines(symbol: string, interval: string, limit: number): Promise<number[]> {
+  try {
+    const res = await fetch(
+      `https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}&interval=${interval}&limit=${limit}`,
+      { cache: 'no-store' }
+    );
+    if (!res.ok) return [];
+    const data = await res.json() as { result?: { list?: string[][] } };
+    const list = data.result?.list ?? [];
+    // Bybit returns newest-first — reverse so index 0 = oldest
+    return list.map(c => parseFloat(c[4])).reverse();
+  } catch { return []; }
+}
+
 /* ════════════════════════════════════════
    1. FR EXTREMES
    ════════════════════════════════════════ */
@@ -286,12 +303,20 @@ function computeEMA(closes: number[], period: number): number {
 
 async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
-  await Promise.all(COINS.filter(c => BINANCE_SPOT[c]).map(async coin => {
+  await Promise.all(COINS.map(async coin => {
     try {
-      const res    = await fetch(`https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=20`, { cache: 'no-store' });
-      if (!res.ok) return;
-      const data   = await res.json() as Array<unknown[]>;
-      const closes = data.map(c => parseFloat(c[4] as string));
+      let closes: number[];
+      if (BINANCE_SPOT[coin]) {
+        const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=20`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json() as Array<unknown[]>;
+        closes = data.map(c => parseFloat(c[4] as string));
+      } else if (BYBIT_KLINE_SYMS[coin]) {
+        closes = await fetchBybitKlines(BYBIT_KLINE_SYMS[coin], '60', 20);
+        if (closes.length === 0) return;
+      } else {
+        return;
+      }
       const rsi    = computeRSI(closes);
       const r      = rsi.toFixed(1);
       const label  = LABELS[coin];
@@ -342,15 +367,23 @@ async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> 
    ════════════════════════════════════════ */
 async function checkEMACross(stamp: string, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
-  await Promise.all(COINS.filter(c => BINANCE_SPOT[c]).map(async coin => {
+  await Promise.all(COINS.map(async coin => {
     try {
-      const res = await fetch(
-        `https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=300`,
-        { cache: 'no-store' }
-      );
-      if (!res.ok) return;
-      const data   = await res.json() as Array<unknown[]>;
-      const closes = data.map(c => parseFloat(c[4] as string));
+      let closes: number[];
+      if (BINANCE_SPOT[coin]) {
+        const res = await fetch(
+          `https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=300`,
+          { cache: 'no-store' }
+        );
+        if (!res.ok) return;
+        const data = await res.json() as Array<unknown[]>;
+        closes = data.map(c => parseFloat(c[4] as string));
+      } else if (BYBIT_KLINE_SYMS[coin]) {
+        closes = await fetchBybitKlines(BYBIT_KLINE_SYMS[coin], '60', 300);
+        if (closes.length === 0) return;
+      } else {
+        return;
+      }
       if (closes.length < 200) return;
 
       const ema200   = computeEMA(closes, 200);
@@ -409,25 +442,34 @@ async function checkEMACross(stamp: string, queue: SignalEntry[]): Promise<strin
 async function checkRapidMove(stamp: string, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
   const FRAMES = [
-    { interval: '5m',  threshold: 4,  cd: 'move5m', tfLabel: '5m' },
-    { interval: '1h',  threshold: 5,  cd: 'move1h', tfLabel: '1H' },
-    { interval: '4h',  threshold: 10, cd: 'move4h', tfLabel: '4H' },
+    { interval: '5m',  bybitInterval: '5',   threshold: 4,  cd: 'move5m', tfLabel: '5m' },
+    { interval: '1h',  bybitInterval: '60',  threshold: 5,  cd: 'move1h', tfLabel: '1H' },
+    { interval: '4h',  bybitInterval: '240', threshold: 10, cd: 'move4h', tfLabel: '4H' },
   ] as const;
 
   await Promise.all(
-    COINS.filter(c => BINANCE_SPOT[c]).flatMap(coin =>
-      FRAMES.map(async ({ interval, threshold, cd, tfLabel }) => {
+    COINS.flatMap(coin =>
+      FRAMES.map(async ({ interval, bybitInterval, threshold, cd, tfLabel }) => {
         try {
-          const res = await fetch(
-            `https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=${interval}&limit=3`,
-            { cache: 'no-store' }
-          );
-          if (!res.ok) return;
-          const data = await res.json() as Array<unknown[]>;
-          if (data.length < 2) return;
-
-          const prevClose = parseFloat(data[0][4] as string);
-          const currClose = parseFloat(data[1][4] as string);
+          let prevClose: number, currClose: number;
+          if (BINANCE_SPOT[coin]) {
+            const res = await fetch(
+              `https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=${interval}&limit=3`,
+              { cache: 'no-store' }
+            );
+            if (!res.ok) return;
+            const data = await res.json() as Array<unknown[]>;
+            if (data.length < 2) return;
+            prevClose = parseFloat(data[0][4] as string);
+            currClose = parseFloat(data[1][4] as string);
+          } else if (BYBIT_KLINE_SYMS[coin]) {
+            const closes = await fetchBybitKlines(BYBIT_KLINE_SYMS[coin], bybitInterval, 3);
+            if (closes.length < 2) return;
+            prevClose = closes[closes.length - 2];
+            currClose = closes[closes.length - 1];
+          } else {
+            return;
+          }
           if (prevClose === 0) return;
           const pct = (currClose - prevClose) / prevClose * 100;
           if (Math.abs(pct) < threshold) return;
@@ -470,38 +512,76 @@ interface AggTrade { T: number; p: string; q: string; m: boolean }
 async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
   const since = Date.now() - 5 * 60_000;
-  await Promise.all(Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
-    const threshold = WHALE_THRESHOLD[coin];
-    if (!threshold) return;
-    try {
-      const res    = await fetch(`https://fapi.binance.com/fapi/v1/aggTrades?symbol=${sym}&startTime=${since}&limit=500`, { cache: 'no-store' });
-      if (!res.ok) return;
-      const trades = await res.json() as AggTrade[];
-      const label  = LABELS[coin];
-      for (const t of trades) {
-        const usd = parseFloat(t.p) * parseFloat(t.q);
-        if (usd < threshold) continue;
-        const side = t.m ? 'SELL' : 'BUY';
-        const key  = `whale_${coin}_${side}`;
-        if (onCooldown(key, CD.whale)) continue;
-        const usdFmt   = usd >= 1_000_000 ? `$${(usd / 1_000_000).toFixed(2)}M` : `$${(usd / 1000).toFixed(0)}K`;
-        const priceStr = parseFloat(t.p).toLocaleString();
-        const grokTake = await grokAnalyze(
-          `Elite crypto trader. A whale just ${side === 'BUY' ? 'bought' : 'sold'} ${usdFmt} of ${label} at $${priceStr}. ` +
-          `In 2-3 sentences: short-term (1-4h) market impact? Worth acting on now or wait for confirmation? Direct, no hedging. ` +
-          `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
-        const grokLine = fmtGrok(grokTake);
-        queue.push({
-          coin, name: `${label} whale ${side} ${usdFmt}`,
-          title: `Whale ${side} ${usdFmt}`,
-          body: side === 'BUY'
-            ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy — institutional accumulation${grokLine}\n\n<i>${stamp}</i>`
-            : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell — institutional distribution${grokLine}\n\n<i>${stamp}</i>`,
-        });
-        markSent(key); fired.push(`${label} whale ${side} ${usdFmt}`); break;
-      }
-    } catch { /* skip */ }
-  }));
+  await Promise.all([
+    // ── Binance perp coins ──
+    ...Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
+      const threshold = WHALE_THRESHOLD[coin];
+      if (!threshold) return;
+      try {
+        const res    = await fetch(`https://fapi.binance.com/fapi/v1/aggTrades?symbol=${sym}&startTime=${since}&limit=500`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const trades = await res.json() as AggTrade[];
+        const label  = LABELS[coin];
+        for (const t of trades) {
+          const usd = parseFloat(t.p) * parseFloat(t.q);
+          if (usd < threshold) continue;
+          const side = t.m ? 'SELL' : 'BUY';
+          const key  = `whale_${coin}_${side}`;
+          if (onCooldown(key, CD.whale)) continue;
+          const usdFmt   = usd >= 1_000_000 ? `$${(usd / 1_000_000).toFixed(2)}M` : `$${(usd / 1000).toFixed(0)}K`;
+          const priceStr = parseFloat(t.p).toLocaleString();
+          const grokTake = await grokAnalyze(
+            `Elite crypto trader. A whale just ${side === 'BUY' ? 'bought' : 'sold'} ${usdFmt} of ${label} at $${priceStr}. ` +
+            `In 2-3 sentences: short-term (1-4h) market impact? Worth acting on now or wait for confirmation? Direct, no hedging. ` +
+            `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
+          queue.push({
+            coin, name: `${label} whale ${side} ${usdFmt}`,
+            title: `Whale ${side} ${usdFmt}`,
+            body: side === 'BUY'
+              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy — institutional accumulation${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`
+              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell — institutional distribution${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
+          });
+          markSent(key); fired.push(`${label} whale ${side} ${usdFmt}`); break;
+        }
+      } catch { /* skip */ }
+    }),
+    // ── Bybit-only coins (HYPE) ──
+    ...Object.entries(BYBIT_KLINE_SYMS).map(async ([coin, sym]) => {
+      const threshold = WHALE_THRESHOLD[coin];
+      if (!threshold) return;
+      try {
+        const res = await fetch(
+          `https://api.bybit.com/v5/market/recent-trade?category=linear&symbol=${sym}&limit=1000`,
+          { cache: 'no-store' }
+        );
+        if (!res.ok) return;
+        const data = await res.json() as { result?: { list?: Array<{ T: number; p: string; v: string; S: string }> } };
+        const trades = (data.result?.list ?? []).filter(t => t.T >= since);
+        const label  = LABELS[coin];
+        for (const t of trades) {
+          const usd = parseFloat(t.p) * parseFloat(t.v);
+          if (usd < threshold) continue;
+          const side = t.S === 'Buy' ? 'BUY' : 'SELL';
+          const key  = `whale_${coin}_${side}`;
+          if (onCooldown(key, CD.whale)) continue;
+          const usdFmt   = usd >= 1_000_000 ? `$${(usd / 1_000_000).toFixed(2)}M` : `$${(usd / 1000).toFixed(0)}K`;
+          const priceStr = parseFloat(t.p).toLocaleString();
+          const grokTake = await grokAnalyze(
+            `Elite crypto trader. A whale just ${side === 'BUY' ? 'bought' : 'sold'} ${usdFmt} of ${label} at $${priceStr}. ` +
+            `In 2-3 sentences: short-term (1-4h) market impact? Worth acting on now or wait for confirmation? Direct, no hedging. ` +
+            `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
+          queue.push({
+            coin, name: `${label} whale ${side} ${usdFmt}`,
+            title: `Whale ${side} ${usdFmt}`,
+            body: side === 'BUY'
+              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy — institutional accumulation${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`
+              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell — institutional distribution${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
+          });
+          markSent(key); fired.push(`${label} whale ${side} ${usdFmt}`); break;
+        }
+      } catch { /* skip */ }
+    }),
+  ]);
   return fired;
 }
 
@@ -553,7 +633,9 @@ interface OIHistItem { sumOpenInterest: string; timestamp: number }
 
 async function checkOISpike(stamp: string, prices: Record<string, number>, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
-  await Promise.all(Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
+  await Promise.all([
+    // ── Binance perp coins ──
+    ...Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
     try {
       const res = await fetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=5m&limit=13`, { cache: 'no-store' });
       if (!res.ok) return;
@@ -589,7 +671,47 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
         markSent(key); fired.push(`${label} OI ${dir} ${pct.toFixed(1)}%`);
       }
     } catch { /* skip */ }
-  }));
+    }),
+    // ── Bybit-only coins (HYPE) ──
+    ...Object.entries(BYBIT_KLINE_SYMS).map(async ([coin, sym]) => {
+      try {
+        const res = await fetch(
+          `https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${sym}&intervalTime=5min&limit=13`,
+          { cache: 'no-store' }
+        );
+        if (!res.ok) return;
+        const data = await res.json() as { result?: { list?: Array<{ openInterest: string }> } };
+        const list = data.result?.list ?? [];
+        if (list.length < 12) return;
+        // Bybit returns newest-first
+        const newest = parseFloat(list[0].openInterest);
+        const oldest = parseFloat(list[list.length - 1].openInterest);
+        if (oldest === 0) return;
+        const pct   = (newest - oldest) / oldest * 100;
+        const label = LABELS[coin];
+        const price = prices[coin];
+        if (Math.abs(pct) >= 15) {
+          const dir = pct > 0 ? 'spike' : 'drop';
+          const key = `oi_${dir}_${coin}`;
+          if (onCooldown(key, CD.oi)) return;
+          const grokTake = await grokAnalyze(
+            `Elite crypto trader. ${label} Open Interest just ${pct > 0 ? 'spiked +' : 'dropped '}${pct.toFixed(1)}% in 1 hour.` +
+            (price ? ` Current price: $${price.toLocaleString()}.` : '') +
+            ` In 2-3 sentences: Is this new longs, new shorts, or liquidation-driven? What's the likely next move? Direct, no hedging. ` +
+            `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
+          queue.push({
+            coin, name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
+            title: `OI ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
+            body: `📈 <b>${label} OI ${pct > 0 ? 'Spike' : 'Drop'} — ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
+              `OI: ${(oldest / 1000).toFixed(1)}K → ${(newest / 1000).toFixed(1)}K contracts\n` +
+              `Signal: ${pct > 0 ? 'New money entering — big move likely building' : 'Positions closing — potential trend reversal'}` +
+              `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
+          });
+          markSent(key); fired.push(`${label} OI ${dir} ${pct.toFixed(1)}%`);
+        }
+      } catch { /* skip */ }
+    }),
+  ]);
   return fired;
 }
 
