@@ -133,6 +133,17 @@ function CoinSidebar() {
                 </span>
               )}
             </div>
+            {d?.chartPattern && (() => {
+              const isBull = /bull|higher high|engulf.*bull|hammer(?! man)|double bot/i.test(d.chartPattern!);
+              const isBear = /bear|lower high|engulf.*bear|shooting|hanging|double top/i.test(d.chartPattern!);
+              const col = isBull ? '#34d399' : isBear ? '#f87171' : '#a78bfa';
+              const firstPattern = d.chartPattern!.split(';')[0].trim();
+              return (
+                <div style={{ fontSize: 9, color: col, marginTop: 2, fontWeight: 600, letterSpacing: '0.02em', lineHeight: 1.2, paddingLeft: 1 }}>
+                  {firstPattern}
+                </div>
+              );
+            })()}
           </div>
         );
       })}

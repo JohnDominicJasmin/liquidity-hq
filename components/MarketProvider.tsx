@@ -4,6 +4,7 @@ import {
   MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel,
   BINANCE_SYMS, BYBIT_SYMS,
 } from '@/lib/marketStore';
+import { detectPatterns } from '@/lib/patterns';
 
 const WHALE_USD_THRESHOLD = 500_000; // $500k single trade = whale
 
@@ -295,7 +296,14 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       });
       const vwap = sumVol > 0 ? sumTPV / sumVol : null;
 
-      updateCoin(coin, { volRatio: avg > 0 ? current / avg : 1, ma20, rsi14, poc, vah, val, vwap, takerBuyRatio });
+      // Chart pattern detection from last 25 candles OHLC
+      const patternCandles = klines.slice(-25).map((k: string[]) => ({
+        o: parseFloat(k[1]), h: parseFloat(k[2]), l: parseFloat(k[3]), c: parseFloat(k[4]),
+      }));
+      const patterns = detectPatterns(patternCandles);
+      const chartPattern = patterns.length > 0 ? patterns.join('; ') : null;
+
+      updateCoin(coin, { volRatio: avg > 0 ? current / avg : 1, ma20, rsi14, poc, vah, val, vwap, takerBuyRatio, chartPattern });
     } catch { /* */ }
   }, [updateCoin]);
 
@@ -368,7 +376,12 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         const val = minP + lo * bSize;
         const vah = minP + (hi + 1) * bSize;
 
-        updateCoin(coin, { rsi14, ma20, volRatio, vwap, poc, vah, val });
+        // Chart pattern detection for HYPE (Bybit klines: [time, open, high, low, close, ...])
+        const hypePatternCandles = klines.slice(-25).map((k: string[]) => ({
+          o: parseFloat(k[1]), h: parseFloat(k[2]), l: parseFloat(k[3]), c: parseFloat(k[4]),
+        }));
+        const hypePatterns = detectPatterns(hypePatternCandles);
+        updateCoin(coin, { rsi14, ma20, volRatio, vwap, poc, vah, val, chartPattern: hypePatterns.length > 0 ? hypePatterns.join('; ') : null });
 
         // Taker buy ratio from recent trades (Bybit klines don't split maker/taker)
         try {

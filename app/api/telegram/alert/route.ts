@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { classifyNews } from '@/lib/classify';
 import { getSupabase } from '@/lib/supabase';
+import { detectPatterns } from '@/lib/patterns';
 
 export const dynamic = 'force-dynamic';
 
@@ -452,18 +453,23 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[]): Promise<stri
       FRAMES.map(async ({ interval, bybitInterval, threshold, cd, tfLabel }) => {
         try {
           let prevClose: number, currClose: number;
+          let patternStr = '';
           if (BINANCE_SPOT[coin]) {
             const res = await fetch(
-              `https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=${interval}&limit=3`,
+              `https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=${interval}&limit=25`,
               { cache: 'no-store' }
             );
             if (!res.ok) return;
             const data = await res.json() as Array<unknown[]>;
             if (data.length < 2) return;
-            prevClose = parseFloat(data[0][4] as string);
-            currClose = parseFloat(data[1][4] as string);
+            prevClose = parseFloat(data[data.length - 2][4] as string);
+            currClose = parseFloat(data[data.length - 1][4] as string);
+            // Detect patterns from OHLC
+            const ohlc = data.map(k => ({ o: parseFloat(k[1] as string), h: parseFloat(k[2] as string), l: parseFloat(k[3] as string), c: parseFloat(k[4] as string) }));
+            const pats = detectPatterns(ohlc);
+            if (pats.length > 0) patternStr = pats[0]; // show first pattern
           } else if (BYBIT_KLINE_SYMS[coin]) {
-            const closes = await fetchBybitKlines(BYBIT_KLINE_SYMS[coin], bybitInterval, 3);
+            const closes = await fetchBybitKlines(BYBIT_KLINE_SYMS[coin], bybitInterval, 25);
             if (closes.length < 2) return;
             prevClose = closes[closes.length - 2];
             currClose = closes[closes.length - 1];
@@ -493,6 +499,7 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[]): Promise<stri
             body: `${emoji} <b>${label} Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})</b>\n\n` +
               `Price: <b>$${currClose.toLocaleString()}</b>\n` +
               `Signal: ${Math.abs(pct).toFixed(1)}% candle — ${pct > 0 ? 'momentum surge' : 'flash dump'}\n` +
+              (patternStr ? `Pattern: <b>${patternStr}</b>\n` : '') +
               `Action: Check volume + OI. Next candle direction is key.` +
               `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
           });

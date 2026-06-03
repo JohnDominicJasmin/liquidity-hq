@@ -89,6 +89,12 @@ function buildSignals(coin: CoinData | undefined, dir: Dir): Signal[] {
         hit:    coin.shortRatio != null && coin.shortRatio >= 0.55,
         weight: 2,
       },
+      {
+        label:  'Bullish pattern',
+        detail: coin.chartPattern ?? 'No pattern detected',
+        hit:    coin.chartPattern != null && /bull|higher high|engulf.*bull|hammer(?! man)|double bot/i.test(coin.chartPattern),
+        weight: 2,
+      },
     ];
   }
 
@@ -162,6 +168,12 @@ function buildSignals(coin: CoinData | undefined, dir: Dir): Signal[] {
         ? `Long ${(coin.longRatio * 100).toFixed(0)}% ≥ 55%`
         : 'No data',
       hit:    coin.longRatio != null && coin.longRatio >= 0.55,
+      weight: 2,
+    },
+    {
+      label:  'Bearish pattern',
+      detail: coin.chartPattern ?? 'No pattern detected',
+      hit:    coin.chartPattern != null && /bear|lower high|engulf.*bear|shooting|hanging|double top|head.*shoulder/i.test(coin.chartPattern),
       weight: 2,
     },
   ];

@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMarket, classifyFunding, CoinId, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
 import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
+import { detectPatternsStr, Candle } from '@/lib/patterns';
 import { getPHT, getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
 import { getSupabase } from '@/lib/supabase';
@@ -11,57 +12,8 @@ import SetupScanner from '@/components/SetupScanner';
 import ConfluenceScorer from '@/components/ConfluenceScorer';
 import GrokSignalChart from '@/components/GrokSignalChart';
 
-/* ── Basic chart pattern detector from OHLC candles ── */
-function detectPatterns(candles: Array<{ o: number; h: number; l: number; c: number }>): string {
-  if (candles.length < 10) return '';
-  const found: string[] = [];
-
-  // Trend structure (last 10 candles — sequential highs/lows)
-  const r = candles.slice(-10);
-  const highs = r.map(c => c.h);
-  const lows  = r.map(c => c.l);
-  const allHH = highs.every((h, i) => i === 0 || h >= highs[i - 1]);
-  const allHL = lows.every ((l, i) => i === 0 || l >= lows[i - 1]);
-  const allLH = highs.every((h, i) => i === 0 || h <= highs[i - 1]);
-  const allLL = lows.every ((l, i) => i === 0 || l <= lows[i - 1]);
-  if (allHH && allHL) found.push('Higher highs + higher lows — uptrend structure');
-  else if (allLH && allLL) found.push('Lower highs + lower lows — downtrend structure');
-
-  // Engulfing (last 2 candles)
-  if (candles.length >= 2) {
-    const [p, c] = candles.slice(-2);
-    const pr = Math.abs(p.c - p.o), cr = Math.abs(c.c - c.o);
-    if (p.c > p.o && c.c < c.o && c.o >= p.c && c.c <= p.o && cr >= pr * 0.8)
-      found.push('Bearish engulfing');
-    if (p.c < p.o && c.c > c.o && c.o <= p.c && c.c >= p.o && cr >= pr * 0.8)
-      found.push('Bullish engulfing');
-  }
-
-  // Doji (last candle body < 10% of range)
-  const last = candles[candles.length - 1];
-  const bodySize = Math.abs(last.c - last.o);
-  const wickSize = last.h - last.l;
-  if (wickSize > 0 && bodySize / wickSize < 0.1) found.push('Doji — indecision candle');
-
-  // Tight consolidation (last 6 candles range < 1.5% of price)
-  const last6 = candles.slice(-6);
-  const rangeHi  = Math.max(...last6.map(c => c.h));
-  const rangeLo  = Math.min(...last6.map(c => c.l));
-  if (last6[last6.length - 1].c > 0 && (rangeHi - rangeLo) / last6[last6.length - 1].c < 0.015)
-    found.push('Tight consolidation — compression / potential breakout');
-
-  // Strong prior move (flag pole candidate — last 5 candles moved >3%)
-  if (candles.length >= 10) {
-    const pole = candles.slice(-10, -5);
-    const poleMove = (pole[pole.length - 1].c - pole[0].o) / pole[0].o * 100;
-    if (Math.abs(poleMove) > 3 && found.includes('Tight consolidation — compression / potential breakout')) {
-      found.splice(found.indexOf('Tight consolidation — compression / potential breakout'), 1);
-      found.push(poleMove > 0 ? 'Bull flag (sharp pump + consolidation)' : 'Bear flag (sharp dump + consolidation)');
-    }
-  }
-
-  return found.join('; ');
-}
+/* ── Pattern detection — delegates to shared lib/patterns.ts ── */
+function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
 
 /* ── Smart price formatter — preserves decimals for sub-$100 coins ── */
 function fmtPrice(n: number): string {
