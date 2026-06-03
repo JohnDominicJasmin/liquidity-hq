@@ -685,7 +685,7 @@ export default function Arena() {
       {result && Date.now() - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
         const sigCol = result.signal === 'LONG' ? '#34d399' : result.signal === 'SHORT' ? '#f87171' : '#9ca3af';
         const secsDiff = Math.floor((Date.now() - result.analyzedAt) / 1000);
-        const freshness = secsDiff < 60 ? `${secsDiff}s ago` : secsDiff < 3600 ? `${Math.floor(secsDiff/60)}m ago` : `${Math.floor(secsDiff/3600)}h ago`;
+        const freshness = secsDiff < 60 ? 'just now' : secsDiff < 3600 ? `${Math.floor(secsDiff/60)}m ago` : `${Math.floor(secsDiff/3600)}h ago`;
         return (
           <div className={`arena-signal-card sig-${result.signal.toLowerCase()}`}>
             {/* Header row */}
