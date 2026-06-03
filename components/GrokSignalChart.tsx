@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMarket, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
 
 function useAppTheme(): 'dark' | 'light' {
@@ -33,13 +33,14 @@ const TF_TO_TV: Record<string, string> = {
 export default function GrokSignalChart({ coin: coinProp, tf }: { coin?: string; tf?: string }) {
   const { store } = useMarket();
   const theme = useAppTheme();
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const coin     = (coinProp ?? store.selectedCoin) as string;
   const interval = TF_TO_TV[tf ?? '15m'] ?? '15';
   const binanceSym = BINANCE_SYMS[coin] as string | undefined;
   const bybitSym   = BYBIT_SYMS[coin]   as string | undefined;
 
-  // Prefer Binance symbol for TradingView; fall back to Bybit exchange label
   const tvSym = binanceSym
     ? `BINANCE:${binanceSym}`
     : bybitSym
@@ -59,15 +60,43 @@ export default function GrokSignalChart({ coin: coinProp, tf }: { coin?: string;
     `&timezone=${encodeURIComponent('Asia/Manila')}`,
   ].join('');
 
+  /* ── Fullscreen toggle ── */
+  const toggleFullscreen = useCallback(async () => {
+    if (!wrapRef.current) return;
+    if (!document.fullscreenElement) {
+      await wrapRef.current.requestFullscreen();
+    } else {
+      await document.exitFullscreen();
+    }
+  }, []);
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
   return (
-    <div className="gsc-wrap">
+    <div className="gsc-wrap" ref={wrapRef}>
       <div className="gsc-header">
         <div className="gsc-title">
           <span>{coin.toUpperCase()} / USDT</span>
         </div>
+        <button
+          onClick={toggleFullscreen}
+          title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          style={{
+            background: 'none', border: '0.5px solid var(--bdr2)', borderRadius: 6,
+            color: 'var(--txt3)', cursor: 'pointer', padding: '3px 8px',
+            fontSize: 13, lineHeight: 1, transition: 'color 0.15s, border-color 0.15s',
+          }}
+          onMouseEnter={e => { (e.target as HTMLElement).style.color = 'var(--txt)'; (e.target as HTMLElement).style.borderColor = 'var(--bdr2)'; }}
+          onMouseLeave={e => { (e.target as HTMLElement).style.color = 'var(--txt3)'; }}
+        >
+          {isFullscreen ? '⊡' : '⤢'}
+        </button>
       </div>
       <div className="gsc-tv-wrap">
-        {/* key includes theme + interval so iframe reloads when either changes */}
         <iframe key={`${coin}-${theme}-${interval}`} src={tvSrc} className="gsc-tv-frame" frameBorder="0" allowFullScreen />
       </div>
     </div>

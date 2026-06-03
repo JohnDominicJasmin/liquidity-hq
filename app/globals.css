@@ -1828,6 +1828,10 @@ body.ticker-on .breaking-alert { top: 90px; }
 /* TradingView iframe embed */
 .gsc-tv-wrap  { position: relative; width: 100%; background: #000; overflow: hidden; }
 .gsc-tv-frame { display: block; width: 100%; height: 720px; border: none; }
+/* Fullscreen: chart fills entire screen */
+.gsc-wrap:fullscreen { background: #000; display: flex; flex-direction: column; }
+.gsc-wrap:fullscreen .gsc-tv-wrap { flex: 1; }
+.gsc-wrap:fullscreen .gsc-tv-frame { height: 100%; }
 .gsc-error    { padding: 8px 14px; font-size: 11px; color: var(--red); }
 @media (max-width: 639px) { .gsc-tv-frame { height: 420px; } }
 
