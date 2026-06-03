@@ -436,6 +436,41 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     );
   }, [updateCoin]);
 
+  /* ── Daily RSI (1D candles — all coins, runs every 15 min) ── */
+  const fetchDailyRSI = useCallback(async () => {
+    await Promise.allSettled([
+      // Binance coins
+      ...Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype').map(async ([coin, sym]) => {
+        try {
+          const res = await fetch(
+            `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1d&limit=20`,
+            { cache: 'no-store' }
+          );
+          const klines = await res.json();
+          if (!Array.isArray(klines) || klines.length < 15) return;
+          const closes = klines.map((k: string[]) => parseFloat(k[4]));
+          const rsi = computeRSI14(closes);
+          if (rsi !== null) updateCoin(coin as CoinId, { rsiDaily: rsi });
+        } catch { /* */ }
+      }),
+      // HYPE via Bybit (D = daily interval)
+      (async () => {
+        try {
+          const res = await fetch(
+            `https://api.bybit.com/v5/market/kline?category=linear&symbol=HYPEUSDT&interval=D&limit=20`,
+            { cache: 'no-store' }
+          );
+          const d = await res.json();
+          const klines: string[][] = [...(d?.result?.list ?? [])].reverse();
+          if (klines.length < 15) return;
+          const closes = klines.map(k => parseFloat(k[4]));
+          const rsi = computeRSI14(closes);
+          if (rsi !== null) updateCoin('hype', { rsiDaily: rsi });
+        } catch { /* */ }
+      })(),
+    ]);
+  }, [updateCoin]);
+
   /* ── CVD + Divergence + Whale detection (all Binance coins + HYPE via Bybit) ── */
   const fetchCVD = useCallback(async () => {
     // All Binance-listed coins
@@ -1009,6 +1044,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     fetchMacro();
     fetchETF();
     fetchMultiTFRSI();
+    fetchDailyRSI();
     fetchCVD();
     fetchOrderBook();
     fetchDeribitOptions();
@@ -1032,6 +1068,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       setInterval(fetchMacro,            10  * 60 * 1000),
       setInterval(fetchETF,              30  * 60 * 1000),
       setInterval(fetchMultiTFRSI,       15  * 60 * 1000),
+      setInterval(fetchDailyRSI,         15  * 60 * 1000),  // 1D RSI — slow-moving, every 15m
       setInterval(fetchCVD,               5  * 60 * 1000),
       setInterval(fetchOrderBook,         2  * 60 * 1000),
       setInterval(fetchDeribitOptions,   15  * 60 * 1000),

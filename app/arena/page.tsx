@@ -421,7 +421,7 @@ export default function Arena() {
       news: latestHeadlines.length > 0 ? latestHeadlines.slice(0, 6).join('\n') : 'No recent alerts',
       rsi14, ma20, priceVsMA, volRatio, longShortRatio,
       oilPrice, bonds10y, upcomingEvents: upcoming, etfFlows,
-      rsi1h, rsi4h, rsiDaily: '—', cvd, basis, fibNearest, orderWalls, squeezeScore,
+      rsi1h, rsi4h, rsiDaily: fmt(coin?.rsiDaily), cvd, basis, fibNearest, orderWalls, squeezeScore,
       pcRatio, maxPain, btcGex,
       exchangeNetFlow, stablecoinFlow, googleTrends, liqLevels, btcDomTrend,
       pocLine, dxyLine, spxLine, goldLine,
@@ -780,7 +780,7 @@ export default function Arena() {
         </div>
         {ctxOpen && [
           ['Coin', ctx.coin], ['Price', ctx.price], ['24h Δ', ctx.change24h],
-          ['RSI 15m', ctx.rsi14], ['RSI 1h', ctx.rsi1h], ['RSI 4h', ctx.rsi4h],
+          ['RSI 15m', ctx.rsi14], ['RSI 1h', ctx.rsi1h], ['RSI 4h', ctx.rsi4h], ['RSI 1D', ctx.rsiDaily],
           ['MA20 (15m)', ctx.ma20], ['vs MA20', ctx.priceVsMA],
           ['Vol Ratio', ctx.volRatio], ['CVD', ctx.cvd],
           ['L/S Ratio', ctx.longShortRatio], ['Squeeze', squeezeToLine(sq)],

@@ -34,6 +34,7 @@ export interface CoinData {
   /* multi-timeframe RSI */
   rsi1h: number | null;
   rsi4h: number | null;
+  rsiDaily: number | null; // 1D RSI — long-term bias signal
   /* cumulative volume delta */
   cvd: number | null;
   /* CVD vs price divergence signal */
