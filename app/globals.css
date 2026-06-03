@@ -750,7 +750,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 
 .arena-sig-top   { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
 .arena-sig-pair  { font-size: 18px; font-weight: 700; color: var(--txt); margin-bottom: 2px; letter-spacing: -0.3px; }
-.arena-sig-time  { font-size: 11px; color: var(--txt3); }
+.arena-sig-time  { font-size: 12px; color: rgba(255,255,255,0.55); font-weight: 500; letter-spacing: 0.01em; }
 .arena-sig-badge { font-size: 13px; font-weight: 700; padding: 5px 14px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; letter-spacing: .04em; }
 .badge-long  { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-bdr); }
 .badge-short { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bdr); }

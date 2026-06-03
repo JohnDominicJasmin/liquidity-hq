@@ -436,10 +436,13 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     );
   }, [updateCoin]);
 
-  /* ── CVD + Divergence + Whale detection (BTC + ETH) ── */
+  /* ── CVD + Divergence + Whale detection (all Binance coins + HYPE via Bybit) ── */
   const fetchCVD = useCallback(async () => {
-    await Promise.allSettled(
-      (['btc', 'eth'] as CoinId[]).map(async (coin) => {
+    // All Binance-listed coins
+    const binanceCoins = (Object.keys(BINANCE_SYMS) as CoinId[]).filter(c => c !== 'hype');
+    await Promise.allSettled([
+      // ── Binance aggTrades ──
+      ...binanceCoins.map(async (coin) => {
         const sym = BINANCE_SYMS[coin];
         try {
           const res = await fetch(
@@ -484,10 +487,9 @@ export default function MarketProvider({ children }: { children: React.ReactNode
               const first = snaps[0], last = snaps[snaps.length - 1];
               const pricePct = (last.price - first.price) / first.price;
               const cvdDelta = last.cvd - first.cvd;
-              // Bearish: price up but CVD net selling (delta < -10 BTC equivalent)
-              if (pricePct > 0.003 && cvdDelta < -10) cvdDivergence = 'bearish';
-              // Bullish: price down but CVD net buying (delta > +10)
-              if (pricePct < -0.003 && cvdDelta > 10) cvdDivergence = 'bullish';
+              // Direction matters more than magnitude for alts — use price % as primary gate
+              if (pricePct > 0.003 && cvdDelta < 0) cvdDivergence = 'bearish';
+              if (pricePct < -0.003 && cvdDelta > 0) cvdDivergence = 'bullish';
             }
 
             return {
@@ -499,8 +501,46 @@ export default function MarketProvider({ children }: { children: React.ReactNode
             };
           });
         } catch { /* */ }
-      })
-    );
+      }),
+      // ── HYPE via Bybit recent-trade (Bybit-only coin) ──
+      (async () => {
+        try {
+          const res = await fetch(
+            'https://api.bybit.com/v5/market/recent-trade?category=linear&symbol=HYPEUSDT&limit=200',
+            { cache: 'no-store' }
+          );
+          const data = await res.json();
+          const trades: Array<{ S: string; v: string; p: string }> = data.result?.list ?? [];
+          let buyVol = 0, sellVol = 0;
+          trades.forEach(t => {
+            const qty = parseFloat(t.v);
+            const usd = parseFloat(t.p) * qty;
+            if (t.S === 'Buy') buyVol += qty; else sellVol += qty;
+            // Whale detection for HYPE
+            if (usd >= WHALE_USD_THRESHOLD) {
+              window.dispatchEvent(new CustomEvent('whale-trade', {
+                detail: { id: Date.now(), symbol: 'HYPE', side: t.S === 'Buy' ? 'BUY' : 'SELL', usdValue: usd, price: parseFloat(t.p), qty, ts: Math.floor(Date.now() / 1000) },
+              }));
+            }
+          });
+          const cvdValue = buyVol - sellVol;
+          setStore(prev => {
+            const currentPrice = prev.coins.hype?.price ?? 0;
+            const snaps = [...(cvdSnapsRef.current.hype ?? []), { price: currentPrice, cvd: cvdValue }].slice(-5);
+            cvdSnapsRef.current.hype = snaps;
+            let cvdDivergence: 'bullish' | 'bearish' | null = null;
+            if (snaps.length >= 4 && snaps[0].price > 0) {
+              const first = snaps[0], last = snaps[snaps.length - 1];
+              const pricePct = (last.price - first.price) / first.price;
+              const cvdDelta = last.cvd - first.cvd;
+              if (pricePct > 0.003 && cvdDelta < 0) cvdDivergence = 'bearish';
+              if (pricePct < -0.003 && cvdDelta > 0) cvdDivergence = 'bullish';
+            }
+            return { ...prev, coins: { ...prev.coins, hype: { ...prev.coins.hype, cvd: cvdValue, cvdDivergence } as CoinData } };
+          });
+        } catch { /* */ }
+      })(),
+    ]);
   }, []);  // no deps — uses refs + setStore callback
 
   /* ── Order Book walls (BTC + ETH only) ── */

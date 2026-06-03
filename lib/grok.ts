@@ -61,6 +61,7 @@ export interface GrokContext {
   /* multi-timeframe RSI */
   rsi1h: string;
   rsi4h: string;
+  rsiDaily: string;
   /* cumulative volume delta */
   cvd: string;
   /* basis (perp premium vs spot) */
@@ -126,6 +127,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '=== TECHNICALS (MULTI-TIMEFRAME) ===',
     `RSI (14, 1h):  ${ctx.rsi1h}`,
     `RSI (14, 4h):  ${ctx.rsi4h}`,
+    `RSI (14, 1D):  ${ctx.rsiDaily}`,
     `CVD (last 200 trades):  ${ctx.cvd}`,
     `Fibonacci nearest level:  ${ctx.fibNearest}`,
     `Volume Profile POC/VAH/VAL:  ${ctx.pocLine}`,

@@ -51,6 +51,7 @@ const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui
 interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep' }
 const PRICE_MOVE_PCT    = 0.5;             // re-analyze when price moves >0.5%
 const ARENA_RESULTS_KEY = 'arena-results-v2';
+const CACHE_MAX_AGE_MS  = 4 * 60 * 60 * 1000; // 4 hours — older results are discarded
 /** Dynamic TTL: tighter during NY/pre-NY session (volatile), relaxed off-hours */
 function getCacheTTL(): number {
   const phtHour = (new Date().getUTCHours() + 8) % 24;
@@ -102,11 +103,19 @@ export default function Arena() {
     try { sessionStorage.setItem(ARENA_HIST_KEY, JSON.stringify(history)); } catch { /* ignore */ }
   }, [history]);
 
-  /* ── Persist results cache in localStorage (survives tab close + restarts) ── */
+  /* ── Persist results cache in localStorage — purge entries older than 4h on load ── */
   useEffect(() => {
     try {
       const saved = localStorage.getItem(ARENA_RESULTS_KEY);
-      if (saved) setResultsCache(JSON.parse(saved));
+      if (saved) {
+        const parsed = JSON.parse(saved) as Partial<Record<CoinId, CacheEntry>>;
+        const now = Date.now();
+        const fresh: Partial<Record<CoinId, CacheEntry>> = {};
+        Object.entries(parsed).forEach(([k, v]) => {
+          if (v && now - v.result.analyzedAt < CACHE_MAX_AGE_MS) fresh[k as CoinId] = v;
+        });
+        setResultsCache(fresh);
+      }
     } catch { /* ignore */ }
   }, []);
   useEffect(() => {
@@ -412,7 +421,7 @@ export default function Arena() {
       news: latestHeadlines.length > 0 ? latestHeadlines.slice(0, 6).join('\n') : 'No recent alerts',
       rsi14, ma20, priceVsMA, volRatio, longShortRatio,
       oilPrice, bonds10y, upcomingEvents: upcoming, etfFlows,
-      rsi1h, rsi4h, cvd, basis, fibNearest, orderWalls, squeezeScore,
+      rsi1h, rsi4h, rsiDaily: '—', cvd, basis, fibNearest, orderWalls, squeezeScore,
       pcRatio, maxPain, btcGex,
       exchangeNetFlow, stablecoinFlow, googleTrends, liqLevels, btcDomTrend,
       pocLine, dxyLine, spxLine, goldLine,
@@ -481,9 +490,27 @@ export default function Arena() {
         lastClose: vis[vis.length - 1].c,
       };
 
+      // Step 1.5 — fetch daily RSI (parallel, silent fail)
+      let rsiDailyStr = '—';
+      try {
+        if (binanceSym) {
+          const dr = await fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=1d&limit=20`);
+          const dd = await dr.json() as (string|number)[][];
+          const dc = dd.map(k => Number(k[4]));
+          const dv = calcRSI(dc, 14).at(-1);
+          if (dv != null) rsiDailyStr = dv.toFixed(1) + (dv >= 70 ? ' (Overbought)' : dv <= 30 ? ' (Oversold)' : ' (Neutral)');
+        } else if (bybitSym) {
+          const dr = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=D&limit=20`);
+          const dd = await dr.json() as { result?: { list?: string[][] } };
+          const dc = [...(dd?.result?.list ?? [])].reverse().map(k => parseFloat(k[4]));
+          const dv = calcRSI(dc, 14).at(-1);
+          if (dv != null) rsiDailyStr = dv.toFixed(1) + (dv >= 70 ? ' (Overbought)' : dv <= 30 ? ' (Oversold)' : ' (Neutral)');
+        }
+      } catch { /* silent */ }
+
       // Step 2 — gather 34 market signals
       setReadStep('Reading market…');
-      const ctx = gatherContext();
+      const ctx = { ...gatherContext(), rsiDaily: rsiDailyStr };
 
       // Step 3 — ask Grok via server proxy (key hidden, rate-limited)
       setReadStep(mode === 'quick' ? 'Quick analysis…' : 'Searching live…');
@@ -655,7 +682,7 @@ export default function Arena() {
 
       {readError && <div className="arena-err">{readError}</div>}
 
-      {result && (() => {
+      {result && Date.now() - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
         const sigCol = result.signal === 'LONG' ? '#34d399' : result.signal === 'SHORT' ? '#f87171' : '#9ca3af';
         const secsDiff = Math.floor((Date.now() - result.analyzedAt) / 1000);
         const freshness = secsDiff < 60 ? `${secsDiff}s ago` : secsDiff < 3600 ? `${Math.floor(secsDiff/60)}m ago` : `${Math.floor(secsDiff/3600)}h ago`;
