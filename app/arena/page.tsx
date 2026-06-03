@@ -176,31 +176,79 @@ export default function Arena() {
   useEffect(() => {
     if (!notifEnabled) return;
     const coin = store.coins[selectedCoin];
-    const bucket = Math.floor(Date.now() / (30 * 60 * 1000));
+    const sym  = selectedCoin.toUpperCase();
+    const b30  = Math.floor(Date.now() / (30 * 60 * 1000));  // 30-min bucket
+    const b1h  = Math.floor(Date.now() / (60 * 60 * 1000));  // 1-hour bucket
+    const b2h  = Math.floor(Date.now() / (2  * 60 * 60 * 1000));
+    const b4h  = Math.floor(Date.now() / (4  * 60 * 60 * 1000));
 
+    const fire = (key: string, title: string, body: string) => {
+      if (notifCooldown.current.has(key)) return;
+      notifCooldown.current.add(key);
+      fireNotif(title, body);
+    };
+
+    /* 1 — Extreme funding rate (30 min cooldown) */
     if (coin?.fundingRate != null) {
       const fr = coin.fundingRate * 100;
-      if (Math.abs(fr) >= 0.05) {
-        const key = `fund-${selectedCoin}-${bucket}`;
-        if (!notifCooldown.current.has(key)) {
-          notifCooldown.current.add(key);
-          fireNotif(
-            `⚡ ${selectedCoin.toUpperCase()} Extreme Funding`,
-            `${fr >= 0 ? '+' : ''}${fr.toFixed(4)}% — ${fr > 0 ? 'Longs at risk ↓' : 'Shorts being squeezed ↑'}`
-          );
-        }
-      }
+      if (Math.abs(fr) >= 0.05)
+        fire(`fund-${selectedCoin}-${b30}`,
+          `⚡ ${sym} Extreme Funding`,
+          `${fr >= 0 ? '+' : ''}${fr.toFixed(4)}% — ${fr > 0 ? 'Longs at risk ↓' : 'Shorts being squeezed ↑'}`);
     }
-    if (store.fng != null && (store.fng <= 15 || store.fng >= 85)) {
-      const key = `fng-${store.fng < 20 ? 'fear' : 'greed'}-${Math.floor(Date.now() / (4 * 60 * 60 * 1000))}`;
-      if (!notifCooldown.current.has(key)) {
-        notifCooldown.current.add(key);
-        fireNotif(
-          store.fng <= 15 ? '🩸 Extreme Fear' : '🔴 Extreme Greed',
-          `Fear & Greed: ${store.fng} (${store.fngLabel}) — ${store.fng <= 15 ? 'Potential bottom signal' : 'Markets overextended'}`
-        );
-      }
+
+    /* 2 — Fear & Greed extreme (4 hour cooldown) */
+    if (store.fng != null && (store.fng <= 15 || store.fng >= 85))
+      fire(`fng-${store.fng < 20 ? 'fear' : 'greed'}-${b4h}`,
+        store.fng <= 15 ? '🩸 Extreme Fear' : '🔴 Extreme Greed',
+        `Fear & Greed: ${store.fng} (${store.fngLabel}) — ${store.fng <= 15 ? 'Potential bottom signal' : 'Markets overextended'}`);
+
+    /* 3 — CVD Divergence (1 hour cooldown) */
+    if (coin?.cvdDivergence)
+      fire(`cvd-${selectedCoin}-${coin.cvdDivergence}-${b1h}`,
+        coin.cvdDivergence === 'bullish'
+          ? `📈 ${sym} Bullish CVD Divergence`
+          : `📉 ${sym} Bearish CVD Divergence`,
+        coin.cvdDivergence === 'bullish'
+          ? 'Price falling but buyers absorbing — smart money accumulating. Watch for reversal ↑'
+          : 'Price rising but sellers increasing — distribution detected. Watch for reversal ↓');
+
+    /* 4 — RSI 1h extreme (2 hour cooldown) */
+    if (coin?.rsi1h != null) {
+      if (coin.rsi1h >= 75)
+        fire(`rsi-ob-${selectedCoin}-${b2h}`,
+          `⚠ ${sym} RSI Overbought (1H)`,
+          `RSI 1H: ${coin.rsi1h.toFixed(0)} — Exhaustion zone. Avoid chasing longs, watch for reversal candle.`);
+      else if (coin.rsi1h <= 25)
+        fire(`rsi-os-${selectedCoin}-${b2h}`,
+          `⚠ ${sym} RSI Oversold (1H)`,
+          `RSI 1H: ${coin.rsi1h.toFixed(0)} — Bounce setup forming. Watch for volume spike + rejection candle.`);
     }
+
+    /* 5 — Chart pattern detected (30 min cooldown) */
+    if (coin?.chartPattern) {
+      const isBull = /bull|higher high|engulf.*bull|hammer(?! man)|double bot/i.test(coin.chartPattern);
+      const isBear = /bear|lower high|engulf.*bear|shooting|hanging|double top/i.test(coin.chartPattern);
+      if (isBull)
+        fire(`pat-bull-${selectedCoin}-${b30}`,
+          `📊 ${sym} Bullish Pattern`,
+          `${coin.chartPattern.split(';')[0].trim()} — Check for entry confirmation.`);
+      else if (isBear)
+        fire(`pat-bear-${selectedCoin}-${b30}`,
+          `📊 ${sym} Bearish Pattern`,
+          `${coin.chartPattern.split(';')[0].trim()} — Watch for breakdown confirmation.`);
+    }
+
+    /* 6 — OI trend signal (1 hour cooldown) */
+    if (coin?.oiTrend === 'strong_up')
+      fire(`oi-sup-${selectedCoin}-${b1h}`,
+        `📈 ${sym} OI Spike — New Longs`,
+        'OI rising with price — real trend, new money entering. Bullish continuation likely.');
+    else if (coin?.oiTrend === 'strong_down')
+      fire(`oi-sdn-${selectedCoin}-${b1h}`,
+        `📉 ${sym} OI Spike — New Shorts`,
+        'OI rising with price falling — new shorts entering. Bearish continuation likely.');
+
   }, [store, selectedCoin, notifEnabled, fireNotif]);
 
   const gatherContext = (): GrokContext => {
@@ -582,7 +630,7 @@ export default function Arena() {
         </div>
         <button
           onClick={enableNotifications}
-          title={notifEnabled ? 'Alerts enabled — watching funding + F&G' : 'Enable price alerts'}
+          title={notifEnabled ? 'Alerts ON — Funding · F&G · CVD Divergence · RSI 1H · Pattern · OI Trend' : 'Enable browser alerts for this coin'}
           style={{
             padding: '6px 10px', borderRadius: 20, border: '0.5px solid',
             background: notifEnabled ? '#152b1e' : '#161616',
