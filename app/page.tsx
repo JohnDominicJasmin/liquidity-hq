@@ -301,7 +301,7 @@ function EdgeSignals() {
             : isMildBuy  ? `${buyPct}% mild buy`
             : isAggSell  ? `${sellPct}% sellers ▼`
             : isMildSell ? `${sellPct}% mild sell`
-            : `Balanced`;
+            : '—';
 
           const sigCol = buyPct == null ? 'var(--txt3)'
             : isAggBuy   ? '#34d399'

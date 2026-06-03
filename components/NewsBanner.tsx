@@ -47,7 +47,6 @@ export default function NewsBanner() {
                 <div className={`nc-impact${e.impact === 'med' ? ' nc-impact-med' : ''}`}>
                   {e.impact === 'high' ? 'High impact' : 'Med impact'}
                 </div>
-                <div className="nc-note">{ECON_NOTES[e.type] || ECON_NOTES.MACRO}</div>
               </div>
             );
           })}
@@ -60,7 +59,6 @@ export default function NewsBanner() {
                 <div className="nc-name">{e.headline}</div>
                 <div className="nc-time nc-time-ok">{e.timeStr}</div>
                 <div className="nc-source">{e.source}</div>
-                <div className="nc-note">{e.note}</div>
               </div>
             );
           })}

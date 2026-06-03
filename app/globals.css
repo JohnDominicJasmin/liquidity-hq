@@ -1332,8 +1332,14 @@ body.ticker-on .breaking-alert { top: 90px; }
   .macro-item:last-child { grid-column: 1 / -1; }
 }
 
-/* Right panel: macro items stack vertically */
-.dash-right .macro-strip-row { grid-template-columns: 1fr; }
+/* Right panel: macro items as compact horizontal rows */
+.dash-right .macro-strip       { padding: 10px 12px 8px; }
+.dash-right .macro-strip-row   { grid-template-columns: 1fr; gap: 4px; }
+.dash-right .macro-item        { flex-direction: row; align-items: center; padding: 6px 10px; gap: 0; border-radius: 10px; }
+.dash-right .macro-item-label  { min-width: 38px; font-size: 10px; flex-shrink: 0; }
+.dash-right .macro-item-price  { font-size: 12px; min-width: 56px; flex-shrink: 0; }
+.dash-right .macro-item-chg    { font-size: 11px; min-width: 54px; flex-shrink: 0; }
+.dash-right .macro-item-signal { font-size: 10px; margin-top: 0; flex: 1; text-align: right; line-height: 1.2; }
 
 /* ── THEME TOGGLE BUTTON ──────────────────────────────────────────── */
 .theme-btn {
