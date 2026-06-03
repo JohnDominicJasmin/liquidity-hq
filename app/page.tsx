@@ -525,11 +525,6 @@ export default function Dashboard() {
 
       {/* ── Main content ── */}
       <div className="dash-main">
-        <div style={{ padding: '1rem 0 0.75rem' }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2, letterSpacing: '-0.3px' }}>Liquidity Hunter HQ</div>
-          <div style={{ fontSize: 12, color: 'var(--txt3)' }}>The complete system — read the map, hunt the stops, get out fast</div>
-        </div>
-
         {/* Mobile-only ticker + market indicators (desktop shows in sidebar) */}
         <div className="mobile-only">
           <div className="dash-section">Live prices</div>
