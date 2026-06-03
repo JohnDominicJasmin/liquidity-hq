@@ -79,75 +79,91 @@ const OI_TREND_META: Record<string, { txt: string; sub: string; hint: string; co
   weak_down:   { txt: '▽ ↓OI ↓P', sub: 'Long exits — no panic',   hint: 'Longs taking profit/exiting. Not new shorts — capitulation risk.', col: '#fca5a5' },
 };
 
-/* ── Coin Sidebar — desktop only ── */
+/* ── Coin Sidebar v2 — signal cards ── */
 function CoinSidebar() {
   const { store, selectCoin } = useMarket();
 
-  const OI_SIG: Record<string, { txt: string; col: string }> = {
-    strong_up:   { txt: '▲ OI', col: '#34d399' },
-    strong_down: { txt: '▼ OI', col: '#f87171' },
-    weak_up:     { txt: '△ OI', col: '#86efac' },
-    weak_down:   { txt: '▽ OI', col: '#fca5a5' },
-  };
-
   return (
-    <div className="csb-container">
-      <div className="csb-header-row">Live Prices · tap to select</div>
+    <div className="csb2-container">
       {COINS.map(id => {
         const d   = store.coins[id];
         const dec = COIN_DEC[id];
-        const up  = (d?.change ?? 0) >= 0;
+        const chg = d?.change ?? 0;
+        const up  = chg >= 0;
         const sel = store.selectedCoin === id;
-        const fund = d?.fundingRate != null ? classifyFunding(d.fundingRate) : null;
-        const oiSig = d?.oiTrend ? OI_SIG[d.oiTrend] : null;
-        const tbp = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : null;
-        const tkrCol = tbp == null ? '' : tbp >= 65 ? '#34d399' : tbp <= 35 ? '#f87171' : '#606060';
-        const tkrBg  = tbp == null ? '' : tbp >= 65 ? 'rgba(52,211,153,0.1)' : tbp <= 35 ? 'rgba(248,113,113,0.1)' : 'rgba(255,255,255,0.03)';
+        const tbp = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : 50;
+
+        // ── Single priority signal ──
+        let sig: { text: string; col: string } | null = null;
+        if (d?.fundingRate != null) {
+          const fr = d.fundingRate * 100;
+          if (fr >= 0.04)       sig = { text: 'Longs overcrowded', col: '#f87171' };
+          else if (fr <= -0.02) sig = { text: 'Shorts squeezed',   col: '#34d399' };
+        }
+        if (!sig && d?.cvdDivergence === 'bullish') sig = { text: 'CVD bull div',  col: '#34d399' };
+        if (!sig && d?.cvdDivergence === 'bearish') sig = { text: 'CVD bear div',  col: '#f87171' };
+        if (!sig && (d?.oiTrend === 'strong_up'))   sig = { text: 'OI + new longs', col: '#34d399' };
+        if (!sig && (d?.oiTrend === 'strong_down')) sig = { text: 'OI + new shorts', col: '#f87171' };
+        if (!sig && d?.chartPattern) {
+          const isBull = /bull|higher high|engulf.*bull|hammer(?! man)|double bot/i.test(d.chartPattern);
+          const isBear = /bear|lower high|engulf.*bear|shooting|double top/i.test(d.chartPattern);
+          const label  = d.chartPattern.split(';')[0].split('(')[0].trim();
+          if (isBull) sig = { text: label, col: '#34d399' };
+          else if (isBear) sig = { text: label, col: '#f87171' };
+        }
+
+        // Bar color based on buy pressure
+        const barCol = tbp >= 60 ? '#34d399' : tbp <= 40 ? '#f87171' : '#404040';
 
         return (
-          <div key={id} className={`csb-row${sel ? ' csb-sel' : ''}`} onClick={() => selectCoin(id)}>
-            <div className="csb-top">
-              <span className="csb-name">{id.toUpperCase()}</span>
-              <span className="csb-price">{d?.price ? '$' + fmtPrice(d.price, dec) : '—'}</span>
-            </div>
-            <div className="csb-top" style={{ marginTop: 1 }}>
-              <span className="csb-oi">
-                {d?.oi != null ? fmtOI(d.oi) + ' OI' : ''}
+          <div
+            key={id}
+            className={`csb2-card${sel ? ' csb2-sel' : ''}`}
+            onClick={() => selectCoin(id)}
+          >
+            {/* Top row: name + price */}
+            <div className="csb2-top">
+              <span className="csb2-name">{id.toUpperCase()}</span>
+              <span className="csb2-price">
+                {d?.price ? '$' + fmtPrice(d.price, dec) : '—'}
               </span>
-              <span className={`csb-chg ${up ? 'chg-up' : 'chg-dn'}`}>{d ? fmtChg(d.change) : '--'}</span>
             </div>
-            <div className="csb-sub">
-              {fund && (
-                <span className={`csb-fr ${fund.cls}`}>
-                  FR {(d!.fundingRate! * 100 >= 0 ? '+' : '') + (d!.fundingRate! * 100).toFixed(4)}%
-                </span>
-              )}
-              {oiSig && (
-                <span className="csb-badge" style={{ color: oiSig.col, background: oiSig.col + '18' }}>
-                  {oiSig.txt}
-                </span>
-              )}
-              {tbp != null && (
-                <span className="csb-badge" style={{ color: tkrCol, background: tkrBg }}>
-                  {tbp}% buy
+
+            {/* Bottom row: change + signal */}
+            <div className="csb2-bottom">
+              <span className={`csb2-chg ${up ? 'chg-up' : 'chg-dn'}`}>
+                {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%
+              </span>
+              {sig && (
+                <span className="csb2-sig" style={{ color: sig.col }}>
+                  {sig.text}
                 </span>
               )}
             </div>
-            {d?.chartPattern && (() => {
-              const isBull = /bull|higher high|engulf.*bull|hammer(?! man)|double bot/i.test(d.chartPattern!);
-              const isBear = /bear|lower high|engulf.*bear|shooting|hanging|double top/i.test(d.chartPattern!);
-              const col = isBull ? '#34d399' : isBear ? '#f87171' : '#a78bfa';
-              const firstPattern = d.chartPattern!.split(';')[0].trim();
-              return (
-                <div style={{ fontSize: 9, color: col, marginTop: 2, fontWeight: 600, letterSpacing: '0.02em', lineHeight: 1.2, paddingLeft: 1 }}>
-                  {firstPattern}
-                </div>
-              );
-            })()}
+
+            {/* Buy pressure bar — fills edge to edge at bottom */}
+            <div className="csb2-bar-track">
+              <div
+                className="csb2-bar-fill"
+                style={{ width: tbp + '%', background: barCol }}
+              />
+            </div>
           </div>
         );
       })}
-      <div className="csb-status">{store.wsStatus}</div>
+
+      {/* WS status indicator */}
+      <div className="csb2-status">
+        <span
+          className="csb2-status-dot"
+          style={{
+            background: store.wsStatus.includes('REST') ? '#fb923c'
+              : store.wsStatus.includes('error') || store.wsStatus.includes('Error') ? '#f87171'
+              : '#34d399',
+          }}
+        />
+        <span>{store.wsStatus.includes('REST') ? 'REST' : store.wsStatus.includes('Live') ? 'Live' : 'Connecting'}</span>
+      </div>
     </div>
   );
 }
