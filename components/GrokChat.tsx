@@ -1,12 +1,13 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import {
   useMarket, CoinId, COINS, computeSqueezeScore, classifyFunding,
 } from '@/lib/marketStore';
 import { getPHT, getSessionName } from '@/lib/session';
 import { useNews, GeoEvent } from '@/components/NewsProvider';
-
-const GROK_KEY = 'xai-oCDU5hc5nANrylf2x59rY1blsSvXbefwm0rnP6BSypnO6nijulzN6znv5Bepv2POY4L6EdBULh4GYNCO';
+import { useAuth } from '@/components/AuthProvider';
+import { getSupabase } from '@/lib/supabase';
 
 interface Msg {
   role: 'user' | 'assistant';
@@ -49,14 +50,23 @@ function relTime(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-/* ── Generate follow-up question chips via Grok (cheap endpoint — no search needed) ── */
-async function generateFollowUps(response: string, coin: string): Promise<string[]> {
-  if (!response) return [];
+/* ── Auth token helper ─────────────────────────────────────────── */
+async function getAuthToken(): Promise<string | undefined> {
+  const sb = getSupabase();
+  if (!sb) return undefined;
+  const { data } = await sb.auth.getSession();
+  return data.session?.access_token;
+}
+
+/* ── Generate follow-up question chips via Grok (cheap — no search needed) ── */
+async function generateFollowUps(response: string, coin: string, token?: string): Promise<string[]> {
+  if (!response || !token) return [];
   try {
-    const res = await fetch('https://api.x.ai/v1/chat/completions', {
+    const res = await fetch('/api/grok-chat', {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROK_KEY}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({
+        mode:       'chat',
         model:      'grok-4.3',
         max_tokens: 100,
         messages: [{
@@ -225,16 +235,18 @@ function buildSystemCtx(
 export default function GrokChat() {
   const { store }                      = useMarket();
   const { latestHeadlines, geoEvents } = useNews();
+  const { user }                       = useAuth();
 
-  const [open,       setOpen]       = useState(false);
-  const [expanded,   setExpanded]   = useState(false);
-  const [liveSearch, setLiveSearch] = useState(false);
-  const [histView,   setHistView]   = useState(false);
-  const [coin,       setCoin]       = useState<CoinId>('btc');
-  const [msgs,       setMsgs]       = useState<Msg[]>([]);
-  const [input,      setInput]      = useState('');
-  const [loading,    setLoading]    = useState(false);
-  const [error,      setError]      = useState('');
+  const [open,           setOpen]           = useState(false);
+  const [expanded,       setExpanded]       = useState(false);
+  const [liveSearch,     setLiveSearch]     = useState(false);
+  const [histView,       setHistView]       = useState(false);
+  const [coin,           setCoin]           = useState<CoinId>('btc');
+  const [msgs,           setMsgs]           = useState<Msg[]>([]);
+  const [input,          setInput]          = useState('');
+  const [loading,        setLoading]        = useState(false);
+  const [error,          setError]          = useState('');
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   /* conversation history */
   const [convos,     setConvos]     = useState<SavedConvo[]>([]);
@@ -274,6 +286,13 @@ export default function GrokChat() {
 
   /* ── Send message ── */
   const sendMsg = useCallback(async (text: string, coinOverride?: CoinId) => {
+    /* ── Auth gate: show login modal if not signed in ── */
+    if (!user) {
+      setOpen(true);
+      setShowLoginModal(true);
+      return;
+    }
+
     const activeCoin = coinOverride ?? coin;
     const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -284,6 +303,11 @@ export default function GrokChat() {
     if (inputRef.current) inputRef.current.style.height = 'auto';
     setLoading(true);
     setError('');
+
+    /* Get auth token for server-side proxy */
+    const token = await getAuthToken();
+    const reqHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) reqHeaders['Authorization'] = `Bearer ${token}`;
 
     try {
       // Auto-detect live search first — needed before context decision
@@ -303,11 +327,12 @@ export default function GrokChat() {
       let reply: string;
 
       if (useSearch) {
-        // Live search ON (manual or auto-detected) → /v1/responses with web + X search tools (~$0.05–$0.15)
-        const res = await fetch('https://api.x.ai/v1/responses', {
+        // Live search ON → /api/grok-chat with mode:'search' (~$0.05–$0.15)
+        const res = await fetch('/api/grok-chat', {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROK_KEY}` },
+          headers: reqHeaders,
           body:    JSON.stringify({
+            mode:  'search',
             model: 'grok-4.3',
             input: messages,
             tools: [{ type: 'web_search' }, { type: 'x_search' }],
@@ -315,16 +340,18 @@ export default function GrokChat() {
         });
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));
+          if (j?.code === 'AUTH_REQUIRED') { setShowLoginModal(true); setLoading(false); return; }
           throw new Error(`${res.status} — ${j?.error ?? res.statusText}`);
         }
         const data = await res.json();
         reply = data.output?.find((o: { type: string }) => o.type === 'message')?.content?.[0]?.text ?? '(no response)';
       } else {
-        // No search needed → /v1/chat/completions, no tools (~$0.003)
-        const res = await fetch('https://api.x.ai/v1/chat/completions', {
+        // No search needed → /api/grok-chat with mode:'chat' (~$0.003)
+        const res = await fetch('/api/grok-chat', {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROK_KEY}` },
+          headers: reqHeaders,
           body:    JSON.stringify({
+            mode:       'chat',
             model:      'grok-4.3',
             messages,
             max_tokens: 600,
@@ -332,6 +359,7 @@ export default function GrokChat() {
         });
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));
+          if (j?.code === 'AUTH_REQUIRED') { setShowLoginModal(true); setLoading(false); return; }
           throw new Error(`${res.status} — ${j?.error ?? res.statusText}`);
         }
         const data = await res.json();
@@ -343,7 +371,7 @@ export default function GrokChat() {
       setMsgs(prev => [...prev, { role: 'assistant', content: reply, ts: replyTs }]);
 
       // Generate follow-up chips only for substantial responses (skip 1-liners)
-      generateFollowUps(reply.length > 150 ? reply : '', activeCoin).then(followUps => {
+      generateFollowUps(reply.length > 150 ? reply : '', activeCoin, token).then(followUps => {
         if (followUps.length > 0) {
           setMsgs(prev => {
             const updated = [...prev];
@@ -360,7 +388,7 @@ export default function GrokChat() {
     } finally {
       setLoading(false);
     }
-  }, [msgs, coin, liveSearch, store, latestHeadlines, geoEvents]);
+  }, [msgs, coin, liveSearch, store, latestHeadlines, geoEvents, user]);
 
   /* ── Open-with-prompt event from Arena ── */
   useEffect(() => {
@@ -401,7 +429,7 @@ export default function GrokChat() {
   /* ── Misc ── */
   const handleSend   = () => { if (!input.trim() || loading) return; sendMsg(input.trim()); };
   const clearChat    = () => { setMsgs([]); setError(''); };
-  const closeAll     = () => { setOpen(false); setExpanded(false); setHistView(false); };
+  const closeAll     = () => { setOpen(false); setExpanded(false); setHistView(false); setShowLoginModal(false); };
   const toggleExpand = () => setExpanded(v => !v);
 
   /* ── Coin badge color ── */
@@ -419,7 +447,7 @@ export default function GrokChat() {
       {/* ── Floating action button ── */}
       <button
         className={`gchat-fab${open ? ' gchat-fab-open' : ''}`}
-        onClick={() => { setOpen(v => !v); if (open) setExpanded(false); }}
+        onClick={() => { setOpen(v => !v); if (open) { setExpanded(false); setShowLoginModal(false); } }}
         title={open ? 'Close chat' : 'Ask Grok'}
         aria-label={open ? 'Close Grok chat' : 'Open Grok chat'}
       >
@@ -428,6 +456,31 @@ export default function GrokChat() {
 
       {/* ── Chat panel ── */}
       <div className={`gchat-panel${open ? ' gchat-open' : ''}${expanded ? ' gchat-expanded' : ''}`}>
+
+        {/* ── Login modal overlay (shown when unauthenticated user tries to use Grok) ── */}
+        {showLoginModal && (
+          <div className="gchat-login-overlay">
+            <button
+              className="gchat-login-close"
+              onClick={() => setShowLoginModal(false)}
+              aria-label="Close"
+            >✕</button>
+            <div style={{ fontSize: 40, marginBottom: 4 }}>🔒</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#e8e8e8' }}>
+              Sign in to use Grok
+            </div>
+            <div style={{ fontSize: 13, color: '#606060', lineHeight: 1.65, maxWidth: 240 }}>
+              AI analysis uses API credits. Create a free account to unlock Grok chat and arena analysis.
+            </div>
+            <Link
+              href="/login"
+              className="auth-gate-btn"
+              onClick={() => setShowLoginModal(false)}
+            >
+              Sign In
+            </Link>
+          </div>
+        )}
 
         {/* Header */}
         <div className="gchat-header">
@@ -555,13 +608,27 @@ export default function GrokChat() {
               {msgs.length === 0 && (
                 <div className="gchat-empty">
                   <div style={{ fontSize: 32, marginBottom: 8 }}>🤖</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#a0a0a0' }}>Ask anything about</div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: '#b8aeff', margin: '2px 0 6px' }}>
-                    {coin.toUpperCase()}/USDT
-                  </div>
-                  <div style={{ fontSize: 11, color: '#444' }}>
-                    {liveSearch ? '🌐 Live search ON · ~$0.10/msg' : '⚡ Fast mode · ~$0.003/msg · toggle 🌐 for live search'}
-                  </div>
+                  {user ? (
+                    <>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#a0a0a0' }}>Ask anything about</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: '#b8aeff', margin: '2px 0 6px' }}>
+                        {coin.toUpperCase()}/USDT
+                      </div>
+                      <div style={{ fontSize: 11, color: '#444' }}>
+                        {liveSearch ? '🌐 Live search ON · ~$0.10/msg' : '⚡ Fast mode · ~$0.003/msg · toggle 🌐 for live search'}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#606060' }}>Sign in to use Grok Chat</div>
+                      <button
+                        style={{ marginTop: 10, fontSize: 12, color: '#b8aeff', background: 'none', border: '0.5px solid #b8aeff44', borderRadius: 8, padding: '6px 16px', cursor: 'pointer' }}
+                        onClick={() => setShowLoginModal(true)}
+                      >
+                        Sign In →
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -651,7 +718,7 @@ export default function GrokChat() {
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
                 }}
-                placeholder={`Ask about ${coin.toUpperCase()}…`}
+                placeholder={user ? `Ask about ${coin.toUpperCase()}…` : 'Sign in to use Grok Chat'}
                 disabled={loading}
               />
               <button

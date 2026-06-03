@@ -2184,6 +2184,31 @@ body.ticker-on .breaking-alert { top: 90px; }
 }
 .auth-gate-btn:hover { filter: brightness(1.15); }
 
+/* ── GROK CHAT — Login modal overlay ─────────────────────────────────────── */
+.gchat-login-overlay {
+  position: absolute; inset: 0; z-index: 20;
+  background: rgba(10, 10, 14, 0.94);
+  backdrop-filter: blur(6px) saturate(0.5);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 12px; text-align: center; padding: 28px;
+  animation: gchat-login-in 0.18s ease;
+}
+@keyframes gchat-login-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+.gchat-login-close {
+  position: absolute; top: 14px; right: 14px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(255,255,255,0.07);
+  border: 0.5px solid rgba(255,255,255,0.12);
+  color: var(--txt3); font-size: 13px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.gchat-login-close:hover { background: rgba(255,255,255,0.14); color: var(--txt); }
+
 /* ── AUTH — Avatar button & Sign In ───────────────────────────────────────── */
 .auth-wrap { position: relative; flex-shrink: 0; }
 
