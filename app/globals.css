@@ -114,7 +114,8 @@ body::after {
 }
 .app-logo { font-size: 15px; font-weight: 700; color: var(--txt); white-space: nowrap; flex-shrink: 0; letter-spacing: -0.2px; }
 .app-logo span { color: var(--purple); }
-.app-content { max-width: 700px; margin: 0 auto; padding: 68px 1rem 2rem; }
+.app-content { max-width: 700px; margin: 0 auto; padding: 90px 1rem 2rem; }
+/* 90px = navbar(52) + ticker(28) + 10px gap — safe at all times */
 
 /* ── DESKTOP WIDE LAYOUT (≥1100px) ── */
 @media (min-width: 1100px) {
@@ -457,16 +458,15 @@ body::after {
 .news-ticker {
   position: fixed; top: 52px; left: 0; right: 0; z-index: 999;
   height: 28px; display: flex; align-items: center; gap: 0;
-  background: rgba(8, 7, 12, 0.94);
+  background: #0a090e;                   /* fully opaque — no bleed-through */
   border-bottom: 0.5px solid rgba(255,255,255,0.06);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   overflow: hidden;
   animation: ticker-slide-in 0.28s ease-out;
 }
-.ticker-red    { background: rgba(248,113,113,0.07); border-bottom-color: rgba(248,113,113,0.28); }
-.ticker-amber  { background: rgba(251,191,36,0.06);  border-bottom-color: rgba(251,191,36,0.25); }
-.ticker-purple { background: rgba(167,139,250,0.05); border-bottom-color: rgba(167,139,250,0.2); }
+/* Color identity via badge + accent border only — no transparent backgrounds */
+.ticker-red    { border-bottom-color: rgba(248,113,113,0.4); }
+.ticker-amber  { border-bottom-color: rgba(251,191,36,0.35); }
+.ticker-purple { border-bottom-color: rgba(167,139,250,0.3); }
 
 .ticker-badge {
   flex-shrink: 0;
@@ -507,9 +507,8 @@ body::after {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Push content below ticker when it's visible */
-body.ticker-on .app-content { padding-top: 98px; }
-/* Also push breaking alerts down so they don't overlap */
+/* body.ticker-on no longer needed for app-content — base padding covers both states */
+/* Keep for breaking alerts positioning */
 body.ticker-on .breaking-alert { top: 90px; }
 
 /* ── INDICATORS ── */
