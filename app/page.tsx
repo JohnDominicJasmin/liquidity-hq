@@ -535,9 +535,8 @@ export default function Dashboard() {
           <div className="ind-row"><AltSeasonIndex /></div>
         </div>
 
-        <div className="dash-section dash-section-hot">Raid conditions</div>
-        <SessionCountdown />
         <RaidMeter />
+        <SessionCountdown />
 
         <NewsBanner />
 
