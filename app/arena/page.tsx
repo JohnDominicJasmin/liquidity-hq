@@ -594,7 +594,7 @@ export default function Arena() {
       </div>
 
       {/* ── CHART — visual anchor ── */}
-      <GrokSignalChart coin={selectedCoin} />
+      <GrokSignalChart coin={selectedCoin} tf={readTf} />
 
       {/* ── SIGNAL ENGINE ── */}
       {/* Squeeze score */}

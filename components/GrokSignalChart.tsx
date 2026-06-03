@@ -22,11 +22,20 @@ function useAppTheme(): 'dark' | 'light' {
   return theme;
 }
 
-export default function GrokSignalChart({ coin: coinProp }: { coin?: string }) {
+// Map our TF labels → TradingView interval codes
+const TF_TO_TV: Record<string, string> = {
+  '15m': '15',
+  '1h':  '60',
+  '4h':  '240',
+  '1d':  'D',
+};
+
+export default function GrokSignalChart({ coin: coinProp, tf }: { coin?: string; tf?: string }) {
   const { store } = useMarket();
   const theme = useAppTheme();
 
-  const coin  = (coinProp ?? store.selectedCoin) as string;
+  const coin     = (coinProp ?? store.selectedCoin) as string;
+  const interval = TF_TO_TV[tf ?? '15m'] ?? '15';
   const binanceSym = BINANCE_SYMS[coin] as string | undefined;
   const bybitSym   = BYBIT_SYMS[coin]   as string | undefined;
 
@@ -40,7 +49,7 @@ export default function GrokSignalChart({ coin: coinProp }: { coin?: string }) {
   const tvSrc = [
     'https://www.tradingview.com/widgetembed/',
     `?symbol=${encodeURIComponent(tvSym)}`,
-    `&interval=15`,
+    `&interval=${interval}`,
     `&theme=${theme}`,
     `&style=1`,
     `&locale=en`,
@@ -58,8 +67,8 @@ export default function GrokSignalChart({ coin: coinProp }: { coin?: string }) {
         </div>
       </div>
       <div className="gsc-tv-wrap">
-        {/* key includes theme so iframe reloads when theme switches */}
-        <iframe key={`${coin}-${theme}`} src={tvSrc} className="gsc-tv-frame" frameBorder="0" allowFullScreen />
+        {/* key includes theme + interval so iframe reloads when either changes */}
+        <iframe key={`${coin}-${theme}-${interval}`} src={tvSrc} className="gsc-tv-frame" frameBorder="0" allowFullScreen />
       </div>
     </div>
   );
