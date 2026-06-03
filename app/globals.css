@@ -1831,9 +1831,11 @@ body.ticker-on .breaking-alert { top: 90px; }
 .gsc-error    { padding: 8px 14px; font-size: 11px; color: var(--red); }
 @media (max-width: 639px) { .gsc-tv-frame { height: 420px; } }
 
-/* ── Arena: content below chart — centered, max 860px on wide screens ── */
+/* ── Arena: content below chart — same full-bleed width as TradingView chart ── */
 .arena-below-chart { width: 100%; }
-@media (min-width: 1100px) { .arena-below-chart { max-width: 860px; margin-left: auto; margin-right: auto; } }
+@media (min-width: 1100px) {
+  .arena-below-chart { margin-left: -20px; margin-right: -20px; padding-left: 20px; padding-right: 20px; }
+}
 
 /* ── TRADE JOURNAL ──────────────────────────────────────────────────────── */
 .tj-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
