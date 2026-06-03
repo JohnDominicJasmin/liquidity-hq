@@ -2,11 +2,11 @@
 import { useMarket } from '@/lib/marketStore';
 
 const FNG_NOTES: Record<string, string> = {
-  'Extreme Fear': 'Market is in extreme fear. Most retail is panic selling. This is when whales accumulate. High probability of a violent bounce raid soon.',
-  'Fear': 'Market sentiment is fearful. Retail is nervous. Longs getting hunted. Watch for sudden squeeze setups on the heatmap.',
-  'Neutral': 'Market sentiment is balanced. No strong bias either way. Cluster direction + funding rate are your main signals right now.',
-  'Greed': 'Market is greedy. Longs are overleveraged and confident. Classic setup for a short squeeze reversal. Watch bright zones above price.',
-  'Extreme Greed': 'Extreme greed — most dangerous zone. Everyone is long and euphoric. This is exactly when whales hunt the longs. High reversal risk.',
+  'Extreme Fear':  'Whales accumulate here — bounce raid likely.',
+  'Fear':          'Retail nervous — watch for squeeze setups.',
+  'Neutral':       'No strong bias — follow cluster + funding.',
+  'Greed':         'Longs overleveraged — short squeeze risk.',
+  'Extreme Greed': 'Everyone long & euphoric — whale hunt imminent.',
 };
 
 function getScoreCls(v: number): string {

@@ -197,7 +197,7 @@ body::after {
 .csb2-price     { font-size: 12px; font-weight: 700; color: var(--txt); font-family: 'JetBrains Mono', monospace; }
 .csb2-bottom    { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .csb2-chg       { font-size: 11px; font-weight: 700; }
-.csb2-sig       { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; max-width: 110px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(255,255,255,0.04); }
+.csb2-sig       { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; max-width: 124px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(255,255,255,0.04); }
 .csb2-bar-track { height: 3px; background: rgba(255,255,255,0.06); border-radius: 0 0 10px 10px; margin: 0 -10px; }
 .csb2-bar-fill  { height: 100%; border-radius: 0 0 10px 10px; transition: width 0.8s ease, background 0.3s; }
 .csb2-status    { display: flex; align-items: center; gap: 6px; padding: 6px 4px 2px; font-size: 10px; color: var(--txt3); font-weight: 600; letter-spacing: 0.04em; }
