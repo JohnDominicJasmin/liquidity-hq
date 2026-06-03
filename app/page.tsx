@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMarket, COINS, BYBIT_SYMS, COIN_DEC, fmtPrice, fmtChg, fmtOI, classifyFunding } from '@/lib/marketStore';
 import Ticker from '@/components/Ticker';
 import FearGreed from '@/components/FearGreed';
@@ -193,6 +193,11 @@ function EdgeSignals() {
   const vwapCol   = vwapAbove === null ? 'var(--txt3)' : vwapAbove ? 'var(--green)' : 'var(--red)';
   const vwapBdr   = vwapAbove === null ? 'var(--bdr)' : vwapAbove ? 'var(--green-bdr)' : 'var(--red-bdr)';
 
+  /* ── OI Trend (selected coin) ── */
+  const oiMeta  = coin?.oiTrend ? OI_TREND_META[coin.oiTrend] : null;
+  const hasPerp = store.selectedCoin in BYBIT_SYMS;
+  const oiBdr   = oiMeta ? oiMeta.col + '44' : 'var(--bdr)';
+
   return (
     <>
       {/* Row 1: CB Premium + VWAP */}
@@ -238,54 +243,36 @@ function EdgeSignals() {
             {vwapAbove === null ? 'Calculating…' : vwapAbove ? '▲ Above VWAP — bullish' : '▼ Below VWAP — bearish'}
           </div>
         </div>
-      </div>
 
-      {/* Row 2: OI Trend table */}
-      <div className="oi-trend-table">
-        <div className="oi-trend-title">
-          OI Trend vs Price
-          <div className={`oi-info-wrap${tipOpen ? ' open' : ''}`} onClick={() => setTipOpen(o => !o)}>
-            <span className="oi-info-icon">ⓘ</span>
-            <div className="oi-info-tip">
-              <div className="oi-tip-row"><span className="oi-tip-badge tip-green">▲ ↑OI ↑P</span><span>New longs — real trend, follow it</span></div>
-              <div className="oi-tip-row"><span className="oi-tip-badge tip-red">▼ ↑OI ↓P</span><span>New shorts — real dump, not a dip</span></div>
-              <div className="oi-tip-row"><span className="oi-tip-badge tip-weak-up">△ ↓OI ↑P</span><span>Short covering — no new longs, fake pump</span></div>
-              <div className="oi-tip-row"><span className="oi-tip-badge tip-weak-down">▽ ↓OI ↓P</span><span>Long exits — no new shorts, no panic</span></div>
-            </div>
+        {/* OI Trend — selected coin */}
+        <div className="edge-card" style={{ borderColor: oiBdr }}>
+          <div className="edge-card-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            OI · {store.selectedCoin.toUpperCase()}
+            <span
+              className="oi-info-icon"
+              style={{ cursor: 'pointer' }}
+              onClick={() => setTipOpen(o => !o)}
+            >ⓘ</span>
           </div>
-        </div>
-        <div className="oi-trend-hdr">
-          <div>Coin</div><div>Signal</div><div>What it means</div>
-        </div>
-        {COINS.map(id => {
-          const c       = store.coins[id];
-          const meta    = c?.oiTrend ? OI_TREND_META[c.oiTrend] : null;
-          const hasPerp = id in BYBIT_SYMS;
-          return (
-            <div key={id} className="oi-trend-row">
-              <div className="oi-trend-coin">{id.toUpperCase()}</div>
-              {meta ? (
-                <div
-                  className="oi-trend-badge"
-                  style={{ color: meta.col, background: meta.col + '1a', border: '0.5px solid ' + meta.col + '44' }}
-                >
-                  {meta.txt}
-                </div>
-              ) : (
-                <div style={{ fontSize: 10, color: 'var(--txt3)' }}>—</div>
-              )}
-              <div className="oi-trend-desc">
-                {!hasPerp ? (
-                  <span style={{ color: 'var(--txt3)' }}>No perp</span>
-                ) : meta ? (
-                  <div>{meta.sub}</div>
-                ) : (
-                  <span style={{ color: 'var(--txt3)' }}>Warming up…</span>
-                )}
-              </div>
+          {oiMeta ? (
+            <>
+              <div className="edge-card-value" style={{ color: oiMeta.col, fontSize: 14 }}>{oiMeta.txt}</div>
+              <div className="edge-card-signal" style={{ color: oiMeta.col }}>{oiMeta.hint}</div>
+            </>
+          ) : (
+            <div className="edge-card-signal" style={{ color: 'var(--txt3)', marginTop: 4 }}>
+              {!hasPerp ? 'No perp data' : 'Warming up…'}
             </div>
-          );
-        })}
+          )}
+          {tipOpen && (
+            <div className="oi-inline-tip">
+              <div className="oi-tip-row"><span className="oi-tip-badge tip-green">▲ ↑OI ↑P</span><span>New longs — real trend</span></div>
+              <div className="oi-tip-row"><span className="oi-tip-badge tip-red">▼ ↑OI ↓P</span><span>New shorts — real dump</span></div>
+              <div className="oi-tip-row"><span className="oi-tip-badge tip-weak-up">△ ↓OI ↑P</span><span>Short covering — fake pump</span></div>
+              <div className="oi-tip-row"><span className="oi-tip-badge tip-weak-down">▽ ↓OI ↓P</span><span>Long exits — no panic</span></div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Row 3: Taker Buy/Sell ratio table */}
@@ -525,6 +512,81 @@ function BTCDominance() {
   );
 }
 
+/* ── Market Events Strip ── */
+function MarketEventsStrip() {
+  const [now, setNow] = useState(() => new Date());
+  // tick every second for the FR countdown
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Next funding settlement: 00:00, 08:00, 16:00 UTC
+  const nextFRCountdown = (() => {
+    const h = now.getUTCHours();
+    let nextH: number;
+    if      (h < 8)  nextH = 8;
+    else if (h < 16) nextH = 16;
+    else             nextH = 24;
+    const next = new Date(now);
+    next.setUTCHours(nextH % 24, 0, 0, 0);
+    if (nextH === 24) next.setUTCDate(next.getUTCDate() + 1);
+    const diff = next.getTime() - now.getTime();
+    const hh   = Math.floor(diff / 3_600_000);
+    const mm   = Math.floor((diff % 3_600_000) / 60_000);
+    const ss   = Math.floor((diff % 60_000) / 1_000);
+    return `${hh}h ${mm.toString().padStart(2, '0')}m ${ss.toString().padStart(2, '0')}s`;
+  })();
+
+  // Next Friday weekly options expiry (Deribit 08:00 UTC)
+  const { nextFriLabel, isFriToday } = (() => {
+    const day = now.getUTCDay();
+    let daysUntil = (5 - day + 7) % 7;
+    if (daysUntil === 0 && now.getUTCHours() >= 8) daysUntil = 7;
+    const next = new Date(now);
+    next.setUTCDate(now.getUTCDate() + daysUntil);
+    return {
+      nextFriLabel: daysUntil === 0
+        ? 'Today ⚡'
+        : next.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }),
+      isFriToday: daysUntil === 0,
+    };
+  })();
+
+  // Last Friday of current (or next) month — monthly expiry
+  const monthlyLabel = (() => {
+    const yr = now.getUTCFullYear();
+    const mo = now.getUTCMonth();
+    const lastDay = new Date(Date.UTC(yr, mo + 1, 0));
+    while (lastDay.getUTCDay() !== 5) lastDay.setUTCDate(lastDay.getUTCDate() - 1);
+    if (lastDay.getTime() <= now.getTime()) {
+      const nxt = new Date(Date.UTC(yr, mo + 2, 0));
+      while (nxt.getUTCDay() !== 5) nxt.setUTCDate(nxt.getUTCDate() - 1);
+      return nxt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    }
+    return lastDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  })();
+
+  return (
+    <div className="mev-strip">
+      <div className="mev-item">
+        <span className="mev-label">FR settlement</span>
+        <span className="mev-value mev-mono">{nextFRCountdown}</span>
+      </div>
+      <div className="mev-sep" />
+      <div className="mev-item">
+        <span className="mev-label">Weekly expiry</span>
+        <span className={`mev-value${isFriToday ? ' mev-hot' : ''}`}>{nextFriLabel}</span>
+      </div>
+      <div className="mev-sep" />
+      <div className="mev-item">
+        <span className="mev-label">Monthly expiry</span>
+        <span className="mev-value">{monthlyLabel}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [cmdsOpen, setCmdsOpen] = useState(false);
   const [gexOpen,  setGexOpen]  = useState(false);
@@ -556,6 +618,7 @@ export default function Dashboard() {
         <SessionCountdown />
 
         <NewsBanner />
+        <MarketEventsStrip />
 
         <div className="dash-section dash-section-hot">Edge signals</div>
         <EdgeSignals />
