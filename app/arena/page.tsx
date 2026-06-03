@@ -75,7 +75,7 @@ export default function Arena() {
   const { latestHeadlines, econEvents } = useNews();
   const { user } = useAuth();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>('btc');
-  const [readTf, setReadTf]         = useState<'15m'|'1h'|'4h'>('15m');
+  const [readTf, setReadTf]         = useState<'15m'|'1h'|'4h'|'1d'>('15m');
   const [readLoading, setReadLoading] = useState(false);
   const [readStep, setReadStep]       = useState('');
   const [readError, setReadError]     = useState('');
@@ -467,7 +467,7 @@ export default function Arena() {
         raw = await r.json();
       } else {
         // Bybit klines: interval uses numbers (15, 60, 240); response is newest-first
-        const bybitInterval = readTf === '15m' ? '15' : readTf === '1h' ? '60' : '240';
+        const bybitInterval = readTf === '15m' ? '15' : readTf === '1h' ? '60' : readTf === '4h' ? '240' : 'D';
         const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${bybitInterval}&limit=300`);
         if (!r.ok) throw new Error('Bybit API error');
         const data = await r.json();
@@ -628,7 +628,7 @@ export default function Arena() {
       {/* TF selector + buttons */}
       <div style={{ margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ fontSize: 10, color: 'var(--txt3)', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' }}>TF</span>
-        {(['15m','1h','4h'] as const).map(t => (
+        {(['15m','1h','4h','1d'] as const).map(t => (
           <button key={t} className={`gsc-tf-btn${readTf === t ? ' on' : ''}`} onClick={() => setReadTf(t)} style={{ padding: '3px 8px', fontSize: 11 }}>{t}</button>
         ))}
       </div>
