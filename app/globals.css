@@ -1765,6 +1765,12 @@ body.ticker-on .breaking-alert { top: 90px; }
   border-radius: 16px;
   overflow: hidden;
   margin-bottom: 8px;
+  /* Break out of content padding on desktop for a wider feel */
+  margin-left: -1rem;
+  margin-right: -1rem;
+}
+@media (min-width: 1100px) {
+  .gsc-wrap { margin-left: -20px; margin-right: -20px; border-radius: 0; border-left: none; border-right: none; }
 }
 .gsc-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -1821,9 +1827,13 @@ body.ticker-on .breaking-alert { top: 90px; }
 .gsc-chip-sl    { color: #f87171; background: rgba(248,113,113,0.1); border: 0.5px solid rgba(248,113,113,0.3); }
 /* TradingView iframe embed */
 .gsc-tv-wrap  { position: relative; width: 100%; background: #000; overflow: hidden; }
-.gsc-tv-frame { display: block; width: 100%; height: 620px; border: none; }
+.gsc-tv-frame { display: block; width: 100%; height: 720px; border: none; }
 .gsc-error    { padding: 8px 14px; font-size: 11px; color: var(--red); }
-@media (max-width: 639px) { .gsc-tv-frame { height: 360px; } }
+@media (max-width: 639px) { .gsc-tv-frame { height: 420px; } }
+
+/* ── Arena: content below chart — left-aligned, max 860px on wide screens ── */
+.arena-below-chart { width: 100%; }
+@media (min-width: 1100px) { .arena-below-chart { max-width: 860px; } }
 
 /* ── TRADE JOURNAL ──────────────────────────────────────────────────────── */
 .tj-tabs { display: flex; gap: 6px; margin-bottom: 14px; }

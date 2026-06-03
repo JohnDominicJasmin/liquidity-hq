@@ -593,8 +593,11 @@ export default function Arena() {
         >{notifEnabled ? '🔔' : '🔕'}</button>
       </div>
 
-      {/* ── CHART — visual anchor ── */}
+      {/* ── CHART — visual anchor (full-bleed, wider) ── */}
       <GrokSignalChart coin={selectedCoin} tf={readTf} />
+
+      {/* ── BELOW CHART: left-aligned, max 860px on wide screens ── */}
+      <div className="arena-below-chart">
 
       {/* ── SIGNAL ENGINE ── */}
       {/* Squeeze score */}
@@ -914,6 +917,7 @@ export default function Arena() {
         </div>
       )}
 
+      </div> {/* end arena-below-chart */}
     </div>
   );
 }
