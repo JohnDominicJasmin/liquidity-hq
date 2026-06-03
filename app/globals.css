@@ -1831,9 +1831,9 @@ body.ticker-on .breaking-alert { top: 90px; }
 .gsc-error    { padding: 8px 14px; font-size: 11px; color: var(--red); }
 @media (max-width: 639px) { .gsc-tv-frame { height: 420px; } }
 
-/* ── Arena: content below chart — left-aligned, max 860px on wide screens ── */
+/* ── Arena: content below chart — centered, max 860px on wide screens ── */
 .arena-below-chart { width: 100%; }
-@media (min-width: 1100px) { .arena-below-chart { max-width: 860px; } }
+@media (min-width: 1100px) { .arena-below-chart { max-width: 860px; margin-left: auto; margin-right: auto; } }
 
 /* ── TRADE JOURNAL ──────────────────────────────────────────────────────── */
 .tj-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
