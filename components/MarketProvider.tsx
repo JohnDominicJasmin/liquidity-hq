@@ -545,16 +545,18 @@ export default function MarketProvider({ children }: { children: React.ReactNode
             { cache: 'no-store' }
           );
           const data = await res.json();
-          const trades: Array<{ S: string; v: string; p: string }> = data.result?.list ?? [];
+          // Bybit linear recent-trade fields: price, size, side (NOT p/v/S — those are spot fields)
+          const trades: Array<{ side: string; size: string; price: string }> = data.result?.list ?? [];
           let buyVol = 0, sellVol = 0;
           trades.forEach(t => {
-            const qty = parseFloat(t.v);
-            const usd = parseFloat(t.p) * qty;
-            if (t.S === 'Buy') buyVol += qty; else sellVol += qty;
+            const qty = parseFloat(t.size);
+            const usd = parseFloat(t.price) * qty;
+            if (!isFinite(qty) || !isFinite(usd)) return;
+            if (t.side === 'Buy') buyVol += qty; else sellVol += qty;
             // Whale detection for HYPE
             if (usd >= WHALE_USD_THRESHOLD) {
               window.dispatchEvent(new CustomEvent('whale-trade', {
-                detail: { id: Date.now(), symbol: 'HYPE', side: t.S === 'Buy' ? 'BUY' : 'SELL', usdValue: usd, price: parseFloat(t.p), qty, ts: Math.floor(Date.now() / 1000) },
+                detail: { id: Date.now(), symbol: 'HYPE', side: t.side === 'Buy' ? 'BUY' : 'SELL', usdValue: usd, price: parseFloat(t.price), qty, ts: Math.floor(Date.now() / 1000) },
               }));
             }
           });

@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     if (type === 'global') {
       const r = await fetch(`${BASE}/v1/global-metrics/quotes/latest`, {
         headers: cmcHeaders(),
-        next: { revalidate: 60 },   // cache 60s server-side
+        cache: 'no-store',   // always fresh — client polls every 5 min anyway
       });
       const d = await r.json();
       return NextResponse.json(d);
