@@ -102,14 +102,23 @@ function CoinSidebar() {
         }
         if (!sig && d?.cvdDivergence === 'bullish') sig = { text: 'CVD bull div',  col: '#34d399' };
         if (!sig && d?.cvdDivergence === 'bearish') sig = { text: 'CVD bear div',  col: '#f87171' };
-        if (!sig && (d?.oiTrend === 'strong_up'))   sig = { text: 'OI + new longs', col: '#34d399' };
-        if (!sig && (d?.oiTrend === 'strong_down')) sig = { text: 'OI + new shorts', col: '#f87171' };
+        if (!sig && d?.oiTrend === 'strong_up')     sig = { text: 'OI + new longs',  col: '#34d399' };
+        if (!sig && d?.oiTrend === 'strong_down')   sig = { text: 'OI + new shorts', col: '#f87171' };
         if (!sig && d?.chartPattern) {
           const isBull = /bull|higher high|engulf.*bull|hammer(?! man)|double bot/i.test(d.chartPattern);
           const isBear = /bear|lower high|engulf.*bear|shooting|double top/i.test(d.chartPattern);
           const label  = d.chartPattern.split(';')[0].split('(')[0].trim();
-          if (isBull) sig = { text: label, col: '#34d399' };
-          else if (isBear) sig = { text: label, col: '#f87171' };
+          if (isBull)       sig = { text: label, col: '#34d399' };
+          else if (isBear)  sig = { text: label, col: '#f87171' };
+          else if (label)   sig = { text: label, col: 'var(--txt3)' }; // neutral: doji, consolidation, etc.
+        }
+        // Weak OI trends as fallback
+        if (!sig && d?.oiTrend === 'weak_up')   sig = { text: 'Short covering',   col: '#fbbf24' };
+        if (!sig && d?.oiTrend === 'weak_down')  sig = { text: 'Long exits',       col: '#94a3b8' };
+        // Last resort: show FR value if it's non-zero
+        if (!sig && d?.fundingRate != null && d.fundingRate !== 0) {
+          const fr = d.fundingRate * 100;
+          sig = { text: (fr >= 0 ? '+' : '') + fr.toFixed(4) + '% FR', col: 'var(--txt3)' };
         }
 
         // Bar color based on buy pressure
