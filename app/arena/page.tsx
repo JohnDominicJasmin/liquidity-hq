@@ -609,18 +609,24 @@ export default function Arena() {
         <button className="arena-fire-btn arena-quick-btn" disabled={readLoading} onClick={() => readMarket('quick')} style={{ width: 'auto', marginBottom: 0 }} title="Uses local data only — no web search. ~$0.003">
           {readLoading && readMode === 'quick' ? readStep || 'Working…' : '⚡ Quick'}
         </button>
-        <button className="arena-fire-btn" disabled={readLoading} onClick={() => readMarket('deep')} style={{ width: 'auto', marginBottom: 0 }} title="Searches live web + X for catalysts. ~$0.10">
-          {readLoading && readMode === 'deep' ? readStep || 'Working…' : '🌐 Deep'}
+        <button
+          className={`arena-fire-btn${!user ? ' arena-deep-locked' : ''}`}
+          disabled={readLoading}
+          onClick={() => { if (!user) { window.location.href = '/login'; return; } readMarket('deep'); }}
+          style={{ width: 'auto', marginBottom: 0 }}
+          title={!user ? 'Sign in to use Deep Analysis' : 'Searches live web + X for catalysts. ~$0.10'}
+        >
+          {readLoading && readMode === 'deep' ? readStep || 'Working…' : (
+            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, lineHeight: 1.2 }}>
+              <span>{!user ? '🔒' : '🌐'} Deep</span>
+              {!user && <span style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.05em', color: '#484848' }}>sign in</span>}
+            </span>
+          )}
         </button>
         {/* Usage chip — signed-in users only */}
         {user && grokUsage && (
           <div className="grok-usage-chip" title={`Quick analyses today: ${grokUsage.quick_used}`}>
             🔥 {grokUsage.deep_used}/{grokUsage.deep_limit} deep
-          </div>
-        )}
-        {!user && (
-          <div className="grok-usage-chip grok-usage-anon" title="Sign in to use Deep Analysis">
-            🔒 Deep requires sign-in
           </div>
         )}
 

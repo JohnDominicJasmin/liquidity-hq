@@ -717,6 +717,17 @@ body.ticker-on .breaking-alert { top: 90px; }
 /* Quick mode button — green tint */
 .arena-quick-btn { background: rgba(52,211,153,0.08) !important; border-color: rgba(52,211,153,0.3) !important; color: #34d399 !important; }
 .arena-quick-btn:not(:disabled):hover { box-shadow: 0 4px 20px rgba(52,211,153,0.15) !important; border-color: #34d399 !important; }
+/* Deep button — locked state (not signed in) */
+.arena-deep-locked {
+  opacity: 0.45 !important; filter: saturate(0.15) !important;
+  background: rgba(255,255,255,0.02) !important;
+  border-color: rgba(255,255,255,0.09) !important;
+  color: #505050 !important; box-shadow: none !important; cursor: pointer !important;
+}
+.arena-deep-locked:not(:disabled):hover {
+  opacity: 0.65 !important; filter: saturate(0.25) !important;
+  border-color: rgba(255,255,255,0.18) !important; box-shadow: none !important;
+}
 /* Cache banner */
 .arena-cache-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 12px; background: rgba(167,139,250,0.07); border: 0.5px solid rgba(167,139,250,0.2); border-radius: 8px; margin-bottom: 8px; font-size: 11px; color: var(--txt3); flex-wrap: wrap; }
 .arena-cache-refresh { font-size: 10px; padding: 3px 9px; border-radius: 6px; border: 0.5px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: var(--txt3); cursor: pointer; transition: all 0.15s; }
