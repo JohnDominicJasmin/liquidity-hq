@@ -188,6 +188,11 @@ function buildSystemCtx(
     ln('24h Change',    c?.change != null ? (c.change >= 0 ? '+' : '') + c.change.toFixed(2) + '%' : '—'),
     ln('High/Low',      c?.high && c?.low ? '$' + c.high.toLocaleString() + ' / $' + c.low.toLocaleString() : '—'),
     ln('RSI 15m/1h/4h/1D', [c?.rsi14, c?.rsi1h, c?.rsi4h, c?.rsiDaily].map(r => r?.toFixed(0) ?? '—').join(' / ')),
+    ln('CVD Divergence',   c?.cvdDivergence
+      ? c.cvdDivergence === 'bullish'
+        ? 'BULLISH — price falling but net buying rising (smart money accumulating)'
+        : 'BEARISH — price rising but net selling rising (distribution)'
+      : 'None'),
     ln('MA20 (15m)',    c?.ma20 ? '$' + c.ma20.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'),
     ln('Vol ratio',     c?.volRatio ? c.volRatio.toFixed(2) + 'x' : '—'),
     ln('CVD (200)',     c?.cvd != null ? (c.cvd >= 0 ? '+' : '') + (c.cvd / 1000).toFixed(1) + 'K' : '—'),

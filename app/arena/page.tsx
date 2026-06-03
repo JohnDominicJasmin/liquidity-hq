@@ -286,6 +286,11 @@ export default function Arena() {
       ? (coin.cvd >= 0 ? '+' : '') + (coin.cvd / 1000).toFixed(1) + 'K'
         + (coin.cvd > 0 ? ' (net buying)' : ' (net selling)')
       : '—';
+    const cvdDivergence = coin?.cvdDivergence
+      ? coin.cvdDivergence === 'bullish'
+        ? 'BULLISH DIVERGENCE DETECTED — price falling but net buying rising (smart money accumulating)'
+        : 'BEARISH DIVERGENCE DETECTED — price rising but net selling rising (distribution)'
+      : 'None';
 
     /* Basis */
     const basis = coin?.perpPrice != null && coin?.price
@@ -473,7 +478,7 @@ export default function Arena() {
       news: latestHeadlines.length > 0 ? latestHeadlines.slice(0, 6).join('\n') : 'No recent alerts',
       rsi14, ma20, priceVsMA, volRatio, longShortRatio,
       oilPrice, bonds10y, upcomingEvents: upcoming, etfFlows,
-      rsi1h, rsi4h, rsiDaily: fmt(coin?.rsiDaily), cvd, basis, fibNearest, orderWalls, squeezeScore,
+      rsi1h, rsi4h, rsiDaily: fmt(coin?.rsiDaily), cvd, cvdDivergence, basis, fibNearest, orderWalls, squeezeScore,
       pcRatio, maxPain, btcGex,
       exchangeNetFlow, stablecoinFlow, googleTrends, liqLevels, btcDomTrend,
       pocLine, dxyLine, spxLine, goldLine,
@@ -861,6 +866,7 @@ export default function Arena() {
         {ctxOpen && [
           ['Coin', ctx.coin], ['Price', ctx.price], ['24h Δ', ctx.change24h],
           ['RSI 15m', ctx.rsi14], ['RSI 1h', ctx.rsi1h], ['RSI 4h', ctx.rsi4h], ['RSI 1D', ctx.rsiDaily],
+          ['CVD Divergence', ctx.cvdDivergence],
           ['MA20 (15m)', ctx.ma20], ['vs MA20', ctx.priceVsMA],
           ['Vol Ratio', ctx.volRatio], ['CVD', ctx.cvd],
           ['L/S Ratio', ctx.longShortRatio], ['Squeeze', squeezeToLine(sq)],

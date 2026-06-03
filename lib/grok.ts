@@ -64,6 +64,7 @@ export interface GrokContext {
   rsiDaily: string;
   /* cumulative volume delta */
   cvd: string;
+  cvdDivergence: string; // 'Bullish divergence', 'Bearish divergence', or 'None'
   /* basis (perp premium vs spot) */
   basis: string;
   /* fibonacci nearest level */
@@ -129,6 +130,7 @@ export function buildPrompt(ctx: GrokContext): string {
     `RSI (14, 4h):  ${ctx.rsi4h}`,
     `RSI (14, 1D):  ${ctx.rsiDaily}`,
     `CVD (last 200 trades):  ${ctx.cvd}`,
+    `CVD Divergence:  ${ctx.cvdDivergence}`,
     `Fibonacci nearest level:  ${ctx.fibNearest}`,
     `Volume Profile POC/VAH/VAL:  ${ctx.pocLine}`,
     `VWAP (15m, 100 candles):  ${ctx.vwap}`,
