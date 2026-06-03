@@ -8,6 +8,34 @@ import { detectPatterns } from '@/lib/patterns';
 
 const WHALE_USD_THRESHOLD = 500_000; // $500k single trade = whale
 
+/* ── CVD Divergence Telegram alert ── */
+function sendCVDAlert(
+  coin: string,
+  div: 'bullish' | 'bearish',
+  price: number,
+  cooldown: Record<string, number>,
+) {
+  const key = `${coin}-${div}`;
+  const now = Date.now();
+  if (now - (cooldown[key] ?? 0) < 30 * 60_000) return; // 30-min cooldown
+  cooldown[key] = now;
+  const emoji = div === 'bullish' ? '🟢' : '🔴';
+  const dir   = div === 'bullish' ? 'Bullish' : 'Bearish';
+  const hint  = div === 'bullish'
+    ? 'Price ↓ but CVD ↑ — hidden accumulation 👀'
+    : 'Price ↑ but CVD ↓ — distribution in progress ⚠️';
+  const priceStr = price > 0
+    ? `$${price.toLocaleString(undefined, { maximumFractionDigits: 4 })}`
+    : '';
+  fetch('/api/telegram/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: `${emoji} <b>CVD Divergence — ${coin.toUpperCase()}</b>\n<b>${dir}</b>\n${hint}\n\n📊 ${coin.toUpperCase()} ${priceStr}\nliquidity-hq.onrender.com`,
+    }),
+  }).catch(() => {});
+}
+
 const WS_URLS = [
   'wss://stream.binance.com:9443/stream?streams=btcusdt@ticker/ethusdt@ticker/solusdt@ticker/xrpusdt@ticker/bnbusdt@ticker/nearusdt@ticker/suiusdt@ticker',
   'wss://stream.binance.com/stream?streams=btcusdt@ticker/ethusdt@ticker/solusdt@ticker/xrpusdt@ticker/bnbusdt@ticker/nearusdt@ticker/suiusdt@ticker',
@@ -41,6 +69,9 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   const lastAggIdRef = useRef<Partial<Record<CoinId, number>>>({});
   /* OI Trend: sliding window of last 4 OI + price readings per coin */
   const oiHistRef = useRef<Partial<Record<CoinId, Array<{ oi: number; price: number }>>>>({});
+  /* CVD Divergence alerts: last known divergence + 30-min cooldown */
+  const cvdDivStateRef    = useRef<Partial<Record<string, 'bullish' | 'bearish' | null>>>({});
+  const cvdAlertCooldown  = useRef<Record<string, number>>({});
 
   const updateCoin = useCallback((id: CoinId, patch: Partial<MarketStore['coins'][CoinId]>) => {
     setStore(s => ({
@@ -525,6 +556,8 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           const cvdValue = buyVol - sellVol;
 
           // CVD divergence: compare first vs last of 5-snapshot window
+          let _newDiv: 'bullish' | 'bearish' | null = null;
+          let _capPrice = 0;
           setStore(prev => {
             const currentPrice = prev.coins[coin]?.price ?? 0;
             const snaps = [...(cvdSnapsRef.current[coin] ?? []), { price: currentPrice, cvd: cvdValue }].slice(-5);
@@ -539,6 +572,8 @@ export default function MarketProvider({ children }: { children: React.ReactNode
               if (pricePct > 0.003 && cvdDelta < 0) cvdDivergence = 'bearish';
               if (pricePct < -0.003 && cvdDelta > 0) cvdDivergence = 'bullish';
             }
+            _newDiv = cvdDivergence;
+            _capPrice = currentPrice;
 
             return {
               ...prev,
@@ -548,6 +583,11 @@ export default function MarketProvider({ children }: { children: React.ReactNode
               },
             };
           });
+          // Alert on new divergence (transition from null/other → bullish/bearish)
+          if (_newDiv && _newDiv !== (cvdDivStateRef.current[coin] ?? null)) {
+            sendCVDAlert(coin, _newDiv, _capPrice, cvdAlertCooldown.current);
+          }
+          cvdDivStateRef.current[coin] = _newDiv;
         } catch { /* */ }
       }),
       // ── HYPE via Bybit recent-trade (Bybit-only coin) ──
@@ -574,6 +614,8 @@ export default function MarketProvider({ children }: { children: React.ReactNode
             }
           });
           const cvdValue = buyVol - sellVol;
+          let _hypeDiv: 'bullish' | 'bearish' | null = null;
+          let _hypePrice = 0;
           setStore(prev => {
             const currentPrice = prev.coins.hype?.price ?? 0;
             const snaps = [...(cvdSnapsRef.current.hype ?? []), { price: currentPrice, cvd: cvdValue }].slice(-5);
@@ -586,8 +628,14 @@ export default function MarketProvider({ children }: { children: React.ReactNode
               if (pricePct > 0.003 && cvdDelta < 0) cvdDivergence = 'bearish';
               if (pricePct < -0.003 && cvdDelta > 0) cvdDivergence = 'bullish';
             }
+            _hypeDiv = cvdDivergence;
+            _hypePrice = currentPrice;
             return { ...prev, coins: { ...prev.coins, hype: { ...prev.coins.hype, cvd: cvdValue, cvdDivergence } as CoinData } };
           });
+          if (_hypeDiv && _hypeDiv !== (cvdDivStateRef.current.hype ?? null)) {
+            sendCVDAlert('hype', _hypeDiv, _hypePrice, cvdAlertCooldown.current);
+          }
+          cvdDivStateRef.current.hype = _hypeDiv;
         } catch { /* */ }
       })(),
     ]);
