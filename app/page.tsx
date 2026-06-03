@@ -527,6 +527,7 @@ function BTCDominance() {
 
 export default function Dashboard() {
   const [cmdsOpen, setCmdsOpen] = useState(false);
+  const [gexOpen,  setGexOpen]  = useState(false);
 
   return (
     <div className="dashboard-grid">
@@ -561,8 +562,17 @@ export default function Dashboard() {
 
         {/* GEX + Macro: shown inline on mobile/tablet, hidden when right panel is visible */}
         <div className="hide-on-desktop">
-          <div className="dash-section">Gamma exposure</div>
-          <GexTable />
+          <div
+            className="dash-section"
+            style={{ cursor: 'pointer', userSelect: 'none' }}
+            onClick={() => setGexOpen(o => !o)}
+          >
+            Gamma exposure
+            <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
+              {gexOpen ? '▲ hide' : '▼ show'}
+            </span>
+          </div>
+          {gexOpen && <GexTable />}
           <div className="dash-section">Macro correlations</div>
           <MacroStrip />
         </div>
@@ -598,8 +608,17 @@ export default function Dashboard() {
 
       {/* ── Right panel (desktop ≥1100px only) ── */}
       <aside className="dash-right">
-        <div className="dash-section" style={{ marginTop: 0, marginBottom: 8 }}>Gamma exposure</div>
-        <GexTable />
+        <div
+          className="dash-section"
+          style={{ marginTop: 0, marginBottom: 8, cursor: 'pointer', userSelect: 'none' }}
+          onClick={() => setGexOpen(o => !o)}
+        >
+          Gamma exposure
+          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
+            {gexOpen ? '▲ hide' : '▼ show'}
+          </span>
+        </div>
+        {gexOpen && <GexTable />}
         <div className="dash-section" style={{ marginBottom: 8 }}>Macro</div>
         <MacroStrip />
       </aside>
