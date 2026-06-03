@@ -2178,6 +2178,27 @@ body.ticker-on .breaking-alert { top: 90px; }
 
 [data-theme="light"] .mb-macro-item { background: var(--bg2); }
 
+/* ── Morning Briefing — AI section ── */
+.mb-brief-card    { margin-bottom: 10px; }
+.mb-brief-header  { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+.mb-brief-btn     { padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 700; cursor: pointer; border: 0.5px solid var(--purple-bdr); background: var(--purple-bg); color: var(--purple); transition: all 0.15s; white-space: nowrap; }
+.mb-brief-btn:hover:not(:disabled) { background: rgba(167,139,250,0.18); }
+.mb-brief-btn.loading  { opacity: 0.6; cursor: wait; }
+.mb-brief-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.mb-brief-empty   { font-size: 12px; color: var(--txt3); line-height: 1.6; }
+.mb-brief-text    { display: flex; flex-direction: column; gap: 10px; }
+.mb-brief-para    { font-size: 13px; color: var(--txt2); line-height: 1.7; margin: 0; }
+.mb-brief-loading { display: flex; gap: 5px; padding: 12px 0; }
+.mb-brief-dot     { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); animation: mb-bounce 1.2s infinite ease-in-out; }
+.mb-brief-dot:nth-child(2) { animation-delay: 0.2s; }
+.mb-brief-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes mb-bounce { 0%,80%,100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-6px); opacity: 1; } }
+
+/* ── CVD callout ── */
+.mb-cvd-card  { margin-bottom: 10px; }
+.mb-cvd-row   { display: flex; flex-wrap: wrap; gap: 6px; }
+.mb-cvd-chip  { font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; border: 0.5px solid; }
+
 /* ── CORRELATION HEATMAP ──────────────────────────────────────────────── */
 .corr-grid-wrap  { overflow-x: auto; margin-bottom: 10px; -webkit-overflow-scrolling: touch; }
 .corr-grid       { display: grid; gap: 3px; min-width: 340px; }

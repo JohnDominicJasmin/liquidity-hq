@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import {
   useMarket, COINS, COIN_DEC, fmtPrice, fmtChg,
-  classifyFunding, computeSqueezeScore, type CoinId,
+  classifyFunding, computeSqueezeScore, type CoinId, type MarketStore,
 } from '@/lib/marketStore';
 import { useNews } from '@/components/NewsProvider';
 import SessionCountdown from '@/components/SessionCountdown';
@@ -18,7 +18,7 @@ const OI_ICONS: Record<string, string> = {
 };
 const OI_COLORS: Record<string, string> = {
   strong_up: '#34d399', strong_down: '#f87171',
-  weak_up: '#86efac', weak_down: '#fca5a5',
+  weak_up: '#fbbf24', weak_down: '#94a3b8',
 };
 
 /* Convert decimal hours → "Xh Ym" */
@@ -65,11 +65,58 @@ function phtNow() {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
 }
 
+/* ── context builder for Grok ── */
+function buildBriefingContext(
+  store: MarketStore,
+  coinRows: Array<{ id: CoinId; c: MarketStore['coins'][CoinId] }>,
+  urgentEcon: Array<{ type: string; name: string; h: number; impact: string }>,
+  recentGeo:  Array<{ tag: string; headline: string }>,
+): string {
+  const phtTime = new Date().toLocaleString('en-US', {
+    timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', hour12: true,
+  });
+
+  const lines = [
+    `Time: ${phtTime} PHT`,
+    `Fear & Greed: ${store.fng ?? '?'} — ${store.fngLabel ?? '?'}`,
+    `BTC Dominance: ${store.btcDom?.toFixed(1) ?? '?'}%`,
+    `DXY: ${store.dxy?.toFixed(2) ?? '?'} (${store.dxyChg != null ? (store.dxyChg >= 0 ? '+' : '') + store.dxyChg.toFixed(2) : '?'}% 24h)`,
+    `BTC ETF Flow: ${store.etfNetFlow != null ? (store.etfNetFlow >= 0 ? '+' : '') + '$' + store.etfNetFlow.toFixed(0) + 'M' : 'N/A'}`,
+    '',
+    'COINS (24h change | FR | RSI 15m | CVD divergence | OI trend):',
+  ];
+
+  for (const { id, c } of coinRows) {
+    if (!c) continue;
+    const chg = c.change != null ? (c.change >= 0 ? '+' : '') + c.change.toFixed(2) + '%' : '—';
+    const fr  = c.fundingRate != null ? (c.fundingRate * 100).toFixed(3) + '%' : '—';
+    const rsi = c.rsi14 != null ? Math.round(c.rsi14) : '—';
+    const cvd = c.cvdDivergence ?? 'none';
+    const oi  = c.oiTrend ?? '—';
+    lines.push(`${id.toUpperCase()}: ${chg} | FR ${fr} | RSI ${rsi} | CVD ${cvd} | OI ${oi}`);
+  }
+
+  if (urgentEcon.length) {
+    lines.push('', 'UPCOMING MACRO EVENTS (next 24h):');
+    urgentEcon.forEach(e => lines.push(`  ${e.type}: ${e.name} in ${Math.round(e.h)}h (${e.impact} impact)`));
+  }
+
+  if (recentGeo.length) {
+    lines.push('', 'RECENT MARKET NEWS:');
+    recentGeo.slice(0, 3).forEach(e => lines.push(`  ${e.tag}: ${e.headline}`));
+  }
+
+  return lines.join('\n');
+}
+
 /* ── page ── */
 export default function MorningBriefing() {
-  const { store }                           = useMarket();
+  const { store }                              = useMarket();
   const { econEvents, geoEvents, whaleAlerts } = useNews();
-  const [now, setNow] = useState<Date>(phtNow);
+  const [now, setNow]           = useState<Date>(phtNow);
+  const [brief, setBrief]       = useState('');
+  const [generating, setGen]    = useState(false);
+  const [briefErr, setBriefErr] = useState('');
 
   /* Tick once per minute so header time stays fresh */
   useEffect(() => {
@@ -89,6 +136,30 @@ export default function MorningBriefing() {
     c: store.coins[id],
     sq: computeSqueezeScore(store.coins[id]),
   }));
+
+  /* Active CVD divergences */
+  const cvdAlerts = COINS
+    .filter(id => store.coins[id]?.cvdDivergence)
+    .map(id => ({ id, div: store.coins[id]!.cvdDivergence! }));
+
+  /* Generate AI briefing */
+  async function generateBriefing() {
+    setGen(true); setBrief(''); setBriefErr('');
+    try {
+      const ctx = buildBriefingContext(store, coinRows, urgentEcon, recentGeo);
+      const res = await fetch('/api/briefing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context: ctx }),
+      });
+      const data = await res.json() as { briefing?: string; error?: string };
+      if (!res.ok || data.error) { setBriefErr(data.error ?? 'Unknown error'); }
+      else { setBrief(data.briefing ?? ''); }
+    } catch (e) {
+      setBriefErr(String(e));
+    }
+    setGen(false);
+  }
 
   /* Hot setups — score > 20, top 3 */
   const hotSetups = coinRows
@@ -139,6 +210,68 @@ export default function MorningBriefing() {
         <div className="mb-title">🌅 Morning Briefing</div>
         <div className="mb-subtitle">{dateStr} · {timeStr}</div>
       </div>
+
+      {/* ── AI Briefing ── */}
+      <div className="card mb-brief-card">
+        <div className="mb-brief-header">
+          <span className="lbl" style={{ margin: 0 }}>🤖 AI Pre-Session Briefing</span>
+          <button
+            className={`mb-brief-btn${generating ? ' loading' : ''}`}
+            onClick={generateBriefing}
+            disabled={generating}
+          >
+            {generating ? 'Generating…' : brief ? '↻ Regenerate' : 'Generate Briefing'}
+          </button>
+        </div>
+
+        {!brief && !generating && !briefErr && (
+          <div className="mb-brief-empty">
+            Hit Generate to get a Grok-powered pre-session summary — market conditions, best setup, what to watch.
+          </div>
+        )}
+
+        {generating && (
+          <div className="mb-brief-loading">
+            <span className="mb-brief-dot" />
+            <span className="mb-brief-dot" />
+            <span className="mb-brief-dot" />
+          </div>
+        )}
+
+        {briefErr && (
+          <div style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>⚠ {briefErr}</div>
+        )}
+
+        {brief && !generating && (
+          <div className="mb-brief-text">
+            {brief.split('\n\n').filter(Boolean).map((para, i) => (
+              <p key={i} className="mb-brief-para">{para.trim()}</p>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── CVD Divergence Callout ── */}
+      {cvdAlerts.length > 0 && (
+        <div className="card mb-cvd-card">
+          <div className="lbl" style={{ marginBottom: 6 }}>⚡ Active CVD Divergences</div>
+          <div className="mb-cvd-row">
+            {cvdAlerts.map(({ id, div }) => (
+              <div
+                key={id}
+                className="mb-cvd-chip"
+                style={{
+                  color:       div === 'bullish' ? '#34d399' : '#f87171',
+                  borderColor: div === 'bullish' ? 'rgba(52,211,153,0.4)' : 'rgba(248,113,113,0.4)',
+                  background:  div === 'bullish' ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.08)',
+                }}
+              >
+                {id.toUpperCase()} {div === 'bullish' ? '🟢 Bull' : '🔴 Bear'}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Session Countdown ── */}
       <SessionCountdown />
