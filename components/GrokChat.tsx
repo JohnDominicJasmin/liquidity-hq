@@ -498,7 +498,7 @@ export default function GrokChat() {
             </span>
             {!histView && (
               <span style={{
-                fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
+                fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
                 background: liveSearch ? '#252040' : '#1a1a1a',
                 color: liveSearch ? '#b8aeff' : '#505050',
                 border: liveSearch ? '0.5px solid #4a3f80' : '0.5px solid #2a2a2a',

@@ -861,7 +861,7 @@ export default function Arena() {
           <span>
             Analysing {selectedCoin.toUpperCase()} across {[ctx.rsi14, ctx.rsi1h, ctx.rsi4h, ctx.cvd, ctx.basis, ctx.orderWalls, ctx.pcRatio, ctx.exchangeNetFlow, ctx.cbPremium, ctx.vwap, ctx.oiTrend, ctx.takerRatio, ctx.btcGex].filter(v => v !== '—' && v !== 'Calculating…').length + 21} market signals
           </span>
-          <span style={{ fontSize: 9, color: '#444' }}>{ctxOpen ? '▲ hide' : '▼ show context'}</span>
+          <span style={{ fontSize: 11, color: '#444' }}>{ctxOpen ? '▲ hide' : '▼ show context'}</span>
         </div>
         {ctxOpen && [
           ['Coin', ctx.coin], ['Price', ctx.price], ['24h Δ', ctx.change24h],
@@ -934,7 +934,7 @@ export default function Arena() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div className="arena-hist-conf">{h.confidence}%</div>
-                  <span style={{ fontSize: 9, color: '#444' }}>{detailIdx === i ? '▲' : '▼'}</span>
+                  <span style={{ fontSize: 11, color: '#444' }}>{detailIdx === i ? '▲' : '▼'}</span>
                 </div>
               </div>
 

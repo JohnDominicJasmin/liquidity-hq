@@ -81,6 +81,16 @@ body::after {
 ::-webkit-scrollbar { display: none; }
 * { scrollbar-width: none; }
 
+/* Thin scrollbar on horizontal content-scroll containers */
+.news-scroll::-webkit-scrollbar,
+.corr-grid-wrap::-webkit-scrollbar   { display: block; height: 3px; }
+.news-scroll::-webkit-scrollbar-track,
+.corr-grid-wrap::-webkit-scrollbar-track { background: transparent; }
+.news-scroll::-webkit-scrollbar-thumb,
+.corr-grid-wrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.13); border-radius: 2px; }
+.news-scroll    { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.13) transparent; }
+.corr-grid-wrap { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.13) transparent; }
+
 /* Thin visible scrollbar on the main page scroll (desktop only) */
 @media (min-width: 640px) {
   html { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.07) transparent; }
@@ -197,7 +207,7 @@ body::after {
 .csb2-price     { font-size: 12px; font-weight: 700; color: var(--txt); font-family: 'JetBrains Mono', monospace; }
 .csb2-bottom    { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .csb2-chg       { font-size: 11px; font-weight: 700; }
-.csb2-sig       { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; max-width: 124px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(255,255,255,0.04); }
+.csb2-sig       { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; max-width: 124px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(255,255,255,0.04); }
 .csb2-bar-track { height: 3px; background: rgba(255,255,255,0.06); border-radius: 0 0 10px 10px; margin: 0 -10px; }
 .csb2-bar-fill  { height: 100%; border-radius: 0 0 10px 10px; transition: width 0.8s ease, background 0.3s; }
 .csb2-status    { display: flex; align-items: center; gap: 6px; padding: 6px 4px 2px; font-size: 10px; color: var(--txt3); font-weight: 600; letter-spacing: 0.04em; }
@@ -208,7 +218,7 @@ body::after {
 .mev-item   { display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; padding: 0 14px; }
 .mev-item:first-child { padding-left: 0; }
 .mev-item:last-child  { padding-right: 0; }
-.mev-label  { font-size: 9px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.07em; }
+.mev-label  { font-size: 10px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.07em; }
 .mev-value  { font-size: 12px; font-weight: 700; color: var(--txt); }
 .mev-mono   { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--txt2); }
 .mev-hot    { color: #f59e0b; }
@@ -430,7 +440,7 @@ body::after {
 
 .ticker-badge {
   flex-shrink: 0;
-  font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
   padding: 2px 7px; margin-left: 10px; border-radius: 3px;
   white-space: nowrap; line-height: 16px;
 }
@@ -1087,7 +1097,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 .gchat-bubble em { color: var(--txt2); font-style: italic; }
 .gchat-bubble a { color: var(--blue); text-decoration: none; border-bottom: 0.5px solid rgba(96,165,250,0.35); }
 .gchat-bubble a:hover { color: #93c5fd; border-bottom-color: #93c5fd; }
-.gchat-bubble sup { font-size: 9px; color: var(--blue); opacity: 0.8; vertical-align: super; }
+.gchat-bubble sup { font-size: 10px; color: var(--blue); opacity: 0.8; vertical-align: super; }
 .gchat-bubble p { margin-bottom: 6px; }
 .gchat-bubble p:last-child { margin-bottom: 0; }
 .gchat-bubble ul, .gchat-bubble ol { padding-left: 16px; margin-bottom: 6px; }
@@ -1231,7 +1241,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 /* OI inline tooltip (inside edge card) */
 .oi-inline-tip { margin-top: 8px; padding-top: 8px; border-top: 0.5px solid var(--bdr); display: flex; flex-direction: column; gap: 4px; }
 
-.oi-trend-table { background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: 14px; overflow: hidden; margin-bottom: 8px; }
+.oi-trend-table { background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: 16px; overflow: hidden; margin-bottom: 8px; }
 .oi-trend-title { font-size: 10px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 14px 6px; display: flex; align-items: center; gap: 6px; }
 
 /* ── OI info tooltip ── */
@@ -1274,8 +1284,8 @@ body.ticker-on .breaking-alert { top: 90px; }
 .oi-tip-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 5px; white-space: nowrap; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .tip-green     { color: #34d399; background: rgba(52,211,153,0.12);  border: 0.5px solid rgba(52,211,153,0.3); }
 .tip-red       { color: #f87171; background: rgba(248,113,113,0.12); border: 0.5px solid rgba(248,113,113,0.3); }
-.tip-weak-up   { color: #86efac; background: rgba(134,239,172,0.1);  border: 0.5px solid rgba(134,239,172,0.3); }
-.tip-weak-down { color: #fca5a5; background: rgba(252,165,165,0.1);  border: 0.5px solid rgba(252,165,165,0.3); }
+.tip-weak-up   { color: #fbbf24; background: rgba(251,191,36,0.1);   border: 0.5px solid rgba(251,191,36,0.3); }
+.tip-weak-down { color: #94a3b8; background: rgba(148,163,184,0.1); border: 0.5px solid rgba(148,163,184,0.3); }
 .oi-trend-hdr  { display: grid; grid-template-columns: 44px auto 1fr; gap: 8px; padding: 4px 14px 5px; font-size: 10px; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 0.07em; border-bottom: 0.5px solid var(--bdr); }
 .oi-trend-row  { display: grid; grid-template-columns: 44px auto 1fr; gap: 8px; padding: 5.5px 14px; border-bottom: 0.5px solid rgba(255,255,255,0.02); align-items: center; transition: background 0.1s; }
 .oi-trend-row:last-child { border-bottom: none; }
@@ -1286,7 +1296,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 .oi-trend-badge { font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px; white-space: nowrap; flex-shrink: 0; }
 
 /* ── Taker Buy/Sell Ratio table ── */
-.taker-table  { background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: 14px; overflow: hidden; margin-bottom: 8px; }
+.taker-table  { background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: 16px; overflow: hidden; margin-bottom: 8px; }
 .taker-title  { font-size: 10px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 14px 6px; display: flex; align-items: center; gap: 6px; }
 .taker-subtitle { font-size: 10px; font-weight: 400; color: #2a2a2a; text-transform: none; letter-spacing: 0; }
 .taker-hdr    { display: grid; grid-template-columns: 44px 1fr 100px; gap: 6px; padding: 4px 14px 5px; font-size: 10px; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 0.07em; border-bottom: 0.5px solid var(--bdr); }
@@ -1300,7 +1310,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 .taker-signal   { font-size: 10px; font-weight: 700; text-align: right; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── GEX (Gamma Exposure) Table ── */
-.gex-table       { background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: 14px; overflow: hidden; margin-bottom: 8px; }
+.gex-table       { background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: 16px; overflow: hidden; margin-bottom: 8px; }
 .gex-title-row   { display: flex; align-items: center; gap: 8px; padding: 10px 14px 6px; flex-wrap: wrap; }
 .gex-title       { font-size: 10px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.08em; }
 .gex-net-chip    { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 6px; }
@@ -1691,7 +1701,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 .liq-cluster-bar-long  { background: rgba(248,113,113,0.55); }
 .liq-cluster-bar-short { background: rgba(52,211,153,0.55); top: 5px; }
 .liq-cluster-amt   { font-size: 10px; font-weight: 600; color: var(--txt3); text-align: right; font-variant-numeric: tabular-nums; }
-.liq-cluster-dom   { font-size: 9px; font-weight: 800; text-align: right; }
+.liq-cluster-dom   { font-size: 10px; font-weight: 800; text-align: right; }
 
 /* ── COIN FILTER ── */
 .liq-filter-row {
@@ -1981,7 +1991,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 }
 .tj-lev-ticks {
   display: flex; justify-content: space-between;
-  font-size: 9px; color: var(--txt3); padding: 0 2px;
+  font-size: 10px; color: var(--txt3); padding: 0 2px;
   pointer-events: none;
 }
 
@@ -2036,7 +2046,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 .cf-signal-body { flex: 1; display: flex; align-items: center; gap: 6px; }
 .cf-signal-label  { font-size: 12px; color: var(--txt2); }
 .cf-hit .cf-signal-label { color: var(--txt); }
-.cf-signal-strong { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; background: rgba(167,139,250,.12); color: var(--purple); border: 0.5px solid var(--purple-bdr); letter-spacing: .04em; text-transform: uppercase; }
+.cf-signal-strong { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; background: rgba(167,139,250,.12); color: var(--purple); border: 0.5px solid var(--purple-bdr); letter-spacing: .04em; text-transform: uppercase; }
 .cf-signal-detail { font-size: 11px; color: var(--txt3); font-variant-numeric: tabular-nums; }
 .cf-detail-hit    { color: #34d399; font-weight: 600; }
 .cf-actions { display: flex; gap: 8px; }
@@ -2118,12 +2128,12 @@ body.ticker-on .breaking-alert { top: 90px; }
 .fc-row:hover { background: var(--bg2); }
 .fc-coin-cell { display: flex; flex-direction: column; gap: 2px; }
 .fc-coin      { font-size: 12px; font-weight: 800; color: var(--txt); }
-.fc-signal-tag { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; border: 0.5px solid; letter-spacing: .04em; text-transform: uppercase; align-self: flex-start; }
+.fc-signal-tag { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; border: 0.5px solid; letter-spacing: .04em; text-transform: uppercase; align-self: flex-start; }
 .fc-cell      { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 3px 5px; border-radius: 6px; text-align: center; white-space: nowrap; }
 .fc-next      { font-size: 11px; color: var(--txt3); text-align: right; font-variant-numeric: tabular-nums; }
 .fc-footer    { padding: 7px 14px; font-size: 10px; color: var(--txt3); border-top: 0.5px solid var(--bdr); line-height: 1.5; }
 @media (max-width: 480px) {
-  .fc-col-hdr { grid-template-columns: 60px repeat(4, 1fr) 36px; padding: 5px 10px; font-size: 9px; gap: 1px; }
+  .fc-col-hdr { grid-template-columns: 60px repeat(4, 1fr) 36px; padding: 5px 10px; font-size: 10px; gap: 1px; }
   .fc-row     { grid-template-columns: 60px repeat(4, 1fr) 36px; padding: 7px 10px; gap: 1px; }
   .fc-cell    { font-size: 10px; padding: 2px 3px; }
   .fc-next    { font-size: 10px; }
@@ -2171,8 +2181,8 @@ body.ticker-on .breaking-alert { top: 90px; }
 /* ── CORRELATION HEATMAP ──────────────────────────────────────────────── */
 .corr-grid-wrap  { overflow-x: auto; margin-bottom: 10px; -webkit-overflow-scrolling: touch; }
 .corr-grid       { display: grid; gap: 3px; min-width: 340px; }
-.corr-col-hdr    { font-size: 9px; font-weight: 700; color: var(--txt3); text-align: center; padding: 3px 1px 5px; text-transform: uppercase; letter-spacing: 0.04em; }
-.corr-row-hdr    { font-size: 9px; font-weight: 700; color: var(--txt3); display: flex; align-items: center; padding: 0 3px; text-transform: uppercase; letter-spacing: 0.03em; }
+.corr-col-hdr    { font-size: 10px; font-weight: 700; color: var(--txt3); text-align: center; padding: 3px 1px 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+.corr-row-hdr    { font-size: 10px; font-weight: 700; color: var(--txt3); display: flex; align-items: center; padding: 0 3px; text-transform: uppercase; letter-spacing: 0.03em; }
 .corr-cell       { height: 34px; display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700; border-radius: 5px; font-variant-numeric: tabular-nums; cursor: default; transition: filter 0.12s; }
 .corr-cell:hover { filter: brightness(1.25); }
 .corr-legend     { font-size: 10px; color: var(--txt3); padding-top: 8px; border-top: 0.5px solid var(--bdr); line-height: 1.6; }

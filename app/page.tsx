@@ -75,8 +75,8 @@ function MacroStrip() {
 const OI_TREND_META: Record<string, { txt: string; sub: string; hint: string; col: string }> = {
   strong_up:   { txt: '▲ ↑OI ↑P', sub: 'New longs — real trend',  hint: 'New money entering longs. Trend has conviction — follow it.',      col: '#34d399' },
   strong_down: { txt: '▼ ↑OI ↓P', sub: 'New shorts — real dump',  hint: 'Fresh shorts being added. Real downtrend — not a dip to buy.',     col: '#f87171' },
-  weak_up:     { txt: '△ ↓OI ↑P', sub: 'Short covering — weak',   hint: 'Shorts exiting, not new longs. Fake pump — no fresh conviction.',  col: '#86efac' },
-  weak_down:   { txt: '▽ ↓OI ↓P', sub: 'Long exits — no panic',   hint: 'Longs taking profit/exiting. Not new shorts — capitulation risk.', col: '#fca5a5' },
+  weak_up:     { txt: '△ ↓OI ↑P', sub: 'Short covering — weak',   hint: 'Shorts exiting, not new longs. Fake pump — no fresh conviction.',  col: '#fbbf24' },
+  weak_down:   { txt: '▽ ↓OI ↓P', sub: 'Long exits — no panic',   hint: 'Longs taking profit/exiting. Not new shorts — capitulation risk.', col: '#94a3b8' },
 };
 
 /* ── Coin Sidebar v2 — signal cards ── */
