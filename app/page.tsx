@@ -168,6 +168,55 @@ function CoinSidebar() {
   );
 }
 
+/* ── Liquidation Cascade Alert Banner ── */
+function CascadeAlertBanner() {
+  const { store, setStore } = useMarket();
+  const alert = store.cascadeAlert;
+
+  // Auto-dismiss after 3 minutes
+  useEffect(() => {
+    if (!alert) return;
+    const t = setTimeout(() => setStore(s => ({ ...s, cascadeAlert: null })), 3 * 60_000);
+    return () => clearTimeout(t);
+  }, [alert?.ts]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!alert) return null;
+
+  const usdStr = alert.totalUsd >= 1e6
+    ? `$${(alert.totalUsd / 1e6).toFixed(1)}M`
+    : `$${(alert.totalUsd / 1e3).toFixed(0)}K`;
+  const label = alert.side === 'LONG' ? 'LONG LIQ CASCADE'
+              : alert.side === 'SHORT' ? 'SHORT LIQ CASCADE'
+              : 'LIQ CASCADE';
+  const hint = alert.side === 'LONG'
+    ? 'Longs wiped — short squeeze window open'
+    : alert.side === 'SHORT'
+    ? 'Shorts flushed — continuation window open'
+    : 'Multi-directional flush — vol spike imminent';
+  const col = alert.side === 'LONG' ? '#f87171'
+            : alert.side === 'SHORT' ? '#34d399'
+            : '#fbbf24';
+  const bdr = alert.side === 'LONG' ? 'rgba(248,113,113,0.35)'
+            : alert.side === 'SHORT' ? 'rgba(52,211,153,0.35)'
+            : 'rgba(251,191,36,0.35)';
+
+  return (
+    <div className="cascade-alert" style={{ borderColor: bdr }}>
+      <div className="cascade-dot" style={{ background: col }} />
+      <div className="cascade-body">
+        <div className="cascade-title" style={{ color: col }}>
+          ⚡ {alert.coin} — {label}
+        </div>
+        <div className="cascade-sub">{usdStr} in 60s · {hint}</div>
+      </div>
+      <button
+        className="cascade-dismiss"
+        onClick={() => setStore(s => ({ ...s, cascadeAlert: null }))}
+      >✕</button>
+    </div>
+  );
+}
+
 function EdgeSignals() {
   const { store } = useMarket();
   const coin = store.coins[store.selectedCoin];
@@ -273,6 +322,77 @@ function EdgeSignals() {
             </div>
           )}
         </div>
+
+        {/* Funding Rate + Next FR Estimate */}
+        {(() => {
+          const fr      = coin?.fundingRate;
+          const nextFr  = coin?.nextFrEstimate;
+          const nextFt  = coin?.nextFundingTime;
+          const frPct   = fr   != null ? fr   * 100 : null;
+          const nfrPct  = nextFr != null ? nextFr * 100 : null;
+
+          const frCol = frPct == null ? 'var(--txt3)'
+            : frPct >= 0.05  ? '#f87171'
+            : frPct >= 0.01  ? '#fca5a5'
+            : frPct <= -0.03 ? '#34d399'
+            : frPct <= -0.005? '#86efac'
+            : 'var(--txt2)';
+          const frBdr = frPct == null ? 'var(--bdr)'
+            : frPct >= 0.05  ? 'rgba(248,113,113,0.3)'
+            : frPct <= -0.03 ? 'rgba(52,211,153,0.3)'
+            : 'var(--bdr)';
+          const frSig = frPct == null ? 'Loading…'
+            : frPct >= 0.05  ? 'Longs overcrowded ↓'
+            : frPct >= 0.01  ? 'Mild long bias'
+            : frPct <= -0.03 ? 'Shorts overcrowded ↑'
+            : frPct <= -0.005? 'Mild short bias'
+            : 'Neutral';
+
+          // Countdown to next settlement
+          let countdown = '';
+          if (nextFt && nextFt > Date.now()) {
+            const diff = nextFt - Date.now();
+            const hh   = Math.floor(diff / 3_600_000);
+            const mm   = Math.floor((diff % 3_600_000) / 60_000);
+            countdown  = `${hh}h ${mm.toString().padStart(2, '0')}m`;
+          }
+
+          const nfrCol = nfrPct == null ? 'var(--txt3)'
+            : nfrPct >= 0.01  ? '#f87171'
+            : nfrPct <= -0.005? '#34d399'
+            : 'var(--txt3)';
+
+          const trend = (nfrPct != null && frPct != null)
+            ? (nfrPct > frPct + 0.0002 ? '↑' : nfrPct < frPct - 0.0002 ? '↓' : '→')
+            : null;
+          const trendCol = trend === '↑' ? '#f87171' : trend === '↓' ? '#34d399' : 'var(--txt3)';
+
+          return (
+            <div className="edge-card" style={{ borderColor: frBdr }}>
+              <div className="edge-card-label">Funding · {store.selectedCoin.toUpperCase()}</div>
+              <div className="edge-card-value" style={{ color: frCol }}>
+                {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '—'}
+              </div>
+              {nfrPct != null && (
+                <div className="edge-card-sub">
+                  <span style={{ color: 'var(--txt3)' }}>est next </span>
+                  <span style={{ color: nfrCol, fontWeight: 600 }}>
+                    {(nfrPct >= 0 ? '+' : '') + nfrPct.toFixed(4) + '%'}
+                  </span>
+                  {trend && (
+                    <span style={{ color: trendCol, marginLeft: 3 }}>{trend}</span>
+                  )}
+                </div>
+              )}
+              {countdown && (
+                <div className="edge-card-sub" style={{ color: 'var(--txt3)' }}>
+                  settles in {countdown}
+                </div>
+              )}
+              <div className="edge-card-signal" style={{ color: frCol }}>{frSig}</div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Row 3: Taker Buy/Sell ratio table */}
@@ -619,6 +739,7 @@ export default function Dashboard() {
 
         <NewsBanner />
         <MarketEventsStrip />
+        <CascadeAlertBanner />
 
         <div className="dash-section dash-section-hot">Edge signals</div>
         <EdgeSignals />

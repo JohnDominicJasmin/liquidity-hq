@@ -54,6 +54,9 @@ export interface CoinData {
   takerBuyRatio: number | null;  // 0.0–1.0 (buy vol / total vol)
   /* Detected chart patterns from 15m klines (e.g. "Bull flag", "Bearish engulfing") */
   chartPattern: string | null;
+  /* Next funding rate prediction (mark–index premium spread) */
+  nextFrEstimate: number | null;   // predicted next 8h FR (decimal, e.g. 0.0001)
+  nextFundingTime: number | null;  // unix ms of next settlement
 }
 
 export type CoinId = 'btc' | 'eth' | 'sol' | 'xrp' | 'bnb' | 'hype' | 'near' | 'sui';
@@ -149,6 +152,13 @@ export type MarketStore = {
   btcNetGex: number | null;    // total net GEX in $ (positive = dealers long gamma)
   btcGexFlip: number | null;   // zero-gamma strike — cross = regime change
   btcGexLevels: GexLevel[];    // top strikes near ATM for chart
+  /* Liquidation Cascade Alert */
+  cascadeAlert: {
+    coin: string;              // e.g. 'BTC', 'MARKET'
+    side: 'LONG' | 'SHORT' | 'MIXED';
+    totalUsd: number;          // USD liquidated in the detection window
+    ts: number;                // unix ms when cascade fired
+  } | null;
 };
 
 export const defaultStore: MarketStore = {
@@ -181,6 +191,7 @@ export const defaultStore: MarketStore = {
   btcNetGex: null,
   btcGexFlip: null,
   btcGexLevels: [],
+  cascadeAlert: null,
 };
 
 export const MarketContext = createContext<{

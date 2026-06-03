@@ -36,6 +36,39 @@ function sendCVDAlert(
   }).catch(() => {});
 }
 
+/* ── Liquidation Cascade ── */
+const LIQ_CASCADE_THRESHOLDS: Record<string, number> = {
+  BTC: 5_000_000, ETH: 2_000_000, SOL: 1_000_000, DEFAULT: 800_000,
+};
+const MARKET_CASCADE_THRESHOLD = 20_000_000;
+
+function sendCascadeAlert(
+  coin: string,
+  side: 'LONG' | 'SHORT' | 'MIXED',
+  totalUsd: number,
+  cooldown: Record<string, number>,
+) {
+  const key = `casc-${coin}`;
+  const now = Date.now();
+  if (now - (cooldown[key] ?? 0) < 10 * 60_000) return; // 10-min cooldown
+  cooldown[key] = now;
+  const emoji = side === 'LONG' ? '🔴' : side === 'SHORT' ? '🟢' : '⚡';
+  const who   = side === 'LONG' ? 'LONGS' : side === 'SHORT' ? 'SHORTS' : 'cascade';
+  const hint  = side === 'LONG'  ? 'Bears flushing longs — short squeeze possible ⚠️'
+              : side === 'SHORT' ? 'Bulls squeezing shorts — watch for reversal ⚠️'
+              : 'Multi-directional flush — vol spike ahead ⚠️';
+  const usdStr = totalUsd >= 1e6
+    ? `$${(totalUsd / 1e6).toFixed(1)}M`
+    : `$${(totalUsd / 1e3).toFixed(0)}K`;
+  fetch('/api/telegram/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: `${emoji} <b>Liquidation Cascade — ${coin}</b>\n${usdStr} ${who} wiped in 60s\n\n${hint}\nliquidity-hq.onrender.com`,
+    }),
+  }).catch(() => {});
+}
+
 const WS_URLS = [
   'wss://stream.binance.com:9443/stream?streams=btcusdt@ticker/ethusdt@ticker/solusdt@ticker/xrpusdt@ticker/bnbusdt@ticker/nearusdt@ticker/suiusdt@ticker',
   'wss://stream.binance.com/stream?streams=btcusdt@ticker/ethusdt@ticker/solusdt@ticker/xrpusdt@ticker/bnbusdt@ticker/nearusdt@ticker/suiusdt@ticker',
@@ -72,6 +105,9 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   /* CVD Divergence alerts: last known divergence + 30-min cooldown */
   const cvdDivStateRef    = useRef<Partial<Record<string, 'bullish' | 'bearish' | null>>>({});
   const cvdAlertCooldown  = useRef<Record<string, number>>({});
+  /* Liquidation cascade: rolling event buffer + per-coin cooldown */
+  const liqBufferRef    = useRef<Array<{ coin: string; side: 'LONG' | 'SHORT'; usd: number; ts: number }>>([]);
+  const cascadeCooldown = useRef<Record<string, number>>({});
 
   const updateCoin = useCallback((id: CoinId, patch: Partial<MarketStore['coins'][CoinId]>) => {
     setStore(s => ({
@@ -184,11 +220,24 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           }
         }
 
+        /* ── Next FR estimate from mark–index spread ── */
+        const markBybit  = parseFloat(item.markPrice   || '0');
+        const indexBybit = parseFloat(item.indexPrice  || '0');
+        const nextFtMs   = parseInt(item.nextFundingTime || '0');
+        let nextFrBybit: number | null = null;
+        if (markBybit > 0 && indexBybit > 0) {
+          const P  = (markBybit - indexBybit) / indexBybit;
+          const ir = 0.0001 / 3; // Bybit ~0.01%/day → ~0.000033 per 8h
+          nextFrBybit = P + Math.max(-0.0005, Math.min(0.0005, ir - P));
+        }
+
         const patch: Partial<MarketStore['coins'][CoinId]> = {
           fundingRate: parseFloat(item.fundingRate || '0'),
           oi: curOI,
           perpPrice: curPrice,
           oiTrend,
+          ...(nextFrBybit !== null ? { nextFrEstimate: nextFrBybit } : {}),
+          ...(nextFtMs > 0       ? { nextFundingTime: nextFtMs }    : {}),
         };
         if (coin === 'hype') {
           patch.price  = curPrice;
@@ -959,6 +1008,31 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     } catch { /* fail silently */ }
   }, []);
 
+  /* ── Binance premium index → next FR estimate (Binance perps) ── */
+  const fetchPremiumIndex = useCallback(async () => {
+    try {
+      const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data: Array<{
+        symbol: string; markPrice: string; indexPrice: string;
+        interestRate: string; nextFundingTime: number;
+      }> = await res.json();
+      if (!Array.isArray(data)) return;
+      data.forEach(item => {
+        const id = SYM_MAP[item.symbol];
+        if (!id) return;
+        const mark  = parseFloat(item.markPrice);
+        const index = parseFloat(item.indexPrice);
+        if (!mark || !index || index === 0) return;
+        // Binance: FR = P + clamp(interestRate − P, −0.05%, +0.05%)
+        const P  = (mark - index) / index;
+        const ir = parseFloat(item.interestRate);
+        const nextFrEstimate = P + Math.max(-0.0005, Math.min(0.0005, ir - P));
+        updateCoin(id, { nextFrEstimate, nextFundingTime: item.nextFundingTime });
+      });
+    } catch { /* */ }
+  }, [updateCoin]);
+
   /* ── Oil + DXY + SPX + Gold — fetched via /api/macro (server-side, no CORS) ── */
   const fetchMacro = useCallback(async () => {
     try {
@@ -1092,6 +1166,86 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* ── Liquidation Cascade Detector — Binance futures all-symbols stream ── */
+  useEffect(() => {
+    const FUTURES_MAP: Record<string, string> = {
+      BTCUSDT: 'BTC', ETHUSDT: 'ETH', SOLUSDT: 'SOL',
+      XRPUSDT: 'XRP', BNBUSDT: 'BNB', NEARUSDT: 'NEAR', SUIUSDT: 'SUI',
+    };
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let alive = true;
+
+    function connect() {
+      if (!alive) return;
+      ws = new WebSocket('wss://fstream.binance.com/ws/!forceOrder@arr');
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          const order = msg.data?.o ?? msg.o;
+          if (!order?.s) return;
+          const coin = FUTURES_MAP[order.s];
+          if (!coin) return;
+          // S:"SELL" = long position liquidated (forced sell); S:"BUY" = short liquidated
+          const side: 'LONG' | 'SHORT' = order.S === 'SELL' ? 'LONG' : 'SHORT';
+          const usd = parseFloat(order.ap || order.p || '0') * parseFloat(order.z || order.q || '0');
+          if (!isFinite(usd) || usd <= 0) return;
+          const now = Date.now();
+          liqBufferRef.current.push({ coin, side, usd, ts: now });
+          // Keep rolling 2-min buffer (cascade window is 60s — extra headroom)
+          liqBufferRef.current = liqBufferRef.current.filter(l => l.ts > now - 120_000);
+        } catch { /* */ }
+      };
+      ws.onclose = () => { if (alive) reconnectTimer = setTimeout(connect, 5_000); };
+      ws.onerror = () => { try { ws?.close(); } catch { /* */ } };
+    }
+
+    connect();
+
+    // Cascade analyzer — check every 5s
+    const analyzer = setInterval(() => {
+      const now = Date.now();
+      const w = liqBufferRef.current.filter(l => l.ts > now - 60_000);
+      if (!w.length) return;
+
+      const byCoin: Record<string, { l: number; s: number }> = {};
+      let mktL = 0, mktS = 0;
+      w.forEach(({ coin, side, usd }) => {
+        if (!byCoin[coin]) byCoin[coin] = { l: 0, s: 0 };
+        if (side === 'LONG') { byCoin[coin].l += usd; mktL += usd; }
+        else                 { byCoin[coin].s += usd; mktS += usd; }
+      });
+
+      let fired = false;
+      for (const [coin, { l: lUsd, s: sUsd }] of Object.entries(byCoin)) {
+        const thr = LIQ_CASCADE_THRESHOLDS[coin] ?? LIQ_CASCADE_THRESHOLDS.DEFAULT;
+        if (lUsd >= thr || sUsd >= thr) {
+          const side: 'LONG' | 'SHORT' | 'MIXED' =
+            (lUsd >= thr && sUsd >= thr) ? 'MIXED' : lUsd >= thr ? 'LONG' : 'SHORT';
+          setStore(s => ({ ...s, cascadeAlert: { coin, side, totalUsd: lUsd + sUsd, ts: now } }));
+          sendCascadeAlert(coin, side, lUsd + sUsd, cascadeCooldown.current);
+          fired = true; break;
+        }
+      }
+      if (!fired) {
+        const mktTotal = mktL + mktS;
+        if (mktTotal >= MARKET_CASCADE_THRESHOLD) {
+          const side: 'LONG' | 'SHORT' | 'MIXED' =
+            mktL > mktS * 1.5 ? 'LONG' : mktS > mktL * 1.5 ? 'SHORT' : 'MIXED';
+          setStore(s => ({ ...s, cascadeAlert: { coin: 'MARKET', side, totalUsd: mktTotal, ts: now } }));
+          sendCascadeAlert('MARKET', side, mktTotal, cascadeCooldown.current);
+        }
+      }
+    }, 5_000);
+
+    return () => {
+      alive = false;
+      clearInterval(analyzer);
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      try { ws?.close(); } catch { /* */ }
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   /* ── Initialise on mount ── */
   useEffect(() => {
     restPoll(); // immediate prices before WS connects
@@ -1110,6 +1264,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     fetchDailyRSI();
     fetchCVD();
     fetchOrderBook();
+    fetchPremiumIndex();
     fetchDeribitOptions();
     fetchStablecoinFlows();
     fetchCoinglassData();
@@ -1134,6 +1289,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       setInterval(fetchDailyRSI,         15  * 60 * 1000),  // 1D RSI — slow-moving, every 15m
       setInterval(fetchCVD,               5  * 60 * 1000),
       setInterval(fetchOrderBook,         2  * 60 * 1000),
+      setInterval(fetchPremiumIndex,     30  * 1000),        // every 30s — premium changes frequently
       setInterval(fetchDeribitOptions,   15  * 60 * 1000),
       setInterval(fetchStablecoinFlows,  30  * 60 * 1000),
       setInterval(fetchCoinglassData,    15  * 60 * 1000),
