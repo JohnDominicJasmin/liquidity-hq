@@ -46,7 +46,7 @@ function MacroStrip() {
 
   return (
     <div className="macro-strip">
-      <div className="macro-strip-title">🌐 Macro Correlations</div>
+      <div className="macro-strip-title">Macro Correlations</div>
       <div className="macro-strip-row">
         {items.map(({ label, price, chg, fmt, signal }) => {
           const sig = chg != null ? signal(chg) : null;
@@ -154,7 +154,7 @@ function EdgeSignals() {
   const cbSig  = cbPct == null ? 'Loading…'
                : cbPct > 0.05  ? '🇺🇸 US institutional buying'
                : cbPct > 0.01  ? 'CB slight premium'
-               : cbPct < -0.05 ? '⚡ US selling — CB discount'
+               : cbPct < -0.05 ? 'US selling — CB discount'
                : cbPct < -0.01 ? 'CB slight discount'
                : 'Neutral spread';
 
@@ -216,7 +216,7 @@ function EdgeSignals() {
       {/* Row 2: OI Trend table */}
       <div className="oi-trend-table">
         <div className="oi-trend-title">
-          📊 OI Trend vs Price
+          OI Trend vs Price
           <div className={`oi-info-wrap${tipOpen ? ' open' : ''}`} onClick={() => setTipOpen(o => !o)}>
             <span className="oi-info-icon">ⓘ</span>
             <div className="oi-info-tip">
@@ -264,7 +264,7 @@ function EdgeSignals() {
       {/* Row 3: Taker Buy/Sell ratio table */}
       <div className="taker-table">
         <div className="taker-title">
-          ⚡ Taker Buy/Sell Pressure
+          Taker Buy/Sell Pressure
           <span className="taker-subtitle">Who&apos;s being aggressive — last 5h of 15m candles</span>
         </div>
         <div className="taker-hdr">

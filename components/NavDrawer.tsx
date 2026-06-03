@@ -164,7 +164,7 @@ export default function NavDrawer() {
                       className="auth-dropdown-usage"
                       onClick={() => setAuthOpen(false)}
                     >
-                      🔥 Deep Analysis — <span>view usage</span>
+                      Deep Analysis — <span>view usage</span>
                     </Link>
                     <button
                       className="auth-signout-btn"

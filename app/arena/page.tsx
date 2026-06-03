@@ -634,7 +634,7 @@ export default function Arena() {
       </div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         <button className="arena-fire-btn arena-quick-btn" disabled={readLoading} onClick={() => readMarket('quick')} style={{ width: 'auto', marginBottom: 0 }} title="Uses local data only — no web search. ~$0.003">
-          {readLoading && readMode === 'quick' ? readStep || 'Working…' : '⚡ Quick'}
+          {readLoading && readMode === 'quick' ? readStep || 'Working…' : 'Quick'}
         </button>
         <button
           className={`arena-fire-btn${!user ? ' arena-deep-locked' : ''}`}
@@ -645,7 +645,7 @@ export default function Arena() {
         >
           {readLoading && readMode === 'deep' ? readStep || 'Working…' : (
             <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1.2 }}>
-              <span>{!user ? '🔒' : '🌐'} Deep</span>
+              <span>{!user ? '🔒 ' : ''}Deep</span>
               {!user && <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.04em', color: '#a37a2a' }}>sign in →</span>}
             </span>
           )}
@@ -653,7 +653,7 @@ export default function Arena() {
         {/* Usage chip — signed-in users only */}
         {user && grokUsage && (
           <div className="grok-usage-chip" title={`Quick analyses today: ${grokUsage.quick_used}`}>
-            🔥 {grokUsage.deep_used}/{grokUsage.deep_limit} deep
+            {grokUsage.deep_used}/{grokUsage.deep_limit} deep
           </div>
         )}
 
