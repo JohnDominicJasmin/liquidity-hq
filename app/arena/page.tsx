@@ -500,7 +500,7 @@ export default function Arena() {
     if (!force) {
       const currentPrice = store.coins[selectedCoin]?.price ?? 0;
       const entry = resultsCache[selectedCoin];
-      if (entry && (mode === 'quick' || entry.mode === 'deep')) {
+      if (entry && entry.mode === mode) {
         const ageSecs  = (Date.now() - entry.result.analyzedAt) / 1000;
         const pricePct = currentPrice > 0
           ? Math.abs(currentPrice - entry.priceAtAnalysis) / currentPrice * 100
@@ -695,13 +695,22 @@ export default function Arena() {
         ))}
       </div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-        <button className="arena-fire-btn arena-quick-btn" disabled={readLoading} onClick={() => readMarket('quick')} style={{ width: 'auto', marginBottom: 0 }} title="Uses local data only — no web search. ~$0.003">
+        <button className="arena-fire-btn arena-quick-btn" disabled={readLoading} onClick={() => {
+          const entry = resultsCache[selectedCoin];
+          const force = !!(entry && entry.mode === 'quick' && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
+          readMarket('quick', force);
+        }} style={{ width: 'auto', marginBottom: 0 }} title="Uses local data only — no web search. ~$0.003">
           {readLoading && readMode === 'quick' ? readStep || 'Working…' : 'Quick'}
         </button>
         <button
           className={`arena-fire-btn${!user ? ' arena-deep-locked' : ''}`}
           disabled={readLoading}
-          onClick={() => { if (!user) { window.location.href = '/login'; return; } readMarket('deep'); }}
+          onClick={() => {
+            if (!user) { window.location.href = '/login'; return; }
+            const entry = resultsCache[selectedCoin];
+            const force = !!(entry && entry.mode === 'deep' && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
+            readMarket('deep', force);
+          }}
           style={{ width: 'auto', marginBottom: 0 }}
           title={!user ? 'Sign in to use Deep Analysis' : 'Searches live web + X for catalysts. ~$0.10'}
         >
@@ -754,7 +763,18 @@ export default function Arena() {
             <div className="arena-sig-top">
               <div>
                 <div className="arena-sig-pair">{selectedCoin.toUpperCase()}/USDT</div>
-                <div className="arena-sig-time">Analysed {freshness} · {result.tf}</div>
+                <div className="arena-sig-time">
+                  Analysed {freshness} · {result.tf}
+                  <span style={{
+                    marginLeft: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.04em',
+                    padding: '1px 6px', borderRadius: 4,
+                    background: cacheEntry?.mode === 'quick' ? 'rgba(52,211,153,0.1)' : 'rgba(167,139,250,0.1)',
+                    color: cacheEntry?.mode === 'quick' ? '#34d399' : '#b8aeff',
+                    border: `0.5px solid ${cacheEntry?.mode === 'quick' ? 'rgba(52,211,153,0.25)' : 'rgba(167,139,250,0.25)'}`,
+                  }}>
+                    {cacheEntry?.mode === 'quick' ? '⚡ Quick' : '🔬 Deep'}
+                  </span>
+                </div>
               </div>
               <span className={`arena-sig-badge badge-${result.signal.toLowerCase()}`}>
                 {result.signal === 'LONG' ? '▲ LONG' : result.signal === 'SHORT' ? '▼ SHORT' : '— FLAT'}
