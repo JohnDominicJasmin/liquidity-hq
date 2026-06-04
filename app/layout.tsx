@@ -3,13 +3,13 @@ import './globals.css';
 import AppShell from '@/components/AppShell';
 
 export const metadata: Metadata = {
-  title: 'Liquidity Hunter HQ',
+  title: 'LiquidityHQ.ai',
   description: 'Personal crypto trading intelligence tool',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Liquidity HQ',
+    title: 'LiquidityHQ.ai',
   },
 };
 
