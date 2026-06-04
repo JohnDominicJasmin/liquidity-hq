@@ -1,0 +1,323 @@
+'use client';
+import { useEffect, useRef, useState } from 'react';
+import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
+import { BINANCE_SYMS, BYBIT_SYMS, CoinId } from '@/lib/marketStore';
+import type { CombinedResult } from '@/lib/grok';
+
+// ── v10 Period mapping ────────────────────────────────────────────────────
+
+const TF_TO_PERIOD: Record<string, Period> = {
+  '15m': { type: 'minute', span: 15 },
+  '1h':  { type: 'hour',   span: 1  },
+  '4h':  { type: 'hour',   span: 4  },
+  '1d':  { type: 'day',    span: 1  },
+};
+
+function periodToBnInterval(p: Period): string {
+  if (p.type === 'minute') return `${p.span}m`;
+  if (p.type === 'hour')   return `${p.span}h`;
+  if (p.type === 'day')    return `${p.span}d`;
+  if (p.type === 'week')   return `${p.span}w`;
+  return '15m';
+}
+function periodToBybitInterval(p: Period): string {
+  if (p.type === 'minute') return String(p.span);
+  if (p.type === 'hour')   return String(p.span * 60);
+  if (p.type === 'day')    return 'D';
+  return '15';
+}
+
+// ── Drawing tools ─────────────────────────────────────────────────────────
+
+const TOOLS = [
+  { id: 'horizontalStraightLine', label: '― H-Line'  },
+  { id: 'straightLine',           label: '⟋ Trend'   },
+  { id: 'fibonacciLine',          label: '≡ Fib'     },
+  { id: 'segment',                label: '╱ Seg'     },
+  { id: 'rect',                   label: '▭ Rect'    },
+] as const;
+
+// ── Dark theme — use setStyles after init to avoid deep-type gymnastics ───
+
+const DARK: Record<string, unknown> = {
+  grid: {
+    horizontal: { color: 'rgba(255,255,255,0.04)', size: 1 },
+    vertical:   { color: 'rgba(255,255,255,0.04)', size: 1 },
+  },
+  candle: {
+    bar: {
+      upColor:            '#26a69a',
+      downColor:          '#ef5350',
+      upBorderColor:      '#26a69a',
+      downBorderColor:    '#ef5350',
+      noChangeBorderColor:'#888',
+      upWickColor:        '#26a69a',
+      downWickColor:      '#ef5350',
+    },
+    priceMark: {
+      high: { show: true, color: 'rgba(255,255,255,0.45)', textSize: 10 },
+      low:  { show: true, color: 'rgba(255,255,255,0.45)', textSize: 10 },
+      last: {
+        show: true,
+        line: { show: true, color: 'rgba(255,255,255,0.18)' },
+        text: { show: true, color: '#e8e8e8', size: 11 },
+      },
+    },
+  },
+  xAxis: {
+    tickText: { color: 'rgba(255,255,255,0.35)', size: 10 },
+    axisLine: { color: 'rgba(255,255,255,0.07)' },
+    tickLine: { color: 'rgba(255,255,255,0.07)' },
+  },
+  yAxis: {
+    tickText: { color: 'rgba(255,255,255,0.35)', size: 10 },
+    axisLine: { color: 'rgba(255,255,255,0.07)' },
+    tickLine: { color: 'rgba(255,255,255,0.07)' },
+  },
+  crosshair: {
+    horizontal: {
+      line:  { color: 'rgba(255,255,255,0.12)' },
+      text:  { color: '#e8e8e8', background: '#1e1e1e', size: 11 },
+    },
+    vertical: {
+      line:  { color: 'rgba(255,255,255,0.12)' },
+      text:  { color: '#e8e8e8', background: '#1e1e1e', size: 11 },
+    },
+  },
+  overlay: {
+    line: { color: '#b8aeff', size: 1 },
+  },
+};
+
+// ── Component ─────────────────────────────────────────────────────────────
+
+interface Props {
+  coin: CoinId;
+  tf:   '15m' | '1h' | '4h' | '1d';
+  result?: CombinedResult | null;
+}
+
+export default function KLineProChart({ coin, tf, result }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef     = useRef<KChart | null>(null);
+  const wsRef        = useRef<{ close: () => void } | null>(null);
+  const analysisIds  = useRef<string[]>([]);
+  const coinRef      = useRef<CoinId>(coin);
+  const [activeTool, setActiveTool] = useState<string | null>(null);
+  const [wsStatus,   setWsStatus]   = useState<'connecting' | 'live' | 'error'>('connecting');
+
+  // Keep coinRef fresh for the DataLoader closure
+  useEffect(() => { coinRef.current = coin; }, [coin]);
+
+  // ── Init chart once ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!containerRef.current) return;
+    let disposed = false;
+
+    (async () => {
+      const kc = await import('klinecharts');
+      if (disposed || !containerRef.current) return;
+
+      const chart = kc.init(containerRef.current);
+      if (!chart) return;
+      chartRef.current = chart;
+
+      // Apply dark theme via setStyles (avoids DeepPartial type gymnastics)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      chart.setStyles(DARK as any);
+
+      // Indicators
+      chart.createIndicator(
+        { name: 'EMA', calcParams: [9, 200] },
+        { isStack: false, pane: { id: 'candle_pane' } }
+      );
+      chart.createIndicator('VOL', { pane: { height: 60, minHeight: 30 } });
+
+      // DataLoader
+      const loader: DataLoader = {
+        getBars: async ({ symbol, period, callback }) => {
+          const c   = coinRef.current;
+          const bnSym    = BINANCE_SYMS[c] as string | undefined;
+          const bybitSym = BYBIT_SYMS[c]   as string | undefined;
+          try {
+            if (bnSym) {
+              const iv = periodToBnInterval(period);
+              const r  = await fetch(`https://api.binance.com/api/v3/klines?symbol=${bnSym}&interval=${iv}&limit=500`);
+              const raw = await r.json() as (string | number)[][];
+              callback(raw.map(k => ({
+                timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
+                low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
+              })), false);
+            } else if (bybitSym) {
+              const iv = periodToBybitInterval(period);
+              const r  = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${iv}&limit=500`);
+              const d  = await r.json() as { result?: { list?: string[][] } };
+              const list = [...(d?.result?.list ?? [])].reverse();
+              callback(list.map(k => ({
+                timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
+                low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
+              })), false);
+            } else {
+              callback([], false);
+            }
+          } catch { callback([], false); }
+          void symbol; // suppress unused
+        },
+
+        subscribeBar: ({ period, callback }) => {
+          const c        = coinRef.current;
+          const bnSym    = BINANCE_SYMS[c] as string | undefined;
+          const bybitSym = BYBIT_SYMS[c]   as string | undefined;
+          wsRef.current?.close();
+
+          if (bnSym) {
+            const iv = periodToBnInterval(period);
+            const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${bnSym.toLowerCase()}@kline_${iv}`);
+            ws.onopen    = () => setWsStatus('live');
+            ws.onerror   = () => setWsStatus('error');
+            ws.onclose   = (e) => { if (!e.wasClean) setWsStatus('connecting'); };
+            ws.onmessage = (e: MessageEvent) => {
+              const { k } = JSON.parse(e.data as string) as { k: Record<string, string | number> };
+              callback({ timestamp: Number(k.t), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c), volume: Number(k.v) });
+            };
+            wsRef.current = ws;
+          } else if (bybitSym) {
+            // Bybit: 5s polling
+            setWsStatus('live');
+            const iv = periodToBybitInterval(period);
+            const timer = setInterval(async () => {
+              try {
+                const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${iv}&limit=1`);
+                const d = await r.json() as { result?: { list?: string[][] } };
+                const k = d?.result?.list?.[0];
+                if (k) callback({ timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]), low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]) });
+              } catch { /* silent */ }
+            }, 5000);
+            wsRef.current = { close: () => clearInterval(timer) };
+          }
+        },
+
+        unsubscribeBar: () => {
+          wsRef.current?.close();
+          wsRef.current = null;
+          setWsStatus('connecting');
+        },
+      };
+
+      chart.setDataLoader(loader);
+      setChartSymbolPeriod(chart, coin, tf);
+    })();
+
+    return () => {
+      disposed = true;
+      wsRef.current?.close();
+      wsRef.current = null;
+      import('klinecharts').then(({ dispose }) => {
+        if (containerRef.current) dispose(containerRef.current);
+      });
+      chartRef.current = null;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Reload on coin / tf change ───────────────────────────────────────
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    analysisIds.current.forEach(id => chart.removeOverlay({ id }));
+    analysisIds.current = [];
+    setActiveTool(null);
+    setChartSymbolPeriod(chart, coin, tf);
+  }, [coin, tf]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Auto-draw Entry / SL / TP after analysis ─────────────────────────
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    analysisIds.current.forEach(id => chart.removeOverlay({ id }));
+    analysisIds.current = [];
+    if (!result) return;
+
+    const draw = (price: number, color: string) => {
+      const id = chart.createOverlay({
+        name: 'horizontalStraightLine',
+        groupId: 'analysis',
+        lock: true,
+        points: [{ value: price }],
+        styles: { line: { style: 'dashed', color, size: 1 } },
+      } as OverlayCreate);
+      if (typeof id === 'string') analysisIds.current.push(id);
+    };
+
+    if (result.entryLow)  draw(result.entryLow,  '#34d399');
+    if (result.entryHigh) draw(result.entryHigh, '#34d399');
+    if (result.sl)        draw(result.sl,        '#f87171');
+    if (result.tp)        draw(result.tp,        '#b8aeff');
+  }, [result]);
+
+  // ── Drawing toolbar ──────────────────────────────────────────────────
+  const handleTool = (toolId: string) => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    if (activeTool === toolId) {
+      chart.removeOverlay({ name: toolId });
+      setActiveTool(null);
+    } else {
+      chart.createOverlay(toolId);
+      setActiveTool(toolId);
+    }
+  };
+
+  const handleClear = () => {
+    chartRef.current?.removeOverlay();
+    analysisIds.current = [];
+    setActiveTool(null);
+  };
+
+  const hasLevels = result && (result.entryLow || result.sl || result.tp);
+
+  return (
+    <div className="klc-wrap">
+      {/* Toolbar */}
+      <div className="klc-toolbar">
+        {TOOLS.map(({ id, label }) => (
+          <button
+            key={id}
+            className={`klc-tool-btn${activeTool === id ? ' on' : ''}`}
+            onClick={() => handleTool(id)}
+          >
+            {label}
+          </button>
+        ))}
+        <div className="klc-sep" />
+        <button className="klc-tool-btn klc-clear" onClick={handleClear}>Clear</button>
+
+        {hasLevels && (
+          <div className="klc-legend">
+            {(result!.entryLow || result!.entryHigh) && (
+              <span className="klc-leg" style={{ color: '#34d399' }}>— Entry</span>
+            )}
+            {result!.sl && <span className="klc-leg" style={{ color: '#f87171' }}>— SL</span>}
+            {result!.tp && <span className="klc-leg" style={{ color: '#b8aeff' }}>— TP</span>}
+          </div>
+        )}
+
+        <span style={{ marginLeft: 'auto' }} />
+        <span
+          className={`klc-ws-dot${wsStatus === 'live' ? ' live' : wsStatus === 'error' ? ' err' : ''}`}
+          title={wsStatus}
+        />
+      </div>
+
+      {/* Chart canvas */}
+      <div ref={containerRef} className="klc-canvas" />
+    </div>
+  );
+}
+
+// ── Helper ────────────────────────────────────────────────────────────────
+function setChartSymbolPeriod(chart: KChart, coin: CoinId, tf: string) {
+  const bnSym    = BINANCE_SYMS[coin] as string | undefined;
+  const bybitSym = BYBIT_SYMS[coin]   as string | undefined;
+  chart.setSymbol({ ticker: bnSym ?? bybitSym ?? 'BTCUSDT', shortName: coin.toUpperCase() + '/USDT' });
+  chart.setPeriod(TF_TO_PERIOD[tf] ?? TF_TO_PERIOD['15m']);
+}

@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
+    "klinecharts": "^10.0.0-beta3",
     "next": "16.2.6",
     "next-pwa": "^5.6.0",
     "posthog-js": "^1.378.1",

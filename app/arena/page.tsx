@@ -11,7 +11,7 @@ import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
 import SetupScanner from '@/components/SetupScanner';
 import ConfluenceScorer from '@/components/ConfluenceScorer';
-import GrokSignalChart from '@/components/GrokSignalChart';
+import KLineProChart from '@/components/KLineProChart';
 
 /* ── Pattern detection — delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -698,8 +698,8 @@ export default function Arena() {
         >{notifEnabled ? '🔔' : '🔕'}</button>
       </div>
 
-      {/* ── CHART — visual anchor (full-bleed, wider) ── */}
-      <GrokSignalChart coin={selectedCoin} tf={readTf} />
+      {/* ── CHART — KLineChart with auto Entry/SL/TP overlays ── */}
+      <KLineProChart coin={selectedCoin} tf={readTf} result={result} />
 
       {/* ── BELOW CHART: left-aligned, max 860px on wide screens ── */}
       <div className="arena-below-chart">

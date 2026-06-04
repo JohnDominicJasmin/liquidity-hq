@@ -1035,6 +1035,39 @@ body.ticker-on .breaking-alert { top: 90px; }
 }
 .arena-ask-grok-btn:hover { box-shadow: var(--glow-purple); }
 
+/* ── KLINECHART PRO ──────────────────────────────────────────────────────── */
+.klc-wrap {
+  background: #0d0d0d; border: 0.5px solid var(--bdr);
+  border-radius: 14px; overflow: hidden; margin-bottom: 10px;
+}
+.klc-toolbar {
+  display: flex; align-items: center; gap: 4px;
+  padding: 6px 10px; border-bottom: 0.5px solid var(--bdr);
+  flex-wrap: wrap; min-height: 36px;
+}
+.klc-tool-btn {
+  padding: 3px 8px; border-radius: 5px; font-size: 11px; font-weight: 600;
+  background: var(--bg2); border: 0.5px solid var(--bdr); color: var(--txt3);
+  cursor: pointer; white-space: nowrap; transition: all 0.12s;
+}
+.klc-tool-btn:hover { border-color: var(--purple); color: var(--txt2); }
+.klc-tool-btn.on    { background: var(--purple-bg); border-color: var(--purple); color: #b8aeff; }
+.klc-clear { color: #f87171 !important; border-color: rgba(248,113,113,0.25) !important; }
+.klc-clear:hover { background: rgba(248,113,113,0.08) !important; }
+.klc-sep { width: 0.5px; height: 16px; background: var(--bdr); margin: 0 2px; flex-shrink: 0; }
+.klc-legend { display: flex; gap: 8px; align-items: center; }
+.klc-leg    { font-size: 10px; font-weight: 600; letter-spacing: .03em; white-space: nowrap; }
+.klc-ws-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--txt3); flex-shrink: 0; }
+.klc-ws-dot.live { background: var(--green); box-shadow: 0 0 5px var(--green); }
+.klc-ws-dot.err  { background: var(--red); }
+.klc-canvas {
+  width: 100%; height: 420px;
+  /* klinecharts needs explicit pixel size — set via JS resize on mount */
+}
+@media (max-width: 520px) {
+  .klc-canvas { height: 280px; }
+}
+
 /* ── GROK CHAT FLOATING WIDGET ── */
 .gchat-fab {
   position: fixed; bottom: 24px; right: 20px; z-index: 9995;
