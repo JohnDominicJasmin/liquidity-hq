@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useMarket } from '@/lib/marketStore';
 import { useAuth } from './AuthProvider';
 import { track } from '@/lib/analytics';
+import SettingsModal from './SettingsModal';
 
 const NAV = [
   { path: '/',            icon: '📊', label: 'Dashboard',   desk: true  },
@@ -22,7 +23,7 @@ const NAV = [
   null,
   { path: '/journal',     icon: '📓', label: 'Journal',     desk: true  },
   null,
-  { path: '/settings',    icon: '⚙️', label: 'Settings',    desk: false },
+  { path: '/settings',    icon: '⚙️', label: 'Settings',    desk: false, modal: true },
   { path: '/about',       icon: 'ℹ️', label: 'About',       desk: false },
 ];
 
@@ -44,6 +45,7 @@ export default function NavDrawer() {
   const [open, setOpen]             = useState(false);
   const [moreOpen, setMoreOpen]     = useState(false);
   const [authOpen, setAuthOpen]     = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, setTheme]           = useState<'dark' | 'light'>('dark');
   const pathname = usePathname();
   const router   = useRouter();
@@ -167,13 +169,13 @@ export default function NavDrawer() {
                     >
                       Deep Analysis — <span>view usage</span>
                     </Link>
-                    <Link
-                      href="/settings"
+                    <button
                       className="auth-dropdown-usage"
-                      onClick={() => setAuthOpen(false)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', padding: 0 }}
+                      onClick={() => { setAuthOpen(false); setSettingsOpen(true); }}
                     >
                       Settings
-                    </Link>
+                    </button>
                     <button
                       className="auth-signout-btn"
                       onClick={async () => {
@@ -202,6 +204,8 @@ export default function NavDrawer() {
         </div>
       </div>
 
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
       {/* Mobile drawer */}
       <div className={`nav-drawer${open ? ' open' : ''}`}>
         <div className="nav-overlay" onClick={() => setOpen(false)} />
@@ -209,6 +213,15 @@ export default function NavDrawer() {
           {NAV.map((item, i) =>
             item === null ? (
               <div key={i} className="nav-divider" />
+            ) : (item as { modal?: boolean }).modal ? (
+              <button
+                key={item.path}
+                className="nav-item"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+                onClick={() => { setOpen(false); setSettingsOpen(true); }}
+              >
+                {item.label}
+              </button>
             ) : (
               <Link
                 key={item.path}
