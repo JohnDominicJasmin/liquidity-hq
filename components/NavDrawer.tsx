@@ -208,7 +208,6 @@ export default function NavDrawer() {
                 className={`nav-item${pathname === item.path ? ' on' : ''}`}
                 onClick={() => setOpen(false)}
               >
-                <span className="nav-item-icon">{item.icon}</span>
                 {item.label}
               </Link>
             )
@@ -228,7 +227,6 @@ export default function NavDrawer() {
                     router.push('/login');
                   }}
                 >
-                  <span className="nav-item-icon">👤</span>
                   Sign Out
                 </button>
               ) : (
@@ -237,7 +235,6 @@ export default function NavDrawer() {
                   className={`nav-item${pathname === '/login' ? ' on' : ''}`}
                   onClick={() => setOpen(false)}
                 >
-                  <span className="nav-item-icon">🔑</span>
                   Sign In
                 </Link>
               )}

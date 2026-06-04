@@ -782,6 +782,12 @@ body.ticker-on .breaking-alert { top: 90px; }
 .arena-cvd-div-bullish .arena-cvd-div-title { color: var(--green); }
 .arena-cvd-div-bearish .arena-cvd-div-title { color: var(--red); }
 .arena-cvd-div-desc { font-size: 11px; color: var(--txt2); line-height: 1.5; }
+.arena-override-notice {
+  font-size: 11px; line-height: 1.5; color: var(--txt2);
+  background: rgba(251,191,36,0.07); border: 0.5px solid rgba(251,191,36,0.25);
+  border-radius: 8px; padding: 8px 10px; margin-bottom: 10px;
+}
+.arena-override-notice strong { color: #fbbf24; font-weight: 700; }
 
 /* ── Whale alert card ── */
 .ncard-whale { border-top-width: 2.5px; }

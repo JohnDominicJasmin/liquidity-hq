@@ -90,6 +90,8 @@ export default function Arena() {
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [ctxOpen, setCtxOpen]         = useState(false);
   const [grokUsage, setGrokUsage]     = useState<GrokUsageInfo | null>(null);
+  // Track last Quick signal per coin so Deep can compare and show an override notice
+  const [quickSignals, setQuickSignals] = useState<Partial<Record<CoinId, string>>>({});
 
   // Derived — current coin's cached result (persists across coin switches)
   const cacheEntry = resultsCache[selectedCoin] ?? null;
@@ -583,6 +585,8 @@ export default function Arena() {
       // Cache result per coin (with price snapshot for stale-check)
       const priceNow = store.coins[selectedCoin]?.price ?? 0;
       setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode } }));
+      // Track Quick signals separately so Deep can show an override notice when they disagree
+      if (mode === 'quick') setQuickSignals(prev => ({ ...prev, [selectedCoin]: res.signal }));
       setDetailIdx(null);
       const entryStr = res.entryLow && res.entryHigh
         ? `$${fmtPrice(res.entryLow)} – $${fmtPrice(res.entryHigh)}`
@@ -755,6 +759,12 @@ export default function Arena() {
 
       {result && Date.now() - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
         const sigCol = result.signal === 'LONG' ? '#34d399' : result.signal === 'SHORT' ? '#f87171' : '#9ca3af';
+        const prevQuickSignal = quickSignals[selectedCoin];
+        const showOverride = !!(
+          cacheEntry?.mode === 'deep' &&
+          prevQuickSignal &&
+          prevQuickSignal !== result.signal
+        );
         const secsDiff = Math.floor((Date.now() - result.analyzedAt) / 1000);
         const freshness = secsDiff < 60 ? 'just now' : secsDiff < 3600 ? `${Math.floor(secsDiff/60)}m ago` : `${Math.floor(secsDiff/3600)}h ago`;
         return (
@@ -780,6 +790,14 @@ export default function Arena() {
                 {result.signal === 'LONG' ? '▲ LONG' : result.signal === 'SHORT' ? '▼ SHORT' : '— FLAT'}
               </span>
             </div>
+
+            {/* Deep override notice */}
+            {showOverride && (
+              <div className="arena-override-notice">
+                Deep overrides Quick — web search found a catalyst that shifted the signal from{' '}
+                <strong>{prevQuickSignal}</strong> to <strong>{result.signal}</strong>. See Catalysts below.
+              </div>
+            )}
 
             {/* Confidence bar */}
             <div className="arena-sig-stats">
