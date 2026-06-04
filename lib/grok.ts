@@ -1,9 +1,10 @@
 import { getSupabase } from './supabase';
 
 export interface GrokUsageInfo {
-  deep_used:  number;
-  deep_limit: number;
-  quick_used: number;
+  deep_used:   number;
+  deep_limit:  number;
+  quick_used:  number;
+  quick_limit: number;
 }
 
 /** Client-side proxy call — routes through /api/grok (key stays server-side, rate-limited). */
@@ -32,6 +33,21 @@ export async function callGrokViaProxy(
   }
 
   return res.json() as Promise<{ result: CombinedResult; usage: GrokUsageInfo | null }>;
+}
+
+/** Fetch today's usage without running an analysis — call on page mount. */
+export async function fetchGrokUsage(): Promise<GrokUsageInfo | null> {
+  const sb    = getSupabase();
+  const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined;
+  if (!token) return null;
+  try {
+    const res = await fetch('/api/grok', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    const { usage } = await res.json() as { usage: GrokUsageInfo | null };
+    return usage;
+  } catch { return null; }
 }
 
 export interface GrokContext {

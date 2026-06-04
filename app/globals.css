@@ -2314,6 +2314,43 @@ body.ticker-on .breaking-alert { top: 90px; }
   color: var(--txt3); border-color: var(--bdr);
 }
 
+/* ── USAGE PANEL (AI Arena) ──────────────────────────────────────────────── */
+.usage-panel {
+  background: var(--bg1); border: 0.5px solid var(--bdr);
+  border-radius: 10px; padding: 10px 12px;
+  margin: 2px 0 10px; display: flex; flex-direction: column; gap: 7px;
+}
+.usage-row {
+  display: flex; align-items: center; gap: 8px;
+}
+.usage-label {
+  font-size: 11px; color: var(--txt3); width: 56px; flex-shrink: 0;
+}
+.usage-track {
+  flex: 1; height: 4px; background: rgba(255,255,255,0.07);
+  border-radius: 2px; overflow: hidden;
+}
+.usage-fill {
+  height: 100%; border-radius: 2px; transition: width 0.4s ease;
+}
+.usage-count {
+  font-size: 11px; font-weight: 700; min-width: 40px; text-align: right;
+}
+.usage-max { font-weight: 400; color: var(--txt3); }
+.usage-footer { font-size: 10px; color: var(--txt3); margin-top: 1px; }
+
+/* auth notice below buttons when signed out */
+.usage-auth-notice {
+  font-size: 11px; color: var(--txt3); line-height: 1.5;
+  padding: 7px 10px; border-radius: 8px;
+  background: rgba(255,255,255,0.03); border: 0.5px solid var(--bdr);
+  margin: 2px 0 10px;
+}
+.usage-auth-link {
+  color: #b8aeff; text-decoration: none; font-weight: 600;
+}
+.usage-auth-link:hover { text-decoration: underline; }
+
 /* ── AUTH GATE — inline lock screen for gated features ───────────────────── */
 .auth-gate {
   display: flex; flex-direction: column; align-items: center; justify-content: center;

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMarket, classifyFunding, CoinId, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
-import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
+import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcRSI, callGrokViaProxy, fetchGrokUsage, GrokUsageInfo } from '@/lib/grok';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
 import { getPHT, getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
@@ -51,6 +51,29 @@ function ReasoningText({ text }: { text: string }) {
 
 const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui'];
 
+/* ── Usage panel — shows daily call counts for signed-in users ── */
+function UsagePanel({ usage }: { usage: GrokUsageInfo }) {
+  const deepPct  = Math.min((usage.deep_used  / usage.deep_limit)  * 100, 100);
+  const quickPct = Math.min((usage.quick_used / usage.quick_limit) * 100, 100);
+  const deepCol  = deepPct  >= 90 ? '#f87171' : deepPct  >= 70 ? '#fbbf24' : '#b8aeff';
+  const quickCol = quickPct >= 90 ? '#f87171' : quickPct >= 70 ? '#fbbf24' : '#34d399';
+  return (
+    <div className="usage-panel">
+      <div className="usage-row">
+        <span className="usage-label">⚡ Quick</span>
+        <div className="usage-track"><div className="usage-fill" style={{ width: quickPct + '%', background: quickCol }} /></div>
+        <span className="usage-count" style={{ color: quickCol }}>{usage.quick_used}<span className="usage-max">/{usage.quick_limit}</span></span>
+      </div>
+      <div className="usage-row">
+        <span className="usage-label">🔬 Deep</span>
+        <div className="usage-track"><div className="usage-fill" style={{ width: deepPct + '%', background: deepCol }} /></div>
+        <span className="usage-count" style={{ color: deepCol }}>{usage.deep_used}<span className="usage-max">/{usage.deep_limit}</span></span>
+      </div>
+      <div className="usage-footer">Today · resets midnight UTC</div>
+    </div>
+  );
+}
+
 /* ── Result cache ── */
 interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep' }
 const PRICE_MOVE_PCT    = 0.5;             // re-analyze when price moves >0.5%
@@ -77,7 +100,7 @@ const ARENA_HIST_KEY = 'arena-session-history-v1';
 export default function Arena() {
   const { store } = useMarket();
   const { latestHeadlines, econEvents } = useNews();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>('btc');
   const [readTf, setReadTf]         = useState<'15m'|'1h'|'4h'|'1d'>('15m');
   const [readLoading, setReadLoading] = useState(false);
@@ -97,6 +120,12 @@ export default function Arena() {
   const cacheEntry = resultsCache[selectedCoin] ?? null;
   const result     = cacheEntry?.result ?? null;
   const notifCooldown = useRef<Set<string>>(new Set());
+
+  /* ── Fetch today's usage on mount (and whenever auth state changes) ── */
+  useEffect(() => {
+    if (!user) return;
+    fetchGrokUsage().then(u => { if (u) setGrokUsage(u); });
+  }, [user]);
 
   /* ── Persist history in sessionStorage (survives nav away + back) ── */
   useEffect(() => {
@@ -699,16 +728,33 @@ export default function Arena() {
         ))}
       </div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-        <button className="arena-fire-btn arena-quick-btn" disabled={readLoading} onClick={() => {
-          const entry = resultsCache[selectedCoin];
-          const force = !!(entry && entry.mode === 'quick' && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
-          readMarket('quick', force);
-        }} style={{ width: 'auto', marginBottom: 0 }} title="Uses local data only — no web search. ~$0.003">
-          {readLoading && readMode === 'quick' ? readStep || 'Working…' : 'Quick'}
+        {/* Quick button — requires sign-in */}
+        <button
+          className={`arena-fire-btn arena-quick-btn${!user ? ' arena-deep-locked' : ''}`}
+          disabled={readLoading || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
+          onClick={() => {
+            if (!user) { window.location.href = '/login'; return; }
+            const entry = resultsCache[selectedCoin];
+            const force = !!(entry && entry.mode === 'quick' && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
+            readMarket('quick', force);
+          }}
+          style={{ width: 'auto', marginBottom: 0 }}
+          title={!user ? 'Sign in to use Quick Analysis' : 'Uses local data only — no web search. ~$0.003'}
+        >
+          {readLoading && readMode === 'quick' ? readStep || 'Working…' : (
+            !user ? (
+              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1.2 }}>
+                <span>🔒 Quick</span>
+                <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.04em', color: '#a37a2a' }}>sign in →</span>
+              </span>
+            ) : 'Quick'
+          )}
         </button>
+
+        {/* Deep button — requires sign-in + within daily limit */}
         <button
           className={`arena-fire-btn${!user ? ' arena-deep-locked' : ''}`}
-          disabled={readLoading}
+          disabled={readLoading || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
           onClick={() => {
             if (!user) { window.location.href = '/login'; return; }
             const entry = resultsCache[selectedCoin];
@@ -725,12 +771,6 @@ export default function Arena() {
             </span>
           )}
         </button>
-        {/* Usage chip — signed-in users only */}
-        {user && grokUsage && (
-          <div className="grok-usage-chip" title={`Quick analyses today: ${grokUsage.quick_used}`}>
-            {grokUsage.deep_used}/{grokUsage.deep_limit} deep
-          </div>
-        )}
 
         <button
           className="arena-ask-grok-btn"
@@ -747,6 +787,17 @@ export default function Arena() {
           Ask Grok
         </button>
       </div>
+
+      {/* ── Usage panel — visible for signed-in users ── */}
+      {user && grokUsage && <UsagePanel usage={grokUsage} />}
+
+      {/* ── Auth notice — shown for signed-out users ── */}
+      {!user && !authLoading && (
+        <div className="usage-auth-notice">
+          Sign in to run Quick and Deep analysis — required to control API costs.{' '}
+          <a href="/login" className="usage-auth-link">Sign In →</a>
+        </div>
+      )}
 
       {readLoading && (
         <div className="arena-loading">

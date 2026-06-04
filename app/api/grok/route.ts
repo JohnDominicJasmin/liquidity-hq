@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { parseCombinedResponse } from '@/lib/grok';
 
-// Key stays server-side — never exposed to the browser
-const GROK_KEY = process.env.GROK_API_KEY ?? '';
-const DEEP_LIMIT = 20; // per user per calendar day (UTC)
+// Keys / limits
+const GROK_KEY    = process.env.GROK_API_KEY ?? '';
+const DEEP_LIMIT  = 20;   // per user per calendar day (UTC)
+const QUICK_LIMIT = 50;   // per user per calendar day (UTC)
 
 function sb(token?: string) {
   return createClient(
@@ -14,6 +15,33 @@ function sb(token?: string) {
   );
 }
 
+async function getUsageRow(token: string, userId: string, today: string) {
+  const { data } = await sb(token).from('grok_usage')
+    .select('deep_count, quick_count')
+    .eq('user_id', userId)
+    .eq('date', today)
+    .maybeSingle();
+  return { deepUsed: data?.deep_count ?? 0, quickUsed: data?.quick_count ?? 0 };
+}
+
+// ── GET — return today's usage without running an analysis ──────────────────
+export async function GET(req: NextRequest) {
+  const token = req.headers.get('Authorization')?.replace('Bearer ', '') || undefined;
+  if (!token) return NextResponse.json({ usage: null });
+
+  const { data } = await sb(token).auth.getUser();
+  const userId = data.user?.id ?? null;
+  if (!userId) return NextResponse.json({ usage: null });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { deepUsed, quickUsed } = await getUsageRow(token, userId, today);
+
+  return NextResponse.json({
+    usage: { deep_used: deepUsed, deep_limit: DEEP_LIMIT, quick_used: quickUsed, quick_limit: QUICK_LIMIT },
+  });
+}
+
+// ── POST — run an analysis ──────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const { prompt, tf, session, type } = await req.json() as {
     prompt: string; tf: string; session: string; type: 'quick' | 'deep';
@@ -21,52 +49,50 @@ export async function POST(req: NextRequest) {
 
   const token = req.headers.get('Authorization')?.replace('Bearer ', '') || undefined;
 
-  // ── Auth check ────────────────────────────────────────────────────────────
+  // Auth required for both Quick and Deep — prevents unauthenticated API burn
   let userId: string | null = null;
   if (token) {
     const { data } = await sb(token).auth.getUser();
     userId = data.user?.id ?? null;
   }
 
-  // Deep analysis requires sign-in
-  if (type === 'deep' && !userId) {
+  if (!userId) {
     return NextResponse.json(
-      { error: 'Sign in required for Deep Analysis', code: 'AUTH_REQUIRED' },
+      { error: 'Sign in required to use AI Arena', code: 'AUTH_REQUIRED' },
       { status: 401 }
     );
   }
 
   // ── Rate limit check ──────────────────────────────────────────────────────
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
-  let deepUsed  = 0;
-  let quickUsed = 0;
+  const today = new Date().toISOString().slice(0, 10);
+  let { deepUsed, quickUsed } = await getUsageRow(token!, userId, today);
 
-  if (userId) {
-    const { data: row } = await sb(token).from('grok_usage')
-      .select('deep_count, quick_count')
-      .eq('user_id', userId)
-      .eq('date', today)
-      .maybeSingle();
-    deepUsed  = row?.deep_count  ?? 0;
-    quickUsed = row?.quick_count ?? 0;
-
-    if (type === 'deep' && deepUsed >= DEEP_LIMIT) {
-      return NextResponse.json(
-        {
-          error: `Daily limit of ${DEEP_LIMIT} deep analyses reached. Resets at midnight UTC.`,
-          code: 'RATE_LIMIT',
-          usage: { deep_used: deepUsed, deep_limit: DEEP_LIMIT, quick_used: quickUsed },
-        },
-        { status: 429 }
-      );
-    }
+  if (type === 'deep' && deepUsed >= DEEP_LIMIT) {
+    return NextResponse.json(
+      {
+        error: `Daily limit of ${DEEP_LIMIT} deep analyses reached. Resets at midnight UTC.`,
+        code: 'RATE_LIMIT',
+        usage: { deep_used: deepUsed, deep_limit: DEEP_LIMIT, quick_used: quickUsed, quick_limit: QUICK_LIMIT },
+      },
+      { status: 429 }
+    );
+  }
+  if (type === 'quick' && quickUsed >= QUICK_LIMIT) {
+    return NextResponse.json(
+      {
+        error: `Daily limit of ${QUICK_LIMIT} quick analyses reached. Resets at midnight UTC.`,
+        code: 'RATE_LIMIT',
+        usage: { deep_used: deepUsed, deep_limit: DEEP_LIMIT, quick_used: quickUsed, quick_limit: QUICK_LIMIT },
+      },
+      { status: 429 }
+    );
   }
 
   // ── Call xAI ──────────────────────────────────────────────────────────────
   let text: string;
   try {
     if (type === 'deep') {
-      // grok-4.3 Responses API with live web + X search
+      // Responses API with live web + X search
       const r = await fetch('https://api.x.ai/v1/responses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
@@ -84,7 +110,7 @@ export async function POST(req: NextRequest) {
       const msg = d.output?.find((o: { type: string }) => o.type === 'message');
       text = msg?.content?.[0]?.text ?? '';
     } else {
-      // chat/completions — no search tools, much cheaper
+      // chat/completions — no search tools, cheaper
       const r = await fetch('https://api.x.ai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
@@ -111,21 +137,17 @@ export async function POST(req: NextRequest) {
   const result = parseCombinedResponse(text, tf, session);
 
   // ── Update usage ──────────────────────────────────────────────────────────
-  if (userId) {
-    const newDeep  = type === 'deep'  ? deepUsed + 1  : deepUsed;
-    const newQuick = type === 'quick' ? quickUsed + 1 : quickUsed;
-    await sb(token).from('grok_usage').upsert(
-      { user_id: userId, date: today, deep_count: newDeep, quick_count: newQuick, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id,date' }
-    );
-    if (type === 'deep')  deepUsed  = newDeep;
-    if (type === 'quick') quickUsed = newQuick;
-  }
+  const newDeep  = type === 'deep'  ? deepUsed  + 1 : deepUsed;
+  const newQuick = type === 'quick' ? quickUsed + 1 : quickUsed;
+  await sb(token!).from('grok_usage').upsert(
+    { user_id: userId, date: today, deep_count: newDeep, quick_count: newQuick, updated_at: new Date().toISOString() },
+    { onConflict: 'user_id,date' }
+  );
+  deepUsed  = newDeep;
+  quickUsed = newQuick;
 
   return NextResponse.json({
     result,
-    usage: userId
-      ? { deep_used: deepUsed, deep_limit: DEEP_LIMIT, quick_used: quickUsed }
-      : null,
+    usage: { deep_used: deepUsed, deep_limit: DEEP_LIMIT, quick_used: quickUsed, quick_limit: QUICK_LIMIT },
   });
 }
