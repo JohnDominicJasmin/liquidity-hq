@@ -7,6 +7,7 @@ import { getPHT, getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
+import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
 import SetupScanner from '@/components/SetupScanner';
 import ConfluenceScorer from '@/components/ConfluenceScorer';
@@ -101,8 +102,10 @@ export default function Arena() {
   const { store } = useMarket();
   const { latestHeadlines, econEvents } = useNews();
   const { user, loading: authLoading } = useAuth();
+  const { settings } = useSettings();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>('btc');
   const [readTf, setReadTf]         = useState<'15m'|'1h'|'4h'|'1d'>('15m');
+  const arenaInitRef = useRef(false);
   const [readLoading, setReadLoading] = useState(false);
   const [readStep, setReadStep]       = useState('');
   const [readError, setReadError]     = useState('');
@@ -120,6 +123,22 @@ export default function Arena() {
   const cacheEntry = resultsCache[selectedCoin] ?? null;
   const result     = cacheEntry?.result ?? null;
   const notifCooldown = useRef<Set<string>>(new Set());
+
+  /* ── Seed coin + TF from settings once settings are loaded ── */
+  useEffect(() => {
+    if (arenaInitRef.current || settings.default_coin === 'btc' && settings.default_tf === '15m') {
+      // Only override if settings differ from hardcoded defaults, and only once
+    }
+    if (!arenaInitRef.current) {
+      arenaInitRef.current = true;
+      if (COINS.includes(settings.default_coin as CoinId)) {
+        setSelectedCoin(settings.default_coin as CoinId);
+      }
+      if (['15m', '1h', '4h', '1d'].includes(settings.default_tf)) {
+        setReadTf(settings.default_tf as '15m'|'1h'|'4h'|'1d');
+      }
+    }
+  }, [settings.default_coin, settings.default_tf]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Fetch today's usage on mount (and whenever auth state changes) ── */
   useEffect(() => {
@@ -222,17 +241,17 @@ export default function Arena() {
     /* 1 — Extreme funding rate (30 min cooldown) */
     if (coin?.fundingRate != null) {
       const fr = coin.fundingRate * 100;
-      if (Math.abs(fr) >= 0.05)
+      if (Math.abs(fr) >= settings.fr_threshold)
         fire(`fund-${selectedCoin}-${b30}`,
           `⚡ ${sym} Extreme Funding`,
           `${fr >= 0 ? '+' : ''}${fr.toFixed(4)}% — ${fr > 0 ? 'Longs at risk ↓' : 'Shorts being squeezed ↑'}`);
     }
 
     /* 2 — Fear & Greed extreme (4 hour cooldown) */
-    if (store.fng != null && (store.fng <= 15 || store.fng >= 85))
-      fire(`fng-${store.fng < 20 ? 'fear' : 'greed'}-${b4h}`,
-        store.fng <= 15 ? '🩸 Extreme Fear' : '🔴 Extreme Greed',
-        `Fear & Greed: ${store.fng} (${store.fngLabel}) — ${store.fng <= 15 ? 'Potential bottom signal' : 'Markets overextended'}`);
+    if (store.fng != null && (store.fng <= settings.fng_fear || store.fng >= settings.fng_greed))
+      fire(`fng-${store.fng <= settings.fng_fear ? 'fear' : 'greed'}-${b4h}`,
+        store.fng <= settings.fng_fear ? '🩸 Extreme Fear' : '🔴 Extreme Greed',
+        `Fear & Greed: ${store.fng} (${store.fngLabel}) — ${store.fng <= settings.fng_fear ? 'Potential bottom signal' : 'Markets overextended'}`);
 
     /* 3 — CVD Divergence (1 hour cooldown) */
     if (coin?.cvdDivergence)
@@ -246,11 +265,11 @@ export default function Arena() {
 
     /* 4 — RSI 1h extreme (2 hour cooldown) */
     if (coin?.rsi1h != null) {
-      if (coin.rsi1h >= 75)
+      if (coin.rsi1h >= settings.rsi_ob)
         fire(`rsi-ob-${selectedCoin}-${b2h}`,
           `⚠ ${sym} RSI Overbought (1H)`,
           `RSI 1H: ${coin.rsi1h.toFixed(0)} — Exhaustion zone. Avoid chasing longs, watch for reversal candle.`);
-      else if (coin.rsi1h <= 25)
+      else if (coin.rsi1h <= settings.rsi_os)
         fire(`rsi-os-${selectedCoin}-${b2h}`,
           `⚠ ${sym} RSI Oversold (1H)`,
           `RSI 1H: ${coin.rsi1h.toFixed(0)} — Bounce setup forming. Watch for volume spike + rejection candle.`);
@@ -280,7 +299,7 @@ export default function Arena() {
         `📉 ${sym} OI Spike — New Shorts`,
         'OI rising with price falling — new shorts entering. Bearish continuation likely.');
 
-  }, [store, selectedCoin, notifEnabled, fireNotif]);
+  }, [store, selectedCoin, notifEnabled, fireNotif, settings]);
 
   const gatherContext = (): GrokContext => {
     const coin = store.coins[selectedCoin];

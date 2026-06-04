@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSettings } from '@/lib/settings';
 
 interface CalcResult {
   riskUSD:      number;
@@ -41,22 +42,29 @@ function fmtUSD(v: number) {
 
 export default function PositionSizer() {
   const router = useRouter();
+  const { settings, update: updateSettings } = useSettings();
   const [account, setAccount] = useState('');
   const [riskPct, setRiskPct] = useState('1');
   const [entry,   setEntry]   = useState('');
   const [stop,    setStop]    = useState('');
   const [tp,      setTp]      = useState('');
 
-  /* Persist account size + risk % across sessions */
+  /* Seed from Settings (replaces old localStorage read) */
   useEffect(() => {
-    const acc  = localStorage.getItem('ps_account');
-    const risk = localStorage.getItem('ps_risk');
-    if (acc)  setAccount(acc);
-    if (risk) setRiskPct(risk);
-  }, []);
+    if (settings.account_size) setAccount(String(settings.account_size));
+    if (settings.risk_pct)     setRiskPct(String(settings.risk_pct));
+  }, [settings.account_size, settings.risk_pct]);
 
-  const saveAccount = (v: string) => { setAccount(v); localStorage.setItem('ps_account', v); };
-  const saveRisk    = (v: string) => { setRiskPct(v); localStorage.setItem('ps_risk',    v); };
+  const saveAccount = (v: string) => {
+    setAccount(v);
+    const n = parseFloat(v);
+    if (!isNaN(n) && n > 0) updateSettings({ account_size: n });
+  };
+  const saveRisk = (v: string) => {
+    setRiskPct(v);
+    const n = parseFloat(v);
+    if (!isNaN(n) && n > 0) updateSettings({ risk_pct: n });
+  };
 
   const result = calculate(
     parseFloat(account) || 0,

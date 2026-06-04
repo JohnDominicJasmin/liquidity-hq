@@ -22,6 +22,7 @@ const NAV = [
   null,
   { path: '/journal',     icon: '📓', label: 'Journal',     desk: true  },
   null,
+  { path: '/settings',    icon: '⚙️', label: 'Settings',    desk: false },
   { path: '/about',       icon: 'ℹ️', label: 'About',       desk: false },
 ];
 

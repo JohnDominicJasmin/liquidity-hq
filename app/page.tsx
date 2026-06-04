@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useMarket, COINS, BYBIT_SYMS, COIN_DEC, fmtPrice, fmtChg, fmtOI, classifyFunding } from '@/lib/marketStore';
+import { useSettings } from '@/lib/settings';
 import Ticker from '@/components/Ticker';
 import FearGreed from '@/components/FearGreed';
 import AltSeasonIndex from '@/components/AltSeasonIndex';
@@ -654,6 +655,8 @@ function CoinSignalsHeader() {
 export default function Dashboard() {
   const [cmdsOpen, setCmdsOpen] = useState(false);
   const [gexOpen,  setGexOpen]  = useState(false);
+  const { settings } = useSettings();
+  const hide = (id: string) => settings.hidden_sections.includes(id);
 
   return (
     <div className="dashboard-grid">
@@ -679,66 +682,76 @@ export default function Dashboard() {
         </div>
 
         {/* 1. Gate: is now a good time to trade? */}
-        <RaidMeter />
+        {!hide('raid_meter') && <RaidMeter />}
 
         {/* 2. Best play right now — answer up top, not buried */}
-        <div className="dash-section dash-section-hot">Best Setup Now</div>
-        <SOTD />
+        {!hide('best_setup') && <>
+          <div className="dash-section dash-section-hot">Best Setup Now</div>
+          <SOTD />
+        </>}
 
         {/* 3. Cascade alert — contextual, only renders when active */}
-        <CascadeAlertBanner />
+        {!hide('cascade') && <CascadeAlertBanner />}
 
         {/* 4. Coin signals — confirm the setup */}
-        <CoinSignalsHeader />
-        <EdgeSignals />
+        {!hide('coin_signals') && <>
+          <CoinSignalsHeader />
+          <EdgeSignals />
+        </>}
 
         {/* 5. Session context — timing reference (after you know the play) */}
-        <SessionContext />
+        {!hide('session') && <SessionContext />}
 
         {/* 6. Catalysts & market events */}
-        <NewsBanner />
+        {!hide('catalysts') && <NewsBanner />}
 
         {/* GEX + Macro: shown inline on mobile/tablet, hidden when right panel is visible */}
         <div className="hide-on-desktop">
+          {!hide('gex') && <>
+            <div
+              className="dash-section"
+              style={{ cursor: 'pointer', userSelect: 'none' }}
+              onClick={() => setGexOpen(o => !o)}
+            >
+              Gamma exposure
+              <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
+                {gexOpen ? '▲ hide' : '▼ show'}
+              </span>
+            </div>
+            {gexOpen && <GexTable />}
+          </>}
+          {!hide('macro') && <>
+            <div className="dash-section">Macro correlations</div>
+            <MacroStrip />
+          </>}
+        </div>
+
+        {!hide('commandments') && <>
           <div
             className="dash-section"
             style={{ cursor: 'pointer', userSelect: 'none' }}
-            onClick={() => setGexOpen(o => !o)}
+            onClick={() => setCmdsOpen(o => !o)}
           >
-            Gamma exposure
+            The 8 commandments
             <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
-              {gexOpen ? '▲ hide' : '▼ show'}
+              {cmdsOpen ? '▲ hide' : '▼ show'}
             </span>
           </div>
-          {gexOpen && <GexTable />}
-          <div className="dash-section">Macro correlations</div>
-          <MacroStrip />
-        </div>
-
-        <div
-          className="dash-section"
-          style={{ cursor: 'pointer', userSelect: 'none' }}
-          onClick={() => setCmdsOpen(o => !o)}
-        >
-          The 8 commandments
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
-            {cmdsOpen ? '▲ hide' : '▼ show'}
-          </span>
-        </div>
-        {cmdsOpen && (
-          <div className="card">
-            <div className="lbl">Core rules — never break these</div>
-            {RULES.map(r => (
-              <div key={r.n} className="row" style={{ marginBottom: 14 }}>
-                <div className={`num ${r.c}`}>{r.n}</div>
-                <div>
-                  <div className="st">{r.t}</div>
-                  <div className="sb">{r.b}</div>
+          {cmdsOpen && (
+            <div className="card">
+              <div className="lbl">Core rules — never break these</div>
+              {RULES.map(r => (
+                <div key={r.n} className="row" style={{ marginBottom: 14 }}>
+                  <div className={`num ${r.c}`}>{r.n}</div>
+                  <div>
+                    <div className="st">{r.t}</div>
+                    <div className="sb">{r.b}</div>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </>}
       </div>
 
       {/* ── Right panel (desktop ≥1100px only) ── */}

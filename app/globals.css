@@ -2370,6 +2370,120 @@ body.ticker-on .breaking-alert { top: 90px; }
 }
 .auth-gate-btn:hover { filter: brightness(1.15); }
 
+/* ── SETTINGS PAGE ───────────────────────────────────────────────────────── */
+.st-page { max-width: 560px; padding-bottom: 60px; }
+.st-header {
+  display: flex; align-items: center; gap: 0;
+  padding: 1rem 0 0.75rem;
+}
+.st-header-title { font-size: 20px; font-weight: 700; color: var(--txt); letter-spacing: -0.3px; }
+
+/* Section card */
+.st-section {
+  background: var(--bg1); border: 0.5px solid var(--bdr);
+  border-radius: 14px; padding: 16px; margin-bottom: 12px;
+}
+.st-section-title {
+  font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--txt3); margin-bottom: 14px;
+}
+
+/* Field layout */
+.st-row { display: flex; gap: 10px; }
+.st-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.st-field:last-child { margin-bottom: 0; }
+.st-field-half { flex: 1; min-width: 0; }
+.st-field-label { font-size: 12px; color: var(--txt2); font-weight: 500; }
+.st-field-value { font-size: 13px; color: var(--txt); font-weight: 600; }
+.st-desc  { font-size: 11px; color: var(--txt3); line-height: 1.5; margin-bottom: 12px; }
+.st-note  { font-size: 11px; color: var(--txt3); line-height: 1.5; margin-top: 8px; }
+
+/* Input */
+.st-input-wrap { display: flex; align-items: center; }
+.st-affix {
+  font-size: 12px; color: var(--txt3); padding: 0 6px;
+  background: var(--bg2); border: 0.5px solid var(--bdr);
+  height: 34px; display: flex; align-items: center; line-height: 1;
+}
+.st-affix:first-child { border-right: none; border-radius: 7px 0 0 7px; }
+.st-suffix { border-left: none; border-right: 0.5px solid var(--bdr); border-radius: 0 7px 7px 0; }
+.st-input {
+  flex: 1; height: 34px; padding: 0 10px;
+  background: var(--bg2); border: 0.5px solid var(--bdr);
+  color: var(--txt); font-size: 13px; outline: none;
+  border-radius: 7px;
+  -moz-appearance: textfield;
+}
+.st-input-wrap .st-input { border-radius: 0; }
+.st-input:focus { border-color: var(--purple); }
+.st-input::-webkit-outer-spin-button,
+.st-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+/* Chip buttons (coin/TF selector) */
+.st-chip-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.st-chip {
+  padding: 5px 10px; border-radius: 7px; font-size: 11px; font-weight: 600;
+  background: var(--bg2); border: 0.5px solid var(--bdr); color: var(--txt3);
+  cursor: pointer; transition: all 0.12s;
+}
+.st-chip:hover  { border-color: var(--purple); color: var(--txt2); }
+.st-chip.on     { background: var(--purple-bg); border-color: var(--purple); color: #b8aeff; }
+
+/* Presets */
+.st-presets { display: flex; gap: 5px; margin-bottom: 10px; }
+.st-preset {
+  padding: 4px 9px; border-radius: 6px; font-size: 11px;
+  background: var(--bg2); border: 0.5px solid var(--bdr); color: var(--txt3); cursor: pointer;
+}
+.st-preset.on { background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.3); color: #f87171; }
+
+/* At-risk line */
+.st-at-risk { font-size: 12px; color: var(--txt3); }
+
+/* Checkboxes grid */
+.st-checkbox-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px;
+}
+.st-checkbox-item {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; color: var(--txt2); cursor: pointer;
+}
+.st-checkbox-item input[type="checkbox"] {
+  width: 14px; height: 14px; accent-color: var(--purple); cursor: pointer; flex-shrink: 0;
+}
+
+/* Sign out */
+.st-signout-btn {
+  margin-top: 10px; padding: 8px 16px; border-radius: 8px;
+  background: rgba(248,113,113,0.1); border: 0.5px solid rgba(248,113,113,0.3);
+  color: #f87171; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.st-signout-btn:hover { background: rgba(248,113,113,0.18); }
+
+/* Telegram status */
+.st-tg-status { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--txt); font-weight: 600; }
+.st-tg-dot    { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+/* Link button */
+.st-link-btn {
+  display: inline-block; margin-top: 10px; padding: 7px 14px;
+  border-radius: 8px; background: var(--bg2); border: 0.5px solid var(--bdr);
+  color: var(--txt2); font-size: 12px; font-weight: 600; text-decoration: none;
+}
+.st-link-btn:hover { border-color: var(--purple); color: #b8aeff; }
+
+/* Usage mini-bars */
+.st-usage-row   { display: flex; align-items: center; gap: 8px; }
+.st-usage-label { font-size: 11px; color: var(--txt3); width: 58px; flex-shrink: 0; }
+.st-usage-track { flex: 1; height: 4px; background: rgba(255,255,255,0.07); border-radius: 2px; overflow: hidden; }
+.st-usage-fill  { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+.st-usage-count { font-size: 11px; font-weight: 700; min-width: 38px; text-align: right; }
+
+[data-theme="light"] .st-section { background: #fff; }
+[data-theme="light"] .st-input   { background: #f8f8f8; color: #111; }
+[data-theme="light"] .st-affix   { background: #f0f0f0; }
+[data-theme="light"] .st-chip    { background: #f0f0f0; }
+
 /* ── GROK CHAT — Login modal overlay ─────────────────────────────────────── */
 .gchat-login-overlay {
   position: absolute; inset: 0; z-index: 20;
