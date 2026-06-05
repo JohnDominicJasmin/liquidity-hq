@@ -11,7 +11,7 @@ import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
 import SetupScanner from '@/components/SetupScanner';
 import ConfluenceScorer from '@/components/ConfluenceScorer';
-import KLineProChart from '@/components/KLineProChart';
+import KLineProChart, { ChartTf } from '@/components/KLineProChart';
 
 /* ── Pattern detection — delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -104,7 +104,7 @@ export default function Arena() {
   const { user, loading: authLoading } = useAuth();
   const { settings } = useSettings();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>('btc');
-  const [readTf, setReadTf]         = useState<'15m'|'1h'|'4h'|'1d'>('15m');
+  const [readTf, setReadTf]         = useState<ChartTf>('15m');
   const arenaInitRef = useRef(false);
   const [readLoading, setReadLoading] = useState(false);
   const [readStep, setReadStep]       = useState('');
@@ -134,8 +134,8 @@ export default function Arena() {
       if (COINS.includes(settings.default_coin as CoinId)) {
         setSelectedCoin(settings.default_coin as CoinId);
       }
-      if (['15m', '1h', '4h', '1d'].includes(settings.default_tf)) {
-        setReadTf(settings.default_tf as '15m'|'1h'|'4h'|'1d');
+      if (['1m', '5m', '15m', '30m', '1h', '4h', '1d'].includes(settings.default_tf)) {
+        setReadTf(settings.default_tf as ChartTf);
       }
     }
   }, [settings.default_coin, settings.default_tf]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -573,8 +573,8 @@ export default function Arena() {
         if (!r.ok) throw new Error('Binance API error');
         raw = await r.json();
       } else {
-        // Bybit klines: interval uses numbers (15, 60, 240); response is newest-first
-        const bybitInterval = readTf === '15m' ? '15' : readTf === '1h' ? '60' : readTf === '4h' ? '240' : 'D';
+        // Bybit klines: interval uses numbers (1, 5, 15, 30, 60, 240) or 'D'; response is newest-first
+        const bybitInterval = readTf === '1m' ? '1' : readTf === '5m' ? '5' : readTf === '30m' ? '30' : readTf === '15m' ? '15' : readTf === '1h' ? '60' : readTf === '4h' ? '240' : 'D';
         const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${bybitInterval}&limit=300`);
         if (!r.ok) throw new Error('Bybit API error');
         const data = await r.json();
@@ -740,9 +740,9 @@ export default function Arena() {
       })()}
 
       {/* TF selector + buttons */}
-      <div style={{ margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontSize: 10, color: 'var(--txt3)', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' }}>TF</span>
-        {(['15m','1h','4h','1d'] as const).map(t => (
+      <div style={{ margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 10, color: 'var(--txt3)', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', marginRight: 2 }}>TF</span>
+        {(['1m','5m','15m','30m','1h','4h','1d'] as const).map(t => (
           <button key={t} className={`gsc-tf-btn${readTf === t ? ' on' : ''}`} onClick={() => setReadTf(t)} style={{ padding: '3px 8px', fontSize: 11 }}>{t}</button>
         ))}
       </div>

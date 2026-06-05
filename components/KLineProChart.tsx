@@ -7,7 +7,10 @@ import type { CombinedResult } from '@/lib/grok';
 // ── v10 Period mapping ────────────────────────────────────────────────────
 
 const TF_TO_PERIOD: Record<string, Period> = {
+  '1m':  { type: 'minute', span: 1  },
+  '5m':  { type: 'minute', span: 5  },
   '15m': { type: 'minute', span: 15 },
+  '30m': { type: 'minute', span: 30 },
   '1h':  { type: 'hour',   span: 1  },
   '4h':  { type: 'hour',   span: 4  },
   '1d':  { type: 'day',    span: 1  },
@@ -91,9 +94,11 @@ const DARK: Record<string, unknown> = {
 
 // ── Component ─────────────────────────────────────────────────────────────
 
+export type ChartTf = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d';
+
 interface Props {
-  coin: CoinId;
-  tf:   '15m' | '1h' | '4h' | '1d';
+  coin:   CoinId;
+  tf:     ChartTf;
   result?: CombinedResult | null;
 }
 
