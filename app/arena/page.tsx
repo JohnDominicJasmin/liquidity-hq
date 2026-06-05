@@ -589,7 +589,8 @@ export default function Arena() {
       const rsi     = calcRSI(closes, 14).at(-1) ?? null;
       const lastC    = vis[vis.length - 1].c;
       const pDec     = lastC >= 10000 ? 0 : lastC >= 100 ? 2 : lastC >= 1 ? 3 : 4;
-      const recent20 = vis.slice(-10).map(c => `O:${c.o.toFixed(pDec)} H:${c.h.toFixed(pDec)} L:${c.l.toFixed(pDec)} C:${c.c.toFixed(pDec)}`).join(' | ');
+      // Include volume so AI can detect drying-up volume (exhaustion signal)
+      const recent20 = vis.slice(-15).map(c => `O:${c.o.toFixed(pDec)} H:${c.h.toFixed(pDec)} L:${c.l.toFixed(pDec)} C:${c.c.toFixed(pDec)} V:${c.v >= 1e6 ? (c.v/1e6).toFixed(2)+'M' : c.v >= 1e3 ? (c.v/1e3).toFixed(1)+'K' : c.v.toFixed(0)}`).join(' | ');
       const detectedPatterns = detectPatterns(vis);
       const chartData: ChartData = {
         tf: readTf, ema9, ema200, rsi, recent20,
@@ -890,6 +891,14 @@ export default function Arena() {
             <div className="arena-conf-bar">
               <div className="arena-conf-fill" style={{ width: result.confidence + '%', background: sigCol }} />
             </div>
+
+            {/* Wait For — shown when signal is FLAT */}
+            {result.signal === 'FLAT' && result.waitFor && (
+              <div className="arena-wait-for">
+                <div className="arena-wait-for-title">👁 Watch For</div>
+                <div className="arena-wait-for-body">{result.waitFor}</div>
+              </div>
+            )}
 
             {/* Entry / TP / SL chips */}
             {(result.entryLow || result.tp || result.sl) && (

@@ -244,6 +244,35 @@ export function buildPrompt(ctx: GrokContext): string {
     '',
     'NEUTRAL REGIME: No clear momentum. Apply all signals equally.',
     '',
+    '=== PULLBACK EXHAUSTION vs FALLING KNIFE CHECKLIST (Required in BEARISH REGIME) ===',
+    'You MUST determine whether selling is EXHAUSTING or CONTINUING before choosing LONG/SHORT/FLAT.',
+    'Count how many of each apply using the candle data, volume, and derivatives provided:',
+    '',
+    'EXHAUSTION SIGNALS — selling may be ending, pullback likely forming:',
+    '  ✓ Volume on the LAST 3 candles is LOWER than the 3 candles before them (V field in candle data)',
+    '  ✓ Long/Short ratio has DROPPED below 1.3:1 — overleveraged longs have been flushed, reset complete',
+    `  ✓ Funding rate turned NEUTRAL or NEGATIVE — overcrowded longs cleared → ${ctx.crossExchangeFunding}`,
+    `  ✓ Taker sell ratio DECLINING toward 50% on recent candles → ${ctx.takerRatio}`,
+    `  ✓ OI trend = weak_down or flat (long exits nearly complete, not new shorts) → ${ctx.oiTrend}`,
+    '  ✓ Price printed a WICK / HAMMER candle at a key support (visible in candle OHLC: Low much lower than Close)',
+    '  ✓ CVD bullish divergence + volume declining together (absorption AND fewer sellers)',
+    '  ✓ Price held at a MAJOR FIB level (61.8%, 78.6%) for 2+ candles without breaking',
+    '',
+    '  3+ EXHAUSTION signals → FLAT (potential pullback forming). Set WAIT_FOR to the specific confirmation needed.',
+    '  5+ EXHAUSTION signals → Consider LONG IF a reversal candle is visible. Still require a clean stop below support.',
+    '',
+    'CONTINUATION SIGNALS — falling knife, selling not done:',
+    '  ✗ Volume INCREASING on down candles (new sellers entering, not exhaustion)',
+    '  ✗ Long/Short ratio still ABOVE 1.5:1 — longs not flushed yet, more pain ahead',
+    '  ✗ Funding rate still POSITIVE — longs still paying, flush incomplete',
+    '  ✗ Taker sell ratio sustained ABOVE 60% — sellers fully in control',
+    '  ✗ OI trend = strong_down — new shorts entering, directional conviction lower',
+    '  ✗ Clean lower lows with NO wicks — no absorption at support, just selling',
+    '  ✗ Price accelerating below key EMAs or supports without any pause candle',
+    '',
+    '  3+ CONTINUATION signals → FLAT (wait, do not buy). State what would change the signal.',
+    '  5+ CONTINUATION signals → SHORT if a specific catalyst is present.',
+    '',
     '=== LIVE SEARCH TASK ===',
     `Search RIGHT NOW for WHY ${ctx.coin} and crypto markets are moving today. Use web_search and x_search for:`,
     `1. Search "bitcoin price today why" and "crypto market news ${new Date().toISOString().slice(0,10)}" — find the ACTUAL catalyst behind today's price action.`,
@@ -365,6 +394,7 @@ export interface CombinedResult {
   patterns: string[];   // detected chart patterns (e.g. "Bear flag", "H&S", etc.)
   reasoning: string;
   catalysts: string[];
+  waitFor: string | null;  // FLAT only: what to watch before entering
   analyzedAt: number;
   tf: string;
   session: string;
@@ -414,7 +444,8 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     'CHART_ANALYSIS: [1-2 sentences on candles and indicators only — no mention of macro here]',
     'PATTERNS:',
     '- [identify chart patterns from the candle data: e.g. "Bear flag", "Bull flag", "Head and shoulders", "Double top", "Double bottom", "Ascending triangle", "Descending triangle", "Rising wedge", "Falling wedge", "Bullish engulfing", "Bearish engulfing", "Doji reversal", "Higher highs / higher lows", "Lower highs / lower lows" — be specific with price context. Write "None detected" if no clear pattern]',
-    'REASONING: [3-4 sentences combining chart + derivatives + macro + news into one directional thesis]',
+    'WAIT_FOR: [REQUIRED when SIGNAL is FLAT. Write exactly: (1) which exhaustion or continuation signals you counted, (2) the specific price level to watch, (3) what candle/volume pattern would confirm a setup, (4) what derivative condition (funding, L/S ratio, taker ratio) would change your signal. Example: "Exhaustion: volume drying up + funding neutral. Watch $1.85 for a hammer/doji with volume spike. Need L/S ratio to drop below 1.2 and taker buy to recover above 50% before entering long. Alternatively wait for a clean break below $1.72 fib support for short." Write N/A if SIGNAL is LONG or SHORT.]',
+    'REASONING: [3-4 sentences combining chart + derivatives + macro + news into one directional thesis. If FLAT, state whether selling is EXHAUSTING or CONTINUING and why.]',
   ].join('\n');
 
   return trimPlaceholders(body + '\n' + chartSection);
@@ -468,14 +499,14 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
     if (m) { const c = stripMd(m[1]); if (c) catalysts.push(c); }
   }
 
-  // CHART_ANALYSIS — stop at PATTERNS or REASONING
+  // CHART_ANALYSIS — stop at PATTERNS or WAIT_FOR or REASONING
   const chartAnalysis = stripMd(
-    clean.match(/CHART_ANALYSIS:\s*([\s\S]*?)(?=\n\*{0,2}PATTERNS\*{0,2}:|\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? ''
+    clean.match(/CHART_ANALYSIS:\s*([\s\S]*?)(?=\n\*{0,2}PATTERNS\*{0,2}:|\n\*{0,2}WAIT_FOR\*{0,2}:|\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? ''
   );
 
   // PATTERNS — list of detected chart patterns
   const patterns: string[] = [];
-  const patSect = clean.match(/PATTERNS:\s*\n([\s\S]*?)(?=\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? '';
+  const patSect = clean.match(/PATTERNS:\s*\n([\s\S]*?)(?=\n\*{0,2}WAIT_FOR\*{0,2}:|\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? '';
   for (const line of patSect.split('\n')) {
     const m = line.match(/^-\s*(.+)/);
     if (m) {
@@ -484,12 +515,20 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
     }
   }
 
+  // WAIT_FOR — actionable watch conditions when signal is FLAT
+  const waitForRaw = stripMd(
+    clean.match(/\*{0,2}WAIT_FOR\*{0,2}:\s*([\s\S]*?)(?=\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? ''
+  );
+  const waitFor = (waitForRaw && waitForRaw.toLowerCase() !== 'n/a' && waitForRaw.trim().length > 5)
+    ? waitForRaw.trim()
+    : null;
+
   // REASONING — handle **REASONING:** pattern
   const reasoning = stripMd(
     clean.match(/\*{0,2}REASONING\*{0,2}:\s*([\s\S]+)/i)?.[1] ?? ''
   );
 
-  return { signal, confidence, entryLow, entryHigh, tp, sl, levels, catalysts, chartAnalysis, patterns, reasoning, analyzedAt: Date.now(), tf, session };
+  return { signal, confidence, entryLow, entryHigh, tp, sl, levels, catalysts, chartAnalysis, patterns, waitFor, reasoning, analyzedAt: Date.now(), tf, session };
 }
 
 /* ── Quick prompt — strips the LIVE SEARCH TASK block (no web search needed) ── */

@@ -791,6 +791,22 @@ body.ticker-on .breaking-alert { top: 90px; }
 }
 .arena-override-notice strong { color: #fbbf24; font-weight: 700; }
 
+/* ── FLAT "Watch For" block ── */
+.arena-wait-for {
+  margin: 10px 0 4px;
+  background: rgba(96,165,250,0.06);
+  border: 0.5px solid rgba(96,165,250,0.2);
+  border-left: 3px solid #60a5fa;
+  border-radius: 10px; padding: 10px 12px;
+}
+.arena-wait-for-title {
+  font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+  color: #60a5fa; margin-bottom: 5px;
+}
+.arena-wait-for-body {
+  font-size: 12px; color: var(--txt2); line-height: 1.65;
+}
+
 /* ── Whale alert card ── */
 .ncard-whale { border-top-width: 2.5px; }
 
