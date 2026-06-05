@@ -719,20 +719,30 @@ export default function Arena() {
         </div>
       </div>
 
-      {/* CVD Divergence banner */}
+      {/* CVD Divergence banner — context-aware */}
       {(() => {
-        const div = store.coins[selectedCoin]?.cvdDivergence;
+        const div    = store.coins[selectedCoin]?.cvdDivergence;
         if (!div) return null;
-        const isBull = div === 'bullish';
+        const isBull   = div === 'bullish';
+        const change   = store.coins[selectedCoin]?.change ?? 0;
+        // Bullish divergence during a heavy selloff = likely absorption trap, not reversal
+        const isTrap   = isBull && change < -5;
+        const cssClass = isTrap ? 'trap' : div;
         return (
-          <div className={`arena-cvd-div arena-cvd-div-${div}`}>
-            <span className="arena-cvd-div-icon">{isBull ? '📈' : '📉'}</span>
+          <div className={`arena-cvd-div arena-cvd-div-${cssClass}`}>
+            <span className="arena-cvd-div-icon">{isTrap ? '⚠️' : isBull ? '📈' : '📉'}</span>
             <div>
-              <div className="arena-cvd-div-title">{isBull ? 'Bullish CVD Divergence' : 'Bearish CVD Divergence'}</div>
+              <div className="arena-cvd-div-title">
+                {isTrap
+                  ? 'CVD Divergence — Possible Absorption Trap'
+                  : isBull ? 'Bullish CVD Divergence' : 'Bearish CVD Divergence'}
+              </div>
               <div className="arena-cvd-div-desc">
-                {isBull
-                  ? 'Price falling but net buying pressure rising — smart money accumulating. Potential reversal up.'
-                  : 'Price rising but net selling pressure increasing — distribution trap. Watch for reversal down.'}
+                {isTrap
+                  ? `Buyers are absorbing sell orders but the ${change.toFixed(1)}% 24h decline shows sellers are still in control. In a momentum selloff this pattern often means a brief pause, NOT a reversal. Wait for price to print higher lows and volume to dry up before treating as a setup.`
+                  : isBull
+                  ? 'Price falling but net buying pressure rising — potential accumulation. Watch for confirmation before entry.'
+                  : 'Price rising but net selling pressure increasing — distribution in progress. Watch for reversal down.'}
               </div>
             </div>
           </div>
