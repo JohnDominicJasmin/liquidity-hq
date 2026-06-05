@@ -1064,10 +1064,10 @@ body.ticker-on .breaking-alert { top: 90px; }
 .klc-ws-dot.live { background: var(--green); box-shadow: 0 0 5px var(--green); }
 .klc-ws-dot.err  { background: var(--red); }
 .klc-canvas {
-  width: 100%; height: 600px;
+  width: 100%; height: 640px;
 }
 @media (max-width: 520px) {
-  .klc-canvas { height: 340px; }
+  .klc-canvas { height: 480px; }
 }
 /* Fullscreen — canvas expands to fill the screen minus the toolbar */
 .klc-wrap:fullscreen,
