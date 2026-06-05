@@ -99,12 +99,14 @@ interface Props {
 
 export default function KLineProChart({ coin, tf, result }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const wrapRef      = useRef<HTMLDivElement>(null);
   const chartRef     = useRef<KChart | null>(null);
   const wsRef        = useRef<{ close: () => void } | null>(null);
   const analysisIds  = useRef<string[]>([]);
   const coinRef      = useRef<CoinId>(coin);
-  const [activeTool, setActiveTool] = useState<string | null>(null);
-  const [wsStatus,   setWsStatus]   = useState<'connecting' | 'live' | 'error'>('connecting');
+  const [activeTool,  setActiveTool]  = useState<string | null>(null);
+  const [wsStatus,    setWsStatus]    = useState<'connecting' | 'live' | 'error'>('connecting');
+  const [fullscreen,  setFullscreen]  = useState(false);
 
   // Keep coinRef fresh for the DataLoader closure
   useEffect(() => { coinRef.current = coin; }, [coin]);
@@ -229,6 +231,32 @@ export default function KLineProChart({ coin, tf, result }: Props) {
     setChartSymbolPeriod(chart, coin, tf);
   }, [coin, tf]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Fullscreen API ───────────────────────────────────────────────────
+  useEffect(() => {
+    const onFsChange = () => {
+      const isFs = !!document.fullscreenElement;
+      setFullscreen(isFs);
+      // Let CSS transition finish then tell klinecharts to repaint
+      setTimeout(() => chartRef.current?.resize(), 60);
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange);
+    };
+  }, []);
+
+  const handleFullscreen = () => {
+    if (!fullscreen) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (wrapRef.current as any)?.requestFullscreen?.() ?? (wrapRef.current as any)?.webkitRequestFullscreen?.();
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (document as any).exitFullscreen?.() ?? (document as any).webkitExitFullscreen?.();
+    }
+  };
+
   // ── Auto-draw Entry / SL / TP after analysis ─────────────────────────
   useEffect(() => {
     const chart = chartRef.current;
@@ -276,7 +304,7 @@ export default function KLineProChart({ coin, tf, result }: Props) {
   const hasLevels = result && (result.entryLow || result.sl || result.tp);
 
   return (
-    <div className="klc-wrap">
+    <div className="klc-wrap" ref={wrapRef}>
       {/* Toolbar */}
       <div className="klc-toolbar">
         {TOOLS.map(({ id, label }) => (
@@ -302,6 +330,14 @@ export default function KLineProChart({ coin, tf, result }: Props) {
         )}
 
         <span style={{ marginLeft: 'auto' }} />
+        <button
+          className="klc-tool-btn klc-fullscreen-btn"
+          onClick={handleFullscreen}
+          title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          aria-label={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+        >
+          {fullscreen ? '⊠' : '⛶'}
+        </button>
         <span
           className={`klc-ws-dot${wsStatus === 'live' ? ' live' : wsStatus === 'error' ? ' err' : ''}`}
           title={wsStatus}
