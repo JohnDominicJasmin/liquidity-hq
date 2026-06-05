@@ -494,7 +494,7 @@ export default function GrokChat() {
               <button className="gchat-icon-btn" onClick={() => setHistView(false)} title="Back to chat" style={{ fontSize: 16, padding: '2px 4px' }}>←</button>
             ) : null}
             <span style={{ fontSize: 14, fontWeight: 700, color: '#e8e8e8' }}>
-              {histView ? 'Conversations' : 'Grok Chat'}
+              {histView ? 'Conversations' : 'LiquidityAI'}
             </span>
             {!histView && (
               <span style={{
@@ -625,7 +625,7 @@ export default function GrokChat() {
                     </>
                   ) : (
                     <>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#606060' }}>Sign in to use Grok Chat</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#606060' }}>Sign in to use LiquidityAI</div>
                       <button
                         style={{ marginTop: 10, fontSize: 12, color: '#b8aeff', background: 'none', border: '0.5px solid #b8aeff44', borderRadius: 8, padding: '6px 16px', cursor: 'pointer' }}
                         onClick={() => setShowLoginModal(true)}
@@ -723,7 +723,7 @@ export default function GrokChat() {
                 onKeyDown={e => {
                   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
                 }}
-                placeholder={user ? `Ask about ${coin.toUpperCase()}…` : 'Sign in to use Grok Chat'}
+                placeholder={user ? `Ask about ${coin.toUpperCase()}…` : 'Sign in to use LiquidityAI'}
                 disabled={loading}
               />
               <button
