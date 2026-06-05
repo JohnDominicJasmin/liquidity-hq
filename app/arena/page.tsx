@@ -380,7 +380,7 @@ export default function Arena() {
     const exchangeNetFlow = store.btcExchangeNetFlow != null
       ? (store.btcExchangeNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.btcExchangeNetFlow).toFixed(1) + 'M'
         + (store.btcExchangeNetFlow > 50 ? ' (inflow — sell pressure)' : store.btcExchangeNetFlow < -50 ? ' (outflow — accumulation)' : ' (neutral)')
-      : 'Grok will search';
+      : 'AI will search';
 
     /* Stablecoin flow */
     const stablecoinFlow = store.stablecoinSupply != null
@@ -393,12 +393,12 @@ export default function Arena() {
     /* Google Trends */
     const googleTrends = store.googleTrendsBtc != null
       ? store.googleTrendsBtc + '/100' + (store.googleTrendsBtc > 70 ? ' (high retail — possible top)' : store.googleTrendsBtc < 25 ? ' (low — possible bottom)' : ' (moderate)')
-      : 'Grok will search';
+      : 'AI will search';
 
     /* Liquidation levels */
     const liqLevels = store.btcLiqLevels && store.btcLiqLevels.length > 0
       ? store.btcLiqLevels.slice(0, 4).map(l => '$' + l.price.toLocaleString() + ' ' + l.side).join(' | ')
-      : 'Grok will search';
+      : 'AI will search';
 
     /* BTC dom trend */
     const btcDomTrend = store.btcDomHistory && store.btcDomHistory.length >= 3
@@ -496,7 +496,7 @@ export default function Arena() {
       return `${asset} ${sign}$${Math.abs(v).toFixed(0)}M${tag}`;
     };
     const etfFlows = [fmtFlow(store.etfNetFlow, 'BTC ETF'), fmtFlow(store.ethEtfNetFlow, 'ETH ETF')]
-      .filter(Boolean).join(' | ') || 'Grok will search live';
+      .filter(Boolean).join(' | ') || 'AI will search live';
 
     /* Cross-exchange funding */
     const cf = fundingData[selectedCoin];
@@ -670,8 +670,8 @@ export default function Arena() {
       {/* ── PAGE HEADER ── */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>AI Arena</div>
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>GROK-4.3 + LIVE X</span>
+          <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>LiquidityAI Arena</div>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>LiquidityAI · LIVE X</span>
         </div>
         <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Chart · 35-signal engine · confluence · scanner — one page</div>
       </div>
@@ -803,7 +803,7 @@ export default function Arena() {
             },
           }))}
         >
-          Ask Grok
+          Ask LiquidityAI
         </button>
       </div>
 
@@ -993,7 +993,7 @@ export default function Arena() {
           ['ETF Flows', ctx.etfFlows], ['Exch. Flow', ctx.exchangeNetFlow],
           ['Stablecoin', ctx.stablecoinFlow], ['G. Trends', ctx.googleTrends],
           ['Liq Levels', ctx.liqLevels], ['Fear & Greed', ctx.fearGreed],
-          ['BTC Dom', ctx.btcDomTrend], ['X / Social', 'Grok searches X live'],
+          ['BTC Dom', ctx.btcDomTrend], ['X / Social', 'LiquidityAI searches X live'],
           ['Session', ctx.session],
           ['Events', ctx.upcomingEvents.split('\n')[0] + (ctx.upcomingEvents.includes('\n') ? ' +more' : '')],
           ['News', ctx.news.split('\n')[0].slice(0, 55) + '…'],

@@ -26,7 +26,7 @@ export default function About() {
           ['Breaking News', 'Finnhub WebSocket'],
           ['Crypto News', 'Finnhub + RSS (Reuters/AP/CoinDesk)'],
           ['Econ Calendar', 'Finnhub Calendar API'],
-          ['AI Signal', 'xAI Grok-4.3'],
+          ['AI Signal', 'LiquidityAI (xAI)'],
         ].map(([k, v]) => (
           <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '0.5px solid rgba(255,255,255,0.05)', fontSize: 12 }}>
             <span style={{ color: '#606060' }}>{k}</span>
@@ -42,7 +42,7 @@ export default function About() {
           2. <strong style={{ color: '#e8e8e8' }}>Check the Raid Meter</strong> — needs at least 60/100 to be worth trading.<br />
           3. <strong style={{ color: '#e8e8e8' }}>Run the Scanner</strong> — 7-question system. If it says NO, stay flat.<br />
           4. <strong style={{ color: '#e8e8e8' }}>Check Best Hours</strong> — God Tier or Prime window only.<br />
-          5. <strong style={{ color: '#e8e8e8' }}>Run AI Arena</strong> — Grok confirms news sentiment aligns with setup.<br />
+          5. <strong style={{ color: '#e8e8e8' }}>Run LiquidityAI Arena</strong> — confirms news sentiment aligns with setup.<br />
           6. <strong style={{ color: '#e8e8e8' }}>Enter 0.8–1.5% before the cluster.</strong> Exit the second it touches. Never hold.
         </div>
       </div>

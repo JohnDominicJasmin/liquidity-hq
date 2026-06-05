@@ -116,10 +116,10 @@ export default function AlertsPage() {
     { dot: '#fb923c', title: 'Rapid Move ±5% (1H)',    desc: 'Momentum surge or flash dump in one 1H candle · 2h cooldown', grok: true },
     { dot: '#fb923c', title: 'Rapid Move ±10% (4H)',   desc: 'Major momentum candle on 4H — trend move · 4h cooldown', grok: true },
     { dot: '#f97316', title: 'Flash Move ±4% (5m)',    desc: 'Stop cascade or news flash — extreme 5-min move · 30min cooldown', grok: true },
-    { dot: '#818cf8', title: 'Confluence Alert',        desc: '2+ signals same coin in one run → single combined ping · Grok weighs all signals together', grok: true },
+    { dot: '#818cf8', title: 'Confluence Alert',        desc: '2+ signals same coin in one run → single combined ping · LiquidityAI weighs all signals together', grok: true },
     { dot: '#f87171', title: 'Fear & Greed ≤15',        desc: 'Extreme fear — contrarian accumulation zone · 23h cooldown', grok: false },
     { dot: '#f97316', title: 'Fear & Greed ≥85',        desc: 'Extreme greed — distribution zone · 23h cooldown', grok: false },
-    { dot: '#fbbf24', title: 'Daily 7am Summary',       desc: 'FR snapshot + F&G + active price alerts + Grok market outlook · fires once daily at 7am PHT', grok: true },
+    { dot: '#fbbf24', title: 'Daily 7am Summary',       desc: 'FR snapshot + F&G + active price alerts + LiquidityAI market outlook · fires once daily at 7am PHT', grok: true },
   ];
 
   return (
@@ -205,7 +205,7 @@ export default function AlertsPage() {
         )}
 
         <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 10, lineHeight: 1.5 }}>
-          Fires once when price crosses your target → Grok analysis included → alert deactivates automatically.
+          Fires once when price crosses your target → LiquidityAI analysis included → alert deactivates automatically.
         </div>
       </div>
       </AuthGate>
@@ -240,7 +240,7 @@ export default function AlertsPage() {
               <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)' }}>{c.title}</div>
               <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>{c.desc}</div>
             </div>
-            {c.grok && <span style={{ fontSize: 10, color: '#a78bfa', fontWeight: 600, flexShrink: 0 }}>🤖 Grok</span>}
+            {c.grok && <span style={{ fontSize: 10, color: '#a78bfa', fontWeight: 600, flexShrink: 0 }}>🤖 AI</span>}
           </div>
         ))}
         <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 10, padding: '8px 0 0', borderTop: '0.5px solid var(--bdr)' }}>

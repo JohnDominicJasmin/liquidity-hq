@@ -226,7 +226,7 @@ export default function MorningBriefing() {
 
         {!brief && !generating && !briefErr && (
           <div className="mb-brief-empty">
-            Hit Generate to get a Grok-powered pre-session summary — market conditions, best setup, what to watch.
+            Hit Generate to get a LiquidityAI pre-session summary — market conditions, best setup, what to watch.
           </div>
         )}
 

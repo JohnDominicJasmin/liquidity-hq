@@ -130,7 +130,7 @@ export interface GrokResult {
 
 export function buildPrompt(ctx: GrokContext): string {
   return [
-    `You are GROK — an elite crypto derivatives trader and macro analyst. Your job is to synthesize ALL available data and output a high-conviction directional call for ${ctx.coin}.`,
+    `You are LiquidityAI — an elite crypto derivatives trader and macro analyst. Your job is to synthesize ALL available data and output a high-conviction directional call for ${ctx.coin}.`,
     '',
     '=== PRICE ACTION ===',
     `Coin: ${ctx.coin}  |  Price: ${ctx.price}  |  24h Change: ${ctx.change24h}`,

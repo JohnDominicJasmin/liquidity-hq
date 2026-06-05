@@ -16,7 +16,7 @@ const NAV = [
   null,
   { path: '/playbook',    icon: '📖', label: 'Playbook',    desk: false },
   null,
-  { path: '/arena',       icon: '🤖', label: 'AI Arena',    desk: true  },
+  { path: '/arena',       icon: '🤖', label: 'LiquidityAI', desk: true  },
   { path: '/liq',         icon: '🔥', label: 'Liq Map',     desk: true  },
   { path: '/funding',     icon: '💸', label: 'FR History',  desk: true  },
   { path: '/correlation', icon: '🔗', label: 'Correlation', desk: true  },
@@ -167,7 +167,7 @@ export default function NavDrawer() {
                       className="auth-dropdown-usage"
                       onClick={() => setAuthOpen(false)}
                     >
-                      Deep Analysis — <span>view usage</span>
+                      LiquidityAI — <span>view usage</span>
                     </Link>
                     <button
                       className="auth-dropdown-usage"

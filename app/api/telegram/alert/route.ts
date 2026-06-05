@@ -36,7 +36,7 @@ function parseConviction(raw: string): { text: string; badge: string } {
 function fmtGrok(raw: string): string {
   if (!raw) return '';
   const { text, badge } = parseConviction(raw);
-  return `\n\n🤖 <b>Grok:</b> ${text}${badge ? `\n${badge}` : ''}`;
+  return `\n\n🤖 <b>LiquidityAI:</b> ${text}${badge ? `\n${badge}` : ''}`;
 }
 
 /* ── Signal queue — for confluence batching ── */
@@ -922,7 +922,7 @@ async function checkDailySummary(
     `In 2-3 sentences: overall market bias today and which 1-2 coins look most interesting to watch? ` +
     `Direct and actionable. No conviction label needed.`
   );
-  const grokLine = grokRaw ? `\n\n🤖 <b>Grok:</b> ${grokRaw}` : '';
+  const grokLine = grokRaw ? `\n\n🤖 <b>LiquidityAI:</b> ${grokRaw}` : '';
 
   await tg(token, chatId,
     `☀️ <b>Morning Briefing — ${dateStr}</b>` +

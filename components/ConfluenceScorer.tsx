@@ -297,7 +297,7 @@ export default function ConfluenceScorer({ onRunSignal, coin: coinProp }: Props)
             className="cf-action-btn cf-action-grok"
             onClick={() => onRunSignal(coin)}
           >
-            ⚡ Run Grok Signal
+            ⚡ Run AI Signal
           </button>
         )}
         <button

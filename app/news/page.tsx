@@ -183,7 +183,7 @@ export default function NewsPage() {
                   window.dispatchEvent(new CustomEvent('grok-chat', {
                     detail: { coin: w.symbol.toLowerCase() as 'btc' | 'eth', prompt: `A whale just ${isBuy ? 'bought' : 'sold'} ${fmtUSD(w.usdValue)} of ${w.symbol} at $${w.price.toLocaleString()}. What does this mean for the next 1-4 hours?` },
                   }))
-                }>Ask Grok →</button>
+                }>Ask LiquidityAI →</button>
               </div>
             );
           })}
@@ -207,7 +207,7 @@ export default function NewsPage() {
                     <span className="ncard-impact-text">{geo.note}</span>
                   </div>
                 )}
-                <button className="ncard-ask-btn" onClick={() => askGrok(a.headline)}>Ask Grok →</button>
+                <button className="ncard-ask-btn" onClick={() => askGrok(a.headline)}>Ask LiquidityAI →</button>
               </div>
             );
           })}
@@ -226,7 +226,7 @@ export default function NewsPage() {
               <div className="ncard-impact">
                 <span className="ncard-impact-text">{g.note}</span>
               </div>
-              <button className="ncard-ask-btn" onClick={() => askGrok(g.headline)}>Ask Grok →</button>
+              <button className="ncard-ask-btn" onClick={() => askGrok(g.headline)}>Ask LiquidityAI →</button>
             </div>
           ))}
         </div>
@@ -261,7 +261,7 @@ export default function NewsPage() {
                 </div>
                 <div className="ncard-headline">{a.headline}</div>
                 <div style={{ marginTop: 8 }}>
-                  <button className="ncard-ask-sm" onClick={() => askGrok(a.headline)}>Ask Grok</button>
+                  <button className="ncard-ask-sm" onClick={() => askGrok(a.headline)}>Ask LiquidityAI</button>
                 </div>
               </div>
             );
