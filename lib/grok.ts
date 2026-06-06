@@ -123,6 +123,10 @@ export interface GrokContext {
   oiTrend: string;
   /* cross-exchange funding rate comparison */
   crossExchangeFunding: string;
+  /* Setup Scanner — squeeze risk score for selected coin */
+  setupScan: string;
+  /* OI 1h change from OI Spike Scanner */
+  oi1hChange: string;
 }
 
 export interface GrokResult {
@@ -161,11 +165,14 @@ export function buildPrompt(ctx: GrokContext): string {
     `Cross-exchange funding (Binance | Bybit | OKX | Avg): ${ctx.crossExchangeFunding}`,
     '(Divergence between exchanges = different trader bases are positioned differently = potential flow imbalance or arb. Extreme positive = longs overcrowded = flush risk. Extreme negative = shorts overcrowded = squeeze risk.)',
     `Open Interest: ${ctx.openInterest}`,
+    `OI 1h Change: ${ctx.oi1hChange}`,
     `OI Trend vs Price:  ${ctx.oiTrend}`,
     '',
     '=== DERIVATIVES — EXTENDED ===',
     `Basis (perp premium vs spot):  ${ctx.basis}`,
     `Squeeze score:  ${ctx.squeezeScore}`,
+    `Setup Scanner: ${ctx.setupScan}`,
+    '(Setup Scanner score 0-100: measures how overcrowded longs or shorts are. High Long Liq Risk = too many longs, whales incentivised to dump. High Short Squeeze = too many shorts, whales incentivised to pump.)',
     '',
     '=== OPTIONS MARKET (DERIBIT) ===',
     `BTC Put/Call Ratio:  ${ctx.pcRatio}`,

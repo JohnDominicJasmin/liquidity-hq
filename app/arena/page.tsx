@@ -106,7 +106,8 @@ export default function Arena() {
   const { settings } = useSettings();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>('btc');
   const [readTf, setReadTf]         = useState<ChartTf>('15m');
-  const arenaInitRef = useRef(false);
+  const arenaInitRef  = useRef(false);
+  const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '—' });
   const [readLoading, setReadLoading] = useState(false);
   const [readStep, setReadStep]       = useState('');
   const [readError, setReadError]     = useState('');
@@ -576,6 +577,19 @@ export default function Arena() {
       pocLine, dxyLine, spxLine, goldLine,
       cbPremium, vwap, oiTrend, takerRatio, crossExchangeFunding,
       cascadeLine, whaleFlow,
+      setupScan: (() => {
+        const sq = computeSqueezeScore(coin);
+        const oiChip  = coin?.oiTrend   ? { strong_up: 'OI ↑↑', weak_up: 'OI ↑', weak_down: 'OI ↓', strong_down: 'OI ↓↓' }[coin.oiTrend] ?? 'OI —' : 'OI —';
+        const cvdChip = coin?.cvdDivergence === 'bullish' ? 'CVD ↑' : coin?.cvdDivergence === 'bearish' ? 'CVD ↓' : 'CVD —';
+        const tkr     = coin?.takerBuyRatio != null ? 'Tkr ' + (coin.takerBuyRatio * 100).toFixed(0) + '%' : 'Tkr —';
+        const rsi     = coin?.rsi14 != null ? 'RSI ' + Math.round(coin.rsi14) : 'RSI —';
+        return `Score ${sq.score}/100 · ${sq.label} · ${oiChip}, ${cvdChip}, ${tkr}, ${rsi}`;
+      })(),
+      oi1hChange: (() => {
+        const { pct, signal } = oi1hDataRef.current;
+        if (pct == null) return '—';
+        return (pct >= 0 ? '+' : '') + pct.toFixed(2) + '% · ' + signal;
+      })(),
     };
   };
 
@@ -1079,7 +1093,10 @@ export default function Arena() {
 
       {/* ── OI SPIKE SCANNER ── */}
       <div className="dash-section">Open Interest</div>
-      <OISpikeScanner coin={selectedCoin} />
+      <OISpikeScanner
+        coin={selectedCoin}
+        onData={(pct, signal) => { oi1hDataRef.current = { pct, signal }; }}
+      />
 
       {/* ── SESSION HISTORY ── */}
       {history.length > 0 && (

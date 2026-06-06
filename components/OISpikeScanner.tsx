@@ -28,7 +28,13 @@ function fmtOI(v: number): string {
 
 interface OIData { oiUsd: number | null; pct: number | null }
 
-export default function OISpikeScanner({ coin }: { coin: CoinId }) {
+export default function OISpikeScanner({
+  coin,
+  onData,
+}: {
+  coin: CoinId;
+  onData?: (pct: number | null, signal: string) => void;
+}) {
   const { store }               = useMarket();
   const [data, setData]         = useState<OIData>({ oiUsd: null, pct: null });
   const [updatedAt, setUpdated] = useState<number | null>(null);
@@ -90,6 +96,22 @@ export default function OISpikeScanner({ coin }: { coin: CoinId }) {
           setData(result);
           setUpdated(Date.now());
           setLoading(false);
+          if (onData) {
+            // derive signal text for context
+            const p = result.pct;
+            const trend = store.coins[coin]?.oiTrend;
+            const tMeta = trend ? OI_SIG[trend] : null;
+            const isP = (p ?? 0) > 0;
+            const isSpk = p != null && Math.abs(p) >= 10;
+            let sig = '—';
+            if (p != null) {
+              if (isSpk) sig = tMeta ? tMeta.txt : (isP ? 'OI spike — rising' : 'OI spike — unwinding');
+              else if (tMeta) sig = tMeta.txt;
+              else if (Math.abs(p) < 2) sig = 'Stable';
+              else sig = isP ? 'Rising' : 'Unwinding';
+            }
+            onData(p, sig);
+          }
         }
       } catch {
         if (mountedRef.current) setLoading(false);
