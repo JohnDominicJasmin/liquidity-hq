@@ -100,7 +100,7 @@ const ARENA_HIST_KEY = 'arena-session-history-v1';
 
 export default function Arena() {
   const { store } = useMarket();
-  const { latestHeadlines, econEvents } = useNews();
+  const { latestHeadlines, econEvents, whaleAlerts } = useNews();
   const { user, loading: authLoading } = useAuth();
   const { settings } = useSettings();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>('btc');
@@ -498,6 +498,29 @@ export default function Arena() {
     const etfFlows = [fmtFlow(store.etfNetFlow, 'BTC ETF'), fmtFlow(store.ethEtfNetFlow, 'ETH ETF')]
       .filter(Boolean).join(' | ') || 'AI will search live';
 
+    /* Liquidation cascade size (#30) */
+    const ca = store.cascadeAlert;
+    const cascadeLine = ca && (Date.now() - ca.ts < 4 * 60 * 60 * 1000)
+      ? `${ca.side} cascade on ${ca.coin} — $${(ca.totalUsd / 1e6).toFixed(1)}M liquidated (${Math.floor((Date.now() - ca.ts) / 60000)}m ago)`
+      : 'None in last 4h';
+
+    /* Whale net flow — last 1h for selected coin (#29) */
+    const nowSec = Math.floor(Date.now() / 1000);
+    const coinSym = selectedCoin.toUpperCase();
+    const recentWhales = whaleAlerts.filter(w => w.symbol === coinSym && nowSec - w.ts < 3600);
+    const whaleFlow = (() => {
+      if (!['btc', 'eth'].includes(selectedCoin)) return 'Whale monitoring: BTC/ETH only';
+      if (recentWhales.length === 0) return 'No whale trades (>$500K) detected in last 1h';
+      let buyUsd = 0, sellUsd = 0, buyCount = 0, sellCount = 0;
+      recentWhales.forEach(w => {
+        if (w.side === 'BUY')  { buyUsd  += w.usdValue; buyCount++;  }
+        else                   { sellUsd += w.usdValue; sellCount++; }
+      });
+      const net = buyUsd - sellUsd;
+      const f = (v: number) => v >= 1e6 ? `$${(v/1e6).toFixed(1)}M` : `$${(v/1e3).toFixed(0)}K`;
+      return `Net ${net >= 0 ? 'BUY' : 'SELL'} ${f(Math.abs(net))} — ${buyCount} buys (${f(buyUsd)}) vs ${sellCount} sells (${f(sellUsd)}) · ${recentWhales.length} whale trades >$500K in last 1h`;
+    })();
+
     /* Cross-exchange funding */
     const cf = fundingData[selectedCoin];
     const crossExchangeFunding = cf
@@ -533,6 +556,7 @@ export default function Arena() {
       exchangeNetFlow, stablecoinFlow, googleTrends, liqLevels, btcDomTrend,
       pocLine, dxyLine, spxLine, goldLine,
       cbPremium, vwap, oiTrend, takerRatio, crossExchangeFunding,
+      cascadeLine, whaleFlow,
     };
   };
 
@@ -1010,6 +1034,8 @@ export default function Arena() {
           ['X-Exch FR', ctx.crossExchangeFunding.length > 55 ? ctx.crossExchangeFunding.slice(0, 55) + '…' : ctx.crossExchangeFunding],
           ['DXY', ctx.dxyLine], ['SPX', ctx.spxLine], ['Gold', ctx.goldLine],
           ['ETF Flows', ctx.etfFlows], ['Exch. Flow', ctx.exchangeNetFlow],
+          ['Cascade', ctx.cascadeLine],
+          ['Whale Flow', ctx.whaleFlow.length > 55 ? ctx.whaleFlow.slice(0, 55) + '…' : ctx.whaleFlow],
           ['Stablecoin', ctx.stablecoinFlow], ['G. Trends', ctx.googleTrends],
           ['Liq Levels', ctx.liqLevels], ['Fear & Greed', ctx.fearGreed],
           ['BTC Dom', ctx.btcDomTrend], ['X / Social', 'LiquidityAI searches X live'],

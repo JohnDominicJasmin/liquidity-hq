@@ -97,6 +97,10 @@ export interface GrokContext {
   /* exchange & on-chain flows */
   exchangeNetFlow: string;
   stablecoinFlow: string;
+  /* liquidation cascade */
+  cascadeLine: string;
+  /* whale net flow (last 1h, selected coin) */
+  whaleFlow: string;
   /* retail sentiment */
   googleTrends: string;
   /* liquidation clusters */
@@ -189,6 +193,10 @@ export function buildPrompt(ctx: GrokContext): string {
     '=== EXCHANGE & ON-CHAIN FLOWS ===',
     `BTC exchange net flow (24h):  ${ctx.exchangeNetFlow}`,
     `USDT+USDC stablecoin supply:  ${ctx.stablecoinFlow}`,
+    `Liquidation cascade (last 4h): ${ctx.cascadeLine}`,
+    '(A liquidation cascade = chain reaction of forced liquidations — often precedes exhaustion reversal OR continuation depending on direction. LONG cascade = over-leveraged longs flushed = potential bottom forming. SHORT cascade = shorts squeezed = potential top forming.)',
+    `Whale net flow (last 1h, ${ctx.coin}): ${ctx.whaleFlow}`,
+    '(Net whale buying = institutional accumulation signal. Net whale selling = distribution / risk-off. Large single trades >$1M often precede directional moves within 15–30min.)',
     '',
     '=== RETAIL SENTIMENT ===',
     `Google Trends 'Bitcoin' (7d):  ${ctx.googleTrends}`,
