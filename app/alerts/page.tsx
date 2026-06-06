@@ -120,6 +120,7 @@ export default function AlertsPage() {
     { dot: '#f87171', title: 'Fear & Greed ≤15',        desc: 'Extreme fear — contrarian accumulation zone · 23h cooldown', grok: false },
     { dot: '#f97316', title: 'Fear & Greed ≥85',        desc: 'Extreme greed — distribution zone · 23h cooldown', grok: false },
     { dot: '#fbbf24', title: 'Daily 7am Summary',       desc: 'FR snapshot + F&G + active price alerts + LiquidityAI market outlook · fires once daily at 7am PHT', grok: true },
+    { dot: '#f43f5e', title: 'Sentiment Extremes',      desc: 'F&G + BTC funding rate + BTC L/S ratio all simultaneously at extremes (bearish or contrarian bullish) · 4h cooldown', grok: true },
   ];
 
   return (

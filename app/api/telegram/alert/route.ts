@@ -75,19 +75,20 @@ const rsiLastMap = new Map<string, number>();               // RSI 50 cross dete
 const emaSideMap = new Map<string, 'above' | 'below'>();   // EMA 200 cross detection
 
 const CD: Record<string, number> = {
-  fr:     4 * 3600_000,
-  rsi:    4 * 3600_000,
-  rsi50:  6 * 3600_000,
-  ema:   12 * 3600_000,
-  move5m: 30 * 60_000,
-  move1h:  2 * 3600_000,
-  move4h:  4 * 3600_000,
-  whale:  30 * 60_000,   // overridden per session in main handler
-  news:   15 * 60_000,   // overridden per session in main handler
-  oi:     2 * 3600_000,
-  cvd:    60 * 60_000,
-  fng:   23 * 3600_000,   // Fear & Greed extreme (once per day)
-  daily: 23 * 3600_000,   // Daily 7am summary
+  fr:         4 * 3600_000,
+  rsi:        4 * 3600_000,
+  rsi50:      6 * 3600_000,
+  ema:       12 * 3600_000,
+  move5m:    30 * 60_000,
+  move1h:     2 * 3600_000,
+  move4h:     4 * 3600_000,
+  whale:     30 * 60_000,   // overridden per session in main handler
+  news:      15 * 60_000,   // overridden per session in main handler
+  oi:         2 * 3600_000,
+  cvd:       60 * 60_000,
+  fng:       23 * 3600_000,   // Fear & Greed extreme (once per day)
+  daily:     23 * 3600_000,   // Daily 7am summary
+  sentiment:  4 * 3600_000,   // Sentiment Extremes — all 3 indicators aligned
 };
 
 /* ── Session helpers ── */
@@ -938,6 +939,92 @@ async function checkDailySummary(
 }
 
 /* ════════════════════════════════════════
+   11. SENTIMENT EXTREMES (#20)
+   Fires when F&G + BTC funding rate + BTC L/S ratio all hit extremes together
+   ════════════════════════════════════════ */
+interface LSItem { longShortRatio: string; longAccount: string; shortAccount: string }
+
+async function checkSentimentExtremes(
+  token: string, chatId: string, stamp: string,
+  frMap: Record<string, number | null>
+): Promise<string[]> {
+  const fired: string[] = [];
+  try {
+    const btcFR = frMap['btc'];
+    if (btcFR == null) return [];
+
+    // Fetch F&G and BTC L/S ratio in parallel
+    const [fngR, lsR] = await Promise.allSettled([
+      fetch('https://api.alternative.me/fng/', { cache: 'no-store' }),
+      fetch('https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=1', { cache: 'no-store' }),
+    ]);
+
+    if (fngR.status !== 'fulfilled' || !fngR.value.ok) return [];
+    if (lsR.status  !== 'fulfilled' || !lsR.value.ok)  return [];
+
+    const fngJson = await fngR.value.json() as { data: FNGData[] };
+    const fng     = parseInt(fngJson.data?.[0]?.value ?? '50');
+    const fngCls  = fngJson.data?.[0]?.value_classification ?? '';
+    if (isNaN(fng)) return [];
+
+    const lsData  = await lsR.value.json() as LSItem[];
+    if (!lsData?.length) return [];
+    const longPct  = parseFloat(lsData[0].longAccount) * 100;   // e.g. 60.87
+    const shortPct = 100 - longPct;
+    const frPct    = btcFR * 100;
+
+    // ── BEARISH EXTREME: F&G greedy + FR long-heavy + L/S long-heavy ──
+    // All 3 screaming "longs are overcrowded" → dump risk is elevated
+    if (fng >= 75 && frPct >= 0.04 && longPct >= 60 && !onCooldown('sentiment_bear', CD.sentiment)) {
+      const grokTake = await grokAnalyze(
+        `Elite crypto trader. All 3 sentiment indicators are simultaneously at BEARISH extremes: ` +
+        `Fear & Greed ${fng} (${fngCls}), BTC Funding Rate +${frPct.toFixed(4)}% (longs overcrowded), ` +
+        `BTC L/S Ratio ${longPct.toFixed(1)}% long (overleveraged longs). ` +
+        `In 3-4 sentences: How severe is this risk? Should a trader reduce longs or set tight stops? ` +
+        `Direct, no hedging. End with: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
+      );
+      await tg(token, chatId,
+        `🚨 <b>Sentiment Extremes — ALL 3 BEARISH</b>\n\n` +
+        `😱 F&amp;G: <b>${fng}</b> (${fngCls})\n` +
+        `💸 BTC FR: <b>+${frPct.toFixed(4)}%</b> — Longs overcrowded\n` +
+        `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
+        `Signal: All 3 sentiment gauges at extremes — <b>long flush risk elevated</b>\n` +
+        `Action: Tighten stops on longs. Do NOT add longs into this setup.` +
+        `${fmtGrok(grokTake)}\n\n` +
+        `<i>${stamp}</i>`
+      );
+      markSent('sentiment_bear');
+      fired.push(`Sentiment extremes — bearish (F&G ${fng}, FR +${frPct.toFixed(4)}%, Long ${longPct.toFixed(0)}%)`);
+    }
+
+    // ── BULLISH EXTREME (contrarian): F&G fearful + FR short-heavy + L/S short-heavy ──
+    // All 3 screaming "shorts are overcrowded" → squeeze / reversal risk
+    if (fng <= 25 && frPct <= -0.02 && longPct <= 40 && !onCooldown('sentiment_bull', CD.sentiment)) {
+      const grokTake = await grokAnalyze(
+        `Elite crypto trader. All 3 sentiment indicators are simultaneously at CONTRARIAN BULLISH extremes: ` +
+        `Fear & Greed ${fng} (${fngCls}) — extreme fear, BTC Funding Rate ${frPct.toFixed(4)}% (shorts paying), ` +
+        `BTC L/S Ratio ${longPct.toFixed(1)}% long / ${shortPct.toFixed(1)}% short (overleveraged shorts). ` +
+        `In 3-4 sentences: Is this genuine capitulation or a dead-cat bounce zone? ` +
+        `What confirms this as a valid reversal entry? Direct, no hedging. End with: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
+      );
+      await tg(token, chatId,
+        `🟢 <b>Sentiment Extremes — Contrarian BULLISH Setup</b>\n\n` +
+        `😨 F&amp;G: <b>${fng}</b> (${fngCls})\n` +
+        `💸 BTC FR: <b>${frPct.toFixed(4)}%</b> — Shorts paying\n` +
+        `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
+        `Signal: All 3 sentiment gauges at fear extremes — <b>potential contrarian reversal zone</b>\n` +
+        `Action: Watch for capitulation candle + volume spike before entering long.` +
+        `${fmtGrok(grokTake)}\n\n` +
+        `<i>${stamp}</i>`
+      );
+      markSent('sentiment_bull');
+      fired.push(`Sentiment extremes — contrarian bullish (F&G ${fng}, FR ${frPct.toFixed(4)}%, Long ${longPct.toFixed(0)}%)`);
+    }
+  } catch { /* skip */ }
+  return fired;
+}
+
+/* ════════════════════════════════════════
    MAIN HANDLER
    ════════════════════════════════════════ */
 export async function GET() {
@@ -967,12 +1054,13 @@ export async function GET() {
     checkEMACross(stamp, signalQueue),
     checkRapidMove(stamp, signalQueue),
     checkWhales(stamp, signalQueue),
-    checkNews(token, chatId, stamp),          // global — sends directly
-    checkFearGreed(token, chatId, stamp),     // global — sends directly
-    checkDailySummary(token, chatId, stamp, frMap), // global — sends directly
+    checkNews(token, chatId, stamp),                       // global — sends directly
+    checkFearGreed(token, chatId, stamp),                  // global — sends directly
+    checkDailySummary(token, chatId, stamp, frMap),        // global — sends directly
     checkOISpike(stamp, prices, signalQueue),
     checkCVD(stamp, signalQueue),
     checkPriceAlerts(stamp, prices, signalQueue),
+    checkSentimentExtremes(token, chatId, stamp, frMap),   // global — sends directly
   ]);
 
   // Flush: single signals → send as-is, 2+ same coin → confluence alert
@@ -982,7 +1070,7 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true, fired,
-    checked: ['FR extremes', 'FR flip', 'RSI', 'RSI 50 cross', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts'],
+    checked: ['FR extremes', 'FR flip', 'RSI', 'RSI 50 cross', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts', 'Sentiment extremes'],
     session: nyActive ? 'NY/Pre-NY (high activity)' : 'Asia/London',
     cooldowns: { whale: `${CD.whale / 60_000}min`, news: `${CD.news / 60_000}min` },
   });

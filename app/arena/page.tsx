@@ -299,6 +299,24 @@ export default function Arena() {
         `📉 ${sym} OI Spike — New Shorts`,
         'OI rising with price falling — new shorts entering. Bearish continuation likely.');
 
+    /* 7 — Sentiment Extremes: F&G + FR + L/S all aligned (#20) */
+    if (store.fng != null && coin?.fundingRate != null && coin?.longRatio != null) {
+      const fng      = store.fng;
+      const fr       = coin.fundingRate * 100;
+      const longRat  = coin.longRatio * 100;  // e.g. 62.1
+      const shortRat = 100 - longRat;
+      // Bearish: all 3 screaming "longs overcrowded"
+      if (fng >= 75 && fr >= 0.04 && longRat >= 60)
+        fire(`sent-bear-${b4h}`,
+          '🚨 Sentiment Extremes — Bearish',
+          `F&G ${fng} (Extreme Greed) · FR +${fr.toFixed(3)}% · ${longRat.toFixed(0)}% Long — all 3 at extremes. Long flush risk elevated. Tighten stops.`);
+      // Contrarian bullish: all 3 screaming "shorts overcrowded"
+      if (fng <= 25 && fr <= -0.02 && longRat <= 40)
+        fire(`sent-bull-${b4h}`,
+          '🟢 Sentiment Extremes — Contrarian Bullish',
+          `F&G ${fng} (Extreme Fear) · FR ${fr.toFixed(3)}% · ${shortRat.toFixed(0)}% Short — all 3 at extremes. Potential reversal zone. Wait for confirmation.`);
+    }
+
   }, [store, selectedCoin, notifEnabled, fireNotif, settings]);
 
   const gatherContext = (): GrokContext => {
