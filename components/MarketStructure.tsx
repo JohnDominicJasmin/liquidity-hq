@@ -98,6 +98,16 @@ function analyzeStructure(candles: Candle[], swings: SwingPt[]): MSData {
   };
 }
 
+/* ── Candle-age → human time (each candle = 4h) ── */
+function fmtAge(candlesAgo: number): string {
+  if (candlesAgo === 0) return 'current';
+  const h = candlesAgo * 4;
+  if (h < 24) return `~${h}h ago`;
+  const d = Math.floor(h / 24);
+  const r = h % 24;
+  return r ? `~${d}d ${r}h ago` : `~${d}d ago`;
+}
+
 /* ── Price formatter ── */
 function fmtP(n: number): string {
   if (n >= 10000) return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -214,9 +224,7 @@ export default function MarketStructure({ coin, onData }: Props) {
             {le.type} {le.dir === 'bullish' ? '▲' : '▼'}
           </span>
           <span className="ms-ev-price">${fmtP(le.price)}</span>
-          <span className="ms-ev-ago">
-            {le.candlesAgo === 0 ? 'current candle' : `${le.candlesAgo}c ago`}
-          </span>
+          <span className="ms-ev-ago">{fmtAge(le.candlesAgo)}</span>
           {le.type === 'CHoCH' && (
             <span style={{ fontSize: 10, color: evCol(le), fontWeight: 700, marginLeft: 4 }}>FLIP</span>
           )}
@@ -248,7 +256,7 @@ export default function MarketStructure({ coin, onData }: Props) {
                 {ev.type} {ev.dir === 'bullish' ? '▲' : '▼'}
               </span>
               <span className="ms-hist-price">${fmtP(ev.price)}</span>
-              <span className="ms-hist-ago">{ev.candlesAgo}c ago</span>
+              <span className="ms-hist-ago">{fmtAge(ev.candlesAgo)}</span>
             </div>
           ))}
         </div>
