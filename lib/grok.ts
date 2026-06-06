@@ -127,6 +127,8 @@ export interface GrokContext {
   setupScan: string;
   /* OI 1h change from OI Spike Scanner */
   oi1hChange: string;
+  /* Market Structure (4H BOS/CHoCH) */
+  marketStructure: string;
 }
 
 export interface GrokResult {
@@ -150,6 +152,8 @@ export function buildPrompt(ctx: GrokContext): string {
     `Long/Short ratio: ${ctx.longShortRatio}`,
     '',
     '=== TECHNICALS (MULTI-TIMEFRAME) ===',
+    `Market Structure (4H): ${ctx.marketStructure}`,
+    '(BOS = Break of Structure = trend continuation in the same direction. CHoCH = Change of Character = structural reversal signal. A bearish CHoCH means the 4H trend just flipped bearish — strong bias filter against longs. A bullish CHoCH = trend just flipped bullish.)',
     `RSI (14, 1h):  ${ctx.rsi1h}`,
     `RSI (14, 4h):  ${ctx.rsi4h}`,
     `RSI (14, 1D):  ${ctx.rsiDaily}`,

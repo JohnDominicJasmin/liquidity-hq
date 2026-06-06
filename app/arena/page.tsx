@@ -12,6 +12,7 @@ import { track } from '@/lib/analytics';
 import ConfluenceScorer from '@/components/ConfluenceScorer';
 import KLineProChart, { ChartTf } from '@/components/KLineProChart';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
+import MarketStructure, { MSData } from '@/components/MarketStructure';
 
 /* ── Pattern detection — delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -107,6 +108,7 @@ export default function Arena() {
   const [readTf, setReadTf]         = useState<ChartTf>('15m');
   const arenaInitRef  = useRef(false);
   const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '—' });
+  const msDataRef     = useRef<MSData | null>(null);
   const oi1h          = useOI1h(selectedCoin);
   const [readLoading, setReadLoading] = useState(false);
   const [readStep, setReadStep]       = useState('');
@@ -148,6 +150,11 @@ export default function Arena() {
     const { txt } = oi1hSignal(oi1h.pct, store.coins[selectedCoin]?.oiTrend);
     oi1hDataRef.current = { pct: oi1h.pct, signal: txt };
   }, [oi1h.pct, oi1h.loading, selectedCoin, store.coins]);
+
+  /* ── Market Structure data callback — keeps ref in sync without re-renders ── */
+  const handleMsData = useCallback((d: MSData | null) => {
+    msDataRef.current = d;
+  }, []);
 
   /* ── Fetch today's usage on mount (and whenever auth state changes) ── */
   useEffect(() => {
@@ -597,6 +604,19 @@ export default function Arena() {
         if (pct == null) return '—';
         return (pct >= 0 ? '+' : '') + pct.toFixed(2) + '% · ' + signal;
       })(),
+      marketStructure: (() => {
+        const ms = msDataRef.current;
+        if (!ms) return '—';
+        let s = ms.bias;
+        if (ms.lastEvent) {
+          const le = ms.lastEvent;
+          s += ` · Last: ${le.type} ${le.dir} @ $${fmtPrice(le.price)} (${le.candlesAgo === 0 ? 'current' : le.candlesAgo + 'c ago'})`;
+          if (le.type === 'CHoCH') s += ' — STRUCTURE FLIP';
+        }
+        if (ms.lastSwingHigh != null) s += ` · SH $${fmtPrice(ms.lastSwingHigh)}`;
+        if (ms.lastSwingLow  != null) s += ` · SL $${fmtPrice(ms.lastSwingLow)}`;
+        return s;
+      })(),
     };
   };
 
@@ -769,9 +789,12 @@ export default function Arena() {
       {/* ── BELOW CHART: left-aligned, max 860px on wide screens ── */}
       <div className="arena-below-chart">
 
+      {/* ── MARKET STRUCTURE (4H BOS / CHoCH) ── */}
+      <MarketStructure coin={selectedCoin} onData={handleMsData} />
+
       {/* ── SIGNAL ENGINE ── */}
       {/* Squeeze score */}
-      <div className="arena-squeeze-card" style={{ marginTop: 8 }}>
+      <div className="arena-squeeze-card" style={{ marginTop: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: '#444' }}>Squeeze Score — {selectedCoin.toUpperCase()}</span>
           <span style={{ fontSize: 11, fontWeight: 700, color: sq.color }}>{sq.label}</span>
@@ -1050,12 +1073,13 @@ export default function Arena() {
           onClick={() => setCtxOpen(v => !v)}
         >
           <span>
-            Analysing {selectedCoin.toUpperCase()} across {[ctx.rsi14, ctx.rsi1h, ctx.rsi4h, ctx.cvd, ctx.basis, ctx.orderWalls, ctx.pcRatio, ctx.exchangeNetFlow, ctx.cbPremium, ctx.vwap, ctx.oiTrend, ctx.takerRatio, ctx.btcGex].filter(v => v !== '—' && v !== 'Calculating…').length + 21} market signals
+            Analysing {selectedCoin.toUpperCase()} across {[ctx.rsi14, ctx.rsi1h, ctx.rsi4h, ctx.cvd, ctx.basis, ctx.orderWalls, ctx.pcRatio, ctx.exchangeNetFlow, ctx.cbPremium, ctx.vwap, ctx.oiTrend, ctx.takerRatio, ctx.btcGex, ctx.marketStructure].filter(v => v !== '—' && v !== 'Calculating…').length + 21} market signals
           </span>
           <span style={{ fontSize: 11, color: '#444' }}>{ctxOpen ? '▲ hide' : '▼ show context'}</span>
         </div>
         {ctxOpen && [
           ['Coin', ctx.coin], ['Price', ctx.price], ['24h Δ', ctx.change24h],
+          ['Market Structure', ctx.marketStructure.length > 55 ? ctx.marketStructure.slice(0, 55) + '…' : ctx.marketStructure],
           ['RSI 15m', ctx.rsi14], ['RSI 1h', ctx.rsi1h], ['RSI 4h', ctx.rsi4h], ['RSI 1D', ctx.rsiDaily],
           ['CVD Divergence', ctx.cvdDivergence],
           ['MA20 (15m)', ctx.ma20], ['vs MA20', ctx.priceVsMA],
