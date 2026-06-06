@@ -1469,7 +1469,8 @@ body.ticker-on .breaking-alert { top: 90px; }
 .sms-row-val     { font-size: 10px; font-weight: 600; color: var(--txt3); font-variant-numeric: tabular-nums; }
 .sms-score-chip  { font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 5px; text-align: center; font-variant-numeric: tabular-nums; }
 .sms-row-note    { font-size: 10px; font-weight: 600; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sms-footer      { padding: 6px 14px 8px; font-size: 9px; color: #2a2a2a; border-top: 0.5px solid var(--bdr); line-height: 1.4; }
+.sms-footer         { padding: 6px 14px 8px; font-size: 9px; color: #2a2a2a; border-top: 0.5px solid var(--bdr); line-height: 1.4; }
+.sms-section-label  { padding: 4px 14px 3px; font-size: 9px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--txt3); background: rgba(255,255,255,0.02); border-bottom: 0.5px solid var(--bdr); }
 
 [data-theme="light"] .sms-row         { border-bottom-color: rgba(0,0,0,0.04); }
 [data-theme="light"] .sms-row:hover   { background: rgba(0,0,0,0.015); }
