@@ -1424,6 +1424,30 @@ body.ticker-on .breaking-alert { top: 90px; }
 .taker-mid-line { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.14); pointer-events: none; }
 .taker-signal   { font-size: 10px; font-weight: 700; text-align: right; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* ── OI Spike Scanner ── */
+.ois-table      { background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: 16px; overflow: hidden; margin-bottom: 8px; }
+.ois-title      { font-size: 10px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 14px 6px; display: flex; align-items: center; gap: 6px; }
+.ois-subtitle   { font-size: 10px; font-weight: 400; color: #2a2a2a; text-transform: none; letter-spacing: 0; }
+.ois-hdr        { display: grid; grid-template-columns: 44px 62px 1fr 1fr; gap: 6px; padding: 4px 14px 5px; font-size: 10px; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 0.07em; border-bottom: 0.5px solid var(--bdr); }
+.ois-row        { display: grid; grid-template-columns: 44px 62px 1fr 1fr; gap: 6px; padding: 5px 14px; border-bottom: 0.5px solid rgba(255,255,255,0.02); align-items: center; transition: background 0.1s; }
+.ois-row:last-child { border-bottom: none; }
+.ois-row:hover  { background: rgba(255,255,255,0.015); }
+.ois-coin       { font-size: 11px; font-weight: 700; color: var(--txt2); }
+.ois-oi         { font-size: 10px; font-weight: 600; color: var(--txt3); font-variant-numeric: tabular-nums; }
+.ois-change-col { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ois-bar-wrap   { position: relative; height: 4px; border-radius: 2px; overflow: hidden; background: rgba(255,255,255,0.04); }
+.ois-bar-wrap::after { content: ''; position: absolute; left: 50%; top: 0; width: 1px; height: 100%; background: rgba(255,255,255,0.12); }
+.ois-bar-pos    { position: absolute; left: 50%; top: 0; height: 100%; border-radius: 0 2px 2px 0; max-width: 50%; }
+.ois-bar-neg    { position: absolute; right: 50%; top: 0; height: 100%; border-radius: 2px 0 0 2px; max-width: 50%; }
+.ois-pct        { font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.ois-signal     { font-size: 10px; font-weight: 600; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+[data-theme="light"] .ois-row           { border-bottom-color: rgba(0,0,0,0.04); }
+[data-theme="light"] .ois-row:hover     { background: rgba(0,0,0,0.015); }
+[data-theme="light"] .ois-bar-wrap      { background: rgba(0,0,0,0.05); }
+[data-theme="light"] .ois-bar-wrap::after { background: rgba(0,0,0,0.2); }
+[data-theme="light"] .ois-hdr          { color: var(--txt3); }
+
 /* ── GEX (Gamma Exposure) Table ── */
 .gex-table       { background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: 16px; overflow: hidden; margin-bottom: 8px; }
 .gex-title-row   { display: flex; align-items: center; gap: 8px; padding: 10px 14px 6px; flex-wrap: wrap; }
