@@ -1448,6 +1448,40 @@ body.ticker-on .breaking-alert { top: 90px; }
 [data-theme="light"] .ois-bar-wrap::after { background: rgba(0,0,0,0.2); }
 [data-theme="light"] .ois-hdr          { color: var(--txt3); }
 
+/* ── Smart Money Score ── */
+.sms-card        { background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: 16px; overflow: hidden; margin-bottom: 8px; }
+.sms-header      { display: flex; align-items: flex-start; justify-content: space-between; padding: 10px 14px 8px; gap: 8px; }
+.sms-title       { font-size: 11px; font-weight: 700; color: var(--txt); letter-spacing: -0.2px; }
+.sms-sub         { font-size: 10px; color: var(--txt3); margin-top: 2px; }
+.sms-verdict     { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-align: right; flex-shrink: 0; padding-top: 1px; }
+
+/* Gauge */
+.sms-gauge-wrap  { padding: 0 14px 10px; }
+.sms-gauge-track { position: relative; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden; margin-bottom: 5px; }
+.sms-gauge-center{ position: absolute; left: 50%; top: 0; width: 1px; height: 100%; background: rgba(255,255,255,0.15); }
+.sms-gauge-pos   { position: absolute; left: 50%; top: 0; height: 100%; border-radius: 0 3px 3px 0; max-width: 50%; }
+.sms-gauge-neg   { position: absolute; right: 50%; top: 0; height: 100%; border-radius: 3px 0 0 3px; max-width: 50%; }
+.sms-gauge-labels{ display: flex; justify-content: space-between; font-size: 9px; font-weight: 600; letter-spacing: .04em; color: var(--txt3); text-transform: uppercase; }
+
+/* Breakdown table */
+.sms-hdr         { display: grid; grid-template-columns: 1.6fr 72px 44px 1fr; gap: 6px; padding: 4px 14px 5px; font-size: 10px; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 0.07em; border-top: 0.5px solid var(--bdr); border-bottom: 0.5px solid var(--bdr); }
+.sms-row         { display: grid; grid-template-columns: 1.6fr 72px 44px 1fr; gap: 6px; padding: 5px 14px; border-bottom: 0.5px solid rgba(255,255,255,0.02); align-items: center; transition: background 0.1s; }
+.sms-row:last-of-type { border-bottom: none; }
+.sms-row:hover   { background: rgba(255,255,255,0.015); }
+.sms-row-name    { font-size: 11px; font-weight: 700; color: var(--txt2); display: flex; align-items: center; gap: 5px; }
+.sms-badge       { font-size: 8px; font-weight: 700; padding: 1px 4px; border-radius: 3px; background: rgba(255,255,255,0.06); color: #555; letter-spacing: .04em; flex-shrink: 0; }
+.sms-row-val     { font-size: 10px; font-weight: 600; color: var(--txt3); font-variant-numeric: tabular-nums; }
+.sms-score-chip  { font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 5px; text-align: center; font-variant-numeric: tabular-nums; }
+.sms-row-note    { font-size: 10px; font-weight: 600; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sms-footer      { padding: 6px 14px 8px; font-size: 9px; color: #2a2a2a; border-top: 0.5px solid var(--bdr); line-height: 1.4; }
+
+[data-theme="light"] .sms-row         { border-bottom-color: rgba(0,0,0,0.04); }
+[data-theme="light"] .sms-row:hover   { background: rgba(0,0,0,0.015); }
+[data-theme="light"] .sms-gauge-track { background: rgba(0,0,0,0.06); }
+[data-theme="light"] .sms-gauge-center{ background: rgba(0,0,0,0.15); }
+[data-theme="light"] .sms-badge       { background: rgba(0,0,0,0.06); color: #888; }
+[data-theme="light"] .sms-hdr        { color: var(--txt3); }
+
 /* ── GEX (Gamma Exposure) Table ── */
 .gex-table       { background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: 16px; overflow: hidden; margin-bottom: 8px; }
 .gex-title-row   { display: flex; align-items: center; gap: 8px; padding: 10px 14px 6px; flex-wrap: wrap; }

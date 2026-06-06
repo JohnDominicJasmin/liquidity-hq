@@ -10,6 +10,7 @@ import SOTD from '@/components/SOTD';
 import NewsBanner from '@/components/NewsBanner';
 import SessionContext from '@/components/SessionContext';
 import OISpikeScanner from '@/components/OISpikeScanner';
+import SmartMoneyScore from '@/components/SmartMoneyScore';
 
 function MacroStrip() {
   const { store } = useMarket();
@@ -699,6 +700,7 @@ export default function Dashboard() {
         {!hide('coin_signals') && <>
           <CoinSignalsHeader />
           <EdgeSignals />
+          <SmartMoneyScore />
         </>}
 
         {/* 5. OI Spike Scanner — cross-coin open interest change */}
