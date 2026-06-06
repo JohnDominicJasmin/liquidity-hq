@@ -12,6 +12,7 @@ import { track } from '@/lib/analytics';
 import SetupScanner from '@/components/SetupScanner';
 import ConfluenceScorer from '@/components/ConfluenceScorer';
 import KLineProChart, { ChartTf } from '@/components/KLineProChart';
+import OISpikeScanner from '@/components/OISpikeScanner';
 
 /* ── Pattern detection — delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -1075,6 +1076,10 @@ export default function Arena() {
       {/* ── SETUP SCANNER ── */}
       <div className="dash-section">Setup Scanner</div>
       <SetupScanner coin={selectedCoin} />
+
+      {/* ── OI SPIKE SCANNER ── */}
+      <div className="dash-section">Open Interest</div>
+      <OISpikeScanner coin={selectedCoin} />
 
       {/* ── SESSION HISTORY ── */}
       {history.length > 0 && (

@@ -9,7 +9,6 @@ import RaidMeter from '@/components/RaidMeter';
 import SOTD from '@/components/SOTD';
 import NewsBanner from '@/components/NewsBanner';
 import SessionContext from '@/components/SessionContext';
-import OISpikeScanner from '@/components/OISpikeScanner';
 import SmartMoneyScore from '@/components/SmartMoneyScore';
 
 function MacroStrip() {
@@ -657,7 +656,7 @@ function CoinSignalsHeader() {
 export default function Dashboard() {
   const [cmdsOpen, setCmdsOpen]   = useState(false);
   const [gexOpen,  setGexOpen]    = useState(false);
-  const [oiScanOpen, setOiScanOpen] = useState(false);
+
   const { settings } = useSettings();
   const hide = (id: string) => settings.hidden_sections.includes(id);
 
@@ -703,20 +702,7 @@ export default function Dashboard() {
           <SmartMoneyScore />
         </>}
 
-        {/* 5. OI Spike Scanner — cross-coin open interest change */}
-        <div
-          className="dash-section"
-          style={{ cursor: 'pointer', userSelect: 'none' }}
-          onClick={() => setOiScanOpen(o => !o)}
-        >
-          OI Spike Scanner
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
-            {oiScanOpen ? '▲ hide' : '▼ show'}
-          </span>
-        </div>
-        {oiScanOpen && <OISpikeScanner />}
-
-        {/* 6. Session context — timing reference (after you know the play) */}
+        {/* 5. Session context — timing reference (after you know the play) */}
         {!hide('session') && <SessionContext />}
 
         {/* 6. Catalysts & market events */}
