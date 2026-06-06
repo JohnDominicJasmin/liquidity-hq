@@ -209,7 +209,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
               <span className="scan-alert-icon">⚠️</span>
               <span>
                 <strong style={{ color: '#f87171' }}>{highestLongLiq.id.toUpperCase()}</strong>
-                {' '}Long liq risk — score {highestLongLiq.score}
+                {' '}Long liquidation risk — score {highestLongLiq.score}
               </span>
             </div>
           )}

@@ -133,10 +133,10 @@ export default function LiqPage() {
   /* Bias */
   const bias = bands
     ? bands.totalLongM > bands.totalShortM * 1.15
-      ? { txt: 'Long-heavy', sub: 'More long liq below — whales incentivised to dump', col: '#f87171' }
+      ? { txt: 'Long-heavy', sub: 'More long liquidations below — whales incentivised to dump', col: '#f87171' }
       : bands.totalShortM > bands.totalLongM * 1.15
-      ? { txt: 'Short-heavy', sub: 'More short liq above — whales incentivised to pump', col: '#34d399' }
-      : { txt: 'Balanced', sub: 'Roughly equal liq risk on both sides', col: '#606060' }
+      ? { txt: 'Short-heavy', sub: 'More short liquidations above — whales incentivised to pump', col: '#34d399' }
+      : { txt: 'Balanced', sub: 'Roughly equal liquidation risk on both sides', col: '#606060' }
     : null;
 
   return (
@@ -193,7 +193,7 @@ export default function LiqPage() {
           {/* Stats row */}
           <div className="liq-stats-row">
             <div className="liq-stat-item">
-              <div className="liq-stat-label">Long liq risk (dump)</div>
+              <div className="liq-stat-label">Long liquidation risk (dump)</div>
               <div className="liq-stat-val" style={{ color: '#f87171' }}>{fmtM(bands.totalLongM)}</div>
               <div className="liq-stat-sub">L/S: {((cd.longRatio ?? 0.5)*100).toFixed(0)}% / {((cd.shortRatio ?? 0.5)*100).toFixed(0)}%</div>
             </div>

@@ -239,7 +239,7 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
   const dominant = Math.max(longRisk, shortRisk);
   const score = Math.min(100, dominant + (dominant > 10 ? volBonus : 0));
   if (longRisk > shortRisk && longRisk > 10)
-    return { score, dir: 'LONG_LIQ', label: 'Long liq risk ↓', color: '#ff9a92' };
+    return { score, dir: 'LONG_LIQ', label: 'Long liquidation risk ↓', color: '#ff9a92' };
   if (shortRisk > longRisk && shortRisk > 10)
     return { score, dir: 'SHORT_SQ', label: 'Short squeeze ↑', color: '#7de0a4' };
   return { score, dir: 'NEUTRAL', label: 'Balanced', color: '#606060' };
