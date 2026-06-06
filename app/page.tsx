@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMarket, COINS, BYBIT_SYMS, COIN_DEC, fmtPrice, fmtChg, fmtOI, classifyFunding, computeSqueezeScore } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { useSettings } from '@/lib/settings';
@@ -233,8 +233,25 @@ function EdgeSignals() {
   const { store } = useMarket();
   const coin = store.coins[store.selectedCoin];
   const [tipOpen, setTipOpen] = useState(false);
-  const oi1h = useOI1h(store.selectedCoin);
-  const sq   = computeSqueezeScore(coin);
+  const oi1h  = useOI1h(store.selectedCoin);
+  const sq    = computeSqueezeScore(coin);
+  const tipRef = useRef<HTMLDivElement>(null);
+
+  /* ── Close OI tooltip on outside tap / click (mobile-friendly) ── */
+  useEffect(() => {
+    if (!tipOpen) return;
+    const close = (e: MouseEvent | TouchEvent) => {
+      if (tipRef.current && !tipRef.current.contains(e.target as Node)) {
+        setTipOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('touchstart', close as EventListener, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('touchstart', close as EventListener);
+    };
+  }, [tipOpen]);
 
   /* ── Coinbase Premium ── */
   const cbAmt = store.cbPremium;
@@ -308,19 +325,18 @@ function EdgeSignals() {
         </div>
 
         {/* OI Trend — selected coin */}
-        <div className="edge-card" style={{ borderColor: oiBdr }}>
+        <div ref={tipRef} className="edge-card" style={{ borderColor: oiBdr }}>
           <div className="edge-card-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             OI · {store.selectedCoin.toUpperCase()}
             <span
               className="oi-info-icon"
-              style={{ cursor: 'pointer' }}
-              onClick={() => setTipOpen(o => !o)}
+              onClick={e => { e.stopPropagation(); setTipOpen(o => !o); }}
             >ⓘ</span>
           </div>
           {oiMeta ? (
             <>
-              <div className="edge-card-value" style={{ color: oiMeta.col, fontSize: 14 }}>{oiMeta.txt}</div>
-              <div className="edge-card-signal" style={{ color: oiMeta.col }}>{oiMeta.hint}</div>
+              <div className="edge-card-value" style={{ color: oiMeta.col }}>{oiMeta.txt}</div>
+              <div className="edge-card-signal" style={{ color: oiMeta.col }}>{oiMeta.sub}</div>
             </>
           ) : (
             <div className="edge-card-signal" style={{ color: 'var(--txt3)', marginTop: 4 }}>
@@ -635,7 +651,7 @@ function GexTable() {
               <div key={strike} className="gex-row" style={isAtm ? { background: 'rgba(255,255,255,0.03)' } : {}}>
                 <div className="gex-strike" style={isAtm ? { color: '#e8e8e8' } : {}}>
                   ${strike >= 1000 ? (strike / 1000).toFixed(0) + 'K' : strike}
-                  {isAtm && <span style={{ fontSize: 8, color: '#606060', marginLeft: 4 }}>ATM</span>}
+                  {isAtm && <span style={{ fontSize: 10, color: '#606060', marginLeft: 4 }}>ATM</span>}
                 </div>
                 <div className="gex-bar-wrap">
                   <div className="gex-bar-fill" style={{ width: `${pct}%`, background: col }} />
