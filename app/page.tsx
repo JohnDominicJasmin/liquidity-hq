@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useMarket, COINS, BYBIT_SYMS, COIN_DEC, fmtPrice, fmtChg, fmtOI, classifyFunding } from '@/lib/marketStore';
+import { useMarket, COINS, BYBIT_SYMS, COIN_DEC, fmtPrice, fmtChg, fmtOI, classifyFunding, computeSqueezeScore } from '@/lib/marketStore';
+import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { useSettings } from '@/lib/settings';
 import Ticker from '@/components/Ticker';
 import FearGreed from '@/components/FearGreed';
@@ -232,6 +233,8 @@ function EdgeSignals() {
   const { store } = useMarket();
   const coin = store.coins[store.selectedCoin];
   const [tipOpen, setTipOpen] = useState(false);
+  const oi1h = useOI1h(store.selectedCoin);
+  const sq   = computeSqueezeScore(coin);
 
   /* ── Coinbase Premium ── */
   const cbAmt = store.cbPremium;
@@ -406,7 +409,61 @@ function EdgeSignals() {
         })()}
       </div>
 
-      {/* Row 3: Taker Buy/Sell ratio table */}
+      {/* Row 3: OI 1h Change + Setup Scanner */}
+      {(() => {
+        /* ── OI 1h Change ── */
+        const { txt: oi1hTxt, col: oi1hCol } = oi1hSignal(oi1h.pct, coin?.oiTrend);
+        const oi1hPctStr = oi1h.pct != null
+          ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%'
+          : '—';
+        const oi1hBdr = oi1h.pct == null ? 'var(--bdr)'
+          : oi1h.pct >= 10  ? 'var(--green-bdr)'
+          : oi1h.pct <= -10 ? 'var(--red-bdr)'
+          : 'var(--bdr)';
+
+        const oi1hUsdStr = oi1h.oiUsd != null
+          ? oi1h.oiUsd >= 1e9 ? '$' + (oi1h.oiUsd / 1e9).toFixed(2) + 'B'
+          : oi1h.oiUsd >= 1e6 ? '$' + (oi1h.oiUsd / 1e6).toFixed(1) + 'M'
+          : '$' + oi1h.oiUsd.toFixed(0)
+          : null;
+
+        /* ── Setup Scanner ── */
+        const sqCol = sq.dir === 'LONG_LIQ' ? '#f87171'
+          : sq.dir === 'SHORT_SQ'           ? '#34d399'
+          : 'var(--txt3)';
+        const sqBdr = sq.dir === 'LONG_LIQ' ? 'var(--red-bdr)'
+          : sq.dir === 'SHORT_SQ'           ? 'var(--green-bdr)'
+          : 'var(--bdr)';
+
+        return (
+          <div className="edge-grid">
+            {/* OI 1h Change */}
+            <div className="edge-card" style={{ borderColor: oi1hBdr }}>
+              <div className="edge-card-label">OI 1h · {store.selectedCoin.toUpperCase()}</div>
+              <div className="edge-card-value" style={{ color: oi1hCol }}>
+                {oi1h.loading ? '—' : oi1hPctStr}
+              </div>
+              {oi1hUsdStr && (
+                <div className="edge-card-sub" style={{ color: 'var(--txt3)' }}>{oi1hUsdStr}</div>
+              )}
+              <div className="edge-card-signal" style={{ color: oi1hCol }}>
+                {oi1h.loading ? 'Loading…' : oi1hTxt}
+              </div>
+            </div>
+
+            {/* Setup Scanner */}
+            <div className="edge-card" style={{ borderColor: sqBdr }}>
+              <div className="edge-card-label">Setup Scanner · {store.selectedCoin.toUpperCase()}</div>
+              <div className="edge-card-value" style={{ color: sqCol }}>
+                {sq.score}<span style={{ fontSize: 11, color: 'var(--txt3)', fontWeight: 400 }}>/100</span>
+              </div>
+              <div className="edge-card-signal" style={{ color: sqCol }}>{sq.label}</div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Row 4: Taker Buy/Sell ratio table */}
       <div className="taker-table">
         <div className="taker-title">
           Taker Buy/Sell Pressure

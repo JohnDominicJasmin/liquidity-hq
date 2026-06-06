@@ -9,10 +9,9 @@ import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
-import SetupScanner from '@/components/SetupScanner';
 import ConfluenceScorer from '@/components/ConfluenceScorer';
 import KLineProChart, { ChartTf } from '@/components/KLineProChart';
-import OISpikeScanner from '@/components/OISpikeScanner';
+import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 
 /* ── Pattern detection — delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -108,6 +107,7 @@ export default function Arena() {
   const [readTf, setReadTf]         = useState<ChartTf>('15m');
   const arenaInitRef  = useRef(false);
   const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '—' });
+  const oi1h          = useOI1h(selectedCoin);
   const [readLoading, setReadLoading] = useState(false);
   const [readStep, setReadStep]       = useState('');
   const [readError, setReadError]     = useState('');
@@ -141,6 +141,13 @@ export default function Arena() {
       }
     }
   }, [settings.default_coin, settings.default_tf]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Sync OI 1h hook data → ref (used by Grok context builder) ── */
+  useEffect(() => {
+    if (oi1h.loading || oi1h.pct == null) return;
+    const { txt } = oi1hSignal(oi1h.pct, store.coins[selectedCoin]?.oiTrend);
+    oi1hDataRef.current = { pct: oi1h.pct, signal: txt };
+  }, [oi1h.pct, oi1h.loading, selectedCoin, store.coins]);
 
   /* ── Fetch today's usage on mount (and whenever auth state changes) ── */
   useEffect(() => {
@@ -1087,16 +1094,6 @@ export default function Arena() {
       <div className="dash-section" style={{ marginTop: 16 }}>Confluence Score</div>
       <ConfluenceScorer coin={selectedCoin} />
 
-      {/* ── SETUP SCANNER ── */}
-      <div className="dash-section">Setup Scanner</div>
-      <SetupScanner coin={selectedCoin} />
-
-      {/* ── OI SPIKE SCANNER ── */}
-      <div className="dash-section">Open Interest</div>
-      <OISpikeScanner
-        coin={selectedCoin}
-        onData={(pct, signal) => { oi1hDataRef.current = { pct, signal }; }}
-      />
 
       {/* ── SESSION HISTORY ── */}
       {history.length > 0 && (
