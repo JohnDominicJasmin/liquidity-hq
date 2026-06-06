@@ -17,6 +17,7 @@ const NAV = [
   { path: '/playbook',    icon: '📖', label: 'Playbook',    desk: false },
   null,
   { path: '/arena',       icon: '🤖', label: 'LiquidityAI', desk: true  },
+  { path: '/scanner',     icon: '📡', label: 'Scanner',      desk: true  },
   { path: '/liq',         icon: '🔥', label: 'Liq Map',     desk: true  },
   { path: '/funding',     icon: '💸', label: 'FR History',  desk: true  },
   { path: '/correlation', icon: '🔗', label: 'Correlation', desk: true  },
