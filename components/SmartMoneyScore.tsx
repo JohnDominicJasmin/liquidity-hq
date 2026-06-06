@@ -55,7 +55,7 @@ export default function SmartMoneyScore() {
     name: 'Exch. Flow', badge: 'BTC',
     value: flow != null ? (flow >= 0 ? '+$' : '−$') + Math.abs(flow).toFixed(0) + 'M' : '—',
     score: flowScore,
-    note: flow == null         ? 'Fetching…'
+    note: flow == null         ? 'LiquidityAI searches live'
       : flowScore >=  2 ? 'Heavy outflow — accumulation ▲'
       : flowScore ===  1 ? 'Outflow — mild accum.'
       : flowScore <= -2 ? 'Heavy inflow — sell pressure ▼'
@@ -162,7 +162,7 @@ export default function SmartMoneyScore() {
             <div className="sms-score-chip" style={{ background: bg, color: sc }}>
               {row.has ? (row.score > 0 ? '+' : '') + row.score : '—'}
             </div>
-            <div className="sms-row-note" style={{ color: row.has ? sc : '#333' }}>{row.note}</div>
+            <div className="sms-row-note" style={{ color: row.has ? sc : 'var(--txt3)' }}>{row.note}</div>
           </div>
         );
       })}
