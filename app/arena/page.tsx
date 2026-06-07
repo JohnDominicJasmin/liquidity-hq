@@ -13,6 +13,7 @@ import ConfluenceScorer from '@/components/ConfluenceScorer';
 import KLineProChart, { ChartTf } from '@/components/KLineProChart';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import MarketStructure, { MSData } from '@/components/MarketStructure';
+import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
 
 /* ── Pattern detection — delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -109,6 +110,7 @@ export default function Arena() {
   const arenaInitRef  = useRef(false);
   const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '—' });
   const msDataRef     = useRef<MSData | null>(null);
+  const absDataRef    = useRef<AbsorptionData | null>(null);
   const oi1h          = useOI1h(selectedCoin);
   const [readLoading, setReadLoading] = useState(false);
   const [readStep, setReadStep]       = useState('');
@@ -154,6 +156,11 @@ export default function Arena() {
   /* ── Market Structure data callback — keeps ref in sync without re-renders ── */
   const handleMsData = useCallback((d: MSData | null) => {
     msDataRef.current = d;
+  }, []);
+
+  /* ── Absorption Detector data callback ── */
+  const handleAbsData = useCallback((d: AbsorptionData | null) => {
+    absDataRef.current = d;
   }, []);
 
   /* ── Fetch today's usage on mount (and whenever auth state changes) ── */
@@ -617,6 +624,18 @@ export default function Arena() {
         if (ms.lastSwingLow  != null) s += ` · SL $${fmtPrice(ms.lastSwingLow)}`;
         return s;
       })(),
+      absorptionScore: (() => {
+        const ab = absDataRef.current;
+        if (!ab || ab.label === 'None') return 'None';
+        let s = `${ab.label} ${ab.type === 'accumulation' ? 'ACCUMULATION' : ab.type === 'distribution' ? 'DISTRIBUTION' : ''} (${ab.score}/100)`;
+        if (ab.duration > 0) {
+          const m = ab.durationMin;
+          s += ` · ${ab.duration} candles (~${m < 60 ? m + 'm' : Math.floor(m/60) + 'h' + (m % 60 ? ' ' + m % 60 + 'm' : '')})`;
+        }
+        if (ab.nearLevel) s += ` · ${ab.nearLevel}`;
+        if (ab.mtfConfirmed) s += ' · 1H CONFIRMED';
+        return s;
+      })(),
     };
   };
 
@@ -791,6 +810,9 @@ export default function Arena() {
 
       {/* ── MARKET STRUCTURE (4H BOS / CHoCH) ── */}
       <MarketStructure coin={selectedCoin} onData={handleMsData} />
+
+      {/* ── ABSORPTION DETECTOR (15M) ── */}
+      <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />
 
       {/* ── SIGNAL ENGINE ── */}
       {/* Squeeze score */}
@@ -1080,6 +1102,7 @@ export default function Arena() {
         {ctxOpen && [
           ['Coin', ctx.coin], ['Price', ctx.price], ['24h Δ', ctx.change24h],
           ['Market Structure', ctx.marketStructure.length > 55 ? ctx.marketStructure.slice(0, 55) + '…' : ctx.marketStructure],
+          ['Absorption', ctx.absorptionScore.length > 55 ? ctx.absorptionScore.slice(0, 55) + '…' : ctx.absorptionScore],
           ['RSI 15m', ctx.rsi14], ['RSI 1h', ctx.rsi1h], ['RSI 4h', ctx.rsi4h], ['RSI 1D', ctx.rsiDaily],
           ['CVD Divergence', ctx.cvdDivergence],
           ['MA20 (15m)', ctx.ma20], ['vs MA20', ctx.priceVsMA],

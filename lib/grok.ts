@@ -129,6 +129,8 @@ export interface GrokContext {
   oi1hChange: string;
   /* Market Structure (4H BOS/CHoCH) */
   marketStructure: string;
+  /* Absorption Detector (15M) */
+  absorptionScore: string;
 }
 
 export interface GrokResult {
@@ -159,6 +161,8 @@ export function buildPrompt(ctx: GrokContext): string {
     `RSI (14, 1D):  ${ctx.rsiDaily}`,
     `CVD (last 200 trades):  ${ctx.cvd}`,
     `CVD Divergence:  ${ctx.cvdDivergence}`,
+    `Absorption Detector (15M):  ${ctx.absorptionScore}`,
+    '(Absorption = high volume + small candle bodies → big player absorbing orders. ACCUM = buyers absorbing sells, price should fall but holds → hidden accumulation. DISTRIB = sellers absorbing buys, price should rise but stalls → hidden distribution. Strong + CVD confirm + 1H confirm = high conviction.)',
     `Fibonacci nearest level:  ${ctx.fibNearest}`,
     `Volume Profile POC/VAH/VAL:  ${ctx.pocLine}`,
     `VWAP (15m, 100 candles):  ${ctx.vwap}`,
