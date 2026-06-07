@@ -12,6 +12,7 @@ import NewsBanner from '@/components/NewsBanner';
 import SessionContext from '@/components/SessionContext';
 import SmartMoneyScore from '@/components/SmartMoneyScore';
 import OISpikeScanner from '@/components/OISpikeScanner';
+import SentimentExtremesAlert from '@/components/SentimentExtremesAlert';
 
 function MacroStrip() {
   const { store } = useMarket();
@@ -768,6 +769,9 @@ export default function Dashboard() {
 
         {/* 3. Cascade alert — contextual, only renders when active */}
         {!hide('cascade') && <CascadeAlertBanner />}
+
+        {/* 3b. Sentiment extremes — fires when F&G + FR + L/S all aligned extreme */}
+        <SentimentExtremesAlert />
 
         {/* 4. Coin signals — confirm the setup */}
         {!hide('coin_signals') && <>
