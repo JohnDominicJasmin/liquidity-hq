@@ -1035,6 +1035,41 @@ export default function Arena() {
               </div>
             )}
 
+            {/* ── Liquidity Raid Setup ── */}
+            {result.raidSetup && (
+              <div className="arena-raid-block" style={{
+                marginTop: 10,
+                borderRadius: 10,
+                border: `0.5px solid ${result.raidSetup === 'SHORT SQUEEZE' ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
+                background: result.raidSetup === 'SHORT SQUEEZE' ? 'rgba(52,211,153,0.06)' : 'rgba(248,113,113,0.06)',
+                overflow: 'hidden',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 12px 6px', borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ fontSize: 15 }}>{result.raidSetup === 'SHORT SQUEEZE' ? '⚡' : '🔥'}</span>
+                  <span style={{
+                    fontSize: 11, fontWeight: 800, letterSpacing: '.05em',
+                    color: result.raidSetup === 'SHORT SQUEEZE' ? '#34d399' : '#f87171',
+                  }}>
+                    LIQUIDITY RAID — {result.raidSetup}
+                  </span>
+                </div>
+                <div style={{ padding: '7px 12px 8px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {result.raidTarget && (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.05em', minWidth: 52, flexShrink: 0 }}>Target</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>{result.raidTarget}</span>
+                    </div>
+                  )}
+                  {result.raidTrigger && (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.05em', minWidth: 52, flexShrink: 0 }}>Trigger</span>
+                      <span style={{ fontSize: 11, color: 'var(--txt2)', lineHeight: 1.5 }}>{result.raidTrigger}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Catalysts — events/news driving the trade */}
             {result.catalysts && result.catalysts.length > 0 && (
               <div className="arena-reasoning" style={{ marginTop: 10, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>

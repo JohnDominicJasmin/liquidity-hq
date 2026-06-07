@@ -418,6 +418,9 @@ export interface CombinedResult {
   reasoning: string;
   catalysts: string[];
   waitFor: string | null;  // FLAT only: what to watch before entering
+  raidSetup: 'SHORT SQUEEZE' | 'LONG FLUSH' | null;  // liquidity raid potential
+  raidTarget: string | null;   // price level / range where liquidations cluster
+  raidTrigger: string | null;  // one-line confirmation signal
   analyzedAt: number;
   tf: string;
   session: string;
@@ -468,6 +471,9 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     'PATTERNS:',
     '- [identify chart patterns from the candle data: e.g. "Bear flag", "Bull flag", "Head and shoulders", "Double top", "Double bottom", "Ascending triangle", "Descending triangle", "Rising wedge", "Falling wedge", "Bullish engulfing", "Bearish engulfing", "Doji reversal", "Higher highs / higher lows", "Lower highs / lower lows" — be specific with price context. Write "None detected" if no clear pattern]',
     'WAIT_FOR: [REQUIRED when SIGNAL is FLAT. Write exactly: (1) which exhaustion or continuation signals you counted, (2) the specific price level to watch, (3) what candle/volume pattern would confirm a setup, (4) what derivative condition (funding, L/S ratio, taker ratio) would change your signal. Example: "Exhaustion: volume drying up + funding neutral. Watch $1.85 for a hammer/doji with volume spike. Need L/S ratio to drop below 1.2 and taker buy to recover above 50% before entering long. Alternatively wait for a clean break below $1.72 fib support for short." Write N/A if SIGNAL is LONG or SHORT.]',
+    'RAID_SETUP: [Analyze the liquidation clusters, long/short crowding, funding rate, and order walls to determine IF a liquidity raid is likely. Output one of: SHORT SQUEEZE (shorts overcrowded + upside liquidation cluster reachable) | LONG FLUSH (longs overcrowded + downside liquidation cluster reachable) | NONE. A raid is likely when: one side is heavily crowded AND there is a visible liquidation cluster within 2-5% of current price AND funding confirms the crowding direction.]',
+    'RAID_TARGET: [The specific price level or range where the liquidation cluster sits — this is where price would hunt before reversing. Format: "$X.XX" or "$X.XX – $X.XX". Write N/A if RAID_SETUP is NONE.]',
+    'RAID_TRIGGER: [One sentence: the specific price action, volume, or candle pattern that would CONFIRM the raid is starting. E.g. "Break and hold above $2.05 on the 15m with volume spike triggers short liquidation cascade." Write N/A if RAID_SETUP is NONE.]',
     'REASONING: [3-4 sentences combining chart + derivatives + macro + news into one directional thesis. If FLAT, state whether selling is EXHAUSTING or CONTINUING and why.]',
   ].join('\n');
 
@@ -546,12 +552,27 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
     ? waitForRaw.trim()
     : null;
 
+  // WAIT_FOR stops at RAID_SETUP
+  const waitForRaw2 = stripMd(
+    clean.match(/\*{0,2}WAIT_FOR\*{0,2}:\s*([\s\S]*?)(?=\n\*{0,2}RAID_SETUP\*{0,2}:|\n\*{0,2}REASONING\*{0,2}:|$)/i)?.[1] ?? ''
+  );
+  const waitForFinal = (waitForRaw2 && waitForRaw2.toLowerCase() !== 'n/a' && waitForRaw2.trim().length > 5)
+    ? waitForRaw2.trim() : waitFor;
+
+  // RAID fields
+  const raidRaw    = clean.match(/RAID_SETUP:\s*(SHORT SQUEEZE|LONG FLUSH|NONE)/i)?.[1]?.toUpperCase();
+  const raidSetup  = raidRaw === 'SHORT SQUEEZE' ? 'SHORT SQUEEZE' : raidRaw === 'LONG FLUSH' ? 'LONG FLUSH' : null;
+  const raidTargetRaw  = stripMd(clean.match(/RAID_TARGET:\s*([^\n]+)/i)?.[1] ?? '');
+  const raidTarget = (raidTargetRaw && !/^n\/a$/i.test(raidTargetRaw.trim())) ? raidTargetRaw.trim() : null;
+  const raidTriggerRaw = stripMd(clean.match(/RAID_TRIGGER:\s*([^\n]+)/i)?.[1] ?? '');
+  const raidTrigger = (raidTriggerRaw && !/^n\/a$/i.test(raidTriggerRaw.trim())) ? raidTriggerRaw.trim() : null;
+
   // REASONING — handle **REASONING:** pattern
   const reasoning = stripMd(
     clean.match(/\*{0,2}REASONING\*{0,2}:\s*([\s\S]+)/i)?.[1] ?? ''
   );
 
-  return { signal, confidence, entryLow, entryHigh, tp, sl, levels, catalysts, chartAnalysis, patterns, waitFor, reasoning, analyzedAt: Date.now(), tf, session };
+  return { signal, confidence, entryLow, entryHigh, tp, sl, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, analyzedAt: Date.now(), tf, session };
 }
 
 /* ── Quick prompt — strips the LIVE SEARCH TASK block (no web search needed) ── */
