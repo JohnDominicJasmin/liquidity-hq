@@ -734,6 +734,34 @@ export default function Arena() {
       if (usage) setGrokUsage(usage);
       track.arenaAnalysis(mode, selectedCoin);
 
+      // ── Liquidity Raid → Telegram alert (1h cooldown per coin + setup type) ──
+      if (res.raidSetup) {
+        try {
+          const raidKey  = `raid-tg-${selectedCoin}-${res.raidSetup}`;
+          const lastSent = Number(localStorage.getItem(raidKey) ?? 0);
+          if (Date.now() - lastSent > 60 * 60 * 1000) {
+            localStorage.setItem(raidKey, String(Date.now()));
+            const sym  = selectedCoin.toUpperCase();
+            const lines: string[] = [
+              '<b>LIQUIDITY RAID DETECTED</b>',
+              `<b>${res.raidSetup} — ${sym}/USDT</b>`,
+              '',
+            ];
+            if (res.raidTarget)  lines.push(`Target: ${res.raidTarget}`);
+            if (res.raidTrigger) lines.push(`Trigger: ${res.raidTrigger}`);
+            lines.push(`Signal: ${res.signal} · ${res.confidence}% confidence`);
+            lines.push(`Session: ${ctx.session}`);
+            lines.push('');
+            lines.push('<i>LiquidityHQ Arena</i>');
+            fetch('/api/telegram/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ message: lines.join('\n') }),
+            }).catch(() => { /* silent — alert failure must not block UI */ });
+          }
+        } catch { /* localStorage unavailable — skip silently */ }
+      }
+
       // Cache result per coin (with price snapshot for stale-check)
       const priceNow = store.coins[selectedCoin]?.price ?? 0;
       setResultsCache(prev => ({ ...prev, [selectedCoin]: { result: res, priceAtAnalysis: priceNow, mode } }));
