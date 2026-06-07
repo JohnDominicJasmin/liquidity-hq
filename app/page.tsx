@@ -11,6 +11,7 @@ import SOTD from '@/components/SOTD';
 import NewsBanner from '@/components/NewsBanner';
 import SessionContext from '@/components/SessionContext';
 import SmartMoneyScore from '@/components/SmartMoneyScore';
+import OISpikeScanner from '@/components/OISpikeScanner';
 
 function MacroStrip() {
   const { store } = useMarket();
@@ -773,6 +774,7 @@ export default function Dashboard() {
           <CoinSignalsHeader />
           <EdgeSignals />
           <SmartMoneyScore />
+          <OISpikeScanner />
         </>}
 
         {/* 5. Session context — timing reference (after you know the play) */}

@@ -3037,3 +3037,23 @@ body.ticker-on .breaking-alert { top: 90px; }
 .abs-mtf          { display: flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 11px; color: var(--txt3); border-bottom: 0.5px solid var(--bdr); }
 .abs-mtf-badge    { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: rgba(52,211,153,0.1); color: #34d399; border: 0.5px solid rgba(52,211,153,0.3); flex-shrink: 0; }
 .abs-footer       { padding: 6px 14px 8px; font-size: 10px; color: var(--txt3); line-height: 1.5; }
+
+/* ── OI SPIKE SCANNER ────────────────────────────────────────────────── */
+.ois-card         { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 16px; margin-bottom: 10px; overflow: hidden; }
+.ois-header       { display: flex; justify-content: space-between; align-items: center; padding: 11px 14px 9px; border-bottom: 0.5px solid var(--bdr); }
+.ois-title        { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--txt3); }
+.ois-age          { font-size: 10px; color: var(--txt3); }
+.ois-row          { display: flex; align-items: center; gap: 8px; padding: 7px 14px; border-bottom: 0.5px solid var(--bdr); }
+.ois-row-spike    { background: rgba(255,255,255,0.025); }
+.ois-row-notable  { background: rgba(255,255,255,0.012); }
+.ois-dot          { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.ois-coin         { font-size: 12px; font-weight: 700; color: var(--txt); min-width: 38px; letter-spacing: .02em; }
+.ois-oi-usd       { font-size: 10px; color: var(--txt3); min-width: 52px; font-variant-numeric: tabular-nums; }
+.ois-pct          { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 58px; text-align: right; }
+.ois-signal       { font-size: 10px; font-weight: 600; letter-spacing: .03em; flex: 1; }
+.ois-spike-badge  { font-size: 9px; font-weight: 700; letter-spacing: .06em; padding: 1px 6px; border-radius: 4px; flex-shrink: 0; white-space: nowrap; }
+.ois-footer       { padding: 6px 14px 8px; font-size: 10px; color: var(--txt3); line-height: 1.5; }
+
+@media (max-width: 380px) {
+  .ois-oi-usd { display: none; }
+}
