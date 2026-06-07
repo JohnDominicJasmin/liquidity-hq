@@ -292,7 +292,7 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
         <span className="abs-title">Absorption Detector · 15M</span>
         {d.type ? (
           <span className="abs-type-badge" style={{ color: typeCol, background: typeBg, border: `0.5px solid ${typeCol}44` }}>
-            {d.type === 'accumulation' ? '▲ ACCUM' : '▼ DISTRIB'}
+            {d.type === 'accumulation' ? '▲ ACCUMULATION' : '▼ DISTRIBUTION'}
           </span>
         ) : (
           <span style={{ fontSize: 11, color: '#4b5563', fontWeight: 600 }}>No Signal</span>
