@@ -510,7 +510,12 @@ function EdgeSignals() {
         <div className="taker-hdr">
           <div>Coin</div><div>Buy/Sell split</div><div>Signal</div>
         </div>
-        {COINS.map(id => {
+        {(() => {
+          const coinsWithData = COINS.filter(id => store.coins[id]?.takerBuyRatio != null);
+          const noDataCount   = COINS.length - coinsWithData.length;
+          return (
+            <>
+              {coinsWithData.map(id => {
           const c = store.coins[id];
           const ratio = c?.takerBuyRatio;   // 0.0–1.0
           const buyPct  = ratio != null ? Math.round(ratio * 100) : null;
@@ -520,7 +525,6 @@ function EdgeSignals() {
           const isMildBuy = buyPct != null && buyPct >= 55 && buyPct < 65;
           const isAggSell = buyPct != null && buyPct <= 35;
           const isMildSell = buyPct != null && buyPct > 35 && buyPct <= 45;
-          const isBalanced = buyPct != null && buyPct > 45 && buyPct < 55;
 
           const sigTxt = buyPct == null  ? '—'
             : isAggBuy   ? `${buyPct}% buyers ▲`
@@ -556,6 +560,14 @@ function EdgeSignals() {
             </div>
           );
         })}
+              {noDataCount > 0 && (
+                <div style={{ fontSize: 11, color: '#333', padding: '6px 10px', borderTop: '1px solid #1a1a1a' }}>
+                  +{noDataCount} coins without taker data (Bybit-only)
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
 
     </>

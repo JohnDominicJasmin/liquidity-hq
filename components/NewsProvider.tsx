@@ -47,6 +47,7 @@ interface NewsCtx {
   dismissAlert: (id: number) => void;
   econEvents: EconEvent[];
   geoEvents: GeoEvent[];
+  eventsLoaded: boolean;
   newsActive: boolean;
   latestHeadlines: string[];
   whaleAlerts: WhaleAlert[];
@@ -82,6 +83,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [econEvents, setEconEvents] = useState<EconEvent[]>([]);
   const [geoEvents, setGeoEvents] = useState<GeoEvent[]>([]);
+  const [eventsLoaded, setEventsLoaded] = useState(false);
   const [latestHeadlines, setLatestHeadlines] = useState<string[]>([]);
   const [whaleAlerts, setWhaleAlerts] = useState<WhaleAlert[]>([]);
   const seenRef = useRef<Set<string>>(new Set());
@@ -174,6 +176,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
       });
       out.sort((a, b) => a.dt.getTime() - b.dt.getTime());
       setEconEvents(out);
+      setEventsLoaded(true);
 
       out.filter(e => e.h < 1).forEach(e => {
         pushAlert(`Upcoming: ${e.name} — ${countdown(e.h)}`, 'Finnhub Calendar', Math.floor(Date.now() / 1000), 'amber');
@@ -271,7 +274,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const newsActive = alerts.some(a => Date.now() / 1000 - a.ts < 5 * 60);
 
   return (
-    <NewsContext.Provider value={{ alerts, dismissAlert, econEvents, geoEvents, newsActive, latestHeadlines, whaleAlerts }}>
+    <NewsContext.Provider value={{ alerts, dismissAlert, econEvents, geoEvents, eventsLoaded, newsActive, latestHeadlines, whaleAlerts }}>
       {children}
     </NewsContext.Provider>
   );

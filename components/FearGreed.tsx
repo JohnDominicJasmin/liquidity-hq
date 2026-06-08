@@ -2,11 +2,11 @@
 import { useMarket } from '@/lib/marketStore';
 
 const FNG_NOTES: Record<string, string> = {
-  'Extreme Fear':  'Whales accumulate here — bounce raid likely.',
-  'Fear':          'Retail nervous — watch for squeeze setups.',
-  'Neutral':       'No strong bias — follow cluster + funding.',
-  'Greed':         'Longs overleveraged — short squeeze risk.',
-  'Extreme Greed': 'Everyone long & euphoric — whale hunt imminent.',
+  'Extreme Fear':  'Whales accumulate — bounce raids likely',
+  'Fear':          'Retail nervous — watch squeeze setups',
+  'Neutral':       'No bias — follow cluster + funding',
+  'Greed':         'Longs overleveraged — dump risk',
+  'Extreme Greed': 'Everyone long — whale hunt imminent',
 };
 
 function getScoreCls(v: number): string {
@@ -46,9 +46,6 @@ export default function FearGreed() {
           <div className="fng-right">
             <div className="fng-bar-bg">
               <div className="fng-marker" style={{ left: fng + '%' }} />
-            </div>
-            <div className="fng-zones">
-              <span>Fear</span><span>Neutral</span><span>Greed</span>
             </div>
             <div className="fng-note">{FNG_NOTES[fngLabel] || FNG_NOTES['Neutral']}</div>
           </div>

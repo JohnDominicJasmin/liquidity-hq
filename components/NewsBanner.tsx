@@ -12,7 +12,7 @@ function countdown(h: number): string {
 }
 
 export default function NewsBanner() {
-  const { econEvents, geoEvents } = useNews();
+  const { econEvents, geoEvents, eventsLoaded } = useNews();
   const [hidden, setHidden] = useState(false);
 
   if (hidden) return (
@@ -34,7 +34,11 @@ export default function NewsBanner() {
       </div>
       <div className="news-scroll">
         <div className="news-row">
-          {!hasItems && <div style={{ fontSize: 12, color: '#606060', padding: '8px 0' }}>Loading events...</div>}
+          {!hasItems && (
+            <div style={{ fontSize: 12, color: '#555', padding: '8px 0' }}>
+              {eventsLoaded ? 'No upcoming events' : 'Loading events…'}
+            </div>
+          )}
 
           {econEvents.map((e, i) => {
             const timeCls = e.h < 2 ? 'nc-time-urgent' : e.h < 24 ? 'nc-time-soon' : 'nc-time-ok';

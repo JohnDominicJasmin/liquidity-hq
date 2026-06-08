@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import { useMarket } from '@/lib/marketStore';
 
 /* ── Score chip colours ── */
@@ -34,6 +35,7 @@ interface SRow {
 
 export default function SmartMoneyScore() {
   const { store } = useMarket();
+  const [open, setOpen] = useState(false);
   const coin     = store.selectedCoin;
   const coinData = store.coins[coin];
   const ticker   = coin.toUpperCase();
@@ -212,25 +214,42 @@ export default function SmartMoneyScore() {
         </div>
       </div>
 
-      {/* ── Column headers ── */}
-      <div className="sms-hdr">
-        <div>Signal</div>
-        <div>Value</div>
-        <div>Score</div>
-        <div>Reading</div>
-      </div>
+      {/* ── Toggle breakdown ── */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          width: '100%', background: 'none', border: 'none',
+          borderTop: '1px solid #1a1a1a', padding: '6px 0 2px',
+          fontSize: 11, color: 'var(--txt3)', cursor: 'pointer',
+          textAlign: 'center', letterSpacing: '0.04em',
+        }}
+      >
+        {open ? '▲ hide breakdown' : '▼ show breakdown'}
+      </button>
 
-      {/* ── Market section ── */}
-      <div className="sms-section-label">Market (BTC-wide)</div>
-      {marketRows.map(renderRow)}
+      {open && (
+        <>
+          {/* ── Column headers ── */}
+          <div className="sms-hdr">
+            <div>Signal</div>
+            <div>Value</div>
+            <div>Score</div>
+            <div>Reading</div>
+          </div>
 
-      {/* ── Coin section ── */}
-      <div className="sms-section-label">{ticker} Positioning</div>
-      {coinRows.map(renderRow)}
+          {/* ── Market section ── */}
+          <div className="sms-section-label">Market (BTC-wide)</div>
+          {marketRows.map(renderRow)}
 
-      <div className="sms-footer">
-        Score range ±12 · each signal ±2 pts · updates with live data
-      </div>
+          {/* ── Coin section ── */}
+          <div className="sms-section-label">{ticker} Positioning</div>
+          {coinRows.map(renderRow)}
+
+          <div className="sms-footer">
+            Score range ±12 · each signal ±2 pts · updates with live data
+          </div>
+        </>
+      )}
     </div>
   );
 }

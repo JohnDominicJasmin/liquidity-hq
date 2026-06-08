@@ -57,6 +57,7 @@ export default function RaidMeter() {
   const coin = coins[selectedCoin];
   const fundRpm = coin?.fundingRate != null ? classifyFunding(coin.fundingRate).rpm : 'neu';
   const [manualFund, setManualFund] = useState<'pos' | 'neg' | 'neu' | null>(null);
+  const [showOverride, setShowOverride] = useState(false);
   const rpmFunding = manualFund ?? fundRpm;
 
   const [rpm, setRpm] = useState(() => calcRPM(fng ?? 50, rpmFunding));
@@ -102,18 +103,30 @@ export default function RaidMeter() {
           ))}
         </div>
         <div className="rpm-funding-row">
-          <div className="rpm-funding-label">Override funding:</div>
-          <div className="rpm-funding-opts">
-            {(['pos', 'neg', 'neu'] as const).map(opt => (
-              <button
-                key={opt}
-                className={`rpm-fopt${rpmFunding === opt ? ` active-${opt}` : ''}`}
-                onClick={() => setManualFund(f => f === opt ? null : opt)}
-              >
-                {opt === 'pos' ? '+ve / Long heavy' : opt === 'neg' ? '-ve / Short heavy' : 'Neutral'}
-              </button>
-            ))}
-          </div>
+          <button
+            onClick={() => setShowOverride(v => !v)}
+            style={{
+              background: 'none', border: 'none', padding: 0,
+              fontSize: 11, color: manualFund ? '#fbbf24' : 'var(--txt3)',
+              cursor: 'pointer', letterSpacing: '0.04em',
+            }}
+          >
+            ⚙ {manualFund ? `override: ${manualFund === 'pos' ? '+ve' : manualFund === 'neg' ? '-ve' : 'neutral'}` : 'override funding'}
+            {showOverride ? ' ▲' : ' ▼'}
+          </button>
+          {showOverride && (
+            <div className="rpm-funding-opts" style={{ marginTop: 6 }}>
+              {(['pos', 'neg', 'neu'] as const).map(opt => (
+                <button
+                  key={opt}
+                  className={`rpm-fopt${rpmFunding === opt ? ` active-${opt}` : ''}`}
+                  onClick={() => { setManualFund(f => f === opt ? null : opt); }}
+                >
+                  {opt === 'pos' ? '+ve / Long heavy' : opt === 'neg' ? '-ve / Short heavy' : 'Neutral'}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

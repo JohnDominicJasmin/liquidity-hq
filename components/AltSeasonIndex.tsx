@@ -18,14 +18,10 @@ function getScoreCls(score: number) {
 }
 
 const NOTES: Record<string, string> = {
-  'Alt Season 🚀':
-    'Over 75% of top 50 altcoins outperformed BTC over 90 days. Broad alt rally is active. Risk-on rotation in full swing.',
-  'Leaning Alts':
-    'Majority of alts beating BTC. Early-to-mid alt rotation. Monitor for continuation — but diversification is working.',
-  'Leaning BTC':
-    'Most alts underperforming BTC. Dominance is rising. Consider reducing alt exposure and riding BTC strength.',
-  'Bitcoin Season ₿':
-    'Less than 25% of top 50 alts beating BTC. Heavy Bitcoin season. Alts are bleeding in BTC terms — stay selective.',
+  'Alt Season 🚀':  'Broad alt rally active — ride alts',
+  'Leaning Alts':   'Alts beating BTC — early rotation',
+  'Leaning BTC':    'Alts lagging — ride BTC strength',
+  'Bitcoin Season ₿': 'BTC dominance rising — stay selective',
 };
 
 // ─── Storage keys for yesterday comparison ─────────────────────────────────
@@ -80,9 +76,6 @@ export default function AltSeasonIndex() {
             <div className="alt-bar-bg">
               <div className="fng-marker" style={{ left: altSeasonScore + '%' }} />
             </div>
-            <div className="fng-zones">
-              <span>BTC ₿</span><span>Neutral</span><span>Alts 🚀</span>
-            </div>
             <div className="fng-note">{NOTES[label]}</div>
           </div>
         </div>
@@ -98,9 +91,6 @@ export default function AltSeasonIndex() {
           </div>
         )}
 
-        <div className="alt-sub-note">
-          {altSeasonScore >= 75 ? `${altSeasonScore}` : altSeasonScore}% of top 50 alts outperformed BTC (90d) · resets daily
-        </div>
       </div>
     </div>
   );
