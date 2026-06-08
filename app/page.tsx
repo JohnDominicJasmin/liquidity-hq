@@ -64,7 +64,7 @@ function MacroStrip() {
               <div className="macro-item-chg" style={{
                 color: chg == null ? 'var(--txt3)' : chg >= 0 ? 'var(--green)' : 'var(--red)',
               }}>
-                {chg != null ? (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%' : '—'}
+                {chg != null ? (chg >= 0 ? '↑ +' : '↓ ') + chg.toFixed(2) + '%' : '—'}
               </div>
               {sig && (
                 <div className="macro-item-signal" style={{ color: sig.col }}>{sig.txt}</div>
