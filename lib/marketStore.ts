@@ -59,22 +59,35 @@ export interface CoinData {
   nextFundingTime: number | null;  // unix ms of next settlement
 }
 
-export type CoinId = 'btc' | 'eth' | 'sol' | 'xrp' | 'bnb' | 'hype' | 'near' | 'sui';
+export type CoinId =
+  | 'btc' | 'eth' | 'sol' | 'xrp' | 'bnb' | 'hype' | 'near' | 'sui'
+  | 'doge' | 'avax' | 'link' | 'ada' | 'dot' | 'atom' | 'wif' | 'pepe' | 'bonk';
 
-export const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui'];
+export const COINS: CoinId[] = [
+  'btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui',
+  'doge', 'avax', 'link', 'ada', 'dot', 'atom', 'wif', 'pepe', 'bonk',
+];
 
 export const BINANCE_SYMS: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
   xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
+  doge: 'DOGEUSDT', avax: 'AVAXUSDT', link: 'LINKUSDT',
+  ada: 'ADAUSDT', dot: 'DOTUSDT', atom: 'ATOMUSDT', wif: 'WIFUSDT',
+  // PEPE + BONK: Bybit-only (Binance uses 1000x denomination — avoids display confusion)
 };
 
 export const BYBIT_SYMS: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
   xrp: 'XRPUSDT', bnb: 'BNBUSDT', hype: 'HYPEUSDT', near: 'NEARUSDT',
+  doge: 'DOGEUSDT', avax: 'AVAXUSDT', link: 'LINKUSDT',
+  ada: 'ADAUSDT', dot: 'DOTUSDT', atom: 'ATOMUSDT', wif: 'WIFUSDT',
+  pepe: 'PEPEUSDT', bonk: 'BONKUSDT',  // meme coins — Bybit primary
 };
 
 export const COIN_DEC: Record<CoinId, number> = {
   btc: 2, eth: 2, sol: 3, xrp: 4, bnb: 2, hype: 3, near: 4, sui: 4,
+  doge: 5, avax: 3, link: 3, ada: 4, dot: 3, atom: 3, wif: 4,
+  pepe: 8, bonk: 8,
 };
 
 export function fmtPrice(p: number, dec: number): string {

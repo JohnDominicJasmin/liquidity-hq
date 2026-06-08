@@ -46,26 +46,42 @@ interface SignalEntry { coin: string; title: string; body: string; name: string 
 const BINANCE_PERP: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
   xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
+  doge: 'DOGEUSDT', avax: 'AVAXUSDT', link: 'LINKUSDT',
+  ada: 'ADAUSDT', dot: 'DOTUSDT', atom: 'ATOMUSDT', wif: 'WIFUSDT',
 };
 const BYBIT_PERP: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
   xrp: 'XRPUSDT', bnb: 'BNBUSDT', hype: 'HYPEUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
+  doge: 'DOGEUSDT', avax: 'AVAXUSDT', link: 'LINKUSDT',
+  ada: 'ADAUSDT', dot: 'DOTUSDT', atom: 'ATOMUSDT', wif: 'WIFUSDT',
+  pepe: 'PEPEUSDT', bonk: 'BONKUSDT',
 };
 const BINANCE_SPOT: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
   xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
+  doge: 'DOGEUSDT', avax: 'AVAXUSDT', link: 'LINKUSDT',
+  ada: 'ADAUSDT', dot: 'DOTUSDT', atom: 'ATOMUSDT', wif: 'WIFUSDT',
 };
-/* Coins only available on Bybit — use Bybit klines for RSI / EMA / Rapid Move / OI */
-const BYBIT_KLINE_SYMS: Record<string, string> = { hype: 'HYPEUSDT' };
+/* Coins available on Bybit only — use Bybit klines for RSI / EMA / Rapid Move / OI */
+const BYBIT_KLINE_SYMS: Record<string, string> = {
+  hype: 'HYPEUSDT',
+  pepe: 'PEPEUSDT', bonk: 'BONKUSDT',
+};
 const LABELS: Record<string, string> = {
   btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP',
   bnb: 'BNB', hype: 'HYPE', near: 'NEAR', sui: 'SUI',
+  doge: 'DOGE', avax: 'AVAX', link: 'LINK',
+  ada: 'ADA', dot: 'DOT', atom: 'ATOM', wif: 'WIF',
+  pepe: 'PEPE', bonk: 'BONK',
 };
 const COINS = Object.keys(LABELS);
 
 const WHALE_THRESHOLD: Record<string, number> = {
   btc: 5_000_000, eth: 2_000_000, sol: 1_000_000,
   xrp: 750_000,   bnb: 750_000,  near: 500_000, sui: 500_000, hype: 500_000,
+  doge: 500_000,  avax: 500_000, link: 500_000,
+  ada: 500_000,   dot: 500_000,  atom: 500_000,  wif: 500_000,
+  pepe: 500_000,  bonk: 500_000,
 };
 
 /* ── In-memory state ── */
@@ -89,6 +105,7 @@ const CD: Record<string, number> = {
   fng:       23 * 3600_000,   // Fear & Greed extreme (once per day)
   daily:     23 * 3600_000,   // Daily 7am summary
   sentiment:  4 * 3600_000,   // Sentiment Extremes — all 3 indicators aligned
+  squeeze:    4 * 3600_000,   // Squeeze/Flush threshold alert per coin per direction
 };
 
 /* ── Session helpers ── */
@@ -1025,6 +1042,130 @@ async function checkSentimentExtremes(
 }
 
 /* ════════════════════════════════════════
+   12. SQUEEZE / FLUSH THRESHOLD ALERTS
+   Fires when funding rate + L/S ratio both scream overcrowding (score ≥ 70)
+   ════════════════════════════════════════ */
+
+async function fetchAllLSR(): Promise<Record<string, number | null>> {
+  const result: Record<string, number | null> = {};
+  COINS.forEach(c => (result[c] = null));
+  await Promise.all([
+    // Binance perp L/S ratio
+    ...Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
+      try {
+        const res = await fetch(
+          `https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=5m&limit=1`,
+          { cache: 'no-store' }
+        );
+        if (!res.ok) return;
+        const d = await res.json() as Array<{ longAccount: string }>;
+        if (d?.[0]) result[coin] = parseFloat(d[0].longAccount);
+      } catch { /* skip */ }
+    }),
+    // Bybit-only coins L/S ratio
+    ...Object.entries(BYBIT_KLINE_SYMS).map(async ([coin, sym]) => {
+      if (result[coin] != null) return;
+      try {
+        const res = await fetch(
+          `https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${sym}&period=5min&limit=1`,
+          { cache: 'no-store' }
+        );
+        if (!res.ok) return;
+        const d = await res.json() as { result?: { list?: Array<{ buyRatio: string }> } };
+        const item = d.result?.list?.[0];
+        if (item) result[coin] = parseFloat(item.buyRatio);
+      } catch { /* skip */ }
+    }),
+  ]);
+  return result;
+}
+
+function calcSqueezeScore(fr: number | null, longRatio: number | null): { score: number; dir: 'LONG_LIQ' | 'SHORT_SQ' | 'NEUTRAL' } {
+  let longRisk = 0, shortRisk = 0;
+  if (fr != null) {
+    const p = fr * 100;
+    if (p >= 0.05) longRisk += 40;
+    else if (p >= 0.02) longRisk += 22;
+    else if (p >= 0.01) longRisk += 10;
+    else if (p <= -0.03) shortRisk += 40;
+    else if (p <= -0.015) shortRisk += 22;
+    else if (p <= -0.005) shortRisk += 10;
+  }
+  if (longRatio != null) {
+    const shortRatio = 1 - longRatio;
+    if (longRatio >= 0.65) longRisk += 40;
+    else if (longRatio >= 0.58) longRisk += 22;
+    else if (longRatio >= 0.52) longRisk += 10;
+    else if (shortRatio >= 0.65) shortRisk += 40;
+    else if (shortRatio >= 0.58) shortRisk += 22;
+    else if (shortRatio >= 0.52) shortRisk += 10;
+  }
+  const dominant = Math.max(longRisk, shortRisk);
+  const score = Math.min(100, dominant);
+  if (longRisk > shortRisk && longRisk > 10) return { score, dir: 'LONG_LIQ' };
+  if (shortRisk > longRisk && shortRisk > 10) return { score, dir: 'SHORT_SQ' };
+  return { score: 0, dir: 'NEUTRAL' };
+}
+
+async function checkSqueezeAlerts(
+  stamp: string,
+  frMap: Record<string, number | null>,
+  lsMap: Record<string, number | null>,
+  queue: SignalEntry[]
+): Promise<string[]> {
+  const fired: string[] = [];
+  for (const coin of COINS) {
+    const fr       = frMap[coin];
+    const longRat  = lsMap[coin];
+    const { score, dir } = calcSqueezeScore(fr, longRat);
+    if (score < 70 || dir === 'NEUTRAL') continue;
+
+    const key = `squeeze_${dir}_${coin}`;
+    if (onCooldown(key, CD.squeeze)) continue;
+
+    const label    = LABELS[coin];
+    const frPct    = fr != null ? (fr >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : '—';
+    const longPct  = longRat != null ? (longRat * 100).toFixed(1) + '%' : '—';
+    const shortPct = longRat != null ? ((1 - longRat) * 100).toFixed(1) + '%' : '—';
+
+    if (dir === 'SHORT_SQ') {
+      // Shorts overcrowded — expect pump to flush them
+      queue.push({
+        coin, name: `${label} short squeeze building (${score}/100)`,
+        title: `Short Squeeze Building — Score ${score}/100`,
+        body:
+          `⚡ <b>SHORT SQUEEZE BUILDING — ${label}/USDT</b>\n` +
+          `Score: <b>${score}/100</b>\n\n` +
+          `Funding: <b>${frPct}</b> (shorts paying heavily)\n` +
+          `L/S Ratio: <b>${longPct} long / ${shortPct} short</b>\n\n` +
+          `Shorts overcrowded — price likely pumps to flush them.\n` +
+          `Watch for break above key resistance with volume spike.\n\n` +
+          `<i>${stamp}</i>`,
+      });
+      markSent(key);
+      fired.push(`${label} short squeeze building (${score}/100)`);
+    } else {
+      // Longs overcrowded — expect dump to flush them
+      queue.push({
+        coin, name: `${label} long flush building (${score}/100)`,
+        title: `Long Flush Building — Score ${score}/100`,
+        body:
+          `🔥 <b>LONG FLUSH BUILDING — ${label}/USDT</b>\n` +
+          `Score: <b>${score}/100</b>\n\n` +
+          `Funding: <b>${frPct}</b> (longs paying heavily)\n` +
+          `L/S Ratio: <b>${longPct} long / ${shortPct} short</b>\n\n` +
+          `Longs overcrowded — price likely dumps to flush them.\n` +
+          `Watch for break below key support with volume spike.\n\n` +
+          `<i>${stamp}</i>`,
+      });
+      markSent(key);
+      fired.push(`${label} long flush building (${score}/100)`);
+    }
+  }
+  return fired;
+}
+
+/* ════════════════════════════════════════
    MAIN HANDLER
    ════════════════════════════════════════ */
 export async function GET() {
@@ -1042,7 +1183,7 @@ export async function GET() {
   const stamp = `⏰ ${now} PHT · ${getSession()}`;
 
   // Fetch shared data once
-  const [frMap, prices] = await Promise.all([fetchAllFR(), fetchSpotPrices()]);
+  const [frMap, prices, lsMap] = await Promise.all([fetchAllFR(), fetchSpotPrices(), fetchAllLSR()]);
 
   // Per-request signal queue — all coin checks push here, flushed after
   const signalQueue: SignalEntry[] = [];
@@ -1054,13 +1195,14 @@ export async function GET() {
     checkEMACross(stamp, signalQueue),
     checkRapidMove(stamp, signalQueue),
     checkWhales(stamp, signalQueue),
-    checkNews(token, chatId, stamp),                       // global — sends directly
-    checkFearGreed(token, chatId, stamp),                  // global — sends directly
-    checkDailySummary(token, chatId, stamp, frMap),        // global — sends directly
+    checkNews(token, chatId, stamp),                            // global — sends directly
+    checkFearGreed(token, chatId, stamp),                       // global — sends directly
+    checkDailySummary(token, chatId, stamp, frMap),             // global — sends directly
     checkOISpike(stamp, prices, signalQueue),
     checkCVD(stamp, signalQueue),
     checkPriceAlerts(stamp, prices, signalQueue),
-    checkSentimentExtremes(token, chatId, stamp, frMap),   // global — sends directly
+    checkSentimentExtremes(token, chatId, stamp, frMap),        // global — sends directly
+    checkSqueezeAlerts(stamp, frMap, lsMap, signalQueue),       // squeeze/flush threshold
   ]);
 
   // Flush: single signals → send as-is, 2+ same coin → confluence alert
@@ -1070,7 +1212,8 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true, fired,
-    checked: ['FR extremes', 'FR flip', 'RSI', 'RSI 50 cross', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts', 'Sentiment extremes'],
+    checked: ['FR extremes', 'FR flip', 'RSI', 'RSI 50 cross', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold'],
+    coins: COINS.length,
     session: nyActive ? 'NY/Pre-NY (high activity)' : 'Asia/London',
     cooldowns: { whale: `${CD.whale / 60_000}min`, news: `${CD.news / 60_000}min` },
   });

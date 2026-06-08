@@ -6,6 +6,8 @@ import { COINS, BINANCE_SYMS, BYBIT_SYMS, type CoinId } from '@/lib/marketStore'
 const COIN_LABELS: Record<CoinId, string> = {
   btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP',
   bnb: 'BNB', hype: 'HYPE', near: 'NEAR', sui: 'SUI',
+  doge: 'DOGE', avax: 'AVAX', link: 'LINK', ada: 'ADA',
+  dot: 'DOT', atom: 'ATOM', wif: 'WIF', pepe: 'PEPE', bonk: 'BONK',
 };
 
 const RANGES = [

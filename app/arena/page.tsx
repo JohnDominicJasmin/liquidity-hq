@@ -18,12 +18,14 @@ import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetec
 /* ── Pattern detection — delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
 
-/* ── Smart price formatter — preserves decimals for sub-$100 coins ── */
+/* ── Smart price formatter — preserves decimals for all coins including memes ── */
 function fmtPrice(n: number): string {
-  if (n >= 10000) return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
-  if (n >= 100)   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  if (n >= 1)     return n.toLocaleString(undefined, { maximumFractionDigits: 3 });
-  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  if (n >= 10000)   return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  if (n >= 100)     return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  if (n >= 1)       return n.toLocaleString(undefined, { maximumFractionDigits: 3 });
+  if (n >= 0.01)    return n.toFixed(4);
+  if (n >= 0.0001)  return n.toFixed(6);
+  return n.toFixed(8);  // PEPE, BONK, etc.
 }
 
 /* ── Reasoning markdown renderer ─────────────────────────────────────────── */
@@ -52,7 +54,17 @@ function ReasoningText({ text }: { text: string }) {
   );
 }
 
-const COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui'];
+const COINS: CoinId[] = [
+  'btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui',
+  'doge', 'avax', 'link', 'ada', 'dot', 'atom', 'wif', 'pepe', 'bonk',
+];
+
+const COIN_GROUPS: { label: string; coins: CoinId[] }[] = [
+  { label: 'All',    coins: COINS },
+  { label: 'Majors', coins: ['btc', 'eth', 'sol', 'xrp', 'bnb'] },
+  { label: 'Alts',   coins: ['hype', 'near', 'sui', 'avax', 'link', 'ada', 'dot', 'atom'] },
+  { label: 'Meme',   coins: ['doge', 'pepe', 'wif', 'bonk'] },
+];
 
 /* ── Usage panel — shows daily call counts for signed-in users ── */
 function UsagePanel({ usage }: { usage: GrokUsageInfo }) {
@@ -106,6 +118,7 @@ export default function Arena() {
   const { user, loading: authLoading } = useAuth();
   const { settings } = useSettings();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>('btc');
+  const [coinGroup, setCoinGroup]       = useState<string>('All');
   const [readTf, setReadTf]         = useState<ChartTf>('15m');
   const arenaInitRef  = useRef(false);
   const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '—' });
@@ -809,25 +822,46 @@ export default function Arena() {
       </div>
 
       {/* ── COIN SELECTOR ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <div className="arena-coin-row" style={{ margin: 0, flex: 1 }}>
-          {COINS.map(c => (
+      <div style={{ marginBottom: 10 }}>
+        {/* Group tabs */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+          {COIN_GROUPS.map(g => (
+            <button
+              key={g.label}
+              onClick={() => setCoinGroup(g.label)}
+              style={{
+                padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+                cursor: 'pointer', border: '0.5px solid',
+                background: coinGroup === g.label ? 'rgba(184,174,255,0.12)' : 'transparent',
+                borderColor: coinGroup === g.label ? 'rgba(184,174,255,0.4)' : 'rgba(255,255,255,0.1)',
+                color: coinGroup === g.label ? '#b8aeff' : '#555',
+                letterSpacing: '.04em',
+              }}
+            >
+              {g.label}
+            </button>
+          ))}
+          <div style={{ flex: 1 }} />
+          <button
+            onClick={enableNotifications}
+            title={notifEnabled ? 'Alerts ON — Funding · F&G · CVD Divergence · RSI 1H · Pattern · OI Trend' : 'Enable browser alerts for this coin'}
+            style={{
+              padding: '6px 10px', borderRadius: 20, border: '0.5px solid',
+              background: notifEnabled ? '#152b1e' : '#161616',
+              borderColor: notifEnabled ? '#266038' : 'rgba(255,255,255,0.14)',
+              color: notifEnabled ? '#7de0a4' : '#606060',
+              fontSize: 16, cursor: 'pointer', flexShrink: 0,
+            }}
+          >{notifEnabled ? '🔔' : '🔕'}</button>
+        </div>
+        {/* Coin buttons for active group */}
+        <div className="arena-coin-row" style={{ margin: 0 }}>
+          {(COIN_GROUPS.find(g => g.label === coinGroup)?.coins ?? COINS).map(c => (
             <button key={c} className={`arena-coin-btn${selectedCoin === c ? ' sel' : ''}`} onClick={() => setSelectedCoin(c)}>
               {c.toUpperCase()}
             </button>
           ))}
         </div>
-        <button
-          onClick={enableNotifications}
-          title={notifEnabled ? 'Alerts ON — Funding · F&G · CVD Divergence · RSI 1H · Pattern · OI Trend' : 'Enable browser alerts for this coin'}
-          style={{
-            padding: '6px 10px', borderRadius: 20, border: '0.5px solid',
-            background: notifEnabled ? '#152b1e' : '#161616',
-            borderColor: notifEnabled ? '#266038' : 'rgba(255,255,255,0.14)',
-            color: notifEnabled ? '#7de0a4' : '#606060',
-            fontSize: 16, cursor: 'pointer', flexShrink: 0,
-          }}
-        >{notifEnabled ? '🔔' : '🔕'}</button>
       </div>
 
       {/* ── SQUEEZE SCANNER — all 8 coins at a glance ── */}
