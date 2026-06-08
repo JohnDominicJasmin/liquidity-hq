@@ -239,11 +239,13 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           ...(nextFrBybit !== null ? { nextFrEstimate: nextFrBybit } : {}),
           ...(nextFtMs > 0       ? { nextFundingTime: nextFtMs }    : {}),
         };
-        if (coin === 'hype') {
+        // Always set price/change/high/low/vol for Bybit-only coins.
+        // For dual-listed coins, Binance WebSocket will overwrite with fresher data.
+        if (!(coin in BINANCE_SYMS)) {
           patch.price  = curPrice;
           patch.change = parseFloat(item.price24hPcnt || '0') * 100;
           patch.high   = parseFloat(item.highPrice24h || '0');
-          patch.low    = parseFloat(item.lowPrice24h || '0');
+          patch.low    = parseFloat(item.lowPrice24h  || '0');
           patch.vol24  = parseFloat(item.turnover24h  || '0');
         }
         updateCoin(coin as CoinId, patch);

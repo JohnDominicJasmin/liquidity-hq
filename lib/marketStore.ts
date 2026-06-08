@@ -93,7 +93,8 @@ export const COIN_DEC: Record<CoinId, number> = {
 export function fmtPrice(p: number, dec: number): string {
   return p.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
 }
-export function fmtChg(c: number): string {
+export function fmtChg(c: number | null | undefined): string {
+  if (c == null) return '--%';
   return (c >= 0 ? '+' : '') + c.toFixed(2) + '%';
 }
 export function fmtOI(val: number): string {
