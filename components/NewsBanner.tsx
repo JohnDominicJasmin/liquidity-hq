@@ -42,8 +42,9 @@ export default function NewsBanner() {
 
           {econEvents.map((e, i) => {
             const timeCls = e.h < 2 ? 'nc-time-urgent' : e.h < 24 ? 'nc-time-soon' : 'nc-time-ok';
+            const isUrgent = e.impact === 'high' && e.h < 2;
             return (
-              <div key={i} className="nc nc-econ">
+              <div key={i} className={`nc nc-econ${isUrgent ? ' nc-urgent' : ''}`}>
                 <div className="nc-tag">{e.type}</div>
                 <div className="nc-name">{e.name}</div>
                 <div className={`nc-time ${timeCls}`}>{countdown(e.h)}</div>

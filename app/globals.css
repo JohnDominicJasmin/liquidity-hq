@@ -360,6 +360,39 @@ body::after {
 
 @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.2} }
 
+/* ── AMBIENT RAID URGENCY GLOW ── */
+@keyframes rpm-glow-pulse {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 1;   }
+}
+body[data-rpm-level="extreme"]::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 9998;
+  background: radial-gradient(ellipse 80% 30% at 50% 0%, rgba(251,146,60,0.055) 0%, transparent 70%);
+  animation: rpm-glow-pulse 4s ease-in-out infinite;
+}
+body[data-rpm-level="high"]::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 9998;
+  background: radial-gradient(ellipse 80% 25% at 50% 0%, rgba(251,191,36,0.035) 0%, transparent 70%);
+  animation: rpm-glow-pulse 6s ease-in-out infinite;
+}
+
+/* ── SESSION PILL (navbar) ── */
+.session-pill-wrap { flex-shrink: 0; }
+.session-pill {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 20px;
+  border: 1px solid; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.04em; white-space: nowrap; cursor: default;
+}
+.session-pill-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  animation: pulse 2s infinite;
+}
+/* hide on very small screens */
+@media (max-width: 480px) { .session-pill-wrap { display: none; } }
+
 /* ── STATUS DOT ── */
 .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-left: 2px; animation: pulse 2s infinite; }
 .dot-live       { background: var(--green); box-shadow: 0 0 6px var(--green); }
@@ -669,6 +702,16 @@ body.ticker-on .breaking-alert { top: 90px; }
 .nc-impact        { font-size: 10px; font-weight: 700; color: var(--red); }
 .nc-impact-med    { color: var(--amber); }
 .nc-note          { font-size: 10px; color: var(--txt3); line-height: 1.4; margin-top: 4px; }
+
+/* ── URGENT EVENT CARD (high-impact + < 2h away) ── */
+.nc-urgent {
+  background: rgba(248, 113, 113, 0.08) !important;
+  border-color: rgba(248, 113, 113, 0.4) !important;
+  border-left: 2px solid #f87171 !important;
+}
+.nc-urgent .nc-tag    { color: #f87171 !important; }
+.nc-urgent .nc-time   { color: #f87171 !important; }
+.nc-urgent .nc-impact { color: #f87171; font-weight: 800; letter-spacing: 0.02em; }
 
 /* ── SCANNER ── */
 .scanner    { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 16px; padding: 1.1rem; margin-bottom: 10px; box-shadow: var(--nm-raise); }

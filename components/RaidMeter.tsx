@@ -68,6 +68,12 @@ export default function RaidMeter() {
     return () => clearInterval(t);
   }, [fng, rpmFunding]);
 
+  /* ── Ambient urgency state — body data-rpm-level drives global CSS glow ── */
+  useEffect(() => {
+    document.body.dataset.rpmLevel = rpm.total >= 80 ? 'extreme' : rpm.total >= 60 ? 'high' : '';
+    return () => { delete document.body.dataset.rpmLevel; };
+  }, [rpm.total]);
+
   return (
     <div className="rpm-wrap" style={{ marginBottom: 10 }}>
       <div className="rpm-card">

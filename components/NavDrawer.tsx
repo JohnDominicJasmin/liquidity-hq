@@ -6,6 +6,37 @@ import { useMarket } from '@/lib/marketStore';
 import { useAuth } from './AuthProvider';
 import { track } from '@/lib/analytics';
 import SettingsModal from './SettingsModal';
+import { getCurrentWindow } from '@/lib/session';
+
+/* ── Live session pill shown in navbar ── */
+function pad2(n: number) { return String(n).padStart(2, '0'); }
+function phtNow() { return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })); }
+function findEndsInMs(nowMs: number, name: string): number {
+  for (let t = nowMs + 60_000; t < nowMs + 6 * 3600_000; t += 60_000) {
+    const w = getCurrentWindow(new Date(new Date(t).toLocaleString('en-US', { timeZone: 'Asia/Manila' })));
+    if (!w || w.name !== name) return t - nowMs;
+  }
+  return 6 * 3600_000;
+}
+function SessionPill() {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const win = getCurrentWindow(phtNow());
+  if (!win) return null;
+  const endsMs = findEndsInMs(nowMs, win.name);
+  const h = Math.floor(endsMs / 3_600_000);
+  const m = Math.floor((endsMs % 3_600_000) / 60_000);
+  const timeStr = h > 0 ? `${h}h ${pad2(m)}m` : `${m}m left`;
+  return (
+    <div className="session-pill" style={{ color: win.color, background: win.bg, borderColor: win.color + '44' }}>
+      <span className="session-pill-dot" style={{ background: win.color }} />
+      {win.name.toUpperCase()} · {timeStr}
+    </div>
+  );
+}
 
 const NAV = [
   { path: '/',            icon: '📊', label: 'Dashboard',   desk: true  },
@@ -136,6 +167,11 @@ export default function NavDrawer() {
               )}
             </div>
           </nav>
+
+          {/* Session pill — shows active trading window */}
+          <div className="session-pill-wrap">
+            <SessionPill />
+          </div>
 
           {/* Theme toggle — always visible */}
           <button
