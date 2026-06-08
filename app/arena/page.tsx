@@ -18,6 +18,38 @@ import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetec
 /* ── Pattern detection — delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
 
+/* ── Crypto coin icon — CDN with letter-avatar fallback ── */
+function CoinIcon({ coin, size = 22, color, bg }: { coin: CoinId; size?: number; color?: string; bg?: string }) {
+  const [failed, setFailed] = useState(false);
+  // cryptocurrency-icons covers BTC/ETH/SOL/XRP/BNB/DOGE/AVAX/LINK/ADA/DOT/ATOM/NEAR
+  // HYPE/SUI/WIF/PEPE/BONK are too new — onError falls through to letter avatar
+  const src = `https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/${coin}.svg`;
+  if (failed) {
+    return (
+      <span style={{
+        width: size, height: size, borderRadius: '50%', flexShrink: 0,
+        background: bg ?? 'rgba(255,255,255,0.07)',
+        border: `0.5px solid ${color ? color + '44' : 'rgba(255,255,255,0.1)'}`,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: Math.round(size * 0.38), fontWeight: 800,
+        color: color ?? '#555',
+      }}>
+        {coin.slice(0, 1).toUpperCase()}
+      </span>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={coin}
+      width={size}
+      height={size}
+      style={{ borderRadius: '50%', flexShrink: 0, display: 'block' }}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 /* ── Smart price formatter — preserves decimals for all coins including memes ── */
 function fmtPrice(n: number): string {
   if (n >= 10000)   return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -874,11 +906,13 @@ export default function Arena() {
           )}
           {/* Selected coin chip */}
           <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
             fontSize: 11, fontWeight: 700, color: '#b8aeff',
-            background: 'rgba(184,174,255,0.1)', padding: '2px 9px',
+            background: 'rgba(184,174,255,0.1)', padding: '2px 9px 2px 5px',
             borderRadius: 20, border: '0.5px solid rgba(184,174,255,0.2)',
             flexShrink: 0,
           }}>
+            <CoinIcon coin={selectedCoin} size={16} color="#b8aeff" bg="rgba(184,174,255,0.15)" />
             {selectedCoin.toUpperCase()}
           </span>
           {/* Notification bell */}
@@ -938,17 +972,14 @@ export default function Arena() {
                   onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)'; }}
                   onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                 >
-                  {/* Coin name + dot */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <span style={{
-                      width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                      background: isActive ? rowSq.color + '22' : 'rgba(255,255,255,0.06)',
-                      border: `0.5px solid ${isActive ? rowSq.color + '55' : 'rgba(255,255,255,0.08)'}`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 8, fontWeight: 800, color: isActive ? rowSq.color : '#444',
-                    }}>
-                      {c.slice(0, 1).toUpperCase()}
-                    </span>
+                  {/* Coin icon + name */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <CoinIcon
+                      coin={c}
+                      size={22}
+                      color={isActive ? rowSq.color : undefined}
+                      bg={isActive ? rowSq.color + '1a' : undefined}
+                    />
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: isSelected ? '#b8aeff' : isActive ? 'var(--txt)' : '#666', lineHeight: 1.2 }}>
                         {c.toUpperCase()}
