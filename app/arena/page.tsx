@@ -1004,9 +1004,22 @@ export default function Arena() {
                   </span>
                 </div>
               </div>
-              <span className={`arena-sig-badge badge-${result.signal.toLowerCase()}`}>
-                {result.signal === 'LONG' ? '▲ LONG' : result.signal === 'SHORT' ? '▼ SHORT' : '— FLAT'}
-              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
+                <span className={`arena-sig-badge badge-${result.signal.toLowerCase()}`}>
+                  {result.signal === 'LONG' ? '▲ LONG' : result.signal === 'SHORT' ? '▼ SHORT' : '— FLAT'}
+                </span>
+                {result.signal === 'FLAT' && result.bias && result.bias !== 'NEUTRAL' && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, letterSpacing: '.04em',
+                    color: result.bias === 'BEARISH' ? '#f87171' : '#34d399',
+                    padding: '2px 8px', borderRadius: 6,
+                    background: result.bias === 'BEARISH' ? 'rgba(248,113,113,0.1)' : 'rgba(52,211,153,0.1)',
+                    border: `0.5px solid ${result.bias === 'BEARISH' ? 'rgba(248,113,113,0.3)' : 'rgba(52,211,153,0.3)'}`,
+                  }}>
+                    {result.bias === 'BEARISH' ? '↓ bearish lean' : '↑ bullish lean'}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Deep override notice */}
@@ -1032,7 +1045,18 @@ export default function Arena() {
             {/* Wait For — shown when signal is FLAT */}
             {result.signal === 'FLAT' && result.waitFor && (
               <div className="arena-wait-for">
-                <div className="arena-wait-for-title">👁 Watch For</div>
+                <div className="arena-wait-for-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>👁 Watch For</span>
+                  {result.bias && result.bias !== 'NEUTRAL' && (
+                    <span style={{
+                      fontSize: 9, fontWeight: 800, letterSpacing: '.06em',
+                      textTransform: 'uppercase',
+                      color: result.bias === 'BEARISH' ? '#f87171' : '#34d399',
+                    }}>
+                      — {result.bias === 'BEARISH' ? '↓ leaning bearish' : '↑ leaning bullish'}
+                    </span>
+                  )}
+                </div>
                 <div className="arena-wait-for-body">{result.waitFor}</div>
               </div>
             )}

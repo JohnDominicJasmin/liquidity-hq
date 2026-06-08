@@ -416,6 +416,7 @@ export interface CombinedResult {
   reasoning: string;
   catalysts: string[];
   waitFor: string | null;  // FLAT only: what to watch before entering
+  bias: 'BULLISH' | 'BEARISH' | 'NEUTRAL' | null;  // FLAT only: directional lean
   raidSetup: 'SHORT SQUEEZE' | 'LONG FLUSH' | null;  // liquidity raid potential
   raidTarget: string | null;   // price level / range where liquidations cluster
   raidTrigger: string | null;  // one-line confirmation signal
@@ -452,6 +453,7 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     '',
     'CRITICAL: Output ONLY these exact lines, no markdown, no bold (**), no extra text:',
     'SIGNAL: [LONG or SHORT or FLAT]',
+    'BIAS_LEAN: [Required when SIGNAL is FLAT — your directional lean even if you cannot call a trade: BULLISH, BEARISH, or NEUTRAL. Example: if signals lean short but count is <3, write BEARISH. Write N/A if SIGNAL is LONG or SHORT.]',
     'CONFIDENCE: [0-100]',
     'ENTRY_LOW: [number]',
     'ENTRY_HIGH: [number]',
@@ -506,6 +508,8 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
   const pn = (s?: string): number | null => { const v = parseFloat((s ?? '').replace(/[,$]/g, '')); return isNaN(v) || v <= 0 ? null : v; };
 
   const signal     = (clean.match(/SIGNAL:\s*(LONG|SHORT|FLAT)/i)?.[1]?.toUpperCase() ?? 'FLAT') as CombinedResult['signal'];
+  const biasRaw    = clean.match(/BIAS_LEAN:\s*(BULLISH|BEARISH|NEUTRAL)/i)?.[1]?.toUpperCase();
+  const bias       = (biasRaw === 'BULLISH' || biasRaw === 'BEARISH' || biasRaw === 'NEUTRAL') ? biasRaw as CombinedResult['bias'] : null;
   const confidence = parseInt(clean.match(/CONFIDENCE:\s*(\d+)/i)?.[1] ?? '0');
   const entryLow   = pn(clean.match(/ENTRY_LOW:\s*([\d,.]+)/i)?.[1]);
   const entryHigh  = pn(clean.match(/ENTRY_HIGH:\s*([\d,.]+)/i)?.[1]);
@@ -570,7 +574,7 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
     clean.match(/\*{0,2}REASONING\*{0,2}:\s*([\s\S]+)/i)?.[1] ?? ''
   );
 
-  return { signal, confidence, entryLow, entryHigh, tp, sl, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, analyzedAt: Date.now(), tf, session };
+  return { signal, confidence, bias: signal === 'FLAT' ? bias : null, entryLow, entryHigh, tp, sl, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, analyzedAt: Date.now(), tf, session };
 }
 
 /* ── Quick prompt — strips the LIVE SEARCH TASK block (no web search needed) ── */
