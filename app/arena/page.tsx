@@ -898,7 +898,7 @@ export default function Arena() {
                   outline: isSelected ? `1.5px solid ${sq.color}` : 'none',
                   outlineOffset: 1,
                   display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'center',
-                  minWidth: 58,
+                  minWidth: 68,
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -907,6 +907,10 @@ export default function Arena() {
                   </span>
                   <span style={{ fontSize: 13, fontWeight: 800, color: sq.color, lineHeight: 1 }}>{icon}</span>
                 </div>
+                {/* Live price */}
+                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.2px' }}>
+                  {store.coins[c]?.price ? '$' + fmtPrice(store.coins[c]!.price) : '—'}
+                </span>
                 <span style={{ fontSize: 9, fontWeight: 700, color: sq.color, letterSpacing: '.04em', textTransform: 'uppercase' }}>
                   {shortLabel}
                 </span>
