@@ -215,15 +215,7 @@ export default function SmartMoneyScore() {
       </div>
 
       {/* ── Toggle breakdown ── */}
-      <button
-        onClick={() => setOpen(v => !v)}
-        style={{
-          width: '100%', background: 'none', border: 'none',
-          borderTop: '1px solid #1a1a1a', padding: '6px 0 2px',
-          fontSize: 11, color: 'var(--txt3)', cursor: 'pointer',
-          textAlign: 'center', letterSpacing: '0.04em',
-        }}
-      >
+      <button className="collapse-toggle" onClick={() => setOpen(v => !v)}>
         {open ? '▲ hide breakdown' : '▼ show breakdown'}
       </button>
 

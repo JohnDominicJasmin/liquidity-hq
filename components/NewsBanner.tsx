@@ -30,8 +30,10 @@ export default function NewsBanner() {
     <div className="news-banner">
       <div className="news-header">
         <span className="news-title">Catalysts & Events</span>
+        {hasItems && <span className="news-scroll-hint">↔ scroll</span>}
         <button className="news-toggle" onClick={() => setHidden(true)}>hide</button>
       </div>
+      <div className="news-scroll-outer">
       <div className="news-scroll">
         <div className="news-row">
           {!hasItems && (
@@ -68,6 +70,8 @@ export default function NewsBanner() {
             );
           })}
         </div>
+      </div>
+      <div className="news-scroll-fade" />
       </div>
     </div>
   );

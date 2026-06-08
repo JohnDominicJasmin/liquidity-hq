@@ -321,6 +321,22 @@ body::after {
   animation: pulse 2s infinite;
 }
 
+/* ── CONTEXT SECTION DIVIDER — separates live signals from timing/macro ── */
+.dash-ctx-sep {
+  height: 0.5px; margin: 10px 0 6px;
+  background: linear-gradient(90deg, transparent 0%, var(--bdr) 25%, var(--bdr) 75%, transparent 100%);
+}
+
+/* ── COLLAPSE TOGGLE — shared style for breakdown/show-more buttons ── */
+.collapse-toggle {
+  width: 100%; background: none; border: none;
+  border-top: 1px solid #1a1a1a; padding: 8px 0 4px;
+  font-size: 11px; color: var(--txt3); cursor: pointer;
+  text-align: center; letter-spacing: 0.04em; transition: color 0.15s;
+  display: block;
+}
+.collapse-toggle:hover { color: var(--txt2); }
+
 /* ── TICKER ── */
 .ticker-wrap { overflow-x: auto; margin-bottom: 6px; -webkit-overflow-scrolling: touch; }
 .ticker { display: flex; gap: 8px; min-width: max-content; }
@@ -676,11 +692,19 @@ body.ticker-on .breaking-alert { top: 90px; }
 .sotd-footer { font-size: 10px; color: var(--txt3); margin-top: 10px; }
 
 /* ── NEWS BANNER ── */
-.news-banner  { margin-bottom: 14px; }
-.news-header  { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.news-title   { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--txt3); }
-.news-toggle  { font-size: 11px; color: var(--txt3); cursor: pointer; padding: 2px 8px; border-radius: 10px; border: 0.5px solid var(--bdr); background: none; }
+.news-banner       { margin-bottom: 14px; }
+.news-header       { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 6px; }
+.news-title        { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--txt3); }
+.news-scroll-hint  { font-size: 10px; color: var(--txt3); opacity: 0.55; letter-spacing: 0.02em; flex: 1; }
+.news-toggle       { font-size: 11px; color: var(--txt3); cursor: pointer; padding: 2px 8px; border-radius: 10px; border: 0.5px solid var(--bdr); background: none; flex-shrink: 0; }
 .news-toggle:hover { color: var(--txt); }
+/* Scroll container with right-edge fade to signal more content */
+.news-scroll-outer { position: relative; }
+.news-scroll-fade  {
+  position: absolute; top: 0; right: 0; bottom: 3px; width: 36px;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--bg));
+}
 .news-scroll  { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
 .news-row     { display: flex; gap: 8px; min-width: max-content; }
 .nc { border-radius: 12px; padding: 10px 12px; min-width: 175px; max-width: 210px; border: 0.5px solid; flex-shrink: 0; }

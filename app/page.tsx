@@ -813,6 +813,9 @@ export default function Dashboard() {
           <OISpikeScanner />
         </>}
 
+        {/* ── Context divider — separates live signals from timing/macro reference ── */}
+        <div className="dash-ctx-sep" />
+
         {/* 5. Session context — timing reference (after you know the play) */}
         {!hide('session') && <SessionContext />}
 
