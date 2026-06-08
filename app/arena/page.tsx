@@ -830,6 +830,66 @@ export default function Arena() {
         >{notifEnabled ? '🔔' : '🔕'}</button>
       </div>
 
+      {/* ── SQUEEZE SCANNER — all 8 coins at a glance ── */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: '#444', marginBottom: 6 }}>
+          Live Squeeze Scanner
+        </div>
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+          {COINS.map(c => {
+            const sq = computeSqueezeScore(store.coins[c]);
+            const isSelected = c === selectedCoin;
+            const isActive = sq.dir !== 'NEUTRAL' && sq.score >= 30;
+            const bgCol = sq.dir === 'SHORT_SQ'
+              ? isActive ? 'rgba(52,211,153,0.10)' : 'rgba(52,211,153,0.04)'
+              : sq.dir === 'LONG_LIQ'
+              ? isActive ? 'rgba(248,113,113,0.10)' : 'rgba(248,113,113,0.04)'
+              : 'rgba(255,255,255,0.03)';
+            const bdrCol = sq.dir === 'SHORT_SQ'
+              ? isActive ? 'rgba(52,211,153,0.35)' : 'rgba(52,211,153,0.12)'
+              : sq.dir === 'LONG_LIQ'
+              ? isActive ? 'rgba(248,113,113,0.35)' : 'rgba(248,113,113,0.12)'
+              : isSelected ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.07)';
+            const icon = sq.dir === 'SHORT_SQ' ? '↑' : sq.dir === 'LONG_LIQ' ? '↓' : '·';
+            const shortLabel = sq.dir === 'SHORT_SQ' ? 'Squeeze' : sq.dir === 'LONG_LIQ' ? 'Flush' : 'Neutral';
+            return (
+              <button
+                key={c}
+                onClick={() => setSelectedCoin(c)}
+                style={{
+                  flexShrink: 0, cursor: 'pointer',
+                  padding: '6px 10px', borderRadius: 10,
+                  background: bgCol,
+                  border: `0.5px solid ${bdrCol}`,
+                  outline: isSelected ? `1.5px solid ${sq.color}` : 'none',
+                  outlineOffset: 1,
+                  display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'center',
+                  minWidth: 58,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt)', letterSpacing: '.02em' }}>
+                    {c.toUpperCase()}
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: sq.color, lineHeight: 1 }}>{icon}</span>
+                </div>
+                <span style={{ fontSize: 9, fontWeight: 700, color: sq.color, letterSpacing: '.04em', textTransform: 'uppercase' }}>
+                  {shortLabel}
+                </span>
+                {/* Score bar */}
+                <div style={{ width: '100%', height: 3, background: 'rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', borderRadius: 2, width: sq.score + '%', background: sq.color, transition: 'width 0.6s ease' }} />
+                </div>
+                <span style={{ fontSize: 9, color: '#555', fontVariantNumeric: 'tabular-nums' }}>{sq.score}/100</span>
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 10, color: '#3a3a3a', marginTop: 4 }}>
+          ↑ Short Squeeze (shorts overcrowded, likely pump) · ↓ Long Flush (longs overcrowded, likely dump) · Based on funding + L/S ratio
+        </div>
+      </div>
+
       {/* ── CHART — KLineChart with auto Entry/SL/TP overlays ── */}
       <KLineProChart coin={selectedCoin} tf={readTf} result={result} />
 
