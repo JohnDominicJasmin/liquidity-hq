@@ -137,6 +137,7 @@ export default function Arena() {
   const [grokUsage, setGrokUsage]     = useState<GrokUsageInfo | null>(null);
   // Track last Quick signal per coin so Deep can compare and show an override notice
   const [quickSignals, setQuickSignals] = useState<Partial<Record<CoinId, string>>>({});
+  const [scannerOpen, setScannerOpen]   = useState(false);
 
   // Derived — current coin's cached result (persists across coin switches)
   const cacheEntry = resultsCache[selectedCoin] ?? null;
@@ -809,6 +810,21 @@ export default function Arena() {
   const ctx = gatherContext();
   const sq = computeSqueezeScore(store.coins[selectedCoin]);
 
+  /* ── Squeeze scanner data — sorted: active first, then by score ── */
+  const scannerRows = COINS.map(c => ({
+    c,
+    sq:     computeSqueezeScore(store.coins[c]),
+    price:  store.coins[c]?.price  ?? null,
+    change: store.coins[c]?.change ?? null,
+  })).sort((a, b) => {
+    const aA = a.sq.dir !== 'NEUTRAL' && a.sq.score >= 30 ? 1 : 0;
+    const bA = b.sq.dir !== 'NEUTRAL' && b.sq.score >= 30 ? 1 : 0;
+    if (aA !== bA) return bA - aA;
+    return b.sq.score - a.sq.score;
+  });
+  const sqzCount   = scannerRows.filter(x => x.sq.dir === 'SHORT_SQ'  && x.sq.score >= 30).length;
+  const flushCount = scannerRows.filter(x => x.sq.dir === 'LONG_LIQ'  && x.sq.score >= 30).length;
+
   return (
     <div>
 
@@ -864,68 +880,120 @@ export default function Arena() {
         </div>
       </div>
 
-      {/* ── SQUEEZE SCANNER — all 8 coins at a glance ── */}
+      {/* ── SQUEEZE SCANNER — collapsible dropdown ── */}
       <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: '#444', marginBottom: 6 }}>
-          Live Squeeze Scanner
-        </div>
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
-          {COINS.map(c => {
-            const sq = computeSqueezeScore(store.coins[c]);
-            const isSelected = c === selectedCoin;
-            const isActive = sq.dir !== 'NEUTRAL' && sq.score >= 30;
-            const bgCol = sq.dir === 'SHORT_SQ'
-              ? isActive ? 'rgba(52,211,153,0.10)' : 'rgba(52,211,153,0.04)'
-              : sq.dir === 'LONG_LIQ'
-              ? isActive ? 'rgba(248,113,113,0.10)' : 'rgba(248,113,113,0.04)'
-              : 'rgba(255,255,255,0.03)';
-            const bdrCol = sq.dir === 'SHORT_SQ'
-              ? isActive ? 'rgba(52,211,153,0.35)' : 'rgba(52,211,153,0.12)'
-              : sq.dir === 'LONG_LIQ'
-              ? isActive ? 'rgba(248,113,113,0.35)' : 'rgba(248,113,113,0.12)'
-              : isSelected ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.07)';
-            const icon = sq.dir === 'SHORT_SQ' ? '↑' : sq.dir === 'LONG_LIQ' ? '↓' : '·';
-            const shortLabel = sq.dir === 'SHORT_SQ' ? 'Squeeze' : sq.dir === 'LONG_LIQ' ? 'Flush' : 'Neutral';
-            return (
-              <button
-                key={c}
-                onClick={() => setSelectedCoin(c)}
-                style={{
-                  flexShrink: 0, cursor: 'pointer',
-                  padding: '6px 10px', borderRadius: 10,
-                  background: bgCol,
-                  border: `0.5px solid ${bdrCol}`,
-                  outline: isSelected ? `1.5px solid ${sq.color}` : 'none',
-                  outlineOffset: 1,
-                  display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'center',
-                  minWidth: 68,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt)', letterSpacing: '.02em' }}>
+
+        {/* Trigger row */}
+        <button
+          onClick={() => setScannerOpen(v => !v)}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 12px', borderRadius: scannerOpen ? '10px 10px 0 0' : 10,
+            background: 'rgba(255,255,255,0.03)',
+            border: '0.5px solid rgba(255,255,255,0.08)',
+            borderBottom: scannerOpen ? '0.5px solid rgba(255,255,255,0.05)' : '0.5px solid rgba(255,255,255,0.08)',
+            cursor: 'pointer', textAlign: 'left',
+          }}
+        >
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#555', flexShrink: 0 }}>
+            Live Squeeze Scanner
+          </span>
+          {/* Summary badges */}
+          <div style={{ display: 'flex', gap: 5, flex: 1, alignItems: 'center' }}>
+            {sqzCount > 0 && (
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '2px 8px', borderRadius: 20, border: '0.5px solid rgba(52,211,153,0.25)', whiteSpace: 'nowrap' }}>
+                ↑ {sqzCount} Squeeze
+              </span>
+            )}
+            {flushCount > 0 && (
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#f87171', background: 'rgba(248,113,113,0.1)', padding: '2px 8px', borderRadius: 20, border: '0.5px solid rgba(248,113,113,0.25)', whiteSpace: 'nowrap' }}>
+                ↓ {flushCount} Flush
+              </span>
+            )}
+            {sqzCount === 0 && flushCount === 0 && (
+              <span style={{ fontSize: 10, color: '#3a3a3a' }}>No active signals · {COINS.length} neutral</span>
+            )}
+          </div>
+          <span style={{ fontSize: 10, color: '#3a3a3a', flexShrink: 0, marginLeft: 4 }}>{scannerOpen ? '▲' : '▼'}</span>
+        </button>
+
+        {/* Expanded table */}
+        {scannerOpen && (
+          <div style={{
+            background: 'rgba(255,255,255,0.02)',
+            border: '0.5px solid rgba(255,255,255,0.08)',
+            borderTop: 'none',
+            borderRadius: '0 0 10px 10px',
+            overflow: 'hidden',
+          }}>
+            {/* Column headers */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '52px 80px 46px 1fr 72px 42px',
+              gap: 0, padding: '5px 12px',
+              borderBottom: '0.5px solid rgba(255,255,255,0.05)',
+            }}>
+              {['Coin', 'Price', '24h', '', 'Status', 'Score'].map(h => (
+                <span key={h} style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: '#3a3a3a', textAlign: h === 'Price' || h === '24h' || h === 'Score' ? 'right' : 'left' }}>{h}</span>
+              ))}
+            </div>
+
+            {/* Rows */}
+            {scannerRows.map(({ c, sq: rowSq, price, change }, idx) => {
+              const isSelected = c === selectedCoin;
+              const isActive   = rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
+              const icon       = rowSq.dir === 'SHORT_SQ' ? '↑' : rowSq.dir === 'LONG_LIQ' ? '↓' : '·';
+              const statusLabel = rowSq.dir === 'SHORT_SQ' ? 'Squeeze' : rowSq.dir === 'LONG_LIQ' ? 'Flush' : 'Neutral';
+              const divider    = idx < scannerRows.length - 1 ? '0.5px solid rgba(255,255,255,0.04)' : 'none';
+              return (
+                <button
+                  key={c}
+                  onClick={() => setSelectedCoin(c)}
+                  style={{
+                    width: '100%', display: 'grid',
+                    gridTemplateColumns: '52px 80px 46px 1fr 72px 42px',
+                    alignItems: 'center', gap: 0,
+                    padding: '7px 12px',
+                    background: isSelected ? 'rgba(184,174,255,0.07)' : 'transparent',
+                    border: 'none', borderBottom: divider,
+                    cursor: 'pointer', textAlign: 'left',
+                    transition: 'background 0.15s',
+                  }}
+                >
+                  {/* Coin */}
+                  <span style={{ fontSize: 12, fontWeight: 700, color: isSelected ? '#b8aeff' : isActive ? 'var(--txt)' : '#555', letterSpacing: '.02em' }}>
                     {c.toUpperCase()}
                   </span>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: sq.color, lineHeight: 1 }}>{icon}</span>
-                </div>
-                {/* Live price */}
-                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.2px' }}>
-                  {store.coins[c]?.price ? '$' + fmtPrice(store.coins[c]!.price) : '—'}
-                </span>
-                <span style={{ fontSize: 9, fontWeight: 700, color: sq.color, letterSpacing: '.04em', textTransform: 'uppercase' }}>
-                  {shortLabel}
-                </span>
-                {/* Score bar */}
-                <div style={{ width: '100%', height: 3, background: 'rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', borderRadius: 2, width: sq.score + '%', background: sq.color, transition: 'width 0.6s ease' }} />
-                </div>
-                <span style={{ fontSize: 9, color: '#555', fontVariantNumeric: 'tabular-nums' }}>{sq.score}/100</span>
-              </button>
-            );
-          })}
-        </div>
-        <div style={{ fontSize: 10, color: '#3a3a3a', marginTop: 4 }}>
-          ↑ Short Squeeze (shorts overcrowded, likely pump) · ↓ Long Flush (longs overcrowded, likely dump) · Based on funding + L/S ratio
-        </div>
+                  {/* Price */}
+                  <span style={{ fontSize: 11, fontWeight: 600, color: isActive ? 'var(--txt)' : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
+                    {price ? '$' + fmtPrice(price) : '—'}
+                  </span>
+                  {/* 24h change */}
+                  <span style={{ fontSize: 10, fontWeight: 600, color: change == null ? '#3a3a3a' : change >= 0 ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
+                    {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : '—'}
+                  </span>
+                  {/* Score bar */}
+                  <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden', margin: '0 10px' }}>
+                    <div style={{ height: '100%', borderRadius: 2, width: rowSq.score + '%', background: isActive ? rowSq.color : 'rgba(255,255,255,0.10)', transition: 'width 0.6s' }} />
+                  </div>
+                  {/* Status */}
+                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.03em', color: isActive ? rowSq.color : '#383838', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    {icon} {statusLabel}
+                  </span>
+                  {/* Score */}
+                  <span style={{ fontSize: 10, color: isActive ? '#555' : '#2e2e2e', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
+                    {rowSq.score}/100
+                  </span>
+                </button>
+              );
+            })}
+
+            {/* Footer */}
+            <div style={{ padding: '5px 12px', borderTop: '0.5px solid rgba(255,255,255,0.04)' }}>
+              <span style={{ fontSize: 9, color: '#2e2e2e' }}>↑ Squeeze = shorts overcrowded, pump likely · ↓ Flush = longs overcrowded, dump likely · funding + L/S ratio</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── CHART — KLineChart with auto Entry/SL/TP overlays ── */}
