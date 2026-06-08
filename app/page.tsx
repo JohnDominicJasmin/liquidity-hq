@@ -85,12 +85,17 @@ const OI_TREND_META: Record<string, { txt: string; sub: string; hint: string; co
 };
 
 /* ── Coin Sidebar v2 — signal cards ── */
+const SIDEBAR_DEFAULT = 7;
+
 function CoinSidebar() {
   const { store, selectCoin } = useMarket();
+  const [expanded, setExpanded] = useState(false);
+
+  const visibleCoins = expanded ? COINS : COINS.slice(0, SIDEBAR_DEFAULT);
 
   return (
     <div className="csb2-container">
-      {COINS.map(id => {
+      {visibleCoins.map(id => {
         const d   = store.coins[id];
         const dec = COIN_DEC[id];
         const chg = d?.change ?? 0;
@@ -165,6 +170,21 @@ function CoinSidebar() {
           </div>
         );
       })}
+
+      {/* Show more / less toggle */}
+      <button
+        onClick={() => setExpanded(v => !v)}
+        style={{
+          width: '100%', background: 'none', border: 'none',
+          borderTop: '1px solid #1a1a1a', padding: '7px 0',
+          fontSize: 11, color: 'var(--txt3)', cursor: 'pointer',
+          letterSpacing: '0.04em', textAlign: 'center',
+        }}
+      >
+        {expanded
+          ? `▲ show less`
+          : `▼ +${COINS.length - SIDEBAR_DEFAULT} more coins`}
+      </button>
 
       {/* WS status indicator */}
       <div className="csb2-status">
