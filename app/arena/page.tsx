@@ -138,6 +138,7 @@ export default function Arena() {
   // Track last Quick signal per coin so Deep can compare and show an override notice
   const [quickSignals, setQuickSignals] = useState<Partial<Record<CoinId, string>>>({});
   const [scannerOpen, setScannerOpen]   = useState(false);
+  const scannerRef = useRef<HTMLDivElement>(null);
 
   // Derived — current coin's cached result (persists across coin switches)
   const cacheEntry = resultsCache[selectedCoin] ?? null;
@@ -880,117 +881,140 @@ export default function Arena() {
         </div>
       </div>
 
-      {/* ── SQUEEZE SCANNER — collapsible dropdown ── */}
-      <div style={{ marginBottom: 12 }}>
-
-        {/* Trigger row */}
+      {/* ── SQUEEZE SCANNER — hover flyout (Bybit-style watchlist) ── */}
+      <div
+        ref={scannerRef}
+        style={{ position: 'relative', marginBottom: 12 }}
+        onMouseEnter={() => setScannerOpen(true)}
+        onMouseLeave={() => setScannerOpen(false)}
+      >
+        {/* ── Compact trigger bar ── */}
         <button
           onClick={() => setScannerOpen(v => !v)}
           style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-            padding: '8px 12px', borderRadius: scannerOpen ? '10px 10px 0 0' : 10,
-            background: 'rgba(255,255,255,0.03)',
-            border: '0.5px solid rgba(255,255,255,0.08)',
-            borderBottom: scannerOpen ? '0.5px solid rgba(255,255,255,0.05)' : '0.5px solid rgba(255,255,255,0.08)',
-            cursor: 'pointer', textAlign: 'left',
+            padding: '7px 12px', borderRadius: 8,
+            background: scannerOpen ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.03)',
+            border: `0.5px solid ${scannerOpen ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.07)'}`,
+            cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s, border-color 0.15s',
           }}
         >
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#555', flexShrink: 0 }}>
-            Live Squeeze Scanner
+          {/* Dot indicator */}
+          <span style={{
+            width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+            background: sqzCount > 0 ? '#34d399' : flushCount > 0 ? '#f87171' : '#333',
+            boxShadow: sqzCount > 0 ? '0 0 6px #34d39966' : flushCount > 0 ? '0 0 6px #f8717166' : 'none',
+          }} />
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#555', letterSpacing: '.04em', flex: 1 }}>
+            Squeeze Scanner
           </span>
-          {/* Summary badges */}
-          <div style={{ display: 'flex', gap: 5, flex: 1, alignItems: 'center' }}>
-            {sqzCount > 0 && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '2px 8px', borderRadius: 20, border: '0.5px solid rgba(52,211,153,0.25)', whiteSpace: 'nowrap' }}>
-                ↑ {sqzCount} Squeeze
-              </span>
-            )}
-            {flushCount > 0 && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#f87171', background: 'rgba(248,113,113,0.1)', padding: '2px 8px', borderRadius: 20, border: '0.5px solid rgba(248,113,113,0.25)', whiteSpace: 'nowrap' }}>
-                ↓ {flushCount} Flush
-              </span>
-            )}
-            {sqzCount === 0 && flushCount === 0 && (
-              <span style={{ fontSize: 10, color: '#3a3a3a' }}>No active signals · {COINS.length} neutral</span>
-            )}
-          </div>
-          <span style={{ fontSize: 10, color: '#3a3a3a', flexShrink: 0, marginLeft: 4 }}>{scannerOpen ? '▲' : '▼'}</span>
+          {/* Active signal chips */}
+          {sqzCount > 0 && (
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid rgba(52,211,153,0.2)' }}>
+              ↑ {sqzCount}
+            </span>
+          )}
+          {flushCount > 0 && (
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#f87171', background: 'rgba(248,113,113,0.1)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid rgba(248,113,113,0.2)' }}>
+              ↓ {flushCount}
+            </span>
+          )}
+          <span style={{ fontSize: 10, color: '#333', marginLeft: 2 }}>{scannerOpen ? '▲' : '▼'}</span>
         </button>
 
-        {/* Expanded table */}
+        {/* ── Flyout panel (appears on hover / click) ── */}
         {scannerOpen && (
           <div style={{
-            background: 'rgba(255,255,255,0.02)',
-            border: '0.5px solid rgba(255,255,255,0.08)',
-            borderTop: 'none',
-            borderRadius: '0 0 10px 10px',
-            overflow: 'hidden',
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50,
+            background: '#111', border: '0.5px solid rgba(255,255,255,0.1)',
+            borderRadius: 10, overflow: 'hidden',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
           }}>
-            {/* Column headers */}
+            {/* Column header */}
             <div style={{
-              display: 'grid',
-              gridTemplateColumns: '52px 80px 46px 1fr 72px 42px',
-              gap: 0, padding: '5px 12px',
-              borderBottom: '0.5px solid rgba(255,255,255,0.05)',
+              display: 'grid', gridTemplateColumns: '1fr 84px 48px 80px 36px',
+              padding: '6px 12px',
+              borderBottom: '0.5px solid rgba(255,255,255,0.06)',
+              background: 'rgba(255,255,255,0.02)',
             }}>
-              {['Coin', 'Price', '24h', '', 'Status', 'Score'].map(h => (
-                <span key={h} style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: '#3a3a3a', textAlign: h === 'Price' || h === '24h' || h === 'Score' ? 'right' : 'left' }}>{h}</span>
+              {[['Name', 'left'], ['Price', 'right'], ['24h', 'right'], ['Status', 'right'], ['Scr', 'right']].map(([h, align]) => (
+                <span key={h} style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: '#333', textAlign: align as 'left' | 'right' }}>{h}</span>
               ))}
             </div>
 
-            {/* Rows */}
+            {/* Coin rows */}
             {scannerRows.map(({ c, sq: rowSq, price, change }, idx) => {
-              const isSelected = c === selectedCoin;
-              const isActive   = rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
-              const icon       = rowSq.dir === 'SHORT_SQ' ? '↑' : rowSq.dir === 'LONG_LIQ' ? '↓' : '·';
+              const isSelected  = c === selectedCoin;
+              const isActive    = rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
+              const icon        = rowSq.dir === 'SHORT_SQ' ? '↑' : rowSq.dir === 'LONG_LIQ' ? '↓' : '';
               const statusLabel = rowSq.dir === 'SHORT_SQ' ? 'Squeeze' : rowSq.dir === 'LONG_LIQ' ? 'Flush' : 'Neutral';
-              const divider    = idx < scannerRows.length - 1 ? '0.5px solid rgba(255,255,255,0.04)' : 'none';
               return (
                 <button
                   key={c}
-                  onClick={() => setSelectedCoin(c)}
+                  onClick={() => { setSelectedCoin(c); setScannerOpen(false); }}
                   style={{
                     width: '100%', display: 'grid',
-                    gridTemplateColumns: '52px 80px 46px 1fr 72px 42px',
-                    alignItems: 'center', gap: 0,
-                    padding: '7px 12px',
-                    background: isSelected ? 'rgba(184,174,255,0.07)' : 'transparent',
-                    border: 'none', borderBottom: divider,
-                    cursor: 'pointer', textAlign: 'left',
-                    transition: 'background 0.15s',
+                    gridTemplateColumns: '1fr 84px 48px 80px 36px',
+                    alignItems: 'center', padding: '7px 12px',
+                    background: isSelected ? 'rgba(184,174,255,0.08)' : 'transparent',
+                    border: 'none',
+                    borderBottom: idx < scannerRows.length - 1 ? '0.5px solid rgba(255,255,255,0.04)' : 'none',
+                    cursor: 'pointer', textAlign: 'left', transition: 'background 0.12s',
                   }}
+                  onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)'; }}
+                  onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                 >
-                  {/* Coin */}
-                  <span style={{ fontSize: 12, fontWeight: 700, color: isSelected ? '#b8aeff' : isActive ? 'var(--txt)' : '#555', letterSpacing: '.02em' }}>
-                    {c.toUpperCase()}
-                  </span>
+                  {/* Coin name + dot */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span style={{
+                      width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                      background: isActive ? rowSq.color + '22' : 'rgba(255,255,255,0.06)',
+                      border: `0.5px solid ${isActive ? rowSq.color + '55' : 'rgba(255,255,255,0.08)'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 8, fontWeight: 800, color: isActive ? rowSq.color : '#444',
+                    }}>
+                      {c.slice(0, 1).toUpperCase()}
+                    </span>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: isSelected ? '#b8aeff' : isActive ? 'var(--txt)' : '#666', lineHeight: 1.2 }}>
+                        {c.toUpperCase()}
+                      </div>
+                      <div style={{ fontSize: 9, color: '#333', lineHeight: 1 }}>USDT Perp</div>
+                    </div>
+                  </div>
                   {/* Price */}
-                  <span style={{ fontSize: 11, fontWeight: 600, color: isActive ? 'var(--txt)' : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: isActive ? 'var(--txt)' : '#555', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
                     {price ? '$' + fmtPrice(price) : '—'}
                   </span>
-                  {/* 24h change */}
-                  <span style={{ fontSize: 10, fontWeight: 600, color: change == null ? '#3a3a3a' : change >= 0 ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
+                  {/* 24h % */}
+                  <span style={{ fontSize: 10, fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: change == null ? '#333' : change >= 0 ? '#34d399' : '#f87171' }}>
                     {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : '—'}
                   </span>
-                  {/* Score bar */}
-                  <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2, overflow: 'hidden', margin: '0 10px' }}>
-                    <div style={{ height: '100%', borderRadius: 2, width: rowSq.score + '%', background: isActive ? rowSq.color : 'rgba(255,255,255,0.10)', transition: 'width 0.6s' }} />
-                  </div>
                   {/* Status */}
-                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.03em', color: isActive ? rowSq.color : '#383838', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    {icon} {statusLabel}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                    {isActive && (
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, letterSpacing: '.04em', padding: '1px 6px',
+                        borderRadius: 4, background: rowSq.color + '18',
+                        border: `0.5px solid ${rowSq.color}44`,
+                        color: rowSq.color,
+                      }}>
+                        {icon} {statusLabel}
+                      </span>
+                    )}
+                    {!isActive && <span style={{ fontSize: 10, color: '#2e2e2e' }}>· Neutral</span>}
+                  </div>
                   {/* Score */}
-                  <span style={{ fontSize: 10, color: isActive ? '#555' : '#2e2e2e', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
-                    {rowSq.score}/100
+                  <span style={{ fontSize: 10, fontWeight: 700, color: isActive ? rowSq.color : '#2e2e2e', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
+                    {rowSq.score}
                   </span>
                 </button>
               );
             })}
 
             {/* Footer */}
-            <div style={{ padding: '5px 12px', borderTop: '0.5px solid rgba(255,255,255,0.04)' }}>
-              <span style={{ fontSize: 9, color: '#2e2e2e' }}>↑ Squeeze = shorts overcrowded, pump likely · ↓ Flush = longs overcrowded, dump likely · funding + L/S ratio</span>
+            <div style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.01)', borderTop: '0.5px solid rgba(255,255,255,0.05)' }}>
+              <span style={{ fontSize: 9, color: '#2a2a2a' }}>Funding rate + L/S ratio · ↑ Squeeze = shorts overcrowded · ↓ Flush = longs overcrowded</span>
             </div>
           </div>
         )}
