@@ -997,8 +997,10 @@ body.ticker-on .breaking-alert { top: 90px; }
 .ncard-impact { padding: 0; border: none; margin-bottom: 10px; }
 .ncard-impact-icon { display: none; }
 .ncard-impact-text { font-size: 11px; color: var(--txt3); line-height: 1.6; }
-.ncard-ask-btn { display: block; margin-left: auto; background: none; border: none; color: var(--purple); font-size: 11px; font-weight: 600; cursor: pointer; padding: 4px 0; transition: opacity 0.12s; letter-spacing: 0; }
+.ncard-ask-btn { background: none; border: none; color: var(--purple); font-size: 11px; font-weight: 600; cursor: pointer; padding: 4px 0; transition: opacity 0.12s; letter-spacing: 0; }
 .ncard-ask-btn:hover { opacity: 0.65; box-shadow: none; }
+.ncard-read-btn { font-size: 11px; font-weight: 600; color: var(--txt3); text-decoration: none; padding: 4px 0; transition: color 0.12s; }
+.ncard-read-btn:hover { color: var(--txt2); }
 .ncard-ask-sm  { display: block; margin-left: auto; background: none; border: none; color: var(--purple); font-size: 11px; font-weight: 600; cursor: pointer; padding: 4px 0; transition: opacity 0.12s; }
 .ncard-ask-sm:hover  { opacity: 0.65; box-shadow: none; }
 

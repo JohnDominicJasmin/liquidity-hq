@@ -1,20 +1,30 @@
 import { NextResponse } from 'next/server';
 
-// Free RSS feeds — no API key, no rate limit
+// Free RSS feeds — no API key required
 const FEEDS = [
-  { url: 'https://feeds.reuters.com/reuters/topNews',      source: 'Reuters' },
-  { url: 'https://feeds.reuters.com/reuters/worldNews',    source: 'Reuters World' },
-  { url: 'https://feeds.reuters.com/reuters/businessNews', source: 'Reuters Business' },
-  { url: 'https://feeds.apnews.com/rss/apf-topnews',      source: 'AP News' },
-  { url: 'https://feeds.apnews.com/rss/apf-business',     source: 'AP Business' },
-  { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', source: 'CoinDesk' },
-  { url: 'https://cointelegraph.com/rss',                  source: 'CoinTelegraph' },
+  // ── Global breaking / geopolitical ──────────────────────────────────────
+  { url: 'https://feeds.reuters.com/reuters/topNews',       source: 'Reuters',          cat: 'geo'    },
+  { url: 'https://feeds.reuters.com/reuters/worldNews',     source: 'Reuters World',    cat: 'geo'    },
+  { url: 'https://feeds.reuters.com/reuters/businessNews',  source: 'Reuters Business', cat: 'macro'  },
+  { url: 'https://feeds.apnews.com/rss/apf-topnews',        source: 'AP News',          cat: 'geo'    },
+  { url: 'https://feeds.apnews.com/rss/apf-business',       source: 'AP Business',      cat: 'macro'  },
+  { url: 'https://feeds.bbci.co.uk/news/world/rss.xml',     source: 'BBC World',        cat: 'geo'    },
+  { url: 'https://feeds.bbci.co.uk/news/business/rss.xml',  source: 'BBC Business',     cat: 'macro'  },
+  // ── Crypto news ─────────────────────────────────────────────────────────
+  { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', source: 'CoinDesk',         cat: 'crypto' },
+  { url: 'https://cointelegraph.com/rss',                   source: 'CoinTelegraph',    cat: 'crypto' },
+  { url: 'https://decrypt.co/feed',                         source: 'Decrypt',          cat: 'crypto' },
+  { url: 'https://www.theblock.co/rss.xml',                 source: 'The Block',        cat: 'crypto' },
+  { url: 'https://cryptoslate.com/feed/',                   source: 'CryptoSlate',      cat: 'crypto' },
+  { url: 'https://bitcoinmagazine.com/.rss/full/',          source: 'Bitcoin Magazine', cat: 'crypto' },
 ];
 
-interface RSSItem {
-  title: string;
-  source: string;
+export interface RSSItem {
+  title:   string;
+  source:  string;
   pubDate: number;
+  link?:   string;
+  cat:     'geo' | 'macro' | 'crypto';
 }
 
 function extractCDATA(text: string): string {
@@ -22,48 +32,68 @@ function extractCDATA(text: string): string {
   return m ? m[1].trim() : text.trim();
 }
 
-function parseRSS(xml: string, source: string): RSSItem[] {
+function extractLink(block: string): string | undefined {
+  // Prefer <link> that's not an <atom:link>
+  // RSS uses bare <link>URL</link> or <link href="..."/>
+  const plain = block.match(/<link>(?:<!\[CDATA\[)?(https?:\/\/[^\s<"]+?)(?:\]\]>)?<\/link>/i)?.[1];
+  if (plain) return plain.trim();
+  const href = block.match(/<link[^>]+href=["'](https?:\/\/[^"']+)["']/i)?.[1];
+  if (href) return href.trim();
+  // guid is often the article URL
+  const guid = block.match(/<guid[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^\s<"]+?)(?:\]\]>)?<\/guid>/i)?.[1];
+  if (guid) return guid.trim();
+  return undefined;
+}
+
+function parseRSS(xml: string, source: string, cat: RSSItem['cat']): RSSItem[] {
   const items: RSSItem[] = [];
   const itemRx = /<item>([\s\S]*?)<\/item>/g;
   let m: RegExpExecArray | null;
   while ((m = itemRx.exec(xml)) !== null) {
     const block = m[1];
 
-    // Title — handle CDATA or plain
     const titleRaw = block.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? '';
     const title = extractCDATA(titleRaw);
     if (!title) continue;
 
-    // pubDate
     const dateStr = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1]?.trim() ?? '';
     const pubDate = dateStr ? Math.floor(new Date(dateStr).getTime() / 1000) : Math.floor(Date.now() / 1000);
-
-    // Skip if date is invalid
     if (isNaN(pubDate) || pubDate <= 0) continue;
 
-    items.push({ title, source, pubDate });
+    const link = extractLink(block);
+
+    items.push({ title, source, pubDate, link, cat });
   }
   return items;
 }
 
+let cache: { ts: number; items: RSSItem[] } | null = null;
+const CACHE_TTL = 90 * 1000; // 90 seconds
+
 export async function GET() {
+  // Serve from cache if fresh
+  if (cache && Date.now() - cache.ts < CACHE_TTL) {
+    return NextResponse.json({ items: cache.items });
+  }
+
   const all: RSSItem[] = [];
 
   await Promise.allSettled(
-    FEEDS.map(async ({ url, source }) => {
+    FEEDS.map(async ({ url, source, cat }) => {
       try {
         const res = await fetch(url, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LiquidityHQ/1.0)' },
-          signal: AbortSignal.timeout(5000),
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LiquidityHQ/1.0; +https://liquidity-hq.onrender.com)' },
+          signal: AbortSignal.timeout(6000),
+          next: { revalidate: 0 },
         });
         if (!res.ok) return;
         const xml = await res.text();
-        all.push(...parseRSS(xml, source));
-      } catch { /* skip failed feed */ }
+        all.push(...parseRSS(xml, source, cat as RSSItem['cat']));
+      } catch { /* skip failed feed silently */ }
     })
   );
 
-  // Sort newest first, dedupe by title prefix
+  // Sort newest first, dedupe by title prefix (60 chars)
   all.sort((a, b) => b.pubDate - a.pubDate);
   const seen = new Set<string>();
   const deduped = all.filter(item => {
@@ -73,5 +103,8 @@ export async function GET() {
     return true;
   });
 
-  return NextResponse.json({ items: deduped.slice(0, 60) });
+  const result = deduped.slice(0, 100);
+  cache = { ts: Date.now(), items: result };
+
+  return NextResponse.json({ items: result });
 }

@@ -10,6 +10,7 @@ export interface Alert {
   source: string;
   ts: number;
   type: 'red' | 'amber' | 'purple';
+  link?: string;
 }
 
 export interface EconEvent {
@@ -88,7 +89,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const whaleIdRef = useRef(0);
   const seenWhaleIds = useRef<Set<number>>(new Set());
 
-  const pushAlert = useCallback((headline: string, source: string, ts: number, type: 'red' | 'amber' | 'purple') => {
+  const pushAlert = useCallback((headline: string, source: string, ts: number, type: 'red' | 'amber' | 'purple', link?: string) => {
     const key = headline.slice(0, 60);
     if (seenRef.current.has(key)) return;
     seenRef.current.add(key);
@@ -96,7 +97,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     setLatestHeadlines(prev => [headline, ...prev].slice(0, 10));
 
     const id = alertIdRef.current++;
-    setAlerts(prev => [...prev, { id, headline, source, ts, type }]);
+    setAlerts(prev => [...prev, { id, headline, source, ts, type, link }]);
 
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification(headline, {
@@ -213,18 +214,19 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     } catch { /* */ }
   }, [pushAlert]);
 
-  /* ── Reuters / AP / CoinDesk / CoinTelegraph RSS (server-side proxy) ── */
+  /* ── Reuters / AP / BBC / CoinDesk / CoinTelegraph / Decrypt / The Block RSS ── */
   const fetchRSSNews = useCallback(async () => {
     try {
       const res = await fetch('/api/news-rss');
       if (!res.ok) return;
-      const { items } = await res.json() as { items: { title: string; source: string; pubDate: number }[] };
+      const { items } = await res.json() as { items: { title: string; source: string; pubDate: number; link?: string; cat: string }[] };
       const cutoff = Math.floor(Date.now() / 1000) - 6 * 3600; // ignore articles older than 6h
       items.forEach(item => {
         if (item.pubDate < cutoff) return;
-        const type = classifyNews(item.title);
+        // Crypto-category items always get at least 'purple'
+        const type = classifyNews(item.title) ?? (item.cat === 'crypto' ? 'purple' : null);
         if (!type) return;
-        pushAlert(item.title, item.source, item.pubDate, type);
+        pushAlert(item.title, item.source, item.pubDate, type, item.link);
       });
     } catch { /* ignore */ }
   }, [pushAlert]);

@@ -3,14 +3,15 @@ import { useState } from 'react';
 import { useNews } from '@/components/NewsProvider';
 import { GEO_KEYWORDS, ECON_NOTES } from '@/lib/classify';
 
-type Tab = 'foryou' | 'all' | 'geo' | 'crypto' | 'events';
+type Tab = 'foryou' | 'breaking' | 'all' | 'geo' | 'crypto' | 'events';
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'foryou',  label: 'For You'   },
-  { id: 'all',     label: 'All'       },
-  { id: 'geo',     label: 'War & Geo' },
-  { id: 'crypto',  label: 'Crypto'    },
-  { id: 'events',  label: 'Events'    },
+  { id: 'foryou',   label: 'For You'   },
+  { id: 'breaking', label: 'Breaking'  },
+  { id: 'all',      label: 'All'       },
+  { id: 'geo',      label: 'War & Geo' },
+  { id: 'crypto',   label: 'Crypto'    },
+  { id: 'events',   label: 'Events'    },
 ];
 
 function timeAgo(ts: number): string {
@@ -43,7 +44,35 @@ function askGrok(headline: string) {
   }));
 }
 
-/* ── Card background styles by type (dark-mode friendly) ── */
+/* ── Source pill — color-coded by outlet ── */
+const SOURCE_COLORS: Record<string, string> = {
+  'Reuters':          '#f59e0b',
+  'Reuters World':    '#f59e0b',
+  'Reuters Business': '#f59e0b',
+  'AP News':          '#60a5fa',
+  'AP Business':      '#60a5fa',
+  'BBC World':        '#e11d48',
+  'BBC Business':     '#e11d48',
+  'CoinDesk':         '#a78bfa',
+  'CoinTelegraph':    '#34d399',
+  'Decrypt':          '#fb923c',
+  'The Block':        '#38bdf8',
+  'CryptoSlate':      '#818cf8',
+  'Bitcoin Magazine': '#fbbf24',
+  'Finnhub':          '#94a3b8',
+};
+
+function SourcePill({ source }: { source: string }) {
+  const col = SOURCE_COLORS[source] ?? 'var(--txt3)';
+  return (
+    <span style={{
+      fontSize: 9, fontWeight: 700, letterSpacing: '.04em',
+      color: col, opacity: 0.85, textTransform: 'uppercase',
+    }}>{source}</span>
+  );
+}
+
+/* ── Card background styles by type ── */
 const TYPE_STYLE = {
   red:    { bg: 'rgba(185,28,28,0.08)',  border: 'rgba(220,38,38,0.30)',  dot: '#f87171', label: 'Breaking', labelBg: 'rgba(248,113,113,0.12)' },
   amber:  { bg: 'rgba(180,83,9,0.08)',   border: 'rgba(217,119,6,0.30)',  dot: '#fbbf24', label: 'Macro',    labelBg: 'rgba(251,191,36,0.12)'  },
@@ -55,6 +84,10 @@ export default function NewsPage() {
   const [tab, setTab] = useState<Tab>('foryou');
 
   /* ── Categorise ── */
+  const breaking = alerts
+    .filter(a => a.type === 'red')
+    .sort((a, b) => b.ts - a.ts);
+
   const catalysts = alerts
     .filter(a => a.type === 'red' || a.type === 'amber')
     .map(a => ({ ...a, geo: getGeoMeta(a.headline) }))
@@ -64,15 +97,13 @@ export default function NewsPage() {
     .filter(a => a.type === 'purple')
     .sort((a, b) => b.ts - a.ts);
 
-  /* Extra geo events not already in alerts */
   const geoAlertKeys = new Set(catalysts.map(c => c.headline.slice(0, 50)));
   const extraGeo = geoEvents.filter(g => !geoAlertKeys.has(g.headline.slice(0, 50)));
 
-  /* "For You" shows catalysts first; falls back to latest crypto if no catalysts */
   const hasHighImpact = catalysts.length > 0 || whaleAlerts.length > 0 || extraGeo.length > 0;
   const foryouFallback = !hasHighImpact && cryptoNews.length > 0;
 
-  const tabContent: Record<Exclude<Tab, 'events'>, typeof alerts> = {
+  const tabContent: Record<Exclude<Tab, 'events' | 'breaking'>, typeof alerts> = {
     foryou:  hasHighImpact ? catalysts : cryptoNews.slice(0, 15),
     all:     [...alerts].sort((a, b) => b.ts - a.ts),
     geo:     alerts.filter(a => a.type === 'red').sort((a, b) => b.ts - a.ts),
@@ -80,12 +111,54 @@ export default function NewsPage() {
   };
 
   const hasBadge = (t: Tab) => {
-    if (t === 'foryou') return (catalysts.length + whaleAlerts.length) > 0;
+    if (t === 'foryou')   return (catalysts.length + whaleAlerts.length) > 0;
+    if (t === 'breaking') return breaking.length > 0;
     return false;
   };
 
-  const isEmpty = tab !== 'events' && tab !== 'foryou' && tabContent[tab as Exclude<Tab,'events'>].length === 0;
+  const isEmpty = (tab !== 'events' && tab !== 'foryou' && tab !== 'breaking') &&
+    tabContent[tab as Exclude<Tab,'events'|'breaking'>].length === 0;
   const foryouEmpty = tab === 'foryou' && !hasHighImpact && cryptoNews.length === 0;
+
+  /* ── Shared card renderer ── */
+  function NewsCard({ a }: { a: typeof alerts[0] & { geo?: { tag: string; note: string } | null } }) {
+    const cfg = TYPE_STYLE[a.type];
+    const geo = getGeoMeta(a.headline);
+    return (
+      <div className="ncard ncard-catalyst" style={{ borderTopColor: cfg.dot }}>
+        <div className="ncard-top">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span className="ncard-type-badge" style={{ color: cfg.dot }}>
+              {geo ? geo.tag : cfg.label}
+            </span>
+            <SourcePill source={a.source} />
+          </div>
+          <span className="ncard-meta">{timeAgo(a.ts)}</span>
+        </div>
+        <div className="ncard-headline">{a.headline}</div>
+        {geo && (
+          <div className="ncard-impact">
+            <span className="ncard-impact-text">{geo.note}</span>
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+          <button className="ncard-ask-btn" style={{ margin: 0 }} onClick={() => askGrok(a.headline)}>
+            Ask LiquidityAI →
+          </button>
+          {a.link && (
+            <a
+              href={a.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ncard-read-btn"
+            >
+              Read more ↗
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -95,7 +168,7 @@ export default function NewsPage() {
           News
         </div>
         <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 12 }}>
-          Live feed · Finnhub REST + WS + RSS
+          Reuters · AP · BBC · CoinDesk · CoinTelegraph · Decrypt · The Block · Finnhub
           <span style={{
             marginLeft: 8, fontWeight: 700,
             color: alerts.length > 0 ? 'var(--green)' : 'var(--txt3)',
@@ -115,27 +188,44 @@ export default function NewsPage() {
           >
             {t.label}
             {hasBadge(t.id) && (
-              <span className="ntab-count">{catalysts.length + whaleAlerts.length}</span>
+              <span className="ntab-count">
+                {t.id === 'breaking' ? breaking.length : catalysts.length + whaleAlerts.length}
+              </span>
             )}
           </button>
         ))}
       </div>
 
+      {/* ── Breaking tab ── */}
+      {tab === 'breaking' && (
+        <div className="nfeed">
+          {breaking.length === 0 ? (
+            <div className="nfeed-empty">
+              <div style={{ fontSize: 28, marginBottom: 10 }}>📡</div>
+              <div style={{ fontSize: 14, color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>
+                No breaking news
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--txt3)' }}>
+                War · blockades · sanctions · crashes will appear here
+              </div>
+            </div>
+          ) : breaking.map(a => <NewsCard key={a.id} a={a} />)}
+        </div>
+      )}
+
       {/* ── For You tab ── */}
       {tab === 'foryou' && (
         <div className="nfeed">
-          {/* Fallback notice */}
           {foryouFallback && (
             <div style={{
               padding: '8px 12px', borderRadius: 10, marginBottom: 8,
               background: 'var(--bg2)', border: '0.5px solid var(--bdr)',
               fontSize: 11, color: 'var(--txt3)', lineHeight: 1.5,
             }}>
-              📡 No breaking catalysts right now — showing latest crypto news
+              No breaking catalysts right now — showing latest crypto news
             </div>
           )}
 
-          {/* Empty state */}
           {foryouEmpty && (
             <div className="nfeed-empty">
               <div style={{ fontSize: 28, marginBottom: 10 }}>📡</div>
@@ -146,17 +236,15 @@ export default function NewsPage() {
                 High-impact news + whale trades will appear here
               </div>
               <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 12, opacity: 0.7 }}>
-                Sources: Finnhub · RSS · Whale detector
+                Reuters · AP · BBC · CoinDesk · CoinTelegraph · Decrypt · The Block · Finnhub
               </div>
             </div>
           )}
 
-          {/* 🐋 Whale alerts */}
+          {/* Whale alerts */}
           {whaleAlerts.slice(0, 8).map((w) => {
             const isBuy = w.side === 'BUY';
-            const col   = isBuy ? 'var(--green)' : 'var(--red)';
-            const bg    = isBuy ? 'rgba(52,211,153,0.06)' : 'rgba(248,113,113,0.06)';
-            const bdr   = isBuy ? 'rgba(52,211,153,0.25)' : 'rgba(248,113,113,0.25)';
+            const col  = isBuy ? 'var(--green)' : 'var(--red)';
             return (
               <div key={w.id} className="ncard ncard-catalyst ncard-whale"
                 style={{ borderTopColor: col }}>
@@ -189,38 +277,17 @@ export default function NewsPage() {
           })}
 
           {/* Catalysts / fallback crypto */}
-          {tabContent.foryou.map(a => {
-            const cfg = TYPE_STYLE[a.type];
-            const geo = getGeoMeta(a.headline);
-            return (
-              <div key={a.id} className="ncard ncard-catalyst"
-                style={{ borderTopColor: cfg.dot }}>
-                <div className="ncard-top">
-                  <span className="ncard-type-badge" style={{ color: cfg.dot }}>
-                    {geo ? geo.tag : cfg.label}
-                  </span>
-                  <span className="ncard-meta">{a.source} · {timeAgo(a.ts)}</span>
-                </div>
-                <div className="ncard-headline">{a.headline}</div>
-                {geo && (
-                  <div className="ncard-impact">
-                    <span className="ncard-impact-text">{geo.note}</span>
-                  </div>
-                )}
-                <button className="ncard-ask-btn" onClick={() => askGrok(a.headline)}>Ask LiquidityAI →</button>
-              </div>
-            );
-          })}
+          {tabContent.foryou.map(a => <NewsCard key={a.id} a={a} />)}
 
-          {/* Extra geo events (not in alerts) */}
+          {/* Extra geo events */}
           {extraGeo.map((g, i) => (
-            <div key={i} className="ncard ncard-catalyst"
-              style={{ borderTopColor: '#a78bfa' }}>
+            <div key={i} className="ncard ncard-catalyst" style={{ borderTopColor: '#a78bfa' }}>
               <div className="ncard-top">
-                <span className="ncard-type-badge" style={{ color: '#a78bfa' }}>
-                  {g.tag}
-                </span>
-                <span className="ncard-meta">{g.source} · {g.timeStr}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span className="ncard-type-badge" style={{ color: '#a78bfa' }}>{g.tag}</span>
+                  <SourcePill source={g.source} />
+                </div>
+                <span className="ncard-meta">{g.timeStr}</span>
               </div>
               <div className="ncard-headline">{g.headline}</div>
               <div className="ncard-impact">
@@ -241,31 +308,11 @@ export default function NewsPage() {
               <div style={{ fontSize: 13, color: 'var(--txt3)' }}>
                 {tab === 'geo'    ? 'No war/conflict alerts yet'
                 : tab === 'crypto' ? 'No crypto news yet'
-                : 'Fetching news — Finnhub + RSS loading…'}
+                : 'Fetching news — feeds loading…'}
               </div>
             </div>
           )}
-          {tabContent[tab as Exclude<Tab,'events'>].map(a => {
-            const cfg = TYPE_STYLE[a.type];
-            const geo = getGeoMeta(a.headline);
-            return (
-              <div key={a.id} className="ncard ncard-catalyst" style={{ borderTopColor: cfg.dot }}>
-                <div className="ncard-top">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className="ncard-type-badge" style={{ color: cfg.dot }}>
-                      {cfg.label}
-                    </span>
-                    {geo && <span className="ncard-geo-tag">{geo.tag}</span>}
-                  </div>
-                  <span className="ncard-meta">{a.source} · {timeAgo(a.ts)}</span>
-                </div>
-                <div className="ncard-headline">{a.headline}</div>
-                <div style={{ marginTop: 8 }}>
-                  <button className="ncard-ask-sm" onClick={() => askGrok(a.headline)}>Ask LiquidityAI</button>
-                </div>
-              </div>
-            );
-          })}
+          {tabContent[tab as Exclude<Tab,'events'|'breaking'>].map(a => <NewsCard key={a.id} a={a} />)}
         </div>
       )}
 
@@ -280,7 +327,7 @@ export default function NewsPage() {
             </div>
           )}
           {econEvents.map((e, i) => {
-            const note = ECON_NOTES[e.type];
+            const note   = ECON_NOTES[e.type];
             const urgent = e.h < 2;
             const soon   = e.h < 24;
             return (
@@ -295,8 +342,8 @@ export default function NewsPage() {
                   <span className="ncard-meta" style={{
                     color: urgent ? 'var(--amber)' : soon ? 'var(--amber)' : 'var(--txt3)',
                   }}>
-                    {e.h < 0.5 ? '🔴 NOW'
-                    : e.h < 2   ? `⚠ ${Math.round(e.h * 60)}m away`
+                    {e.h < 0.5 ? 'NOW'
+                    : e.h < 2   ? `${Math.round(e.h * 60)}m away`
                     : e.h < 24  ? `${Math.round(e.h)}h away`
                     : e.dateStr}
                   </span>
@@ -310,7 +357,6 @@ export default function NewsPage() {
               </div>
             );
           })}
-
           <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 8, textAlign: 'center' }}>
             Source: Finnhub Economic Calendar — high-impact events only
           </div>
