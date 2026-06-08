@@ -163,6 +163,7 @@ export default function Arena() {
   // Track last Quick signal per coin so Deep can compare and show an override notice
   const [quickSignals, setQuickSignals] = useState<Partial<Record<CoinId, string>>>({});
   const [scannerOpen, setScannerOpen]   = useState(false);
+  const [sigDetailsOpen, setSigDetailsOpen] = useState(false);
   const scannerRef = useRef<HTMLDivElement>(null);
 
   // Derived — current coin's cached result (persists across coin switches)
@@ -808,6 +809,7 @@ export default function Arena() {
       // Track Quick signals separately so Deep can show an override notice when they disagree
       if (mode === 'quick') setQuickSignals(prev => ({ ...prev, [selectedCoin]: res.signal }));
       setDetailIdx(null);
+      setSigDetailsOpen(false);
       const entryStr = res.entryLow && res.entryHigh
         ? `$${fmtPrice(res.entryLow)} – $${fmtPrice(res.entryHigh)}`
         : '—';
@@ -1031,56 +1033,11 @@ export default function Arena() {
       {/* ── BELOW CHART: left-aligned, max 860px on wide screens ── */}
       <div className="arena-below-chart">
 
-      {/* ── MARKET STRUCTURE (4H BOS / CHoCH) ── */}
-      <MarketStructure coin={selectedCoin} onData={handleMsData} />
-
-      {/* ── ABSORPTION DETECTOR (15M) ── */}
-      <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />
-
-      {/* ── SIGNAL ENGINE ── */}
-      {/* Squeeze score */}
-      <div className="arena-squeeze-card" style={{ marginTop: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: '#444' }}>Squeeze Score — {selectedCoin.toUpperCase()}</span>
-          <span style={{ fontSize: 11, fontWeight: 700, color: sq.color }}>{sq.label}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ flex: 1, height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
-            <div style={{ height: '100%', borderRadius: 3, width: sq.score + '%', background: sq.color, transition: 'width 0.6s ease' }} />
-          </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: sq.color, minWidth: 42, textAlign: 'right' }}>{sq.score}/100</span>
-        </div>
+      {/* Data collectors — run hooks for Grok context, render nothing */}
+      <div style={{ display: 'none' }}>
+        <MarketStructure coin={selectedCoin} onData={handleMsData} />
+        <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />
       </div>
-
-      {/* CVD Divergence banner — context-aware */}
-      {(() => {
-        const div    = store.coins[selectedCoin]?.cvdDivergence;
-        if (!div) return null;
-        const isBull   = div === 'bullish';
-        const change   = store.coins[selectedCoin]?.change ?? 0;
-        // Bullish divergence during a heavy selloff = likely absorption trap, not reversal
-        const isTrap   = isBull && change < -5;
-        const cssClass = isTrap ? 'trap' : div;
-        return (
-          <div className={`arena-cvd-div arena-cvd-div-${cssClass}`}>
-            <span className="arena-cvd-div-icon">{isTrap ? '⚠️' : isBull ? '📈' : '📉'}</span>
-            <div>
-              <div className="arena-cvd-div-title">
-                {isTrap
-                  ? 'CVD Divergence — Possible Absorption Trap'
-                  : isBull ? 'Bullish CVD Divergence' : 'Bearish CVD Divergence'}
-              </div>
-              <div className="arena-cvd-div-desc">
-                {isTrap
-                  ? `Buyers are absorbing sell orders but the ${change.toFixed(1)}% 24h decline shows sellers are still in control. In a momentum selloff this pattern often means a brief pause, NOT a reversal. Wait for price to print higher lows and volume to dry up before treating as a setup.`
-                  : isBull
-                  ? 'Price falling but net buying pressure rising — potential accumulation. Watch for confirmation before entry.'
-                  : 'Price rising but net selling pressure increasing — distribution in progress. Watch for reversal down.'}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
       {/* TF selector + buttons */}
       <div style={{ margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
@@ -1317,111 +1274,66 @@ export default function Arena() {
               </div>
             )}
 
-            {/* Catalysts — events/news driving the trade */}
+            {/* Catalysts — top 3 bullets only */}
             {result.catalysts && result.catalysts.length > 0 && (
-              <div className="arena-reasoning" style={{ marginTop: 10, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
-                <div className="arena-reasoning-title">Catalysts</div>
-                <ul style={{ margin: '6px 0 0', padding: '0 0 0 14px', listStyle: 'disc' }}>
-                  {result.catalysts.map((c, i) => (
+              <div style={{ marginTop: 10, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
+                <ul style={{ margin: 0, padding: '0 0 0 14px', listStyle: 'disc' }}>
+                  {result.catalysts.slice(0, 3).map((c, i) => (
                     <li key={i} style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.7 }}>{c}</li>
                   ))}
                 </ul>
               </div>
             )}
 
-            {/* Chart analysis */}
-            {result.chartAnalysis && (
-              <div className="arena-reasoning" style={{ marginTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
-                <div className="arena-reasoning-title">Chart</div>
-                <div className="arena-reasoning-text"><ReasoningText text={result.chartAnalysis} /></div>
-              </div>
-            )}
+            {/* ── Details toggle — chart / patterns / full reasoning ── */}
+            <button
+              onClick={() => setSigDetailsOpen(v => !v)}
+              style={{
+                marginTop: 12, width: '100%', padding: '6px 0',
+                background: 'transparent', border: 'none',
+                borderTop: '0.5px solid rgba(255,255,255,0.06)',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                color: '#3a3a3a', fontSize: 11,
+              }}
+            >
+              <span>{sigDetailsOpen ? '▲ hide details' : '▼ full reasoning + chart + patterns'}</span>
+            </button>
 
-            {/* Pattern chips */}
-            {result.patterns && result.patterns.length > 0 && (
-              <div style={{ marginTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
-                <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>Patterns</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {result.patterns.map((p, i) => {
-                    const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
-                    const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
-                    const col = isBull ? '#34d399' : isBear ? '#f87171' : '#a78bfa';
-                    const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(167,139,250,0.08)';
-                    const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(167,139,250,0.25)';
-                    return (
-                      <span key={i} style={{
-                        fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 6,
-                        background: bg, color: col, border: `0.5px solid ${bdr}`,
-                        letterSpacing: '-0.1px',
-                      }}>{p}</span>
-                    );
-                  })}
+            {sigDetailsOpen && (
+              <>
+                {result.chartAnalysis && (
+                  <div className="arena-reasoning" style={{ marginTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
+                    <div className="arena-reasoning-title">Chart</div>
+                    <div className="arena-reasoning-text"><ReasoningText text={result.chartAnalysis} /></div>
+                  </div>
+                )}
+                {result.patterns && result.patterns.length > 0 && (
+                  <div style={{ marginTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
+                    <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>Patterns</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {result.patterns.map((p, i) => {
+                        const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
+                        const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
+                        const col = isBull ? '#34d399' : isBear ? '#f87171' : '#a78bfa';
+                        const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(167,139,250,0.08)';
+                        const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(167,139,250,0.25)';
+                        return (
+                          <span key={i} style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <div className="arena-reasoning" style={{ marginTop: 8 }}>
+                  <div className="arena-reasoning-title">Reasoning</div>
+                  <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
                 </div>
-              </div>
+              </>
             )}
-
-            {/* Full reasoning */}
-            <div className="arena-reasoning" style={{ marginTop: 8 }}>
-              <div className="arena-reasoning-title">Reasoning</div>
-              <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
-            </div>
           </div>
         );
       })()}
 
-      {/* ── DATA CONTEXT (collapsible) ── */}
-      <div className="arena-context" style={{ marginTop: 8 }}>
-        <div
-          className="arena-context-title"
-          style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: ctxOpen ? 8 : 0 }}
-          onClick={() => setCtxOpen(v => !v)}
-        >
-          <span>
-            Analysing {selectedCoin.toUpperCase()} across {[ctx.rsi14, ctx.rsi1h, ctx.rsi4h, ctx.cvd, ctx.basis, ctx.orderWalls, ctx.pcRatio, ctx.exchangeNetFlow, ctx.cbPremium, ctx.vwap, ctx.oiTrend, ctx.takerRatio, ctx.btcGex, ctx.marketStructure].filter(v => v !== '—' && v !== 'Calculating…').length + 21} market signals
-          </span>
-          <span style={{ fontSize: 11, color: '#444' }}>{ctxOpen ? '▲ hide' : '▼ show context'}</span>
-        </div>
-        {ctxOpen && [
-          ['Coin', ctx.coin], ['Price', ctx.price], ['24h Δ', ctx.change24h],
-          ['Market Structure', ctx.marketStructure.length > 55 ? ctx.marketStructure.slice(0, 55) + '…' : ctx.marketStructure],
-          ['Absorption', ctx.absorptionScore.length > 55 ? ctx.absorptionScore.slice(0, 55) + '…' : ctx.absorptionScore],
-          ['RSI 15m', ctx.rsi14], ['RSI 1h', ctx.rsi1h], ['RSI 4h', ctx.rsi4h], ['RSI 1D', ctx.rsiDaily],
-          ['CVD Divergence', ctx.cvdDivergence],
-          ['MA20 (15m)', ctx.ma20], ['vs MA20', ctx.priceVsMA],
-          ['Vol Ratio', ctx.volRatio], ['CVD', ctx.cvd],
-          ['L/S Ratio', ctx.longShortRatio], ['Squeeze', squeezeToLine(sq)],
-          ['Funding', ctx.fundingRate], ['Open Interest', ctx.openInterest],
-          ['Basis', ctx.basis], ['Fib Level', ctx.fibNearest],
-          ['Vol Profile POC', ctx.pocLine],
-          ['Order Walls', ctx.orderWalls.length > 55 ? ctx.orderWalls.slice(0, 55) + '…' : ctx.orderWalls],
-          ['P/C Ratio', ctx.pcRatio], ['Max Pain', ctx.maxPain],
-          ['BTC GEX', ctx.btcGex.length > 55 ? ctx.btcGex.slice(0, 55) + '…' : ctx.btcGex],
-          ['Oil (CL=F)', ctx.oilPrice], ['10Y Yield', ctx.bonds10y],
-          ['Taker B/S', ctx.takerRatio.length > 55 ? ctx.takerRatio.slice(0, 55) + '…' : ctx.takerRatio],
-          ['CB Premium', ctx.cbPremium], ['VWAP (15m)', ctx.vwap],
-          ['OI Trend', ctx.oiTrend.length > 55 ? ctx.oiTrend.slice(0, 55) + '…' : ctx.oiTrend],
-          ['X-Exch FR', ctx.crossExchangeFunding.length > 55 ? ctx.crossExchangeFunding.slice(0, 55) + '…' : ctx.crossExchangeFunding],
-          ['DXY', ctx.dxyLine], ['SPX', ctx.spxLine], ['Gold', ctx.goldLine],
-          ['ETF Flows', ctx.etfFlows], ['Exch. Flow', ctx.exchangeNetFlow],
-          ['Cascade', ctx.cascadeLine],
-          ['Whale Flow', ctx.whaleFlow.length > 55 ? ctx.whaleFlow.slice(0, 55) + '…' : ctx.whaleFlow],
-          ['Stablecoin', ctx.stablecoinFlow], ['G. Trends', ctx.googleTrends],
-          ['Liq Levels', ctx.liqLevels], ['Fear & Greed', ctx.fearGreed],
-          ['BTC Dom', ctx.btcDomTrend], ['X / Social', 'LiquidityAI searches X live'],
-          ['Session', ctx.session],
-          ['Events', ctx.upcomingEvents.split('\n')[0] + (ctx.upcomingEvents.includes('\n') ? ' +more' : '')],
-          ['News', ctx.news.split('\n')[0].slice(0, 55) + '…'],
-        ].map(([k, v]) => (
-          <div key={k} className="arena-context-row">
-            <span className="arena-context-key">{k}</span>
-            <span className="arena-context-val">{v}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* ── CONFLUENCE SCORER ── */}
-      <div className="dash-section" style={{ marginTop: 16 }}>Confluence Score</div>
-      <ConfluenceScorer coin={selectedCoin} />
 
 
       {/* ── SESSION HISTORY ── */}
