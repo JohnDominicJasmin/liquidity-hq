@@ -59,12 +59,6 @@ const COINS: CoinId[] = [
   'doge', 'avax', 'link', 'ada', 'dot', 'atom', 'wif', 'pepe', 'bonk',
 ];
 
-const COIN_GROUPS: { label: string; coins: CoinId[] }[] = [
-  { label: 'All',    coins: COINS },
-  { label: 'Majors', coins: ['btc', 'eth', 'sol', 'xrp', 'bnb'] },
-  { label: 'Alts',   coins: ['hype', 'near', 'sui', 'avax', 'link', 'ada', 'dot', 'atom'] },
-  { label: 'Meme',   coins: ['doge', 'pepe', 'wif', 'bonk'] },
-];
 
 /* ── Usage panel — shows daily call counts for signed-in users ── */
 function UsagePanel({ usage }: { usage: GrokUsageInfo }) {
@@ -118,7 +112,6 @@ export default function Arena() {
   const { user, loading: authLoading } = useAuth();
   const { settings } = useSettings();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>('btc');
-  const [coinGroup, setCoinGroup]       = useState<string>('All');
   const [readTf, setReadTf]         = useState<ChartTf>('15m');
   const arenaInitRef  = useRef(false);
   const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '—' });
@@ -838,49 +831,6 @@ export default function Arena() {
         <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Chart · 35-signal engine · confluence · scanner — one page</div>
       </div>
 
-      {/* ── COIN SELECTOR ── */}
-      <div style={{ marginBottom: 10 }}>
-        {/* Group tabs */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
-          {COIN_GROUPS.map(g => (
-            <button
-              key={g.label}
-              onClick={() => setCoinGroup(g.label)}
-              style={{
-                padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                cursor: 'pointer', border: '0.5px solid',
-                background: coinGroup === g.label ? 'rgba(184,174,255,0.12)' : 'transparent',
-                borderColor: coinGroup === g.label ? 'rgba(184,174,255,0.4)' : 'rgba(255,255,255,0.1)',
-                color: coinGroup === g.label ? '#b8aeff' : '#555',
-                letterSpacing: '.04em',
-              }}
-            >
-              {g.label}
-            </button>
-          ))}
-          <div style={{ flex: 1 }} />
-          <button
-            onClick={enableNotifications}
-            title={notifEnabled ? 'Alerts ON — Funding · F&G · CVD Divergence · RSI 1H · Pattern · OI Trend' : 'Enable browser alerts for this coin'}
-            style={{
-              padding: '6px 10px', borderRadius: 20, border: '0.5px solid',
-              background: notifEnabled ? '#152b1e' : '#161616',
-              borderColor: notifEnabled ? '#266038' : 'rgba(255,255,255,0.14)',
-              color: notifEnabled ? '#7de0a4' : '#606060',
-              fontSize: 16, cursor: 'pointer', flexShrink: 0,
-            }}
-          >{notifEnabled ? '🔔' : '🔕'}</button>
-        </div>
-        {/* Coin buttons for active group */}
-        <div className="arena-coin-row" style={{ margin: 0 }}>
-          {(COIN_GROUPS.find(g => g.label === coinGroup)?.coins ?? COINS).map(c => (
-            <button key={c} className={`arena-coin-btn${selectedCoin === c ? ' sel' : ''}`} onClick={() => setSelectedCoin(c)}>
-              {c.toUpperCase()}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* ── SQUEEZE SCANNER — hover flyout (Bybit-style watchlist) ── */}
       <div
         ref={scannerRef}
@@ -919,7 +869,31 @@ export default function Arena() {
               ↓ {flushCount}
             </span>
           )}
-          <span style={{ fontSize: 10, color: '#333', marginLeft: 2 }}>{scannerOpen ? '▲' : '▼'}</span>
+          {sqzCount === 0 && flushCount === 0 && (
+            <span style={{ fontSize: 10, color: '#333' }}>All neutral</span>
+          )}
+          {/* Selected coin chip */}
+          <span style={{
+            fontSize: 11, fontWeight: 700, color: '#b8aeff',
+            background: 'rgba(184,174,255,0.1)', padding: '2px 9px',
+            borderRadius: 20, border: '0.5px solid rgba(184,174,255,0.2)',
+            flexShrink: 0,
+          }}>
+            {selectedCoin.toUpperCase()}
+          </span>
+          {/* Notification bell */}
+          <button
+            onClick={e => { e.stopPropagation(); enableNotifications(); }}
+            title={notifEnabled ? 'Alerts ON' : 'Enable browser alerts'}
+            style={{
+              padding: '3px 7px', borderRadius: 7, border: '0.5px solid',
+              background: notifEnabled ? '#152b1e' : 'transparent',
+              borderColor: notifEnabled ? '#266038' : 'rgba(255,255,255,0.08)',
+              color: notifEnabled ? '#7de0a4' : '#444',
+              fontSize: 12, cursor: 'pointer', flexShrink: 0, lineHeight: 1,
+            }}
+          >{notifEnabled ? '🔔' : '🔕'}</button>
+          <span style={{ fontSize: 10, color: '#333', flexShrink: 0 }}>{scannerOpen ? '▲' : '▼'}</span>
         </button>
 
         {/* ── Flyout panel (appears on hover / click) ── */}
