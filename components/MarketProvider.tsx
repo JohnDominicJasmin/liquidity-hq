@@ -69,14 +69,21 @@ function sendCascadeAlert(
   }).catch(() => {});
 }
 
+const _WS_STREAMS = [
+  'btcusdt', 'ethusdt', 'solusdt', 'xrpusdt', 'bnbusdt', 'nearusdt', 'suiusdt',
+  'dogeusdt', 'avaxusdt', 'linkusdt', 'adausdt', 'dotusdt', 'atomusdt', 'wifusdt',
+].map(s => `${s}@ticker`).join('/');
+
 const WS_URLS = [
-  'wss://stream.binance.com:9443/stream?streams=btcusdt@ticker/ethusdt@ticker/solusdt@ticker/xrpusdt@ticker/bnbusdt@ticker/nearusdt@ticker/suiusdt@ticker',
-  'wss://stream.binance.com/stream?streams=btcusdt@ticker/ethusdt@ticker/solusdt@ticker/xrpusdt@ticker/bnbusdt@ticker/nearusdt@ticker/suiusdt@ticker',
+  `wss://stream.binance.com:9443/stream?streams=${_WS_STREAMS}`,
+  `wss://stream.binance.com/stream?streams=${_WS_STREAMS}`,
 ];
 
 const SYM_MAP: Record<string, CoinId> = {
   BTCUSDT: 'btc', ETHUSDT: 'eth', SOLUSDT: 'sol',
   XRPUSDT: 'xrp', BNBUSDT: 'bnb', NEARUSDT: 'near', SUIUSDT: 'sui',
+  DOGEUSDT: 'doge', AVAXUSDT: 'avax', LINKUSDT: 'link',
+  ADAUSDT: 'ada', DOTUSDT: 'dot', ATOMUSDT: 'atom', WIFUSDT: 'wif',
 };
 
 /* Helper: compute RSI14 from an array of close prices */

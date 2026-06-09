@@ -96,18 +96,41 @@ export async function GET(req: NextRequest) {
 
     /* ── SoSoValue: BTC + ETH spot ETF net flows ── */
     if (type === 'etf') {
-      const [btc, eth] = await Promise.allSettled([
-        fetch('https://sosovalue.xyz/api/etf/us-btc-spot?language=en', {
-          next: { revalidate: 1800 },
-        }),
-        fetch('https://sosovalue.xyz/api/etf/us-eth-spot?language=en', {
-          next: { revalidate: 1800 },
-        }),
+      /* sosovalue.xyz is dead — try sosovalue.com with browser headers.
+         Server-side (Render) requests often bypass 403 blocks that hit headless clients. */
+      const SSV_HEADERS = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Origin': 'https://sosovalue.com',
+        'Referer': 'https://sosovalue.com/',
+      };
+
+      async function fetchSoSo(path: string) {
+        // Try .com first, fall back to .xyz (dead but harmless to retry)
+        const urls = [
+          `https://sosovalue.com/api/etf/${path}?language=en`,
+          `https://api.sosovalue.com/etf/${path}?language=en`,
+        ];
+        for (const url of urls) {
+          try {
+            const r = await fetch(url, {
+              headers: SSV_HEADERS,
+              signal: AbortSignal.timeout(8000),
+              next: { revalidate: 1800 },
+            } as RequestInit);
+            if (r.ok) return await r.json();
+          } catch { /* try next */ }
+        }
+        return null;
+      }
+
+      const [btc, eth] = await Promise.all([
+        fetchSoSo('us-btc-spot'),
+        fetchSoSo('us-eth-spot'),
       ]);
-      return NextResponse.json({
-        btc: btc.status === 'fulfilled' ? await btc.value.json() : null,
-        eth: eth.status === 'fulfilled' ? await eth.value.json() : null,
-      });
+
+      return NextResponse.json({ btc, eth });
     }
 
     return NextResponse.json({ error: 'Unknown type' }, { status: 400 });

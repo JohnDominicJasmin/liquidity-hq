@@ -139,6 +139,9 @@ export default function MorningBriefing() {
     sq: computeSqueezeScore(store.coins[id]),
   }));
 
+  /* Loading state — true until at least 8 coins have price data */
+  const pricesLoaded = coinRows.filter(r => r.c?.price != null && r.c.price > 0).length >= 8;
+
   /* Active CVD divergences */
   const cvdAlerts = COINS
     .filter(id => store.coins[id]?.cvdDivergence)
@@ -163,9 +166,9 @@ export default function MorningBriefing() {
     setGen(false);
   }
 
-  /* Hot setups — score > 20, top 3 */
+  /* Hot setups — score > 20, top 4, only coins with loaded price data */
   const hotSetups = coinRows
-    .filter(r => r.sq.score > 20)
+    .filter(r => r.sq.score > 20 && r.c?.price != null && r.c.price > 0)
     .sort((a, b) => b.sq.score - a.sq.score)
     .slice(0, 4);
 
@@ -383,6 +386,12 @@ export default function MorningBriefing() {
         <div className="mb-table-legend">
           Fund = funding rate · RSI = 15m · Vol = vs 20-candle avg · OI = trend signal
         </div>
+        {!pricesLoaded && (
+          <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--txt3)', animation: 'pulse 2s infinite' }} />
+            Fetching live prices…
+          </div>
+        )}
       </div>
 
       {/* ── Hot Setups ── */}
