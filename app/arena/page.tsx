@@ -164,7 +164,16 @@ export default function Arena() {
   const [quickSignals, setQuickSignals] = useState<Partial<Record<CoinId, string>>>({});
   const [scannerOpen, setScannerOpen]   = useState(false);
   const [sigDetailsOpen, setSigDetailsOpen] = useState(false);
-  const scannerRef = useRef<HTMLDivElement>(null);
+  const scannerRef     = useRef<HTMLDivElement>(null);
+  const closeTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const openScanner = () => {
+    if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null; }
+    setScannerOpen(true);
+  };
+  const scheduleClose = () => {
+    closeTimerRef.current = setTimeout(() => setScannerOpen(false), 120);
+  };
 
   // Derived — current coin's cached result (persists across coin switches)
   const cacheEntry = resultsCache[selectedCoin] ?? null;
@@ -838,18 +847,14 @@ export default function Arena() {
   const ctx = gatherContext();
   const sq = computeSqueezeScore(store.coins[selectedCoin]);
 
-  /* ── Squeeze scanner data — sorted: active first, then by score ── */
+  /* ── Squeeze scanner data — sorted by 24h volume descending (BTC → ETH → ...) ── */
   const scannerRows = COINS.map(c => ({
     c,
     sq:     computeSqueezeScore(store.coins[c]),
     price:  store.coins[c]?.price  ?? null,
     change: store.coins[c]?.change ?? null,
-  })).sort((a, b) => {
-    const aA = a.sq.dir !== 'NEUTRAL' && a.sq.score >= 30 ? 1 : 0;
-    const bA = b.sq.dir !== 'NEUTRAL' && b.sq.score >= 30 ? 1 : 0;
-    if (aA !== bA) return bA - aA;
-    return b.sq.score - a.sq.score;
-  });
+    vol24:  store.coins[c]?.vol24  ?? 0,
+  })).sort((a, b) => (b.vol24 ?? 0) - (a.vol24 ?? 0));
   const sqzCount   = scannerRows.filter(x => x.sq.dir === 'SHORT_SQ'  && x.sq.score >= 30).length;
   const flushCount = scannerRows.filter(x => x.sq.dir === 'LONG_LIQ'  && x.sq.score >= 30).length;
 
@@ -869,8 +874,8 @@ export default function Arena() {
       <div
         ref={scannerRef}
         style={{ position: 'relative', marginBottom: 12 }}
-        onMouseEnter={() => setScannerOpen(true)}
-        onMouseLeave={() => setScannerOpen(false)}
+        onMouseEnter={openScanner}
+        onMouseLeave={scheduleClose}
       >
         {/* ── Compact trigger bar ── */}
         <button
@@ -934,8 +939,16 @@ export default function Arena() {
 
         {/* ── Flyout panel (appears on hover / click) ── */}
         {scannerOpen && (
+          <div
+            className="scanner-flyout"
+            onMouseEnter={openScanner}
+            onMouseLeave={scheduleClose}
+            style={{
+              position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+              paddingTop: 4,  /* closes the gap so mouse doesn't leave the hover zone */
+            }}
+          >
           <div style={{
-            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50,
             background: '#111', border: '0.5px solid rgba(255,255,255,0.1)',
             borderRadius: 10, overflow: 'hidden',
             boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
@@ -1023,6 +1036,7 @@ export default function Arena() {
             <div style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.01)', borderTop: '0.5px solid rgba(255,255,255,0.05)' }}>
               <span style={{ fontSize: 9, color: '#2a2a2a' }}>Funding rate + L/S ratio · ↑ Squeeze = shorts overcrowded · ↓ Flush = longs overcrowded</span>
             </div>
+          </div>
           </div>
         )}
       </div>

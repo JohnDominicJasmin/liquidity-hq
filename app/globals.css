@@ -759,6 +759,13 @@ body.ticker-on .breaking-alert { top: 90px; }
 .res-go   .res-body  { color: #6ee7b7; }
 .res-no   .res-body  { color: #fca5a5; }
 .res-wait .res-body  { color: #fde68a; }
+/* ── Scanner flyout animation ── */
+@keyframes scannerFadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.scanner-flyout { animation: scannerFadeIn 0.15s ease-out forwards; }
+
 .scanner-fund-box { background: var(--bg2); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; border: 0.5px solid var(--bdr); }
 .scanner-fund-coin  { font-size: 11px; color: var(--txt3); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
 .scanner-fund-rate  { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 2px; font-variant-numeric: tabular-nums; }
