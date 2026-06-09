@@ -100,7 +100,7 @@ function BandRow({ b }: { b: Band }) {
         {b.distPct < 1 ? b.distPct.toFixed(1) : Math.round(b.distPct)}%
       </span>
       <span className="liq-row-lev" style={{ color: accent }}>
-        {b.lev}{b.isMagnet ? ' 🧲' : ''}
+        {b.lev}{b.isMagnet ? ' ⊙' : ''}
       </span>
       <div className="liq-row-bar-wrap">
         <div className="liq-row-bar" style={{
@@ -251,7 +251,7 @@ export default function LiqPage() {
             </div>
             <div className="liq-col-hdr">
               <span>Price</span><span>Away</span><span>Lev</span>
-              <span style={{ flex: 1 }}>Liq density (estimated)</span><span>Est. $</span>
+              <span style={{ flex: 1 }}>Liq density (estimated)</span><span>$ at Risk</span>
             </div>
             {bands.shortsDisplay.map((b, i) => <BandRow key={`s${i}`} b={b} />)}
 
@@ -259,7 +259,7 @@ export default function LiqPage() {
               <span className="liq-current-dot" />
               <span className="liq-current-price">{fmtP(cd.price)}</span>
               <span className="liq-current-chg" style={{ color: (cd.change ?? 0) >= 0 ? '#34d399' : '#f87171' }}>
-                {(cd.change ?? 0) >= 0 ? '+' : ''}{(cd.change ?? 0).toFixed(2)}%
+                {(cd.change ?? 0) >= 0 ? '▲' : '▼'}{Math.abs(cd.change ?? 0).toFixed(2)}%
               </span>
               <span className="liq-current-tag">LIVE</span>
               <span className="liq-current-oi">{fmtM(cd.oi / 1e6)} OI</span>

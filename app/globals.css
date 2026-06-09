@@ -1491,13 +1491,13 @@ body.ticker-on .breaking-alert { top: 90px; }
 .liq-section-hdr-long  { color: #f87171; background: rgba(248,113,113,0.06); border-top: 0.5px solid rgba(248,113,113,0.12); border-bottom: 0.5px solid rgba(248,113,113,0.12); }
 .liq-section-sub { font-size: 10px; font-weight: 500; opacity: 0.75; text-transform: none; letter-spacing: 0; }
 
-.liq-current-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: rgba(167,139,250,0.05); border-top: 0.5px solid rgba(167,139,250,0.18); border-bottom: 0.5px solid rgba(167,139,250,0.18); }
-.liq-current-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 8px var(--purple); flex-shrink: 0; animation: liq-pulse 2s infinite; }
-@keyframes liq-pulse { 0%,100%{box-shadow:0 0 6px var(--purple)} 50%{box-shadow:0 0 14px var(--purple)} }
-.liq-current-price { font-size: 15px; font-weight: 800; color: var(--txt); font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
-.liq-current-chg { font-size: 11px; font-weight: 700; }
-.liq-current-tag { font-size: 10px; font-weight: 700; color: var(--purple); background: var(--purple-bg); border: 0.5px solid var(--purple-bdr); padding: 2px 6px; border-radius: 6px; letter-spacing: 0.05em; }
-.liq-current-oi { font-size: 10px; color: var(--txt3); margin-left: auto; font-weight: 600; }
+.liq-current-bar { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: rgba(167,139,250,0.09); border-top: 1px solid rgba(167,139,250,0.28); border-bottom: 1px solid rgba(167,139,250,0.28); border-left: 3px solid var(--purple); margin: 2px 0; }
+.liq-current-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--purple); box-shadow: 0 0 8px var(--purple); flex-shrink: 0; animation: liq-pulse 2s infinite; }
+@keyframes liq-pulse { 0%,100%{box-shadow:0 0 6px var(--purple)} 50%{box-shadow:0 0 16px var(--purple),0 0 4px #fff4} }
+.liq-current-price { font-size: 18px; font-weight: 800; color: #fff; font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+.liq-current-chg { font-size: 12px; font-weight: 700; }
+.liq-current-tag { font-size: 10px; font-weight: 700; color: var(--purple); background: var(--purple-bg); border: 0.5px solid var(--purple-bdr); padding: 2px 7px; border-radius: 6px; letter-spacing: 0.06em; animation: liq-pulse 2s infinite; }
+.liq-current-oi { font-size: 11px; color: var(--txt3); margin-left: auto; font-weight: 600; }
 
 .liq-row { display: grid; grid-template-columns: 72px 30px 38px 1fr 48px; align-items: center; gap: 5px; padding: 3.5px 14px; border-bottom: 0.5px solid rgba(255,255,255,0.02); transition: background 0.12s; }
 .liq-row:last-child { border-bottom: none; }
