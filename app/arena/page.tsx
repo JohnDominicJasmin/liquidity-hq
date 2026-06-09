@@ -164,7 +164,18 @@ export default function Arena() {
   const [quickSignals, setQuickSignals] = useState<Partial<Record<CoinId, string>>>({});
   const [scannerOpen, setScannerOpen]   = useState(false);
   const [sigDetailsOpen, setSigDetailsOpen] = useState(false);
-  const scannerRef     = useRef<HTMLDivElement>(null);
+  const scannerRef      = useRef<HTMLDivElement>(null);
+  const hoverOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Hover over trigger for 2 s → auto-open; moving away cancels the timer
+  const handleScannerHoverEnter = () => {
+    if (scannerOpen) return;
+    hoverOpenTimer.current = setTimeout(() => setScannerOpen(true), 2000);
+  };
+  const handleScannerHoverLeave = () => {
+    if (hoverOpenTimer.current) { clearTimeout(hoverOpenTimer.current); hoverOpenTimer.current = null; }
+  };
+
   // Close scanner when clicking anywhere outside the scanner widget
   useEffect(() => {
     if (!scannerOpen) return;
@@ -876,6 +887,8 @@ export default function Arena() {
       <div
         ref={scannerRef}
         style={{ position: 'relative', marginBottom: 12 }}
+        onMouseEnter={handleScannerHoverEnter}
+        onMouseLeave={handleScannerHoverLeave}
       >
         {/* ── Compact trigger bar ── */}
         <button
