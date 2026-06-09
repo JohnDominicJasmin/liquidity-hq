@@ -170,7 +170,7 @@ export default function Arena() {
   // Hover over trigger for 2 s → auto-open; moving away cancels the timer
   const handleScannerHoverEnter = () => {
     if (scannerOpen) return;
-    hoverOpenTimer.current = setTimeout(() => setScannerOpen(true), 2000);
+    hoverOpenTimer.current = setTimeout(() => setScannerOpen(true), 1000);
   };
   const handleScannerHoverLeave = () => {
     if (hoverOpenTimer.current) { clearTimeout(hoverOpenTimer.current); hoverOpenTimer.current = null; }
