@@ -351,15 +351,15 @@ export default function MorningBriefing() {
             <div className="mb-macro-val" style={{ color: etfColor }}>
               {etfFlow != null
                 ? (etfFlow >= 0 ? '+' : '') + '$' + Math.abs(etfFlow).toFixed(0) + 'M'
-                : '—'}
+                : <span style={{ fontSize: 13 }}>N/A</span>}
             </div>
-            <div className="mb-macro-sub" style={{ color: etfColor }}>
+            <div className="mb-macro-sub" style={{ color: 'var(--txt3)' }}>
               {etfFlow != null
                 ? etfFlow > 100  ? 'Strong inflow'
                 : etfFlow > 0    ? 'Mild inflow'
                 : etfFlow < -100 ? 'Strong outflow'
                 :                  'Mild outflow'
-                : '—'}
+                : 'source unavailable'}
             </div>
           </div>
 

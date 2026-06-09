@@ -81,7 +81,7 @@ export const BYBIT_SYMS: Record<string, string> = {
   xrp: 'XRPUSDT', bnb: 'BNBUSDT', hype: 'HYPEUSDT', near: 'NEARUSDT',
   doge: 'DOGEUSDT', avax: 'AVAXUSDT', link: 'LINKUSDT',
   ada: 'ADAUSDT', dot: 'DOTUSDT', atom: 'ATOMUSDT', wif: 'WIFUSDT',
-  pepe: 'PEPEUSDT', bonk: 'BONKUSDT',  // meme coins — Bybit primary
+  pepe: '1000PEPEUSDT', bonk: '1000BONKUSDT',  // Bybit uses 1000x denomination
 };
 
 export const COIN_DEC: Record<CoinId, number> = {
