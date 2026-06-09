@@ -112,6 +112,8 @@ export default function KLineProChart({ coin, tf, result }: Props) {
   const [activeTool,  setActiveTool]  = useState<string | null>(null);
   const [wsStatus,    setWsStatus]    = useState<'connecting' | 'live' | 'error'>('connecting');
   const [fullscreen,  setFullscreen]  = useState(false);
+  const [copiedMsg,   setCopiedMsg]   = useState<string | null>(null);
+  const copyToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Keep coinRef fresh for the DataLoader closure
   useEffect(() => { coinRef.current = coin; }, [coin]);
@@ -306,6 +308,14 @@ export default function KLineProChart({ coin, tf, result }: Props) {
     setActiveTool(null);
   };
 
+  const handleCopy = (price: number, label: string) => {
+    const text = fmtPx(price);
+    navigator.clipboard.writeText(text).catch(() => {});
+    setCopiedMsg(`${label} $${text} copied!`);
+    if (copyToastTimer.current) clearTimeout(copyToastTimer.current);
+    copyToastTimer.current = setTimeout(() => setCopiedMsg(null), 1800);
+  };
+
   const hasLevels = result && (result.entryLow || result.sl || result.tp);
 
   return (
@@ -327,10 +337,43 @@ export default function KLineProChart({ coin, tf, result }: Props) {
         {hasLevels && (
           <div className="klc-legend">
             {(result!.entryLow || result!.entryHigh) && (
-              <span className="klc-leg" style={{ color: '#34d399' }}>— Entry</span>
+              <button
+                className="klc-price-chip"
+                style={{ color: '#34d399', background: 'rgba(52,211,153,0.08)', borderColor: 'rgba(52,211,153,0.2)' }}
+                onClick={() => {
+                  const mid = result!.entryLow && result!.entryHigh
+                    ? (result!.entryLow + result!.entryHigh) / 2
+                    : (result!.entryLow ?? result!.entryHigh ?? 0);
+                  handleCopy(mid, 'Entry');
+                }}
+                title="Click to copy entry midpoint"
+              >
+                — Entry&nbsp;
+                {result!.entryLow && result!.entryHigh
+                  ? `$${fmtPx(result!.entryLow)}–$${fmtPx(result!.entryHigh)}`
+                  : `$${fmtPx(result!.entryLow ?? result!.entryHigh ?? 0)}`}
+              </button>
             )}
-            {result!.sl && <span className="klc-leg" style={{ color: '#f87171' }}>— SL</span>}
-            {result!.tp && <span className="klc-leg" style={{ color: '#b8aeff' }}>— TP</span>}
+            {result!.sl && (
+              <button
+                className="klc-price-chip"
+                style={{ color: '#f87171', background: 'rgba(248,113,113,0.08)', borderColor: 'rgba(248,113,113,0.2)' }}
+                onClick={() => handleCopy(result!.sl!, 'SL')}
+                title="Click to copy SL price"
+              >
+                — SL&nbsp;${fmtPx(result!.sl)}
+              </button>
+            )}
+            {result!.tp && (
+              <button
+                className="klc-price-chip"
+                style={{ color: '#b8aeff', background: 'rgba(184,174,255,0.08)', borderColor: 'rgba(184,174,255,0.2)' }}
+                onClick={() => handleCopy(result!.tp!, 'TP')}
+                title="Click to copy TP price"
+              >
+                — TP&nbsp;${fmtPx(result!.tp)}
+              </button>
+            )}
           </div>
         )}
 
@@ -349,10 +392,24 @@ export default function KLineProChart({ coin, tf, result }: Props) {
         />
       </div>
 
+      {/* Copy toast */}
+      {copiedMsg && (
+        <div className="klc-copy-toast">{copiedMsg}</div>
+      )}
+
       {/* Chart canvas */}
       <div ref={containerRef} className="klc-canvas" />
     </div>
   );
+}
+
+// ── Price formatter for chip labels ──────────────────────────────────────
+function fmtPx(n: number): string {
+  if (n >= 10000) return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  if (n >= 100)   return n.toFixed(2);
+  if (n >= 1)     return n.toFixed(3);
+  if (n >= 0.01)  return n.toFixed(4);
+  return n.toFixed(6);
 }
 
 // ── Helper ────────────────────────────────────────────────────────────────

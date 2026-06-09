@@ -1234,6 +1234,28 @@ body.ticker-on .breaking-alert { top: 90px; }
 .klc-ws-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--txt3); flex-shrink: 0; }
 .klc-ws-dot.live { background: var(--green); box-shadow: 0 0 5px var(--green); }
 .klc-ws-dot.err  { background: var(--red); }
+/* Clickable price chips in chart toolbar */
+.klc-price-chip {
+  font-size: 10px; font-weight: 700; letter-spacing: .03em; white-space: nowrap;
+  padding: 2px 8px; border-radius: 20px; border: 0.5px solid;
+  cursor: pointer; transition: filter 0.12s, transform 0.1s;
+  line-height: 1.6;
+}
+.klc-price-chip:hover  { filter: brightness(1.3); }
+.klc-price-chip:active { transform: scale(0.95); }
+/* Copy confirmation toast */
+.klc-copy-toast {
+  position: absolute; bottom: 48px; left: 50%; transform: translateX(-50%);
+  background: rgba(20,20,20,0.92); border: 0.5px solid rgba(255,255,255,0.12);
+  color: #e2e2e2; font-size: 12px; font-weight: 600;
+  padding: 6px 14px; border-radius: 20px;
+  pointer-events: none; z-index: 100;
+  animation: klcToastIn 0.15s ease-out;
+}
+@keyframes klcToastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
 .klc-canvas {
   width: 100%; height: 640px;
 }
