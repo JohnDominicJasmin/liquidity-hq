@@ -24,6 +24,7 @@ export interface RSSItem {
   source:  string;
   pubDate: number;
   link?:   string;
+  image?:  string;   // thumbnail URL from <media:content>, <enclosure>, or description <img>
   cat:     'geo' | 'macro' | 'crypto';
 }
 
@@ -45,6 +46,25 @@ function extractLink(block: string): string | undefined {
   return undefined;
 }
 
+function extractImage(block: string): string | undefined {
+  // 1. <media:content url="..." medium="image" .../>
+  const mc = block.match(/<media:content[^>]+url=["']([^"']+)["'][^>]*(?:medium=["']image["']|type=["']image[^"']*["'])/i)?.[1]
+          ?? block.match(/<media:content[^>]+url=["'](https?:\/\/[^"']+\.(?:jpg|jpeg|png|webp)[^"']*)["']/i)?.[1];
+  if (mc) return mc;
+  // 2. <media:thumbnail url="..."/>  (BBC)
+  const mt = block.match(/<media:thumbnail[^>]+url=["'](https?:\/\/[^"']+)["']/i)?.[1];
+  if (mt) return mt;
+  // 3. <enclosure url="..." type="image/..."/>
+  const enc = block.match(/<enclosure[^>]+type=["']image\/[^"']*["'][^>]+url=["'](https?:\/\/[^"']+)["']/i)?.[1]
+           ?? block.match(/<enclosure[^>]+url=["'](https?:\/\/[^"']+)["'][^>]+type=["']image\/[^"']*["']/i)?.[1];
+  if (enc) return enc;
+  // 4. First <img src="..."> inside <description> CDATA
+  const desc = block.match(/<description>([\s\S]*?)<\/description>/i)?.[1] ?? '';
+  const img = desc.match(/<img[^>]+src=["'](https?:\/\/[^"']+)["']/i)?.[1];
+  if (img) return img;
+  return undefined;
+}
+
 function parseRSS(xml: string, source: string, cat: RSSItem['cat']): RSSItem[] {
   const items: RSSItem[] = [];
   const itemRx = /<item>([\s\S]*?)<\/item>/g;
@@ -60,9 +80,10 @@ function parseRSS(xml: string, source: string, cat: RSSItem['cat']): RSSItem[] {
     const pubDate = dateStr ? Math.floor(new Date(dateStr).getTime() / 1000) : Math.floor(Date.now() / 1000);
     if (isNaN(pubDate) || pubDate <= 0) continue;
 
-    const link = extractLink(block);
+    const link  = extractLink(block);
+    const image = extractImage(block);
 
-    items.push({ title, source, pubDate, link, cat });
+    items.push({ title, source, pubDate, link, image, cat });
   }
   return items;
 }

@@ -11,6 +11,7 @@ export interface Alert {
   ts: number;
   type: 'red' | 'amber' | 'purple';
   link?: string;
+  image?: string;   // thumbnail URL from RSS <media:content> or Finnhub image field
 }
 
 export interface EconEvent {
@@ -91,7 +92,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const whaleIdRef = useRef(0);
   const seenWhaleIds = useRef<Set<number>>(new Set());
 
-  const pushAlert = useCallback((headline: string, source: string, ts: number, type: 'red' | 'amber' | 'purple', link?: string) => {
+  const pushAlert = useCallback((headline: string, source: string, ts: number, type: 'red' | 'amber' | 'purple', link?: string, image?: string) => {
     const key = headline.slice(0, 60);
     if (seenRef.current.has(key)) return;
     seenRef.current.add(key);
@@ -99,7 +100,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     setLatestHeadlines(prev => [headline, ...prev].slice(0, 10));
 
     const id = alertIdRef.current++;
-    setAlerts(prev => [...prev, { id, headline, source, ts, type, link }]);
+    setAlerts(prev => [...prev, { id, headline, source, ts, type, link, image }]);
 
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification(headline, {
@@ -133,7 +134,8 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
         if (!headline) return;
         const type = classifyNews(headline) ?? 'purple';
         const ts = (a.datetime as number) || Math.floor(Date.now() / 1000);
-        pushAlert(headline, (a.source as string) || 'Finnhub', ts, type);
+        const img = (a.image as string) || undefined;
+        pushAlert(headline, (a.source as string) || 'Finnhub', ts, type, undefined, img);
       });
 
       // General: only include if keyword matches
@@ -143,7 +145,8 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
         const type = classifyNews(headline);
         if (!type) return;
         const ts = (a.datetime as number) || Math.floor(Date.now() / 1000);
-        pushAlert(headline, (a.source as string) || 'Finnhub', ts, type);
+        const img = (a.image as string) || undefined;
+        pushAlert(headline, (a.source as string) || 'Finnhub', ts, type, undefined, img);
       });
     } catch { /* */ }
   }, [pushAlert]);
@@ -229,14 +232,14 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     try {
       const res = await fetch('/api/news-rss');
       if (!res.ok) return;
-      const { items } = await res.json() as { items: { title: string; source: string; pubDate: number; link?: string; cat: string }[] };
+      const { items } = await res.json() as { items: { title: string; source: string; pubDate: number; link?: string; image?: string; cat: string }[] };
       const cutoff = Math.floor(Date.now() / 1000) - 6 * 3600; // ignore articles older than 6h
       items.forEach(item => {
         if (item.pubDate < cutoff) return;
         // Crypto-category items always get at least 'purple'
         const type = classifyNews(item.title) ?? (item.cat === 'crypto' ? 'purple' : null);
         if (!type) return;
-        pushAlert(item.title, item.source, item.pubDate, type, item.link);
+        pushAlert(item.title, item.source, item.pubDate, type, item.link, item.image);
       });
     } catch { /* ignore */ }
   }, [pushAlert]);
