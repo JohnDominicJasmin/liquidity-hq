@@ -221,6 +221,15 @@ export function useMarket() {
 }
 
 /* ── Squeeze Score ── */
+// Requires ≥2 independent signals to agree before labeling LONG_LIQ / SHORT_SQ.
+// Single-signal setups (e.g. only L/S ratio or only funding rate slightly off-centre)
+// are returned as NEUTRAL to reduce noise on normal trading days.
+//
+// Three independent signal sources:
+//   1. Funding rate       — are perp traders paying a skewed rate?
+//   2. L/S ratio          — is positioning heavily one-sided?
+//   3. Taker buy/sell     — are takers aggressively selling or buying?
+// Vol spike boosts the score but does NOT count as a direction signal.
 export function computeSqueezeScore(coin: CoinData | undefined): {
   score: number;
   dir: 'LONG_LIQ' | 'SHORT_SQ' | 'NEUTRAL';
@@ -228,33 +237,55 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
   color: string;
 } {
   if (!coin) return { score: 0, dir: 'NEUTRAL', label: 'No data', color: '#444' };
-  let longRisk = 0;   // longs overleveraged → price dump incoming
-  let shortRisk = 0;  // shorts overleveraged → price pump incoming
+
+  let longRisk = 0;    // longs overleveraged → price dump incoming
+  let shortRisk = 0;   // shorts overleveraged → price pump incoming
+  let longSignals = 0; // count of independent sources confirming long risk
+  let shortSignals = 0;
+
+  // ── Signal 1: Funding rate (max 40 pts) ──────────────────────────────────
   if (coin.fundingRate != null) {
     const fr = coin.fundingRate * 100;
-    if (fr >= 0.05) longRisk += 40;
-    else if (fr >= 0.02) longRisk += 22;
-    else if (fr >= 0.01) longRisk += 10;
-    else if (fr <= -0.03) shortRisk += 40;
-    else if (fr <= -0.015) shortRisk += 22;
-    else if (fr <= -0.005) shortRisk += 10;
+    if (fr >= 0.05)    { longRisk += 40; longSignals++; }
+    else if (fr >= 0.02) { longRisk += 22; longSignals++; }
+    else if (fr >= 0.01) { longRisk += 10; longSignals++; }
+    else if (fr <= -0.03)  { shortRisk += 40; shortSignals++; }
+    else if (fr <= -0.015) { shortRisk += 22; shortSignals++; }
+    else if (fr <= -0.005) { shortRisk += 10; shortSignals++; }
   }
+
+  // ── Signal 2: L/S ratio (max 40 pts) ─────────────────────────────────────
   if (coin.longRatio != null && coin.shortRatio != null) {
-    if (coin.longRatio >= 0.65) longRisk += 40;
-    else if (coin.longRatio >= 0.58) longRisk += 22;
-    else if (coin.longRatio >= 0.52) longRisk += 10;
-    else if (coin.shortRatio >= 0.65) shortRisk += 40;
-    else if (coin.shortRatio >= 0.58) shortRisk += 22;
-    else if (coin.shortRatio >= 0.52) shortRisk += 10;
+    if (coin.longRatio >= 0.65)    { longRisk += 40; longSignals++; }
+    else if (coin.longRatio >= 0.58) { longRisk += 22; longSignals++; }
+    else if (coin.longRatio >= 0.52) { longRisk += 10; longSignals++; }
+    else if (coin.shortRatio >= 0.65)  { shortRisk += 40; shortSignals++; }
+    else if (coin.shortRatio >= 0.58)  { shortRisk += 22; shortSignals++; }
+    else if (coin.shortRatio >= 0.52)  { shortRisk += 10; shortSignals++; }
   }
+
+  // ── Signal 3: Taker buy/sell ratio — aggressor-side pressure (max 15 pts) ─
+  // takerBuyRatio < 0.40 → sellers are aggressive (long-flush pressure)
+  // takerBuyRatio > 0.60 → buyers are aggressive (short-squeeze pressure)
+  if (coin.takerBuyRatio != null) {
+    if (coin.takerBuyRatio <= 0.38)      { longRisk += 15; longSignals++; }
+    else if (coin.takerBuyRatio <= 0.42) { longRisk += 8;  longSignals++; }
+    else if (coin.takerBuyRatio >= 0.62) { shortRisk += 15; shortSignals++; }
+    else if (coin.takerBuyRatio >= 0.58) { shortRisk += 8;  shortSignals++; }
+  }
+
+  // ── Vol spike bonus — amplifies score only, not a direction signal ────────
   const volBonus = coin.volRatio != null
     ? (coin.volRatio >= 2 ? 20 : coin.volRatio >= 1.5 ? 12 : coin.volRatio >= 1.2 ? 5 : 0)
     : 0;
+
   const dominant = Math.max(longRisk, shortRisk);
   const score = Math.min(100, dominant + (dominant > 10 ? volBonus : 0));
-  if (longRisk > shortRisk && longRisk > 10)
+
+  // ── Gate: ≥2 independent signals required to label as Flush / Squeeze ─────
+  if (longRisk > shortRisk && longSignals >= 2)
     return { score, dir: 'LONG_LIQ', label: 'Long liquidation risk ↓', color: '#ff9a92' };
-  if (shortRisk > longRisk && shortRisk > 10)
+  if (shortRisk > longRisk && shortSignals >= 2)
     return { score, dir: 'SHORT_SQ', label: 'Short squeeze ↑', color: '#7de0a4' };
   return { score, dir: 'NEUTRAL', label: 'Balanced', color: '#606060' };
 }
