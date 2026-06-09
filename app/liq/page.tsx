@@ -189,7 +189,38 @@ export default function LiqPage() {
 
       {bands && cd?.price && cd?.oi && (
         <>
-          {/* Stats row */}
+          {/* Bias — most actionable signal, show first */}
+          {bias && (
+            <div className="liq-bias-card" style={{ borderColor: `${bias.col}33` }}>
+              <span className="liq-bias-badge" style={{ color: bias.col, background: `${bias.col}16` }}>{bias.txt}</span>
+              <span className="liq-bias-sub">{bias.sub}</span>
+            </div>
+          )}
+
+          {/* Magnets — #2 most actionable: biggest price targets */}
+          {(bands.magnetLong || bands.magnetShort) && (
+            <div className="liq-magnet-box">
+              <span style={{ fontSize: 18, flexShrink: 0 }}>⊙</span>
+              <div>
+                <div className="liq-magnet-box-title">Largest Clusters · {rangeConf.label} window</div>
+                <div className="liq-magnet-box-body">
+                  {bands.magnetShort && (
+                    <span style={{ color: '#34d399' }}>
+                      ↑ Short squeeze {fmtP(bands.magnetShort.price)} (+{bands.magnetShort.distPct.toFixed(1)}%, {fmtM(bands.magnetShort.usdM)} at risk)
+                    </span>
+                  )}
+                  {bands.magnetLong && bands.magnetShort && <span style={{ color: '#444', margin: '0 6px' }}>·</span>}
+                  {bands.magnetLong && (
+                    <span style={{ color: '#f87171' }}>
+                      ↓ Long wipeout {fmtP(bands.magnetLong.price)} (-{bands.magnetLong.distPct.toFixed(1)}%, {fmtM(bands.magnetLong.usdM)} at risk)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Stats row — metadata, shown after key signals */}
           <div className="liq-stats-row">
             <div className="liq-stat-item">
               <div className="liq-stat-label">Long liquidation risk (dump)</div>
@@ -211,37 +242,6 @@ export default function LiqPage() {
               <div className="liq-stat-sub" style={{ textAlign: 'right' }}>OI: {fmtM(cd.oi / 1e6)}</div>
             </div>
           </div>
-
-          {/* Bias */}
-          {bias && (
-            <div className="liq-bias-card" style={{ borderColor: `${bias.col}33` }}>
-              <span className="liq-bias-badge" style={{ color: bias.col, background: `${bias.col}16` }}>{bias.txt}</span>
-              <span className="liq-bias-sub">{bias.sub}</span>
-            </div>
-          )}
-
-          {/* Magnets */}
-          {(bands.magnetLong || bands.magnetShort) && (
-            <div className="liq-magnet-box">
-              <span style={{ fontSize: 20, flexShrink: 0 }}>🧲</span>
-              <div>
-                <div className="liq-magnet-box-title">Largest Clusters · {rangeConf.label} window</div>
-                <div className="liq-magnet-box-body">
-                  {bands.magnetShort && (
-                    <span style={{ color: '#34d399' }}>
-                      Short squeeze {fmtP(bands.magnetShort.price)} (+{bands.magnetShort.distPct.toFixed(1)}%, {fmtM(bands.magnetShort.usdM)} at risk)
-                    </span>
-                  )}
-                  {bands.magnetLong && bands.magnetShort && <span style={{ color: '#444', margin: '0 6px' }}>·</span>}
-                  {bands.magnetLong && (
-                    <span style={{ color: '#f87171' }}>
-                      Long wipeout {fmtP(bands.magnetLong.price)} (-{bands.magnetLong.distPct.toFixed(1)}%, {fmtM(bands.magnetLong.usdM)} at risk)
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* ══ ESTIMATED HEATMAP ══════════════════════════════════ */}
           <div className="liq-card">
