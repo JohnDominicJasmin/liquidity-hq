@@ -165,15 +165,17 @@ export default function Arena() {
   const [scannerOpen, setScannerOpen]   = useState(false);
   const [sigDetailsOpen, setSigDetailsOpen] = useState(false);
   const scannerRef     = useRef<HTMLDivElement>(null);
-  const closeTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const openScanner = () => {
-    if (closeTimerRef.current) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null; }
-    setScannerOpen(true);
-  };
-  const scheduleClose = () => {
-    closeTimerRef.current = setTimeout(() => setScannerOpen(false), 120);
-  };
+  // Close scanner when clicking anywhere outside the scanner widget
+  useEffect(() => {
+    if (!scannerOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (scannerRef.current && !scannerRef.current.contains(e.target as Node)) {
+        setScannerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [scannerOpen]);
 
   // Derived — current coin's cached result (persists across coin switches)
   const cacheEntry = resultsCache[selectedCoin] ?? null;
@@ -874,8 +876,6 @@ export default function Arena() {
       <div
         ref={scannerRef}
         style={{ position: 'relative', marginBottom: 12 }}
-        onMouseEnter={openScanner}
-        onMouseLeave={scheduleClose}
       >
         {/* ── Compact trigger bar ── */}
         <button
@@ -941,11 +941,8 @@ export default function Arena() {
         {scannerOpen && (
           <div
             className="scanner-flyout"
-            onMouseEnter={openScanner}
-            onMouseLeave={scheduleClose}
             style={{
-              position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
-              paddingTop: 4,  /* closes the gap so mouse doesn't leave the hover zone */
+              position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50,
             }}
           >
           <div style={{
