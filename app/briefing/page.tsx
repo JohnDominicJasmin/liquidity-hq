@@ -116,9 +116,32 @@ export default function MorningBriefing() {
   const { store }                              = useMarket();
   const { econEvents, geoEvents, whaleAlerts } = useNews();
   const [now, setNow]           = useState<Date>(phtNow);
-  const [brief, setBrief]       = useState('');
   const [generating, setGen]    = useState(false);
   const [briefErr, setBriefErr] = useState('');
+
+  /* ── AI brief — persist across refreshes via sessionStorage (4h TTL) ── */
+  const [brief, setBriefState] = useState('');
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem('lhq_brief');
+      const ts    = sessionStorage.getItem('lhq_brief_ts');
+      if (saved && ts && Date.now() - parseInt(ts) < 4 * 3_600_000) {
+        setBriefState(saved);
+      }
+    } catch { /* incognito / storage blocked */ }
+  }, []);
+  function setBrief(text: string) {
+    setBriefState(text);
+    try {
+      if (text) {
+        sessionStorage.setItem('lhq_brief', text);
+        sessionStorage.setItem('lhq_brief_ts', String(Date.now()));
+      } else {
+        sessionStorage.removeItem('lhq_brief');
+        sessionStorage.removeItem('lhq_brief_ts');
+      }
+    } catch { /* */ }
+  }
 
   /* Tick once per minute so header time stays fresh */
   useEffect(() => {
@@ -252,6 +275,15 @@ export default function MorningBriefing() {
             {brief.split('\n\n').filter(Boolean).map((para, i) => (
               <p key={i} className="mb-brief-para">{para.trim()}</p>
             ))}
+            {(() => {
+              try {
+                const ts = sessionStorage.getItem('lhq_brief_ts');
+                if (!ts) return null;
+                const mins = Math.round((Date.now() - parseInt(ts)) / 60_000);
+                const label = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`;
+                return <div className="mb-brief-cached">Generated {label} · expires in {Math.max(0, 240 - mins)}m</div>;
+              } catch { return null; }
+            })()}
           </div>
         )}
       </div>

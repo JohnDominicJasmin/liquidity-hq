@@ -175,10 +175,17 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
         out.push({ name, type: cls.type, impact: cls.impact, dt, h, dateStr: toPHT(dt) });
       });
       out.sort((a, b) => a.dt.getTime() - b.dt.getTime());
-      setEconEvents(out);
+      // Deduplicate: keep only the earliest occurrence of each event name
+      const seenNames = new Set<string>();
+      const deduped = out.filter(e => {
+        if (seenNames.has(e.name)) return false;
+        seenNames.add(e.name);
+        return true;
+      });
+      setEconEvents(deduped);
       setEventsLoaded(true);
 
-      out.filter(e => e.h < 1).forEach(e => {
+      deduped.filter(e => e.h < 1).forEach(e => {
         pushAlert(`Upcoming: ${e.name} — ${countdown(e.h)}`, 'Finnhub Calendar', Math.floor(Date.now() / 1000), 'amber');
       });
     } catch { /* */ }
