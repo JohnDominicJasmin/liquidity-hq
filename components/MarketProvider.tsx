@@ -190,16 +190,18 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     };
   }, [restPoll, updateCoin]);
 
-  /* ── Bybit: HYPE price + funding rates + OI + perpPrice + OI Trend ── */
+  /* ── Bybit: all coins — single bulk fetch instead of per-symbol calls ── */
   const fetchBybit = useCallback(async () => {
-    const coins = Object.keys(BYBIT_SYMS);
-    await Promise.allSettled(coins.map(async (coin) => {
-      const sym = BYBIT_SYMS[coin];
-      try {
-        const res = await fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${sym}`);
-        const d = await res.json();
-        const item = d.result?.list?.[0];
-        if (!item) return;
+    try {
+      const res = await fetch('https://api.bybit.com/v5/market/tickers?category=linear');
+      const d = await res.json();
+      // Build symbol → ticker map for O(1) lookup
+      const bySymbol: Record<string, Record<string, string>> = {};
+      for (const t of (d.result?.list ?? [])) bySymbol[t.symbol] = t;
+
+      for (const coin of Object.keys(BYBIT_SYMS)) {
+        const item = bySymbol[BYBIT_SYMS[coin]];
+        if (!item) continue;
 
         // 1000x denomination coins (1000PEPEUSDT, 1000BONKUSDT) — divide price by 1000
         const priceFactor = (coin === 'pepe' || coin === 'bonk') ? 0.001 : 1;
@@ -246,7 +248,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           perpPrice: curPrice,
           oiTrend,
           ...(nextFrBybit !== null ? { nextFrEstimate: nextFrBybit } : {}),
-          ...(nextFtMs > 0       ? { nextFundingTime: nextFtMs }    : {}),
+          ...(nextFtMs > 0        ? { nextFundingTime: nextFtMs }    : {}),
         };
         // Always set price/change/high/low/vol for Bybit-only coins.
         // For dual-listed coins, Binance WebSocket will overwrite with fresher data.
@@ -258,8 +260,8 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           patch.vol24  = parseFloat(item.turnover24h  || '0');
         }
         updateCoin(coin as CoinId, patch);
-      } catch { /* */ }
-    }));
+      }
+    } catch { /* */ }
   }, [updateCoin]);
 
   /* ── Bybit LSR ── */
