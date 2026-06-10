@@ -164,6 +164,7 @@ export default function Arena() {
   const [quickSignals, setQuickSignals] = useState<Partial<Record<CoinId, string>>>({});
   const [scannerOpen, setScannerOpen]   = useState(false);
   const [sigDetailsOpen, setSigDetailsOpen] = useState(false);
+  const [copiedKey, setCopiedKey]           = useState<string | null>(null);
   const scannerRef      = useRef<HTMLDivElement>(null);
   const hoverOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1237,14 +1238,37 @@ export default function Arena() {
               </div>
             )}
 
-            {/* Entry / TP / SL chips */}
+            {/* Entry / TP / SL chips — click to copy */}
             {(result.entryLow || result.tp || result.sl) && (
               <div className="gsc-levels-row" style={{ marginTop: 10 }}>
                 {result.entryLow && result.entryHigh && (
-                  <div className="gsc-chip gsc-chip-entry"><span>Entry</span><span>${fmtPrice(result.entryLow)} – ${fmtPrice(result.entryHigh)}</span></div>
+                  <button className="gsc-chip gsc-chip-entry" title="Copy entry zone" onClick={() => {
+                    const v = `${fmtPrice(result.entryLow!)}–${fmtPrice(result.entryHigh!)}`;
+                    navigator.clipboard.writeText(v).catch(() => {});
+                    setCopiedKey('entry'); setTimeout(() => setCopiedKey(null), 1500);
+                  }}>
+                    <span>Entry</span>
+                    <span>{copiedKey === 'entry' ? '✓ Copied' : `$${fmtPrice(result.entryLow)} – $${fmtPrice(result.entryHigh)}`}</span>
+                  </button>
                 )}
-                {result.tp && <div className="gsc-chip gsc-chip-tp"><span>TP</span><span>${fmtPrice(result.tp)}</span></div>}
-                {result.sl && <div className="gsc-chip gsc-chip-sl"><span>SL</span><span>${fmtPrice(result.sl)}</span></div>}
+                {result.tp && (
+                  <button className="gsc-chip gsc-chip-tp" title="Copy TP" onClick={() => {
+                    navigator.clipboard.writeText(fmtPrice(result.tp!)).catch(() => {});
+                    setCopiedKey('tp'); setTimeout(() => setCopiedKey(null), 1500);
+                  }}>
+                    <span>TP</span>
+                    <span>{copiedKey === 'tp' ? '✓ Copied' : `$${fmtPrice(result.tp)}`}</span>
+                  </button>
+                )}
+                {result.sl && (
+                  <button className="gsc-chip gsc-chip-sl" title="Copy SL" onClick={() => {
+                    navigator.clipboard.writeText(fmtPrice(result.sl!)).catch(() => {});
+                    setCopiedKey('sl'); setTimeout(() => setCopiedKey(null), 1500);
+                  }}>
+                    <span>SL</span>
+                    <span>{copiedKey === 'sl' ? '✓ Copied' : `$${fmtPrice(result.sl)}`}</span>
+                  </button>
+                )}
               </div>
             )}
 

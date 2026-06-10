@@ -2,6 +2,13 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useNews } from './NewsProvider';
 
+function decodeEntities(str: string): string {
+  if (typeof document === 'undefined') return str;
+  const txt = document.createElement('textarea');
+  txt.innerHTML = str;
+  return txt.value;
+}
+
 function timeAgo(ts: number): string {
   const s = Math.floor(Date.now() / 1000 - ts);
   if (s < 60) return 'just now';
@@ -53,7 +60,7 @@ export default function NewsTicker() {
 
   const text = useMemo(() =>
     sorted
-      .map(a => `${a.headline}  (${a.source} · ${timeAgo(a.ts)})`)
+      .map(a => `${decodeEntities(a.headline)}  (${a.source} · ${timeAgo(a.ts)})`)
       .join('          ·          '),
   [sorted]);
 
