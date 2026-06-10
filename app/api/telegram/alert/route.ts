@@ -1168,6 +1168,17 @@ async function checkSqueezeAlerts(
 /* ════════════════════════════════════════
    MAIN HANDLER
    ════════════════════════════════════════ */
+/* Muted alert groups — set on /alerts page, stored in Supabase. Fail-open. */
+async function fetchMutedKeys(): Promise<Set<string>> {
+  try {
+    const db = getSupabase();
+    if (!db) return new Set();
+    const { data, error } = await db.from('muted_alerts').select('key');
+    if (error || !data) return new Set();
+    return new Set(data.map(r => String(r.key)));
+  } catch { return new Set(); }
+}
+
 export async function GET() {
   const token  = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -1182,27 +1193,30 @@ export async function GET() {
   const now   = new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit' });
   const stamp = `⏰ ${now} PHT · ${getSession()}`;
 
-  // Fetch shared data once
-  const [frMap, prices, lsMap] = await Promise.all([fetchAllFR(), fetchSpotPrices(), fetchAllLSR()]);
+  // Fetch shared data once (+ muted alert groups)
+  const [frMap, prices, lsMap, muted] = await Promise.all([fetchAllFR(), fetchSpotPrices(), fetchAllLSR(), fetchMutedKeys()]);
 
   // Per-request signal queue — all coin checks push here, flushed after
   const signalQueue: SignalEntry[] = [];
 
+  const skip = (key: string) => muted.has(key);
+  const none: string[] = [];
+
   const results = await Promise.allSettled([
-    checkFRExtremes(stamp, frMap, signalQueue),
-    checkFRFlip(stamp, frMap, signalQueue),
-    checkRSI(stamp, signalQueue),
-    checkEMACross(stamp, signalQueue),
-    checkRapidMove(stamp, signalQueue),
-    checkWhales(stamp, signalQueue),
-    checkNews(token, chatId, stamp),                            // global — sends directly
-    checkFearGreed(token, chatId, stamp),                       // global — sends directly
-    checkDailySummary(token, chatId, stamp, frMap),             // global — sends directly
-    checkOISpike(stamp, prices, signalQueue),
-    checkCVD(stamp, signalQueue),
-    checkPriceAlerts(stamp, prices, signalQueue),
-    checkSentimentExtremes(token, chatId, stamp, frMap),        // global — sends directly
-    checkSqueezeAlerts(stamp, frMap, lsMap, signalQueue),       // squeeze/flush threshold
+    skip('fr_extremes')        ? none : checkFRExtremes(stamp, frMap, signalQueue),
+    skip('fr_flip')            ? none : checkFRFlip(stamp, frMap, signalQueue),
+    skip('rsi')                ? none : checkRSI(stamp, signalQueue),
+    skip('ema_cross')          ? none : checkEMACross(stamp, signalQueue),
+    skip('rapid_move')         ? none : checkRapidMove(stamp, signalQueue),
+    skip('whales')             ? none : checkWhales(stamp, signalQueue),
+    skip('news')               ? none : checkNews(token, chatId, stamp),                     // global — sends directly
+    skip('fear_greed')         ? none : checkFearGreed(token, chatId, stamp),                // global — sends directly
+    skip('daily_summary')      ? none : checkDailySummary(token, chatId, stamp, frMap),      // global — sends directly
+    skip('oi_spike')           ? none : checkOISpike(stamp, prices, signalQueue),
+    skip('cvd')                ? none : checkCVD(stamp, signalQueue),
+    skip('price_alerts')       ? none : checkPriceAlerts(stamp, prices, signalQueue),
+    skip('sentiment_extremes') ? none : checkSentimentExtremes(token, chatId, stamp, frMap), // global — sends directly
+    skip('squeeze')            ? none : checkSqueezeAlerts(stamp, frMap, lsMap, signalQueue),
   ]);
 
   // Flush: single signals → send as-is, 2+ same coin → confluence alert
@@ -1212,6 +1226,7 @@ export async function GET() {
 
   return NextResponse.json({
     ok: true, fired,
+    muted: [...muted],
     checked: ['FR extremes', 'FR flip', 'RSI', 'RSI 50 cross', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold'],
     coins: COINS.length,
     session: nyActive ? 'NY/Pre-NY (high activity)' : 'Asia/London',

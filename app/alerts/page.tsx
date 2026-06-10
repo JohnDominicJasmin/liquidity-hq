@@ -1,13 +1,14 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import AuthGate from '@/components/AuthGate';
+import { COINS } from '@/lib/marketStore';
 
 type Status = 'loading' | 'configured' | 'not_configured';
 
 interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; created_at: string }
 
-const COIN_OPTIONS = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui'];
-const COIN_LABELS: Record<string, string> = { btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP', bnb: 'BNB', hype: 'HYPE', near: 'NEAR', sui: 'SUI' };
+const COIN_OPTIONS = COINS;
+const COIN_LABELS: Record<string, string> = Object.fromEntries(COINS.map(c => [c, c.toUpperCase()]));
 
 function CopyBox({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -27,6 +28,10 @@ export default function AlertsPage() {
   const [checkState, setCheckState] = useState<'idle' | 'checking' | 'done'>('idle');
   const [checkResult, setCheckResult] = useState<{ fired: string[]; rates?: Record<string, number | null> } | null>(null);
 
+  // Muted alert groups
+  const [muted, setMuted]               = useState<Set<string>>(new Set());
+  const [muteErr, setMuteErr]           = useState('');
+
   // Price alerts state
   const [priceAlerts, setPriceAlerts]   = useState<PriceAlert[]>([]);
   const [paLoading, setPaLoading]       = useState(false);
@@ -40,7 +45,38 @@ export default function AlertsPage() {
     fetch('/api/telegram/status').then(r => r.json())
       .then(d => setStatus(d.configured ? 'configured' : 'not_configured'))
       .catch(() => setStatus('not_configured'));
+    fetch('/api/alert-prefs').then(r => r.json())
+      .then(d => setMuted(new Set<string>(d.muted ?? [])))
+      .catch(() => {});
   }, []);
+
+  const toggleMute = async (key: string) => {
+    const willMute = !muted.has(key);
+    // Optimistic flip
+    setMuted(prev => {
+      const next = new Set(prev);
+      if (willMute) next.add(key); else next.delete(key);
+      return next;
+    });
+    setMuteErr('');
+    try {
+      const res = await fetch('/api/alert-prefs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, muted: willMute }),
+      });
+      const d = await res.json();
+      if (!d.ok) throw new Error(d.error ?? 'Save failed');
+    } catch (e) {
+      // Roll back
+      setMuted(prev => {
+        const next = new Set(prev);
+        if (willMute) next.delete(key); else next.add(key);
+        return next;
+      });
+      setMuteErr(e instanceof Error ? e.message : 'Save failed — is the muted_alerts table created?');
+    }
+  };
 
   const loadPriceAlerts = useCallback(async () => {
     setPaLoading(true);
@@ -97,30 +133,35 @@ export default function AlertsPage() {
 
   const CRON_URL = 'https://liquidity-hq.onrender.com/api/telegram/alert';
 
-  const CONDITIONS = [
-    { dot: '#f87171', title: 'FR ≥ 0.05%',           desc: 'Longs Overcrowded — Dump Risk · 4h cooldown', grok: false },
-    { dot: '#34d399', title: 'FR ≤ −0.03%',           desc: 'Shorts Crowded — Squeeze Setup · 4h cooldown', grok: false },
-    { dot: '#60a5fa', title: 'FR Direction Flip',      desc: 'FR crosses zero (pos→neg or neg→pos) · fires on transition', grok: false },
-    { dot: '#fbbf24', title: '1H RSI > 78',            desc: 'Overbought — Exhaustion Risk · 4h cooldown', grok: false },
-    { dot: '#60a5fa', title: '1H RSI < 22',            desc: 'Oversold — Bounce Setup · 4h cooldown', grok: false },
-    { dot: '#a78bfa', title: 'Whale Trade',            desc: 'BTC >$5M · ETH >$2M · SOL >$1M · XRP/BNB >$750K · NEAR/SUI >$500K · 30min cooldown', grok: true },
-    { dot: '#f87171', title: 'Breaking News',          desc: 'Geopolitical / macro Finnhub headlines · 15min cooldown', grok: true },
-    { dot: '#fbbf24', title: 'OI Spike ±15% in 1h',   desc: 'New money entering — big move building · 2h cooldown', grok: true },
-    { dot: '#34d399', title: 'CVD Bullish Divergence', desc: 'Price down but buyers absorbing — accumulation signal · 1h cooldown', grok: false },
-    { dot: '#f87171', title: 'CVD Bearish Divergence', desc: 'Price up but sellers dominate — fake pump signal · 1h cooldown', grok: false },
-    { dot: '#c084fc', title: 'Price Level Alert',      desc: 'User-set price targets · fires once then deactivates', grok: true },
-    { dot: '#34d399', title: 'RSI 50 Cross ↑ (1H)',    desc: 'RSI crosses above 50 — bullish momentum shift · 6h cooldown', grok: false },
-    { dot: '#f87171', title: 'RSI 50 Cross ↓ (1H)',    desc: 'RSI crosses below 50 — bearish momentum shift · 6h cooldown', grok: false },
-    { dot: '#34d399', title: '200 EMA Cross ↑ (1H)',   desc: 'Price reclaims major moving average — bullish · 12h cooldown', grok: true },
-    { dot: '#f87171', title: '200 EMA Cross ↓ (1H)',   desc: 'Price loses major moving average — bearish · 12h cooldown', grok: true },
-    { dot: '#fb923c', title: 'Rapid Move ±5% (1H)',    desc: 'Momentum surge or flash dump in one 1H candle · 2h cooldown', grok: true },
-    { dot: '#fb923c', title: 'Rapid Move ±10% (4H)',   desc: 'Major momentum candle on 4H — trend move · 4h cooldown', grok: true },
-    { dot: '#f97316', title: 'Flash Move ±4% (5m)',    desc: 'Stop cascade or news flash — extreme 5-min move · 30min cooldown', grok: true },
-    { dot: '#818cf8', title: 'Confluence Alert',        desc: '2+ signals same coin in one run → single combined ping · LiquidityAI weighs all signals together', grok: true },
-    { dot: '#f87171', title: 'Fear & Greed ≤15',        desc: 'Extreme fear — contrarian accumulation zone · 23h cooldown', grok: false },
-    { dot: '#f97316', title: 'Fear & Greed ≥85',        desc: 'Extreme greed — distribution zone · 23h cooldown', grok: false },
-    { dot: '#fbbf24', title: 'Daily 7am Summary',       desc: 'FR snapshot + F&G + active price alerts + LiquidityAI market outlook · fires once daily at 7am PHT', grok: true },
-    { dot: '#f43f5e', title: 'Sentiment Extremes',      desc: 'F&G + BTC funding rate + BTC L/S ratio all simultaneously at extremes (bearish or contrarian bullish) · 4h cooldown', grok: true },
+  /* Each toggle maps 1:1 to a server-side check in /api/telegram/alert.
+     Muting a key stops that whole check from running. */
+  const ALERT_GROUPS: { section: string; items: { key: string; dot: string; title: string; desc: string; grok: boolean }[] }[] = [
+    { section: '💸 Funding', items: [
+      { key: 'fr_extremes', dot: '#f87171', title: 'FR Extremes',       desc: '≥ 0.05% longs overcrowded (dump risk) · ≤ −0.03% shorts crowded (squeeze setup) · 4h cooldown', grok: false },
+      { key: 'fr_flip',     dot: '#60a5fa', title: 'FR Direction Flip', desc: 'FR crosses zero (pos→neg or neg→pos) · fires on transition', grok: false },
+    ]},
+    { section: '📈 Momentum', items: [
+      { key: 'rsi',        dot: '#fbbf24', title: 'RSI Alerts (1H)', desc: '> 78 overbought · < 22 oversold · 50-cross momentum shifts · 4–6h cooldowns', grok: false },
+      { key: 'rapid_move', dot: '#fb923c', title: 'Rapid Moves',     desc: '±5% 1H candle · ±10% 4H candle · flash ±4% in 5 min · 30min–4h cooldowns', grok: true },
+    ]},
+    { section: '📊 Trend', items: [
+      { key: 'ema_cross', dot: '#34d399', title: '200 EMA Cross (1H)', desc: 'Price reclaims (bullish) or loses (bearish) the major moving average · 12h cooldown', grok: true },
+    ]},
+    { section: '🐋 Flow', items: [
+      { key: 'whales',   dot: '#a78bfa', title: 'Whale Trades',         desc: 'BTC >$5M · ETH >$2M · SOL >$1M · XRP/BNB >$750K · others >$500K · 30min cooldown', grok: true },
+      { key: 'oi_spike', dot: '#fbbf24', title: 'OI Spike ±15% in 1h', desc: 'New money entering — big move building · 2h cooldown', grok: true },
+      { key: 'cvd',      dot: '#34d399', title: 'CVD Divergence',       desc: 'Bullish: price down but buyers absorbing · Bearish: price up but sellers dominate · 1h cooldown', grok: false },
+      { key: 'squeeze',  dot: '#f43f5e', title: 'Squeeze / Flush ≥ 70', desc: 'Crowd positioning extreme — squeeze score threshold hit · 4h cooldown', grok: true },
+    ]},
+    { section: '📰 News & Sentiment', items: [
+      { key: 'news',               dot: '#f87171', title: 'Breaking News',        desc: 'Geopolitical / macro Finnhub headlines · 15min cooldown', grok: true },
+      { key: 'fear_greed',         dot: '#f97316', title: 'Fear & Greed Extremes', desc: '≤ 15 extreme fear (accumulation zone) · ≥ 85 extreme greed (distribution) · 23h cooldown', grok: false },
+      { key: 'sentiment_extremes', dot: '#f43f5e', title: 'Sentiment Extremes',    desc: 'F&G + BTC funding + BTC L/S ratio all at extremes simultaneously · 4h cooldown', grok: true },
+    ]},
+    { section: '🎯 Price & Summary', items: [
+      { key: 'price_alerts',  dot: '#c084fc', title: 'Price Level Alerts', desc: 'Your saved price targets above · fires once then deactivates', grok: true },
+      { key: 'daily_summary', dot: '#fbbf24', title: 'Daily 7am Summary',  desc: 'FR snapshot + F&G + active price alerts + LiquidityAI market outlook · once daily at 7am PHT', grok: true },
+    ]},
   ];
 
   return (
@@ -231,21 +272,64 @@ export default function AlertsPage() {
         )}
       </div>
 
-      {/* Active conditions */}
+      {/* Alert conditions — grouped, with per-group mute toggles */}
       <div className="card" style={{ marginBottom: 10 }}>
-        <div className="lbl" style={{ marginBottom: 10 }}>Active Alert Conditions</div>
-        {CONDITIONS.map((c, i) => (
-          <div key={i} className="tg-condition-row" style={{ borderBottom: i === CONDITIONS.length - 1 ? 'none' : undefined }}>
-            <span className="tg-cond-dot" style={{ background: c.dot }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)' }}>{c.title}</div>
-              <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>{c.desc}</div>
+        <div className="lbl" style={{ marginBottom: 4 }}>Alert Conditions</div>
+        <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 10 }}>
+          Toggle off to mute a group — applies to the background cron too. 🤖 AI = includes LiquidityAI analysis.
+        </div>
+        {muteErr && (
+          <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 8 }}>
+            ⚠ {muteErr}
+          </div>
+        )}
+        {ALERT_GROUPS.map(group => (
+          <div key={group.section} style={{ marginBottom: 6 }}>
+            <div style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase',
+              color: 'var(--txt3)', padding: '8px 0 4px', borderBottom: '0.5px solid var(--bdr)',
+            }}>
+              {group.section}
             </div>
-            {c.grok && <span style={{ fontSize: 10, color: '#a78bfa', fontWeight: 600, flexShrink: 0 }}>🤖 AI</span>}
+            {group.items.map(c => {
+              const isMuted = muted.has(c.key);
+              return (
+                <div key={c.key} className="tg-condition-row" style={{ opacity: isMuted ? 0.45 : 1, transition: 'opacity .15s' }}>
+                  <span className="tg-cond-dot" style={{ background: isMuted ? 'var(--txt3)' : c.dot }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)' }}>
+                      {c.title}
+                      {isMuted && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.05em' }}>MUTED</span>}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>{c.desc}</div>
+                  </div>
+                  {c.grok && <span style={{ fontSize: 10, color: '#a78bfa', fontWeight: 600, flexShrink: 0 }}>🤖 AI</span>}
+                  <button
+                    role="switch"
+                    aria-checked={!isMuted}
+                    aria-label={`${isMuted ? 'Unmute' : 'Mute'} ${c.title}`}
+                    className={`st-toggle${!isMuted ? ' on' : ''}`}
+                    style={{ flexShrink: 0 }}
+                    onClick={() => toggleMute(c.key)}
+                  >
+                    <span className="st-toggle-thumb" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         ))}
+        {/* Confluence is a meta-behavior of the send pipeline — not muteable */}
+        <div className="tg-condition-row" style={{ borderBottom: 'none' }}>
+          <span className="tg-cond-dot" style={{ background: '#818cf8' }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)' }}>Confluence Alert <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.05em' }}>ALWAYS ON</span></div>
+            <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>2+ signals on the same coin in one run → single combined ping · LiquidityAI weighs all signals together</div>
+          </div>
+          <span style={{ fontSize: 10, color: '#a78bfa', fontWeight: 600, flexShrink: 0 }}>🤖 AI</span>
+        </div>
         <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 10, padding: '8px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
-          Monitored: BTC · ETH · SOL · XRP · BNB · HYPE · NEAR · SUI
+          Monitored: all {COINS.length} coins — BTC · ETH · SOL · XRP · BNB · HYPE · NEAR · SUI · DOGE · AVAX · LINK · ADA · DOT · ATOM · WIF · PEPE · BONK
         </div>
       </div>
 
@@ -279,7 +363,7 @@ export default function AlertsPage() {
             <ol className="tg-list">
               <li>Render → Environment → add <code>TELEGRAM_BOT_TOKEN</code> and <code>TELEGRAM_CHAT_ID</code></li>
               <li>Supabase dashboard → SQL Editor → run:
-                <CopyBox text={`CREATE TABLE price_alerts (id BIGSERIAL PRIMARY KEY, coin TEXT NOT NULL, target_price NUMERIC NOT NULL, direction TEXT NOT NULL, label TEXT DEFAULT '', active BOOLEAN DEFAULT TRUE, triggered_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW()); ALTER TABLE price_alerts DISABLE ROW LEVEL SECURITY;`} />
+                <CopyBox text={`CREATE TABLE price_alerts (id BIGSERIAL PRIMARY KEY, coin TEXT NOT NULL, target_price NUMERIC NOT NULL, direction TEXT NOT NULL, label TEXT DEFAULT '', active BOOLEAN DEFAULT TRUE, triggered_at TIMESTAMPTZ, created_at TIMESTAMPTZ DEFAULT NOW()); ALTER TABLE price_alerts DISABLE ROW LEVEL SECURITY; CREATE TABLE IF NOT EXISTS muted_alerts (key TEXT PRIMARY KEY, created_at TIMESTAMPTZ DEFAULT NOW()); ALTER TABLE muted_alerts DISABLE ROW LEVEL SECURITY;`} />
               </li>
             </ol>
           </div>

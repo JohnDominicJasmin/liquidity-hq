@@ -17,8 +17,8 @@ export default function About() {
       <div className="card">
         <div className="lbl">Data sources</div>
         {[
-          ['Prices', 'Binance WebSocket + REST (BTC/ETH/SOL/XRP/BNB/NEAR/SUI)'],
-          ['HYPE', 'Bybit REST API'],
+          ['Prices', 'Binance WebSocket + REST — 17 coins (majors, alts, memes)'],
+          ['HYPE / PEPE / BONK', 'Bybit REST API'],
           ['Funding & OI', 'Bybit Public API'],
           ['Long/Short Ratio', 'Bybit Account Ratio'],
           ['Fear & Greed', 'Alternative.me'],
@@ -38,7 +38,7 @@ export default function About() {
       <div className="card">
         <div className="lbl">How to use</div>
         <div style={{ fontSize: 13, color: '#a0a0a0', lineHeight: 1.8 }}>
-          1. <strong style={{ color: '#e8e8e8' }}>Open Coinglass</strong> — 24h Model 2. Find the brightest, tightest cluster.<br />
+          1. <strong style={{ color: '#e8e8e8' }}>Open the Liquidation Map</strong> — 24h window. Find the brightest, tightest cluster.<br />
           2. <strong style={{ color: '#e8e8e8' }}>Check the Raid Meter</strong> — needs at least 60/100 to be worth trading.<br />
           3. <strong style={{ color: '#e8e8e8' }}>Run the Scanner</strong> — 7-question system. If it says NO, stay flat.<br />
           4. <strong style={{ color: '#e8e8e8' }}>Check Best Hours</strong> — God Tier or Prime window only.<br />
