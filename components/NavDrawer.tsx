@@ -53,6 +53,7 @@ const NAV = [
   { path: '/correlation', icon: '🔗', label: 'Correlation', desk: true  },
   null,
   { path: '/journal',     icon: '📓', label: 'Journal',     desk: true  },
+  { path: '/calc',        icon: '🧮', label: 'Position Sizer', desk: false },
   null,
   { path: '/settings',    icon: '⚙️', label: 'Settings',    desk: false, modal: true },
   { path: '/about',       icon: 'ℹ️', label: 'About',       desk: false },

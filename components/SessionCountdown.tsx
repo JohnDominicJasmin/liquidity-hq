@@ -20,11 +20,18 @@ function fmtMs(ms: number): string {
   return `${sec}s`;
 }
 
-/* Scan forward (1-min steps) to find next session boundary — fast enough (<1ms) */
-function findNextSession(nowMs: number): { win: SessionWindow; startsInMs: number } | null {
+/* Scan forward (1-min steps) to find next session boundary — fast enough (<1ms).
+   Skips the currently-active window so "Next" is never the session already running. */
+function findNextSession(nowMs: number, currentName?: string): { win: SessionWindow; startsInMs: number } | null {
   const limit = nowMs + 8 * 24 * 3600_000;
+  let leftCurrent = !currentName;
   for (let t = nowMs + 60_000; t < limit; t += 60_000) {
     const w = getCurrentWindow(new Date(new Date(t).toLocaleString('en-US', { timeZone: 'Asia/Manila' })));
+    if (!leftCurrent) {
+      if (w && w.name !== currentName) return { win: w, startsInMs: t - nowMs };
+      if (!w) leftCurrent = true;
+      continue;
+    }
     if (w) return { win: w, startsInMs: t - nowMs };
   }
   return null;
@@ -51,7 +58,7 @@ export default function SessionCountdown() {
     const pht      = phtNow();
     const current  = getCurrentWindow(pht);
     const dead     = isDead(pht);
-    const next     = findNextSession(nowMs);
+    const next     = findNextSession(nowMs, current?.name);
     const endsInMs = current ? findSessionEndMs(nowMs, current.name) : 0;
     const nextInMs = next?.startsInMs ?? 0;
     return { current, dead, next, endsInMs, nextInMs };

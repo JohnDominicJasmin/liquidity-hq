@@ -2256,8 +2256,8 @@ body.ticker-on .breaking-alert { top: 90px; }
 .tj-coin.on { background: rgba(167,139,250,.12); border-color: var(--purple-bdr); color: var(--purple); }
 .tj-dir-row { display: flex; gap: 8px; margin-top: 4px; }
 .tj-dir-btn { flex: 1; padding: 9px; border-radius: 8px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt2); font-size: 13px; font-weight: 700; cursor: pointer; }
-.tj-dir-btn.tj-long  { background: var(--red-bg);   border-color: var(--red-bdr);   color: var(--red); }
-.tj-dir-btn.tj-short { background: var(--green-bg); border-color: var(--green-bdr); color: var(--green); }
+.tj-dir-btn.tj-long  { background: var(--green-bg); border-color: var(--green-bdr); color: var(--green); }
+.tj-dir-btn.tj-short { background: var(--red-bg);   border-color: var(--red-bdr);   color: var(--red); }
 .tj-setups { display: flex; gap: 6px; flex-wrap: wrap; }
 .tj-setup-btn { padding: 5px 12px; border-radius: 20px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt2); font-size: 11px; cursor: pointer; }
 .tj-setup-btn.on { background: rgba(167,139,250,.12); border-color: var(--purple-bdr); color: var(--purple); font-weight: 600; }
@@ -2271,8 +2271,8 @@ body.ticker-on .breaking-alert { top: 90px; }
 .tj-inp-tp:focus   { box-shadow: inset 0 0 0 1px rgba(52,211,153,.3); }
 .tj-autofill { font-size: 11px; color: var(--green); margin-top: 8px; }
 .tj-notes { width: 100%; background: var(--bg2); border: 0.5px solid var(--bdr2); border-radius: 8px; padding: 10px; font-size: 12px; color: var(--txt); resize: vertical; outline: none; font-family: inherit; box-sizing: border-box; }
-.tj-submit { width: 100%; padding: 13px; border-radius: 14px; border: 0.5px solid var(--purple-bdr); background: rgba(167,139,250,.1); color: var(--purple); font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 4px; }
-.tj-submit:disabled { opacity: .4; cursor: not-allowed; }
+.tj-submit { width: 100%; padding: 13px; border-radius: 14px; border: 1px solid var(--purple); background: rgba(167,139,250,.22); color: #e9e4ff; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 4px; }
+.tj-submit:disabled { opacity: .35; cursor: not-allowed; border-color: var(--purple-bdr); background: rgba(167,139,250,.08); color: var(--purple); }
 .tj-submit:not(:disabled):hover { box-shadow: 0 0 16px rgba(167,139,250,.2); }
 .tj-loading { text-align: center; padding: 2rem; color: var(--txt3); font-size: 12px; }
 .tj-empty-state { text-align: center; padding: 3rem 0; color: var(--txt3); font-size: 13px; }
@@ -2285,8 +2285,8 @@ body.ticker-on .breaking-alert { top: 90px; }
 .tj-trade-top  { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 8px; }
 .tj-trade-coin { font-size: 14px; font-weight: 700; color: var(--txt); }
 .tj-trade-dir-tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; }
-.tj-trade-dir-tag.tj-long  { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bdr); }
-.tj-trade-dir-tag.tj-short { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-bdr); }
+.tj-trade-dir-tag.tj-long  { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-bdr); }
+.tj-trade-dir-tag.tj-short { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bdr); }
 .tj-trade-setup-tag { font-size: 10px; color: var(--txt3); padding: 2px 7px; border-radius: 20px; border: 0.5px solid var(--bdr); }
 .tj-result-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
 .tj-rb-open { background: rgba(217,119,6,.12); color: #f59e0b; border: 0.5px solid rgba(217,119,6,.3); }

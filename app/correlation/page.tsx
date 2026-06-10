@@ -74,17 +74,25 @@ function pearson(a: number[], b: number[]): number | null {
 }
 
 /* ── colors ── */
+/* Crypto correlations cluster in 0.5–1.0, so a linear alpha map renders a wall of
+   identical green. Rescale 0.35→1.0 onto the full range with a power curve so
+   0.6 reads faint and 0.95+ pops. */
 function cellBg(r: number | null, diag: boolean): string {
   if (diag)    return 'rgba(167,139,250,0.22)';
   if (r == null) return 'rgba(255,255,255,0.03)';
-  if (r > 0)   return `rgba(52,211,153,${(r * 0.82).toFixed(2)})`;
-  return         `rgba(248,113,113,${(Math.abs(r) * 0.82).toFixed(2)})`;
+  if (r > 0) {
+    const t = Math.max(0, (r - 0.35) / 0.65);
+    const a = 0.04 + Math.pow(t, 2.2) * 0.92;
+    return `rgba(52,211,153,${a.toFixed(2)})`;
+  }
+  const a = 0.06 + Math.pow(Math.abs(r), 1.5) * 0.86;
+  return `rgba(248,113,113,${a.toFixed(2)})`;
 }
 
 function cellColor(r: number | null, diag: boolean): string {
   if (diag) return '#c4b5fd';
   if (r == null) return '#333';
-  return Math.abs(r) > 0.45 ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.45)';
+  return Math.abs(r) >= 0.8 ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.55)';
 }
 
 /* ── alt season signal ── */
@@ -255,7 +263,7 @@ export default function CorrelationHeatmap() {
             <div className="corr-legend">
               <span style={{ color: '#34d399' }}>■ Green</span> = moves together &nbsp;·&nbsp;
               <span style={{ color: '#f87171' }}>■ Red</span> = moves opposite &nbsp;·&nbsp;
-              Darker = stronger relationship
+              Brighter = stronger relationship
             </div>
           </div>
 
