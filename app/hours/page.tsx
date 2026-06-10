@@ -46,18 +46,18 @@ export default function BestHours() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.5rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8', marginBottom: 2 }}>Best Hours</div>
-        <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>Live PHT clock + session window detector</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Best Hours</div>
+        <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 14 }}>Live PHT clock + session window detector</div>
       </div>
 
       <SessionCountdown />
 
       <div className="card" style={{ textAlign: 'center', marginBottom: 14 }}>
-        <div style={{ fontSize: 36, fontWeight: 700, fontFamily: 'monospace', color: '#e8e8e8', letterSpacing: -1 }}>
+        <div style={{ fontSize: 36, fontWeight: 700, fontFamily: 'monospace', color: 'var(--txt)', letterSpacing: -1 }}>
           {pad(h12)}:{pad(m)}:{pad(s)}
-          <span style={{ fontSize: 14, color: '#606060', marginLeft: 8 }}>{ampm} PHT</span>
+          <span style={{ fontSize: 14, color: 'var(--txt3)', marginLeft: 8 }}>{ampm} PHT</span>
         </div>
-        <div style={{ fontSize: 13, color: '#606060', marginTop: 4 }}>
+        <div style={{ fontSize: 13, color: 'var(--txt3)', marginTop: 4 }}>
           {days[pht.getDay()]}, {months[pht.getMonth()]} {pht.getDate()} {pht.getFullYear()}
         </div>
 
@@ -173,7 +173,7 @@ export default function BestHours() {
             ))}
           </div>
         ) : (
-          <div style={{ fontSize: 12, color: '#606060' }}>No windows detected in next 7 days</div>
+          <div style={{ fontSize: 12, color: 'var(--txt3)' }}>No windows detected in next 7 days</div>
         )}
       </div>
 
@@ -183,9 +183,9 @@ export default function BestHours() {
         <div key={i} className="card" style={{ marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
             <div className={`window-pill ${w.cls}`}>{w.badge}</div>
-            <div style={{ fontSize: 11, color: '#606060' }}>{w.time}</div>
+            <div style={{ fontSize: 11, color: 'var(--txt3)' }}>{w.time}</div>
           </div>
-          <div style={{ fontSize: 13, color: '#a0a0a0', lineHeight: 1.6 }}>{w.desc}</div>
+          <div style={{ fontSize: 13, color: 'var(--txt2)', lineHeight: 1.6 }}>{w.desc}</div>
         </div>
       ))}
     </div>

@@ -471,10 +471,10 @@ export default function GrokChat() {
               aria-label="Close"
             >✕</button>
             <div style={{ fontSize: 40, marginBottom: 4 }}>🔒</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#e8e8e8' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)' }}>
               Sign in to use Grok
             </div>
-            <div style={{ fontSize: 13, color: '#606060', lineHeight: 1.65, maxWidth: 240 }}>
+            <div style={{ fontSize: 13, color: 'var(--txt3)', lineHeight: 1.65, maxWidth: 240 }}>
               AI analysis uses API credits. Create a free account to unlock Grok chat and arena analysis.
             </div>
             <Link
@@ -493,18 +493,9 @@ export default function GrokChat() {
             {histView ? (
               <button className="gchat-icon-btn" onClick={() => setHistView(false)} title="Back to chat" style={{ fontSize: 16, padding: '2px 4px' }}>←</button>
             ) : null}
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#e8e8e8' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--txt)' }}>
               {histView ? 'Conversations' : 'LiquidityAI'}
             </span>
-            {!histView && (
-              <span style={{
-                fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
-                background: liveSearch ? '#252040' : '#1a1a1a',
-                color: liveSearch ? '#b8aeff' : '#505050',
-                border: liveSearch ? '0.5px solid #4a3f80' : '0.5px solid #2a2a2a',
-                letterSpacing: '.05em',
-              }}>{liveSearch ? 'LIVE X' : 'FAST'}</span>
-            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {!histView && (
@@ -554,8 +545,8 @@ export default function GrokChat() {
             {convos.length === 0 ? (
               <div className="gchat-hist-empty">
                 <div style={{ fontSize: 28, marginBottom: 8 }}>🕐</div>
-                <div style={{ fontSize: 13, color: '#606060' }}>No saved conversations yet</div>
-                <div style={{ fontSize: 11, color: '#383838', marginTop: 4 }}>Conversations are saved automatically</div>
+                <div style={{ fontSize: 13, color: 'var(--txt3)' }}>No saved conversations yet</div>
+                <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 4 }}>Conversations are saved automatically</div>
                 <button className="gchat-new-chat-btn" style={{ marginTop: 16, padding: '8px 20px' }} onClick={newChat}>
                   + Start a new chat
                 </button>
@@ -625,7 +616,7 @@ export default function GrokChat() {
                     </>
                   ) : (
                     <>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#606060' }}>Sign in to use LiquidityAI</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--txt3)' }}>Sign in to use LiquidityAI</div>
                       <button
                         style={{ marginTop: 10, fontSize: 12, color: '#b8aeff', background: 'none', border: '0.5px solid #b8aeff44', borderRadius: 8, padding: '6px 16px', cursor: 'pointer' }}
                         onClick={() => setShowLoginModal(true)}

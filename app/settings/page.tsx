@@ -71,12 +71,39 @@ export default function SettingsPage() {
       .catch(() => setTgStatus('not_configured'));
   }, []);
 
-  // Redirect to login if not signed in
-  useEffect(() => {
-    if (!authLoading && !user) router.push('/login');
-  }, [user, authLoading, router]);
+  // Show limited page (Appearance only) when not signed in
+  if (!authLoading && !user) {
+    return (
+      <div className="st-page">
+        <div className="st-header"><div className="st-header-title">Settings</div></div>
+        <Section title="Appearance" icon="🎨">
+          <div className="st-field">
+            <label className="st-field-label">Theme</label>
+            <div className="st-chip-row">
+              {(['dark', 'light'] as const).map(t => (
+                <button
+                  key={t}
+                  className={`st-chip${(typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === t) ? ' on' : ''}`}
+                  onClick={() => {
+                    document.documentElement.setAttribute('data-theme', t);
+                    localStorage.setItem('theme', t);
+                    window.dispatchEvent(new Event('theme-change'));
+                  }}
+                >
+                  {t === 'dark' ? '◑ Dark' : '☀ Light'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </Section>
+        <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--txt3)', fontSize: 12 }}>
+          <a href="/login" style={{ color: 'var(--purple)', fontWeight: 600 }}>Sign in</a> to access full settings
+        </div>
+      </div>
+    );
+  }
 
-  if (authLoading || !user) {
+  if (authLoading) {
     return <div style={{ padding: '2rem', color: 'var(--txt3)', fontSize: 13 }}>Loading…</div>;
   }
 
@@ -99,7 +126,7 @@ export default function SettingsPage() {
       <Section title="Account" icon="👤">
         <div className="st-field">
           <div className="st-field-label">Signed in as</div>
-          <div className="st-field-value">{user.email}</div>
+          <div className="st-field-value">{user?.email}</div>
         </div>
 
         {usage && (

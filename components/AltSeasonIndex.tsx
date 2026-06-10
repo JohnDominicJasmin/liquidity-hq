@@ -53,7 +53,7 @@ export default function AltSeasonIndex() {
     return (
       <div className="ind-card">
         <div className="ind-label">Alt Season Index</div>
-        <div className="ind-value" style={{ color: '#606060' }}>--</div>
+        <div className="ind-value" style={{ color: 'var(--txt3)' }}>--</div>
         <div className="ind-note">Loading…</div>
       </div>
     );
@@ -85,8 +85,8 @@ export default function AltSeasonIndex() {
             <div className={`fng-delta-pill ${delta > 3 ? 'fng-delta-up' : delta < -3 ? 'fng-delta-down' : 'fng-delta-flat'}`}>
               {delta > 3 ? '▲' : delta < -3 ? '▼' : '◆'} {delta > 0 ? '+' : ''}{delta} pts vs yesterday
             </div>
-            <div style={{ fontSize: 10, color: '#606060' }}>
-              Yesterday: <span style={{ fontWeight: 600, color: '#a0a0a0' }}>{prevScore}</span>
+            <div style={{ fontSize: 10, color: 'var(--txt3)' }}>
+              Yesterday: <span style={{ fontWeight: 600, color: 'var(--txt2)' }}>{prevScore}</span>
             </div>
           </div>
         )}

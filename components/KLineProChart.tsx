@@ -40,7 +40,7 @@ const TOOLS = [
   { id: 'rect',                   label: '▭ Rect'    },
 ] as const;
 
-// ── Dark theme — use setStyles after init to avoid deep-type gymnastics ───
+// ── Theme configs — use setStyles after init to avoid deep-type gymnastics ──
 
 const DARK: Record<string, unknown> = {
   grid: {
@@ -92,6 +92,56 @@ const DARK: Record<string, unknown> = {
   },
 };
 
+const LIGHT: Record<string, unknown> = {
+  grid: {
+    horizontal: { color: 'rgba(0,0,0,0.06)', size: 1 },
+    vertical:   { color: 'rgba(0,0,0,0.06)', size: 1 },
+  },
+  candle: {
+    bar: {
+      upColor:            '#16a34a',
+      downColor:          '#dc2626',
+      upBorderColor:      '#16a34a',
+      downBorderColor:    '#dc2626',
+      noChangeBorderColor:'#888',
+      upWickColor:        '#16a34a',
+      downWickColor:      '#dc2626',
+    },
+    priceMark: {
+      high: { show: true, color: 'rgba(0,0,0,0.35)', textSize: 10 },
+      low:  { show: true, color: 'rgba(0,0,0,0.35)', textSize: 10 },
+      last: {
+        show: true,
+        line: { show: true, color: 'rgba(0,0,0,0.12)' },
+        text: { show: true, color: '#1A1916', size: 11 },
+      },
+    },
+  },
+  xAxis: {
+    tickText: { color: 'rgba(0,0,0,0.4)', size: 10 },
+    axisLine: { color: 'rgba(0,0,0,0.08)' },
+    tickLine: { color: 'rgba(0,0,0,0.08)' },
+  },
+  yAxis: {
+    tickText: { color: 'rgba(0,0,0,0.4)', size: 10 },
+    axisLine: { color: 'rgba(0,0,0,0.08)' },
+    tickLine: { color: 'rgba(0,0,0,0.08)' },
+  },
+  crosshair: {
+    horizontal: {
+      line:  { color: 'rgba(0,0,0,0.15)' },
+      text:  { color: '#1A1916', background: '#E8E5DC', size: 11 },
+    },
+    vertical: {
+      line:  { color: 'rgba(0,0,0,0.15)' },
+      text:  { color: '#1A1916', background: '#E8E5DC', size: 11 },
+    },
+  },
+  overlay: {
+    line: { color: '#5b21b6', size: 1 },
+  },
+};
+
 // ── Component ─────────────────────────────────────────────────────────────
 
 export type ChartTf = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d';
@@ -115,6 +165,18 @@ export default function KLineProChart({ coin, tf, result }: Props) {
   const [copiedMsg,   setCopiedMsg]   = useState<string | null>(null);
   const copyToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Theme sync — apply DARK/LIGHT styles when theme changes ─────────────
+  useEffect(() => {
+    const apply = () => {
+      const dark = document.documentElement.getAttribute('data-theme') !== 'light';
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      chartRef.current?.setStyles((dark ? DARK : LIGHT) as any);
+    };
+    apply();
+    window.addEventListener('theme-change', apply);
+    return () => window.removeEventListener('theme-change', apply);
+  }, []);
+
   // Keep coinRef fresh for the DataLoader closure
   useEffect(() => { coinRef.current = coin; }, [coin]);
 
@@ -131,9 +193,10 @@ export default function KLineProChart({ coin, tf, result }: Props) {
       if (!chart) return;
       chartRef.current = chart;
 
-      // Apply dark theme via setStyles (avoids DeepPartial type gymnastics)
+      // Apply current theme via setStyles (avoids DeepPartial type gymnastics)
+      const dark = document.documentElement.getAttribute('data-theme') !== 'light';
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      chart.setStyles(DARK as any);
+      chart.setStyles((dark ? DARK : LIGHT) as any);
 
       // Indicators
       chart.createIndicator(

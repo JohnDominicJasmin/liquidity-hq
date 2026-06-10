@@ -33,8 +33,8 @@ export default function LiquidityPlaybook() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.5rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8', marginBottom: 2 }}>Liquidity Playbook</div>
-        <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>{SECRETS.length} plays — the complete predator playbook</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Liquidity Playbook</div>
+        <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 14 }}>{SECRETS.length} plays — the complete predator playbook</div>
       </div>
 
       <input
@@ -64,13 +64,15 @@ export default function LiquidityPlaybook() {
           return (
             <div key={s.n} className="secret">
               <div className="s-num">
-                <span className={`cat-badge ${CAT_CLS[s.cat]}`}>{CAT_LABELS[s.cat]}</span>
                 PLAY #{s.n}
-                <button
-                  className={`pb-star${isFav ? ' on' : ''}`}
-                  onClick={() => toggleFav(s.n)}
-                  title={isFav ? 'Remove from saved' : 'Save play'}
-                >★</button>
+                <span className="s-num-right">
+                  <span className={`cat-badge ${CAT_CLS[s.cat]}`}>{CAT_LABELS[s.cat]}</span>
+                  <button
+                    className={`pb-star${isFav ? ' on' : ''}`}
+                    onClick={() => toggleFav(s.n)}
+                    title={isFav ? 'Remove from saved' : 'Save play'}
+                  >★</button>
+                </span>
               </div>
               <div className="s-name">{s.name}</div>
               <div className="s-text">{s.text}</div>

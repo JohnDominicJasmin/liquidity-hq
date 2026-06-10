@@ -1,14 +1,17 @@
+import type { Metadata } from 'next';
+export const metadata: Metadata = { title: 'About' };
+
 export default function About() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.5rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8', marginBottom: 2 }}>About</div>
-        <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>Liquidity Hunter HQ — private trading intelligence tool</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>About</div>
+        <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 14 }}>Liquidity Hunter HQ — private trading intelligence tool</div>
       </div>
 
       <div className="card">
         <div className="lbl">What this is</div>
-        <div style={{ fontSize: 13, color: '#a0a0a0', lineHeight: 1.7 }}>
+        <div style={{ fontSize: 13, color: 'var(--txt2)', lineHeight: 1.7 }}>
           A personal crypto trading intelligence tool built around one core belief: the market is a machine for hunting stop losses.
           This app helps you read the liquidation map, identify the highest-probability raid setups, and time your entries around institutional windows.
         </div>
@@ -28,22 +31,22 @@ export default function About() {
           ['Econ Calendar', 'Finnhub Calendar API'],
           ['AI Signal', 'LiquidityAI (xAI)'],
         ].map(([k, v]) => (
-          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '0.5px solid rgba(255,255,255,0.05)', fontSize: 12 }}>
-            <span style={{ color: '#606060' }}>{k}</span>
-            <span style={{ color: '#a0a0a0', textAlign: 'right', maxWidth: '60%' }}>{v}</span>
+          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '0.5px solid var(--bdr)', fontSize: 12 }}>
+            <span style={{ color: 'var(--txt3)' }}>{k}</span>
+            <span style={{ color: 'var(--txt2)', textAlign: 'right', maxWidth: '60%' }}>{v}</span>
           </div>
         ))}
       </div>
 
       <div className="card">
         <div className="lbl">How to use</div>
-        <div style={{ fontSize: 13, color: '#a0a0a0', lineHeight: 1.8 }}>
-          1. <strong style={{ color: '#e8e8e8' }}>Open the Liquidation Map</strong> — 24h window. Find the brightest, tightest cluster.<br />
-          2. <strong style={{ color: '#e8e8e8' }}>Check the Raid Meter</strong> — needs at least 60/100 to be worth trading.<br />
-          3. <strong style={{ color: '#e8e8e8' }}>Run the Scanner</strong> — 7-question system. If it says NO, stay flat.<br />
-          4. <strong style={{ color: '#e8e8e8' }}>Check Best Hours</strong> — God Tier or Prime window only.<br />
-          5. <strong style={{ color: '#e8e8e8' }}>Run LiquidityAI Arena</strong> — confirms news sentiment aligns with setup.<br />
-          6. <strong style={{ color: '#e8e8e8' }}>Enter 0.8–1.5% before the cluster.</strong> Exit the second it touches. Never hold.
+        <div style={{ fontSize: 13, color: 'var(--txt2)', lineHeight: 1.8 }}>
+          1. <strong style={{ color: 'var(--txt)' }}>Open the Liquidation Map</strong> — 24h window. Find the brightest, tightest cluster.<br />
+          2. <strong style={{ color: 'var(--txt)' }}>Check the Raid Meter</strong> — needs at least 60/100 to be worth trading.<br />
+          3. <strong style={{ color: 'var(--txt)' }}>Run the Scanner</strong> — 7-question system. If it says NO, stay flat.<br />
+          4. <strong style={{ color: 'var(--txt)' }}>Check Best Hours</strong> — God Tier or Prime window only.<br />
+          5. <strong style={{ color: 'var(--txt)' }}>Run LiquidityAI Arena</strong> — confirms news sentiment aligns with setup.<br />
+          6. <strong style={{ color: 'var(--txt)' }}>Enter 0.8–1.5% before the cluster.</strong> Exit the second it touches. Never hold.
         </div>
       </div>
 

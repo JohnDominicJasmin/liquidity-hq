@@ -185,7 +185,7 @@ function getVerdict(score: number, max: number): { label: string; color: string;
   if (pct >= 0.6) return { label: 'Good confluence',     color: '#86efac', bg: 'rgba(134,239,172,.07)', bdr: 'rgba(134,239,172,.2)'  };
   if (pct >= 0.4) return { label: 'Moderate — wait',     color: '#f59e0b', bg: 'rgba(245,158,11,.08)',  bdr: 'rgba(245,158,11,.25)'  };
   if (pct >= 0.2) return { label: 'Weak — don\'t force', color: '#f87171', bg: 'rgba(248,113,113,.07)', bdr: 'rgba(248,113,113,.2)'  };
-  return             { label: 'No confluence — skip',  color: '#606060', bg: 'rgba(255,255,255,.03)', bdr: 'rgba(255,255,255,.07)' };
+  return             { label: 'No confluence — skip',  color: 'var(--txt3)', bg: 'var(--bg2)', bdr: 'var(--bdr)' };
 }
 
 interface Props {
@@ -219,8 +219,8 @@ export default function ConfluenceScorer({ onRunSignal, coin: coinProp }: Props)
     <div>
       {/* Header */}
       <div style={{ padding: '1rem 0 0.5rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8', marginBottom: 2 }}>📊 Confluence Scorer</div>
-        <div style={{ fontSize: 12, color: '#606060', marginBottom: 14 }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>📊 Confluence Scorer</div>
+        <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 14 }}>
           10 signals checked — technicals · derivatives · structure · flow
         </div>
       </div>
@@ -258,14 +258,14 @@ export default function ConfluenceScorer({ onRunSignal, coin: coinProp }: Props)
       <div className="cf-score-card" style={{ borderColor: verdict.bdr, background: verdict.bg }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <div>
-            <div style={{ fontSize: 11, color: '#606060', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 3 }}>
+            <div style={{ fontSize: 11, color: 'var(--txt3)', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 3 }}>
               {coin.toUpperCase()} · {dir}
             </div>
             <div style={{ fontSize: 13, fontWeight: 700, color: verdict.color }}>{verdict.label}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 32, fontWeight: 800, color: verdict.color, lineHeight: 1 }}>{count}</div>
-            <div style={{ fontSize: 11, color: '#606060' }}>/ {total} signals</div>
+            <div style={{ fontSize: 11, color: 'var(--txt3)' }}>/ {total} signals</div>
           </div>
         </div>
         {/* Progress bar */}

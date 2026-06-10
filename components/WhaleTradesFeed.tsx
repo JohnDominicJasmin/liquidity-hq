@@ -119,10 +119,10 @@ export default function WhaleTradesFeed() {
       {/* Header */}
       <div className="wf-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: '#e8e8e8' }}>🐋 Whale Trades</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--txt)' }}>🐋 Whale Trades</span>
           <span className={`wf-dot wf-dot-${status}`} title={status} />
         </div>
-        <span style={{ fontSize: 11, color: '#444' }}>All markets · &gt;$50K · {msgCount > 0 ? `${msgCount} msgs` : 'waiting…'}</span>
+        <span style={{ fontSize: 11, color: 'var(--txt3)' }}>All markets · &gt;$50K · {msgCount > 0 ? `${msgCount} msgs` : 'waiting…'}</span>
       </div>
 
       {/* Stats bar */}
@@ -159,7 +159,7 @@ export default function WhaleTradesFeed() {
         <div className="wf-bias-label">
           {netBull && <span style={{ color: '#22d3ee' }}>🐋 Whales net buying — institutional accumulation</span>}
           {netBear && <span style={{ color: '#f97316' }}>🩸 Whales net selling — institutional distribution</span>}
-          {!netBull && !netBear && <span style={{ color: '#606060' }}>Balanced whale flow — watching both sides</span>}
+          {!netBull && !netBear && <span style={{ color: 'var(--txt3)' }}>Balanced whale flow — watching both sides</span>}
         </div>
       )}
 

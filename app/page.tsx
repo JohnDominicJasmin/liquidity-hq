@@ -553,7 +553,7 @@ function EdgeSignals() {
                     <div className="taker-mid-line" />
                   </>
                 ) : (
-                  <span style={{ fontSize: 10, color: '#333', paddingLeft: 6 }}>Fetching…</span>
+                  <span style={{ fontSize: 10, color: 'var(--txt2)', paddingLeft: 6 }}>Fetching…</span>
                 )}
               </div>
               <div className="taker-signal" style={{ color: sigCol }}>{sigTxt}</div>
@@ -561,7 +561,7 @@ function EdgeSignals() {
           );
         })}
               {noDataCount > 0 && (
-                <div style={{ fontSize: 11, color: '#333', padding: '6px 10px', borderTop: '1px solid #1a1a1a' }}>
+                <div style={{ fontSize: 11, color: 'var(--txt2)', padding: '6px 10px', borderTop: '0.5px solid var(--bdr)' }}>
                   +{noDataCount} coins without taker data (Bybit-only)
                 </div>
               )}
@@ -613,7 +613,7 @@ function GexTable() {
             {fmtGex(btcNetGex!)} net
           </div>
         ) : (
-          <div className="gex-net-chip" style={{ color: '#333', background: 'transparent' }}>Fetching…</div>
+          <div className="gex-net-chip" style={{ color: 'var(--txt2)', background: 'transparent' }}>Fetching…</div>
         )}
         {btcMaxPain != null && (
           <div className="gex-meta">Max pain: ${btcMaxPain.toLocaleString()}</div>
@@ -659,14 +659,14 @@ function GexTable() {
           return (
             <>
               <span style={{ color: leanColor, fontWeight: 700 }}>{leanLabel}</span>
-              {leanReason && <span style={{ color: '#555' }}> — {leanReason}</span>}
-              <span style={{ color: '#3a3a3a' }}> · </span>
+              {leanReason && <span style={{ color: 'var(--txt2)' }}> — {leanReason}</span>}
+              <span style={{ color: 'var(--txt3)' }}> · </span>
               <span style={{ color: regimeColor }}>{regimeLabel}</span>
-              <span style={{ color: '#555' }}> regime — {regimeDesc}</span>
+              <span style={{ color: 'var(--txt2)' }}> regime — {regimeDesc}</span>
             </>
           );
         })() : (
-          <span style={{ color: '#2a2a2a' }}>Calculating from Deribit options chain…</span>
+          <span style={{ color: 'var(--txt3)' }}>Calculating from Deribit options chain…</span>
         )}
       </div>
 
@@ -682,10 +682,10 @@ function GexTable() {
             const vcol  = gex >= 0 ? '#34d399' : '#f87171';
             const isAtm = spotPrice > 0 && Math.abs(strike - spotPrice) / spotPrice < 0.005;
             return (
-              <div key={strike} className="gex-row" style={isAtm ? { background: 'rgba(255,255,255,0.03)' } : {}}>
-                <div className="gex-strike" style={isAtm ? { color: '#e8e8e8' } : {}}>
+              <div key={strike} className={`gex-row${isAtm ? ' gex-row-atm' : ''}`}>
+                <div className="gex-strike" style={isAtm ? { color: 'var(--txt)' } : {}}>
                   ${strike >= 1000 ? (strike / 1000).toFixed(0) + 'K' : strike}
-                  {isAtm && <span style={{ fontSize: 10, color: '#606060', marginLeft: 4 }}>ATM</span>}
+                  {isAtm && <span style={{ fontSize: 10, color: 'var(--txt3)', marginLeft: 4 }}>ATM</span>}
                 </div>
                 <div className="gex-bar-wrap">
                   <div className="gex-bar-fill" style={{ width: `${pct}%`, background: col }} />
@@ -703,7 +703,7 @@ function GexTable() {
           {btcGexFlip != null && (
             <div>
               Zero-gamma flip: <span>${btcGexFlip.toLocaleString()}</span>
-              <span style={{ color: '#2a2a2a', fontWeight: 400 }}> — break {(btcGexFlip < (spotPrice || btcGexFlip)) ? 'below' : 'above'} = vol acceleration</span>
+              <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> — break {(btcGexFlip < (spotPrice || btcGexFlip)) ? 'below' : 'above'} = vol acceleration</span>
             </div>
           )}
           {btcGexLevels.length > 0 && (() => {
@@ -711,7 +711,7 @@ function GexTable() {
             return (
               <div>
                 Largest GEX: <span>${top.strike.toLocaleString()}</span>
-                <span style={{ color: '#2a2a2a', fontWeight: 400 }}> — options pin / magnet strike</span>
+                <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> — options pin / magnet strike</span>
               </div>
             );
           })()}

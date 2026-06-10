@@ -274,11 +274,11 @@ export default function LiqFeed() {
       {/* ── Header ── */}
       <div className="liqfeed-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: '#e8e8e8' }}>⚡ Live Liquidations</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--txt)' }}>⚡ Live Liquidations</span>
           <span className={`liqfeed-dot liqfeed-dot-${bnStatus}`} title={`Binance: ${bnStatus}`} />
           <span className={`liqfeed-dot liqfeed-dot-${bbStatus}`} title={`Bybit: ${bbStatus}`} />
         </div>
-        <span style={{ fontSize: 11, color: '#444' }}>
+        <span style={{ fontSize: 11, color: 'var(--txt3)' }}>
           Binance + Bybit · &gt;$10K · {msgCount > 0 ? `${msgCount} events` : 'waiting…'}
         </span>
       </div>
@@ -329,7 +329,7 @@ export default function LiqFeed() {
           <div className="liqfeed-bias-label">
             {longDom  && <span style={{ color: '#f87171' }}>⚠ Longs getting wrecked — price accelerating down</span>}
             {shortDom && <span style={{ color: '#34d399' }}>🚀 Shorts getting wrecked — price accelerating up</span>}
-            {!longDom && !shortDom && <span style={{ color: '#606060' }}>Balanced — no dominant side liquidating</span>}
+            {!longDom && !shortDom && <span style={{ color: 'var(--txt3)' }}>Balanced — no dominant side liquidating</span>}
           </div>
         </>
       )}

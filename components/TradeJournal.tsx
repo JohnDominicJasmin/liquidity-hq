@@ -237,7 +237,7 @@ function Inner() {
 
   /* No Supabase */
   if (noDb) return (
-    <div style={{ padding: '2rem 0', textAlign: 'center', color: '#606060', fontSize: 13 }}>
+    <div style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--txt3)', fontSize: 13 }}>
       <div style={{ fontSize: 32, marginBottom: 8 }}>🔌</div>
       <div style={{ fontWeight: 600, marginBottom: 6 }}>Supabase not configured</div>
       <div>Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable the trade journal.</div>
@@ -248,8 +248,8 @@ function Inner() {
     <div>
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: '#e8e8e8', marginBottom: 2 }}>📓 Trade Journal</div>
-        <div style={{ fontSize: 12, color: '#606060' }}>Log every trade · track results · build discipline</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>📓 Trade Journal</div>
+        <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Log every trade · track results · build discipline</div>
       </div>
 
       {/* Tabs */}
@@ -578,7 +578,7 @@ function Inner() {
                   <div className="tj-stat-lbl">Record</div>
                   <div className="tj-stat-val">
                     <span style={{ color: '#34d399' }}>{stats.wins}W</span>
-                    <span style={{ color: '#606060' }}> · </span>
+                    <span style={{ color: 'var(--txt3)' }}> · </span>
                     <span style={{ color: '#f87171' }}>{stats.losses}L</span>
                   </div>
                 </div>

@@ -3,6 +3,7 @@
 /* ── DESIGN TOKENS — OLED Dark + Vibrant ── */
 :root {
   /* True OLED blacks */
+  --bg0: #050505;
   --bg:  #000000;
   --bg1: #0a0a0a;
   --bg2: #101010;
@@ -18,6 +19,7 @@
 
   /* Vibrant Purple — primary brand */
   --purple:     #a78bfa;
+  --purple-dim: rgba(167,139,250,0.12);
   --purple-bg:  rgba(167,139,250,0.09);
   --purple-bdr: rgba(167,139,250,0.24);
 
@@ -807,12 +809,13 @@ body.ticker-on .breaking-alert { top: 90px; }
 .s-num   { font-size: 10px; font-weight: 600; color: var(--txt3); margin-bottom: 3px; letter-spacing: .05em; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
 .s-name  { font-size: 13px; font-weight: 600; color: var(--txt); margin-bottom: 4px; }
 .s-text  { font-size: 13px; color: var(--txt2); line-height: 1.55; }
-.cat-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; margin-left: auto; }
+.cat-badge { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; letter-spacing: .03em; }
+.s-num-right { margin-left: auto; display: flex; align-items: center; gap: 5px; }
 .cat-hunt  { background: var(--purple-bg); color: var(--purple); }
 .cat-time  { background: var(--green-bg);  color: var(--green); }
 .cat-trap  { background: var(--red-bg);    color: var(--red); }
 .cat-psych { background: var(--amber-bg);  color: var(--amber); }
-.pb-star   { background: none; border: none; cursor: pointer; font-size: 14px; color: var(--txt3); padding: 0 2px; line-height: 1; margin-left: auto; }
+.pb-star   { background: none; border: none; cursor: pointer; font-size: 14px; color: var(--txt3); padding: 0 2px; line-height: 1; }
 .pb-star.on { color: #fbbf24; }
 
 /* ── CLUSTER TRACKER (legacy) ── */
@@ -1216,7 +1219,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 
 /* ── KLINECHART PRO ──────────────────────────────────────────────────────── */
 .klc-wrap {
-  background: #0d0d0d; border: 0.5px solid var(--bdr);
+  background: var(--bg); border: 0.5px solid var(--bdr);
   border-radius: 14px; overflow: hidden; margin-bottom: 10px;
   display: flex; flex-direction: column;
 }
@@ -1273,7 +1276,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 /* Fullscreen — canvas expands to fill the screen minus the toolbar */
 .klc-wrap:fullscreen,
 .klc-wrap:-webkit-full-screen {
-  border-radius: 0; background: #0d0d0d;
+  border-radius: 0; background: var(--bg);
 }
 .klc-wrap:fullscreen .klc-canvas,
 .klc-wrap:-webkit-full-screen .klc-canvas {
@@ -1362,6 +1365,8 @@ body.ticker-on .breaking-alert { top: 90px; }
 .gchat-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; border-bottom: 0.5px solid var(--bdr); flex-shrink: 0; }
 .gchat-icon-btn { font-size: 14px; color: var(--txt3); cursor: pointer; background: none; border: none; padding: 3px 6px; border-radius: 6px; transition: color 0.15s; }
 .gchat-icon-btn:hover { color: var(--txt2); }
+.gchat-mode-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; letter-spacing: .05em; background: var(--bg3); color: var(--txt3); border: 0.5px solid var(--bdr2); }
+.gchat-mode-live  { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-bdr); }
 /* Live search toggle pill */
 .gchat-search-toggle {
   font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px; cursor: pointer;
@@ -1683,6 +1688,8 @@ body.ticker-on .breaking-alert { top: 90px; }
 .gex-row         { display: grid; grid-template-columns: 84px 1fr 80px; gap: 8px; padding: 5px 14px; align-items: center; border-bottom: 0.5px solid rgba(255,255,255,0.02); transition: background 0.1s; }
 .gex-row:last-child { border-bottom: none; }
 .gex-row:hover   { background: rgba(255,255,255,0.015); }
+.gex-row-atm     { background: rgba(255,255,255,0.03); }
+[data-theme="light"] .gex-row-atm { background: rgba(0,0,0,0.04); }
 .gex-strike      { font-size: 11px; font-weight: 700; color: var(--txt2); }
 .gex-bar-wrap    { position: relative; height: 7px; border-radius: 3px; overflow: hidden; background: rgba(255,255,255,0.04); }
 .gex-bar-fill    { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; transition: width 0.6s cubic-bezier(.4,0,.2,1); }
@@ -1748,6 +1755,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 
   /* Brighter accent tones for ink-on-paper contrast */
   --purple:     #6D28D9;
+  --purple-dim: rgba(109,40,217,0.10);
   --purple-bg:  rgba(109,40,217,0.07);
   --purple-bdr: rgba(109,40,217,0.20);
   --green:     #047857;

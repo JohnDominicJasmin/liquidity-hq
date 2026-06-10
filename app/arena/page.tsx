@@ -1452,8 +1452,8 @@ export default function Arena() {
                   </div>
                   {h.entry && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                      <span style={{ fontSize: 10, color: '#606060', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Entry Zone</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#e8e8e8', fontFamily: 'monospace' }}>{h.entry}</span>
+                      <span style={{ fontSize: 10, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Entry Zone</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt)', fontFamily: 'monospace' }}>{h.entry}</span>
                     </div>
                   )}
                   <div className="arena-conf-bar" style={{ marginBottom: 10 }}>
