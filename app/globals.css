@@ -797,15 +797,23 @@ body.ticker-on .breaking-alert { top: 90px; }
 .cat-filter { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
 .cf    { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 20px; cursor: pointer; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt2); }
 .cf.on { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-bdr); }
+/* per-category active states */
+.cf-hunt.on  { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-bdr); }
+.cf-time.on  { background: var(--green-bg);  color: var(--green);  border-color: var(--green-bdr);  }
+.cf-trap.on  { background: var(--red-bg);    color: var(--red);    border-color: var(--red-bdr);    }
+.cf-psych.on { background: var(--amber-bg);  color: var(--amber);  border-color: var(--amber-bdr);  }
+.cf-fav.on   { background: rgba(251,191,36,.1); color: #fbbf24; border-color: rgba(251,191,36,.3); }
 .secret  { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 14px; padding: 12px 14px; margin-bottom: 8px; box-shadow: var(--nm-raise-sm); }
-.s-num   { font-size: 10px; font-weight: 600; color: var(--txt3); margin-bottom: 3px; letter-spacing: .05em; text-transform: uppercase; }
+.s-num   { font-size: 10px; font-weight: 600; color: var(--txt3); margin-bottom: 3px; letter-spacing: .05em; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
 .s-name  { font-size: 13px; font-weight: 600; color: var(--txt); margin-bottom: 4px; }
 .s-text  { font-size: 13px; color: var(--txt2); line-height: 1.55; }
-.cat-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; float: right; margin-left: 6px; }
+.cat-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; margin-left: auto; }
 .cat-hunt  { background: var(--purple-bg); color: var(--purple); }
 .cat-time  { background: var(--green-bg);  color: var(--green); }
 .cat-trap  { background: var(--red-bg);    color: var(--red); }
 .cat-psych { background: var(--amber-bg);  color: var(--amber); }
+.pb-star   { background: none; border: none; cursor: pointer; font-size: 14px; color: var(--txt3); padding: 0 2px; line-height: 1; margin-left: auto; }
+.pb-star.on { color: #fbbf24; }
 
 /* ── CLUSTER TRACKER (legacy) ── */
 .ct-form     { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 16px; padding: 1rem 1.25rem; margin-bottom: 10px; box-shadow: var(--nm-raise); }
@@ -2129,8 +2137,8 @@ body.ticker-on .breaking-alert { top: 90px; }
 .ps-inp   { flex: 1; background: transparent; border: none; outline: none; padding: 0 10px; font-size: 13px; color: var(--txt); height: 36px; width: 0; min-width: 0; }
 .ps-inp-stop:focus { box-shadow: inset 0 0 0 1px rgba(248,113,113,.3); }
 .ps-inp-tp:focus   { box-shadow: inset 0 0 0 1px rgba(52,211,153,.3); }
-.ps-presets { display: flex; gap: 6px; margin-top: 10px; }
-.ps-preset  { flex: 1; padding: 5px 0; border-radius: 8px; border: 0.5px solid var(--bdr2); background: var(--bg3); color: var(--txt2); font-size: 11px; font-weight: 600; cursor: pointer; }
+.ps-presets { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.ps-preset  { flex: 0 0 auto; padding: 4px 12px; border-radius: 20px; border: 0.5px solid var(--bdr2); background: var(--bg3); color: var(--txt2); font-size: 11px; font-weight: 600; cursor: pointer; }
 .ps-preset.on { background: rgba(167,139,250,.12); border-color: var(--purple-bdr); color: var(--purple); }
 .ps-risk-line { font-size: 11px; color: var(--txt3); margin-top: 8px; }
 .ps-banner { padding: 10px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; margin-bottom: 10px; text-align: center; }

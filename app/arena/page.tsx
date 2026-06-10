@@ -91,6 +91,13 @@ const COINS: CoinId[] = [
   'doge', 'avax', 'link', 'ada', 'dot', 'atom', 'wif', 'pepe', 'bonk',
 ];
 
+const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'meme', readonly CoinId[]> = {
+  all:    COINS,
+  majors: ['btc', 'eth', 'sol', 'xrp', 'bnb'],
+  alts:   ['hype', 'near', 'sui', 'avax', 'link', 'ada', 'dot', 'atom'],
+  meme:   ['doge', 'pepe', 'wif', 'bonk'],
+};
+
 
 /* ── Usage panel — shows daily call counts for signed-in users ── */
 function UsagePanel({ usage }: { usage: GrokUsageInfo }) {
@@ -163,6 +170,7 @@ export default function Arena() {
   // Track last Quick signal per coin so Deep can compare and show an override notice
   const [quickSignals, setQuickSignals] = useState<Partial<Record<CoinId, string>>>({});
   const [scannerOpen, setScannerOpen]   = useState(false);
+  const [coinCat, setCoinCat]           = useState<'all' | 'majors' | 'alts' | 'meme'>('all');
   const [sigDetailsOpen, setSigDetailsOpen] = useState(false);
   const [copiedKey, setCopiedKey]           = useState<string | null>(null);
   const scannerRef      = useRef<HTMLDivElement>(null);
@@ -863,13 +871,15 @@ export default function Arena() {
   const sq = computeSqueezeScore(store.coins[selectedCoin]);
 
   /* ── Squeeze scanner data — sorted by 24h volume descending (BTC → ETH → ...) ── */
-  const scannerRows = COINS.map(c => ({
-    c,
-    sq:     computeSqueezeScore(store.coins[c]),
-    price:  store.coins[c]?.price  ?? null,
-    change: store.coins[c]?.change ?? null,
-    vol24:  store.coins[c]?.vol24  ?? 0,
-  })).sort((a, b) => (b.vol24 ?? 0) - (a.vol24 ?? 0));
+  const scannerRows = COINS
+    .filter(c => coinCat === 'all' || (CAT_FILTER_COINS[coinCat] as readonly CoinId[]).includes(c))
+    .map(c => ({
+      c,
+      sq:     computeSqueezeScore(store.coins[c]),
+      price:  store.coins[c]?.price  ?? null,
+      change: store.coins[c]?.change ?? null,
+      vol24:  store.coins[c]?.vol24  ?? 0,
+    })).sort((a, b) => (b.vol24 ?? 0) - (a.vol24 ?? 0));
   const sqzCount   = scannerRows.filter(x => x.sq.dir === 'SHORT_SQ'  && x.sq.score >= 30).length;
   const flushCount = scannerRows.filter(x => x.sq.dir === 'LONG_LIQ'  && x.sq.score >= 30).length;
 
@@ -883,6 +893,20 @@ export default function Arena() {
           <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>LiquidityAI · LIVE X</span>
         </div>
         <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Chart · 35-signal engine · confluence · scanner — one page</div>
+      </div>
+
+      {/* ── COIN CATEGORY TABS ── */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+        {(['all', 'majors', 'alts', 'meme'] as const).map(c => (
+          <button
+            key={c}
+            className={`gsc-tf-btn${coinCat === c ? ' on' : ''}`}
+            style={{ padding: '3px 9px', fontSize: 10, textTransform: 'capitalize' }}
+            onClick={() => setCoinCat(c)}
+          >
+            {c === 'all' ? 'All' : c === 'majors' ? 'Majors' : c === 'alts' ? 'Alts' : 'Meme'}
+          </button>
+        ))}
       </div>
 
       {/* ── SQUEEZE SCANNER — hover flyout (Bybit-style watchlist) ── */}
