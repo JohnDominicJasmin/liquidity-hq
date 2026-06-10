@@ -167,10 +167,10 @@ export default function Arena() {
   const scannerRef      = useRef<HTMLDivElement>(null);
   const hoverOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Hover over trigger for 2 s → auto-open; moving away cancels the timer
+  // Hover over trigger → auto-open; moving away cancels the timer
   const handleScannerHoverEnter = () => {
     if (scannerOpen) return;
-    hoverOpenTimer.current = setTimeout(() => setScannerOpen(true), 1000);
+    hoverOpenTimer.current = setTimeout(() => setScannerOpen(true), 800);
   };
   const handleScannerHoverLeave = () => {
     if (hoverOpenTimer.current) { clearTimeout(hoverOpenTimer.current); hoverOpenTimer.current = null; }
