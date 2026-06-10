@@ -12,25 +12,33 @@ import { COINS } from '@/lib/marketStore';
 const TFS    = ['15m', '1h', '4h', '1d'] as const;
 const RISK_PRESETS = ['0.25', '0.5', '1', '1.5', '2'];
 
-/* ── Small save indicator ── */
-function SaveIndicator({ status }: { status: 'idle' | 'saving' | 'saved' | 'error' }) {
-  if (status === 'idle') return null;
-  const map = {
-    saving: { txt: 'Saving…',   col: 'var(--txt3)' },
-    saved:  { txt: 'Saved ✓',   col: 'var(--green)' },
-    error:  { txt: 'Save failed', col: 'var(--red)' },
-  } as const;
-  const { txt, col } = map[status];
+/* ── Auto-save toast ── */
+function SaveToast({ status }: { status: 'idle' | 'saving' | 'saved' | 'error' }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (status === 'saved' || status === 'error') {
+      setVisible(true);
+      const t = setTimeout(() => setVisible(false), 2000);
+      return () => clearTimeout(t);
+    }
+    if (status === 'saving') setVisible(true);
+  }, [status]);
+  if (!visible) return null;
   return (
-    <span style={{ fontSize: 11, color: col, fontWeight: 600, marginLeft: 8 }}>{txt}</span>
+    <div className={`st-save-toast${status === 'error' ? ' error' : status === 'saving' ? ' saving' : ''}`}>
+      {status === 'saving' ? 'Saving…' : status === 'saved' ? '✓ Saved' : '✕ Save failed'}
+    </div>
   );
 }
 
 /* ── Section card wrapper ── */
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, icon, children }: { title: string; icon?: string; children: React.ReactNode }) {
   return (
     <div className="st-section">
-      <div className="st-section-title">{title}</div>
+      <div className="st-section-title">
+        {icon && <span className="st-section-icon">{icon}</span>}
+        {title}
+      </div>
       {children}
     </div>
   );
@@ -80,14 +88,15 @@ export default function SettingsPage() {
   return (
     <div className="st-page">
 
+      <SaveToast status={saveStatus} />
+
       {/* ── Header ── */}
       <div className="st-header">
         <div className="st-header-title">Settings</div>
-        <SaveIndicator status={saveStatus} />
       </div>
 
       {/* ── 1. Account ── */}
-      <Section title="Account">
+      <Section title="Account" icon="👤">
         <div className="st-field">
           <div className="st-field-label">Signed in as</div>
           <div className="st-field-value">{user.email}</div>
@@ -127,7 +136,7 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 2. Trading Profile ── */}
-      <Section title="Trading Profile">
+      <Section title="Trading Profile" icon="📊">
         <div className="st-row">
           <div className="st-field st-field-half">
             <label className="st-field-label">Account Size</label>
@@ -185,7 +194,7 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 3. AI Arena Defaults ── */}
-      <Section title="AI Arena Defaults">
+      <Section title="AI Arena Defaults" icon="⚡">
         <div className="st-field">
           <label className="st-field-label">Default Coin</label>
           <div className="st-chip-row">
@@ -217,7 +226,7 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 4. Notification Thresholds ── */}
-      <Section title="Notification Thresholds">
+      <Section title="Notification Thresholds" icon="🔔">
         <div className="st-desc">Controls browser push alerts in AI Arena.</div>
 
         <div className="st-row">
@@ -302,8 +311,8 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 5. Dashboard Sections ── */}
-      <Section title="Dashboard Sections">
-        <div className="st-desc">Uncheck to hide a section from the dashboard.</div>
+      <Section title="Dashboard Sections" icon="📋">
+        <div className="st-desc">Toggle off to hide a section from the dashboard.</div>
         <div className="st-checkbox-grid">
           {DASHBOARD_SECTIONS.map(({ id, label }) => {
             const visible = !settings.hidden_sections.includes(id);
@@ -330,7 +339,7 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 6. Appearance ── */}
-      <Section title="Appearance">
+      <Section title="Appearance" icon="🎨">
         <div className="st-field">
           <label className="st-field-label">Theme</label>
           <div className="st-chip-row">
@@ -353,7 +362,7 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 7. Telegram Alerts ── */}
-      <Section title="Telegram Alerts">
+      <Section title="Telegram Alerts" icon="📱">
         <div className="st-field">
           <div className="st-field-label">Status</div>
           <div className="st-tg-status">

@@ -2767,10 +2767,12 @@ body.ticker-on .breaking-alert { top: 90px; }
   border-radius: 14px; padding: 18px 20px; margin-bottom: 12px;
 }
 .st-section-title {
+  display: flex; align-items: center; gap: 7px;
   font-size: 11px; font-weight: 700; letter-spacing: .08em;
   text-transform: uppercase; color: var(--txt2);
   margin-bottom: 16px; padding-bottom: 10px; border-bottom: 0.5px solid var(--bdr);
 }
+.st-section-icon { font-size: 15px; letter-spacing: 0; text-transform: none; line-height: 1; }
 
 /* Field layout */
 .st-row { display: flex; gap: 10px; }
@@ -2871,6 +2873,19 @@ body.ticker-on .breaking-alert { top: 90px; }
 .st-usage-track { flex: 1; height: 4px; background: rgba(255,255,255,0.07); border-radius: 2px; overflow: hidden; }
 .st-usage-fill  { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
 .st-usage-count { font-size: 11px; font-weight: 700; min-width: 38px; text-align: right; }
+
+/* Save toast */
+.st-save-toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  padding: 10px 16px; border-radius: 10px;
+  font-size: 13px; font-weight: 600;
+  background: rgba(52,211,153,0.15); border: 0.5px solid rgba(52,211,153,0.4); color: #34d399;
+  animation: stToastIn 0.2s ease;
+  pointer-events: none;
+}
+.st-save-toast.saving { background: rgba(255,255,255,0.06); border-color: var(--bdr); color: var(--txt3); }
+.st-save-toast.error  { background: rgba(248,113,113,0.15); border-color: rgba(248,113,113,0.4); color: #f87171; }
+@keyframes stToastIn  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 [data-theme="light"] .st-section { background: #fff; }
 [data-theme="light"] .st-input   { background: #f8f8f8; color: #111; }
