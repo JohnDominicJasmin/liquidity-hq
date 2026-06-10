@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import AuthGate from '@/components/AuthGate';
 import { COINS } from '@/lib/marketStore';
 
@@ -32,6 +32,10 @@ export default function AlertsPage() {
   const [muted, setMuted]               = useState<Set<string>>(new Set());
   const [muteErr, setMuteErr]           = useState('');
 
+  // Alert history
+  const [history, setHistory] = useState<{ label: string; ts: number }[]>([]);
+  const histTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Price alerts state
   const [priceAlerts, setPriceAlerts]   = useState<PriceAlert[]>([]);
   const [paLoading, setPaLoading]       = useState(false);
@@ -41,6 +45,12 @@ export default function AlertsPage() {
   const [paLabel, setPaLabel]           = useState('');
   const [paAdding, setPaAdding]         = useState(false);
 
+  const fetchHistory = useCallback(() => {
+    fetch('/api/telegram/history').then(r => r.json())
+      .then(d => setHistory(d.fires ?? []))
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     fetch('/api/telegram/status').then(r => r.json())
       .then(d => setStatus(d.configured ? 'configured' : 'not_configured'))
@@ -48,7 +58,10 @@ export default function AlertsPage() {
     fetch('/api/alert-prefs').then(r => r.json())
       .then(d => setMuted(new Set<string>(d.muted ?? [])))
       .catch(() => {});
-  }, []);
+    fetchHistory();
+    histTimerRef.current = setInterval(fetchHistory, 60_000);
+    return () => { if (histTimerRef.current) clearInterval(histTimerRef.current); };
+  }, [fetchHistory]);
 
   const toggleMute = async (key: string) => {
     const willMute = !muted.has(key);
@@ -251,6 +264,48 @@ export default function AlertsPage() {
         </div>
       </div>
       </AuthGate>
+
+      {/* Recently Fired History */}
+      <div className="card" style={{ marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div className="lbl" style={{ margin: 0 }}>Recently Fired</div>
+          {history.length > 0 && (
+            <button
+              style={{ fontSize: 10, color: 'var(--txt3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              onClick={fetchHistory}
+            >
+              ↻ refresh
+            </button>
+          )}
+        </div>
+        {history.length === 0 ? (
+          <div style={{ fontSize: 12, color: 'var(--txt3)', padding: '10px 0', textAlign: 'center' }}>
+            No alerts fired since last server start
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {history.slice(0, 15).map((f, i) => {
+              const age = (Date.now() - f.ts) / 1000;
+              const ago = age < 60 ? 'just now' : age < 3600 ? `${Math.floor(age / 60)}m ago` : age < 86400 ? `${Math.floor(age / 3600)}h ago` : `${Math.floor(age / 86400)}d ago`;
+              return (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '6px 0', borderBottom: i < Math.min(history.length, 15) - 1 ? '0.5px solid var(--bdr)' : 'none',
+                  gap: 10,
+                }}>
+                  <span style={{ fontSize: 12, color: 'var(--txt2)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    🔔 {f.label}
+                  </span>
+                  <span style={{ fontSize: 10, color: 'var(--txt3)', flexShrink: 0 }}>{ago}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 8, paddingTop: 8, borderTop: '0.5px solid var(--bdr)' }}>
+          In-memory — resets on server restart · auto-refreshes every 60s
+        </div>
+      </div>
 
       {/* Test & Manual Check */}
       <div className="card" style={{ marginBottom: 10 }}>

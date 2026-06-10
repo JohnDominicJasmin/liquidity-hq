@@ -3,6 +3,17 @@ import { useState, useEffect } from 'react';
 import { getPHT, getCurrentWindow, isDead, getUpcomingWindows } from '@/lib/session';
 import SessionCountdown from '@/components/SessionCountdown';
 
+/* Typical-weekday session blocks on a 24h PHT axis */
+const TIMELINE_SEGS = [
+  { start: 0,    end: 2,    bg: 'rgba(96,165,250,0.55)',  label: 'NY' },
+  { start: 2,    end: 5,    bg: 'rgba(125,224,164,0.70)', label: 'PRIME' },
+  { start: 7,    end: 11,   bg: 'rgba(251,191,36,0.55)',  label: 'ASIA' },
+  { start: 12,   end: 15,   bg: 'rgba(248,113,113,0.45)', label: 'DEAD' },
+  { start: 15,   end: 18,   bg: 'rgba(122,184,245,0.55)', label: 'LONDON' },
+  { start: 20,   end: 21.5, bg: 'rgba(148,163,184,0.45)', label: 'PRE-NY' },
+  { start: 21.5, end: 24,   bg: 'rgba(96,165,250,0.55)',  label: 'NY' },
+];
+
 const WINDOWS = [
   { cls: 'wp-god', badge: '👑 GOD TIER', time: 'Sunday 11PM – Monday 3AM PHT', desc: 'Lowest volume of the week. Retail asleep globally. Minimum capital needed to move price. Highest probability of violent raids. Maximum priority.' },
   { cls: 'wp-prime', badge: '⚡ PRIME', time: 'Daily 2AM – 5AM PHT', desc: 'Asia/Europe overlap. High institutional activity. Volume picks up. Best daily window for clean setups. 4:00–4:45AM PHT is the single most consistent reversal sub-window.' },
@@ -60,6 +71,81 @@ export default function BestHours() {
           ) : (
             <div className="window-pill wp-other" style={{ display: 'inline-block' }}>◆ Outside prime windows</div>
           )}
+        </div>
+      </div>
+
+      {/* 24h timeline */}
+      <div className="card" style={{ marginBottom: 14 }}>
+        <div className="lbl" style={{ marginBottom: 10 }}>
+          24h Session Map
+          <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>PHT · typical weekday</span>
+        </div>
+
+        {/* Bar + needle wrapper — overflow visible so needle tip shows */}
+        <div style={{ position: 'relative', marginBottom: 6 }}>
+          {/* Segment strips */}
+          <div style={{ position: 'relative', height: 44, borderRadius: 8, background: 'rgba(255,255,255,0.04)', overflow: 'hidden' }}>
+            {TIMELINE_SEGS.map((seg, i) => {
+              const left  = (seg.start / 24) * 100;
+              const width = ((seg.end - seg.start) / 24) * 100;
+              return (
+                <div key={i} style={{
+                  position: 'absolute', top: 0, bottom: 0,
+                  left: `${left}%`, width: `${width}%`,
+                  background: seg.bg,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {width > 7 && (
+                    <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', letterSpacing: '.04em', opacity: 0.9 }}>
+                      {seg.label}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* "You are here" needle — outside overflow:hidden so the arrow tip shows */}
+          {(() => {
+            const pct = ((h + m / 60) / 24) * 100;
+            return (
+              <>
+                <div style={{
+                  position: 'absolute', top: -6, height: 56,
+                  left: `${pct}%`, width: 2,
+                  background: 'rgba(255,255,255,0.95)',
+                  borderRadius: 2,
+                  transform: 'translateX(-1px)',
+                  boxShadow: '0 0 8px rgba(255,255,255,0.6)',
+                  zIndex: 10,
+                  pointerEvents: 'none',
+                }} />
+                <div style={{
+                  position: 'absolute', top: -16,
+                  left: `${pct}%`,
+                  transform: 'translateX(-50%)',
+                  fontSize: 10, color: '#fff', lineHeight: 1,
+                  pointerEvents: 'none',
+                }}>▼</div>
+              </>
+            );
+          })()}
+        </div>
+
+        {/* Hour ticks */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+          {[0, 3, 6, 9, 12, 15, 18, 21, 24].map(hr => (
+            <span key={hr} style={{ fontSize: 9, color: 'var(--txt3)', fontVariantNumeric: 'tabular-nums' }}>
+              {hr === 0 || hr === 24 ? '12A' : hr === 12 ? '12P' : hr < 12 ? `${hr}A` : `${hr - 12}P`}
+            </span>
+          ))}
+        </div>
+
+        {/* Current position label */}
+        <div style={{ fontSize: 11, color: 'var(--txt3)', textAlign: 'center' }}>
+          ▲ now: <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>{pad(h12)}:{pad(m)} {ampm} PHT</span>
+          {win && <span style={{ marginLeft: 8, color: win.color, fontWeight: 600 }}>· {win.name}</span>}
+          {dead && <span style={{ marginLeft: 8, color: '#f87171', fontWeight: 600 }}>· Dead Zone</span>}
         </div>
       </div>
 

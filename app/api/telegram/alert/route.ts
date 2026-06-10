@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { classifyNews } from '@/lib/classify';
 import { getSupabase } from '@/lib/supabase';
 import { detectPatterns } from '@/lib/patterns';
+import { recordFires } from '@/lib/alertHistory';
 
 export const dynamic = 'force-dynamic';
 
@@ -1223,6 +1224,7 @@ export async function GET() {
   await flushSignals(token, chatId, stamp, signalQueue);
 
   const fired = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+  if (fired.length > 0) recordFires(fired);
 
   return NextResponse.json({
     ok: true, fired,
