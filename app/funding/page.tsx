@@ -369,6 +369,9 @@ export default function FundingHistory() {
             {r.label}
           </button>
         ))}
+        <span style={{ fontSize: 10, color: 'var(--txt3)', marginLeft: 4, alignSelf: 'center', opacity: 0.6 }}>
+          — avg column · sparklines · chart
+        </span>
       </div>
 
       {/* Loading state */}
@@ -378,8 +381,33 @@ export default function FundingHistory() {
         </div>
       )}
 
-      {!loading && (
+      {!loading && (() => {
+        let longCnt = 0, shortCnt = 0, neutralCnt = 0;
+        COINS.forEach(id => {
+          const fr = store.coins[id]?.fundingRate;
+          if (fr == null) return;
+          if (fr * 100 > 0.003) longCnt++;
+          else if (fr * 100 < -0.003) shortCnt++;
+          else neutralCnt++;
+        });
+        return (
         <>
+
+          {/* Market lean summary */}
+          <div className="frh-summary-bar">
+            <span className="frh-summary-heading">Market lean</span>
+            <span className="frh-summary-item" style={{ color: '#f87171' }}>
+              <span className="frh-summary-count">{longCnt}</span> Long-heavy
+            </span>
+            <span className="frh-summary-sep">·</span>
+            <span className="frh-summary-item" style={{ color: '#34d399' }}>
+              <span className="frh-summary-count">{shortCnt}</span> Short-heavy
+            </span>
+            <span className="frh-summary-sep">·</span>
+            <span className="frh-summary-item" style={{ color: 'var(--txt3)' }}>
+              <span className="frh-summary-count" style={{ color: 'var(--txt2)' }}>{neutralCnt}</span> Neutral
+            </span>
+          </div>
 
           {/* Overview table */}
           <div className="card" style={{ marginBottom: 10, overflowX: 'auto' }}>
@@ -497,7 +525,8 @@ export default function FundingHistory() {
           </div>
 
         </>
-      )}
+        );
+      })()}
 
     </div>
   );
