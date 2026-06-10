@@ -101,7 +101,7 @@ function buildBriefingContext(
 
   if (urgentEcon.length) {
     lines.push('', 'UPCOMING MACRO EVENTS (next 24h):');
-    urgentEcon.forEach(e => lines.push(`  ${e.type}: ${e.name} in ${Math.round(e.h)}h (${e.impact} impact)`));
+    urgentEcon.forEach(e => { const lh = (e.dt.getTime() - Date.now()) / 3600000; lines.push(`  ${e.type}: ${e.name} in ${Math.round(lh)}h (${e.impact} impact)`); });
   }
 
   if (recentGeo.length) {
@@ -197,7 +197,7 @@ export default function MorningBriefing() {
     .slice(0, 4);
 
   /* Events */
-  const urgentEcon = econEvents.filter(e => e.h < 24).slice(0, 5);
+  const urgentEcon = econEvents.filter(e => { const lh = (e.dt.getTime() - Date.now()) / 3600000; return lh > 0 && lh < 24; }).slice(0, 5);
   const recentGeo  = geoEvents.slice(0, 4);
 
   /* Macro colors */
@@ -469,22 +469,25 @@ export default function MorningBriefing() {
           </div>
         )}
 
-        {urgentEcon.map((e, i) => (
+        {urgentEcon.map((e, i) => {
+          const lh = (e.dt.getTime() - Date.now()) / 3600000;
+          return (
           <div key={i} className="mb-event-row">
             <div className="mb-event-tag" style={{
-              background: e.h < 2 ? 'rgba(248,113,113,0.15)' : 'rgba(251,191,36,0.1)',
-              color: e.h < 2 ? '#f87171' : '#fbbf24',
+              background: lh < 2 ? 'rgba(248,113,113,0.15)' : 'rgba(251,191,36,0.1)',
+              color: lh < 2 ? '#f87171' : '#fbbf24',
             }}>
               📅 {e.type}
             </div>
             <div className="mb-event-name">{e.name}</div>
             <div className="mb-event-time" style={{
-              color: e.h < 1 ? '#f87171' : e.h < 6 ? '#fbbf24' : 'var(--txt3)',
+              color: lh < 1 ? '#f87171' : lh < 6 ? '#fbbf24' : 'var(--txt3)',
             }}>
-              {e.h < 0.017 ? 'NOW' : `in ${hToHM(e.h)}`}
+              {lh < 0.017 ? 'NOW' : `in ${hToHM(lh)}`}
             </div>
           </div>
-        ))}
+          );
+        })}
 
         {recentGeo.map((e, i) => (
           <div key={i} className="mb-event-row">

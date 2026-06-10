@@ -588,8 +588,9 @@ export default function Arena() {
     const goldLine  = store.gold      != null ? '$' + store.gold.toLocaleString(undefined, { maximumFractionDigits: 0 }) + (store.goldChg != null ? ' (' + (store.goldChg >= 0 ? '+' : '') + store.goldChg.toFixed(2) + '%)' : '') : '—';
 
     /* Upcoming events */
+    const now = Date.now();
     const upcoming = econEvents
-      .filter(e => e.h < 24).slice(0, 5)
+      .filter(e => { const lh = (e.dt.getTime() - now) / 3600000; return lh > 0 && lh < 24; }).slice(0, 5)
       .map(e => `${e.name} (${e.dateStr}, impact: ${e.impact})`)
       .join('\n') || 'None in next 24h';
 
