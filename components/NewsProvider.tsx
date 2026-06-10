@@ -49,6 +49,7 @@ interface NewsCtx {
   econEvents: EconEvent[];
   geoEvents: GeoEvent[];
   eventsLoaded: boolean;
+  alertsLoaded: boolean;  // true after first RSS + Finnhub fetch cycle completes
   newsActive: boolean;
   latestHeadlines: string[];
   whaleAlerts: WhaleAlert[];
@@ -85,6 +86,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const [econEvents, setEconEvents] = useState<EconEvent[]>([]);
   const [geoEvents, setGeoEvents] = useState<GeoEvent[]>([]);
   const [eventsLoaded, setEventsLoaded] = useState(false);
+  const [alertsLoaded, setAlertsLoaded] = useState(false);
   const [latestHeadlines, setLatestHeadlines] = useState<string[]>([]);
   const [whaleAlerts, setWhaleAlerts] = useState<WhaleAlert[]>([]);
   const seenRef = useRef<Set<string>>(new Set());
@@ -263,9 +265,8 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
       Notification.requestPermission();
     }
 
-    // Fire all sources immediately on mount
-    fetchFinnhubNews();   // PRIMARY: Finnhub REST (via server proxy)
-    fetchRSSNews();       // SECONDARY: Reuters/AP/CoinDesk/CoinTelegraph RSS
+    // Fire all sources immediately on mount; mark loaded after first cycle
+    Promise.allSettled([fetchFinnhubNews(), fetchRSSNews()]).then(() => setAlertsLoaded(true));
     fetchEconEvents();
     fetchGeoEvents();
 
@@ -284,7 +285,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const newsActive = alerts.some(a => Date.now() / 1000 - a.ts < 5 * 60);
 
   return (
-    <NewsContext.Provider value={{ alerts, dismissAlert, econEvents, geoEvents, eventsLoaded, newsActive, latestHeadlines, whaleAlerts }}>
+    <NewsContext.Provider value={{ alerts, dismissAlert, econEvents, geoEvents, eventsLoaded, alertsLoaded, newsActive, latestHeadlines, whaleAlerts }}>
       {children}
     </NewsContext.Provider>
   );

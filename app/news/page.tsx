@@ -247,7 +247,7 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
    PAGE
 ──────────────────────────────────────────────── */
 export default function NewsPage() {
-  const { alerts, geoEvents, econEvents, whaleAlerts } = useNews();
+  const { alerts, geoEvents, econEvents, whaleAlerts, alertsLoaded } = useNews();
   const [tab, setTab] = useState<Tab>('foryou');
 
   /* ── Categorise ── */
@@ -359,7 +359,19 @@ export default function NewsPage() {
             </div>
           )}
 
-          {foryouEmpty && (
+          {!alertsLoaded && alerts.length === 0 && (
+            <div className="nfeed-empty">
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 12 }}>
+                {[0,1,2].map(i => (
+                  <span key={i} style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: 'var(--txt3)', animation: `pulse 1.4s ${i * 0.2}s infinite` }} />
+                ))}
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>Loading feeds…</div>
+              <div style={{ fontSize: 11, color: 'var(--txt3)' }}>Reuters · AP · BBC · CoinDesk · CoinTelegraph · Decrypt · The Block</div>
+            </div>
+          )}
+
+          {foryouEmpty && alertsLoaded && (
             <div className="nfeed-empty">
               <div style={{ fontSize: 28, marginBottom: 10 }}>📡</div>
               <div style={{ fontSize: 14, color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>Scanning for catalysts…</div>
