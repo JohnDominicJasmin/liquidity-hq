@@ -54,60 +54,60 @@ function frFmt(r: number): string {
   return (r >= 0 ? '+' : '') + (r * 100).toFixed(4) + '%';
 }
 
-interface FRSignal { emoji: string; label: string; short: string; desc: string; action: string; color: string; bg: string; }
+interface FRSignal { emoji: string; label: string; crowd: string; hint: string; desc: string; action: string; color: string; bg: string; }
 function frSignal(r: number): FRSignal {
   const p = r * 100;
   if (p >= 0.05)  return {
-    emoji: '🚨', short: 'Longs Overcrowded',
+    emoji: '🚨', crowd: 'Longs Overcrowded', hint: 'Short on weakness',
     label: 'Longs Overcrowded — Dump Risk',
     color: '#f87171', bg: 'rgba(248,113,113,0.09)',
     action: 'Avoid new longs. Look to short on weakness.',
     desc: 'The market is extremely long-heavy. Traders are paying 0.05%+ every 8h just to stay long — they are overleveraged. Whales have maximum incentive to dump price and mass-liquidate these longs. High probability of a violent raid in the next 1–3 sessions.',
   };
   if (p >= 0.02)  return {
-    emoji: '⚠️', short: 'Longs Heavy',
+    emoji: '⚠️', crowd: 'Longs Heavy', hint: 'Reduce longs',
     label: 'Longs Heavy — Elevated Dump Risk',
     color: '#fb923c', bg: 'rgba(251,146,60,0.08)',
     action: 'Reduce long exposure. Consider short entries.',
     desc: 'The market is significantly long-heavy. Every 8-hour settlement, longs are bleeding fees to hold their position. This builds pressure for a flush — the crowd is positioned for a pump, which makes a dump more likely.',
   };
   if (p >= 0.01)  return {
-    emoji: '📈', short: 'Long Bias',
+    emoji: '📈', crowd: 'Longs Dominant', hint: 'Trade carefully',
     label: 'Long Bias — Watch for FR Spike',
     color: '#fbbf24', bg: 'rgba(251,191,36,0.07)',
     action: 'Trade cautiously. Exit if FR keeps climbing.',
     desc: 'More longs than shorts in the market. Not dangerous yet, but trending toward overload. If funding rate keeps rising above 0.02%, exit or hedge your long exposure.',
   };
   if (p > 0.003)  return {
-    emoji: '🟡', short: 'Slight Long',
+    emoji: '🟡', crowd: 'Slight Long Bias', hint: 'No clear edge',
     label: 'Slight Long Bias — No Clear Edge',
     color: '#d4b483', bg: 'rgba(212,180,131,0.06)',
     action: 'No derivatives edge. Trade based on price action.',
     desc: 'Mildly more longs than shorts, but not enough to create a squeeze or dump setup. Price movement here is driven by spot buying and selling, not derivatives pressure.',
   };
   if (p >= -0.003) return {
-    emoji: '⚖️', short: 'Neutral',
+    emoji: '⚖️', crowd: 'Balanced', hint: 'No clear edge',
     label: 'Neutral — No Derivatives Edge',
     color: '#a0a0a0', bg: 'rgba(255,255,255,0.04)',
     action: 'Wait for a clearer FR signal.',
     desc: 'Longs and shorts are balanced. Nobody is paying a significant premium to hold their position. The derivatives market is not a driver right now — focus on chart structure and spot flow.',
   };
   if (p >= -0.01)  return {
-    emoji: '📉', short: 'Short Bias',
-    label: 'Short Bias — Squeeze Pressure Building',
+    emoji: '📉', crowd: 'Shorts Dominant', hint: 'Watch for squeeze',
+    label: 'Shorts Dominant — Squeeze Pressure Building',
     color: '#86efac', bg: 'rgba(134,239,172,0.07)',
     action: 'Slight bullish lean. Small long positions on dips.',
     desc: 'More shorts than longs in the market. Shorts are paying longs every 8h to hold their position. Mild squeeze pressure is building — not actionable yet, but watch for FR going deeper negative.',
   };
   if (p >= -0.03)  return {
-    emoji: '🔥', short: 'Shorts Crowded',
+    emoji: '🔥', crowd: 'Shorts Crowded', hint: 'Buy dips',
     label: 'Shorts Crowded — Squeeze Setup',
     color: '#34d399', bg: 'rgba(52,211,153,0.09)',
     action: 'Look for long entries on dips. Do NOT short here.',
     desc: 'The market is heavily positioned short. Shorts are paying longs every 8 hours just to hold their position — they are the fuel for the next pump. Whales can push price up to mass-liquidate these shorts and collect their money. This is a squeeze setup, not a short signal.',
   };
   return {
-    emoji: '🚀', short: 'Shorts Overcrowded',
+    emoji: '🚀', crowd: 'Shorts Overcrowded', hint: 'Size up longs',
     label: 'Shorts Overcrowded — High Squeeze Risk',
     color: '#34d399', bg: 'rgba(52,211,153,0.13)',
     action: 'Strong long setup. Do NOT short. Size up on dips.',
@@ -446,8 +446,9 @@ export default function FundingHistory() {
                           ? (() => {
                               const sig = frSignal(current);
                               return (
-                                <span className="frh-sig-chip" style={{ color: sig.color, borderColor: sig.color + '44', background: sig.bg }}>
-                                  {sig.short}
+                                <span className="frh-sig-chip" style={{ borderColor: sig.color + '44', background: sig.bg }}>
+                                  <span className="frh-sig-crowd" style={{ color: sig.color }}>{sig.crowd}</span>
+                                  <span className="frh-sig-hint">→ {sig.hint}</span>
                                 </span>
                               );
                             })()
