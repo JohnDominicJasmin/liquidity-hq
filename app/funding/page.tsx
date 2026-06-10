@@ -404,6 +404,7 @@ export default function FundingHistory() {
                       key={id}
                       className={`frh-row${selected === id ? ' on' : ''}`}
                       onClick={() => { if (!noData) setSelected(id); }}
+                      style={selected !== id && current != null ? { boxShadow: `inset 3px 0 0 ${frSignal(current).color}44` } : undefined}
                     >
                       <td className="frh-coin">{COIN_LABELS[id]}</td>
                       <td style={{ color: current != null ? frColor(current) : 'var(--txt3)', fontWeight: 700 }}>
@@ -444,7 +445,11 @@ export default function FundingHistory() {
           {/* Full chart for selected coin */}
           <div className="card frh-chart-card" style={{ marginBottom: 10 }}>
             <div className="frh-chart-header">
-              <span className="lbl" style={{ margin: 0 }}>{COIN_LABELS[selected]} · {rangeKey} Chart</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 800, color: '#a78bfa', fontFamily: "'JetBrains Mono', monospace" }}>{COIN_LABELS[selected]}</span>
+                <span style={{ color: 'var(--txt3)', fontSize: 11 }}>· {rangeKey.toUpperCase()} CHART</span>
+                <span style={{ fontSize: 10, color: 'var(--txt3)', opacity: 0.5 }}>← click row to change</span>
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {currentCoin?.fundingRate != null && (
                   <span className="frh-current-badge" style={{ color: frColor(currentCoin.fundingRate) }}>
