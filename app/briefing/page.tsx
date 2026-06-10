@@ -72,7 +72,7 @@ function phtNow() {
 function buildBriefingContext(
   store: MarketStore,
   coinRows: Array<{ id: CoinId; c: MarketStore['coins'][CoinId] }>,
-  urgentEcon: Array<{ type: string; name: string; h: number; impact: string }>,
+  urgentEcon: Array<{ type: string; name: string; h: number; impact: string; dt: Date }>,
   recentGeo:  Array<{ tag: string; headline: string }>,
 ): string {
   const phtTime = new Date().toLocaleString('en-US', {
