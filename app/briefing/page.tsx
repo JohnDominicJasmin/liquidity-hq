@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   useMarket, COINS, COIN_DEC, fmtPrice, fmtChg,
   classifyFunding, computeSqueezeScore, type CoinId, type MarketStore,
@@ -346,22 +347,20 @@ export default function MorningBriefing() {
             <div className="mb-macro-sub" style={{ color: dxyColor }}>{dxySig}</div>
           </div>
 
-          <div className="mb-macro-item">
-            <div className="mb-macro-label">BTC ETF Flow</div>
-            <div className="mb-macro-val" style={{ color: etfColor }}>
-              {etfFlow != null
-                ? (etfFlow >= 0 ? '+' : '') + '$' + Math.abs(etfFlow).toFixed(0) + 'M'
-                : <span style={{ fontSize: 13 }}>N/A</span>}
-            </div>
-            <div className="mb-macro-sub" style={{ color: 'var(--txt3)' }}>
-              {etfFlow != null
-                ? etfFlow > 100  ? 'Strong inflow'
-                : etfFlow > 0    ? 'Mild inflow'
+          {etfFlow != null && (
+            <div className="mb-macro-item">
+              <div className="mb-macro-label">BTC ETF Flow</div>
+              <div className="mb-macro-val" style={{ color: etfColor }}>
+                {(etfFlow >= 0 ? '+' : '') + '$' + Math.abs(etfFlow).toFixed(0) + 'M'}
+              </div>
+              <div className="mb-macro-sub" style={{ color: etfColor }}>
+                {etfFlow > 100  ? 'Strong inflow'
+                : etfFlow > 0   ? 'Mild inflow'
                 : etfFlow < -100 ? 'Strong outflow'
-                :                  'Mild outflow'
-                : 'source unavailable'}
+                :                  'Mild outflow'}
+              </div>
             </div>
-          </div>
+          )}
 
         </div>
       </div>
@@ -402,7 +401,11 @@ export default function MorningBriefing() {
                   </td>
                   <td style={{ color: frCol }}>{frPct}</td>
                   <td style={{ color: rsiColor(c?.rsi14 ?? null) }}>
-                    {c?.rsi14 != null ? Math.round(c.rsi14) : '—'}
+                    {c?.rsi14 != null ? (
+                      c.rsi14 >= 70 || c.rsi14 <= 30
+                        ? <span style={{ background: c.rsi14 >= 70 ? 'rgba(248,113,113,0.18)' : 'rgba(52,211,153,0.18)', borderRadius: 4, padding: '1px 5px', fontWeight: 700 }}>{Math.round(c.rsi14)}</span>
+                        : Math.round(c.rsi14)
+                    ) : '—'}
                   </td>
                   <td style={{ color: volRatioColor(c?.volRatio ?? null) }}>
                     {c?.volRatio != null ? c.volRatio.toFixed(1) + 'x' : '—'}
@@ -416,7 +419,11 @@ export default function MorningBriefing() {
           </tbody>
         </table>
         <div className="mb-table-legend">
-          Fund = funding rate · RSI = 15m · Vol = vs 20-candle avg · OI = trend signal
+          <span>Fund: pos = longs pay · neg = shorts pay</span>
+          <span style={{ margin: '0 6px', opacity: 0.4 }}>|</span>
+          <span>RSI: <span style={{ color: '#f87171' }}>≥70</span> overbought · <span style={{ color: '#34d399' }}>≤30</span> oversold</span>
+          <span style={{ margin: '0 6px', opacity: 0.4 }}>|</span>
+          <span>OI: <span style={{ color: '#34d399' }}>▲</span> strong · <span style={{ color: '#fbbf24' }}>△</span> weak up · <span style={{ color: '#94a3b8' }}>▽</span> weak dn · <span style={{ color: '#f87171' }}>▼</span> strong dn</span>
         </div>
         {!pricesLoaded && (
           <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -431,7 +438,7 @@ export default function MorningBriefing() {
         <div className="card" style={{ marginBottom: 10 }}>
           <div className="lbl">🔥 Hot Setups</div>
           {hotSetups.map(({ id, c, sq }) => (
-            <div key={id} className="mb-setup-row">
+            <Link key={id} href="/arena" className="mb-setup-row" style={{ textDecoration: 'none', cursor: 'pointer' }}>
               <div className="mb-setup-coin">{COIN_LABELS[id]}</div>
               <div style={{ flex: 1 }}>
                 <div className="mb-setup-label" style={{ color: sq.color }}>{sq.label}</div>
@@ -442,8 +449,12 @@ export default function MorningBriefing() {
                   </div>
                 )}
               </div>
-              <div className="mb-setup-score" style={{ color: sq.color }}>{sq.score}pts</div>
-            </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 1, marginLeft: 'auto' }}>
+                <span className="mb-setup-score" style={{ color: sq.color }}>{sq.score}</span>
+                <span style={{ fontSize: 10, color: 'var(--txt3)', fontWeight: 500 }}>/100</span>
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--txt3)', marginLeft: 6 }}>→</span>
+            </Link>
           ))}
         </div>
       )}
@@ -464,13 +475,13 @@ export default function MorningBriefing() {
               background: e.h < 2 ? 'rgba(248,113,113,0.15)' : 'rgba(251,191,36,0.1)',
               color: e.h < 2 ? '#f87171' : '#fbbf24',
             }}>
-              {e.type}
+              📅 {e.type}
             </div>
             <div className="mb-event-name">{e.name}</div>
             <div className="mb-event-time" style={{
               color: e.h < 1 ? '#f87171' : e.h < 6 ? '#fbbf24' : 'var(--txt3)',
             }}>
-              {e.h < 24 ? hToHM(e.h) : e.dateStr}
+              {e.h < 0.017 ? 'NOW' : `in ${hToHM(e.h)}`}
             </div>
           </div>
         ))}
