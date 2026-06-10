@@ -126,6 +126,7 @@ export default function CorrelationHeatmap() {
   const [rets, setRets]         = useState<Partial<Record<CoinId, number[]>>>({});
   const [rangeKey, setRangeKey] = useState<RangeKey>('7d');
   const [loading, setLoading]   = useState(true);
+  const [hovered, setHovered]   = useState<[number, number] | null>(null);
 
   const range = RANGES.find(r => r.key === rangeKey)!;
 
@@ -230,27 +231,65 @@ export default function CorrelationHeatmap() {
             <div className="corr-grid-wrap">
               <div
                 className="corr-grid"
-                style={{ gridTemplateColumns: `40px repeat(${COINS.length}, 1fr)` }}
+                style={{
+                  gridTemplateColumns: `40px repeat(${COINS.length}, 1fr)`,
+                  minWidth: 40 + COINS.length * 34,
+                }}
+                onMouseLeave={() => setHovered(null)}
               >
                 {/* Top-left empty corner */}
                 <div />
                 {/* Column headers */}
-                {COINS.map(id => (
-                  <div key={id} className="corr-col-hdr">{COIN_LABELS[id]}</div>
+                {COINS.map((id, j) => (
+                  <div
+                    key={id}
+                    className="corr-col-hdr"
+                    style={{
+                      color: hovered
+                        ? hovered[1] === j ? 'var(--txt)' : 'var(--txt3)'
+                        : undefined,
+                      opacity: hovered && hovered[1] !== j ? 0.4 : 1,
+                      transition: 'opacity 0.1s, color 0.1s',
+                    }}
+                  >
+                    {COIN_LABELS[id]}
+                  </div>
                 ))}
                 {/* Rows */}
                 {COINS.map((a, i) => (
                   <Fragment key={a}>
-                    <div className="corr-row-hdr">{COIN_LABELS[a]}</div>
+                    <div
+                      className="corr-row-hdr"
+                      style={{
+                        color: hovered
+                          ? hovered[0] === i ? 'var(--txt)' : 'var(--txt3)'
+                          : undefined,
+                        opacity: hovered && hovered[0] !== i ? 0.4 : 1,
+                        transition: 'opacity 0.1s, color 0.1s',
+                      }}
+                    >
+                      {COIN_LABELS[a]}
+                    </div>
                     {COINS.map((b, j) => {
-                      const r    = matrix[i][j];
-                      const diag = i === j;
+                      const r      = matrix[i][j];
+                      const diag   = i === j;
+                      const inCross = hovered && (hovered[0] === i || hovered[1] === j);
+                      const isExact = hovered && hovered[0] === i && hovered[1] === j;
                       return (
                         <div
                           key={b}
                           className="corr-cell"
-                          style={{ background: cellBg(r, diag), color: cellColor(r, diag) }}
+                          style={{
+                            background: cellBg(r, diag),
+                            color: cellColor(r, diag),
+                            opacity: hovered && !inCross ? 0.25 : 1,
+                            outline: isExact ? '1.5px solid rgba(255,255,255,0.55)' : undefined,
+                            outlineOffset: isExact ? '-1px' : undefined,
+                            transition: 'opacity 0.1s',
+                            cursor: diag ? 'default' : 'crosshair',
+                          }}
                           title={diag ? COIN_LABELS[a] : `${COIN_LABELS[a]} / ${COIN_LABELS[b]}: ${r?.toFixed(2) ?? '—'}`}
+                          onMouseEnter={() => setHovered([i, j])}
                         >
                           {diag ? '—' : r !== null ? r.toFixed(2) : '—'}
                         </div>

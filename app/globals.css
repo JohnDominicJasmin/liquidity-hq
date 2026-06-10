@@ -2560,11 +2560,11 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 
 /* ── CORRELATION HEATMAP ──────────────────────────────────────────────── */
 .corr-grid-wrap  { overflow-x: auto; margin-bottom: 10px; -webkit-overflow-scrolling: touch; }
-.corr-grid       { display: grid; gap: 3px; min-width: 340px; }
+.corr-grid       { display: grid; gap: 3px; }
 .corr-col-hdr    { font-size: 10px; font-weight: 700; color: var(--txt3); text-align: center; padding: 3px 1px 5px; text-transform: uppercase; letter-spacing: 0.04em; }
 .corr-row-hdr    { font-size: 10px; font-weight: 700; color: var(--txt3); display: flex; align-items: center; padding: 0 3px; text-transform: uppercase; letter-spacing: 0.03em; }
-.corr-cell       { height: 34px; display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700; border-radius: 5px; font-variant-numeric: tabular-nums; cursor: default; transition: filter 0.12s; }
-.corr-cell:hover { filter: brightness(1.25); }
+.corr-cell       { height: 34px; display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700; border-radius: 5px; font-variant-numeric: tabular-nums; transition: filter 0.12s, opacity 0.1s; }
+.corr-cell:hover { filter: brightness(1.3); }
 .corr-legend     { font-size: 10px; color: var(--txt3); padding-top: 8px; border-top: 0.5px solid var(--bdr); line-height: 1.6; }
 
 .corr-pair-row        { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 0.5px solid var(--bdr); }
