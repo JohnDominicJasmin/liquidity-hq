@@ -16,10 +16,14 @@ export async function GET(req: NextRequest) {
 
   try {
     if (type === 'global') {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
       const r = await fetch(`${BASE}/v1/global-metrics/quotes/latest`, {
         headers: cmcHeaders(),
-        cache: 'no-store',   // always fresh — client polls every 5 min anyway
+        cache: 'no-store',
+        signal: controller.signal,
       });
+      clearTimeout(timer);
       const d = await r.json();
       return NextResponse.json(d);
     }

@@ -31,17 +31,21 @@ function extract(json: unknown): { price: number; chg: number } | null {
 }
 
 async function yf(sym: string) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch(`${YF_BASE}/${sym}?interval=1d&range=2d`, {
       cache: 'no-store',
+      signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'application/json',
       },
     });
+    clearTimeout(timer);
     if (!res.ok) return null;
     return extract(await res.json());
-  } catch { return null; }
+  } catch { clearTimeout(timer); return null; }
 }
 
 export async function GET() {

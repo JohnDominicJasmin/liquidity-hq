@@ -1282,6 +1282,9 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     fetchGoogleTrends();
     // CB Premium needs BTC price first — wait 3s for WS/REST to populate
     setTimeout(fetchCoinbasePremium, 3000);
+    // Retry server-proxied APIs that may miss on Render cold start
+    setTimeout(fetchCMCGlobal, 12_000);
+    setTimeout(fetchMacro, 12_000);
     // OI bootstrap — gives immediate trend signal without waiting for two 8-min Bybit polls
     bootstrapOITrend();
 
