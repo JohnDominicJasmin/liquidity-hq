@@ -7,8 +7,8 @@ import { useSettings } from '@/lib/settings';
 import { DASHBOARD_SECTIONS } from '@/lib/settings';
 import { fetchGrokUsage, GrokUsageInfo } from '@/lib/grok';
 import { track } from '@/lib/analytics';
+import { COINS } from '@/lib/marketStore';
 
-const COINS  = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui'] as const;
 const TFS    = ['15m', '1h', '4h', '1d'] as const;
 const RISK_PRESETS = ['0.25', '0.5', '1', '1.5', '2'];
 
@@ -306,20 +306,23 @@ export default function SettingsPage() {
         <div className="st-desc">Uncheck to hide a section from the dashboard.</div>
         <div className="st-checkbox-grid">
           {DASHBOARD_SECTIONS.map(({ id, label }) => {
-            const hidden = settings.hidden_sections.includes(id);
+            const visible = !settings.hidden_sections.includes(id);
             return (
               <label key={id} className="st-checkbox-item">
-                <input
-                  type="checkbox"
-                  checked={!hidden}
-                  onChange={e => {
-                    const next = e.target.checked
-                      ? settings.hidden_sections.filter(s => s !== id)
-                      : [...settings.hidden_sections, id];
+                <span className="st-toggle-label">{label}</span>
+                <button
+                  role="switch"
+                  aria-checked={visible}
+                  className={`st-toggle${visible ? ' on' : ''}`}
+                  onClick={() => {
+                    const next = visible
+                      ? [...settings.hidden_sections, id]
+                      : settings.hidden_sections.filter(s => s !== id);
                     update({ hidden_sections: next });
                   }}
-                />
-                <span>{label}</span>
+                >
+                  <span className="st-toggle-thumb" />
+                </button>
               </label>
             );
           })}

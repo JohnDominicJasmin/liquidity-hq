@@ -2754,7 +2754,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 [data-theme="light"] .smod-close { background: #e8e8e8; }
 
 /* ── SETTINGS PAGE ───────────────────────────────────────────────────────── */
-.st-page { max-width: 560px; padding-bottom: 60px; }
+.st-page { max-width: 720px; margin: 0 auto; padding-bottom: 60px; }
 .st-header {
   display: flex; align-items: center; gap: 0;
   padding: 1rem 0 0.75rem;
@@ -2764,11 +2764,12 @@ body.ticker-on .breaking-alert { top: 90px; }
 /* Section card */
 .st-section {
   background: var(--bg1); border: 0.5px solid var(--bdr);
-  border-radius: 14px; padding: 16px; margin-bottom: 12px;
+  border-radius: 14px; padding: 18px 20px; margin-bottom: 12px;
 }
 .st-section-title {
-  font-size: 10px; font-weight: 700; letter-spacing: .08em;
-  text-transform: uppercase; color: var(--txt3); margin-bottom: 14px;
+  font-size: 11px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--txt2);
+  margin-bottom: 16px; padding-bottom: 10px; border-bottom: 0.5px solid var(--bdr);
 }
 
 /* Field layout */
@@ -2823,17 +2824,26 @@ body.ticker-on .breaking-alert { top: 90px; }
 /* At-risk line */
 .st-at-risk { font-size: 12px; color: var(--txt3); }
 
-/* Checkboxes grid */
-.st-checkbox-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px;
-}
+/* Dashboard section toggles */
+.st-checkbox-grid { display: flex; flex-direction: column; }
 .st-checkbox-item {
-  display: flex; align-items: center; gap: 7px;
-  font-size: 12px; color: var(--txt2); cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 10px 0; border-bottom: 0.5px solid var(--bdr); cursor: pointer;
 }
-.st-checkbox-item input[type="checkbox"] {
-  width: 14px; height: 14px; accent-color: var(--purple); cursor: pointer; flex-shrink: 0;
+.st-checkbox-item:last-child { border-bottom: none; padding-bottom: 0; }
+.st-toggle-label { font-size: 12px; color: var(--txt2); font-weight: 500; }
+.st-toggle {
+  width: 38px; height: 21px; border-radius: 11px; padding: 0; flex-shrink: 0;
+  background: rgba(255,255,255,0.08); border: 0.5px solid var(--bdr2);
+  position: relative; cursor: pointer; transition: background 0.15s, border-color 0.15s;
 }
+.st-toggle.on { background: var(--purple); border-color: var(--purple); }
+.st-toggle-thumb {
+  position: absolute; top: 3px; left: 3px;
+  width: 13px; height: 13px; border-radius: 50%; display: block; pointer-events: none;
+  background: rgba(255,255,255,0.35); transition: left 0.15s, background 0.15s;
+}
+.st-toggle.on .st-toggle-thumb { left: 20px; background: #fff; }
 
 /* Sign out */
 .st-signout-btn {
