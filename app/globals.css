@@ -2293,8 +2293,15 @@ body.ticker-on .breaking-alert { top: 90px; }
 .tj-rb-win  { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-bdr); }
 .tj-rb-loss { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bdr); }
 .tj-rb-be   { background: var(--bg3); color: var(--txt3); border: 0.5px solid var(--bdr); }
-.tj-del-btn { width: 24px; height: 24px; border-radius: 50%; border: 0.5px solid var(--bdr); background: var(--bg3); color: var(--txt3); font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.tj-del-btn { width: 24px; height: 24px; border-radius: 50%; border: 0.5px solid var(--bdr); background: var(--bg3); color: var(--txt2); font-size: 11px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .tj-del-btn:hover { background: var(--red-bg); color: var(--red); border-color: var(--red-bdr); }
+.tj-edit-btn { width: 24px; height: 24px; border-radius: 50%; border: 0.5px solid var(--bdr); background: var(--bg3); color: var(--txt2); font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
+.tj-edit-btn:hover { background: rgba(167,139,250,.12); color: var(--purple); border-color: var(--purple-bdr); }
+.tj-edit-form { margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--bdr); }
+.tj-edit-row  { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.tj-edit-field { display: flex; flex-direction: column; gap: 4px; }
+.tj-edit-select { background: var(--bg2); border: 0.5px solid var(--bdr2); border-radius: 8px; padding: 0 10px; font-size: 12px; color: var(--txt); height: 36px; outline: none; cursor: pointer; }
+.tj-edit-btns { display: flex; gap: 6px; margin-top: 10px; }
 .tj-trade-prices { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 6px; }
 .tj-tp      { display: flex; flex-direction: column; gap: 1px; }
 .tj-tp-lbl  { font-size: 10px; color: var(--txt3); }
@@ -2312,10 +2319,12 @@ body.ticker-on .breaking-alert { top: 90px; }
 .tj-stat-val   { font-size: 20px; font-weight: 700; }
 .tj-breakdown  { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
 .tj-breakdown-title { font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--txt3); margin-bottom: 10px; }
-.tj-breakdown-row   { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 0.5px solid var(--bdr); }
-.tj-breakdown-name  { font-size: 13px; font-weight: 600; color: var(--txt); min-width: 60px; }
-.tj-breakdown-sub   { font-size: 11px; color: var(--txt3); }
-.tj-breakdown-pnl   { font-size: 13px; font-weight: 700; margin-left: auto; }
+.tj-breakdown-row      { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 0.5px solid var(--bdr); }
+.tj-breakdown-name     { font-size: 12px; font-weight: 700; color: var(--txt); width: 44px; flex-shrink: 0; }
+.tj-breakdown-bar-wrap { flex: 1; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+.tj-breakdown-bar      { height: 100%; background: rgba(52,211,153,0.5); border-radius: 2px; transition: width 0.4s ease; }
+.tj-breakdown-sub      { font-size: 11px; color: var(--txt3); white-space: nowrap; width: 70px; text-align: right; flex-shrink: 0; }
+.tj-breakdown-pnl      { font-size: 12px; font-weight: 700; width: 64px; text-align: right; flex-shrink: 0; }
 @media (max-width: 480px) {
   .ps-results     { grid-template-columns: 1fr 1fr; }
   .tj-price-grid  { grid-template-columns: 1fr 1fr; }

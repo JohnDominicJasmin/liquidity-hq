@@ -56,6 +56,10 @@ function Inner() {
   const [saving,    setSaving]    = useState(false);
   const [closingId, setClosingId] = useState<string | null>(null);
   const [exitInput, setExitInput] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{ result: TradeResult; exit_price: string; pnl_usd: string; notes: string }>(
+    { result: 'OPEN', exit_price: '', pnl_usd: '', notes: '' }
+  );
   const [noDb,      setNoDb]      = useState(false);
 
   /* Form state — pre-fill from URL params (from Position Sizer) */
@@ -177,6 +181,29 @@ function Inner() {
     if (!confirm('Delete this trade?')) return;
     await db.from('trades').delete().eq('id', id);
     setTrades(prev => prev.filter(t => t.id !== id));
+  };
+
+  const startEdit = (trade: Trade) => {
+    setEditDraft({
+      result:     trade.result,
+      exit_price: trade.exit_price?.toString() ?? '',
+      pnl_usd:    trade.pnl_usd?.toString()   ?? '',
+      notes:      trade.notes                  ?? '',
+    });
+    setEditingId(trade.id ?? null);
+  };
+
+  const saveEdit = async (trade: Trade) => {
+    const db = getSupabase();
+    if (!db || !trade.id) return;
+    await db.from('trades').update({
+      result:     editDraft.result,
+      exit_price: editDraft.exit_price ? parseFloat(editDraft.exit_price) : null,
+      pnl_usd:    editDraft.pnl_usd    ? parseFloat(editDraft.pnl_usd)    : null,
+      notes:      editDraft.notes || null,
+    }).eq('id', trade.id);
+    setEditingId(null);
+    await loadTrades();
   };
 
   /* Stats */
@@ -304,15 +331,7 @@ function Inner() {
             const trackBg  = `linear-gradient(to right, ${levColor} 0%, ${levColor} ${levPct}%, rgba(255,255,255,0.08) ${levPct}%, rgba(255,255,255,0.08) 100%)`;
             return (
               <div className="tj-card">
-                <div className="tj-lev-header">
-                  <span className="tj-card-lbl" style={{ margin: 0 }}>Leverage</span>
-                  <span
-                    className="tj-lev-badge"
-                    style={{ background: levColor + '18', color: levColor, borderColor: levColor + '44' }}
-                  >
-                    {leverage}×
-                  </span>
-                </div>
+                <div className="tj-card-lbl" style={{ margin: '0 0 14px' }}>Leverage</div>
 
                 {/* Slider */}
                 <div className="tj-lev-slider-wrap">
@@ -414,6 +433,7 @@ function Inner() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span className={`tj-result-badge tj-rb-${trade.result.toLowerCase()}`}>{trade.result}</span>
+                  <button className="tj-edit-btn" title="Edit" onClick={() => editingId === trade.id ? setEditingId(null) : startEdit(trade)}>✎</button>
                   <button className="tj-del-btn" onClick={() => trade.id && deleteTrade(trade.id)}>✕</button>
                 </div>
               </div>
@@ -435,7 +455,7 @@ function Inner() {
                     </span>
                   </div>
                 )}
-                {trade.pnl_r != null && (
+                {trade.pnl_r != null && Math.abs(trade.pnl_r) >= 0.005 && (
                   <div className="tj-tp">
                     <span className="tj-tp-lbl">R</span>
                     <span className="tj-tp-val" style={{ color: trade.pnl_r >= 0 ? '#34d399' : '#f87171' }}>
@@ -476,6 +496,52 @@ function Inner() {
                     Close Trade →
                   </button>
                 )
+              )}
+
+              {/* Inline edit form */}
+              {editingId === trade.id && (
+                <div className="tj-edit-form">
+                  <div className="tj-edit-row">
+                    <div className="tj-edit-field">
+                      <label className="tj-lbl">Result</label>
+                      <select
+                        className="tj-edit-select"
+                        value={editDraft.result}
+                        onChange={e => setEditDraft(p => ({ ...p, result: e.target.value as TradeResult }))}
+                      >
+                        {(['OPEN','WIN','LOSS','BE'] as TradeResult[]).map(r => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="tj-edit-field">
+                      <label className="tj-lbl">Exit Price</label>
+                      <div className="tj-irow"><span className="tj-affix">$</span>
+                        <input className="tj-inp" type="number" placeholder="0.00"
+                          value={editDraft.exit_price}
+                          onChange={e => setEditDraft(p => ({ ...p, exit_price: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="tj-edit-field">
+                      <label className="tj-lbl">P&amp;L ($)</label>
+                      <div className="tj-irow"><span className="tj-affix">$</span>
+                        <input className="tj-inp" type="number" placeholder="0.00"
+                          value={editDraft.pnl_usd}
+                          onChange={e => setEditDraft(p => ({ ...p, pnl_usd: e.target.value }))} />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="tj-edit-field" style={{ marginTop: 8 }}>
+                    <label className="tj-lbl">Notes</label>
+                    <textarea className="tj-notes" rows={2}
+                      value={editDraft.notes}
+                      onChange={e => setEditDraft(p => ({ ...p, notes: e.target.value }))} />
+                  </div>
+                  <div className="tj-edit-btns">
+                    <button className="tj-confirm-btn" onClick={() => saveEdit(trade)}>Save</button>
+                    <button className="tj-cancel-btn" onClick={() => setEditingId(null)}>Cancel</button>
+                  </div>
+                </div>
               )}
             </div>
           ))}
@@ -521,13 +587,19 @@ function Inner() {
               {Object.keys(stats.byCoin).length > 0 && (
                 <div className="tj-breakdown">
                   <div className="tj-breakdown-title">Performance by Coin</div>
-                  {Object.entries(stats.byCoin).sort(([,a],[,b]) => b.pnl - a.pnl).map(([c, d]) => (
+                  {Object.entries(stats.byCoin).sort(([,a],[,b]) => b.pnl - a.pnl).map(([c, d]) => {
+                    const wr = d.total > 0 ? (d.wins / d.total) * 100 : 0;
+                    return (
                     <div key={c} className="tj-breakdown-row">
                       <span className="tj-breakdown-name">{c.toUpperCase()}</span>
-                      <span className="tj-breakdown-sub">{d.wins}/{d.total} wins · {d.total > 0 ? ((d.wins/d.total)*100).toFixed(0) : 0}% WR</span>
+                      <div className="tj-breakdown-bar-wrap">
+                        <div className="tj-breakdown-bar" style={{ width: `${wr}%` }} />
+                      </div>
+                      <span className="tj-breakdown-sub">{wr.toFixed(0)}% · {d.wins}/{d.total}</span>
                       <span className="tj-breakdown-pnl" style={{ color: d.pnl >= 0 ? '#34d399' : '#f87171' }}>{fmtUSD(d.pnl)}</span>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
