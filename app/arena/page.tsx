@@ -595,12 +595,17 @@ export default function Arena() {
     const spxLine   = store.spx       != null ? store.spx.toLocaleString(undefined, { maximumFractionDigits: 0 }) + (store.spxChg != null ? ' (' + (store.spxChg >= 0 ? '+' : '') + store.spxChg.toFixed(2) + '%)' : '') + (store.spxChg != null && store.spxChg > 0.3 ? ' → risk-on' : store.spxChg != null && store.spxChg < -0.5 ? ' → risk-off' : '') : '—';
     const goldLine  = store.gold      != null ? '$' + store.gold.toLocaleString(undefined, { maximumFractionDigits: 0 }) + (store.goldChg != null ? ' (' + (store.goldChg >= 0 ? '+' : '') + store.goldChg.toFixed(2) + '%)' : '') : '—';
 
-    /* Upcoming events */
+    /* Upcoming events + recently released */
     const now = Date.now();
-    const upcoming = econEvents
+    const recentlyReleased = econEvents
+      .filter(e => { const lh = (e.dt.getTime() - now) / 3600000; return lh >= -6 && lh < 0; }).slice(0, 3)
+      .map(e => { const minsAgo = Math.round((now - e.dt.getTime()) / 60000); return `⚡ JUST RELEASED: ${e.name} — ${minsAgo}m ago (check news headlines for actual print)`; })
+      .join('\n');
+    const upcomingList = econEvents
       .filter(e => { const lh = (e.dt.getTime() - now) / 3600000; return lh > 0 && lh < 24; }).slice(0, 5)
       .map(e => `${e.name} (${e.dateStr}, impact: ${e.impact})`)
       .join('\n') || 'None in next 24h';
+    const upcoming = [recentlyReleased, upcomingList].filter(Boolean).join('\n');
 
     /* ETF flows */
     const fmtFlow = (v: number | null, asset: string) => {

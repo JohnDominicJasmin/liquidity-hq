@@ -100,8 +100,16 @@ function buildBriefingContext(
   }
 
   if (urgentEcon.length) {
-    lines.push('', 'UPCOMING MACRO EVENTS (next 24h):');
-    urgentEcon.forEach(e => { const lh = (e.dt.getTime() - Date.now()) / 3600000; lines.push(`  ${e.type}: ${e.name} in ${Math.round(lh)}h (${e.impact} impact)`); });
+    lines.push('', 'MACRO EVENTS (recent + upcoming):');
+    urgentEcon.forEach(e => {
+      const lh = (e.dt.getTime() - Date.now()) / 3600000;
+      if (lh < 0) {
+        const minsAgo = Math.round(-lh * 60);
+        lines.push(`  ⚡ JUST RELEASED: ${e.type} — ${e.name} (${minsAgo}m ago — check news for actual print)`);
+      } else {
+        lines.push(`  ${e.type}: ${e.name} in ${Math.round(lh)}h (${e.impact} impact)`);
+      }
+    });
   }
 
   if (recentGeo.length) {
@@ -196,8 +204,8 @@ export default function MorningBriefing() {
     .sort((a, b) => b.sq.score - a.sq.score)
     .slice(0, 4);
 
-  /* Events */
-  const urgentEcon = econEvents.filter(e => { const lh = (e.dt.getTime() - Date.now()) / 3600000; return lh > 0 && lh < 24; }).slice(0, 5);
+  /* Events — upcoming (next 24h) + recently released (last 6h) */
+  const urgentEcon = econEvents.filter(e => { const lh = (e.dt.getTime() - Date.now()) / 3600000; return lh > -6 && lh < 24; }).slice(0, 8);
   const recentGeo  = geoEvents.slice(0, 4);
 
   /* Macro colors */
@@ -229,7 +237,8 @@ export default function MorningBriefing() {
       : { txt: '↓ Alts active', col: '#34d399' }
     : null;
 
-  const noEvents = urgentEcon.length === 0 && recentGeo.length === 0 && (!whaleAlerts || whaleAlerts.length === 0);
+  const futureEcon = urgentEcon.filter(e => e.dt.getTime() > Date.now());
+  const noEvents = futureEcon.length === 0 && recentGeo.length === 0 && (!whaleAlerts || whaleAlerts.length === 0);
 
   return (
     <div>
@@ -471,19 +480,20 @@ export default function MorningBriefing() {
 
         {urgentEcon.map((e, i) => {
           const lh = (e.dt.getTime() - Date.now()) / 3600000;
+          const isPast = lh < 0;
           return (
           <div key={i} className="mb-event-row">
             <div className="mb-event-tag" style={{
-              background: lh < 2 ? 'rgba(248,113,113,0.15)' : 'rgba(251,191,36,0.1)',
-              color: lh < 2 ? '#f87171' : '#fbbf24',
+              background: isPast ? 'rgba(100,100,100,0.15)' : lh < 2 ? 'rgba(248,113,113,0.15)' : 'rgba(251,191,36,0.1)',
+              color: isPast ? 'var(--txt3)' : lh < 2 ? '#f87171' : '#fbbf24',
             }}>
-              📅 {e.type}
+              {isPast ? '✓' : '📅'} {e.type}
             </div>
             <div className="mb-event-name">{e.name}</div>
             <div className="mb-event-time" style={{
-              color: lh < 1 ? '#f87171' : lh < 6 ? '#fbbf24' : 'var(--txt3)',
+              color: isPast ? 'var(--txt3)' : lh < 1 ? '#f87171' : lh < 6 ? '#fbbf24' : 'var(--txt3)',
             }}>
-              {lh < 0.017 ? 'NOW' : `in ${hToHM(lh)}`}
+              {isPast ? `${Math.round(-lh * 60)}m ago` : lh < 0.017 ? 'NOW' : `in ${hToHM(lh)}`}
             </div>
           </div>
           );
