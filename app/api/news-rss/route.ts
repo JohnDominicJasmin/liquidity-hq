@@ -3,14 +3,20 @@ import { NextResponse } from 'next/server';
 // Free RSS feeds — no API key required
 const FEEDS = [
   // ── Global breaking / geopolitical ──────────────────────────────────────
-  { url: 'https://feeds.reuters.com/reuters/topNews',       source: 'Reuters',          cat: 'geo'    },
-  { url: 'https://feeds.reuters.com/reuters/worldNews',     source: 'Reuters World',    cat: 'geo'    },
-  { url: 'https://feeds.reuters.com/reuters/businessNews',  source: 'Reuters Business', cat: 'macro'  },
-  { url: 'https://feeds.apnews.com/rss/apf-topnews',        source: 'AP News',          cat: 'geo'    },
-  { url: 'https://feeds.apnews.com/rss/apf-business',       source: 'AP Business',      cat: 'macro'  },
-  { url: 'https://feeds.bbci.co.uk/news/world/rss.xml',     source: 'BBC World',        cat: 'geo'    },
-  { url: 'https://feeds.bbci.co.uk/news/business/rss.xml',  source: 'BBC Business',     cat: 'macro'  },
-  { url: 'https://www.aljazeera.com/xml/rss/all.xml',       source: 'Al Jazeera',       cat: 'geo'    },
+  { url: 'https://feeds.reuters.com/reuters/topNews',          source: 'Reuters',          cat: 'geo'    },
+  { url: 'https://feeds.reuters.com/reuters/worldNews',        source: 'Reuters World',    cat: 'geo'    },
+  { url: 'https://feeds.reuters.com/reuters/businessNews',     source: 'Reuters Business', cat: 'macro'  },
+  { url: 'https://feeds.apnews.com/rss/apf-topnews',           source: 'AP News',          cat: 'geo'    },
+  { url: 'https://feeds.apnews.com/rss/apf-business',          source: 'AP Business',      cat: 'macro'  },
+  { url: 'https://feeds.bbci.co.uk/news/world/rss.xml',        source: 'BBC World',        cat: 'geo'    },
+  { url: 'https://feeds.bbci.co.uk/news/business/rss.xml',     source: 'BBC Business',     cat: 'macro'  },
+  { url: 'https://www.aljazeera.com/xml/rss/all.xml',          source: 'Al Jazeera',       cat: 'geo'    },
+  // ── US political breaking news — fastest on Trump/policy/tariffs ────────
+  { url: 'https://moxie.foxnews.com/google-publisher/politics.xml', source: 'Fox News Politics', cat: 'geo' },
+  { url: 'https://feeds.nbcnews.com/nbcnews/public/news',      source: 'NBC News',         cat: 'geo'    },
+  { url: 'https://rss.politico.com/politics-news.xml',         source: 'Politico',         cat: 'geo'    },
+  // ── TruthSocial — Trump's primary platform (Mastodon RSS) ───────────────
+  { url: 'https://truthsocial.com/@realDonaldTrump.rss',        source: 'TruthSocial',      cat: 'geo'    },
   // ── Crypto news ─────────────────────────────────────────────────────────
   { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', source: 'CoinDesk',         cat: 'crypto' },
   { url: 'https://cointelegraph.com/rss',                   source: 'CoinTelegraph',    cat: 'crypto' },
