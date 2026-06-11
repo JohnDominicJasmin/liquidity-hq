@@ -667,7 +667,7 @@ export default function Arena() {
       fearGreed: store.fng != null ? store.fng + ' (' + store.fngLabel + ')' : '—',
       btcDominance: btcDomTrend,
       session, clusters: '—',
-      news: latestHeadlines.length > 0 ? latestHeadlines.slice(0, 6).join('\n') : 'No recent alerts',
+      news: latestHeadlines.length > 0 ? latestHeadlines.slice(0, 15).join('\n') : 'No recent alerts',
       rsi14, ma20, priceVsMA, volRatio, longShortRatio,
       oilPrice, bonds10y, upcomingEvents: upcoming, etfFlows,
       rsi1h, rsi4h, rsiDaily: fmt(coin?.rsiDaily), cvd, cvdDivergence, basis, fibNearest, orderWalls, squeezeScore,

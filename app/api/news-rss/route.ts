@@ -10,6 +10,7 @@ const FEEDS = [
   { url: 'https://feeds.apnews.com/rss/apf-business',       source: 'AP Business',      cat: 'macro'  },
   { url: 'https://feeds.bbci.co.uk/news/world/rss.xml',     source: 'BBC World',        cat: 'geo'    },
   { url: 'https://feeds.bbci.co.uk/news/business/rss.xml',  source: 'BBC Business',     cat: 'macro'  },
+  { url: 'https://www.aljazeera.com/xml/rss/all.xml',       source: 'Al Jazeera',       cat: 'geo'    },
   // ── Crypto news ─────────────────────────────────────────────────────────
   { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', source: 'CoinDesk',         cat: 'crypto' },
   { url: 'https://cointelegraph.com/rss',                   source: 'CoinTelegraph',    cat: 'crypto' },
@@ -89,7 +90,7 @@ function parseRSS(xml: string, source: string, cat: RSSItem['cat']): RSSItem[] {
 }
 
 let cache: { ts: number; items: RSSItem[] } | null = null;
-const CACHE_TTL = 90 * 1000; // 90 seconds
+const CACHE_TTL = 30 * 1000; // 30 seconds — fast refresh for breaking news
 
 export async function GET() {
   // Serve from cache if fresh
@@ -124,7 +125,7 @@ export async function GET() {
     return true;
   });
 
-  const result = deduped.slice(0, 100);
+  const result = deduped.slice(0, 150);
   cache = { ts: Date.now(), items: result };
 
   return NextResponse.json({ items: result });

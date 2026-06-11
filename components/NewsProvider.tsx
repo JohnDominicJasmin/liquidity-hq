@@ -99,7 +99,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     if (seenRef.current.has(key)) return;
     seenRef.current.add(key);
 
-    setLatestHeadlines(prev => [headline, ...prev].slice(0, 10));
+    setLatestHeadlines(prev => [headline, ...prev].slice(0, 25));
 
     const id = alertIdRef.current++;
     setAlerts(prev => [...prev, { id, headline, source, ts, type, link, image }]);
@@ -272,7 +272,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
 
     const intervals = [
       setInterval(fetchFinnhubNews,  2 * 60 * 1000),    // every 2 min
-      setInterval(fetchRSSNews,      2 * 60 * 1000),    // every 2 min — Reuters/AP/CoinDesk
+      setInterval(fetchRSSNews,      60 * 1000),         // every 1 min — Reuters/AP/Al Jazeera/CoinDesk
       setInterval(fetchEconEvents,  60 * 60 * 1000),    // every 1h
       setInterval(fetchGeoEvents,    3 * 60 * 1000),    // every 3 min
     ];
