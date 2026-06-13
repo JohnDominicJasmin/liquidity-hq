@@ -154,7 +154,7 @@ export default function SessionContext() {
       <div className="sctx-events-row">
         <div className="sctx-evt">
           <span className="sctx-evt-label">FR settlement</span>
-          <span className="sctx-evt-value sctx-mono">{frCountdown}</span>
+          <span className="sctx-evt-value sctx-mono" suppressHydrationWarning>{frCountdown}</span>
         </div>
         <div className="sctx-evt-sep" />
         <div className="sctx-evt">

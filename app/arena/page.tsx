@@ -966,9 +966,12 @@ export default function Arena() {
             <CoinIcon coin={selectedCoin} size={16} color="#b8aeff" bg="rgba(184,174,255,0.15)" />
             {selectedCoin.toUpperCase()}
           </span>
-          {/* Notification bell */}
-          <button
+          {/* Notification bell — div to avoid button-in-button invalid HTML */}
+          <div
+            role="button"
+            tabIndex={0}
             onClick={e => { e.stopPropagation(); enableNotifications(); }}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); enableNotifications(); } }}
             title={notifEnabled ? 'Alerts ON' : 'Enable browser alerts'}
             style={{
               padding: '3px 7px', borderRadius: 7, border: '0.5px solid',
@@ -977,7 +980,7 @@ export default function Arena() {
               color: notifEnabled ? '#7de0a4' : '#444',
               fontSize: 12, cursor: 'pointer', flexShrink: 0, lineHeight: 1,
             }}
-          >{notifEnabled ? '🔔' : '🔕'}</button>
+          >{notifEnabled ? '🔔' : '🔕'}</div>
           <span style={{ fontSize: 10, color: '#333', flexShrink: 0 }}>{scannerOpen ? '▲' : '▼'}</span>
         </button>
 
