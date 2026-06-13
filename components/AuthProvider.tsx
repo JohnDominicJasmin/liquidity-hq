@@ -20,6 +20,19 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+const INACTIVITY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const LAST_ACTIVE_KEY = 'lhq_last_active';
+
+function touchActivity() {
+  localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()));
+}
+
+function isSessionExpired(): boolean {
+  const raw = localStorage.getItem(LAST_ACTIVE_KEY);
+  if (!raw) return false; // first visit or cleared — let Supabase decide
+  return Date.now() - Number(raw) > INACTIVITY_MS;
+}
+
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,9 +41,17 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const sb = getSupabase();
     if (!sb) { setLoading(false); return; }
 
-    // Seed initial session from storage
-    sb.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null);
+    // Seed initial session, force sign-out if inactive >7 days
+    sb.auth.getSession().then(async ({ data }) => {
+      const sessionUser = data.session?.user ?? null;
+      if (sessionUser && isSessionExpired()) {
+        await sb.auth.signOut();
+        localStorage.removeItem(LAST_ACTIVE_KEY);
+        setUser(null);
+      } else {
+        if (sessionUser) touchActivity();
+        setUser(sessionUser);
+      }
       setLoading(false);
     });
 
@@ -38,6 +59,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
       const u = session?.user ?? null;
       setUser(u);
+      if (u) touchActivity();
       // Identify / reset in PostHog so all events are tied to this user
       try {
         if (u) posthog.identify(u.id, { email: u.email });
@@ -50,6 +72,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
   const signOut = async () => {
     const sb = getSupabase();
+    localStorage.removeItem(LAST_ACTIVE_KEY);
     await sb?.auth.signOut();
   };
 
