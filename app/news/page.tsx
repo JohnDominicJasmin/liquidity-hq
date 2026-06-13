@@ -97,6 +97,7 @@ function ImpactChip({ note, color }: { note: string; color: string }) {
       background: `${color}18`, border: `0.5px solid ${color}44`,
       fontSize: 10, color, fontWeight: 600, letterSpacing: '.02em',
       lineHeight: 1.6, whiteSpace: 'nowrap',
+      maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis',
     }}>
       {short}
     </span>
