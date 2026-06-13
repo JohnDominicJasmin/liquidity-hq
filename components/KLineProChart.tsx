@@ -278,10 +278,18 @@ export default function KLineProChart({ coin, tf, result }: Props) {
 
       chart.setDataLoader(loader);
       setChartSymbolPeriod(chart, coin, tf);
+
+      // Ensure chart paints correctly after initial layout settles (critical on mobile)
+      if (!disposed) setTimeout(() => chartRef.current?.resize(), 100);
     })();
+
+    // Resize chart whenever the container changes dimensions (handles mobile viewport changes)
+    const ro = new ResizeObserver(() => { chartRef.current?.resize(); });
+    if (containerRef.current) ro.observe(containerRef.current);
 
     return () => {
       disposed = true;
+      ro.disconnect();
       wsRef.current?.close();
       wsRef.current = null;
       import('klinecharts').then(({ dispose }) => {
