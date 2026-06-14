@@ -51,7 +51,7 @@ export default function OnboardingProvider({ children }: { children: React.React
         .from('user_onboarding')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
       if (data) {
         setState({
           tourSeen:   !!data.tour_seen,
@@ -61,7 +61,7 @@ export default function OnboardingProvider({ children }: { children: React.React
           coins:      !!data.checklist_coins,
         });
       } else {
-        await sb.from('user_onboarding').insert({ user_id: user.id });
+        await sb.from('user_onboarding').upsert({ user_id: user.id }, { onConflict: 'user_id', ignoreDuplicates: true });
       }
       setLoaded(true);
     })();
@@ -75,7 +75,7 @@ export default function OnboardingProvider({ children }: { children: React.React
     const sb = getSupabase();
     if (!sb || !user) return;
     sb.from('user_onboarding')
-      .upsert({ user_id: user.id, [DB_COL[key]]: true, updated_at: new Date().toISOString() })
+      .upsert({ user_id: user.id, [DB_COL[key]]: true, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
       .then(() => {});
   }, [user]);
 
