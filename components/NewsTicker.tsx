@@ -64,11 +64,18 @@ export default function NewsTicker() {
       .join('          ·          '),
   [sorted]);
 
-  // Calculate animation duration based on content width for constant 80px/s speed
+  // Calculate animation duration based on content width for constant 80px/s speed.
+  // Defers via rAF to ensure layout has completed before measuring offsetWidth.
   useEffect(() => {
-    if (!spanRef.current) return;
-    const w = spanRef.current.offsetWidth;
-    setDuration(Math.max(8, Math.round(w / 80)));
+    let raf: number;
+    const measure = () => {
+      if (!spanRef.current) return;
+      const w = spanRef.current.offsetWidth;
+      if (w > 0) setDuration(Math.max(20, Math.round(w / 80)));
+      else raf = requestAnimationFrame(measure); // layout not ready yet, retry
+    };
+    raf = requestAnimationFrame(measure);
+    return () => cancelAnimationFrame(raf);
   }, [text]);
 
   // Toggle body class so app-content top-padding can adjust
