@@ -36,13 +36,14 @@ const DB_COL: Record<OnboardingKey, string> = {
 };
 
 export default function OnboardingProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [state, setState] = useState<OnboardingState>({
     tourSeen: false, telegram: false, priceAlert: false, grok: false, coins: false,
   });
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    if (authLoading) return;          // wait for auth to hydrate first
     if (!user) { setLoaded(true); return; }
     const sb = getSupabase();
     if (!sb) { setLoaded(true); return; }
@@ -65,7 +66,7 @@ export default function OnboardingProvider({ children }: { children: React.React
       }
       setLoaded(true);
     })();
-  }, [user]);
+  }, [user, authLoading]);
 
   const markDone = useCallback((key: OnboardingKey) => {
     setState(prev => {
