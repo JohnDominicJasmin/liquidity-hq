@@ -7,6 +7,9 @@ import NewsTicker from './NewsTicker';
 import AuthProvider from './AuthProvider';
 import PostHogProvider from './PostHogProvider';
 import SettingsProvider from './SettingsProvider';
+import OnboardingProvider from './OnboardingProvider';
+import OnboardingTour from './OnboardingTour';
+import SetupChecklist from './SetupChecklist';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -15,10 +18,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <SettingsProvider>
           <MarketProvider>
             <NewsProvider>
-              <NavDrawer />
-              <NewsTicker />
-              <div className="app-content">{children}</div>
-              <GrokChat />
+              <OnboardingProvider>
+                <NavDrawer />
+                <NewsTicker />
+                <div className="app-content">{children}</div>
+                <GrokChat />
+                <OnboardingTour />
+                <SetupChecklist />
+              </OnboardingProvider>
             </NewsProvider>
           </MarketProvider>
         </SettingsProvider>

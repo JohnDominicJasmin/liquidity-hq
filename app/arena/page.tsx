@@ -1018,7 +1018,7 @@ export default function Arena() {
               return (
                 <button
                   key={c}
-                  onClick={() => { setSelectedCoin(c); setScannerOpen(false); }}
+                  onClick={() => { setSelectedCoin(c); setScannerOpen(false); window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'coins' })); }}
                   style={{
                     width: '100%', display: 'grid',
                     gridTemplateColumns: '1fr 84px 48px 80px 36px',
@@ -1114,6 +1114,7 @@ export default function Arena() {
             const entry = resultsCache[selectedCoin];
             const force = !!(entry && entry.mode === 'quick' && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
             readMarket('quick', force);
+            window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
           }}
           style={{ width: 'auto', marginBottom: 0 }}
           title={!user ? 'Sign in to use Quick Analysis' : 'Uses local data only — no web search. ~$0.003'}
@@ -1137,6 +1138,7 @@ export default function Arena() {
             const entry = resultsCache[selectedCoin];
             const force = !!(entry && entry.mode === 'deep' && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
             readMarket('deep', force);
+            window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
           }}
           style={{ width: 'auto', marginBottom: 0 }}
           title={!user ? 'Sign in to use Deep Analysis' : 'Searches live web + X for catalysts. ~$0.10'}

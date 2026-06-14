@@ -113,6 +113,7 @@ export default function AlertsPage() {
         body: JSON.stringify({ coin: paCoin, target_price: parseFloat(paPrice), direction: paDir, label: paLabel }),
       });
       setPaPrice(''); setPaLabel('');
+      window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'priceAlert' }));
       await loadPriceAlerts();
     } catch { /* skip */ }
     setPaAdding(false);
@@ -130,7 +131,7 @@ export default function AlertsPage() {
     try {
       const res = await fetch('/api/telegram/test');
       const d   = await res.json();
-      if (d.ok) { setTestState('ok'); setTimeout(() => setTestState('idle'), 3000); }
+      if (d.ok) { setTestState('ok'); setTimeout(() => setTestState('idle'), 3000); window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'telegram' })); }
       else { setTestState('err'); setTestErr(d.error ?? 'Unknown error'); }
     } catch { setTestState('err'); setTestErr('Network error'); }
   };
