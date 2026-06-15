@@ -7,12 +7,16 @@ import posthog from 'posthog-js';
 interface AuthCtx {
   user: User | null;
   loading: boolean;
+  role: 'free' | 'pro';
+  isPro: boolean;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthCtx>({
   user: null,
   loading: true,
+  role: 'free',
+  isPro: false,
   signOut: async () => {},
 });
 
@@ -36,6 +40,7 @@ function isSessionExpired(): boolean {
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<'free' | 'pro'>('free');
 
   useEffect(() => {
     const sb = getSupabase();
@@ -59,6 +64,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
       const u = session?.user ?? null;
       setUser(u);
+      if (!u) setRole('free');
       if (u) touchActivity();
       // Identify / reset in PostHog so all events are tied to this user
       try {
@@ -70,6 +76,18 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     return () => subscription.unsubscribe();
   }, []);
 
+  // Fetch subscription role whenever user changes
+  useEffect(() => {
+    if (!user) { setRole('free'); return; }
+    const sb = getSupabase();
+    if (!sb) return;
+    sb.from('user_subscriptions')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => setRole(data?.role === 'pro' ? 'pro' : 'free'));
+  }, [user]);
+
   const signOut = async () => {
     const sb = getSupabase();
     localStorage.removeItem(LAST_ACTIVE_KEY);
@@ -77,7 +95,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signOut }}>
+    <AuthContext.Provider value={{ user, loading, role, isPro: role === 'pro', signOut }}>
       {children}
     </AuthContext.Provider>
   );

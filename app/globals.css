@@ -3464,6 +3464,25 @@ body.landing {
 }
 
 /* ══════════════════════════════════════════════
+   PRO GATE
+   ══════════════════════════════════════════════ */
+.pro-gate {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 40px 24px; text-align: center;
+  border: 1px dashed rgba(167,139,250,0.25); border-radius: 16px;
+  background: rgba(167,139,250,0.04);
+}
+.pro-gate-lock { font-size: 28px; }
+.pro-gate-title { font-size: 15px; font-weight: 700; color: #e8e8e8; }
+.pro-gate-desc { font-size: 13px; color: #888; line-height: 1.55; max-width: 280px; }
+.pro-gate-btn {
+  margin-top: 6px; padding: 10px 22px; border-radius: 10px;
+  background: #7c3aed; color: #fff; font-size: 13px; font-weight: 600;
+  text-decoration: none; transition: background .15s;
+}
+.pro-gate-btn:hover { background: #6d28d9; }
+
+/* ══════════════════════════════════════════════
    ONBOARDING TOUR & SETUP CHECKLIST
    ══════════════════════════════════════════════ */
 

@@ -205,7 +205,7 @@ export default function LandingPage() {
                 <li><span className="lp-check lp-check-pro">✓</span> 50 Grok analyses / month</li>
                 <li><span className="lp-check lp-check-pro">✓</span> Priority support</li>
               </ul>
-              <Link href="/login?signup=1" className="lp-plan-cta lp-plan-cta-pro">
+              <Link href="/upgrade" className="lp-plan-cta lp-plan-cta-pro">
                 Get Pro — $15/mo
               </Link>
             </div>
