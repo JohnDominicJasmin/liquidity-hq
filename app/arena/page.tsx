@@ -173,6 +173,7 @@ export default function Arena() {
   const [coinCat, setCoinCat]           = useState<'all' | 'majors' | 'alts' | 'meme'>('all');
   const [sigDetailsOpen, setSigDetailsOpen] = useState(false);
   const [copiedKey, setCopiedKey]           = useState<string | null>(null);
+  const [jpyUsd, setJpyUsd]                 = useState<number | null>(null);
   const scannerRef      = useRef<HTMLDivElement>(null);
   const hoverOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -196,6 +197,18 @@ export default function Arena() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [scannerOpen]);
+
+  /* Fetch USD/JPY via server proxy, refresh every 5 min */
+  useEffect(() => {
+    const load = () =>
+      fetch('/api/forex/jpy')
+        .then(r => r.json())
+        .then((d: { jpy?: number }) => { if (d?.jpy) setJpyUsd(d.jpy); })
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 5 * 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   // Derived — current coin's cached result (persists across coin switches)
   const cacheEntry = resultsCache[selectedCoin] ?? null;
@@ -714,6 +727,12 @@ export default function Arena() {
         if (ab.mtfConfirmed) s += ' · 1H CONFIRMED';
         return s;
       })(),
+      yenWatch: jpyUsd == null ? '—'
+        : jpyUsd >= 160
+          ? `${jpyUsd.toFixed(2)} — DANGER ZONE: BOJ intervention risk high, carry trade unwind can trigger BTC liquidations`
+          : jpyUsd >= 158
+            ? `${jpyUsd.toFixed(2)} — WARNING: Approaching 160 danger zone, watch for BOJ signals`
+            : `${jpyUsd.toFixed(2)} — Safe: below 158, carry trade stable, low JPY liquidation risk`,
     };
   };
 
@@ -893,9 +912,24 @@ export default function Arena() {
 
       {/* ── PAGE HEADER ── */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>LiquidityAI Arena</div>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>LiquidityAI · LIVE X</span>
+          {jpyUsd != null && (() => {
+            const col = jpyUsd >= 160 ? '#f87171' : jpyUsd >= 158 ? '#fbbf24' : '#34d399';
+            const label = jpyUsd >= 160 ? 'DANGER' : jpyUsd >= 158 ? 'WARN' : 'SAFE';
+            return (
+              <span title={`USD/JPY ${jpyUsd.toFixed(2)} — Yen carry trade risk indicator. Danger zone: ≥160`} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+                color: col, background: col + '14', border: `0.5px solid ${col}44`,
+                letterSpacing: '.04em', cursor: 'default',
+              }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: col, boxShadow: `0 0 5px ${col}` }} />
+                JPY {jpyUsd.toFixed(0)} · {label}
+              </span>
+            );
+          })()}
         </div>
         <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Chart · 35-signal engine · confluence · scanner — one page</div>
       </div>

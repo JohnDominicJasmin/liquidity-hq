@@ -131,6 +131,8 @@ export interface GrokContext {
   marketStructure: string;
   /* Absorption Detector (15M) */
   absorptionScore: string;
+  /* Yen carry trade risk */
+  yenWatch: string;
 }
 
 export interface GrokResult {
@@ -200,6 +202,7 @@ export function buildPrompt(ctx: GrokContext): string {
     `US Oil (CL=F): ${ctx.oilPrice}`,
     `US 10Y Bond Yield: ${ctx.bonds10y}`,
     `DXY (US Dollar Index): ${ctx.dxyLine}`,
+    `USD/JPY (Yen Carry Trade): ${ctx.yenWatch}`,
     `S&P 500: ${ctx.spxLine}`,
     `Gold (XAU/USD): ${ctx.goldLine}`,
     `BTC Dominance (trend): ${ctx.btcDomTrend}`,
