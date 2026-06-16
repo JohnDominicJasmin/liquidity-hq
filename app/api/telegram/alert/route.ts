@@ -136,6 +136,7 @@ async function tg(token: string, chatId: string | string[], text: string): Promi
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chat_id: id, text, parse_mode: 'HTML' }),
+        signal: AbortSignal.timeout(10_000),
       })
     ));
   } catch { /* fire-and-forget */ }
@@ -1176,13 +1177,19 @@ async function checkSqueezeAlerts(
    ════════════════════════════════════════ */
 /* Muted alert groups — set on /alerts page, stored in Supabase. Fail-open. */
 async function fetchMutedKeys(): Promise<Set<string>> {
-  try {
-    const db = getSupabase();
-    if (!db) return new Set();
-    const { data, error } = await db.from('muted_alerts').select('key');
-    if (error || !data) return new Set();
-    return new Set(data.map(r => String(r.key)));
-  } catch { return new Set(); }
+  const fallback = new Set<string>();
+  const query = (async () => {
+    try {
+      const db = getSupabase();
+      if (!db) return fallback;
+      const { data, error } = await db.from('muted_alerts').select('key');
+      if (error || !data) return fallback;
+      return new Set(data.map(r => String(r.key)));
+    } catch { return fallback; }
+  })();
+  // 5s cap — if Supabase is slow, fail-open (no keys muted)
+  const cap = new Promise<Set<string>>(res => setTimeout(() => res(fallback), 5_000));
+  return Promise.race([query, cap]);
 }
 
 export async function GET() {
@@ -1191,10 +1198,13 @@ export async function GET() {
     return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN not set' }, { status: 503 });
 
   // Safety net — never exceed Render's 30s limit
-  const timeout = new Promise<NextResponse>(res =>
-    setTimeout(() => res(NextResponse.json({ ok: true, fired: [], note: 'timeout — some checks skipped' })), 28_000)
-  );
-  return Promise.race([runAlerts(token), timeout]);
+  let timerId: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<NextResponse>(res => {
+    timerId = setTimeout(() => res(NextResponse.json({ ok: true, fired: [], note: 'timeout — some checks skipped' })), 28_000);
+  });
+  const result = await Promise.race([runAlerts(token), timeout]);
+  clearTimeout(timerId!);
+  return result;
 }
 
 async function runAlerts(token: string): Promise<NextResponse> {
