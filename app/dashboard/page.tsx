@@ -16,6 +16,28 @@ import SentimentExtremesAlert from '@/components/SentimentExtremesAlert';
 
 function MacroStrip() {
   const { store } = useMarket();
+  const [jpyUsd, setJpyUsd] = useState<number | null>(null);
+
+  useEffect(() => {
+    const load = () =>
+      fetch('/api/forex/jpy')
+        .then(r => r.json())
+        .then((d: { jpy?: number }) => { if (d?.jpy) setJpyUsd(d.jpy); })
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 5 * 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const jpyCol = jpyUsd == null ? 'var(--txt3)'
+    : jpyUsd >= 160 ? 'var(--red)'
+    : jpyUsd >= 158 ? 'var(--amber)'
+    : 'var(--green)';
+  const jpySig = jpyUsd == null ? null
+    : jpyUsd >= 160 ? { txt: 'BOJ intervention risk', col: 'var(--red)' }
+    : jpyUsd >= 158 ? { txt: 'Approaching danger', col: 'var(--amber)' }
+    : { txt: 'Carry trade stable', col: 'var(--green)' };
+
   const items = [
     {
       label: 'DXY',
@@ -72,6 +94,23 @@ function MacroStrip() {
             </div>
           );
         })}
+
+        {/* JPY — carry trade risk indicator */}
+        <div className="macro-item">
+          <div className="macro-item-label">JPY</div>
+          <div className="macro-item-price" style={{ color: jpyCol }}>
+            {jpyUsd != null ? jpyUsd.toFixed(2) : '—'}
+          </div>
+          <div className="macro-item-chg" style={{ color: jpyCol }}>
+            {jpyUsd != null
+              ? jpyUsd >= 160 ? '⚠ Danger' : jpyUsd >= 158 ? '⚡ Warning' : '✓ Safe'
+              : '—'}
+          </div>
+          {jpySig && (
+            <div className="macro-item-signal" style={{ color: jpySig.col }}>{jpySig.txt}</div>
+          )}
+        </div>
+
       </div>
     </div>
   );
