@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { classifyNews } from '@/lib/classify';
 import { getSupabase } from '@/lib/supabase';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { detectPatterns } from '@/lib/patterns';
 import { recordFires } from '@/lib/alertHistory';
 
@@ -126,20 +127,23 @@ const onCooldown = (key: string, ms: number) => { const t = lastSent.get(key); r
 const markSent   = (key: string) => lastSent.set(key, Date.now());
 
 /* ── Telegram send ── */
-async function tg(token: string, chatId: string, text: string): Promise<void> {
+async function tg(token: string, chatId: string | string[], text: string): Promise<void> {
+  const ids = Array.isArray(chatId) ? chatId : [chatId];
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
-    });
+    await Promise.all(ids.map(id =>
+      fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: id, text, parse_mode: 'HTML' }),
+      })
+    ));
   } catch { /* fire-and-forget */ }
 }
 
 /* ════════════════════════════════════════
    FLUSH — group signals by coin, send single or confluence
    ════════════════════════════════════════ */
-async function flushSignals(token: string, chatId: string, stamp: string, queue: SignalEntry[]): Promise<void> {
+async function flushSignals(token: string, chatId: string | string[], stamp: string, queue: SignalEntry[]): Promise<void> {
   if (queue.length === 0) return;
 
   // Group by coin
@@ -617,7 +621,7 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
 interface FinnhubItem { id: number; headline: string; datetime: number; source: string }
 const FINNHUB_KEY = process.env.FINNHUB_KEY ?? '';
 
-async function checkNews(token: string, chatId: string, stamp: string): Promise<string[]> {
+async function checkNews(token: string, chatId: string | string[], stamp: string): Promise<string[]> {
   const fired: string[] = [];
   const since = Math.floor(Date.now() / 1000) - 600;
   try {
@@ -844,7 +848,7 @@ async function checkPriceAlerts(stamp: string, prices: Record<string, number>, q
    ════════════════════════════════════════ */
 interface FNGData { value: string; value_classification: string }
 
-async function checkFearGreed(token: string, chatId: string, stamp: string): Promise<string[]> {
+async function checkFearGreed(token: string, chatId: string | string[], stamp: string): Promise<string[]> {
   const fired: string[] = [];
   try {
     const res  = await fetch('https://api.alternative.me/fng/', { cache: 'no-store' });
@@ -880,7 +884,7 @@ async function checkFearGreed(token: string, chatId: string, stamp: string): Pro
    10. DAILY 7AM PHT SUMMARY
    ════════════════════════════════════════ */
 async function checkDailySummary(
-  token: string, chatId: string, stamp: string,
+  token: string, chatId: string | string[], stamp: string,
   frMap: Record<string, number | null>
 ): Promise<string[]> {
   const d       = new Date();
@@ -963,7 +967,7 @@ async function checkDailySummary(
 interface LSItem { longShortRatio: string; longAccount: string; shortAccount: string }
 
 async function checkSentimentExtremes(
-  token: string, chatId: string, stamp: string,
+  token: string, chatId: string | string[], stamp: string,
   frMap: Record<string, number | null>
 ): Promise<string[]> {
   const fired: string[] = [];
@@ -1181,10 +1185,33 @@ async function fetchMutedKeys(): Promise<Set<string>> {
 }
 
 export async function GET() {
-  const token  = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId)
-    return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set' }, { status: 503 });
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token)
+    return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN not set' }, { status: 503 });
+
+  // Collect all users who have connected their Telegram
+  const allChatIds: string[] = [];
+  try {
+    const admin = getSupabaseAdmin();
+    const { data } = await admin
+      .from('user_settings')
+      .select('telegram_chat_id')
+      .not('telegram_chat_id', 'is', null)
+      .neq('telegram_chat_id', '');
+    for (const row of data ?? []) {
+      const id = (row.telegram_chat_id as string)?.trim();
+      if (id && !allChatIds.includes(id)) allChatIds.push(id);
+    }
+  } catch { /* admin key not configured — fall through to env var */ }
+
+  // Env var fallback (legacy / single-user installs)
+  const envChatId = process.env.TELEGRAM_CHAT_ID;
+  if (envChatId && !allChatIds.includes(envChatId)) allChatIds.push(envChatId);
+
+  if (allChatIds.length === 0)
+    return NextResponse.json({ error: 'No Telegram recipients configured' }, { status: 503 });
+
+  const chatId = allChatIds; // alias — all functions now accept string | string[]
 
   // Session-based cooldowns — tighter during pre-NY + NY (8pm–4am PHT)
   const nyActive = isHighActivity();
