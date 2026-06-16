@@ -9,7 +9,16 @@ export const dynamic = 'force-dynamic';
 
 /* ── Grok (lightweight — no web search, pure reasoning) ── */
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
+
+// Cap concurrent Grok calls — excess requests return '' immediately rather than
+// chaining 12s timeouts (e.g. 17 whale signals firing at once = 204s chained).
+let grokInFlight = 0;
+const GROK_CONCURRENCY = 3;
+
 async function grokAnalyze(prompt: string): Promise<string> {
+  if (!GROK_KEY) return '';
+  if (grokInFlight >= GROK_CONCURRENCY) return ''; // shed load
+  grokInFlight++;
   try {
     const res = await fetch('https://api.x.ai/v1/chat/completions', {
       method: 'POST',
@@ -20,7 +29,9 @@ async function grokAnalyze(prompt: string): Promise<string> {
     if (!res.ok) return '';
     const data = await res.json();
     return (data.choices?.[0]?.message?.content ?? '').trim();
-  } catch { return ''; }
+  } catch { return ''; } finally {
+    grokInFlight--;
+  }
 }
 
 /* ── Conviction parser ── */
@@ -800,17 +811,35 @@ async function checkCVD(stamp: string, queue: SignalEntry[]): Promise<string[]> 
 
 /* ════════════════════════════════════════
    8. PRICE ALERTS (user-set, Supabase)
+   Per-user: each alert fires only to its owner's Telegram.
+   Falls back to allChatIds for legacy rows with no user_id.
    ════════════════════════════════════════ */
-interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string }
+interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; user_id?: string | null }
 
-async function checkPriceAlerts(stamp: string, prices: Record<string, number>, queue: SignalEntry[]): Promise<string[]> {
-  const db = getSupabase();
-  if (!db) return [];
+async function checkPriceAlerts(
+  token: string, stamp: string, prices: Record<string, number>,
+  allChatIds: string[]
+): Promise<string[]> {
   const fired: string[] = [];
   try {
-    const { data: alerts } = await db.from('price_alerts').select('*').eq('active', true);
-    if (!alerts?.length) return [];
-    for (const alert of alerts as PriceAlert[]) {
+    const admin = getSupabaseAdmin();
+
+    // Fetch alerts + per-user chat IDs in parallel
+    const [alertsRes, settingsRes] = await Promise.all([
+      admin.from('price_alerts').select('*').eq('active', true),
+      admin.from('user_settings').select('user_id, telegram_chat_id'),
+    ]);
+
+    if (!alertsRes.data?.length) return [];
+
+    // Build user_id → telegram_chat_id lookup
+    const chatIdByUser = new Map<string, string>();
+    for (const row of settingsRes.data ?? []) {
+      const id = (row.telegram_chat_id as string)?.trim();
+      if (id) chatIdByUser.set(row.user_id as string, id);
+    }
+
+    for (const alert of alertsRes.data as PriceAlert[]) {
       const price = prices[alert.coin];
       if (price == null) continue;
       const triggered =
@@ -827,18 +856,21 @@ async function checkPriceAlerts(stamp: string, prices: Record<string, number>, q
         `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
       const grokLine = fmtGrok(grokTake);
 
-      queue.push({
-        coin: alert.coin, name: `${label} price alert at $${alert.target_price.toLocaleString()}`,
-        title: `Price Alert ${dirLabel.replace(/📈 |📉 /, '')} $${alert.target_price.toLocaleString()}`,
-        body: `🎯 <b>${label} Price Alert Triggered</b>\n\n` +
-          `${dirLabel} <b>$${alert.target_price.toLocaleString()}</b>\n` +
-          `Current: $${price.toLocaleString()}` +
-          (alert.label ? `\nNote: ${alert.label}` : '') +
-          `${grokLine}\n\n<i>${stamp}</i>`,
-      });
+      const body = `🎯 <b>${label} Price Alert Triggered</b>\n\n` +
+        `${dirLabel} <b>$${alert.target_price.toLocaleString()}</b>\n` +
+        `Current: $${price.toLocaleString()}` +
+        (alert.label ? `\nNote: ${alert.label}` : '') +
+        `${grokLine}\n\n<i>${stamp}</i>`;
 
-      // Deactivate immediately — don't wait for flush
-      await db.from('price_alerts').update({ active: false, triggered_at: new Date().toISOString() }).eq('id', alert.id);
+      // Route to owner if known; legacy rows (no user_id) broadcast to everyone
+      const ownerChatId = alert.user_id ? chatIdByUser.get(alert.user_id) : null;
+      const recipient   = ownerChatId ?? allChatIds;
+      if (!ownerChatId && allChatIds.length === 0) continue;
+
+      await tg(token, recipient, body);
+
+      // Deactivate immediately — fire once then done
+      await admin.from('price_alerts').update({ active: false, triggered_at: new Date().toISOString() }).eq('id', alert.id);
       fired.push(`${label} price alert at $${alert.target_price.toLocaleString()}`);
     }
   } catch { /* skip */ }
@@ -925,17 +957,14 @@ async function checkDailySummary(
   // Active price alerts
   let alertsBlock = '';
   try {
-    const db = getSupabase();
-    if (db) {
-      const { data } = await db.from('price_alerts').select('*').eq('active', true);
-      if (data?.length) {
-        const lines = (data as PriceAlert[]).map(a => {
-          const lbl = LABELS[a.coin] ?? a.coin.toUpperCase();
-          const dir = a.direction === 'above' ? '↑' : '↓';
-          return `• ${lbl} ${dir} $${parseFloat(String(a.target_price)).toLocaleString()}${a.label ? ` (${a.label})` : ''}`;
-        }).join('\n');
-        alertsBlock = `\n\n🎯 <b>Active Price Alerts:</b>\n${lines}`;
-      }
+    const { data } = await getSupabaseAdmin().from('price_alerts').select('*').eq('active', true);
+    if (data?.length) {
+      const lines = (data as PriceAlert[]).map(a => {
+        const lbl = LABELS[a.coin] ?? a.coin.toUpperCase();
+        const dir = a.direction === 'above' ? '↑' : '↓';
+        return `• ${lbl} ${dir} $${parseFloat(String(a.target_price)).toLocaleString()}${a.label ? ` (${a.label})` : ''}`;
+      }).join('\n');
+      alertsBlock = `\n\n🎯 <b>Active Price Alerts:</b>\n${lines}`;
     }
   } catch { /* skip */ }
 
@@ -1262,7 +1291,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     skip('daily_summary')      ? none : checkDailySummary(token, chatId, stamp, frMap),      // global — sends directly
     skip('oi_spike')           ? none : checkOISpike(stamp, prices, signalQueue),
     skip('cvd')                ? none : checkCVD(stamp, signalQueue),
-    skip('price_alerts')       ? none : checkPriceAlerts(stamp, prices, signalQueue),
+    skip('price_alerts')       ? none : checkPriceAlerts(token, stamp, prices, allChatIds),
     skip('sentiment_extremes') ? none : checkSentimentExtremes(token, chatId, stamp, frMap), // global — sends directly
     skip('squeeze')            ? none : checkSqueezeAlerts(stamp, frMap, lsMap, signalQueue),
   ]);

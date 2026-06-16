@@ -27,7 +27,8 @@ export default function AlertsPage() {
   const [detecting, setDetecting]     = useState(false);
   const [detectError, setDetectError] = useState('');
   const [detected, setDetected]       = useState(false);
-  const [botUsername, setBotUsername] = useState<string | null>(null);
+  const [botUsername, setBotUsername]   = useState<string | null>(null);
+  const [webhookOk, setWebhookOk]       = useState(true);
   const [saveState, setSaveState]     = useState<'idle' | 'saving' | 'saved'>('idle');
 
   // Muted alert groups
@@ -55,7 +56,7 @@ export default function AlertsPage() {
 
   useEffect(() => {
     fetch('/api/telegram/bot-info').then(r => r.json())
-      .then(d => setBotUsername(d.username ?? null))
+      .then(d => { setBotUsername(d.username ?? null); setWebhookOk(d.webhook_ok !== false); })
       .catch(() => {});
     fetch('/api/alert-prefs').then(r => r.json())
       .then(d => setMuted(new Set<string>(d.muted ?? [])))
@@ -97,8 +98,13 @@ export default function AlertsPage() {
 
   const loadPriceAlerts = useCallback(async () => {
     setPaLoading(true);
-    try { const d = await fetch('/api/price-alerts').then(r => r.json()); setPriceAlerts(d.alerts ?? []); }
-    catch { /* skip */ }
+    try {
+      const token = await getAuthToken();
+      const d = await fetch('/api/price-alerts', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).then(r => r.json());
+      setPriceAlerts(d.alerts ?? []);
+    } catch { /* skip */ }
     setPaLoading(false);
   }, []);
 
@@ -108,9 +114,13 @@ export default function AlertsPage() {
     if (!paPrice || isNaN(parseFloat(paPrice))) return;
     setPaAdding(true);
     try {
+      const token = await getAuthToken();
       await fetch('/api/price-alerts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ coin: paCoin, target_price: parseFloat(paPrice), direction: paDir, label: paLabel }),
       });
       setPaPrice(''); setPaLabel('');
@@ -122,7 +132,11 @@ export default function AlertsPage() {
 
   const deletePriceAlert = async (id: number) => {
     try {
-      await fetch(`/api/price-alerts?id=${id}`, { method: 'DELETE' });
+      const token = await getAuthToken();
+      await fetch(`/api/price-alerts?id=${id}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       setPriceAlerts(prev => prev.filter(a => a.id !== id));
     } catch { /* skip */ }
   };
@@ -289,6 +303,15 @@ export default function AlertsPage() {
             <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 18, lineHeight: 1.6 }}>
               Get trading alerts straight to your phone. Takes 30 seconds.
             </div>
+
+            {!webhookOk && (
+              <div style={{
+                fontSize: 11, color: '#f87171', marginBottom: 14, padding: '8px 12px',
+                background: '#f8717114', borderRadius: 6, border: '0.5px solid #f8717144',
+              }}>
+                ⚠ Bot webhook registration failed — the bot may not reply to /start. Try refreshing, or enter your Chat ID manually below.
+              </div>
+            )}
 
             {/* Step 1 */}
             <div style={stepStyle}>
