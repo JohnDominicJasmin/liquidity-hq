@@ -321,7 +321,7 @@ export default function AlertsPage() {
                   &nbsp;in the chat
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--txt3)' }}>
-                  The bot will confirm it&apos;s ready.
+                  The bot replies with your <strong style={{ color: 'var(--txt2)' }}>Chat ID</strong> — copy that number.
                 </div>
               </div>
             </div>

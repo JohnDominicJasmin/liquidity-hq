@@ -13,16 +13,26 @@ export async function GET() {
 
   const data = await res.json() as {
     ok: boolean;
+    error_code?: number;
+    description?: string;
     result?: Array<{
       update_id: number;
       message?: { chat: { id: number; first_name?: string; username?: string }; text?: string };
     }>;
   };
 
+  // Webhook mode active — getUpdates conflicts with it
+  if (!data.ok && data.error_code === 409) {
+    return NextResponse.json({
+      ok: false,
+      error: 'Send /start to the bot — it will reply with your Chat ID directly.',
+    });
+  }
+
   if (!data.ok || !data.result?.length) {
     return NextResponse.json({
       ok: false,
-      error: 'No messages found. Open the bot and send /start first, then try again.',
+      error: 'No messages found. Send /start to the bot first, then try again.',
     });
   }
 
@@ -30,7 +40,7 @@ export async function GET() {
   if (!withMsg.length) {
     return NextResponse.json({
       ok: false,
-      error: 'No messages found. Open the bot and send /start first, then try again.',
+      error: 'No messages found. Send /start to the bot first, then try again.',
     });
   }
 
