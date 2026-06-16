@@ -74,16 +74,23 @@ function buildBriefingContext(
   coinRows: Array<{ id: CoinId; c: MarketStore['coins'][CoinId] }>,
   urgentEcon: Array<{ type: string; name: string; h: number; impact: string; dt: Date }>,
   recentGeo:  Array<{ tag: string; headline: string }>,
+  jpyUsd?: number | null,
 ): string {
   const phtTime = new Date().toLocaleString('en-US', {
     timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', hour12: true,
   });
+
+  const jpyStatus = jpyUsd == null ? 'N/A'
+    : jpyUsd >= 160 ? `${jpyUsd.toFixed(2)} — DANGER ZONE (BOJ intervention risk, carry trade unwind can trigger BTC liquidations)`
+    : jpyUsd >= 158 ? `${jpyUsd.toFixed(2)} — WARNING (approaching 160 danger zone, watch BOJ signals)`
+    : `${jpyUsd.toFixed(2)} — Safe (below 158, carry trade stable)`;
 
   const lines = [
     `Time: ${phtTime} PHT`,
     `Fear & Greed: ${store.fng ?? '?'} — ${store.fngLabel ?? '?'}`,
     `BTC Dominance: ${store.btcDom?.toFixed(1) ?? '?'}%`,
     `DXY: ${store.dxy?.toFixed(2) ?? '?'} (${store.dxyChg != null ? (store.dxyChg >= 0 ? '+' : '') + store.dxyChg.toFixed(2) : '?'}% 24h)`,
+    `USD/JPY (Yen Watch): ${jpyStatus}`,
     `BTC ETF Flow: ${store.etfNetFlow != null ? (store.etfNetFlow >= 0 ? '+' : '') + '$' + store.etfNetFlow.toFixed(0) + 'M' : 'N/A'}`,
     '',
     'COINS (24h change | FR | RSI 15m | CVD divergence | OI trend):',
@@ -127,6 +134,8 @@ export default function MorningBriefing() {
   const [now, setNow]           = useState<Date>(phtNow);
   const [generating, setGen]    = useState(false);
   const [briefErr, setBriefErr] = useState('');
+  const [jpyUsd, setJpyUsd]     = useState<number | null>(null);
+  const [jpyUpdated, setJpyUpdated] = useState<Date | null>(null);
 
   /* ── AI brief — persist across refreshes via sessionStorage (4h TTL) ── */
   const [brief, setBriefState] = useState('');
@@ -158,6 +167,20 @@ export default function MorningBriefing() {
     return () => clearInterval(t);
   }, []);
 
+  /* Fetch USD/JPY — Frankfurter free API, refreshes every 5 min */
+  useEffect(() => {
+    const load = () =>
+      fetch('https://api.frankfurter.app/latest?from=USD&to=JPY')
+        .then(r => r.json())
+        .then((d: { rates?: { JPY?: number } }) => {
+          if (d?.rates?.JPY) { setJpyUsd(d.rates.JPY); setJpyUpdated(new Date()); }
+        })
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 5 * 60_000);
+    return () => clearInterval(t);
+  }, []);
+
   const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const h = now.getHours(), m = now.getMinutes();
@@ -183,7 +206,7 @@ export default function MorningBriefing() {
   async function generateBriefing() {
     setGen(true); setBrief(''); setBriefErr('');
     try {
-      const ctx = buildBriefingContext(store, coinRows, urgentEcon, recentGeo);
+      const ctx = buildBriefingContext(store, coinRows, urgentEcon, recentGeo, jpyUsd);
       const res = await fetch('/api/briefing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -239,6 +262,22 @@ export default function MorningBriefing() {
 
   const futureEcon = urgentEcon.filter(e => e.dt.getTime() > Date.now());
   const noEvents = futureEcon.length === 0 && recentGeo.length === 0 && (!whaleAlerts || whaleAlerts.length === 0);
+
+  /* Yen Watch */
+  const jpyStatus = jpyUsd == null ? null
+    : jpyUsd >= 160
+      ? { label: 'DANGER', color: '#f87171', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.25)',
+          desc: 'BOJ intervention risk high — carry trade unwind can trigger BTC liquidations. Reduce leverage.' }
+    : jpyUsd >= 158
+      ? { label: 'WARNING', color: '#fbbf24', bg: 'rgba(251,191,36,0.06)', border: 'rgba(251,191,36,0.2)',
+          desc: 'Approaching 160 danger zone. Watch for BOJ rhetoric or surprise rate hike signals.' }
+      : { label: 'SAFE', color: '#34d399', bg: 'rgba(52,211,153,0.06)', border: 'rgba(52,211,153,0.2)',
+          desc: 'Yen carry trade stable. Reduced crypto liquidation risk from JPY side.' };
+  // progress bar: 140 = left edge, 165 = right edge
+  const jpyPct        = jpyUsd != null ? Math.max(0, Math.min(100, ((jpyUsd - 140) / 25) * 100)) : 0;
+  const warn158Pct    = ((158 - 140) / 25) * 100;  // 72%
+  const danger160Pct  = ((160 - 140) / 25) * 100;  // 80%
+  const jpyMinutesAgo = jpyUpdated ? Math.round((now.getTime() - jpyUpdated.getTime()) / 60_000) : null;
 
   return (
     <div>
@@ -372,6 +411,73 @@ export default function MorningBriefing() {
           )}
 
         </div>
+      </div>
+
+      {/* ── Yen Watch ── */}
+      <div className="card" style={{ marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div className="lbl" style={{ margin: 0 }}>Yen Watch</div>
+          {jpyStatus && (
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20, letterSpacing: '.06em',
+              color: jpyStatus.color, background: jpyStatus.bg, border: `0.5px solid ${jpyStatus.border}`,
+            }}>{jpyStatus.label}</span>
+          )}
+        </div>
+
+        {jpyUsd == null ? (
+          <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Fetching rate…</div>
+        ) : (
+          <>
+            {/* Rate */}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 11, color: 'var(--txt3)', letterSpacing: '.05em' }}>USD/JPY</span>
+              <span style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.5px', color: jpyStatus!.color }}>
+                {jpyUsd.toFixed(2)}
+              </span>
+            </div>
+
+            {/* Danger zone bar */}
+            <div style={{ position: 'relative', paddingBottom: 18, marginBottom: 6 }}>
+              <div style={{
+                height: 6, borderRadius: 3, overflow: 'hidden',
+                background: `linear-gradient(to right,
+                  rgba(52,211,153,0.35) 0%, rgba(52,211,153,0.35) ${warn158Pct}%,
+                  rgba(251,191,36,0.45) ${warn158Pct}%, rgba(251,191,36,0.45) ${danger160Pct}%,
+                  rgba(248,113,113,0.45) ${danger160Pct}%, rgba(248,113,113,0.45) 100%)`,
+              }}>
+                {/* Current rate dot */}
+                <div style={{
+                  position: 'absolute', top: 0, left: `${jpyPct}%`, transform: 'translate(-50%, 0)',
+                  width: 12, height: 12, borderRadius: '50%', marginTop: -3,
+                  background: jpyStatus!.color, border: '2px solid #111',
+                  boxShadow: `0 0 8px ${jpyStatus!.color}88`,
+                }} />
+              </div>
+              {/* Threshold labels */}
+              <span style={{ position: 'absolute', bottom: 0, left: 0, fontSize: 9, color: 'var(--txt3)' }}>140</span>
+              <span style={{
+                position: 'absolute', bottom: 0, left: `${warn158Pct}%`, transform: 'translateX(-50%)',
+                fontSize: 9, color: '#fbbf24', fontWeight: 600,
+              }}>158⚠</span>
+              <span style={{
+                position: 'absolute', bottom: 0, left: `${danger160Pct}%`, transform: 'translateX(-50%)',
+                fontSize: 9, color: '#f87171', fontWeight: 600,
+              }}>160</span>
+              <span style={{ position: 'absolute', bottom: 0, right: 0, fontSize: 9, color: 'var(--txt3)' }}>165</span>
+            </div>
+
+            {/* Interpretation */}
+            <div style={{ fontSize: 11, color: 'var(--txt2)', lineHeight: 1.55, marginTop: 4 }}>
+              {jpyStatus!.desc}
+            </div>
+            {jpyMinutesAgo !== null && (
+              <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 5 }}>
+                Updated {jpyMinutesAgo < 1 ? 'just now' : `${jpyMinutesAgo}m ago`}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* ── All Coins Table ── */}
