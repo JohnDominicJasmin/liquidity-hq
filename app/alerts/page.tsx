@@ -18,8 +18,9 @@ export default function AlertsPage() {
 
   const [testState, setTestState]   = useState<'idle' | 'sending' | 'ok' | 'err'>('idle');
   const [testErr, setTestErr]       = useState('');
-  const [checkState, setCheckState] = useState<'idle' | 'checking' | 'done'>('idle');
-  const [checkResult, setCheckResult] = useState<{ fired: string[]; rates?: Record<string, number | null> } | null>(null);
+  const [checkState, setCheckState] = useState<'idle' | 'checking' | 'done' | 'err'>('idle');
+  const [checkResult, setCheckResult] = useState<{ fired: string[]; note?: string } | null>(null);
+  const [checkErr, setCheckErr]       = useState('');
 
   // Wizard state
   const [chatIdInput, setChatIdInput] = useState('');
@@ -169,10 +170,17 @@ export default function AlertsPage() {
   };
 
   const checkNow = async () => {
-    setCheckState('checking'); setCheckResult(null);
-    try { setCheckResult(await fetch('/api/telegram/alert').then(r => r.json())); }
-    catch { /* skip */ }
-    setCheckState('done');
+    setCheckState('checking'); setCheckResult(null); setCheckErr('');
+    try {
+      const res = await fetch('/api/telegram/alert', { signal: AbortSignal.timeout(30_000) });
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      const d = await res.json();
+      setCheckResult(d);
+      setCheckState('done');
+    } catch (e) {
+      setCheckErr(e instanceof Error ? e.message : 'Request failed');
+      setCheckState('err');
+    }
   };
 
   const botLink = botUsername ? `https://t.me/${botUsername}` : null;
@@ -471,12 +479,23 @@ export default function AlertsPage() {
       {isConnected && (
         <div className="card" style={{ marginBottom: 10 }}>
           <div className="lbl" style={{ marginBottom: 12 }}>Manual Check</div>
-          <button className="tg-action-btn tg-btn-secondary" onClick={checkNow} disabled={checkState === 'checking'}>
-            {checkState === 'checking' ? 'Checking…' : 'Check Alerts Now'}
+          <button
+            className={`tg-action-btn tg-btn-secondary${checkState === 'err' ? ' tg-btn-err' : ''}`}
+            onClick={checkNow}
+            disabled={checkState === 'checking'}
+          >
+            {checkState === 'checking' ? 'Checking…' : checkState === 'err' ? '✕ Failed — retry?' : 'Check Alerts Now'}
           </button>
           {checkState === 'done' && checkResult && (
-            <div style={{ marginTop: 12, fontSize: 11, color: 'var(--txt2)', lineHeight: 1.7 }}>
-              {checkResult.fired?.length === 0 ? '✓ No alert conditions active right now.' : `🔔 Fired: ${checkResult.fired.join(', ')}`}
+            <div style={{ marginTop: 10, fontSize: 11, color: 'var(--txt2)', lineHeight: 1.7 }}>
+              {checkResult.fired?.length === 0
+                ? `✓ No conditions active right now.${checkResult.note ? ` (${checkResult.note})` : ''}`
+                : `🔔 Fired: ${checkResult.fired.join(', ')}`}
+            </div>
+          )}
+          {checkState === 'err' && (
+            <div style={{ marginTop: 8, fontSize: 11, color: 'var(--red)' }}>
+              {checkErr || 'Request timed out — server may be cold starting. Try again in 30s.'}
             </div>
           )}
         </div>

@@ -15,6 +15,7 @@ async function grokAnalyze(prompt: string): Promise<string> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROK_KEY}` },
       body: JSON.stringify({ model: 'grok-4.3', messages: [{ role: 'user', content: prompt }], max_tokens: 200 }),
+      signal: AbortSignal.timeout(12_000),
     });
     if (!res.ok) return '';
     const data = await res.json();
@@ -190,8 +191,8 @@ async function fetchAllFR(): Promise<Record<string, number | null>> {
   const result: Record<string, number | null> = {};
   COINS.forEach(c => (result[c] = null));
   const [bnR, bbR] = await Promise.allSettled([
-    fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store' }),
-    fetch('https://api.bybit.com/v5/market/tickers?category=linear', { cache: 'no-store' }),
+    fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
+    fetch('https://api.bybit.com/v5/market/tickers?category=linear', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
   ]);
   if (bnR.status === 'fulfilled' && bnR.value.ok) {
     const d = await bnR.value.json() as BNTicker[];
@@ -212,7 +213,7 @@ async function fetchAllFR(): Promise<Record<string, number | null>> {
 
 async function fetchSpotPrices(): Promise<Record<string, number>> {
   try {
-    const res  = await fetch('https://api.binance.com/api/v3/ticker/price', { cache: 'no-store' });
+    const res  = await fetch('https://api.binance.com/api/v3/ticker/price', { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
     if (!res.ok) return {};
     const data = await res.json() as Array<{ symbol: string; price: string }>;
     const out: Record<string, number> = {};
@@ -229,7 +230,7 @@ async function fetchBybitKlines(symbol: string, interval: string, limit: number)
   try {
     const res = await fetch(
       `https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}&interval=${interval}&limit=${limit}`,
-      { cache: 'no-store' }
+      { cache: 'no-store', signal: AbortSignal.timeout(7_000) }
     );
     if (!res.ok) return [];
     const data = await res.json() as { result?: { list?: string[][] } };
@@ -331,7 +332,7 @@ async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> 
     try {
       let closes: number[];
       if (BINANCE_SPOT[coin]) {
-        const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=20`, { cache: 'no-store' });
+        const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=20`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
         if (!res.ok) return;
         const data = await res.json() as Array<unknown[]>;
         closes = data.map(c => parseFloat(c[4] as string));
@@ -397,7 +398,7 @@ async function checkEMACross(stamp: string, queue: SignalEntry[]): Promise<strin
       if (BINANCE_SPOT[coin]) {
         const res = await fetch(
           `https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=300`,
-          { cache: 'no-store' }
+          { cache: 'no-store', signal: AbortSignal.timeout(7_000) }
         );
         if (!res.ok) return;
         const data = await res.json() as Array<unknown[]>;
@@ -480,7 +481,7 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[]): Promise<stri
           if (BINANCE_SPOT[coin]) {
             const res = await fetch(
               `https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=${interval}&limit=25`,
-              { cache: 'no-store' }
+              { cache: 'no-store', signal: AbortSignal.timeout(7_000) }
             );
             if (!res.ok) return;
             const data = await res.json() as Array<unknown[]>;
@@ -548,7 +549,7 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
       const threshold = WHALE_THRESHOLD[coin];
       if (!threshold) return;
       try {
-        const res    = await fetch(`https://fapi.binance.com/fapi/v1/aggTrades?symbol=${sym}&startTime=${since}&limit=500`, { cache: 'no-store' });
+        const res    = await fetch(`https://fapi.binance.com/fapi/v1/aggTrades?symbol=${sym}&startTime=${since}&limit=500`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
         if (!res.ok) return;
         const trades = await res.json() as AggTrade[];
         const label  = LABELS[coin];
@@ -582,7 +583,7 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
       try {
         const res = await fetch(
           `https://api.bybit.com/v5/market/recent-trade?category=linear&symbol=${sym}&limit=1000`,
-          { cache: 'no-store' }
+          { cache: 'no-store', signal: AbortSignal.timeout(7_000) }
         );
         if (!res.ok) return;
         const data = await res.json() as { result?: { list?: Array<{ T: number; p: string; v: string; S: string }> } };
@@ -626,8 +627,8 @@ async function checkNews(token: string, chatId: string | string[], stamp: string
   const since = Math.floor(Date.now() / 1000) - 600;
   try {
     const [cryptoR, generalR] = await Promise.allSettled([
-      fetch(`https://finnhub.io/api/v1/news?category=crypto&token=${FINNHUB_KEY}`, { cache: 'no-store' }),
-      fetch(`https://finnhub.io/api/v1/news?category=general&token=${FINNHUB_KEY}`, { cache: 'no-store' }),
+      fetch(`https://finnhub.io/api/v1/news?category=crypto&token=${FINNHUB_KEY}`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
+      fetch(`https://finnhub.io/api/v1/news?category=general&token=${FINNHUB_KEY}`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
     ]);
     const items: FinnhubItem[] = [];
     if (cryptoR.status === 'fulfilled' && cryptoR.value.ok) {
@@ -667,7 +668,7 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
     // ── Binance perp coins ──
     ...Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
     try {
-      const res = await fetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=5m&limit=13`, { cache: 'no-store' });
+      const res = await fetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=5m&limit=13`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
       if (!res.ok) return;
       const data  = await res.json() as OIHistItem[];
       if (data.length < 12) return;
@@ -707,7 +708,7 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
       try {
         const res = await fetch(
           `https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${sym}&intervalTime=5min&limit=13`,
-          { cache: 'no-store' }
+          { cache: 'no-store', signal: AbortSignal.timeout(7_000) }
         );
         if (!res.ok) return;
         const data = await res.json() as { result?: { list?: Array<{ openInterest: string }> } };
@@ -755,8 +756,8 @@ async function checkCVD(stamp: string, queue: SignalEntry[]): Promise<string[]> 
   await Promise.all(Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
     try {
       const [kRes, tvRes] = await Promise.allSettled([
-        fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1h&limit=2`, { cache: 'no-store' }),
-        fetch(`https://fapi.binance.com/futures/data/takerBuySellVol?symbol=${sym}&period=5m&limit=12`, { cache: 'no-store' }),
+        fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1h&limit=2`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
+        fetch(`https://fapi.binance.com/futures/data/takerBuySellVol?symbol=${sym}&period=5m&limit=12`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
       ]);
       if (kRes.status !== 'fulfilled' || !kRes.value.ok) return;
       if (tvRes.status !== 'fulfilled' || !tvRes.value.ok) return;
@@ -851,7 +852,7 @@ interface FNGData { value: string; value_classification: string }
 async function checkFearGreed(token: string, chatId: string | string[], stamp: string): Promise<string[]> {
   const fired: string[] = [];
   try {
-    const res  = await fetch('https://api.alternative.me/fng/', { cache: 'no-store' });
+    const res  = await fetch('https://api.alternative.me/fng/', { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
     if (!res.ok) return [];
     const json = await res.json() as { data: FNGData[] };
     const val  = parseInt(json.data?.[0]?.value ?? '50');
@@ -901,7 +902,7 @@ async function checkDailySummary(
   let fngLine    = '';
   let fngForGrok = '';
   try {
-    const fngRes = await fetch('https://api.alternative.me/fng/', { cache: 'no-store' });
+    const fngRes = await fetch('https://api.alternative.me/fng/', { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
     if (fngRes.ok) {
       const fngJson = await fngRes.json() as { data: FNGData[] };
       const val = fngJson.data?.[0]?.value;
@@ -977,8 +978,8 @@ async function checkSentimentExtremes(
 
     // Fetch F&G and BTC L/S ratio in parallel
     const [fngR, lsR] = await Promise.allSettled([
-      fetch('https://api.alternative.me/fng/', { cache: 'no-store' }),
-      fetch('https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=1', { cache: 'no-store' }),
+      fetch('https://api.alternative.me/fng/', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
+      fetch('https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=1', { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
     ]);
 
     if (fngR.status !== 'fulfilled' || !fngR.value.ok) return [];
@@ -1060,7 +1061,7 @@ async function fetchAllLSR(): Promise<Record<string, number | null>> {
       try {
         const res = await fetch(
           `https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=5m&limit=1`,
-          { cache: 'no-store' }
+          { cache: 'no-store', signal: AbortSignal.timeout(7_000) }
         );
         if (!res.ok) return;
         const d = await res.json() as Array<{ longAccount: string }>;
@@ -1073,7 +1074,7 @@ async function fetchAllLSR(): Promise<Record<string, number | null>> {
       try {
         const res = await fetch(
           `https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${sym}&period=5min&limit=1`,
-          { cache: 'no-store' }
+          { cache: 'no-store', signal: AbortSignal.timeout(7_000) }
         );
         if (!res.ok) return;
         const d = await res.json() as { result?: { list?: Array<{ buyRatio: string }> } };
@@ -1188,6 +1189,15 @@ export async function GET() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token)
     return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN not set' }, { status: 503 });
+
+  // Safety net — never exceed Render's 30s limit
+  const timeout = new Promise<NextResponse>(res =>
+    setTimeout(() => res(NextResponse.json({ ok: true, fired: [], note: 'timeout — some checks skipped' })), 28_000)
+  );
+  return Promise.race([runAlerts(token), timeout]);
+}
+
+async function runAlerts(token: string): Promise<NextResponse> {
 
   // Collect all users who have connected their Telegram
   const allChatIds: string[] = [];
