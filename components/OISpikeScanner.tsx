@@ -140,6 +140,11 @@ export default function OISpikeScanner() {
           ?? (pct != null && Math.abs(pct) >= 2 ? (pct > 0 ? 'Rising' : 'Unwinding') : 'Stable');
         const sigCol   = sig?.col ?? 'var(--txt3)';
 
+        // Bybit OI history returns contracts (base asset), not USD — multiply by live price
+        const displayOiUsd = oiUsd != null && BYBIT_OI[coin]
+          ? (coinData?.price ? oiUsd * coinData.price : null)
+          : oiUsd;
+
         return (
           <div
             key={coin}
@@ -158,7 +163,7 @@ export default function OISpikeScanner() {
             <span className="ois-coin">{coin.toUpperCase()}</span>
 
             {/* OI USD — hidden on very small screens */}
-            <span className="ois-oi-usd">{fmtOIUsd(oiUsd)}</span>
+            <span className="ois-oi-usd">{fmtOIUsd(displayOiUsd)}</span>
 
             {/* Pct change */}
             <span className="ois-pct" style={{ color: pctCol }}>

@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) return NextResponse.json({ ok: false, username: null, first_name: null, webhook_ok: false });
+  if (!token) return NextResponse.json({ ok: false, username: null, first_name: null, webhook_ok: true });
 
   const [meRes, webhookRes] = await Promise.all([
     fetch(`https://api.telegram.org/bot${token}/getMe`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
