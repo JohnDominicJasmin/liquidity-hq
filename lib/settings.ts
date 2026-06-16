@@ -17,19 +17,22 @@ export interface UserSettings {
   rsi_os:           number;   // alert when RSI 1h <= this
   // Appearance
   hidden_sections:  string[];
+  // Telegram — per-user chat ID (empty string = not connected)
+  telegram_chat_id: string;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
-  account_size:    1000,
-  risk_pct:        1.5,
-  default_coin:    'btc',
-  default_tf:      '15m',
-  fr_threshold:    0.05,
-  fng_fear:        15,
-  fng_greed:       85,
-  rsi_ob:          70,
-  rsi_os:          30,
-  hidden_sections: [],
+  account_size:     1000,
+  risk_pct:         1.5,
+  default_coin:     'btc',
+  default_tf:       '15m',
+  fr_threshold:     0.05,
+  fng_fear:         15,
+  fng_greed:        85,
+  rsi_ob:           70,
+  rsi_os:           30,
+  hidden_sections:  [],
+  telegram_chat_id: '',
 };
 
 // Hideable dashboard section ids → display labels
@@ -96,15 +99,16 @@ export function saveLocalSettings(s: UserSettings) {
 
 export function rowToSettings(row: Record<string, unknown>): UserSettings {
   return {
-    account_size:    +(row.account_size    ?? DEFAULT_SETTINGS.account_size),
-    risk_pct:        +(row.risk_pct        ?? DEFAULT_SETTINGS.risk_pct),
-    default_coin:    String(row.default_coin    ?? DEFAULT_SETTINGS.default_coin),
-    default_tf:      (row.default_tf as UserSettings['default_tf']) ?? DEFAULT_SETTINGS.default_tf,
-    fr_threshold:    +(row.fr_threshold    ?? DEFAULT_SETTINGS.fr_threshold),
-    fng_fear:        +(row.fng_fear        ?? DEFAULT_SETTINGS.fng_fear),
-    fng_greed:       +(row.fng_greed       ?? DEFAULT_SETTINGS.fng_greed),
-    rsi_ob:          +(row.rsi_ob          ?? DEFAULT_SETTINGS.rsi_ob),
-    rsi_os:          +(row.rsi_os          ?? DEFAULT_SETTINGS.rsi_os),
-    hidden_sections: (row.hidden_sections  as string[]) ?? DEFAULT_SETTINGS.hidden_sections,
+    account_size:     +(row.account_size    ?? DEFAULT_SETTINGS.account_size),
+    risk_pct:         +(row.risk_pct        ?? DEFAULT_SETTINGS.risk_pct),
+    default_coin:     String(row.default_coin    ?? DEFAULT_SETTINGS.default_coin),
+    default_tf:       (row.default_tf as UserSettings['default_tf']) ?? DEFAULT_SETTINGS.default_tf,
+    fr_threshold:     +(row.fr_threshold    ?? DEFAULT_SETTINGS.fr_threshold),
+    fng_fear:         +(row.fng_fear        ?? DEFAULT_SETTINGS.fng_fear),
+    fng_greed:        +(row.fng_greed       ?? DEFAULT_SETTINGS.fng_greed),
+    rsi_ob:           +(row.rsi_ob          ?? DEFAULT_SETTINGS.rsi_ob),
+    rsi_os:           +(row.rsi_os          ?? DEFAULT_SETTINGS.rsi_os),
+    hidden_sections:  (row.hidden_sections  as string[]) ?? DEFAULT_SETTINGS.hidden_sections,
+    telegram_chat_id: String(row.telegram_chat_id ?? ''),
   };
 }
