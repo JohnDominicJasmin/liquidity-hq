@@ -167,13 +167,13 @@ export default function MorningBriefing() {
     return () => clearInterval(t);
   }, []);
 
-  /* Fetch USD/JPY — Frankfurter free API, refreshes every 5 min */
+  /* Fetch USD/JPY via server proxy (avoids CORS), refreshes every 5 min */
   useEffect(() => {
     const load = () =>
-      fetch('https://api.frankfurter.app/latest?from=USD&to=JPY')
+      fetch('/api/forex/jpy')
         .then(r => r.json())
-        .then((d: { rates?: { JPY?: number } }) => {
-          if (d?.rates?.JPY) { setJpyUsd(d.rates.JPY); setJpyUpdated(new Date()); }
+        .then((d: { jpy?: number }) => {
+          if (d?.jpy) { setJpyUsd(d.jpy); setJpyUpdated(new Date()); }
         })
         .catch(() => {});
     load();
