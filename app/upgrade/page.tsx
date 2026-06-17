@@ -5,6 +5,11 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { getCheckoutUrl } from '@/lib/checkout';
 
+const CHECKOUT_CONFIGURED = !!(
+  process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL &&
+  process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL !== '#'
+);
+
 const FREE_FEATURES = [
   'Dashboard + market overview',
   'Morning briefing',
@@ -115,24 +120,41 @@ export default function UpgradePage() {
 
         {/* CTA */}
         <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-          <button
-            onClick={handleCheckout}
-            disabled={redirecting}
-            style={{ fontSize: 15, fontWeight: 700, color: '#fff', background: 'var(--accent)', padding: '14px 40px', borderRadius: 12, border: 'none', cursor: redirecting ? 'default' : 'pointer', opacity: redirecting ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)' }}
-            onMouseEnter={e => { if (!redirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
-          >
-            {redirecting ? 'Redirecting to checkout…' : 'Get Pro — $15/mo →'}
-          </button>
-
-          {/* Trust signals */}
-          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
-            {['Cancel anytime', 'Instant access', 'Secure checkout'].map(t => (
-              <span key={t} style={{ fontSize: 12, color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ color: '#22c55e', fontSize: 11 }}>✓</span> {t}
-              </span>
-            ))}
-          </div>
+          {CHECKOUT_CONFIGURED ? (
+            <>
+              <button
+                onClick={handleCheckout}
+                disabled={redirecting}
+                style={{ fontSize: 15, fontWeight: 700, color: '#fff', background: 'var(--accent)', padding: '14px 40px', borderRadius: 12, border: 'none', cursor: redirecting ? 'default' : 'pointer', opacity: redirecting ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)' }}
+                onMouseEnter={e => { if (!redirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
+              >
+                {redirecting ? 'Redirecting to checkout…' : 'Get Pro — $15/mo →'}
+              </button>
+              <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {['Cancel anytime', 'Instant access', 'Secure checkout'].map(t => (
+                  <span key={t} style={{ fontSize: 12, color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ color: '#22c55e', fontSize: 11 }}>✓</span> {t}
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div style={{ borderRadius: 14, padding: '28px 36px', border: '0.5px solid rgba(139,92,246,.3)', background: 'rgba(139,92,246,.06)', maxWidth: 400, width: '100%' }}>
+              <div style={{ fontSize: 22, marginBottom: 12 }}>🚀</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)', marginBottom: 8 }}>
+                Pro payments launching soon
+              </div>
+              <p style={{ fontSize: 13, color: 'var(--txt2)', lineHeight: 1.65, margin: '0 0 16px' }}>
+                We&apos;re finalising the payment system. You&apos;ll be notified at{' '}
+                <span style={{ color: 'var(--accent)' }}>{user.email}</span>{' '}
+                as soon as Pro is available.
+              </p>
+              <Link href="/arena" style={{ fontSize: 13, color: 'var(--txt3)', textDecoration: 'underline' }}>
+                Back to Arena
+              </Link>
+            </div>
+          )}
         </div>
 
       </div>
