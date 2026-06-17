@@ -340,7 +340,8 @@ body::after {
 .collapse-toggle:hover { color: var(--txt2); }
 
 /* ── TICKER ── */
-.ticker-wrap { overflow-x: auto; margin-bottom: 6px; -webkit-overflow-scrolling: touch; }
+.ticker-wrap { overflow-x: auto; margin-bottom: 6px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.ticker-wrap::-webkit-scrollbar { display: none; }
 .ticker { display: flex; gap: 8px; min-width: max-content; }
 .ticker-card {
   background: var(--bg1);
@@ -852,8 +853,9 @@ body.ticker-on .breaking-alert { top: 90px; }
 .arena-key-input  { flex: 1; min-width: 0; padding: 9px 12px; border-radius: 10px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt); font-size: 13px; font-family: 'JetBrains Mono', monospace; outline: none; }
 .arena-key-input:focus { border-color: var(--purple-bdr); }
 .arena-key-save { padding: 9px 16px; border-radius: 10px; border: 0.5px solid var(--purple-bdr); background: var(--purple-bg); color: var(--purple); font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
-.arena-coin-row { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
-.arena-coin-btn { padding: 6px 14px; border-radius: 20px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt3); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.arena-coin-row { display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
+.arena-coin-row::-webkit-scrollbar { display: none; }
+.arena-coin-btn { padding: 6px 14px; border-radius: 20px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt3); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
 .arena-coin-btn.sel { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-bdr); box-shadow: var(--glow-purple); }
 /* ── CVD Divergence banner ── */
 .arena-cvd-div {
