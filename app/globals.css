@@ -2703,6 +2703,10 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
   background: rgba(255,255,255,0.03); border: 0.5px solid var(--bdr);
   margin: 2px 0 10px;
 }
+.tier-pro-gate {
+  border-color: rgba(184,174,255,0.2) !important;
+  background: rgba(184,174,255,0.04) !important;
+}
 .usage-auth-link {
   color: #b8aeff; text-decoration: none; font-weight: 600;
 }

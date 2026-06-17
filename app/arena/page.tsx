@@ -91,6 +91,8 @@ const COINS: CoinId[] = [
   'doge', 'avax', 'link', 'ada', 'dot', 'atom', 'wif', 'pepe', 'bonk',
 ];
 
+const FREE_COINS: readonly CoinId[] = ['btc', 'eth', 'sol'];
+
 const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'meme', readonly CoinId[]> = {
   all:    COINS,
   majors: ['btc', 'eth', 'sol', 'xrp', 'bnb'],
@@ -148,7 +150,7 @@ const ARENA_HIST_KEY = 'arena-session-history-v1';
 export default function Arena() {
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isPro } = useAuth();
   const { settings } = useSettings();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>('btc');
   const [readTf, setReadTf]         = useState<ChartTf>('15m');
@@ -1049,10 +1051,14 @@ export default function Arena() {
               const isActive    = rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
               const icon        = rowSq.dir === 'SHORT_SQ' ? '↑' : rowSq.dir === 'LONG_LIQ' ? '↓' : '';
               const statusLabel = rowSq.dir === 'SHORT_SQ' ? 'Squeeze' : rowSq.dir === 'LONG_LIQ' ? 'Flush' : 'Neutral';
+              const isLocked    = user && !isPro && !FREE_COINS.includes(c);
               return (
                 <button
                   key={c}
-                  onClick={() => { setSelectedCoin(c); setScannerOpen(false); window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'coins' })); }}
+                  onClick={() => {
+                    if (isLocked) { window.location.href = '/upgrade'; return; }
+                    setSelectedCoin(c); setScannerOpen(false); window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'coins' }));
+                  }}
                   style={{
                     width: '100%', display: 'grid',
                     gridTemplateColumns: '1fr 84px 48px 80px 36px',
@@ -1090,7 +1096,9 @@ export default function Arena() {
                   </span>
                   {/* Status */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-                    {isActive && (
+                    {isLocked ? (
+                      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.04em', padding: '1px 6px', borderRadius: 4, background: 'rgba(184,174,255,0.08)', border: '0.5px solid rgba(184,174,255,0.2)', color: '#6b6b9a' }}>🔒 Pro</span>
+                    ) : isActive ? (
                       <span style={{
                         fontSize: 9, fontWeight: 700, letterSpacing: '.04em', padding: '1px 6px',
                         borderRadius: 4, background: rowSq.color + '18',
@@ -1099,8 +1107,9 @@ export default function Arena() {
                       }}>
                         {icon} {statusLabel}
                       </span>
+                    ) : (
+                      <span style={{ fontSize: 10, color: '#2e2e2e' }}>· Neutral</span>
                     )}
-                    {!isActive && <span style={{ fontSize: 10, color: '#2e2e2e' }}>· Neutral</span>}
                   </div>
                   {/* Score */}
                   <span style={{ fontSize: 10, fontWeight: 700, color: isActive ? rowSq.color : '#2e2e2e', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
@@ -1139,19 +1148,20 @@ export default function Arena() {
         ))}
       </div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-        {/* Quick button — requires sign-in */}
+        {/* Quick button — requires sign-in + Pro */}
         <button
-          className={`arena-fire-btn arena-quick-btn${!user ? ' arena-deep-locked' : ''}`}
-          disabled={readLoading || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
+          className={`arena-fire-btn arena-quick-btn${(!user || !isPro) ? ' arena-deep-locked' : ''}`}
+          disabled={readLoading || !!(user && isPro && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
           onClick={() => {
             if (!user) { window.location.href = '/login'; return; }
+            if (!isPro) { window.location.href = '/upgrade'; return; }
             const entry = resultsCache[selectedCoin];
             const force = !!(entry && entry.mode === 'quick' && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
             readMarket('quick', force);
             window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
           }}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={!user ? 'Sign in to use Quick Analysis' : 'Uses local data only — no web search. ~$0.003'}
+          title={!user ? 'Sign in to use Quick Analysis' : !isPro ? 'Pro plan required' : 'Uses local data only — no web search. ~$0.003'}
         >
           {readLoading && readMode === 'quick' ? readStep || 'Working…' : (
             !user ? (
@@ -1159,28 +1169,35 @@ export default function Arena() {
                 <span>🔒 Quick</span>
                 <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.04em', color: '#a37a2a' }}>sign in →</span>
               </span>
+            ) : !isPro ? (
+              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1.2 }}>
+                <span>⭐ Quick</span>
+                <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.04em', color: '#9b7fd4' }}>Pro only →</span>
+              </span>
             ) : 'Quick'
           )}
         </button>
 
-        {/* Deep button — requires sign-in + within daily limit */}
+        {/* Deep button — requires sign-in + Pro + within daily limit */}
         <button
-          className={`arena-fire-btn${!user ? ' arena-deep-locked' : ''}`}
-          disabled={readLoading || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
+          className={`arena-fire-btn${(!user || !isPro) ? ' arena-deep-locked' : ''}`}
+          disabled={readLoading || !!(user && isPro && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
           onClick={() => {
             if (!user) { window.location.href = '/login'; return; }
+            if (!isPro) { window.location.href = '/upgrade'; return; }
             const entry = resultsCache[selectedCoin];
             const force = !!(entry && entry.mode === 'deep' && entry.result.tf === readTf && Date.now() - entry.result.analyzedAt > 30_000);
             readMarket('deep', force);
             window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
           }}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={!user ? 'Sign in to use Deep Analysis' : 'Searches live web + X for catalysts. ~$0.10'}
+          title={!user ? 'Sign in to use Deep Analysis' : !isPro ? 'Pro plan required' : 'Searches live web + X for catalysts. ~$0.10'}
         >
           {readLoading && readMode === 'deep' ? readStep || 'Working…' : (
             <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1.2 }}>
-              <span>{!user ? '🔒 ' : ''}Deep Research</span>
+              <span>{!user ? '🔒 ' : !isPro ? '⭐ ' : ''}Deep Research</span>
               {!user && <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.04em', color: '#a37a2a' }}>sign in →</span>}
+              {user && !isPro && <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.04em', color: '#9b7fd4' }}>Pro only →</span>}
             </span>
           )}
         </button>
@@ -1204,11 +1221,17 @@ export default function Arena() {
       {/* ── Usage panel — visible for signed-in users ── */}
       {user && grokUsage && <UsagePanel usage={grokUsage} />}
 
-      {/* ── Auth notice — shown for signed-out users ── */}
+      {/* ── Auth / upgrade notice ── */}
       {!user && !authLoading && (
         <div className="usage-auth-notice">
           Sign in to run Quick and Deep analysis — required to control API costs.{' '}
           <a href="/login" className="usage-auth-link">Sign In →</a>
+        </div>
+      )}
+      {user && !isPro && !authLoading && (
+        <div className="usage-auth-notice" style={{ borderColor: 'rgba(155,127,212,0.25)', background: 'rgba(155,127,212,0.05)' }}>
+          ⭐ AI analysis + 17 coins require <strong style={{ color: '#b8aeff' }}>Pro</strong>.{' '}
+          <a href="/upgrade" className="usage-auth-link" style={{ color: '#b8aeff' }}>Upgrade →</a>
         </div>
       )}
 

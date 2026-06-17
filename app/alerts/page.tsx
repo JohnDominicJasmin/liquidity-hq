@@ -4,6 +4,7 @@ import AuthGate from '@/components/AuthGate';
 import { COINS } from '@/lib/marketStore';
 import { useSettings } from '@/lib/settings';
 import { getSupabase } from '@/lib/supabase';
+import { useAuth } from '@/components/AuthProvider';
 
 interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; created_at: string }
 
@@ -11,6 +12,7 @@ const COIN_OPTIONS = COINS;
 const COIN_LABELS: Record<string, string> = Object.fromEntries(COINS.map(c => [c, c.toUpperCase()]));
 
 export default function AlertsPage() {
+  const { user, isPro } = useAuth();
   const { settings, loading: settingsLoading, update } = useSettings();
 
   // Derived from settings — no separate API call needed
@@ -244,8 +246,26 @@ export default function AlertsPage() {
         <div className="mb-subtitle">Push alerts to your phone — funding, RSI, EMA cross, rapid moves, whales, news, OI, CVD, price levels</div>
       </div>
 
+      {/* ── Pro gate banner ── */}
+      {user && !isPro && (
+        <div className="card tier-pro-gate" style={{ marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 24 }}>⭐</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#b8aeff', marginBottom: 3 }}>Pro plan required for Telegram alerts</div>
+              <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.6 }}>
+                Upgrade to get push alerts for funding rate extremes, RSI signals, OI spikes, whale moves, and price levels directly to Telegram.
+              </div>
+            </div>
+            <a href="/upgrade" className="arena-ask-grok-btn" style={{ flexShrink: 0, textDecoration: 'none', padding: '8px 16px', fontSize: 12 }}>
+              Upgrade →
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* ── Telegram Quick-Connect Wizard ──────────────────────────────── */}
-      <div className="card" style={{ marginBottom: 10 }}>
+      <div className="card" style={{ marginBottom: 10, opacity: user && !isPro ? 0.4 : 1, pointerEvents: user && !isPro ? 'none' : 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div className="lbl" style={{ margin: 0 }}>📱 Connect Telegram</div>
           {settingsLoading ? (
