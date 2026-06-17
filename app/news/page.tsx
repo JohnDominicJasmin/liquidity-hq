@@ -11,7 +11,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'all',      label: 'All'       },
   { id: 'geo',      label: 'War & Geo' },
   { id: 'crypto',   label: 'Crypto'    },
-  { id: 'events',   label: 'Econ Cal'  },
+  { id: 'events',   label: 'Calendar'  },
 ];
 
 /* ── Decode HTML entities in headlines (&#39; → ' etc.) ── */
