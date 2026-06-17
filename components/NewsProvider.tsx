@@ -93,11 +93,11 @@ function getFallbackEconEvents(now: Date): EconEvent[] {
   const out: EconEvent[] = [];
   const maxH = 90 * 24;
 
-  // FOMC 2026 rate decision dates (2 PM EST = 18:00 UTC)
-  ['2026-07-29T18:00:00Z', '2026-09-16T18:00:00Z', '2026-10-28T18:00:00Z', '2026-12-09T19:00:00Z'].forEach(s => {
+  // FOMC 2026 rate decision dates (2 PM EDT = 18:00 UTC; Dec uses 2 PM EST = 19:00 UTC)
+  ['2026-06-17T18:00:00Z', '2026-07-29T18:00:00Z', '2026-09-16T18:00:00Z', '2026-10-28T18:00:00Z', '2026-12-09T19:00:00Z'].forEach(s => {
     const dt = new Date(s);
     const h = (dt.getTime() - now.getTime()) / 3600000;
-    if (h >= 0 && h <= maxH) out.push({ name: 'FOMC Rate Decision', type: 'FOMC', impact: 'high', dt, h, dateStr: toPHT(dt) });
+    if (h >= -24 && h <= maxH) out.push({ name: 'FOMC Rate Decision', type: 'FOMC', impact: 'high', dt, h, dateStr: toPHT(dt) });
   });
 
   // NFP: first Friday of each month, 8:30 AM EDT
@@ -225,7 +225,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
           } catch { /* */ }
           if (!dt || isNaN(dt.getTime())) return;
           const h = (dt.getTime() - now.getTime()) / 3600000;
-          if (h < 0) return;
+          if (h < -24) return;
           out.push({ name, type: cls.type, impact: cls.impact, dt, h, dateStr: toPHT(dt) });
         });
         out.sort((a, b) => a.dt.getTime() - b.dt.getTime());
