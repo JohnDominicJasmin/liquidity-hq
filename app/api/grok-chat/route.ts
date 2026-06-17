@@ -46,6 +46,23 @@ async function getUserRole(token: string, userId: string): Promise<'free' | 'pro
   return data?.role === 'pro' ? 'pro' : 'free';
 }
 
+export async function GET(req: NextRequest) {
+  if (!GROK_KEY) return NextResponse.json({ error: 'Not configured' }, { status: 503 });
+  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  if (!token) return NextResponse.json({ error: 'Auth required' }, { status: 401 });
+  const { data: userData } = await sb(token).auth.getUser();
+  if (!userData.user) return NextResponse.json({ error: 'Auth required' }, { status: 401 });
+  const userId = userData.user.id;
+  const today = new Date().toISOString().slice(0, 10);
+  const [{ chatUsed, searchUsed }, role] = await Promise.all([
+    getUsageRow(token, userId, today),
+    getUserRole(token, userId),
+  ]);
+  const chatLimit   = role === 'pro' ? CHAT_LIMIT_PRO   : CHAT_LIMIT_FREE;
+  const searchLimit = role === 'pro' ? SEARCH_LIMIT_PRO : SEARCH_LIMIT_FREE;
+  return NextResponse.json({ chat_used: chatUsed, chat_limit: chatLimit, search_used: searchUsed, search_limit: searchLimit });
+}
+
 export async function POST(req: NextRequest) {
   if (!GROK_KEY) {
     return NextResponse.json({ error: 'Grok API not configured' }, { status: 503 });

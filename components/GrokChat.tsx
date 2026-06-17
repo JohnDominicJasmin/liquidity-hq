@@ -267,7 +267,12 @@ export default function GrokChat() {
   const [input,          setInput]          = useState('');
   const [loading,        setLoading]        = useState(false);
   const [error,          setError]          = useState('');
+  const [rateLimited,    setRateLimited]    = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [usageInfo,      setUsageInfo]      = useState<{
+    chat_used: number; chat_limit: number;
+    search_used: number; search_limit: number;
+  } | null>(null);
 
   /* conversation history */
   const [convos,     setConvos]     = useState<SavedConvo[]>([]);
@@ -279,6 +284,18 @@ export default function GrokChat() {
 
   /* ── Load history on mount ── */
   useEffect(() => { setConvos(loadHistory()); }, []);
+
+  /* ── Fetch usage on mount (when signed in) ── */
+  useEffect(() => {
+    if (!user) return;
+    getAuthToken().then(token => {
+      if (!token) return;
+      fetch('/api/grok-chat', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setUsageInfo(d); })
+        .catch(() => {});
+    });
+  }, [user]);
 
   /* ── Auto-save current conversation whenever messages change ── */
   useEffect(() => {
@@ -324,6 +341,7 @@ export default function GrokChat() {
     if (inputRef.current) inputRef.current.style.height = 'auto';
     setLoading(true);
     setError('');
+    setRateLimited(false);
 
     /* Get auth token for server-side proxy */
     const token = await getAuthToken();
@@ -364,10 +382,15 @@ export default function GrokChat() {
           if (j?.code === 'AUTH_REQUIRED') { setShowLoginModal(true); setLoading(false); return; }
           if (j?.code === 'RATE_LIMIT') {
             const u = j.usage;
-            throw new Error(`Live search limit reached (${u?.search_used ?? '?'}/${u?.search_limit ?? '?'} today). Resets midnight UTC.`);
+            if (u) setUsageInfo(u);
+            setRateLimited(true);
+            setError(`Live search limit reached (${u?.search_used ?? '?'}/${u?.search_limit ?? '?'} today). Resets midnight UTC.`);
+            setLoading(false);
+            return;
           }
           throw new Error(`${res.status} — ${j?.error ?? res.statusText}`);
         }
+        if (j._usage) setUsageInfo(j._usage);
         reply = j.output?.find((o: { type: string }) => o.type === 'message')?.content?.[0]?.text ?? '(no response)';
       } else {
         // No search needed → /api/grok-chat with mode:'chat' (~$0.003)
@@ -386,10 +409,15 @@ export default function GrokChat() {
           if (j?.code === 'AUTH_REQUIRED') { setShowLoginModal(true); setLoading(false); return; }
           if (j?.code === 'RATE_LIMIT') {
             const u = j.usage;
-            throw new Error(`Daily chat limit reached (${u?.chat_used ?? '?'}/${u?.chat_limit ?? '?'} today). Resets midnight UTC.`);
+            if (u) setUsageInfo(u);
+            setRateLimited(true);
+            setError(`Daily chat limit reached (${u?.chat_used ?? '?'}/${u?.chat_limit ?? '?'} today). Resets midnight UTC.`);
+            setLoading(false);
+            return;
           }
           throw new Error(`${res.status} — ${j?.error ?? res.statusText}`);
         }
+        if (j._usage) setUsageInfo(j._usage);
         reply = j.choices?.[0]?.message?.content ?? '(no response)';
       }
       const replyTs = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -522,13 +550,24 @@ export default function GrokChat() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {!histView && (
               <>
-                <button
-                  className={`gchat-search-toggle${liveSearch ? ' on' : ''}`}
-                  onClick={() => setLiveSearch(v => !v)}
-                  title={liveSearch ? 'Live web+X search ON (~$0.10/msg) — click to turn off' : 'Search OFF (~$0.003/msg) — click to enable live web+X search'}
-                >
-                  {liveSearch ? '🌐 Live' : '⚡ Fast'}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button
+                    className={`gchat-search-toggle${liveSearch ? ' on' : ''}`}
+                    onClick={() => setLiveSearch(v => !v)}
+                    title={liveSearch ? 'Live web+X search ON (~$0.10/msg) — click to turn off' : 'Search OFF (~$0.003/msg) — click to enable live web+X search'}
+                  >
+                    {liveSearch ? '🌐 Live' : '⚡ Fast'}
+                  </button>
+                  {usageInfo && (
+                    <span style={{
+                      fontSize: 10,
+                      color: usageInfo.search_used >= usageInfo.search_limit ? '#ff9a92' : '#666',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}>
+                      {usageInfo.search_limit - usageInfo.search_used}/{usageInfo.search_limit}
+                    </span>
+                  )}
+                </div>
                 {msgs.length > 0 && (
                   <button className="gchat-icon-btn" onClick={clearChat} title="Clear chat">🗑</button>
                 )}
@@ -699,8 +738,18 @@ export default function GrokChat() {
               )}
 
               {error && (
-                <div style={{ fontSize: 11, color: '#ff9a92', padding: '4px 14px', marginBottom: 4 }}>
+                <div style={{ fontSize: 11, color: '#ff9a92', padding: '4px 14px', marginBottom: 4, lineHeight: 1.5 }}>
                   ⚠ {error}
+                  {rateLimited && (
+                    <> ·{' '}
+                      <Link
+                        href="/upgrade"
+                        style={{ color: '#b8aeff', textDecoration: 'underline', whiteSpace: 'nowrap' }}
+                      >
+                        Upgrade to Pro →
+                      </Link>
+                    </>
+                  )}
                 </div>
               )}
 
