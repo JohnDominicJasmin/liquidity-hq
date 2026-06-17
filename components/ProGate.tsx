@@ -1,6 +1,5 @@
 'use client';
 import { useAuth } from './AuthProvider';
-import { getCheckoutUrl } from '@/lib/checkout';
 
 interface ProGateProps {
   children: React.ReactNode;
@@ -8,7 +7,7 @@ interface ProGateProps {
 }
 
 export default function ProGate({ children, feature }: ProGateProps) {
-  const { isPro, user } = useAuth();
+  const { isPro } = useAuth();
   if (isPro) return <>{children}</>;
 
   return (
@@ -18,7 +17,7 @@ export default function ProGate({ children, feature }: ProGateProps) {
       <p className="pro-gate-desc">
         {feature ?? 'Upgrade to Pro to unlock this feature.'}
       </p>
-      <a href={getCheckoutUrl(user)} className="pro-gate-btn">
+      <a href="/upgrade" className="pro-gate-btn">
         Upgrade to Pro — $15/mo
       </a>
     </div>
