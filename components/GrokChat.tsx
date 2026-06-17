@@ -384,7 +384,8 @@ export default function GrokChat() {
             const u = j.usage;
             if (u) setUsageInfo(u);
             setRateLimited(true);
-            setError(`Live search limit reached (${u?.search_used ?? '?'}/${u?.search_limit ?? '?'} today). Resets midnight UTC.`);
+            const rem = (u?.search_limit ?? 0) - (u?.search_used ?? 0);
+            setError(`Live search limit reached (${rem}/${u?.search_limit ?? '?'} remaining). Resets midnight UTC.`);
             setLoading(false);
             return;
           }
@@ -411,7 +412,8 @@ export default function GrokChat() {
             const u = j.usage;
             if (u) setUsageInfo(u);
             setRateLimited(true);
-            setError(`Daily chat limit reached (${u?.chat_used ?? '?'}/${u?.chat_limit ?? '?'} today). Resets midnight UTC.`);
+            const rem = (u?.chat_limit ?? 0) - (u?.chat_used ?? 0);
+            setError(`Daily chat limit reached (${rem}/${u?.chat_limit ?? '?'} remaining). Resets midnight UTC.`);
             setLoading(false);
             return;
           }
