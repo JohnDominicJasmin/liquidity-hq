@@ -11,7 +11,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'all',      label: 'All'       },
   { id: 'geo',      label: 'War & Geo' },
   { id: 'crypto',   label: 'Crypto'    },
-  { id: 'events',   label: 'Events'    },
+  { id: 'events',   label: 'Econ Cal'  },
 ];
 
 /* ── Decode HTML entities in headlines (&#39; → ' etc.) ── */
@@ -470,51 +470,78 @@ export default function NewsPage() {
         </div>
       )}
 
-      {/* ── Events ── */}
+      {/* ── Economic Calendar ── */}
       {tab === 'events' && (
-        <div className="nfeed">
+        <div style={{ paddingBottom: 24 }}>
           {econEvents.length === 0 && (
             <div className="nfeed-empty">
-              <div style={{ fontSize: 13, color: 'var(--txt3)' }}>No upcoming high-impact events in the next 60 days</div>
+              <div style={{ fontSize: 13, color: 'var(--txt3)' }}>No upcoming high-impact US events found</div>
             </div>
           )}
-          {econEvents.map((e, i) => {
-            const note   = ECON_NOTES[e.type];
-            const urgent = e.h < 2;
-            const soon   = e.h < 24;
-            const accentColor = urgent ? '#f87171' : soon ? '#fbbf24' : 'var(--purple)';
-            return (
-              <div key={i} className="ncard ncard-v2" style={{ borderLeftColor: accentColor }}>
-                <div className="ncard-v2-inner">
-                  <div className="ncard-v2-text">
-                    <div className="ncard-v2-top">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span className="ncard-type-badge" style={{ color: accentColor }}>{e.type}</span>
-                        <span style={{
-                          fontSize: 10, padding: '1px 6px', borderRadius: 10,
-                          background: urgent ? 'rgba(248,113,113,0.12)' : soon ? 'rgba(251,191,36,0.10)' : 'var(--bg2)',
-                          color: urgent || soon ? accentColor : 'var(--txt3)',
-                          fontWeight: 600, border: `0.5px solid ${accentColor}44`,
-                        }}>
-                          {e.impact} impact
-                        </span>
-                      </div>
-                      <span className="ncard-meta" style={{ color: urgent ? 'var(--red)' : soon ? 'var(--amber)' : 'var(--txt3)' }}>
-                        {e.h < 0.5 ? '🔴 NOW'
-                        : e.h < 2   ? `⚡ ${Math.round(e.h * 60)}m away`
-                        : e.h < 24  ? `${Math.round(e.h)}h away`
-                        : e.dateStr}
-                      </span>
-                    </div>
-                    <div className="ncard-v2-headline">{decodeEntities(e.name)}</div>
-                    {note && <ImpactChip note={note} color={accentColor} />}
-                  </div>
+          {(() => {
+            // Group events by PHT date string
+            const groups: { dateLabel: string; isToday: boolean; events: typeof econEvents }[] = [];
+            const todayPHT = new Date().toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            econEvents.forEach(e => {
+              const label = e.dt.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+              const last = groups[groups.length - 1];
+              if (last && last.dateLabel === label) { last.events.push(e); }
+              else groups.push({ dateLabel: label, isToday: label === todayPHT, events: [e] });
+            });
+            return groups.map((g, gi) => (
+              <div key={gi} style={{ marginBottom: 20 }}>
+                {/* Date header */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0 8px',
+                  borderBottom: '1px solid var(--border)',
+                }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: g.isToday ? 'var(--amber)' : 'var(--txt1)' }}>
+                    {g.isToday ? `Today — ${g.dateLabel}` : g.dateLabel}
+                  </span>
+                  {g.isToday && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 8, background: 'rgba(251,191,36,0.12)', color: 'var(--amber)', fontWeight: 600 }}>LIVE</span>}
                 </div>
+                {/* Column headers */}
+                <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr 72px 72px 72px 52px', gap: 4, padding: '4px 8px', fontSize: 10, color: 'var(--txt3)', fontWeight: 600, letterSpacing: '0.04em' }}>
+                  <span>TIME (PHT)</span><span>EVENT</span><span style={{ textAlign: 'right' }}>PREV</span><span style={{ textAlign: 'right' }}>EST</span><span style={{ textAlign: 'right' }}>ACTUAL</span><span style={{ textAlign: 'center' }}>IMPACT</span>
+                </div>
+                {/* Rows */}
+                {g.events.map((e, ei) => {
+                  const urgent = e.h >= -0.5 && e.h < 2;
+                  const soon = e.h < 24;
+                  const past = e.h < 0;
+                  const timePHT = e.dt.toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', hour12: false });
+                  const note = ECON_NOTES[e.type];
+                  const borderColor = urgent ? '#f87171' : soon ? '#fbbf24' : 'var(--purple)';
+                  return (
+                    <div key={ei} style={{
+                      display: 'grid', gridTemplateColumns: '70px 1fr 72px 72px 72px 52px',
+                      gap: 4, padding: '10px 8px',
+                      borderLeft: `3px solid ${past && !urgent ? 'var(--border)' : borderColor}`,
+                      borderBottom: '1px solid var(--border)',
+                      opacity: past && !urgent ? 0.55 : 1,
+                      alignItems: 'start',
+                    }}>
+                      <span style={{ fontSize: 12, color: urgent ? '#f87171' : soon ? '#fbbf24' : 'var(--txt2)', fontWeight: 600, paddingTop: 1 }}>
+                        {urgent ? '🔴 NOW' : timePHT}
+                      </span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--txt1)', marginBottom: note ? 4 : 0 }}>{decodeEntities(e.name)}</div>
+                        {note && <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.4 }}>{note.split('.')[0]}.</div>}
+                      </div>
+                      <span style={{ fontSize: 12, color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.previous ?? '—'}</span>
+                      <span style={{ fontSize: 12, color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.estimate ?? '—'}</span>
+                      <span style={{ fontSize: 12, fontWeight: e.actual ? 700 : 400, color: e.actual ? 'var(--green)' : 'var(--txt3)', textAlign: 'right', paddingTop: 1 }}>{e.actual ?? '—'}</span>
+                      <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 1 }}>
+                        <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.15)', color: '#f87171', fontWeight: 700, letterSpacing: '0.03em' }}>HIGH</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-          <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 8, textAlign: 'center' }}>
-            FOMC · NFP · CPI schedule — high-impact events only
+            ));
+          })()}
+          <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 4, textAlign: 'center' }}>
+            High-impact US events · Finnhub when available · Fed calendar + computed schedule as fallback · Times in PHT
           </div>
         </div>
       )}

@@ -14,7 +14,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   FED:    'Fed Speaker',
 };
 
-export type CalEvent = { name: string; type: string; isoDate: string; impact: string };
+export type CalEvent = { name: string; type: string; isoDate: string; impact: string; previous?: string; estimate?: string; actual?: string };
 
 const MONTHS = ['January','February','March','April','May','June','July','August',
                 'September','October','November','December'];
@@ -28,13 +28,18 @@ async function tryFinnhub(from: string, to: string): Promise<CalEvent[]> {
   );
   if (!r.ok) return [];
   const data = await r.json();
-  const raw: Record<string, string | number>[] =
+  const raw: Record<string, string | number | null>[] =
     Array.isArray(data.economicCalendar) ? data.economicCalendar : [];
 
   return raw.flatMap(e => {
     const rawName = String(e.event || e.name || e.description || e.title || '');
-    const cls = classifyEcon(rawName);
-    if (!cls) return [];
+    if (!rawName) return [];
+    // Only US high-impact events
+    const country = String(e.country || '').toUpperCase();
+    if (country && country !== 'US') return [];
+    const impact = String(e.impact || '').toLowerCase();
+    if (impact && impact !== 'high') return [];
+
     let isoDate = '';
     try {
       if (typeof e.time === 'number' && e.time > 1e9)
@@ -45,7 +50,24 @@ async function tryFinnhub(from: string, to: string): Promise<CalEvent[]> {
         isoDate = new Date(`${String(e.date)}T12:00:00Z`).toISOString();
     } catch { /* skip */ }
     if (!isoDate || isNaN(new Date(isoDate).getTime())) return [];
-    return [{ name: DISPLAY_NAMES[cls.type] ?? rawName, type: cls.type, isoDate, impact: cls.impact }];
+
+    // Classify for type/display name — fall back to raw name if unknown
+    const cls = classifyEcon(rawName);
+    const displayName = cls ? (DISPLAY_NAMES[cls.type] ?? rawName) : rawName;
+    const type = cls?.type ?? 'MACRO';
+
+    const fmt = (v: string | number | null | undefined) =>
+      v != null && v !== '' ? String(v) : undefined;
+
+    return [{
+      name: displayName,
+      type,
+      isoDate,
+      impact: 'high',
+      previous: fmt(e.prev ?? e.previous),
+      estimate: fmt(e.estimate),
+      actual:   fmt(e.actual),
+    }];
   });
 }
 

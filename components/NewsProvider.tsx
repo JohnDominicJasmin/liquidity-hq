@@ -21,6 +21,9 @@ export interface EconEvent {
   dt: Date;
   h: number;
   dateStr: string;
+  previous?: string;
+  estimate?: string;
+  actual?: string;
 }
 
 export interface GeoEvent {
@@ -160,7 +163,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     try {
       const res = await fetch('/api/econ-calendar');
       if (res.ok) {
-        const { events: raw }: { events: { name: string; type: string; isoDate: string; impact: string }[] } = await res.json();
+        const { events: raw }: { events: { name: string; type: string; isoDate: string; impact: string; previous?: string; estimate?: string; actual?: string }[] } = await res.json();
         const seen = new Set<string>();
         const events: EconEvent[] = raw
           .flatMap(e => {
@@ -171,7 +174,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
             const h = (dt.getTime() - now.getTime()) / 3600000;
             if (h < -24) return [];
             seen.add(key);
-            return [{ name: e.name, type: e.type, impact: e.impact, dt, h, dateStr: toPHT(dt) }];
+            return [{ name: e.name, type: e.type, impact: e.impact, dt, h, dateStr: toPHT(dt), previous: e.previous, estimate: e.estimate, actual: e.actual }];
           })
           .sort((a, b) => a.dt.getTime() - b.dt.getTime());
         setEconEvents(events);
