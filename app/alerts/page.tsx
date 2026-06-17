@@ -203,29 +203,29 @@ export default function AlertsPage() {
   const botLabel = botUsername ? `@${botUsername}` : 'LiquidityHQ Bot';
 
   const ALERT_GROUPS: { section: string; items: { key: string; dot: string; title: string; desc: string; grok: boolean }[] }[] = [
-    { section: '💸 Funding', items: [
+    { section: 'Funding', items: [
       { key: 'fr_extremes', dot: '#f87171', title: 'FR Extremes',       desc: '≥ 0.05% longs overcrowded · ≤ −0.03% shorts crowded · 4h cooldown', grok: false },
       { key: 'fr_flip',     dot: '#60a5fa', title: 'FR Direction Flip', desc: 'FR crosses zero (pos→neg or neg→pos) · fires on transition', grok: false },
     ]},
-    { section: '📈 Momentum', items: [
-      { key: 'rsi',        dot: '#fbbf24', title: 'RSI Alerts (1H)', desc: '> 78 overbought · < 22 oversold · 50-cross momentum shifts · 4–6h cooldowns', grok: false },
+    { section: 'Momentum', items: [
+      { key: 'rsi',        dot: '#fbbf24', title: 'RSI (1H)', desc: '> 78 overbought · < 22 oversold · 50-cross momentum shifts · 4–6h cooldowns', grok: false },
       { key: 'rapid_move', dot: '#fb923c', title: 'Rapid Moves',     desc: '±5% 1H candle · ±10% 4H candle · flash ±4% in 5 min · 30min–4h cooldowns', grok: true },
     ]},
-    { section: '📊 Trend', items: [
+    { section: 'Trend', items: [
       { key: 'ema_cross', dot: '#34d399', title: '200 EMA Cross (1H)', desc: 'Price reclaims (bullish) or loses (bearish) the major moving average · 12h cooldown', grok: true },
     ]},
-    { section: '🐋 Flow', items: [
-      { key: 'whales',   dot: '#a78bfa', title: 'Whale Trades',         desc: 'BTC >$5M · ETH >$2M · SOL >$1M · XRP/BNB >$750K · others >$500K · 30min cooldown', grok: true },
-      { key: 'oi_spike', dot: '#fbbf24', title: 'OI Spike ±15% in 1h', desc: 'New money entering — big move building · 2h cooldown', grok: true },
-      { key: 'cvd',      dot: '#34d399', title: 'CVD Divergence',       desc: 'Bullish: price down but buyers absorbing · Bearish: price up but sellers dominate · 1h cooldown', grok: false },
+    { section: 'Flow', items: [
+      { key: 'whales',   dot: '#a78bfa', title: 'Whale Trades',        desc: 'BTC >$5M · ETH >$2M · SOL >$1M · XRP/BNB >$750K · others >$500K · 30min cooldown', grok: true },
+      { key: 'oi_spike', dot: '#fbbf24', title: 'OI Spike ±15% / 1h', desc: 'New money entering — big move building · 2h cooldown', grok: true },
+      { key: 'cvd',      dot: '#34d399', title: 'CVD Divergence',      desc: 'Bullish: price down but buyers absorbing · Bearish: price up but sellers dominate · 1h cooldown', grok: false },
       { key: 'squeeze',  dot: '#f43f5e', title: 'Squeeze / Flush ≥ 70', desc: 'Crowd positioning extreme — squeeze score threshold hit · 4h cooldown', grok: true },
     ]},
-    { section: '📰 News & Sentiment', items: [
+    { section: 'News & Sentiment', items: [
       { key: 'news',               dot: '#f87171', title: 'Breaking News',         desc: 'Geopolitical / macro Finnhub headlines · 15min cooldown', grok: true },
       { key: 'fear_greed',         dot: '#f97316', title: 'Fear & Greed Extremes', desc: '≤ 15 extreme fear · ≥ 85 extreme greed · 23h cooldown', grok: false },
       { key: 'sentiment_extremes', dot: '#f43f5e', title: 'Sentiment Extremes',    desc: 'F&G + BTC funding + BTC L/S ratio all at extremes simultaneously · 4h cooldown', grok: true },
     ]},
-    { section: '🎯 Price & Summary', items: [
+    { section: 'Price & Summary', items: [
       { key: 'price_alerts',  dot: '#c084fc', title: 'Price Level Alerts', desc: 'Your saved price targets · fires once then deactivates', grok: true },
       { key: 'daily_summary', dot: '#fbbf24', title: 'Daily 7am Summary',  desc: 'FR snapshot + F&G + active price alerts + LiquidityAI outlook · once daily at 7am PHT', grok: true },
     ]},
@@ -242,15 +242,14 @@ export default function AlertsPage() {
     <div>
       {/* Header */}
       <div className="mb-header">
-        <div className="mb-title">🔔 Telegram Alerts</div>
-        <div className="mb-subtitle">Push alerts to your phone — funding, RSI, EMA cross, rapid moves, whales, news, OI, CVD, price levels</div>
+        <div className="mb-title">Telegram Alerts</div>
+        <div className="mb-subtitle">Real-time push alerts to your phone — funding, momentum, whale flow, sentiment, and price levels</div>
       </div>
 
       {/* ── Pro gate banner ── */}
       {user && !isPro && (
         <div className="card tier-pro-gate" style={{ marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 24 }}>⭐</span>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#b8aeff', marginBottom: 3 }}>Pro plan required for Telegram alerts</div>
               <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.6 }}>
@@ -267,7 +266,7 @@ export default function AlertsPage() {
       {/* ── Telegram Quick-Connect Wizard ──────────────────────────────── */}
       <div className="card" style={{ marginBottom: 10, opacity: user && !isPro ? 0.4 : 1, pointerEvents: user && !isPro ? 'none' : 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <div className="lbl" style={{ margin: 0 }}>📱 Connect Telegram</div>
+          <div className="lbl" style={{ margin: 0 }}>Connect Telegram</div>
           {settingsLoading ? (
             <span style={{ fontSize: 10, color: 'var(--txt3)' }}>Loading…</span>
           ) : isConnected ? (
@@ -430,7 +429,7 @@ export default function AlertsPage() {
         desc="Save price targets and get Telegram pings when they're hit. Free account required."
       >
         <div className="card" style={{ marginBottom: 10 }}>
-          <div className="lbl" style={{ marginBottom: 12 }}>🎯 Price Alerts</div>
+          <div className="lbl" style={{ marginBottom: 12 }}>Price Alerts</div>
           <div className="pa-form">
             <select className="pa-select" value={paCoin} onChange={e => setPaCoin(e.target.value)}>
               {COIN_OPTIONS.map(c => <option key={c} value={c}>{COIN_LABELS[c]}</option>)}
@@ -505,7 +504,7 @@ export default function AlertsPage() {
                   gap: 10,
                 }}>
                   <span style={{ fontSize: 12, color: 'var(--txt2)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    🔔 {f.label}
+                    {f.label}
                   </span>
                   <span style={{ fontSize: 10, color: 'var(--txt3)', flexShrink: 0 }}>{ago}</span>
                 </div>
@@ -548,9 +547,9 @@ export default function AlertsPage() {
       <div className="card" style={{ marginBottom: 10 }}>
         <div className="lbl" style={{ marginBottom: 4 }}>Alert Conditions</div>
         <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 10 }}>
-          Toggle off to mute a group. 🤖 AI = includes LiquidityAI analysis.
+          Toggle off to mute. <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#a78bfa', background: 'rgba(167,139,250,0.1)', border: '0.5px solid rgba(167,139,250,0.25)', padding: '2px 6px', borderRadius: 4 }}>AI</span> = includes LiquidityAI analysis.
         </div>
-        {muteErr && <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 8 }}>⚠ {muteErr}</div>}
+        {muteErr && <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 8 }}>{muteErr}</div>}
         {ALERT_GROUPS.map(group => (
           <div key={group.section} style={{ marginBottom: 6 }}>
             <div style={{
@@ -571,7 +570,7 @@ export default function AlertsPage() {
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>{c.desc}</div>
                   </div>
-                  {c.grok && <span style={{ fontSize: 10, color: '#a78bfa', fontWeight: 600, flexShrink: 0 }}>🤖 AI</span>}
+                  {c.grok && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#a78bfa', background: 'rgba(167,139,250,0.1)', border: '0.5px solid rgba(167,139,250,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>}
                   <button
                     role="switch"
                     aria-checked={!isMuted}
@@ -597,7 +596,7 @@ export default function AlertsPage() {
               2+ signals on the same coin in one run → single combined ping · LiquidityAI weighs all signals together
             </div>
           </div>
-          <span style={{ fontSize: 10, color: '#a78bfa', fontWeight: 600, flexShrink: 0 }}>🤖 AI</span>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#a78bfa', background: 'rgba(167,139,250,0.1)', border: '0.5px solid rgba(167,139,250,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>
         </div>
         <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 10, padding: '8px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
           Monitored: all {COINS.length} coins — BTC · ETH · SOL · XRP · BNB · HYPE · NEAR · SUI · DOGE · AVAX · LINK · ADA · DOT · ATOM · WIF · PEPE · BONK
