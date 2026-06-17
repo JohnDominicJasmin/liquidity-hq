@@ -514,7 +514,7 @@ export default function NewsPage() {
             );
           })}
           <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 8, textAlign: 'center' }}>
-            Source: Finnhub Economic Calendar — high-impact events only
+            FOMC · NFP · CPI schedule — high-impact events only
           </div>
         </div>
       )}
