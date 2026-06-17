@@ -15,7 +15,7 @@ const FREE_FEATURES = [
   'Morning briefing',
   'News feed',
   'All 17 coins — squeeze scanner',
-  '7 Quick + 3 Deep AI analyses / day',
+  '7 Quick + 5 Deep AI analyses / day',
   '15 AI chat messages / day',
 ];
 
@@ -23,8 +23,8 @@ const PRO_FEATURES = [
   'Everything in Free',
   'Telegram alerts — all signal types',
   'Unlimited price alerts',
-  '50 Quick + 20 Deep AI analyses / day',
-  '100 AI chat messages + 20 live searches / day',
+  '50 Quick + 25 Deep AI analyses / day',
+  '100 AI chat messages + 25 live searches / day',
   'Priority support',
 ];
 

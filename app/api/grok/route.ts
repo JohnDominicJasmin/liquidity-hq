@@ -4,9 +4,9 @@ import { parseCombinedResponse } from '@/lib/grok';
 
 // Keys / limits
 const GROK_KEY         = process.env.GROK_API_KEY ?? '';
-const DEEP_LIMIT_FREE  = 3;
+const DEEP_LIMIT_FREE  = 5;
 const QUICK_LIMIT_FREE = 7;
-const DEEP_LIMIT_PRO   = 20;
+const DEEP_LIMIT_PRO   = 25;
 const QUICK_LIMIT_PRO  = 50;
 
 function sb(token?: string) {

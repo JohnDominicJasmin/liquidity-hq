@@ -178,7 +178,7 @@ export default function LandingPage() {
                 <li><span className="lp-check">✓</span> Morning briefing</li>
                 <li><span className="lp-check">✓</span> News feed</li>
                 <li><span className="lp-check">✓</span> All 17 coins — squeeze scanner</li>
-                <li><span className="lp-check">✓</span> 7 Quick + 3 Deep AI analyses / day</li>
+                <li><span className="lp-check">✓</span> 7 Quick + 5 Deep AI analyses / day</li>
                 <li><span className="lp-check">✓</span> 15 AI chat messages / day</li>
                 <li><span className="lp-x">✕</span> Telegram alerts</li>
                 <li><span className="lp-x">✕</span> Price alerts</li>
@@ -199,9 +199,9 @@ export default function LandingPage() {
                 <li><span className="lp-check lp-check-pro">✓</span> Everything in Free</li>
                 <li><span className="lp-check lp-check-pro">✓</span> Telegram alerts — all signal types</li>
                 <li><span className="lp-check lp-check-pro">✓</span> Unlimited price alerts</li>
-                <li><span className="lp-check lp-check-pro">✓</span> 50 Quick + 20 Deep analyses / day</li>
+                <li><span className="lp-check lp-check-pro">✓</span> 50 Quick + 25 Deep analyses / day</li>
                 <li><span className="lp-check lp-check-pro">✓</span> 100 AI chat messages / day</li>
-                <li><span className="lp-check lp-check-pro">✓</span> 20 live searches / day</li>
+                <li><span className="lp-check lp-check-pro">✓</span> 25 live searches / day</li>
                 <li><span className="lp-check lp-check-pro">✓</span> Priority support</li>
               </ul>
               <Link href="/upgrade" className="lp-plan-cta lp-plan-cta-pro">

@@ -7,8 +7,8 @@
  *   { mode: 'search', model, input, tools }           → /v1/responses  (live web + X search)
  *
  * Daily limits (resets midnight UTC):
- *   Free — 15 chat  + 3  search
- *   Pro  — 100 chat + 20 search
+ *   Free — 15 chat  + 5  search
+ *   Pro  — 100 chat + 25 search
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -17,9 +17,9 @@ import { createClient } from '@supabase/supabase-js';
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
 const CHAT_LIMIT_FREE   = 15;
-const SEARCH_LIMIT_FREE = 3;
+const SEARCH_LIMIT_FREE = 5;
 const CHAT_LIMIT_PRO    = 100;
-const SEARCH_LIMIT_PRO  = 20;
+const SEARCH_LIMIT_PRO  = 25;
 
 function sb(token: string) {
   return createClient(
