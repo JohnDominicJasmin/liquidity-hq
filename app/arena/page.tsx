@@ -177,6 +177,42 @@ export default function Arena() {
   const scannerRef      = useRef<HTMLDivElement>(null);
   const hoverOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /* ── Price alert mini-form ── */
+  const [alertFormOpen, setAlertFormOpen] = useState(false);
+  const [alertPrice,    setAlertPrice]    = useState('');
+  const [alertDir,      setAlertDir]      = useState<'above' | 'below'>('above');
+  const [alertLabel,    setAlertLabel]    = useState('');
+  const [alertSaving,   setAlertSaving]   = useState(false);
+  const [alertSuccess,  setAlertSuccess]  = useState(false);
+
+  function openAlertForm() {
+    const price = store.coins[selectedCoin]?.price;
+    setAlertPrice(price ? String(price) : '');
+    setAlertDir('above');
+    setAlertLabel('');
+    setAlertSuccess(false);
+    setAlertFormOpen(true);
+  }
+
+  async function saveArenaAlert() {
+    if (!alertPrice || isNaN(parseFloat(alertPrice)) || !user) return;
+    setAlertSaving(true);
+    try {
+      const token = (await getSupabase()!.auth.getSession()).data.session?.access_token;
+      await fetch('/api/price-alerts', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ coin: selectedCoin, target_price: parseFloat(alertPrice), direction: alertDir, label: alertLabel }),
+      });
+      window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'priceAlert' }));
+      setAlertSuccess(true);
+      setAlertLabel('');
+      setTimeout(() => { setAlertFormOpen(false); setAlertSuccess(false); }, 1500);
+    } finally {
+      setAlertSaving(false);
+    }
+  }
+
   // Hover over trigger → auto-open; moving away cancels the timer
   const handleScannerHoverEnter = () => {
     if (scannerOpen) return;
@@ -1188,6 +1224,17 @@ export default function Arena() {
           )}
         </button>
 
+        {user && (
+          <button
+            className="arena-ask-grok-btn"
+            style={{ width: 'auto', marginBottom: 0, background: alertFormOpen ? 'rgba(192,132,252,0.15)' : undefined }}
+            onClick={() => alertFormOpen ? setAlertFormOpen(false) : openAlertForm()}
+            title="Set a price alert for this coin"
+          >
+            🔔 Set Alert
+          </button>
+        )}
+
         <button
           className="arena-ask-grok-btn"
           style={{ width: 'auto', marginBottom: 0 }}
@@ -1203,6 +1250,57 @@ export default function Arena() {
           Ask LiquidityAI
         </button>
       </div>
+
+      {/* ── Price alert inline form ── */}
+      {alertFormOpen && user && (
+        <div style={{ margin: '8px 0', padding: '14px 16px', borderRadius: 12, border: '0.5px solid rgba(192,132,252,0.3)', background: 'rgba(192,132,252,0.06)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {alertSuccess ? (
+            <div style={{ fontSize: 13, color: '#a78bfa', fontWeight: 600, textAlign: 'center', padding: '4px 0' }}>
+              ✓ Alert set for {selectedCoin.toUpperCase()}
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt2)', letterSpacing: '.04em' }}>
+                🔔 Price alert — {selectedCoin.toUpperCase()}
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                {/* Above / Below toggle */}
+                <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '0.5px solid var(--bdr)', flexShrink: 0 }}>
+                  {(['above', 'below'] as const).map(d => (
+                    <button key={d} onClick={() => setAlertDir(d)} style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: alertDir === d ? 'var(--accent)' : 'var(--bg1)', color: alertDir === d ? '#fff' : 'var(--txt2)', transition: 'background .15s' }}>
+                      {d === 'above' ? '▲ Above' : '▼ Below'}
+                    </button>
+                  ))}
+                </div>
+                {/* Price input */}
+                <input
+                  type="number"
+                  value={alertPrice}
+                  onChange={e => setAlertPrice(e.target.value)}
+                  placeholder="Target price"
+                  style={{ flex: 1, minWidth: 120, padding: '5px 10px', fontSize: 13, borderRadius: 8, border: '0.5px solid var(--bdr)', background: 'var(--bg1)', color: 'var(--txt)', outline: 'none' }}
+                />
+                {/* Optional label */}
+                <input
+                  type="text"
+                  value={alertLabel}
+                  onChange={e => setAlertLabel(e.target.value)}
+                  placeholder="Label (optional)"
+                  style={{ flex: 1, minWidth: 100, padding: '5px 10px', fontSize: 13, borderRadius: 8, border: '0.5px solid var(--bdr)', background: 'var(--bg1)', color: 'var(--txt)', outline: 'none' }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={saveArenaAlert} disabled={alertSaving || !alertPrice} style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '6px 18px', cursor: alertSaving || !alertPrice ? 'default' : 'pointer', opacity: alertSaving || !alertPrice ? 0.6 : 1 }}>
+                  {alertSaving ? 'Saving…' : 'Set Alert'}
+                </button>
+                <button onClick={() => setAlertFormOpen(false)} style={{ fontSize: 12, color: 'var(--txt3)', background: 'none', border: '0.5px solid var(--bdr)', borderRadius: 8, padding: '6px 14px', cursor: 'pointer' }}>
+                  Cancel
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── Usage panel — visible for signed-in users ── */}
       {user && grokUsage && <UsagePanel usage={grokUsage} />}
