@@ -130,7 +130,7 @@ interface EconEntry { name: string; type: string; impact: string; }
 
 export function classifyEcon(name: string): EconEntry | null {
   const n = name.toLowerCase();
-  if (/fomc|federal open|rate decision|fed decision/.test(n))         return { name, type: 'FOMC',    impact: 'high' };
+  if (/fomc|federal open|rate decision|fed decision|federal funds rate/.test(n)) return { name, type: 'FOMC', impact: 'high' };
   if (/consumer price|\bcpi\b/.test(n))                               return { name, type: 'CPI',     impact: 'high' };
   if (/producer price|\bppi\b/.test(n))                               return { name, type: 'PPI',     impact: 'high' };
   if (/nonfarm|non.farm|payroll/.test(n))                             return { name, type: 'NFP',     impact: 'high' };

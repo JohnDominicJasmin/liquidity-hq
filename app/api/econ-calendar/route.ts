@@ -124,7 +124,7 @@ async function tryForexFactory(now: Date): Promise<CalEvent[]> {
         if (!mm || !dd || !yyyy) continue;
         const monthIdx = mm - 1;
 
-        // Parse 12-hour ET time → UTC
+        // ForexFactory XML times are in UTC (not ET)
         let hours = 12, minutes = 0;
         const tm = timeStr.match(/^(\d+):(\d+)(am|pm)$/i);
         if (tm) {
@@ -134,9 +134,7 @@ async function tryForexFactory(now: Date): Promise<CalEvent[]> {
           if (pm  && hours !== 12) hours += 12;
           if (!pm && hours === 12) hours  = 0;
         }
-        // EDT (UTC-4) Apr–Oct, EST (UTC-5) Nov–Mar
-        const offset = (monthIdx >= 3 && monthIdx <= 9) ? 4 : 5;
-        const dt = new Date(Date.UTC(yyyy, monthIdx, dd, hours + offset, minutes, 0));
+        const dt = new Date(Date.UTC(yyyy, monthIdx, dd, hours, minutes, 0));
         if (isNaN(dt.getTime())) continue;
 
         const h = (dt.getTime() - now.getTime()) / 3600000;
@@ -191,6 +189,69 @@ async function tryFedFOMC(now: Date): Promise<CalEvent[]> {
     }
   }
   return events;
+}
+
+// ── FRED: Free actual values for recently-released events ────────────────────
+// FRED graph CSV: no API key needed; daily update lag ~1 day for daily series
+const _fredCache: Record<string, { rows: [number, number][]; ts: number }> = {};
+const FRED_TTL = 12 * 3600_000;
+
+const FRED_CFG: Record<string, { id: string; fmt: 'rate' | 'mom_change' | 'mom_pct' | 'qoq_ann' }> = {
+  FOMC:   { id: 'DFEDTARU', fmt: 'rate' },       // Fed Funds target upper bound (daily)
+  NFP:    { id: 'PAYEMS',   fmt: 'mom_change' },  // Nonfarm payrolls level (monthly K)
+  CPI:    { id: 'CPIAUCSL', fmt: 'mom_pct' },     // CPI seasonally adjusted (monthly)
+  PPI:    { id: 'PPIACO',   fmt: 'mom_pct' },     // PPI all commodities (monthly)
+  PCE:    { id: 'PCE',      fmt: 'mom_pct' },     // PCE (monthly)
+  GDP:    { id: 'GDP',      fmt: 'qoq_ann' },     // GDP (quarterly)
+  RETAIL: { id: 'RSAFS',   fmt: 'mom_pct' },      // Retail sales (monthly)
+};
+
+async function fetchFREDRows(seriesId: string): Promise<[number, number][]> {
+  const c = _fredCache[seriesId];
+  if (c && Date.now() - c.ts < FRED_TTL) return c.rows;
+  try {
+    const r = await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`,
+      { next: { revalidate: 43200 } });
+    if (!r.ok) return [];
+    const rows: [number, number][] = (await r.text()).split('\n').slice(1)
+      .filter(l => l.includes(','))
+      .map(l => { const [d, v] = l.trim().split(','); return [new Date(d + 'T00:00:00Z').getTime(), parseFloat(v)] as [number, number]; })
+      .filter(([d, v]) => !isNaN(d) && !isNaN(v));
+    _fredCache[seriesId] = { rows, ts: Date.now() };
+    return rows;
+  } catch { return []; }
+}
+
+function fredActual(rows: [number, number][], eventTs: number, fmt: string): string | undefined {
+  if (rows.length < 2) return undefined;
+  let i = rows.length - 1;
+  while (i >= 0 && rows[i][0] > eventTs) i--;
+  if (i < 1) return undefined;
+  const cur = rows[i][1], prev = rows[i - 1][1];
+  if (fmt === 'rate')       return cur.toFixed(2) + '%';
+  if (fmt === 'mom_change') { const d = Math.round(cur - prev); return (d >= 0 ? '+' : '') + d + 'K'; }
+  if (fmt === 'mom_pct')    { if (!prev) return; const p = ((cur - prev) / prev) * 100; return (p >= 0 ? '+' : '') + p.toFixed(1) + '%'; }
+  if (fmt === 'qoq_ann')    { if (!prev) return; const a = (Math.pow(cur / prev, 4) - 1) * 100; return (a >= 0 ? '+' : '') + a.toFixed(1) + '%'; }
+}
+
+async function enrichWithFRED(events: CalEvent[], now: Date): Promise<void> {
+  const windowMs = 30 * 24 * 3600_000;
+  const past = events.filter(e => {
+    const diff = new Date(e.isoDate).getTime() - now.getTime();
+    // Include events up to 6h in the future — FF timestamps can drift vs actual release time
+    return diff < 6 * 3600_000 && diff > -windowMs && !e.actual;
+  });
+  if (past.length === 0) return;
+
+  const needed = [...new Set(past.map(e => FRED_CFG[e.type]?.id).filter(Boolean))] as string[];
+  const data = Object.fromEntries(await Promise.all(needed.map(async id => [id, await fetchFREDRows(id)])));
+
+  for (const e of past) {
+    const cfg = FRED_CFG[e.type];
+    if (!cfg || !data[cfg.id]?.length) continue;
+    const v = fredActual(data[cfg.id], new Date(e.isoDate).getTime(), cfg.fmt);
+    if (v) e.actual = v;
+  }
 }
 
 // ── Source 4: Computed schedule for key US macro releases ─────────────────────
@@ -277,9 +338,11 @@ export async function GET() {
       if (!seen.has(key)) { seen.add(key); merged.push(e); }
     };
 
-    for (const e of ffEvents)   add(e, `${e.type}|${e.isoDate.slice(0, 10)}`);
-    for (const e of fomcEvents) add(e, `FOMC|${e.isoDate.slice(0, 10)}`);
+    for (const e of ffEvents)    add(e, `${e.type}|${e.isoDate.slice(0, 10)}`);
+    for (const e of fomcEvents)  add(e, `FOMC|${e.isoDate.slice(0, 10)}`);
     for (const e of macroEvents) add(e, `${e.type}|${e.isoDate.slice(0, 10)}`);
+
+    await enrichWithFRED(merged, now);
 
     const source = ffEvents.length > 0 ? 'forexfactory+fed+computed' : 'fed+computed';
     return NextResponse.json({ events: merged, source },
