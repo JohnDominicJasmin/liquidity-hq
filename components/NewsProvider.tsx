@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { classifyNews, GEO_KEYWORDS, classifyEcon } from '@/lib/classify';
+import { classifyNews, GEO_KEYWORDS } from '@/lib/classify';
 
 // Finnhub calls go through /api/news/finnhub — key stays server-side
 
@@ -81,51 +81,6 @@ function countdown(h: number): string {
   return d + 'd' + (r ? ' ' + r + 'h' : '') + ' away';
 }
 
-/* ── Fallback econ events — used when Finnhub calendar is unavailable ── */
-function firstFridayUTC(y: number, m: number): Date {
-  const d = new Date(Date.UTC(y, m, 1));
-  d.setUTCDate(1 + (5 - d.getUTCDay() + 7) % 7);
-  d.setUTCHours(13, 30, 0, 0); // 8:30 AM EDT
-  return d;
-}
-
-function getFallbackEconEvents(now: Date): EconEvent[] {
-  const out: EconEvent[] = [];
-  const maxH = 90 * 24;
-
-  // FOMC 2026 rate decision dates (2 PM EDT = 18:00 UTC; Dec uses 2 PM EST = 19:00 UTC)
-  ['2026-06-17T18:00:00Z', '2026-07-29T18:00:00Z', '2026-09-16T18:00:00Z', '2026-10-28T18:00:00Z', '2026-12-09T19:00:00Z'].forEach(s => {
-    const dt = new Date(s);
-    const h = (dt.getTime() - now.getTime()) / 3600000;
-    if (h >= -24 && h <= maxH) out.push({ name: 'FOMC Rate Decision', type: 'FOMC', impact: 'high', dt, h, dateStr: toPHT(dt) });
-  });
-
-  // NFP: first Friday of each month, 8:30 AM EDT
-  for (const y of [now.getUTCFullYear(), now.getUTCFullYear() + 1]) {
-    for (let m = 0; m <= 11; m++) {
-      const dt = firstFridayUTC(y, m);
-      const h = (dt.getTime() - now.getTime()) / 3600000;
-      if (h >= 0 && h <= maxH) out.push({ name: 'Nonfarm Payrolls (NFP)', type: 'NFP', impact: 'high', dt, h, dateStr: toPHT(dt) });
-    }
-  }
-
-  // CPI: ~12th of each month, 8:30 AM EDT
-  for (const y of [now.getUTCFullYear(), now.getUTCFullYear() + 1]) {
-    for (let m = 0; m <= 11; m++) {
-      const dt = new Date(Date.UTC(y, m, 12, 13, 30, 0));
-      const h = (dt.getTime() - now.getTime()) / 3600000;
-      if (h >= 0 && h <= maxH) out.push({ name: 'Consumer Price Index (CPI) MoM', type: 'CPI', impact: 'high', dt, h, dateStr: toPHT(dt) });
-    }
-  }
-
-  const priority: Record<string, number> = { FOMC: 0, NFP: 1, CPI: 2 };
-  out.sort((a, b) => {
-    const pa = priority[a.type] ?? 9, pb = priority[b.type] ?? 9;
-    if (pa !== pb) return pa - pb;
-    return a.dt.getTime() - b.dt.getTime();
-  });
-  return out;
-}
 
 export default function NewsProvider({ children }: { children: React.ReactNode }) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -199,52 +154,38 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     } catch { /* */ }
   }, [pushAlert]);
 
-  /* ── Finnhub econ calendar (falls back to computed schedule if unavailable) ── */
+  /* ── Economic calendar — Finnhub primary, Trading Economics fallback ── */
   const fetchEconEvents = useCallback(async () => {
     const now = new Date();
-    let finnhubEvents: EconEvent[] = [];
-
     try {
-      const from = now.toISOString().slice(0, 10);
-      const to = new Date(+now + 60 * 864e5).toISOString().slice(0, 10);
-      const res = await fetch(`/api/news/finnhub?type=calendar&from=${from}&to=${to}`);
+      const res = await fetch('/api/econ-calendar');
       if (res.ok) {
-        const data = await res.json();
-        const raw: Record<string, string | number>[] = Array.isArray(data.economicCalendar) ? data.economicCalendar : [];
-        const out: EconEvent[] = [];
-        raw.forEach(e => {
-          const name = (e.event || e.name || e.description || e.title || '') as string;
-          if (!name) return;
-          const cls = classifyEcon(name);
-          if (!cls) return;
-          let dt: Date | null = null;
-          try {
-            if (e.time && typeof e.time === 'number' && e.time > 1e9) dt = new Date(e.time * 1000);
-            else if (e.time && typeof e.time === 'string' && (e.time as string).length > 10) dt = new Date(e.time as string);
-            else if (e.date) dt = new Date((e.date as string) + 'T12:00:00Z');
-          } catch { /* */ }
-          if (!dt || isNaN(dt.getTime())) return;
-          const h = (dt.getTime() - now.getTime()) / 3600000;
-          if (h < -24) return;
-          out.push({ name, type: cls.type, impact: cls.impact, dt, h, dateStr: toPHT(dt) });
-        });
-        out.sort((a, b) => a.dt.getTime() - b.dt.getTime());
-        const seenNames = new Set<string>();
-        finnhubEvents = out.filter(e => {
-          if (seenNames.has(e.name)) return false;
-          seenNames.add(e.name);
-          return true;
+        const { events: raw }: { events: { name: string; type: string; isoDate: string; impact: string }[] } = await res.json();
+        const priority: Record<string, number> = { FOMC: 0, NFP: 1, CPI: 2 };
+        const seen = new Set<string>();
+        const events: EconEvent[] = raw
+          .flatMap(e => {
+            const key = `${e.name}|${e.isoDate}`;
+            if (seen.has(key)) return [];
+            const dt = new Date(e.isoDate);
+            if (isNaN(dt.getTime())) return [];
+            const h = (dt.getTime() - now.getTime()) / 3600000;
+            if (h < -24) return [];
+            seen.add(key);
+            return [{ name: e.name, type: e.type, impact: e.impact, dt, h, dateStr: toPHT(dt) }];
+          })
+          .sort((a, b) => {
+            const pa = priority[a.type] ?? 9, pb = priority[b.type] ?? 9;
+            if (pa !== pb) return pa - pb;
+            return a.dt.getTime() - b.dt.getTime();
+          });
+        setEconEvents(events);
+        events.filter(e => e.h >= 0 && e.h < 1).forEach(e => {
+          pushAlert(`Upcoming: ${e.name} — ${countdown(e.h)}`, 'Calendar', Math.floor(Date.now() / 1000), 'amber');
         });
       }
     } catch { /* */ }
-
-    const events = finnhubEvents.length > 0 ? finnhubEvents : getFallbackEconEvents(now);
-    setEconEvents(events);
     setEventsLoaded(true);
-
-    events.filter(e => e.h < 1).forEach(e => {
-      pushAlert(`Upcoming: ${e.name} — ${countdown(e.h)}`, 'Calendar', Math.floor(Date.now() / 1000), 'amber');
-    });
   }, [pushAlert]);
 
   /* ── Finnhub geo news ── */
