@@ -564,12 +564,12 @@ export default function GrokChat() {
                   </button>
                   {searchRemaining !== null && (
                     <span style={{
-                      fontSize: 10,
+                      fontSize: 11,
                       color: searchRemaining === 0 ? '#ff9a92' : searchRemaining === 1 ? '#f59e0b' : '#666',
                       opacity: liveSearch ? 1 : 0.5,
                       fontVariantNumeric: 'tabular-nums',
                     }}>
-                      {searchRemaining === 0 ? 'None left' : `${searchRemaining} left`}
+                      {searchRemaining === 0 ? '✕ None left' : searchRemaining === 1 ? `⚠ 1 left` : `${searchRemaining} left`}
                     </span>
                   )}
                 </div>
@@ -665,6 +665,18 @@ export default function GrokChat() {
               ))}
             </div>
 
+            {/* Rate-limit / error status bar — sits between coins and messages, not in chat stream */}
+            {error && (
+              <div style={{ padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,154,146,0.06)', lineHeight: 1.6 }}>
+                <div style={{ fontSize: 11, color: '#ff9a92' }}>⚠ {error}</div>
+                {rateLimited && (
+                  <Link href="/upgrade" style={{ fontSize: 11, color: '#b8aeff', textDecoration: 'underline' }}>
+                    Upgrade to Pro for higher limits →
+                  </Link>
+                )}
+              </div>
+            )}
+
             {/* Messages */}
             <div className="gchat-msgs" ref={msgsRef}>
               {msgs.length === 0 && (
@@ -739,20 +751,6 @@ export default function GrokChat() {
                     <span className="gchat-dot" />
                     <span className="gchat-dot" />
                   </div>
-                </div>
-              )}
-
-              {error && (
-                <div style={{ fontSize: 11, padding: '6px 14px', marginBottom: 4, lineHeight: 1.6 }}>
-                  <div style={{ color: '#ff9a92' }}>⚠ {error}</div>
-                  {rateLimited && (
-                    <Link
-                      href="/upgrade"
-                      style={{ color: '#b8aeff', textDecoration: 'underline' }}
-                    >
-                      Upgrade to Pro for higher limits →
-                    </Link>
-                  )}
                 </div>
               )}
 
