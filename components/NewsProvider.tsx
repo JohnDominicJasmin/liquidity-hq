@@ -161,7 +161,6 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
       const res = await fetch('/api/econ-calendar');
       if (res.ok) {
         const { events: raw }: { events: { name: string; type: string; isoDate: string; impact: string }[] } = await res.json();
-        const priority: Record<string, number> = { FOMC: 0, NFP: 1, CPI: 2 };
         const seen = new Set<string>();
         const events: EconEvent[] = raw
           .flatMap(e => {
@@ -174,11 +173,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
             seen.add(key);
             return [{ name: e.name, type: e.type, impact: e.impact, dt, h, dateStr: toPHT(dt) }];
           })
-          .sort((a, b) => {
-            const pa = priority[a.type] ?? 9, pb = priority[b.type] ?? 9;
-            if (pa !== pb) return pa - pb;
-            return a.dt.getTime() - b.dt.getTime();
-          });
+          .sort((a, b) => a.dt.getTime() - b.dt.getTime());
         setEconEvents(events);
         events.filter(e => e.h >= 0 && e.h < 1).forEach(e => {
           pushAlert(`Upcoming: ${e.name} — ${countdown(e.h)}`, 'Calendar', Math.floor(Date.now() / 1000), 'amber');
