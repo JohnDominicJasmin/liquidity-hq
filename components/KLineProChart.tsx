@@ -146,24 +146,38 @@ const LIGHT: Record<string, unknown> = {
 
 export type ChartTf = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d';
 
-interface Props {
-  coin:   CoinId;
-  tf:     ChartTf;
-  result?: CombinedResult | null;
+export interface ChartAlert {
+  id:           string;
+  target_price: number;
+  direction:    'above' | 'below';
+  label?:       string;
 }
 
-export default function KLineProChart({ coin, tf, result }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const wrapRef      = useRef<HTMLDivElement>(null);
-  const chartRef     = useRef<KChart | null>(null);
-  const wsRef        = useRef<{ close: () => void } | null>(null);
-  const analysisIds  = useRef<string[]>([]);
-  const coinRef      = useRef<CoinId>(coin);
-  const [activeTool,  setActiveTool]  = useState<string | null>(null);
-  const [wsStatus,    setWsStatus]    = useState<'connecting' | 'live' | 'error'>('connecting');
-  const [fullscreen,  setFullscreen]  = useState(false);
-  const [copiedMsg,   setCopiedMsg]   = useState<string | null>(null);
+interface Props {
+  coin:          CoinId;
+  tf:            ChartTf;
+  result?:       CombinedResult | null;
+  chartAlerts?:  ChartAlert[];
+  onAlertMove?:  (id: string, newPrice: number) => void;
+}
+
+export default function KLineProChart({ coin, tf, result, chartAlerts, onAlertMove }: Props) {
+  const containerRef   = useRef<HTMLDivElement>(null);
+  const wrapRef        = useRef<HTMLDivElement>(null);
+  const chartRef       = useRef<KChart | null>(null);
+  const wsRef          = useRef<{ close: () => void } | null>(null);
+  const analysisIds    = useRef<string[]>([]);
+  const alertOverlayMap = useRef<Map<string, string>>(new Map()); // alert.id → overlay id
+  const onAlertMoveRef = useRef(onAlertMove);
+  const coinRef        = useRef<CoinId>(coin);
+  const [activeTool,   setActiveTool]  = useState<string | null>(null);
+  const [wsStatus,     setWsStatus]    = useState<'connecting' | 'live' | 'error'>('connecting');
+  const [fullscreen,   setFullscreen]  = useState(false);
+  const [copiedMsg,    setCopiedMsg]   = useState<string | null>(null);
+  const [chartReady,   setChartReady]  = useState(false);
   const copyToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => { onAlertMoveRef.current = onAlertMove; }, [onAlertMove]);
 
   // ── Theme sync — apply DARK/LIGHT styles when theme changes ─────────────
   useEffect(() => {
@@ -279,8 +293,10 @@ export default function KLineProChart({ coin, tf, result }: Props) {
       chart.setDataLoader(loader);
       setChartSymbolPeriod(chart, coin, tf);
 
-      // Ensure chart paints correctly after initial layout settles (critical on mobile)
-      if (!disposed) setTimeout(() => chartRef.current?.resize(), 100);
+      if (!disposed) {
+        setTimeout(() => chartRef.current?.resize(), 100);
+        setChartReady(true);
+      }
     })();
 
     // Resize chart whenever the container changes dimensions (handles mobile viewport changes)
@@ -305,6 +321,8 @@ export default function KLineProChart({ coin, tf, result }: Props) {
     if (!chart) return;
     analysisIds.current.forEach(id => chart.removeOverlay({ id }));
     analysisIds.current = [];
+    alertOverlayMap.current.forEach(oid => chart.removeOverlay({ id: oid }));
+    alertOverlayMap.current.clear();
     setActiveTool(null);
     setChartSymbolPeriod(chart, coin, tf);
   }, [coin, tf]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -359,6 +377,36 @@ export default function KLineProChart({ coin, tf, result }: Props) {
     if (result.sl)        draw(result.sl,        '#f87171');
     if (result.tp)        draw(result.tp,        '#b8aeff');
   }, [result]);
+
+  // ── Sync price alert lines ───────────────────────────────────────────
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+
+    // Remove stale alert overlays
+    alertOverlayMap.current.forEach(oid => chart.removeOverlay({ id: oid }));
+    alertOverlayMap.current.clear();
+
+    if (!chartAlerts?.length) return;
+
+    chartAlerts.forEach(alert => {
+      const id = chart.createOverlay({
+        name: 'horizontalStraightLine',
+        groupId: 'price_alerts',
+        lock: false,
+        points: [{ value: alert.target_price }],
+        styles: {
+          line: { style: 'dashed', color: '#f59e0b', size: 1, dashedValue: [5, 3] },
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onPressedMoveEnd: ({ overlay }: { overlay: { points: Array<{ value?: number }> } }) => {
+          const newPrice = overlay.points[0]?.value;
+          if (newPrice !== undefined) onAlertMoveRef.current?.(alert.id, newPrice);
+        },
+      } as OverlayCreate);
+      if (typeof id === 'string') alertOverlayMap.current.set(alert.id, id);
+    });
+  }, [chartAlerts, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Drawing toolbar ──────────────────────────────────────────────────
   const handleTool = (toolId: string) => {
@@ -445,6 +493,22 @@ export default function KLineProChart({ coin, tf, result }: Props) {
                 — TP&nbsp;${fmtPx(result!.tp)}
               </button>
             )}
+          </div>
+        )}
+
+        {chartAlerts && chartAlerts.length > 0 && (
+          <div className="klc-legend" style={{ marginLeft: hasLevels ? 0 : undefined }}>
+            {chartAlerts.map(alert => (
+              <span
+                key={alert.id}
+                className="klc-price-chip"
+                style={{ color: '#f59e0b', background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.2)', cursor: 'default' }}
+                title={`Alert: ${alert.direction} $${fmtPx(alert.target_price)}${alert.label ? ` · ${alert.label}` : ''} — drag the dashed line to adjust`}
+              >
+                🔔 {alert.direction === 'above' ? '↑' : '↓'} ${fmtPx(alert.target_price)}
+                {alert.label ? <>&nbsp;·&nbsp;{alert.label}</> : null}
+              </span>
+            ))}
           </div>
         )}
 

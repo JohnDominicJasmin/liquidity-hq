@@ -136,7 +136,7 @@ export interface GrokContext {
 }
 
 export interface GrokResult {
-  signal: 'LONG' | 'SHORT' | 'FLAT';
+  signal: 'LONG' | 'LEAN LONG' | 'FLAT' | 'LEAN SHORT' | 'SHORT';
   confidence: number;
   entry: string;
   reasoning: string;
@@ -341,13 +341,22 @@ export function buildPrompt(ctx: GrokContext): string {
     '19. TAKER RATIO: Taker buy >65% = aggressive buyers = real demand (bullish). Taker sell >65% = sellers dumping into bids = distribution/panic (bearish).',
     '',
     '=== SIGNAL DECISION GUIDE ===',
-    'LONG: 3+ exhaustion signals OR clear bullish regime + reversal candle at support. Define entry, stop, target.',
-    'SHORT: 3+ continuation signals OR clear bearish regime + breakdown candle below support. Define entry, stop, target.',
-    'FLAT: Use ONLY when exhaustion/continuation count is below 3 AND regime is ambiguous OR signals directly conflict.',
-    '  • FLAT is NOT the safe default — if 3+ signals align in one direction, call LONG or SHORT.',
-    '  • FLAT with 65–85% confidence when: signals conflict, stop would be too wide, or no clean entry structure.',
-    'FLAT reasoning must say EXACTLY: which signals you counted, what price level to watch, what candle/volume pattern confirms.',
-    'NEVER output FLAT just because you are uncertain — own the direction when the signals support it.',
+    'Five tiers from bearish to bullish — pick the tier that matches your signal count and regime:',
+    '',
+    'SHORT:      3+ continuation signals + bearish regime confirmed. Define entry, stop above resistance, target at next support.',
+    'LEAN SHORT: 2+ continuation signals OR bearish regime + at least 1 continuation signal. Direction clear — entry not confirmed yet. State what confirms to SHORT.',
+    'FLAT:       Signals genuinely conflict OR count below 2 in both directions with no clear regime. No directional edge.',
+    'LEAN LONG:  2+ exhaustion signals OR bullish regime + at least 1 exhaustion signal. Direction clear — entry not confirmed yet. State what confirms to LONG.',
+    'LONG:       3+ exhaustion signals + reversal candle at support. Define entry, stop below support, target at resistance.',
+    '',
+    'SESSION WEIGHTING — session timing adjusts confidence only, NOT the signal tier:',
+    '  • NY / London: standard confidence, all tiers available.',
+    '  • Pre-NY / Asia: subtract 10 from confidence. LEAN SHORT and LEAN LONG are fully valid.',
+    '  "Pre-NY session" is NEVER a standalone reason for FLAT — reduce confidence, not tier.',
+    '',
+    'FLAT is NOT the safe default — if 2+ signals align, call LEAN SHORT or LEAN LONG.',
+    'FLAT means: no directional edge at all. Not "risky session" or "cautious".',
+    'NEVER output FLAT just because you are uncertain — own the direction when signals support it.',
     '',
     'Output in EXACTLY this format — no extra text before or after:',
     'SIGNAL: [LONG or SHORT or FLAT]',
@@ -407,7 +416,7 @@ export interface ChartData {
 }
 
 export interface CombinedResult {
-  signal: 'LONG' | 'SHORT' | 'FLAT';
+  signal: 'LONG' | 'LEAN LONG' | 'FLAT' | 'LEAN SHORT' | 'SHORT';
   confidence: number;
   entryLow: number | null;
   entryHigh: number | null;
@@ -449,14 +458,15 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     'Cross-reference the candle key levels with order book walls, liquidation clusters, and derivatives data above.',
     'REMINDER: Apply the MOMENTUM REGIME FILTER above before deciding direction. If bearish regime is confirmed, SHORT or FLAT is the default — do not override with oscillators alone.',
     '',
-    '=== FLAT = VALID HIGH-QUALITY SIGNAL — USE IT WHEN CONDITIONS DO NOT JUSTIFY A TRADE ===',
-    'FLAT (65–85% confidence) when: bearish regime + no catalyst, oversold RSI but price still falling,',
-    'CVD absorption without reversal confirmation, conflicting signals with no edge, or stop too wide.',
-    'FLAT REASONING must say: what price/catalyst to watch before entering.',
+    '=== SIGNAL TIERS: WHEN TO USE LEAN vs FLAT ===',
+    'LEAN SHORT (55–75% confidence): bearish regime confirmed but < 3 continuation signals. Direction is clear — one confirmation away from SHORT.',
+    'LEAN LONG  (55–75% confidence): exhaustion signals visible but < 3 confirmed. Direction leaning long — one reversal candle away from LONG.',
+    'FLAT       (65–85% confidence): signals directly conflict, count < 2 in either direction, no identifiable regime.',
+    'LEAN / FLAT REASONING must say: exactly which signals were counted, what price level triggers the upgrade to SHORT or LONG.',
     '',
     'CRITICAL: Output ONLY these exact lines, no markdown, no bold (**), no extra text:',
-    'SIGNAL: [LONG or SHORT or FLAT]',
-    'BIAS_LEAN: [Required when SIGNAL is FLAT — your directional lean even if you cannot call a trade: BULLISH, BEARISH, or NEUTRAL. Example: if signals lean short but count is <3, write BEARISH. Write N/A if SIGNAL is LONG or SHORT.]',
+    'SIGNAL: [SHORT or LEAN SHORT or FLAT or LEAN LONG or LONG]',
+    'BIAS_LEAN: [Required ONLY when SIGNAL is FLAT — write BULLISH, BEARISH, or NEUTRAL to show your lean. Write N/A for all other signals.]',
     'CONFIDENCE: [0-100]',
     'ENTRY_LOW: [number]',
     'ENTRY_HIGH: [number]',
@@ -476,7 +486,7 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     'CHART_ANALYSIS: [1-2 sentences on candles and indicators only — no mention of macro here]',
     'PATTERNS:',
     '- [identify chart patterns from the candle data: e.g. "Bear flag", "Bull flag", "Head and shoulders", "Double top", "Double bottom", "Ascending triangle", "Descending triangle", "Rising wedge", "Falling wedge", "Bullish engulfing", "Bearish engulfing", "Doji reversal", "Higher highs / higher lows", "Lower highs / lower lows" — be specific with price context. Write "None detected" if no clear pattern]',
-    'WAIT_FOR: [REQUIRED when SIGNAL is FLAT. Write exactly: (1) which exhaustion or continuation signals you counted, (2) the specific price level to watch, (3) what candle/volume pattern would confirm a setup, (4) what derivative condition (funding, L/S ratio, taker ratio) would change your signal. Example: "Exhaustion: volume drying up + funding neutral. Watch $1.85 for a hammer/doji with volume spike. Need L/S ratio to drop below 1.2 and taker buy to recover above 50% before entering long. Alternatively wait for a clean break below $1.72 fib support for short." Write N/A if SIGNAL is LONG or SHORT.]',
+    'WAIT_FOR: [REQUIRED when SIGNAL is FLAT, LEAN LONG, or LEAN SHORT. Write exactly: (1) which signals you counted and which direction they lean, (2) the specific price level to watch, (3) what candle/volume pattern would upgrade to SHORT or LONG, (4) what derivative condition (funding, L/S ratio, taker ratio) would confirm the signal. Example (LEAN SHORT): "2 continuation signals: rising OI + taker sell 63%. Watch $64,200 for a breakdown candle with volume spike. Taker sell above 65% + L/S above 1.5 → SHORT. Bounce above $65,500 with CVD flip cancels bearish bias." Write N/A if SIGNAL is LONG or SHORT.]',
     'REASONING: [3-4 sentences combining chart + derivatives + macro + news into one directional thesis. If FLAT, state whether selling is EXHAUSTING or CONTINUING and why.]',
   ].join('\n');
 
@@ -510,9 +520,12 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
 
   const pn = (s?: string): number | null => { const v = parseFloat((s ?? '').replace(/[,$]/g, '')); return isNaN(v) || v <= 0 ? null : v; };
 
-  const signal     = (clean.match(/SIGNAL:\s*(LONG|SHORT|FLAT)/i)?.[1]?.toUpperCase() ?? 'FLAT') as CombinedResult['signal'];
+  const signal     = (clean.match(/SIGNAL:\s*(LEAN LONG|LEAN SHORT|LONG|SHORT|FLAT)/i)?.[1]?.toUpperCase() ?? 'FLAT') as CombinedResult['signal'];
   const biasRaw    = clean.match(/BIAS_LEAN:\s*(BULLISH|BEARISH|NEUTRAL)/i)?.[1]?.toUpperCase();
-  const bias       = (biasRaw === 'BULLISH' || biasRaw === 'BEARISH' || biasRaw === 'NEUTRAL') ? biasRaw as CombinedResult['bias'] : null;
+  const bias: CombinedResult['bias'] = signal === 'LEAN LONG' ? 'BULLISH'
+    : signal === 'LEAN SHORT' ? 'BEARISH'
+    : (biasRaw === 'BULLISH' || biasRaw === 'BEARISH' || biasRaw === 'NEUTRAL') ? biasRaw as CombinedResult['bias']
+    : null;
   const confidence = parseInt(clean.match(/CONFIDENCE:\s*(\d+)/i)?.[1] ?? '0');
   const entryLow   = pn(clean.match(/ENTRY_LOW:\s*([\d,.]+)/i)?.[1]);
   const entryHigh  = pn(clean.match(/ENTRY_HIGH:\s*([\d,.]+)/i)?.[1]);
@@ -577,7 +590,7 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
     clean.match(/\*{0,2}REASONING\*{0,2}:\s*([\s\S]+)/i)?.[1] ?? ''
   );
 
-  return { signal, confidence, bias: signal === 'FLAT' ? bias : null, entryLow, entryHigh, tp, sl, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, analyzedAt: Date.now(), tf, session };
+  return { signal, confidence, bias, entryLow, entryHigh, tp, sl, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, analyzedAt: Date.now(), tf, session };
 }
 
 /* ── Quick prompt — strips the LIVE SEARCH TASK block (no web search needed) ── */

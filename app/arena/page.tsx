@@ -10,7 +10,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
 import ConfluenceScorer from '@/components/ConfluenceScorer';
-import KLineProChart, { ChartTf } from '@/components/KLineProChart';
+import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import MarketStructure, { MSData } from '@/components/MarketStructure';
 import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
@@ -184,6 +184,7 @@ export default function Arena() {
   const [alertLabel,    setAlertLabel]    = useState('');
   const [alertSaving,   setAlertSaving]   = useState(false);
   const [alertSuccess,  setAlertSuccess]  = useState(false);
+  const [chartAlerts,   setChartAlerts]   = useState<ChartAlert[]>([]);
 
   function openAlertForm() {
     const price = store.coins[selectedCoin]?.price;
@@ -199,18 +200,50 @@ export default function Arena() {
     setAlertSaving(true);
     try {
       const token = (await getSupabase()!.auth.getSession()).data.session?.access_token;
-      await fetch('/api/price-alerts', {
+      const res = await fetch('/api/price-alerts', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body:    JSON.stringify({ coin: selectedCoin, target_price: parseFloat(alertPrice), direction: alertDir, label: alertLabel }),
       });
       window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'priceAlert' }));
+      if (res.ok) {
+        const { alert } = await res.json() as { alert: { id: string } };
+        setChartAlerts(prev => [...prev, { id: alert.id, target_price: parseFloat(alertPrice), direction: alertDir, label: alertLabel }]);
+      }
       setAlertSuccess(true);
       setAlertLabel('');
       setTimeout(() => { setAlertFormOpen(false); setAlertSuccess(false); }, 1500);
     } finally {
       setAlertSaving(false);
     }
+  }
+
+  /* ── Fetch alerts for selected coin (chart overlay lines) ── */
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    async function load() {
+      const token = (await getSupabase()!.auth.getSession()).data.session?.access_token;
+      if (!token || cancelled) return;
+      const res = await fetch('/api/price-alerts', { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok || cancelled) return;
+      const { alerts } = await res.json() as { alerts: Array<{ id: string; coin: string; target_price: number; direction: 'above' | 'below'; label?: string }> };
+      if (!cancelled) setChartAlerts(alerts.filter(a => a.coin === selectedCoin));
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [selectedCoin, user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Update alert price when user drags a line ── */
+  async function handleAlertMove(id: string, newPrice: number) {
+    setChartAlerts(prev => prev.map(a => a.id === id ? { ...a, target_price: newPrice } : a));
+    const token = (await getSupabase()!.auth.getSession()).data.session?.access_token;
+    if (!token) return;
+    fetch(`/api/price-alerts?id=${id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body:    JSON.stringify({ target_price: newPrice }),
+    }).catch(() => {});
   }
 
   // Hover over trigger → auto-open; moving away cancels the timer
@@ -1159,7 +1192,7 @@ export default function Arena() {
       </div>
 
       {/* ── CHART — KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} result={result} />
+      <KLineProChart coin={selectedCoin} tf={readTf} result={result} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} />
 
       {/* ── BELOW CHART: left-aligned, max 860px on wide screens ── */}
       <div className="arena-below-chart">
@@ -1190,15 +1223,15 @@ export default function Arena() {
             window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
           }}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={!user ? 'Sign in to use Quick Analysis' : 'Uses local data only — no web search. ~$0.003'}
+          title={!user ? 'Sign in to use Quick Analysis' : 'Uses local data only — no web search'}
         >
           {readLoading && readMode === 'quick' ? readStep || 'Working…' : (
             !user ? (
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1.2 }}>
-                <span>🔒 Quick</span>
+                <span>🔒 Quick Research</span>
                 <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.04em', color: '#a37a2a' }}>sign in →</span>
               </span>
-            ) : 'Quick'
+            ) : 'Quick Research'
           )}
         </button>
 
@@ -1214,7 +1247,7 @@ export default function Arena() {
             window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
           }}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={!user ? 'Sign in to use Deep Analysis' : 'Searches live web + X for catalysts. ~$0.10'}
+          title={!user ? 'Sign in to use Deep Analysis' : 'Searches live web + X for catalysts'}
         >
           {readLoading && readMode === 'deep' ? readStep || 'Working…' : (
             <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1.2 }}>
@@ -1255,8 +1288,9 @@ export default function Arena() {
       {alertFormOpen && user && (
         <div style={{ margin: '8px 0', padding: '14px 16px', borderRadius: 12, border: '0.5px solid rgba(192,132,252,0.3)', background: 'rgba(192,132,252,0.06)', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {alertSuccess ? (
-            <div style={{ fontSize: 13, color: '#a78bfa', fontWeight: 600, textAlign: 'center', padding: '4px 0' }}>
-              ✓ Alert set for {selectedCoin.toUpperCase()}
+            <div style={{ fontSize: 13, fontWeight: 600, textAlign: 'center', padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+              <span style={{ color: '#a78bfa' }}>✓ Alert set for {selectedCoin.toUpperCase()}</span>
+              <a href="/alerts" style={{ fontSize: 12, color: 'var(--txt3)', textDecoration: 'underline' }}>View all alerts →</a>
             </div>
           ) : (
             <>
@@ -1314,7 +1348,7 @@ export default function Arena() {
       )}
       {user && !isPro && !authLoading && (
         <div className="usage-auth-notice" style={{ borderColor: 'rgba(155,127,212,0.2)', background: 'rgba(155,127,212,0.04)' }}>
-          Free tier: 7 Quick + 3 Deep per day.{' '}
+          Free tier: 7 Quick Research + 5 Deep Research per day.{' '}
           <a href="/upgrade" className="usage-auth-link" style={{ color: '#b8aeff' }}>Upgrade to Pro for more →</a>
         </div>
       )}
@@ -1329,7 +1363,7 @@ export default function Arena() {
       {readError && <div className="arena-err">{readError}</div>}
 
       {result && Date.now() - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
-        const sigCol = result.signal === 'LONG' ? '#34d399' : result.signal === 'SHORT' ? '#f87171' : '#9ca3af';
+        const sigCol = result.signal === 'LONG' ? '#34d399' : result.signal === 'LEAN LONG' ? '#86efac' : result.signal === 'SHORT' ? '#f87171' : result.signal === 'LEAN SHORT' ? '#fca5a5' : '#9ca3af';
         const prevQuickSignal = quickSignals[selectedCoin];
         const showOverride = !!(
           cacheEntry?.mode === 'deep' &&
@@ -1339,7 +1373,7 @@ export default function Arena() {
         const secsDiff = Math.floor((Date.now() - result.analyzedAt) / 1000);
         const freshness = secsDiff < 60 ? 'just now' : secsDiff < 3600 ? `${Math.floor(secsDiff/60)}m ago` : `${Math.floor(secsDiff/3600)}h ago`;
         return (
-          <div className={`arena-signal-card sig-${result.signal.toLowerCase()}`}>
+          <div className={`arena-signal-card sig-${result.signal.toLowerCase().replace(' ', '-')}`}>
             {/* Header row */}
             <div className="arena-sig-top">
               <div>
@@ -1358,8 +1392,8 @@ export default function Arena() {
                 </div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
-                <span className={`arena-sig-badge badge-${result.signal.toLowerCase()}`}>
-                  {result.signal === 'LONG' ? '▲ LONG' : result.signal === 'SHORT' ? '▼ SHORT' : '— FLAT'}
+                <span className={`arena-sig-badge badge-${result.signal.toLowerCase().replace(' ', '-')}`}>
+                  {result.signal === 'LONG' ? '▲ LONG' : result.signal === 'LEAN LONG' ? '↗ LEAN LONG' : result.signal === 'SHORT' ? '▼ SHORT' : result.signal === 'LEAN SHORT' ? '↘ LEAN SHORT' : '— FLAT'}
                 </span>
                 {result.signal === 'FLAT' && result.bias && result.bias !== 'NEUTRAL' && (
                   <span style={{
@@ -1395,12 +1429,14 @@ export default function Arena() {
               <div className="arena-conf-fill" style={{ width: result.confidence + '%', background: sigCol }} />
             </div>
 
-            {/* Wait For — shown when signal is FLAT */}
-            {result.signal === 'FLAT' && result.waitFor && (
+            {/* Watch For — shown when signal is FLAT, LEAN LONG, or LEAN SHORT */}
+            {(result.signal === 'FLAT' || result.signal === 'LEAN LONG' || result.signal === 'LEAN SHORT') && result.waitFor && (
               <div className="arena-wait-for">
                 <div className="arena-wait-for-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span>👁 Watch For</span>
-                  {result.bias && result.bias !== 'NEUTRAL' && (
+                  <span>
+                    {result.signal === 'LEAN SHORT' ? '→ Confirms to SHORT' : result.signal === 'LEAN LONG' ? '→ Confirms to LONG' : '👁 Watch For'}
+                  </span>
+                  {result.signal === 'FLAT' && result.bias && result.bias !== 'NEUTRAL' && (
                     <span style={{
                       fontSize: 9, fontWeight: 800, letterSpacing: '.06em',
                       textTransform: 'uppercase',
@@ -1579,8 +1615,8 @@ export default function Arena() {
                 style={{ cursor: 'pointer' }}
               >
                 <div className="arena-hist-left">
-                  <span className={`arena-hist-badge tag ${h.signal === 'LONG' ? 'tg' : h.signal === 'SHORT' ? 'tr' : 'tp'}`}>
-                    {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'SHORT' ? '▼ SHORT' : '— FLAT'}
+                  <span className={`arena-hist-badge tag ${h.signal === 'LONG' || h.signal === 'LEAN LONG' ? 'tg' : h.signal === 'SHORT' || h.signal === 'LEAN SHORT' ? 'tr' : 'tp'}`}>
+                    {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'LEAN LONG' ? '↗ LEAN LONG' : h.signal === 'SHORT' ? '▼ SHORT' : h.signal === 'LEAN SHORT' ? '↘ LEAN SHORT' : '— FLAT'}
                   </span>
                   <div>
                     <div className="arena-hist-pair">{h.coin}</div>
@@ -1594,10 +1630,10 @@ export default function Arena() {
               </div>
 
               {detailIdx === i && (
-                <div className={`arena-hist-detail sig-${h.signal.toLowerCase()}`}>
+                <div className={`arena-hist-detail sig-${h.signal.toLowerCase().replace(' ', '-')}`}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <span className={`arena-sig-badge badge-${h.signal.toLowerCase()}`} style={{ fontSize: 11 }}>
-                      {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'SHORT' ? '▼ SHORT' : '— FLAT'}
+                    <span className={`arena-sig-badge badge-${h.signal.toLowerCase().replace(' ', '-')}`} style={{ fontSize: 11 }}>
+                      {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'LEAN LONG' ? '↗ LEAN LONG' : h.signal === 'SHORT' ? '▼ SHORT' : h.signal === 'LEAN SHORT' ? '↘ LEAN SHORT' : '— FLAT'}
                     </span>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#b8aeff' }}>{h.confidence}% confidence</div>
                   </div>
@@ -1610,7 +1646,7 @@ export default function Arena() {
                   <div className="arena-conf-bar" style={{ marginBottom: 10 }}>
                     <div className="arena-conf-fill" style={{
                       width: h.confidence + '%',
-                      background: h.signal === 'LONG' ? '#7de0a4' : h.signal === 'SHORT' ? '#ff9a92' : '#606060',
+                      background: h.signal === 'LONG' ? '#7de0a4' : h.signal === 'LEAN LONG' ? '#86efac' : h.signal === 'SHORT' ? '#ff9a92' : h.signal === 'LEAN SHORT' ? '#fca5a5' : '#606060',
                     }} />
                   </div>
                   {h.reasoning && (

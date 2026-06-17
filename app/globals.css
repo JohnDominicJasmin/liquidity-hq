@@ -941,17 +941,21 @@ body.ticker-on .breaking-alert { top: 90px; }
 
 /* Signal cards — with glow */
 .arena-signal-card { border-radius: 16px; padding: 18px; margin-bottom: 10px; border: 0.5px solid var(--bdr); position: relative; overflow: hidden; }
-.arena-signal-card.sig-long  { background: rgba(52,211,153,0.04);  border-color: rgba(52,211,153,0.3);  border-left: 3px solid var(--green);  box-shadow: 0 0 40px rgba(52,211,153,0.07); }
-.arena-signal-card.sig-short { background: rgba(248,113,113,0.04); border-color: rgba(248,113,113,0.3); border-left: 3px solid var(--red);    box-shadow: 0 0 40px rgba(248,113,113,0.07); }
-.arena-signal-card.sig-flat  { background: var(--bg1); border-color: var(--bdr); border-left: 3px solid var(--txt3); }
+.arena-signal-card.sig-long       { background: rgba(52,211,153,0.04);  border-color: rgba(52,211,153,0.3);  border-left: 3px solid var(--green);  box-shadow: 0 0 40px rgba(52,211,153,0.07); }
+.arena-signal-card.sig-lean-long  { background: rgba(52,211,153,0.02);  border-color: rgba(52,211,153,0.18); border-left: 3px solid rgba(52,211,153,0.5); }
+.arena-signal-card.sig-short      { background: rgba(248,113,113,0.04); border-color: rgba(248,113,113,0.3); border-left: 3px solid var(--red);    box-shadow: 0 0 40px rgba(248,113,113,0.07); }
+.arena-signal-card.sig-lean-short { background: rgba(248,113,113,0.02); border-color: rgba(248,113,113,0.18); border-left: 3px solid rgba(248,113,113,0.5); }
+.arena-signal-card.sig-flat       { background: var(--bg1); border-color: var(--bdr); border-left: 3px solid var(--txt3); }
 
 .arena-sig-top   { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
 .arena-sig-pair  { font-size: 18px; font-weight: 700; color: var(--txt); margin-bottom: 2px; letter-spacing: -0.3px; }
 .arena-sig-time  { font-size: 12px; color: rgba(255,255,255,0.55); font-weight: 500; letter-spacing: 0.01em; }
 .arena-sig-badge { font-size: 13px; font-weight: 700; padding: 5px 14px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; letter-spacing: .04em; }
-.badge-long  { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-bdr); }
-.badge-short { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bdr); }
-.badge-flat  { background: var(--bg3);      color: var(--txt3);  border: 0.5px solid var(--bdr); }
+.badge-long       { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-bdr); }
+.badge-lean-long  { background: rgba(52,211,153,0.07); color: #86efac; border: 0.5px solid rgba(52,211,153,0.25); }
+.badge-short      { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bdr); }
+.badge-lean-short { background: rgba(248,113,113,0.07); color: #fca5a5; border: 0.5px solid rgba(248,113,113,0.25); }
+.badge-flat       { background: var(--bg3);      color: var(--txt3);  border: 0.5px solid var(--bdr); }
 .arena-sig-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 14px; }
 .arena-stat       { background: rgba(0,0,0,0.4); border-radius: 10px; padding: 9px 10px; border: 0.5px solid var(--bdr); }
 .arena-stat-label { font-size: 10px; color: var(--txt3); margin-bottom: 3px; }
@@ -967,9 +971,11 @@ body.ticker-on .breaking-alert { top: 90px; }
 
 /* Expanded detail panel — attaches flush below the open row */
 .arena-hist-detail { border: 0.5px solid var(--bdr); border-top: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; padding: 14px; margin-bottom: 6px; }
-.arena-hist-detail.sig-long  { background: rgba(52,211,153,0.04);  border-color: rgba(52,211,153,0.25); }
-.arena-hist-detail.sig-short { background: rgba(248,113,113,0.04); border-color: rgba(248,113,113,0.25); }
-.arena-hist-detail.sig-flat  { background: var(--bg2); }
+.arena-hist-detail.sig-long       { background: rgba(52,211,153,0.04);  border-color: rgba(52,211,153,0.25); }
+.arena-hist-detail.sig-lean-long  { background: rgba(52,211,153,0.02);  border-color: rgba(52,211,153,0.15); }
+.arena-hist-detail.sig-short      { background: rgba(248,113,113,0.04); border-color: rgba(248,113,113,0.25); }
+.arena-hist-detail.sig-lean-short { background: rgba(248,113,113,0.02); border-color: rgba(248,113,113,0.15); }
+.arena-hist-detail.sig-flat       { background: var(--bg2); }
 .arena-hist-left   { display: flex; align-items: center; gap: 8px; }
 .arena-hist-pair   { font-size: 13px; font-weight: 600; color: var(--txt); }
 .arena-hist-time   { font-size: 11px; color: var(--txt3); }

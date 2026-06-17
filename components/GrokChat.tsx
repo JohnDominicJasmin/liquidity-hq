@@ -558,7 +558,7 @@ export default function GrokChat() {
                   <button
                     className={`gchat-search-toggle${liveSearch ? ' on' : ''}`}
                     onClick={() => setLiveSearch(v => !v)}
-                    title={liveSearch ? 'Live web+X search ON (~$0.10/msg) — click to turn off' : 'Search OFF (~$0.003/msg) — click to enable live web+X search'}
+                    title={liveSearch ? 'Live web+X search ON — click to turn off' : 'Search OFF — click to enable live web+X search'}
                   >
                     {liveSearch ? '🌐 Live' : '⚡ Fast'}
                   </button>
@@ -689,7 +689,7 @@ export default function GrokChat() {
                         {coin.toUpperCase()}/USDT
                       </div>
                       <div style={{ fontSize: 11, color: '#444' }}>
-                        {liveSearch ? '🌐 Live search ON · ~$0.10/msg' : '⚡ Fast mode · ~$0.003/msg · toggle 🌐 for live search'}
+                        {liveSearch ? '🌐 Live search ON' : '⚡ Fast mode · toggle 🌐 for live search'}
                       </div>
                     </>
                   ) : (
