@@ -3,9 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 import { parseCombinedResponse } from '@/lib/grok';
 
 // Keys / limits
-const GROK_KEY    = process.env.GROK_API_KEY ?? '';
-const DEEP_LIMIT  = 20;   // per user per calendar day (UTC)
-const QUICK_LIMIT = 50;   // per user per calendar day (UTC)
+const GROK_KEY         = process.env.GROK_API_KEY ?? '';
+const DEEP_LIMIT_FREE  = 3;
+const QUICK_LIMIT_FREE = 7;
+const DEEP_LIMIT_PRO   = 20;
+const QUICK_LIMIT_PRO  = 50;
 
 function sb(token?: string) {
   return createClient(
@@ -24,6 +26,14 @@ async function getUsageRow(token: string, userId: string, today: string) {
   return { deepUsed: data?.deep_count ?? 0, quickUsed: data?.quick_count ?? 0 };
 }
 
+async function getUserRole(token: string, userId: string): Promise<'free' | 'pro'> {
+  const { data } = await sb(token).from('user_subscriptions')
+    .select('role')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return data?.role === 'pro' ? 'pro' : 'free';
+}
+
 // ── GET — return today's usage without running an analysis ──────────────────
 export async function GET(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '') || undefined;
@@ -34,10 +44,15 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.json({ usage: null });
 
   const today = new Date().toISOString().slice(0, 10);
-  const { deepUsed, quickUsed } = await getUsageRow(token, userId, today);
+  const [{ deepUsed, quickUsed }, role] = await Promise.all([
+    getUsageRow(token, userId, today),
+    getUserRole(token, userId),
+  ]);
+  const deepLimit  = role === 'pro' ? DEEP_LIMIT_PRO  : DEEP_LIMIT_FREE;
+  const quickLimit = role === 'pro' ? QUICK_LIMIT_PRO : QUICK_LIMIT_FREE;
 
   return NextResponse.json({
-    usage: { deep_used: deepUsed, deep_limit: DEEP_LIMIT, quick_used: quickUsed, quick_limit: QUICK_LIMIT },
+    usage: { deep_used: deepUsed, deep_limit: deepLimit, quick_used: quickUsed, quick_limit: quickLimit },
   });
 }
 
@@ -65,24 +80,29 @@ export async function POST(req: NextRequest) {
 
   // ── Rate limit check ──────────────────────────────────────────────────────
   const today = new Date().toISOString().slice(0, 10);
-  let { deepUsed, quickUsed } = await getUsageRow(token!, userId, today);
+  let [{ deepUsed, quickUsed }, role] = await Promise.all([
+    getUsageRow(token!, userId, today),
+    getUserRole(token!, userId),
+  ]);
+  const deepLimit  = role === 'pro' ? DEEP_LIMIT_PRO  : DEEP_LIMIT_FREE;
+  const quickLimit = role === 'pro' ? QUICK_LIMIT_PRO : QUICK_LIMIT_FREE;
 
-  if (type === 'deep' && deepUsed >= DEEP_LIMIT) {
+  if (type === 'deep' && deepUsed >= deepLimit) {
     return NextResponse.json(
       {
-        error: `Daily limit of ${DEEP_LIMIT} deep analyses reached. Resets at midnight UTC.`,
+        error: `Daily limit of ${deepLimit} deep analyses reached. Resets at midnight UTC.`,
         code: 'RATE_LIMIT',
-        usage: { deep_used: deepUsed, deep_limit: DEEP_LIMIT, quick_used: quickUsed, quick_limit: QUICK_LIMIT },
+        usage: { deep_used: deepUsed, deep_limit: deepLimit, quick_used: quickUsed, quick_limit: quickLimit },
       },
       { status: 429 }
     );
   }
-  if (type === 'quick' && quickUsed >= QUICK_LIMIT) {
+  if (type === 'quick' && quickUsed >= quickLimit) {
     return NextResponse.json(
       {
-        error: `Daily limit of ${QUICK_LIMIT} quick analyses reached. Resets at midnight UTC.`,
+        error: `Daily limit of ${quickLimit} quick analyses reached. Resets at midnight UTC.`,
         code: 'RATE_LIMIT',
-        usage: { deep_used: deepUsed, deep_limit: DEEP_LIMIT, quick_used: quickUsed, quick_limit: QUICK_LIMIT },
+        usage: { deep_used: deepUsed, deep_limit: deepLimit, quick_used: quickUsed, quick_limit: quickLimit },
       },
       { status: 429 }
     );
@@ -143,11 +163,9 @@ export async function POST(req: NextRequest) {
     { user_id: userId, date: today, deep_count: newDeep, quick_count: newQuick, updated_at: new Date().toISOString() },
     { onConflict: 'user_id,date' }
   );
-  deepUsed  = newDeep;
-  quickUsed = newQuick;
 
   return NextResponse.json({
     result,
-    usage: { deep_used: deepUsed, deep_limit: DEEP_LIMIT, quick_used: quickUsed, quick_limit: QUICK_LIMIT },
+    usage: { deep_used: newDeep, deep_limit: deepLimit, quick_used: newQuick, quick_limit: quickLimit },
   });
 }
