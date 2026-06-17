@@ -5,6 +5,10 @@
  * POST /api/grok-chat
  *   { mode: 'chat',   model, messages, max_tokens }  → /v1/chat/completions
  *   { mode: 'search', model, input, tools }           → /v1/responses  (live web + X search)
+ *
+ * Daily limits (resets midnight UTC):
+ *   Free — 15 chat  + 3  search
+ *   Pro  — 100 chat + 20 search
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -12,7 +16,12 @@ import { createClient } from '@supabase/supabase-js';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
-function sbClient(token: string) {
+const CHAT_LIMIT_FREE   = 15;
+const SEARCH_LIMIT_FREE = 3;
+const CHAT_LIMIT_PRO    = 100;
+const SEARCH_LIMIT_PRO  = 20;
+
+function sb(token: string) {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -20,20 +29,38 @@ function sbClient(token: string) {
   );
 }
 
+async function getUsageRow(token: string, userId: string, today: string) {
+  const { data } = await sb(token).from('grok_usage')
+    .select('chat_count, chat_search_count')
+    .eq('user_id', userId)
+    .eq('date', today)
+    .maybeSingle();
+  return { chatUsed: data?.chat_count ?? 0, searchUsed: data?.chat_search_count ?? 0 };
+}
+
+async function getUserRole(token: string, userId: string): Promise<'free' | 'pro'> {
+  const { data } = await sb(token).from('user_subscriptions')
+    .select('role')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return data?.role === 'pro' ? 'pro' : 'free';
+}
+
 export async function POST(req: NextRequest) {
   if (!GROK_KEY) {
     return NextResponse.json({ error: 'Grok API not configured' }, { status: 503 });
   }
 
-  /* ── Auth check: require valid Supabase session ── */
+  /* ── Auth check ── */
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) {
     return NextResponse.json({ error: 'Sign in required', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
-  const { data: userData } = await sbClient(token).auth.getUser();
+  const { data: userData } = await sb(token).auth.getUser();
   if (!userData.user) {
     return NextResponse.json({ error: 'Sign in required', code: 'AUTH_REQUIRED' }, { status: 401 });
   }
+  const userId = userData.user.id;
 
   /* ── Parse body ── */
   let body: Record<string, unknown>;
@@ -44,31 +71,83 @@ export async function POST(req: NextRequest) {
   }
 
   const { mode, ...payload } = body;
+  const isSearch = mode === 'search';
 
+  /* ── Rate limit check ── */
+  const today = new Date().toISOString().slice(0, 10);
+  const [{ chatUsed, searchUsed }, role] = await Promise.all([
+    getUsageRow(token, userId, today),
+    getUserRole(token, userId),
+  ]);
+
+  const chatLimit   = role === 'pro' ? CHAT_LIMIT_PRO   : CHAT_LIMIT_FREE;
+  const searchLimit = role === 'pro' ? SEARCH_LIMIT_PRO : SEARCH_LIMIT_FREE;
+
+  if (isSearch && searchUsed >= searchLimit) {
+    return NextResponse.json(
+      {
+        error: `Daily limit of ${searchLimit} live search messages reached. Resets at midnight UTC.`,
+        code: 'RATE_LIMIT',
+        usage: { chat_used: chatUsed, chat_limit: chatLimit, search_used: searchUsed, search_limit: searchLimit },
+      },
+      { status: 429 }
+    );
+  }
+  if (!isSearch && chatUsed >= chatLimit) {
+    return NextResponse.json(
+      {
+        error: `Daily limit of ${chatLimit} chat messages reached. Resets at midnight UTC.`,
+        code: 'RATE_LIMIT',
+        usage: { chat_used: chatUsed, chat_limit: chatLimit, search_used: searchUsed, search_limit: searchLimit },
+      },
+      { status: 429 }
+    );
+  }
+
+  /* ── Call xAI ── */
   try {
-    /* ── Live search: /v1/responses with web_search + x_search ── */
-    if (mode === 'search') {
+    let data: unknown;
+    let status: number;
+
+    if (isSearch) {
       const r = await fetch('https://api.x.ai/v1/responses', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
         body:    JSON.stringify(payload),
       });
-      const data = await r.json();
-      return NextResponse.json(data, { status: r.status });
-    }
-
-    /* ── Fast chat: /v1/chat/completions ── */
-    if (mode === 'chat') {
+      data   = await r.json();
+      status = r.status;
+    } else if (mode === 'chat') {
       const r = await fetch('https://api.x.ai/v1/chat/completions', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
         body:    JSON.stringify(payload),
       });
-      const data = await r.json();
-      return NextResponse.json(data, { status: r.status });
+      data   = await r.json();
+      status = r.status;
+    } else {
+      return NextResponse.json({ error: `Unknown mode: ${mode}` }, { status: 400 });
     }
 
-    return NextResponse.json({ error: `Unknown mode: ${mode}` }, { status: 400 });
+    /* ── Update usage (only on success) ── */
+    if (status >= 200 && status < 300) {
+      const newChat   = isSearch ? chatUsed   : chatUsed   + 1;
+      const newSearch = isSearch ? searchUsed + 1 : searchUsed;
+      await sb(token).from('grok_usage').upsert(
+        {
+          user_id: userId, date: today,
+          chat_count: newChat, chat_search_count: newSearch,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,date' }
+      );
+      return NextResponse.json({
+        ...((data as Record<string, unknown>) ?? {}),
+        _usage: { chat_used: newChat, chat_limit: chatLimit, search_used: newSearch, search_limit: searchLimit },
+      }, { status });
+    }
+
+    return NextResponse.json(data, { status });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Grok proxy error' },

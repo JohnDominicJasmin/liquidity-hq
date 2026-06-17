@@ -121,9 +121,25 @@ function renderMd(raw: string): string {
 
 // Auto-enable live search when message clearly needs current web data
 const SEARCH_TRIGGERS = [
-  'why', 'what happened', 'happening', 'latest', 'today', 'right now',
-  'news', 'trump', 'fed', 'fomc', 'cpi', 'war', 'conflict', 'elon',
-  'just', 'catalyst', 'reason', 'cause', 'narrative',
+  // Questions about why / what
+  'why', 'what happened', 'happening', 'reason', 'cause', 'catalyst',
+  // Time-anchored
+  'today', 'right now', 'just now', 'recently', 'yesterday', 'this week', 'latest',
+  // News / narrative
+  'news', 'narrative', 'breaking', 'announcement',
+  // People / institutions
+  'trump', 'elon', 'powell', 'jerome', 'blackrock', 'saylor',
+  // Macro events
+  'fed', 'fomc', 'cpi', 'ppi', 'nfp', 'jobs', 'inflation', 'gdp',
+  'rate cut', 'rate hike', 'interest rate', 'tariff', 'sanction',
+  // Geo / political
+  'war', 'conflict', 'russia', 'ukraine', 'china', 'japan', 'boj', 'yen',
+  // Crypto-specific events
+  'etf', 'sec', 'regulation', 'hack', 'exploit', 'halving',
+  'binance', 'coinbase', 'bybit', 'okx',
+  'liquidation', 'liquidated', 'whale',
+  'dump', 'dumping', 'pump', 'pumping', 'crash', 'crashing', 'rally',
+  'stablecoin', 'usdt', 'usdc',
 ];
 function needsLiveSearch(text: string): boolean {
   const t = text.toLowerCase();
@@ -343,13 +359,16 @@ export default function GrokChat() {
             tools: [{ type: 'web_search' }, { type: 'x_search' }],
           }),
         });
+        const j = await res.json().catch(() => ({}));
         if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
           if (j?.code === 'AUTH_REQUIRED') { setShowLoginModal(true); setLoading(false); return; }
+          if (j?.code === 'RATE_LIMIT') {
+            const u = j.usage;
+            throw new Error(`Live search limit reached (${u?.search_used ?? '?'}/${u?.search_limit ?? '?'} today). Resets midnight UTC.`);
+          }
           throw new Error(`${res.status} — ${j?.error ?? res.statusText}`);
         }
-        const data = await res.json();
-        reply = data.output?.find((o: { type: string }) => o.type === 'message')?.content?.[0]?.text ?? '(no response)';
+        reply = j.output?.find((o: { type: string }) => o.type === 'message')?.content?.[0]?.text ?? '(no response)';
       } else {
         // No search needed → /api/grok-chat with mode:'chat' (~$0.003)
         const res = await fetch('/api/grok-chat', {
@@ -362,13 +381,16 @@ export default function GrokChat() {
             max_tokens: 600,
           }),
         });
+        const j = await res.json().catch(() => ({}));
         if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
           if (j?.code === 'AUTH_REQUIRED') { setShowLoginModal(true); setLoading(false); return; }
+          if (j?.code === 'RATE_LIMIT') {
+            const u = j.usage;
+            throw new Error(`Daily chat limit reached (${u?.chat_used ?? '?'}/${u?.chat_limit ?? '?'} today). Resets midnight UTC.`);
+          }
           throw new Error(`${res.status} — ${j?.error ?? res.statusText}`);
         }
-        const data = await res.json();
-        reply = data.choices?.[0]?.message?.content ?? '(no response)';
+        reply = j.choices?.[0]?.message?.content ?? '(no response)';
       }
       const replyTs = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
