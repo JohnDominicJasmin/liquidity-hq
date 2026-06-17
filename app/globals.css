@@ -2593,7 +2593,15 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 .mb-cvd-chip  { font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 20px; border: 0.5px solid; }
 
 /* ── CORRELATION HEATMAP ──────────────────────────────────────────────── */
-.corr-grid-wrap  { overflow-x: auto; margin-bottom: 10px; -webkit-overflow-scrolling: touch; }
+.corr-grid-outer { position: relative; }
+.corr-grid-outer::after {
+  content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 32px;
+  background: linear-gradient(to right, transparent, var(--bg1));
+  pointer-events: none; border-radius: 0 12px 12px 0;
+}
+.corr-grid-wrap  { overflow-x: auto; margin-bottom: 4px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.15) transparent; }
+.corr-scroll-hint { font-size: 10px; color: var(--txt3); text-align: right; margin-bottom: 8px; display: none; }
+@media (max-width: 600px) { .corr-scroll-hint { display: block; } }
 .corr-grid       { display: grid; gap: 3px; }
 .corr-col-hdr    { font-size: 10px; font-weight: 700; color: var(--txt3); text-align: center; padding: 3px 1px 5px; text-transform: uppercase; letter-spacing: 0.04em; }
 .corr-row-hdr    { font-size: 10px; font-weight: 700; color: var(--txt3); display: flex; align-items: center; padding: 0 3px; text-transform: uppercase; letter-spacing: 0.03em; }

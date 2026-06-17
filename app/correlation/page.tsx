@@ -228,6 +228,7 @@ export default function CorrelationHeatmap() {
                 +1.00 = perfect sync · 0.00 = no relation · −1.00 = opposite
               </span>
             </div>
+            <div className="corr-grid-outer">
             <div className="corr-grid-wrap">
               <div
                 className="corr-grid"
@@ -299,6 +300,8 @@ export default function CorrelationHeatmap() {
                 ))}
               </div>
             </div>
+            </div>
+            <div className="corr-scroll-hint">swipe to see all coins →</div>
             <div className="corr-legend">
               <span style={{ color: '#34d399' }}>■ Green</span> = moves together &nbsp;·&nbsp;
               <span style={{ color: '#f87171' }}>■ Red</span> = moves opposite &nbsp;·&nbsp;
