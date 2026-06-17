@@ -384,8 +384,7 @@ export default function GrokChat() {
             const u = j.usage;
             if (u) setUsageInfo(u);
             setRateLimited(true);
-            const rem = (u?.search_limit ?? 0) - (u?.search_used ?? 0);
-            setError(`Live search limit reached (${rem}/${u?.search_limit ?? '?'} remaining). Resets midnight UTC.`);
+            setError('No live searches left today — resets midnight UTC.');
             setLoading(false);
             return;
           }
@@ -412,8 +411,7 @@ export default function GrokChat() {
             const u = j.usage;
             if (u) setUsageInfo(u);
             setRateLimited(true);
-            const rem = (u?.chat_limit ?? 0) - (u?.chat_used ?? 0);
-            setError(`Daily chat limit reached (${rem}/${u?.chat_limit ?? '?'} remaining). Resets midnight UTC.`);
+            setError('No chat messages left today — resets midnight UTC.');
             setLoading(false);
             return;
           }
@@ -489,6 +487,10 @@ export default function GrokChat() {
   const closeAll     = () => { setOpen(false); setExpanded(false); setHistView(false); setShowLoginModal(false); };
   const toggleExpand = () => setExpanded(v => !v);
 
+  const searchRemaining = usageInfo
+    ? usageInfo.search_limit - usageInfo.search_used
+    : null;
+
   /* ── Coin badge color ── */
   const COIN_COLORS: Record<string, string> = {
     btc: '#f7931a', eth: '#627eea', sol: '#9945ff',
@@ -560,13 +562,14 @@ export default function GrokChat() {
                   >
                     {liveSearch ? '🌐 Live' : '⚡ Fast'}
                   </button>
-                  {usageInfo && (
+                  {searchRemaining !== null && (
                     <span style={{
                       fontSize: 10,
-                      color: usageInfo.search_used >= usageInfo.search_limit ? '#ff9a92' : '#666',
+                      color: searchRemaining === 0 ? '#ff9a92' : searchRemaining === 1 ? '#f59e0b' : '#666',
+                      opacity: liveSearch ? 1 : 0.5,
                       fontVariantNumeric: 'tabular-nums',
                     }}>
-                      {usageInfo.search_limit - usageInfo.search_used}/{usageInfo.search_limit}
+                      {searchRemaining === 0 ? 'None left' : `${searchRemaining} left`}
                     </span>
                   )}
                 </div>
@@ -740,17 +743,15 @@ export default function GrokChat() {
               )}
 
               {error && (
-                <div style={{ fontSize: 11, color: '#ff9a92', padding: '4px 14px', marginBottom: 4, lineHeight: 1.5 }}>
-                  ⚠ {error}
+                <div style={{ fontSize: 11, padding: '6px 14px', marginBottom: 4, lineHeight: 1.6 }}>
+                  <div style={{ color: '#ff9a92' }}>⚠ {error}</div>
                   {rateLimited && (
-                    <> ·{' '}
-                      <Link
-                        href="/upgrade"
-                        style={{ color: '#b8aeff', textDecoration: 'underline', whiteSpace: 'nowrap' }}
-                      >
-                        Upgrade to Pro →
-                      </Link>
-                    </>
+                    <Link
+                      href="/upgrade"
+                      style={{ color: '#b8aeff', textDecoration: 'underline' }}
+                    >
+                      Upgrade to Pro for higher limits →
+                    </Link>
                   )}
                 </div>
               )}
