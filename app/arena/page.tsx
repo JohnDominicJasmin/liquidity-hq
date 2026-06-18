@@ -680,13 +680,22 @@ export default function Arena() {
     /* Upcoming events + recently released */
     const now = Date.now();
     const recentlyReleased = econEvents
-      .filter(e => { const lh = (e.dt.getTime() - now) / 3600000; return lh >= -6 && lh < 0; }).slice(0, 3)
-      .map(e => { const minsAgo = Math.round((now - e.dt.getTime()) / 60000); return `⚡ JUST RELEASED: ${e.name} — ${minsAgo}m ago (check news headlines for actual print)`; })
+      .filter(e => { const lh = (e.dt.getTime() - now) / 3600000; return lh >= -72 && lh < 0; })
+      .sort((a, b) => b.dt.getTime() - a.dt.getTime())
+      .slice(0, 6)
+      .map(e => {
+        const hoursAgo = Math.round((now - e.dt.getTime()) / 3600000);
+        const timeLabel = hoursAgo < 2 ? `${Math.round((now - e.dt.getTime()) / 60000)}m ago` : `${hoursAgo}h ago`;
+        const actualStr = e.actual ? ` → ACTUAL: ${e.actual}` : ' → result pending/not yet in feed';
+        const estStr = e.estimate ? ` | Est: ${e.estimate}` : '';
+        const prevStr = e.previous ? ` | Prev: ${e.previous}` : '';
+        return `✅ RELEASED (${timeLabel}): ${e.name}${actualStr}${estStr}${prevStr}`;
+      })
       .join('\n');
     const upcomingList = econEvents
-      .filter(e => { const lh = (e.dt.getTime() - now) / 3600000; return lh > 0 && lh < 24; }).slice(0, 5)
-      .map(e => `${e.name} (${e.dateStr}, impact: ${e.impact})`)
-      .join('\n') || 'None in next 24h';
+      .filter(e => { const lh = (e.dt.getTime() - now) / 3600000; return lh > 0 && lh < 48; }).slice(0, 6)
+      .map(e => `📅 UPCOMING: ${e.name} (${e.dateStr}, impact: ${e.impact})${e.estimate ? ' | Est: ' + e.estimate : ''}`)
+      .join('\n') || 'None in next 48h';
     const upcoming = [recentlyReleased, upcomingList].filter(Boolean).join('\n');
 
     /* ETF flows */

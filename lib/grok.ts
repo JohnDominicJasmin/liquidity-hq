@@ -222,8 +222,9 @@ export function buildPrompt(ctx: GrokContext): string {
     '=== LIQUIDATION CLUSTERS ===',
     ctx.liqLevels,
     '',
-    '=== UPCOMING ECONOMIC EVENTS ===',
-    ctx.upcomingEvents || 'None in next 24h',
+    '=== MACRO EVENTS — RELEASED (LAST 72H) + UPCOMING (48H) ===',
+    '(CRITICAL: Any central bank decision — FOMC, BOJ, ECB, BOE — or tier-1 data released in the last 72h MUST anchor your macro bias. Do not let 1–2 weak technical signals override a confirmed Fed hold/hike or BOJ policy shift. For BOJ specifically: a rate hike = JPY strengthens = global carry trade unwind = risk-off across all assets including crypto. Use the Deep Research mode or the news feed to confirm current BOJ stance if not shown here.)',
+    ctx.upcomingEvents || 'No events in window',
     '',
     '=== LIVE NEWS FEED (last 6 alerts — Finnhub + RSS) ===',
     ctx.news,
@@ -456,6 +457,17 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     chart.detectedPatterns ? `Pre-detected basic patterns: ${chart.detectedPatterns}` : '',
     '',
     'Cross-reference the candle key levels with order book walls, liquidation clusters, and derivatives data above.',
+    '',
+    `=== TECHNICALS vs MACRO WEIGHTING (${chart.tf} timeframe) ===`,
+    chart.tf === '1m' || chart.tf === '5m'
+      ? 'WEIGHTING: Technicals 80% | Macro 20% — scalp timeframe. Use macro as background risk filter only. EXCEPTION: if a major central bank decision or geopolitical shock occurred <6h ago, elevate macro influence to 50% as it directly impacts short-term liquidity and spread.'
+      : chart.tf === '15m'
+        ? 'WEIGHTING: Technicals 65% | Macro 35% — intraday timeframe. Macro sets the session directional bias; technicals provide the entry trigger. If a tier-1 event (FOMC, NFP, CPI) was released <6h ago, macro rises to 50% — the data reaction is still playing out.'
+        : chart.tf === '1h'
+          ? 'WEIGHTING: Technicals 55% | Macro 45% — hourly timeframe. Macro regime is roughly equal weight with technicals. Fed stance, DXY trend, and risk-off signals (BOJ carry unwind, geopolitical shock) can override 1–2 weak technical signals. Look for alignment between macro and price action direction.'
+          : chart.tf === '4h'
+            ? 'WEIGHTING: Technicals 40% | Macro 60% — swing timeframe. Macro regime DOMINATES the directional call. Technical patterns are used for entry precision only — do not fight the macro regime. If FOMC held/cut rates in the last 72h or BOJ shifted policy, that single fact should anchor your entire bias.'
+            : 'WEIGHTING: Technicals 30% | Macro 70% — daily timeframe. Macro is the primary driver. Central bank stance, DXY direction, geopolitical risk level, and risk-sentiment indicators determine the call. Technicals provide timing, not direction. A daily chart counter to the macro regime requires 4+ strong confirmation signals to justify.',
     'REMINDER: Apply the MOMENTUM REGIME FILTER above before deciding direction. If bearish regime is confirmed, SHORT or FLAT is the default — do not override with oscillators alone.',
     '',
     '=== SIGNAL TIERS: WHEN TO USE LEAN vs FLAT ===',
