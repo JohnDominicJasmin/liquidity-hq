@@ -39,6 +39,8 @@ export default function PostHogProvider({ children }: { children: React.ReactNod
     });
   }, []);
 
+  if (!PH_KEY) return <>{children}</>;
+
   return (
     <PHProvider client={posthog}>
       <Suspense fallback={null}>
