@@ -28,8 +28,6 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
-      - key: NODE_ENV
-        value: development
       - key: NEXT_PUBLIC_APP_ENV
         value: dev
       # Same Supabase project as prod — set these in the Render dashboard:
