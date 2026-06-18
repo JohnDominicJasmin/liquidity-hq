@@ -61,6 +61,9 @@ interface NewsCtx {
 const NewsContext = createContext<NewsCtx | null>(null);
 export function useNews() { return useContext(NewsContext)!; }
 
+// Module-level flag — survives React StrictMode double-mount so permission is only requested once
+let _notifRequested = false;
+
 function timeAgo(ts: number): string {
   const s = Math.floor(Date.now() / 1000 - ts);
   if (s < 60) return 'just now';
@@ -251,7 +254,8 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   }, []);
 
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
+    if ('Notification' in window && Notification.permission === 'default' && !_notifRequested) {
+      _notifRequested = true;
       Notification.requestPermission();
     }
 
