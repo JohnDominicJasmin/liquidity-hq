@@ -1,9 +1,38 @@
 services:
+  # ── Production — auto-deploys from main ─────────────────────────────────────
   - type: web
     name: liquidity-hq
     runtime: node
+    branch: main
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
+      # Set the following in the Render dashboard (Secrets):
+      # NEXT_PUBLIC_SUPABASE_URL
+      # NEXT_PUBLIC_SUPABASE_ANON_KEY
+      # GROK_API_KEY
+      # FINNHUB_API_KEY
+      # TELEGRAM_BOT_TOKEN
+      # TELEGRAM_CHAT_ID
+      # LEMONSQUEEZY_WEBHOOK_SECRET
+
+  # ── Development — auto-deploys from dev ─────────────────────────────────────
+  - type: web
+    name: liquidity-hq-dev
+    runtime: node
+    branch: dev
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: development
+      # Same Supabase project as prod — set these in the Render dashboard:
+      # NEXT_PUBLIC_SUPABASE_URL
+      # NEXT_PUBLIC_SUPABASE_ANON_KEY
+      # GROK_API_KEY
+      # FINNHUB_API_KEY
+      # TELEGRAM_BOT_TOKEN       (use a separate test bot if you want isolated alerts)
+      # TELEGRAM_CHAT_ID
+      # LEMONSQUEEZY_WEBHOOK_SECRET
