@@ -459,15 +459,19 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     'Cross-reference the candle key levels with order book walls, liquidation clusters, and derivatives data above.',
     '',
     `=== TECHNICALS vs MACRO WEIGHTING (${chart.tf} timeframe) ===`,
-    chart.tf === '1m' || chart.tf === '5m'
-      ? 'WEIGHTING: Technicals 80% | Macro 20% — scalp timeframe. Use macro as background risk filter only. EXCEPTION: if a major central bank decision or geopolitical shock occurred <6h ago, elevate macro influence to 50% as it directly impacts short-term liquidity and spread.'
-      : chart.tf === '15m'
-        ? 'WEIGHTING: Technicals 65% | Macro 35% — intraday timeframe. Macro sets the session directional bias; technicals provide the entry trigger. If a tier-1 event (FOMC, NFP, CPI) was released <6h ago, macro rises to 50% — the data reaction is still playing out.'
-        : chart.tf === '1h'
-          ? 'WEIGHTING: Technicals 55% | Macro 45% — hourly timeframe. Macro regime is roughly equal weight with technicals. Fed stance, DXY trend, and risk-off signals (BOJ carry unwind, geopolitical shock) can override 1–2 weak technical signals. Look for alignment between macro and price action direction.'
-          : chart.tf === '4h'
-            ? 'WEIGHTING: Technicals 40% | Macro 60% — swing timeframe. Macro regime DOMINATES the directional call. Technical patterns are used for entry precision only — do not fight the macro regime. If FOMC held/cut rates in the last 72h or BOJ shifted policy, that single fact should anchor your entire bias.'
-            : 'WEIGHTING: Technicals 30% | Macro 70% — daily timeframe. Macro is the primary driver. Central bank stance, DXY direction, geopolitical risk level, and risk-sentiment indicators determine the call. Technicals provide timing, not direction. A daily chart counter to the macro regime requires 4+ strong confirmation signals to justify.',
+    chart.tf === '1m'
+      ? 'WEIGHTING: Technicals 97% | Macro 3% — 1-minute scalp. Macro is near-irrelevant for tick-level price action. Only factor: if a major CB decision or geopolitical shock occurred <30min ago, widen your stop — do not fight the immediate reaction.'
+      : chart.tf === '5m'
+        ? 'WEIGHTING: Technicals 95% | Macro 5% — 5-minute scalp. Technicals dominate. Macro only matters as a risk filter: avoid new entries within 15min before a scheduled tier-1 release.'
+        : chart.tf === '15m'
+          ? 'WEIGHTING: Technicals 90% | Macro 10% — 15-minute intraday. Technicals drive the call. Macro sets the session background: if a tier-1 event (FOMC, NFP, CPI) was released <3h ago, treat macro weight as 20% while the data reaction is still playing out.'
+          : chart.tf === '30m'
+            ? 'WEIGHTING: Technicals 85% | Macro 15% — 30-minute intraday. Macro sets the session bias direction; technicals determine the entry. If a major event printed in the last 6h, elevate macro to 25% — price is still digesting the move.'
+            : chart.tf === '1h'
+              ? 'WEIGHTING: Technicals 75% | Macro 25% — 1-hour. Technicals lead but macro context must align. If macro and technicals conflict, lean with macro for the bias and use a tighter confirmation trigger from technicals before entering.'
+              : chart.tf === '4h'
+                ? 'WEIGHTING: Technicals 60% | Macro 40% — 4-hour swing. Macro is a significant co-driver. Fed stance, DXY direction, BOJ carry risk, and geopolitical regime each carry real weight. Do not call a 4h LONG against a hawkish macro backdrop without 3+ strong technical confirmations.'
+                : 'WEIGHTING: Technicals 50% | Macro 50% — daily timeframe. Equal weight. Central bank stance, DXY trend, BOJ policy, geopolitical risk, and ETF flows are as important as chart structure. A daily technical setup that contradicts the macro regime requires exceptional confirmation to act on.',
     'REMINDER: Apply the MOMENTUM REGIME FILTER above before deciding direction. If bearish regime is confirmed, SHORT or FLAT is the default — do not override with oscillators alone.',
     '',
     '=== SIGNAL TIERS: WHEN TO USE LEAN vs FLAT ===',
