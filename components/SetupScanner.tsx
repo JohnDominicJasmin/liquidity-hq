@@ -194,7 +194,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
       {/* Page header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>
-          🎯 Setup Scanner
+          Setup Scanner
         </div>
         <div style={{ fontSize: 12, color: 'var(--txt3)' }}>
           All {COINS.length} coins ranked by squeeze risk · updates with live data

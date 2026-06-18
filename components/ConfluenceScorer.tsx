@@ -219,7 +219,7 @@ export default function ConfluenceScorer({ onRunSignal, coin: coinProp }: Props)
     <div>
       {/* Header */}
       <div style={{ padding: '1rem 0 0.5rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>📊 Confluence Scorer</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Confluence Scorer</div>
         <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 14 }}>
           10 signals checked — technicals · derivatives · structure · flow
         </div>
@@ -304,7 +304,7 @@ export default function ConfluenceScorer({ onRunSignal, coin: coinProp }: Props)
           className="cf-action-btn cf-action-journal"
           onClick={() => router.push(`/journal?coin=${coin}&dir=${dir}`)}
         >
-          📓 Log Trade
+          Log Trade
         </button>
       </div>
     </div>

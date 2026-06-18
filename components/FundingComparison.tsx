@@ -109,7 +109,7 @@ export default function FundingComparison() {
       {/* Header */}
       <div className="fc-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--txt)' }}>💸 Funding Rates</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--txt)' }}>Funding Rates</span>
           <span className={`wf-dot ${dotCls}`} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

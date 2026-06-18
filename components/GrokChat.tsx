@@ -510,7 +510,7 @@ export default function GrokChat() {
         title={open ? 'Close chat' : 'Ask Grok'}
         aria-label={open ? 'Close Grok chat' : 'Open Grok chat'}
       >
-        {open ? '✕' : '🤖'}
+        {open ? '✕' : 'AI'}
       </button>
 
       {/* ── Chat panel ── */}
@@ -681,7 +681,7 @@ export default function GrokChat() {
             <div className="gchat-msgs" ref={msgsRef}>
               {msgs.length === 0 && (
                 <div className="gchat-empty">
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>🤖</div>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>✦</div>
                   {user ? (
                     <>
                       <div style={{ fontSize: 13, fontWeight: 600, color: '#a0a0a0' }}>Ask anything about</div>

@@ -89,7 +89,7 @@ export default function PositionSizer() {
     <div>
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>🧮 Position Sizer</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Position Sizer</div>
         <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Account · risk % · entry · stop → size, leverage & R:R</div>
       </div>
 

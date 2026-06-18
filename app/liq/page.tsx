@@ -143,7 +143,7 @@ export default function LiqPage() {
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>
-          🔥 Liquidation Heatmap
+          Liquidation Heatmap
         </div>
         <div style={{ fontSize: 12, color: 'var(--txt3)' }}>
           Estimated liquidation zones · nearest dense cluster = price magnet

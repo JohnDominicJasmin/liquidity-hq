@@ -8,7 +8,7 @@ import { track } from '@/lib/analytics';
 import SettingsModal from './SettingsModal';
 import { getCurrentWindow } from '@/lib/session';
 
-/* ── Live session pill shown in navbar ── */
+/* ── Session pill ──────────────────────────────────────────────────────────── */
 function pad2(n: number) { return String(n).padStart(2, '0'); }
 function phtNow() { return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })); }
 function findEndsInMs(nowMs: number, name: string): number {
@@ -38,33 +38,54 @@ function SessionPill() {
   );
 }
 
-const NAV = [
-  { path: '/dashboard',   icon: '📊', label: 'Dashboard',   desk: true  },
-  { path: '/briefing',    icon: '🌅', label: 'Briefing',    desk: true  },
-  { path: '/alerts',      icon: '🔔', label: 'Alerts',      desk: false },
-  { path: '/hours',       icon: '🕐', label: 'Best Hours',  desk: false },
-  { path: '/news',        icon: '📰', label: 'News',        desk: true  },
-  null,
-  { path: '/playbook',    icon: '📖', label: 'Playbook',    desk: false },
-  null,
-  { path: '/arena',       icon: '🤖', label: 'LiquidityAI',    desk: true  },
-  { path: '/scanner',     icon: '🎯', label: 'Setup Scanner',   desk: true  },
-  { path: '/liq',         icon: '🔥', label: 'Liquidation Map', desk: true  },
-  { path: '/funding',     icon: '💸', label: 'FR History',  desk: true  },
-  { path: '/correlation', icon: '🔗', label: 'Correlation', desk: true  },
-  null,
-  { path: '/journal',     icon: '📓', label: 'Journal',     desk: true  },
-  { path: '/calc',        icon: '🧮', label: 'Position Sizer', desk: false },
-  null,
-  { path: '/settings',    icon: '⚙️', label: 'Settings',    desk: false, modal: true },
-  { path: '/about',       icon: 'ℹ️', label: 'About',       desk: false },
+/* ── Nav data ──────────────────────────────────────────────────────────────── */
+const PRIMARY = [
+  { path: '/dashboard', label: 'Dashboard' },
+  { path: '/briefing',  label: 'Briefing'  },
 ];
 
-// Desktop nav: only items flagged desk:true
-const DESKTOP_NAV = NAV.filter(item => item && item.desk)  as NonNullable<typeof NAV[0]>[];
-// "More" dropdown: items flagged desk:false
-const MORE_NAV    = NAV.filter(item => item && !item.desk) as NonNullable<typeof NAV[0]>[];
+const SCANNERS = [
+  { path: '/arena',       label: 'LiquidityAI'    },
+  { path: '/scanner',     label: 'Setup Scanner'  },
+  { path: '/liq',         label: 'Liquidation Map'},
+  { path: '/funding',     label: 'FR History'     },
+  { path: '/correlation', label: 'Correlation'    },
+];
 
+const TOOLS = [
+  { path: '/journal',  label: 'Journal'        },
+  { path: '/calc',     label: 'Position Sizer' },
+  { path: '/alerts',   label: 'Alerts'         },
+  { path: '/hours',    label: 'Best Hours'     },
+  { path: '/playbook', label: 'Playbook'       },
+];
+
+const TAIL = [
+  { path: '/news', label: 'News' },
+];
+
+const MOBILE_NAV: ({ path: string; label: string; modal?: boolean } | null)[] = [
+  { path: '/dashboard',   label: 'Dashboard'       },
+  { path: '/briefing',    label: 'Briefing'        },
+  { path: '/news',        label: 'News'            },
+  null,
+  { path: '/arena',       label: 'LiquidityAI'    },
+  { path: '/scanner',     label: 'Setup Scanner'  },
+  { path: '/liq',         label: 'Liquidation Map'},
+  { path: '/funding',     label: 'FR History'     },
+  { path: '/correlation', label: 'Correlation'    },
+  null,
+  { path: '/journal',     label: 'Journal'        },
+  { path: '/calc',        label: 'Position Sizer' },
+  { path: '/alerts',      label: 'Alerts'         },
+  { path: '/hours',       label: 'Best Hours'     },
+  { path: '/playbook',    label: 'Playbook'       },
+  null,
+  { path: '/settings',    label: 'Settings',      modal: true },
+  { path: '/about',       label: 'About'          },
+];
+
+/* ── Status dot ────────────────────────────────────────────────────────────── */
 function useStatusDot() {
   const { store } = useMarket();
   const ws = store.wsStatus;
@@ -74,42 +95,74 @@ function useStatusDot() {
   return { cls: 'dot-error', title: 'Connection error' };
 }
 
+/* ── Dropdown component ────────────────────────────────────────────────────── */
+type DropKey = 'scanners' | 'tools';
+
+function NavDropdown({ label, items, open, onToggle, onClose, pathname }: {
+  label: string;
+  items: { path: string; label: string }[];
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  pathname: string;
+}) {
+  const isActive = items.some(i => pathname === i.path);
+  return (
+    <div className="nav-more-wrap" onClick={e => e.stopPropagation()}>
+      <button
+        className={`desktop-nav-item nav-more-btn${open || isActive ? ' on' : ''}`}
+        onClick={onToggle}
+      >
+        {label} {open ? '▴' : '▾'}
+      </button>
+      {open && (
+        <div className="nav-more-dropdown">
+          {items.map(item => (
+            <Link
+              key={item.path}
+              href={item.path}
+              className={`nav-more-item${pathname === item.path ? ' on' : ''}`}
+              onClick={onClose}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── NavDrawer ─────────────────────────────────────────────────────────────── */
 export default function NavDrawer() {
-  const [open, setOpen]             = useState(false);
-  const [moreOpen, setMoreOpen]     = useState(false);
-  const [authOpen, setAuthOpen]     = useState(false);
+  const [drawerOpen, setDrawerOpen]     = useState(false);
+  const [openDrop, setOpenDrop]         = useState<DropKey | null>(null);
+  const [authOpen, setAuthOpen]         = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [theme, setTheme]           = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme]               = useState<'dark' | 'light'>('dark');
   const pathname = usePathname();
   const router   = useRouter();
   const dot      = useStatusDot();
   const { user, loading: authLoading, signOut } = useAuth();
   const authRef  = useRef<HTMLDivElement>(null);
-
-  // Initials from email (e.g. "dominic@..." → "D")
   const initials = user?.email?.[0]?.toUpperCase() ?? '?';
 
-  // Close "More" dropdown on outside click
   useEffect(() => {
-    if (!moreOpen) return;
-    const handler = () => setMoreOpen(false);
+    if (!openDrop) return;
+    const handler = () => setOpenDrop(null);
     document.addEventListener('click', handler);
     return () => document.removeEventListener('click', handler);
-  }, [moreOpen]);
+  }, [openDrop]);
 
-  // Close auth dropdown on outside click
   useEffect(() => {
     if (!authOpen) return;
     const handler = (e: MouseEvent) => {
-      if (authRef.current && !authRef.current.contains(e.target as Node)) {
-        setAuthOpen(false);
-      }
+      if (authRef.current && !authRef.current.contains(e.target as Node)) setAuthOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [authOpen]);
 
-  // Initialise from localStorage on first mount
   useEffect(() => {
     const saved = (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) as 'dark' | 'light' | null;
     const initial: 'dark' | 'light' = saved === 'light' ? 'light' : 'dark';
@@ -124,6 +177,9 @@ export default function NavDrawer() {
     localStorage.setItem('theme', next);
   };
 
+  const toggleDrop = (key: DropKey) => setOpenDrop(v => v === key ? null : key);
+  const closeDrop  = () => setOpenDrop(null);
+
   return (
     <>
       <div className="app-bar">
@@ -133,9 +189,8 @@ export default function NavDrawer() {
             <span className={`status-dot ${dot.cls}`} title={dot.title} />
           </Link>
 
-          {/* Desktop nav — hidden on mobile */}
           <nav className="desktop-nav">
-            {DESKTOP_NAV.map(item => (
+            {PRIMARY.map(item => (
               <Link
                 key={item.path}
                 href={item.path}
@@ -145,37 +200,39 @@ export default function NavDrawer() {
               </Link>
             ))}
 
-            {/* More dropdown */}
-            <div className="nav-more-wrap" onClick={e => e.stopPropagation()}>
-              <button
-                className={`desktop-nav-item nav-more-btn${moreOpen ? ' on' : ''}`}
-                onClick={() => setMoreOpen(v => !v)}
+            <NavDropdown
+              label="Scanners"
+              items={SCANNERS}
+              open={openDrop === 'scanners'}
+              onToggle={() => toggleDrop('scanners')}
+              onClose={closeDrop}
+              pathname={pathname}
+            />
+
+            <NavDropdown
+              label="Tools"
+              items={TOOLS}
+              open={openDrop === 'tools'}
+              onToggle={() => toggleDrop('tools')}
+              onClose={closeDrop}
+              pathname={pathname}
+            />
+
+            {TAIL.map(item => (
+              <Link
+                key={item.path}
+                href={item.path}
+                className={`desktop-nav-item${pathname === item.path ? ' on' : ''}`}
               >
-                More {moreOpen ? '▴' : '▾'}
-              </button>
-              {moreOpen && (
-                <div className="nav-more-dropdown">
-                  {MORE_NAV.map(item => (
-                    <Link
-                      key={item.path}
-                      href={item.path}
-                      className={`nav-more-item${pathname === item.path ? ' on' : ''}`}
-                      onClick={() => setMoreOpen(false)}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
+                {item.label}
+              </Link>
+            ))}
           </nav>
 
-          {/* Session pill — shows active trading window */}
           <div className="session-pill-wrap">
             <SessionPill />
           </div>
 
-          {/* Theme toggle — always visible */}
           <button
             className="theme-btn"
             onClick={toggleTheme}
@@ -185,7 +242,6 @@ export default function NavDrawer() {
             {theme === 'dark' ? '☀' : '◑'}
           </button>
 
-          {/* Auth button — avatar when signed in, "Sign In" when not */}
           {!authLoading && (
             user ? (
               <div className="auth-wrap" ref={authRef}>
@@ -200,11 +256,7 @@ export default function NavDrawer() {
                 {authOpen && (
                   <div className="auth-dropdown">
                     <div className="auth-dropdown-email">{user.email}</div>
-                    <Link
-                      href="/arena"
-                      className="auth-dropdown-usage"
-                      onClick={() => setAuthOpen(false)}
-                    >
+                    <Link href="/arena" className="auth-dropdown-usage" onClick={() => setAuthOpen(false)}>
                       LiquidityAI — <span>view usage</span>
                     </Link>
                     <button
@@ -233,8 +285,7 @@ export default function NavDrawer() {
             )
           )}
 
-          {/* Hamburger — mobile only (hidden on desktop via CSS) */}
-          <div className={`hamburger${open ? ' open' : ''}`} onClick={() => setOpen(v => !v)}>
+          <div className={`hamburger${drawerOpen ? ' open' : ''}`} onClick={() => setDrawerOpen(v => !v)}>
             <div className="ham-line" />
             <div className="ham-line" />
             <div className="ham-line" />
@@ -244,19 +295,18 @@ export default function NavDrawer() {
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      {/* Mobile drawer */}
-      <div className={`nav-drawer${open ? ' open' : ''}`}>
-        <div className="nav-overlay" onClick={() => setOpen(false)} />
+      <div className={`nav-drawer${drawerOpen ? ' open' : ''}`}>
+        <div className="nav-overlay" onClick={() => setDrawerOpen(false)} />
         <div className="nav-menu">
-          {NAV.map((item, i) =>
+          {MOBILE_NAV.map((item, i) =>
             item === null ? (
               <div key={i} className="nav-divider" />
-            ) : (item as { modal?: boolean }).modal ? (
+            ) : item.modal ? (
               <button
                 key={item.path}
                 className="nav-item"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%' }}
-                onClick={() => { setOpen(false); setSettingsOpen(true); }}
+                onClick={() => { setDrawerOpen(false); setSettingsOpen(true); }}
               >
                 {item.label}
               </button>
@@ -265,39 +315,36 @@ export default function NavDrawer() {
                 key={item.path}
                 href={item.path}
                 className={`nav-item${pathname === item.path ? ' on' : ''}`}
-                onClick={() => setOpen(false)}
+                onClick={() => setDrawerOpen(false)}
               >
                 {item.label}
               </Link>
             )
           )}
 
-          {/* Auth entry at bottom of mobile drawer */}
+          <div className="nav-divider" />
           {!authLoading && (
-            <>
-              <div className="nav-divider" />
-              {user ? (
-                <button
-                  className="nav-item nav-signout"
-                  onClick={async () => {
-                    setOpen(false);
-                    track.signOut();
-                    await signOut();
-                    router.push('/login');
-                  }}
-                >
-                  Sign Out
-                </button>
-              ) : (
-                <Link
-                  href="/login"
-                  className={`nav-item${pathname === '/login' ? ' on' : ''}`}
-                  onClick={() => setOpen(false)}
-                >
-                  Sign In
-                </Link>
-              )}
-            </>
+            user ? (
+              <button
+                className="nav-item nav-signout"
+                onClick={async () => {
+                  setDrawerOpen(false);
+                  track.signOut();
+                  await signOut();
+                  router.push('/login');
+                }}
+              >
+                Sign Out
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                className={`nav-item${pathname === '/login' ? ' on' : ''}`}
+                onClick={() => setDrawerOpen(false)}
+              >
+                Sign In
+              </Link>
+            )
           )}
         </div>
       </div>

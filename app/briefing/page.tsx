@@ -284,14 +284,14 @@ export default function MorningBriefing() {
 
       {/* ── Header ── */}
       <div className="mb-header">
-        <div className="mb-title">🌅 Morning Briefing</div>
+        <div className="mb-title">Morning Briefing</div>
         <div className="mb-subtitle">{dateStr} · {timeStr}</div>
       </div>
 
       {/* ── AI Briefing ── */}
       <div className="card mb-brief-card">
         <div className="mb-brief-header">
-          <span className="lbl" style={{ margin: 0 }}>🤖 AI Pre-Session Briefing</span>
+          <span className="lbl" style={{ margin: 0 }}>AI Pre-Session Briefing</span>
           <button
             className={`mb-brief-btn${generating ? ' loading' : ''}`}
             onClick={generateBriefing}
@@ -551,7 +551,7 @@ export default function MorningBriefing() {
       {/* ── Hot Setups ── */}
       {hotSetups.length > 0 && (
         <div className="card" style={{ marginBottom: 10 }}>
-          <div className="lbl">🔥 Hot Setups</div>
+          <div className="lbl">Hot Setups</div>
           {hotSetups.map(({ id, c, sq }) => (
             <Link key={id} href="/arena" className="mb-setup-row" style={{ textDecoration: 'none', cursor: 'pointer' }}>
               <div className="mb-setup-coin">{COIN_LABELS[id]}</div>

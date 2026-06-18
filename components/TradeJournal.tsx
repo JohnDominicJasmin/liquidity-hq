@@ -249,7 +249,7 @@ function Inner() {
     <div>
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>📓 Trade Journal</div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Trade Journal</div>
         <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Log every trade · track results · build discipline</div>
       </div>
 
@@ -257,7 +257,7 @@ function Inner() {
       <div className="tj-tabs">
         {(['log', 'history', 'stats'] as const).map(t => (
           <button key={t} className={`tj-tab${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}>
-            {t === 'log' ? '+ Log Trade' : t === 'history' ? `History (${trades.length})` : '📊 Stats'}
+            {t === 'log' ? '+ Log Trade' : t === 'history' ? `History (${trades.length})` : 'Stats'}
           </button>
         ))}
       </div>
