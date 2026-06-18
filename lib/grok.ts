@@ -470,7 +470,7 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
             : chart.tf === '1h'
               ? 'WEIGHTING: Technicals 75% | Macro 25% — 1-hour. Technicals lead but macro context must align. If macro and technicals conflict, lean with macro for the bias and use a tighter confirmation trigger from technicals before entering.'
               : chart.tf === '4h'
-                ? 'WEIGHTING: Technicals 60% | Macro 40% — 4-hour swing. Macro is a significant co-driver. Fed stance, DXY direction, BOJ carry risk, and geopolitical regime each carry real weight. Do not call a 4h LONG against a hawkish macro backdrop without 3+ strong technical confirmations.'
+                ? 'WEIGHTING: Technicals 55% | Macro 45% — 4-hour swing. Macro is a near-equal co-driver. Fed stance, DXY direction, BOJ carry risk, and geopolitical regime each carry real weight at this timeframe. Do not call a 4h LONG against a hawkish macro backdrop without 3+ strong technical confirmations.'
                 : 'WEIGHTING: Technicals 50% | Macro 50% — daily timeframe. Equal weight. Central bank stance, DXY trend, BOJ policy, geopolitical risk, and ETF flows are as important as chart structure. A daily technical setup that contradicts the macro regime requires exceptional confirmation to act on.',
     'REMINDER: Apply the MOMENTUM REGIME FILTER above before deciding direction. If bearish regime is confirmed, SHORT or FLAT is the default — do not override with oscillators alone.',
     '',
