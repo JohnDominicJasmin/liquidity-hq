@@ -212,9 +212,20 @@ export default function KLineProChart({ coin, tf, result, chartAlerts, onAlertMo
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chart.setStyles((dark ? DARK : LIGHT) as any);
 
-      // Indicators — EMA 9 (trigger), 20 (entry zone), 50 (SL baseline), 200 (master filter)
+      // Indicators — EMA 9 (gold), 20 (blue), 50 (orange), 200 (purple)
       chart.createIndicator(
-        { name: 'EMA', calcParams: [9, 20, 50, 200] },
+        {
+          name: 'EMA',
+          calcParams: [9, 20, 50, 200],
+          styles: {
+            lines: [
+              { color: '#fbbf24', size: 1   },  // EMA 9  — gold
+              { color: '#60a5fa', size: 1.5 },  // EMA 20 — blue
+              { color: '#f97316', size: 1.5 },  // EMA 50 — orange
+              { color: '#a78bfa', size: 2   },  // SMA 200 — purple
+            ],
+          },
+        },
         { isStack: false, pane: { id: 'candle_pane' } }
       );
       chart.createIndicator('VOL', { pane: { height: 60, minHeight: 30 } });
