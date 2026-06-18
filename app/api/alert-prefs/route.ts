@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
+import { T } from '@/lib/tables';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,7 @@ export async function GET() {
   const db = getSupabase();
   if (!db) return NextResponse.json({ muted: [] });
   try {
-    const { data, error } = await db.from('muted_alerts').select('key');
+    const { data, error } = await db.from(T.muted_alerts).select('key');
     if (error) return NextResponse.json({ muted: [], error: error.message });
     return NextResponse.json({ muted: (data ?? []).map(r => String(r.key)) });
   } catch {
@@ -28,8 +29,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: 'key required' }, { status: 400 });
   }
   const res = muted
-    ? await db.from('muted_alerts').upsert({ key })
-    : await db.from('muted_alerts').delete().eq('key', key);
+    ? await db.from(T.muted_alerts).upsert({ key })
+    : await db.from(T.muted_alerts).delete().eq('key', key);
   if (res.error) return NextResponse.json({ ok: false, error: res.error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

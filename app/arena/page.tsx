@@ -9,6 +9,7 @@ import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
+import { T } from '@/lib/tables';
 import ConfluenceScorer from '@/components/ConfluenceScorer';
 import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
@@ -953,7 +954,7 @@ export default function Arena() {
         entry: entryStr, reasoning: res.reasoning, session: ctx.session,
       }, ...h].slice(0, 10));
       if (user && process.env.NEXT_PUBLIC_SUPABASE_URL) {
-        getSupabase()!.from('signals').insert({
+        getSupabase()!.from(T.signals).insert({
           coin: ctx.coin, signal: res.signal, confidence: res.confidence,
           entry_zone: entryStr, reasoning: res.reasoning, session: ctx.session,
         }).then(() => {});

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { parseCombinedResponse } from '@/lib/grok';
+import { T } from '@/lib/tables';
 
 // Keys / limits
 const GROK_KEY         = process.env.GROK_API_KEY ?? '';
@@ -18,7 +19,7 @@ function sb(token?: string) {
 }
 
 async function getUsageRow(token: string, userId: string, today: string) {
-  const { data } = await sb(token).from('grok_usage')
+  const { data } = await sb(token).from(T.grok_usage)
     .select('deep_count, quick_count')
     .eq('user_id', userId)
     .eq('date', today)
@@ -27,7 +28,7 @@ async function getUsageRow(token: string, userId: string, today: string) {
 }
 
 async function getUserRole(token: string, userId: string): Promise<'free' | 'pro'> {
-  const { data } = await sb(token).from('user_subscriptions')
+  const { data } = await sb(token).from(T.user_subscriptions)
     .select('role')
     .eq('user_id', userId)
     .maybeSingle();
@@ -159,7 +160,7 @@ export async function POST(req: NextRequest) {
   // ── Update usage ──────────────────────────────────────────────────────────
   const newDeep  = type === 'deep'  ? deepUsed  + 1 : deepUsed;
   const newQuick = type === 'quick' ? quickUsed + 1 : quickUsed;
-  await sb(token!).from('grok_usage').upsert(
+  await sb(token!).from(T.grok_usage).upsert(
     { user_id: userId, date: today, deep_count: newDeep, quick_count: newQuick, updated_at: new Date().toISOString() },
     { onConflict: 'user_id,date' }
   );

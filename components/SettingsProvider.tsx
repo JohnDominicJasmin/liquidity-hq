@@ -6,6 +6,7 @@ import {
   UserSettings, SettingsContext,
   DEFAULT_SETTINGS, loadLocalSettings, saveLocalSettings, rowToSettings,
 } from '@/lib/settings';
+import { T } from '@/lib/tables';
 
 export default function SettingsProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -28,7 +29,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     const sb = getSupabase();
     if (!sb) return;
     setLoading(true);
-    sb.from('user_settings')
+    sb.from(T.user_settings)
       .select('*')
       .eq('user_id', user.id)
       .maybeSingle()

@@ -9,6 +9,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NEXT_PUBLIC_APP_ENV
+        value: prod
       # Set the following in the Render dashboard (Secrets):
       # NEXT_PUBLIC_SUPABASE_URL
       # NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -28,6 +30,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: development
+      - key: NEXT_PUBLIC_APP_ENV
+        value: dev
       # Same Supabase project as prod — set these in the Render dashboard:
       # NEXT_PUBLIC_SUPABASE_URL
       # NEXT_PUBLIC_SUPABASE_ANON_KEY

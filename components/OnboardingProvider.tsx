@@ -2,6 +2,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from './AuthProvider';
+import { T } from '@/lib/tables';
 
 export type OnboardingKey = 'tourSeen' | 'telegram' | 'priceAlert' | 'grok' | 'coins';
 
@@ -49,7 +50,7 @@ export default function OnboardingProvider({ children }: { children: React.React
     if (!sb) { setLoaded(true); return; }
     (async () => {
       const { data } = await sb
-        .from('user_onboarding')
+        .from(T.user_onboarding)
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
@@ -62,7 +63,7 @@ export default function OnboardingProvider({ children }: { children: React.React
           coins:      !!data.checklist_coins,
         });
       } else {
-        await sb.from('user_onboarding').upsert({ user_id: user.id }, { onConflict: 'user_id', ignoreDuplicates: true });
+        await sb.from(T.user_onboarding).upsert({ user_id: user.id }, { onConflict: 'user_id', ignoreDuplicates: true });
       }
       setLoaded(true);
     })();
@@ -75,7 +76,7 @@ export default function OnboardingProvider({ children }: { children: React.React
     });
     const sb = getSupabase();
     if (!sb || !user) return;
-    sb.from('user_onboarding')
+    sb.from(T.user_onboarding)
       .upsert({ user_id: user.id, [DB_COL[key]]: true, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
       .then(() => {});
   }, [user]);

@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 import posthog from 'posthog-js';
+import { T } from '@/lib/tables';
 
 interface AuthCtx {
   user: User | null;
@@ -81,7 +82,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (!user) { setRole('free'); return; }
     const sb = getSupabase();
     if (!sb) return;
-    sb.from('user_subscriptions')
+    sb.from(T.user_subscriptions)
       .select('role')
       .eq('user_id', user.id)
       .maybeSingle()

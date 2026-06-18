@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { T } from '@/lib/tables';
 
 const SECRET = process.env.LEMONSQUEEZY_WEBHOOK_SECRET ?? '';
 
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
     case 'subscription_created':
     case 'subscription_updated':
     case 'subscription_payment_success': {
-      await sb.from('user_subscriptions').upsert({
+      await sb.from(T.user_subscriptions).upsert({
         user_id:            userId,
         role:               isActive ? 'pro' : 'free',
         ls_subscription_id: String(event.data?.id ?? ''),
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
     }
     case 'subscription_cancelled':
     case 'subscription_expired': {
-      await sb.from('user_subscriptions').upsert({
+      await sb.from(T.user_subscriptions).upsert({
         user_id:    userId,
         role:       'free',
         ls_status:  attrs.status ?? eventName.replace('subscription_', ''),

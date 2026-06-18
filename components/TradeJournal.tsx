@@ -6,6 +6,7 @@ import { getPHT, getSessionName } from '@/lib/session';
 import { getSupabase } from '@/lib/supabase';
 import AuthGate from './AuthGate';
 import { track } from '@/lib/analytics';
+import { T } from '@/lib/tables';
 
 type Direction = 'LONG' | 'SHORT';
 type TradeResult = 'OPEN' | 'WIN' | 'LOSS' | 'BE';
@@ -86,7 +87,7 @@ function Inner() {
     if (!db) { setNoDb(true); return; }
     setLoading(true);
     const { data, error } = await db
-      .from('trades')
+      .from(T.trades)
       .select('*')
       .order('created_at', { ascending: false })
       .limit(200);
@@ -125,12 +126,12 @@ function Inner() {
       notes, session,
     };
 
-    let { error } = await db.from('trades').insert(payload);
+    let { error } = await db.from(T.trades).insert(payload);
 
     // Graceful fallback: if leverage column doesn't exist yet, retry without it
     if (error && error.message?.includes('leverage')) {
       const { leverage: _lev, ...payloadNoLev } = payload;
-      const res2 = await db.from('trades').insert(payloadNoLev);
+      const res2 = await db.from(T.trades).insert(payloadNoLev);
       error = res2.error;
     }
 
@@ -169,7 +170,7 @@ function Inner() {
       result = exitNum === trade.entry_price ? 'BE' : profitable ? 'WIN' : 'LOSS';
     }
 
-    await db.from('trades').update({ exit_price: exitNum, result, pnl_usd, pnl_r }).eq('id', trade.id);
+    await db.from(T.trades).update({ exit_price: exitNum, result, pnl_usd, pnl_r }).eq('id', trade.id);
     setClosingId(null);
     setExitInput('');
     await loadTrades();
@@ -179,7 +180,7 @@ function Inner() {
     const db = getSupabase();
     if (!db) return;
     if (!confirm('Delete this trade?')) return;
-    await db.from('trades').delete().eq('id', id);
+    await db.from(T.trades).delete().eq('id', id);
     setTrades(prev => prev.filter(t => t.id !== id));
   };
 
@@ -196,7 +197,7 @@ function Inner() {
   const saveEdit = async (trade: Trade) => {
     const db = getSupabase();
     if (!db || !trade.id) return;
-    await db.from('trades').update({
+    await db.from(T.trades).update({
       result:     editDraft.result,
       exit_price: editDraft.exit_price ? parseFloat(editDraft.exit_price) : null,
       pnl_usd:    editDraft.pnl_usd    ? parseFloat(editDraft.pnl_usd)    : null,

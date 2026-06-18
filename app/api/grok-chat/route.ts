@@ -13,6 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { T } from '@/lib/tables';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -30,7 +31,7 @@ function sb(token: string) {
 }
 
 async function getUsageRow(token: string, userId: string, today: string) {
-  const { data } = await sb(token).from('grok_usage')
+  const { data } = await sb(token).from(T.grok_usage)
     .select('chat_count, chat_search_count')
     .eq('user_id', userId)
     .eq('date', today)
@@ -39,7 +40,7 @@ async function getUsageRow(token: string, userId: string, today: string) {
 }
 
 async function getUserRole(token: string, userId: string): Promise<'free' | 'pro'> {
-  const { data } = await sb(token).from('user_subscriptions')
+  const { data } = await sb(token).from(T.user_subscriptions)
     .select('role')
     .eq('user_id', userId)
     .maybeSingle();
@@ -150,7 +151,7 @@ export async function POST(req: NextRequest) {
     if (status >= 200 && status < 300) {
       const newChat   = isSearch ? chatUsed   : chatUsed   + 1;
       const newSearch = isSearch ? searchUsed + 1 : searchUsed;
-      await sb(token).from('grok_usage').upsert(
+      await sb(token).from(T.grok_usage).upsert(
         {
           user_id: userId, date: today,
           chat_count: newChat, chat_search_count: newSearch,

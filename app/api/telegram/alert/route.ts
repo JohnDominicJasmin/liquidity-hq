@@ -3,6 +3,7 @@ import { classifyNews } from '@/lib/classify';
 import { getSupabase } from '@/lib/supabase';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { detectPatterns } from '@/lib/patterns';
+import { T } from '@/lib/tables';
 import { recordFires } from '@/lib/alertHistory';
 
 export const dynamic = 'force-dynamic';
@@ -826,8 +827,8 @@ async function checkPriceAlerts(
 
     // Fetch alerts + per-user chat IDs in parallel
     const [alertsRes, settingsRes] = await Promise.all([
-      admin.from('price_alerts').select('*').eq('active', true),
-      admin.from('user_settings').select('user_id, telegram_chat_id'),
+      admin.from(T.price_alerts).select('*').eq('active', true),
+      admin.from(T.user_settings).select('user_id, telegram_chat_id'),
     ]);
 
     if (!alertsRes.data?.length) return [];
@@ -870,7 +871,7 @@ async function checkPriceAlerts(
       await tg(token, recipient, body);
 
       // Deactivate immediately — fire once then done
-      await admin.from('price_alerts').update({ active: false, triggered_at: new Date().toISOString() }).eq('id', alert.id);
+      await admin.from(T.price_alerts).update({ active: false, triggered_at: new Date().toISOString() }).eq('id', alert.id);
       fired.push(`${label} price alert at $${alert.target_price.toLocaleString()}`);
     }
   } catch { /* skip */ }
@@ -957,7 +958,7 @@ async function checkDailySummary(
   // Active price alerts
   let alertsBlock = '';
   try {
-    const { data } = await getSupabaseAdmin().from('price_alerts').select('*').eq('active', true);
+    const { data } = await getSupabaseAdmin().from(T.price_alerts).select('*').eq('active', true);
     if (data?.length) {
       const lines = (data as PriceAlert[]).map(a => {
         const lbl = LABELS[a.coin] ?? a.coin.toUpperCase();
@@ -1211,7 +1212,7 @@ async function fetchMutedKeys(): Promise<Set<string>> {
     try {
       const db = getSupabase();
       if (!db) return fallback;
-      const { data, error } = await db.from('muted_alerts').select('key');
+      const { data, error } = await db.from(T.muted_alerts).select('key');
       if (error || !data) return fallback;
       return new Set(data.map(r => String(r.key)));
     } catch { return fallback; }
@@ -1243,7 +1244,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   try {
     const admin = getSupabaseAdmin();
     const { data } = await admin
-      .from('user_settings')
+      .from(T.user_settings)
       .select('telegram_chat_id')
       .not('telegram_chat_id', 'is', null)
       .neq('telegram_chat_id', '');

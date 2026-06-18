@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { T } from '@/lib/tables';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ alerts: [] });
 
   const { data, error } = await sb(token)
-    .from('price_alerts')
+    .from(T.price_alerts)
     .select('*')
     .eq('user_id', user.id)
     .eq('active', true)
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'coin, target_price, direction required' }, { status: 400 });
 
   const { data, error } = await sb(token)
-    .from('price_alerts')
+    .from(T.price_alerts)
     .insert({ coin, target_price: parseFloat(target_price), direction, label: label ?? '', user_id: user.id })
     .select()
     .single();
@@ -71,7 +72,7 @@ export async function PATCH(req: NextRequest) {
   if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'nothing to update' }, { status: 400 });
 
   const { data, error } = await sb(token)
-    .from('price_alerts')
+    .from(T.price_alerts)
     .update(patch)
     .eq('id', id)
     .eq('user_id', user.id)
@@ -93,7 +94,7 @@ export async function DELETE(req: NextRequest) {
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
   const { error } = await sb(token)
-    .from('price_alerts')
+    .from(T.price_alerts)
     .update({ active: false })
     .eq('id', id)
     .eq('user_id', user.id); // ownership check — prevents deleting other users' alerts

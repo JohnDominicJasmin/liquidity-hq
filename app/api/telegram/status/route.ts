@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { T } from '@/lib/tables';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ configured: false });
 
   const { data } = await sb
-    .from('user_settings')
+    .from(T.user_settings)
     .select('telegram_chat_id')
     .eq('user_id', user.id)
     .maybeSingle();

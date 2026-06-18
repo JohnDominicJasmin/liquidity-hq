@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { T } from '@/lib/tables';
 
 function sb(token: string) {
   return createClient(
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { data, error } = await sb(token)
-    .from('user_settings')
+    .from(T.user_settings)
     .select('*')
     .eq('user_id', user.id)
     .maybeSingle();
@@ -54,7 +55,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const { error } = await sb(token)
-    .from('user_settings')
+    .from(T.user_settings)
     .upsert(payload, { onConflict: 'user_id' });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
