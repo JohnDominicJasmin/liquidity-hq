@@ -212,9 +212,9 @@ export default function KLineProChart({ coin, tf, result, chartAlerts, onAlertMo
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chart.setStyles((dark ? DARK : LIGHT) as any);
 
-      // Indicators
+      // Indicators — EMA 9 (trigger), 20 (entry zone), 50 (SL baseline), 200 (master filter)
       chart.createIndicator(
-        { name: 'EMA', calcParams: [9, 200] },
+        { name: 'EMA', calcParams: [9, 20, 50, 200] },
         { isStack: false, pane: { id: 'candle_pane' } }
       );
       chart.createIndicator('VOL', { pane: { height: 60, minHeight: 30 } });

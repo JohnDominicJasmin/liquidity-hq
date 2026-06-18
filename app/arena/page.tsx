@@ -15,6 +15,8 @@ import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import MarketStructure, { MSData } from '@/components/MarketStructure';
 import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
+import EMASignal from '@/components/EMASignal';
+import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal } from '@/lib/useEMAStrategy';
 
 /* ── Pattern detection — delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -157,7 +159,13 @@ export default function Arena() {
   const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '—' });
   const msDataRef     = useRef<MSData | null>(null);
   const absDataRef    = useRef<AbsorptionData | null>(null);
+  const emaSignalRef  = useRef<StrategySignal>(STRATEGY_LOADING);
   const oi1h          = useOI1h(selectedCoin);
+  const emaSignal     = useEMAStrategy(
+    selectedCoin,
+    store.coins[selectedCoin]?.fundingRate ?? null,
+    oi1h.pct,
+  );
   const [readLoading, setReadLoading] = useState(false);
   const [readStep, setReadStep]       = useState('');
   const [readError, setReadError]     = useState('');
@@ -307,6 +315,11 @@ export default function Arena() {
     const { txt } = oi1hSignal(oi1h.pct, store.coins[selectedCoin]?.oiTrend);
     oi1hDataRef.current = { pct: oi1h.pct, signal: txt };
   }, [oi1h.pct, oi1h.loading, selectedCoin, store.coins]);
+
+  /* ── Sync EMA strategy → ref (used by Grok context builder) ── */
+  useEffect(() => {
+    if (!emaSignal.loading) emaSignalRef.current = emaSignal;
+  }, [emaSignal]);
 
   /* ── Market Structure data callback — keeps ref in sync without re-renders ── */
   const handleMsData = useCallback((d: MSData | null) => {
@@ -812,6 +825,7 @@ export default function Arena() {
           : jpyUsd >= 158
             ? `${jpyUsd.toFixed(2)} — WARNING: Approaching 160 danger zone, watch for BOJ signals`
             : `${jpyUsd.toFixed(2)} — Safe: below 158, carry trade stable, low JPY liquidation risk`,
+      emaStrategy: strategyToGrokLine(emaSignalRef.current),
     };
   };
 
@@ -1212,6 +1226,9 @@ export default function Arena() {
         <MarketStructure coin={selectedCoin} onData={handleMsData} />
         <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />
       </div>
+
+      {/* EMA Ribbon Strategy card */}
+      <EMASignal signal={emaSignal} />
 
       {/* TF selector + buttons */}
       <div style={{ margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>

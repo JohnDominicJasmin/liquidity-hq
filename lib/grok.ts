@@ -133,6 +133,8 @@ export interface GrokContext {
   absorptionScore: string;
   /* Yen carry trade risk */
   yenWatch: string;
+  /* EMA Ribbon Strategy (Triple EMA 9/20/50, 4H) */
+  emaStrategy: string;
 }
 
 export interface GrokResult {
@@ -156,6 +158,8 @@ export function buildPrompt(ctx: GrokContext): string {
     `Long/Short ratio: ${ctx.longShortRatio}`,
     '',
     '=== TECHNICALS (MULTI-TIMEFRAME) ===',
+    `EMA Ribbon Strategy (4H + Daily): ${ctx.emaStrategy}`,
+    '(LONG_SETUP = price pulled back to 20 EMA value zone, bullish ribbon 9>20>50, daily price above 200 SMA — high-probability entry. SHORT_SETUP = reverse. FREEZE = 50 EMA flat / chop. TRENDING = ribbon aligned but not in entry zone yet. SL = below/above 50 EMA. TP = 2:1 R:R.)',
     `Market Structure (4H): ${ctx.marketStructure}`,
     '(BOS = Break of Structure = trend continuation in the same direction. CHoCH = Change of Character = structural reversal signal. A bearish CHoCH means the 4H trend just flipped bearish — strong bias filter against longs. A bullish CHoCH = trend just flipped bullish.)',
     `RSI (14, 1h):  ${ctx.rsi1h}`,
