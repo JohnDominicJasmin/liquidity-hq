@@ -341,77 +341,21 @@ export function useEMAStrategy(
           }
         }
 
-        // Chart markers: plot where the core strategy conditions were green
-        // Conditions checked per historical candle:
-        //   - EMA9/20 cross (trigger)
-        //   - Ribbon aligned (EMA9>EMA20>EMA50 for long, EMA50>EMA20>EMA9 for short)
-        //   - Close vs EMA50 (close > EMA50 for long, close < EMA50 for short)
-        //   - Daily SMA200 filter (close > SMA200 for long, close < SMA200 for short)
-        //   - 8+ consecutive prior opposing candles
-        // Volume NOT gated — too noisy historically; matches strategy card behavior
-        // Funding rate + OI not included — no per-candle historical data available
-        const MIN_PRIOR_TREND = 8;
+        // Chart markers: EMA9/20 cross + close confirms direction vs EMA50
         const signalLongs:  Array<{ timestamp: number; anchorPrice: number }> = [];
         const signalShorts: Array<{ timestamp: number; anchorPrice: number }> = [];
 
-        // Look up the most recent daily SMA200 at or before a given ms timestamp
-        const getDailySMA200 = (ts: number): number | null => {
-          for (let di = c1d.length - 1; di >= 0; di--) {
-            if (c1d[di].time <= ts) return isFinite(s200arr[di]) ? s200arr[di] : null;
-          }
-          return null;
-        };
-
-        for (let i = cRibbon.length - 1; i >= MIN_PRIOR_TREND; i--) {
+        for (let i = 1; i < cRibbon.length; i++) {
           const e9 = e9arr[i], e20 = e20arr[i], e50 = e50arr[i];
           if (!isFinite(e9) || !isFinite(e20) || !isFinite(e50)) continue;
           const cls = cRibbon[i].close;
 
-          if (e9 > e20 && e9arr[i - 1] <= e20arr[i - 1]) {
-            const sma200d = getDailySMA200(cRibbon[i].time);
-            if (
-              e20 > e50 &&
-              cls > e50 &&
-              (sma200d === null || cls > sma200d)
-            ) {
-              let priorBearish = 0;
-              for (let j = i - 1; j >= 0 && priorBearish < MIN_PRIOR_TREND; j--) {
-                if (e9arr[j] < e20arr[j]) priorBearish++;
-                else break;
-              }
-              if (priorBearish >= MIN_PRIOR_TREND) {
-                signalLongs.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].low });
-              }
-            }
+          if (e9 > e20 && e9arr[i - 1] <= e20arr[i - 1] && cls > e50) {
+            signalLongs.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].low });
           }
 
-          if (e9 < e20 && e9arr[i - 1] >= e20arr[i - 1]) {
-            const sma200d = getDailySMA200(cRibbon[i].time);
-            if (
-              e50 > e20 &&
-              cls < e50 &&
-              (sma200d === null || cls < sma200d)
-            ) {
-              let priorBullish = 0;
-              for (let j = i - 1; j >= 0 && priorBullish < MIN_PRIOR_TREND; j--) {
-                if (e9arr[j] > e20arr[j]) priorBullish++;
-                else break;
-              }
-              if (priorBullish >= MIN_PRIOR_TREND) {
-                signalShorts.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].high });
-              }
-            }
-          }
-        }
-
-        // Always place a marker on the current candle when the setup is active,
-        // regardless of whether the historical scan found the cross candle.
-        const currentCandle = cRibbon[cRibbon.length - 1];
-        if (currentCandle) {
-          if (verdict === 'LONG_SETUP') {
-            signalLongs.push({ timestamp: currentCandle.time, anchorPrice: currentCandle.low });
-          } else if (verdict === 'SHORT_SETUP') {
-            signalShorts.push({ timestamp: currentCandle.time, anchorPrice: currentCandle.high });
+          if (e9 < e20 && e9arr[i - 1] >= e20arr[i - 1] && cls < e50) {
+            signalShorts.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].high });
           }
         }
 
