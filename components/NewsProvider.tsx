@@ -111,7 +111,9 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     const id = alertIdRef.current++;
     setAlerts(prev => [...prev, { id, headline, source, ts, type, link, image }]);
 
-    if ('Notification' in window && Notification.permission === 'granted') {
+    // Only notify for articles < 15 min old — prevents stale articles re-firing on page refresh
+    const ageMs = Date.now() - ts * 1000;
+    if ('Notification' in window && Notification.permission === 'granted' && ageMs < 15 * 60 * 1000) {
       new Notification(headline, {
         body: source + ' · ' + timeAgo(ts),
         requireInteraction: type === 'red',
