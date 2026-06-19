@@ -153,15 +153,21 @@ export interface ChartAlert {
   label?:       string;
 }
 
+interface EMAValues {
+  ema9_4h: number | null; ema20_4h: number | null;
+  ema50_4h: number | null; sma200_1d: number | null; loading: boolean;
+}
+
 interface Props {
   coin:          CoinId;
   tf:            ChartTf;
   result?:       CombinedResult | null;
   chartAlerts?:  ChartAlert[];
   onAlertMove?:  (id: string, newPrice: number) => void;
+  emaValues?:    EMAValues;
 }
 
-export default function KLineProChart({ coin, tf, result, chartAlerts, onAlertMove }: Props) {
+export default function KLineProChart({ coin, tf, result, chartAlerts, onAlertMove, emaValues }: Props) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const chartRef       = useRef<KChart | null>(null);
@@ -571,6 +577,21 @@ export default function KLineProChart({ coin, tf, result, chartAlerts, onAlertMo
       {/* Copy toast */}
       {copiedMsg && (
         <div className="klc-copy-toast">{copiedMsg}</div>
+      )}
+
+      {/* EMA values strip */}
+      {emaValues && !emaValues.loading && emaValues.ema9_4h && (
+        <div style={{
+          display: 'flex', gap: 14, padding: '4px 12px',
+          borderBottom: '0.5px solid var(--bdr)',
+          background: 'var(--bg)',
+          flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>EMA9 <b style={{ color: '#fbbf24' }}>${fmtPx(emaValues.ema9_4h)}</b></span>
+          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>EMA20 <b style={{ color: '#60a5fa' }}>${fmtPx(emaValues.ema20_4h ?? 0)}</b></span>
+          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>EMA50 <b style={{ color: '#f97316' }}>${fmtPx(emaValues.ema50_4h ?? 0)}</b></span>
+          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>SMA200(1D) <b style={{ color: '#a78bfa' }}>${fmtPx(emaValues.sma200_1d ?? 0)}</b></span>
+        </div>
       )}
 
       {/* Chart canvas */}
