@@ -62,10 +62,8 @@ export interface StrategySignal {
   signalTimestamp:   number | null;
   signalAnchorPrice: number | null;
   signalDir:         'long' | 'short' | null;
-  signalLongTimestamp:   number | null;
-  signalLongAnchorPrice: number | null;
-  signalShortTimestamp:  number | null;
-  signalShortAnchorPrice: number | null;
+  signalLongs:  Array<{ timestamp: number; anchorPrice: number }>;
+  signalShorts: Array<{ timestamp: number; anchorPrice: number }>;
 }
 
 interface OHLCV { time: number; open: number; high: number; low: number; close: number; volume: number }
@@ -111,8 +109,7 @@ export const STRATEGY_LOADING: StrategySignal = {
   volMA20: null, lastVol: null, priceInValueZone: false,
   sl: null, tp: null, loading: true, error: null,
   signalTimestamp: null, signalAnchorPrice: null, signalDir: null,
-  signalLongTimestamp: null, signalLongAnchorPrice: null,
-  signalShortTimestamp: null, signalShortAnchorPrice: null,
+  signalLongs: [], signalShorts: [],
 };
 
 /* ── TF → exchange interval strings ─────────────────────────────────────── */
@@ -345,13 +342,11 @@ export function useEMAStrategy(
         }
 
         // Chart markers: always show both buy and sell regardless of 200 SMA
-        // Require MIN_PRIOR_TREND consecutive candles in the opposing direction before a cross
-        // counts as "significant" — filters out brief bounce reversals that aren't real trend changes
+        // Collect ALL significant EMA crosses in the loaded data window
+        // A cross is "significant" if preceded by MIN_PRIOR_TREND consecutive opposing candles
         const MIN_PRIOR_TREND = 8;
-        let signalLongTimestamp: number | null = null;
-        let signalLongAnchorPrice: number | null = null;
-        let signalShortTimestamp: number | null = null;
-        let signalShortAnchorPrice: number | null = null;
+        const signalLongs:  Array<{ timestamp: number; anchorPrice: number }> = [];
+        const signalShorts: Array<{ timestamp: number; anchorPrice: number }> = [];
 
         for (let i = cRibbon.length - 1; i >= MIN_PRIOR_TREND; i--) {
           if (e9arr[i] > e20arr[i] && e9arr[i - 1] <= e20arr[i - 1] && cRibbon[i].close > (e50arr[i] ?? 0)) {
@@ -361,9 +356,7 @@ export function useEMAStrategy(
               else break;
             }
             if (priorBearish >= MIN_PRIOR_TREND) {
-              signalLongTimestamp   = cRibbon[i].time;
-              signalLongAnchorPrice = cRibbon[i].low;
-              break;
+              signalLongs.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].low });
             }
           }
         }
@@ -375,9 +368,7 @@ export function useEMAStrategy(
               else break;
             }
             if (priorBullish >= MIN_PRIOR_TREND) {
-              signalShortTimestamp   = cRibbon[i].time;
-              signalShortAnchorPrice = cRibbon[i].high;
-              break;
+              signalShorts.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].high });
             }
           }
         }
@@ -389,8 +380,7 @@ export function useEMAStrategy(
           volMA20: volma20, lastVol, priceInValueZone: inValueZone,
           sl, tp, loading: false, error: null,
           signalTimestamp, signalAnchorPrice, signalDir,
-          signalLongTimestamp, signalLongAnchorPrice,
-          signalShortTimestamp, signalShortAnchorPrice,
+          signalLongs, signalShorts,
         });
       } catch (err) {
         if (!mountedRef.current) return;

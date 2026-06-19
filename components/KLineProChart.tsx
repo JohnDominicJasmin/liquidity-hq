@@ -176,9 +176,6 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const wsRef          = useRef<{ close: () => void } | null>(null);
   const analysisIds    = useRef<string[]>([]);
   const alertOverlayMap  = useRef<Map<string, string>>(new Map()); // alert.id → overlay id
-  const signalOverlayId  = useRef<string | null>(null);
-  const signalLongId     = useRef<string | null>(null);
-  const signalShortId    = useRef<string | null>(null);
   const onAlertMoveRef = useRef(onAlertMove);
   const coinRef        = useRef<CoinId>(coin);
 
@@ -444,9 +441,6 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     alertOverlayMap.current.forEach(oid => chart.removeOverlay({ id: oid }));
     alertOverlayMap.current.clear();
     chart.removeOverlay({ name: 'emaSignal' });
-    signalOverlayId.current = null;
-    signalLongId.current    = null;
-    signalShortId.current   = null;
     setActiveTool(null);
     setChartSymbolPeriod(chart, coin, tf);
   }, [coin, tf]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -502,37 +496,24 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     if (result.tp)        draw(result.tp,        '#b8aeff');
   }, [result]);
 
-  // ── EMA signal markers (Buy + Sell, both always shown) ──────────────
+  // ── EMA signal markers — all significant crosses in the loaded data ──────────────
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !chartReady) return;
 
-    // Clear previous overlays
-    if (signalLongId.current)  { chart.removeOverlay({ id: signalLongId.current });  signalLongId.current  = null; }
-    if (signalShortId.current) { chart.removeOverlay({ id: signalShortId.current }); signalShortId.current = null; }
-    // Fallback: clear any stale overlay from old single-overlay path
-    if (signalOverlayId.current) { chart.removeOverlay({ id: signalOverlayId.current }); signalOverlayId.current = null; }
-
+    chart.removeOverlay({ name: 'emaSignal' });
     if (!emaSignal || emaSignal.loading) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const create = (dir: 'long' | 'short', ts: number, price: number): string | null => {
-      const id = chart.createOverlay({
+    const place = (dir: 'long' | 'short', ts: number, price: number) => {
+      chart.createOverlay({
         name: 'emaSignal', lock: true,
         extendData: dir,
         points: [{ timestamp: ts, value: price }],
       } as OverlayCreate);
-      return typeof id === 'string' ? id : null;
     };
 
-    if (emaSignal.signalLongTimestamp && emaSignal.signalLongAnchorPrice) {
-      const id = create('long', emaSignal.signalLongTimestamp, emaSignal.signalLongAnchorPrice);
-      if (id) signalLongId.current = id;
-    }
-    if (emaSignal.signalShortTimestamp && emaSignal.signalShortAnchorPrice) {
-      const id = create('short', emaSignal.signalShortTimestamp, emaSignal.signalShortAnchorPrice);
-      if (id) signalShortId.current = id;
-    }
+    for (const sig of emaSignal.signalLongs)  place('long',  sig.timestamp, sig.anchorPrice);
+    for (const sig of emaSignal.signalShorts) place('short', sig.timestamp, sig.anchorPrice);
   }, [emaSignal, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sync price alert lines ───────────────────────────────────────────
