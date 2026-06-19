@@ -398,7 +398,7 @@ body[data-rpm-level="high"]::before {
 }
 
 /* ── SESSION PILL (navbar) ── */
-.session-pill-wrap { flex-shrink: 0; }
+.session-pill-wrap { flex-shrink: 0; margin-left: auto; }
 .session-pill {
   display: flex; align-items: center; gap: 5px;
   padding: 3px 9px; border-radius: 20px;
