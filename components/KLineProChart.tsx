@@ -212,20 +212,50 @@ export default function KLineProChart({ coin, tf, result, chartAlerts, onAlertMo
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chart.setStyles((dark ? DARK : LIGHT) as any);
 
-      // Indicators — EMA 9 (gold), 20 (blue), 50 (orange), 200 (purple)
-      chart.createIndicator(
-        {
-          name: 'EMA',
-          calcParams: [9, 20, 50, 200],
-          styles: {
-            lines: [
-              { color: '#fbbf24', size: 1   },  // EMA 9  — gold
-              { color: '#60a5fa', size: 1.5 },  // EMA 20 — blue
-              { color: '#f97316', size: 1.5 },  // EMA 50 — orange
-              { color: '#a78bfa', size: 2   },  // SMA 200 — purple
-            ],
-          },
+      // Register custom ribbon: EMA 9/20/50 + SMA 200 as one indicator
+      kc.registerIndicator({
+        name: 'EMARibbon',
+        calc: (dataList) => {
+          const closes = dataList.map((d: { close: number }) => d.close);
+          const n = closes.length;
+
+          const emaArr = (period: number) => {
+            const out = new Array<number | null>(n).fill(null);
+            if (n < period) return out;
+            const k = 2 / (period + 1);
+            let e = closes.slice(0, period).reduce((a: number, b: number) => a + b, 0) / period;
+            out[period - 1] = e;
+            for (let i = period; i < n; i++) { e = closes[i] * k + e * (1 - k); out[i] = e; }
+            return out;
+          };
+          const smaArr = (period: number) => {
+            const out = new Array<number | null>(n).fill(null);
+            for (let i = period - 1; i < n; i++) {
+              out[i] = closes.slice(i - period + 1, i + 1).reduce((a: number, b: number) => a + b, 0) / period;
+            }
+            return out;
+          };
+
+          const e9 = emaArr(9), e20 = emaArr(20), e50 = emaArr(50), s200 = smaArr(200);
+          return dataList.map((_: unknown, i: number) => ({ e9: e9[i], e20: e20[i], e50: e50[i], s200: s200[i] }));
         },
+        figures: [
+          { key: 'e9',   type: 'line' },
+          { key: 'e20',  type: 'line' },
+          { key: 'e50',  type: 'line' },
+          { key: 's200', type: 'line' },
+        ],
+        styles: {
+          lines: [
+            { color: '#fbbf24', size: 1   },  // EMA 9  — gold
+            { color: '#60a5fa', size: 1.5 },  // EMA 20 — blue
+            { color: '#f97316', size: 1.5 },  // EMA 50 — orange
+            { color: '#a78bfa', size: 2   },  // SMA 200 — purple
+          ],
+        },
+      });
+      chart.createIndicator(
+        { name: 'EMARibbon' },
         { isStack: false, pane: { id: 'candle_pane' } }
       );
       chart.createIndicator('VOL', { pane: { height: 60, minHeight: 30 } });
