@@ -317,7 +317,7 @@ export function useEMAStrategy(
         let signalAnchorPrice: number | null = null;
         let signalDir: 'long' | 'short' | null = null;
 
-        if (above200D) {
+        if (above200D && ribbonBull) {
           for (let i = cRibbon.length - 1; i >= 1; i--) {
             if (e9arr[i] > e20arr[i] && e9arr[i - 1] <= e20arr[i - 1] && cRibbon[i].close > (e50arr[i] ?? 0)) {
               signalTimestamp   = cRibbon[i].time;
@@ -326,7 +326,7 @@ export function useEMAStrategy(
               break;
             }
           }
-        } else {
+        } else if (!above200D && ribbonBear) {
           for (let i = cRibbon.length - 1; i >= 1; i--) {
             if (e9arr[i] < e20arr[i] && e9arr[i - 1] >= e20arr[i - 1] && cRibbon[i].close < (e50arr[i] ?? Infinity)) {
               signalTimestamp   = cRibbon[i].time;
