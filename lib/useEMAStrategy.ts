@@ -342,34 +342,57 @@ export function useEMAStrategy(
           }
         }
 
-        // Chart markers: EMA9/20 cross + close vs EMA50 + close vs SMA200
-        // MIN_PRIOR_TREND: require N consecutive opposing candles before the cross
-        // to filter out chop crosses that flip back and forth in sideways markets
+        // Chart markers — 3-step strategy:
+        // Step 1: EMA9/20 cross (arms the signal; require 5 prior opposing candles to filter chop)
+        // Step 2: First candle after cross that closes above EMA50 (long) or below EMA50 (short)
+        // Step 3: SMA200 bias — that candle must also be above SMA200 (long) or below SMA200 (short)
+        // Marker is placed at the Step 2 confirmation candle, not the cross candle.
         const MIN_PRIOR_TREND = 5;
         const signalLongs:  Array<{ timestamp: number; anchorPrice: number }> = [];
         const signalShorts: Array<{ timestamp: number; anchorPrice: number }> = [];
 
         for (let i = 1; i < cRibbon.length; i++) {
-          const e9 = e9arr[i], e20 = e20arr[i], e50 = e50arr[i], sm200 = sm200arr[i];
-          if (!isFinite(e9) || !isFinite(e20) || !isFinite(e50) || !isFinite(sm200)) continue;
-          const cls = cRibbon[i].close;
+          const e9 = e9arr[i], e20 = e20arr[i];
+          if (!isFinite(e9) || !isFinite(e20)) continue;
 
-          if (e9 > e20 && e9arr[i - 1] <= e20arr[i - 1] && cls > e50 && cls > sm200) {
+          // Bullish cross
+          if (e9 > e20 && e9arr[i - 1] <= e20arr[i - 1]) {
             let prior = 0;
             for (let j = i - 1; j >= 0 && prior < MIN_PRIOR_TREND; j--) {
               if (e9arr[j] < e20arr[j]) prior++; else break;
             }
-            if (prior >= MIN_PRIOR_TREND)
-              signalLongs.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].low });
+            if (prior >= MIN_PRIOR_TREND) {
+              for (let k = i; k < cRibbon.length; k++) {
+                if (e9arr[k] < e20arr[k]) break; // cross flipped — abort
+                const e50k = e50arr[k], sm200k = sm200arr[k];
+                if (!isFinite(e50k) || !isFinite(sm200k)) continue;
+                const cls = cRibbon[k].close;
+                if (cls > e50k && cls > sm200k) {
+                  signalLongs.push({ timestamp: cRibbon[k].time, anchorPrice: cRibbon[k].low });
+                  break;
+                }
+              }
+            }
           }
 
-          if (e9 < e20 && e9arr[i - 1] >= e20arr[i - 1] && cls < e50 && cls < sm200) {
+          // Bearish cross
+          if (e9 < e20 && e9arr[i - 1] >= e20arr[i - 1]) {
             let prior = 0;
             for (let j = i - 1; j >= 0 && prior < MIN_PRIOR_TREND; j--) {
               if (e9arr[j] > e20arr[j]) prior++; else break;
             }
-            if (prior >= MIN_PRIOR_TREND)
-              signalShorts.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].high });
+            if (prior >= MIN_PRIOR_TREND) {
+              for (let k = i; k < cRibbon.length; k++) {
+                if (e9arr[k] > e20arr[k]) break; // cross flipped — abort
+                const e50k = e50arr[k], sm200k = sm200arr[k];
+                if (!isFinite(e50k) || !isFinite(sm200k)) continue;
+                const cls = cRibbon[k].close;
+                if (cls < e50k && cls < sm200k) {
+                  signalShorts.push({ timestamp: cRibbon[k].time, anchorPrice: cRibbon[k].high });
+                  break;
+                }
+              }
+            }
           }
         }
 
