@@ -124,6 +124,16 @@ const CD: Record<string, number> = {
   ema_setup:  6 * 3600_000,   // EMA ribbon strategy — all conditions green
 };
 
+/* ── Concurrency limiter — runs tasks in chunks to avoid ETIMEDOUT under Render free tier ── */
+async function runBatched<T>(tasks: Array<() => Promise<T>>, batchSize = 5): Promise<T[]> {
+  const results: T[] = [];
+  for (let i = 0; i < tasks.length; i += batchSize) {
+    const chunk = tasks.slice(i, i + batchSize);
+    results.push(...await Promise.all(chunk.map(t => t())));
+  }
+  return results;
+}
+
 /* ── Session helpers ── */
 function isHighActivity(): boolean {
   const phtHour = (new Date().getUTCHours() + 8) % 24;
@@ -342,7 +352,7 @@ function computeEMA(closes: number[], period: number): number {
 
 async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
-  await Promise.all(COINS.map(async coin => {
+  await runBatched(COINS.map(coin => async () => {
     try {
       let closes: number[];
       if (BINANCE_SPOT[coin]) {
@@ -397,7 +407,7 @@ async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> 
         }
       }
     } catch { /* skip */ }
-  }));
+  }), 6);
   return fired;
 }
 
@@ -406,7 +416,7 @@ async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> 
    ════════════════════════════════════════ */
 async function checkEMACross(stamp: string, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
-  await Promise.all(COINS.map(async coin => {
+  await runBatched(COINS.map(coin => async () => {
     try {
       let closes: number[];
       if (BINANCE_SPOT[coin]) {
@@ -471,7 +481,7 @@ async function checkEMACross(stamp: string, queue: SignalEntry[]): Promise<strin
         markSent(`ema_bear_${coin}`); fired.push(`${label} crossed below 200 EMA`);
       }
     } catch { /* skip */ }
-  }));
+  }), 6);
   return fired;
 }
 
@@ -486,9 +496,9 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[]): Promise<stri
     { interval: '4h',  bybitInterval: '240', threshold: 10, cd: 'move4h', tfLabel: '4H' },
   ] as const;
 
-  await Promise.all(
+  await runBatched(
     COINS.flatMap(coin =>
-      FRAMES.map(async ({ interval, bybitInterval, threshold, cd, tfLabel }) => {
+      FRAMES.map(({ interval, bybitInterval, threshold, cd, tfLabel }) => async () => {
         try {
           let prevClose: number, currClose: number;
           let patternStr = '';
@@ -544,7 +554,7 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[]): Promise<stri
           markSent(key); fired.push(`${label} rapid ${dir} ${sign}${pct.toFixed(1)}% (${tfLabel})`);
         } catch { /* skip */ }
       })
-    )
+    ), 5
   );
   return fired;
 }
@@ -557,9 +567,9 @@ interface AggTrade { T: number; p: string; q: string; m: boolean }
 async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
   const since = Date.now() - 5 * 60_000;
-  await Promise.all([
+  await runBatched([
     // ── Binance perp coins ──
-    ...Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
+    ...Object.entries(BINANCE_PERP).map(([coin, sym]) => async () => {
       const threshold = WHALE_THRESHOLD[coin];
       if (!threshold) return;
       try {
@@ -591,7 +601,7 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
       } catch { /* skip */ }
     }),
     // ── Bybit-only coins (HYPE) ──
-    ...Object.entries(BYBIT_KLINE_SYMS).map(async ([coin, sym]) => {
+    ...Object.entries(BYBIT_KLINE_SYMS).map(([coin, sym]) => async () => {
       const threshold = WHALE_THRESHOLD[coin];
       if (!threshold) return;
       try {
@@ -626,7 +636,7 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
         }
       } catch { /* skip */ }
     }),
-  ]);
+  ], 5);
   return fired;
 }
 
@@ -678,9 +688,9 @@ interface OIHistItem { sumOpenInterest: string; timestamp: number }
 
 async function checkOISpike(stamp: string, prices: Record<string, number>, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
-  await Promise.all([
+  await runBatched([
     // ── Binance perp coins ──
-    ...Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
+    ...Object.entries(BINANCE_PERP).map(([coin, sym]) => async () => {
     try {
       const res = await fetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=5m&limit=13`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
       if (!res.ok) return;
@@ -718,7 +728,7 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
     } catch { /* skip */ }
     }),
     // ── Bybit-only coins (HYPE) ──
-    ...Object.entries(BYBIT_KLINE_SYMS).map(async ([coin, sym]) => {
+    ...Object.entries(BYBIT_KLINE_SYMS).map(([coin, sym]) => async () => {
       try {
         const res = await fetch(
           `https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${sym}&intervalTime=5min&limit=13`,
@@ -756,7 +766,7 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
         }
       } catch { /* skip */ }
     }),
-  ]);
+  ], 5);
   return fired;
 }
 
@@ -767,7 +777,7 @@ interface TakerVolItem { buyVol: string; sellVol: string; timestamp: number }
 
 async function checkCVD(stamp: string, queue: SignalEntry[]): Promise<string[]> {
   const fired: string[] = [];
-  await Promise.all(Object.entries(BINANCE_PERP).map(async ([coin, sym]) => {
+  await runBatched(Object.entries(BINANCE_PERP).map(([coin, sym]) => async () => {
     try {
       const [kRes, tvRes] = await Promise.allSettled([
         fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1h&limit=2`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),
@@ -807,7 +817,7 @@ async function checkCVD(stamp: string, queue: SignalEntry[]): Promise<string[]> 
         markSent(`cvd_bull_${coin}`); fired.push(`${label} bullish CVD divergence`);
       }
     } catch { /* skip */ }
-  }));
+  }), 5);
   return fired;
 }
 
