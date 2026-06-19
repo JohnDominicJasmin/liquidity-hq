@@ -115,6 +115,21 @@ export default function EMASignal({ signal }: Props) {
         </div>
       )}
 
+      {/* EMA / SMA values strip */}
+      {!signal.loading && signal.ema9_4h != null && (
+        <div style={{
+          display: 'flex', gap: 14, flexWrap: 'wrap',
+          marginTop: 10,
+          paddingTop: 8,
+          borderTop: '0.5px solid var(--bdr)',
+        }}>
+          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>EMA9 <b style={{ color: '#fbbf24' }}>${fmt(signal.ema9_4h)}</b></span>
+          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>EMA20 <b style={{ color: '#60a5fa' }}>${fmt(signal.ema20_4h ?? null)}</b></span>
+          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>EMA50 <b style={{ color: '#f97316' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
+          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>SMA200 (1D) <b style={{ color: '#a78bfa' }}>${fmt(signal.sma200_1d ?? null)}</b></span>
+        </div>
+      )}
+
       {signal.error && (
         <div style={{ fontSize: 11, color: '#f87171', marginTop: 6 }}>{signal.error}</div>
       )}

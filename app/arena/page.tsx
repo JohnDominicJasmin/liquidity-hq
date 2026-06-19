@@ -1216,7 +1216,7 @@ export default function Arena() {
       </div>
 
       {/* ── CHART — KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} result={result} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} emaValues={emaSignal} />
+      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={setReadTf} result={result} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} />
 
       {/* ── BELOW CHART: left-aligned, max 860px on wide screens ── */}
       <div className="arena-below-chart">
@@ -1229,14 +1229,6 @@ export default function Arena() {
 
       {/* EMA Ribbon Strategy card */}
       <EMASignal signal={emaSignal} />
-
-      {/* TF selector + buttons */}
-      <div style={{ margin: '10px 0 4px', display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 10, color: 'var(--txt3)', fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', marginRight: 2 }}>TF</span>
-        {(['1m','5m','15m','30m','1h','4h','1d'] as const).map(t => (
-          <button key={t} className={`gsc-tf-btn${readTf === t ? ' on' : ''}`} onClick={() => setReadTf(t)} style={{ padding: '3px 8px', fontSize: 11 }}>{t}</button>
-        ))}
-      </div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         {/* Quick button — requires sign-in */}
         <button
