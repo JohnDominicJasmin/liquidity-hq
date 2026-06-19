@@ -142,7 +142,7 @@ export function useEMAStrategy(
     const load = async () => {
       try {
         const [cRibbon, c1d] = await Promise.all([
-          fetchOHLCV(coin, bnInterval, byInterval, 200),
+          fetchOHLCV(coin, bnInterval, byInterval, 500),
           fetchOHLCV(coin, '1d', 'D', 220),
         ]);
         if (!mountedRef.current) return;
@@ -156,10 +156,11 @@ export function useEMAStrategy(
         const cl1d = c1d.map(c => c.close);
 
         // Indicator arrays
-        const e9arr   = emaArr(cl4,  9);
-        const e20arr  = emaArr(cl4, 20);
-        const e50arr  = emaArr(cl4, 50);
-        const s200arr = smaArr(cl1d, 200);
+        const e9arr    = emaArr(cl4,  9);
+        const e20arr   = emaArr(cl4, 20);
+        const e50arr   = emaArr(cl4, 50);
+        const sm200arr = smaArr(cl4,  200); // SMA200 on same timeframe — used for chart markers
+        const s200arr  = smaArr(cl1d, 200); // Daily SMA200 — used for strategy card
 
         const ema9   = e9arr[e9arr.length - 1];
         const ema20  = e20arr[e20arr.length - 1];
@@ -346,15 +347,15 @@ export function useEMAStrategy(
         const signalShorts: Array<{ timestamp: number; anchorPrice: number }> = [];
 
         for (let i = 1; i < cRibbon.length; i++) {
-          const e9 = e9arr[i], e20 = e20arr[i], e50 = e50arr[i];
-          if (!isFinite(e9) || !isFinite(e20) || !isFinite(e50)) continue;
+          const e9 = e9arr[i], e20 = e20arr[i], e50 = e50arr[i], sm200 = sm200arr[i];
+          if (!isFinite(e9) || !isFinite(e20) || !isFinite(e50) || !isFinite(sm200)) continue;
           const cls = cRibbon[i].close;
 
-          if (e9 > e20 && e9arr[i - 1] <= e20arr[i - 1] && cls > e50) {
+          if (e9 > e20 && e9arr[i - 1] <= e20arr[i - 1] && cls > e50 && cls > sm200) {
             signalLongs.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].low });
           }
 
-          if (e9 < e20 && e9arr[i - 1] >= e20arr[i - 1] && cls < e50) {
+          if (e9 < e20 && e9arr[i - 1] >= e20arr[i - 1] && cls < e50 && cls < sm200) {
             signalShorts.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].high });
           }
         }
