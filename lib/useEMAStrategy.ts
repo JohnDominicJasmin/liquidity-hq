@@ -248,13 +248,35 @@ export function useEMAStrategy(
               : `Price below Daily 200 SMA — SHORT only`,
           },
           {
-            label: '4H Ribbon Aligned',
+            label: 'Ribbon Aligned',
             pass:  ribbonBull || ribbonBear,
             detail: ribbonBull
               ? `Bullish: EMA9 ${fmt(ema9)} > EMA20 ${fmt(ema20)} > EMA50 ${fmt(ema50)}`
               : ribbonBear
                 ? `Bearish: EMA50 ${fmt(ema50)} > EMA20 ${fmt(ema20)} > EMA9 ${fmt(ema9)}`
                 : `Not aligned — ribbon tangled`,
+          },
+          {
+            label: 'EMA 9/20 Cross',
+            pass:  above200D ? ema9 > ema20 : ema9 < ema20,
+            detail: above200D
+              ? (ema9 > ema20
+                ? `EMA9 ${fmt(ema9)} crossed above EMA20 ${fmt(ema20)} — bullish cross confirmed`
+                : `EMA9 ${fmt(ema9)} still below EMA20 ${fmt(ema20)} — waiting for bullish cross`)
+              : (ema9 < ema20
+                ? `EMA9 ${fmt(ema9)} crossed below EMA20 ${fmt(ema20)} — bearish cross confirmed`
+                : `EMA9 ${fmt(ema9)} still above EMA20 ${fmt(ema20)} — waiting for bearish cross`),
+          },
+          {
+            label: 'Close vs EMA 50',
+            pass:  above200D ? price > ema50 : price < ema50,
+            detail: above200D
+              ? (price > ema50
+                ? `Close $${fmt(price)} above EMA50 $${fmt(ema50)} — long entry confirmed`
+                : `Close $${fmt(price)} below EMA50 $${fmt(ema50)} — wait for candle close above EMA 50`)
+              : (price < ema50
+                ? `Close $${fmt(price)} below EMA50 $${fmt(ema50)} — short entry confirmed`
+                : `Close $${fmt(price)} above EMA50 $${fmt(ema50)} — wait for candle close below EMA 50`),
           },
           {
             label: 'Price in Value Zone',
