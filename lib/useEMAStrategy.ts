@@ -342,7 +342,10 @@ export function useEMAStrategy(
           }
         }
 
-        // Chart markers: EMA9/20 cross + close confirms direction vs EMA50
+        // Chart markers: EMA9/20 cross + close vs EMA50 + close vs SMA200
+        // MIN_PRIOR_TREND: require N consecutive opposing candles before the cross
+        // to filter out chop crosses that flip back and forth in sideways markets
+        const MIN_PRIOR_TREND = 5;
         const signalLongs:  Array<{ timestamp: number; anchorPrice: number }> = [];
         const signalShorts: Array<{ timestamp: number; anchorPrice: number }> = [];
 
@@ -352,11 +355,21 @@ export function useEMAStrategy(
           const cls = cRibbon[i].close;
 
           if (e9 > e20 && e9arr[i - 1] <= e20arr[i - 1] && cls > e50 && cls > sm200) {
-            signalLongs.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].low });
+            let prior = 0;
+            for (let j = i - 1; j >= 0 && prior < MIN_PRIOR_TREND; j--) {
+              if (e9arr[j] < e20arr[j]) prior++; else break;
+            }
+            if (prior >= MIN_PRIOR_TREND)
+              signalLongs.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].low });
           }
 
           if (e9 < e20 && e9arr[i - 1] >= e20arr[i - 1] && cls < e50 && cls < sm200) {
-            signalShorts.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].high });
+            let prior = 0;
+            for (let j = i - 1; j >= 0 && prior < MIN_PRIOR_TREND; j--) {
+              if (e9arr[j] > e20arr[j]) prior++; else break;
+            }
+            if (prior >= MIN_PRIOR_TREND)
+              signalShorts.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].high });
           }
         }
 
