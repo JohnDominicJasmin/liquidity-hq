@@ -1,10 +1,13 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 
 export default function LoginPage() {
+  const searchParams = useSearchParams();
+  const isSignup     = searchParams.get('signup') === '1';
   const [email, setEmail]               = useState('');
   const [emailSent, setEmailSent]       = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
@@ -50,7 +53,7 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="login-logo">Liquidity<span>HQ</span></div>
-        <p className="login-sub">Sign in to your account</p>
+        <p className="login-sub">{isSignup ? 'Create your account' : 'Sign in to your account'}</p>
 
         {emailSent ? (
           /* ── Magic link sent ── */
