@@ -414,6 +414,17 @@ export function useEMAStrategy(
           }
         }
 
+        // Always place a marker on the current candle when the setup is active,
+        // regardless of whether the historical scan found the cross candle.
+        const currentCandle = cRibbon[cRibbon.length - 1];
+        if (currentCandle) {
+          if (verdict === 'LONG_SETUP') {
+            signalLongs.push({ timestamp: currentCandle.time, anchorPrice: currentCandle.low });
+          } else if (verdict === 'SHORT_SETUP') {
+            signalShorts.push({ timestamp: currentCandle.time, anchorPrice: currentCandle.high });
+          }
+        }
+
         if (!mountedRef.current) return;
         setSig({
           verdict, phase, conditions,
