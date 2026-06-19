@@ -305,17 +305,31 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const x = coordinates[0]?.x ?? 0;
             const y = coordinates[0]?.y ?? 0;
             if (dir === 'long') {
-              return [{
-                type: 'polygon',
-                attrs: { coordinates: [{ x, y: y + 4 }, { x: x - 8, y: y + 18 }, { x: x + 8, y: y + 18 }] },
-                styles: { style: 'fill', color: '#22c55e' },
-              }];
+              return [
+                {
+                  type: 'polygon',
+                  attrs: { coordinates: [{ x, y: y + 5 }, { x: x - 24, y: y + 42 }, { x: x + 24, y: y + 42 }] },
+                  styles: { style: 'fill', color: '#22c55e' },
+                },
+                {
+                  type: 'text',
+                  attrs: { x, y: y + 30, text: 'Buy', align: 'center', baseline: 'middle' },
+                  styles: { color: '#ffffff', size: 11, weight: 'bold' },
+                },
+              ];
             }
-            return [{
-              type: 'polygon',
-              attrs: { coordinates: [{ x, y: y - 4 }, { x: x - 8, y: y - 18 }, { x: x + 8, y: y - 18 }] },
-              styles: { style: 'fill', color: '#ef4444' },
-            }];
+            return [
+              {
+                type: 'polygon',
+                attrs: { coordinates: [{ x, y: y - 5 }, { x: x - 24, y: y - 42 }, { x: x + 24, y: y - 42 }] },
+                styles: { style: 'fill', color: '#ef4444' },
+              },
+              {
+                type: 'text',
+                attrs: { x, y: y - 30, text: 'Sell', align: 'center', baseline: 'middle' },
+                styles: { color: '#ffffff', size: 11, weight: 'bold' },
+              },
+            ];
           },
         });
       }
