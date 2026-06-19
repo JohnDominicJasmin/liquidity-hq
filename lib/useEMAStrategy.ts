@@ -349,7 +349,7 @@ export function useEMAStrategy(
         const signalShorts: Array<{ timestamp: number; anchorPrice: number }> = [];
 
         for (let i = cRibbon.length - 1; i >= MIN_PRIOR_TREND; i--) {
-          if (e9arr[i] > e20arr[i] && e9arr[i - 1] <= e20arr[i - 1] && cRibbon[i].close > (e50arr[i] ?? 0)) {
+          if (e9arr[i] > e20arr[i] && e9arr[i - 1] <= e20arr[i - 1]) {
             let priorBearish = 0;
             for (let j = i - 1; j >= 0 && priorBearish < MIN_PRIOR_TREND; j--) {
               if (e9arr[j] < e20arr[j]) priorBearish++;
@@ -361,7 +361,7 @@ export function useEMAStrategy(
           }
         }
         for (let i = cRibbon.length - 1; i >= MIN_PRIOR_TREND; i--) {
-          if (e9arr[i] < e20arr[i] && e9arr[i - 1] >= e20arr[i - 1] && cRibbon[i].close < (e50arr[i] ?? Infinity)) {
+          if (e9arr[i] < e20arr[i] && e9arr[i - 1] >= e20arr[i - 1]) {
             let priorBullish = 0;
             for (let j = i - 1; j >= 0 && priorBullish < MIN_PRIOR_TREND; j--) {
               if (e9arr[j] > e20arr[j]) priorBullish++;

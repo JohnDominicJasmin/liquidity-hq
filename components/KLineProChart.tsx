@@ -301,8 +301,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
             const dir = overlay.extendData as 'long' | 'short';
-            const x = coordinates[0]?.x ?? 0;
-            const y = coordinates[0]?.y ?? 0;
+            const coord = coordinates[0];
+            if (!coord || !isFinite(coord.x) || !isFinite(coord.y) || coord.y < 0) return [];
+            const x = coord.x;
+            const y = coord.y;
             if (dir === 'long') {
               return [
                 {
