@@ -341,34 +341,75 @@ export function useEMAStrategy(
           }
         }
 
-        // Chart markers: always show both buy and sell regardless of 200 SMA
-        // Collect ALL significant EMA crosses in the loaded data window
-        // A cross is "significant" if preceded by MIN_PRIOR_TREND consecutive opposing candles
+        // Chart markers: only plot where the FULL strategy checklist was green
+        // Conditions checked per historical candle:
+        //   - EMA9/20 cross (trigger)
+        //   - Ribbon aligned (EMA9>EMA20>EMA50 for long, EMA50>EMA20>EMA9 for short)
+        //   - Close vs EMA50 (close > EMA50 for long, close < EMA50 for short)
+        //   - Daily SMA200 filter (close > SMA200 for long, close < SMA200 for short)
+        //   - Volume >= 70% of 20-bar volume MA
+        //   - 8+ consecutive prior opposing candles
+        // Funding rate + OI not included — no per-candle historical data available
         const MIN_PRIOR_TREND = 8;
         const signalLongs:  Array<{ timestamp: number; anchorPrice: number }> = [];
         const signalShorts: Array<{ timestamp: number; anchorPrice: number }> = [];
 
+        // Per-candle volume MA (SMA 20)
+        const volMAArr = vol4.map((_, i) => {
+          if (i < 19) return NaN;
+          return vol4.slice(i - 19, i + 1).reduce((a: number, b: number) => a + b, 0) / 20;
+        });
+
+        // Look up the most recent daily SMA200 at or before a given ms timestamp
+        const getDailySMA200 = (ts: number): number | null => {
+          for (let di = c1d.length - 1; di >= 0; di--) {
+            if (c1d[di].time <= ts) return isFinite(s200arr[di]) ? s200arr[di] : null;
+          }
+          return null;
+        };
+
         for (let i = cRibbon.length - 1; i >= MIN_PRIOR_TREND; i--) {
-          if (e9arr[i] > e20arr[i] && e9arr[i - 1] <= e20arr[i - 1]) {
-            let priorBearish = 0;
-            for (let j = i - 1; j >= 0 && priorBearish < MIN_PRIOR_TREND; j--) {
-              if (e9arr[j] < e20arr[j]) priorBearish++;
-              else break;
-            }
-            if (priorBearish >= MIN_PRIOR_TREND) {
-              signalLongs.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].low });
+          const e9 = e9arr[i], e20 = e20arr[i], e50 = e50arr[i];
+          if (!isFinite(e9) || !isFinite(e20) || !isFinite(e50)) continue;
+          const cls = cRibbon[i].close;
+
+          if (e9 > e20 && e9arr[i - 1] <= e20arr[i - 1]) {
+            const sma200d = getDailySMA200(cRibbon[i].time);
+            const vma = volMAArr[i];
+            if (
+              e20 > e50 &&
+              cls > e50 &&
+              (sma200d === null || cls > sma200d) &&
+              (isNaN(vma) || cRibbon[i].volume >= vma * 0.7)
+            ) {
+              let priorBearish = 0;
+              for (let j = i - 1; j >= 0 && priorBearish < MIN_PRIOR_TREND; j--) {
+                if (e9arr[j] < e20arr[j]) priorBearish++;
+                else break;
+              }
+              if (priorBearish >= MIN_PRIOR_TREND) {
+                signalLongs.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].low });
+              }
             }
           }
-        }
-        for (let i = cRibbon.length - 1; i >= MIN_PRIOR_TREND; i--) {
-          if (e9arr[i] < e20arr[i] && e9arr[i - 1] >= e20arr[i - 1]) {
-            let priorBullish = 0;
-            for (let j = i - 1; j >= 0 && priorBullish < MIN_PRIOR_TREND; j--) {
-              if (e9arr[j] > e20arr[j]) priorBullish++;
-              else break;
-            }
-            if (priorBullish >= MIN_PRIOR_TREND) {
-              signalShorts.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].high });
+
+          if (e9 < e20 && e9arr[i - 1] >= e20arr[i - 1]) {
+            const sma200d = getDailySMA200(cRibbon[i].time);
+            const vma = volMAArr[i];
+            if (
+              e50 > e20 &&
+              cls < e50 &&
+              (sma200d === null || cls < sma200d) &&
+              (isNaN(vma) || cRibbon[i].volume >= vma * 0.7)
+            ) {
+              let priorBullish = 0;
+              for (let j = i - 1; j >= 0 && priorBullish < MIN_PRIOR_TREND; j--) {
+                if (e9arr[j] > e20arr[j]) priorBullish++;
+                else break;
+              }
+              if (priorBullish >= MIN_PRIOR_TREND) {
+                signalShorts.push({ timestamp: cRibbon[i].time, anchorPrice: cRibbon[i].high });
+              }
             }
           }
         }
