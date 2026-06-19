@@ -112,7 +112,7 @@ body::after {
 }
 .app-bar-inner {
   max-width: 700px; margin: 0 auto; display: flex; align-items: center;
-  justify-content: space-between; height: 52px; gap: 8px;
+  justify-content: space-between; height: 52px; gap: 8px; position: relative;
 }
 .app-logo { font-size: 15px; font-weight: 700; color: var(--txt); white-space: nowrap; flex-shrink: 0; letter-spacing: -0.2px; }
 .app-logo span { color: var(--purple); }
@@ -431,7 +431,7 @@ body[data-rpm-level="high"]::before {
 
 @media (min-width: 768px) {
   .hamburger   { display: none !important; }
-  .desktop-nav { display: flex; }
+  .desktop-nav { display: flex; position: absolute; left: 50%; transform: translateX(-50%); }
 }
 
 /* ── NAV MORE DROPDOWN ── */
