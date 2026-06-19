@@ -159,7 +159,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '',
     '=== TECHNICALS (MULTI-TIMEFRAME) ===',
     `EMA Ribbon Strategy: ${ctx.emaStrategy}`,
-    '(VERDICT KEY — LONG_SETUP: bullish ribbon 9>20>50 + daily above 200 SMA + price pulled back to 20 EMA value zone = high-probability long entry. SHORT_SETUP: reverse = high-probability short entry. TRENDING_LONG/SHORT: ribbon aligned but price not yet in entry zone — directional bias only, wait for pullback. FREEZE: 50 EMA flat = choppy market, all trades have reduced edge. SL = 0.5% beyond 50 EMA. TP = 2:1 R:R from entry.)',
+    '(VERDICT KEY — LONG_SETUP: bullish ribbon 9>20>50 + daily above 200 SMA + price pulled back to 20 EMA value zone = high-probability long entry. SHORT_SETUP: reverse = high-probability short entry. TRENDING_LONG/SHORT: ribbon aligned but price not yet in entry zone — directional bias, wait for pullback to value zone. FREEZE: ribbon is tangled (EMAs not stacked) or price broke through 50 EMA against trend = no clear bias, avoid new positions. SL = 0.5% beyond 50 EMA. TP = 2:1 R:R from entry.)',
     'EMA RIBBON DECISION WEIGHT — apply this BEFORE forming your final signal:',
     '  • LONG_SETUP → strong bullish structural signal. Add +20 to bullish case. If 2+ other bullish signals confirm, upgrade LEAN LONG → LONG.',
     '  • SHORT_SETUP → strong bearish structural signal. Add +20 to bearish case. If 2+ other bearish signals confirm, upgrade LEAN SHORT → SHORT.',
