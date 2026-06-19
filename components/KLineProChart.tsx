@@ -177,6 +177,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const analysisIds    = useRef<string[]>([]);
   const alertOverlayMap  = useRef<Map<string, string>>(new Map()); // alert.id → overlay id
   const signalOverlayId  = useRef<string | null>(null);
+  const signalLongId     = useRef<string | null>(null);
+  const signalShortId    = useRef<string | null>(null);
   const onAlertMoveRef = useRef(onAlertMove);
   const coinRef        = useRef<CoinId>(coin);
 
@@ -443,6 +445,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     alertOverlayMap.current.clear();
     chart.removeOverlay({ name: 'emaSignal' });
     signalOverlayId.current = null;
+    signalLongId.current    = null;
+    signalShortId.current   = null;
     setActiveTool(null);
     setChartSymbolPeriod(chart, coin, tf);
   }, [coin, tf]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -498,27 +502,37 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     if (result.tp)        draw(result.tp,        '#b8aeff');
   }, [result]);
 
-  // ── EMA signal marker ────────────────────────────────────────────────
+  // ── EMA signal markers (Buy + Sell, both always shown) ──────────────
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !chartReady) return;
 
-    if (signalOverlayId.current) {
-      chart.removeOverlay({ id: signalOverlayId.current });
-      signalOverlayId.current = null;
+    // Clear previous overlays
+    if (signalLongId.current)  { chart.removeOverlay({ id: signalLongId.current });  signalLongId.current  = null; }
+    if (signalShortId.current) { chart.removeOverlay({ id: signalShortId.current }); signalShortId.current = null; }
+    // Fallback: clear any stale overlay from old single-overlay path
+    if (signalOverlayId.current) { chart.removeOverlay({ id: signalOverlayId.current }); signalOverlayId.current = null; }
+
+    if (!emaSignal || emaSignal.loading) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const create = (dir: 'long' | 'short', ts: number, price: number): string | null => {
+      const id = chart.createOverlay({
+        name: 'emaSignal', lock: true,
+        extendData: dir,
+        points: [{ timestamp: ts, value: price }],
+      } as OverlayCreate);
+      return typeof id === 'string' ? id : null;
+    };
+
+    if (emaSignal.signalLongTimestamp && emaSignal.signalLongAnchorPrice) {
+      const id = create('long', emaSignal.signalLongTimestamp, emaSignal.signalLongAnchorPrice);
+      if (id) signalLongId.current = id;
     }
-
-    if (!emaSignal || emaSignal.loading || !emaSignal.signalTimestamp || !emaSignal.signalDir || !emaSignal.signalAnchorPrice) return;
-
-    const id = chart.createOverlay({
-      name: 'emaSignal',
-      lock: true,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      extendData: emaSignal.signalDir,
-      points: [{ timestamp: emaSignal.signalTimestamp, value: emaSignal.signalAnchorPrice }],
-    } as OverlayCreate);
-
-    if (typeof id === 'string') signalOverlayId.current = id;
+    if (emaSignal.signalShortTimestamp && emaSignal.signalShortAnchorPrice) {
+      const id = create('short', emaSignal.signalShortTimestamp, emaSignal.signalShortAnchorPrice);
+      if (id) signalShortId.current = id;
+    }
   }, [emaSignal, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sync price alert lines ───────────────────────────────────────────

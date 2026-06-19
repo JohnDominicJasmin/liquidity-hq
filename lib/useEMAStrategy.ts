@@ -62,6 +62,10 @@ export interface StrategySignal {
   signalTimestamp:   number | null;
   signalAnchorPrice: number | null;
   signalDir:         'long' | 'short' | null;
+  signalLongTimestamp:   number | null;
+  signalLongAnchorPrice: number | null;
+  signalShortTimestamp:  number | null;
+  signalShortAnchorPrice: number | null;
 }
 
 interface OHLCV { time: number; open: number; high: number; low: number; close: number; volume: number }
@@ -107,6 +111,8 @@ export const STRATEGY_LOADING: StrategySignal = {
   volMA20: null, lastVol: null, priceInValueZone: false,
   sl: null, tp: null, loading: true, error: null,
   signalTimestamp: null, signalAnchorPrice: null, signalDir: null,
+  signalLongTimestamp: null, signalLongAnchorPrice: null,
+  signalShortTimestamp: null, signalShortAnchorPrice: null,
 };
 
 /* ── TF → exchange interval strings ─────────────────────────────────────── */
@@ -317,7 +323,8 @@ export function useEMAStrategy(
         let signalAnchorPrice: number | null = null;
         let signalDir: 'long' | 'short' | null = null;
 
-        if (above200D && ribbonBull) {
+        // Primary signal: gated by 200 SMA (used for EMA ribbon card + Grok context)
+        if (above200D) {
           for (let i = cRibbon.length - 1; i >= 1; i--) {
             if (e9arr[i] > e20arr[i] && e9arr[i - 1] <= e20arr[i - 1] && cRibbon[i].close > (e50arr[i] ?? 0)) {
               signalTimestamp   = cRibbon[i].time;
@@ -326,7 +333,7 @@ export function useEMAStrategy(
               break;
             }
           }
-        } else if (!above200D && ribbonBear) {
+        } else {
           for (let i = cRibbon.length - 1; i >= 1; i--) {
             if (e9arr[i] < e20arr[i] && e9arr[i - 1] >= e20arr[i - 1] && cRibbon[i].close < (e50arr[i] ?? Infinity)) {
               signalTimestamp   = cRibbon[i].time;
@@ -337,6 +344,27 @@ export function useEMAStrategy(
           }
         }
 
+        // Chart markers: always show both buy and sell regardless of 200 SMA
+        let signalLongTimestamp: number | null = null;
+        let signalLongAnchorPrice: number | null = null;
+        let signalShortTimestamp: number | null = null;
+        let signalShortAnchorPrice: number | null = null;
+
+        for (let i = cRibbon.length - 1; i >= 1; i--) {
+          if (e9arr[i] > e20arr[i] && e9arr[i - 1] <= e20arr[i - 1] && cRibbon[i].close > (e50arr[i] ?? 0)) {
+            signalLongTimestamp   = cRibbon[i].time;
+            signalLongAnchorPrice = cRibbon[i].low;
+            break;
+          }
+        }
+        for (let i = cRibbon.length - 1; i >= 1; i--) {
+          if (e9arr[i] < e20arr[i] && e9arr[i - 1] >= e20arr[i - 1] && cRibbon[i].close < (e50arr[i] ?? Infinity)) {
+            signalShortTimestamp   = cRibbon[i].time;
+            signalShortAnchorPrice = cRibbon[i].high;
+            break;
+          }
+        }
+
         if (!mountedRef.current) return;
         setSig({
           verdict, phase, conditions,
@@ -344,6 +372,8 @@ export function useEMAStrategy(
           volMA20: volma20, lastVol, priceInValueZone: inValueZone,
           sl, tp, loading: false, error: null,
           signalTimestamp, signalAnchorPrice, signalDir,
+          signalLongTimestamp, signalLongAnchorPrice,
+          signalShortTimestamp, signalShortAnchorPrice,
         });
       } catch (err) {
         if (!mountedRef.current) return;
