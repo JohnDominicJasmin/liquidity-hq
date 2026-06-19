@@ -441,10 +441,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     analysisIds.current = [];
     alertOverlayMap.current.forEach(oid => chart.removeOverlay({ id: oid }));
     alertOverlayMap.current.clear();
-    if (signalOverlayId.current) {
-      chart.removeOverlay({ id: signalOverlayId.current });
-      signalOverlayId.current = null;
-    }
+    chart.removeOverlay({ name: 'emaSignal' });
+    signalOverlayId.current = null;
     setActiveTool(null);
     setChartSymbolPeriod(chart, coin, tf);
   }, [coin, tf]); // eslint-disable-line react-hooks/exhaustive-deps
