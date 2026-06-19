@@ -345,23 +345,40 @@ export function useEMAStrategy(
         }
 
         // Chart markers: always show both buy and sell regardless of 200 SMA
+        // Require MIN_PRIOR_TREND consecutive candles in the opposing direction before a cross
+        // counts as "significant" — filters out brief bounce reversals that aren't real trend changes
+        const MIN_PRIOR_TREND = 8;
         let signalLongTimestamp: number | null = null;
         let signalLongAnchorPrice: number | null = null;
         let signalShortTimestamp: number | null = null;
         let signalShortAnchorPrice: number | null = null;
 
-        for (let i = cRibbon.length - 1; i >= 1; i--) {
+        for (let i = cRibbon.length - 1; i >= MIN_PRIOR_TREND; i--) {
           if (e9arr[i] > e20arr[i] && e9arr[i - 1] <= e20arr[i - 1] && cRibbon[i].close > (e50arr[i] ?? 0)) {
-            signalLongTimestamp   = cRibbon[i].time;
-            signalLongAnchorPrice = cRibbon[i].low;
-            break;
+            let priorBearish = 0;
+            for (let j = i - 1; j >= 0 && priorBearish < MIN_PRIOR_TREND; j--) {
+              if (e9arr[j] < e20arr[j]) priorBearish++;
+              else break;
+            }
+            if (priorBearish >= MIN_PRIOR_TREND) {
+              signalLongTimestamp   = cRibbon[i].time;
+              signalLongAnchorPrice = cRibbon[i].low;
+              break;
+            }
           }
         }
-        for (let i = cRibbon.length - 1; i >= 1; i--) {
+        for (let i = cRibbon.length - 1; i >= MIN_PRIOR_TREND; i--) {
           if (e9arr[i] < e20arr[i] && e9arr[i - 1] >= e20arr[i - 1] && cRibbon[i].close < (e50arr[i] ?? Infinity)) {
-            signalShortTimestamp   = cRibbon[i].time;
-            signalShortAnchorPrice = cRibbon[i].high;
-            break;
+            let priorBullish = 0;
+            for (let j = i - 1; j >= 0 && priorBullish < MIN_PRIOR_TREND; j--) {
+              if (e9arr[j] > e20arr[j]) priorBullish++;
+              else break;
+            }
+            if (priorBullish >= MIN_PRIOR_TREND) {
+              signalShortTimestamp   = cRibbon[i].time;
+              signalShortAnchorPrice = cRibbon[i].high;
+              break;
+            }
           }
         }
 
