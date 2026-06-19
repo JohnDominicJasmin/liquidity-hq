@@ -308,26 +308,26 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               return [
                 {
                   type: 'polygon',
-                  attrs: { coordinates: [{ x, y: y + 5 }, { x: x - 24, y: y + 42 }, { x: x + 24, y: y + 42 }] },
+                  attrs: { coordinates: [{ x, y: y + 4 }, { x: x - 14, y: y + 28 }, { x: x + 14, y: y + 28 }] },
                   styles: { style: 'fill', color: '#22c55e' },
                 },
                 {
                   type: 'text',
-                  attrs: { x, y: y + 30, text: 'Buy', align: 'center', baseline: 'middle' },
-                  styles: { color: '#ffffff', size: 11, weight: 'bold' },
+                  attrs: { x, y: y + 20, text: 'Buy', align: 'center', baseline: 'middle' },
+                  styles: { color: '#ffffff', size: 9, weight: 'bold', backgroundColor: 'transparent' },
                 },
               ];
             }
             return [
               {
                 type: 'polygon',
-                attrs: { coordinates: [{ x, y: y - 5 }, { x: x - 24, y: y - 42 }, { x: x + 24, y: y - 42 }] },
+                attrs: { coordinates: [{ x, y: y - 4 }, { x: x - 14, y: y - 28 }, { x: x + 14, y: y - 28 }] },
                 styles: { style: 'fill', color: '#ef4444' },
               },
               {
                 type: 'text',
-                attrs: { x, y: y - 30, text: 'Sell', align: 'center', baseline: 'middle' },
-                styles: { color: '#ffffff', size: 11, weight: 'bold' },
+                attrs: { x, y: y - 20, text: 'Sell', align: 'center', baseline: 'middle' },
+                styles: { color: '#ffffff', size: 9, weight: 'bold', backgroundColor: 'transparent' },
               },
             ];
           },
