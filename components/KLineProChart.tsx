@@ -344,7 +344,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           try {
             if (bnSym) {
               const iv = periodToBnInterval(period);
-              const r  = await fetch(`https://api.binance.com/api/v3/klines?symbol=${bnSym}&interval=${iv}&limit=500`);
+              const r  = await fetch(`https://api.binance.com/api/v3/klines?symbol=${bnSym}&interval=${iv}&limit=1500`);
               const raw = await r.json() as (string | number)[][];
               callback(raw.map(k => ({
                 timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
@@ -352,7 +352,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               })), false);
             } else if (bybitSym) {
               const iv = periodToBybitInterval(period);
-              const r  = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${iv}&limit=500`);
+              const r  = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${iv}&limit=1000`);
               const d  = await r.json() as { result?: { list?: string[][] } };
               const list = [...(d?.result?.list ?? [])].reverse();
               callback(list.map(k => ({
