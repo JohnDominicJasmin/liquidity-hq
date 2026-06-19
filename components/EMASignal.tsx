@@ -19,9 +19,9 @@ function fmt(n: number | null, decimals = 2): string {
   return n.toFixed(8);
 }
 
-interface Props { signal: StrategySignal }
+interface Props { signal: StrategySignal; tf?: string }
 
-export default function EMASignal({ signal }: Props) {
+export default function EMASignal({ signal, tf = '4h' }: Props) {
   const v   = signal.verdict;
   const cfg = VERDICT_CONFIG[v];
   const isSetup = v === 'LONG_SETUP' || v === 'SHORT_SETUP';
@@ -41,7 +41,7 @@ export default function EMASignal({ signal }: Props) {
             EMA Ribbon Strategy
           </div>
           <div style={{ fontSize: 10, color: '#444' }}>
-            Triple EMA 9/20/50 · 4H chart · 200 SMA daily filter
+            Triple EMA 9/20/50 · {tf.toUpperCase()} chart · 200 SMA daily filter
           </div>
         </div>
         <span style={{

@@ -110,9 +110,20 @@ export const STRATEGY_LOADING: StrategySignal = {
   sl: null, tp: null, loading: true, error: null,
 };
 
+/* ── TF → exchange interval strings ─────────────────────────────────────── */
+const TF_BN: Record<string, string> = {
+  '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m',
+  '1h': '1h', '4h': '4h', '1d': '1d',
+};
+const TF_BY: Record<string, string> = {
+  '1m': '1', '5m': '5', '15m': '15', '30m': '30',
+  '1h': '60', '4h': '240', '1d': 'D',
+};
+
 /* ── Main hook ───────────────────────────────────────────────────────────── */
 export function useEMAStrategy(
   coin:        CoinId,
+  tf:          string,
   fundingRate: number | null,
   oiPct:       number | null,
 ): StrategySignal {
@@ -123,20 +134,23 @@ export function useEMAStrategy(
     mountedRef.current = true;
     setSig(STRATEGY_LOADING);
 
+    const bnInterval = TF_BN[tf] ?? '4h';
+    const byInterval = TF_BY[tf] ?? '240';
+
     const load = async () => {
       try {
-        const [c4h, c1d] = await Promise.all([
-          fetchOHLCV(coin, '4h', '240', 200),
-          fetchOHLCV(coin, '1d', 'D',   220),
+        const [cRibbon, c1d] = await Promise.all([
+          fetchOHLCV(coin, bnInterval, byInterval, 200),
+          fetchOHLCV(coin, '1d', 'D', 220),
         ]);
         if (!mountedRef.current) return;
-        if (c4h.length < 55 || c1d.length < 205) {
+        if (cRibbon.length < 55 || c1d.length < 205) {
           setSig({ ...STRATEGY_LOADING, loading: false, error: 'Not enough candle data' });
           return;
         }
 
-        const cl4  = c4h.map(c => c.close);
-        const vol4 = c4h.map(c => c.volume);
+        const cl4  = cRibbon.map(c => c.close);
+        const vol4 = cRibbon.map(c => c.volume);
         const cl1d = c1d.map(c => c.close);
 
         // Indicator arrays
@@ -307,7 +321,7 @@ export function useEMAStrategy(
       mountedRef.current = false;
       clearInterval(iv);
     };
-  }, [coin, fundingRate, oiPct]);
+  }, [coin, tf, fundingRate, oiPct]);
 
   return sig;
 }

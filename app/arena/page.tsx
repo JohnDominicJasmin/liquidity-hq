@@ -163,6 +163,7 @@ export default function Arena() {
   const oi1h          = useOI1h(selectedCoin);
   const emaSignal     = useEMAStrategy(
     selectedCoin,
+    readTf,
     store.coins[selectedCoin]?.fundingRate ?? null,
     oi1h.pct,
   );
@@ -1228,7 +1229,7 @@ export default function Arena() {
       </div>
 
       {/* EMA Ribbon Strategy card */}
-      <EMASignal signal={emaSignal} />
+      <EMASignal signal={emaSignal} tf={readTf} />
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         {/* Quick button — requires sign-in */}
         <button
