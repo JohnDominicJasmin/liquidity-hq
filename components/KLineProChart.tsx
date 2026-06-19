@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
 import { BINANCE_SYMS, BYBIT_SYMS, CoinId } from '@/lib/marketStore';
 import type { CombinedResult } from '@/lib/grok';
+import type { StrategySignal } from '@/lib/useEMAStrategy';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
 
@@ -158,20 +159,24 @@ interface Props {
   tf:            ChartTf;
   onTfChange?:   (tf: ChartTf) => void;
   result?:       CombinedResult | null;
+  emaSignal?:    StrategySignal | null;
   chartAlerts?:  ChartAlert[];
   onAlertMove?:  (id: string, newPrice: number) => void;
 }
 
 const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','4h','1d'];
 
-export default function KLineProChart({ coin, tf, onTfChange, result, chartAlerts, onAlertMove }: Props) {
+let emaSignalOverlayRegistered = false;
+
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove }: Props) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
   const chartRef       = useRef<KChart | null>(null);
   const wsRef          = useRef<{ close: () => void } | null>(null);
   const analysisIds    = useRef<string[]>([]);
-  const alertOverlayMap = useRef<Map<string, string>>(new Map()); // alert.id → overlay id
+  const alertOverlayMap  = useRef<Map<string, string>>(new Map()); // alert.id → overlay id
+  const signalOverlayId  = useRef<string | null>(null);
   const onAlertMoveRef = useRef(onAlertMove);
   const coinRef        = useRef<CoinId>(coin);
 
@@ -285,6 +290,36 @@ export default function KLineProChart({ coin, tf, onTfChange, result, chartAlert
       );
       chart.createIndicator('VOL', { pane: { height: 60, minHeight: 30 } });
 
+      if (!emaSignalOverlayRegistered) {
+        emaSignalOverlayRegistered = true;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kc as any).registerOverlay({
+          name: 'emaSignal',
+          totalStep: 1,
+          needDefaultPointFigure: false,
+          needDefaultXAxisFigure: false,
+          needDefaultYAxisFigure: false,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
+            const dir = overlay.extendData as 'long' | 'short';
+            const x = coordinates[0]?.x ?? 0;
+            const y = coordinates[0]?.y ?? 0;
+            if (dir === 'long') {
+              return [{
+                type: 'polygon',
+                attrs: { coordinates: [{ x, y: y + 4 }, { x: x - 8, y: y + 18 }, { x: x + 8, y: y + 18 }] },
+                styles: { style: 'fill', color: '#22c55e' },
+              }];
+            }
+            return [{
+              type: 'polygon',
+              attrs: { coordinates: [{ x, y: y - 4 }, { x: x - 8, y: y - 18 }, { x: x + 8, y: y - 18 }] },
+              styles: { style: 'fill', color: '#ef4444' },
+            }];
+          },
+        });
+      }
+
       // DataLoader
       const loader: DataLoader = {
         getBars: async ({ symbol, period, callback }) => {
@@ -392,6 +427,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, chartAlert
     analysisIds.current = [];
     alertOverlayMap.current.forEach(oid => chart.removeOverlay({ id: oid }));
     alertOverlayMap.current.clear();
+    if (signalOverlayId.current) {
+      chart.removeOverlay({ id: signalOverlayId.current });
+      signalOverlayId.current = null;
+    }
     setActiveTool(null);
     setChartSymbolPeriod(chart, coin, tf);
   }, [coin, tf]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -446,6 +485,29 @@ export default function KLineProChart({ coin, tf, onTfChange, result, chartAlert
     if (result.sl)        draw(result.sl,        '#f87171');
     if (result.tp)        draw(result.tp,        '#b8aeff');
   }, [result]);
+
+  // ── EMA signal marker ────────────────────────────────────────────────
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+
+    if (signalOverlayId.current) {
+      chart.removeOverlay({ id: signalOverlayId.current });
+      signalOverlayId.current = null;
+    }
+
+    if (!emaSignal || emaSignal.loading || !emaSignal.signalTimestamp || !emaSignal.signalDir || !emaSignal.signalAnchorPrice) return;
+
+    const id = chart.createOverlay({
+      name: 'emaSignal',
+      lock: true,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      extendData: emaSignal.signalDir,
+      points: [{ timestamp: emaSignal.signalTimestamp, value: emaSignal.signalAnchorPrice }],
+    } as OverlayCreate);
+
+    if (typeof id === 'string') signalOverlayId.current = id;
+  }, [emaSignal, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sync price alert lines ───────────────────────────────────────────
   useEffect(() => {

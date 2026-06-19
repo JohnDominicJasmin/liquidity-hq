@@ -1217,7 +1217,7 @@ export default function Arena() {
       </div>
 
       {/* ── CHART — KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={setReadTf} result={result} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} />
+      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={setReadTf} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} />
 
       {/* ── BELOW CHART: left-aligned, max 860px on wide screens ── */}
       <div className="arena-below-chart">

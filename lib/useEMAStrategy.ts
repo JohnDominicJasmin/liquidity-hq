@@ -45,23 +45,26 @@ export interface StrategyCondition {
 }
 
 export interface StrategySignal {
-  verdict:          StrategyVerdict;
-  phase:            string;
-  conditions:       StrategyCondition[];
-  ema9_4h:          number | null;
-  ema20_4h:         number | null;
-  ema50_4h:         number | null;
-  sma200_1d:        number | null;
-  volMA20:          number | null;
-  lastVol:          number | null;
-  priceInValueZone: boolean;
-  sl:               number | null;
-  tp:               number | null;
-  loading:          boolean;
-  error:            string | null;
+  verdict:           StrategyVerdict;
+  phase:             string;
+  conditions:        StrategyCondition[];
+  ema9_4h:           number | null;
+  ema20_4h:          number | null;
+  ema50_4h:          number | null;
+  sma200_1d:         number | null;
+  volMA20:           number | null;
+  lastVol:           number | null;
+  priceInValueZone:  boolean;
+  sl:                number | null;
+  tp:                number | null;
+  loading:           boolean;
+  error:             string | null;
+  signalTimestamp:   number | null;
+  signalAnchorPrice: number | null;
+  signalDir:         'long' | 'short' | null;
 }
 
-interface OHLCV { open: number; high: number; low: number; close: number; volume: number }
+interface OHLCV { time: number; open: number; high: number; low: number; close: number; volume: number }
 
 /* ── Fetch helpers ───────────────────────────────────────────────────────── */
 async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: number): Promise<OHLCV[]> {
@@ -72,7 +75,7 @@ async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: n
   if (!r.ok) throw new Error(`Binance futures klines ${r.status}`);
   const raw = await r.json() as (string | number)[][];
   return raw.map(k => ({
-    open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5],
+    time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5],
   }));
 }
 
@@ -85,7 +88,7 @@ async function fetchBybitKlines(sym: string, interval: string, limit: number): P
   const d = await r.json() as { result?: { list?: string[][] } };
   const list = [...(d?.result?.list ?? [])].reverse();
   return list.map(k => ({
-    open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5],
+    time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5],
   }));
 }
 
@@ -103,6 +106,7 @@ export const STRATEGY_LOADING: StrategySignal = {
   ema9_4h: null, ema20_4h: null, ema50_4h: null, sma200_1d: null,
   volMA20: null, lastVol: null, priceInValueZone: false,
   sl: null, tp: null, loading: true, error: null,
+  signalTimestamp: null, signalAnchorPrice: null, signalDir: null,
 };
 
 /* ── TF → exchange interval strings ─────────────────────────────────────── */
@@ -140,7 +144,7 @@ export function useEMAStrategy(
         ]);
         if (!mountedRef.current) return;
         if (cRibbon.length < 55 || c1d.length < 205) {
-          setSig({ ...STRATEGY_LOADING, loading: false, error: 'Not enough candle data' });
+          setSig({ ...STRATEGY_LOADING, loading: false, error: 'Not enough candle data', signalTimestamp: null, signalAnchorPrice: null, signalDir: null });
           return;
         }
 
@@ -308,12 +312,38 @@ export function useEMAStrategy(
           },
         ];
 
+        // Find most recent candle where EMA 9/20 crossed AND close confirmed above/below EMA 50
+        let signalTimestamp: number | null = null;
+        let signalAnchorPrice: number | null = null;
+        let signalDir: 'long' | 'short' | null = null;
+
+        if (above200D) {
+          for (let i = cRibbon.length - 1; i >= 1; i--) {
+            if (e9arr[i] > e20arr[i] && e9arr[i - 1] <= e20arr[i - 1] && cRibbon[i].close > (e50arr[i] ?? 0)) {
+              signalTimestamp   = cRibbon[i].time;
+              signalAnchorPrice = cRibbon[i].low;
+              signalDir         = 'long';
+              break;
+            }
+          }
+        } else {
+          for (let i = cRibbon.length - 1; i >= 1; i--) {
+            if (e9arr[i] < e20arr[i] && e9arr[i - 1] >= e20arr[i - 1] && cRibbon[i].close < (e50arr[i] ?? Infinity)) {
+              signalTimestamp   = cRibbon[i].time;
+              signalAnchorPrice = cRibbon[i].high;
+              signalDir         = 'short';
+              break;
+            }
+          }
+        }
+
         if (!mountedRef.current) return;
         setSig({
           verdict, phase, conditions,
           ema9_4h: ema9, ema20_4h: ema20, ema50_4h: ema50, sma200_1d: sma200,
           volMA20: volma20, lastVol, priceInValueZone: inValueZone,
           sl, tp, loading: false, error: null,
+          signalTimestamp, signalAnchorPrice, signalDir,
         });
       } catch (err) {
         if (!mountedRef.current) return;
