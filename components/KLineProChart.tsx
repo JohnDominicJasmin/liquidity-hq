@@ -167,12 +167,16 @@ const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','4h','1d'];
 export default function KLineProChart({ coin, tf, onTfChange, result, chartAlerts, onAlertMove }: Props) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
+  const canvasFadeRef  = useRef<HTMLDivElement>(null);
   const chartRef       = useRef<KChart | null>(null);
   const wsRef          = useRef<{ close: () => void } | null>(null);
   const analysisIds    = useRef<string[]>([]);
   const alertOverlayMap = useRef<Map<string, string>>(new Map()); // alert.id → overlay id
   const onAlertMoveRef = useRef(onAlertMove);
   const coinRef        = useRef<CoinId>(coin);
+
+  const startFade  = () => { if (canvasFadeRef.current) canvasFadeRef.current.style.opacity = '1'; };
+  const endFade    = () => { if (canvasFadeRef.current) canvasFadeRef.current.style.opacity = '0'; };
   const [activeTool,   setActiveTool]  = useState<string | null>(null);
   const [wsStatus,     setWsStatus]    = useState<'connecting' | 'live' | 'error'>('connecting');
   const [fullscreen,   setFullscreen]  = useState(false);
@@ -290,7 +294,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, chartAlert
             } else {
               callback([], false);
             }
-          } catch { callback([], false); }
+            // slight delay so klinecharts finishes painting before we reveal
+            setTimeout(() => endFade(), 80);
+          } catch { callback([], false); endFade(); }
           void symbol; // suppress unused
         },
 
@@ -363,6 +369,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, chartAlert
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
+    startFade();
     analysisIds.current.forEach(id => chart.removeOverlay({ id }));
     analysisIds.current = [];
     alertOverlayMap.current.forEach(oid => chart.removeOverlay({ id: oid }));
@@ -589,7 +596,17 @@ export default function KLineProChart({ coin, tf, onTfChange, result, chartAlert
       )}
 
       {/* Chart canvas */}
-      <div ref={containerRef} className="klc-canvas" />
+      <div style={{ position: 'relative' }}>
+        <div ref={containerRef} className="klc-canvas" />
+        {/* Fade overlay — shown during TF/coin switch, fades out when data arrives */}
+        <div ref={canvasFadeRef} style={{
+          position: 'absolute', inset: 0,
+          background: 'var(--bg)',
+          opacity: 0,
+          pointerEvents: 'none',
+          transition: 'opacity 0.25s ease',
+        }} />
+      </div>
     </div>
   );
 }
