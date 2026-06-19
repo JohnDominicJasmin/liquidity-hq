@@ -55,7 +55,7 @@ const SCANNERS = [
 
 const TOOLS = [
   { path: '/journal',        label: 'Journal'             },
-  { path: '/calc',           label: 'Position Sizer'      },
+  { path: '/calc',           label: 'Calculators'         },
   { path: '/econ-calendar',  label: 'Economic Calendar'   },
   { path: '/alerts',         label: 'Alerts'              },
   { path: '/hours',          label: 'Best Hours'          },
