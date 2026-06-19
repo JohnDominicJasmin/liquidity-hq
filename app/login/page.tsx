@@ -1,11 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 
-export default function LoginPage() {
+function LoginInner() {
   const searchParams = useSearchParams();
   const isSignup     = searchParams.get('signup') === '1';
   const [email, setEmail]               = useState('');
@@ -122,5 +122,24 @@ export default function LoginPage() {
         <Link href="/" className="login-skip">Continue without signing in →</Link>
       </div>
     </div>
+  );
+}
+
+const LoginFallback = () => (
+  <div className="login-wrap">
+    <div className="login-card" style={{ alignItems: 'center' }}>
+      <div className="login-logo">Liquidity<span>HQ</span></div>
+      <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+        <div className="login-spinner-lg" />
+      </div>
+    </div>
+  </div>
+);
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginInner />
+    </Suspense>
   );
 }

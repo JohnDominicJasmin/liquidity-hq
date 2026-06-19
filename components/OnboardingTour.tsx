@@ -37,13 +37,15 @@ export default function OnboardingTour() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (loaded && user && !state.tourSeen) setVisible(true);
+    const dismissed = typeof window !== 'undefined' && localStorage.getItem('lhq_tour_seen') === '1';
+    if (loaded && user && !state.tourSeen && !dismissed) setVisible(true);
   }, [loaded, user, state.tourSeen]);
 
   if (!visible) return null;
 
   function close() {
     setVisible(false);
+    try { localStorage.setItem('lhq_tour_seen', '1'); } catch { /* storage blocked */ }
     markDone('tourSeen');
   }
 

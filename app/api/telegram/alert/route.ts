@@ -1225,18 +1225,6 @@ function calcSMALocal(values: number[], period: number): number {
   return slice.reduce((a, b) => a + b, 0) / slice.length;
 }
 
-function is50EMAFlat(closes4h: number[]): boolean {
-  // Sample EMA50 at 6 points across the last 30 candles
-  const pts: number[] = [];
-  for (let lookback = 5; lookback <= 30; lookback += 5) {
-    const sub = closes4h.slice(0, closes4h.length - lookback + 1);
-    if (sub.length >= 50) pts.push(calcEMALocal(sub, 50));
-  }
-  if (pts.length < 2) return true;
-  const rng = Math.abs(pts[pts.length - 1] - pts[0]) / pts[0] * 100;
-  return rng < 0.4;
-}
-
 async function checkEMASetup(
   stamp: string,
   frMap: Record<string, number | null>,
@@ -1277,8 +1265,6 @@ async function checkEMASetup(
       const above200D  = priceD > sma200;
       const ribbonBull = ema9 > ema20 && ema20 > ema50;
       const ribbonBear = ema50 > ema20 && ema20 > ema9;
-      const isChop     = is50EMAFlat(cl4h);
-      if (isChop) return;
 
       const inVZoneLong  = ribbonBull && price <= ema9 && price >= ema20;
       const inVZoneShort = ribbonBear && !above200D && price >= ema9 && price <= ema20;
