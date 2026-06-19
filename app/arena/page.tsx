@@ -826,7 +826,7 @@ export default function Arena() {
           : jpyUsd >= 158
             ? `${jpyUsd.toFixed(2)} — WARNING: Approaching 160 danger zone, watch for BOJ signals`
             : `${jpyUsd.toFixed(2)} — Safe: below 158, carry trade stable, low JPY liquidation risk`,
-      emaStrategy: strategyToGrokLine(emaSignalRef.current),
+      emaStrategy: strategyToGrokLine(emaSignalRef.current, readTf),
     };
   };
 

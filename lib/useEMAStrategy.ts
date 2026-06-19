@@ -327,7 +327,7 @@ export function useEMAStrategy(
 }
 
 /* ── Grok context summary line ───────────────────────────────────────────── */
-export function strategyToGrokLine(sig: StrategySignal): string {
+export function strategyToGrokLine(sig: StrategySignal, tf = '4h'): string {
   if (sig.loading || sig.verdict === 'LOADING') return 'Loading…';
   if (sig.error) return `Error: ${sig.error}`;
   const passing = sig.conditions.filter(c => c.pass === true).length;
@@ -336,5 +336,5 @@ export function strategyToGrokLine(sig: StrategySignal): string {
   const sltp    = sig.sl && sig.tp
     ? ` · SL $${sig.sl.toFixed(4)} · TP $${sig.tp.toFixed(4)}`
     : '';
-  return `${sig.verdict} · ${sig.phase} · ${condStr}${sltp}`;
+  return `[${tf.toUpperCase()} ribbon + 1D SMA200 filter] ${sig.verdict} · ${sig.phase} · ${condStr}${sltp}`;
 }
