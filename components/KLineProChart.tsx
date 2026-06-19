@@ -175,8 +175,26 @@ export default function KLineProChart({ coin, tf, onTfChange, result, chartAlert
   const onAlertMoveRef = useRef(onAlertMove);
   const coinRef        = useRef<CoinId>(coin);
 
-  const startFade  = () => { if (canvasFadeRef.current) canvasFadeRef.current.style.opacity = '1'; };
-  const endFade    = () => { if (canvasFadeRef.current) canvasFadeRef.current.style.opacity = '0'; };
+  // Screenshot the live canvas → show it as a frozen image while new data loads → crossfade out
+  const startFade = () => {
+    const el = canvasFadeRef.current;
+    if (!el) return;
+    const canvas = containerRef.current?.querySelector('canvas');
+    if (canvas) {
+      try {
+        el.style.backgroundImage = `url(${canvas.toDataURL()})`;
+      } catch { /* cross-origin guard */ }
+    }
+    el.style.transition = 'none';
+    el.style.opacity = '1';
+  };
+  const endFade = () => {
+    const el = canvasFadeRef.current;
+    if (!el) return;
+    el.style.transition = 'opacity 0.35s ease';
+    el.style.opacity = '0';
+    setTimeout(() => { if (canvasFadeRef.current) canvasFadeRef.current.style.backgroundImage = 'none'; }, 400);
+  };
   const [activeTool,   setActiveTool]  = useState<string | null>(null);
   const [wsStatus,     setWsStatus]    = useState<'connecting' | 'live' | 'error'>('connecting');
   const [fullscreen,   setFullscreen]  = useState(false);
@@ -598,13 +616,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, chartAlert
       {/* Chart canvas */}
       <div style={{ position: 'relative' }}>
         <div ref={containerRef} className="klc-canvas" />
-        {/* Fade overlay — shown during TF/coin switch, fades out when data arrives */}
+        {/* Screenshot crossfade — holds old chart image while new data loads, then fades out */}
         <div ref={canvasFadeRef} style={{
           position: 'absolute', inset: 0,
-          background: 'var(--bg)',
+          backgroundSize: '100% 100%',
+          backgroundRepeat: 'no-repeat',
           opacity: 0,
           pointerEvents: 'none',
-          transition: 'opacity 0.25s ease',
         }} />
       </div>
     </div>
