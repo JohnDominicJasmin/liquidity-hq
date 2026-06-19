@@ -28,11 +28,6 @@ function volMA(volumes: number[], period = 20): number {
   return slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : 0;
 }
 
-function is50Flat(ema50: number[], lookback = 6): boolean {
-  const vals = ema50.filter(v => !isNaN(v)).slice(-lookback);
-  if (vals.length < 2) return true;
-  return Math.abs((vals[vals.length - 1] - vals[0]) / vals[0]) * 100 < 0.4;
-}
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 export type StrategyVerdict =
@@ -173,7 +168,6 @@ export function useEMAStrategy(
         const above200D  = priceD > sma200;
         const ribbonBull = ema9 > ema20 && ema20 > ema50;
         const ribbonBear = ema50 > ema20 && ema20 > ema9;
-        const isChop     = is50Flat(e50arr);
 
         // Value zone: price between the 9 and 20 EMA (from the correct side)
         const inVZoneLong  = ribbonBull && price <= ema9 && price >= ema20;
@@ -196,10 +190,7 @@ export function useEMAStrategy(
         let verdict: StrategyVerdict = 'FREEZE';
         let phase = 'No clear setup';
 
-        if (isChop) {
-          verdict = 'FREEZE';
-          phase   = '50 EMA flat — consolidation, all trades paused';
-        } else if (above200D && ribbonBull) {
+        if (above200D && ribbonBull) {
           if (inVZoneLong) {
             verdict = 'LONG_SETUP';
             phase   = 'In Value Zone — price pulled back to 20 EMA, entry eligible';
@@ -264,13 +255,6 @@ export function useEMAStrategy(
               : ribbonBear
                 ? `Bearish: EMA50 ${fmt(ema50)} > EMA20 ${fmt(ema20)} > EMA9 ${fmt(ema9)}`
                 : `Not aligned — ribbon tangled`,
-          },
-          {
-            label: '50 EMA Not Flat',
-            pass:  !isChop,
-            detail: isChop
-              ? '50 EMA horizontal — consolidation, no trades'
-              : `50 EMA sloping (trend active)`,
           },
           {
             label: 'Price in Value Zone',
