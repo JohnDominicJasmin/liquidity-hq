@@ -434,8 +434,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             } else {
               callback([], false);
             }
-            // slight delay so klinecharts finishes painting before we reveal
-            setTimeout(() => endFade(), 80);
+            endFade();
           } catch { callback([], false); endFade(); }
           void symbol; // suppress unused
         },
@@ -521,10 +520,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     alertOverlayMap.current.clear();
     chart.removeOverlay({ name: 'emaSignal' });
     setActiveTool(null);
-    // Force symbol + period change so klinecharts always re-fetches (avoids stale cache)
+    // Append coin+tf so klinecharts always sees a "new" symbol and calls getBars —
+    // without this, same-coin TF switches hit klinecharts' internal cache and skip getBars
     const bnSym    = BINANCE_SYMS[coin] as string | undefined;
     const bybitSym = BYBIT_SYMS[coin]   as string | undefined;
-    chart.setSymbol({ ticker: bnSym ?? bybitSym ?? 'BTCUSDT', shortName: coin.toUpperCase() + '/USDT' });
+    const baseSym  = bnSym ?? bybitSym ?? 'BTCUSDT';
+    chart.setSymbol({ ticker: `${baseSym}__${coin}__${tf}`, shortName: coin.toUpperCase() + '/USDT' });
     chart.setPeriod(TF_TO_PERIOD[tf] ?? TF_TO_PERIOD['15m']);
     // Fallback: if getBars uses cached data and never calls endFade(), clear the screenshot overlay anyway
     const fallback = setTimeout(endFade, 2000);
