@@ -208,6 +208,11 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const [priceLabelY,  setPriceLabelY] = useState<number | null>(null);
   const lastCloseRef   = useRef<number>(0);
   const copyToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track the last loaded coin/tf so we only re-fetch what actually changed,
+  // and a monotonic load token so stale in-flight fetches are dropped on arrival.
+  const prevCoinRef    = useRef<CoinId>(coin);
+  const prevTfRef      = useRef<ChartTf>(tf);
+  const loadGenRef     = useRef(0);
 
   // ── Candle-close countdown ───────────────────────────────────────────
   useEffect(() => {
@@ -406,6 +411,11 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       // DataLoader
       const loader: DataLoader = {
         getBars: async ({ symbol, period, callback }) => {
+          // Snapshot the load token; if a newer coin/tf switch happens while this
+          // fetch is in flight, the result is stale and must be discarded so it
+          // can't overwrite the chart with the wrong timeframe/coin.
+          const myGen = loadGenRef.current;
+          const stale = () => myGen !== loadGenRef.current;
           const c   = coinRef.current;
           const bnSym    = BINANCE_SYMS[c] as string | undefined;
           const bybitSym = BYBIT_SYMS[c]   as string | undefined;
@@ -414,6 +424,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               const iv = periodToBnInterval(period);
               const r  = await fetch(`https://api.binance.com/api/v3/klines?symbol=${bnSym}&interval=${iv}&limit=1500`);
               const raw = await r.json() as (string | number)[][];
+              if (stale()) return; // superseded by a newer switch — drop it
               const bars = raw.map(k => ({
                 timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
                 low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
@@ -424,6 +435,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               const iv = periodToBybitInterval(period);
               const r  = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${iv}&limit=1000`);
               const d  = await r.json() as { result?: { list?: string[][] } };
+              if (stale()) return; // superseded by a newer switch — drop it
               const list = [...(d?.result?.list ?? [])].reverse();
               const bars = list.map(k => ({
                 timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
@@ -435,7 +447,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               callback([], false);
             }
             endFade();
-          } catch { callback([], false); endFade(); }
+          } catch { if (!stale()) { callback([], false); endFade(); } }
           void symbol; // suppress unused
         },
 
@@ -513,6 +525,11 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
+
+    const coinChanged = prevCoinRef.current !== coin;
+    const tfChanged   = prevTfRef.current   !== tf;
+    if (!coinChanged && !tfChanged) return; // nothing actually changed
+
     startFade();
     analysisIds.current.forEach(id => chart.removeOverlay({ id }));
     analysisIds.current = [];
@@ -520,14 +537,29 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     alertOverlayMap.current.clear();
     chart.removeOverlay({ name: 'emaSignal' });
     setActiveTool(null);
-    // Append coin+tf so klinecharts always sees a "new" symbol and calls getBars —
-    // without this, same-coin TF switches hit klinecharts' internal cache and skip getBars
-    const bnSym    = BINANCE_SYMS[coin] as string | undefined;
-    const bybitSym = BYBIT_SYMS[coin]   as string | undefined;
-    const baseSym  = bnSym ?? bybitSym ?? 'BTCUSDT';
-    chart.setSymbol({ ticker: `${baseSym}__${coin}__${tf}`, shortName: coin.toUpperCase() + '/USDT' });
-    chart.setPeriod(TF_TO_PERIOD[tf] ?? TF_TO_PERIOD['15m']);
-    // Fallback: if getBars uses cached data and never calls endFade(), clear the screenshot overlay anyway
+
+    // klinecharts' setSymbol AND setPeriod each call resetData() -> getBars().
+    // Calling both on one switch fires two parallel fetches whose init callbacks
+    // race — the slower (stale) one can win and paint the wrong timeframe/coin.
+    // So only call the setter that actually changed, and bump loadGenRef before
+    // each so any in-flight fetch from a previous switch is discarded on arrival.
+    if (coinChanged) {
+      loadGenRef.current += 1;
+      const bnSym    = BINANCE_SYMS[coin] as string | undefined;
+      const bybitSym = BYBIT_SYMS[coin]   as string | undefined;
+      const baseSym  = bnSym ?? bybitSym ?? 'BTCUSDT';
+      chart.setSymbol({ ticker: baseSym, shortName: coin.toUpperCase() + '/USDT' });
+    }
+    if (tfChanged) {
+      loadGenRef.current += 1;
+      chart.setPeriod(TF_TO_PERIOD[tf] ?? TF_TO_PERIOD['15m']);
+    }
+
+    prevCoinRef.current = coin;
+    prevTfRef.current   = tf;
+
+    // Safety: clear the freeze-frame overlay even if no getBars fires (e.g. an
+    // unsupported symbol) so the chart can never stay stuck behind the screenshot.
     const fallback = setTimeout(endFade, 2000);
     return () => clearTimeout(fallback);
   }, [coin, tf]); // eslint-disable-line react-hooks/exhaustive-deps
