@@ -989,15 +989,29 @@ export default function Arena() {
   const sq = computeSqueezeScore(store.coins[selectedCoin]);
 
   /* ── Squeeze scanner data — sorted by 24h volume descending (BTC → ETH → ...) ── */
+  const btcChange = store.coins['btc']?.change ?? null;
   const scannerRows = COINS
     .filter(c => coinCat === 'all' || (CAT_FILTER_COINS[coinCat] as readonly CoinId[]).includes(c))
-    .map(c => ({
-      c,
-      sq:     computeSqueezeScore(store.coins[c]),
-      price:  store.coins[c]?.price  ?? null,
-      change: store.coins[c]?.change ?? null,
-      vol24:  store.coins[c]?.vol24  ?? 0,
-    })).sort((a, b) => (b.vol24 ?? 0) - (a.vol24 ?? 0));
+    .map(c => {
+      const coin   = store.coins[c];
+      const change = coin?.change ?? null;
+      const vsBtc  = change != null && btcChange != null && c !== 'btc' ? change - btcChange : null;
+      const rsi    = coin?.rsi14 ?? null;
+      const fr     = coin?.fundingRate ?? null;
+      const badges: string[] = [];
+      if (rsi != null && rsi >= 70)  badges.push('OB');
+      if (rsi != null && rsi <= 30)  badges.push('OS');
+      if (fr  != null && fr  < -0.0001) badges.push('Neg FR');
+      if (vsBtc != null && vsBtc >= 2)  badges.push('Beats BTC');
+      if (vsBtc != null && vsBtc <= -2) badges.push('Lags BTC');
+      return {
+        c, badges, vsBtc,
+        sq:     computeSqueezeScore(coin),
+        price:  coin?.price  ?? null,
+        change,
+        vol24:  coin?.vol24  ?? 0,
+      };
+    }).sort((a, b) => (b.vol24 ?? 0) - (a.vol24 ?? 0));
   const sqzCount   = scannerRows.filter(x => x.sq.dir === 'SHORT_SQ'  && x.sq.score >= 30).length;
   const flushCount = scannerRows.filter(x => x.sq.dir === 'LONG_LIQ'  && x.sq.score >= 30).length;
 
@@ -1127,22 +1141,23 @@ export default function Arena() {
           }}>
             {/* Column header */}
             <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 84px 48px 80px 36px',
+              display: 'grid', gridTemplateColumns: '1fr 78px 44px 44px 72px 32px',
               padding: '6px 12px',
               borderBottom: '0.5px solid rgba(255,255,255,0.06)',
               background: 'rgba(255,255,255,0.02)',
             }}>
-              {[['Name', 'left'], ['Price', 'right'], ['24h', 'right'], ['Status', 'right'], ['Scr', 'right']].map(([h, align]) => (
+              {[['Name', 'left'], ['Price', 'right'], ['24h', 'right'], ['vs BTC', 'right'], ['Status', 'right'], ['Scr', 'right']].map(([h, align]) => (
                 <span key={h} style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: '#333', textAlign: align as 'left' | 'right' }}>{h}</span>
               ))}
             </div>
 
             {/* Coin rows */}
-            {scannerRows.map(({ c, sq: rowSq, price, change }, idx) => {
+            {scannerRows.map(({ c, sq: rowSq, price, change, vsBtc, badges }, idx) => {
               const isSelected  = c === selectedCoin;
               const isActive    = rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
               const icon        = rowSq.dir === 'SHORT_SQ' ? '↑' : rowSq.dir === 'LONG_LIQ' ? '↓' : '';
               const statusLabel = rowSq.dir === 'SHORT_SQ' ? 'Squeeze' : rowSq.dir === 'LONG_LIQ' ? 'Flush' : 'Neutral';
+              const vsBtcColor  = vsBtc == null ? '#333' : vsBtc >= 2 ? '#34d399' : vsBtc <= -2 ? '#f87171' : '#555';
               return (
                 <button
                   key={c}
@@ -1151,7 +1166,7 @@ export default function Arena() {
                   }}
                   style={{
                     width: '100%', display: 'grid',
-                    gridTemplateColumns: '1fr 84px 48px 80px 36px',
+                    gridTemplateColumns: '1fr 78px 44px 44px 72px 32px',
                     alignItems: 'center', padding: '7px 12px',
                     background: isSelected ? 'rgba(184,174,255,0.08)' : 'transparent',
                     border: 'none',
@@ -1161,7 +1176,7 @@ export default function Arena() {
                   onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)'; }}
                   onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                 >
-                  {/* Coin icon + name */}
+                  {/* Coin icon + name + tech badges */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <CoinIcon
                       coin={c}
@@ -1173,7 +1188,24 @@ export default function Arena() {
                       <div style={{ fontSize: 12, fontWeight: 700, color: isSelected ? '#b8aeff' : isActive ? 'var(--txt)' : '#666', lineHeight: 1.2 }}>
                         {c.toUpperCase()}
                       </div>
-                      <div style={{ fontSize: 9, color: '#333', lineHeight: 1 }}>USDT Perp</div>
+                      {badges.length > 0 ? (
+                        <div style={{ display: 'flex', gap: 3, marginTop: 2, flexWrap: 'wrap' }}>
+                          {badges.map(b => {
+                            const isGood = b === 'Beats BTC' || b === 'OS';
+                            const isBad  = b === 'Lags BTC'  || b === 'OB' || b === 'Neg FR';
+                            const col = isGood ? '#34d399' : isBad ? '#f87171' : '#fbbf24';
+                            return (
+                              <span key={b} style={{
+                                fontSize: 8, fontWeight: 700, letterSpacing: '.04em',
+                                padding: '1px 4px', borderRadius: 3,
+                                color: col, background: col + '18', border: `0.5px solid ${col}33`,
+                              }}>{b}</span>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 9, color: '#333', lineHeight: 1 }}>USDT Perp</div>
+                      )}
                     </div>
                   </div>
                   {/* Price */}
@@ -1183,6 +1215,10 @@ export default function Arena() {
                   {/* 24h % */}
                   <span style={{ fontSize: 10, fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: change == null ? '#333' : change >= 0 ? '#34d399' : '#f87171' }}>
                     {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : '—'}
+                  </span>
+                  {/* vs BTC */}
+                  <span style={{ fontSize: 10, fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: vsBtcColor }}>
+                    {vsBtc != null ? (vsBtc >= 0 ? '+' : '') + vsBtc.toFixed(1) + '%' : c === 'btc' ? '—' : '—'}
                   </span>
                   {/* Status */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>

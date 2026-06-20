@@ -13,6 +13,7 @@ import SessionContext from '@/components/SessionContext';
 import SmartMoneyScore from '@/components/SmartMoneyScore';
 import OISpikeScanner from '@/components/OISpikeScanner';
 import SentimentExtremesAlert from '@/components/SentimentExtremesAlert';
+import CycleDayCounter from '@/components/CycleDayCounter';
 
 function MacroStrip() {
   const { store } = useMarket();
@@ -857,6 +858,9 @@ export default function Dashboard() {
 
         {/* 5. Session context — timing reference (after you know the play) */}
         {!hide('session') && <SessionContext />}
+
+        {/* 5b. Cycle Day counter — cycle position reference */}
+        <div style={{ marginBottom: 12 }}><CycleDayCounter /></div>
 
         {/* 6. Catalysts & market events */}
         {!hide('catalysts') && <NewsBanner />}

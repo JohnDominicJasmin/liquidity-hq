@@ -5,6 +5,7 @@ import LiquidationCalc  from '@/components/LiquidationCalc';
 import PnLCalc          from '@/components/PnLCalc';
 import RiskRewardCalc   from '@/components/RiskRewardCalc';
 import FundingCostCalc  from '@/components/FundingCostCalc';
+import DcaCalc          from '@/components/DcaCalc';
 
 const TABS = [
   { id: 'sizer',       label: 'Position Sizer'     },
@@ -12,6 +13,7 @@ const TABS = [
   { id: 'pnl',         label: 'PnL'                },
   { id: 'rr',          label: 'Risk / Reward'      },
   { id: 'funding',     label: 'Funding Cost'       },
+  { id: 'dca',         label: 'DCA Average'        },
 ];
 
 export default function CalcPage() {
@@ -21,7 +23,7 @@ export default function CalcPage() {
     <div>
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Calculators</div>
-        <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Position sizing, liquidation, PnL, risk/reward, and funding cost</div>
+        <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Position sizing, liquidation, PnL, risk/reward, funding cost, and DCA average</div>
       </div>
       <div className="ps-presets" style={{ marginBottom: 16, flexWrap: 'wrap' }}>
         {TABS.map(t => (
@@ -35,6 +37,7 @@ export default function CalcPage() {
       {tab === 'pnl'         && <PnLCalc />}
       {tab === 'rr'          && <RiskRewardCalc />}
       {tab === 'funding'     && <FundingCostCalc />}
+      {tab === 'dca'         && <DcaCalc />}
     </div>
   );
 }
