@@ -347,9 +347,13 @@ export function useEMAStrategy(
         // Step 2: First candle after cross that closes above EMA50 (long) or below EMA50 (short)
         // Step 3: SMA200 bias — that candle must also be above SMA200 (long) or below SMA200 (short)
         // Marker is placed at the Step 2 confirmation candle, not the cross candle.
+        // MIN_SIGNAL_GAP prevents dense clusters: same-direction signals must be ≥50 candles apart.
         const MIN_PRIOR_TREND = 5;
+        const MIN_SIGNAL_GAP  = 50;
         const signalLongs:  Array<{ timestamp: number; anchorPrice: number }> = [];
         const signalShorts: Array<{ timestamp: number; anchorPrice: number }> = [];
+        let lastLongK  = -MIN_SIGNAL_GAP;
+        let lastShortK = -MIN_SIGNAL_GAP;
 
         for (let i = 1; i < cRibbon.length; i++) {
           const e9 = e9arr[i], e20 = e20arr[i];
@@ -368,7 +372,10 @@ export function useEMAStrategy(
                 if (!isFinite(e50k) || !isFinite(sm200k)) continue;
                 const cls = cRibbon[k].close;
                 if (cls > e50k && cls > sm200k) {
-                  signalLongs.push({ timestamp: cRibbon[k].time, anchorPrice: cRibbon[k].low });
+                  if (k - lastLongK >= MIN_SIGNAL_GAP) {
+                    signalLongs.push({ timestamp: cRibbon[k].time, anchorPrice: cRibbon[k].low });
+                    lastLongK = k;
+                  }
                   break;
                 }
               }
@@ -388,7 +395,10 @@ export function useEMAStrategy(
                 if (!isFinite(e50k) || !isFinite(sm200k)) continue;
                 const cls = cRibbon[k].close;
                 if (cls < e50k && cls < sm200k) {
-                  signalShorts.push({ timestamp: cRibbon[k].time, anchorPrice: cRibbon[k].high });
+                  if (k - lastShortK >= MIN_SIGNAL_GAP) {
+                    signalShorts.push({ timestamp: cRibbon[k].time, anchorPrice: cRibbon[k].high });
+                    lastShortK = k;
+                  }
                   break;
                 }
               }
