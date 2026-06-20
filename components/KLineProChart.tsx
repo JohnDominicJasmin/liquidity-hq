@@ -361,19 +361,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           needDefaultYAxisFigure: false,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
-            const { dir, latest } = overlay.extendData as { dir: 'long' | 'short'; latest: boolean };
+            const { dir } = overlay.extendData as { dir: 'long' | 'short' };
             const coord = coordinates[0];
             if (!coord || !isFinite(coord.x) || !isFinite(coord.y) || coord.y < 0) return [];
             const x = coord.x;
             const y = coord.y;
             if (dir === 'long') {
               return [
-                // Dashed entry line — only on the most recent signal
-                ...(latest ? [{
-                  type: 'line',
-                  attrs: { coordinates: [{ x: x - 9999, y }, { x: x + 9999, y }] },
-                  styles: { style: 'dashed', color: 'rgba(34,197,94,0.55)', size: 1, dashedValue: [5, 3] },
-                }] : []),
                 {
                   type: 'polygon',
                   attrs: { coordinates: [{ x, y: y + 4 }, { x: x - 14, y: y + 28 }, { x: x + 14, y: y + 28 }] },
@@ -387,12 +381,6 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               ];
             }
             return [
-              // Dashed entry line — only on the most recent signal
-              ...(latest ? [{
-                type: 'line',
-                attrs: { coordinates: [{ x: x - 9999, y }, { x: x + 9999, y }] },
-                styles: { style: 'dashed', color: 'rgba(239,68,68,0.55)', size: 1, dashedValue: [5, 3] },
-              }] : []),
               {
                 type: 'polygon',
                 attrs: { coordinates: [{ x, y: y - 4 }, { x: x - 14, y: y - 28 }, { x: x + 14, y: y - 28 }] },
@@ -623,17 +611,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     chart.removeOverlay({ name: 'emaSignal' });
     if (!emaSignal || emaSignal.loading) return;
 
-    // Find the single latest signal across both sides
-    const allTs = [
-      ...emaSignal.signalLongs.map(s => s.timestamp),
-      ...emaSignal.signalShorts.map(s => s.timestamp),
-    ];
-    const latestTs = allTs.length ? Math.max(...allTs) : -1;
-
     const place = (dir: 'long' | 'short', ts: number, price: number) => {
       chart.createOverlay({
         name: 'emaSignal', lock: true,
-        extendData: { dir, latest: ts === latestTs },
+        extendData: { dir },
         points: [{ timestamp: ts, value: price }],
       } as OverlayCreate);
     };
