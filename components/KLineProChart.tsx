@@ -204,9 +204,65 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const [fullscreen,   setFullscreen]  = useState(false);
   const [copiedMsg,    setCopiedMsg]   = useState<string | null>(null);
   const [chartReady,   setChartReady]  = useState(false);
+  const [countdown,    setCountdown]   = useState('—');
+  const [priceLabelY,  setPriceLabelY] = useState<number | null>(null);
+  const lastCloseRef   = useRef<number>(0);
   const copyToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Candle-close countdown ───────────────────────────────────────────
+  useEffect(() => {
+    const MS: Record<string, number> = {
+      '1m': 60_000, '5m': 300_000, '15m': 900_000, '30m': 1_800_000,
+      '1h': 3_600_000, '4h': 14_400_000, '1d': 86_400_000,
+    };
+    const periodMs = MS[tf];
+    if (!periodMs) return;
+    const tick = () => {
+      const remain = periodMs - (Date.now() % periodMs);
+      const h = Math.floor(remain / 3_600_000);
+      const m = Math.floor((remain % 3_600_000) / 60_000);
+      const s = Math.floor((remain % 60_000) / 1_000);
+      setCountdown(h > 0 ? `${h}h ${String(m).padStart(2,'0')}m` : m > 0 ? `${m}m ${String(s).padStart(2,'0')}s` : `${s}s`);
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [tf]);
+
   useEffect(() => { onAlertMoveRef.current = onAlertMove; }, [onAlertMove]);
+
+  // ── Price-label Y position — used to anchor the countdown below the price mark ──
+  useEffect(() => {
+    if (!chartReady) return;
+    const chart = chartRef.current;
+    if (!chart) return;
+
+    const compute = () => {
+      const price = lastCloseRef.current;
+      if (!price) return;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const px = (chart as any).convertToPixel?.({ value: price }, { paneId: 'candle_pane' });
+        if (px && typeof px.y === 'number' && isFinite(px.y) && px.y > 0) {
+          setPriceLabelY(px.y);
+        }
+      } catch { /* ignore */ }
+    };
+
+    compute();
+    // Re-run on zoom / scroll / new data
+    const events = ['onVisibleRangeChange', 'onScroll', 'onZoom'] as const;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    events.forEach(ev => (chart as any).subscribeAction?.(ev, compute));
+    // Polling fallback: picks up live price movement that doesn't fire scroll/zoom events
+    const poll = setInterval(compute, 1500);
+
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      events.forEach(ev => (chart as any).unsubscribeAction?.(ev, compute));
+      clearInterval(poll);
+    };
+  }, [chartReady]);
 
   // ── Theme sync — apply DARK/LIGHT styles when theme changes ─────────────
   useEffect(() => {
@@ -300,13 +356,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           needDefaultYAxisFigure: false,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
-            const dir = overlay.extendData as 'long' | 'short';
+            const { dir, latest } = overlay.extendData as { dir: 'long' | 'short'; latest: boolean };
             const coord = coordinates[0];
             if (!coord || !isFinite(coord.x) || !isFinite(coord.y) || coord.y < 0) return [];
             const x = coord.x;
             const y = coord.y;
             if (dir === 'long') {
               return [
+                // Dashed entry line — only on the most recent signal
+                ...(latest ? [{
+                  type: 'line',
+                  attrs: { coordinates: [{ x: x - 9999, y }, { x: x + 9999, y }] },
+                  styles: { style: 'dashed', color: 'rgba(34,197,94,0.55)', size: 1, dashedValue: [5, 3] },
+                }] : []),
                 {
                   type: 'polygon',
                   attrs: { coordinates: [{ x, y: y + 4 }, { x: x - 14, y: y + 28 }, { x: x + 14, y: y + 28 }] },
@@ -320,6 +382,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               ];
             }
             return [
+              // Dashed entry line — only on the most recent signal
+              ...(latest ? [{
+                type: 'line',
+                attrs: { coordinates: [{ x: x - 9999, y }, { x: x + 9999, y }] },
+                styles: { style: 'dashed', color: 'rgba(239,68,68,0.55)', size: 1, dashedValue: [5, 3] },
+              }] : []),
               {
                 type: 'polygon',
                 attrs: { coordinates: [{ x, y: y - 4 }, { x: x - 14, y: y - 28 }, { x: x + 14, y: y - 28 }] },
@@ -346,19 +414,23 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               const iv = periodToBnInterval(period);
               const r  = await fetch(`https://api.binance.com/api/v3/klines?symbol=${bnSym}&interval=${iv}&limit=1500`);
               const raw = await r.json() as (string | number)[][];
-              callback(raw.map(k => ({
+              const bars = raw.map(k => ({
                 timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
                 low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
-              })), false);
+              }));
+              if (bars.length) lastCloseRef.current = bars[bars.length - 1].close;
+              callback(bars, false);
             } else if (bybitSym) {
               const iv = periodToBybitInterval(period);
               const r  = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${iv}&limit=1000`);
               const d  = await r.json() as { result?: { list?: string[][] } };
               const list = [...(d?.result?.list ?? [])].reverse();
-              callback(list.map(k => ({
+              const bars = list.map(k => ({
                 timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
                 low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
-              })), false);
+              }));
+              if (bars.length) lastCloseRef.current = bars[bars.length - 1].close;
+              callback(bars, false);
             } else {
               callback([], false);
             }
@@ -382,7 +454,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             ws.onclose   = (e) => { if (!e.wasClean) setWsStatus('connecting'); };
             ws.onmessage = (e: MessageEvent) => {
               const { k } = JSON.parse(e.data as string) as { k: Record<string, string | number> };
-              callback({ timestamp: Number(k.t), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c), volume: Number(k.v) });
+              const bar = { timestamp: Number(k.t), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c), volume: Number(k.v) };
+              lastCloseRef.current = bar.close;
+              callback(bar);
             };
             wsRef.current = ws;
           } else if (bybitSym) {
@@ -394,7 +468,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${iv}&limit=1`);
                 const d = await r.json() as { result?: { list?: string[][] } };
                 const k = d?.result?.list?.[0];
-                if (k) callback({ timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]), low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]) });
+                if (k) {
+                  lastCloseRef.current = Number(k[4]);
+                  callback({ timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]), low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]) });
+                }
               } catch { /* silent */ }
             }, 5000);
             wsRef.current = { close: () => clearInterval(timer) };
@@ -444,7 +521,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     alertOverlayMap.current.clear();
     chart.removeOverlay({ name: 'emaSignal' });
     setActiveTool(null);
-    setChartSymbolPeriod(chart, coin, tf);
+    // Force symbol + period change so klinecharts always re-fetches (avoids stale cache)
+    const bnSym    = BINANCE_SYMS[coin] as string | undefined;
+    const bybitSym = BYBIT_SYMS[coin]   as string | undefined;
+    chart.setSymbol({ ticker: bnSym ?? bybitSym ?? 'BTCUSDT', shortName: coin.toUpperCase() + '/USDT' });
+    chart.setPeriod(TF_TO_PERIOD[tf] ?? TF_TO_PERIOD['15m']);
+    // Fallback: if getBars uses cached data and never calls endFade(), clear the screenshot overlay anyway
+    const fallback = setTimeout(endFade, 2000);
+    return () => clearTimeout(fallback);
   }, [coin, tf]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Fullscreen API ───────────────────────────────────────────────────
@@ -506,10 +590,17 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     chart.removeOverlay({ name: 'emaSignal' });
     if (!emaSignal || emaSignal.loading) return;
 
+    // Find the single latest signal across both sides
+    const allTs = [
+      ...emaSignal.signalLongs.map(s => s.timestamp),
+      ...emaSignal.signalShorts.map(s => s.timestamp),
+    ];
+    const latestTs = allTs.length ? Math.max(...allTs) : -1;
+
     const place = (dir: 'long' | 'short', ts: number, price: number) => {
       chart.createOverlay({
         name: 'emaSignal', lock: true,
-        extendData: dir,
+        extendData: { dir, latest: ts === latestTs },
         points: [{ timestamp: ts, value: price }],
       } as OverlayCreate);
     };
@@ -695,6 +786,30 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           opacity: 0,
           pointerEvents: 'none',
         }} />
+        {/* Candle-close countdown — anchored below the klinecharts current-price label */}
+        {priceLabelY !== null && (
+          <div style={{
+            position: 'absolute',
+            right: 0,
+            top: priceLabelY + 11,   // 11px below price-mark centre = just under the label
+            pointerEvents: 'none',
+            background: 'rgba(30,30,30,0.88)',
+            border: '1px solid rgba(255,255,255,0.10)',
+            borderTop: 'none',
+            borderRadius: '0 0 3px 3px',
+            padding: '1px 6px 2px',
+            fontSize: 10,
+            fontFamily: 'monospace',
+            color: 'rgba(255,255,255,0.70)',
+            letterSpacing: '0.04em',
+            lineHeight: 1.5,
+            userSelect: 'none',
+            minWidth: 54,
+            textAlign: 'center',
+          }}>
+            {countdown}
+          </div>
+        )}
       </div>
     </div>
   );

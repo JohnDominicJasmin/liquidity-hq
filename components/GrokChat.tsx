@@ -510,7 +510,14 @@ export default function GrokChat() {
         title={open ? 'Close chat' : 'Ask Grok'}
         aria-label={open ? 'Close Grok chat' : 'Open Grok chat'}
       >
-        {open ? '✕' : 'AI'}
+        {open ? (
+          <span style={{ fontSize: 15, color: 'var(--txt3)' }}>✕</span>
+        ) : (
+          <>
+            <span style={{ fontSize: 18, lineHeight: 1 }}>✦</span>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', color: 'rgba(220,210,255,0.95)' }}>Ask AI</span>
+          </>
+        )}
       </button>
 
       {/* ── Chat panel ── */}

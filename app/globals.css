@@ -1302,15 +1302,15 @@ body.ticker-on .breaking-alert { top: 90px; }
 /* ── GROK CHAT FLOATING WIDGET ── */
 .gchat-fab {
   position: fixed; bottom: 24px; right: 20px; z-index: 9995;
-  width: 52px; height: 52px; border-radius: 50%;
-  background: linear-gradient(135deg, rgba(167,139,250,0.2), rgba(139,92,246,0.15));
+  width: 64px; height: 64px; border-radius: 50%;
+  background: linear-gradient(135deg, rgba(167,139,250,0.22), rgba(139,92,246,0.18));
   border: 0.5px solid var(--purple-bdr);
   box-shadow: 0 4px 24px rgba(0,0,0,0.8), var(--glow-purple);
-  font-size: 22px; cursor: pointer; transition: all 0.2s;
-  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.2s;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
 }
-.gchat-fab:hover { box-shadow: 0 6px 32px rgba(0,0,0,0.9), 0 0 30px rgba(167,139,250,0.2); transform: scale(1.06); }
-.gchat-fab-open { background: var(--bg2); border-color: var(--bdr2); font-size: 16px; color: var(--txt3); box-shadow: 0 4px 24px rgba(0,0,0,0.8); }
+.gchat-fab:hover { box-shadow: 0 6px 32px rgba(0,0,0,0.9), 0 0 30px rgba(167,139,250,0.2); transform: scale(1.04); }
+.gchat-fab-open { background: var(--bg2); border-color: var(--bdr2); color: var(--txt3); box-shadow: 0 4px 24px rgba(0,0,0,0.8); }
 
 /* ── backdrop (expanded mode) ── */
 .gchat-backdrop {

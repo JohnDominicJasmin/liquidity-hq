@@ -342,65 +342,80 @@ export function useEMAStrategy(
           }
         }
 
-        // Chart markers — 3-step strategy:
-        // Step 1: EMA9/20 cross (arms the signal; require 5 prior opposing candles to filter chop)
-        // Step 2: First candle after cross that closes above EMA50 (long) or below EMA50 (short)
-        // Step 3: SMA200 bias — that candle must also be above SMA200 (long) or below SMA200 (short)
-        // Marker is placed at the Step 2 confirmation candle, not the cross candle.
-        // MIN_SIGNAL_GAP prevents dense clusters: same-direction signals must be ≥50 candles apart.
-        const MIN_PRIOR_TREND = 5;
-        const MIN_SIGNAL_GAP  = 50;
+        // Chart markers — 2-step strategy, exactly as the trader's rule:
+        //   Step 1 (ARM):     EMA9 crosses EMA20. Bullish cross arms a long; bearish cross arms a short.
+        //   Step 2 (CONFIRM): wait forward for the first candle that CLOSES across EMA50 in that direction.
+        //                     Close above EMA50 after a bullish cross = BUY (marker at candle low).
+        //                     Close below EMA50 after a bearish cross = SELL (marker at candle high).
+        //   The marker is placed on the CONFIRMATION candle, not the cross candle.
+        //   The forward scan aborts if EMA9/20 flips back before confirmation (cross invalidated).
+        // Alternation (lastDir): signals strictly alternate Buy↔Sell. Once you're in a position you
+        //   HOLD it until the opposite side of EMA50 is genuinely taken — you never get a second
+        //   same-direction signal stacked next to the one you already have. Result: buy→sell→buy→sell.
+        // PERSIST (whipsaw filter): the confirmation close must STAY on its side of EMA50 for at least
+        //   PERSIST candles. A brief poke that grazes EMA50 and pops straight back is noise, not a
+        //   position change — it's rejected and the existing position is kept. This removes the "extra"
+        //   buy/sell that used to appear when price just dipped a few points across EMA50 and reversed.
+        //   The newest signal is accepted tentatively if the data ends before PERSIST candles pass.
+        // Timeframe-relative whipsaw filter: each unit = 1 candle, so we normalise
+        // to ~2h of hold time across all timeframes (4h needs 4h, 1h only 2h, etc.)
+        const PERSIST_BY_TF: Record<string, number> = {
+          '1m': 8, '5m': 8, '15m': 4, '30m': 4, '1h': 2, '4h': 3, '1d': 2,
+        };
+        const PERSIST = PERSIST_BY_TF[tf] ?? 4;
+
+        // True if price stays on the confirmed side of EMA50 for ≥PERSIST candles after k
+        // (or the dataset ends first — the live edge can't be disproven yet).
+        const holdsBeyond50 = (k: number, dir: 'long' | 'short'): boolean => {
+          let n = 0;
+          for (let j = k + 1; j < cRibbon.length; j++) {
+            const e50j = e50arr[j];
+            if (!isFinite(e50j)) { n++; continue; }
+            const above = cRibbon[j].close > e50j;
+            if (dir === 'long' ? above : !above) n++; else break;
+          }
+          return n >= PERSIST || (k + 1 + n >= cRibbon.length);
+        };
+
         const signalLongs:  Array<{ timestamp: number; anchorPrice: number }> = [];
         const signalShorts: Array<{ timestamp: number; anchorPrice: number }> = [];
-        let lastLongK  = -MIN_SIGNAL_GAP;
-        let lastShortK = -MIN_SIGNAL_GAP;
+        let lastDir: 'long' | 'short' | null = null;
 
         for (let i = 1; i < cRibbon.length; i++) {
           const e9 = e9arr[i], e20 = e20arr[i];
+          const e9p = e9arr[i - 1], e20p = e20arr[i - 1];
           if (!isFinite(e9) || !isFinite(e20)) continue;
 
-          // Bullish cross
-          if (e9 > e20 && e9arr[i - 1] <= e20arr[i - 1]) {
-            let prior = 0;
-            for (let j = i - 1; j >= 0 && prior < MIN_PRIOR_TREND; j--) {
-              if (e9arr[j] < e20arr[j]) prior++; else break;
-            }
-            if (prior >= MIN_PRIOR_TREND) {
-              for (let k = i; k < cRibbon.length; k++) {
-                if (e9arr[k] < e20arr[k]) break; // cross flipped — abort
-                const e50k = e50arr[k], sm200k = sm200arr[k];
-                if (!isFinite(e50k) || !isFinite(sm200k)) continue;
-                const cls = cRibbon[k].close;
-                if (cls > e50k && cls > sm200k) {
-                  if (k - lastLongK >= MIN_SIGNAL_GAP) {
-                    signalLongs.push({ timestamp: cRibbon[k].time, anchorPrice: cRibbon[k].low });
-                    lastLongK = k;
-                  }
+          // Bullish cross → arm long, then forward-scan for the EMA50 confirmation candle
+          if (e9 > e20 && e9p <= e20p && lastDir !== 'long') {
+            for (let k = i; k < cRibbon.length; k++) {
+              if (e9arr[k] < e20arr[k]) break;              // ribbon flipped back — cross invalidated
+              const e50k = e50arr[k];
+              if (!isFinite(e50k)) continue;
+              if (cRibbon[k].close > e50k) {                // CONFIRM: candle closed above EMA50
+                if (holdsBeyond50(k, 'long')) {             // ...and the move stuck (not a whipsaw poke)
+                  signalLongs.push({ timestamp: cRibbon[k].time, anchorPrice: cRibbon[k].low });
+                  lastDir = 'long';
                   break;
                 }
+                // Whipsaw poke — keep scanning for the next candle that closes above EMA50 and holds
               }
             }
           }
 
-          // Bearish cross
-          if (e9 < e20 && e9arr[i - 1] >= e20arr[i - 1]) {
-            let prior = 0;
-            for (let j = i - 1; j >= 0 && prior < MIN_PRIOR_TREND; j--) {
-              if (e9arr[j] > e20arr[j]) prior++; else break;
-            }
-            if (prior >= MIN_PRIOR_TREND) {
-              for (let k = i; k < cRibbon.length; k++) {
-                if (e9arr[k] > e20arr[k]) break; // cross flipped — abort
-                const e50k = e50arr[k], sm200k = sm200arr[k];
-                if (!isFinite(e50k) || !isFinite(sm200k)) continue;
-                const cls = cRibbon[k].close;
-                if (cls < e50k && cls < sm200k) {
-                  if (k - lastShortK >= MIN_SIGNAL_GAP) {
-                    signalShorts.push({ timestamp: cRibbon[k].time, anchorPrice: cRibbon[k].high });
-                    lastShortK = k;
-                  }
+          // Bearish cross → arm short, then forward-scan for the EMA50 confirmation candle
+          if (e9 < e20 && e9p >= e20p && lastDir !== 'short') {
+            for (let k = i; k < cRibbon.length; k++) {
+              if (e9arr[k] > e20arr[k]) break;              // ribbon flipped back — cross invalidated
+              const e50k = e50arr[k];
+              if (!isFinite(e50k)) continue;
+              if (cRibbon[k].close < e50k) {                // CONFIRM: candle closed below EMA50
+                if (holdsBeyond50(k, 'short')) {            // ...and the move stuck (not a whipsaw poke)
+                  signalShorts.push({ timestamp: cRibbon[k].time, anchorPrice: cRibbon[k].high });
+                  lastDir = 'short';
                   break;
                 }
+                // Whipsaw poke — keep scanning for the next candle that closes below EMA50 and holds
               }
             }
           }
