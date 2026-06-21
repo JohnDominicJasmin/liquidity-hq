@@ -167,6 +167,57 @@ interface Props {
 const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','4h','1d'];
 
 let emaSignalOverlayRegistered = false;
+let srLevelLineRegistered = false;
+
+interface SRLevel { price: number; type: 'support' | 'resistance'; touches: number; }
+
+function computeSRLevels(
+  bars: { high: number; low: number; close: number }[],
+  currentPrice: number,
+): SRLevel[] {
+  const lookback = 3;
+  const recent = bars.slice(-200);
+  const CLUSTER_PCT = 0.003;
+
+  const swingHighs: number[] = [];
+  const swingLows: number[] = [];
+
+  for (let i = lookback; i < recent.length - lookback; i++) {
+    const hi = recent[i].high;
+    const lo = recent[i].low;
+    if (
+      recent.slice(i - lookback, i).every(b => b.high <= hi) &&
+      recent.slice(i + 1, i + lookback + 1).every(b => b.high <= hi)
+    ) swingHighs.push(hi);
+    if (
+      recent.slice(i - lookback, i).every(b => b.low >= lo) &&
+      recent.slice(i + 1, i + lookback + 1).every(b => b.low >= lo)
+    ) swingLows.push(lo);
+  }
+
+  const cluster = (prices: number[]) => {
+    const sorted = [...prices].sort((a, b) => a - b);
+    const clusters: { price: number; count: number }[] = [];
+    for (const p of sorted) {
+      const ex = clusters.find(c => Math.abs(c.price - p) / p < CLUSTER_PCT);
+      if (ex) { ex.price = (ex.price * ex.count + p) / (ex.count + 1); ex.count++; }
+      else clusters.push({ price: p, count: 1 });
+    }
+    return clusters.sort((a, b) => b.count - a.count);
+  };
+
+  const resistances = cluster(swingHighs)
+    .filter(c => c.price > currentPrice * 0.999)
+    .slice(0, 3)
+    .map(c => ({ price: c.price, type: 'resistance' as const, touches: c.count }));
+
+  const supports = cluster(swingLows)
+    .filter(c => c.price < currentPrice * 1.001)
+    .slice(0, 3)
+    .map(c => ({ price: c.price, type: 'support' as const, touches: c.count }));
+
+  return [...resistances, ...supports];
+}
 
 export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove }: Props) {
   const containerRef   = useRef<HTMLDivElement>(null);
@@ -208,6 +259,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const [priceLabelY,  setPriceLabelY] = useState<number | null>(null);
   const lastCloseRef   = useRef<number>(0);
   const copyToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showSR, setShowSR]       = useState(true);
+  const [srLevels, setSrLevels]   = useState<SRLevel[]>([]);
+  const srSetRef                  = useRef(setSrLevels);
+  const srOverlayIds              = useRef<string[]>([]);
   // Track the last loaded coin/tf so we only re-fetch what actually changed,
   // and a monotonic load token so stale in-flight fetches are dropped on arrival.
   const prevCoinRef    = useRef<CoinId>(coin);
@@ -396,6 +451,38 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         });
       }
 
+      if (!srLevelLineRegistered) {
+        srLevelLineRegistered = true;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kc as any).registerOverlay({
+          name: 'srLevelLine',
+          totalStep: 1,
+          needDefaultPointFigure: false,
+          needDefaultXAxisFigure: false,
+          needDefaultYAxisFigure: false,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
+            const { srType, price } = overlay.extendData as { srType: 'support' | 'resistance'; price: number };
+            const y = coordinates[0]?.y;
+            if (y == null || !isFinite(y) || y < 0) return [];
+            const color = srType === 'resistance' ? '#f87171' : '#34d399';
+            const rightX = (bounding?.width ?? 9999);
+            return [
+              {
+                type: 'line',
+                attrs: { coordinates: [{ x: 0, y }, { x: rightX, y }] },
+                styles: { style: 'dashed', color, size: 1, dashedValue: [4, 3] },
+              },
+              {
+                type: 'text',
+                attrs: { x: rightX - 6, y: y - 3, text: `${srType === 'resistance' ? 'R' : 'S'} $${fmtPx(price)}`, align: 'right', baseline: 'bottom' },
+                styles: { color, size: 9, weight: '700' },
+              },
+            ];
+          },
+        });
+      }
+
       // DataLoader
       const loader: DataLoader = {
         getBars: async ({ symbol, period, callback }) => {
@@ -417,7 +504,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
                 low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
               }));
-              if (bars.length) lastCloseRef.current = bars[bars.length - 1].close;
+              if (bars.length) {
+                lastCloseRef.current = bars[bars.length - 1].close;
+                srSetRef.current(computeSRLevels(bars, bars[bars.length - 1].close));
+              }
               callback(bars, false);
             } else if (bybitSym) {
               const iv = periodToBybitInterval(period);
@@ -429,7 +519,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
                 low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
               }));
-              if (bars.length) lastCloseRef.current = bars[bars.length - 1].close;
+              if (bars.length) {
+                lastCloseRef.current = bars[bars.length - 1].close;
+                srSetRef.current(computeSRLevels(bars, bars[bars.length - 1].close));
+              }
               callback(bars, false);
             } else {
               callback([], false);
@@ -524,6 +617,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     alertOverlayMap.current.forEach(oid => chart.removeOverlay({ id: oid }));
     alertOverlayMap.current.clear();
     chart.removeOverlay({ name: 'emaSignal' });
+    srOverlayIds.current.forEach(id => chart.removeOverlay({ id }));
+    srOverlayIds.current = [];
+    setSrLevels([]);
     setActiveTool(null);
 
     // klinecharts' setSymbol AND setPeriod each call resetData() -> getBars().
@@ -653,6 +749,25 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     });
   }, [chartAlerts, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Draw / redraw S/R level lines ───────────────────────────────────
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    srOverlayIds.current.forEach(id => chart.removeOverlay({ id }));
+    srOverlayIds.current = [];
+    if (!showSR || !srLevels.length) return;
+    for (const level of srLevels) {
+      const id = chart.createOverlay({
+        name: 'srLevelLine',
+        groupId: 'sr_levels',
+        lock: true,
+        extendData: { srType: level.type, price: level.price },
+        points: [{ value: level.price }],
+      } as OverlayCreate);
+      if (typeof id === 'string') srOverlayIds.current.push(id);
+    }
+  }, [srLevels, showSR, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Drawing toolbar ──────────────────────────────────────────────────
   const handleTool = (toolId: string) => {
     const chart = chartRef.current;
@@ -709,6 +824,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         ))}
         <div className="klc-sep" />
         <button className="klc-tool-btn klc-clear" onClick={handleClear}>Clear</button>
+        <button
+          className={`klc-tool-btn${showSR ? ' on' : ''}`}
+          onClick={() => setShowSR(v => !v)}
+          title="Toggle auto support &amp; resistance levels"
+        >
+          S/R
+        </button>
 
         {hasLevels && (
           <div className="klc-legend">
