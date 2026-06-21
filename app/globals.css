@@ -648,16 +648,16 @@ body.ticker-on .breaking-alert { top: 90px; }
 .sctx-evt-sep     { width: 0.5px; height: 28px; background: var(--bdr); flex-shrink: 0; }
 
 /* ── RPM ── */
-.rpm-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 16px; padding: 10px 14px; box-shadow: var(--nm-raise); }
-.rpm-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.rpm-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 16px; padding: 14px 16px; box-shadow: var(--nm-raise); }
+.rpm-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .rpm-title-row { display: flex; align-items: center; gap: 10px; }
 .rpm-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; flex-shrink: 0; }
 .rpm-title { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--txt3); }
 .rpm-score-wrap { display: flex; align-items: baseline; gap: 6px; }
-.rpm-score { font-size: 24px; font-weight: 700; letter-spacing: -1px; line-height: 1; transition: color 0.5s; font-variant-numeric: tabular-nums; }
-.rpm-max     { font-size: 11px; color: var(--txt3); font-weight: 400; }
-.rpm-verdict { font-size: 12px; font-weight: 700; margin-bottom: 2px; }
-.rpm-sub     { font-size: 11px; color: var(--txt2); line-height: 1.4; margin-bottom: 8px; }
+.rpm-score { font-size: 48px; font-weight: 700; letter-spacing: -2px; line-height: 1; transition: color 0.5s; font-variant-numeric: tabular-nums; }
+.rpm-max     { font-size: 14px; color: var(--txt3); font-weight: 400; }
+.rpm-verdict { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.rpm-sub     { font-size: 12px; color: var(--txt2); line-height: 1.5; margin-bottom: 10px; }
 .rpm-bar-track { height: 6px; border-radius: 3px; background: #050505; box-shadow: var(--nm-inset); margin-bottom: 8px; overflow: hidden; }
 .rpm-bar-fill  { height: 100%; border-radius: 3px; transition: width 1s ease, background 0.5s; }
 .rpm-factors { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }

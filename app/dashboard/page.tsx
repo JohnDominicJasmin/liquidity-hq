@@ -327,11 +327,11 @@ function EdgeSignals() {
   const cbCol  = cbPct == null ? 'var(--txt3)' : cbPct > 0.02 ? 'var(--green)' : cbPct < -0.02 ? 'var(--red)' : 'var(--txt2)';
   const cbBdr  = cbPct == null ? 'var(--bdr)'  : cbPct > 0.05 ? 'var(--green-bdr)' : cbPct < -0.05 ? 'var(--red-bdr)' : 'var(--bdr)';
   const cbSig  = cbPct == null ? 'Loading…'
-               : cbPct > 0.05  ? '🇺🇸 US institutional buying'
-               : cbPct > 0.01  ? 'CB slight premium'
-               : cbPct < -0.05 ? 'US selling — CB discount'
-               : cbPct < -0.01 ? 'CB slight discount'
-               : 'Neutral spread';
+               : cbPct > 0.05  ? '🇺🇸 US institutions buying'
+               : cbPct > 0.01  ? 'Slight US buying'
+               : cbPct < -0.05 ? '🇺🇸 US investors selling'
+               : cbPct < -0.01 ? 'Slight US selling'
+               : 'Neutral — no US demand edge';
 
   /* ── VWAP ── */
   const vwap  = coin?.vwap;
@@ -351,7 +351,7 @@ function EdgeSignals() {
       {/* Row 1: CB Premium + VWAP */}
       <div className="edge-grid">
         <div className="edge-card" style={{ borderColor: cbBdr }}>
-          <div className="edge-card-label">Coinbase Premium</div>
+          <div className="edge-card-label">US Buyer Demand <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--txt3)' }}>Coinbase vs Bybit price</span></div>
           <div className="edge-card-value" style={{ color: cbCol }}>
             {cbAmt != null
               ? (cbAmt >= 0 ? '+$' : '−$') + Math.abs(cbAmt).toFixed(1)
@@ -662,7 +662,7 @@ function GexTable() {
           <div className="gex-net-chip" style={{ color: 'var(--txt2)', background: 'transparent' }}>Fetching…</div>
         )}
         {btcMaxPain != null && (
-          <div className="gex-meta">Max pain: ${btcMaxPain.toLocaleString()}</div>
+          <div className="gex-meta">Max pain: ${btcMaxPain.toLocaleString()} <span style={{ fontWeight: 400, opacity: 0.6 }}>(price where most options expire worthless — acts as magnet)</span></div>
         )}
       </div>
 
@@ -699,8 +699,8 @@ function GexTable() {
           const regimeLabel = isLongGamma ? 'RANGING' : 'TRENDING';
           const regimeColor = isLongGamma ? '#34d399' : '#f87171';
           const regimeDesc  = isLongGamma
-            ? 'price pins & mean-reverts between levels'
-            : 'breakouts follow through, no fading';
+            ? 'price bounces between levels — expect reversals, avoid chasing'
+            : 'breakouts follow through — ride momentum, do not fade moves';
 
           return (
             <>
@@ -807,8 +807,9 @@ function CoinSignalsHeader() {
 }
 
 export default function Dashboard() {
-  const [cmdsOpen, setCmdsOpen]   = useState(false);
-  const [gexOpen,  setGexOpen]    = useState(true);
+  const [cmdsOpen, setCmdsOpen]         = useState(false);
+  const [gexOpen,  setGexOpen]          = useState(true);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const { settings, update } = useSettings();
   const hide = (id: string) => settings.hidden_sections.includes(id);
@@ -827,6 +828,24 @@ export default function Dashboard() {
 
       {/* ── Main content ── */}
       <div className="dash-main">
+        {/* First-time Beginner Mode banner */}
+        {beginnerMode && !bannerDismissed && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            background: 'rgba(52,211,153,0.08)', border: '0.5px solid rgba(52,211,153,0.25)',
+            borderRadius: 10, padding: '8px 12px', marginBottom: 10, gap: 10,
+          }}>
+            <span style={{ fontSize: 11, color: '#34d399', lineHeight: 1.5 }}>
+              <strong>Beginner Mode is on</strong> — advanced panels are hidden to keep things simple.
+              Toggle it off anytime to see GEX, Macro, and Cycle charts.
+            </span>
+            <button
+              onClick={() => setBannerDismissed(true)}
+              style={{ background: 'none', border: 'none', color: '#34d399', cursor: 'pointer', fontSize: 14, padding: '0 4px', flexShrink: 0 }}
+            >✕</button>
+          </div>
+        )}
+
         {/* Beginner / Pro mode toggle */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
           <button

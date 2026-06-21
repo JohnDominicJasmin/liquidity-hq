@@ -35,7 +35,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   rsi_os:           30,
   hidden_sections:  [],
   telegram_chat_id: '',
-  beginner_mode:    false,
+  beginner_mode:    true,
 };
 
 // Hideable dashboard section ids → display labels

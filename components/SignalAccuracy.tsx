@@ -91,7 +91,7 @@ export default function SignalAccuracy() {
             borderBottom: '0.5px solid rgba(255,255,255,0.05)',
             background: 'rgba(255,255,255,0.02)',
           }}>
-            {[['Signal', 'left'], ['TF', 'right'], ['Acc +3c', 'right'], ['Acc +6c', 'right'], ['Signals', 'right']].map(
+            {[['Signal', 'left'], ['TF', 'right'], ['Win Rate 12h', 'right'], ['Win Rate 24h', 'right'], ['Count', 'right']].map(
               ([h, align]) => (
                 <span key={h} style={{
                   fontSize: 9, fontWeight: 600, letterSpacing: '.07em',
@@ -126,7 +126,7 @@ export default function SignalAccuracy() {
                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--txt)' }}>{sig.label}</span>
                   </div>
                   <span style={{ fontSize: 9, color: '#444' }}>
-                    avg {sig.direction === 'long' ? '+' : ''}{sig.avgReturn6.toFixed(2)}% at +6c
+                    avg {sig.direction === 'long' ? '+' : ''}{sig.avgReturn6.toFixed(2)}% at 24h
                   </span>
                 </div>
 
@@ -158,7 +158,7 @@ export default function SignalAccuracy() {
           {/* Footer */}
           <div style={{ padding: '6px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)' }}>
             <span style={{ fontSize: 9, color: '#333' }}>
-              +3c = next 12 hours · +6c = next 24 hours · accuracy = % of signals where price moved in expected direction
+              Win Rate = % of signals where price moved in the expected direction after 12h or 24h
             </span>
           </div>
         </>
