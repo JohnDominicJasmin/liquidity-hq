@@ -804,7 +804,7 @@ function CoinSignalsHeader() {
 
 export default function Dashboard() {
   const [cmdsOpen, setCmdsOpen]   = useState(false);
-  const [gexOpen,  setGexOpen]    = useState(false);
+  const [gexOpen,  setGexOpen]    = useState(true);
 
   const { settings } = useSettings();
   const hide = (id: string) => settings.hidden_sections.includes(id);
