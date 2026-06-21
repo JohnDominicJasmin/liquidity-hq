@@ -3583,7 +3583,7 @@ body.landing {
 
 /* ── Setup Checklist (fixed bottom-right) ── */
 .ob-checklist {
-  position: fixed; bottom: 92px; right: 20px; z-index: 800;
+  position: fixed; bottom: 140px; right: 20px; z-index: 800;
   background: var(--bg1);
   border: 1px solid rgba(167,139,250,0.2);
   border-radius: 14px;
@@ -3649,5 +3649,5 @@ body.landing {
   .ob-modal { padding: 32px 20px 24px; border-radius: 16px; }
   .ob-step-icon { font-size: 40px; }
   .ob-step-title { font-size: 18px; }
-  .ob-checklist { right: 12px; bottom: 80px; width: 220px; }
+  .ob-checklist { right: 12px; bottom: 128px; width: 220px; }
 }

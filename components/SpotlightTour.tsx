@@ -69,7 +69,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
   }
 
   const tooltipH = 185;
-  const tooltipW = 300;
+  const tooltipW = Math.min(300, (typeof window !== 'undefined' ? window.innerWidth : 320) - 24);
   const tooltipAbove = rect
     ? rect.y + rect.height + PAD + 16 + tooltipH > window.innerHeight
     : false;
@@ -141,7 +141,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
           position: 'fixed',
           top: tooltipTop,
           left: tooltipLeft,
-          width: tooltipW,
+          width: tooltipW, maxWidth: 'calc(100vw - 24px)',
           background: 'var(--bg1)',
           border: '0.5px solid rgba(52,211,153,0.35)',
           borderRadius: 14,

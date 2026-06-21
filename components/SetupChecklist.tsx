@@ -7,7 +7,7 @@ import { useAuth } from './AuthProvider';
 const ITEMS = [
   { key: 'telegram'   as const, label: 'Connect Telegram alerts', icon: '🔔', href: '/alerts' },
   { key: 'priceAlert' as const, label: 'Set a price alert',       icon: '🎯', href: '/alerts' },
-  { key: 'grok'       as const, label: 'Run a Grok analysis',     icon: '🤖', href: '/arena'  },
+  { key: 'grok'       as const, label: 'Get an AI market analysis', icon: '🤖', href: '/arena'  },
   { key: 'coins'      as const, label: 'Explore the Arena',       icon: '🪙', href: '/arena'  },
 ];
 

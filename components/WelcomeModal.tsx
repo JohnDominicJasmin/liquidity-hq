@@ -96,6 +96,19 @@ export default function WelcomeModal({ onStartTour }: Props) {
             </div>
           </button>
         </div>
+
+        <button
+          onClick={() => markDone('tourSeen')}
+          style={{
+            background: 'none', border: 'none',
+            fontSize: 12, color: 'var(--txt3)',
+            cursor: 'pointer', marginTop: 16,
+            padding: '6px 0', width: '100%',
+            textDecoration: 'underline', textUnderlineOffset: 3,
+          }}
+        >
+          I will explore on my own
+        </button>
       </div>
     </div>
   );
