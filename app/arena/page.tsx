@@ -459,12 +459,12 @@ export default function Arena() {
     if (coin?.rsi1h != null) {
       if (coin.rsi1h >= settings.rsi_ob)
         fire(`rsi-ob-${selectedCoin}-${b2h}`,
-          `⚠ ${sym} RSI Overbought (1H)`,
-          `RSI 1H: ${coin.rsi1h.toFixed(0)} — Exhaustion zone. Avoid chasing longs, watch for reversal candle.`);
+          `⚠ ${sym} Momentum too high (1H)`,
+          `Momentum (RSI): ${coin.rsi1h.toFixed(0)} — Exhaustion zone. Avoid chasing longs, watch for reversal candle.`);
       else if (coin.rsi1h <= settings.rsi_os)
         fire(`rsi-os-${selectedCoin}-${b2h}`,
-          `⚠ ${sym} RSI Oversold (1H)`,
-          `RSI 1H: ${coin.rsi1h.toFixed(0)} — Bounce setup forming. Watch for volume spike + rejection candle.`);
+          `⚠ ${sym} Momentum too low (1H)`,
+          `Momentum (RSI): ${coin.rsi1h.toFixed(0)} — Bounce setup forming. Watch for volume spike + rejection candle.`);
     }
 
     /* 5 — Chart pattern detected (30 min cooldown) */

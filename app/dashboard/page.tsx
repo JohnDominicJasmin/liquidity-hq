@@ -726,7 +726,7 @@ function GexTable() {
       {gexLoaded && btcGexLevels.length > 0 && (
         <>
           <div className="gex-hdr">
-            <div>Strike</div><div>Gamma exposure</div><div>Net GEX</div>
+            <div>Strike</div><div>Gamma exposure</div><div>Options pressure</div>
           </div>
           {btcGexLevels.map(({ strike, gex }) => {
             const pct   = maxAbsGex > 0 ? Math.abs(gex) / maxAbsGex * 100 : 0;
