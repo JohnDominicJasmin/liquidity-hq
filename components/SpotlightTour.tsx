@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useOnboarding } from './OnboardingProvider';
 
 const STEPS = [
@@ -29,6 +29,8 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
   const { markDone } = useOnboarding();
   const [step, setStep] = useState(0);
   const [rect, setRect] = useState<Rect | null>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const [measuredH, setMeasuredH] = useState(185);
 
   const current = STEPS[step];
   const PAD = 14;
@@ -42,17 +44,32 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     const el = document.getElementById(current.id);
+    let fallback: ReturnType<typeof setTimeout> | undefined;
+    let onScrollEnd: (() => void) | undefined;
+
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setTimeout(updateRect, 350);
+      onScrollEnd = () => { clearTimeout(fallback); updateRect(); };
+      window.addEventListener('scrollend', onScrollEnd, { once: true });
+      fallback = setTimeout(() => {
+        if (onScrollEnd) window.removeEventListener('scrollend', onScrollEnd);
+        updateRect();
+      }, 600);
     }
+
     window.addEventListener('resize', updateRect);
     window.addEventListener('scroll', updateRect, true);
     return () => {
+      clearTimeout(fallback);
+      if (onScrollEnd) window.removeEventListener('scrollend', onScrollEnd);
       window.removeEventListener('resize', updateRect);
       window.removeEventListener('scroll', updateRect, true);
     };
   }, [step, current.id, updateRect]);
+
+  useEffect(() => {
+    if (tooltipRef.current) setMeasuredH(tooltipRef.current.offsetHeight);
+  }, [step, rect]);
 
   function advance() {
     if (step < STEPS.length - 1) {
@@ -68,7 +85,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
     onDone();
   }
 
-  const tooltipH = 185;
+  const tooltipH = measuredH;
   const tooltipW = Math.min(300, (typeof window !== 'undefined' ? window.innerWidth : 320) - 24);
   const tooltipAbove = rect
     ? rect.y + rect.height + PAD + 16 + tooltipH > window.innerHeight
@@ -137,7 +154,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
 
       {/* Step tooltip */}
       {rect && (
-        <div style={{
+        <div ref={tooltipRef} style={{
           position: 'fixed',
           top: tooltipTop,
           left: tooltipLeft,

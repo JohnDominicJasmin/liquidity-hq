@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import { useOnboarding } from './OnboardingProvider';
 import { useAuth } from './AuthProvider';
 import { useSettings } from '@/lib/settings';
@@ -11,10 +12,13 @@ export default function WelcomeModal({ onStartTour }: Props) {
   const { user } = useAuth();
   const { state, loaded, markDone } = useOnboarding();
   const { update } = useSettings();
+  const [choosing, setChoosing] = useState(false);
 
   if (!user || !loaded || state.tourSeen) return null;
 
   function choose(mode: 'learning' | 'experienced') {
+    if (choosing) return;
+    setChoosing(true);
     if (mode === 'learning') {
       update({ beginner_mode: true });
       onStartTour();
@@ -57,15 +61,17 @@ export default function WelcomeModal({ onStartTour }: Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <button
             onClick={() => choose('learning')}
+            disabled={choosing}
             aria-label="I am just getting started - enable beginner mode and take a quick tour"
             style={{
               background: 'rgba(52,211,153,0.08)',
               border: '1px solid rgba(52,211,153,0.3)',
               borderRadius: 8,
               padding: '16px 20px',
-              cursor: 'pointer',
+              cursor: choosing ? 'not-allowed' : 'pointer',
               textAlign: 'left',
-              transition: 'border-color 0.15s',
+              transition: 'border-color 0.15s, opacity 0.15s',
+              opacity: choosing ? 0.55 : 1,
             }}
           >
             <div style={{ fontSize: 14, fontWeight: 700, color: '#34d399', marginBottom: 4 }}>
@@ -78,14 +84,17 @@ export default function WelcomeModal({ onStartTour }: Props) {
 
           <button
             onClick={() => choose('experienced')}
+            disabled={choosing}
             aria-label="I know crypto trading - skip tour and show full dashboard"
             style={{
               background: 'rgba(255,255,255,0.03)',
               border: '1px solid var(--bdr)',
               borderRadius: 8,
               padding: '16px 20px',
-              cursor: 'pointer',
+              cursor: choosing ? 'not-allowed' : 'pointer',
               textAlign: 'left',
+              transition: 'opacity 0.15s',
+              opacity: choosing ? 0.55 : 1,
             }}
           >
             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--txt1)', marginBottom: 4 }}>
@@ -98,13 +107,15 @@ export default function WelcomeModal({ onStartTour }: Props) {
         </div>
 
         <button
-          onClick={() => markDone('tourSeen')}
+          onClick={() => { if (!choosing) { setChoosing(true); markDone('tourSeen'); } }}
+          disabled={choosing}
           style={{
             background: 'none', border: 'none',
             fontSize: 12, color: 'var(--txt3)',
-            cursor: 'pointer', marginTop: 16,
-            padding: '6px 0', width: '100%',
+            cursor: choosing ? 'not-allowed' : 'pointer',
+            marginTop: 16, padding: '6px 0', width: '100%',
             textDecoration: 'underline', textUnderlineOffset: 3,
+            opacity: choosing ? 0.55 : 1,
           }}
         >
           I will explore on my own
