@@ -1,6 +1,12 @@
 'use client';
+import MultiTFSqueezeView from '@/components/MultiTFSqueezeView';
 import SetupScanner from '@/components/SetupScanner';
 
 export default function ScannerPage() {
-  return <SetupScanner />;
+  return (
+    <div>
+      <MultiTFSqueezeView />
+      <SetupScanner />
+    </div>
+  );
 }
