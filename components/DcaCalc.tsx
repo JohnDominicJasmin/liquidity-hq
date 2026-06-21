@@ -61,28 +61,29 @@ export default function DcaCalc() {
           <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase' }}>Quantity</span>
           <span />
           {entries.map((e, i) => (
-            <>
-              <div key={`p${i}`} className="ps-irow">
+            <div key={i} style={{ display: 'contents' }}>
+              <div className="ps-irow">
                 <span className="ps-affix">$</span>
                 <input
                   className="ps-inp"
                   type="number"
+                  min="0"
                   placeholder="0.00"
                   value={e.price}
                   onChange={ev => setEntry(i, 'price', ev.target.value)}
                 />
               </div>
-              <div key={`q${i}`} className="ps-irow">
+              <div className="ps-irow">
                 <input
                   className="ps-inp"
                   type="number"
+                  min="0"
                   placeholder="0.00"
                   value={e.qty}
                   onChange={ev => setEntry(i, 'qty', ev.target.value)}
                 />
               </div>
               <button
-                key={`r${i}`}
                 onClick={() => removeEntry(i)}
                 disabled={entries.length <= 2}
                 style={{
@@ -92,7 +93,7 @@ export default function DcaCalc() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
               >×</button>
-            </>
+            </div>
           ))}
         </div>
         {entries.length < MAX_ENTRIES && (

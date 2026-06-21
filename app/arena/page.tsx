@@ -999,9 +999,9 @@ export default function Arena() {
       const rsi    = coin?.rsi14 ?? null;
       const fr     = coin?.fundingRate ?? null;
       const badges: string[] = [];
-      if (rsi != null && rsi >= 70)  badges.push('OB');
-      if (rsi != null && rsi <= 30)  badges.push('OS');
-      if (fr  != null && fr  < -0.0001) badges.push('Neg FR');
+      if (rsi != null && rsi >= 70)      badges.push('Overbought');
+      if (rsi != null && rsi <= 30)      badges.push('Oversold');
+      if (fr  != null && fr  < -0.0001) badges.push('Neg. Funding');
       if (vsBtc != null && vsBtc >= 2)  badges.push('Beats BTC');
       if (vsBtc != null && vsBtc <= -2) badges.push('Lags BTC');
       return {
@@ -1191,8 +1191,8 @@ export default function Arena() {
                       {badges.length > 0 ? (
                         <div style={{ display: 'flex', gap: 3, marginTop: 2, flexWrap: 'wrap' }}>
                           {badges.map(b => {
-                            const isGood = b === 'Beats BTC' || b === 'OS';
-                            const isBad  = b === 'Lags BTC'  || b === 'OB' || b === 'Neg FR';
+                            const isGood = b === 'Beats BTC' || b === 'Oversold';
+                            const isBad  = b === 'Lags BTC'  || b === 'Overbought' || b === 'Neg. Funding';
                             const col = isGood ? '#34d399' : isBad ? '#f87171' : '#fbbf24';
                             return (
                               <span key={b} style={{

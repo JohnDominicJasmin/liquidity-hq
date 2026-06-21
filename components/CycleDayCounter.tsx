@@ -1,5 +1,5 @@
 'use client';
-import { useMemo } from 'react';
+import { useState, useEffect } from 'react';
 
 // Bitcoin halving dates (block timestamps)
 const HALVINGS = [
@@ -24,8 +24,13 @@ function daysUntil(date: Date): number {
 
 export default function CycleDayCounter() {
   const latest = HALVINGS[HALVINGS.length - 1];
-  const day = useMemo(() => daysSince(latest.date), [latest.date]);
-  const daysToNext = useMemo(() => daysUntil(NEXT_HALVING_EST), []);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60 * 60 * 1000); // refresh hourly
+    return () => clearInterval(id);
+  }, []);
+  const day        = Math.floor((now - latest.date.getTime()) / 86_400_000);
+  const daysToNext = Math.ceil((NEXT_HALVING_EST.getTime() - now) / 86_400_000);
 
   const inPeakWindow = day >= PEAK_WINDOW.start && day <= PEAK_WINDOW.end;
   const pastPeak     = day > PEAK_WINDOW.end;
@@ -108,6 +113,12 @@ export default function CycleDayCounter() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <span style={{ fontSize: 10, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Days in peak zone</span>
             <span style={{ fontSize: 14, fontWeight: 700, color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>{day - PEAK_WINDOW.start}</span>
+          </div>
+        )}
+        {pastPeak && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span style={{ fontSize: 10, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Days past peak zone</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>{day - PEAK_WINDOW.end}</span>
           </div>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
