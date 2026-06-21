@@ -233,7 +233,33 @@ function Inner() {
       if (t.result === 'WIN') bySetup[s].wins++;
     });
 
-    return { winRate, totalPnL, avgR, total: trades.length, closed: closed.length, wins, losses, byCoin, bySetup };
+    // Streaks — sort closed by created_at ascending
+    const chronological = [...closed].sort((a, b) =>
+      (a.created_at ?? '') < (b.created_at ?? '') ? -1 : 1
+    );
+    let curStreak = 0, curDir: 'W' | 'L' | null = null;
+    let bestWin = 0, bestLoss = 0;
+    const cumPnL: { idx: number; value: number }[] = [];
+    let running = 0;
+    for (let i = 0; i < chronological.length; i++) {
+      const t = chronological[i];
+      running += t.pnl_usd ?? 0;
+      cumPnL.push({ idx: i, value: running });
+
+      const isWin = t.result === 'WIN';
+      const dir: 'W' | 'L' = isWin ? 'W' : 'L';
+      if (dir === curDir) {
+        curStreak++;
+      } else {
+        curDir = dir;
+        curStreak = 1;
+      }
+      if (isWin && curStreak > bestWin)  bestWin  = curStreak;
+      if (!isWin && curStreak > bestLoss) bestLoss = curStreak;
+    }
+    const streak = { current: curStreak, dir: curDir, bestWin, bestLoss };
+
+    return { winRate, totalPnL, avgR, total: trades.length, closed: closed.length, wins, losses, byCoin, bySetup, streak, cumPnL };
   }, [trades]);
 
   /* No Supabase */
@@ -583,7 +609,53 @@ function Inner() {
                     <span style={{ color: '#f87171' }}>{stats.losses}L</span>
                   </div>
                 </div>
+                <div className="tj-stat">
+                  <div className="tj-stat-lbl">Current Streak</div>
+                  <div className="tj-stat-val" style={{ color: stats.streak.dir === 'W' ? '#34d399' : stats.streak.dir === 'L' ? '#f87171' : 'var(--txt3)' }}>
+                    {stats.streak.dir === 'W' ? `${stats.streak.current}W` : stats.streak.dir === 'L' ? `${stats.streak.current}L` : '—'}
+                  </div>
+                </div>
+                <div className="tj-stat">
+                  <div className="tj-stat-lbl">Best Win Streak</div>
+                  <div className="tj-stat-val" style={{ color: '#34d399' }}>{stats.streak.bestWin}W</div>
+                </div>
               </div>
+
+              {/* P&L Equity Curve */}
+              {stats.cumPnL.length >= 2 && (() => {
+                const pts  = stats.cumPnL;
+                const minV = Math.min(0, ...pts.map(p => p.value));
+                const maxV = Math.max(0, ...pts.map(p => p.value));
+                const range = maxV - minV || 1;
+                const W = 300, H = 56, PAD = 4;
+                const x = (i: number) => PAD + (i / (pts.length - 1)) * (W - PAD * 2);
+                const y = (v: number) => H - PAD - ((v - minV) / range) * (H - PAD * 2);
+                const polyline = pts.map((p, i) => `${x(i)},${y(p.value)}`).join(' ');
+                const lastV    = pts[pts.length - 1].value;
+                const lineCol  = lastV >= 0 ? '#34d399' : '#f87171';
+                const zeroY    = y(0);
+                return (
+                  <div className="tj-breakdown" style={{ marginBottom: 0 }}>
+                    <div className="tj-breakdown-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Equity Curve</span>
+                      <span style={{ color: lastV >= 0 ? '#34d399' : '#f87171', fontWeight: 700 }}>
+                        {lastV >= 0 ? '+' : ''}{lastV.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 60, display: 'block' }}>
+                      {/* Zero baseline */}
+                      <line x1={PAD} y1={zeroY} x2={W - PAD} y2={zeroY} stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+                      {/* Curve fill */}
+                      <polyline
+                        points={`${x(0)},${zeroY} ${polyline} ${x(pts.length - 1)},${zeroY}`}
+                        fill={lineCol + '18'} stroke="none"
+                      />
+                      {/* Curve line */}
+                      <polyline points={polyline} fill="none" stroke={lineCol} strokeWidth="1.5" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                );
+              })()}
 
               {Object.keys(stats.byCoin).length > 0 && (
                 <div className="tj-breakdown">

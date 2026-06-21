@@ -120,8 +120,9 @@ const CD: Record<string, number> = {
   fng:       23 * 3600_000,   // Fear & Greed extreme (once per day)
   daily:     23 * 3600_000,   // Daily 7am summary
   sentiment:  4 * 3600_000,   // Sentiment Extremes — all 3 indicators aligned
-  squeeze:    4 * 3600_000,   // Squeeze/Flush threshold alert per coin per direction
-  ema_setup:  6 * 3600_000,   // EMA ribbon strategy — all conditions green
+  squeeze:      4 * 3600_000,   // Squeeze/Flush threshold alert per coin per direction
+  ema_setup:    6 * 3600_000,   // EMA ribbon strategy — all conditions green
+  fr_threshold: 2 * 3600_000,   // Per-user custom FR threshold alert
 };
 
 /* ── Concurrency limiter — runs tasks in chunks to avoid ETIMEDOUT under Render free tier ── */
@@ -1331,6 +1332,66 @@ async function checkEMASetup(
 }
 
 /* ════════════════════════════════════════
+   18. PER-USER CUSTOM FUNDING RATE THRESHOLD
+   Fires per-user when any coin's |FR| >= their fr_threshold setting.
+   ════════════════════════════════════════ */
+async function checkFRThreshold(
+  token: string, stamp: string,
+  frMap: Record<string, number | null>,
+): Promise<string[]> {
+  const fired: string[] = [];
+  try {
+    const admin = getSupabaseAdmin();
+    const { data } = await admin
+      .from(T.user_settings)
+      .select('user_id, telegram_chat_id, fr_threshold')
+      .not('telegram_chat_id', 'is', null)
+      .neq('telegram_chat_id', '');
+    if (!data?.length) return fired;
+
+    for (const row of data) {
+      const chatId   = (row.telegram_chat_id as string)?.trim();
+      const userId   = row.user_id as string;
+      const threshold = typeof row.fr_threshold === 'number' ? row.fr_threshold : 0.05;
+      if (!chatId) continue;
+
+      for (const coin of COINS) {
+        const fr = frMap[coin];
+        if (fr == null) continue;
+        const pctAbs = Math.abs(fr) * 100;
+        if (pctAbs < threshold) continue;
+
+        const key = `fr_thr_${userId}_${coin}`;
+        if (onCooldown(key, CD.fr_threshold)) continue;
+
+        const label  = LABELS[coin];
+        const pct    = (fr * 100).toFixed(4);
+        const sign   = fr >= 0 ? '+' : '';
+        const isLong = fr > 0;
+        const signal = isLong
+          ? 'Longs are overextended — shorts are being paid to hold'
+          : 'Shorts are overextended — potential squeeze, longs being paid';
+        const action = isLong
+          ? 'Caution on new longs. Watch for long liquidation cascade.'
+          : 'Watch for violent short squeeze. Avoid new shorts near support.';
+
+        const msg =
+          `📊 <b>Funding Rate Alert — ${label}/USDT</b>\n\n` +
+          `Rate: <b>${sign}${pct}%</b>  (Your threshold: ${threshold}%)\n` +
+          `Signal: ${signal}\n` +
+          `Action: ${action}\n\n` +
+          `<i>${stamp}</i>`;
+
+        await tg(token, chatId, msg);
+        markSent(key);
+        fired.push(`${label} FR threshold alert (${sign}${pct}%) → ${userId.slice(0, 8)}`);
+      }
+    }
+  } catch { /* admin not configured — skip */ }
+  return fired;
+}
+
+/* ════════════════════════════════════════
    MAIN HANDLER
    ════════════════════════════════════════ */
 /* Muted alert groups — set on /alerts page, stored in Supabase. Fail-open. */
@@ -1424,6 +1485,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     skip('sentiment_extremes') ? none : checkSentimentExtremes(token, chatId, stamp, frMap), // global — sends directly
     skip('squeeze')            ? none : checkSqueezeAlerts(stamp, frMap, lsMap, signalQueue),
     skip('ema_setup')          ? none : checkEMASetup(stamp, frMap, signalQueue),
+    skip('fr_threshold')       ? none : checkFRThreshold(token, stamp, frMap),
   ]);
 
   // Flush: single signals → send as-is, 2+ same coin → confluence alert
@@ -1435,7 +1497,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   return NextResponse.json({
     ok: true, fired,
     muted: [...muted],
-    checked: ['FR extremes', 'FR flip', 'RSI', 'RSI 50 cross', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'EMA Ribbon Setup'],
+    checked: ['FR extremes', 'FR flip', 'RSI', 'RSI 50 cross', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'EMA Ribbon Setup', 'FR threshold (per-user)'],
     coins: COINS.length,
     session: nyActive ? 'NY/Pre-NY (high activity)' : 'Asia/London',
     cooldowns: { whale: `${CD.whale / 60_000}min`, news: `${CD.news / 60_000}min` },
