@@ -1146,7 +1146,7 @@ export default function Arena() {
               borderBottom: '0.5px solid rgba(255,255,255,0.06)',
               background: 'rgba(255,255,255,0.02)',
             }}>
-              {[['Name', 'left'], ['Price', 'right'], ['24h', 'right'], ['vs BTC', 'right'], ['Status', 'right'], ['Scr', 'right']].map(([h, align]) => (
+              {[['Name', 'left'], ['Price', 'right'], ['24h', 'right'], ['vs BTC', 'right'], ['Status', 'right'], ['Score', 'right']].map(([h, align]) => (
                 <span key={h} style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: '#333', textAlign: align as 'left' | 'right' }}>{h}</span>
               ))}
             </div>
