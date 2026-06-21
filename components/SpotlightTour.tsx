@@ -12,8 +12,8 @@ const STEPS = [
   {
     id: 'tour-best-setup',
     emoji: '🏆',
-    title: "See what is setting up",
-    body: "The Setup of the Day shows the single best trade opportunity right now. One clear answer - not 12 things to figure out.",
+    title: 'See what is setting up',
+    body: 'The Setup of the Day shows the single best trade opportunity right now. One clear answer - not 12 things to figure out.',
   },
   {
     id: 'tour-coin-signals',
@@ -68,7 +68,6 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
     onDone();
   }
 
-  // Tooltip placement: prefer below, fall back to above
   const tooltipH = 185;
   const tooltipW = 300;
   const tooltipAbove = rect
@@ -84,13 +83,15 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
     : 0;
 
   return (
-    <>
-      {/* Dark overlay with spotlight hole */}
+    <div role="dialog" aria-modal="true" aria-label={`Tour step ${step + 1} of ${STEPS.length}: ${current.title}`}>
+      {/* Dark overlay with spotlight hole — opacity fades in once rect is ready */}
       <svg
         style={{
           position: 'fixed', top: 0, left: 0,
           width: '100%', height: '100%',
           zIndex: 9000, pointerEvents: 'none',
+          opacity: rect ? 1 : 0,
+          transition: 'opacity 0.2s ease',
         }}
         xmlns="http://www.w3.org/2000/svg"
       >
@@ -129,6 +130,8 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
           boxShadow: '0 0 24px rgba(52,211,153,0.25)',
           zIndex: 9001,
           pointerEvents: 'none',
+          opacity: 1,
+          transition: 'opacity 0.2s ease',
         }} />
       )}
 
@@ -159,7 +162,8 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
               style={{
                 background: 'none', border: 'none',
                 fontSize: 11, color: 'var(--txt3)',
-                cursor: 'pointer', padding: 0,
+                cursor: 'pointer', padding: '8px 4px',
+                minHeight: 44,
               }}
             >
               Skip tour
@@ -187,6 +191,6 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

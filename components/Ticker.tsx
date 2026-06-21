@@ -3,11 +3,11 @@ import { useMarket } from '@/lib/marketStore';
 import { COINS, CoinId, COIN_DEC, fmtPrice, fmtChg, fmtVol, classifyFunding } from '@/lib/marketStore';
 
 function VolRatioText({ ratio }: { ratio: number | null | undefined }) {
-  if (ratio == null) return <div className="ticker-vol">15m: loading...</div>;
-  if (ratio >= 2.0) return <div className={`ticker-vol vol-spike`}>15m: {ratio.toFixed(1)}x avg 🔥</div>;
-  if (ratio >= 1.4) return <div className={`ticker-vol vol-spike`}>15m: {ratio.toFixed(1)}x avg ↑</div>;
-  if (ratio <= 0.5) return <div className={`ticker-vol vol-dry`}>15m: {ratio.toFixed(1)}x avg ↓</div>;
-  return <div className="ticker-vol">15m: {ratio.toFixed(1)}x avg</div>;
+  if (ratio == null) return <div className="ticker-vol">Vol: loading...</div>;
+  if (ratio >= 2.0) return <div className={`ticker-vol vol-spike`}>Vol: {ratio.toFixed(1)}x normal 🔥</div>;
+  if (ratio >= 1.4) return <div className={`ticker-vol vol-spike`}>Vol: {ratio.toFixed(1)}x normal ↑</div>;
+  if (ratio <= 0.5) return <div className={`ticker-vol vol-dry`}>Vol: {ratio.toFixed(1)}x normal ↓</div>;
+  return <div className="ticker-vol">Vol: {ratio.toFixed(1)}x normal</div>;
 }
 
 export default function Ticker() {
@@ -46,12 +46,12 @@ export default function Ticker() {
                 )}
                 {fund && (
                   <div className={`ticker-fund ${fund.cls}`}>
-                    FR: {d!.fundingRate! >= 0 ? '+' : ''}{(d!.fundingRate! * 100).toFixed(4)}%
+                    Funding: {d!.fundingRate! >= 0 ? '+' : ''}{(d!.fundingRate! * 100).toFixed(4)}%
                   </div>
                 )}
                 {d?.oi != null && (
                   <div className="ticker-fund" style={{ color: '#606060' }}>
-                    OI: {d.oi >= 1e9 ? '$' + (d.oi / 1e9).toFixed(2) + 'B' : '$' + (d.oi / 1e6).toFixed(1) + 'M'}
+                    Open Int: {d.oi >= 1e9 ? '$' + (d.oi / 1e9).toFixed(2) + 'B' : '$' + (d.oi / 1e6).toFixed(1) + 'M'}
                   </div>
                 )}
                 {d?.vol24 != null && (
@@ -67,7 +67,7 @@ export default function Ticker() {
                   <div className="ticker-vol" style={{
                     color: d.oiTrend === 'strong_up' ? '#34d399' : d.oiTrend === 'strong_down' ? '#f87171' : '#fbbf24',
                   }}>
-                    OI: {d.oiTrend === 'strong_up' ? '↑↑ real' : d.oiTrend === 'strong_down' ? '↑↓ real' : d.oiTrend === 'weak_up' ? '↓↑ weak' : '↓↓ weak'}
+                    OI: {d.oiTrend === 'strong_up' ? '↑↑ real longs' : d.oiTrend === 'strong_down' ? '↑↓ real shorts' : d.oiTrend === 'weak_up' ? '↓↑ short cover' : '↓↓ long exit'}
                   </div>
                 )}
                 {d?.takerBuyRatio != null && (() => {
@@ -76,7 +76,7 @@ export default function Ticker() {
                   const lbl = bp >= 65 ? `${bp}% buy ▲` : bp <= 35 ? `${100 - bp}% sell ▼` : `${bp}% / ${100 - bp}%`;
                   return (
                     <div className="ticker-vol" style={{ color: col }}>
-                      TKR: {lbl}
+                      Buy/Sell: {lbl}
                     </div>
                   );
                 })()}

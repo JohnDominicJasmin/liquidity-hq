@@ -25,13 +25,18 @@ export default function WelcomeModal({ onStartTour }: Props) {
   }
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0,
-      background: 'rgba(0,0,0,0.88)',
-      zIndex: 10000,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 20,
-    }}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Choose your experience"
+      style={{
+        position: 'fixed', inset: 0,
+        background: 'rgba(0,0,0,0.88)',
+        zIndex: 10000,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 20,
+      }}
+    >
       <div style={{
         background: 'var(--bg1)',
         border: '0.5px solid var(--bdr)',
@@ -52,6 +57,7 @@ export default function WelcomeModal({ onStartTour }: Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <button
             onClick={() => choose('learning')}
+            aria-label="I am just getting started - enable beginner mode and take a quick tour"
             style={{
               background: 'rgba(52,211,153,0.08)',
               border: '1px solid rgba(52,211,153,0.3)',
@@ -72,6 +78,7 @@ export default function WelcomeModal({ onStartTour }: Props) {
 
           <button
             onClick={() => choose('experienced')}
+            aria-label="I know crypto trading - skip tour and show full dashboard"
             style={{
               background: 'rgba(255,255,255,0.03)',
               border: '1px solid var(--bdr)',
