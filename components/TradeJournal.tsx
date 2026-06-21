@@ -246,6 +246,8 @@ function Inner() {
       running += t.pnl_usd ?? 0;
       cumPnL.push({ idx: i, value: running });
 
+      // BE trades are neutral — skip them for streak tracking
+      if (t.result === 'BE') continue;
       const isWin = t.result === 'WIN';
       const dir: 'W' | 'L' = isWin ? 'W' : 'L';
       if (dir === curDir) {
@@ -617,7 +619,9 @@ function Inner() {
                 </div>
                 <div className="tj-stat">
                   <div className="tj-stat-lbl">Best Win Streak</div>
-                  <div className="tj-stat-val" style={{ color: '#34d399' }}>{stats.streak.bestWin}W</div>
+                  <div className="tj-stat-val" style={{ color: stats.streak.bestWin > 0 ? '#34d399' : 'var(--txt3)' }}>
+                    {stats.streak.bestWin > 0 ? `${stats.streak.bestWin}W` : '—'}
+                  </div>
                 </div>
               </div>
 

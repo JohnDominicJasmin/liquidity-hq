@@ -11,7 +11,7 @@ export default function BtcRiskLevel() {
   const { store } = useMarket();
   const fng    = store.fng;
   const btcDom = store.btcDom;
-  const btcRsi = store.coins['btc']?.rsiDaily ?? store.coins['btc']?.rsi14 ?? null;
+  const btcRsi = store.coins['btc']?.rsiDaily ?? null;
   const btcFr  = store.coins['btc']?.fundingRate ?? null;
 
   let total = 0, maxPossible = 0;

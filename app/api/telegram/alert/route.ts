@@ -1352,7 +1352,7 @@ async function checkFRThreshold(
     for (const row of data) {
       const chatId   = (row.telegram_chat_id as string)?.trim();
       const userId   = row.user_id as string;
-      const threshold = typeof row.fr_threshold === 'number' ? row.fr_threshold : 0.05;
+      const threshold = typeof row.fr_threshold === 'number' && row.fr_threshold > 0 ? row.fr_threshold : 0.05;
       if (!chatId) continue;
 
       for (const coin of COINS) {
