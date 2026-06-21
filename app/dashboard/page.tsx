@@ -152,8 +152,8 @@ function CoinSidebar() {
           if (fr >= 0.04)       sig = { text: 'Longs overcrowded', col: '#f87171' };
           else if (fr <= -0.02) sig = { text: 'Shorts squeezed',   col: '#34d399' };
         }
-        if (!sig && d?.cvdDivergence === 'bullish') sig = { text: 'CVD bull div',  col: '#34d399' };
-        if (!sig && d?.cvdDivergence === 'bearish') sig = { text: 'CVD bear div',  col: '#f87171' };
+        if (!sig && d?.cvdDivergence === 'bullish') sig = { text: 'Smart buyers active', col: '#34d399' };
+        if (!sig && d?.cvdDivergence === 'bearish') sig = { text: 'Smart sellers active', col: '#f87171' };
         if (!sig && d?.oiTrend === 'strong_up')     sig = { text: 'OI + new longs',  col: '#34d399' };
         if (!sig && d?.oiTrend === 'strong_down')   sig = { text: 'OI + new shorts', col: '#f87171' };
         if (!sig && d?.chartPattern) {
@@ -170,7 +170,11 @@ function CoinSidebar() {
         // Last resort: show FR value if it's non-zero
         if (!sig && d?.fundingRate != null && d.fundingRate !== 0) {
           const fr = d.fundingRate * 100;
-          sig = { text: (fr >= 0 ? '+' : '') + fr.toFixed(4) + '% FR', col: 'var(--txt3)' };
+          if      (fr >= 0.05)   sig = { text: 'Funding HIGH',    col: '#f87171' };
+          else if (fr >= 0.01)   sig = { text: 'Funding MILD+',   col: '#fca5a5' };
+          else if (fr <= -0.03)  sig = { text: 'Funding LOW',     col: '#34d399' };
+          else if (fr <= -0.005) sig = { text: 'Funding MILD-',   col: '#86efac' };
+          else                   sig = { text: 'Funding NEUTRAL',  col: 'var(--txt3)' };
         }
 
         // Bar color based on buy pressure
@@ -362,7 +366,7 @@ function EdgeSignals() {
         </div>
 
         <div className="edge-card" style={{ borderColor: vwapBdr }}>
-          <div className="edge-card-label">VWAP · {store.selectedCoin.toUpperCase()}</div>
+          <div className="edge-card-label">VWAP · {store.selectedCoin.toUpperCase()} <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--txt3)' }}>avg daily price</span></div>
           {/* Show LIVE price as the hero number */}
           <div className="edge-card-value" style={{ color: vwapCol, fontSize: 15 }}>
             {price != null
@@ -391,7 +395,7 @@ function EdgeSignals() {
         {/* OI Trend — selected coin */}
         <div ref={tipRef} className="edge-card" style={{ borderColor: oiBdr }}>
           <div className="edge-card-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            OI · {store.selectedCoin.toUpperCase()}
+            Open Interest · {store.selectedCoin.toUpperCase()}
             <span
               className="oi-info-icon"
               onClick={e => { e.stopPropagation(); setTipOpen(o => !o); }}
@@ -519,7 +523,7 @@ function EdgeSignals() {
           <div className="edge-grid">
             {/* OI 1h Change */}
             <div className="edge-card" style={{ borderColor: oi1hBdr }}>
-              <div className="edge-card-label">OI 1h · {store.selectedCoin.toUpperCase()}</div>
+              <div className="edge-card-label">OI Change (1h) · {store.selectedCoin.toUpperCase()}</div>
               <div className="edge-card-value" style={{ color: oi1hCol }}>
                 {oi1h.loading ? '—' : oi1hPctStr}
               </div>
@@ -727,7 +731,7 @@ function GexTable() {
               <div key={strike} className={`gex-row${isAtm ? ' gex-row-atm' : ''}`}>
                 <div className="gex-strike" style={isAtm ? { color: 'var(--txt)' } : {}}>
                   ${strike >= 1000 ? (strike / 1000).toFixed(0) + 'K' : strike}
-                  {isAtm && <span style={{ fontSize: 10, color: 'var(--txt3)', marginLeft: 4 }}>ATM</span>}
+                  {isAtm && <span style={{ fontSize: 10, color: 'var(--txt3)', marginLeft: 4 }}>← current price</span>}
                 </div>
                 <div className="gex-bar-wrap">
                   <div className="gex-bar-fill" style={{ width: `${pct}%`, background: col }} />
@@ -806,8 +810,9 @@ export default function Dashboard() {
   const [cmdsOpen, setCmdsOpen]   = useState(false);
   const [gexOpen,  setGexOpen]    = useState(true);
 
-  const { settings } = useSettings();
+  const { settings, update } = useSettings();
   const hide = (id: string) => settings.hidden_sections.includes(id);
+  const beginnerMode = settings.beginner_mode;
 
   return (
     <div className="dashboard-grid">
@@ -822,6 +827,22 @@ export default function Dashboard() {
 
       {/* ── Main content ── */}
       <div className="dash-main">
+        {/* Beginner / Pro mode toggle */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+          <button
+            onClick={() => update({ beginner_mode: !beginnerMode })}
+            style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+              padding: '4px 12px', borderRadius: 20, cursor: 'pointer',
+              border: '0.5px solid ' + (beginnerMode ? '#34d399' : 'var(--bdr)'),
+              background: beginnerMode ? 'rgba(52,211,153,0.12)' : 'transparent',
+              color: beginnerMode ? '#34d399' : 'var(--txt3)',
+            }}
+          >
+            {beginnerMode ? '● Beginner Mode ON' : '○ Beginner Mode'}
+          </button>
+        </div>
+
         {/* Mobile-only ticker + market indicators (desktop shows in sidebar) */}
         <div className="mobile-only">
           <div className="dash-section">Live prices</div>
@@ -862,39 +883,41 @@ export default function Dashboard() {
         {!hide('session') && <SessionContext />}
 
         {/* 5b. Cycle Day counter — cycle position reference */}
-        <div style={{ marginBottom: 12 }}><CycleDayCounter /></div>
+        {!beginnerMode && <div style={{ marginBottom: 12 }}><CycleDayCounter /></div>}
 
         {/* 5c. BTC Risk Level — composite market risk score */}
-        <div style={{ marginBottom: 12 }}><BtcRiskLevel /></div>
+        {!beginnerMode && <div style={{ marginBottom: 12 }}><BtcRiskLevel /></div>}
 
         {/* 5d. Cycle Comparison chart */}
-        <CycleChart />
+        {!beginnerMode && <CycleChart />}
 
         {/* 6. Catalysts & market events */}
         {!hide('catalysts') && <NewsBanner />}
 
         {/* GEX + Macro: shown inline on mobile/tablet, hidden when right panel is visible */}
-        <div className="hide-on-desktop">
-          {!hide('gex') && <>
-            <div
-              className="dash-section"
-              style={{ cursor: 'pointer', userSelect: 'none' }}
-              onClick={() => setGexOpen(o => !o)}
-            >
-              Gamma exposure
-              <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
-                {gexOpen ? '▲ hide' : '▼ show'}
-              </span>
-            </div>
-            {gexOpen && <GexTable />}
-          </>}
-          {!hide('macro') && <>
-            <div className="dash-section">Macro correlations</div>
-            <MacroStrip />
-          </>}
-        </div>
+        {!beginnerMode && (
+          <div className="hide-on-desktop">
+            {!hide('gex') && <>
+              <div
+                className="dash-section"
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => setGexOpen(o => !o)}
+              >
+                Gamma exposure
+                <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
+                  {gexOpen ? '▲ hide' : '▼ show'}
+                </span>
+              </div>
+              {gexOpen && <GexTable />}
+            </>}
+            {!hide('macro') && <>
+              <div className="dash-section">Macro correlations</div>
+              <MacroStrip />
+            </>}
+          </div>
+        )}
 
-        {!hide('commandments') && <>
+        {!beginnerMode && !hide('commandments') && <>
           <div
             className="dash-section"
             style={{ cursor: 'pointer', userSelect: 'none' }}
@@ -924,19 +947,28 @@ export default function Dashboard() {
 
       {/* ── Right panel (desktop ≥1100px only) ── */}
       <aside className="dash-right">
-        <div
-          className="dash-section"
-          style={{ marginTop: 0, marginBottom: 8, cursor: 'pointer', userSelect: 'none' }}
-          onClick={() => setGexOpen(o => !o)}
-        >
-          Gamma exposure
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
-            {gexOpen ? '▲ hide' : '▼ show'}
-          </span>
-        </div>
-        {gexOpen && <GexTable />}
-        <div className="dash-section" style={{ marginBottom: 8 }}>Macro</div>
-        <MacroStrip />
+        {beginnerMode ? (
+          <div style={{ padding: '20px 14px', fontSize: 12, color: 'var(--txt3)', textAlign: 'center', lineHeight: 1.6 }}>
+            Advanced panels hidden in Beginner Mode.<br />
+            <span style={{ fontSize: 11 }}>Toggle off above to see GEX and Macro.</span>
+          </div>
+        ) : (
+          <>
+            <div
+              className="dash-section"
+              style={{ marginTop: 0, marginBottom: 8, cursor: 'pointer', userSelect: 'none' }}
+              onClick={() => setGexOpen(o => !o)}
+            >
+              Gamma exposure
+              <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
+                {gexOpen ? '▲ hide' : '▼ show'}
+              </span>
+            </div>
+            {gexOpen && <GexTable />}
+            <div className="dash-section" style={{ marginBottom: 8 }}>Macro</div>
+            <MacroStrip />
+          </>
+        )}
       </aside>
 
     </div>

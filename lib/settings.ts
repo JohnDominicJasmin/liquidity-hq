@@ -19,6 +19,8 @@ export interface UserSettings {
   hidden_sections:  string[];
   // Telegram — per-user chat ID (empty string = not connected)
   telegram_chat_id: string;
+  // View mode
+  beginner_mode:    boolean;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -33,6 +35,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   rsi_os:           30,
   hidden_sections:  [],
   telegram_chat_id: '',
+  beginner_mode:    false,
 };
 
 // Hideable dashboard section ids → display labels
@@ -110,5 +113,6 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
     rsi_os:           +(row.rsi_os          ?? DEFAULT_SETTINGS.rsi_os),
     hidden_sections:  (row.hidden_sections  as string[]) ?? DEFAULT_SETTINGS.hidden_sections,
     telegram_chat_id: String(row.telegram_chat_id ?? ''),
+    beginner_mode:    !!(row.beginner_mode ?? false),
   };
 }
