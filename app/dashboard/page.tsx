@@ -154,8 +154,8 @@ function CoinSidebar() {
         }
         if (!sig && d?.cvdDivergence === 'bullish') sig = { text: 'Smart buyers active', col: '#34d399' };
         if (!sig && d?.cvdDivergence === 'bearish') sig = { text: 'Smart sellers active', col: '#f87171' };
-        if (!sig && d?.oiTrend === 'strong_up')     sig = { text: 'OI + new longs',  col: '#34d399' };
-        if (!sig && d?.oiTrend === 'strong_down')   sig = { text: 'OI + new shorts', col: '#f87171' };
+        if (!sig && d?.oiTrend === 'strong_up')     sig = { text: 'New buyers opening',  col: '#34d399' };
+        if (!sig && d?.oiTrend === 'strong_down')   sig = { text: 'New sellers opening', col: '#f87171' };
         if (!sig && d?.chartPattern) {
           const isBull = /bull|higher high|engulf.*bull|hammer(?! man)|double bot/i.test(d.chartPattern);
           const isBear = /bear|lower high|engulf.*bear|shooting|double top/i.test(d.chartPattern);
@@ -165,16 +165,16 @@ function CoinSidebar() {
           else if (label)   sig = { text: label, col: 'var(--txt3)' }; // neutral: doji, consolidation, etc.
         }
         // Weak OI trends as fallback
-        if (!sig && d?.oiTrend === 'weak_up')   sig = { text: 'Short covering',   col: '#fbbf24' };
-        if (!sig && d?.oiTrend === 'weak_down')  sig = { text: 'Long exits',       col: '#94a3b8' };
+        if (!sig && d?.oiTrend === 'weak_up')   sig = { text: 'Shorts closing (weak up)',   col: '#fbbf24' };
+        if (!sig && d?.oiTrend === 'weak_down')  sig = { text: 'Buyers taking profit',       col: '#94a3b8' };
         // Last resort: show FR value if it's non-zero
         if (!sig && d?.fundingRate != null && d.fundingRate !== 0) {
           const fr = d.fundingRate * 100;
-          if      (fr >= 0.05)   sig = { text: 'Funding HIGH',    col: '#f87171' };
-          else if (fr >= 0.01)   sig = { text: 'Funding MILD+',   col: '#fca5a5' };
-          else if (fr <= -0.03)  sig = { text: 'Funding LOW',     col: '#34d399' };
-          else if (fr <= -0.005) sig = { text: 'Funding MILD-',   col: '#86efac' };
-          else                   sig = { text: 'Funding NEUTRAL',  col: 'var(--txt3)' };
+          if      (fr >= 0.05)   sig = { text: 'Funding very high',      col: '#f87171' };
+          else if (fr >= 0.01)   sig = { text: 'Funding slightly high',  col: '#fca5a5' };
+          else if (fr <= -0.03)  sig = { text: 'Funding very low',       col: '#34d399' };
+          else if (fr <= -0.005) sig = { text: 'Funding slightly low',   col: '#86efac' };
+          else                   sig = { text: 'Funding neutral',         col: 'var(--txt3)' };
         }
 
         // Bar color based on buy pressure
@@ -541,7 +541,10 @@ function EdgeSignals() {
               <div className="edge-card-value" style={{ color: sqCol }}>
                 {sq.score}<span style={{ fontSize: 11, color: 'var(--txt3)', fontWeight: 400 }}>/100</span>
               </div>
-              <div className="edge-card-signal" style={{ color: sqCol }}>{sq.label}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: sqCol, marginBottom: 2 }}>
+                {sq.score >= 70 ? 'Strong Setup' : sq.score >= 45 ? 'Moderate Setup' : 'No Clear Setup'}
+              </div>
+              <div className="edge-card-signal" style={{ color: 'var(--txt3)', fontSize: 10 }}>{sq.label}</div>
             </div>
           </div>
         );
@@ -650,7 +653,7 @@ function GexTable() {
     <div className="gex-table">
       {/* Title + net GEX chip */}
       <div className="gex-title-row">
-        <div className="gex-title">🔬 BTC Gamma Exposure (GEX)</div>
+        <div className="gex-title">🔬 BTC Options Market Pressure <span style={{ fontSize: 10, fontWeight: 400, opacity: 0.5 }}>(GEX)</span></div>
         {gexLoaded ? (
           <div
             className="gex-net-chip"
@@ -749,7 +752,7 @@ function GexTable() {
           {btcGexFlip != null && (
             <div>
               Zero-gamma flip: <span>${btcGexFlip.toLocaleString()}</span>
-              <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> — break {(btcGexFlip < (spotPrice || btcGexFlip)) ? 'below' : 'above'} = vol acceleration</span>
+              <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> — break {(btcGexFlip < (spotPrice || btcGexFlip)) ? 'below' : 'above'} = options market becomes unpredictable, big moves likely</span>
             </div>
           )}
           {btcGexLevels.length > 0 && (() => {
@@ -877,7 +880,7 @@ export default function Dashboard() {
 
         {/* 2. Best play right now — answer up top, not buried */}
         {!hide('best_setup') && <>
-          <div className="dash-section dash-section-hot">Best Setup Now</div>
+          <div className="dash-section dash-section-hot">Best Setup Today</div>
           <SOTD />
         </>}
 

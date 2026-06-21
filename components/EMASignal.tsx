@@ -41,7 +41,7 @@ export default function EMASignal({ signal, tf = '4h' }: Props) {
             EMA Ribbon Strategy
           </div>
           <div style={{ fontSize: 10, color: '#444' }}>
-            Triple EMA 9/20/50 · {tf.toUpperCase()} chart · 200 SMA daily filter
+            3 moving averages (fast/mid/slow) · {tf.toUpperCase()} chart · daily trend filter
           </div>
         </div>
         <span style={{
@@ -123,10 +123,10 @@ export default function EMASignal({ signal, tf = '4h' }: Props) {
           paddingTop: 8,
           borderTop: '0.5px solid var(--bdr)',
         }}>
-          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>EMA9 <b style={{ color: '#fbbf24' }}>${fmt(signal.ema9_4h)}</b></span>
-          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>EMA20 <b style={{ color: '#60a5fa' }}>${fmt(signal.ema20_4h ?? null)}</b></span>
-          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>EMA50 <b style={{ color: '#f97316' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
-          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>SMA200 (1D) <b style={{ color: '#a78bfa' }}>${fmt(signal.sma200_1d ?? null)}</b></span>
+          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Fast avg <b style={{ color: '#fbbf24' }}>${fmt(signal.ema9_4h)}</b></span>
+          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Mid avg <b style={{ color: '#60a5fa' }}>${fmt(signal.ema20_4h ?? null)}</b></span>
+          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Slow avg <b style={{ color: '#f97316' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
+          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Daily trend <b style={{ color: '#a78bfa' }}>${fmt(signal.sma200_1d ?? null)}</b></span>
         </div>
       )}
 

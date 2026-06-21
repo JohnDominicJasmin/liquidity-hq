@@ -265,7 +265,7 @@ export function useEMAStrategy(
                 : `Not aligned — ribbon tangled`,
           },
           {
-            label: 'EMA 9/20 Cross',
+            label: 'Trend Signal (fast/slow cross)',
             pass:  above200D ? ema9 > ema20 : ema9 < ema20,
             detail: above200D
               ? (ema9 > ema20

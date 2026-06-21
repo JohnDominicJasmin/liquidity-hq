@@ -123,7 +123,7 @@ export default function MultiTFSqueezeView() {
         display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
       }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
-          Multi-Timeframe Squeeze View
+          Multi-Timeframe Squeeze Scanner
         </span>
         {totalSqz > 0 && (
           <span style={{

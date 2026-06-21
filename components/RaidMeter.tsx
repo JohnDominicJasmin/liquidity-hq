@@ -80,7 +80,10 @@ export default function RaidMeter() {
         <div className="rpm-header">
           <div className="rpm-title-row">
             <div className="rpm-pulse" />
-            <div className="rpm-title">Raid Probability Meter</div>
+            <div>
+              <div className="rpm-title">Raid Probability Meter</div>
+              <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 2 }}>Is now a good time to trade?</div>
+            </div>
           </div>
           <div className="rpm-score-wrap">
             <div className={`rpm-score ${rpm.col}`}>{rpm.total}</div>
