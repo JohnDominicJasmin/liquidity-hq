@@ -46,15 +46,15 @@ export default function DrawdownChart() {
 
   const rows = COINS
     .map(c => {
-      const entry = ath?.[c];
-      const price = store.coins[c]?.price ?? null;
+      const entry    = ath?.[c];
+      const curPrice = store.coins[c]?.price ?? null;
       const drawdown = entry?.drawdownPct ?? null;
-      return { c, price, drawdown, ath: entry?.ath ?? null, athDate: entry?.athDate ?? null };
+      return { c, curPrice, drawdown, ath: entry?.ath ?? null, athDate: entry?.athDate ?? null };
     })
     .filter(r => r.drawdown != null)
     .sort((a, b) => (a.drawdown ?? 0) - (b.drawdown ?? 0)); // most drawdown first
 
-  const nearAth = rows.filter(r => Math.abs(r.drawdown!) < 10).length;
+  const nearAth = rows.filter(r => Math.abs(r.drawdown!) < 20).length;
 
   return (
     <div style={{
@@ -86,13 +86,17 @@ export default function DrawdownChart() {
       )}
 
       {/* Bar chart rows */}
+      {ath && rows.length === 0 && (
+        <div style={{ padding: '20px 14px', fontSize: 12, color: '#444' }}>No drawdown data available.</div>
+      )}
+
       {ath && rows.length > 0 && (
         <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 7 }}>
-          {rows.map(({ c, drawdown, ath: athPrice, athDate }) => {
+          {rows.map(({ c, curPrice, drawdown, ath: athPrice, athDate }) => {
             const absDd  = Math.abs(drawdown!);
             const barPct = Math.min(100, absDd);
             const col    = drawdownColor(drawdown!);
-            const isNear = absDd < 5;
+            const isNear = absDd < 20;
             return (
               <div key={c}>
                 {/* Coin label + values */}
@@ -103,9 +107,14 @@ export default function DrawdownChart() {
                   <span style={{ fontSize: 12, fontWeight: 800, color: col, fontVariantNumeric: 'tabular-nums', minWidth: 52 }}>
                     {drawdown!.toFixed(1)}%
                   </span>
+                  {curPrice != null && (
+                    <span style={{ fontSize: 9, color: '#555', fontVariantNumeric: 'tabular-nums' }}>
+                      {fmtPrice(curPrice)}
+                    </span>
+                  )}
                   {athPrice != null && (
                     <span style={{ fontSize: 9, color: '#444', fontVariantNumeric: 'tabular-nums' }}>
-                      ATH {fmtPrice(athPrice)}
+                      → ATH {fmtPrice(athPrice)}
                     </span>
                   )}
                   {athDate && (

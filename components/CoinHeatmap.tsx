@@ -46,8 +46,8 @@ export default function CoinHeatmap() {
       return cb - ca;
     });
 
-  const positiveCount = coins.filter(x => (x.coin?.change ?? 0) >= 0).length;
-  const negativeCount = coins.filter(x => (x.coin?.change ?? 0) < 0).length;
+  const positiveCount = coins.filter(x => x.coin?.change != null && x.coin.change >= 0).length;
+  const negativeCount = coins.filter(x => x.coin?.change != null && x.coin.change < 0).length;
 
   return (
     <div style={{
@@ -114,6 +114,7 @@ export default function CoinHeatmap() {
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
                 border: `0.5px solid ${text}22`,
                 transition: 'background .2s',
+                cursor: 'default',
               }}
             >
               <span style={{ fontSize: 11, fontWeight: 800, color: text, letterSpacing: '.04em' }}>

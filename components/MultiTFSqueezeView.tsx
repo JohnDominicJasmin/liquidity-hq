@@ -19,29 +19,37 @@ function computeTFSignal(
 
   let flushScore = 0;
   let sqzScore   = 0;
+  let rsiFlush   = 0;
+  let rsiSqz     = 0;
 
-  // RSI is the primary per-timeframe signal
-  if      (rsi >= 75) flushScore += 55;
-  else if (rsi >= 70) flushScore += 40;
-  else if (rsi >= 65) flushScore += 22;
-  else if (rsi >= 60) flushScore += 10;
-  else if (rsi <= 25) sqzScore   += 55;
-  else if (rsi <= 30) sqzScore   += 40;
-  else if (rsi <= 35) sqzScore   += 22;
-  else if (rsi <= 40) sqzScore   += 10;
+  // RSI is the primary per-timeframe signal — must contribute for a cell to be active
+  if      (rsi >= 75) { rsiFlush = 55; }
+  else if (rsi >= 70) { rsiFlush = 40; }
+  else if (rsi >= 65) { rsiFlush = 22; }
+  else if (rsi >= 60) { rsiFlush = 10; }
+  else if (rsi <= 25) { rsiSqz   = 55; }
+  else if (rsi <= 30) { rsiSqz   = 40; }
+  else if (rsi <= 35) { rsiSqz   = 22; }
+  else if (rsi <= 40) { rsiSqz   = 10; }
 
-  // FR confirms direction (not TF-specific but adds conviction)
+  flushScore += rsiFlush;
+  sqzScore   += rsiSqz;
+
+  // RSI must have contributed — FR and L/S only amplify an existing RSI signal
+  if (rsiFlush === 0 && rsiSqz === 0) return { dir: 'NEUTRAL', strength: 0, rsi };
+
+  // FR amplifies in the direction RSI already points
   if (fr != null) {
     const pct = fr * 100;
-    if      (pct >= 0.05)  flushScore += 25;
-    else if (pct >= 0.02)  flushScore += 15;
-    else if (pct >= 0.01)  flushScore += 7;
-    else if (pct <= -0.03) sqzScore   += 25;
-    else if (pct <= -0.015) sqzScore  += 15;
-    else if (pct <= -0.005) sqzScore  += 7;
+    if      (pct >= 0.05)   flushScore += 25;
+    else if (pct >= 0.02)   flushScore += 15;
+    else if (pct >= 0.01)   flushScore += 7;
+    else if (pct <= -0.03)  sqzScore   += 25;
+    else if (pct <= -0.015) sqzScore   += 15;
+    else if (pct <= -0.005) sqzScore   += 7;
   }
 
-  // L/S ratio confirms direction
+  // L/S ratio amplifies in the direction RSI already points
   if (longRatio != null && shortRatio != null) {
     if      (longRatio  >= 0.65) flushScore += 20;
     else if (longRatio  >= 0.58) flushScore += 10;
@@ -51,8 +59,8 @@ function computeTFSignal(
 
   const dominant = Math.max(flushScore, sqzScore);
   const dir: TFDir =
-    flushScore > sqzScore && dominant >= 20 ? 'FLUSH' :
-    sqzScore > flushScore && dominant >= 20 ? 'SQUEEZE' :
+    flushScore > sqzScore ? 'FLUSH' :
+    sqzScore > flushScore ? 'SQUEEZE' :
     'NEUTRAL';
 
   return { dir, strength: Math.min(100, dominant), rsi };
@@ -70,7 +78,7 @@ function cellColors(sig: TFSignal): { bg: string; text: string; border: string }
   };
 }
 
-const TF_LABELS = ['15 min', '1 Hour', '4 Hour', '1 Day'] as const;
+const TF_LABELS = ['15 Min', '1 Hour', '4 Hour', '1 Day'] as const;
 
 export default function MultiTFSqueezeView() {
   const { store } = useMarket();
@@ -88,13 +96,12 @@ export default function MultiTFSqueezeView() {
       computeTFSignal(coin?.rsiDaily ?? null, fr, lr, sr),
     ];
 
-    const sq     = computeSqueezeScore(coin);
-    const aligns = tfs.filter(t => t.dir !== 'NEUTRAL');
+    const sq         = computeSqueezeScore(coin);
     const flushCount = tfs.filter(t => t.dir === 'FLUSH').length;
     const sqzCount   = tfs.filter(t => t.dir === 'SQUEEZE').length;
     const confluence = Math.max(flushCount, sqzCount); // 0-4 aligned TFs
 
-    return { c, coin, tfs, sq, confluence, flushCount, sqzCount, aligns };
+    return { c, coin, tfs, sq, confluence, flushCount, sqzCount };
   }).sort((a, b) => {
     // Sort by highest confluence first, then by squeeze score
     if (b.confluence !== a.confluence) return b.confluence - a.confluence;
@@ -144,7 +151,7 @@ export default function MultiTFSqueezeView() {
         {TF_LABELS.map(tf => (
           <span key={tf} style={{ ...hdrStyle, textAlign: 'center' }}>{tf}</span>
         ))}
-        <span style={{ ...hdrStyle, textAlign: 'right' }}>Score</span>
+        <span style={{ ...hdrStyle, textAlign: 'right' }}>Squeeze</span>
       </div>
 
       {/* Coin rows */}
