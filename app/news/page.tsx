@@ -61,6 +61,56 @@ function askGrok(headline: string) {
   }));
 }
 
+/* ── BTC sentiment from headline keywords ── */
+type BtcSentiment = 'bullish' | 'bearish' | 'neutral';
+
+function getBtcSentiment(headline: string): BtcSentiment {
+  const h = headline.toLowerCase();
+  const bearishKw = [
+    'crash','dump','plunge','collapse','decline','drop','fall','slump',
+    'ban','banned','restriction','crackdown','sanction',
+    'hack','exploit','theft','stolen','robbery','kidnapping','arrested',
+    'controversy','flaw','underperform','suspicious','warning','risk',
+    'tightening','rate hike','hawkish','inflation rise','pressured',
+    'war','attack','conflict','missile','invasion','airstrike',
+    'lawsuit','charges','seized','fraud','scam',
+    'bearish','bear market','sell-off','liquidation wave','weakening',
+  ];
+  const bullishKw = [
+    'rally','surge','pump','breakout','record','all-time high','ath',
+    'buy','bought','purchase','accumulate','inflow','flows into','flowing into','returns to crypto',
+    'etf approved','approval','approved','adoption','launch',
+    'institutional','strategic reserve',
+    'rate cut','dovish','easing',
+    'saylor','microstrategy','blackrock buys','grayscale',
+    'bullish','bull run','upside','relief rally',
+    'super pac','crypto-friendly','pro-crypto','crypto pac',
+  ];
+  for (const kw of bearishKw) if (h.includes(kw)) return 'bearish';
+  for (const kw of bullishKw) if (h.includes(kw)) return 'bullish';
+  return 'neutral';
+}
+
+function SentimentBadge({ headline }: { headline: string }) {
+  const s = getBtcSentiment(headline);
+  const cfg = s === 'bullish'
+    ? { bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)',   color: '#34d399', label: 'BTC Bullish ↗' }
+    : s === 'bearish'
+    ? { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)',  color: '#f87171', label: 'BTC Bearish ↘' }
+    : { bg: 'rgba(148,163,184,0.08)', border: 'rgba(148,163,184,0.2)',  color: '#64748b', label: 'BTC Neutral'   };
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      padding: '2px 7px', borderRadius: 20,
+      background: cfg.bg, border: `0.5px solid ${cfg.border}`,
+      fontSize: 10, color: cfg.color, fontWeight: 700,
+      letterSpacing: '.02em', lineHeight: 1.6, whiteSpace: 'nowrap',
+    }}>
+      {cfg.label}
+    </span>
+  );
+}
+
 /* ── Source color map ── */
 const SOURCE_COLORS: Record<string, string> = {
   'Reuters':          '#f59e0b',
@@ -153,6 +203,7 @@ function HeroCard({ a }: { a: AlertItem }) {
               {label}
             </span>
             <SourcePill source={a.source} />
+            <SentimentBadge headline={a.headline} />
             {note && <ImpactChip note={note} color={cfg.dot} />}
           </div>
           <span className="ncard-meta">{timeAgo(a.ts)}</span>
@@ -203,6 +254,7 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <span className="ncard-type-badge" style={{ color: cfg.dot }}>{label}</span>
               <SourcePill source={a.source} />
+              <SentimentBadge headline={a.headline} />
             </div>
             <span className="ncard-meta">{timeAgo(a.ts)}</span>
           </div>
