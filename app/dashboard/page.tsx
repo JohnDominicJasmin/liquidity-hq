@@ -15,6 +15,7 @@ import OISpikeScanner from '@/components/OISpikeScanner';
 import SentimentExtremesAlert from '@/components/SentimentExtremesAlert';
 import CycleDayCounter from '@/components/CycleDayCounter';
 import BtcRiskLevel from '@/components/BtcRiskLevel';
+import CycleChart from '@/components/CycleChart';
 
 function MacroStrip() {
   const { store } = useMarket();
@@ -865,6 +866,9 @@ export default function Dashboard() {
 
         {/* 5c. BTC Risk Level — composite market risk score */}
         <div style={{ marginBottom: 12 }}><BtcRiskLevel /></div>
+
+        {/* 5d. Cycle Comparison chart */}
+        <CycleChart />
 
         {/* 6. Catalysts & market events */}
         {!hide('catalysts') && <NewsBanner />}
