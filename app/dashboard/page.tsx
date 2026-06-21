@@ -16,6 +16,9 @@ import SentimentExtremesAlert from '@/components/SentimentExtremesAlert';
 import CycleDayCounter from '@/components/CycleDayCounter';
 import BtcRiskLevel from '@/components/BtcRiskLevel';
 import CycleChart from '@/components/CycleChart';
+import WelcomeModal from '@/components/WelcomeModal';
+import SpotlightTour from '@/components/SpotlightTour';
+import SetupChecklist from '@/components/SetupChecklist';
 
 function MacroStrip() {
   const { store } = useMarket();
@@ -813,6 +816,7 @@ export default function Dashboard() {
   const [cmdsOpen, setCmdsOpen]         = useState(false);
   const [gexOpen,  setGexOpen]          = useState(true);
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [showTour, setShowTour]         = useState(false);
 
   const { settings, update } = useSettings();
   const hide = (id: string) => settings.hidden_sections.includes(id);
@@ -820,6 +824,9 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-grid">
+      <WelcomeModal onStartTour={() => setShowTour(true)} />
+      {showTour && <SpotlightTour onDone={() => setShowTour(false)} />}
+      <SetupChecklist />
 
       {/* ── Left sticky sidebar (desktop only) ── */}
       <aside className="dash-sidebar">
@@ -876,13 +883,13 @@ export default function Dashboard() {
         </div>
 
         {/* 1. Gate: is now a good time to trade? */}
-        {!hide('raid_meter') && <RaidMeter />}
+        {!hide('raid_meter') && <div id="tour-raidmeter"><RaidMeter /></div>}
 
         {/* 2. Best play right now — answer up top, not buried */}
-        {!hide('best_setup') && <>
+        {!hide('best_setup') && <div id="tour-best-setup">
           <div className="dash-section dash-section-hot">Best Setup Today</div>
           <SOTD />
-        </>}
+        </div>}
 
         {/* 3. Cascade alert — contextual, only renders when active */}
         {!hide('cascade') && <CascadeAlertBanner />}
@@ -891,12 +898,12 @@ export default function Dashboard() {
         <SentimentExtremesAlert />
 
         {/* 4. Coin signals — confirm the setup */}
-        {!hide('coin_signals') && <>
+        {!hide('coin_signals') && <div id="tour-coin-signals">
           <CoinSignalsHeader />
           <EdgeSignals />
           <SmartMoneyScore />
           <OISpikeScanner />
-        </>}
+        </div>}
 
         {/* ── Context divider — separates live signals from timing/macro reference ── */}
         <div className="dash-ctx-sep" />
