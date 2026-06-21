@@ -67,7 +67,7 @@ export default function Ticker() {
                   <div className="ticker-vol" style={{
                     color: d.oiTrend === 'strong_up' ? '#34d399' : d.oiTrend === 'strong_down' ? '#f87171' : '#fbbf24',
                   }}>
-                    OI: {d.oiTrend === 'strong_up' ? '↑↑ real longs' : d.oiTrend === 'strong_down' ? '↑↓ real shorts' : d.oiTrend === 'weak_up' ? '↓↑ short cover' : '↓↓ long exit'}
+                    {d.oiTrend === 'strong_up' ? '↑↑ real longs' : d.oiTrend === 'strong_down' ? '↑↓ real shorts' : d.oiTrend === 'weak_up' ? '↓↑ short cover' : '↓↓ long exit'}
                   </div>
                 )}
                 {d?.takerBuyRatio != null && (() => {

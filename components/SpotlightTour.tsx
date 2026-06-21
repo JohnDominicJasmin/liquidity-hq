@@ -169,9 +169,17 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
               Skip tour
             </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 10, color: 'var(--txt3)' }}>
-                {step + 1} / {STEPS.length}
-              </span>
+              <div style={{ display: 'flex', gap: 5 }}>
+                {STEPS.map((_, i) => (
+                  <div key={i} style={{
+                    width: i === step ? 16 : 6,
+                    height: 6,
+                    borderRadius: 3,
+                    background: i === step ? '#34d399' : 'rgba(255,255,255,0.2)',
+                    transition: 'width 0.2s ease, background 0.2s ease',
+                  }} />
+                ))}
+              </div>
               <button
                 onClick={advance}
                 style={{

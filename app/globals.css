@@ -3585,7 +3585,7 @@ body.landing {
 .ob-checklist {
   position: fixed; bottom: 140px; right: 20px; z-index: 800;
   background: var(--bg1);
-  border: 1px solid rgba(167,139,250,0.2);
+  border: 0.5px solid rgba(167,139,250,0.3);
   border-radius: 14px;
   width: 244px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.45);

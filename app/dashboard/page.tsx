@@ -544,7 +544,7 @@ function EdgeSignals() {
               <div className="edge-card-value" style={{ color: sqCol }}>
                 {sq.score}<span style={{ fontSize: 11, color: 'var(--txt3)', fontWeight: 400 }}>/100</span>
               </div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: sqCol, marginBottom: 2 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: sqCol, marginBottom: 2 }}>
                 {sq.score >= 70 ? 'Strong Setup' : sq.score >= 45 ? 'Moderate Setup' : 'No Clear Setup'}
               </div>
               <div className="edge-card-signal" style={{ color: 'var(--txt3)', fontSize: 10 }}>{sq.label}</div>

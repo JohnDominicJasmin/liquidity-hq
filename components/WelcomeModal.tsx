@@ -40,7 +40,7 @@ export default function WelcomeModal({ onStartTour }: Props) {
       <div style={{
         background: 'var(--bg1)',
         border: '0.5px solid var(--bdr)',
-        borderRadius: 18,
+        borderRadius: 14,
         padding: '36px 28px',
         maxWidth: 420,
         width: '100%',
@@ -61,7 +61,7 @@ export default function WelcomeModal({ onStartTour }: Props) {
             style={{
               background: 'rgba(52,211,153,0.08)',
               border: '1px solid rgba(52,211,153,0.3)',
-              borderRadius: 12,
+              borderRadius: 8,
               padding: '16px 20px',
               cursor: 'pointer',
               textAlign: 'left',
@@ -82,7 +82,7 @@ export default function WelcomeModal({ onStartTour }: Props) {
             style={{
               background: 'rgba(255,255,255,0.03)',
               border: '1px solid var(--bdr)',
-              borderRadius: 12,
+              borderRadius: 8,
               padding: '16px 20px',
               cursor: 'pointer',
               textAlign: 'left',

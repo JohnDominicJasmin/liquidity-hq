@@ -50,7 +50,7 @@ export default function SetupChecklist() {
               className={`ob-cl-row${done ? ' done' : ''}`}
               onClick={() => !done && router.push(item.href)}
               role={done ? undefined : 'button'}
-              tabIndex={done ? undefined : 0}
+              tabIndex={done ? -1 : 0}
               onKeyDown={e => !done && e.key === 'Enter' && router.push(item.href)}
             >
               <span className="ob-cl-chk">{done ? '✓' : '○'}</span>
