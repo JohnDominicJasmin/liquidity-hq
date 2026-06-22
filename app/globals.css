@@ -1306,11 +1306,14 @@ body.ticker-on .breaking-alert { top: 90px; }
   background: linear-gradient(135deg, rgba(167,139,250,0.22), rgba(139,92,246,0.18));
   border: 0.5px solid var(--purple-bdr);
   box-shadow: 0 4px 24px rgba(0,0,0,0.8), var(--glow-purple);
-  cursor: pointer; transition: all 0.2s;
+  cursor: pointer; transition: opacity 0.15s, transform 0.15s, box-shadow 0.2s, background 0.2s, border-color 0.2s;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
 }
 .gchat-fab:hover { box-shadow: 0 6px 32px rgba(0,0,0,0.9), 0 0 30px rgba(167,139,250,0.2); transform: scale(1.04); }
 .gchat-fab-open { background: var(--bg2); border-color: var(--bdr2); color: var(--txt3); box-shadow: 0 4px 24px rgba(0,0,0,0.8); }
+/* Scroll-hide: applied by JS on mobile only (window.innerWidth check in component) */
+.gchat-fab-scrolling { opacity: 0; transform: scale(0.75) translateY(8px); pointer-events: none; }
+
 
 /* ── backdrop (expanded mode) ── */
 .gchat-backdrop {

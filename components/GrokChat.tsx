@@ -278,12 +278,31 @@ export default function GrokChat() {
   const [convos,     setConvos]     = useState<SavedConvo[]>([]);
   const currentIdRef                = useRef<string>(genId());
 
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef  = useRef<HTMLTextAreaElement>(null);
-  const msgsRef   = useRef<HTMLDivElement>(null);
+  const [fabVisible,    setFabVisible]    = useState(true);
+
+  const bottomRef      = useRef<HTMLDivElement>(null);
+  const inputRef       = useRef<HTMLTextAreaElement>(null);
+  const msgsRef        = useRef<HTMLDivElement>(null);
+  const scrollTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* ── Load history on mount ── */
   useEffect(() => { setConvos(loadHistory()); }, []);
+
+  /* ── Hide FAB while scrolling (mobile only) ── */
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const onScroll = () => {
+      if (!mq.matches || open) return;
+      setFabVisible(false);
+      if (scrollTimer.current) clearTimeout(scrollTimer.current);
+      scrollTimer.current = setTimeout(() => setFabVisible(true), 400);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (scrollTimer.current) clearTimeout(scrollTimer.current);
+    };
+  }, [open]);
 
   /* ── Fetch usage on mount (when signed in) ── */
   useEffect(() => {
@@ -505,7 +524,7 @@ export default function GrokChat() {
 
       {/* ── Floating action button ── */}
       <button
-        className={`gchat-fab${open ? ' gchat-fab-open' : ''}`}
+        className={`gchat-fab${open ? ' gchat-fab-open' : ''}${!fabVisible ? ' gchat-fab-scrolling' : ''}`}
         onClick={() => { setOpen(v => !v); if (open) { setExpanded(false); setShowLoginModal(false); } }}
         title={open ? 'Close chat' : 'Ask Grok'}
         aria-label={open ? 'Close Grok chat' : 'Open Grok chat'}
