@@ -227,7 +227,7 @@ export default function AlertsPage() {
     ]},
     { section: 'Price & Summary', items: [
       { key: 'price_alerts',  dot: '#c084fc', title: 'Price Level Alerts', desc: 'Your saved price targets · fires once then deactivates', grok: true },
-      { key: 'daily_summary', dot: '#fbbf24', title: 'Daily 7am Summary',  desc: 'FR snapshot + F&G + active price alerts + LiquidityAI outlook · once daily at 7am PHT', grok: true },
+      { key: 'daily_summary', dot: '#fbbf24', title: 'Daily 7am Summary',  desc: 'FR snapshot + F&G + active price alerts + LiquidityAI outlook · once daily at 7am UTC', grok: true },
     ]},
   ];
 

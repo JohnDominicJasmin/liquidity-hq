@@ -71,9 +71,9 @@ function timeAgo(ts: number): string {
   return Math.floor(s / 3600) + 'h ago';
 }
 
-function toPHT(dt: Date): string {
+function toLocalTime(dt: Date): string {
   try {
-    return dt.toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' }) + ' PHT';
+    return dt.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   } catch {
     return dt.toISOString();
   }
@@ -179,7 +179,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
             const h = (dt.getTime() - now.getTime()) / 3600000;
             if (h < -24) return [];
             seen.add(key);
-            return [{ name: e.name, type: e.type, impact: e.impact, dt, h, dateStr: toPHT(dt), previous: e.previous, estimate: e.estimate, actual: e.actual }];
+            return [{ name: e.name, type: e.type, impact: e.impact, dt, h, dateStr: toLocalTime(dt), previous: e.previous, estimate: e.estimate, actual: e.actual }];
           })
           .sort((a, b) => a.dt.getTime() - b.dt.getTime());
         setEconEvents(events);

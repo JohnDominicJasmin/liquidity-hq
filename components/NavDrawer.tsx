@@ -10,10 +10,9 @@ import { getCurrentWindow } from '@/lib/session';
 
 /* ── Session pill ──────────────────────────────────────────────────────────── */
 function pad2(n: number) { return String(n).padStart(2, '0'); }
-function phtNow() { return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })); }
 function findEndsInMs(nowMs: number, name: string): number {
   for (let t = nowMs + 60_000; t < nowMs + 6 * 3600_000; t += 60_000) {
-    const w = getCurrentWindow(new Date(new Date(t).toLocaleString('en-US', { timeZone: 'Asia/Manila' })));
+    const w = getCurrentWindow(new Date(t));
     if (!w || w.name !== name) return t - nowMs;
   }
   return 6 * 3600_000;
@@ -24,7 +23,7 @@ function SessionPill() {
     const id = setInterval(() => setNowMs(Date.now()), 60_000);
     return () => clearInterval(id);
   }, []);
-  const win = getCurrentWindow(phtNow());
+  const win = getCurrentWindow(new Date(nowMs));
   if (!win) return null;
   const endsMs = findEndsInMs(nowMs, win.name);
   const h = Math.floor(endsMs / 3_600_000);

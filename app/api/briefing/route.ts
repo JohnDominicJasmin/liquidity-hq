@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
-const SYSTEM = `You are a concise pre-session market briefing assistant for a solo retail crypto futures trader (PHT timezone, Asia/Manila).
+const SYSTEM = `You are a concise pre-session market briefing assistant for a solo retail crypto futures trader.
 
 Write exactly 3 short paragraphs:
 1. Overall market conditions and sentiment right now

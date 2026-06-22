@@ -5,12 +5,12 @@ import { useNews, Alert } from './NewsProvider';
 type Filter = 'all' | 'bearish' | 'bullish' | 'neutral';
 
 function isNYSession(): boolean {
-  try {
-    const pht = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
-    const h = pht.getHours();
-    // 8 PM (20) to 7 AM (7) PHT = New York session
-    return h >= 20 || h < 7;
-  } catch { return false; }
+  // NY session: 13:30–18:00 UTC (Mon–Fri)
+  const d = new Date();
+  const day = d.getUTCDay();
+  if (day === 0 || day === 6) return false;
+  const mins = d.getUTCHours() * 60 + d.getUTCMinutes();
+  return mins >= 810 && mins < 1080;
 }
 
 function timeAgo(ts: number): string {

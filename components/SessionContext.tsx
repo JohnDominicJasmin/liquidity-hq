@@ -16,16 +16,10 @@ function fmtMs(ms: number): string {
   return `${sec}s`;
 }
 
-function phtNow(): Date {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
-}
-
 function findNextSession(nowMs: number) {
   const limit = nowMs + 8 * 24 * 3600_000;
   for (let t = nowMs + 60_000; t < limit; t += 60_000) {
-    const w = getCurrentWindow(
-      new Date(new Date(t).toLocaleString('en-US', { timeZone: 'Asia/Manila' }))
-    );
+    const w = getCurrentWindow(new Date(t));
     if (w) return { win: w, startsInMs: t - nowMs };
   }
   return null;
@@ -33,9 +27,7 @@ function findNextSession(nowMs: number) {
 
 function findSessionEndMs(nowMs: number, name: string): number {
   for (let t = nowMs + 60_000; t < nowMs + 6 * 3600_000; t += 60_000) {
-    const w = getCurrentWindow(
-      new Date(new Date(t).toLocaleString('en-US', { timeZone: 'Asia/Manila' }))
-    );
+    const w = getCurrentWindow(new Date(t));
     if (!w || w.name !== name) return t - nowMs;
   }
   return 6 * 3600_000;
@@ -52,9 +44,9 @@ export default function SessionContext() {
 
   // ── Session ──────────────────────────────────────────────────
   const { current, dead, next, endsInMs, nextInMs } = useMemo(() => {
-    const pht     = phtNow();
-    const current = getCurrentWindow(pht);
-    const dead    = isDead(pht);
+    const now     = new Date(nowMs);
+    const current = getCurrentWindow(now);
+    const dead    = isDead(now);
     const next    = findNextSession(nowMs);
     const endsInMs = current ? findSessionEndMs(nowMs, current.name) : 0;
     const nextInMs = next?.startsInMs ?? 0;

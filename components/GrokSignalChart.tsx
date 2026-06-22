@@ -57,7 +57,7 @@ export default function GrokSignalChart({ coin: coinProp, tf }: { coin?: string;
     `&hide_top_toolbar=0`,
     `&save_image=0`,
     `&allow_symbol_change=0`,
-    `&timezone=${encodeURIComponent('Asia/Manila')}`,
+    `&timezone=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`,
   ].join('');
 
   /* ── Fullscreen toggle ── */

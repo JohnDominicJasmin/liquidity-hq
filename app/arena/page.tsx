@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMarket, classifyFunding, CoinId, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
 import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcRSI, callGrokViaProxy, fetchGrokUsage, GrokUsageInfo } from '@/lib/grok';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
-import { getPHT, getSessionName } from '@/lib/session';
+import { getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
@@ -132,8 +132,8 @@ const ARENA_RESULTS_KEY = 'arena-results-v2';
 const CACHE_MAX_AGE_MS  = 4 * 60 * 60 * 1000; // 4 hours — older results are discarded
 /** Dynamic TTL: tighter during NY/pre-NY session (volatile), relaxed off-hours */
 function getCacheTTL(): number {
-  const phtHour = (new Date().getUTCHours() + 8) % 24;
-  return (phtHour >= 20 || phtHour < 4) ? 2 * 60_000 : 15 * 60_000;
+  const utcHour = new Date().getUTCHours();
+  return (utcHour >= 12 && utcHour < 20) ? 2 * 60_000 : 15 * 60_000;
 }
 
 interface HistItem {
@@ -513,8 +513,7 @@ export default function Arena() {
 
   const gatherContext = (): GrokContext => {
     const coin = store.coins[selectedCoin];
-    const pht = getPHT();
-    const session = getSessionName(pht);
+    const session = getSessionName(new Date());
 
     /* 15m technicals */
     const rsi14 = coin?.rsi14 != null

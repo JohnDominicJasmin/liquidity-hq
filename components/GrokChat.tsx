@@ -4,7 +4,7 @@ import Link from 'next/link';
 import {
   useMarket, CoinId, COINS, computeSqueezeScore, classifyFunding,
 } from '@/lib/marketStore';
-import { getPHT, getSessionName } from '@/lib/session';
+import { getSessionName } from '@/lib/session';
 import { useNews, GeoEvent } from '@/components/NewsProvider';
 import { useAuth } from '@/components/AuthProvider';
 import { getSupabase } from '@/lib/supabase';
@@ -192,7 +192,7 @@ function buildSystemCtx(
   const c   = store.coins[coin];
   const sq  = computeSqueezeScore(c);
   const fr  = c?.fundingRate != null ? classifyFunding(c.fundingRate) : null;
-  const session = getSessionName(getPHT());
+  const session = getSessionName(new Date());
   const ln  = (k: string, v: string) => `${k}: ${v}`;
   return [
     'You are an elite crypto derivatives trader and analyst assistant embedded in Liquidity Hunter HQ.',
