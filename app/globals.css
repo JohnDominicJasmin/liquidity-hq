@@ -385,6 +385,16 @@ body::after {
 .vol-spike { color: var(--green) !important; font-weight: 700 !important; text-shadow: 0 0 8px rgba(52,211,153,0.4); }
 .vol-dry   { color: var(--red)   !important; font-weight: 700 !important; }
 .ticker-status { font-size: 10px; color: var(--txt3); text-align: center; margin-bottom: 10px; }
+.ticker-toggle-btn { display: none; }
+@media (max-width: 639px) {
+  .ticker-card-extra { display: none; }
+  .ticker-expanded .ticker-card-extra { display: flex; }
+  .ticker-toggle-btn {
+    display: block; background: none; border: none; cursor: pointer;
+    font-size: 11px; color: var(--txt3); font-weight: 600;
+    padding: 2px 0; letter-spacing: .03em; white-space: nowrap;
+  }
+}
 
 @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.2} }
 
