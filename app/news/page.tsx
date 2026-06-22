@@ -94,10 +94,10 @@ function getBtcSentiment(headline: string): BtcSentiment {
 function SentimentBadge({ headline }: { headline: string }) {
   const s = getBtcSentiment(headline);
   const cfg = s === 'bullish'
-    ? { bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)',   color: '#34d399', label: 'BTC Bullish ↗' }
+    ? { bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)',   color: '#34d399', label: 'Bullish ↗' }
     : s === 'bearish'
-    ? { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)',  color: '#f87171', label: 'BTC Bearish ↘' }
-    : { bg: 'rgba(148,163,184,0.08)', border: 'rgba(148,163,184,0.2)',  color: '#64748b', label: 'BTC Neutral'   };
+    ? { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)',  color: '#f87171', label: 'Bearish ↘' }
+    : { bg: 'rgba(148,163,184,0.08)', border: 'rgba(148,163,184,0.2)',  color: '#64748b', label: 'Neutral'   };
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center',
@@ -204,7 +204,6 @@ function HeroCard({ a }: { a: AlertItem }) {
             </span>
             <SourcePill source={a.source} />
             <SentimentBadge headline={a.headline} />
-            {note && <ImpactChip note={note} color={cfg.dot} />}
           </div>
           <span className="ncard-meta">{timeAgo(a.ts)}</span>
         </div>
@@ -260,12 +259,6 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
           </div>
 
           <div className="ncard-v2-headline">{decodeEntities(a.headline)}</div>
-
-          {note && (
-            <div style={{ marginBottom: 8 }}>
-              <ImpactChip note={note} color={cfg.dot} />
-            </div>
-          )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={e => e.stopPropagation()}>
             <button className="ncard-ask-btn" style={{ margin: 0 }} onClick={() => askGrok(a.headline)}>
