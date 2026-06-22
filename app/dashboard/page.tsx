@@ -767,6 +767,36 @@ function GexTable() {
         </>
       )}
 
+      {/* Plain English GEX summary */}
+      {gexLoaded && (
+        <div className="gex-insight">
+          {(() => {
+            const largest = btcGexLevels.length > 0
+              ? btcGexLevels.reduce((a, b) => Math.abs(a.gex) > Math.abs(b.gex) ? a : b)
+              : null;
+            const lK = largest
+              ? (largest.strike >= 1000 ? `$${(largest.strike / 1000).toFixed(0)}K` : `$${largest.strike.toLocaleString()}`)
+              : null;
+            const fK = btcGexFlip != null
+              ? (btcGexFlip >= 1000 ? `$${(btcGexFlip / 1000).toFixed(0)}K` : `$${btcGexFlip.toLocaleString()}`)
+              : null;
+            if (fK && spotPrice > 0) {
+              const above = spotPrice > btcGexFlip!;
+              if (above && isLongGamma)
+                return `Price is above the ${fK} gamma flip — options dealers are absorbing volatility and keeping BTC in a range${lK ? ` near ${lK}` : ''}.`;
+              if (!above && !isLongGamma)
+                return `Price broke below the ${fK} gamma flip — dealers are now amplifying moves${lK ? `, not absorbing them. Watch ${lK} as a key magnet` : ''}.`;
+              if (above && !isLongGamma)
+                return `Short gamma above ${fK} — options pressure is fueling volatility.${lK ? ` ${lK} is the key magnet strike to watch.` : ''}`;
+              return `Price is below the ${fK} flip but gamma is still long — expect choppy, contained moves${lK ? ` around ${lK}` : ''}.`;
+            }
+            return isLongGamma
+              ? `Long gamma regime — options dealers are stabilizing price${lK ? `. ${lK} is the key magnet for this week's expiry` : ''}.`
+              : `Short gamma regime — options dealers are amplifying moves${lK ? `. Watch ${lK} as the key pin level` : ''}.`;
+          })()}
+        </div>
+      )}
+
       {/* Flip level + pin */}
       {gexLoaded && (
         <div className="gex-flip-row">

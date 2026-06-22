@@ -1759,6 +1759,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 .gex-bar-wrap    { position: relative; height: 7px; border-radius: 3px; overflow: hidden; background: rgba(255,255,255,0.04); }
 .gex-bar-fill    { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; transition: width 0.6s cubic-bezier(.4,0,.2,1); }
 .gex-value       { font-size: 10px; font-weight: 700; text-align: right; }
+.gex-insight     { padding: 10px 14px; font-size: 12px; color: rgba(255,255,255,0.52); line-height: 1.65; border-top: 1px solid rgba(255,255,255,0.06); }
 .gex-flip-row    { padding: 6px 14px 8px; font-size: 10px; color: #3a3a3a; display: flex; gap: 12px; flex-wrap: wrap; }
 .gex-flip-row span { color: var(--txt3); font-weight: 600; }
 

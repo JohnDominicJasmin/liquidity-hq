@@ -147,6 +147,7 @@ function CoinCard({ row, rank }: { row: ScanRow; rank: number }) {
 export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
   const { store } = useMarket();
   const [filter, setFilter] = useState<FilterDir>('all');
+  const [strongOnly, setStrongOnly] = useState(false);
 
   const rows = useMemo<ScanRow[]>(() => {
     return COINS
@@ -167,6 +168,16 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
     if (filter === 'all') return sorted;
     return sorted.filter(r => r.dir === filter);
   }, [sorted, filter]);
+
+  const strongCount = useMemo(
+    () => sorted.filter(r => r.score >= 65 && r.dir !== 'NEUTRAL').length,
+    [sorted],
+  );
+
+  const displayed = useMemo(() => {
+    if (!strongOnly) return filtered;
+    return filtered.filter(r => r.score >= 65 && r.dir !== 'NEUTRAL');
+  }, [filtered, strongOnly]);
 
   // Count by direction
   const counts = useMemo(() => {
@@ -241,17 +252,24 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
             {f.label}
           </button>
         ))}
+        <button
+          className={`scan-filter-btn${strongOnly ? ' on' : ''}`}
+          style={{ marginLeft: 'auto' }}
+          onClick={() => setStrongOnly(v => !v)}
+        >
+          Strong Setups Only ({strongCount})
+        </button>
       </div>
 
       {/* Cards */}
-      {filtered.length === 0 && (
+      {displayed.length === 0 && (
         <div style={{ textAlign: 'center', color: '#444', padding: '3rem 0', fontSize: 13 }}>
-          No setups match this filter right now
+          {strongOnly ? 'No strong setups right now — try again later or turn off the filter' : 'No setups match this filter right now'}
         </div>
       )}
 
       <div className="scan-list">
-        {filtered.map((row, i) => (
+        {displayed.map((row) => (
           <CoinCard key={row.id} row={row} rank={sorted.indexOf(row) + 1} />
         ))}
       </div>
