@@ -810,7 +810,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     const nearSR = srLevels.find(level => {
       const pct = Math.abs(price - level.price) / price * 100;
       return pct < 0.8 && level.touches >= 2;
-    });
+    })!;
     if (!nearSR || sq.score < 50 || sq.dir === 'NEUTRAL') return null;
     const aligned =
       (nearSR.type === 'support'    && sq.dir === 'SHORT_SQ') ||
