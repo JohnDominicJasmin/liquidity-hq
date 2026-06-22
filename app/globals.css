@@ -1291,9 +1291,10 @@ body.ticker-on .breaking-alert { top: 90px; }
 .klc-ws-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--txt3); flex-shrink: 0; }
 .klc-ws-dot.live { background: var(--green); box-shadow: 0 0 5px var(--green); }
 .klc-ws-dot.err  { background: var(--red); }
-.sq-badge { position: relative; display: inline-flex; }
-.sq-tooltip { display: none; position: absolute; bottom: 100%; right: 0; padding-bottom: 8px; z-index: 999; }
-.sq-badge:hover .sq-tooltip { display: block; }
+.sq-badge { display: inline-flex; align-items: center; }
+.sq-info  { position: relative; display: inline-flex; align-items: center; padding: 4px; margin: -4px; cursor: help; }
+.sq-tooltip { display: none; position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 999; }
+.sq-info:hover .sq-tooltip { display: block; }
 /* Clickable price chips in chart toolbar */
 .klc-price-chip {
   font-size: 10px; font-weight: 700; letter-spacing: .03em; white-space: nowrap;

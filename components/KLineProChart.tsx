@@ -935,30 +935,32 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               color: setupQuality.color, background: setupQuality.bg,
               border: `0.5px solid ${setupQuality.bdr}`,
               letterSpacing: '0.04em', whiteSpace: 'nowrap', cursor: 'default',
-              display: 'flex', alignItems: 'center', gap: 4,
+              display: 'flex', alignItems: 'center', gap: 5,
             }}>
               {setupQuality.label}
-              <span style={{ opacity: 0.55, fontSize: 9, lineHeight: 1 }}>ⓘ</span>
+              <span className="sq-info">
+                <span style={{ opacity: 0.6, fontSize: 11, lineHeight: 1 }}>ⓘ</span>
+                <div className="sq-tooltip">
+                  <div style={{
+                    width: 240,
+                    background: '#111',
+                    border: `1px solid ${setupQuality.bdr}`,
+                    borderRadius: 10, padding: '12px 14px',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.65)',
+                  }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: setupQuality.color, marginBottom: 6, letterSpacing: '0.04em' }}>
+                      {setupQuality.label}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.42)', lineHeight: 1.55, marginBottom: 8 }}>
+                      {setupQuality.detail}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.85)', lineHeight: 1.7 }}>
+                      {setupQuality.explanation}
+                    </div>
+                  </div>
+                </div>
+              </span>
             </span>
-            <div className="sq-tooltip">
-              <div style={{
-                width: 230,
-                background: '#151515',
-                border: `0.5px solid ${setupQuality.bdr}`,
-                borderRadius: 8, padding: '10px 12px',
-                boxShadow: '0 6px 24px rgba(0,0,0,0.5)',
-              }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: setupQuality.color, marginBottom: 5, letterSpacing: '0.04em' }}>
-                  {setupQuality.label}
-                </div>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5, marginBottom: 8 }}>
-                  {setupQuality.detail}
-                </div>
-                <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.82)', lineHeight: 1.65 }}>
-                  {setupQuality.explanation}
-                </div>
-              </div>
-            </div>
           </div>
         )}
         <button
