@@ -19,7 +19,9 @@ export default function LandingPage() {
     return () => document.body.classList.remove('landing');
   }, []);
 
-  if (loading || user) return null;
+  // Show landing page immediately — don't blank-screen while auth resolves.
+  // Once loaded and user is known, useEffect redirects to /arena.
+  if (!loading && user) return null;
 
   return (
     <div className="lp-root">
