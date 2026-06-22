@@ -802,6 +802,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
   /* ── Setup Quality: price near strong S/R + squeeze forming ── */
   const setupQuality = (() => {
+    // FORCED PREVIEW
+    return { label: 'Prime Setup', detail: 'Support (3T) + Short Squeeze · Score 72/100', explanation: 'Price is sitting on a tested support level while shorts are being squeezed out. High-probability long zone - watch for a confirmation candle before entering.', color: '#fbbf24', bg: 'rgba(251,191,36,0.10)', bdr: 'rgba(251,191,36,0.28)' };
     const price = lastCloseRef.current;
     if (!price || !srLevels.length) return null;
     const sq = computeSqueezeScore(coinData);
@@ -927,11 +929,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
         <span style={{ marginLeft: 'auto' }} />
         {setupQuality && (
-          <div
-            style={{ position: 'relative', display: 'inline-flex' }}
-            onMouseEnter={() => setSqHover(true)}
-            onMouseLeave={() => setSqHover(false)}
-          >
+          <div className="sq-badge">
             <span style={{
               fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
               color: setupQuality.color, background: setupQuality.bg,
@@ -942,10 +940,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               {setupQuality.label}
               <span style={{ opacity: 0.55, fontSize: 9, lineHeight: 1 }}>ⓘ</span>
             </span>
-            {sqHover && (
+            <div className="sq-tooltip">
               <div style={{
-                position: 'absolute', bottom: 'calc(100% + 8px)', right: 0,
-                width: 230, zIndex: 999, pointerEvents: 'none',
+                width: 230,
                 background: '#151515',
                 border: `0.5px solid ${setupQuality.bdr}`,
                 borderRadius: 8, padding: '10px 12px',
@@ -961,7 +958,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   {setupQuality.explanation}
                 </div>
               </div>
-            )}
+            </div>
           </div>
         )}
         <button
