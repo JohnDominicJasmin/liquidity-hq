@@ -1266,7 +1266,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 /* ── KLINECHART PRO ──────────────────────────────────────────────────────── */
 .klc-wrap {
   background: var(--bg); border: 0.5px solid var(--bdr);
-  border-radius: 14px; overflow: hidden; margin-bottom: 10px;
+  border-radius: 14px; margin-bottom: 10px;
   display: flex; flex-direction: column;
 }
 .klc-toolbar {
@@ -1294,7 +1294,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 .sq-badge { display: inline-flex; align-items: center; }
 .sq-info  { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; margin: -4px; cursor: help; }
 @keyframes sq-fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
-.sq-tooltip { display: none; position: absolute; bottom: calc(100% + 2px); right: 0; padding-bottom: 10px; z-index: 999; }
+.sq-tooltip { display: none; position: absolute; bottom: calc(100% + 2px); right: 0; padding-bottom: 10px; z-index: 999; white-space: normal; }
 .sq-info:hover .sq-tooltip { display: block; animation: sq-fade 120ms ease; }
 .sq-tooltip::after { content: ''; position: absolute; bottom: 2px; right: 12px; border: 5px solid transparent; border-top: 6px solid var(--sq-bdr, rgba(251,191,36,0.28)); border-bottom: none; }
 /* Clickable price chips in chart toolbar */
@@ -1320,7 +1320,7 @@ body.ticker-on .breaking-alert { top: 90px; }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 .klc-canvas {
-  width: 100%; height: 720px;
+  width: 100%; height: 720px; overflow: hidden; border-radius: 0 0 13px 13px;
 }
 @media (max-width: 520px) {
   .klc-canvas { height: 540px; }
@@ -1340,7 +1340,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 .klc-wrap:fullscreen .klc-canvas,
 .klc-wrap:-webkit-full-screen .klc-canvas {
   height: calc(100vh - 36px) !important;
-  flex: 1;
+  flex: 1; border-radius: 0;
 }
 
 /* ── GROK CHAT FLOATING WIDGET ── */

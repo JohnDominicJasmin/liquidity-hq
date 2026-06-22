@@ -944,17 +944,18 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   <div style={{
                     width: 240,
                     background: '#111',
-                    border: `1px solid ${setupQuality.bdr}`,
+                    border: '1px solid rgba(255,255,255,0.12)',
                     borderRadius: 10, padding: '12px 14px',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.65)',
+                    whiteSpace: 'normal',
                   }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: setupQuality.color, marginBottom: 6, letterSpacing: '0.04em' }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginBottom: 6 }}>
                       {setupQuality.label}
                     </div>
-                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.42)', lineHeight: 1.55, marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.38)', lineHeight: 1.55, marginBottom: 8 }}>
                       {setupQuality.detail}
                     </div>
-                    <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.85)', lineHeight: 1.7 }}>
+                    <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.72)', lineHeight: 1.7 }}>
                       {setupQuality.explanation}
                     </div>
                   </div>
