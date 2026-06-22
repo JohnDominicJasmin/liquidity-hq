@@ -2719,6 +2719,7 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 }
 .usage-auth-link {
   color: #b8aeff; text-decoration: none; font-weight: 600;
+  padding: 4px 2px; display: inline-flex; align-items: center;
 }
 .usage-auth-link:hover { text-decoration: underline; }
 
@@ -3112,8 +3113,8 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 .login-back-btn:hover { color: var(--txt2); }
 
 /* Skip link */
-.login-footer { display: flex; align-items: center; }
-.login-skip { font-size: 12px; color: var(--txt3); text-decoration: none; transition: color 0.15s; }
+.login-footer { display: flex; align-items: center; justify-content: center; padding: 4px 0; }
+.login-skip { font-size: 12px; color: var(--txt3); text-decoration: none; transition: color 0.15s; padding: 12px 8px; min-height: 44px; display: inline-flex; align-items: center; }
 .login-skip:hover { color: var(--txt2); }
 
 /* Spinners */
