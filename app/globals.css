@@ -58,6 +58,8 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+html { background: #0a0a0a; }
+
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
   background: linear-gradient(160deg, #1c1b17 0%, #161510 40%, #131209 100%);
@@ -1819,6 +1821,7 @@ body.ticker-on .breaking-alert { top: 90px; }
   --glow-amber:  0 0 16px rgba(180,83,9,0.12);
 }
 
+[data-theme="light"] html { background: #EEEAE2; }
 [data-theme="light"] body {
   background: linear-gradient(160deg, #E8E4DC 0%, #EEE9E0 40%, #F2EEE5 100%);
   background-attachment: fixed;
