@@ -94,7 +94,7 @@ function BandRow({ b }: { b: Band }) {
   const isLong = b.side === 'long';
   const accent = isLong ? '#f87171' : '#34d399';
   return (
-    <div className={`liq-row${b.isMagnet ? ' liq-row-magnet' : ''}`}>
+    <div className={`liq-row${b.isMagnet ? ' liq-row-magnet' : ''}`} role="row">
       <span className="liq-row-price">{fmtP(b.price)}</span>
       <span className="liq-row-dist" style={{ color: 'var(--txt3)' }}>
         {b.distPct < 1 ? b.distPct.toFixed(1) : Math.round(b.distPct)}%
@@ -220,6 +220,47 @@ export default function LiqPage() {
             </div>
           )}
 
+          {/* Plain English insight card — right after magnets so it explains what was just shown */}
+          {(bands.magnetShort || bands.magnetLong) && (
+            <div className="liq-insight-card">
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+                What this means for you
+              </div>
+              {bands.magnetShort && (
+                <div style={{ display: 'flex', gap: 10, marginBottom: bands.magnetLong ? 10 : 0, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }} aria-hidden="true">🟢</span>
+                  <span style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6 }}>
+                    <strong style={{ color: '#34d399' }}>Short squeeze target at {fmtP(bands.magnetShort.price)}:</strong>{' '}
+                    If price pumps there, trapped shorts get force-closed - which can push price even higher.
+                  </span>
+                </div>
+              )}
+              {bands.magnetLong && (
+                <div style={{ display: 'flex', gap: 10, marginBottom: bias ? 10 : 0, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }} aria-hidden="true">🔴</span>
+                  <span style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6 }}>
+                    <strong style={{ color: '#f87171' }}>Long liquidation target at {fmtP(bands.magnetLong.price)}:</strong>{' '}
+                    If price drops there, trapped longs get force-closed - accelerating the move down.
+                  </span>
+                </div>
+              )}
+              {bias && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }} aria-hidden="true">📊</span>
+                  <span style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6 }}>
+                    Overall bias is{' '}
+                    <strong style={{ color: bias.col }}>{bias.txt.toLowerCase()}</strong>
+                    {' '}- {bias.txt === 'Long-heavy'
+                      ? 'larger traders may push price down to trigger trapped longs.'
+                      : bias.txt === 'Short-heavy'
+                      ? 'larger traders may push price up to trigger trapped shorts.'
+                      : 'no clear directional lean right now.'}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Stats row — metadata, shown after key signals */}
           <div className="liq-stats-row">
             <div className="liq-stat-item">
@@ -245,15 +286,20 @@ export default function LiqPage() {
 
           {/* ══ ESTIMATED HEATMAP ══════════════════════════════════ */}
           <div className="liq-card">
-            <div className="liq-section-hdr liq-section-hdr-short">
+            <div className="liq-section-hdr liq-section-hdr-short" role="heading" aria-level={3}>
               <span>↑ Short squeeze zones</span>
               <span className="liq-section-sub">price pumps, shorts get force-closed · {rangeConf.label}</span>
             </div>
-            <div className="liq-col-hdr">
-              <span>Price</span><span>% Away</span><span>Lev.</span>
-              <span style={{ flex: 1 }}>Size (estimated)</span><span>$ at Risk</span>
+            <div role="table" aria-label="Short squeeze liquidation zones">
+              <div className="liq-col-hdr" role="row">
+                <span role="columnheader">Price</span>
+                <span role="columnheader">% Away</span>
+                <span role="columnheader"><abbr title="Leverage">Lev.</abbr></span>
+                <span role="columnheader" style={{ flex: 1 }}>Size (estimated)</span>
+                <span role="columnheader">$ at Risk</span>
+              </div>
+              {bands.shortsDisplay.map((b, i) => <BandRow key={`s${i}`} b={b} />)}
             </div>
-            {bands.shortsDisplay.map((b, i) => <BandRow key={`s${i}`} b={b} />)}
 
             <div className="liq-current-bar">
               <span className="liq-current-dot" />
@@ -265,59 +311,14 @@ export default function LiqPage() {
               <span className="liq-current-oi">{fmtM(cd.oi / 1e6)} OI</span>
             </div>
 
-            <div className="liq-section-hdr liq-section-hdr-long">
+            <div className="liq-section-hdr liq-section-hdr-long" role="heading" aria-level={3}>
               <span>↓ Long liquidation zones</span>
               <span className="liq-section-sub">price drops, longs get force-closed · {rangeConf.label}</span>
             </div>
-            {bands.longs.map((b, i) => <BandRow key={`l${i}`} b={b} />)}
-          </div>
-
-          {/* Plain English insight card */}
-          {(bands.magnetShort || bands.magnetLong) && (
-            <div style={{
-              background: 'rgba(167,139,250,0.06)',
-              border: '0.5px solid rgba(167,139,250,0.2)',
-              borderRadius: 14,
-              padding: '14px 16px',
-              marginBottom: 10,
-            }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
-                What this means for you
-              </div>
-              {bands.magnetShort && (
-                <div style={{ display: 'flex', gap: 10, marginBottom: bands.magnetLong ? 10 : 0, alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }} aria-hidden="true">🟢</span>
-                  <span style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6 }}>
-                    <strong style={{ color: '#34d399' }}>Short squeeze target at {fmtP(bands.magnetShort.price)}:</strong>{' '}
-                    If price pumps there, trapped shorts get force-closed - which can push price even higher.
-                  </span>
-                </div>
-              )}
-              {bands.magnetLong && (
-                <div style={{ display: 'flex', gap: 10, marginBottom: bias ? 10 : 0, alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }} aria-hidden="true">🔴</span>
-                  <span style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6 }}>
-                    <strong style={{ color: '#f87171' }}>Long liquidation target at {fmtP(bands.magnetLong.price)}:</strong>{' '}
-                    If price drops there, trapped longs get force-closed - accelerating the move down.
-                  </span>
-                </div>
-              )}
-              {bias && (
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>📊</span>
-                  <span style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6 }}>
-                    Overall bias is{' '}
-                    <strong style={{ color: bias.col }}>{bias.txt.toLowerCase()}</strong>
-                    {' '}- {bias.txt === 'Long-heavy'
-                      ? 'larger traders may push price down to trigger trapped longs.'
-                      : bias.txt === 'Short-heavy'
-                      ? 'larger traders may push price up to trigger trapped shorts.'
-                      : 'no clear directional lean right now.'}
-                  </span>
-                </div>
-              )}
+            <div role="table" aria-label="Long liquidation zones">
+              {bands.longs.map((b, i) => <BandRow key={`l${i}`} b={b} />)}
             </div>
-          )}
+          </div>
 
           {/* Legend */}
           <div className="liq-howto">
