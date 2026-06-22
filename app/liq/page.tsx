@@ -96,7 +96,7 @@ function BandRow({ b }: { b: Band }) {
   return (
     <div className={`liq-row${b.isMagnet ? ' liq-row-magnet' : ''}`}>
       <span className="liq-row-price">{fmtP(b.price)}</span>
-      <span className="liq-row-dist" style={{ color: '#444' }}>
+      <span className="liq-row-dist" style={{ color: 'var(--txt3)' }}>
         {b.distPct < 1 ? b.distPct.toFixed(1) : Math.round(b.distPct)}%
       </span>
       <span className="liq-row-lev" style={{ color: accent }}>
@@ -132,10 +132,10 @@ export default function LiqPage() {
   /* Bias */
   const bias = bands
     ? bands.totalLongM > bands.totalShortM * 1.15
-      ? { txt: 'Long-heavy', sub: 'More trapped longs below — smart money may push price down to trigger them', col: '#f87171' }
+      ? { txt: 'Long-heavy', sub: 'More trapped longs below - larger traders may push price down to trigger them', col: '#f87171' }
       : bands.totalShortM > bands.totalLongM * 1.15
-      ? { txt: 'Short-heavy', sub: 'More trapped shorts above — smart money may push price up to trigger them', col: '#34d399' }
-      : { txt: 'Balanced', sub: 'Roughly equal liquidation pressure on both sides — no strong directional lean', col: '#606060' }
+      ? { txt: 'Short-heavy', sub: 'More trapped shorts above - larger traders may push price up to trigger them', col: '#34d399' }
+      : { txt: 'Balanced', sub: 'Roughly equal liquidation pressure on both sides - no strong directional lean', col: '#606060' }
     : null;
 
   return (
@@ -229,11 +229,11 @@ export default function LiqPage() {
             </div>
             <div className="liq-stat-sep" />
             <div className="liq-stat-item" style={{ textAlign: 'center' }}>
-              <div className="liq-stat-label" style={{ textAlign: 'center' }}>Leverage levels</div>
+              <div className="liq-stat-label" style={{ textAlign: 'center' }}>Price zones shown</div>
               <div className="liq-stat-val" style={{ color: '#a78bfa', textAlign: 'center' }}>
                 {bands.tierCount}<span style={{ fontSize: 11, color: '#444', fontWeight: 500 }}>/17</span>
               </div>
-              <div className="liq-stat-sub" style={{ textAlign: 'center' }}>visible in {range} window</div>
+              <div className="liq-stat-sub" style={{ textAlign: 'center' }}>in the {range} window</div>
             </div>
             <div className="liq-stat-sep" />
             <div className="liq-stat-item" style={{ textAlign: 'right' }}>
@@ -250,8 +250,8 @@ export default function LiqPage() {
               <span className="liq-section-sub">price pumps → shorts force-closed · {rangeConf.label}</span>
             </div>
             <div className="liq-col-hdr">
-              <span>Price</span><span>Away</span><span>Lev</span>
-              <span style={{ flex: 1 }}>Liq density (estimated)</span><span>$ at Risk</span>
+              <span>Price</span><span>% Away</span><span>Lev.</span>
+              <span style={{ flex: 1 }}>Size (estimated)</span><span>$ at Risk</span>
             </div>
             {bands.shortsDisplay.map((b, i) => <BandRow key={`s${i}`} b={b} />)}
 
@@ -286,21 +286,19 @@ export default function LiqPage() {
               </div>
               {bands.magnetShort && (
                 <div style={{ display: 'flex', gap: 10, marginBottom: bands.magnetLong ? 10 : 0, alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>🟢</span>
+                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }} aria-hidden="true">🟢</span>
                   <span style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6 }}>
-                    Heavy short liquidations sit at{' '}
-                    <strong style={{ color: '#34d399' }}>{fmtP(bands.magnetShort.price)}</strong>
-                    {' '}({fmtM(bands.magnetShort.usdM)} at risk). If price reaches that level, forced short closures could push it even higher.
+                    <strong style={{ color: '#34d399' }}>Short squeeze target at {fmtP(bands.magnetShort.price)}:</strong>{' '}
+                    If price pumps there, trapped shorts get force-closed - which can push price even higher.
                   </span>
                 </div>
               )}
               {bands.magnetLong && (
                 <div style={{ display: 'flex', gap: 10, marginBottom: bias ? 10 : 0, alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>🔴</span>
+                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }} aria-hidden="true">🔴</span>
                   <span style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6 }}>
-                    Heavy long liquidations sit at{' '}
-                    <strong style={{ color: '#f87171' }}>{fmtP(bands.magnetLong.price)}</strong>
-                    {' '}({fmtM(bands.magnetLong.usdM)} at risk). If price drops there, forced closures will accelerate the move down.
+                    <strong style={{ color: '#f87171' }}>Long liquidation target at {fmtP(bands.magnetLong.price)}:</strong>{' '}
+                    If price drops there, trapped longs get force-closed - accelerating the move down.
                   </span>
                 </div>
               )}
@@ -310,7 +308,11 @@ export default function LiqPage() {
                   <span style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6 }}>
                     Overall bias is{' '}
                     <strong style={{ color: bias.col }}>{bias.txt.toLowerCase()}</strong>
-                    {' '}— {bias.sub.charAt(0).toLowerCase() + bias.sub.slice(1)}.
+                    {' '}- {bias.txt === 'Long-heavy'
+                      ? 'larger traders may push price down to trigger trapped longs.'
+                      : bias.txt === 'Short-heavy'
+                      ? 'larger traders may push price up to trigger trapped shorts.'
+                      : 'no clear directional lean right now.'}
                   </span>
                 </div>
               )}
@@ -322,20 +324,20 @@ export default function LiqPage() {
             <div className="liq-howto-title">How to read this</div>
             <div className="liq-howto-row">
               <span className="liq-howto-dot" style={{ background: '#34d399' }} />
-              <span><strong style={{ color: '#34d399' }}>Short Squeeze Zones (estimated)</strong> — price levels above current where modelled short positions get force-closed. Whales push price UP into these.</span>
+              <span><strong style={{ color: '#34d399' }}>Short Squeeze Zones</strong> - price levels above current price where modeled short positions get force-closed. Larger traders push price UP into these to trigger them.</span>
             </div>
             <div className="liq-howto-row">
               <span className="liq-howto-dot" style={{ background: '#f87171' }} />
-              <span><strong style={{ color: '#f87171' }}>Long Liq Zones (estimated)</strong> — price levels below current where modelled long positions get force-closed. Whales dump DOWN into these.</span>
+              <span><strong style={{ color: '#f87171' }}>Long Liquidation Zones</strong> - price levels below current price where modeled long positions get force-closed. Larger traders dump price DOWN into these.</span>
             </div>
             <div className="liq-howto-row">
               <span style={{ flexShrink: 0 }}>🧲</span>
-              <span><strong>Magnet</strong> — largest estimated cluster in selected window. Most likely price target for the next big move.</span>
+              <span><strong>Magnet</strong> - the largest estimated cluster in the selected window. The most likely price target for the next big move.</span>
             </div>
           </div>
 
           <div className="liq-disclaimer">
-            Estimated bands: live OI × leverage tier weights (17 tiers).
+            Estimated bands: live Open Interest × leverage tier weights (17 tiers).
             For full historical heatmap data use Coinglass (paid API).
           </div>
         </>
