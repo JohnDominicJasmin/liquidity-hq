@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import Link from 'next/link';
 import { useMarket } from '@/lib/marketStore';
 import { COINS, CoinId, COIN_DEC, fmtPrice, fmtChg, fmtVol, classifyFunding } from '@/lib/marketStore';
 
@@ -14,11 +14,10 @@ function VolRatioText({ ratio }: { ratio: number | null | undefined }) {
 export default function Ticker() {
   const { store, selectCoin } = useMarket();
   const { coins, selectedCoin, wsStatus } = store;
-  const [expanded, setExpanded] = useState(false);
 
   return (
     <>
-      <div className={`ticker-wrap${expanded ? ' ticker-expanded' : ''}`}>
+      <div className="ticker-wrap">
         <div className="ticker">
           {COINS.map((id, idx) => {
             const d = coins[id];
@@ -85,14 +84,18 @@ export default function Ticker() {
               </div>
             );
           })}
+
+          {/* See all card — mobile only, sits at end of scroll */}
+          <Link href="/prices" className="ticker-card ticker-see-all">
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, pointerEvents: 'none' }}>
+              <span className="ticker-see-all-count">{COINS.length}</span>
+              <span className="ticker-see-all-label">coins</span>
+              <span className="ticker-see-all-arrow">See all →</span>
+            </div>
+          </Link>
         </div>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-        <div className="ticker-status">{wsStatus}</div>
-        <button className="ticker-toggle-btn" onClick={() => setExpanded(v => !v)}>
-          {expanded ? 'Show less ▲' : `Show all ${COINS.length} coins ▼`}
-        </button>
-      </div>
+      <div className="ticker-status">{wsStatus}</div>
     </>
   );
 }

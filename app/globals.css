@@ -385,15 +385,19 @@ body::after {
 .vol-spike { color: var(--green) !important; font-weight: 700 !important; text-shadow: 0 0 8px rgba(52,211,153,0.4); }
 .vol-dry   { color: var(--red)   !important; font-weight: 700 !important; }
 .ticker-status { font-size: 10px; color: var(--txt3); text-align: center; margin-bottom: 10px; }
-.ticker-toggle-btn { display: none; }
+.ticker-see-all { display: none !important; }
 @media (max-width: 639px) {
   .ticker-card-extra { display: none; }
-  .ticker-expanded .ticker-card-extra { display: flex; }
-  .ticker-toggle-btn {
-    display: block; background: none; border: none; cursor: pointer;
-    font-size: 11px; color: var(--txt3); font-weight: 600;
-    padding: 2px 0; letter-spacing: .03em; white-space: nowrap;
+  .ticker-see-all {
+    display: block !important; text-decoration: none; flex-shrink: 0;
+    background: var(--bg1); border: 0.5px solid var(--bdr);
+    border-radius: 14px; padding: 10px 16px; position: relative;
+    min-width: 88px; transition: border-color 0.15s, background 0.15s;
   }
+  .ticker-see-all:hover { border-color: var(--purple-bdr); background: var(--purple-bg); }
+  .ticker-see-all-count { display: block; font-size: 22px; font-weight: 700; color: var(--txt); letter-spacing: -0.5px; line-height: 1; text-align: center; }
+  .ticker-see-all-label { display: block; font-size: 9px; font-weight: 600; color: var(--txt3); letter-spacing: .06em; text-transform: uppercase; text-align: center; }
+  .ticker-see-all-arrow { display: block; font-size: 10px; font-weight: 700; color: var(--purple); margin-top: 6px; letter-spacing: .02em; text-align: center; }
 }
 
 @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.2} }
