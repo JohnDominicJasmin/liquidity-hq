@@ -262,6 +262,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const [showSR, setShowSR]       = useState(true);
   const [srLevels, setSrLevels]   = useState<SRLevel[]>([]);
   const srSetRef                  = useRef(setSrLevels);
+  const [sqHover, setSqHover]     = useState(false);
   const { store } = useMarket();
   const coinData = store.coins[coin];
   const srOverlayIds              = useRef<string[]>([]);
@@ -817,11 +818,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       detail: nearSR.type === 'support'
         ? `Support (${nearSR.touches}T) + Short Squeeze · Score ${sq.score}/100`
         : `Resistance (${nearSR.touches}T) + Long Flush · Score ${sq.score}/100`,
+      explanation: nearSR.type === 'support'
+        ? 'Price is sitting on a tested support level while shorts are being squeezed out. High-probability long zone — watch for a confirmation candle before entering.'
+        : 'Price is pressing against tested resistance while longs are getting flushed. High-probability short zone — watch for a rejection candle before entering.',
       color: '#fbbf24', bg: 'rgba(251,191,36,0.10)', bdr: 'rgba(251,191,36,0.28)',
     };
     return {
       label: 'Setup Forming',
       detail: `Near ${nearSR.type} (${nearSR.touches} touches) · Squeeze ${sq.score}/100`,
+      explanation: `Squeeze pressure is building near a key ${nearSR.type} level, but signals aren't fully aligned yet. Watch for direction confirmation — don't jump in early.`,
       color: '#a78bfa', bg: 'rgba(167,139,250,0.10)', bdr: 'rgba(167,139,250,0.28)',
     };
   })();
@@ -922,17 +927,42 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
         <span style={{ marginLeft: 'auto' }} />
         {setupQuality && (
-          <span
-            title={setupQuality.detail}
-            style={{
+          <div
+            style={{ position: 'relative', display: 'inline-flex' }}
+            onMouseEnter={() => setSqHover(true)}
+            onMouseLeave={() => setSqHover(false)}
+          >
+            <span style={{
               fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
               color: setupQuality.color, background: setupQuality.bg,
               border: `0.5px solid ${setupQuality.bdr}`,
               letterSpacing: '0.04em', whiteSpace: 'nowrap', cursor: 'default',
-            }}
-          >
-            {setupQuality.label}
-          </span>
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}>
+              {setupQuality.label}
+              <span style={{ opacity: 0.55, fontSize: 9, lineHeight: 1 }}>ⓘ</span>
+            </span>
+            {sqHover && (
+              <div style={{
+                position: 'absolute', bottom: 'calc(100% + 8px)', right: 0,
+                width: 230, zIndex: 999, pointerEvents: 'none',
+                background: '#151515',
+                border: `0.5px solid ${setupQuality.bdr}`,
+                borderRadius: 8, padding: '10px 12px',
+                boxShadow: '0 6px 24px rgba(0,0,0,0.5)',
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: setupQuality.color, marginBottom: 5, letterSpacing: '0.04em' }}>
+                  {setupQuality.label}
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5, marginBottom: 8 }}>
+                  {setupQuality.detail}
+                </div>
+                <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.82)', lineHeight: 1.65 }}>
+                  {setupQuality.explanation}
+                </div>
+              </div>
+            )}
+          </div>
         )}
         <button
           className="klc-tool-btn klc-fullscreen-btn"
