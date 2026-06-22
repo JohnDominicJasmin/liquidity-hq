@@ -66,27 +66,37 @@ const TAIL = [
   { path: '/news', label: 'News' },
 ];
 
-const MOBILE_NAV: ({ path: string; label: string; modal?: boolean } | null)[] = [
-  { path: '/dashboard',   label: 'Dashboard'       },
-  { path: '/briefing',    label: 'Briefing'        },
-  { path: '/news',        label: 'News'            },
-  null,
+type NavEntry =
+  | { path: string; label: string; modal?: boolean }
+  | { header: string }
+  | null;
+
+const MOBILE_NAV: NavEntry[] = [
+  { path: '/dashboard', label: 'Dashboard' },
+  { path: '/briefing',  label: 'Briefing'  },
+
+  { header: 'Analysis' },
   { path: '/arena',       label: 'LiquidityAI'       },
   { path: '/scanner',     label: 'Setup Scanner'     },
   { path: '/confluence',  label: 'Confluence Scorer' },
   { path: '/liq',         label: 'Liquidation Map'   },
   { path: '/funding',     label: 'FR History'        },
   { path: '/correlation', label: 'Correlation'       },
-  null,
-  { path: '/journal',       label: 'Journal'           },
-  { path: '/calc',          label: 'Position Sizer'    },
+
+  { header: 'Research' },
+  { path: '/news',          label: 'News'              },
   { path: '/econ-calendar', label: 'Economic Calendar' },
-  { path: '/alerts',        label: 'Alerts'            },
-  { path: '/hours',         label: 'Best Hours'        },
-  { path: '/playbook',      label: 'Playbook'          },
-  null,
-  { path: '/settings',    label: 'Settings',      modal: true },
-  { path: '/about',       label: 'About'          },
+
+  { header: 'My Tools' },
+  { path: '/journal',  label: 'Journal'         },
+  { path: '/calc',     label: 'Position Sizer'  },
+  { path: '/alerts',   label: 'Alerts'          },
+  { path: '/hours',    label: 'Best Hours'      },
+  { path: '/playbook', label: 'Playbook'        },
+
+  { header: 'Account' },
+  { path: '/settings', label: 'Settings', modal: true },
+  { path: '/about',    label: 'About'           },
 ];
 
 /* ── Status dot ────────────────────────────────────────────────────────────── */
@@ -305,6 +315,8 @@ export default function NavDrawer() {
           {MOBILE_NAV.map((item, i) =>
             item === null ? (
               <div key={i} className="nav-divider" />
+            ) : 'header' in item ? (
+              <div key={i} className="nav-group-label">{item.header}</div>
             ) : item.modal ? (
               <button
                 key={item.path}
