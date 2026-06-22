@@ -30,11 +30,11 @@ const TIERS = [
 type TimeRange = '12h' | '24h' | '48h' | '3d' | '1w';
 
 const RANGES: { key: TimeRange; label: string; maxDist: number; hint: string }[] = [
-  { key: '12h', label: '12h',    maxDist: 0.05,  hint: 'Intraday scalp · ±5% · 125x → 20x' },
-  { key: '24h', label: '24h',    maxDist: 0.10,  hint: 'Day trade · ±10% · 125x → 10x' },
-  { key: '48h', label: '48h',    maxDist: 0.13,  hint: '2-day swing · ±13% · 125x → 8x' },
-  { key: '3d',  label: '3 days', maxDist: 0.25,  hint: 'Multi-day swing · ±25% · 125x → 4x' },
-  { key: '1w',  label: '1 week', maxDist: 0.50,  hint: 'Full weekly · ±50% · all 17 tiers' },
+  { key: '12h', label: '12h',    maxDist: 0.05,  hint: 'Short-term moves · showing clusters within ±5% of current price' },
+  { key: '24h', label: '24h',    maxDist: 0.10,  hint: 'Day trade range · showing clusters within ±10% of current price' },
+  { key: '48h', label: '48h',    maxDist: 0.13,  hint: '2-day swing range · showing clusters within ±13% of current price' },
+  { key: '3d',  label: '3 days', maxDist: 0.25,  hint: 'Multi-day swing range · showing clusters within ±25% of current price' },
+  { key: '1w',  label: '1 week', maxDist: 0.50,  hint: 'Full week range · showing all clusters within ±50% of current price' },
 ];
 
 /* ─── Estimated band types ─────────────────────────────────────────────────── */
@@ -100,7 +100,7 @@ function BandRow({ b }: { b: Band }) {
         {b.distPct < 1 ? b.distPct.toFixed(1) : Math.round(b.distPct)}%
       </span>
       <span className="liq-row-lev" style={{ color: accent }}>
-        {b.lev}{b.isMagnet ? ' ⊙' : ''}
+        {b.lev}{b.isMagnet ? ' 🧲' : ''}
       </span>
       <div className="liq-row-bar-wrap">
         <div className="liq-row-bar" style={{
@@ -132,10 +132,10 @@ export default function LiqPage() {
   /* Bias */
   const bias = bands
     ? bands.totalLongM > bands.totalShortM * 1.15
-      ? { txt: 'Long-heavy', sub: 'More long liquidations below — whales incentivised to dump', col: '#f87171' }
+      ? { txt: 'Long-heavy', sub: 'More trapped longs below — smart money may push price down to trigger them', col: '#f87171' }
       : bands.totalShortM > bands.totalLongM * 1.15
-      ? { txt: 'Short-heavy', sub: 'More short liquidations above — whales incentivised to pump', col: '#34d399' }
-      : { txt: 'Balanced', sub: 'Roughly equal liquidation risk on both sides', col: '#606060' }
+      ? { txt: 'Short-heavy', sub: 'More trapped shorts above — smart money may push price up to trigger them', col: '#34d399' }
+      : { txt: 'Balanced', sub: 'Roughly equal liquidation pressure on both sides — no strong directional lean', col: '#606060' }
     : null;
 
   return (
@@ -200,7 +200,7 @@ export default function LiqPage() {
           {/* Magnets — #2 most actionable: biggest price targets */}
           {(bands.magnetLong || bands.magnetShort) && (
             <div className="liq-magnet-box">
-              <span style={{ fontSize: 18, flexShrink: 0 }}>⊙</span>
+              <span style={{ fontSize: 18, flexShrink: 0 }}>🧲</span>
               <div>
                 <div className="liq-magnet-box-title">Largest Clusters · {rangeConf.label} window</div>
                 <div className="liq-magnet-box-body">
@@ -225,21 +225,21 @@ export default function LiqPage() {
             <div className="liq-stat-item">
               <div className="liq-stat-label">Long liquidation risk (dump)</div>
               <div className="liq-stat-val" style={{ color: '#f87171' }}>{fmtM(bands.totalLongM)}</div>
-              <div className="liq-stat-sub">L/S: {((cd.longRatio ?? 0.5)*100).toFixed(0)}% / {((cd.shortRatio ?? 0.5)*100).toFixed(0)}%</div>
+              <div className="liq-stat-sub">{((cd.longRatio ?? 0.5)*100).toFixed(0)}% long / {((cd.shortRatio ?? 0.5)*100).toFixed(0)}% short</div>
             </div>
             <div className="liq-stat-sep" />
             <div className="liq-stat-item" style={{ textAlign: 'center' }}>
-              <div className="liq-stat-label" style={{ textAlign: 'center' }}>Tiers shown</div>
+              <div className="liq-stat-label" style={{ textAlign: 'center' }}>Leverage levels</div>
               <div className="liq-stat-val" style={{ color: '#a78bfa', textAlign: 'center' }}>
                 {bands.tierCount}<span style={{ fontSize: 11, color: '#444', fontWeight: 500 }}>/17</span>
               </div>
-              <div className="liq-stat-sub" style={{ textAlign: 'center' }}>{range} window</div>
+              <div className="liq-stat-sub" style={{ textAlign: 'center' }}>visible in {range} window</div>
             </div>
             <div className="liq-stat-sep" />
             <div className="liq-stat-item" style={{ textAlign: 'right' }}>
               <div className="liq-stat-label">Short squeeze (pump)</div>
               <div className="liq-stat-val" style={{ color: '#34d399' }}>{fmtM(bands.totalShortM)}</div>
-              <div className="liq-stat-sub" style={{ textAlign: 'right' }}>OI: {fmtM(cd.oi / 1e6)}</div>
+              <div className="liq-stat-sub" style={{ textAlign: 'right' }}>Total open interest: {fmtM(cd.oi / 1e6)}</div>
             </div>
           </div>
 
@@ -271,6 +271,51 @@ export default function LiqPage() {
             </div>
             {bands.longs.map((b, i) => <BandRow key={`l${i}`} b={b} />)}
           </div>
+
+          {/* Plain English insight card */}
+          {(bands.magnetShort || bands.magnetLong) && (
+            <div style={{
+              background: 'rgba(167,139,250,0.06)',
+              border: '0.5px solid rgba(167,139,250,0.2)',
+              borderRadius: 14,
+              padding: '14px 16px',
+              marginBottom: 10,
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+                What this means for you
+              </div>
+              {bands.magnetShort && (
+                <div style={{ display: 'flex', gap: 10, marginBottom: bands.magnetLong ? 10 : 0, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>🟢</span>
+                  <span style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6 }}>
+                    Heavy short liquidations sit at{' '}
+                    <strong style={{ color: '#34d399' }}>{fmtP(bands.magnetShort.price)}</strong>
+                    {' '}({fmtM(bands.magnetShort.usdM)} at risk). If price reaches that level, forced short closures could push it even higher.
+                  </span>
+                </div>
+              )}
+              {bands.magnetLong && (
+                <div style={{ display: 'flex', gap: 10, marginBottom: bias ? 10 : 0, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>🔴</span>
+                  <span style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6 }}>
+                    Heavy long liquidations sit at{' '}
+                    <strong style={{ color: '#f87171' }}>{fmtP(bands.magnetLong.price)}</strong>
+                    {' '}({fmtM(bands.magnetLong.usdM)} at risk). If price drops there, forced closures will accelerate the move down.
+                  </span>
+                </div>
+              )}
+              {bias && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>📊</span>
+                  <span style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6 }}>
+                    Overall bias is{' '}
+                    <strong style={{ color: bias.col }}>{bias.txt.toLowerCase()}</strong>
+                    {' '}— {bias.sub.charAt(0).toLowerCase() + bias.sub.slice(1)}.
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Legend */}
           <div className="liq-howto">
