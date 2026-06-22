@@ -246,44 +246,43 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
       style={{ borderLeftColor: cfg.dot, cursor: a.link ? 'pointer' : 'default' }}
       onClick={() => a.link && window.open(a.link, '_blank', 'noopener')}
     >
-      <div className="ncard-v2-inner">
-        {/* Text column */}
-        <div className="ncard-v2-text">
-          <div className="ncard-v2-top">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span className="ncard-type-badge" style={{ color: cfg.dot }}>{label}</span>
-              <SourcePill source={a.source} />
-              <SentimentBadge headline={a.headline} />
-            </div>
-            <span className="ncard-meta">{timeAgo(a.ts)}</span>
-          </div>
+      {/* Image on top */}
+      {hasImg && (
+        <div className="ncard-v2-img-wrap">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={a.image}
+            alt=""
+            className="ncard-v2-img"
+            onError={e => { (e.target as HTMLImageElement).closest('.ncard-v2-img-wrap')?.remove(); }}
+          />
+          <div className="ncard-v2-img-fade" />
+        </div>
+      )}
 
-          <div className="ncard-v2-headline">{decodeEntities(a.headline)}</div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={e => e.stopPropagation()}>
-            <button className="ncard-ask-btn" style={{ margin: 0 }} onClick={() => askGrok(a.headline)}>
-              Ask LiquidityAI →
-            </button>
-            {a.link && (
-              <a href={a.link} target="_blank" rel="noopener noreferrer" className="ncard-read-btn">
-                Read more ↗
-              </a>
-            )}
+      {/* Text below */}
+      <div className="ncard-v2-text">
+        <div className="ncard-v2-top">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span className="ncard-type-badge" style={{ color: cfg.dot }}>{label}</span>
+            <SourcePill source={a.source} />
+            <SentimentBadge headline={a.headline} />
           </div>
+          <span className="ncard-meta">{timeAgo(a.ts)}</span>
         </div>
 
-        {/* Thumbnail */}
-        {hasImg && (
-          <div className="ncard-v2-thumb">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={a.image}
-              alt=""
-              className="ncard-v2-thumb-img"
-              onError={e => { (e.target as HTMLImageElement).closest('.ncard-v2-thumb')?.remove(); }}
-            />
-          </div>
-        )}
+        <div className="ncard-v2-headline">{decodeEntities(a.headline)}</div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={e => e.stopPropagation()}>
+          <button className="ncard-ask-btn" style={{ margin: 0 }} onClick={() => askGrok(a.headline)}>
+            Ask LiquidityAI →
+          </button>
+          {a.link && (
+            <a href={a.link} target="_blank" rel="noopener noreferrer" className="ncard-read-btn">
+              Read more ↗
+            </a>
+          )}
+        </div>
       </div>
     </div>
   );

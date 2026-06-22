@@ -1113,6 +1113,20 @@ body.ticker-on .breaking-alert { top: 90px; }
 }
 .ncard-v2-thumb-img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
+/* stacked top image for v2 news cards */
+.ncard-v2-img-wrap {
+  position: relative; width: 100%; height: 120px;
+  overflow: hidden; background: var(--bg2);
+}
+.ncard-v2-img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  filter: brightness(0.8);
+}
+.ncard-v2-img-fade {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 50px;
+  background: linear-gradient(transparent, var(--bg1));
+}
+
 /* whale directional icon */
 .ncard-v2-whale-icon {
   flex-shrink: 0; width: 48px;
