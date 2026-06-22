@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { COINS, CoinId } from '@/lib/marketStore';
-import { getPHT, getSessionName } from '@/lib/session';
+import { getLocalNow, getSessionName } from '@/lib/session';
 import { getSupabase } from '@/lib/supabase';
 import AuthGate from './AuthGate';
 import { track } from '@/lib/analytics';
@@ -108,7 +108,7 @@ function Inner() {
     const stopNum  = parseFloat(stopLoss);
     if (!entryNum || !stopNum) return;
 
-    const pht     = getPHT();
+    const pht     = getLocalNow();
     const session = getSessionName(pht);
 
     setSaving(true);

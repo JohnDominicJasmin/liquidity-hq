@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { getPHT, getCurrentWindow, isDead, getUpcomingWindows } from '@/lib/session';
+import { getLocalNow, getCurrentWindow, isDead, getUpcomingWindows } from '@/lib/session';
 import SessionCountdown from '@/components/SessionCountdown';
 
 /* Typical-weekday session blocks on a 24h PHT axis */
@@ -32,7 +32,7 @@ export default function BestHours() {
   }, []);
 
   const now = new Date();
-  const pht = getPHT();
+  const pht = getLocalNow();
   const win = getCurrentWindow(pht);
   const dead = isDead(pht);
   const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];

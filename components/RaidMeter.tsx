@@ -1,10 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useMarket, classifyFunding, CoinId } from '@/lib/marketStore';
-import { getPHT, getCurrentWindow, isDead, isLondon, isPrime, isGodTier, isMonEvening } from '@/lib/session';
+import { getLocalNow, getCurrentWindow, isDead, isLondon, isPrime, isGodTier, isMonEvening } from '@/lib/session';
 
 function calcRPM(fng: number, rpmFunding: 'pos' | 'neg' | 'neu') {
-  const pht = getPHT();
+  const pht = getLocalNow();
   const day = pht.getDay();
   const mins = pht.getHours() * 60 + pht.getMinutes();
 
