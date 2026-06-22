@@ -246,8 +246,8 @@ export default function LiqPage() {
           {/* ══ ESTIMATED HEATMAP ══════════════════════════════════ */}
           <div className="liq-card">
             <div className="liq-section-hdr liq-section-hdr-short">
-              <span>↑ SHORT SQUEEZE ZONES</span>
-              <span className="liq-section-sub">price pumps → shorts force-closed · {rangeConf.label}</span>
+              <span>↑ Short squeeze zones</span>
+              <span className="liq-section-sub">price pumps, shorts get force-closed · {rangeConf.label}</span>
             </div>
             <div className="liq-col-hdr">
               <span>Price</span><span>% Away</span><span>Lev.</span>
@@ -266,8 +266,8 @@ export default function LiqPage() {
             </div>
 
             <div className="liq-section-hdr liq-section-hdr-long">
-              <span>↓ LONG LIQUIDATION ZONES</span>
-              <span className="liq-section-sub">price dumps → longs force-closed · {rangeConf.label}</span>
+              <span>↓ Long liquidation zones</span>
+              <span className="liq-section-sub">price drops, longs get force-closed · {rangeConf.label}</span>
             </div>
             {bands.longs.map((b, i) => <BandRow key={`l${i}`} b={b} />)}
           </div>
