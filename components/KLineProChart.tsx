@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
-import { BINANCE_SYMS, BYBIT_SYMS, CoinId } from '@/lib/marketStore';
+import { BINANCE_SYMS, BYBIT_SYMS, CoinId, useMarket, computeSqueezeScore } from '@/lib/marketStore';
 import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 
@@ -262,6 +262,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const [showSR, setShowSR]       = useState(true);
   const [srLevels, setSrLevels]   = useState<SRLevel[]>([]);
   const srSetRef                  = useRef(setSrLevels);
+  const { store } = useMarket();
+  const coinData = store.coins[coin];
   const srOverlayIds              = useRef<string[]>([]);
   // Track the last loaded coin/tf so we only re-fetch what actually changed,
   // and a monotonic load token so stale in-flight fetches are dropped on arrival.
@@ -797,6 +799,33 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
   const hasLevels = result && (result.entryLow || result.sl || result.tp);
 
+  /* ── Setup Quality: price near strong S/R + squeeze forming ── */
+  const setupQuality = (() => {
+    const price = lastCloseRef.current;
+    if (!price || !srLevels.length) return null;
+    const sq = computeSqueezeScore(coinData);
+    const nearSR = srLevels.find(level => {
+      const pct = Math.abs(price - level.price) / price * 100;
+      return pct < 0.8 && level.touches >= 2;
+    }) ?? null;
+    if (!nearSR || sq.score < 50 || sq.dir === 'NEUTRAL') return null;
+    const aligned =
+      (nearSR.type === 'support'    && sq.dir === 'SHORT_SQ') ||
+      (nearSR.type === 'resistance' && sq.dir === 'LONG_LIQ');
+    if (sq.score >= 65 && aligned) return {
+      label: 'Prime Setup',
+      detail: nearSR.type === 'support'
+        ? `Support (${nearSR.touches}T) + Short Squeeze · Score ${sq.score}/100`
+        : `Resistance (${nearSR.touches}T) + Long Flush · Score ${sq.score}/100`,
+      color: '#fbbf24', bg: 'rgba(251,191,36,0.10)', bdr: 'rgba(251,191,36,0.28)',
+    };
+    return {
+      label: 'Setup Forming',
+      detail: `Near ${nearSR.type} (${nearSR.touches} touches) · Squeeze ${sq.score}/100`,
+      color: '#a78bfa', bg: 'rgba(167,139,250,0.10)', bdr: 'rgba(167,139,250,0.28)',
+    };
+  })();
+
   return (
     <div className="klc-wrap" ref={wrapRef}>
       {/* Toolbar */}
@@ -892,6 +921,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         )}
 
         <span style={{ marginLeft: 'auto' }} />
+        {setupQuality && (
+          <span
+            title={setupQuality.detail}
+            style={{
+              fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+              color: setupQuality.color, background: setupQuality.bg,
+              border: `0.5px solid ${setupQuality.bdr}`,
+              letterSpacing: '0.04em', whiteSpace: 'nowrap', cursor: 'default',
+            }}
+          >
+            {setupQuality.label}
+          </span>
+        )}
         <button
           className="klc-tool-btn klc-fullscreen-btn"
           onClick={handleFullscreen}
