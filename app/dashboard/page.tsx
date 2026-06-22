@@ -304,6 +304,7 @@ function EdgeSignals() {
   const { store } = useMarket();
   const coin = store.coins[store.selectedCoin];
   const [tipOpen, setTipOpen] = useState(false);
+  const [takerExpanded, setTakerExpanded] = useState(false);
   const oi1h  = useOI1h(store.selectedCoin);
   const sq    = computeSqueezeScore(coin);
   const tipRef = useRef<HTMLDivElement>(null);
@@ -565,9 +566,11 @@ function EdgeSignals() {
         {(() => {
           const coinsWithData = COINS.filter(id => store.coins[id]?.takerBuyRatio != null);
           const noDataCount   = COINS.length - coinsWithData.length;
+          const visibleCoins  = takerExpanded ? coinsWithData : coinsWithData.slice(0, 5);
+          const hiddenCount   = coinsWithData.length - visibleCoins.length;
           return (
             <>
-              {coinsWithData.map(id => {
+              {visibleCoins.map(id => {
           const c = store.coins[id];
           const ratio = c?.takerBuyRatio;   // 0.0–1.0
           const buyPct  = ratio != null ? Math.round(ratio * 100) : null;
@@ -612,6 +615,21 @@ function EdgeSignals() {
             </div>
           );
         })}
+              <button
+                onClick={() => setTakerExpanded(v => !v)}
+                style={{
+                  width: '100%', padding: '9px 0', background: 'none', border: 'none',
+                  borderTop: '0.5px solid var(--bdr)', cursor: 'pointer',
+                  fontSize: 11, color: 'var(--txt3)', fontWeight: 600,
+                  letterSpacing: '.03em', transition: 'color 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--txt)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--txt3)')}
+              >
+                {takerExpanded
+                  ? 'Show less ▲'
+                  : `Show ${hiddenCount} more coins ▼`}
+              </button>
               {noDataCount > 0 && (
                 <div style={{ fontSize: 11, color: 'var(--txt2)', padding: '6px 10px', borderTop: '0.5px solid var(--bdr)' }}>
                   +{noDataCount} coins without taker data (Bybit-only)

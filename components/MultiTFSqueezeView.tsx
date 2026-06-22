@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import { useMarket, COINS, CoinId, computeSqueezeScore } from '@/lib/marketStore';
 
 type TFDir = 'FLUSH' | 'SQUEEZE' | 'NEUTRAL';
@@ -82,6 +83,7 @@ const TF_LABELS = ['15 Min', '1 Hour', '4 Hour', '1 Day'] as const;
 
 export default function MultiTFSqueezeView() {
   const { store } = useMarket();
+  const [expanded, setExpanded] = useState(false);
 
   const rows = COINS.map(c => {
     const coin = store.coins[c];
@@ -155,7 +157,7 @@ export default function MultiTFSqueezeView() {
       </div>
 
       {/* Coin rows */}
-      {rows.map(({ c, tfs, sq, flushCount, sqzCount }) => {
+      {(expanded ? rows : rows.slice(0, 5)).map(({ c, tfs, sq, flushCount, sqzCount }) => {
         const dominantDir = sqzCount >= 2 ? 'SQUEEZE' : flushCount >= 2 ? 'FLUSH' : 'NEUTRAL';
         const rowActive   = dominantDir !== 'NEUTRAL';
         return (
@@ -221,6 +223,21 @@ export default function MultiTFSqueezeView() {
           </div>
         );
       })}
+
+      {/* Show more toggle */}
+      <button
+        onClick={() => setExpanded(v => !v)}
+        style={{
+          width: '100%', padding: '9px 0', background: 'none', border: 'none',
+          borderTop: '0.5px solid rgba(255,255,255,0.05)', cursor: 'pointer',
+          fontSize: 11, color: '#444', fontWeight: 600, letterSpacing: '.03em',
+          transition: 'color 0.15s',
+        }}
+        onMouseEnter={e => (e.currentTarget.style.color = '#888')}
+        onMouseLeave={e => (e.currentTarget.style.color = '#444')}
+      >
+        {expanded ? 'Show less ▲' : `Show ${rows.length - 5} more coins ▼`}
+      </button>
 
       {/* Footer legend */}
       <div style={{ padding: '6px 14px', borderTop: '0.5px solid rgba(255,255,255,0.05)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
