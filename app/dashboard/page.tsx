@@ -791,16 +791,6 @@ function GexTable() {
   );
 }
 
-const RULES = [
-  { n: 1, c: 'np', t: 'No bright cluster = no trade. Period.', b: 'If you cannot point to a bright, tight yellow/white zone on Coinglass 24h Model 2, you are guessing.' },
-  { n: 2, c: 'np', t: 'Funding rate tells you direction.', b: '+ve funding = too many longs = whales dump DOWN. -ve funding = too many shorts = whales squeeze UP.' },
-  { n: 3, c: 'np', t: 'Time window is everything.', b: 'God Tier (Sun 11PM–Mon 3AM PHT) and Prime (daily 2–5AM PHT) are when raids happen. Dead Zone (12–3PM) = stay out.' },
-  { n: 4, c: 'ng', t: 'Enter 0.8–1.5% before the zone.', b: 'Not at the zone. Not after. You front-run the magnet — you do not chase it into the kill zone.' },
-  { n: 5, c: 'ng', t: 'Exit the SECOND price touches the cluster.', b: 'Do not hold through the touch expecting more. The raid fuel is spent the moment it hits. Get out fast.' },
-  { n: 6, c: 'np', t: 'Maximum 2 trades per day.', b: 'More than 2 = you are gambling, not hunting. Flat 90% of the time is how the best players operate.' },
-  { n: 7, c: 'ng', t: 'Never trust the first move after news.', b: 'First 30-45 minutes after big news = fake move. Real directional move comes on the second leg.' },
-  { n: 8, c: 'ng', t: 'After a raid = 4 hours rest minimum.', b: 'The fuel is gone. They have eaten. Do not revenge-trade. Do not look for the next setup immediately.' },
-];
 
 function BTCDominance() {
   const { store } = useMarket();
@@ -831,7 +821,6 @@ function CoinSignalsHeader() {
 }
 
 export default function Dashboard() {
-  const [cmdsOpen, setCmdsOpen]         = useState(false);
   const [gexOpen,  setGexOpen]          = useState(true);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [showTour, setShowTour]         = useState(false);
@@ -964,32 +953,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {!beginnerMode && !hide('commandments') && <>
-          <div
-            className="dash-section"
-            style={{ cursor: 'pointer', userSelect: 'none' }}
-            onClick={() => setCmdsOpen(o => !o)}
-          >
-            The 8 commandments
-            <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
-              {cmdsOpen ? '▲ hide' : '▼ show'}
-            </span>
-          </div>
-          {cmdsOpen && (
-            <div className="card">
-              <div className="lbl">Core rules — never break these</div>
-              {RULES.map(r => (
-                <div key={r.n} className="row" style={{ marginBottom: 14 }}>
-                  <div className={`num ${r.c}`}>{r.n}</div>
-                  <div>
-                    <div className="st">{r.t}</div>
-                    <div className="sb">{r.b}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </>}
       </div>
 
       {/* ── Right panel (desktop ≥1100px only) ── */}
