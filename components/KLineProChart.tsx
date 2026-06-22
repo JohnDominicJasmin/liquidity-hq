@@ -938,7 +938,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               display: 'flex', alignItems: 'center', gap: 5,
             }}>
               {setupQuality.label}
-              <span className="sq-info">
+              <span className="sq-info" style={{ '--sq-bdr': setupQuality.bdr } as React.CSSProperties}>
                 <span style={{ opacity: 0.6, fontSize: 11, lineHeight: 1 }}>ⓘ</span>
                 <div className="sq-tooltip">
                   <div style={{
