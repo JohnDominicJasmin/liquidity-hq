@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   useMarket, COINS, COIN_DEC, fmtPrice, fmtChg,
-  classifyFunding, computeSqueezeScore, type CoinId, type MarketStore,
+  classifyFunding, computeSqueezeScore, type CoinId, type MarketStore, type CoinData,
 } from '@/lib/marketStore';
 import { useNews } from '@/components/NewsProvider';
 import SessionCountdown from '@/components/SessionCountdown';
@@ -66,6 +66,42 @@ function pad2(n: number) { return String(n).padStart(2, '0'); }
 
 function phtNow() {
   return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+}
+
+/* ── Which signals fired for a given setup direction ── */
+function getSignalTags(coin: CoinData, dir: 'LONG_LIQ' | 'SHORT_SQ'): string[] {
+  const tags: string[] = [];
+  if (coin.fundingRate != null) {
+    const fr = coin.fundingRate * 100;
+    if (dir === 'LONG_LIQ') {
+      if (fr >= 0.05)        tags.push(`FR +${fr.toFixed(2)}%`);
+      else if (fr >= 0.01)   tags.push('FR Elevated');
+    } else {
+      if (fr <= -0.03)       tags.push(`FR ${fr.toFixed(2)}%`);
+      else if (fr <= -0.005) tags.push('FR Neg');
+    }
+  }
+  if (coin.longRatio != null && coin.shortRatio != null) {
+    if (dir === 'LONG_LIQ' && coin.longRatio >= 0.58)
+      tags.push(`Longs ${(coin.longRatio * 100).toFixed(0)}%`);
+    if (dir === 'SHORT_SQ' && coin.shortRatio >= 0.58)
+      tags.push(`Shorts ${(coin.shortRatio * 100).toFixed(0)}%`);
+  }
+  if (coin.takerBuyRatio != null) {
+    if (dir === 'LONG_LIQ' && coin.takerBuyRatio <= 0.42) tags.push('Taker Sell');
+    if (dir === 'SHORT_SQ' && coin.takerBuyRatio >= 0.58) tags.push('Taker Buy');
+  }
+  if (coin.volRatio != null && coin.volRatio >= 1.5)
+    tags.push(`Vol ${coin.volRatio.toFixed(1)}x`);
+  if (coin.rsi14 != null) {
+    if (dir === 'LONG_LIQ' && coin.rsi14 >= 65) tags.push(`RSI ${Math.round(coin.rsi14)}`);
+    if (dir === 'SHORT_SQ' && coin.rsi14 <= 35)  tags.push(`RSI ${Math.round(coin.rsi14)}`);
+  }
+  if (coin.oiTrend) {
+    if (dir === 'LONG_LIQ' && coin.oiTrend.includes('down')) tags.push('OI ↓');
+    if (dir === 'SHORT_SQ' && coin.oiTrend.includes('up'))   tags.push('OI ↑');
+  }
+  return tags;
 }
 
 /* ── context builder for Grok ── */
@@ -221,11 +257,11 @@ export default function MorningBriefing() {
     setGen(false);
   }
 
-  /* Hot setups — score > 20, top 4, only coins with loaded price data */
-  const hotSetups = coinRows
-    .filter(r => r.sq.score > 20 && r.c?.price != null && r.c.price > 0)
+  /* Top 3 Setups — non-neutral direction only, sorted by score */
+  const top3Setups = coinRows
+    .filter(r => r.sq.dir !== 'NEUTRAL' && r.c?.price != null && r.c.price > 0)
     .sort((a, b) => b.sq.score - a.sq.score)
-    .slice(0, 4);
+    .slice(0, 3);
 
   /* Events — upcoming (next 24h) + recently released (last 6h) */
   const urgentEcon = econEvents.filter(e => { const lh = (e.dt.getTime() - Date.now()) / 3600000; return lh > -6 && lh < 24; }).slice(0, 8);
@@ -286,6 +322,78 @@ export default function MorningBriefing() {
       <div className="mb-header">
         <div className="mb-title">Morning Briefing</div>
         <div className="mb-subtitle">{dateStr} · {timeStr}</div>
+      </div>
+
+      {/* ── Top 3 Setups Today ── */}
+      <div className="card" style={{ marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div className="lbl" style={{ margin: 0 }}>Top 3 Setups Today</div>
+          <Link href="/arena" style={{ fontSize: 11, color: 'var(--txt3)', textDecoration: 'none' }}>
+            See all in Arena →
+          </Link>
+        </div>
+
+        {!pricesLoaded ? (
+          <div style={{ fontSize: 12, color: 'var(--txt3)', padding: '4px 0' }}>Loading market data…</div>
+        ) : top3Setups.length === 0 ? (
+          <div style={{ fontSize: 12, color: 'var(--txt3)', padding: '4px 0' }}>
+            No strong setups right now — market positioning is balanced.
+          </div>
+        ) : (
+          top3Setups.map(({ id, c, sq }, i) => {
+            const isLong    = sq.dir === 'SHORT_SQ';
+            const dirColor  = isLong ? '#34d399' : '#f87171';
+            const dirLabel  = isLong ? 'Long ↑' : 'Short ↓';
+            const tags      = c ? getSignalTags(c, sq.dir as 'LONG_LIQ' | 'SHORT_SQ') : [];
+            const isLast    = i === top3Setups.length - 1;
+            return (
+              <Link key={id} href="/arena" style={{ textDecoration: 'none', display: 'block' }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '11px 0',
+                  borderBottom: isLast ? 'none' : '0.5px solid var(--bdr)',
+                }}>
+                  <div style={{
+                    fontSize: 14, fontWeight: 800, color: 'var(--txt)',
+                    minWidth: 46, letterSpacing: '-0.3px',
+                  }}>
+                    {COIN_LABELS[id]}
+                  </div>
+
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
+                    letterSpacing: '.03em', flexShrink: 0,
+                    color: dirColor,
+                    background: isLong ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)',
+                    border: `0.5px solid ${isLong ? 'rgba(52,211,153,0.35)' : 'rgba(248,113,113,0.35)'}`,
+                  }}>
+                    {dirLabel}
+                  </span>
+
+                  <div style={{ display: 'flex', gap: 5, flex: 1, flexWrap: 'wrap' }}>
+                    {tags.map(tag => (
+                      <span key={tag} style={{
+                        fontSize: 10, fontWeight: 600, color: 'var(--txt3)',
+                        background: 'var(--bg2)', borderRadius: 4,
+                        padding: '2px 6px', letterSpacing: '.02em',
+                      }}>
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div style={{ flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: 1 }}>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: sq.color, letterSpacing: '-0.5px' }}>
+                      {sq.score}
+                    </span>
+                    <span style={{ fontSize: 10, color: 'var(--txt3)', fontWeight: 500 }}>/100</span>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--txt3)' }}>→</span>
+                </div>
+              </Link>
+            );
+          })
+        )}
       </div>
 
       {/* ── AI Briefing ── */}
@@ -548,31 +656,6 @@ export default function MorningBriefing() {
         )}
       </div>
 
-      {/* ── Hot Setups ── */}
-      {hotSetups.length > 0 && (
-        <div className="card" style={{ marginBottom: 10 }}>
-          <div className="lbl">Hot Setups</div>
-          {hotSetups.map(({ id, c, sq }) => (
-            <Link key={id} href="/arena" className="mb-setup-row" style={{ textDecoration: 'none', cursor: 'pointer' }}>
-              <div className="mb-setup-coin">{COIN_LABELS[id]}</div>
-              <div style={{ flex: 1 }}>
-                <div className="mb-setup-label" style={{ color: sq.color }}>{sq.label}</div>
-                {c?.fundingRate != null && (
-                  <div className="mb-setup-sub">
-                    FR {(c.fundingRate * 100).toFixed(3)}%
-                    {c.longRatio != null ? ` · L/S ${(c.longRatio * 100).toFixed(0)}/${(c.shortRatio! * 100).toFixed(0)}` : ''}
-                  </div>
-                )}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 1, marginLeft: 'auto' }}>
-                <span className="mb-setup-score" style={{ color: sq.color }}>{sq.score}</span>
-                <span style={{ fontSize: 10, color: 'var(--txt3)', fontWeight: 500 }}>/100</span>
-              </div>
-              <span style={{ fontSize: 11, color: 'var(--txt3)', marginLeft: 6 }}>→</span>
-            </Link>
-          ))}
-        </div>
-      )}
 
       {/* ── Events & News ── */}
       <div className="card" style={{ marginBottom: 10 }}>
