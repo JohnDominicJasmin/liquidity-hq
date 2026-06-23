@@ -1105,8 +1105,8 @@ body.ticker-on .breaking-alert { top: 90px; }
 
 /* ── GRID CARD ── */
 .ncard-grid {
-  background: linear-gradient(135deg, rgba(88,28,135,0.18) 0%, rgba(10,7,25,0.82) 100%);
-  border: 0.5px solid rgba(139,92,246,0.18);
+  background: var(--bg1);
+  border: 0.5px solid rgba(255,255,255,0.08);
   border-radius: 12px;
   overflow: hidden;
   display: flex;
@@ -1115,10 +1115,10 @@ body.ticker-on .breaking-alert { top: 90px; }
   transition: background 0.2s, border-color 0.2s, transform 0.14s, box-shadow 0.2s;
 }
 .ncard-grid:hover {
-  background: linear-gradient(135deg, rgba(88,28,135,0.3) 0%, rgba(10,7,25,0.9) 100%);
-  border-color: rgba(139,92,246,0.35);
+  background: var(--bg2);
+  border-color: rgba(255,255,255,0.13);
   transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(88,28,135,0.22), inset 0 0.5px 0 rgba(255,255,255,0.1);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.4), inset 0 0.5px 0 rgba(255,255,255,0.1);
 }
 .ncard-grid-hero  { grid-column: 1 / -1; }
 
@@ -1130,12 +1130,12 @@ body.ticker-on .breaking-alert { top: 90px; }
 .ncard-grid-img  { width: 100%; height: 100%; object-fit: cover; display: block; filter: brightness(0.82); }
 .ncard-grid-img-fade {
   position: absolute; bottom: 0; left: 0; right: 0; height: 70px;
-  background: linear-gradient(transparent, rgba(10,7,25,0.95));
+  background: linear-gradient(transparent, var(--bg1));
 }
 .ncard-grid-placeholder {
   height: 185px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, rgba(88,28,135,0.28) 0%, rgba(15,8,40,0.5) 100%);
+  background: var(--bg2);
 }
 .ncard-grid-hero .ncard-grid-placeholder { height: 280px; }
 
