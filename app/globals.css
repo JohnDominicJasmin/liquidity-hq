@@ -1984,6 +1984,12 @@ body.ticker-on .breaking-alert { top: 90px; }
 .scan-filter-btn.on {
   background: var(--purple-bg); border-color: var(--purple-bdr); color: var(--purple);
 }
+.scan-filter-sep {
+  width: 1px; background: var(--bdr); align-self: stretch; margin: 0 4px; flex-shrink: 0;
+}
+.scan-filter-toggle.on {
+  background: rgba(251,191,36,0.10); border-color: rgba(251,191,36,0.35); color: #fbbf24;
+}
 
 .scan-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 

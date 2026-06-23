@@ -252,9 +252,18 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
             {f.label}
           </button>
         ))}
+        <span className="scan-filter-sep" />
         <button
-          className={`scan-filter-btn${strongOnly ? ' on' : ''}`}
-          style={{ marginLeft: 'auto' }}
+          className="scan-filter-btn scan-filter-toggle"
+          style={{
+            marginLeft: 'auto',
+            ...(strongOnly ? {
+              background: 'rgba(251,191,36,0.10)',
+              borderColor: 'rgba(251,191,36,0.35)',
+              color: '#fbbf24',
+            } : {}),
+          }}
+          aria-pressed={strongOnly}
           onClick={() => setStrongOnly(v => !v)}
         >
           Strong Setups Only ({strongCount})
