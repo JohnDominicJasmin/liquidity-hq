@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useNews } from '@/components/NewsProvider';
-import { GEO_KEYWORDS, ECON_NOTES } from '@/lib/classify';
+import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline } from '@/lib/classify';
 
 type Tab = 'foryou' | 'breaking' | 'all' | 'geo' | 'crypto' | 'events';
 
@@ -93,11 +93,13 @@ function getBtcSentiment(headline: string): BtcSentiment {
 
 function SentimentBadge({ headline }: { headline: string }) {
   const s = getBtcSentiment(headline);
+  const coins = getCoinsInHeadline(headline);
+  const prefix = coins.length === 1 ? `${coins[0]}: ` : '';
   const cfg = s === 'bullish'
-    ? { bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)',   color: '#34d399', label: 'Bullish ↗' }
+    ? { bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)',   color: '#34d399', label: `${prefix}Bullish ↗` }
     : s === 'bearish'
-    ? { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)',  color: '#f87171', label: 'Bearish ↘' }
-    : { bg: 'rgba(148,163,184,0.08)', border: 'rgba(148,163,184,0.2)',  color: '#64748b', label: 'Neutral'   };
+    ? { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)',  color: '#f87171', label: `${prefix}Bearish ↘` }
+    : { bg: 'rgba(148,163,184,0.08)', border: 'rgba(148,163,184,0.2)',  color: '#64748b', label: prefix ? `${prefix}Neutral` : 'Neutral' };
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center',
@@ -108,6 +110,44 @@ function SentimentBadge({ headline }: { headline: string }) {
     }}>
       {cfg.label}
     </span>
+  );
+}
+
+/* ── Coin Buzz Bar — summary of coin mentions across all alerts ── */
+function CoinBuzzBar({ mentions }: { mentions: { symbol: string; total: number; bullish: number; bearish: number }[] }) {
+  if (mentions.length < 2) return null;
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 6,
+      padding: '8px 0 10px', overflowX: 'auto', scrollbarWidth: 'none',
+    }}>
+      <span style={{
+        fontSize: 10, color: 'var(--txt3)', fontWeight: 600,
+        letterSpacing: '.05em', textTransform: 'uppercase', flexShrink: 0,
+      }}>
+        Coin buzz
+      </span>
+      {mentions.map(m => {
+        const pctBull = m.total > 0 ? m.bullish / m.total : 0;
+        const pctBear = m.total > 0 ? m.bearish / m.total : 0;
+        const sentiment = pctBull >= 0.55 ? 'bull' : pctBear >= 0.55 ? 'bear' : 'mix';
+        const col = sentiment === 'bull' ? '#34d399' : sentiment === 'bear' ? '#f87171' : '#94a3b8';
+        const arrow = sentiment === 'bull' ? ' ↗' : sentiment === 'bear' ? ' ↘' : '';
+        return (
+          <span key={m.symbol} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+            padding: '3px 8px', borderRadius: 20,
+            background: `${col}14`, border: `0.5px solid ${col}44`,
+            fontSize: 11, color: col, fontWeight: 700,
+            letterSpacing: '.03em', whiteSpace: 'nowrap', flexShrink: 0,
+          }}>
+            {m.symbol}
+            <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, fontSize: 10 }}>·</span>
+            <span style={{ fontWeight: 500, fontSize: 10 }}>{m.total}{arrow}</span>
+          </span>
+        );
+      })}
+    </div>
   );
 }
 
@@ -295,6 +335,24 @@ export default function NewsPage() {
   const { alerts, geoEvents, econEvents, whaleAlerts, alertsLoaded } = useNews();
   const [tab, setTab] = useState<Tab>('foryou');
 
+  /* ── Coin mention tally ── */
+  const coinMentions = (() => {
+    const map: Record<string, { total: number; bullish: number; bearish: number }> = {};
+    alerts.forEach(a => {
+      const coins = getCoinsInHeadline(a.headline);
+      const sent = getBtcSentiment(a.headline);
+      coins.forEach(c => {
+        if (!map[c]) map[c] = { total: 0, bullish: 0, bearish: 0 };
+        map[c].total++;
+        if (sent === 'bullish') map[c].bullish++;
+        else if (sent === 'bearish') map[c].bearish++;
+      });
+    });
+    return Object.entries(map)
+      .map(([symbol, v]) => ({ symbol, ...v }))
+      .sort((a, b) => b.total - a.total);
+  })();
+
   /* ── Categorise ── */
   const breaking = alerts
     .filter(a => a.type === 'red')
@@ -375,6 +433,9 @@ export default function NewsPage() {
           </button>
         ))}
       </div>
+
+      {/* ── Coin buzz summary ── */}
+      {tab !== 'events' && <CoinBuzzBar mentions={coinMentions} />}
 
       {/* ── Breaking ── */}
       {tab === 'breaking' && (

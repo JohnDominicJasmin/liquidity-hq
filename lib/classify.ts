@@ -126,6 +126,35 @@ export const ECON_NOTES: Record<string, string> = {
   MACRO:   'High-impact macro event. Expect elevated volatility and fake moves in both directions.',
 };
 
+// ── Coin mention detection ────────────────────────────────────────────────────
+const COIN_PATTERNS: { symbol: string; re: RegExp }[] = [
+  { symbol: 'BTC',  re: /\b(bitcoin|btc)\b/i },
+  { symbol: 'ETH',  re: /\b(ethereum|eth)\b/i },
+  { symbol: 'SOL',  re: /\b(solana|sol)\b/i },
+  { symbol: 'XRP',  re: /\b(xrp|ripple)\b/i },
+  { symbol: 'BNB',  re: /\bbnb\b|\bbinance coin\b/i },
+  { symbol: 'HYPE', re: /\bhyperliquid\b/i },
+  { symbol: 'NEAR', re: /\bnear protocol\b/i },
+  { symbol: 'SUI',  re: /\bsui\b/i },
+  { symbol: 'DOGE', re: /\b(dogecoin|doge)\b/i },
+  { symbol: 'AVAX', re: /\b(avalanche|avax)\b/i },
+  { symbol: 'LINK', re: /\bchainlink\b/i },
+  { symbol: 'ADA',  re: /\bcardano\b/i },
+  { symbol: 'DOT',  re: /\bpolkadot\b/i },
+  { symbol: 'ATOM', re: /\bcosmos\b/i },
+  { symbol: 'WIF',  re: /\bdogwifhat\b/i },
+  { symbol: 'PEPE', re: /\bpepe\b/i },
+  { symbol: 'BONK', re: /\bbonk\b/i },
+];
+
+export function getCoinsInHeadline(headline: string): string[] {
+  const found: string[] = [];
+  for (const p of COIN_PATTERNS) {
+    if (p.re.test(headline)) found.push(p.symbol);
+  }
+  return found;
+}
+
 interface EconEntry { name: string; type: string; impact: string; }
 
 export function classifyEcon(name: string): EconEntry | null {
