@@ -229,7 +229,9 @@ function HeroCard({ a }: { a: AlertItem }) {
           <div className="ncard-grid-img-fade" />
         </div>
       ) : (
-        <div className="ncard-grid-placeholder" style={{ background: `linear-gradient(135deg, ${cfg.dot}14, var(--bg2))` }} />
+        <div className="ncard-grid-placeholder" style={{ background: `linear-gradient(135deg, ${cfg.dot}14, var(--bg2))` }}>
+          <span style={{ fontSize: 44, opacity: 0.12, userSelect: 'none' }}>📰</span>
+        </div>
       )}
       <div className="ncard-grid-body">
         <div className="ncard-grid-top">
@@ -282,7 +284,9 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
           <div className="ncard-grid-img-fade" />
         </div>
       ) : (
-        <div className="ncard-grid-placeholder" style={{ background: `linear-gradient(135deg, ${cfg.dot}10, var(--bg2))` }} />
+        <div className="ncard-grid-placeholder" style={{ background: `linear-gradient(135deg, ${cfg.dot}10, var(--bg2))` }}>
+          <span style={{ fontSize: 44, opacity: 0.12, userSelect: 'none' }}>📰</span>
+        </div>
       )}
       <div className="ncard-grid-body">
         <div className="ncard-grid-top">
@@ -519,7 +523,9 @@ export default function NewsPage() {
           {/* Extra geo events */}
           {extraGeo.map((g, i) => (
             <div key={i} className="ncard-grid" style={{ borderTopColor: '#a78bfa' }}>
-              <div className="ncard-grid-placeholder" style={{ background: 'linear-gradient(135deg, rgba(167,139,250,0.10), var(--bg2))' }} />
+              <div className="ncard-grid-placeholder" style={{ background: 'linear-gradient(135deg, rgba(167,139,250,0.10), var(--bg2))' }}>
+                <span style={{ fontSize: 44, opacity: 0.12, userSelect: 'none' }}>🌐</span>
+              </div>
               <div className="ncard-grid-body">
                 <div className="ncard-grid-top">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
