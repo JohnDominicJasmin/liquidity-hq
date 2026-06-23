@@ -218,7 +218,7 @@ function HeroCard({ a }: { a: AlertItem }) {
   return (
     <div
       className="ncard-grid ncard-grid-hero"
-      style={{ borderTopColor: cfg.dot, cursor: a.link ? 'pointer' : 'default' }}
+      style={{ cursor: a.link ? 'pointer' : 'default' }}
       onClick={() => a.link && window.open(a.link, '_blank', 'noopener')}
     >
       {a.image ? (
@@ -229,7 +229,7 @@ function HeroCard({ a }: { a: AlertItem }) {
           <div className="ncard-grid-img-fade" />
         </div>
       ) : (
-        <div className="ncard-grid-placeholder" style={{ background: `linear-gradient(135deg, ${cfg.dot}14, var(--bg2))` }}>
+        <div className="ncard-grid-placeholder">
           <span style={{ fontSize: 44, opacity: 0.12, userSelect: 'none' }}>📰</span>
         </div>
       )}
@@ -273,7 +273,7 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
   return (
     <div
       className="ncard-grid"
-      style={{ borderTopColor: cfg.dot, cursor: a.link ? 'pointer' : 'default' }}
+      style={{ cursor: a.link ? 'pointer' : 'default' }}
       onClick={() => a.link && window.open(a.link, '_blank', 'noopener')}
     >
       {hasImg ? (
@@ -284,7 +284,7 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
           <div className="ncard-grid-img-fade" />
         </div>
       ) : (
-        <div className="ncard-grid-placeholder" style={{ background: `linear-gradient(135deg, ${cfg.dot}10, var(--bg2))` }}>
+        <div className="ncard-grid-placeholder">
           <span style={{ fontSize: 44, opacity: 0.12, userSelect: 'none' }}>📰</span>
         </div>
       )}
@@ -478,11 +478,9 @@ export default function NewsPage() {
           {whaleAlerts.slice(0, 8).map((w) => {
             const isBuy = w.side === 'BUY';
             const col   = isBuy ? 'var(--green)' : 'var(--red)';
-            const colHex = isBuy ? '#34d399' : '#f87171';
             return (
-              <div key={w.id} className="ncard-grid" style={{ borderTopColor: colHex }}>
+              <div key={w.id} className="ncard-grid">
                 <div className="ncard-grid-placeholder" style={{
-                  background: `linear-gradient(135deg, ${colHex}14, var(--bg2))`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 30, color: col, fontWeight: 800, opacity: 0.8,
                 }}>
@@ -522,8 +520,8 @@ export default function NewsPage() {
 
           {/* Extra geo events */}
           {extraGeo.map((g, i) => (
-            <div key={i} className="ncard-grid" style={{ borderTopColor: '#a78bfa' }}>
-              <div className="ncard-grid-placeholder" style={{ background: 'linear-gradient(135deg, rgba(167,139,250,0.10), var(--bg2))' }}>
+            <div key={i} className="ncard-grid">
+              <div className="ncard-grid-placeholder">
                 <span style={{ fontSize: 44, opacity: 0.12, userSelect: 'none' }}>🌐</span>
               </div>
               <div className="ncard-grid-body">
