@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useMarket, classifyFunding, CoinId, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
+import { useMarket, classifyFunding, CoinId, COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
 import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcRSI, callGrokViaProxy, fetchGrokUsage, GrokUsageInfo } from '@/lib/grok';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
 import { getSessionName } from '@/lib/session';
@@ -89,16 +89,12 @@ function ReasoningText({ text }: { text: string }) {
   );
 }
 
-const COINS: CoinId[] = [
-  'btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui',
-  'doge', 'avax', 'link', 'ada', 'dot', 'atom', 'wif', 'pepe', 'bonk',
-];
-
-const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'meme', readonly CoinId[]> = {
+const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'defi' | 'meme', readonly CoinId[]> = {
   all:    COINS,
-  majors: ['btc', 'eth', 'sol', 'xrp', 'bnb'],
-  alts:   ['hype', 'near', 'sui', 'avax', 'link', 'ada', 'dot', 'atom'],
-  meme:   ['doge', 'pepe', 'wif', 'bonk'],
+  majors: ['btc', 'eth', 'sol', 'xrp', 'bnb', 'ltc', 'bch', 'ada'],
+  alts:   ['near', 'sui', 'avax', 'link', 'dot', 'atom', 'arb', 'op', 'apt', 'sei', 'inj', 'tia', 'trx', 'xlm', 'etc', 'fil', 'stx'],
+  defi:   ['hype', 'aave', 'uni', 'ldo', 'rune', 'gmx', 'crv', 'jup', 'wld', 'render', 'tao', 'fet', 'ondo', 'pyth', 'ena', 'dydx', 'xau', 'spx'],
+  meme:   ['doge', 'pepe', 'wif', 'bonk', 'gmt', 'sand', 'mana'],
 };
 
 
@@ -180,7 +176,7 @@ export default function Arena() {
   // Track last Quick signal per coin so Deep can compare and show an override notice
   const [quickSignals, setQuickSignals] = useState<Partial<Record<CoinId, string>>>({});
   const [scannerOpen, setScannerOpen]   = useState(false);
-  const [coinCat, setCoinCat]           = useState<'all' | 'majors' | 'alts' | 'meme'>('all');
+  const [coinCat, setCoinCat]           = useState<'all' | 'majors' | 'alts' | 'defi' | 'meme'>('all');
   const [sigDetailsOpen, setSigDetailsOpen] = useState(false);
   const [copiedKey, setCopiedKey]           = useState<string | null>(null);
   const [jpyUsd, setJpyUsd]                 = useState<number | null>(null);
@@ -1043,14 +1039,14 @@ export default function Arena() {
 
       {/* ── COIN CATEGORY TABS ── */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
-        {(['all', 'majors', 'alts', 'meme'] as const).map(c => (
+        {(['all', 'majors', 'alts', 'defi', 'meme'] as const).map(c => (
           <button
             key={c}
             className={`gsc-tf-btn${coinCat === c ? ' on' : ''}`}
             style={{ padding: '3px 9px', fontSize: 10, textTransform: 'capitalize' }}
             onClick={() => setCoinCat(c)}
           >
-            {c === 'all' ? 'All' : c === 'majors' ? 'Majors' : c === 'alts' ? 'Alts' : 'Meme'}
+            {c === 'all' ? 'All' : c === 'majors' ? 'Majors' : c === 'alts' ? 'Alts' : c === 'defi' ? 'DeFi/AI' : 'Meme'}
           </button>
         ))}
       </div>

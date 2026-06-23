@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { detectPatterns } from '@/lib/patterns';
 import { T } from '@/lib/tables';
 import { recordFires } from '@/lib/alertHistory';
+import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS } from '@/lib/coins';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,46 +58,29 @@ function fmtGrok(raw: string): string {
 /* ── Signal queue — for confluence batching ── */
 interface SignalEntry { coin: string; title: string; body: string; name: string }
 
-/* ── Coin maps ── */
-const BINANCE_PERP: Record<string, string> = {
-  btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
-  xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
-  doge: 'DOGEUSDT', avax: 'AVAXUSDT', link: 'LINKUSDT',
-  ada: 'ADAUSDT', dot: 'DOTUSDT', atom: 'ATOMUSDT', wif: 'WIFUSDT',
-};
-const BYBIT_PERP: Record<string, string> = {
-  btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
-  xrp: 'XRPUSDT', bnb: 'BNBUSDT', hype: 'HYPEUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
-  doge: 'DOGEUSDT', avax: 'AVAXUSDT', link: 'LINKUSDT',
-  ada: 'ADAUSDT', dot: 'DOTUSDT', atom: 'ATOMUSDT', wif: 'WIFUSDT',
-  pepe: 'PEPEUSDT', bonk: 'BONKUSDT',
-};
-const BINANCE_SPOT: Record<string, string> = {
-  btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
-  xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
-  doge: 'DOGEUSDT', avax: 'AVAXUSDT', link: 'LINKUSDT',
-  ada: 'ADAUSDT', dot: 'DOTUSDT', atom: 'ATOMUSDT', wif: 'WIFUSDT',
-};
-/* Coins available on Bybit only — use Bybit klines for RSI / EMA / Rapid Move / OI */
-const BYBIT_KLINE_SYMS: Record<string, string> = {
-  hype: 'HYPEUSDT',
-  pepe: 'PEPEUSDT', bonk: 'BONKUSDT',
-};
-const LABELS: Record<string, string> = {
-  btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP',
-  bnb: 'BNB', hype: 'HYPE', near: 'NEAR', sui: 'SUI',
-  doge: 'DOGE', avax: 'AVAX', link: 'LINK',
-  ada: 'ADA', dot: 'DOT', atom: 'ATOM', wif: 'WIF',
-  pepe: 'PEPE', bonk: 'BONK',
-};
-const COINS = Object.keys(LABELS);
+/* ── Coin maps (sourced from shared lib/coins.ts) ── */
+const BINANCE_PERP  = BINANCE_SYMS;
+const BYBIT_PERP    = BYBIT_SYMS;
+const BINANCE_SPOT  = BINANCE_SYMS;   // spot symbols are identical to perp symbols
+// Bybit-only coins: not listed on Binance perp — use Bybit for klines / OI / whale checks
+const BYBIT_KLINE_SYMS: Record<string, string> = Object.fromEntries(
+  Object.entries(BYBIT_SYMS).filter(([c]) => !BINANCE_SYMS[c])
+);
+const LABELS: Record<string, string> = COIN_LABELS;
 
 const WHALE_THRESHOLD: Record<string, number> = {
   btc: 5_000_000, eth: 2_000_000, sol: 1_000_000,
-  xrp: 750_000,   bnb: 750_000,  near: 500_000, sui: 500_000, hype: 500_000,
-  doge: 500_000,  avax: 500_000, link: 500_000,
-  ada: 500_000,   dot: 500_000,  atom: 500_000,  wif: 500_000,
+  xrp: 750_000,   bnb: 750_000,   near: 500_000, sui: 500_000, hype: 500_000,
+  doge: 500_000,  avax: 500_000,  link: 500_000,
+  ada: 500_000,   dot: 500_000,   atom: 500_000, wif: 500_000,
   pepe: 500_000,  bonk: 500_000,
+  ltc: 750_000,   bch: 750_000,   trx: 500_000,  xlm: 500_000, etc: 250_000, fil: 250_000,
+  arb: 500_000,   op: 500_000,    apt: 500_000,  sei: 250_000, inj: 500_000, tia: 250_000,
+  aave: 500_000,  uni: 500_000,   ldo: 250_000,  rune: 500_000, gmx: 250_000, crv: 250_000,
+  stx: 250_000,   jup: 250_000,   wld: 250_000,  render: 250_000, tao: 500_000, fet: 250_000,
+  ondo: 250_000,  pyth: 250_000,  ena: 250_000,  dydx: 250_000,
+  sand: 250_000,  mana: 250_000,  gmt: 250_000,
+  // xau/spx excluded — synthetic perps with non-standard trade sizing
 };
 
 /* ── In-memory state ── */
@@ -261,7 +245,9 @@ async function fetchBybitKlines(symbol: string, interval: string, limit: number)
     const data = await res.json() as { result?: { list?: string[][] } };
     const list = data.result?.list ?? [];
     // Bybit returns newest-first — reverse so index 0 = oldest
-    return list.map(c => parseFloat(c[4])).reverse();
+    // Apply 0.001 factor for 1000x denomination symbols (e.g. 1000PEPEUSDT, 1000BONKUSDT)
+    const pf = symbol.startsWith('1000') ? 0.001 : 1;
+    return list.map(c => parseFloat(c[4]) * pf).reverse();
   } catch { return []; }
 }
 
@@ -1221,7 +1207,7 @@ async function checkSqueezeAlerts(
    Checked on top 6 coins only to stay within Render timeout budget.
    ════════════════════════════════════════ */
 
-const EMA_SETUP_COINS = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'near'] as const;
+const EMA_SETUP_COINS = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'near', 'sui', 'doge', 'avax', 'link', 'ada', 'arb'] as const;
 
 function calcEMALocal(closes: number[], period: number): number {
   if (closes.length < period) return closes[closes.length - 1] ?? 0;

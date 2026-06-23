@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 
 /* ── Types ── */
 interface LiqEvent {
@@ -28,7 +29,7 @@ const CASCADE_WIN        = 30_000;                // 30-second window
 const CASCADE_HIDE_MS    = 12_000;                // show cascade badge 12s
 const STORAGE_KEY        = 'liq-events-v2';       // localStorage key
 const STORAGE_MAX        = 400;                   // max events to persist
-const BYBIT_COINS        = ['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT','BNBUSDT','HYPEUSDT','NEARUSDT'];
+const BYBIT_COINS        = Object.values(BYBIT_SYMS);
 const FILTER_COINS       = ['ALL','BTC','ETH','SOL','XRP','BNB','HYPE','NEAR'];
 
 let idCounter = 0;
@@ -162,7 +163,7 @@ export default function LiqFeed() {
   }, [rebuild, saveToStorage]);
 
   /* ── Binance forceOrder WebSocket (individual symbol streams — all-market @arr is deprecated) ── */
-  const BN_SYMBOLS = ['btcusdt','ethusdt','solusdt','xrpusdt','bnbusdt','nearusdt','suiusdt'];
+  const BN_SYMBOLS = Object.values(BINANCE_SYMS).map(s => s.toLowerCase());
   const connectBN = useCallback(() => {
     try { bnWsRef.current?.close(); } catch { /* */ }
     // Combined stream: each symbol has its own forceOrder feed
@@ -202,8 +203,11 @@ export default function LiqFeed() {
     bbWsRef.current = ws;
     ws.onopen = () => {
       setBbStatus('live');
-      // v5 topic is now allLiquidation.{symbol} (liquidation.{symbol} was removed)
-      ws.send(JSON.stringify({ op: 'subscribe', args: BYBIT_COINS.map(s => `allLiquidation.${s}`) }));
+      // v5 topic: allLiquidation.{symbol} — max 25 topics per subscribe message
+      const topics = BYBIT_COINS.map(s => `allLiquidation.${s}`);
+      for (let i = 0; i < topics.length; i += 25) {
+        ws.send(JSON.stringify({ op: 'subscribe', args: topics.slice(i, i + 25) }));
+      }
     };
     ws.onerror = () => setBbStatus('error');
     ws.onclose = () => {

@@ -1,14 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { CoinId, useMarket } from '@/lib/marketStore';
-
-const SCAN_COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui'];
-
-const BINANCE_OI: Partial<Record<CoinId, string>> = {
-  btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
-  xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
-};
-const BYBIT_OI: Partial<Record<CoinId, string>> = { hype: 'HYPEUSDT' };
+import { CoinId, COINS, BINANCE_SYMS, BYBIT_SYMS, useMarket } from '@/lib/marketStore';
 
 interface CoinOI { coin: CoinId; pct: number | null; oiUsd: number | null }
 
@@ -34,10 +26,10 @@ export default function OISpikeScanner() {
 
   const load = useCallback(async () => {
     const settled = await Promise.allSettled(
-      SCAN_COINS.map(async (coin): Promise<CoinOI> => {
+      COINS.map(async (coin): Promise<CoinOI> => {
         try {
-          const bin = BINANCE_OI[coin];
-          const bbt = BYBIT_OI[coin];
+          const bin = BINANCE_SYMS[coin];
+          const bbt = BYBIT_SYMS[coin];
 
           if (bin) {
             const r = await fetch(
@@ -82,7 +74,7 @@ export default function OISpikeScanner() {
     );
 
     const result: CoinOI[] = settled.map((s, i) =>
-      s.status === 'fulfilled' ? s.value : { coin: SCAN_COINS[i], pct: null, oiUsd: null }
+      s.status === 'fulfilled' ? s.value : { coin: COINS[i], pct: null, oiUsd: null }
     );
 
     // Sort: biggest absolute move first, nulls last
@@ -141,7 +133,7 @@ export default function OISpikeScanner() {
         const sigCol   = sig?.col ?? 'var(--txt3)';
 
         // Bybit OI history returns contracts (base asset), not USD — multiply by live price
-        const displayOiUsd = oiUsd != null && BYBIT_OI[coin]
+        const displayOiUsd = oiUsd != null && !BINANCE_SYMS[coin]
           ? (coinData?.price ? oiUsd * coinData.price : null)
           : oiUsd;
 
