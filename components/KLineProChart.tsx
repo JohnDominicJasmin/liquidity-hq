@@ -802,8 +802,6 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
   /* ── Setup Quality: price near strong S/R + squeeze forming ── */
   const setupQuality = (() => {
-    // FORCED PREVIEW
-    return { label: 'Prime Setup', detail: 'Support (3T) + Short Squeeze · Score 72/100', explanation: 'Price is sitting on a tested support level while shorts are being squeezed out. High-probability long zone - watch for a confirmation candle before entering.', color: '#fbbf24', bg: 'rgba(251,191,36,0.10)', bdr: 'rgba(251,191,36,0.28)' };
     const price = lastCloseRef.current;
     if (!price || !srLevels.length) return null;
     const sq = computeSqueezeScore(coinData);
