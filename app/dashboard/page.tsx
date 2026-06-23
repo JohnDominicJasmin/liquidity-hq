@@ -770,6 +770,7 @@ function GexTable() {
       {/* Plain English GEX summary */}
       {gexLoaded && (
         <div className="gex-insight">
+          <span style={{ color: 'var(--txt3)', marginRight: 6 }}>→</span>
           {(() => {
             const largest = btcGexLevels.length > 0
               ? btcGexLevels.reduce((a, b) => Math.abs(a.gex) > Math.abs(b.gex) ? a : b)
