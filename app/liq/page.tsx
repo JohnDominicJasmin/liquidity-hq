@@ -150,13 +150,47 @@ export default function LiqPage() {
         </div>
       </div>
 
-      {/* Coin selector */}
-      <div className="arena-coin-row" style={{ marginBottom: 12 }}>
-        {COINS.map(c => (
-          <button key={c} className={`arena-coin-btn${coin === c ? ' sel' : ''}`} onClick={() => setCoin(c)}>
-            {c.toUpperCase()}
-          </button>
-        ))}
+      {/* Coin selector dropdown */}
+      <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ position: 'relative', display: 'inline-block' }}>
+          <select
+            value={coin}
+            onChange={e => setCoin(e.target.value as CoinId)}
+            style={{
+              background: 'var(--bg2)',
+              border: '0.5px solid rgba(139,92,246,0.45)',
+              color: 'var(--txt)',
+              fontSize: 13,
+              fontWeight: 700,
+              padding: '7px 30px 7px 12px',
+              borderRadius: 8,
+              cursor: 'pointer',
+              appearance: 'none',
+              WebkitAppearance: 'none',
+              outline: 'none',
+              colorScheme: 'dark',
+              letterSpacing: '.05em',
+              minWidth: 150,
+            }}
+          >
+            {COINS.map(c => {
+              const p = store.coins[c]?.price;
+              return (
+                <option key={c} value={c}>
+                  {c.toUpperCase()}{p ? ' · ' + fmtP(p) : ''}
+                </option>
+              );
+            })}
+          </select>
+          <span style={{
+            position: 'absolute', right: 9, top: '50%',
+            transform: 'translateY(-50%)',
+            pointerEvents: 'none', color: 'var(--txt3)', fontSize: 10,
+          }}>▼</span>
+        </div>
+        <span style={{ fontSize: 11, color: 'var(--txt3)' }}>
+          {COINS.length} coins
+        </span>
       </div>
 
       {/* Time range */}
