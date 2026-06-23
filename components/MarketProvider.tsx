@@ -1004,18 +1004,18 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     );
   }, [updateCoin]);
 
-  /* ── Coinbase Premium Index (Coinbase BTC − Binance BTC) ── */
+  /* ── Coinbase Premium Index (Coinbase BTC − Bybit BTC) ── */
   const fetchCoinbasePremium = useCallback(async () => {
     try {
-      const res = await fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot', { cache: 'no-cache' });
-      const data = await res.json();
-      const cbPrice = parseFloat(data?.data?.amount);
-      if (isNaN(cbPrice)) return;
+      const res = await fetch('/api/coinbase-price', { cache: 'no-store' });
+      if (!res.ok) return;
+      const { price: cbPrice } = await res.json() as { price: number };
+      if (!cbPrice || isNaN(cbPrice)) return;
       setStore(s => {
-        const binancePrice = s.coins.btc?.price;
-        if (!binancePrice) return { ...s, cbPremium: null, cbPremiumPct: null };
-        const premium    = cbPrice - binancePrice;
-        const premiumPct = (premium / binancePrice) * 100;
+        const bybitPrice = s.coins.btc?.price;
+        if (!bybitPrice) return { ...s, cbPremium: null, cbPremiumPct: null };
+        const premium    = cbPrice - bybitPrice;
+        const premiumPct = (premium / bybitPrice) * 100;
         return { ...s, cbPremium: premium, cbPremiumPct: premiumPct };
       });
     } catch { /* fail silently */ }
