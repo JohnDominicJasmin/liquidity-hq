@@ -1,5 +1,8 @@
 'use client';
 import { createContext, useContext } from 'react';
+import type { CoinId } from './coins';
+export type { CoinId } from './coins';
+export { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, COIN_LABELS } from './coins';
 
 export interface GexLevel {
   strike: number;
@@ -59,36 +62,6 @@ export interface CoinData {
   nextFundingTime: number | null;  // unix ms of next settlement
 }
 
-export type CoinId =
-  | 'btc' | 'eth' | 'sol' | 'xrp' | 'bnb' | 'hype' | 'near' | 'sui'
-  | 'doge' | 'avax' | 'link' | 'ada' | 'dot' | 'atom' | 'wif' | 'pepe' | 'bonk';
-
-export const COINS: CoinId[] = [
-  'btc', 'eth', 'sol', 'xrp', 'bnb', 'hype', 'near', 'sui',
-  'doge', 'avax', 'link', 'ada', 'dot', 'atom', 'wif', 'pepe', 'bonk',
-];
-
-export const BINANCE_SYMS: Record<string, string> = {
-  btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
-  xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
-  doge: 'DOGEUSDT', avax: 'AVAXUSDT', link: 'LINKUSDT',
-  ada: 'ADAUSDT', dot: 'DOTUSDT', atom: 'ATOMUSDT', wif: 'WIFUSDT',
-  // PEPE + BONK: Bybit-only (Binance uses 1000x denomination — avoids display confusion)
-};
-
-export const BYBIT_SYMS: Record<string, string> = {
-  btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
-  xrp: 'XRPUSDT', bnb: 'BNBUSDT', hype: 'HYPEUSDT', near: 'NEARUSDT',
-  doge: 'DOGEUSDT', avax: 'AVAXUSDT', link: 'LINKUSDT',
-  ada: 'ADAUSDT', dot: 'DOTUSDT', atom: 'ATOMUSDT', wif: 'WIFUSDT',
-  pepe: '1000PEPEUSDT', bonk: '1000BONKUSDT',  // Bybit uses 1000x denomination
-};
-
-export const COIN_DEC: Record<CoinId, number> = {
-  btc: 2, eth: 2, sol: 3, xrp: 4, bnb: 2, hype: 3, near: 4, sui: 4,
-  doge: 5, avax: 3, link: 3, ada: 4, dot: 3, atom: 3, wif: 4,
-  pepe: 8, bonk: 8,
-};
 
 export function fmtPrice(p: number, dec: number): string {
   return p.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });

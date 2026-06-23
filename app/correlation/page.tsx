@@ -1,14 +1,8 @@
 'use client';
 import { Fragment, useState, useEffect } from 'react';
-import { COINS, BINANCE_SYMS, BYBIT_SYMS, type CoinId } from '@/lib/marketStore';
+import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId } from '@/lib/marketStore';
 
 /* ── constants ── */
-const COIN_LABELS: Record<CoinId, string> = {
-  btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP',
-  bnb: 'BNB', hype: 'HYPE', near: 'NEAR', sui: 'SUI',
-  doge: 'DOGE', avax: 'AVAX', link: 'LINK', ada: 'ADA',
-  dot: 'DOT', atom: 'ATOM', wif: 'WIF', pepe: 'PEPE', bonk: 'BONK',
-};
 
 const RANGES = [
   { key: '24h', label: '24h', interval: '1h',  limit: 25  },

@@ -1,17 +1,11 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { COINS, BINANCE_SYMS, BYBIT_SYMS, type CoinId, useMarket } from '@/lib/marketStore';
+import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId, useMarket } from '@/lib/marketStore';
 
 /* ── types ── */
 interface FRPoint { rate: number; ts: number; }
 type FRHistory = Partial<Record<CoinId, FRPoint[]>>;
 
-const COIN_LABELS: Record<CoinId, string> = {
-  btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP',
-  bnb: 'BNB', hype: 'HYPE', near: 'NEAR', sui: 'SUI',
-  doge: 'DOGE', avax: 'AVAX', link: 'LINK', ada: 'ADA',
-  dot: 'DOT', atom: 'ATOM', wif: 'WIF', pepe: 'PEPE', bonk: 'BONK',
-};
 
 const RANGES = [
   { key: '24h', label: '24h', count: 3  },

@@ -69,22 +69,18 @@ function sendCascadeAlert(
   }).catch(() => {});
 }
 
-const _WS_STREAMS = [
-  'btcusdt', 'ethusdt', 'solusdt', 'xrpusdt', 'bnbusdt', 'nearusdt', 'suiusdt',
-  'dogeusdt', 'avaxusdt', 'linkusdt', 'adausdt', 'dotusdt', 'atomusdt', 'wifusdt',
-].map(s => `${s}@ticker`).join('/');
+const _WS_STREAMS = Object.values(BINANCE_SYMS)
+  .map(s => `${s.toLowerCase()}@ticker`)
+  .join('/');
 
 const WS_URLS = [
   `wss://stream.binance.com:9443/stream?streams=${_WS_STREAMS}`,
   `wss://stream.binance.com/stream?streams=${_WS_STREAMS}`,
 ];
 
-const SYM_MAP: Record<string, CoinId> = {
-  BTCUSDT: 'btc', ETHUSDT: 'eth', SOLUSDT: 'sol',
-  XRPUSDT: 'xrp', BNBUSDT: 'bnb', NEARUSDT: 'near', SUIUSDT: 'sui',
-  DOGEUSDT: 'doge', AVAXUSDT: 'avax', LINKUSDT: 'link',
-  ADAUSDT: 'ada', DOTUSDT: 'dot', ATOMUSDT: 'atom', WIFUSDT: 'wif',
-};
+const SYM_MAP: Record<string, CoinId> = Object.fromEntries(
+  Object.entries(BINANCE_SYMS).map(([id, sym]) => [sym, id as CoinId])
+);
 
 /* Helper: compute RSI14 from an array of close prices */
 function computeRSI14(closes: number[]): number | null {
@@ -203,8 +199,8 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         const item = bySymbol[BYBIT_SYMS[coin]];
         if (!item) continue;
 
-        // 1000x denomination coins (1000PEPEUSDT, 1000BONKUSDT) — divide price by 1000
-        const priceFactor = (coin === 'pepe' || coin === 'bonk') ? 0.001 : 1;
+        // 1000x denomination coins (e.g. 1000PEPEUSDT, 1000BONKUSDT) — divide price by 1000
+        const priceFactor = BYBIT_SYMS[coin].startsWith('1000') ? 0.001 : 1;
         const curPrice = parseFloat(item.lastPrice || '0') * priceFactor;
         // openInterestValue = USD-denominated OI; fall back to base-qty × price if missing
         const rawOIValue = parseFloat(item.openInterestValue || '0');
@@ -400,10 +396,10 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     } catch { /* */ }
   }, [updateCoin]);
 
-  /* ── Bybit klines for HYPE (RSI, MA20, VWAP, POC, volRatio) ── */
+  /* ── Bybit klines for Bybit-only coins (HYPE, PEPE, BONK, XAU, SPX, …) ── */
   // Bybit kline format (newest-first): [startTime, open, high, low, close, volume, turnover]
   const fetchBybitKlines = useCallback(async () => {
-    const bybitOnly = (['hype'] as CoinId[]).filter(c => BYBIT_SYMS[c] && !BINANCE_SYMS[c]);
+    const bybitOnly = (Object.keys(BYBIT_SYMS) as CoinId[]).filter(c => !BINANCE_SYMS[c]);
     await Promise.allSettled(bybitOnly.map(async (coin) => {
       const sym = BYBIT_SYMS[coin];
       try {
@@ -415,9 +411,12 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         const klines: string[][] = [...(d?.result?.list ?? [])].reverse();
         if (klines.length < 15) return;
 
-        const closes = klines.map(k => parseFloat(k[4]));
-        const highs  = klines.map(k => parseFloat(k[2]));
-        const lows   = klines.map(k => parseFloat(k[3]));
+        // 1000x denomination coins need price scaling to match coin.price set by fetchBybit
+        const pf = sym.startsWith('1000') ? 0.001 : 1;
+
+        const closes = klines.map(k => parseFloat(k[4]) * pf);
+        const highs  = klines.map(k => parseFloat(k[2]) * pf);
+        const lows   = klines.map(k => parseFloat(k[3]) * pf);
         const vols   = klines.map(k => parseFloat(k[6])); // turnover = quote vol (USD)
 
         const rsi14     = computeRSI14(closes);
@@ -469,12 +468,13 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         const val = minP + lo * bSize;
         const vah = minP + (hi + 1) * bSize;
 
-        // Chart pattern detection for HYPE (Bybit klines: [time, open, high, low, close, ...])
-        const hypePatternCandles = klines.slice(-25).map((k: string[]) => ({
-          o: parseFloat(k[1]), h: parseFloat(k[2]), l: parseFloat(k[3]), c: parseFloat(k[4]),
+        // Chart pattern detection (Bybit klines: [time, open, high, low, close, ...])
+        const patternCandles = klines.slice(-25).map((k: string[]) => ({
+          o: parseFloat(k[1]) * pf, h: parseFloat(k[2]) * pf,
+          l: parseFloat(k[3]) * pf, c: parseFloat(k[4]) * pf,
         }));
-        const hypePatterns = detectPatterns(hypePatternCandles);
-        updateCoin(coin, { rsi14, ma20, volRatio, vwap, poc, vah, val, chartPattern: hypePatterns.length > 0 ? hypePatterns.join('; ') : null });
+        const patterns = detectPatterns(patternCandles);
+        updateCoin(coin, { rsi14, ma20, volRatio, vwap, poc, vah, val, chartPattern: patterns.length > 0 ? patterns.join('; ') : null });
 
         // Taker buy ratio from recent trades (Bybit klines don't split maker/taker)
         try {

@@ -182,7 +182,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '',
     '=== DERIVATIVES / POSITIONING ===',
     `Funding rate (Binance, single): ${ctx.fundingRate}`,
-    `Cross-exchange funding (Binance | Bybit | OKX | Avg): ${ctx.crossExchangeFunding}`,
+    `Cross-exchange funding (Binance | Bybit | Avg): ${ctx.crossExchangeFunding}`,
     '(Divergence between exchanges = different trader bases are positioned differently = potential flow imbalance or arb. Extreme positive = longs overcrowded = flush risk. Extreme negative = shorts overcrowded = squeeze risk.)',
     `Open Interest: ${ctx.openInterest}`,
     `OI 1h Change: ${ctx.oi1hChange}`,

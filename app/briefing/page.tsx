@@ -2,19 +2,13 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
-  useMarket, COINS, COIN_DEC, fmtPrice, fmtChg,
+  useMarket, COINS, COIN_DEC, COIN_LABELS, fmtPrice, fmtChg,
   classifyFunding, computeSqueezeScore, type CoinId, type MarketStore, type CoinData,
 } from '@/lib/marketStore';
 import { useNews } from '@/components/NewsProvider';
 import SessionCountdown from '@/components/SessionCountdown';
 
 /* ── helpers ── */
-const COIN_LABELS: Record<CoinId, string> = {
-  btc: 'BTC', eth: 'ETH', sol: 'SOL', xrp: 'XRP',
-  bnb: 'BNB', hype: 'HYPE', near: 'NEAR', sui: 'SUI',
-  doge: 'DOGE', avax: 'AVAX', link: 'LINK', ada: 'ADA',
-  dot: 'DOT', atom: 'ATOM', wif: 'WIF', pepe: 'PEPE', bonk: 'BONK',
-};
 
 const OI_ICONS: Record<string, string> = {
   strong_up: '▲', strong_down: '▼', weak_up: '△', weak_down: '▽',

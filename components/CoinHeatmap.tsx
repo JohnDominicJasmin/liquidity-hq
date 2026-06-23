@@ -2,17 +2,18 @@
 import { useState } from 'react';
 import { useMarket, COINS, CoinId } from '@/lib/marketStore';
 
-type Cat = 'all' | 'majors' | 'alts' | 'meme';
+type Cat = 'all' | 'majors' | 'alts' | 'defi' | 'meme';
 
 const CAT: Record<Cat, readonly CoinId[]> = {
   all:    COINS,
-  majors: ['btc', 'eth', 'sol', 'xrp', 'bnb'],
-  alts:   ['hype', 'near', 'sui', 'avax', 'link', 'ada', 'dot', 'atom'],
-  meme:   ['doge', 'pepe', 'wif', 'bonk'],
+  majors: ['btc', 'eth', 'sol', 'xrp', 'bnb', 'ltc', 'bch', 'ada'],
+  alts:   ['near', 'sui', 'avax', 'link', 'dot', 'atom', 'arb', 'op', 'apt', 'sei', 'inj', 'tia', 'trx', 'xlm', 'etc', 'fil', 'stx'],
+  defi:   ['hype', 'aave', 'uni', 'ldo', 'rune', 'gmx', 'crv', 'jup', 'wld', 'render', 'tao', 'fet', 'ondo', 'pyth', 'ena', 'dydx', 'xau', 'spx'],
+  meme:   ['doge', 'pepe', 'wif', 'bonk', 'gmt', 'sand', 'mana'],
 };
 
 const CAT_LABELS: Record<Cat, string> = {
-  all: 'All', majors: 'Majors', alts: 'Alts', meme: 'Meme',
+  all: 'All', majors: 'Majors', alts: 'Alts', defi: 'DeFi/AI', meme: 'Meme',
 };
 
 function changeColor(chg: number | null): { bg: string; text: string } {

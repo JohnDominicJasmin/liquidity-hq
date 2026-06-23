@@ -369,7 +369,7 @@ export default function Arena() {
   }, [resultsCache]);
 
   /* ── Cross-exchange funding data ── */
-  type FundingRow = { coin: string; binance: number|null; bybit: number|null; okx: number|null };
+  type FundingRow = { coin: string; binance: number|null; bybit: number|null };
   const [fundingData, setFundingData] = useState<Record<string, FundingRow>>({});
   useEffect(() => {
     const load = async () => {
@@ -750,16 +750,16 @@ export default function Arena() {
     const crossExchangeFunding = cf
       ? (() => {
           const fmt = (v: number | null) => v !== null ? (v >= 0 ? '+' : '') + (v * 100).toFixed(4) + '%' : '—';
-          const vals = [cf.binance, cf.bybit, cf.okx].filter((v): v is number => v !== null);
+          const vals = [cf.binance, cf.bybit].filter((v): v is number => v !== null);
           const avg  = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
-          const divergent = avg !== null && [cf.binance, cf.bybit, cf.okx]
+          const divergent = avg !== null && [cf.binance, cf.bybit]
             .some(v => v !== null && Math.abs(v - avg) * 100 >= 0.02);
           const sentiment = avg === null ? '' : avg * 100 >= 0.05 ? ' — extreme long crowding (flush risk)'
             : avg * 100 >= 0.01 ? ' — longs paying, mild crowding'
             : avg * 100 <= -0.05 ? ' — extreme short crowding (squeeze risk)'
             : avg * 100 <= -0.01 ? ' — shorts paying, mild crowding'
             : ' — neutral';
-          return `Binance ${fmt(cf.binance)} | Bybit ${fmt(cf.bybit)} | OKX ${fmt(cf.okx)} | Avg ${fmt(avg)}${sentiment}${divergent ? ' ⚡ DIVERGENCE: one exchange significantly different — flow imbalance' : ''}`;
+          return `Binance ${fmt(cf.binance)} | Bybit ${fmt(cf.bybit)} | Avg ${fmt(avg)}${sentiment}${divergent ? ' ⚡ DIVERGENCE: exchanges differ — flow imbalance' : ''}`;
         })()
       : '—';
 

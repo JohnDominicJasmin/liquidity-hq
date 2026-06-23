@@ -2628,8 +2628,8 @@ body.ticker-on .breaking-alert { top: 90px; }
 .fc-reading-sub   { font-size: 11px; color: var(--txt3); line-height: 1.5; }
 
 .fc-legend    { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 14px 7px; border-bottom: 0.5px solid var(--bdr); font-size: 10px; font-weight: 600; }
-.fc-col-hdr   { display: grid; grid-template-columns: 70px repeat(4, 1fr) 46px; gap: 2px; padding: 5px 14px; background: var(--bg2); border-bottom: 0.5px solid var(--bdr); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--txt3); }
-.fc-row       { display: grid; grid-template-columns: 70px repeat(4, 1fr) 46px; gap: 2px; padding: 7px 14px; border-bottom: 0.5px solid var(--bdr); align-items: center; transition: background .1s; border-left: 2px solid transparent; }
+.fc-col-hdr   { display: grid; grid-template-columns: 70px repeat(3, 1fr) 46px; gap: 2px; padding: 5px 14px; background: var(--bg2); border-bottom: 0.5px solid var(--bdr); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--txt3); }
+.fc-row       { display: grid; grid-template-columns: 70px repeat(3, 1fr) 46px; gap: 2px; padding: 7px 14px; border-bottom: 0.5px solid var(--bdr); align-items: center; transition: background .1s; border-left: 2px solid transparent; }
 .fc-row:last-child { border-bottom: none; }
 .fc-row:hover { background: var(--bg2); }
 .fc-coin-cell { display: flex; flex-direction: column; gap: 2px; }
@@ -2639,8 +2639,8 @@ body.ticker-on .breaking-alert { top: 90px; }
 .fc-next      { font-size: 11px; color: var(--txt3); text-align: right; font-variant-numeric: tabular-nums; }
 .fc-footer    { padding: 7px 14px; font-size: 10px; color: var(--txt3); border-top: 0.5px solid var(--bdr); line-height: 1.5; }
 @media (max-width: 480px) {
-  .fc-col-hdr { grid-template-columns: 60px repeat(4, 1fr) 36px; padding: 5px 10px; font-size: 10px; gap: 1px; }
-  .fc-row     { grid-template-columns: 60px repeat(4, 1fr) 36px; padding: 7px 10px; gap: 1px; }
+  .fc-col-hdr { grid-template-columns: 60px repeat(3, 1fr) 36px; padding: 5px 10px; font-size: 10px; gap: 1px; }
+  .fc-row     { grid-template-columns: 60px repeat(3, 1fr) 36px; padding: 7px 10px; gap: 1px; }
   .fc-cell    { font-size: 10px; padding: 2px 3px; }
   .fc-next    { font-size: 10px; }
 }

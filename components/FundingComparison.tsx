@@ -5,7 +5,6 @@ interface FundingRow {
   coin:          string;
   binance:       number | null;
   bybit:         number | null;
-  okx:           number | null;
   nextFundingMs: number | null;
 }
 
@@ -76,8 +75,8 @@ export default function FundingComparison() {
       const json = await res.json();
       if (json.data) {
         const sorted = [...json.data].sort((a: FundingRow, b: FundingRow) => {
-          const aa = Math.abs(avgOf([a.binance, a.bybit, a.okx]) ?? 0);
-          const ba = Math.abs(avgOf([b.binance, b.bybit, b.okx]) ?? 0);
+          const aa = Math.abs(avgOf([a.binance, a.bybit]) ?? 0);
+          const ba = Math.abs(avgOf([b.binance, b.bybit]) ?? 0);
           return ba - aa;
         });
         setRows(sorted);
@@ -96,8 +95,8 @@ export default function FundingComparison() {
   }, [load]);
 
   /* ── market reading ── */
-  const longHeavy  = rows.filter(r => (avgOf([r.binance, r.bybit, r.okx]) ?? 0) >  0.01).length;
-  const shortHeavy = rows.filter(r => (avgOf([r.binance, r.bybit, r.okx]) ?? 0) < -0.01).length;
+  const longHeavy  = rows.filter(r => (avgOf([r.binance, r.bybit]) ?? 0) >  0.01).length;
+  const shortHeavy = rows.filter(r => (avgOf([r.binance, r.bybit]) ?? 0) < -0.01).length;
   const mktBias    = longHeavy  > shortHeavy ? 'long'
                    : shortHeavy > longHeavy  ? 'short'
                    : 'neutral';
@@ -113,7 +112,7 @@ export default function FundingComparison() {
           <span className={`wf-dot ${dotCls}`} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Binance · Bybit · OKX · 30s</span>
+          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Binance · Bybit · 30s</span>
           <button
             className="fc-info-btn"
             onClick={() => setShowInfo(v => !v)}
@@ -202,14 +201,13 @@ export default function FundingComparison() {
         <span>Coin</span>
         <span>Binance</span>
         <span>Bybit</span>
-        <span>OKX</span>
         <span>Avg</span>
         <span style={{ textAlign: 'right' }}>Next</span>
       </div>
 
       {/* Data rows */}
       {rows.map(row => {
-        const vals    = [row.binance, row.bybit, row.okx];
+        const vals    = [row.binance, row.bybit];
         const mean    = avgOf(vals);
         const signal  = getSignal(mean);
         const sigColor = signal === 'LONG EDGE'  ? '#34d399'
