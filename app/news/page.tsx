@@ -208,52 +208,41 @@ function SourcePill({ source }: { source: string }) {
 type AlertItem = ReturnType<typeof useNews>['alerts'][0];
 
 /* ────────────────────────────────────────────────
-   HERO CARD — top breaking story, full width, image
+   HERO CARD — first story, spans all 3 columns
 ──────────────────────────────────────────────── */
 function HeroCard({ a }: { a: AlertItem }) {
   const cfg   = TYPE_CFG[a.type];
   const geo   = getGeoMeta(a.headline);
   const label = geo ? geo.tag : cfg.label;
-  const note  = geo?.note ?? null;
 
   return (
     <div
-      className="ncard-hero"
-      style={{ borderColor: cfg.dot }}
+      className="ncard-grid ncard-grid-hero"
+      style={{ borderTopColor: cfg.dot, cursor: a.link ? 'pointer' : 'default' }}
       onClick={() => a.link && window.open(a.link, '_blank', 'noopener')}
     >
-      {/* Image strip */}
-      {a.image && (
-        <div className="ncard-hero-img-wrap">
+      {a.image ? (
+        <div className="ncard-grid-img-wrap">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={a.image}
-            alt=""
-            className="ncard-hero-img"
-            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }}
-          />
-          <div className="ncard-hero-img-fade" />
+          <img src={a.image} alt="" className="ncard-grid-img"
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }} />
+          <div className="ncard-grid-img-fade" />
         </div>
+      ) : (
+        <div className="ncard-grid-placeholder" style={{ background: `linear-gradient(135deg, ${cfg.dot}14, var(--bg2))` }} />
       )}
-
-      <div className="ncard-hero-body">
-        <div className="ncard-hero-top">
+      <div className="ncard-grid-body">
+        <div className="ncard-grid-top">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span className="ncard-type-badge" style={{ color: cfg.dot, fontSize: 11 }}>
-              {label}
-            </span>
+            <span className="ncard-type-badge" style={{ color: cfg.dot }}>{label}</span>
             <SourcePill source={a.source} />
             <SentimentBadge headline={a.headline} />
           </div>
           <span className="ncard-meta">{timeAgo(a.ts)}</span>
         </div>
-
-        <div className="ncard-hero-headline">
-          {decodeEntities(a.headline)}
-        </div>
-
-        <div className="ncard-hero-actions">
-          <button className="ncard-ask-btn" style={{ fontSize: 12 }} onClick={e => { e.stopPropagation(); askGrok(a.headline); }}>
+        <div className="ncard-grid-headline">{decodeEntities(a.headline)}</div>
+        <div className="ncard-grid-actions" onClick={e => e.stopPropagation()}>
+          <button className="ncard-ask-btn" style={{ margin: 0, fontSize: 12 }} onClick={() => askGrok(a.headline)}>
             Ask LiquidityAI →
           </button>
           {a.link && (
@@ -269,40 +258,34 @@ function HeroCard({ a }: { a: AlertItem }) {
 }
 
 /* ────────────────────────────────────────────────
-   STANDARD NEWS CARD — with optional thumbnail
+   GRID NEWS CARD — one cell in the 3-col grid
 ──────────────────────────────────────────────── */
 function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; note: string } | null }; hero?: boolean }) {
   if (hero) return <HeroCard a={a} />;
 
-  const cfg   = TYPE_CFG[a.type];
-  const geo   = getGeoMeta(a.headline);
-  const label = geo ? geo.tag : cfg.label;
-  const note  = geo?.note ?? null;
+  const cfg    = TYPE_CFG[a.type];
+  const geo    = getGeoMeta(a.headline);
+  const label  = geo ? geo.tag : cfg.label;
   const hasImg = !!a.image;
 
   return (
     <div
-      className="ncard ncard-v2"
-      style={{ borderLeftColor: cfg.dot, cursor: a.link ? 'pointer' : 'default' }}
+      className="ncard-grid"
+      style={{ borderTopColor: cfg.dot, cursor: a.link ? 'pointer' : 'default' }}
       onClick={() => a.link && window.open(a.link, '_blank', 'noopener')}
     >
-      {/* Image on top */}
-      {hasImg && (
-        <div className="ncard-v2-img-wrap">
+      {hasImg ? (
+        <div className="ncard-grid-img-wrap">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={a.image}
-            alt=""
-            className="ncard-v2-img"
-            onError={e => { (e.target as HTMLImageElement).closest('.ncard-v2-img-wrap')?.remove(); }}
-          />
-          <div className="ncard-v2-img-fade" />
+          <img src={a.image} alt="" className="ncard-grid-img"
+            onError={e => { (e.target as HTMLImageElement).closest('.ncard-grid-img-wrap')?.remove(); }} />
+          <div className="ncard-grid-img-fade" />
         </div>
+      ) : (
+        <div className="ncard-grid-placeholder" style={{ background: `linear-gradient(135deg, ${cfg.dot}10, var(--bg2))` }} />
       )}
-
-      {/* Text below */}
-      <div className="ncard-v2-text">
-        <div className="ncard-v2-top">
+      <div className="ncard-grid-body">
+        <div className="ncard-grid-top">
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span className="ncard-type-badge" style={{ color: cfg.dot }}>{label}</span>
             <SourcePill source={a.source} />
@@ -310,15 +293,14 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
           </div>
           <span className="ncard-meta">{timeAgo(a.ts)}</span>
         </div>
-
-        <div className="ncard-v2-headline">{decodeEntities(a.headline)}</div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={e => e.stopPropagation()}>
-          <button className="ncard-ask-btn" style={{ margin: 0 }} onClick={() => askGrok(a.headline)}>
+        <div className="ncard-grid-headline">{decodeEntities(a.headline)}</div>
+        <div className="ncard-grid-actions" onClick={e => e.stopPropagation()}>
+          <button className="ncard-ask-btn" style={{ margin: 0, fontSize: 11 }} onClick={() => askGrok(a.headline)}>
             Ask LiquidityAI →
           </button>
           {a.link && (
-            <a href={a.link} target="_blank" rel="noopener noreferrer" className="ncard-read-btn">
+            <a href={a.link} target="_blank" rel="noopener noreferrer" className="ncard-read-btn"
+              style={{ fontSize: 11 }} onClick={e => e.stopPropagation()}>
               Read more ↗
             </a>
           )}
@@ -492,37 +474,39 @@ export default function NewsPage() {
           {whaleAlerts.slice(0, 8).map((w) => {
             const isBuy = w.side === 'BUY';
             const col   = isBuy ? 'var(--green)' : 'var(--red)';
+            const colHex = isBuy ? '#34d399' : '#f87171';
             return (
-              <div key={w.id} className="ncard ncard-v2 ncard-whale" style={{ borderLeftColor: col }}>
-                <div className="ncard-v2-inner">
-                  <div className="ncard-v2-text">
-                    <div className="ncard-v2-top">
-                      <span className="ncard-type-badge" style={{ color: col }}>
-                        🐋 {w.symbol} Whale {isBuy ? 'BUY' : 'SELL'}
-                      </span>
-                      <span className="ncard-meta">{timeAgo(w.ts)}</span>
-                    </div>
-                    <div className="ncard-v2-headline" style={{ color: col, fontSize: 15 }}>
-                      {fmtUSD(w.usdValue)} {isBuy ? 'bought' : 'sold'} at ${w.price.toLocaleString()}
-                      <span style={{ color: 'var(--txt3)', fontSize: 11, fontWeight: 400, marginLeft: 6 }}>
-                        ({w.qty.toFixed(3)} {w.symbol})
-                      </span>
-                    </div>
+              <div key={w.id} className="ncard-grid" style={{ borderTopColor: colHex }}>
+                <div className="ncard-grid-placeholder" style={{
+                  background: `linear-gradient(135deg, ${colHex}14, var(--bg2))`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 30, color: col, fontWeight: 800, opacity: 0.8,
+                }}>
+                  {isBuy ? '↑' : '↓'}
+                </div>
+                <div className="ncard-grid-body">
+                  <div className="ncard-grid-top">
+                    <span className="ncard-type-badge" style={{ color: col }}>
+                      🐋 {w.symbol} Whale {isBuy ? 'BUY' : 'SELL'}
+                    </span>
+                    <span className="ncard-meta">{timeAgo(w.ts)}</span>
+                  </div>
+                  <div className="ncard-grid-headline" style={{ color: col }}>
+                    {fmtUSD(w.usdValue)} {isBuy ? 'bought' : 'sold'} at ${w.price.toLocaleString()}
+                    <span style={{ color: 'var(--txt3)', fontSize: 11, fontWeight: 400, marginLeft: 6 }}>
+                      ({w.qty.toFixed(3)} {w.symbol})
+                    </span>
+                  </div>
+                  <div className="ncard-grid-actions">
                     <ImpactChip
                       note={isBuy ? 'Institutional accumulation — watch follow-through' : 'Distribution signal — sell pressure incoming'}
                       color={col}
                     />
-                    <div style={{ marginTop: 8 }}>
-                      <button className="ncard-ask-btn" style={{ margin: 0 }} onClick={() =>
-                        window.dispatchEvent(new CustomEvent('grok-chat', {
-                          detail: { coin: w.symbol.toLowerCase() as 'btc' | 'eth', prompt: `A whale just ${isBuy ? 'bought' : 'sold'} ${fmtUSD(w.usdValue)} of ${w.symbol} at $${w.price.toLocaleString()}. What does this mean for the next 1-4 hours?` },
-                        }))
-                      }>Ask LiquidityAI →</button>
-                    </div>
-                  </div>
-                  {/* Whale icon block instead of image */}
-                  <div className="ncard-v2-whale-icon" style={{ color: col }}>
-                    {isBuy ? '↑' : '↓'}
+                    <button className="ncard-ask-btn" style={{ margin: 0 }} onClick={() =>
+                      window.dispatchEvent(new CustomEvent('grok-chat', {
+                        detail: { coin: w.symbol.toLowerCase() as 'btc' | 'eth', prompt: `A whale just ${isBuy ? 'bought' : 'sold'} ${fmtUSD(w.usdValue)} of ${w.symbol} at $${w.price.toLocaleString()}. What does this mean for the next 1-4 hours?` },
+                      }))
+                    }>Ask LiquidityAI →</button>
                   </div>
                 </div>
               </div>
@@ -534,21 +518,20 @@ export default function NewsPage() {
 
           {/* Extra geo events */}
           {extraGeo.map((g, i) => (
-            <div key={i} className="ncard ncard-v2" style={{ borderLeftColor: '#a78bfa' }}>
-              <div className="ncard-v2-inner">
-                <div className="ncard-v2-text">
-                  <div className="ncard-v2-top">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span className="ncard-type-badge" style={{ color: '#a78bfa' }}>{g.tag}</span>
-                      <SourcePill source={g.source} />
-                    </div>
-                    <span className="ncard-meta">{g.timeStr}</span>
+            <div key={i} className="ncard-grid" style={{ borderTopColor: '#a78bfa' }}>
+              <div className="ncard-grid-placeholder" style={{ background: 'linear-gradient(135deg, rgba(167,139,250,0.10), var(--bg2))' }} />
+              <div className="ncard-grid-body">
+                <div className="ncard-grid-top">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="ncard-type-badge" style={{ color: '#a78bfa' }}>{g.tag}</span>
+                    <SourcePill source={g.source} />
                   </div>
-                  <div className="ncard-v2-headline">{decodeEntities(g.headline)}</div>
+                  <span className="ncard-meta">{g.timeStr}</span>
+                </div>
+                <div className="ncard-grid-headline">{decodeEntities(g.headline)}</div>
+                <div className="ncard-grid-actions">
                   <ImpactChip note={g.note} color="#a78bfa" />
-                  <div style={{ marginTop: 8 }}>
-                    <button className="ncard-ask-btn" style={{ margin: 0 }} onClick={() => askGrok(g.headline)}>Ask LiquidityAI →</button>
-                  </div>
+                  <button className="ncard-ask-btn" style={{ margin: 0 }} onClick={() => askGrok(g.headline)}>Ask LiquidityAI →</button>
                 </div>
               </div>
             </div>

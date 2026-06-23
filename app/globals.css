@@ -1100,8 +1100,53 @@ body.ticker-on .breaking-alert { top: 90px; }
 .ntab-count { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 10px; background: var(--red); color: #000; line-height: 1.4; }
 
 /* ── NEWS FEED ── */
-.nfeed { display: flex; flex-direction: column; gap: 10px; }
-.nfeed-empty { text-align: center; padding: 3rem 1rem; display: flex; flex-direction: column; align-items: center; }
+.nfeed { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: start; }
+.nfeed-empty { grid-column: 1 / -1; text-align: center; padding: 3rem 1rem; display: flex; flex-direction: column; align-items: center; }
+
+/* ── GRID CARD ── */
+.ncard-grid {
+  background: var(--bg1);
+  border: 0.5px solid rgba(255,255,255,0.07);
+  border-top: 2px solid transparent;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: background 0.15s, transform 0.14s;
+}
+.ncard-grid:hover { background: var(--bg2); transform: translateY(-2px); }
+.ncard-grid-hero  { grid-column: 1 / -1; }
+
+.ncard-grid-img-wrap {
+  position: relative; width: 100%; height: 185px;
+  overflow: hidden; background: var(--bg2); flex-shrink: 0;
+}
+.ncard-grid-hero .ncard-grid-img-wrap { height: 280px; }
+.ncard-grid-img  { width: 100%; height: 100%; object-fit: cover; display: block; filter: brightness(0.82); }
+.ncard-grid-img-fade {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 70px;
+  background: linear-gradient(transparent, var(--bg1));
+}
+.ncard-grid-placeholder { height: 72px; flex-shrink: 0; }
+
+.ncard-grid-body     { flex: 1; padding: 12px 14px 12px; display: flex; flex-direction: column; }
+.ncard-grid-top      { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.ncard-grid-headline {
+  font-size: 13px; font-weight: 600; color: var(--txt); line-height: 1.5;
+  letter-spacing: -0.1px; margin-bottom: 10px; flex: 1;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.ncard-grid-hero .ncard-grid-headline { font-size: 16px; font-weight: 700; -webkit-line-clamp: 2; }
+.ncard-grid-actions  { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 2px; }
+
+@media (max-width: 920px) {
+  .nfeed { grid-template-columns: repeat(2, 1fr); }
+  .ncard-grid-hero .ncard-grid-img-wrap { height: 220px; }
+}
+@media (max-width: 540px) {
+  .nfeed { grid-template-columns: 1fr; }
+  .ncard-grid-img-wrap { height: 155px; }
+}
 
 /* shared badge / meta / btn tokens */
 .ncard-type-badge { font-size: 10px; font-weight: 700; padding: 0; border-radius: 0; background: none !important; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; flex-shrink: 0; }
