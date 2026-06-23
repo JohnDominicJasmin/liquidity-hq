@@ -55,7 +55,8 @@ export const BYBIT_SYMS: Record<string, string> = {
   aave: 'AAVEUSDT', uni: 'UNIUSDT', ldo: 'LDOUSDT', rune: 'RUNEUSDT',
   gmx: 'GMXUSDT', crv: 'CRVUSDT',
   stx: 'STXUSDT', jup: 'JUPUSDT', wld: 'WLDUSDT', render: 'RENDERUSDT',
-  tao: 'TAOUSDT', fet: 'FETUSDT',
+  tao: 'TAOUSDT',
+  // fet: Binance-only — Bybit does not list FETUSDT as a linear perp
   ondo: 'ONDOUSDT', pyth: 'PYTHUSDT', ena: 'ENAUSDT', dydx: 'DYDXUSDT',
   sand: 'SANDUSDT', mana: 'MANAUSDT', gmt: 'GMTUSDT',
   xau: 'XAUUSDT', spx: 'SPXUSDT',
@@ -65,13 +66,13 @@ export const COIN_DEC: Record<CoinId, number> = {
   btc: 2, eth: 2, sol: 3, xrp: 4, bnb: 2, hype: 3, near: 4, sui: 4,
   doge: 5, avax: 3, link: 3, ada: 4, dot: 3, atom: 3, wif: 4,
   pepe: 8, bonk: 8,
-  ltc: 2, bch: 2, trx: 5, xlm: 5, etc: 3, fil: 3,
-  arb: 4, op: 4, apt: 3, sei: 5, inj: 3, tia: 3,
-  aave: 2, uni: 3, ldo: 4, rune: 3, gmx: 2, crv: 5,
+  ltc: 2, bch: 2, trx: 4, xlm: 4, etc: 3, fil: 4,
+  arb: 5, op: 5, apt: 4, sei: 5, inj: 3, tia: 4,
+  aave: 2, uni: 3, ldo: 4, rune: 4, gmx: 3, crv: 4,
   stx: 4, jup: 4, wld: 4, render: 3, tao: 2, fet: 4,
-  ondo: 4, pyth: 5, ena: 4, dydx: 4,
-  sand: 4, mana: 4, gmt: 5,
-  xau: 2, spx: 0,
+  ondo: 4, pyth: 5, ena: 5, dydx: 4,
+  sand: 5, mana: 5, gmt: 5,
+  xau: 2, spx: 4,
 };
 
 export const COIN_LABELS: Record<CoinId, string> = {
