@@ -740,34 +740,7 @@ function GexTable() {
         )}
       </div>
 
-      {/* Strike chart */}
-      {gexLoaded && btcGexLevels.length > 0 && (
-        <>
-          <div className="gex-hdr">
-            <div>Strike</div><div>Gamma exposure</div><div>Options pressure</div>
-          </div>
-          {btcGexLevels.map(({ strike, gex }) => {
-            const pct   = maxAbsGex > 0 ? Math.abs(gex) / maxAbsGex * 100 : 0;
-            const col   = gex >= 0 ? 'rgba(52,211,153,0.65)' : 'rgba(248,113,113,0.65)';
-            const vcol  = gex >= 0 ? '#34d399' : '#f87171';
-            const isAtm = spotPrice > 0 && Math.abs(strike - spotPrice) / spotPrice < 0.005;
-            return (
-              <div key={strike} className={`gex-row${isAtm ? ' gex-row-atm' : ''}`}>
-                <div className="gex-strike" style={isAtm ? { color: 'var(--txt)' } : {}}>
-                  ${strike >= 1000 ? (strike / 1000).toFixed(0) + 'K' : strike}
-                  {isAtm && <span style={{ fontSize: 10, color: 'var(--txt3)', marginLeft: 4 }}>← current price</span>}
-                </div>
-                <div className="gex-bar-wrap">
-                  <div className="gex-bar-fill" style={{ width: `${pct}%`, background: col }} />
-                </div>
-                <div className="gex-value" style={{ color: vcol }}>{fmtGex(gex)}</div>
-              </div>
-            );
-          })}
-        </>
-      )}
-
-      {/* Plain English GEX summary */}
+      {/* Plain English interpretation — above chart so traders read meaning before data */}
       {gexLoaded && (
         <div className="gex-insight">
           <span style={{ color: 'var(--txt3)', marginRight: 6 }}>→</span>
@@ -796,6 +769,33 @@ function GexTable() {
               : `Short gamma regime — options dealers are amplifying moves${lK ? `. Watch ${lK} as the key pin level` : ''}.`;
           })()}
         </div>
+      )}
+
+      {/* Strike chart */}
+      {gexLoaded && btcGexLevels.length > 0 && (
+        <>
+          <div className="gex-hdr">
+            <div>Strike</div><div>Gamma exposure</div><div>Options pressure</div>
+          </div>
+          {btcGexLevels.map(({ strike, gex }) => {
+            const pct   = maxAbsGex > 0 ? Math.abs(gex) / maxAbsGex * 100 : 0;
+            const col   = gex >= 0 ? 'rgba(52,211,153,0.65)' : 'rgba(248,113,113,0.65)';
+            const vcol  = gex >= 0 ? '#34d399' : '#f87171';
+            const isAtm = spotPrice > 0 && Math.abs(strike - spotPrice) / spotPrice < 0.005;
+            return (
+              <div key={strike} className={`gex-row${isAtm ? ' gex-row-atm' : ''}`}>
+                <div className="gex-strike" style={isAtm ? { color: 'var(--txt)' } : {}}>
+                  ${strike >= 1000 ? (strike / 1000).toFixed(0) + 'K' : strike}
+                  {isAtm && <span style={{ fontSize: 10, color: 'var(--txt3)', marginLeft: 4 }}>← current price</span>}
+                </div>
+                <div className="gex-bar-wrap">
+                  <div className="gex-bar-fill" style={{ width: `${pct}%`, background: col }} />
+                </div>
+                <div className="gex-value" style={{ color: vcol }}>{fmtGex(gex)}</div>
+              </div>
+            );
+          })}
+        </>
       )}
 
       {/* Flip level + pin */}

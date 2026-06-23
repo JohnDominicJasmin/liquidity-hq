@@ -1759,7 +1759,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 .gex-bar-wrap    { position: relative; height: 7px; border-radius: 3px; overflow: hidden; background: rgba(255,255,255,0.04); }
 .gex-bar-fill    { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; transition: width 0.6s cubic-bezier(.4,0,.2,1); }
 .gex-value       { font-size: 10px; font-weight: 700; text-align: right; }
-.gex-insight     { padding: 10px 14px; font-size: 12px; color: rgba(255,255,255,0.65); line-height: 1.65; border-top: 1px solid rgba(255,255,255,0.06); }
+.gex-insight     { padding: 10px 14px; font-size: 12px; color: rgba(255,255,255,0.65); line-height: 1.65; border-bottom: 1px solid rgba(255,255,255,0.06); }
 .gex-flip-row    { padding: 6px 14px 8px; font-size: 10px; color: #3a3a3a; display: flex; gap: 12px; flex-wrap: wrap; }
 .gex-flip-row span { color: var(--txt3); font-weight: 600; }
 
@@ -1973,8 +1973,9 @@ body.ticker-on .breaking-alert { top: 90px; }
 .scan-alert-icon { font-size: 14px; flex-shrink: 0; }
 
 .scan-filter-row {
-  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
 }
+.scan-filter-dirs { display: flex; gap: 6px; flex-wrap: wrap; }
 .scan-filter-btn {
   padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;
   border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt3);
@@ -1983,12 +1984,6 @@ body.ticker-on .breaking-alert { top: 90px; }
 .scan-filter-btn:hover { color: var(--txt2); border-color: var(--bdr2); }
 .scan-filter-btn.on {
   background: var(--purple-bg); border-color: var(--purple-bdr); color: var(--purple);
-}
-.scan-filter-sep {
-  width: 1px; background: var(--bdr); align-self: stretch; margin: 0 4px; flex-shrink: 0;
-}
-.scan-filter-toggle.on {
-  background: rgba(251,191,36,0.10); border-color: rgba(251,191,36,0.35); color: #fbbf24;
 }
 
 .scan-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }

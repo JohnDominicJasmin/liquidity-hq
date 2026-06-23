@@ -238,35 +238,33 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
 
       {/* Filter tabs */}
       <div className="scan-filter-row">
-        {([
-          { key: 'all',      label: `All (${rows.length})`              },
-          { key: 'LONG_LIQ', label: `Long Liq (${counts.LONG_LIQ})`     },
-          { key: 'SHORT_SQ', label: `Short Squeeze (${counts.SHORT_SQ})` },
-          { key: 'NEUTRAL',  label: `Neutral (${counts.NEUTRAL})`        },
-        ] as { key: FilterDir; label: string }[]).map(f => (
-          <button
-            key={f.key}
-            className={`scan-filter-btn${filter === f.key ? ' on' : ''}`}
-            onClick={() => setFilter(f.key)}
-          >
-            {f.label}
-          </button>
-        ))}
-        <span className="scan-filter-sep" />
+        <div className="scan-filter-dirs">
+          {([
+            { key: 'all',      label: `All (${rows.length})`              },
+            { key: 'LONG_LIQ', label: `Long Liq (${counts.LONG_LIQ})`     },
+            { key: 'SHORT_SQ', label: `Short Squeeze (${counts.SHORT_SQ})` },
+            { key: 'NEUTRAL',  label: `Neutral (${counts.NEUTRAL})`        },
+          ] as { key: FilterDir; label: string }[]).map(f => (
+            <button
+              key={f.key}
+              className={`scan-filter-btn${filter === f.key ? ' on' : ''}`}
+              onClick={() => setFilter(f.key)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
         <button
           className="scan-filter-btn scan-filter-toggle"
-          style={{
-            marginLeft: 'auto',
-            ...(strongOnly ? {
-              background: 'rgba(251,191,36,0.10)',
-              borderColor: 'rgba(251,191,36,0.35)',
-              color: '#fbbf24',
-            } : {}),
-          }}
+          style={strongOnly ? {
+            background: 'rgba(251,191,36,0.10)',
+            borderColor: 'rgba(251,191,36,0.35)',
+            color: '#fbbf24',
+          } : {}}
           aria-pressed={strongOnly}
           onClick={() => setStrongOnly(v => !v)}
         >
-          Strong Setups Only ({strongCount})
+          {strongOnly ? `Strong Setups Only — ${strongCount} coins` : 'Strong Setups Only'}
         </button>
       </div>
 
