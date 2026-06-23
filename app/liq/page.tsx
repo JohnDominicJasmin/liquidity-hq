@@ -173,14 +173,9 @@ export default function LiqPage() {
               minWidth: 150,
             }}
           >
-            {COINS.map(c => {
-              const p = store.coins[c]?.price;
-              return (
-                <option key={c} value={c}>
-                  {c.toUpperCase()}{p ? ' · ' + fmtP(p) : ''}
-                </option>
-              );
-            })}
+            {COINS.map(c => (
+              <option key={c} value={c}>{c.toUpperCase()}</option>
+            ))}
           </select>
           <span style={{
             position: 'absolute', right: 9, top: '50%',
