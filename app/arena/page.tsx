@@ -176,6 +176,8 @@ export default function Arena() {
   // Track last Quick signal per coin so Deep can compare and show an override notice
   const [quickSignals, setQuickSignals] = useState<Partial<Record<CoinId, string>>>({});
   const [scannerOpen, setScannerOpen]   = useState(false);
+  const [scannerSearch, setScannerSearch] = useState('');
+  const scannerSearchRef = useRef<HTMLInputElement>(null);
   const [coinCat, setCoinCat]           = useState<'all' | 'majors' | 'alts' | 'defi' | 'meme'>('all');
   const [sigDetailsOpen, setSigDetailsOpen] = useState(false);
   const [copiedKey, setCopiedKey]           = useState<string | null>(null);
@@ -1070,7 +1072,7 @@ export default function Arena() {
       >
         {/* ── Compact trigger bar ── */}
         <button
-          onClick={() => setScannerOpen(v => !v)}
+          onClick={() => { setScannerOpen(v => { if (v) setScannerSearch(''); return !v; }); if (!scannerOpen) setTimeout(() => scannerSearchRef.current?.focus(), 60); }}
           style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 8,
             padding: '7px 12px', borderRadius: 8,
@@ -1144,6 +1146,25 @@ export default function Arena() {
             borderRadius: 10, overflow: 'hidden',
             boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
           }}>
+            {/* Search bar */}
+            <div style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)', padding: '0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.3 }}>
+                <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.3"/>
+                <line x1="8" y1="8" x2="11" y2="11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+              </svg>
+              <input
+                ref={scannerSearchRef}
+                type="text"
+                placeholder="Search coins…"
+                value={scannerSearch}
+                onChange={e => setScannerSearch(e.target.value)}
+                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '7px 0', fontSize: 11, color: 'var(--txt)' }}
+              />
+              {scannerSearch && (
+                <button onClick={() => setScannerSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#444', fontSize: 13, lineHeight: 1 }} aria-label="Clear search">×</button>
+              )}
+            </div>
+
             {/* Column header */}
             <div style={{
               display: 'grid', gridTemplateColumns: '1fr 78px 44px 44px 72px 32px',
@@ -1157,7 +1178,15 @@ export default function Arena() {
             </div>
 
             {/* Coin rows */}
-            {scannerRows.map(({ c, sq: rowSq, price, change, vsBtc, badges }, idx) => {
+            <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+            {(() => {
+              const visibleRows = scannerSearch
+                ? scannerRows.filter(r => r.c.toLowerCase().includes(scannerSearch.toLowerCase()))
+                : scannerRows;
+              if (visibleRows.length === 0) return (
+                <div style={{ padding: '12px', fontSize: 11, color: '#444', textAlign: 'center' }}>No coins match &ldquo;{scannerSearch}&rdquo;</div>
+              );
+              return visibleRows.map(({ c, sq: rowSq, price, change, vsBtc, badges }, idx) => {
               const isSelected  = c === selectedCoin;
               const isActive    = rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
               const icon        = rowSq.dir === 'SHORT_SQ' ? '↑' : rowSq.dir === 'LONG_LIQ' ? '↓' : '';
@@ -1167,7 +1196,7 @@ export default function Arena() {
                 <button
                   key={c}
                   onClick={() => {
-                    setSelectedCoin(c); setScannerOpen(false); window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'coins' }));
+                    setSelectedCoin(c); setScannerOpen(false); setScannerSearch(''); window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'coins' }));
                   }}
                   style={{
                     width: '100%', display: 'grid',
@@ -1175,7 +1204,7 @@ export default function Arena() {
                     alignItems: 'center', padding: '7px 12px',
                     background: isSelected ? 'rgba(184,174,255,0.08)' : 'transparent',
                     border: 'none',
-                    borderBottom: idx < scannerRows.length - 1 ? '0.5px solid rgba(255,255,255,0.04)' : 'none',
+                    borderBottom: '0.5px solid rgba(255,255,255,0.04)',
                     cursor: 'pointer', textAlign: 'left', transition: 'background 0.12s',
                   }}
                   onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)'; }}
@@ -1246,7 +1275,9 @@ export default function Arena() {
                   </span>
                 </button>
               );
-            })}
+            });
+          })()}
+            </div>
 
             {/* Footer */}
             <div style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.01)', borderTop: '0.5px solid rgba(255,255,255,0.05)' }}>
