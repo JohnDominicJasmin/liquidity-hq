@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { CoinId, COINS, BINANCE_SYMS, BYBIT_SYMS, useMarket } from '@/lib/marketStore';
 
 interface CoinOI { coin: CoinId; pct: number | null; oiUsd: number | null }
@@ -18,11 +18,16 @@ function fmtOIUsd(v: number | null): string {
   return '$' + v.toFixed(0);
 }
 
+const PREVIEW = 5;
+
 export default function OISpikeScanner() {
   const { store } = useMarket();
-  const [rows, setRows]         = useState<CoinOI[]>([]);
-  const [loading, setLoading]   = useState(true);
+  const [rows, setRows]           = useState<CoinOI[]>([]);
+  const [loading, setLoading]     = useState(true);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [expanded, setExpanded]   = useState(false);
+  const [search, setSearch]       = useState('');
+  const searchRef                 = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     const settled = await Promise.allSettled(
@@ -103,85 +108,164 @@ export default function OISpikeScanner() {
       })()
     : null;
 
+  const spikeCount = rows.filter(r => r.pct != null && Math.abs(r.pct) >= 10).length;
+
+  const displayRows = expanded
+    ? rows.filter(r => search ? r.coin.toLowerCase().includes(search.toLowerCase()) : true)
+    : rows.slice(0, PREVIEW);
+
+  const toggle = () => {
+    setExpanded(prev => {
+      if (prev) setSearch('');
+      return !prev;
+    });
+    if (!expanded) setTimeout(() => searchRef.current?.focus(), 60);
+  };
+
+  const renderRow = ({ coin, pct, oiUsd }: CoinOI) => {
+    const coinData = store.coins[coin];
+    const trend    = coinData?.oiTrend as string | undefined;
+    const sig      = trend ? TREND_SIG[trend] : null;
+
+    const isSpike   = pct != null && Math.abs(pct) >= 10;
+    const isNotable = pct != null && Math.abs(pct) >= 5 && !isSpike;
+
+    const pctCol = pct == null    ? 'var(--txt3)'
+      : pct >= 10                 ? '#34d399'
+      : pct >= 5                  ? '#86efac'
+      : pct <= -10                ? '#f87171'
+      : pct <= -5                 ? '#fca5a5'
+      :                             'var(--txt3)';
+
+    const sigLabel = sig?.label
+      ?? (pct != null && Math.abs(pct) >= 2 ? (pct > 0 ? 'Rising' : 'Unwinding') : 'Stable');
+    const sigCol = sig?.col ?? 'var(--txt3)';
+
+    const displayOiUsd = oiUsd != null && !BINANCE_SYMS[coin]
+      ? (coinData?.price ? oiUsd * coinData.price : null)
+      : oiUsd;
+
+    return (
+      <div
+        key={coin}
+        className={`ois-row${isSpike ? ' ois-row-spike' : isNotable ? ' ois-row-notable' : ''}`}
+      >
+        <span
+          className="ois-dot"
+          style={{
+            background: isSpike ? pctCol : isNotable ? pctCol + 'aa' : 'var(--bdr2)',
+            boxShadow:  isSpike ? `0 0 6px ${pctCol}` : 'none',
+          }}
+        />
+        <span className="ois-coin">{coin.toUpperCase()}</span>
+        <span className="ois-oi-usd">{fmtOIUsd(displayOiUsd)}</span>
+        <span className="ois-pct" style={{ color: pctCol }}>
+          {pct != null ? (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%' : '—'}
+        </span>
+        <span className="ois-signal" style={{ color: sigCol }}>{sigLabel}</span>
+        {isSpike && (
+          <span
+            className="ois-spike-badge"
+            style={{ color: pctCol, background: pctCol + '18', border: `0.5px solid ${pctCol}44` }}
+          >
+            SPIKE
+          </span>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="ois-card">
 
       {/* ── Header ── */}
       <div className="ois-header">
-        <span className="ois-title">OI Spike Scanner · 1H</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="ois-title">OI Spike Scanner · 1H</span>
+          {!loading && spikeCount > 0 && (
+            <span style={{
+              fontSize: 9, fontWeight: 700, letterSpacing: '.05em',
+              color: '#34d399', background: 'rgba(52,211,153,0.1)',
+              border: '0.5px solid rgba(52,211,153,0.25)',
+              padding: '1px 5px', borderRadius: 4,
+            }}>
+              {spikeCount} SPIKE{spikeCount !== 1 ? 'S' : ''}
+            </span>
+          )}
+        </div>
         <span className="ois-age">{loading ? 'Loading…' : agoStr}</span>
       </div>
 
+      {/* ── Search bar — visible only when expanded ── */}
+      {expanded && (
+        <div style={{ borderBottom: '0.5px solid var(--bdr)', padding: '0 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.4 }}>
+            <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.3"/>
+            <line x1="8" y1="8" x2="11" y2="11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+          </svg>
+          <input
+            ref={searchRef}
+            type="text"
+            placeholder="Search coins…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              flex: 1,
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              padding: '8px 0',
+              fontSize: 11,
+              color: 'var(--txt)',
+            }}
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: 13, lineHeight: 1 }}
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      )}
+
       {/* ── Rows ── */}
-      {rows.map(({ coin, pct, oiUsd }) => {
-        const coinData = store.coins[coin];
-        const trend    = coinData?.oiTrend as string | undefined;
-        const sig      = trend ? TREND_SIG[trend] : null;
-
-        const isSpike   = pct != null && Math.abs(pct) >= 10;
-        const isNotable = pct != null && Math.abs(pct) >= 5 && !isSpike;
-
-        const pctCol = pct == null    ? 'var(--txt3)'
-          : pct >= 10                 ? '#34d399'
-          : pct >= 5                  ? '#86efac'
-          : pct <= -10                ? '#f87171'
-          : pct <= -5                 ? '#fca5a5'
-          :                             'var(--txt3)';
-
-        const sigLabel = sig?.label
-          ?? (pct != null && Math.abs(pct) >= 2 ? (pct > 0 ? 'Rising' : 'Unwinding') : 'Stable');
-        const sigCol   = sig?.col ?? 'var(--txt3)';
-
-        // Bybit OI history returns contracts (base asset), not USD — multiply by live price
-        const displayOiUsd = oiUsd != null && !BINANCE_SYMS[coin]
-          ? (coinData?.price ? oiUsd * coinData.price : null)
-          : oiUsd;
-
-        return (
-          <div
-            key={coin}
-            className={`ois-row${isSpike ? ' ois-row-spike' : isNotable ? ' ois-row-notable' : ''}`}
-          >
-            {/* Pulse dot */}
-            <span
-              className="ois-dot"
-              style={{
-                background:  isSpike   ? pctCol : isNotable ? pctCol + 'aa' : 'var(--bdr2)',
-                boxShadow:   isSpike   ? `0 0 6px ${pctCol}` : 'none',
-              }}
-            />
-
-            {/* Coin */}
-            <span className="ois-coin">{coin.toUpperCase()}</span>
-
-            {/* OI USD — hidden on very small screens */}
-            <span className="ois-oi-usd">{fmtOIUsd(displayOiUsd)}</span>
-
-            {/* Pct change */}
-            <span className="ois-pct" style={{ color: pctCol }}>
-              {pct != null ? (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%' : '—'}
-            </span>
-
-            {/* Signal label */}
-            <span className="ois-signal" style={{ color: sigCol }}>{sigLabel}</span>
-
-            {/* Spike badge */}
-            {isSpike && (
-              <span
-                className="ois-spike-badge"
-                style={{ color: pctCol, background: pctCol + '18', border: `0.5px solid ${pctCol}44` }}
-              >
-                SPIKE
-              </span>
-            )}
-          </div>
-        );
-      })}
-
-      {/* ── Footer ── */}
-      <div className="ois-footer">
-        ≥10% = spike · New Longs/Shorts = real money entering · Short Cover/Long Exits = unwinding
+      <div style={expanded ? { maxHeight: 300, overflowY: 'auto' } : {}}>
+        {displayRows.length > 0
+          ? displayRows.map(renderRow)
+          : <div style={{ padding: '12px 14px', fontSize: 11, color: 'var(--txt3)' }}>No coins match &ldquo;{search}&rdquo;</div>
+        }
       </div>
+
+      {/* ── Expand / collapse toggle ── */}
+      {rows.length > PREVIEW && (
+        <button
+          onClick={toggle}
+          aria-expanded={expanded}
+          style={{
+            width: '100%',
+            padding: '7px 14px',
+            background: 'transparent',
+            border: 'none',
+            borderTop: '0.5px solid var(--bdr)',
+            cursor: 'pointer',
+            fontSize: 10,
+            color: 'var(--txt3)',
+            letterSpacing: '.03em',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 5,
+          }}
+        >
+          {expanded
+            ? '▲ Show less'
+            : `▼ Show all ${rows.length} coins`
+          }
+        </button>
+      )}
     </div>
   );
 }
