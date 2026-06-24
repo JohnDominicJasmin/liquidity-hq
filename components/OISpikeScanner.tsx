@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { CoinId, COINS, BINANCE_SYMS, BYBIT_SYMS, useMarket } from '@/lib/marketStore';
 
 interface CoinOI { coin: CoinId; pct: number | null; oiUsd: number | null }
@@ -82,14 +82,6 @@ export default function OISpikeScanner() {
       s.status === 'fulfilled' ? s.value : { coin: COINS[i], pct: null, oiUsd: null }
     );
 
-    // Sort: biggest absolute move first, nulls last
-    result.sort((a, b) => {
-      if (a.pct == null && b.pct == null) return 0;
-      if (a.pct == null) return 1;
-      if (b.pct == null) return -1;
-      return Math.abs(b.pct) - Math.abs(a.pct);
-    });
-
     setRows(result);
     setUpdatedAt(Date.now());
     setLoading(false);
@@ -108,11 +100,28 @@ export default function OISpikeScanner() {
       })()
     : null;
 
-  const spikeCount = rows.filter(r => r.pct != null && Math.abs(r.pct) >= 10).length;
+  // Sort by display OI USD descending; Bybit oiUsd is in contracts so multiply by live price
+  const sortedRows = useMemo(() => [...rows].sort((a, b) => {
+    const toUsd = (r: CoinOI) => {
+      if (r.oiUsd == null) return null;
+      if (!BINANCE_SYMS[r.coin]) {
+        const price = store.coins[r.coin]?.price;
+        return price ? r.oiUsd * price : null;
+      }
+      return r.oiUsd;
+    };
+    const av = toUsd(a), bv = toUsd(b);
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    return bv - av;
+  }), [rows, store.coins]);
+
+  const spikeCount = sortedRows.filter(r => r.pct != null && Math.abs(r.pct) >= 10).length;
 
   const displayRows = expanded
-    ? rows.filter(r => search ? r.coin.toLowerCase().includes(search.toLowerCase()) : true)
-    : rows.slice(0, PREVIEW);
+    ? sortedRows.filter(r => search ? r.coin.toLowerCase().includes(search.toLowerCase()) : true)
+    : sortedRows.slice(0, PREVIEW);
 
   const toggle = () => {
     setExpanded(prev => {
@@ -240,7 +249,7 @@ export default function OISpikeScanner() {
       </div>
 
       {/* ── Expand / collapse toggle ── */}
-      {rows.length > PREVIEW && (
+      {sortedRows.length > PREVIEW && (
         <button
           onClick={toggle}
           aria-expanded={expanded}
@@ -262,7 +271,7 @@ export default function OISpikeScanner() {
         >
           {expanded
             ? '▲ Show less'
-            : `▼ Show all ${rows.length} coins`
+            : `▼ Show all ${sortedRows.length} coins`
           }
         </button>
       )}
