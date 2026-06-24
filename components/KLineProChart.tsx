@@ -839,7 +839,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         {TFS.map(t => (
           <button
             key={t}
-            className={`klc-tool-btn${tf === t ? ' on' : ''}`}
+            className={`klc-tool-btn klc-tf-btn${tf === t ? ' on' : ''}`}
             onClick={() => onTfChange?.(t)}
           >
             {t}
