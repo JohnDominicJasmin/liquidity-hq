@@ -135,6 +135,9 @@ export interface GrokContext {
   yenWatch: string;
   /* EMA Ribbon Strategy (Triple EMA 9/20/50, 4H) */
   emaStrategy: string;
+  /* Anti-chop filters — ATR(14) buffer + EMA50 slope */
+  emaATR:      string;
+  ema50Slope:  string;
 }
 
 export interface GrokResult {
@@ -166,6 +169,11 @@ export function buildPrompt(ctx: GrokContext): string {
     '  • TRENDING_LONG → mild bullish bias (+10). Do NOT call LONG — price not at entry zone. Confirms bullish regime only.',
     '  • TRENDING_SHORT → mild bearish bias (+10). Do NOT call SHORT — not in entry zone. Confirms bearish regime only.',
     '  • FREEZE → subtract 15 from confidence. Ribbon is in consolidation. Prefer FLAT unless 4+ other signals strongly align in one direction.',
+    `EMA50 Slope (last 5 bars): ${ctx.ema50Slope}`,
+    `ATR(14) buffer: ${ctx.emaATR}`,
+    '(Anti-chop filters — BOTH must pass before treating any EMA signal as valid:',
+    '  1. Slope: EMA50 must be sloping in the signal direction ≥ 0.1% over 5 bars. FLAT slope = ranging market = ignore the cross, call FREEZE.',
+    '  2. ATR buffer: price must close beyond EMA50 by ≥ 25% of ATR(14). A 1-tick graze of EMA50 is noise. If the buffer is not cleared, the confirmation is rejected — do NOT call LONG/SHORT on marginal EMA50 touches.)',
     `Market Structure (4H): ${ctx.marketStructure}`,
     '(BOS = Break of Structure = trend continuation in the same direction. CHoCH = Change of Character = structural reversal signal. A bearish CHoCH means the 4H trend just flipped bearish — strong bias filter against longs. A bullish CHoCH = trend just flipped bullish.)',
     `RSI (14, 1h):  ${ctx.rsi1h}`,

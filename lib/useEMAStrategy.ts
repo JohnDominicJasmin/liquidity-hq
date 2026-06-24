@@ -28,6 +28,23 @@ function volMA(volumes: number[], period = 20): number {
   return slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : 0;
 }
 
+function atrArr(candles: OHLCV[], period = 14): number[] {
+  const result = new Array<number>(candles.length).fill(NaN);
+  if (candles.length < period + 1) return result;
+  const tr = candles.map((c, i) => {
+    if (i === 0) return c.high - c.low;
+    const pc = candles[i - 1].close;
+    return Math.max(c.high - c.low, Math.abs(c.high - pc), Math.abs(c.low - pc));
+  });
+  let atr = tr.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  result[period - 1] = atr;
+  for (let i = period; i < candles.length; i++) {
+    atr = (tr[i] + atr * (period - 1)) / period;
+    result[i] = atr;
+  }
+  return result;
+}
+
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 export type StrategyVerdict =
@@ -64,6 +81,8 @@ export interface StrategySignal {
   signalDir:         'long' | 'short' | null;
   signalLongs:  Array<{ timestamp: number; anchorPrice: number }>;
   signalShorts: Array<{ timestamp: number; anchorPrice: number }>;
+  atrLast:    number | null;  // last ATR(14) — for Grok context
+  ema50Slope: number | null;  // EMA50 slope over last 5 bars as a fraction
 }
 
 interface OHLCV { time: number; open: number; high: number; low: number; close: number; volume: number }
@@ -110,6 +129,7 @@ export const STRATEGY_LOADING: StrategySignal = {
   sl: null, tp: null, loading: true, error: null,
   signalTimestamp: null, signalAnchorPrice: null, signalDir: null,
   signalLongs: [], signalShorts: [],
+  atrLast: null, ema50Slope: null,
 };
 
 /* ── TF → exchange interval strings ─────────────────────────────────────── */
@@ -161,6 +181,7 @@ export function useEMAStrategy(
         const e50arr   = emaArr(cl4, 50);
         const sm200arr = smaArr(cl4,  200); // SMA200 on same timeframe — used for chart markers
         const s200arr  = smaArr(cl1d, 200); // Daily SMA200 — used for strategy card
+        const atr14    = atrArr(cRibbon, 14);
 
         const ema9   = e9arr[e9arr.length - 1];
         const ema20  = e20arr[e20arr.length - 1];
@@ -321,10 +342,28 @@ export function useEMAStrategy(
         let signalAnchorPrice: number | null = null;
         let signalDir: 'long' | 'short' | null = null;
 
+        // Anti-chop filters applied to all signal scans:
+        //   ATR buffer: close must clear EMA50 by ≥ 25% of ATR(14) — rejects marginal grazes
+        //   Slope filter: EMA50 must be trending in signal direction over last 5 bars (≥ 0.1%)
+        //                 Flat EMA50 = ranging market = skip
+        const ATR_MULT   = 0.25;
+        const SLOPE_BARS = 5;
+        const SLOPE_MIN  = 0.001;
+
+        const slopeOK = (k: number, dir: 'long' | 'short'): boolean => {
+          if (k < SLOPE_BARS || !isFinite(e50arr[k - SLOPE_BARS])) return true;
+          const s = (e50arr[k] - e50arr[k - SLOPE_BARS]) / e50arr[k - SLOPE_BARS];
+          return dir === 'long' ? s > -SLOPE_MIN : s < SLOPE_MIN;
+        };
+
         // Primary signal: gated by 200 SMA (used for EMA ribbon card + Grok context)
         if (above200D) {
           for (let i = cRibbon.length - 1; i >= 1; i--) {
-            if (e9arr[i] > e20arr[i] && e9arr[i - 1] <= e20arr[i - 1] && cRibbon[i].close > (e50arr[i] ?? 0)) {
+            const e50i = e50arr[i] ?? 0;
+            const atrBuf = (atr14[i] ?? 0) * ATR_MULT;
+            if (e9arr[i] > e20arr[i] && e9arr[i - 1] <= e20arr[i - 1]
+                && cRibbon[i].close > e50i + atrBuf
+                && slopeOK(i, 'long')) {
               signalTimestamp   = cRibbon[i].time;
               signalAnchorPrice = cRibbon[i].low;
               signalDir         = 'long';
@@ -333,7 +372,11 @@ export function useEMAStrategy(
           }
         } else {
           for (let i = cRibbon.length - 1; i >= 1; i--) {
-            if (e9arr[i] < e20arr[i] && e9arr[i - 1] >= e20arr[i - 1] && cRibbon[i].close < (e50arr[i] ?? Infinity)) {
+            const e50i = e50arr[i] ?? Infinity;
+            const atrBuf = (atr14[i] ?? 0) * ATR_MULT;
+            if (e9arr[i] < e20arr[i] && e9arr[i - 1] >= e20arr[i - 1]
+                && cRibbon[i].close < e50i - atrBuf
+                && slopeOK(i, 'short')) {
               signalTimestamp   = cRibbon[i].time;
               signalAnchorPrice = cRibbon[i].high;
               signalDir         = 'short';
@@ -392,13 +435,14 @@ export function useEMAStrategy(
               if (e9arr[k] < e20arr[k]) break;              // ribbon flipped back — cross invalidated
               const e50k = e50arr[k];
               if (!isFinite(e50k)) continue;
-              if (cRibbon[k].close > e50k) {                // CONFIRM: candle closed above EMA50
+              const atrBuf = (atr14[k] ?? 0) * ATR_MULT;
+              if (cRibbon[k].close > e50k + atrBuf          // CONFIRM: meaningful close above EMA50
+                  && slopeOK(k, 'long')) {                  // ...and EMA50 is trending up (not flat/ranging)
                 if (holdsBeyond50(k, 'long')) {             // ...and the move stuck (not a whipsaw poke)
                   signalLongs.push({ timestamp: cRibbon[k].time, anchorPrice: cRibbon[k].low });
                   lastDir = 'long';
                   break;
                 }
-                // Whipsaw poke — keep scanning for the next candle that closes above EMA50 and holds
               }
             }
           }
@@ -409,17 +453,25 @@ export function useEMAStrategy(
               if (e9arr[k] > e20arr[k]) break;              // ribbon flipped back — cross invalidated
               const e50k = e50arr[k];
               if (!isFinite(e50k)) continue;
-              if (cRibbon[k].close < e50k) {                // CONFIRM: candle closed below EMA50
+              const atrBuf = (atr14[k] ?? 0) * ATR_MULT;
+              if (cRibbon[k].close < e50k - atrBuf          // CONFIRM: meaningful close below EMA50
+                  && slopeOK(k, 'short')) {                 // ...and EMA50 is trending down (not flat/ranging)
                 if (holdsBeyond50(k, 'short')) {            // ...and the move stuck (not a whipsaw poke)
                   signalShorts.push({ timestamp: cRibbon[k].time, anchorPrice: cRibbon[k].high });
                   lastDir = 'short';
                   break;
                 }
-                // Whipsaw poke — keep scanning for the next candle that closes below EMA50 and holds
               }
             }
           }
         }
+
+        // Expose ATR and EMA50 slope for Grok context (Quick/Deep Research + chatbot)
+        const atrLast = isFinite(atr14[atr14.length - 1]) ? atr14[atr14.length - 1] : null;
+        const slopeIdx = e50arr.length - 1;
+        const ema50Slope = (slopeIdx >= SLOPE_BARS && isFinite(e50arr[slopeIdx - SLOPE_BARS]))
+          ? (e50arr[slopeIdx] - e50arr[slopeIdx - SLOPE_BARS]) / e50arr[slopeIdx - SLOPE_BARS]
+          : null;
 
         if (!mountedRef.current) return;
         setSig({
@@ -429,6 +481,7 @@ export function useEMAStrategy(
           sl, tp, loading: false, error: null,
           signalTimestamp, signalAnchorPrice, signalDir,
           signalLongs, signalShorts,
+          atrLast, ema50Slope,
         });
       } catch (err) {
         if (!mountedRef.current) return;

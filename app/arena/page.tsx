@@ -822,6 +822,16 @@ export default function Arena() {
             ? `${jpyUsd.toFixed(2)} — WARNING: Approaching 160 danger zone, watch for BOJ signals`
             : `${jpyUsd.toFixed(2)} — Safe: below 158, carry trade stable, low JPY liquidation risk`,
       emaStrategy: strategyToGrokLine(emaSignalRef.current, readTf),
+      emaATR: emaSignalRef.current.atrLast != null
+        ? `ATR(14) = $${emaSignalRef.current.atrLast.toFixed(2)} · 25% buf = $${(emaSignalRef.current.atrLast * 0.25).toFixed(2)} min clearance above/below EMA50`
+        : '—',
+      ema50Slope: (() => {
+        const s = emaSignalRef.current.ema50Slope;
+        if (s == null) return '—';
+        const pct = (s * 100).toFixed(3);
+        const label = s > 0.001 ? 'RISING — bullish slope confirmed' : s < -0.001 ? 'FALLING — bearish slope confirmed' : 'FLAT — ranging market, slope filter fails';
+        return `${pct}% over 5 bars — ${label}`;
+      })(),
     };
   };
 
