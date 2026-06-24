@@ -1,5 +1,6 @@
 'use client';
 import { StrategySignal, StrategyVerdict } from '@/lib/useEMAStrategy';
+import { CoinId } from '@/lib/marketStore';
 
 const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; color: string; bg: string; border: string }> = {
   LONG_SETUP:     { label: '▲ LONG SETUP',     color: '#34d399', bg: 'rgba(52,211,153,0.08)',  border: 'rgba(52,211,153,0.25)'  },
@@ -19,12 +20,61 @@ function fmt(n: number | null, decimals = 2): string {
   return n.toFixed(8);
 }
 
-interface Props { signal: StrategySignal; tf?: string }
+function fireExplain(prompt: string, coin: CoinId) {
+  window.dispatchEvent(new CustomEvent('grok-chat', { detail: { coin, prompt } }));
+}
 
-export default function EMASignal({ signal, tf = '4h' }: Props) {
+function buildSignalPrompt(signal: StrategySignal, coin: CoinId, tf: string, cfg: { label: string }): string {
+  const passing = signal.conditions.filter(c => c.pass === true);
+  const failing  = signal.conditions.filter(c => c.pass === false);
+  const condLines = [
+    ...passing.map(c => `  ✓ ${c.label}: ${c.detail}`),
+    ...failing.map(c  => `  ✗ ${c.label}: ${c.detail}`),
+  ].join('\n');
+  const sltp = signal.sl && signal.tp
+    ? `Stop loss: $${fmt(signal.sl)} · Take profit: $${fmt(signal.tp)}`
+    : '';
+
+  return [
+    `Explain this ${coin.toUpperCase()} trading signal to me like I'm a beginner. Use plain English — no jargon.`,
+    '',
+    `Coin: ${coin.toUpperCase()} · Timeframe: ${tf.toUpperCase()}`,
+    `Signal: ${cfg.label}`,
+    `What's happening: ${signal.phase}`,
+    `Conditions: ${passing.length} passing, ${failing.length} failing out of ${signal.conditions.length}`,
+    condLines,
+    sltp,
+    '',
+    'Answer these 3 things simply:',
+    '1. What is this signal actually telling me about the market right now?',
+    '2. Should I buy, sell, or wait — and exactly why?',
+    '3. What would need to change for this to become a clear entry?',
+  ].filter(Boolean).join('\n');
+}
+
+function buildConditionPrompt(label: string, pass: boolean | null, detail: string, coin: CoinId, tf: string): string {
+  const status = pass === true ? 'PASSING' : pass === false ? 'FAILING' : 'NOT YET RELEVANT';
+  return [
+    `Explain the "${label}" condition to me in plain English. I'm new to trading — avoid jargon.`,
+    '',
+    `Coin: ${coin.toUpperCase()} · Timeframe: ${tf.toUpperCase()}`,
+    `Status: ${status}`,
+    `Current value: ${detail}`,
+    '',
+    'Answer these 3 things:',
+    `1. What does "${label}" mean in simple terms?`,
+    '2. Why does this condition matter before entering a trade?',
+    `3. What does the current status (${status.toLowerCase()}) tell me — should I act or wait?`,
+  ].join('\n');
+}
+
+interface Props { signal: StrategySignal; tf?: string; coin?: CoinId }
+
+export default function EMASignal({ signal, tf = '4h', coin }: Props) {
   const v   = signal.verdict;
   const cfg = VERDICT_CONFIG[v];
   const isSetup = v === 'LONG_SETUP' || v === 'SHORT_SETUP';
+  const canExplain = coin && !signal.loading && signal.verdict !== 'LOADING';
 
   return (
     <div style={{
@@ -61,7 +111,7 @@ export default function EMASignal({ signal, tf = '4h' }: Props) {
         </div>
       )}
 
-      {/* Conditions grid */}
+      {/* Conditions grid — each chip clickable to explain */}
       {signal.conditions.length > 0 && (
         <div style={{
           display: 'grid',
@@ -75,12 +125,20 @@ export default function EMASignal({ signal, tf = '4h' }: Props) {
             const bg   = pass === true ? 'rgba(52,211,153,0.07)' : pass === false ? 'rgba(248,113,113,0.07)' : 'rgba(255,255,255,0.02)';
             const icon = pass === true ? '✓' : pass === false ? '✗' : '—';
             return (
-              <div key={i} title={c.detail} style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '5px 8px', borderRadius: 6,
-                background: bg, border: `0.5px solid ${col}22`,
-                cursor: 'default',
-              }}>
+              <div
+                key={i}
+                title={canExplain ? `Click to explain "${c.label}" in plain English` : c.detail}
+                onClick={canExplain ? () => fireExplain(buildConditionPrompt(c.label, c.pass, c.detail, coin!, tf), coin!) : undefined}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '5px 8px', borderRadius: 6,
+                  background: bg, border: `0.5px solid ${col}22`,
+                  cursor: canExplain ? 'pointer' : 'default',
+                  transition: 'opacity 0.15s',
+                }}
+                onMouseEnter={e => { if (canExplain) (e.currentTarget as HTMLDivElement).style.opacity = '0.75'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.opacity = '1'; }}
+              >
                 <span style={{ fontSize: 11, fontWeight: 700, color: col, flexShrink: 0 }}>{icon}</span>
                 <span style={{ fontSize: 11, color: pass === null ? '#444' : 'var(--txt2)', lineHeight: 1.2 }}>
                   {c.label}
@@ -128,6 +186,31 @@ export default function EMASignal({ signal, tf = '4h' }: Props) {
           <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Slow avg <b style={{ color: '#f97316' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
           <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Daily trend <b style={{ color: '#a78bfa' }}>${fmt(signal.sma200_1d ?? null)}</b></span>
         </div>
+      )}
+
+      {/* Explain This Signal button */}
+      {canExplain && (
+        <button
+          onClick={() => fireExplain(buildSignalPrompt(signal, coin!, tf, cfg), coin!)}
+          style={{
+            marginTop: 10,
+            width: '100%',
+            padding: '7px 0',
+            background: 'rgba(184,174,255,0.06)',
+            border: '0.5px solid rgba(184,174,255,0.2)',
+            borderRadius: 7,
+            fontSize: 12,
+            fontWeight: 600,
+            color: '#b8aeff',
+            cursor: 'pointer',
+            letterSpacing: '.02em',
+            transition: 'background 0.15s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(184,174,255,0.12)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(184,174,255,0.06)'; }}
+        >
+          ✦ Explain this signal in plain English
+        </button>
       )}
 
       {signal.error && (

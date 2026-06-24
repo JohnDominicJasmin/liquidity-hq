@@ -1270,7 +1270,7 @@ export default function Arena() {
       </div>
 
       {/* EMA Ribbon Strategy card */}
-      <EMASignal signal={emaSignal} tf={readTf} />
+      <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         {/* Quick button — requires sign-in */}
         <button
