@@ -284,6 +284,7 @@ export default function FundingHistory() {
   const [selected, setSelected] = useState<CoinId>('btc');
   const [rangeKey, setRangeKey] = useState<RangeKey>('7d');
   const [loading, setLoading]   = useState(true);
+  const [frSearch, setFrSearch] = useState('');
 
   const fullChartRef = useRef<HTMLCanvasElement>(null);
   const sparkRefs    = useRef<Partial<Record<CoinId, HTMLCanvasElement>>>({});
@@ -405,6 +406,23 @@ export default function FundingHistory() {
 
           {/* Overview table */}
           <div className="card" style={{ marginBottom: 10, overflowX: 'auto' }}>
+            {/* Search bar */}
+            <div style={{ borderBottom: '0.5px solid var(--bdr)', padding: '0 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.4 }}>
+                <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.3"/>
+                <line x1="8" y1="8" x2="11" y2="11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+              </svg>
+              <input
+                type="text"
+                placeholder="Search coins…"
+                value={frSearch}
+                onChange={e => setFrSearch(e.target.value)}
+                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', fontSize: 11, color: 'var(--txt)' }}
+              />
+              {frSearch && (
+                <button onClick={() => setFrSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: 13, lineHeight: 1 }} aria-label="Clear search">×</button>
+              )}
+            </div>
             <table className="frh-table">
               <thead>
                 <tr>
@@ -416,7 +434,7 @@ export default function FundingHistory() {
                 </tr>
               </thead>
               <tbody>
-                {COINS.map(id => {
+                {COINS.filter(id => !frSearch || id.toLowerCase().includes(frSearch.toLowerCase())).map(id => {
                   const stats   = getStats(id);
                   const current = store.coins[id]?.fundingRate ?? null;
                   const pts     = (history[id] ?? []).slice(-rangeCount);

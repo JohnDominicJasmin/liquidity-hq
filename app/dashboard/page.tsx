@@ -305,6 +305,8 @@ function EdgeSignals() {
   const coin = store.coins[store.selectedCoin];
   const [tipOpen, setTipOpen] = useState(false);
   const [takerExpanded, setTakerExpanded] = useState(false);
+  const [takerSearch, setTakerSearch]     = useState('');
+  const takerSearchRef = useRef<HTMLInputElement>(null);
   const oi1h  = useOI1h(store.selectedCoin);
   const sq    = computeSqueezeScore(coin);
   const tipRef = useRef<HTMLDivElement>(null);
@@ -560,63 +562,95 @@ function EdgeSignals() {
           Taker Buy/Sell Pressure
           <span className="taker-subtitle">Who&apos;s being aggressive — last 5h of 15m candles</span>
         </div>
+
+        {/* Search bar — visible only when expanded */}
+        {takerExpanded && (
+          <div style={{ borderBottom: '0.5px solid var(--bdr)', padding: '0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.4 }}>
+              <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.3"/>
+              <line x1="8" y1="8" x2="11" y2="11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+            <input
+              ref={takerSearchRef}
+              type="text"
+              placeholder="Search coins…"
+              value={takerSearch}
+              onChange={e => setTakerSearch(e.target.value)}
+              style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', fontSize: 11, color: 'var(--txt)' }}
+            />
+            {takerSearch && (
+              <button onClick={() => setTakerSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: 13, lineHeight: 1 }} aria-label="Clear search">×</button>
+            )}
+          </div>
+        )}
+
         <div className="taker-hdr">
           <div>Coin</div><div>Buy/Sell split</div><div>Signal</div>
         </div>
         {(() => {
           const coinsWithData = COINS.filter(id => store.coins[id]?.takerBuyRatio != null);
           const noDataCount   = COINS.length - coinsWithData.length;
-          const visibleCoins  = takerExpanded ? coinsWithData : coinsWithData.slice(0, 5);
-          const hiddenCount   = coinsWithData.length - visibleCoins.length;
+          const filtered      = takerExpanded && takerSearch
+            ? coinsWithData.filter(id => id.toLowerCase().includes(takerSearch.toLowerCase()))
+            : coinsWithData;
+          const visibleCoins  = takerExpanded ? filtered : filtered.slice(0, 5);
+          const hiddenCount   = coinsWithData.length - 5;
           return (
             <>
-              {visibleCoins.map(id => {
-          const c = store.coins[id];
-          const ratio = c?.takerBuyRatio;   // 0.0–1.0
-          const buyPct  = ratio != null ? Math.round(ratio * 100) : null;
-          const sellPct = buyPct != null ? 100 - buyPct : null;
+              <div style={takerExpanded ? { maxHeight: 300, overflowY: 'auto' } : {}}>
+                {visibleCoins.length > 0 ? visibleCoins.map(id => {
+                  const c = store.coins[id];
+                  const ratio = c?.takerBuyRatio;
+                  const buyPct  = ratio != null ? Math.round(ratio * 100) : null;
+                  const sellPct = buyPct != null ? 100 - buyPct : null;
 
-          const isAggBuy  = buyPct != null && buyPct >= 65;
-          const isMildBuy = buyPct != null && buyPct >= 55 && buyPct < 65;
-          const isAggSell = buyPct != null && buyPct <= 35;
-          const isMildSell = buyPct != null && buyPct > 35 && buyPct <= 45;
+                  const isAggBuy   = buyPct != null && buyPct >= 65;
+                  const isMildBuy  = buyPct != null && buyPct >= 55 && buyPct < 65;
+                  const isAggSell  = buyPct != null && buyPct <= 35;
+                  const isMildSell = buyPct != null && buyPct > 35 && buyPct <= 45;
 
-          const sigTxt = buyPct == null  ? '—'
-            : isAggBuy   ? `${buyPct}% buyers ▲`
-            : isMildBuy  ? `${buyPct}% mild buy`
-            : isAggSell  ? `${sellPct}% sellers ▼`
-            : isMildSell ? `${sellPct}% mild sell`
-            : '—';
+                  const sigTxt = buyPct == null  ? '—'
+                    : isAggBuy   ? `${buyPct}% buyers ▲`
+                    : isMildBuy  ? `${buyPct}% mild buy`
+                    : isAggSell  ? `${sellPct}% sellers ▼`
+                    : isMildSell ? `${sellPct}% mild sell`
+                    : '—';
 
-          const sigCol = buyPct == null ? 'var(--txt3)'
-            : isAggBuy   ? '#34d399'
-            : isMildBuy  ? '#86efac'
-            : isAggSell  ? '#f87171'
-            : isMildSell ? '#fca5a5'
-            : 'var(--txt3)';
+                  const sigCol = buyPct == null ? 'var(--txt3)'
+                    : isAggBuy   ? '#34d399'
+                    : isMildBuy  ? '#86efac'
+                    : isAggSell  ? '#f87171'
+                    : isMildSell ? '#fca5a5'
+                    : 'var(--txt3)';
 
-          return (
-            <div key={id} className="taker-row">
-              <div className="taker-coin">{id.toUpperCase()}</div>
-              <div className="taker-bar-wrap">
-                {buyPct != null ? (
-                  <>
-                    <div
-                      className="taker-buy-bar"
-                      style={{ width: `${buyPct}%` }}
-                    />
-                    <div className="taker-mid-line" />
-                  </>
-                ) : (
-                  <span style={{ fontSize: 10, color: 'var(--txt2)', paddingLeft: 6 }}>Fetching…</span>
+                  return (
+                    <div key={id} className="taker-row">
+                      <div className="taker-coin">{id.toUpperCase()}</div>
+                      <div className="taker-bar-wrap">
+                        {buyPct != null ? (
+                          <>
+                            <div className="taker-buy-bar" style={{ width: `${buyPct}%` }} />
+                            <div className="taker-mid-line" />
+                          </>
+                        ) : (
+                          <span style={{ fontSize: 10, color: 'var(--txt2)', paddingLeft: 6 }}>Fetching…</span>
+                        )}
+                      </div>
+                      <div className="taker-signal" style={{ color: sigCol }}>{sigTxt}</div>
+                    </div>
+                  );
+                }) : (
+                  <div style={{ padding: '10px 12px', fontSize: 11, color: 'var(--txt3)' }}>No coins match &ldquo;{takerSearch}&rdquo;</div>
                 )}
               </div>
-              <div className="taker-signal" style={{ color: sigCol }}>{sigTxt}</div>
-            </div>
-          );
-        })}
               <button
-                onClick={() => setTakerExpanded(v => !v)}
+                onClick={() => {
+                  setTakerExpanded(v => {
+                    if (v) setTakerSearch('');
+                    return !v;
+                  });
+                  if (!takerExpanded) setTimeout(() => takerSearchRef.current?.focus(), 60);
+                }}
                 style={{
                   width: '100%', padding: '9px 0', background: 'none', border: 'none',
                   borderTop: '0.5px solid var(--bdr)', cursor: 'pointer',
@@ -628,9 +662,9 @@ function EdgeSignals() {
               >
                 {takerExpanded
                   ? 'Show less ▲'
-                  : `Show ${hiddenCount} more coins ▼`}
+                  : `Show all ${coinsWithData.length} coins ▼`}
               </button>
-              {noDataCount > 0 && (
+              {noDataCount > 0 && !takerExpanded && (
                 <div style={{ fontSize: 11, color: 'var(--txt2)', padding: '6px 10px', borderTop: '0.5px solid var(--bdr)' }}>
                   +{noDataCount} coins without taker data (Bybit-only)
                 </div>

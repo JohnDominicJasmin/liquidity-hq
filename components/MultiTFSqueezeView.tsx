@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useMarket, COINS, CoinId, computeSqueezeScore } from '@/lib/marketStore';
 
 type TFDir = 'FLUSH' | 'SQUEEZE' | 'NEUTRAL';
@@ -84,6 +84,8 @@ const TF_LABELS = ['15 Min', '1 Hour', '4 Hour', '1 Day'] as const;
 export default function MultiTFSqueezeView() {
   const { store } = useMarket();
   const [expanded, setExpanded] = useState(false);
+  const [search, setSearch]     = useState('');
+  const searchRef               = useRef<HTMLInputElement>(null);
 
   const rows = COINS.map(c => {
     const coin = store.coins[c];
@@ -156,8 +158,34 @@ export default function MultiTFSqueezeView() {
         <span style={{ ...hdrStyle, textAlign: 'right' }}>Squeeze</span>
       </div>
 
+      {/* Search bar — visible only when expanded */}
+      {expanded && (
+        <div style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)', padding: '0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.35 }}>
+            <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.3"/>
+            <line x1="8" y1="8" x2="11" y2="11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+          </svg>
+          <input
+            ref={searchRef}
+            type="text"
+            placeholder="Search coins…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', fontSize: 11, color: 'var(--txt)' }}
+          />
+          {search && (
+            <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: 13, lineHeight: 1 }} aria-label="Clear search">×</button>
+          )}
+        </div>
+      )}
+
       {/* Coin rows */}
-      {(expanded ? rows : rows.slice(0, 5)).map(({ c, tfs, sq, flushCount, sqzCount }) => {
+      <div style={expanded ? { maxHeight: 320, overflowY: 'auto' } : {}}>
+      {(() => {
+        const displayRows = expanded
+          ? (search ? rows.filter(r => r.c.toLowerCase().includes(search.toLowerCase())) : rows)
+          : rows.slice(0, 5);
+        return displayRows.length > 0 ? displayRows.map(({ c, tfs, sq, flushCount, sqzCount }) => {
         const dominantDir = sqzCount >= 2 ? 'SQUEEZE' : flushCount >= 2 ? 'FLUSH' : 'NEUTRAL';
         const rowActive   = dominantDir !== 'NEUTRAL';
         return (
@@ -222,11 +250,20 @@ export default function MultiTFSqueezeView() {
             </span>
           </div>
         );
-      })}
+        }) : <div style={{ padding: '10px 12px', fontSize: 11, color: '#444' }}>No coins match &ldquo;{search}&rdquo;</div>;
+      })()}
+      </div>
 
       {/* Show more toggle */}
       <button
-        onClick={() => setExpanded(v => !v)}
+        onClick={() => {
+          setExpanded(v => {
+            if (v) setSearch('');
+            return !v;
+          });
+          if (!expanded) setTimeout(() => searchRef.current?.focus(), 60);
+        }}
+        aria-expanded={expanded}
         style={{
           width: '100%', padding: '9px 0', background: 'none', border: 'none',
           borderTop: '0.5px solid rgba(255,255,255,0.05)', cursor: 'pointer',
@@ -236,7 +273,7 @@ export default function MultiTFSqueezeView() {
         onMouseEnter={e => (e.currentTarget.style.color = '#888')}
         onMouseLeave={e => (e.currentTarget.style.color = '#444')}
       >
-        {expanded ? 'Show less ▲' : `Show ${rows.length - 5} more coins ▼`}
+        {expanded ? 'Show less ▲' : `Show all ${rows.length} coins ▼`}
       </button>
 
       {/* Footer legend */}
