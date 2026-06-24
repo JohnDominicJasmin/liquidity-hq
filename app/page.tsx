@@ -80,7 +80,7 @@ export default function LandingPage() {
             <div className="lp-feature-card lp-feat-purple">
               <div className="lp-feat-icon">⚡</div>
               <h3>AI Arena</h3>
-              <p>35-signal confluence engine with live chart and Grok AI analysis. Funding rate, CVD, OI trend, squeeze score, whale flow, GEX — all in one view.</p>
+              <p>35-signal confluence engine with live chart and Grok AI analysis. Funding rate, CVD, open interest trend, squeeze score, whale flow, GEX — all in one view.</p>
               <div className="lp-feat-pills">
                 <span>Grok 4.3</span><span>35 signals</span><span>17 coins</span>
               </div>
@@ -89,7 +89,7 @@ export default function LandingPage() {
             <div className="lp-feature-card lp-feat-green">
               <div className="lp-feat-icon">📲</div>
               <h3>Telegram Alerts</h3>
-              <p>Auto-fire alerts for squeeze setups, whale trades, RSI extremes, EMA crosses, rapid price moves, OI spikes, and breaking news — before the crowd.</p>
+              <p>Auto-fire alerts for squeeze setups, whale trades, RSI extremes, EMA crosses, rapid price moves, open interest spikes, and breaking news — before the crowd.</p>
               <div className="lp-feat-pills">
                 <span>Squeeze alerts</span><span>Whale trades</span><span>Breaking news</span>
               </div>

@@ -31,12 +31,12 @@ interface ScanRow {
 }
 
 function OiTrendBadge({ trend }: { trend: CoinData['oiTrend'] }) {
-  if (!trend) return <span className="scan-badge scan-badge-neu">OI —</span>;
+  if (!trend) return <span className="scan-badge scan-badge-neu">Open Int —</span>;
   const map: Record<string, { label: string; cls: string }> = {
-    strong_up:   { label: 'OI ↑↑', cls: 'scan-badge-bull' },
-    weak_up:     { label: 'OI ↑',  cls: 'scan-badge-neu'  },
-    weak_down:   { label: 'OI ↓',  cls: 'scan-badge-neu'  },
-    strong_down: { label: 'OI ↓↓', cls: 'scan-badge-bear' },
+    strong_up:   { label: 'Open Int ↑↑', cls: 'scan-badge-bull' },
+    weak_up:     { label: 'Open Int ↑',  cls: 'scan-badge-neu'  },
+    weak_down:   { label: 'Open Int ↓',  cls: 'scan-badge-neu'  },
+    strong_down: { label: 'Open Int ↓↓', cls: 'scan-badge-bear' },
   };
   const m = map[trend];
   return <span className={`scan-badge ${m.cls}`}>{m.label}</span>;

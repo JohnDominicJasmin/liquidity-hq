@@ -322,11 +322,11 @@ export function useEMAStrategy(
               : `${(fundingRate * 100).toFixed(4)}% — ${fundingOK ? 'safe, proceed' : 'excessive, skip entry (bleed/squeeze risk)'}`,
           },
           {
-            label: 'OI Confirming',
+            label: 'Open Interest Confirming',
             pass:  oiOK,
             detail: oiPct == null
-              ? 'OI data unavailable'
-              : `OI ${oiPct >= 0 ? '+' : ''}${oiPct.toFixed(2)}% in 1h — ${oiOK ? 'stable or rising (healthy)' : 'sharp drop (abort — position covering cascade)'}`,
+              ? 'Open interest data unavailable'
+              : `Open interest ${oiPct >= 0 ? '+' : ''}${oiPct.toFixed(2)}% in 1h — ${oiOK ? 'stable or rising (healthy)' : 'sharp drop (abort — position covering cascade)'}`,
           },
           {
             label: 'Volume Above MA',

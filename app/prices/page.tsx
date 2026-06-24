@@ -103,7 +103,7 @@ export default function PricesPage() {
                 )}
                 {d?.oi != null && (
                   <span style={{ fontSize: 9, color: 'var(--txt3)', opacity: 0.5 }}>
-                    OI {d.oi >= 1e9 ? '$' + (d.oi / 1e9).toFixed(2) + 'B' : '$' + (d.oi / 1e6).toFixed(1) + 'M'}
+                    Open Interest {d.oi >= 1e9 ? '$' + (d.oi / 1e9).toFixed(2) + 'B' : '$' + (d.oi / 1e6).toFixed(1) + 'M'}
                   </span>
                 )}
               </div>

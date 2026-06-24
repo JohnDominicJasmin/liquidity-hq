@@ -480,12 +480,12 @@ export default function Arena() {
     /* 6 — OI trend signal (1 hour cooldown) */
     if (coin?.oiTrend === 'strong_up')
       fire(`oi-sup-${selectedCoin}-${b1h}`,
-        `📈 ${sym} OI Spike — New Longs`,
-        'OI rising with price — real trend, new money entering. Bullish continuation likely.');
+        `📈 ${sym} Open Interest Spike — New Longs`,
+        'Open interest rising with price — real trend, new money entering. Bullish continuation likely.');
     else if (coin?.oiTrend === 'strong_down')
       fire(`oi-sdn-${selectedCoin}-${b1h}`,
-        `📉 ${sym} OI Spike — New Shorts`,
-        'OI rising with price falling — new shorts entering. Bearish continuation likely.');
+        `📉 ${sym} Open Interest Spike — New Shorts`,
+        'Open interest rising with price falling — new shorts entering. Bearish continuation likely.');
 
     /* 7 — Sentiment Extremes: F&G + FR + L/S all aligned (#20) */
     if (store.fng != null && coin?.fundingRate != null && coin?.longRatio != null) {
@@ -655,10 +655,10 @@ export default function Arena() {
 
     /* OI Trend vs Price */
     const OI_TREND_LABELS: Record<string, string> = {
-      strong_up:   'OI ↑ + Price ↑ — real bullish trend (new money entering longs)',
-      strong_down: 'OI ↑ + Price ↓ — real bearish trend (new money entering shorts)',
-      weak_up:     'OI ↓ + Price ↑ — short covering rally (no conviction, likely fake)',
-      weak_down:   'OI ↓ + Price ↓ — long exits (capitulation, not fresh shorts)',
+      strong_up:   'Open Interest ↑ + Price ↑ — real bullish trend (new money entering longs)',
+      strong_down: 'Open Interest ↑ + Price ↓ — real bearish trend (new money entering shorts)',
+      weak_up:     'Open Interest ↓ + Price ↑ — short covering rally (no conviction, likely fake)',
+      weak_down:   'Open Interest ↓ + Price ↓ — long exits (capitulation, not fresh shorts)',
     };
     const oiTrend = coin?.oiTrend ? OI_TREND_LABELS[coin.oiTrend] : '—';
 
@@ -779,7 +779,7 @@ export default function Arena() {
       cascadeLine, whaleFlow,
       setupScan: (() => {
         const sq = computeSqueezeScore(coin);
-        const oiChip  = coin?.oiTrend   ? { strong_up: 'OI ↑↑', weak_up: 'OI ↑', weak_down: 'OI ↓', strong_down: 'OI ↓↓' }[coin.oiTrend] ?? 'OI —' : 'OI —';
+        const oiChip  = coin?.oiTrend   ? { strong_up: 'Open Int ↑↑', weak_up: 'Open Int ↑', weak_down: 'Open Int ↓', strong_down: 'Open Int ↓↓' }[coin.oiTrend] ?? 'Open Int —' : 'Open Int —';
         const cvdChip = coin?.cvdDivergence === 'bullish' ? 'CVD ↑' : coin?.cvdDivergence === 'bearish' ? 'CVD ↓' : 'CVD —';
         const tkr     = coin?.takerBuyRatio != null ? 'Tkr ' + (coin.takerBuyRatio * 100).toFixed(0) + '%' : 'Tkr —';
         const rsi     = coin?.rsi14 != null ? 'RSI ' + Math.round(coin.rsi14) : 'RSI —';

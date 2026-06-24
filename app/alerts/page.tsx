@@ -216,7 +216,7 @@ export default function AlertsPage() {
     ]},
     { section: 'Flow', items: [
       { key: 'whales',   dot: '#a78bfa', title: 'Whale Trades',        desc: 'BTC >$5M · ETH >$2M · SOL >$1M · XRP/BNB >$750K · others >$500K · 30min cooldown', grok: true },
-      { key: 'oi_spike', dot: '#fbbf24', title: 'OI Spike ±15% / 1h', desc: 'New money entering — big move building · 2h cooldown', grok: true },
+      { key: 'oi_spike', dot: '#fbbf24', title: 'Open Interest Spike ±15% / 1h', desc: 'New money entering — big move building · 2h cooldown', grok: true },
       { key: 'cvd',      dot: '#34d399', title: 'CVD Divergence',      desc: 'Bullish: price down but buyers absorbing · Bearish: price up but sellers dominate · 1h cooldown', grok: false },
       { key: 'squeeze',  dot: '#f43f5e', title: 'Squeeze / Flush ≥ 70', desc: 'Crowd positioning extreme — squeeze score threshold hit · 4h cooldown', grok: true },
     ]},
@@ -253,7 +253,7 @@ export default function AlertsPage() {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#b8aeff', marginBottom: 3 }}>Pro plan required for Telegram alerts</div>
               <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.6 }}>
-                Upgrade to get push alerts for funding rate extremes, RSI signals, OI spikes, whale moves, and price levels directly to Telegram.
+                Upgrade to get push alerts for funding rate extremes, RSI signals, open interest spikes, whale moves, and price levels directly to Telegram.
               </div>
             </div>
             <a href="/upgrade" className="arena-ask-grok-btn" style={{ flexShrink: 0, textDecoration: 'none', padding: '8px 16px', fontSize: 12 }}>

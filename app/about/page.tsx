@@ -22,7 +22,7 @@ export default function About() {
         {[
           ['Prices', 'Binance WebSocket + REST — 17 coins (majors, alts, memes)'],
           ['HYPE / PEPE / BONK', 'Bybit REST API'],
-          ['Funding & OI', 'Bybit Public API'],
+          ['Funding & Open Interest', 'Bybit Public API'],
           ['Long/Short Ratio', 'Bybit Account Ratio'],
           ['Fear & Greed', 'Alternative.me'],
           ['BTC Dominance', 'CoinMarketCap'],

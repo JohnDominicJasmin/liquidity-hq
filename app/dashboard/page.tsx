@@ -123,10 +123,10 @@ function MacroStrip() {
 }
 
 const OI_TREND_META: Record<string, { txt: string; sub: string; hint: string; col: string }> = {
-  strong_up:   { txt: '▲ ↑OI ↑P', sub: 'New longs — real trend',  hint: 'New money entering longs. Trend has conviction — follow it.',      col: '#34d399' },
-  strong_down: { txt: '▼ ↑OI ↓P', sub: 'New shorts — real dump',  hint: 'Fresh shorts being added. Real downtrend — not a dip to buy.',     col: '#f87171' },
-  weak_up:     { txt: '△ ↓OI ↑P', sub: 'Short covering — weak',   hint: 'Shorts exiting, not new longs. Fake pump — no fresh conviction.',  col: '#fbbf24' },
-  weak_down:   { txt: '▽ ↓OI ↓P', sub: 'Long exits — no panic',   hint: 'Longs taking profit/exiting. Not new shorts — capitulation risk.', col: '#94a3b8' },
+  strong_up:   { txt: '▲ ↑Open Int ↑P', sub: 'New longs — real trend',  hint: 'New money entering longs. Trend has conviction — follow it.',      col: '#34d399' },
+  strong_down: { txt: '▼ ↑Open Int ↓P', sub: 'New shorts — real dump',  hint: 'Fresh shorts being added. Real downtrend — not a dip to buy.',     col: '#f87171' },
+  weak_up:     { txt: '△ ↓Open Int ↑P', sub: 'Short covering — weak',   hint: 'Shorts exiting, not new longs. Fake pump — no fresh conviction.',  col: '#fbbf24' },
+  weak_down:   { txt: '▽ ↓Open Int ↓P', sub: 'Long exits — no panic',   hint: 'Longs taking profit/exiting. Not new shorts — capitulation risk.', col: '#94a3b8' },
 };
 
 /* ── Coin Sidebar v2 — signal cards ── */
@@ -419,10 +419,10 @@ function EdgeSignals() {
           )}
           {tipOpen && (
             <div className="oi-inline-tip">
-              <div className="oi-tip-row"><span className="oi-tip-badge tip-green">▲ ↑OI ↑P</span><span>New longs — real trend</span></div>
-              <div className="oi-tip-row"><span className="oi-tip-badge tip-red">▼ ↑OI ↓P</span><span>New shorts — real dump</span></div>
-              <div className="oi-tip-row"><span className="oi-tip-badge tip-weak-up">△ ↓OI ↑P</span><span>Short covering — fake pump</span></div>
-              <div className="oi-tip-row"><span className="oi-tip-badge tip-weak-down">▽ ↓OI ↓P</span><span>Long exits — no panic</span></div>
+              <div className="oi-tip-row"><span className="oi-tip-badge tip-green">▲ ↑Open Int ↑P</span><span>New longs — real trend</span></div>
+              <div className="oi-tip-row"><span className="oi-tip-badge tip-red">▼ ↑Open Int ↓P</span><span>New shorts — real dump</span></div>
+              <div className="oi-tip-row"><span className="oi-tip-badge tip-weak-up">△ ↓Open Int ↑P</span><span>Short covering — fake pump</span></div>
+              <div className="oi-tip-row"><span className="oi-tip-badge tip-weak-down">▽ ↓Open Int ↓P</span><span>Long exits — no panic</span></div>
             </div>
           )}
         </div>
@@ -529,7 +529,7 @@ function EdgeSignals() {
           <div className="edge-grid">
             {/* OI 1h Change */}
             <div className="edge-card" style={{ borderColor: oi1hBdr }}>
-              <div className="edge-card-label">OI Change (1h) · {store.selectedCoin.toUpperCase()}</div>
+              <div className="edge-card-label">Open Interest Change (1h) · {store.selectedCoin.toUpperCase()}</div>
               <div className="edge-card-value" style={{ color: oi1hCol }}>
                 {oi1h.loading ? '—' : oi1hPctStr}
               </div>

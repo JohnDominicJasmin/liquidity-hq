@@ -92,8 +92,8 @@ function getSignalTags(coin: CoinData, dir: 'LONG_LIQ' | 'SHORT_SQ'): string[] {
     if (dir === 'SHORT_SQ' && coin.rsi14 <= 35)  tags.push(`RSI ${Math.round(coin.rsi14)}`);
   }
   if (coin.oiTrend) {
-    if (dir === 'LONG_LIQ' && coin.oiTrend.includes('down')) tags.push('OI ↓');
-    if (dir === 'SHORT_SQ' && coin.oiTrend.includes('up'))   tags.push('OI ↑');
+    if (dir === 'LONG_LIQ' && coin.oiTrend.includes('down')) tags.push('Open Int ↓');
+    if (dir === 'SHORT_SQ' && coin.oiTrend.includes('up'))   tags.push('Open Int ↑');
   }
   return tags;
 }
@@ -594,7 +594,7 @@ export default function MorningBriefing() {
               <th>Fund</th>
               <th>RSI</th>
               <th>Vol</th>
-              <th>OI</th>
+              <th>Open Interest</th>
             </tr>
           </thead>
           <tbody>
@@ -640,7 +640,7 @@ export default function MorningBriefing() {
           <span style={{ margin: '0 6px', opacity: 0.4 }}>|</span>
           <span>RSI: <span style={{ color: '#f87171' }}>≥70</span> overbought · <span style={{ color: '#34d399' }}>≤30</span> oversold</span>
           <span style={{ margin: '0 6px', opacity: 0.4 }}>|</span>
-          <span>OI: <span style={{ color: '#34d399' }}>▲</span> strong · <span style={{ color: '#fbbf24' }}>△</span> weak up · <span style={{ color: '#94a3b8' }}>▽</span> weak dn · <span style={{ color: '#f87171' }}>▼</span> strong dn</span>
+          <span>Open Interest: <span style={{ color: '#34d399' }}>▲</span> strong · <span style={{ color: '#fbbf24' }}>△</span> weak up · <span style={{ color: '#94a3b8' }}>▽</span> weak dn · <span style={{ color: '#f87171' }}>▼</span> strong dn</span>
         </div>
         {!pricesLoaded && (
           <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>

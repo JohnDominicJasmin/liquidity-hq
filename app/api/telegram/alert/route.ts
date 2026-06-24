@@ -704,9 +704,9 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
 
         queue.push({
           coin, name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
-          title: `OI ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
-          body: `📈 <b>${label} OI ${pct > 0 ? 'Spike' : 'Drop'} — ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
-            `OI changed from ${(oldest / 1000).toFixed(1)}K to ${(newest / 1000).toFixed(1)}K contracts\n` +
+          title: `Open Interest ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
+          body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} — ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
+            `Open interest changed from ${(oldest / 1000).toFixed(1)}K to ${(newest / 1000).toFixed(1)}K contracts\n` +
             `Signal: ${pct > 0 ? 'New money entering — big move likely building' : 'Positions closing — potential trend reversal'}` +
             `${grokLine}\n\n<i>${stamp}</i>`,
         });
@@ -743,9 +743,9 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
             `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
           queue.push({
             coin, name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
-            title: `OI ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
-            body: `📈 <b>${label} OI ${pct > 0 ? 'Spike' : 'Drop'} — ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
-              `OI: ${(oldest / 1000).toFixed(1)}K → ${(newest / 1000).toFixed(1)}K contracts\n` +
+            title: `Open Interest ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
+            body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} — ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
+              `Open interest: ${(oldest / 1000).toFixed(1)}K → ${(newest / 1000).toFixed(1)}K contracts\n` +
               `Signal: ${pct > 0 ? 'New money entering — big move likely building' : 'Positions closing — potential trend reversal'}` +
               `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
           });

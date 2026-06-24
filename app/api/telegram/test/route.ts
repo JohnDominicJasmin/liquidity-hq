@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
         `Telegram alerts are working. You'll receive push alerts for:\n` +
         `• Funding rate extremes (longs / shorts overcrowded)\n` +
         `• RSI overbought / oversold (1H)\n` +
-        `• Whale trades, OI spikes, rapid moves\n` +
+        `• Whale trades, open interest spikes, rapid moves\n` +
         `• Price level alerts & daily 7am summary\n\n` +
         `<i>⏰ ${now} PHT</i>`,
     }),

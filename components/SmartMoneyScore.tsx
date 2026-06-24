@@ -103,13 +103,13 @@ export default function SmartMoneyScore() {
     : oiTrend === 'weak_down'   ? -1
     : /* strong_down */           -2;
   const OI_NOTES: Record<string, string> = {
-    strong_up:   'OI↑ Price↑ — new longs ▲',
-    weak_up:     'OI↓ Price↑ — short covering',
-    weak_down:   'OI↓ Price↓ — long exits',
-    strong_down: 'OI↑ Price↓ — new shorts ▼',
+    strong_up:   'Open Int ↑ Price ↑ — new longs ▲',
+    weak_up:     'Open Int ↓ Price ↑ — short covering',
+    weak_down:   'Open Int ↓ Price ↓ — long exits',
+    strong_down: 'Open Int ↑ Price ↓ — new shorts ▼',
   };
   const oiRow: SRow = {
-    name: 'OI Trend', badge: ticker,
+    name: 'Open Interest Trend', badge: ticker,
     value: oiTrend ? oiTrend.replace('_', ' ') : '—',
     score: oiScore,
     note: oiTrend ? OI_NOTES[oiTrend] : 'Warming up…',

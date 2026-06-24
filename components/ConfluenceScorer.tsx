@@ -62,7 +62,7 @@ function buildSignals(coin: CoinData | undefined, dir: Dir): Signal[] {
         weight: 1,
       },
       {
-        label:  'OI trending up',
+        label:  'Open Interest trending up',
         detail: coin.oiTrend ?? 'No data',
         hit:    coin.oiTrend === 'strong_up' || coin.oiTrend === 'weak_up',
         weight: 1,
@@ -143,7 +143,7 @@ function buildSignals(coin: CoinData | undefined, dir: Dir): Signal[] {
       weight: 1,
     },
     {
-      label:  'OI trending down',
+      label:  'Open Interest trending down',
       detail: coin.oiTrend ?? 'No data',
       hit:    coin.oiTrend === 'strong_down' || coin.oiTrend === 'weak_down',
       weight: 1,

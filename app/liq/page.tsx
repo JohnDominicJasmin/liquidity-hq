@@ -337,7 +337,7 @@ export default function LiqPage() {
                 {(cd.change ?? 0) >= 0 ? '▲' : '▼'}{Math.abs(cd.change ?? 0).toFixed(2)}%
               </span>
               <span className="liq-current-tag">LIVE</span>
-              <span className="liq-current-oi">{fmtM(cd.oi / 1e6)} OI</span>
+              <span className="liq-current-oi">{fmtM(cd.oi / 1e6)} Open Interest</span>
             </div>
 
             <div className="liq-section-hdr liq-section-hdr-long" role="heading" aria-level={3}>
