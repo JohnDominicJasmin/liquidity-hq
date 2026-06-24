@@ -113,8 +113,12 @@ body::after {
   padding: 0 1rem;
 }
 .app-bar-inner {
-  max-width: 700px; margin: 0 auto; display: flex; align-items: center;
-  justify-content: space-between; height: 52px; gap: 8px; position: relative;
+  max-width: 700px; margin: 0 auto;
+  display: grid; grid-template-columns: auto 1fr auto;
+  align-items: center; height: 52px; gap: 8px;
+}
+.app-bar-right {
+  display: flex; align-items: center; gap: 6px; justify-content: flex-end;
 }
 .app-logo { font-size: 15px; font-weight: 700; color: var(--txt); white-space: nowrap; flex-shrink: 0; letter-spacing: -0.2px; }
 .app-logo span { color: var(--purple); }
@@ -422,7 +426,7 @@ body[data-rpm-level="high"]::before {
 }
 
 /* ── SESSION PILL (navbar) ── */
-.session-pill-wrap { flex-shrink: 0; margin-left: auto; }
+.session-pill-wrap { flex-shrink: 0; }
 .session-pill {
   display: flex; align-items: center; gap: 5px;
   padding: 3px 9px; border-radius: 20px;
@@ -455,7 +459,7 @@ body[data-rpm-level="high"]::before {
 
 @media (min-width: 768px) {
   .hamburger   { display: none !important; }
-  .desktop-nav { display: flex; position: absolute; left: 50%; transform: translateX(-50%); }
+  .desktop-nav { display: flex; justify-content: center; }
 }
 
 /* ── NAV MORE DROPDOWN ── */

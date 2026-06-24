@@ -242,66 +242,68 @@ export default function NavDrawer() {
             ))}
           </nav>
 
-          <div className="session-pill-wrap">
-            <SessionPill />
-          </div>
+          <div className="app-bar-right">
+            <div className="session-pill-wrap">
+              <SessionPill />
+            </div>
 
-          <button
-            className="theme-btn"
-            onClick={toggleTheme}
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {theme === 'dark' ? '☀' : '◑'}
-          </button>
+            <button
+              className="theme-btn"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? '☀' : '◑'}
+            </button>
 
-          {!authLoading && (
-            user ? (
-              <div className="auth-wrap" ref={authRef}>
-                <button
-                  className="auth-avatar-btn"
-                  onClick={() => setAuthOpen(v => !v)}
-                  title={user.email ?? 'Account'}
-                  aria-label="Account menu"
-                >
-                  {initials}
-                </button>
-                {authOpen && (
-                  <div className="auth-dropdown">
-                    <div className="auth-dropdown-email">{user.email}</div>
-                    <Link href="/arena" className="auth-dropdown-usage" onClick={() => setAuthOpen(false)}>
-                      LiquidityAI — <span>view usage</span>
-                    </Link>
-                    <button
-                      className="auth-dropdown-usage"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', padding: 0 }}
-                      onClick={() => { setAuthOpen(false); setSettingsOpen(true); }}
-                    >
-                      Settings
-                    </button>
-                    <button
-                      className="auth-signout-btn"
-                      onClick={async () => {
-                        setAuthOpen(false);
-                        track.signOut();
-                        await signOut();
-                        router.push('/login');
-                      }}
-                    >
-                      Sign out
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <Link href="/login" className="auth-signin-btn">Sign In</Link>
-            )
-          )}
+            {!authLoading && (
+              user ? (
+                <div className="auth-wrap" ref={authRef}>
+                  <button
+                    className="auth-avatar-btn"
+                    onClick={() => setAuthOpen(v => !v)}
+                    title={user.email ?? 'Account'}
+                    aria-label="Account menu"
+                  >
+                    {initials}
+                  </button>
+                  {authOpen && (
+                    <div className="auth-dropdown">
+                      <div className="auth-dropdown-email">{user.email}</div>
+                      <Link href="/arena" className="auth-dropdown-usage" onClick={() => setAuthOpen(false)}>
+                        LiquidityAI — <span>view usage</span>
+                      </Link>
+                      <button
+                        className="auth-dropdown-usage"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', padding: 0 }}
+                        onClick={() => { setAuthOpen(false); setSettingsOpen(true); }}
+                      >
+                        Settings
+                      </button>
+                      <button
+                        className="auth-signout-btn"
+                        onClick={async () => {
+                          setAuthOpen(false);
+                          track.signOut();
+                          await signOut();
+                          router.push('/login');
+                        }}
+                      >
+                        Sign out
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link href="/login" className="auth-signin-btn">Sign In</Link>
+              )
+            )}
 
-          <div className={`hamburger${drawerOpen ? ' open' : ''}`} onClick={() => setDrawerOpen(v => !v)}>
-            <div className="ham-line" />
-            <div className="ham-line" />
-            <div className="ham-line" />
+            <div className={`hamburger${drawerOpen ? ' open' : ''}`} onClick={() => setDrawerOpen(v => !v)}>
+              <div className="ham-line" />
+              <div className="ham-line" />
+              <div className="ham-line" />
+            </div>
           </div>
         </div>
       </div>
