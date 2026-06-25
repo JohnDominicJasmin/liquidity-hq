@@ -1,7 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useMarket } from '@/lib/marketStore';
-import { COINS, CoinId, COIN_DEC, fmtPrice, fmtChg, fmtVol, classifyFunding } from '@/lib/marketStore';
+import { useMarket, COINS, CoinId, COIN_DEC, fmtPrice, fmtChg, classifyFunding, computeCoinHealth } from '@/lib/marketStore';
 
 function VolRatioText({ ratio }: { ratio: number | null | undefined }) {
   if (ratio == null) return <div className="ticker-vol">Vol: loading...</div>;
@@ -25,6 +24,29 @@ export default function Ticker() {
             const up = (d?.change ?? 0) >= 0;
             const fund = d?.fundingRate != null ? classifyFunding(d.fundingRate) : null;
             const sel = selectedCoin === id;
+            const health = computeCoinHealth(d);
+
+            // Priority signal — same logic as CoinSidebar
+            let sig: { text: string; col: string } | null = null;
+            if (d?.fundingRate != null) {
+              const fr = d.fundingRate * 100;
+              if (fr >= 0.04)       sig = { text: 'Longs overcrowded', col: '#f87171' };
+              else if (fr <= -0.02) sig = { text: 'Shorts squeezed',   col: '#34d399' };
+            }
+            if (!sig && d?.cvdDivergence === 'bullish') sig = { text: 'Smart buyers active', col: '#34d399' };
+            if (!sig && d?.cvdDivergence === 'bearish') sig = { text: 'Smart sellers active', col: '#f87171' };
+            if (!sig && d?.oiTrend === 'strong_up')     sig = { text: 'New buyers opening',  col: '#34d399' };
+            if (!sig && d?.oiTrend === 'strong_down')   sig = { text: 'New sellers opening', col: '#f87171' };
+            if (!sig && d?.chartPattern) {
+              const isBull = /bull|higher high|engulf.*bull|hammer(?! man)|double bot/i.test(d.chartPattern);
+              const isBear = /bear|lower high|engulf.*bear|shooting|double top/i.test(d.chartPattern);
+              const label  = d.chartPattern.split(';')[0].split('(')[0].trim();
+              if (isBull)      sig = { text: label, col: '#34d399' };
+              else if (isBear) sig = { text: label, col: '#f87171' };
+              else if (label)  sig = { text: label, col: 'var(--txt3)' };
+            }
+            if (!sig && d?.oiTrend === 'weak_up')   sig = { text: 'Shorts closing',      col: '#fbbf24' };
+            if (!sig && d?.oiTrend === 'weak_down')  sig = { text: 'Buyers taking profit', col: '#94a3b8' };
 
             return (
               <div
@@ -33,15 +55,40 @@ export default function Ticker() {
                 onClick={() => selectCoin(id)}
               >
                 <div className={`ticker-dot${d?.price ? '' : ' loading'}`} />
-                <div className="ticker-coin">{id.toUpperCase()}</div>
+
+                {/* Coin name + health grade on same row */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                  <span className="ticker-coin" style={{ marginBottom: 0 }}>{id.toUpperCase()}</span>
+                  {d?.price && (
+                    <span style={{
+                      fontSize: 9, fontWeight: 800, lineHeight: 1,
+                      padding: '2px 4px', borderRadius: 4,
+                      color: health.color,
+                      background: health.color + '22',
+                      border: `0.5px solid ${health.color}55`,
+                      letterSpacing: '.04em', flexShrink: 0,
+                    }}>
+                      {health.grade}
+                    </span>
+                  )}
+                </div>
+
                 <div className="ticker-price">
                   {d?.price ? '$' + fmtPrice(d.price, dec) : '---'}
                 </div>
+
+                {/* % change + signal text */}
                 <div className="ticker-row">
                   <span className={`ticker-chg ${d ? (up ? 'chg-up' : 'chg-dn') : ''}`}>
                     {d ? fmtChg(d.change) : '--%'}
                   </span>
                 </div>
+                {sig && (
+                  <div style={{ fontSize: 10, fontWeight: 700, color: sig.col, marginTop: 3 }}>
+                    {sig.text}
+                  </div>
+                )}
+
                 {d?.high != null && (
                   <div className="ticker-hl">H: ${fmtPrice(d.high, dec)}&nbsp;&nbsp;L: ${fmtPrice(d.low!, dec)}</div>
                 )}
@@ -50,14 +97,8 @@ export default function Ticker() {
                     Funding: {d!.fundingRate! >= 0 ? '+' : ''}{(d!.fundingRate! * 100).toFixed(4)}%
                   </div>
                 )}
-                {d?.oi != null && (
-                  <div className="ticker-fund" style={{ color: '#606060' }}>
-                    Open Int: {d.oi >= 1e9 ? '$' + (d.oi / 1e9).toFixed(2) + 'B' : '$' + (d.oi / 1e6).toFixed(1) + 'M'}
-                  </div>
-                )}
-                {d?.vol24 != null && (
-                  <div className="ticker-vol">VOL: <span>{fmtVol(d.vol24)}</span></div>
-                )}
+                {/* Absolute OI removed — OI trend text below is more informative */}
+                {/* Absolute VOL removed — vol ratio below is more informative */}
                 <VolRatioText ratio={d?.volRatio} />
                 {d?.vwap != null && d.price != null && (
                   <div className="ticker-vol" style={{ color: d.price > d.vwap ? '#34d399' : '#f87171' }}>
