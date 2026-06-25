@@ -16,18 +16,20 @@ export async function GET(req: NextRequest) {
   try {
     /* ── Coinglass: BTC exchange net flow ── */
     if (type === 'coinglass-flow') {
+      const cgKey = process.env.COINGLASS_API_KEY;
       const r = await fetch(
         'https://open-api.coinglass.com/public/v2/exchange_amount_chart?symbol=BTC&time_type=h24',
-        { next: { revalidate: 300 } }
+        { next: { revalidate: 300 }, headers: cgKey ? { 'coinglassSecret': cgKey } : {} }
       );
       return NextResponse.json(await r.json());
     }
 
     /* ── Coinglass: BTC liquidation levels ── */
     if (type === 'coinglass-liq') {
+      const cgKey = process.env.COINGLASS_API_KEY;
       const r = await fetch(
         'https://open-api.coinglass.com/public/v2/liquidation_chart?symbol=BTC&time_type=h4',
-        { next: { revalidate: 300 } }
+        { next: { revalidate: 300 }, headers: cgKey ? { 'coinglassSecret': cgKey } : {} }
       );
       return NextResponse.json(await r.json());
     }
