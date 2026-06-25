@@ -582,73 +582,70 @@ export default function MorningBriefing() {
         )}
       </div>
 
-      {/* ── All Coins Table ── */}
-      <div className="card" style={{ marginBottom: 10, overflowX: 'auto' }}>
-        <div className="lbl">All Coins</div>
-        <table className="mb-table">
-          <thead>
-            <tr>
-              <th>Coin</th>
-              <th>Price</th>
-              <th>24h</th>
-              <th>Fund</th>
-              <th>RSI</th>
-              <th>Vol</th>
-              <th>Open Interest</th>
-            </tr>
-          </thead>
-          <tbody>
-            {coinRows.map(({ id, c }) => {
-              const dec   = COIN_DEC[id];
-              const fr    = c?.fundingRate ?? null;
-              const frCls = fr != null ? classifyFunding(fr) : null;
-              const frPct = fr != null ? (fr * 100).toFixed(3) + '%' : '—';
-              const frCol = frCls
-                ? frCls.rpm === 'pos' ? '#f87171'
-                : frCls.rpm === 'neg' ? '#34d399'
-                : 'var(--txt3)'
-                : 'var(--txt3)';
-              const oit  = c?.oiTrend ?? null;
-              return (
-                <tr key={id}>
-                  <td className="mb-coin">{COIN_LABELS[id]}</td>
-                  <td>{c?.price != null ? fmtPrice(c.price, dec) : '—'}</td>
-                  <td style={{ color: c?.change != null ? c.change >= 0 ? '#34d399' : '#f87171' : 'var(--txt3)' }}>
-                    {c?.change != null ? fmtChg(c.change) : '—'}
-                  </td>
-                  <td style={{ color: frCol }}>{frPct}</td>
-                  <td style={{ color: rsiColor(c?.rsi14 ?? null) }}>
-                    {c?.rsi14 != null ? (
-                      c.rsi14 >= 70 || c.rsi14 <= 30
-                        ? <span style={{ background: c.rsi14 >= 70 ? 'rgba(248,113,113,0.18)' : 'rgba(52,211,153,0.18)', borderRadius: 4, padding: '1px 5px', fontWeight: 700 }}>{Math.round(c.rsi14)}</span>
-                        : Math.round(c.rsi14)
-                    ) : '—'}
-                  </td>
-                  <td style={{ color: volRatioColor(c?.volRatio ?? null) }}>
-                    {c?.volRatio != null ? c.volRatio.toFixed(1) + 'x' : '—'}
-                  </td>
-                  <td style={{ color: oit ? OI_COLORS[oit] : 'var(--txt3)' }}>
-                    {oit ? OI_ICONS[oit] : '—'}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <div className="mb-table-legend">
-          <span>Fund: pos = longs pay · neg = shorts pay</span>
-          <span style={{ margin: '0 6px', opacity: 0.4 }}>|</span>
-          <span>RSI: <span style={{ color: '#f87171' }}>≥70</span> overbought · <span style={{ color: '#34d399' }}>≤30</span> oversold</span>
-          <span style={{ margin: '0 6px', opacity: 0.4 }}>|</span>
-          <span>Open Interest: <span style={{ color: '#34d399' }}>▲</span> strong · <span style={{ color: '#fbbf24' }}>△</span> weak up · <span style={{ color: '#94a3b8' }}>▽</span> weak dn · <span style={{ color: '#f87171' }}>▼</span> strong dn</span>
-        </div>
-        {!pricesLoaded && (
-          <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--txt3)', animation: 'pulse 2s infinite' }} />
-            Fetching live prices…
+      {/* ── Notable Signals ── */}
+      {(() => {
+        type NotableSignal = { id: CoinId; label: string; color: string; signal: string; detail: string };
+        const notable: NotableSignal[] = [];
+
+        for (const { id, c } of coinRows) {
+          if (!c?.price) continue;
+          if (c.rsi14 != null) {
+            if (c.rsi14 >= 70) notable.push({ id, label: COIN_LABELS[id], color: '#f87171', signal: 'RSI Overbought', detail: `RSI ${Math.round(c.rsi14)}` });
+            else if (c.rsi14 <= 30) notable.push({ id, label: COIN_LABELS[id], color: '#34d399', signal: 'RSI Oversold', detail: `RSI ${Math.round(c.rsi14)}` });
+          }
+          if (c.fundingRate != null) {
+            const fr = c.fundingRate * 100;
+            if (fr >= 0.05) notable.push({ id, label: COIN_LABELS[id], color: '#f87171', signal: 'Funding Heavy+', detail: `FR +${fr.toFixed(3)}% — longs paying heavy` });
+            else if (fr <= -0.03) notable.push({ id, label: COIN_LABELS[id], color: '#34d399', signal: 'Funding Heavy-', detail: `FR ${fr.toFixed(3)}% — shorts paying heavy` });
+          }
+          if (c.volRatio != null && c.volRatio >= 1.5)
+            notable.push({ id, label: COIN_LABELS[id], color: '#a78bfa', signal: 'Volume Spike', detail: `Vol ${c.volRatio.toFixed(1)}x normal` });
+          if (c.oiTrend === 'strong_up') notable.push({ id, label: COIN_LABELS[id], color: '#34d399', signal: 'Open Int ↑↑', detail: 'Open interest rising strongly' });
+          else if (c.oiTrend === 'strong_down') notable.push({ id, label: COIN_LABELS[id], color: '#f87171', signal: 'Open Int ↓↓', detail: 'Open interest unwinding' });
+          if (c.cvdDivergence === 'bullish') notable.push({ id, label: COIN_LABELS[id], color: '#34d399', signal: 'CVD Bullish', detail: 'Buyers absorbing — price likely to follow' });
+          else if (c.cvdDivergence === 'bearish') notable.push({ id, label: COIN_LABELS[id], color: '#f87171', signal: 'CVD Bearish', detail: 'Sellers in control — distribution detected' });
+        }
+
+        return (
+          <div className="card" style={{ marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: notable.length > 0 ? 10 : 0 }}>
+              <div className="lbl" style={{ margin: 0 }}>Notable Signals</div>
+              <Link href="/scanner" style={{ fontSize: 11, color: 'var(--txt3)', textDecoration: 'none' }}>
+                Full scanner →
+              </Link>
+            </div>
+            {!pricesLoaded ? (
+              <div style={{ fontSize: 12, color: 'var(--txt3)', padding: '4px 0' }}>Loading market data…</div>
+            ) : notable.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--txt3)', padding: '4px 0' }}>
+                All quiet — no extreme signals right now.
+              </div>
+            ) : (
+              notable.map((s, i) => (
+                <Link key={`${s.id}-${s.signal}`} href="/arena" style={{ textDecoration: 'none', display: 'block' }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '9px 0',
+                    borderBottom: i < notable.length - 1 ? '0.5px solid var(--bdr)' : 'none',
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--txt)', minWidth: 48, letterSpacing: '-0.3px' }}>
+                      {s.label}
+                    </div>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, flexShrink: 0,
+                      color: s.color, background: s.color + '18', border: `0.5px solid ${s.color}50`,
+                    }}>
+                      {s.signal}
+                    </span>
+                    <div style={{ flex: 1, fontSize: 11, color: 'var(--txt3)' }}>{s.detail}</div>
+                    <span style={{ fontSize: 11, color: 'var(--txt3)' }}>→</span>
+                  </div>
+                </Link>
+              ))
+            )}
           </div>
-        )}
-      </div>
+        );
+      })()}
 
 
       {/* ── Events & News ── */}

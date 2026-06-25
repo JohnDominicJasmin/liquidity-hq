@@ -190,7 +190,7 @@ export default function OISpikeScanner() {
       {/* ── Header ── */}
       <div className="ois-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="ois-title">OI Spike Scanner · 1H</span>
+          <span className="ois-title">Open Interest Spike Scanner · 1H</span>
           {!loading && spikeCount > 0 && (
             <span style={{
               fontSize: 9, fontWeight: 700, letterSpacing: '.05em',

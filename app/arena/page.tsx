@@ -1020,6 +1020,9 @@ export default function Arena() {
     }).sort((a, b) => (b.vol24 ?? 0) - (a.vol24 ?? 0));
   const sqzCount   = scannerRows.filter(x => x.sq.dir === 'SHORT_SQ'  && x.sq.score >= 30).length;
   const flushCount = scannerRows.filter(x => x.sq.dir === 'LONG_LIQ'  && x.sq.score >= 30).length;
+  const visibleScannerRows = scannerSearch
+    ? scannerRows.filter(r => r.c.toLowerCase().includes(scannerSearch.toLowerCase()))
+    : scannerRows;
 
   return (
     <div>
@@ -1178,14 +1181,9 @@ export default function Arena() {
 
             {/* Coin rows */}
             <div style={{ maxHeight: 380, overflowY: 'auto' }}>
-            {(() => {
-              const visibleRows = scannerSearch
-                ? scannerRows.filter(r => r.c.toLowerCase().includes(scannerSearch.toLowerCase()))
-                : scannerRows;
-              if (visibleRows.length === 0) return (
-                <div style={{ padding: '12px', fontSize: 11, color: '#444', textAlign: 'center' }}>No coins match &ldquo;{scannerSearch}&rdquo;</div>
-              );
-              return visibleRows.map(({ c, sq: rowSq, price, change, vsBtc, badges }, idx) => {
+            {visibleScannerRows.length === 0 ? (
+              <div style={{ padding: '12px', fontSize: 11, color: '#444', textAlign: 'center' }}>No coins match &ldquo;{scannerSearch}&rdquo;</div>
+            ) : visibleScannerRows.map(({ c, sq: rowSq, price, change, vsBtc, badges }) => {
               const isSelected  = c === selectedCoin;
               const isActive    = rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
               const icon        = rowSq.dir === 'SHORT_SQ' ? '↑' : rowSq.dir === 'LONG_LIQ' ? '↓' : '';
@@ -1274,8 +1272,7 @@ export default function Arena() {
                   </span>
                 </button>
               );
-            });
-          })()}
+            })}
             </div>
 
             {/* Footer */}
