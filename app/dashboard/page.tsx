@@ -17,7 +17,7 @@ import SentimentExtremesAlert from '@/components/SentimentExtremesAlert';
 import CycleDayCounter from '@/components/CycleDayCounter';
 import BtcRiskLevel from '@/components/BtcRiskLevel';
 import CycleChart from '@/components/CycleChart';
-import WelcomeModal from '@/components/WelcomeModal';
+import OnboardingFlow from '@/components/OnboardingFlow';
 import SpotlightTour from '@/components/SpotlightTour';
 import SetupChecklist from '@/components/SetupChecklist';
 
@@ -910,7 +910,7 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-grid">
-      <WelcomeModal onStartTour={() => setShowTour(true)} />
+      <OnboardingFlow onStartTour={() => setShowTour(true)} />
       {showTour && <SpotlightTour onDone={() => setShowTour(false)} />}
       <SetupChecklist />
 

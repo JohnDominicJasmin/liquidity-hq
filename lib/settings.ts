@@ -4,8 +4,12 @@ import { createContext, useContext } from 'react';
 
 export interface UserSettings {
   // Trading profile
-  account_size:     number;
-  risk_pct:         number;
+  account_size:       number;
+  risk_pct:           number;
+  // Onboarding profile answers
+  trading_experience: string | null;  // 'lt6m' | '6to12m' | '1to3y' | '3plus'
+  trading_style:      string | null;  // 'scalp' | 'swing' | 'both' | 'learning'
+  how_heard:          string | null;  // attribution
   // AI Arena
   default_coin:     string;
   default_tf:       '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d';
@@ -24,18 +28,21 @@ export interface UserSettings {
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
-  account_size:     1000,
-  risk_pct:         1.5,
-  default_coin:     'btc',
-  default_tf:       '15m',
-  fr_threshold:     0.05,
-  fng_fear:         15,
-  fng_greed:        85,
-  rsi_ob:           70,
-  rsi_os:           30,
-  hidden_sections:  [],
-  telegram_chat_id: '',
-  beginner_mode:    true,
+  account_size:       1000,
+  risk_pct:           1.5,
+  trading_experience: null,
+  trading_style:      null,
+  how_heard:          null,
+  default_coin:       'btc',
+  default_tf:         '15m',
+  fr_threshold:       0.05,
+  fng_fear:           15,
+  fng_greed:          85,
+  rsi_ob:             70,
+  rsi_os:             30,
+  hidden_sections:    [],
+  telegram_chat_id:   '',
+  beginner_mode:      true,
 };
 
 // Hideable dashboard section ids → display labels
@@ -102,17 +109,20 @@ export function saveLocalSettings(s: UserSettings) {
 
 export function rowToSettings(row: Record<string, unknown>): UserSettings {
   return {
-    account_size:     +(row.account_size    ?? DEFAULT_SETTINGS.account_size),
-    risk_pct:         +(row.risk_pct        ?? DEFAULT_SETTINGS.risk_pct),
-    default_coin:     String(row.default_coin    ?? DEFAULT_SETTINGS.default_coin),
-    default_tf:       (row.default_tf as UserSettings['default_tf']) ?? DEFAULT_SETTINGS.default_tf,
-    fr_threshold:     +(row.fr_threshold    ?? DEFAULT_SETTINGS.fr_threshold),
-    fng_fear:         +(row.fng_fear        ?? DEFAULT_SETTINGS.fng_fear),
-    fng_greed:        +(row.fng_greed       ?? DEFAULT_SETTINGS.fng_greed),
-    rsi_ob:           +(row.rsi_ob          ?? DEFAULT_SETTINGS.rsi_ob),
-    rsi_os:           +(row.rsi_os          ?? DEFAULT_SETTINGS.rsi_os),
-    hidden_sections:  (row.hidden_sections  as string[]) ?? DEFAULT_SETTINGS.hidden_sections,
-    telegram_chat_id: String(row.telegram_chat_id ?? ''),
-    beginner_mode:    !!(row.beginner_mode ?? false),
+    account_size:       +(row.account_size    ?? DEFAULT_SETTINGS.account_size),
+    risk_pct:           +(row.risk_pct        ?? DEFAULT_SETTINGS.risk_pct),
+    trading_experience: (row.trading_experience as string | null) ?? null,
+    trading_style:      (row.trading_style     as string | null) ?? null,
+    how_heard:          (row.how_heard         as string | null) ?? null,
+    default_coin:       String(row.default_coin    ?? DEFAULT_SETTINGS.default_coin),
+    default_tf:         (row.default_tf as UserSettings['default_tf']) ?? DEFAULT_SETTINGS.default_tf,
+    fr_threshold:       +(row.fr_threshold    ?? DEFAULT_SETTINGS.fr_threshold),
+    fng_fear:           +(row.fng_fear        ?? DEFAULT_SETTINGS.fng_fear),
+    fng_greed:          +(row.fng_greed       ?? DEFAULT_SETTINGS.fng_greed),
+    rsi_ob:             +(row.rsi_ob          ?? DEFAULT_SETTINGS.rsi_ob),
+    rsi_os:             +(row.rsi_os          ?? DEFAULT_SETTINGS.rsi_os),
+    hidden_sections:    (row.hidden_sections  as string[]) ?? DEFAULT_SETTINGS.hidden_sections,
+    telegram_chat_id:   String(row.telegram_chat_id ?? ''),
+    beginner_mode:      !!(row.beginner_mode ?? false),
   };
 }

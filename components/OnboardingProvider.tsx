@@ -4,14 +4,15 @@ import { getSupabase } from '@/lib/supabase';
 import { useAuth } from './AuthProvider';
 import { T } from '@/lib/tables';
 
-export type OnboardingKey = 'tourSeen' | 'telegram' | 'priceAlert' | 'grok' | 'coins';
+export type OnboardingKey = 'tourSeen' | 'profileComplete' | 'telegram' | 'priceAlert' | 'grok' | 'coins';
 
 export interface OnboardingState {
-  tourSeen:   boolean;
-  telegram:   boolean;
-  priceAlert: boolean;
-  grok:       boolean;
-  coins:      boolean;
+  tourSeen:        boolean;
+  profileComplete: boolean;
+  telegram:        boolean;
+  priceAlert:      boolean;
+  grok:            boolean;
+  coins:           boolean;
 }
 
 interface OnboardingCtx {
@@ -22,24 +23,25 @@ interface OnboardingCtx {
 }
 
 const CTX = createContext<OnboardingCtx>({
-  state: { tourSeen: false, telegram: false, priceAlert: false, grok: false, coins: false },
+  state: { tourSeen: false, profileComplete: false, telegram: false, priceAlert: false, grok: false, coins: false },
   loaded: false, markDone: () => {}, allDone: false,
 });
 
 export function useOnboarding() { return useContext(CTX); }
 
 const DB_COL: Record<OnboardingKey, string> = {
-  tourSeen:   'tour_seen',
-  telegram:   'checklist_telegram',
-  priceAlert: 'checklist_price_alert',
-  grok:       'checklist_grok',
-  coins:      'checklist_coins',
+  tourSeen:        'tour_seen',
+  profileComplete: 'profile_complete',
+  telegram:        'checklist_telegram',
+  priceAlert:      'checklist_price_alert',
+  grok:            'checklist_grok',
+  coins:           'checklist_coins',
 };
 
 export default function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const [state, setState] = useState<OnboardingState>({
-    tourSeen: false, telegram: false, priceAlert: false, grok: false, coins: false,
+    tourSeen: false, profileComplete: false, telegram: false, priceAlert: false, grok: false, coins: false,
   });
   const [loaded, setLoaded] = useState(false);
 
@@ -56,11 +58,12 @@ export default function OnboardingProvider({ children }: { children: React.React
         .maybeSingle();
       if (data) {
         setState({
-          tourSeen:   !!data.tour_seen,
-          telegram:   !!data.checklist_telegram,
-          priceAlert: !!data.checklist_price_alert,
-          grok:       !!data.checklist_grok,
-          coins:      !!data.checklist_coins,
+          tourSeen:        !!data.tour_seen,
+          profileComplete: !!data.profile_complete,
+          telegram:        !!data.checklist_telegram,
+          priceAlert:      !!data.checklist_price_alert,
+          grok:            !!data.checklist_grok,
+          coins:           !!data.checklist_coins,
         });
       } else {
         await sb.from(T.user_onboarding).upsert({ user_id: user.id }, { onConflict: 'user_id', ignoreDuplicates: true });
