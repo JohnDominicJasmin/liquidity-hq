@@ -958,10 +958,17 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* Mobile-only ticker + market indicators (desktop shows in sidebar) */}
+        {/* Mobile-only ticker + coin signals + market indicators (desktop shows in sidebar) */}
         <div className="mobile-only">
           <div className="dash-section">Live prices</div>
           <Ticker />
+          {/* Coin Signals immediately below Live Prices on mobile/tablet so selecting a coin shows signals without scrolling */}
+          {!hide('coin_signals') && <>
+            <CoinSignalsHeader />
+            <EdgeSignals />
+            <SmartMoneyScore />
+            <OISpikeScanner />
+          </>}
           <div className="dash-section">Market indicators</div>
           <div className="ind-row"><FearGreed /></div>
           <div className="ind-row"><BTCDominance /></div>
@@ -986,8 +993,8 @@ export default function Dashboard() {
         {/* 3b. Sentiment extremes — fires when F&G + FR + L/S all aligned extreme */}
         <SentimentExtremesAlert />
 
-        {/* 4. Coin signals — confirm the setup */}
-        {!hide('coin_signals') && <div id="tour-coin-signals">
+        {/* 4. Coin signals — confirm the setup (desktop only; mobile renders above Live Prices) */}
+        {!hide('coin_signals') && <div id="tour-coin-signals" className="desktop-only">
           <CoinSignalsHeader />
           <EdgeSignals />
           <SmartMoneyScore />

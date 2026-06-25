@@ -187,6 +187,8 @@ body::after {
   .dash-sidebar   { display: none; }
   .dash-right     { display: none; }
   .hide-on-desktop { display: block; }
+  /* Coin Signals rendered inside mobile-only block instead */
+  .desktop-only   { display: none !important; }
 }
 
 /* ── COIN SIDEBAR (desktop) ── */
