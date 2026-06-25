@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useMarket, classifyFunding, CoinId, COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
+import { useMarket, classifyFunding, CoinId, COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
 import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcRSI, callGrokViaProxy, fetchGrokUsage, GrokUsageInfo } from '@/lib/grok';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
 import { getSessionName } from '@/lib/session';
@@ -1118,6 +1118,20 @@ export default function Arena() {
             <CoinIcon coin={selectedCoin} size={16} color="#b8aeff" bg="rgba(184,174,255,0.15)" />
             {selectedCoin.toUpperCase()}
           </span>
+          {/* Coin Health grade badge */}
+          {(() => {
+            const h = computeCoinHealth(store.coins[selectedCoin]);
+            return (
+              <span title={h.label} style={{
+                fontSize: 10, fontWeight: 800, lineHeight: 1,
+                padding: '2px 6px', borderRadius: 6, flexShrink: 0,
+                color: h.color, background: h.color + '22',
+                border: `0.5px solid ${h.color}55`, letterSpacing: '.04em',
+              }}>
+                {h.grade}
+              </span>
+            );
+          })()}
           {/* Notification bell — div to avoid button-in-button invalid HTML */}
           <div
             role="button"
