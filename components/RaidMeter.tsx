@@ -1,9 +1,42 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useMarket, classifyFunding, CoinId } from '@/lib/marketStore';
-import { getLocalNow, getCurrentWindow, isDead, isLondon, isPrime, isGodTier, isMonEvening } from '@/lib/session';
+import { useMarket, classifyFunding, type LiqWall } from '@/lib/marketStore';
+import { getLocalNow } from '@/lib/session';
 
-function calcRPM(fng: number, rpmFunding: 'pos' | 'neg' | 'neu') {
+function calcWallProximity(
+  price: number,
+  bidWalls: LiqWall[] | null,
+  askWalls: LiqWall[] | null,
+): { wallScore: number; wallLabel: string; wallPct: number | null; hasWallData: boolean } {
+  const hasWallData = bidWalls !== null || askWalls !== null;
+  if (!hasWallData || price <= 0) return { wallScore: 0, wallLabel: 'No data', wallPct: null, hasWallData: false };
+
+  const allWalls = [...(bidWalls ?? []), ...(askWalls ?? [])];
+  if (allWalls.length === 0) return { wallScore: 0, wallLabel: 'No walls detected', wallPct: null, hasWallData: true };
+
+  const nearest = allWalls.reduce((closest, w) => {
+    const d = Math.abs(w.price - price);
+    return d < Math.abs(closest.price - price) ? w : closest;
+  });
+  const pct = Math.abs(nearest.price - price) / price * 100;
+
+  let wallScore = 0; let wallLabel = '';
+  if      (pct <= 0.5)  { wallScore = 30; wallLabel = `Wall ${pct.toFixed(2)}% away — tight`; }
+  else if (pct <= 1.0)  { wallScore = 22; wallLabel = `Wall ${pct.toFixed(2)}% away — close`; }
+  else if (pct <= 1.5)  { wallScore = 15; wallLabel = `Wall ${pct.toFixed(2)}% away`; }
+  else if (pct <= 2.5)  { wallScore =  8; wallLabel = `Wall ${pct.toFixed(2)}% away — far`; }
+  else                  { wallScore =  0; wallLabel = `Wall ${pct.toFixed(1)}% — too far`; }
+
+  return { wallScore, wallLabel, wallPct: pct, hasWallData: true };
+}
+
+function calcRPM(
+  fng: number,
+  rpmFunding: 'pos' | 'neg' | 'neu',
+  price = 0,
+  bidWalls: LiqWall[] | null = null,
+  askWalls: LiqWall[] | null = null,
+) {
   const pht = getLocalNow();
   const day = pht.getDay();
   const mins = pht.getHours() * 60 + pht.getMinutes();
@@ -41,14 +74,16 @@ function calcRPM(fng: number, rpmFunding: 'pos' | 'neg' | 'neu') {
   else if (rpmFunding === 'neg') { fundScore = 30; fundLabel = 'Heavily -ve'; }
   else { fundScore = 8; fundLabel = 'Neutral'; }
 
-  const total = Math.min(100, Math.max(0, timeScore + dayScore + fngScore + fundScore));
+  const { wallScore, wallLabel, hasWallData } = calcWallProximity(price, bidWalls, askWalls);
+
+  const total = Math.min(100, Math.max(0, timeScore + dayScore + fngScore + fundScore + wallScore));
   let col = 'col-low', barCl = 'bar-low', verdict = '', sub = '';
   if (total >= 80) { col = 'col-max'; barCl = 'bar-max'; verdict = 'Extreme raid conditions'; sub = 'All signals aligned. Whales are likely positioning RIGHT NOW. Have your cluster zones ready and stay glued to the heatmap.'; }
-  else if (total >= 60) { col = 'col-high'; barCl = 'bar-high'; verdict = 'High raid probability'; sub = 'Strong conditions for a liquidity hunt. Watch for price approaching bright clusters. This is a prime entry window.'; }
+  else if (total >= 60) { col = 'col-high'; barCl = 'bar-high'; verdict = 'High raid probability'; sub = 'Strong conditions for a liquidity hunt. Price is within range of a significant order wall — prime entry window.'; }
   else if (total >= 40) { col = 'col-med'; barCl = 'bar-med'; verdict = 'Moderate conditions'; sub = 'Some signals are aligned but not ideal. Only trade if a very bright, tight cluster is within 1.5% of price.'; }
   else { col = 'col-low'; barCl = 'bar-low'; verdict = 'Low raid probability'; sub = 'Conditions are not favourable right now. High chance of choppy fake moves. Best move is to stay in cash and wait.'; }
 
-  return { total, col, barCl, verdict, sub, timeLabel, timeScore, dayLabel, dayScore, fngLabel, fngScore, fundLabel, fundScore };
+  return { total, col, barCl, verdict, sub, timeLabel, timeScore, dayLabel, dayScore, fngLabel, fngScore, fundLabel, fundScore, wallScore, wallLabel, hasWallData };
 }
 
 export default function RaidMeter() {
@@ -60,13 +95,17 @@ export default function RaidMeter() {
   const [showOverride, setShowOverride] = useState(false);
   const rpmFunding = manualFund ?? fundRpm;
 
-  const [rpm, setRpm] = useState(() => calcRPM(fng ?? 50, rpmFunding));
+  const price    = coin?.price ?? 0;
+  const bidWalls = coin?.orderBidWalls ?? null;
+  const askWalls = coin?.orderAskWalls ?? null;
+
+  const [rpm, setRpm] = useState(() => calcRPM(fng ?? 50, rpmFunding, price, bidWalls, askWalls));
 
   useEffect(() => {
-    setRpm(calcRPM(fng ?? 50, rpmFunding));
-    const t = setInterval(() => setRpm(calcRPM(fng ?? 50, rpmFunding)), 60 * 1000);
+    setRpm(calcRPM(fng ?? 50, rpmFunding, price, bidWalls, askWalls));
+    const t = setInterval(() => setRpm(calcRPM(fng ?? 50, rpmFunding, price, bidWalls, askWalls)), 60 * 1000);
     return () => clearInterval(t);
-  }, [fng, rpmFunding]);
+  }, [fng, rpmFunding, price, bidWalls, askWalls]);
 
   /* ── Ambient urgency state — body data-rpm-level drives global CSS glow ── */
   useEffect(() => {
@@ -110,6 +149,17 @@ export default function RaidMeter() {
               </div>
             </div>
           ))}
+          {rpm.hasWallData && (
+            <div className="rpm-factor">
+              <div className="rpm-factor-label">Order Wall</div>
+              <div className="rpm-factor-row">
+                <div className="rpm-factor-val" style={{ color: rpm.wallScore >= 22 ? '#34d399' : rpm.wallScore >= 8 ? '#fbbf24' : 'var(--txt3)' }}>
+                  {rpm.wallLabel}
+                </div>
+                <div className="rpm-factor-pts">{rpm.wallScore} pts</div>
+              </div>
+            </div>
+          )}
         </div>
         <div className="rpm-funding-row">
           <button
