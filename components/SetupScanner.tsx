@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useMarket, COINS, CoinId, CoinData, computeSqueezeScore, classifyFunding } from '@/lib/marketStore';
 
 type FilterDir = 'all' | 'LONG_LIQ' | 'SHORT_SQ' | 'NEUTRAL';
@@ -148,6 +148,8 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
   const { store } = useMarket();
   const [filter, setFilter] = useState<FilterDir>('all');
   const [strongOnly, setStrongOnly] = useState(false);
+  const [search, setSearch] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const rows = useMemo<ScanRow[]>(() => {
     return COINS
@@ -178,6 +180,12 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
     if (!strongOnly) return filtered;
     return filtered.filter(r => r.score >= 65 && r.dir !== 'NEUTRAL');
   }, [filtered, strongOnly]);
+
+  const searchDisplayed = useMemo(() => {
+    if (!search.trim()) return displayed;
+    const q = search.trim().toLowerCase();
+    return displayed.filter(r => r.id.toLowerCase().includes(q));
+  }, [displayed, search]);
 
   // Count by direction
   const counts = useMemo(() => {
@@ -268,15 +276,42 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
         </button>
       </div>
 
+      {/* Search */}
+      <div style={{ margin: '10px 0 6px' }}>
+        <input
+          ref={searchRef}
+          type="search"
+          placeholder="Search coins…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          aria-label="Search coins"
+          style={{
+            width: '100%',
+            boxSizing: 'border-box',
+            padding: '8px 12px',
+            borderRadius: 8,
+            border: '0.5px solid var(--bdr)',
+            background: 'var(--bg1)',
+            color: 'var(--txt)',
+            fontSize: 13,
+            outline: 'none',
+          }}
+        />
+      </div>
+
       {/* Cards */}
-      {displayed.length === 0 && (
+      {searchDisplayed.length === 0 && (
         <div style={{ textAlign: 'center', color: '#444', padding: '3rem 0', fontSize: 13 }}>
-          {strongOnly ? 'No strong setups right now — try again later or turn off the filter' : 'No setups match this filter right now'}
+          {search.trim()
+            ? `No coins match "${search.trim()}"`
+            : strongOnly
+              ? 'No strong setups right now — try again later or turn off the filter'
+              : 'No setups match this filter right now'}
         </div>
       )}
 
       <div className="scan-list">
-        {displayed.map((row) => (
+        {searchDisplayed.map((row) => (
           <CoinCard key={row.id} row={row} rank={sorted.indexOf(row) + 1} />
         ))}
       </div>

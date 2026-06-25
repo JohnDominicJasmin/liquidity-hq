@@ -46,7 +46,6 @@ const PRIMARY = [
 const SCANNERS = [
   { path: '/arena',       label: 'LiquidityAI'       },
   { path: '/scanner',     label: 'Setup Scanner'     },
-  { path: '/confluence',  label: 'Confluence Scorer' },
   { path: '/liq',         label: 'Liquidation Map'   },
   { path: '/funding',     label: 'FR History'        },
   { path: '/correlation', label: 'Correlation'       },
@@ -77,7 +76,6 @@ const MOBILE_NAV: NavEntry[] = [
   { header: 'Analysis' },
   { path: '/arena',       label: 'LiquidityAI'       },
   { path: '/scanner',     label: 'Setup Scanner'     },
-  { path: '/confluence',  label: 'Confluence Scorer' },
   { path: '/liq',         label: 'Liquidation Map'   },
   { path: '/funding',     label: 'FR History'        },
   { path: '/correlation', label: 'Correlation'       },

@@ -10,7 +10,6 @@ import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
 import { T } from '@/lib/tables';
-import ConfluenceScorer from '@/components/ConfluenceScorer';
 import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import MarketStructure, { MSData } from '@/components/MarketStructure';
