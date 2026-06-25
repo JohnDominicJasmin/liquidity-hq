@@ -209,7 +209,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(184,174,255,0.12)'; }}
           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(184,174,255,0.06)'; }}
         >
-          ✦ Explain this signal in plain English
+          ✦ Explain signal
         </button>
       )}
 
