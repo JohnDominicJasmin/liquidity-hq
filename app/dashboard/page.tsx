@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { useMarket, COINS, BYBIT_SYMS, COIN_DEC, fmtPrice, fmtChg, fmtOI, classifyFunding, computeSqueezeScore } from '@/lib/marketStore';
+import { useMarket, COINS, BYBIT_SYMS, COIN_DEC, fmtPrice, fmtChg, fmtOI, classifyFunding, computeSqueezeScore, computeCoinHealth } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { useSettings } from '@/lib/settings';
 import Ticker from '@/components/Ticker';
@@ -147,7 +147,8 @@ function CoinSidebar() {
         const chg = d?.change ?? 0;
         const up  = chg >= 0;
         const sel = store.selectedCoin === id;
-        const tbp = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : 50;
+        const tbp    = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : 50;
+        const health = computeCoinHealth(d);
 
         // ── Single priority signal ──
         let sig: { text: string; col: string } | null = null;
@@ -190,9 +191,21 @@ function CoinSidebar() {
             className={`csb2-card${sel ? ' csb2-sel' : ''}`}
             onClick={() => selectCoin(id)}
           >
-            {/* Top row: name + price */}
+            {/* Top row: name + health grade + price */}
             <div className="csb2-top">
               <span className="csb2-name">{id.toUpperCase()}</span>
+              {d?.price && (
+                <span style={{
+                  fontSize: 9, fontWeight: 800, lineHeight: 1,
+                  padding: '2px 4px', borderRadius: 4,
+                  color: health.color,
+                  background: health.color + '22',
+                  border: `0.5px solid ${health.color}55`,
+                  letterSpacing: '.04em', flexShrink: 0,
+                }}>
+                  {health.grade}
+                </span>
+              )}
               <span className="csb2-price">
                 {d?.price ? '$' + fmtPrice(d.price, dec) : '—'}
               </span>

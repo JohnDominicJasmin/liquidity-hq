@@ -211,7 +211,8 @@ body::after {
 .csb2-card      { padding: 8px 10px 0; border-radius: 10px; border: 0.5px solid transparent; border-left-width: 2px; cursor: pointer; transition: border-color 0.15s, background 0.15s; background: var(--bg2); overflow: hidden; }
 .csb2-card:hover { border-color: var(--bdr2); background: var(--bg3); }
 .csb2-card.csb2-sel { border-color: var(--purple-bdr); border-left-color: var(--purple); background: var(--purple-bg); box-shadow: var(--nm-raise); }
-.csb2-top       { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; }
+.csb2-top       { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+.csb2-top .csb2-price { margin-left: auto; }
 .csb2-name      { font-size: 13px; font-weight: 800; color: var(--txt); letter-spacing: -0.3px; }
 .csb2-price     { font-size: 12px; font-weight: 700; color: var(--txt); font-family: 'JetBrains Mono', monospace; }
 .csb2-bottom    { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }

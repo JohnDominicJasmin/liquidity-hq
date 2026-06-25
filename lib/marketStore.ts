@@ -263,6 +263,66 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
   return { score, dir: 'NEUTRAL', label: 'Balanced', color: '#606060' };
 }
 
+/* ── Coin Health Score ─────────────────────────────────────────────────────
+   Single composite grade combining squeeze mechanics + RSI + OI trend + CVD.
+   Answers "how strong / clear is the setup on this coin right now?"
+   A = multiple signals aligned, high-probability trade
+   F = no clear signal, skip this coin
+   ───────────────────────────────────────────────────────────────────────── */
+export function computeCoinHealth(coin: CoinData | undefined): {
+  score: number;
+  grade: 'A' | 'B' | 'C' | 'D' | 'F';
+  color: string;
+  label: string;
+} {
+  const none = { score: 0, grade: 'F' as const, color: '#475569', label: 'No data' };
+  if (!coin?.price) return none;
+
+  const sq = computeSqueezeScore(coin);
+
+  // Base: squeeze score scaled to 55 pts max
+  let pts = Math.round(sq.score * 0.55);
+
+  // RSI extremes — 0-20 pts (direction-agnostic: extreme either way = signal)
+  if (coin.rsi14 != null) {
+    const r = coin.rsi14;
+    if (r >= 70 || r <= 30)        pts += 20;
+    else if (r >= 65 || r <= 35)   pts += 12;
+    else if (r >= 60 || r <= 40)   pts += 5;
+  }
+
+  // OI trend — 0-13 pts
+  if (coin.oiTrend === 'strong_up' || coin.oiTrend === 'strong_down') pts += 13;
+  else if (coin.oiTrend === 'weak_up' || coin.oiTrend === 'weak_down') pts += 5;
+
+  // CVD divergence confirmed — 0-12 pts
+  if (coin.cvdDivergence) pts += 12;
+
+  const score = Math.min(100, pts);
+
+  const grade: 'A' | 'B' | 'C' | 'D' | 'F' =
+    score >= 78 ? 'A' :
+    score >= 60 ? 'B' :
+    score >= 42 ? 'C' :
+    score >= 25 ? 'D' : 'F';
+
+  const color =
+    grade === 'A' ? '#f0c070' :   // gold
+    grade === 'B' ? '#34d399' :   // green
+    grade === 'C' ? '#94a3b8' :   // gray
+    grade === 'D' ? '#fb923c' :   // orange
+                    '#475569';    // muted (F)
+
+  const label =
+    grade === 'A' ? 'Strong setup' :
+    grade === 'B' ? 'Clear signal' :
+    grade === 'C' ? 'Mixed signals' :
+    grade === 'D' ? 'Weak signal' :
+                    'No clear setup';
+
+  return { score, grade, color, label };
+}
+
 /* ── Fibonacci Levels ── */
 export function computeFibLevels(high: number, low: number, price: number): {
   label: string; price: number; dist: string; near: boolean;

@@ -15,6 +15,7 @@ import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import MarketStructure, { MSData } from '@/components/MarketStructure';
 import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
 import EMASignal from '@/components/EMASignal';
+import LiqHeatmap from '@/components/LiqHeatmap';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal } from '@/lib/useEMAStrategy';
 
 /* ── Pattern detection — delegates to shared lib/patterns.ts ── */
@@ -1295,6 +1296,14 @@ export default function Arena() {
         <MarketStructure coin={selectedCoin} onData={handleMsData} />
         <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />
       </div>
+
+      {/* BTC Liquidation Heatmap — shows only when BTC selected and data available */}
+      {selectedCoin === 'btc' && store.btcLiqLevels.length > 0 && (
+        <LiqHeatmap
+          levels={store.btcLiqLevels}
+          currentPrice={store.coins['btc']?.price ?? 0}
+        />
+      )}
 
       {/* EMA Ribbon Strategy card */}
       <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
