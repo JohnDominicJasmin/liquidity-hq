@@ -675,6 +675,12 @@ body.ticker-on .breaking-alert { top: 90px; }
 .sctx-hot         { color: #f59e0b; }
 .sctx-evt-sep     { width: 0.5px; height: 28px; background: var(--bdr); flex-shrink: 0; }
 
+/* ── Notable Signals rows ── */
+.nbs-row          { display: flex; align-items: center; gap: 10px; padding: 9px 8px; margin: 0 -8px; border-radius: 8px; transition: background 0.12s; cursor: pointer; }
+.nbs-row:hover    { background: var(--bg2); }
+.nbs-arrow        { font-size: 18px; color: var(--txt3); flex-shrink: 0; line-height: 1; transition: color 0.12s, transform 0.12s; }
+.nbs-row:hover .nbs-arrow { color: var(--txt); transform: translateX(2px); }
+
 /* ── RPM ── */
 .rpm-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 16px; padding: 14px 16px; box-shadow: var(--nm-raise); }
 .rpm-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }

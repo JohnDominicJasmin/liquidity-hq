@@ -629,12 +629,8 @@ export default function MorningBriefing() {
             ) : (
               <>
                 {shown.map(({ id, label, chips }, i) => (
-                  <Link key={id} href="/arena" style={{ textDecoration: 'none', display: 'block' }}>
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '9px 0',
-                      borderBottom: i < shown.length - 1 ? '0.5px solid var(--bdr)' : 'none',
-                    }}>
+                  <Link key={id} href="/arena" style={{ textDecoration: 'none', display: 'block', borderBottom: i < shown.length - 1 ? '0.5px solid var(--bdr)' : 'none' }}>
+                    <div className="nbs-row">
                       <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--txt)', minWidth: 48, letterSpacing: '-0.3px' }}>
                         {label}
                       </div>
@@ -646,7 +642,7 @@ export default function MorningBriefing() {
                           }}>{chip.text}</span>
                         ))}
                       </div>
-                      <span style={{ fontSize: 11, color: 'var(--txt3)', flexShrink: 0 }}>→</span>
+                      <span className="nbs-arrow">›</span>
                     </div>
                   </Link>
                 ))}
