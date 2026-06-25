@@ -584,31 +584,37 @@ export default function MorningBriefing() {
 
       {/* ── Notable Signals ── */}
       {(() => {
-        type NotableSignal = { id: CoinId; label: string; color: string; signal: string; detail: string };
-        const notable: NotableSignal[] = [];
+        type Chip = { text: string; color: string };
+        const byCoins: Array<{ id: CoinId; label: string; chips: Chip[] }> = [];
 
         for (const { id, c } of coinRows) {
           if (!c?.price) continue;
+          const chips: Chip[] = [];
           if (c.rsi14 != null) {
-            if (c.rsi14 >= 70) notable.push({ id, label: COIN_LABELS[id], color: '#f87171', signal: 'RSI Overbought', detail: `RSI ${Math.round(c.rsi14)}` });
-            else if (c.rsi14 <= 30) notable.push({ id, label: COIN_LABELS[id], color: '#34d399', signal: 'RSI Oversold', detail: `RSI ${Math.round(c.rsi14)}` });
+            if (c.rsi14 >= 70)      chips.push({ text: `RSI ${Math.round(c.rsi14)}`, color: '#f87171' });
+            else if (c.rsi14 <= 30) chips.push({ text: `RSI ${Math.round(c.rsi14)}`, color: '#34d399' });
           }
           if (c.fundingRate != null) {
             const fr = c.fundingRate * 100;
-            if (fr >= 0.05) notable.push({ id, label: COIN_LABELS[id], color: '#f87171', signal: 'Funding Heavy+', detail: `FR +${fr.toFixed(3)}% — longs paying heavy` });
-            else if (fr <= -0.03) notable.push({ id, label: COIN_LABELS[id], color: '#34d399', signal: 'Funding Heavy-', detail: `FR ${fr.toFixed(3)}% — shorts paying heavy` });
+            if (fr >= 0.05)       chips.push({ text: `FR +${fr.toFixed(3)}%`, color: '#f87171' });
+            else if (fr <= -0.03) chips.push({ text: `FR ${fr.toFixed(3)}%`,  color: '#34d399' });
           }
           if (c.volRatio != null && c.volRatio >= 1.5)
-            notable.push({ id, label: COIN_LABELS[id], color: '#a78bfa', signal: 'Volume Spike', detail: `Vol ${c.volRatio.toFixed(1)}x normal` });
-          if (c.oiTrend === 'strong_up') notable.push({ id, label: COIN_LABELS[id], color: '#34d399', signal: 'Open Int ↑↑', detail: 'Open interest rising strongly' });
-          else if (c.oiTrend === 'strong_down') notable.push({ id, label: COIN_LABELS[id], color: '#f87171', signal: 'Open Int ↓↓', detail: 'Open interest unwinding' });
-          if (c.cvdDivergence === 'bullish') notable.push({ id, label: COIN_LABELS[id], color: '#34d399', signal: 'CVD Bullish', detail: 'Buyers absorbing — price likely to follow' });
-          else if (c.cvdDivergence === 'bearish') notable.push({ id, label: COIN_LABELS[id], color: '#f87171', signal: 'CVD Bearish', detail: 'Sellers in control — distribution detected' });
+            chips.push({ text: `Vol ${c.volRatio.toFixed(1)}x`, color: '#a78bfa' });
+          if (c.oiTrend === 'strong_up')        chips.push({ text: 'OI ↑↑',    color: '#34d399' });
+          else if (c.oiTrend === 'strong_down') chips.push({ text: 'OI ↓↓',    color: '#f87171' });
+          if (c.cvdDivergence === 'bullish')    chips.push({ text: 'CVD Bull', color: '#34d399' });
+          else if (c.cvdDivergence === 'bearish') chips.push({ text: 'CVD Bear', color: '#f87171' });
+          if (chips.length > 0) byCoins.push({ id, label: COIN_LABELS[id], chips });
         }
+
+        byCoins.sort((a, b) => b.chips.length - a.chips.length);
+        const shown = byCoins.slice(0, 10);
+        const extra = byCoins.length - shown.length;
 
         return (
           <div className="card" style={{ marginBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: notable.length > 0 ? 10 : 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: shown.length > 0 ? 10 : 0 }}>
               <div className="lbl" style={{ margin: 0 }}>Notable Signals</div>
               <Link href="/scanner" style={{ fontSize: 11, color: 'var(--txt3)', textDecoration: 'none' }}>
                 Full scanner →
@@ -616,32 +622,42 @@ export default function MorningBriefing() {
             </div>
             {!pricesLoaded ? (
               <div style={{ fontSize: 12, color: 'var(--txt3)', padding: '4px 0' }}>Loading market data…</div>
-            ) : notable.length === 0 ? (
+            ) : shown.length === 0 ? (
               <div style={{ fontSize: 12, color: 'var(--txt3)', padding: '4px 0' }}>
                 All quiet — no extreme signals right now.
               </div>
             ) : (
-              notable.map((s, i) => (
-                <Link key={`${s.id}-${s.signal}`} href="/arena" style={{ textDecoration: 'none', display: 'block' }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '9px 0',
-                    borderBottom: i < notable.length - 1 ? '0.5px solid var(--bdr)' : 'none',
-                  }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--txt)', minWidth: 48, letterSpacing: '-0.3px' }}>
-                      {s.label}
-                    </div>
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, flexShrink: 0,
-                      color: s.color, background: s.color + '18', border: `0.5px solid ${s.color}50`,
+              <>
+                {shown.map(({ id, label, chips }, i) => (
+                  <Link key={id} href="/arena" style={{ textDecoration: 'none', display: 'block' }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '9px 0',
+                      borderBottom: i < shown.length - 1 ? '0.5px solid var(--bdr)' : 'none',
                     }}>
-                      {s.signal}
-                    </span>
-                    <div style={{ flex: 1, fontSize: 11, color: 'var(--txt3)' }}>{s.detail}</div>
-                    <span style={{ fontSize: 11, color: 'var(--txt3)' }}>→</span>
-                  </div>
-                </Link>
-              ))
+                      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--txt)', minWidth: 48, letterSpacing: '-0.3px' }}>
+                        {label}
+                      </div>
+                      <div style={{ display: 'flex', gap: 5, flex: 1, flexWrap: 'wrap' }}>
+                        {chips.map(chip => (
+                          <span key={chip.text} style={{
+                            fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, flexShrink: 0,
+                            color: chip.color, background: chip.color + '18', border: `0.5px solid ${chip.color}50`,
+                          }}>{chip.text}</span>
+                        ))}
+                      </div>
+                      <span style={{ fontSize: 11, color: 'var(--txt3)', flexShrink: 0 }}>→</span>
+                    </div>
+                  </Link>
+                ))}
+                {extra > 0 && (
+                  <Link href="/scanner" style={{ textDecoration: 'none', display: 'block', paddingTop: 8, borderTop: '0.5px solid var(--bdr)', marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: 'var(--txt3)', textAlign: 'center' }}>
+                      +{extra} more coins with signals — Full scanner →
+                    </div>
+                  </Link>
+                )}
+              </>
             )}
           </div>
         );
