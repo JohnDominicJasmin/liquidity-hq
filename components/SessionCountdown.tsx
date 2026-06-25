@@ -77,7 +77,7 @@ export default function SessionCountdown() {
 
         {current && (
           <div className="sc-timer-block">
-            <span className="sc-timer-label">Ends in</span>
+            <span className="sc-timer-label">currently open — closes in</span>
             <span className="sc-timer" style={{ color: current.color }}>
               {fmtMs(endsInMs)}
             </span>
@@ -100,7 +100,7 @@ export default function SessionCountdown() {
           <span className="sc-next-name" style={{ color: next.win.color }}>
             {next.win.name}
           </span>
-          <span className="sc-next-sep">in</span>
+          <span className="sc-next-sep">opens in</span>
           <span className="sc-next-timer">{fmtMs(nextInMs)}</span>
         </div>
       )}
