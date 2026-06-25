@@ -404,137 +404,146 @@ export default function FundingHistory() {
             </span>
           </div>
 
-          {/* Overview table */}
-          <div className="card" style={{ marginBottom: 10, overflowX: 'auto' }}>
-            {/* Search bar */}
-            <div style={{ borderBottom: '0.5px solid var(--bdr)', padding: '0 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.4 }}>
-                <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.3"/>
-                <line x1="8" y1="8" x2="11" y2="11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-              </svg>
-              <input
-                type="text"
-                placeholder="Search coins…"
-                value={frSearch}
-                onChange={e => setFrSearch(e.target.value)}
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', fontSize: 11, color: 'var(--txt)' }}
-              />
-              {frSearch && (
-                <button onClick={() => setFrSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: 13, lineHeight: 1 }} aria-label="Clear search">×</button>
-              )}
-            </div>
-            <table className="frh-table">
-              <thead>
-                <tr>
-                  <th>Coin</th>
-                  <th>Current</th>
-                  <th>Avg {rangeKey}</th>
-                  <th>Signal</th>
-                  <th className="frh-spark-th">Last {rangeKey}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {COINS.filter(id => !frSearch || id.toLowerCase().includes(frSearch.toLowerCase())).map(id => {
-                  const stats   = getStats(id);
-                  const current = store.coins[id]?.fundingRate ?? null;
-                  const pts     = (history[id] ?? []).slice(-rangeCount);
-                  const noData  = pts.length < 2;
-                  return (
-                    <tr
-                      key={id}
-                      className={`frh-row${selected === id ? ' on' : ''}`}
-                      onClick={() => { if (!noData) setSelected(id); }}
-                      style={selected !== id && current != null ? { boxShadow: `inset 3px 0 0 ${frSignal(current).color}44` } : undefined}
-                    >
-                      <td className="frh-coin">{COIN_LABELS[id]}</td>
-                      <td style={{ color: current != null ? frColor(current) : 'var(--txt3)', fontWeight: 700 }}>
-                        {current != null ? frFmt(current) : '—'}
-                      </td>
-                      <td style={{ color: stats ? frColor(stats.avg) : 'var(--txt3)' }}>
-                        {stats ? frFmt(stats.avg) : '—'}
-                      </td>
-                      <td>
-                        {current != null
-                          ? (() => {
-                              const sig = frSignal(current);
-                              return (
-                                <span className="frh-sig-chip" style={{ borderColor: sig.color + '44', background: sig.bg }}>
-                                  <span className="frh-sig-crowd" style={{ color: sig.color }}>{sig.crowd}</span>
-                                  <span className="frh-sig-hint">→ {sig.hint}</span>
-                                </span>
-                              );
-                            })()
-                          : <span style={{ color: 'var(--txt3)', fontSize: 11 }}>—</span>
-                        }
-                      </td>
-                      <td className="frh-spark-cell">
-                        {!noData
-                          ? <canvas
-                              style={{ display: 'block', width: '100%', height: '36px' }}
-                              ref={el => { sparkRefs.current[id] = el ?? undefined; }}
-                            />
-                          : <span style={{ fontSize: 11, color: 'var(--txt3)' }}>No perp</span>
-                        }
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          {/* Split: scrollable list left · sticky detail right */}
+          <div className="frh-split">
 
-          {/* Full chart for selected coin */}
-          <div className="card frh-chart-card" style={{ marginBottom: 10 }}>
-            <div className="frh-chart-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 800, color: '#a78bfa', fontFamily: "'JetBrains Mono', monospace" }}>{COIN_LABELS[selected]}</span>
-                <span style={{ color: 'var(--txt3)', fontSize: 11 }}>· {rangeKey.toUpperCase()} CHART</span>
-                <span style={{ fontSize: 10, color: 'var(--txt3)', opacity: 0.5 }}>← click row to change</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                {currentCoin?.fundingRate != null && (
-                  <span className="frh-current-badge" style={{ color: frColor(currentCoin.fundingRate) }}>
-                    {frFmt(currentCoin.fundingRate)} now
-                  </span>
+            {/* ── LIST PANEL ── */}
+            <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 0 }}>
+              {/* Search bar */}
+              <div style={{ borderBottom: '0.5px solid var(--bdr)', padding: '0 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.4 }}>
+                  <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.3"/>
+                  <line x1="8" y1="8" x2="11" y2="11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search coins…"
+                  value={frSearch}
+                  onChange={e => setFrSearch(e.target.value)}
+                  style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', fontSize: 11, color: 'var(--txt)' }}
+                />
+                {frSearch && (
+                  <button onClick={() => setFrSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: 13, lineHeight: 1 }} aria-label="Clear search">×</button>
                 )}
-                {(() => {
-                  const s = getStats(selected);
-                  return s?.extremes ? (
-                    <span style={{ fontSize: 11, color: '#fbbf24' }}>
-                      ⚠ {s.extremes} extreme{s.extremes > 1 ? 's' : ''}
-                    </span>
-                  ) : null;
-                })()}
+              </div>
+              {/* Scrollable table */}
+              <div className="frh-list-scroll">
+                <table className="frh-table">
+                  <thead>
+                    <tr>
+                      <th>Coin</th>
+                      <th>Current</th>
+                      <th>Avg {rangeKey}</th>
+                      <th>Signal</th>
+                      <th className="frh-spark-th">Last {rangeKey}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {COINS.filter(id => !frSearch || id.toLowerCase().includes(frSearch.toLowerCase())).map(id => {
+                      const stats   = getStats(id);
+                      const current = store.coins[id]?.fundingRate ?? null;
+                      const pts     = (history[id] ?? []).slice(-rangeCount);
+                      const noData  = pts.length < 2;
+                      return (
+                        <tr
+                          key={id}
+                          className={`frh-row${selected === id ? ' on' : ''}`}
+                          onClick={() => { if (!noData) setSelected(id); }}
+                          style={selected !== id && current != null ? { boxShadow: `inset 3px 0 0 ${frSignal(current).color}44` } : undefined}
+                        >
+                          <td className="frh-coin">{COIN_LABELS[id]}</td>
+                          <td style={{ color: current != null ? frColor(current) : 'var(--txt3)', fontWeight: 700 }}>
+                            {current != null ? frFmt(current) : '—'}
+                          </td>
+                          <td style={{ color: stats ? frColor(stats.avg) : 'var(--txt3)' }}>
+                            {stats ? frFmt(stats.avg) : '—'}
+                          </td>
+                          <td>
+                            {current != null
+                              ? (() => {
+                                  const sig = frSignal(current);
+                                  return (
+                                    <span className="frh-sig-chip" style={{ borderColor: sig.color + '44', background: sig.bg }}>
+                                      <span className="frh-sig-crowd" style={{ color: sig.color }}>{sig.crowd}</span>
+                                      <span className="frh-sig-hint">→ {sig.hint}</span>
+                                    </span>
+                                  );
+                                })()
+                              : <span style={{ color: 'var(--txt3)', fontSize: 11 }}>—</span>
+                            }
+                          </td>
+                          <td className="frh-spark-cell">
+                            {!noData
+                              ? <canvas
+                                  style={{ display: 'block', width: '100%', height: '36px' }}
+                                  ref={el => { sparkRefs.current[id] = el ?? undefined; }}
+                                />
+                              : <span style={{ fontSize: 11, color: 'var(--txt3)' }}>No perp</span>
+                            }
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            {/* Signal banner */}
-            {currentCoin?.fundingRate != null && (() => {
-              const sig = frSignal(currentCoin.fundingRate);
-              return (
-                <div className="frh-signal" style={{ background: sig.bg, borderColor: sig.color + '55' }}>
-                  <span className="frh-signal-emoji">{sig.emoji}</span>
-                  <div style={{ flex: 1 }}>
-                    <div className="frh-signal-top">
-                      <span className="frh-signal-label" style={{ color: sig.color }}>{sig.label}</span>
-                      <span className="frh-signal-action" style={{ color: sig.color }}>→ {sig.action}</span>
-                    </div>
-                    <div className="frh-signal-desc">{sig.desc}</div>
+            {/* ── DETAIL PANEL ── */}
+            <div className="frh-detail-sticky">
+              <div className="card frh-chart-card" style={{ marginBottom: 0 }}>
+                <div className="frh-chart-header">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: '#a78bfa', fontFamily: "'JetBrains Mono', monospace" }}>{COIN_LABELS[selected]}</span>
+                    <span style={{ color: 'var(--txt3)', fontSize: 11 }}>· {rangeKey.toUpperCase()} CHART</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    {currentCoin?.fundingRate != null && (
+                      <span className="frh-current-badge" style={{ color: frColor(currentCoin.fundingRate) }}>
+                        {frFmt(currentCoin.fundingRate)} now
+                      </span>
+                    )}
+                    {(() => {
+                      const s = getStats(selected);
+                      return s?.extremes ? (
+                        <span style={{ fontSize: 11, color: '#fbbf24' }}>
+                          ⚠ {s.extremes} extreme{s.extremes > 1 ? 's' : ''}
+                        </span>
+                      ) : null;
+                    })()}
                   </div>
                 </div>
-              );
-            })()}
 
-            {(history[selected] ?? []).length >= 2
-              ? <canvas ref={fullChartRef} style={{ display: 'block', width: '100%', height: '190px' }} />
-              : <div style={{ height: 190, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--txt3)', fontSize: 12 }}>
-                  No perp data for {COIN_LABELS[selected]}
+                {/* Signal banner */}
+                {currentCoin?.fundingRate != null && (() => {
+                  const sig = frSignal(currentCoin.fundingRate);
+                  return (
+                    <div className="frh-signal" style={{ background: sig.bg, borderColor: sig.color + '55' }}>
+                      <span className="frh-signal-emoji">{sig.emoji}</span>
+                      <div style={{ flex: 1 }}>
+                        <div className="frh-signal-top">
+                          <span className="frh-signal-label" style={{ color: sig.color }}>{sig.label}</span>
+                          <span className="frh-signal-action" style={{ color: sig.color }}>→ {sig.action}</span>
+                        </div>
+                        <div className="frh-signal-desc">{sig.desc}</div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {(history[selected] ?? []).length >= 2
+                  ? <canvas ref={fullChartRef} style={{ display: 'block', width: '100%', height: '190px' }} />
+                  : <div style={{ height: 190, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--txt3)', fontSize: 12 }}>
+                      No perp data for {COIN_LABELS[selected]}
+                    </div>
+                }
+                <div className="frh-legend">
+                  <span style={{ color: '#f87171' }}>● Positive FR</span> = longs paying shorts → bearish pressure, expect dump &nbsp;·&nbsp;
+                  <span style={{ color: '#34d399' }}>● Negative FR</span> = shorts paying longs → bullish pressure, expect squeeze
                 </div>
-            }
-            <div className="frh-legend">
-              <span style={{ color: '#f87171' }}>● Positive FR</span> = longs paying shorts → bearish pressure, expect dump &nbsp;·&nbsp;
-              <span style={{ color: '#34d399' }}>● Negative FR</span> = shorts paying longs → bullish pressure, expect squeeze
+              </div>
             </div>
+
           </div>
 
         </>

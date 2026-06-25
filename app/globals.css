@@ -2778,6 +2778,15 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 [data-theme="light"] .frh-row:hover { background: rgba(0,0,0,0.03) !important; }
 [data-theme="light"] .frh-row.on    { background: var(--purple-bg) !important; box-shadow: inset 3px 0 0 #a78bfa !important; }
 
+.frh-split        { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; align-items: start; margin-bottom: 10px; }
+.frh-list-scroll  { max-height: 500px; overflow-y: auto; overflow-x: auto; }
+.frh-detail-sticky { position: sticky; top: 70px; }
+@media (max-width: 640px) {
+  .frh-split        { grid-template-columns: 1fr; }
+  .frh-list-scroll  { max-height: 320px; }
+  .frh-detail-sticky { position: static; }
+}
+
 /* ── GROK USAGE CHIP ──────────────────────────────────────────────────────── */
 .grok-usage-chip {
   font-size: 11px; font-weight: 600; color: var(--txt3);
