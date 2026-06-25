@@ -10,6 +10,7 @@ import RaidMeter from '@/components/RaidMeter';
 import SOTD from '@/components/SOTD';
 import NewsBanner from '@/components/NewsBanner';
 import SessionContext from '@/components/SessionContext';
+import SessionCountdown from '@/components/SessionCountdown';
 import SmartMoneyScore from '@/components/SmartMoneyScore';
 import OISpikeScanner from '@/components/OISpikeScanner';
 import SentimentExtremesAlert from '@/components/SentimentExtremesAlert';
@@ -953,6 +954,9 @@ export default function Dashboard() {
           <div className="ind-row"><BTCDominance /></div>
           <div className="ind-row"><AltSeasonIndex /></div>
         </div>
+
+        {/* 0. Market session indicator — always visible at the top */}
+        <SessionCountdown />
 
         {/* 1. Gate: is now a good time to trade? */}
         {!hide('raid_meter') && <div id="tour-raidmeter"><RaidMeter /></div>}
