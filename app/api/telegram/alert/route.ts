@@ -17,6 +17,20 @@ const GROK_KEY = process.env.GROK_API_KEY ?? '';
 let grokInFlight = 0;
 const GROK_CONCURRENCY = 3;
 
+function inferSignalType(prompt: string): string {
+  if (prompt.includes('Multiple signals fired')) return 'confluence';
+  if (prompt.includes('EMA Ribbon Strategy setup')) return 'ema_setup';
+  if (prompt.includes('200-period EMA')) return 'ema_cross';
+  if (prompt.includes('Morning briefing')) return 'daily_summary';
+  if (prompt.includes('sentiment indicators')) return 'sentiment_extremes';
+  if (prompt.includes('A whale just')) return 'whale_trade';
+  if (prompt.includes('Breaking news:')) return 'news';
+  if (prompt.includes('Open Interest just')) return 'oi_spike';
+  if (prompt.includes('moved') && prompt.includes('% in one')) return 'rapid_move';
+  if (prompt.includes('just hit $') || prompt.includes('Price Alert')) return 'price_alert';
+  return 'unknown';
+}
+
 async function grokAnalyze(prompt: string): Promise<string> {
   if (!GROK_KEY) return '';
   if (grokInFlight >= GROK_CONCURRENCY) return ''; // shed load
@@ -30,7 +44,10 @@ async function grokAnalyze(prompt: string): Promise<string> {
     });
     if (!res.ok) return '';
     const data = await res.json();
-    return (data.choices?.[0]?.message?.content ?? '').trim();
+    const text = (data.choices?.[0]?.message?.content ?? '').trim();
+    // fire-and-forget: log to DB — never let this block or throw
+    getSupabaseAdmin().from(T.alert_grok_log).insert({ signal_type: inferSignalType(prompt) }).catch(() => {});
+    return text;
   } catch { return ''; } finally {
     grokInFlight--;
   }
