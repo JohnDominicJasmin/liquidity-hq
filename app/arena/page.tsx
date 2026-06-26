@@ -104,32 +104,6 @@ const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'defi' | 'meme', read
 };
 
 
-/* ── Usage panel — shows daily call counts for signed-in users ── */
-function UsagePanel({ usage }: { usage: GrokUsageInfo }) {
-  const rows: { label: string; used: number; limit: number; base: string }[] = [
-    { label: '⚡ Quick',    used: usage.quick_used,    limit: usage.quick_limit,    base: '#34d399' },
-    { label: '🔬 Deep',     used: usage.deep_used,     limit: usage.deep_limit,     base: '#b8aeff' },
-    { label: '💬 Chat',     used: usage.chat_used,     limit: usage.chat_limit,     base: '#60a5fa' },
-    { label: '🌐 Search',   used: usage.search_used,   limit: usage.search_limit,   base: '#a78bfa' },
-    { label: '📋 Briefing', used: usage.briefing_used, limit: usage.briefing_limit, base: '#f59e0b' },
-  ];
-  return (
-    <div className="usage-panel">
-      {rows.map(({ label, used, limit, base }) => {
-        const pct = Math.min((used / limit) * 100, 100);
-        const col = pct >= 90 ? '#f87171' : pct >= 70 ? '#fbbf24' : base;
-        return (
-          <div key={label} className="usage-row">
-            <span className="usage-label">{label}</span>
-            <div className="usage-track"><div className="usage-fill" style={{ width: pct + '%', background: col }} /></div>
-            <span className="usage-count" style={{ color: col }}>{used}<span className="usage-max">/{limit}</span></span>
-          </div>
-        );
-      })}
-      <div className="usage-footer">Today · resets midnight UTC</div>
-    </div>
-  );
-}
 
 /* ── Result cache ── */
 interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep' }
@@ -1452,9 +1426,6 @@ export default function Arena() {
           )}
         </div>
       )}
-
-      {/* ── Usage panel — visible for signed-in users ── */}
-      {user && grokUsage && <UsagePanel usage={grokUsage} />}
 
       {/* ── Auth / upgrade notice ── */}
       {!user && !authLoading && (

@@ -6,6 +6,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { DASHBOARD_SECTIONS } from '@/lib/settings';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
+import UsageRings from '@/components/UsageRings';
 import { track } from '@/lib/analytics';
 import { COINS } from '@/lib/marketStore';
 
@@ -44,17 +45,6 @@ function Section({ title, icon, children }: { title: string; icon?: string; chil
   );
 }
 
-/* ── Usage mini-bar (reused from Arena) ── */
-function MiniUsageBar({ label, used, limit, color }: { label: string; used: number; limit: number; color: string }) {
-  const pct = Math.min((used / limit) * 100, 100);
-  return (
-    <div className="st-usage-row">
-      <span className="st-usage-label">{label}</span>
-      <div className="st-usage-track"><div className="st-usage-fill" style={{ width: pct + '%', background: color }} /></div>
-      <span className="st-usage-count" style={{ color }}>{used}<span style={{ color: 'var(--txt3)', fontWeight: 400 }}>/{limit}</span></span>
-    </div>
-  );
-}
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -129,26 +119,8 @@ export default function SettingsPage() {
         </div>
 
         {usage && (
-          <div className="st-field" style={{ gap: 8 }}>
-            <div className="st-field-label">AI usage today</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 4 }}>
-              {[
-                { label: '⚡ Quick',    used: usage.quick_used,    limit: usage.quick_limit,    base: '#34d399' },
-                { label: '🔬 Deep',     used: usage.deep_used,     limit: usage.deep_limit,     base: '#b8aeff' },
-                { label: '💬 Chat',     used: usage.chat_used,     limit: usage.chat_limit,     base: '#60a5fa' },
-                { label: '🌐 Search',   used: usage.search_used,   limit: usage.search_limit,   base: '#a78bfa' },
-                { label: '📋 Briefing', used: usage.briefing_used, limit: usage.briefing_limit, base: '#f59e0b' },
-              ].map(({ label, used, limit, base }) => (
-                <MiniUsageBar
-                  key={label}
-                  label={label}
-                  used={used}
-                  limit={limit}
-                  color={used / limit >= 0.9 ? '#f87171' : used / limit >= 0.7 ? '#fbbf24' : base}
-                />
-              ))}
-              <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 2 }}>Resets midnight UTC</div>
-            </div>
+          <div className="st-field">
+            <UsageRings usage={usage} />
           </div>
         )}
 
