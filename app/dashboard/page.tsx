@@ -20,6 +20,8 @@ import CycleChart from '@/components/CycleChart';
 import OnboardingFlow from '@/components/OnboardingFlow';
 import SpotlightTour from '@/components/SpotlightTour';
 import SetupChecklist from '@/components/SetupChecklist';
+import MultiTFAlignment from '@/components/MultiTFAlignment';
+import TradeSetupCard from '@/components/TradeSetupCard';
 
 function MacroStrip() {
   const { store } = useMarket();
@@ -966,7 +968,9 @@ export default function Dashboard() {
           {!hide('coin_signals') && <>
             <CoinSignalsHeader />
             <EdgeSignals />
+            <MultiTFAlignment />
             <SmartMoneyScore />
+            <TradeSetupCard />
             <OISpikeScanner />
           </>}
           <div className="dash-section">Market indicators</div>
@@ -997,7 +1001,9 @@ export default function Dashboard() {
         {!hide('coin_signals') && <div id="tour-coin-signals" className="desktop-only">
           <CoinSignalsHeader />
           <EdgeSignals />
+          <MultiTFAlignment />
           <SmartMoneyScore />
+          <TradeSetupCard />
           <OISpikeScanner />
         </div>}
 
