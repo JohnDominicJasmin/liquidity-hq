@@ -341,65 +341,81 @@ export default function LiqPage() {
             </div>
           )}
 
-          {/* Magnets — #2 most actionable: biggest price targets */}
+          {/* Key price targets + plain-English context — merged, no icons */}
           {(bands.magnetLong || bands.magnetShort) && (
-            <div className="liq-magnet-box">
-              <span style={{ fontSize: 18, flexShrink: 0 }}>🧲</span>
-              <div>
-                <div className="liq-magnet-box-title">Largest Clusters · {rangeConf.label} window</div>
-                <div className="liq-magnet-box-body">
-                  {bands.magnetShort && (
-                    <span style={{ color: '#34d399' }}>
-                      ↑ Short squeeze target {fmtP(bands.magnetShort.price)} (+{bands.magnetShort.distPct.toFixed(1)}%)
-                    </span>
-                  )}
-                  {bands.magnetLong && bands.magnetShort && <span style={{ color: '#444', margin: '0 6px' }}>·</span>}
-                  {bands.magnetLong && (
-                    <span style={{ color: '#f87171' }}>
-                      ↓ Long wipeout target {fmtP(bands.magnetLong.price)} (-{bands.magnetLong.distPct.toFixed(1)}%)
-                    </span>
-                  )}
-                </div>
+            <div style={{
+              background: 'var(--bg1)', border: '0.5px solid var(--bdr)',
+              borderRadius: 12, overflow: 'hidden', marginBottom: 10,
+            }}>
+              {/* Header */}
+              <div style={{
+                padding: '10px 16px',
+                borderBottom: '0.5px solid var(--bdr)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.09em', textTransform: 'uppercase' }}>
+                  Key Price Targets
+                </span>
+                <span style={{ fontSize: 10, color: 'var(--txt3)' }}>{rangeConf.label} window</span>
               </div>
-            </div>
-          )}
 
-          {/* Plain English insight card — right after magnets so it explains what was just shown */}
-          {(bands.magnetShort || bands.magnetLong) && (
-            <div className="liq-insight-card">
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
-                What this means for you
+              {/* Target rows */}
+              <div style={{ padding: '4px 0' }}>
+                {bands.magnetShort && (
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: '3px 1fr',
+                    borderBottom: bands.magnetLong ? '0.5px solid rgba(255,255,255,0.04)' : 'none',
+                  }}>
+                    <div style={{ background: '#34d399' }} />
+                    <div style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 5 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#34d399' }}>Short squeeze target</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>
+                          {fmtP(bands.magnetShort.price)}{' '}
+                          <span style={{ fontSize: 11, color: '#34d399', fontWeight: 500 }}>+{bands.magnetShort.distPct.toFixed(1)}%</span>
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 12, color: 'var(--txt3)', lineHeight: 1.55 }}>
+                        If price reaches this level, short positions get force-closed — buying pressure amplifies the move up.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {bands.magnetLong && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '3px 1fr' }}>
+                    <div style={{ background: '#f87171' }} />
+                    <div style={{ padding: '12px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 5 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#f87171' }}>Long liquidation target</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>
+                          {fmtP(bands.magnetLong.price)}{' '}
+                          <span style={{ fontSize: 11, color: '#f87171', fontWeight: 500 }}>-{bands.magnetLong.distPct.toFixed(1)}%</span>
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 12, color: 'var(--txt3)', lineHeight: 1.55 }}>
+                        If price drops to this level, long positions get force-closed — selling pressure accelerates the move down.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
-              {bands.magnetShort && (
-                <div style={{ display: 'flex', gap: 10, marginBottom: bands.magnetLong ? 10 : 0, alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }} aria-hidden="true">🟢</span>
-                  <span style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6 }}>
-                    <strong style={{ color: '#34d399' }}>Short squeeze target at {fmtP(bands.magnetShort.price)}:</strong>{' '}
-                    If price pumps there, trapped shorts get force-closed - which can push price even higher.
-                  </span>
-                </div>
-              )}
-              {bands.magnetLong && (
-                <div style={{ display: 'flex', gap: 10, marginBottom: bias ? 10 : 0, alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }} aria-hidden="true">🔴</span>
-                  <span style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6 }}>
-                    <strong style={{ color: '#f87171' }}>Long liquidation target at {fmtP(bands.magnetLong.price)}:</strong>{' '}
-                    If price drops there, trapped longs get force-closed - accelerating the move down.
-                  </span>
-                </div>
-              )}
+
+              {/* Bias footer — only when present */}
               {bias && (
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }} aria-hidden="true">📊</span>
-                  <span style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6 }}>
-                    Overall bias is{' '}
-                    <strong style={{ color: bias.col }}>{bias.txt.toLowerCase()}</strong>
-                    {' '}- {bias.txt === 'Long-heavy'
-                      ? 'larger traders may push price down to trigger trapped longs.'
-                      : bias.txt === 'Short-heavy'
-                      ? 'larger traders may push price up to trigger trapped shorts.'
-                      : 'no clear directional lean right now.'}
-                  </span>
+                <div style={{
+                  padding: '9px 16px',
+                  borderTop: '0.5px solid var(--bdr)',
+                  fontSize: 12, color: 'var(--txt3)', lineHeight: 1.5,
+                }}>
+                  Overall bias:{' '}
+                  <span style={{ color: bias.col, fontWeight: 700 }}>{bias.txt}</span>
+                  {' '}—{' '}
+                  {bias.txt === 'Long-heavy'
+                    ? 'larger traders may push price down to trigger the long liquidation target.'
+                    : bias.txt === 'Short-heavy'
+                    ? 'larger traders may push price up to trigger the short squeeze target.'
+                    : 'no clear directional lean at this time.'}
                 </div>
               )}
             </div>
