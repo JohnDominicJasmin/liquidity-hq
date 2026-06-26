@@ -1,7 +1,7 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useMarket, CoinId, COINS } from '@/lib/marketStore';
-import LiqFeed from '@/components/LiqFeed';
+import LiqFeed, { Bucket } from '@/components/LiqFeed';
 import WhaleTradesFeed from '@/components/WhaleTradesFeed';
 import FundingComparison from '@/components/FundingComparison';
 
@@ -114,11 +114,127 @@ function BandRow({ b }: { b: Band }) {
   );
 }
 
+/* ─── Real cluster card ─────────────────────────────────────────────────────── */
+function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentPrice: number }) {
+  if (clusters.length === 0) {
+    return (
+      <div style={{
+        padding: '12px 14px', borderRadius: 10, marginBottom: 12,
+        background: 'rgba(255,255,255,0.02)', border: '0.5px solid rgba(255,255,255,0.07)',
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        <span style={{
+          width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+          background: '#fbbf24', boxShadow: '0 0 6px #fbbf2466',
+        }} />
+        <span style={{ fontSize: 12, color: 'var(--txt3)' }}>
+          Real cluster data building from live Binance + Bybit feeds — takes a few minutes on first load.
+        </span>
+      </div>
+    );
+  }
+
+  const maxTotal = Math.max(...clusters.map(c => c.total));
+  const above = clusters.filter(c => c.price > currentPrice).sort((a, b) => a.price - b.price);
+  const below = clusters.filter(c => c.price <= currentPrice).sort((a, b) => b.price - a.price);
+  // Any buckets that straddle current price get shown separately
+  const sorted = [...above, ...below];
+
+  return (
+    <div style={{
+      borderRadius: 10, overflow: 'hidden',
+      border: '0.5px solid rgba(52,211,153,0.2)',
+      background: 'rgba(52,211,153,0.03)',
+      marginBottom: 12,
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: '10px 14px 8px',
+        borderBottom: '0.5px solid rgba(255,255,255,0.06)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{
+            width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+            background: '#34d399', boxShadow: '0 0 6px #34d39966',
+          }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--txt)' }}>
+            Real Liquidation Clusters
+          </span>
+          <span style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: '.06em',
+            padding: '2px 7px', borderRadius: 10,
+            background: 'rgba(52,211,153,0.12)', color: '#34d399',
+            border: '0.5px solid rgba(52,211,153,0.25)',
+          }}>LIVE DATA</span>
+        </div>
+        <span style={{ fontSize: 11, color: 'var(--txt3)' }}>4h window · Binance + Bybit</span>
+      </div>
+
+      {/* Column headers */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: '80px 1fr 60px 24px',
+        padding: '6px 14px 4px',
+        gap: 8,
+      }}>
+        {[['Price', 'left'], ['Volume (longs red · shorts green)', 'left'], ['Total', 'right'], ['', 'right']].map(([h, a]) => (
+          <span key={h} style={{ fontSize: 9, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase', textAlign: a as 'left' | 'right' }}>{h}</span>
+        ))}
+      </div>
+
+      {/* Rows */}
+      <div style={{ padding: '0 14px 10px' }}>
+        {sorted.map(c => {
+          const longPct  = maxTotal > 0 ? (c.longUsd  / maxTotal) * 100 : 0;
+          const shortPct = maxTotal > 0 ? (c.shortUsd / maxTotal) * 100 : 0;
+          const isAbove  = c.price > currentPrice;
+          const domCol   = c.longUsd > c.shortUsd ? '#f87171' : '#34d399';
+          const distPct  = currentPrice > 0 ? Math.abs((c.price - currentPrice) / currentPrice * 100) : 0;
+          return (
+            <div key={c.price} style={{
+              display: 'grid', gridTemplateColumns: '80px 1fr 60px 24px',
+              alignItems: 'center', gap: 8,
+              padding: '5px 0',
+              borderBottom: '0.5px solid rgba(255,255,255,0.04)',
+            }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>
+                  {c.label}
+                </div>
+                <div style={{ fontSize: 9, color: 'var(--txt3)' }}>
+                  {isAbove ? '+' : '-'}{distPct.toFixed(1)}% {isAbove ? '↑ above' : '↓ below'}
+                </div>
+              </div>
+              {/* Stacked bars */}
+              <div style={{ height: 10, borderRadius: 3, background: 'rgba(255,255,255,0.04)', overflow: 'hidden', display: 'flex' }}>
+                <div style={{ width: `${longPct}%`,  height: '100%', background: 'rgba(248,113,113,0.65)', transition: 'width 0.4s' }} />
+                <div style={{ width: `${shortPct}%`, height: '100%', background: 'rgba(52,211,153,0.65)',  transition: 'width 0.4s' }} />
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: domCol, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                {fmtM(c.total)}
+              </div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: domCol, textAlign: 'right' }}>
+                {c.longUsd > c.shortUsd ? 'L' : 'S'}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ padding: '6px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)', fontSize: 10, color: '#444' }}>
+        Red bars = long liquidations at that price · Green bars = short liquidations · L/S = dominant side
+      </div>
+    </div>
+  );
+}
+
 /* ─── Page ─────────────────────────────────────────────────────────────────── */
 export default function LiqPage() {
   const { store }  = useMarket();
   const [coin, setCoin]   = useState<CoinId>('btc');
   const [range, setRange] = useState<TimeRange>('24h');
+  const [realClusters, setRealClusters] = useState<Bucket[]>([]);
+  const handleClusters = useCallback((c: Bucket[]) => setRealClusters(c), []);
 
   const cd         = store.coins[coin];
   const rangeConf  = RANGES.find(r => r.key === range)!;
@@ -290,6 +406,9 @@ export default function LiqPage() {
             </div>
           )}
 
+          {/* Real liquidation clusters from live feeds */}
+          <RealClusters clusters={realClusters} currentPrice={cd.price} />
+
           {/* Stats row — metadata, shown after key signals */}
           <div className="liq-stats-row">
             <div className="liq-stat-item">
@@ -374,7 +493,7 @@ export default function LiqPage() {
       )}
 
       {/* Live Liquidation Feed */}
-      <LiqFeed />
+      <LiqFeed onClusters={handleClusters} />
 
       {/* Whale Trade Feed */}
       <WhaleTradesFeed />

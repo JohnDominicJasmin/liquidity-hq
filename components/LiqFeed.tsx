@@ -16,7 +16,7 @@ interface LiqEvent {
 
 interface Stats  { longUsd: number; shortUsd: number; count: number; }
 interface Cascade { ts: number; totalUsd: number; side: 'LONG' | 'SHORT' | 'MIXED'; coins: string[]; }
-interface Bucket  { label: string; price: number; longUsd: number; shortUsd: number; total: number; }
+export interface Bucket  { label: string; price: number; longUsd: number; shortUsd: number; total: number; }
 
 /* ── Constants ── */
 const FEED_SIZE          = 30;
@@ -69,7 +69,7 @@ function fmtEventPrice(price: number): string {
   return '$' + price.toLocaleString('en-US', { maximumFractionDigits: price < 10 ? 3 : 2 });
 }
 
-export default function LiqFeed() {
+export default function LiqFeed({ onClusters }: { onClusters?: (clusters: Bucket[]) => void }) {
   const [feed,       setFeed]       = useState<LiqEvent[]>([]);
   const [stats,      setStats]      = useState<Stats>({ longUsd: 0, shortUsd: 0, count: 0 });
   const [cascade,    setCascade]    = useState<Cascade | null>(null);
@@ -127,7 +127,8 @@ export default function LiqFeed() {
       .sort((a, b) => b.total - a.total)
       .slice(0, 8);
     setClusters(buckets);
-  }, []);
+    onClusters?.(buckets);
+  }, [onClusters]);
 
   /* ── Persist history to localStorage (debounced 5s) ── */
   const saveToStorage = useCallback(() => {
