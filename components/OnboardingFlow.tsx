@@ -129,7 +129,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
 
     // Mark profile_complete + tourSeen in user_onboarding
     const sb = getSupabase();
-    if (sb) {
+    if (sb && user) {
       await sb.from(T.user_onboarding).upsert(
         { user_id: user.id, profile_complete: true, tour_seen: true, updated_at: new Date().toISOString() },
         { onConflict: 'user_id' },
