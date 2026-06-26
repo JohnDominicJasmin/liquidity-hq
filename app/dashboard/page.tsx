@@ -14,116 +14,12 @@ import SessionCountdown from '@/components/SessionCountdown';
 import SmartMoneyScore from '@/components/SmartMoneyScore';
 import OISpikeScanner from '@/components/OISpikeScanner';
 import SentimentExtremesAlert from '@/components/SentimentExtremesAlert';
-import CycleDayCounter from '@/components/CycleDayCounter';
-import BtcRiskLevel from '@/components/BtcRiskLevel';
-import CycleChart from '@/components/CycleChart';
 import OnboardingFlow from '@/components/OnboardingFlow';
 import SpotlightTour from '@/components/SpotlightTour';
 import SetupChecklist from '@/components/SetupChecklist';
 import MultiTFAlignment from '@/components/MultiTFAlignment';
 import TradeSetupCard from '@/components/TradeSetupCard';
 
-function MacroStrip() {
-  const { store } = useMarket();
-  const [jpyUsd, setJpyUsd] = useState<number | null>(null);
-
-  useEffect(() => {
-    const load = () =>
-      fetch('/api/forex/jpy')
-        .then(r => r.json())
-        .then((d: { jpy?: number }) => { if (d?.jpy) setJpyUsd(d.jpy); })
-        .catch(() => {});
-    load();
-    const t = setInterval(load, 5 * 60_000);
-    return () => clearInterval(t);
-  }, []);
-
-  const jpyCol = jpyUsd == null ? 'var(--txt3)'
-    : jpyUsd >= 160 ? 'var(--red)'
-    : jpyUsd >= 158 ? 'var(--amber)'
-    : 'var(--green)';
-  const jpySig = jpyUsd == null ? null
-    : jpyUsd >= 160 ? { txt: 'BOJ intervention risk', col: 'var(--red)' }
-    : jpyUsd >= 158 ? { txt: 'Approaching danger', col: 'var(--amber)' }
-    : { txt: 'Carry trade stable', col: 'var(--green)' };
-
-  const items = [
-    {
-      label: 'DXY',
-      price: store.dxy,
-      chg: store.dxyChg,
-      fmt: (v: number) => v.toFixed(2),
-      // DXY UP = bad for BTC (dollar strengthens = risk off)
-      signal: (chg: number) => chg > 0.2 ? { txt: 'USD strength → BTC headwind', col: 'var(--red)' }
-                              : chg < -0.2 ? { txt: 'USD weakness → BTC tailwind', col: 'var(--green)' }
-                              : { txt: 'Neutral', col: 'var(--txt3)' },
-    },
-    {
-      label: 'SPX',
-      price: store.spx,
-      chg: store.spxChg,
-      fmt: (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 0 }),
-      // SPX UP = risk-on = good for BTC
-      signal: (chg: number) => chg > 0.3 ? { txt: 'Risk-on → crypto tailwind', col: 'var(--green)' }
-                              : chg < -0.5 ? { txt: 'Risk-off → crypto headwind', col: 'var(--red)' }
-                              : { txt: 'Neutral', col: 'var(--txt3)' },
-    },
-    {
-      label: 'Gold',
-      price: store.gold,
-      chg: store.goldChg,
-      fmt: (v: number) => '$' + v.toLocaleString('en-US', { maximumFractionDigits: 0 }),
-      // Gold UP = safe haven demand = mild risk-off
-      signal: (chg: number) => chg > 0.5 ? { txt: 'Safe haven bid → mild risk-off', col: 'var(--amber)' }
-                              : chg < -0.5 ? { txt: 'Gold falling → risk appetite up', col: 'var(--green)' }
-                              : { txt: 'Neutral', col: 'var(--txt3)' },
-    },
-  ];
-
-  return (
-    <div className="macro-strip">
-      <div className="macro-strip-title">Macro Correlations</div>
-      <div className="macro-strip-row">
-        {items.map(({ label, price, chg, fmt, signal }) => {
-          const sig = chg != null ? signal(chg) : null;
-          return (
-            <div key={label} className="macro-item">
-              <div className="macro-item-label">{label}</div>
-              <div className="macro-item-price">
-                {price != null ? fmt(price) : '—'}
-              </div>
-              <div className="macro-item-chg" style={{
-                color: chg == null ? 'var(--txt3)' : chg >= 0 ? 'var(--green)' : 'var(--red)',
-              }}>
-                {chg != null ? (chg >= 0 ? '↑ +' : '↓ ') + chg.toFixed(2) + '%' : '—'}
-              </div>
-              {sig && (
-                <div className="macro-item-signal" style={{ color: sig.col }}>{sig.txt}</div>
-              )}
-            </div>
-          );
-        })}
-
-        {/* JPY — carry trade risk indicator */}
-        <div className="macro-item">
-          <div className="macro-item-label">JPY</div>
-          <div className="macro-item-price" style={{ color: jpyCol }}>
-            {jpyUsd != null ? jpyUsd.toFixed(2) : '—'}
-          </div>
-          <div className="macro-item-chg" style={{ color: jpyCol }}>
-            {jpyUsd != null
-              ? jpyUsd >= 160 ? '⚠ Danger' : jpyUsd >= 158 ? '⚡ Warning' : '✓ Safe'
-              : '—'}
-          </div>
-          {jpySig && (
-            <div className="macro-item-signal" style={{ color: jpySig.col }}>{jpySig.txt}</div>
-          )}
-        </div>
-
-      </div>
-    </div>
-  );
-}
 
 const OI_TREND_META: Record<string, { txt: string; sub: string; hint: string; col: string }> = {
   strong_up:   { txt: '▲ ↑Open Int ↑P', sub: 'New longs — real trend',  hint: 'New money entering longs. Trend has conviction — follow it.',      col: '#34d399' },
@@ -694,183 +590,6 @@ function EdgeSignals() {
   );
 }
 
-/* ── GEX Table component ── */
-function fmtGex(v: number): string {
-  const abs = Math.abs(v);
-  const sign = v >= 0 ? '+' : '−';
-  if (abs >= 1e9) return sign + '$' + (abs / 1e9).toFixed(2) + 'B';
-  if (abs >= 1e6) return sign + '$' + (abs / 1e6).toFixed(0) + 'M';
-  return sign + '$' + abs.toFixed(0);
-}
-
-function GexTable() {
-  const { store } = useMarket();
-  const { btcNetGex, btcGexFlip, btcGexLevels, btcMaxPain } = store;
-
-  const gexLoaded = btcNetGex !== null && btcGexLevels.length > 0;
-  const isLongGamma = (btcNetGex ?? 0) >= 0;
-
-  const gexCol     = isLongGamma ? '#34d399' : '#f87171';
-  const gexBg      = isLongGamma ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)';
-  const gexBorder  = isLongGamma ? 'rgba(52,211,153,0.3)'  : 'rgba(248,113,113,0.3)';
-
-  const maxAbsGex = btcGexLevels.length
-    ? Math.max(...btcGexLevels.map(l => Math.abs(l.gex)))
-    : 1;
-
-  const spotPrice = store.coins.btc?.price ?? 0;
-
-  return (
-    <div className="gex-table">
-      {/* Title + net GEX chip */}
-      <div className="gex-title-row">
-        <div className="gex-title">🔬 BTC Options Market Pressure <span style={{ fontSize: 10, fontWeight: 400, opacity: 0.5 }}>(GEX)</span></div>
-        {gexLoaded ? (
-          <div
-            className="gex-net-chip"
-            style={{ color: gexCol, background: gexBg, border: `0.5px solid ${gexBorder}` }}
-          >
-            {fmtGex(btcNetGex!)} net
-          </div>
-        ) : (
-          <div className="gex-net-chip" style={{ color: 'var(--txt2)', background: 'transparent' }}>Fetching…</div>
-        )}
-        {btcMaxPain != null && (
-          <div className="gex-meta">Max pain: ${btcMaxPain.toLocaleString()} <span style={{ fontWeight: 400, opacity: 0.6 }}>(price where most options expire worthless — acts as magnet)</span></div>
-        )}
-      </div>
-
-      {/* Signal interpretation */}
-      <div className="gex-signal-row">
-        {gexLoaded ? (() => {
-          // Directional lean: flip level is primary judge, largest GEX magnet is fallback
-          const largestGexLevel = btcGexLevels.length > 0
-            ? btcGexLevels.reduce((a, b) => Math.abs(a.gex) > Math.abs(b.gex) ? a : b)
-            : null;
-
-          let lean: 'bull' | 'bear' | 'neutral' = 'neutral';
-          let leanReason = '';
-          if (btcGexFlip != null && spotPrice > 0) {
-            if (spotPrice > btcGexFlip) {
-              lean = 'bull';
-              leanReason = `price above gamma flip ($${btcGexFlip.toLocaleString()})`;
-            } else {
-              lean = 'bear';
-              leanReason = `price below gamma flip ($${btcGexFlip.toLocaleString()})`;
-            }
-          } else if (largestGexLevel && spotPrice > 0) {
-            if (largestGexLevel.strike > spotPrice) {
-              lean = 'bull';
-              leanReason = `magnet at $${(largestGexLevel.strike / 1000).toFixed(0)}K is above`;
-            } else {
-              lean = 'bear';
-              leanReason = `magnet at $${(largestGexLevel.strike / 1000).toFixed(0)}K is below`;
-            }
-          }
-
-          const leanColor = lean === 'bull' ? '#34d399' : lean === 'bear' ? '#f87171' : '#9ca3af';
-          const leanLabel = lean === 'bull' ? '↑ BULLISH LEAN' : lean === 'bear' ? '↓ BEARISH LEAN' : '→ NEUTRAL';
-          const regimeLabel = isLongGamma ? 'RANGING' : 'TRENDING';
-          const regimeColor = isLongGamma ? '#34d399' : '#f87171';
-          const regimeDesc  = isLongGamma
-            ? 'price bounces between levels — expect reversals, avoid chasing'
-            : 'breakouts follow through — ride momentum, do not fade moves';
-
-          return (
-            <>
-              <span style={{ color: leanColor, fontWeight: 700 }}>{leanLabel}</span>
-              {leanReason && <span style={{ color: 'var(--txt2)' }}> — {leanReason}</span>}
-              <span style={{ color: 'var(--txt3)' }}> · </span>
-              <span style={{ color: regimeColor }}>{regimeLabel}</span>
-              <span style={{ color: 'var(--txt2)' }}> regime — {regimeDesc}</span>
-            </>
-          );
-        })() : (
-          <span style={{ color: 'var(--txt3)' }}>Calculating from Deribit options chain…</span>
-        )}
-      </div>
-
-      {/* Plain English interpretation — above chart so traders read meaning before data */}
-      {gexLoaded && (
-        <div className="gex-insight">
-          <span style={{ color: 'var(--txt3)', marginRight: 6 }}>→</span>
-          {(() => {
-            const largest = btcGexLevels.length > 0
-              ? btcGexLevels.reduce((a, b) => Math.abs(a.gex) > Math.abs(b.gex) ? a : b)
-              : null;
-            const lK = largest
-              ? (largest.strike >= 1000 ? `$${(largest.strike / 1000).toFixed(0)}K` : `$${largest.strike.toLocaleString()}`)
-              : null;
-            const fK = btcGexFlip != null
-              ? (btcGexFlip >= 1000 ? `$${(btcGexFlip / 1000).toFixed(0)}K` : `$${btcGexFlip.toLocaleString()}`)
-              : null;
-            if (fK && spotPrice > 0) {
-              const above = spotPrice > btcGexFlip!;
-              if (above && isLongGamma)
-                return `Price is above the ${fK} gamma flip — options dealers are absorbing volatility and keeping BTC in a range${lK ? ` near ${lK}` : ''}.`;
-              if (!above && !isLongGamma)
-                return `Price broke below the ${fK} gamma flip — dealers are now amplifying moves${lK ? `, not absorbing them. Watch ${lK} as a key magnet` : ''}.`;
-              if (above && !isLongGamma)
-                return `Short gamma above ${fK} — options pressure is fueling volatility.${lK ? ` ${lK} is the key magnet strike to watch.` : ''}`;
-              return `Price is below the ${fK} flip but gamma is still long — expect choppy, contained moves${lK ? ` around ${lK}` : ''}.`;
-            }
-            return isLongGamma
-              ? `Long gamma regime — options dealers are stabilizing price${lK ? `. ${lK} is the key magnet for this week's expiry` : ''}.`
-              : `Short gamma regime — options dealers are amplifying moves${lK ? `. Watch ${lK} as the key pin level` : ''}.`;
-          })()}
-        </div>
-      )}
-
-      {/* Strike chart */}
-      {gexLoaded && btcGexLevels.length > 0 && (
-        <>
-          <div className="gex-hdr">
-            <div>Strike</div><div>Gamma exposure</div><div>Options pressure</div>
-          </div>
-          {btcGexLevels.map(({ strike, gex }) => {
-            const pct   = maxAbsGex > 0 ? Math.abs(gex) / maxAbsGex * 100 : 0;
-            const col   = gex >= 0 ? 'rgba(52,211,153,0.65)' : 'rgba(248,113,113,0.65)';
-            const vcol  = gex >= 0 ? '#34d399' : '#f87171';
-            const isAtm = spotPrice > 0 && Math.abs(strike - spotPrice) / spotPrice < 0.005;
-            return (
-              <div key={strike} className={`gex-row${isAtm ? ' gex-row-atm' : ''}`}>
-                <div className="gex-strike" style={isAtm ? { color: 'var(--txt)' } : {}}>
-                  ${strike >= 1000 ? (strike / 1000).toFixed(0) + 'K' : strike}
-                  {isAtm && <span style={{ fontSize: 10, color: 'var(--txt3)', marginLeft: 4 }}>← current price</span>}
-                </div>
-                <div className="gex-bar-wrap">
-                  <div className="gex-bar-fill" style={{ width: `${pct}%`, background: col }} />
-                </div>
-                <div className="gex-value" style={{ color: vcol }}>{fmtGex(gex)}</div>
-              </div>
-            );
-          })}
-        </>
-      )}
-
-      {/* Flip level + pin */}
-      {gexLoaded && (
-        <div className="gex-flip-row">
-          {btcGexFlip != null && (
-            <div>
-              Zero-gamma flip: <span>${btcGexFlip.toLocaleString()}</span>
-              <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> — break {(btcGexFlip < (spotPrice || btcGexFlip)) ? 'below' : 'above'} = options market becomes unpredictable, big moves likely</span>
-            </div>
-          )}
-          {btcGexLevels.length > 0 && (() => {
-            const top = btcGexLevels.reduce((a, b) => Math.abs(a.gex) > Math.abs(b.gex) ? a : b);
-            return (
-              <div>
-                Largest GEX: <span>${top.strike.toLocaleString()}</span>
-                <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> — options pin / magnet strike</span>
-              </div>
-            );
-          })()}
-        </div>
-      )}
-    </div>
-  );
-}
 
 
 function BTCDominance() {
@@ -902,7 +621,6 @@ function CoinSignalsHeader() {
 }
 
 export default function Dashboard() {
-  const [gexOpen,  setGexOpen]          = useState(true);
   const [marketCtxOpen, setMarketCtxOpen] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [showTour, setShowTour]         = useState(false);
@@ -936,7 +654,7 @@ export default function Dashboard() {
           }}>
             <span style={{ fontSize: 11, color: '#34d399', lineHeight: 1.5 }}>
               <strong>Beginner Mode is on</strong> — advanced panels are hidden to keep things simple.
-              Toggle it off anytime to see GEX, Macro, and Cycle charts.
+              Head to the Arena page for GEX, Macro, and Cycle charts.
             </span>
             <button
               onClick={() => setBannerDismissed(true)}
@@ -1033,67 +751,20 @@ export default function Dashboard() {
         {/* 5. Session context — timing reference (after you know the play) */}
         {!hide('session') && <SessionContext />}
 
-        {/* 5b. Cycle Day counter — cycle position reference */}
-        {!beginnerMode && <div style={{ marginBottom: 12 }}><CycleDayCounter /></div>}
-
-        {/* 5c. BTC Risk Level — composite market risk score */}
-        {!beginnerMode && <div style={{ marginBottom: 12 }}><BtcRiskLevel /></div>}
-
-        {/* 5d. Cycle Comparison chart */}
-        {!beginnerMode && <CycleChart />}
-
         {/* 6. Catalysts & market events */}
         {!hide('catalysts') && <NewsBanner />}
-
-        {/* GEX + Macro: shown inline on mobile/tablet, hidden when right panel is visible */}
-        {!beginnerMode && (
-          <div className="hide-on-desktop">
-            {!hide('gex') && <>
-              <div
-                className="dash-section"
-                style={{ cursor: 'pointer', userSelect: 'none' }}
-                onClick={() => setGexOpen(o => !o)}
-              >
-                Gamma exposure
-                <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
-                  {gexOpen ? '▲ hide' : '▼ show'}
-                </span>
-              </div>
-              {gexOpen && <GexTable />}
-            </>}
-            {!hide('macro') && <>
-              <div className="dash-section">Macro correlations</div>
-              <MacroStrip />
-            </>}
-          </div>
-        )}
 
       </div>
 
       {/* ── Right panel (desktop ≥1100px only) ── */}
       <aside className="dash-right">
-        {beginnerMode ? (
-          <div style={{ padding: '20px 14px', fontSize: 12, color: 'var(--txt3)', textAlign: 'center', lineHeight: 1.6 }}>
-            Advanced panels hidden in Beginner Mode.<br />
-            <span style={{ fontSize: 11 }}>Toggle off above to see GEX and Macro.</span>
-          </div>
-        ) : (
-          <>
-            <div
-              className="dash-section"
-              style={{ marginTop: 0, marginBottom: 8, cursor: 'pointer', userSelect: 'none' }}
-              onClick={() => setGexOpen(o => !o)}
-            >
-              Gamma exposure
-              <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
-                {gexOpen ? '▲ hide' : '▼ show'}
-              </span>
-            </div>
-            {gexOpen && <GexTable />}
-            <div className="dash-section" style={{ marginBottom: 8 }}>Macro</div>
-            <MacroStrip />
-          </>
-        )}
+        <div style={{ padding: '16px 14px', fontSize: 12, color: 'var(--txt3)', textAlign: 'center', lineHeight: 1.7 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--txt2)', marginBottom: 6 }}>Advanced Market Context</div>
+          GEX, Macro Correlations, and Cycle charts have moved to the Arena page for a cleaner focus here.<br />
+          <a href="/arena" style={{ color: '#b8aeff', textDecoration: 'none', fontWeight: 600, display: 'inline-block', marginTop: 10, padding: '5px 14px', border: '0.5px solid rgba(184,174,255,0.3)', borderRadius: 8, fontSize: 11 }}>
+            Go to Arena →
+          </a>
+        </div>
       </aside>
 
     </div>

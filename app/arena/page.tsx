@@ -17,6 +17,11 @@ import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetec
 import EMASignal from '@/components/EMASignal';
 import LiqHeatmap from '@/components/LiqHeatmap';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal } from '@/lib/useEMAStrategy';
+import GexTable from '@/components/GexTable';
+import MacroStrip from '@/components/MacroStrip';
+import CycleDayCounter from '@/components/CycleDayCounter';
+import BtcRiskLevel from '@/components/BtcRiskLevel';
+import CycleChart from '@/components/CycleChart';
 
 /* ── Pattern detection — delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -182,6 +187,7 @@ export default function Arena() {
   const [sigDetailsOpen, setSigDetailsOpen] = useState(false);
   const [copiedKey, setCopiedKey]           = useState<string | null>(null);
   const [jpyUsd, setJpyUsd]                 = useState<number | null>(null);
+  const [gexOpen, setGexOpen]               = useState(true);
   const scannerRef      = useRef<HTMLDivElement>(null);
   const hoverOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1772,6 +1778,45 @@ export default function Arena() {
           ))}
         </div>
       )}
+
+      {/* ── MARKET CONTEXT ── */}
+      <div style={{ marginTop: 28, borderTop: '0.5px solid rgba(255,255,255,0.06)', paddingTop: 20 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#444', marginBottom: 14 }}>
+          Market Context
+        </div>
+
+        {/* Cycle Day Counter + BTC Risk Level */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+          <CycleDayCounter />
+          <BtcRiskLevel />
+        </div>
+
+        {/* Cycle Comparison Chart */}
+        <div style={{ marginBottom: 16 }}>
+          <CycleChart />
+        </div>
+
+        {/* GEX Table — collapsible */}
+        <div>
+          <div
+            className="dash-section"
+            style={{ cursor: 'pointer', userSelect: 'none', marginTop: 0, marginBottom: gexOpen ? 8 : 0 }}
+            onClick={() => setGexOpen(o => !o)}
+          >
+            Gamma Exposure
+            <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
+              {gexOpen ? '▲ hide' : '▼ show'}
+            </span>
+          </div>
+          {gexOpen && <GexTable />}
+        </div>
+
+        {/* Macro Correlations */}
+        <div style={{ marginTop: 14 }}>
+          <div className="dash-section" style={{ marginTop: 0, marginBottom: 8 }}>Macro Correlations</div>
+          <MacroStrip />
+        </div>
+      </div>
 
       </div> {/* end arena-below-chart */}
     </div>
