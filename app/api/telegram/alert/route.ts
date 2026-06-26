@@ -46,7 +46,7 @@ async function grokAnalyze(prompt: string): Promise<string> {
     const data = await res.json();
     const text = (data.choices?.[0]?.message?.content ?? '').trim();
     // fire-and-forget: log to DB — never let this block or throw
-    getSupabaseAdmin().from(T.alert_grok_log).insert({ signal_type: inferSignalType(prompt) }).catch(() => {});
+    void (async () => { try { await getSupabaseAdmin().from(T.alert_grok_log).insert({ signal_type: inferSignalType(prompt) }); } catch { } })();
     return text;
   } catch { return ''; } finally {
     grokInFlight--;
