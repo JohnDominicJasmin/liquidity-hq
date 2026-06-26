@@ -903,6 +903,7 @@ function CoinSignalsHeader() {
 
 export default function Dashboard() {
   const [gexOpen,  setGexOpen]          = useState(true);
+  const [marketCtxOpen, setMarketCtxOpen] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [showTour, setShowTour]         = useState(false);
 
@@ -982,22 +983,7 @@ export default function Dashboard() {
         {/* 0. Market session indicator — always visible at the top */}
         <SessionCountdown />
 
-        {/* 1. Gate: is now a good time to trade? */}
-        {!hide('raid_meter') && <div id="tour-raidmeter"><RaidMeter /></div>}
-
-        {/* 2. Best play right now — answer up top, not buried */}
-        {!hide('best_setup') && <div id="tour-best-setup">
-          <div className="dash-section dash-section-hot">Best Setup Today</div>
-          <SOTD />
-        </div>}
-
-        {/* 3. Cascade alert — contextual, only renders when active */}
-        {!hide('cascade') && <CascadeAlertBanner />}
-
-        {/* 3b. Sentiment extremes — fires when F&G + FR + L/S all aligned extreme */}
-        <SentimentExtremesAlert />
-
-        {/* 4. Coin signals — confirm the setup (desktop only; mobile renders above Live Prices) */}
+        {/* 1. Coin signals — first thing traders look at after selecting a coin (desktop only; mobile renders above) */}
         {!hide('coin_signals') && <div id="tour-coin-signals" className="desktop-only">
           <CoinSignalsHeader />
           <EdgeSignals />
@@ -1007,7 +993,41 @@ export default function Dashboard() {
           <OISpikeScanner />
         </div>}
 
-        {/* ── Context divider — separates live signals from timing/macro reference ── */}
+        {/* 2. Contextual alert banners */}
+        {!hide('cascade') && <CascadeAlertBanner />}
+        <SentimentExtremesAlert />
+
+        {/* 3. Market Context — collapsible so it doesn't bury coin signals */}
+        <div
+          className="dash-section desktop-only"
+          style={{ cursor: 'pointer', userSelect: 'none', marginTop: 4 }}
+          onClick={() => setMarketCtxOpen(o => !o)}
+        >
+          Market Context
+          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
+            {marketCtxOpen ? '▲ hide' : '▼ show'}
+          </span>
+        </div>
+        {marketCtxOpen && (
+          <div className="desktop-only">
+            {!hide('raid_meter') && <div id="tour-raidmeter"><RaidMeter /></div>}
+            {!hide('best_setup') && <div id="tour-best-setup">
+              <div className="dash-section dash-section-hot">Best Setup Today</div>
+              <SOTD />
+            </div>}
+          </div>
+        )}
+
+        {/* RaidMeter + SOTD always visible on mobile (no collapsible there) */}
+        <div className="mobile-only">
+          {!hide('raid_meter') && <div id="tour-raidmeter-mobile"><RaidMeter /></div>}
+          {!hide('best_setup') && <div>
+            <div className="dash-section dash-section-hot">Best Setup Today</div>
+            <SOTD />
+          </div>}
+        </div>
+
+        {/* ── Context divider ── */}
         <div className="dash-ctx-sep" />
 
         {/* 5. Session context — timing reference (after you know the play) */}

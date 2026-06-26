@@ -26,11 +26,11 @@ function TFRow({ tf, rsi, dir }: { tf: string; rsi: number | null | undefined; d
   const col = DIR_COLOR[dir];
   return (
     <div style={{
-      display: 'grid', gridTemplateColumns: '36px 1fr 52px 68px',
-      alignItems: 'center', gap: 8, padding: '7px 0',
+      display: 'grid', gridTemplateColumns: '44px 1fr 36px 92px',
+      alignItems: 'center', gap: 10, padding: '7px 0',
       borderBottom: '0.5px solid var(--bdr)',
     }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.04em' }}>{tf}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt2)', letterSpacing: '.02em' }}>{tf}</div>
       {/* RSI bar */}
       <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 2, position: 'relative' }}>
         <div style={{
@@ -42,13 +42,20 @@ function TFRow({ tf, rsi, dir }: { tf: string; rsi: number | null | undefined; d
         {/* 50-line tick */}
         <div style={{
           position: 'absolute', left: '50%', top: -2, width: 1, height: 8,
-          background: 'rgba(255,255,255,0.15)',
+          background: 'rgba(255,255,255,0.2)',
         }} />
       </div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--txt2)', textAlign: 'right' }}>
+      {/* Value */}
+      <div style={{ fontSize: 12, fontWeight: 700, color: col, textAlign: 'right' }}>
         {rsi != null ? rsi.toFixed(0) : '—'}
       </div>
-      <div style={{ fontSize: 10, fontWeight: 700, color: col, textAlign: 'right' }}>
+      {/* Bias pill */}
+      <div style={{
+        fontSize: 10, fontWeight: 700, textAlign: 'center',
+        padding: '3px 6px', borderRadius: 5,
+        color: col, background: col + '18', border: `0.5px solid ${col}40`,
+        letterSpacing: '.02em',
+      }}>
         {DIR_ARROW[dir]} {DIR_LABEL[dir]}
       </div>
     </div>
@@ -133,14 +140,14 @@ export default function MultiTFAlignment() {
         <>
           {/* Column headers */}
           <div style={{
-            display: 'grid', gridTemplateColumns: '36px 1fr 52px 68px',
-            gap: 8, paddingBottom: 4,
+            display: 'grid', gridTemplateColumns: '44px 1fr 36px 92px',
+            gap: 10, paddingBottom: 4,
           }}>
-            {['TF', 'RSI(14)', 'Value', 'Bias'].map((h, i) => (
+            {(['TF', 'RSI(14)', 'Val', 'Bias'] as const).map((h, i) => (
               <div key={h} style={{
                 fontSize: 9, fontWeight: 700, color: 'var(--txt3)',
                 letterSpacing: '.05em', textTransform: 'uppercase',
-                textAlign: i >= 2 ? 'right' : 'left',
+                textAlign: i === 2 ? 'right' : i === 3 ? 'center' : 'left',
               }}>{h}</div>
             ))}
           </div>
