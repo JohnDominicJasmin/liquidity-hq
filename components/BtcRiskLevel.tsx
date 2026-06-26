@@ -33,9 +33,10 @@ export default function BtcRiskLevel() {
 
   if (btcFr != null) {
     const pct = btcFr * 100;
-    const s = clamp(Math.abs(btcFr) / 0.001, 0, 1) * 34;
+    // Positive funding = longs overcrowded = dump risk. Negative = shorts paying = not dump risk.
+    const s = pct > 0 ? clamp(btcFr / 0.001, 0, 1) * 34 : 0;
     total += s; maxPossible += 34;
-    const c = Math.abs(pct) > 0.05 ? '#f87171' : '#34d399';
+    const c = pct > 0.05 ? '#f87171' : pct < -0.02 ? '#34d399' : '#fbbf24';
     const sign = pct >= 0 ? '+' : '';
     signals.push({ label: 'Funding Rate', value: `${sign}${pct.toFixed(4)}%`, score: s, max: 34, color: c });
   }

@@ -109,7 +109,6 @@ function BandRow({ b }: { b: Band }) {
           boxShadow: b.isMagnet ? `0 0 10px ${accent}44` : 'none',
         }} />
       </div>
-      <span className="liq-row-usd" style={{ color: accent }}>{fmtM(b.usdM)}</span>
     </div>
   );
 }
@@ -351,13 +350,13 @@ export default function LiqPage() {
                 <div className="liq-magnet-box-body">
                   {bands.magnetShort && (
                     <span style={{ color: '#34d399' }}>
-                      ↑ Short squeeze {fmtP(bands.magnetShort.price)} (+{bands.magnetShort.distPct.toFixed(1)}%, {fmtM(bands.magnetShort.usdM)} at risk)
+                      ↑ Short squeeze target {fmtP(bands.magnetShort.price)} (+{bands.magnetShort.distPct.toFixed(1)}%)
                     </span>
                   )}
                   {bands.magnetLong && bands.magnetShort && <span style={{ color: '#444', margin: '0 6px' }}>·</span>}
                   {bands.magnetLong && (
                     <span style={{ color: '#f87171' }}>
-                      ↓ Long wipeout {fmtP(bands.magnetLong.price)} (-{bands.magnetLong.distPct.toFixed(1)}%, {fmtM(bands.magnetLong.usdM)} at risk)
+                      ↓ Long wipeout target {fmtP(bands.magnetLong.price)} (-{bands.magnetLong.distPct.toFixed(1)}%)
                     </span>
                   )}
                 </div>
@@ -409,26 +408,26 @@ export default function LiqPage() {
           {/* Real liquidation clusters from live feeds */}
           <RealClusters clusters={realClusters} currentPrice={cd.price} />
 
-          {/* Stats row — metadata, shown after key signals */}
+          {/* Stats row — real data only */}
           <div className="liq-stats-row">
             <div className="liq-stat-item">
-              <div className="liq-stat-label">Long liquidation risk (dump)</div>
-              <div className="liq-stat-val" style={{ color: '#f87171' }}>{fmtM(bands.totalLongM)}</div>
-              <div className="liq-stat-sub">{((cd.longRatio ?? 0.5)*100).toFixed(0)}% long / {((cd.shortRatio ?? 0.5)*100).toFixed(0)}% short</div>
+              <div className="liq-stat-label">Long exposure</div>
+              <div className="liq-stat-val" style={{ color: '#f87171' }}>{((cd.longRatio ?? 0.5)*100).toFixed(0)}%</div>
+              <div className="liq-stat-sub">of traders are long</div>
             </div>
             <div className="liq-stat-sep" />
             <div className="liq-stat-item" style={{ textAlign: 'center' }}>
-              <div className="liq-stat-label" style={{ textAlign: 'center' }}>Price zones shown</div>
+              <div className="liq-stat-label" style={{ textAlign: 'center' }}>Open Interest</div>
               <div className="liq-stat-val" style={{ color: '#a78bfa', textAlign: 'center' }}>
-                {bands.tierCount}<span style={{ fontSize: 11, color: '#444', fontWeight: 500 }}>/17</span>
+                {fmtM(cd.oi / 1e6)}
               </div>
-              <div className="liq-stat-sub" style={{ textAlign: 'center' }}>in the {range} window</div>
+              <div className="liq-stat-sub" style={{ textAlign: 'center' }}>{bands.tierCount}/17 zones in window</div>
             </div>
             <div className="liq-stat-sep" />
             <div className="liq-stat-item" style={{ textAlign: 'right' }}>
-              <div className="liq-stat-label">Short squeeze (pump)</div>
-              <div className="liq-stat-val" style={{ color: '#34d399' }}>{fmtM(bands.totalShortM)}</div>
-              <div className="liq-stat-sub" style={{ textAlign: 'right' }}>Total open interest: {fmtM(cd.oi / 1e6)}</div>
+              <div className="liq-stat-label">Short exposure</div>
+              <div className="liq-stat-val" style={{ color: '#34d399' }}>{((cd.shortRatio ?? 0.5)*100).toFixed(0)}%</div>
+              <div className="liq-stat-sub" style={{ textAlign: 'right' }}>of traders are short</div>
             </div>
           </div>
 
@@ -443,8 +442,7 @@ export default function LiqPage() {
                 <span role="columnheader">Price</span>
                 <span role="columnheader">% Away</span>
                 <span role="columnheader"><abbr title="Leverage">Lev.</abbr></span>
-                <span role="columnheader" style={{ flex: 1 }}>Size (estimated)</span>
-                <span role="columnheader">$ at Risk</span>
+                <span role="columnheader" style={{ flex: 1 }}>Relative density (model)</span>
               </div>
               {bands.shortsDisplay.map((b, i) => <BandRow key={`s${i}`} b={b} />)}
             </div>
@@ -486,8 +484,8 @@ export default function LiqPage() {
           </div>
 
           <div className="liq-disclaimer">
-            Estimated bands: live Open Interest × leverage tier weights (17 tiers).
-            For full historical heatmap data use Coinglass (paid API).
+            Model only: price levels are mathematically correct (1/leverage), bar widths show relative density across tiers.
+            Dollar amounts removed - real liquidation volume data is in the Real Clusters section above.
           </div>
         </>
       )}

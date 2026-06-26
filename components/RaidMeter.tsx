@@ -76,7 +76,11 @@ function calcRPM(
 
   const { wallScore, wallLabel, hasWallData } = calcWallProximity(price, bidWalls, askWalls);
 
-  const total = Math.min(100, Math.max(0, timeScore + dayScore + fngScore + fundScore + wallScore));
+  // Normalize against the actual max so wall data doesn't silently inflate scores past 100.
+  // Without wall data: max = 100. With wall data: max = 130. Always resolves to true 0–100.
+  const rawTotal  = timeScore + dayScore + fngScore + fundScore + wallScore;
+  const maxTotal  = 30 + 15 + 25 + 30 + (hasWallData ? 30 : 0);
+  const total     = Math.min(100, Math.round((rawTotal / maxTotal) * 100));
   let col = 'col-low', barCl = 'bar-low', verdict = '', sub = '';
   if (total >= 80) { col = 'col-max'; barCl = 'bar-max'; verdict = 'Extreme raid conditions'; sub = 'All signals aligned. Whales are likely positioning RIGHT NOW. Have your cluster zones ready and stay glued to the heatmap.'; }
   else if (total >= 60) { col = 'col-high'; barCl = 'bar-high'; verdict = 'High raid probability'; sub = 'Strong conditions for a liquidity hunt. Price is within range of a significant order wall — prime entry window.'; }
