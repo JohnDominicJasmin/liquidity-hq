@@ -7,6 +7,7 @@ import {
 import { getSessionName } from '@/lib/session';
 import { useNews, GeoEvent } from '@/components/NewsProvider';
 import { useAuth } from '@/components/AuthProvider';
+import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { getSupabase } from '@/lib/supabase';
 
 interface Msg {
@@ -275,10 +276,7 @@ export default function GrokChat() {
   const [error,          setError]          = useState('');
   const [rateLimited,    setRateLimited]    = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [usageInfo,      setUsageInfo]      = useState<{
-    chat_used: number; chat_limit: number;
-    search_used: number; search_limit: number;
-  } | null>(null);
+  const { usage, setUsage }                 = useGrokUsage();
 
   /* conversation history */
   const [convos,     setConvos]     = useState<SavedConvo[]>([]);
@@ -310,17 +308,6 @@ export default function GrokChat() {
     };
   }, [open]);
 
-  /* ── Fetch usage on mount (when signed in) ── */
-  useEffect(() => {
-    if (!user) return;
-    getAuthToken().then(token => {
-      if (!token) return;
-      fetch('/api/grok-chat', { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.ok ? r.json() : null)
-        .then(d => { if (d) setUsageInfo(d); })
-        .catch(() => {});
-    });
-  }, [user]);
 
   /* ── Auto-save current conversation whenever messages change ── */
   useEffect(() => {
@@ -407,7 +394,7 @@ export default function GrokChat() {
           if (j?.code === 'AUTH_REQUIRED') { setShowLoginModal(true); setLoading(false); return; }
           if (j?.code === 'RATE_LIMIT') {
             const u = j.usage;
-            if (u) setUsageInfo(u);
+            if (u && usage) setUsage({ ...usage, ...u });
             setRateLimited(true);
             setError('No live searches left today — resets midnight UTC.');
             setLoading(false);
@@ -415,7 +402,7 @@ export default function GrokChat() {
           }
           throw new Error(`${res.status} — ${j?.error ?? res.statusText}`);
         }
-        if (j._usage) setUsageInfo(j._usage);
+        if (j._usage && usage) setUsage({ ...usage, ...j._usage });
         reply = j.output?.find((o: { type: string }) => o.type === 'message')?.content?.[0]?.text ?? '(no response)';
       } else {
         // No search needed → /api/grok-chat with mode:'chat' (~$0.003)
@@ -434,7 +421,7 @@ export default function GrokChat() {
           if (j?.code === 'AUTH_REQUIRED') { setShowLoginModal(true); setLoading(false); return; }
           if (j?.code === 'RATE_LIMIT') {
             const u = j.usage;
-            if (u) setUsageInfo(u);
+            if (u && usage) setUsage({ ...usage, ...u });
             setRateLimited(true);
             setError('No chat messages left today — resets midnight UTC.');
             setLoading(false);
@@ -442,7 +429,7 @@ export default function GrokChat() {
           }
           throw new Error(`${res.status} — ${j?.error ?? res.statusText}`);
         }
-        if (j._usage) setUsageInfo(j._usage);
+        if (j._usage && usage) setUsage({ ...usage, ...j._usage });
         reply = j.choices?.[0]?.message?.content ?? '(no response)';
       }
       const replyTs = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -468,7 +455,7 @@ export default function GrokChat() {
     } finally {
       setLoading(false);
     }
-  }, [msgs, coin, liveSearch, store, latestHeadlines, geoEvents, user]);
+  }, [msgs, coin, liveSearch, store, latestHeadlines, geoEvents, user, usage, setUsage]);
 
   /* ── Open-with-prompt event from Arena ── */
   useEffect(() => {
@@ -512,8 +499,8 @@ export default function GrokChat() {
   const closeAll     = () => { setOpen(false); setExpanded(false); setHistView(false); setShowLoginModal(false); };
   const toggleExpand = () => setExpanded(v => !v);
 
-  const searchRemaining = usageInfo
-    ? usageInfo.search_limit - usageInfo.search_used
+  const searchRemaining = usage
+    ? usage.search_limit - usage.search_used
     : null;
 
   /* ── Coin badge color ── */

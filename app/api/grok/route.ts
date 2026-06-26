@@ -4,11 +4,15 @@ import { parseCombinedResponse } from '@/lib/grok';
 import { T } from '@/lib/tables';
 
 // Keys / limits
-const GROK_KEY         = process.env.GROK_API_KEY ?? '';
-const DEEP_LIMIT_FREE  = 5;
-const QUICK_LIMIT_FREE = 7;
-const DEEP_LIMIT_PRO   = 25;
-const QUICK_LIMIT_PRO  = 50;
+const GROK_KEY          = process.env.GROK_API_KEY ?? '';
+const DEEP_LIMIT_FREE   = 5;
+const QUICK_LIMIT_FREE  = 7;
+const DEEP_LIMIT_PRO    = 25;
+const QUICK_LIMIT_PRO   = 50;
+const CHAT_LIMIT_FREE   = 15;
+const SEARCH_LIMIT_FREE = 5;
+const CHAT_LIMIT_PRO    = 100;
+const SEARCH_LIMIT_PRO  = 25;
 
 function sb(token?: string) {
   return createClient(
@@ -20,11 +24,16 @@ function sb(token?: string) {
 
 async function getUsageRow(token: string, userId: string, today: string) {
   const { data } = await sb(token).from(T.grok_usage)
-    .select('deep_count, quick_count')
+    .select('deep_count, quick_count, chat_count, chat_search_count')
     .eq('user_id', userId)
     .eq('date', today)
     .maybeSingle();
-  return { deepUsed: data?.deep_count ?? 0, quickUsed: data?.quick_count ?? 0 };
+  return {
+    deepUsed:   data?.deep_count          ?? 0,
+    quickUsed:  data?.quick_count         ?? 0,
+    chatUsed:   data?.chat_count          ?? 0,
+    searchUsed: data?.chat_search_count   ?? 0,
+  };
 }
 
 async function getUserRole(token: string, userId: string): Promise<'free' | 'pro'> {
@@ -45,15 +54,22 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.json({ usage: null });
 
   const today = new Date().toISOString().slice(0, 10);
-  const [{ deepUsed, quickUsed }, role] = await Promise.all([
+  const [{ deepUsed, quickUsed, chatUsed, searchUsed }, role] = await Promise.all([
     getUsageRow(token, userId, today),
     getUserRole(token, userId),
   ]);
-  const deepLimit  = role === 'pro' ? DEEP_LIMIT_PRO  : DEEP_LIMIT_FREE;
-  const quickLimit = role === 'pro' ? QUICK_LIMIT_PRO : QUICK_LIMIT_FREE;
+  const deepLimit   = role === 'pro' ? DEEP_LIMIT_PRO   : DEEP_LIMIT_FREE;
+  const quickLimit  = role === 'pro' ? QUICK_LIMIT_PRO  : QUICK_LIMIT_FREE;
+  const chatLimit   = role === 'pro' ? CHAT_LIMIT_PRO   : CHAT_LIMIT_FREE;
+  const searchLimit = role === 'pro' ? SEARCH_LIMIT_PRO : SEARCH_LIMIT_FREE;
 
   return NextResponse.json({
-    usage: { deep_used: deepUsed, deep_limit: deepLimit, quick_used: quickUsed, quick_limit: quickLimit },
+    usage: {
+      deep_used:   deepUsed,   deep_limit:   deepLimit,
+      quick_used:  quickUsed,  quick_limit:  quickLimit,
+      chat_used:   chatUsed,   chat_limit:   chatLimit,
+      search_used: searchUsed, search_limit: searchLimit,
+    },
   });
 }
 
@@ -81,19 +97,26 @@ export async function POST(req: NextRequest) {
 
   // ── Rate limit check ──────────────────────────────────────────────────────
   const today = new Date().toISOString().slice(0, 10);
-  let [{ deepUsed, quickUsed }, role] = await Promise.all([
+  let [{ deepUsed, quickUsed, chatUsed, searchUsed }, role] = await Promise.all([
     getUsageRow(token!, userId, today),
     getUserRole(token!, userId),
   ]);
-  const deepLimit  = role === 'pro' ? DEEP_LIMIT_PRO  : DEEP_LIMIT_FREE;
-  const quickLimit = role === 'pro' ? QUICK_LIMIT_PRO : QUICK_LIMIT_FREE;
+  const deepLimit   = role === 'pro' ? DEEP_LIMIT_PRO   : DEEP_LIMIT_FREE;
+  const quickLimit  = role === 'pro' ? QUICK_LIMIT_PRO  : QUICK_LIMIT_FREE;
+  const chatLimit   = role === 'pro' ? CHAT_LIMIT_PRO   : CHAT_LIMIT_FREE;
+  const searchLimit = role === 'pro' ? SEARCH_LIMIT_PRO : SEARCH_LIMIT_FREE;
 
   if (type === 'deep' && deepUsed >= deepLimit) {
     return NextResponse.json(
       {
         error: `Daily limit of ${deepLimit} deep analyses reached. Resets at midnight UTC.`,
         code: 'RATE_LIMIT',
-        usage: { deep_used: deepUsed, deep_limit: deepLimit, quick_used: quickUsed, quick_limit: quickLimit },
+        usage: {
+          deep_used: deepUsed, deep_limit: deepLimit,
+          quick_used: quickUsed, quick_limit: quickLimit,
+          chat_used: chatUsed, chat_limit: chatLimit,
+          search_used: searchUsed, search_limit: searchLimit,
+        },
       },
       { status: 429 }
     );
@@ -103,7 +126,12 @@ export async function POST(req: NextRequest) {
       {
         error: `Daily limit of ${quickLimit} quick analyses reached. Resets at midnight UTC.`,
         code: 'RATE_LIMIT',
-        usage: { deep_used: deepUsed, deep_limit: deepLimit, quick_used: quickUsed, quick_limit: quickLimit },
+        usage: {
+          deep_used: deepUsed, deep_limit: deepLimit,
+          quick_used: quickUsed, quick_limit: quickLimit,
+          chat_used: chatUsed, chat_limit: chatLimit,
+          search_used: searchUsed, search_limit: searchLimit,
+        },
       },
       { status: 429 }
     );
@@ -168,6 +196,11 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     result,
-    usage: { deep_used: newDeep, deep_limit: deepLimit, quick_used: newQuick, quick_limit: quickLimit },
+    usage: {
+      deep_used:   newDeep,    deep_limit:   deepLimit,
+      quick_used:  newQuick,   quick_limit:  quickLimit,
+      chat_used:   chatUsed,   chat_limit:   chatLimit,
+      search_used: searchUsed, search_limit: searchLimit,
+    },
   });
 }

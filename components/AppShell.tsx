@@ -10,6 +10,7 @@ import SettingsProvider from './SettingsProvider';
 import OnboardingProvider from './OnboardingProvider';
 import OnboardingTour from './OnboardingTour';
 import SetupChecklist from './SetupChecklist';
+import GrokUsageProvider from './GrokUsageProvider';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -19,12 +20,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <MarketProvider>
             <NewsProvider>
               <OnboardingProvider>
-                <NavDrawer />
-                <NewsTicker />
-                <div className="app-content">{children}</div>
-                <GrokChat />
-                <OnboardingTour />
-                <SetupChecklist />
+                <GrokUsageProvider>
+                  <NavDrawer />
+                  <NewsTicker />
+                  <div className="app-content">{children}</div>
+                  <GrokChat />
+                  <OnboardingTour />
+                  <SetupChecklist />
+                </GrokUsageProvider>
               </OnboardingProvider>
             </NewsProvider>
           </MarketProvider>

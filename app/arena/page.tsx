@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMarket, classifyFunding, CoinId, COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
-import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcRSI, callGrokViaProxy, fetchGrokUsage, GrokUsageInfo } from '@/lib/grok';
+import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
+import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
 import { getSessionName } from '@/lib/session';
 import { useNews } from '@/components/NewsProvider';
@@ -105,10 +106,14 @@ const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'defi' | 'meme', read
 
 /* ── Usage panel — shows daily call counts for signed-in users ── */
 function UsagePanel({ usage }: { usage: GrokUsageInfo }) {
-  const deepPct  = Math.min((usage.deep_used  / usage.deep_limit)  * 100, 100);
-  const quickPct = Math.min((usage.quick_used / usage.quick_limit) * 100, 100);
-  const deepCol  = deepPct  >= 90 ? '#f87171' : deepPct  >= 70 ? '#fbbf24' : '#b8aeff';
-  const quickCol = quickPct >= 90 ? '#f87171' : quickPct >= 70 ? '#fbbf24' : '#34d399';
+  const deepPct   = Math.min((usage.deep_used   / usage.deep_limit)   * 100, 100);
+  const quickPct  = Math.min((usage.quick_used  / usage.quick_limit)  * 100, 100);
+  const chatPct   = Math.min((usage.chat_used   / usage.chat_limit)   * 100, 100);
+  const searchPct = Math.min((usage.search_used / usage.search_limit) * 100, 100);
+  const deepCol   = deepPct   >= 90 ? '#f87171' : deepPct   >= 70 ? '#fbbf24' : '#b8aeff';
+  const quickCol  = quickPct  >= 90 ? '#f87171' : quickPct  >= 70 ? '#fbbf24' : '#34d399';
+  const chatCol   = chatPct   >= 90 ? '#f87171' : chatPct   >= 70 ? '#fbbf24' : '#60a5fa';
+  const searchCol = searchPct >= 90 ? '#f87171' : searchPct >= 70 ? '#fbbf24' : '#a78bfa';
   return (
     <div className="usage-panel">
       <div className="usage-row">
@@ -120,6 +125,16 @@ function UsagePanel({ usage }: { usage: GrokUsageInfo }) {
         <span className="usage-label">🔬 Deep</span>
         <div className="usage-track"><div className="usage-fill" style={{ width: deepPct + '%', background: deepCol }} /></div>
         <span className="usage-count" style={{ color: deepCol }}>{usage.deep_used}<span className="usage-max">/{usage.deep_limit}</span></span>
+      </div>
+      <div className="usage-row">
+        <span className="usage-label">💬 Chat</span>
+        <div className="usage-track"><div className="usage-fill" style={{ width: chatPct + '%', background: chatCol }} /></div>
+        <span className="usage-count" style={{ color: chatCol }}>{usage.chat_used}<span className="usage-max">/{usage.chat_limit}</span></span>
+      </div>
+      <div className="usage-row">
+        <span className="usage-label">🌐 Search</span>
+        <div className="usage-track"><div className="usage-fill" style={{ width: searchPct + '%', background: searchCol }} /></div>
+        <span className="usage-count" style={{ color: searchCol }}>{usage.search_used}<span className="usage-max">/{usage.search_limit}</span></span>
       </div>
       <div className="usage-footer">Today · resets midnight UTC</div>
     </div>
@@ -177,7 +192,7 @@ export default function Arena() {
   const [detailIdx, setDetailIdx]     = useState<number | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [ctxOpen, setCtxOpen]         = useState(false);
-  const [grokUsage, setGrokUsage]     = useState<GrokUsageInfo | null>(null);
+  const { usage: grokUsage, setUsage: setGrokUsage } = useGrokUsage();
   // Track last Quick signal per coin so Deep can compare and show an override notice
   const [quickSignals, setQuickSignals] = useState<Partial<Record<CoinId, string>>>({});
   const [scannerOpen, setScannerOpen]   = useState(false);
@@ -336,11 +351,6 @@ export default function Arena() {
     absDataRef.current = d;
   }, []);
 
-  /* ── Fetch today's usage on mount (and whenever auth state changes) ── */
-  useEffect(() => {
-    if (!user) return;
-    fetchGrokUsage().then(u => { if (u) setGrokUsage(u); });
-  }, [user]);
 
   /* ── Persist history in sessionStorage (survives nav away + back) ── */
   useEffect(() => {

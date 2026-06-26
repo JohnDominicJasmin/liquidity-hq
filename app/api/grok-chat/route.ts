@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
     if (status >= 200 && status < 300) {
       const newChat   = isSearch ? chatUsed   : chatUsed   + 1;
       const newSearch = isSearch ? searchUsed + 1 : searchUsed;
-      await sb(token).from(T.grok_usage).upsert(
+      const { error: upsertErr } = await sb(token).from(T.grok_usage).upsert(
         {
           user_id: userId, date: today,
           chat_count: newChat, chat_search_count: newSearch,
@@ -159,6 +159,7 @@ export async function POST(req: NextRequest) {
         },
         { onConflict: 'user_id,date' }
       );
+      if (upsertErr) console.error('[grok-chat] usage upsert failed:', upsertErr.message);
       return NextResponse.json({
         ...((data as Record<string, unknown>) ?? {}),
         _usage: { chat_used: newChat, chat_limit: chatLimit, search_used: newSearch, search_limit: searchLimit },
