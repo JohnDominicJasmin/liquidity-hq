@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { DASHBOARD_SECTIONS } from '@/lib/settings';
-import { fetchGrokUsage, GrokUsageInfo } from '@/lib/grok';
+import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { track } from '@/lib/analytics';
 import { COINS } from '@/lib/marketStore';
 
@@ -60,12 +60,11 @@ export default function SettingsPage() {
   const router = useRouter();
   const { user, loading: authLoading, signOut } = useAuth();
   const { settings, saveStatus, update } = useSettings();
-  const [usage, setUsage] = useState<GrokUsageInfo | null>(null);
+  const { usage }                                                    = useGrokUsage();
   const [tgStatus, setTgStatus] = useState<'loading' | 'configured' | 'not_configured'>('loading');
 
-  // Fetch Grok usage + Telegram status on mount
+  // Fetch Telegram status on mount
   useEffect(() => {
-    fetchGrokUsage().then(u => { if (u) setUsage(u); });
     fetch('/api/telegram/status').then(r => r.json())
       .then(d => setTgStatus(d.configured ? 'configured' : 'not_configured'))
       .catch(() => setTgStatus('not_configured'));
@@ -131,20 +130,23 @@ export default function SettingsPage() {
 
         {usage && (
           <div className="st-field" style={{ gap: 8 }}>
-            <div className="st-field-label">AI Arena usage today</div>
+            <div className="st-field-label">AI usage today</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 4 }}>
-              <MiniUsageBar
-                label="⚡ Quick"
-                used={usage.quick_used}
-                limit={usage.quick_limit}
-                color={usage.quick_used / usage.quick_limit >= 0.9 ? '#f87171' : usage.quick_used / usage.quick_limit >= 0.7 ? '#fbbf24' : '#34d399'}
-              />
-              <MiniUsageBar
-                label="🔬 Deep"
-                used={usage.deep_used}
-                limit={usage.deep_limit}
-                color={usage.deep_used / usage.deep_limit >= 0.9 ? '#f87171' : usage.deep_used / usage.deep_limit >= 0.7 ? '#fbbf24' : '#b8aeff'}
-              />
+              {[
+                { label: '⚡ Quick',    used: usage.quick_used,    limit: usage.quick_limit,    base: '#34d399' },
+                { label: '🔬 Deep',     used: usage.deep_used,     limit: usage.deep_limit,     base: '#b8aeff' },
+                { label: '💬 Chat',     used: usage.chat_used,     limit: usage.chat_limit,     base: '#60a5fa' },
+                { label: '🌐 Search',   used: usage.search_used,   limit: usage.search_limit,   base: '#a78bfa' },
+                { label: '📋 Briefing', used: usage.briefing_used, limit: usage.briefing_limit, base: '#f59e0b' },
+              ].map(({ label, used, limit, base }) => (
+                <MiniUsageBar
+                  key={label}
+                  label={label}
+                  used={used}
+                  limit={limit}
+                  color={used / limit >= 0.9 ? '#f87171' : used / limit >= 0.7 ? '#fbbf24' : base}
+                />
+              ))}
               <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 2 }}>Resets midnight UTC</div>
             </div>
           </div>

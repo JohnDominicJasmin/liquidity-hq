@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { T } from '@/lib/tables';
 
 export const dynamic = 'force-dynamic';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
+
+const BRIEFING_LIMIT_FREE = 3;
+const BRIEFING_LIMIT_PRO  = 10;
 
 const SYSTEM = `You are a concise pre-session market briefing assistant for a solo retail crypto futures trader.
 
@@ -17,10 +22,46 @@ Rules:
 - Max 60 words per paragraph
 - If nothing stands out, say so plainly`;
 
+function sb(token: string) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${token}` } } }
+  );
+}
+
+async function getUsageRow(token: string, userId: string, today: string) {
+  const { data } = await sb(token).from(T.grok_usage)
+    .select('briefing_count')
+    .eq('user_id', userId)
+    .eq('date', today)
+    .maybeSingle();
+  return { briefingUsed: data?.briefing_count ?? 0 };
+}
+
+async function getUserRole(token: string, userId: string): Promise<'free' | 'pro'> {
+  const { data } = await sb(token).from(T.user_subscriptions)
+    .select('role')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return data?.role === 'pro' ? 'pro' : 'free';
+}
+
 export async function POST(req: NextRequest) {
   if (!GROK_KEY) {
     return NextResponse.json({ error: 'Grok API key not configured' }, { status: 503 });
   }
+
+  /* ── Auth check ── */
+  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  if (!token) {
+    return NextResponse.json({ error: 'Sign in required', code: 'AUTH_REQUIRED' }, { status: 401 });
+  }
+  const { data: userData } = await sb(token).auth.getUser();
+  if (!userData.user) {
+    return NextResponse.json({ error: 'Sign in required', code: 'AUTH_REQUIRED' }, { status: 401 });
+  }
+  const userId = userData.user.id;
 
   let context: string;
   try {
@@ -28,6 +69,25 @@ export async function POST(req: NextRequest) {
     if (!context?.trim()) throw new Error('empty');
   } catch {
     return NextResponse.json({ error: 'context required' }, { status: 400 });
+  }
+
+  /* ── Rate limit check ── */
+  const today = new Date().toISOString().slice(0, 10);
+  const [{ briefingUsed }, role] = await Promise.all([
+    getUsageRow(token, userId, today),
+    getUserRole(token, userId),
+  ]);
+  const briefingLimit = role === 'pro' ? BRIEFING_LIMIT_PRO : BRIEFING_LIMIT_FREE;
+
+  if (briefingUsed >= briefingLimit) {
+    return NextResponse.json(
+      {
+        error: `Daily limit of ${briefingLimit} briefings reached. Resets at midnight UTC.`,
+        code: 'RATE_LIMIT',
+        usage: { briefing_used: briefingUsed, briefing_limit: briefingLimit },
+      },
+      { status: 429 }
+    );
   }
 
   try {
@@ -54,7 +114,19 @@ export async function POST(req: NextRequest) {
 
     const data = await res.json();
     const briefing = (data.choices?.[0]?.message?.content ?? '').trim();
-    return NextResponse.json({ briefing });
+
+    /* ── Increment briefing_count ── */
+    const newBriefing = briefingUsed + 1;
+    const { error: upsertErr } = await sb(token).from(T.grok_usage).upsert(
+      { user_id: userId, date: today, briefing_count: newBriefing, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,date' }
+    );
+    if (upsertErr) console.error('[briefing] usage upsert failed:', upsertErr.message);
+
+    return NextResponse.json({
+      briefing,
+      _usage: { briefing_used: newBriefing, briefing_limit: briefingLimit },
+    });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

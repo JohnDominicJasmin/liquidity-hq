@@ -106,36 +106,26 @@ const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'defi' | 'meme', read
 
 /* ── Usage panel — shows daily call counts for signed-in users ── */
 function UsagePanel({ usage }: { usage: GrokUsageInfo }) {
-  const deepPct   = Math.min((usage.deep_used   / usage.deep_limit)   * 100, 100);
-  const quickPct  = Math.min((usage.quick_used  / usage.quick_limit)  * 100, 100);
-  const chatPct   = Math.min((usage.chat_used   / usage.chat_limit)   * 100, 100);
-  const searchPct = Math.min((usage.search_used / usage.search_limit) * 100, 100);
-  const deepCol   = deepPct   >= 90 ? '#f87171' : deepPct   >= 70 ? '#fbbf24' : '#b8aeff';
-  const quickCol  = quickPct  >= 90 ? '#f87171' : quickPct  >= 70 ? '#fbbf24' : '#34d399';
-  const chatCol   = chatPct   >= 90 ? '#f87171' : chatPct   >= 70 ? '#fbbf24' : '#60a5fa';
-  const searchCol = searchPct >= 90 ? '#f87171' : searchPct >= 70 ? '#fbbf24' : '#a78bfa';
+  const rows: { label: string; used: number; limit: number; base: string }[] = [
+    { label: '⚡ Quick',    used: usage.quick_used,    limit: usage.quick_limit,    base: '#34d399' },
+    { label: '🔬 Deep',     used: usage.deep_used,     limit: usage.deep_limit,     base: '#b8aeff' },
+    { label: '💬 Chat',     used: usage.chat_used,     limit: usage.chat_limit,     base: '#60a5fa' },
+    { label: '🌐 Search',   used: usage.search_used,   limit: usage.search_limit,   base: '#a78bfa' },
+    { label: '📋 Briefing', used: usage.briefing_used, limit: usage.briefing_limit, base: '#f59e0b' },
+  ];
   return (
     <div className="usage-panel">
-      <div className="usage-row">
-        <span className="usage-label">⚡ Quick</span>
-        <div className="usage-track"><div className="usage-fill" style={{ width: quickPct + '%', background: quickCol }} /></div>
-        <span className="usage-count" style={{ color: quickCol }}>{usage.quick_used}<span className="usage-max">/{usage.quick_limit}</span></span>
-      </div>
-      <div className="usage-row">
-        <span className="usage-label">🔬 Deep</span>
-        <div className="usage-track"><div className="usage-fill" style={{ width: deepPct + '%', background: deepCol }} /></div>
-        <span className="usage-count" style={{ color: deepCol }}>{usage.deep_used}<span className="usage-max">/{usage.deep_limit}</span></span>
-      </div>
-      <div className="usage-row">
-        <span className="usage-label">💬 Chat</span>
-        <div className="usage-track"><div className="usage-fill" style={{ width: chatPct + '%', background: chatCol }} /></div>
-        <span className="usage-count" style={{ color: chatCol }}>{usage.chat_used}<span className="usage-max">/{usage.chat_limit}</span></span>
-      </div>
-      <div className="usage-row">
-        <span className="usage-label">🌐 Search</span>
-        <div className="usage-track"><div className="usage-fill" style={{ width: searchPct + '%', background: searchCol }} /></div>
-        <span className="usage-count" style={{ color: searchCol }}>{usage.search_used}<span className="usage-max">/{usage.search_limit}</span></span>
-      </div>
+      {rows.map(({ label, used, limit, base }) => {
+        const pct = Math.min((used / limit) * 100, 100);
+        const col = pct >= 90 ? '#f87171' : pct >= 70 ? '#fbbf24' : base;
+        return (
+          <div key={label} className="usage-row">
+            <span className="usage-label">{label}</span>
+            <div className="usage-track"><div className="usage-fill" style={{ width: pct + '%', background: col }} /></div>
+            <span className="usage-count" style={{ color: col }}>{used}<span className="usage-max">/{limit}</span></span>
+          </div>
+        );
+      })}
       <div className="usage-footer">Today · resets midnight UTC</div>
     </div>
   );

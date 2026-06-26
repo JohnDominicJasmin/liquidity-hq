@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
 import { useSettings, DASHBOARD_SECTIONS } from '@/lib/settings';
 import { COINS } from '@/lib/marketStore';
-import { fetchGrokUsage, GrokUsageInfo } from '@/lib/grok';
+import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { track } from '@/lib/analytics';
 
 const TFS          = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'] as const;
@@ -24,7 +24,7 @@ export default function SettingsModal({ open, onClose }: Props) {
   const router = useRouter();
   const { user, signOut } = useAuth();
   const { settings, saveStatus, update } = useSettings();
-  const [usage, setUsage]     = useState<GrokUsageInfo | null>(null);
+  const { usage }               = useGrokUsage();
   const [tgStatus, setTgStatus] = useState<'loading' | 'configured' | 'not_configured'>('loading');
 
   // Close on Escape
@@ -48,10 +48,9 @@ export default function SettingsModal({ open, onClose }: Props) {
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
-  // Fetch usage + Telegram status when modal opens
+  // Fetch Telegram status when modal opens
   useEffect(() => {
     if (!open) return;
-    fetchGrokUsage().then(u => { if (u) setUsage(u); });
     fetch('/api/telegram/status').then(r => r.json())
       .then(d => setTgStatus(d.configured ? 'configured' : 'not_configured'))
       .catch(() => setTgStatus('not_configured'));
@@ -61,10 +60,6 @@ export default function SettingsModal({ open, onClose }: Props) {
 
   const num = (v: string | number) => { const n = parseFloat(String(v)); return isNaN(n) ? 0 : n; };
 
-  const deepPct  = usage ? Math.min(usage.deep_used  / usage.deep_limit  * 100, 100) : 0;
-  const quickPct = usage ? Math.min(usage.quick_used / usage.quick_limit * 100, 100) : 0;
-  const deepCol  = deepPct  >= 90 ? '#f87171' : deepPct  >= 70 ? '#fbbf24' : '#b8aeff';
-  const quickCol = quickPct >= 90 ? '#f87171' : quickPct >= 70 ? '#fbbf24' : '#34d399';
 
   return (
     <>
@@ -93,19 +88,25 @@ export default function SettingsModal({ open, onClose }: Props) {
 
             {usage && (
               <div style={{ margin: '10px 0' }}>
-                <div className="st-field-label" style={{ marginBottom: 6 }}>AI Arena usage today</div>
+                <div className="st-field-label" style={{ marginBottom: 6 }}>AI usage today</div>
                 {[
-                  { label: '⚡ Quick', used: usage.quick_used, limit: usage.quick_limit, col: quickCol },
-                  { label: '🔬 Deep',  used: usage.deep_used,  limit: usage.deep_limit,  col: deepCol  },
-                ].map(({ label, used, limit, col }) => (
-                  <div key={label} className="st-usage-row" style={{ marginBottom: 5 }}>
-                    <span className="st-usage-label">{label}</span>
-                    <div className="st-usage-track">
-                      <div className="st-usage-fill" style={{ width: Math.min(used/limit*100,100)+'%', background: col }} />
+                  { label: '⚡ Quick',    used: usage.quick_used,    limit: usage.quick_limit,    base: '#34d399' },
+                  { label: '🔬 Deep',     used: usage.deep_used,     limit: usage.deep_limit,     base: '#b8aeff' },
+                  { label: '💬 Chat',     used: usage.chat_used,     limit: usage.chat_limit,     base: '#60a5fa' },
+                  { label: '🌐 Search',   used: usage.search_used,   limit: usage.search_limit,   base: '#a78bfa' },
+                  { label: '📋 Briefing', used: usage.briefing_used, limit: usage.briefing_limit, base: '#f59e0b' },
+                ].map(({ label, used, limit, base }) => {
+                  const col = used / limit >= 0.9 ? '#f87171' : used / limit >= 0.7 ? '#fbbf24' : base;
+                  return (
+                    <div key={label} className="st-usage-row" style={{ marginBottom: 5 }}>
+                      <span className="st-usage-label">{label}</span>
+                      <div className="st-usage-track">
+                        <div className="st-usage-fill" style={{ width: Math.min(used/limit*100,100)+'%', background: col }} />
+                      </div>
+                      <span className="st-usage-count" style={{ color: col }}>{used}<span style={{ color: 'var(--txt3)', fontWeight: 400 }}>/{limit}</span></span>
                     </div>
-                    <span className="st-usage-count" style={{ color: col }}>{used}<span style={{ color: 'var(--txt3)', fontWeight: 400 }}>/{limit}</span></span>
-                  </div>
-                ))}
+                  );
+                })}
                 <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 3 }}>Resets midnight UTC</div>
               </div>
             )}

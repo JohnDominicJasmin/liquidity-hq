@@ -7,6 +7,9 @@ import {
 } from '@/lib/marketStore';
 import { useNews } from '@/components/NewsProvider';
 import SessionCountdown from '@/components/SessionCountdown';
+import { useAuth } from '@/components/AuthProvider';
+import { useGrokUsage } from '@/components/GrokUsageProvider';
+import { getSupabase } from '@/lib/supabase';
 
 /* ── helpers ── */
 
@@ -161,6 +164,8 @@ function buildBriefingContext(
 export default function MorningBriefing() {
   const { store }                              = useMarket();
   const { econEvents, geoEvents, whaleAlerts } = useNews();
+  const { user }                               = useAuth();
+  const { usage, setUsage }                    = useGrokUsage();
   const [now, setNow]           = useState<Date>(phtNow);
   const [generating, setGen]    = useState(false);
   const [briefErr, setBriefErr] = useState('');
@@ -234,17 +239,29 @@ export default function MorningBriefing() {
 
   /* Generate AI briefing */
   async function generateBriefing() {
+    if (!user) { setBriefErr('Sign in to generate a briefing.'); return; }
     setGen(true); setBrief(''); setBriefErr('');
     try {
+      const sb    = getSupabase();
+      const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined;
+      if (!token) { setBriefErr('Session expired — please sign in again.'); setGen(false); return; }
+
       const ctx = buildBriefingContext(store, coinRows, urgentEcon, recentGeo, jpyUsd);
       const res = await fetch('/api/briefing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context: ctx }),
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ context: ctx }),
       });
-      const data = await res.json() as { briefing?: string; error?: string };
-      if (!res.ok || data.error) { setBriefErr(data.error ?? 'Unknown error'); }
-      else { setBrief(data.briefing ?? ''); }
+      const data = await res.json() as {
+        briefing?: string; error?: string; code?: string;
+        _usage?: { briefing_used: number; briefing_limit: number };
+      };
+      if (!res.ok || data.error) {
+        setBriefErr(data.error ?? 'Unknown error');
+      } else {
+        setBrief(data.briefing ?? '');
+        if (data._usage && usage) setUsage({ ...usage, ...data._usage });
+      }
     } catch (e) {
       setBriefErr(String(e));
     }

@@ -1,10 +1,11 @@
 import { getSupabase } from './supabase';
 
 export interface GrokUsageInfo {
-  deep_used:   number; deep_limit:   number;
-  quick_used:  number; quick_limit:  number;
-  chat_used:   number; chat_limit:   number;
-  search_used: number; search_limit: number;
+  deep_used:     number; deep_limit:     number;
+  quick_used:    number; quick_limit:    number;
+  chat_used:     number; chat_limit:     number;
+  search_used:   number; search_limit:   number;
+  briefing_used: number; briefing_limit: number;
 }
 
 /** Client-side proxy call — routes through /api/grok (key stays server-side, rate-limited). */

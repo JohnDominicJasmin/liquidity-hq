@@ -9,10 +9,12 @@ const DEEP_LIMIT_FREE   = 5;
 const QUICK_LIMIT_FREE  = 7;
 const DEEP_LIMIT_PRO    = 25;
 const QUICK_LIMIT_PRO   = 50;
-const CHAT_LIMIT_FREE   = 15;
-const SEARCH_LIMIT_FREE = 5;
-const CHAT_LIMIT_PRO    = 100;
-const SEARCH_LIMIT_PRO  = 25;
+const CHAT_LIMIT_FREE     = 15;
+const SEARCH_LIMIT_FREE   = 5;
+const BRIEFING_LIMIT_FREE = 3;
+const CHAT_LIMIT_PRO      = 100;
+const SEARCH_LIMIT_PRO    = 25;
+const BRIEFING_LIMIT_PRO  = 10;
 
 function sb(token?: string) {
   return createClient(
@@ -24,15 +26,16 @@ function sb(token?: string) {
 
 async function getUsageRow(token: string, userId: string, today: string) {
   const { data } = await sb(token).from(T.grok_usage)
-    .select('deep_count, quick_count, chat_count, chat_search_count')
+    .select('deep_count, quick_count, chat_count, chat_search_count, briefing_count')
     .eq('user_id', userId)
     .eq('date', today)
     .maybeSingle();
   return {
-    deepUsed:   data?.deep_count          ?? 0,
-    quickUsed:  data?.quick_count         ?? 0,
-    chatUsed:   data?.chat_count          ?? 0,
-    searchUsed: data?.chat_search_count   ?? 0,
+    deepUsed:     data?.deep_count        ?? 0,
+    quickUsed:    data?.quick_count       ?? 0,
+    chatUsed:     data?.chat_count        ?? 0,
+    searchUsed:   data?.chat_search_count ?? 0,
+    briefingUsed: data?.briefing_count    ?? 0,
   };
 }
 
@@ -54,21 +57,23 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.json({ usage: null });
 
   const today = new Date().toISOString().slice(0, 10);
-  const [{ deepUsed, quickUsed, chatUsed, searchUsed }, role] = await Promise.all([
+  const [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed }, role] = await Promise.all([
     getUsageRow(token, userId, today),
     getUserRole(token, userId),
   ]);
-  const deepLimit   = role === 'pro' ? DEEP_LIMIT_PRO   : DEEP_LIMIT_FREE;
-  const quickLimit  = role === 'pro' ? QUICK_LIMIT_PRO  : QUICK_LIMIT_FREE;
-  const chatLimit   = role === 'pro' ? CHAT_LIMIT_PRO   : CHAT_LIMIT_FREE;
-  const searchLimit = role === 'pro' ? SEARCH_LIMIT_PRO : SEARCH_LIMIT_FREE;
+  const deepLimit     = role === 'pro' ? DEEP_LIMIT_PRO     : DEEP_LIMIT_FREE;
+  const quickLimit    = role === 'pro' ? QUICK_LIMIT_PRO    : QUICK_LIMIT_FREE;
+  const chatLimit     = role === 'pro' ? CHAT_LIMIT_PRO     : CHAT_LIMIT_FREE;
+  const searchLimit   = role === 'pro' ? SEARCH_LIMIT_PRO   : SEARCH_LIMIT_FREE;
+  const briefingLimit = role === 'pro' ? BRIEFING_LIMIT_PRO : BRIEFING_LIMIT_FREE;
 
   return NextResponse.json({
     usage: {
-      deep_used:   deepUsed,   deep_limit:   deepLimit,
-      quick_used:  quickUsed,  quick_limit:  quickLimit,
-      chat_used:   chatUsed,   chat_limit:   chatLimit,
-      search_used: searchUsed, search_limit: searchLimit,
+      deep_used:     deepUsed,     deep_limit:     deepLimit,
+      quick_used:    quickUsed,    quick_limit:    quickLimit,
+      chat_used:     chatUsed,     chat_limit:     chatLimit,
+      search_used:   searchUsed,   search_limit:   searchLimit,
+      briefing_used: briefingUsed, briefing_limit: briefingLimit,
     },
   });
 }
@@ -97,42 +102,33 @@ export async function POST(req: NextRequest) {
 
   // ── Rate limit check ──────────────────────────────────────────────────────
   const today = new Date().toISOString().slice(0, 10);
-  let [{ deepUsed, quickUsed, chatUsed, searchUsed }, role] = await Promise.all([
+  let [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed }, role] = await Promise.all([
     getUsageRow(token!, userId, today),
     getUserRole(token!, userId),
   ]);
-  const deepLimit   = role === 'pro' ? DEEP_LIMIT_PRO   : DEEP_LIMIT_FREE;
-  const quickLimit  = role === 'pro' ? QUICK_LIMIT_PRO  : QUICK_LIMIT_FREE;
-  const chatLimit   = role === 'pro' ? CHAT_LIMIT_PRO   : CHAT_LIMIT_FREE;
-  const searchLimit = role === 'pro' ? SEARCH_LIMIT_PRO : SEARCH_LIMIT_FREE;
+  const deepLimit     = role === 'pro' ? DEEP_LIMIT_PRO     : DEEP_LIMIT_FREE;
+  const quickLimit    = role === 'pro' ? QUICK_LIMIT_PRO    : QUICK_LIMIT_FREE;
+  const chatLimit     = role === 'pro' ? CHAT_LIMIT_PRO     : CHAT_LIMIT_FREE;
+  const searchLimit   = role === 'pro' ? SEARCH_LIMIT_PRO   : SEARCH_LIMIT_FREE;
+  const briefingLimit = role === 'pro' ? BRIEFING_LIMIT_PRO : BRIEFING_LIMIT_FREE;
+
+  const allUsage = () => ({
+    deep_used:     deepUsed,     deep_limit:     deepLimit,
+    quick_used:    quickUsed,    quick_limit:    quickLimit,
+    chat_used:     chatUsed,     chat_limit:     chatLimit,
+    search_used:   searchUsed,   search_limit:   searchLimit,
+    briefing_used: briefingUsed, briefing_limit: briefingLimit,
+  });
 
   if (type === 'deep' && deepUsed >= deepLimit) {
     return NextResponse.json(
-      {
-        error: `Daily limit of ${deepLimit} deep analyses reached. Resets at midnight UTC.`,
-        code: 'RATE_LIMIT',
-        usage: {
-          deep_used: deepUsed, deep_limit: deepLimit,
-          quick_used: quickUsed, quick_limit: quickLimit,
-          chat_used: chatUsed, chat_limit: chatLimit,
-          search_used: searchUsed, search_limit: searchLimit,
-        },
-      },
+      { error: `Daily limit of ${deepLimit} deep analyses reached. Resets at midnight UTC.`, code: 'RATE_LIMIT', usage: allUsage() },
       { status: 429 }
     );
   }
   if (type === 'quick' && quickUsed >= quickLimit) {
     return NextResponse.json(
-      {
-        error: `Daily limit of ${quickLimit} quick analyses reached. Resets at midnight UTC.`,
-        code: 'RATE_LIMIT',
-        usage: {
-          deep_used: deepUsed, deep_limit: deepLimit,
-          quick_used: quickUsed, quick_limit: quickLimit,
-          chat_used: chatUsed, chat_limit: chatLimit,
-          search_used: searchUsed, search_limit: searchLimit,
-        },
-      },
+      { error: `Daily limit of ${quickLimit} quick analyses reached. Resets at midnight UTC.`, code: 'RATE_LIMIT', usage: allUsage() },
       { status: 429 }
     );
   }
@@ -197,10 +193,11 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     result,
     usage: {
-      deep_used:   newDeep,    deep_limit:   deepLimit,
-      quick_used:  newQuick,   quick_limit:  quickLimit,
-      chat_used:   chatUsed,   chat_limit:   chatLimit,
-      search_used: searchUsed, search_limit: searchLimit,
+      deep_used:     newDeep,      deep_limit:     deepLimit,
+      quick_used:    newQuick,     quick_limit:    quickLimit,
+      chat_used:     chatUsed,     chat_limit:     chatLimit,
+      search_used:   searchUsed,   search_limit:   searchLimit,
+      briefing_used: briefingUsed, briefing_limit: briefingLimit,
     },
   });
 }
