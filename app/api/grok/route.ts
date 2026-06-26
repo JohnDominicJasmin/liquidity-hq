@@ -160,10 +160,11 @@ export async function POST(req: NextRequest) {
   // ── Update usage ──────────────────────────────────────────────────────────
   const newDeep  = type === 'deep'  ? deepUsed  + 1 : deepUsed;
   const newQuick = type === 'quick' ? quickUsed + 1 : quickUsed;
-  await sb(token!).from(T.grok_usage).upsert(
+  const { error: upsertErr } = await sb(token!).from(T.grok_usage).upsert(
     { user_id: userId, date: today, deep_count: newDeep, quick_count: newQuick, updated_at: new Date().toISOString() },
     { onConflict: 'user_id,date' }
   );
+  if (upsertErr) console.error('[grok] usage upsert failed:', upsertErr.message);
 
   return NextResponse.json({
     result,
