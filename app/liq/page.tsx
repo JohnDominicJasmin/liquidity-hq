@@ -188,7 +188,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
           const shortPct = maxTotal > 0 ? (c.shortUsd / maxTotal) * 100 : 0;
           const isAbove  = c.price > currentPrice;
           const domCol   = c.longUsd > c.shortUsd ? '#f87171' : '#34d399';
-          const distPct  = currentPrice > 0 ? Math.abs((c.price - currentPrice) / currentPrice * 100) : 0;
+          const distUsd  = currentPrice > 0 ? Math.abs(c.price - currentPrice) : 0;
           return (
             <div key={c.price} style={{
               display: 'grid', gridTemplateColumns: '80px 1fr 60px 24px',
@@ -201,7 +201,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
                   {c.label}
                 </div>
                 <div style={{ fontSize: 9, color: 'var(--txt3)' }}>
-                  {isAbove ? '+' : '-'}{distPct.toFixed(1)}% {isAbove ? '↑ above' : '↓ below'}
+                  {fmtP(distUsd)} {isAbove ? '↑ above' : '↓ below'}
                 </div>
               </div>
               {/* Stacked bars */}
