@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
+import { getSupabase } from '@/lib/supabase';
+import { T } from '@/lib/tables';
 
 /* ── Types ── */
 interface LiqEvent {
@@ -20,15 +22,19 @@ export interface Bucket  { label: string; price: number; longUsd: number; shortU
 
 /* ── Constants ── */
 const FEED_SIZE          = 30;
-const STATS_WIN          = 60 * 60 * 1000;       // 1h stats window
-const CLUSTER_WIN        = 4  * 60 * 60 * 1000;  // 4h cluster accumulation
-const MIN_SHOW           = 10_000;                // $10K minimum to appear
-const MIN_ALERT          = 500_000;               // $500K = big hit 🔥
-const CASCADE_THRESHOLD  = 3_000_000;             // $3M in 30s = cascade
-const CASCADE_WIN        = 30_000;                // 30-second window
-const CASCADE_HIDE_MS    = 12_000;                // show cascade badge 12s
-const STORAGE_KEY        = 'liq-events-v2';       // localStorage key
-const STORAGE_MAX        = 400;                   // max events to persist
+const STATS_WIN          = 60 * 60 * 1000;        // 1h stats window
+const CLUSTER_WIN        = 24 * 60 * 60 * 1000;   // 24h cluster accumulation
+const MIN_SHOW           = 10_000;                 // $10K minimum to appear
+const MIN_ALERT          = 500_000;                // $500K = big hit 🔥
+const CASCADE_THRESHOLD  = 3_000_000;              // $3M in 30s = cascade
+const CASCADE_WIN        = 30_000;                 // 30-second window
+const CASCADE_HIDE_MS    = 12_000;                 // show cascade badge 12s
+const STORAGE_KEY        = 'liq-events-v2';        // localStorage key
+const STORAGE_MAX        = 2000;                   // max events to persist locally
+const SB_SAVE_MS         = 5 * 60 * 1000;          // save to Supabase every 5 min
+const SB_WIN_MS          = 24 * 60 * 60 * 1000;    // load last 24h from Supabase
+const SB_RETAIN_MS       = 7 * 24 * 60 * 60 * 1000; // purge events older than 7 days
+const SB_SAVE_TS_KEY     = 'liq-sb-ts';            // localStorage: last Supabase save timestamp
 const BYBIT_COINS        = Object.values(BYBIT_SYMS);
 const FILTER_COINS       = ['ALL','BTC','ETH','SOL','XRP','BNB','HYPE','NEAR'];
 
@@ -85,6 +91,7 @@ export default function LiqFeed({ onClusters }: { onClusters?: (clusters: Bucket
   const msgRef          = useRef(0);
   const cascadeTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveTimer       = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sbSaveTimer     = useRef<ReturnType<typeof setInterval> | null>(null);
 
   /* ── Rebuild derived state from history ── */
   const rebuild = useCallback((history: LiqEvent[]) => {
@@ -235,13 +242,12 @@ export default function LiqFeed({ onClusters }: { onClusters?: (clusters: Bucket
   }, [onLiq]);
 
   useEffect(() => {
-    // ── Seed from localStorage (last session's events) ──────────────────
+    // ── Seed from localStorage (fast, synchronous) ───────────────────────
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed: LiqEvent[] = JSON.parse(stored);
-        const now  = Date.now();
-        // Only keep events within the 4h cluster window — reassign IDs to avoid collisions
+        const now = Date.now();
         const valid = parsed
           .filter(e => now - e.ts < CLUSTER_WIN)
           .map(e => ({ ...e, id: ++idCounter }));
@@ -253,11 +259,67 @@ export default function LiqFeed({ onClusters }: { onClusters?: (clusters: Bucket
       }
     } catch { /* corrupted storage — ignore */ }
 
+    // ── Connect to exchanges ─────────────────────────────────────────────
     connectBN();
     connectBB();
     const iv = setInterval(() => rebuild(historyRef.current), 30_000);
+
+    // ── Load 24h history from Supabase (async, fills clusters on arrival) ─
+    const sb = getSupabase();
+    if (sb) {
+      const since = Date.now() - SB_WIN_MS;
+      sb.from(T.liq_events)
+        .select('coin, side, usd, price, source, ts')
+        .gte('ts', since)
+        .order('ts', { ascending: true })
+        .limit(5000)
+        .then(({ data }) => {
+          if (!data || data.length === 0) return;
+          const seen = new Set(
+            historyRef.current.map(e => `${e.ts}_${e.coin}_${e.price}_${e.side}_${e.source}`)
+          );
+          const newEvts = (data as Array<{ coin: string; side: string; usd: number; price: number; source: string; ts: number }>)
+            .filter(r => !seen.has(`${r.ts}_${r.coin}_${r.price}_${r.side}_${r.source}`))
+            .map(r => ({
+              id: ++idCounter,
+              symbol: r.coin + 'USDT',
+              coin: r.coin,
+              side: r.side as 'LONG' | 'SHORT',
+              usd: r.usd,
+              price: r.price,
+              ts: r.ts,
+              source: r.source as 'BN' | 'BB',
+            }));
+          if (newEvts.length === 0) return;
+          const merged = [...historyRef.current, ...newEvts]
+            .sort((a, b) => a.ts - b.ts)
+            .slice(-5000);
+          historyRef.current = merged;
+          rebuild(merged);
+          // Do NOT update setFeed here — old events should not appear in the live feed
+        });
+
+      // ── Periodic save of new events to Supabase ──────────────────────
+      sbSaveTimer.current = setInterval(() => {
+        const lastTs = parseInt(localStorage.getItem(SB_SAVE_TS_KEY) || '0');
+        const toSave = historyRef.current.filter(e => e.ts > lastTs);
+        if (toSave.length === 0) return;
+        const rows = toSave.map(e => ({
+          coin: e.coin, side: e.side, usd: e.usd, price: e.price, source: e.source, ts: e.ts,
+        }));
+        sb.from(T.liq_events).insert(rows).then(({ error }) => {
+          if (error) { console.error('[liq] sb save failed:', error.message); return; }
+          localStorage.setItem(SB_SAVE_TS_KEY, String(Date.now()));
+          // Occasional purge — delete events older than 7 days
+          const cutoff = Date.now() - SB_RETAIN_MS;
+          sb.from(T.liq_events).delete().lt('ts', cutoff).then(() => { /* fire and forget */ });
+        });
+      }, SB_SAVE_MS);
+    }
+
     return () => {
       clearInterval(iv);
+      if (sbSaveTimer.current) clearInterval(sbSaveTimer.current);
       if (saveTimer.current) clearTimeout(saveTimer.current);
       bnWsRef.current?.close();
       bbWsRef.current?.close();
@@ -343,7 +405,7 @@ export default function LiqFeed({ onClusters }: { onClusters?: (clusters: Bucket
       {clusters.length > 0 && (
         <div className="liq-clusters">
           <div className="liq-clusters-title">
-            Hot price levels · 4h cluster
+            Hot price levels · 24h cluster
             <span style={{ color: '#444', fontWeight: 400, marginLeft: 6 }}>— where liqs are concentrating</span>
           </div>
           {clusters.map(c => (

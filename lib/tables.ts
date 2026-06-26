@@ -8,6 +8,7 @@ export const T = {
   clusters:           `${p}clusters`,
   price_alerts:       `${p}price_alerts`,
   grok_usage:         `${p}grok_usage`,
+  liq_events:         `${p}liq_events`,
   user_settings:      `${p}user_settings`,
   muted_alerts:       `${p}muted_alerts`,
   user_onboarding:    `${p}user_onboarding`,
