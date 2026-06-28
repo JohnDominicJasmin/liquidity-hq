@@ -18,6 +18,7 @@ import OnboardingFlow from '@/components/OnboardingFlow';
 import SpotlightTour from '@/components/SpotlightTour';
 import SetupChecklist from '@/components/SetupChecklist';
 import MultiTFAlignment from '@/components/MultiTFAlignment';
+import WatchlistFeed from '@/components/WatchlistFeed';
 import CycleDayCounter from '@/components/CycleDayCounter';
 import BtcRiskLevel from '@/components/BtcRiskLevel';
 import CycleChart from '@/components/CycleChart';
@@ -703,6 +704,15 @@ export default function Dashboard() {
 
         {/* 0. Market session indicator — always visible at the top */}
         <SessionCountdown />
+
+        {/* 0.5 Watchlist feed */}
+        <div className="desktop-only">
+          <div className="dash-section" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>My Watchlist</span>
+            <a href="/settings" style={{ fontSize: 10, color: 'var(--txt3)', textDecoration: 'none', fontWeight: 500 }}>Edit →</a>
+          </div>
+          <WatchlistFeed />
+        </div>
 
         {/* 1. Coin signals — first thing traders look at after selecting a coin (desktop only; mobile renders above) */}
         {!hide('coin_signals') && <div id="tour-coin-signals" className="desktop-only">

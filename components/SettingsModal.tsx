@@ -103,6 +103,30 @@ export default function SettingsModal({ open, onClose }: Props) {
             )}
           </div>
 
+          {/* ── Watchlist ── */}
+          <div className="smod-section">
+            <div className="smod-section-title">My Watchlist</div>
+            <div className="st-desc">Select coins to track in your watchlist feed on the dashboard.</div>
+            <div className="st-chip-row" style={{ flexWrap: 'wrap' }}>
+              {COINS.map(c => {
+                const inList = (settings.watchlist ?? []).includes(c);
+                return (
+                  <button
+                    key={c}
+                    className={`st-chip${inList ? ' on' : ''}`}
+                    onClick={() => {
+                      const current = settings.watchlist ?? [];
+                      const next = inList ? current.filter(x => x !== c) : [...current, c];
+                      update({ watchlist: next });
+                    }}
+                  >
+                    {c.toUpperCase()}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* ── Trading Profile ── */}
           <div className="smod-section">
             <div className="smod-section-title">Trading Profile</div>

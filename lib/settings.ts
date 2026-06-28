@@ -25,6 +25,8 @@ export interface UserSettings {
   telegram_chat_id: string;
   // View mode
   beginner_mode:    boolean;
+  // Personalized watchlist
+  watchlist:        string[];
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -43,6 +45,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   hidden_sections:    [],
   telegram_chat_id:   '',
   beginner_mode:      true,
+  watchlist:          ['btc', 'eth', 'sol'],
 };
 
 // Hideable dashboard section ids → display labels
@@ -124,5 +127,6 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
     hidden_sections:    (row.hidden_sections  as string[]) ?? DEFAULT_SETTINGS.hidden_sections,
     telegram_chat_id:   String(row.telegram_chat_id ?? ''),
     beginner_mode:      !!(row.beginner_mode ?? false),
+    watchlist:          Array.isArray(row.watchlist) ? row.watchlist as string[] : DEFAULT_SETTINGS.watchlist,
   };
 }
