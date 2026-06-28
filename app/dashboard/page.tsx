@@ -18,7 +18,6 @@ import OnboardingFlow from '@/components/OnboardingFlow';
 import SpotlightTour from '@/components/SpotlightTour';
 import SetupChecklist from '@/components/SetupChecklist';
 import MultiTFAlignment from '@/components/MultiTFAlignment';
-import TradeSetupCard from '@/components/TradeSetupCard';
 import CycleDayCounter from '@/components/CycleDayCounter';
 import BtcRiskLevel from '@/components/BtcRiskLevel';
 import CycleChart from '@/components/CycleChart';
@@ -694,7 +693,6 @@ export default function Dashboard() {
             <EdgeSignals />
             <MultiTFAlignment />
             <SmartMoneyScore />
-            <TradeSetupCard />
             <OISpikeScanner />
           </>}
           <div className="dash-section">Market indicators</div>
@@ -712,7 +710,6 @@ export default function Dashboard() {
           <EdgeSignals />
           <MultiTFAlignment />
           <SmartMoneyScore />
-          <TradeSetupCard />
           <OISpikeScanner />
         </div>}
 
