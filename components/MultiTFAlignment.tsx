@@ -27,7 +27,7 @@ function TFRow({ tf, rsi, dir }: { tf: string; rsi: number | null | undefined; d
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: '44px 1fr 36px 92px',
-      alignItems: 'center', gap: 10, padding: '7px 0',
+      alignItems: 'center', gap: 10, padding: '7px 14px',
       borderBottom: '0.5px solid var(--bdr)',
     }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt2)', letterSpacing: '.02em' }}>{tf}</div>
@@ -141,7 +141,7 @@ export default function MultiTFAlignment() {
           {/* Column headers */}
           <div style={{
             display: 'grid', gridTemplateColumns: '44px 1fr 36px 92px',
-            gap: 10, paddingBottom: 4,
+            gap: 10, padding: '0 14px 4px',
           }}>
             {(['TF', 'RSI(14)', 'Val', 'Bias'] as const).map((h, i) => (
               <div key={h} style={{
@@ -158,7 +158,7 @@ export default function MultiTFAlignment() {
 
           {/* Verdict callout */}
           <div style={{
-            marginTop: 10, fontSize: 11, fontWeight: 600, lineHeight: 1.5,
+            margin: '10px 14px 14px', fontSize: 11, fontWeight: 600, lineHeight: 1.5,
             color: verdict.col, padding: '8px 10px', borderRadius: 8,
             background: verdict.col + '11',
             border: `0.5px solid ${verdict.col}33`,
