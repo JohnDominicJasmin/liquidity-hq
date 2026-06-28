@@ -17,6 +17,7 @@ import SentimentExtremesAlert from '@/components/SentimentExtremesAlert';
 import OnboardingFlow from '@/components/OnboardingFlow';
 import SpotlightTour from '@/components/SpotlightTour';
 import SetupChecklist from '@/components/SetupChecklist';
+import Link from 'next/link';
 import MultiTFAlignment from '@/components/MultiTFAlignment';
 import WatchlistFeed from '@/components/WatchlistFeed';
 import CycleDayCounter from '@/components/CycleDayCounter';
@@ -38,9 +39,7 @@ const SIDEBAR_DEFAULT = 7;
 
 function CoinSidebar() {
   const { store, selectCoin } = useMarket();
-  const [expanded, setExpanded] = useState(false);
-
-  const visibleCoins = expanded ? COINS : COINS.slice(0, SIDEBAR_DEFAULT);
+  const visibleCoins = COINS.slice(0, SIDEBAR_DEFAULT);
 
   return (
     <div className="csb2-container">
@@ -137,20 +136,18 @@ function CoinSidebar() {
         );
       })}
 
-      {/* Show more / less toggle */}
-      <button
-        onClick={() => setExpanded(v => !v)}
+      {/* Show more → navigate to /markets */}
+      <Link
+        href="/markets"
         style={{
-          width: '100%', background: 'none', border: 'none',
+          display: 'block', width: '100%', background: 'none', border: 'none',
           borderTop: '1px solid #1a1a1a', padding: '7px 0',
           fontSize: 11, color: 'var(--txt3)', cursor: 'pointer',
-          letterSpacing: '0.04em', textAlign: 'center',
+          letterSpacing: '0.04em', textAlign: 'center', textDecoration: 'none',
         }}
       >
-        {expanded
-          ? `▲ show less`
-          : `▼ +${COINS.length - SIDEBAR_DEFAULT} more coins`}
-      </button>
+        ▼ +{COINS.length - SIDEBAR_DEFAULT} more coins
+      </Link>
 
       {/* WS status indicator */}
       <div className="csb2-status">
