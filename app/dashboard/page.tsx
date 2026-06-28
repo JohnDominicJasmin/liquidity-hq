@@ -19,6 +19,11 @@ import SpotlightTour from '@/components/SpotlightTour';
 import SetupChecklist from '@/components/SetupChecklist';
 import MultiTFAlignment from '@/components/MultiTFAlignment';
 import TradeSetupCard from '@/components/TradeSetupCard';
+import CycleDayCounter from '@/components/CycleDayCounter';
+import BtcRiskLevel from '@/components/BtcRiskLevel';
+import CycleChart from '@/components/CycleChart';
+import GexTable from '@/components/GexTable';
+import MacroStrip from '@/components/MacroStrip';
 
 
 const OI_TREND_META: Record<string, { txt: string; sub: string; hint: string; col: string }> = {
@@ -654,7 +659,7 @@ export default function Dashboard() {
           }}>
             <span style={{ fontSize: 11, color: '#34d399', lineHeight: 1.5 }}>
               <strong>Beginner Mode is on</strong> — advanced panels are hidden to keep things simple.
-              Head to the Arena page for GEX, Macro, and Cycle charts.
+              Turn it off below to see GEX, Macro Correlations, and Cycle charts.
             </span>
             <button
               onClick={() => setBannerDismissed(true)}
@@ -754,18 +759,24 @@ export default function Dashboard() {
         {/* 6. Catalysts & market events */}
         {!hide('catalysts') && <NewsBanner />}
 
+        {/* 7. Market Context — Cycle, BTC Risk, GEX, Macro (hidden in beginner mode) */}
+        {!beginnerMode && (
+          <>
+            <div className="dash-section" style={{ marginTop: 8 }}>Market Context</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <CycleDayCounter />
+              <BtcRiskLevel />
+            </div>
+            <CycleChart />
+            {!hide('gex') && <GexTable />}
+            {!hide('macro') && <MacroStrip />}
+          </>
+        )}
+
       </div>
 
       {/* ── Right panel (desktop ≥1100px only) ── */}
-      <aside className="dash-right">
-        <div style={{ padding: '16px 14px', fontSize: 12, color: 'var(--txt3)', textAlign: 'center', lineHeight: 1.7 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--txt2)', marginBottom: 6 }}>Advanced Market Context</div>
-          GEX, Macro Correlations, and Cycle charts have moved to the Arena page for a cleaner focus here.<br />
-          <a href="/arena" style={{ color: '#b8aeff', textDecoration: 'none', fontWeight: 600, display: 'inline-block', marginTop: 10, padding: '5px 14px', border: '0.5px solid rgba(184,174,255,0.3)', borderRadius: 8, fontSize: 11 }}>
-            Go to Arena →
-          </a>
-        </div>
-      </aside>
+      <aside className="dash-right" />
 
     </div>
   );
