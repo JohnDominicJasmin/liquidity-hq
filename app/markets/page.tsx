@@ -3,7 +3,7 @@ import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, computeSqueezeScore } from '@/lib/marketStore';
 
-type SortKey = 'change' | 'grade' | 'signal' | 'name';
+type SortKey = 'volume' | 'change' | 'grade' | 'signal' | 'name';
 
 function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][string]): { text: string; col: string } {
   if (!d) return { text: '—', col: '#333' };
@@ -27,7 +27,7 @@ export default function MarketsPage() {
   const { store, selectCoin } = useMarket();
   const router = useRouter();
   const [query, setQuery]   = useState('');
-  const [sort, setSort]     = useState<SortKey>('change');
+  const [sort, setSort]     = useState<SortKey>('volume');
   const [sortAsc, setSortAsc] = useState(false);
 
   const rows = useMemo(() => {
@@ -36,6 +36,7 @@ export default function MarketsPage() {
       const da = store.coins[a];
       const db = store.coins[b];
       let cmp = 0;
+      if (sort === 'volume') cmp = (da?.vol24 ?? 0) - (db?.vol24 ?? 0);
       if (sort === 'name')   cmp = a.localeCompare(b);
       if (sort === 'change') cmp = (da?.change ?? 0) - (db?.change ?? 0);
       if (sort === 'grade') {
@@ -131,7 +132,7 @@ export default function MarketsPage() {
               fontSize: 12, color: 'var(--txt)', outline: 'none',
             }}
           />
-          {(['change', 'grade', 'signal', 'name'] as SortKey[]).map(key => (
+          {(['volume', 'change', 'grade', 'signal', 'name'] as SortKey[]).map(key => (
             <button
               key={key}
               className="mkt-sort-btn"
