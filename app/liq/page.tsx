@@ -593,7 +593,7 @@ export default function LiqPage() {
       )}
 
       {/* Live Liquidation Feed */}
-      <LiqFeed onClusters={handleClusters} />
+      <LiqFeed onClusters={handleClusters} coinFilter={coin.toUpperCase()} />
 
       {/* Whale Trade Feed */}
       <WhaleTradesFeed />

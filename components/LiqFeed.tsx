@@ -36,7 +36,6 @@ const SB_WIN_MS          = 24 * 60 * 60 * 1000;    // load last 24h from Supabas
 const SB_RETAIN_MS       = 7 * 24 * 60 * 60 * 1000; // purge events older than 7 days
 const SB_SAVE_TS_KEY     = 'liq-sb-ts';            // localStorage: last Supabase save timestamp
 const BYBIT_COINS        = Object.values(BYBIT_SYMS);
-const FILTER_COINS       = ['ALL','BTC','ETH','SOL','XRP','BNB','HYPE','NEAR'];
 
 let idCounter = 0;
 
@@ -75,15 +74,15 @@ function fmtEventPrice(price: number): string {
   return '$' + price.toLocaleString('en-US', { maximumFractionDigits: price < 10 ? 3 : 2 });
 }
 
-export default function LiqFeed({ onClusters }: { onClusters?: (clusters: Bucket[]) => void }) {
-  const [feed,       setFeed]       = useState<LiqEvent[]>([]);
-  const [stats,      setStats]      = useState<Stats>({ longUsd: 0, shortUsd: 0, count: 0 });
-  const [cascade,    setCascade]    = useState<Cascade | null>(null);
-  const [clusters,   setClusters]   = useState<Bucket[]>([]);
-  const [filterCoin, setFilterCoin] = useState('ALL');
-  const [bnStatus,   setBnStatus]   = useState<'connecting'|'live'|'error'>('connecting');
-  const [bbStatus,   setBbStatus]   = useState<'connecting'|'live'|'error'>('connecting');
-  const [msgCount,   setMsgCount]   = useState(0);
+export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clusters: Bucket[]) => void; coinFilter: string }) {
+  const [feed,     setFeed]     = useState<LiqEvent[]>([]);
+  const [stats,    setStats]    = useState<Stats>({ longUsd: 0, shortUsd: 0, count: 0 });
+  const [cascade,  setCascade]  = useState<Cascade | null>(null);
+  const [clusters, setClusters] = useState<Bucket[]>([]);
+  const [bnStatus, setBnStatus] = useState<'connecting'|'live'|'error'>('connecting');
+  const [bbStatus, setBbStatus] = useState<'connecting'|'live'|'error'>('connecting');
+  const [msgCount, setMsgCount] = useState(0);
+  const coinFilterRef = useRef(coinFilter);
 
   const bnWsRef         = useRef<WebSocket | null>(null);
   const bbWsRef         = useRef<WebSocket | null>(null);
@@ -96,9 +95,10 @@ export default function LiqFeed({ onClusters }: { onClusters?: (clusters: Bucket
   /* ── Rebuild derived state from history ── */
   const rebuild = useCallback((history: LiqEvent[]) => {
     const now = Date.now();
+    const cf  = coinFilterRef.current;
 
-    // 1h stats
-    const win = history.filter(e => now - e.ts < STATS_WIN);
+    // 1h stats — filtered to selected coin
+    const win = history.filter(e => now - e.ts < STATS_WIN && (cf === 'ALL' || e.coin === cf));
     setStats({
       longUsd:  win.filter(e => e.side === 'LONG').reduce((s, e)  => s + e.usd, 0),
       shortUsd: win.filter(e => e.side === 'SHORT').reduce((s, e) => s + e.usd, 0),
@@ -137,6 +137,12 @@ export default function LiqFeed({ onClusters }: { onClusters?: (clusters: Bucket
     setClusters(buckets);
     onClusters?.(buckets);
   }, [onClusters]);
+
+  /* ── Sync coinFilter prop → ref and re-derive stats/clusters ── */
+  useEffect(() => {
+    coinFilterRef.current = coinFilter;
+    rebuild(historyRef.current);
+  }, [coinFilter, rebuild]);
 
   /* ── Persist history to localStorage (debounced 5s) ── */
   const saveToStorage = useCallback(() => {
@@ -329,7 +335,7 @@ export default function LiqFeed({ onClusters }: { onClusters?: (clusters: Bucket
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Derived display values ── */
-  const displayed = filterCoin === 'ALL' ? feed : feed.filter(e => e.coin === filterCoin);
+  const displayed = coinFilter === 'ALL' ? feed : feed.filter(e => e.coin === coinFilter);
   const totalUsd  = stats.longUsd + stats.shortUsd;
   const longDom   = stats.longUsd  > stats.shortUsd * 1.2;
   const shortDom  = stats.shortUsd > stats.longUsd  * 1.2;
@@ -403,9 +409,9 @@ export default function LiqFeed({ onClusters }: { onClusters?: (clusters: Bucket
 
       {/* ── Price clusters ── */}
       {clusters.length > 0 && (() => {
-        const filtered = filterCoin === 'ALL'
+        const filtered = coinFilter === 'ALL'
           ? clusters
-          : clusters.filter(c => c.coin === filterCoin);
+          : clusters.filter(c => c.coin === coinFilter);
         if (filtered.length === 0) return null;
         const displayMax = Math.max(...filtered.map(c => c.total));
         return (
@@ -417,7 +423,7 @@ export default function LiqFeed({ onClusters }: { onClusters?: (clusters: Bucket
             {filtered.map(c => (
               <div key={`${c.coin}::${c.price}`} className="liq-cluster-row">
                 <div>
-                  {filterCoin === 'ALL' && (
+                  {coinFilter === 'ALL' && (
                     <span style={{ fontSize: 9, fontWeight: 700, color: '#888', letterSpacing: '.06em', display: 'block', marginBottom: 1 }}>{c.coin}</span>
                   )}
                   <span className="liq-cluster-price">{c.label}</span>
@@ -445,23 +451,10 @@ export default function LiqFeed({ onClusters }: { onClusters?: (clusters: Bucket
         );
       })()}
 
-      {/* ── Coin filter ── */}
-      <div className="liq-filter-row">
-        {FILTER_COINS.map(c => (
-          <button
-            key={c}
-            className={`liq-filter-btn${filterCoin === c ? ' on' : ''}`}
-            onClick={() => setFilterCoin(c)}
-          >
-            {c}
-          </button>
-        ))}
-      </div>
-
       {/* ── Feed ── */}
       {displayed.length === 0 && (
         <div style={{ textAlign: 'center', padding: '1.5rem', color: '#444', fontSize: 12 }}>
-          {anyLive ? `Watching for ${filterCoin === 'ALL' ? 'all markets' : filterCoin} liquidations > $10K…` : 'Connecting to Binance + Bybit…'}
+          {anyLive ? `Watching for ${coinFilter === 'ALL' ? 'all markets' : coinFilter} liquidations > $10K…` : 'Connecting to Binance + Bybit…'}
         </div>
       )}
 
