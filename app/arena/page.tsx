@@ -138,13 +138,8 @@ export default function Arena() {
   const emaSignalRef  = useRef<StrategySignal>(STRATEGY_LOADING);
   const oi1h          = useOI1h(selectedCoin);
   const [filterOpen, setFilterOpen]     = useState(false);
-  const [filterParams, setFilterParams] = useState<SignalFilterParams>(() => {
-    try {
-      const saved = localStorage.getItem('lhq_signal_filters');
-      if (saved) return { ...DEFAULT_FILTER_PARAMS, ...JSON.parse(saved) };
-    } catch {}
-    return DEFAULT_FILTER_PARAMS;
-  });
+  const [filterParams, setFilterParams] = useState<SignalFilterParams>(DEFAULT_FILTER_PARAMS);
+  const filterLoadedRef = useRef(false);
   const emaSignal     = useEMAStrategy(
     selectedCoin,
     readTf,
@@ -215,8 +210,16 @@ export default function Arena() {
     }
   }
 
-  /* ── Persist signal filter params to localStorage ── */
+  /* ── Signal filter params: load from localStorage on mount, save on change ── */
   useEffect(() => {
+    if (!filterLoadedRef.current) {
+      try {
+        const saved = localStorage.getItem('lhq_signal_filters');
+        if (saved) setFilterParams({ ...DEFAULT_FILTER_PARAMS, ...JSON.parse(saved) });
+      } catch {}
+      filterLoadedRef.current = true;
+      return;
+    }
     try { localStorage.setItem('lhq_signal_filters', JSON.stringify(filterParams)); } catch {}
   }, [filterParams]);
 
