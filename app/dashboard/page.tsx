@@ -22,6 +22,7 @@ import MultiTFAlignment from '@/components/MultiTFAlignment';
 import WatchlistFeed from '@/components/WatchlistFeed';
 import CycleDayCounter from '@/components/CycleDayCounter';
 import BtcRiskLevel from '@/components/BtcRiskLevel';
+import Tip from '@/components/Tip';
 import CycleChart from '@/components/CycleChart';
 import GexTable from '@/components/GexTable';
 import MacroStrip from '@/components/MacroStrip';
@@ -271,7 +272,7 @@ function EdgeSignals() {
       {/* Row 1: CB Premium + VWAP */}
       <div className="edge-grid">
         <div className="edge-card" style={{ borderColor: cbBdr }}>
-          <div className="edge-card-label">US Buyer Demand <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--txt3)' }}>Coinbase vs Bybit price</span></div>
+          <div className="edge-card-label"><Tip text="The price difference between Coinbase (US-biased) and Binance (global market). Positive means US institutions are paying a premium to buy — historically a bullish signal for BTC direction.">US Buyer Demand</Tip> <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--txt3)' }}>Coinbase vs Bybit price</span></div>
           <div className="edge-card-value" style={{ color: cbCol }}>
             {cbAmt != null
               ? (cbAmt >= 0 ? '+$' : '−$') + Math.abs(cbAmt).toFixed(1)
@@ -286,7 +287,7 @@ function EdgeSignals() {
         </div>
 
         <div className="edge-card" style={{ borderColor: vwapBdr }}>
-          <div className="edge-card-label">VWAP · {store.selectedCoin.toUpperCase()} <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--txt3)' }}>avg daily price</span></div>
+          <div className="edge-card-label"><Tip text="Volume Weighted Average Price — the average price across the day, weighted by how much was traded at each level. Price above VWAP signals buy-side control; below signals sellers are in charge.">VWAP · {store.selectedCoin.toUpperCase()}</Tip> <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--txt3)' }}>avg daily price</span></div>
           {/* Show LIVE price as the hero number */}
           <div className="edge-card-value" style={{ color: vwapCol, fontSize: 15 }}>
             {price != null
@@ -387,7 +388,7 @@ function EdgeSignals() {
 
           return (
             <div className="edge-card" style={{ borderColor: frBdr }}>
-              <div className="edge-card-label">Funding · {store.selectedCoin.toUpperCase()}</div>
+              <div className="edge-card-label"><Tip text="The fee longs pay shorts every 8 hours to keep perpetual futures positions open. Strongly positive means too many people are leveraged long — whales often dump price to liquidate them and pocket the fee.">Funding · {store.selectedCoin.toUpperCase()}</Tip></div>
               <div className="edge-card-value" style={{ color: frCol }}>
                 {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '—'}
               </div>
@@ -443,7 +444,7 @@ function EdgeSignals() {
           <div className="edge-grid">
             {/* OI 1h Change */}
             <div className="edge-card" style={{ borderColor: oi1hBdr }}>
-              <div className="edge-card-label">Open Interest Change (1h) · {store.selectedCoin.toUpperCase()}</div>
+              <div className="edge-card-label"><Tip text="How much the total value of open futures positions changed in the last hour. A sharp rise means new money is entering aggressively; a sharp drop means mass liquidations or traders closing positions.">Open Interest Change (1h) · {store.selectedCoin.toUpperCase()}</Tip></div>
               <div className="edge-card-value" style={{ color: oi1hCol }}>
                 {oi1h.loading ? '—' : oi1hPctStr}
               </div>
@@ -457,7 +458,7 @@ function EdgeSignals() {
 
             {/* Setup Scanner */}
             <div className="edge-card" style={{ borderColor: sqBdr }}>
-              <div className="edge-card-label">Setup Scanner · {store.selectedCoin.toUpperCase()}</div>
+              <div className="edge-card-label"><Tip text="A 0–100 squeeze score combining funding rate, long/short ratio, and volume pressure. Above 65 means a high-probability forced liquidation event is forming — either a short squeeze (price pumps) or a long flush (price dumps).">Setup Scanner · {store.selectedCoin.toUpperCase()}</Tip></div>
               <div className="edge-card-value" style={{ color: sqCol }}>
                 {sq.score}<span style={{ fontSize: 11, color: 'var(--txt3)', fontWeight: 400 }}>/100</span>
               </div>
@@ -473,7 +474,7 @@ function EdgeSignals() {
       {/* Row 4: Taker Buy/Sell ratio table */}
       <div className="taker-table">
         <div className="taker-title">
-          Taker Buy/Sell Pressure
+          <Tip text="Shows who is placing urgent market orders — buyers hitting the ask (buying now at any price) vs sellers hitting the bid (selling now at any price). Above 60% buy takers signals strong upside pressure; below 40% means sellers are in control.">Taker Buy/Sell Pressure</Tip>
           <span className="taker-subtitle">Who&apos;s being aggressive — last 5h of 15m candles</span>
         </div>
 

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useMarket } from '@/lib/marketStore';
+import Tip from '@/components/Tip';
 
 /* ── Score chip colours ── */
 const SCORE_CHIP: Record<string, { bg: string; col: string }> = {
@@ -192,7 +193,7 @@ export default function SmartMoneyScore() {
       {/* ── Top row: title + verdict ── */}
       <div className="sms-header">
         <div>
-          <div className="sms-title">Smart Money Score</div>
+          <div className="sms-title"><Tip text="A composite score combining 6 signals — CB Premium, exchange flow, taker pressure, OI trend, funding, and L/S ratio. Positive score means sophisticated money is accumulating; negative means they are distributing.">Smart Money Score</Tip></div>
           <div className="sms-sub">Market context + {ticker} positioning · 6 signals</div>
         </div>
         <div className="sms-verdict" style={{ color: col }}>{label}</div>

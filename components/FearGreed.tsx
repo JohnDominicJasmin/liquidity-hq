@@ -1,5 +1,6 @@
 'use client';
 import { useMarket } from '@/lib/marketStore';
+import Tip from '@/components/Tip';
 
 const FNG_NOTES: Record<string, string> = {
   'Extreme Fear':  'Whales accumulate — bounce raids likely',
@@ -36,7 +37,7 @@ export default function FearGreed() {
 
   return (
     <div className="ind-card" style={{ gridColumn: 'span 2' }}>
-      <div className="ind-label">Fear &amp; Greed Index</div>
+      <div className="ind-label"><Tip text="A 0–100 score measuring overall market sentiment from volatility, volume, and social data. Extreme Fear (under 25) means the market is oversold and historically a good time to watch for bounces. Extreme Greed (above 75) means the market is overheated and a correction is likely.">Fear &amp; Greed Index</Tip></div>
       <div className="fng-wrap">
         <div className="fng-row">
           <div>

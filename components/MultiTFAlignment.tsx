@@ -1,5 +1,6 @@
 'use client';
 import { useMarket } from '@/lib/marketStore';
+import Tip from '@/components/Tip';
 
 type Dir = 'bull' | 'bear' | 'neutral';
 
@@ -130,7 +131,7 @@ export default function MultiTFAlignment() {
     <div className="sms-card">
       <div className="sms-header">
         <div>
-          <div className="sms-title">Multi-Timeframe Alignment</div>
+          <div className="sms-title"><Tip text="Checks if RSI momentum is pointing the same direction across 3 timeframes. When 15m, 1h, and 4h RSI all agree, the signal is much stronger — conflicting timeframes mean wait, aligned timeframes mean act.">Multi-Timeframe Alignment</Tip></div>
           <div className="sms-sub">{coin.toUpperCase()} RSI direction — 15m · 1h · 4h</div>
         </div>
         <div className="sms-verdict" style={{ color: verdict.col }}>{verdict.label}</div>
