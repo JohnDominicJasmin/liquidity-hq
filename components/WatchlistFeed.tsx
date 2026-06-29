@@ -1,5 +1,6 @@
 'use client';
 import { useMarket, COIN_DEC, fmtPrice, computeCoinHealth } from '@/lib/marketStore';
+import type { CoinId } from '@/lib/marketStore';
 import { useSettings } from '@/lib/settings';
 
 export default function WatchlistFeed() {
@@ -19,7 +20,7 @@ export default function WatchlistFeed() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
       {watchlist.map(id => {
-        const d      = store.coins[id];
+        const d      = store.coins[id as CoinId];
         const dec    = COIN_DEC[id] ?? 2;
         const chg    = d?.change ?? 0;
         const up     = chg >= 0;
