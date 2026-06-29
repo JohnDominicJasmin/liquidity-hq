@@ -276,16 +276,21 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           });
         } catch { /* */ }
       }),
-      // Binance global account ratio (5m) — Binance-listed coins only
+      // Binance global account ratio (5m) + top trader position ratio — Binance-listed coins only
       ...Object.entries(BINANCE_SYMS).map(async ([coin, sym]) => {
         try {
-          const res = await fetch(`https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=5m&limit=1`);
-          const arr = await res.json();
-          const item = Array.isArray(arr) ? arr[0] : null;
-          if (!item) return;
+          const [globalRes, whaleRes] = await Promise.all([
+            fetch(`https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=5m&limit=1`),
+            fetch(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${sym}&period=5m&limit=1`),
+          ]);
+          const [globalArr, whaleArr] = await Promise.all([globalRes.json(), whaleRes.json()]);
+          const g = Array.isArray(globalArr) ? globalArr[0] : null;
+          const w = Array.isArray(whaleArr)  ? whaleArr[0]  : null;
           updateCoin(coin as CoinId, {
-            bnLongRatio:  parseFloat(item.longAccount  || '0.5'),
-            bnShortRatio: parseFloat(item.shortAccount || '0.5'),
+            ...(g ? { bnLongRatio:       parseFloat(g.longAccount  || '0.5'),
+                       bnShortRatio:      parseFloat(g.shortAccount || '0.5') } : {}),
+            ...(w ? { bnWhaleLongRatio:  parseFloat(w.longAccount  || '0.5'),
+                       bnWhaleShortRatio: parseFloat(w.shortAccount || '0.5') } : {}),
           });
         } catch { /* */ }
       }),

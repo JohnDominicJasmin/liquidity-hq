@@ -483,6 +483,104 @@ export default function LiqPage() {
             </div>
           </div>
 
+          {/* ══ WHALE POSITIONING ════════════════════════════════ */}
+          {cd.bnWhaleLongRatio != null && cd.bnWhaleShortRatio != null && (() => {
+            const whaleLong  = cd.bnWhaleLongRatio!;
+            const whaleShort = cd.bnWhaleShortRatio!;
+            const retailLong = cd.bnLongRatio ?? 0.5;
+
+            // Divergence: retail leaning one way, whales leaning opposite
+            const longSqueezeRisk  = retailLong  > 0.55 && whaleShort > 0.52;
+            const shortSqueezeRisk = retailLong  < 0.45 && whaleLong  > 0.52;
+            const hasDivergence    = longSqueezeRisk || shortSqueezeRisk;
+
+            const whaleSide = whaleLong > whaleShort ? 'long' : 'short';
+            const accentW   = whaleSide === 'long' ? '#f87171' : '#34d399';
+
+            return (
+              <div style={{
+                borderRadius: 12, overflow: 'hidden', marginBottom: 10,
+                background: hasDivergence ? 'rgba(245,158,11,0.04)' : 'var(--bg1)',
+                border: `0.5px solid ${hasDivergence ? 'rgba(245,158,11,0.25)' : 'var(--bdr)'}`,
+              }}>
+                {/* Header */}
+                <div style={{
+                  padding: '10px 16px 8px',
+                  borderBottom: '0.5px solid var(--bdr)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--txt)' }}>
+                      Whale Positioning
+                    </span>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, letterSpacing: '.06em',
+                      padding: '2px 7px', borderRadius: 10,
+                      background: `${accentW}14`, color: accentW,
+                      border: `0.5px solid ${accentW}30`,
+                      textTransform: 'uppercase',
+                    }}>
+                      {whaleSide === 'long' ? 'Whale Long' : 'Whale Short'}
+                    </span>
+                  </div>
+                  <span style={{ fontSize: 10, color: 'var(--txt3)' }}>
+                    Binance top traders · position-weighted · 5m
+                  </span>
+                </div>
+
+                {/* Bar + numbers */}
+                <div style={{ padding: '12px 16px' }}>
+                  <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', marginBottom: 10 }}>
+                    <div style={{ flex: whaleLong,  background: '#f87171', opacity: 0.7 }} />
+                    <div style={{ flex: whaleShort, background: '#34d399', opacity: 0.7 }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <div>
+                      <span style={{ fontSize: 18, fontWeight: 800, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>
+                        {(whaleLong * 100).toFixed(0)}%
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--txt3)', marginLeft: 5 }}>whale long</span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: 10, color: 'var(--txt3)', marginRight: 5 }}>whale short</span>
+                      <span style={{ fontSize: 18, fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>
+                        {(whaleShort * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Divergence alert */}
+                {hasDivergence && (
+                  <div style={{
+                    margin: '0 16px 12px',
+                    padding: '10px 12px', borderRadius: 8,
+                    background: 'rgba(245,158,11,0.07)',
+                    border: '0.5px solid rgba(245,158,11,0.3)',
+                    display: 'flex', gap: 8, alignItems: 'flex-start',
+                  }}>
+                    <span style={{ color: '#f59e0b', fontSize: 13, flexShrink: 0 }}>⚠</span>
+                    <div style={{ fontSize: 12, color: 'var(--txt3)', lineHeight: 1.6 }}>
+                      {longSqueezeRisk ? (
+                        <>
+                          <span style={{ color: '#f59e0b', fontWeight: 700 }}>Long squeeze setup.</span>
+                          {' '}Retail is {(retailLong * 100).toFixed(0)}% long but whales are positioned {(whaleShort * 100).toFixed(0)}% short.
+                          Whales have the money to push price down and force-close retail longs.
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ color: '#f59e0b', fontWeight: 700 }}>Short squeeze setup.</span>
+                          {' '}Retail is {((1 - retailLong) * 100).toFixed(0)}% short but whales are positioned {(whaleLong * 100).toFixed(0)}% long.
+                          Whales have the money to push price up and force-close retail shorts.
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* ══ ESTIMATED HEATMAP ══════════════════════════════════ */}
           <div className="liq-card">
             <div className="liq-section-hdr liq-section-hdr-short" role="heading" aria-level={3}>
