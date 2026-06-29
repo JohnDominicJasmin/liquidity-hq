@@ -137,6 +137,14 @@ export default function Arena() {
   const absDataRef    = useRef<AbsorptionData | null>(null);
   const emaSignalRef  = useRef<StrategySignal>(STRATEGY_LOADING);
   const oi1h          = useOI1h(selectedCoin);
+  const [filterOpen, setFilterOpen]     = useState(false);
+  const [filterParams, setFilterParams] = useState<SignalFilterParams>(() => {
+    try {
+      const saved = localStorage.getItem('lhq_signal_filters');
+      if (saved) return { ...DEFAULT_FILTER_PARAMS, ...JSON.parse(saved) };
+    } catch {}
+    return DEFAULT_FILTER_PARAMS;
+  });
   const emaSignal     = useEMAStrategy(
     selectedCoin,
     readTf,
@@ -158,14 +166,6 @@ export default function Arena() {
   const [quickSignals, setQuickSignals] = useState<Partial<Record<CoinId, string>>>({});
   const [scannerOpen, setScannerOpen]   = useState(false);
   const [scannerSearch, setScannerSearch] = useState('');
-  const [filterOpen, setFilterOpen]     = useState(false);
-  const [filterParams, setFilterParams] = useState<SignalFilterParams>(() => {
-    try {
-      const saved = localStorage.getItem('lhq_signal_filters');
-      if (saved) return { ...DEFAULT_FILTER_PARAMS, ...JSON.parse(saved) };
-    } catch {}
-    return DEFAULT_FILTER_PARAMS;
-  });
   const scannerSearchRef = useRef<HTMLInputElement>(null);
   const [coinCat, setCoinCat]           = useState<'all' | 'majors' | 'alts' | 'defi' | 'meme'>('all');
   const [sigDetailsOpen, setSigDetailsOpen] = useState(false);
