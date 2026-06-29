@@ -237,7 +237,7 @@ function OptionCard<T extends string>({
         {sub && (
           <div style={{
             fontSize: 11, marginTop: 3, lineHeight: 1.4,
-            color: active ? `${accent}70` : '#3f3f3f',
+            color: active ? `${accent}90` : '#5a5a6a',
             transition: 'color 0.2s',
           }}>
             {sub}
@@ -331,7 +331,7 @@ function StepList({ step: currentStep }: { step: number }) {
                 transition: 'all 0.3s',
                 fontSize: 10, fontWeight: 700,
                 fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                color: active ? '#000' : done ? '#34d399' : '#2a2a2a',
+                color: active ? '#000' : done ? '#34d399' : '#4a4a4a',
               }}>
                 {done ? (
                   <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
@@ -344,7 +344,7 @@ function StepList({ step: currentStep }: { step: number }) {
                   width: 1.5, height: 32, marginTop: 4,
                   background: done
                     ? 'linear-gradient(180deg, #34d39940, rgba(255,255,255,0.03))'
-                    : 'rgba(255,255,255,0.04)',
+                    : 'rgba(255,255,255,0.09)',
                   transition: 'background 0.4s',
                 }} />
               )}
@@ -353,14 +353,14 @@ function StepList({ step: currentStep }: { step: number }) {
               <div style={{
                 fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase',
                 fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                color: active ? s.accent : done ? '#34d399' : '#242424',
+                color: active ? s.accent : done ? '#34d399' : '#4a4a4a',
                 transition: 'color 0.3s',
               }}>
                 {s.label}
               </div>
               {active && (
                 <div style={{
-                  fontSize: 9, color: '#2c2c2c', marginTop: 2,
+                  fontSize: 9, color: '#555', marginTop: 2,
                   fontFamily: "'JetBrains Mono', monospace", letterSpacing: '.06em',
                 }}>
                   YOU ARE HERE
@@ -493,7 +493,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
       aria-modal="true"
       style={{
         position: 'fixed', inset: 0, zIndex: 10000,
-        display: 'flex', background: '#080808',
+        display: 'flex', background: '#0d0f18',
         fontFamily: 'system-ui, -apple-system, sans-serif',
         overflowY: 'auto',
       }}
@@ -505,7 +505,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
           position: 'fixed',
           top: '10%', left: isMobile ? '0%' : '35%',
           width: 800, height: 800,
-          background: `radial-gradient(circle, ${accent}12 0%, transparent 65%)`,
+          background: `radial-gradient(circle, ${accent}22 0%, transparent 65%)`,
           pointerEvents: 'none', borderRadius: '50%',
           transition: 'background 0.55s ease',
         }}
@@ -517,7 +517,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
           width: 288, flexShrink: 0,
           display: 'flex', flexDirection: 'column',
           padding: '52px 36px',
-          borderRight: '1px solid rgba(255,255,255,0.04)',
+          borderRight: '1px solid rgba(255,255,255,0.08)',
           position: 'relative', overflow: 'hidden',
           backgroundImage: `radial-gradient(${accent}16 1px, transparent 1px)`,
           backgroundSize: '22px 22px',
@@ -526,17 +526,16 @@ export default function OnboardingFlow({ onStartTour }: Props) {
           {/* Fade grid out at top and bottom */}
           <div style={{
             position: 'absolute', inset: 0, pointerEvents: 'none',
-            background: 'linear-gradient(180deg, #080808 0%, transparent 14%, transparent 82%, #080808 100%)',
+            background: 'linear-gradient(180deg, #0d0f18 0%, transparent 14%, transparent 82%, #0d0f18 100%)',
           }} />
           <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
             {/* Logo */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 64,
-              fontSize: 11, fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase',
-              fontFamily: monoFont, color: '#fff',
-            }}>
-              <span style={{ color: accent, fontSize: 14, transition: 'color 0.45s' }}>⚡</span>
-              LIQUIDITYHQ
+            <div style={{ marginBottom: 52 }}>
+              <img
+                src="/icons/icon-192.png"
+                alt="LiquidityHQ"
+                style={{ width: 80, height: 80, borderRadius: 18, display: 'block' }}
+              />
             </div>
 
             <StepList step={step} />
@@ -549,13 +548,13 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                 transition: 'border-color 0.45s',
               }}>
                 <div style={{
-                  fontSize: 11.5, lineHeight: 1.75, color: '#2b2b2b',
+                  fontSize: 11.5, lineHeight: 1.75, color: '#4a4a5a',
                   fontFamily: serifFont,
                 }}>
                   &ldquo;The edge goes to those who read the market, not the crowd.&rdquo;
                 </div>
                 <div style={{
-                  fontSize: 9, color: '#1c1c1c', marginTop: 8,
+                  fontSize: 9, color: '#3a3a50', marginTop: 8,
                   fontFamily: monoFont, letterSpacing: '.09em', textTransform: 'uppercase',
                 }}>
                   — LIQUIDITYHQ
@@ -577,13 +576,12 @@ export default function OnboardingFlow({ onStartTour }: Props) {
         {/* Mobile top bar: logo + step dots */}
         {isMobile && (
           <div style={{ marginBottom: 36 }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 7, marginBottom: 24,
-              fontSize: 11, fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase',
-              fontFamily: monoFont, color: '#fff',
-            }}>
-              <span style={{ color: accent, transition: 'color 0.45s' }}>⚡</span>
-              LIQUIDITYHQ
+            <div style={{ marginBottom: 20 }}>
+              <img
+                src="/icons/icon-192.png"
+                alt="LiquidityHQ"
+                style={{ width: 52, height: 52, borderRadius: 12, display: 'block' }}
+              />
             </div>
             {/* Pill dots */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
@@ -615,9 +613,9 @@ export default function OnboardingFlow({ onStartTour }: Props) {
           <span style={{ color: accent, transition: 'color 0.45s' }}>
             {`STEP ${String(step + 1).padStart(2, '0')}`}
           </span>
-          <span style={{ color: '#222' }}>/</span>
-          <span style={{ color: '#222' }}>{String(STEP_META.length).padStart(2, '0')}</span>
-          <span style={{ color: '#1e1e1e' }}>&nbsp;&mdash;&nbsp;{meta.label.toUpperCase()}</span>
+          <span style={{ color: '#444' }}>/</span>
+          <span style={{ color: '#444' }}>{String(STEP_META.length).padStart(2, '0')}</span>
+          <span style={{ color: '#555' }}>&nbsp;&mdash;&nbsp;{meta.label.toUpperCase()}</span>
         </div>
 
         {/* Animated step content */}
@@ -639,7 +637,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
               </div>
             ))}
           </div>
-          <div style={{ fontSize: 12, color: '#343434', marginBottom: 28, lineHeight: 1.65 }}>
+          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 28, lineHeight: 1.65 }}>
             {copy.desc}
           </div>
 
@@ -649,7 +647,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
               <div style={{ marginBottom: 16 }}>
                 <label style={{
                   display: 'block', fontSize: 9, fontWeight: 700, letterSpacing: '.12em',
-                  textTransform: 'uppercase', color: '#2e2e2e', marginBottom: 8, fontFamily: monoFont,
+                  textTransform: 'uppercase', color: '#6b7280', marginBottom: 8, fontFamily: monoFont,
                 }}>
                   Display name <span style={{ color: '#222', fontWeight: 400 }}>(optional)</span>
                 </label>
@@ -676,7 +674,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
               <div style={{ marginBottom: 20 }}>
                 <label style={{
                   display: 'block', fontSize: 9, fontWeight: 700, letterSpacing: '.12em',
-                  textTransform: 'uppercase', color: '#2e2e2e', marginBottom: 8, fontFamily: monoFont,
+                  textTransform: 'uppercase', color: '#6b7280', marginBottom: 8, fontFamily: monoFont,
                 }}>
                   Country
                 </label>
@@ -686,7 +684,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
               <div>
                 <label style={{
                   display: 'block', fontSize: 9, fontWeight: 700, letterSpacing: '.12em',
-                  textTransform: 'uppercase', color: '#2e2e2e', marginBottom: 10, fontFamily: monoFont,
+                  textTransform: 'uppercase', color: '#6b7280', marginBottom: 10, fontFamily: monoFont,
                 }}>
                   Trading account range
                 </label>
@@ -784,7 +782,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
             onClick={finish}
             style={{
               background: 'none', border: 'none', width: '100%', marginTop: 12,
-              fontSize: 10, color: '#1e1e1e', cursor: 'pointer', padding: '4px 0',
+              fontSize: 10, color: '#444', cursor: 'pointer', padding: '4px 0',
               fontFamily: monoFont, letterSpacing: '.07em', transition: 'color 0.2s',
             }}
           >
