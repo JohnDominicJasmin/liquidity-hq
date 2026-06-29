@@ -62,7 +62,7 @@ export default function MarketsPage() {
     else { setSort(key); setSortAsc(false); }
   }
 
-  function goToArena(id: string) {
+  function goToArena(id: CoinId) {
     selectCoin(id);
     router.push('/arena');
   }

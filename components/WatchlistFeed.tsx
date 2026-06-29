@@ -21,7 +21,7 @@ export default function WatchlistFeed() {
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
       {watchlist.map(id => {
         const d      = store.coins[id as CoinId];
-        const dec    = COIN_DEC[id] ?? 2;
+        const dec    = COIN_DEC[id as CoinId] ?? 2;
         const chg    = d?.change ?? 0;
         const up     = chg >= 0;
         const sel    = store.selectedCoin === id;
@@ -42,7 +42,7 @@ export default function WatchlistFeed() {
         return (
           <div
             key={id}
-            onClick={() => selectCoin(id)}
+            onClick={() => selectCoin(id as CoinId)}
             style={{
               background: sel ? 'rgba(184,174,255,0.08)' : 'var(--card)',
               border: `0.5px solid ${sel ? 'rgba(184,174,255,0.35)' : 'var(--bdr)'}`,
