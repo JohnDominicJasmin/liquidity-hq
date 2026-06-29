@@ -398,7 +398,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
     const el = document.createElement('style');
     el.id = 'ob-styles';
     el.textContent = `
-      @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;500;700&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
       @keyframes obFadeUp   { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
       @keyframes obCheckIn  { from { transform:scale(0) rotate(-45deg); opacity:0; } to { transform:scale(1) rotate(0); opacity:1; } }
       @keyframes obGlow     { 0%,100% { opacity:.3; } 50% { opacity:.6; } }
@@ -485,7 +485,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   }
 
   const monoFont = "'JetBrains Mono', 'Fira Code', monospace";
-  const serifFont = "'DM Serif Display', Georgia, serif";
+  const serifFont = "'Outfit', system-ui, sans-serif";
 
   return (
     <div
@@ -550,7 +550,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
               }}>
                 <div style={{
                   fontSize: 11.5, lineHeight: 1.75, color: '#2b2b2b',
-                  fontFamily: serifFont, fontStyle: 'italic',
+                  fontFamily: serifFont,
                 }}>
                   &ldquo;The edge goes to those who read the market, not the crowd.&rdquo;
                 </div>
@@ -629,10 +629,9 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                 key={i}
                 style={{
                   fontFamily: serifFont,
-                  fontSize: isMobile ? 30 : 40,
-                  lineHeight: 1.1, fontWeight: 400,
+                  fontSize: isMobile ? 28 : 38,
+                  lineHeight: 1.1, fontWeight: 800,
                   color: i === copy.headline.length - 1 ? accent : '#fff',
-                  fontStyle: i === copy.headline.length - 1 ? 'italic' : 'normal',
                   transition: 'color 0.45s',
                 }}
               >
