@@ -666,21 +666,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Beginner / Pro mode toggle */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-          <button
-            onClick={() => update({ beginner_mode: !beginnerMode })}
-            style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-              padding: '4px 12px', borderRadius: 20, cursor: 'pointer',
-              border: '0.5px solid ' + (beginnerMode ? '#34d399' : 'var(--bdr)'),
-              background: beginnerMode ? 'rgba(52,211,153,0.12)' : 'transparent',
-              color: beginnerMode ? '#34d399' : 'var(--txt3)',
-            }}
-          >
-            {beginnerMode ? '● Beginner Mode ON' : '○ Beginner Mode'}
-          </button>
-        </div>
 
         {/* Mobile-only ticker + coin signals + market indicators (desktop shows in sidebar) */}
         <div className="mobile-only">
