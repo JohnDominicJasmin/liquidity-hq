@@ -109,6 +109,7 @@ function BandRow({ b }: { b: Band }) {
           boxShadow: b.isMagnet ? `0 0 10px ${accent}44` : 'none',
         }} />
       </div>
+      <span className="liq-row-usd" style={{ color: accent }}>{fmtM(b.usdM)}</span>
     </div>
   );
 }
@@ -458,7 +459,8 @@ export default function LiqPage() {
                 <span role="columnheader">Price</span>
                 <span role="columnheader">% Away</span>
                 <span role="columnheader"><abbr title="Leverage">Lev.</abbr></span>
-                <span role="columnheader" style={{ flex: 1 }}>Relative density (model)</span>
+                <span role="columnheader">Relative density (model)</span>
+                <span role="columnheader" style={{ textAlign: 'right' }}>Est. USD</span>
               </div>
               {bands.shortsDisplay.map((b, i) => <BandRow key={`s${i}`} b={b} />)}
             </div>
@@ -500,8 +502,7 @@ export default function LiqPage() {
           </div>
 
           <div className="liq-disclaimer">
-            Model only: price levels are mathematically correct (1/leverage), bar widths show relative density across tiers.
-            Dollar amounts removed - real liquidation volume data is in the Real Clusters section above.
+            Model only — price levels are mathematically correct (1/leverage), bar widths and USD amounts show relative density across tiers modeled from open interest.
           </div>
         </>
       )}
