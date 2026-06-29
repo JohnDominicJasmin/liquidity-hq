@@ -260,22 +260,36 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     } catch { /* */ }
   }, [updateCoin]);
 
-  /* ── Bybit LSR ── */
+  /* ── Bybit + Binance LSR ── */
   const fetchLSR = useCallback(async () => {
-    await Promise.allSettled(
-      Object.entries(BYBIT_SYMS).map(async ([coin, sym]) => {
+    await Promise.allSettled([
+      // Bybit account ratio (1h) — all coins
+      ...Object.entries(BYBIT_SYMS).map(async ([coin, sym]) => {
         try {
           const res = await fetch(`https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${sym}&period=1h&limit=1`);
           const d = await res.json();
           const item = d.result?.list?.[0];
           if (!item) return;
           updateCoin(coin as CoinId, {
-            longRatio: parseFloat(item.buyRatio || '0.5'),
+            longRatio:  parseFloat(item.buyRatio  || '0.5'),
             shortRatio: parseFloat(item.sellRatio || '0.5'),
           });
         } catch { /* */ }
-      })
-    );
+      }),
+      // Binance global account ratio (5m) — Binance-listed coins only
+      ...Object.entries(BINANCE_SYMS).map(async ([coin, sym]) => {
+        try {
+          const res = await fetch(`https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=5m&limit=1`);
+          const arr = await res.json();
+          const item = Array.isArray(arr) ? arr[0] : null;
+          if (!item) return;
+          updateCoin(coin as CoinId, {
+            bnLongRatio:  parseFloat(item.longAccount  || '0.5'),
+            bnShortRatio: parseFloat(item.shortAccount || '0.5'),
+          });
+        } catch { /* */ }
+      }),
+    ]);
   }, [updateCoin]);
 
   /* ── Binance volume + klines ── */

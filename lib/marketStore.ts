@@ -29,8 +29,10 @@ export interface CoinData {
   oi: number | null;
   vol24: number | null;
   volRatio: number | null;
-  longRatio: number | null;
-  shortRatio: number | null;
+  longRatio: number | null;    // Bybit account ratio — long side (1h)
+  shortRatio: number | null;   // Bybit account ratio — short side (1h)
+  bnLongRatio: number | null;  // Binance global account ratio — long side (5m)
+  bnShortRatio: number | null; // Binance global account ratio — short side (5m)
   rsi14: number | null;
   ma20: number | null;
   perpPrice: number | null;

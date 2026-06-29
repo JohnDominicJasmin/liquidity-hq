@@ -425,14 +425,32 @@ export default function LiqPage() {
           {/* Real liquidation clusters from live feeds */}
           <RealClusters clusters={realClusters} currentPrice={cd.price} />
 
-          {/* Stats row — real data only */}
+          {/* Stats row */}
           <div className="liq-stats-row">
+            {/* Long side — both exchanges */}
             <div className="liq-stat-item">
-              <div className="liq-stat-label">Long exposure</div>
-              <div className="liq-stat-val" style={{ color: '#f87171' }}>{((cd.longRatio ?? 0.5)*100).toFixed(0)}%</div>
-              <div className="liq-stat-sub">of traders are long</div>
+              <div className="liq-stat-label">Long accounts</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 2 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ fontSize: 20, fontWeight: 800, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>
+                    {((cd.longRatio ?? 0.5) * 100).toFixed(0)}%
+                  </span>
+                  <span style={{ fontSize: 10, color: 'var(--txt3)' }}>Bybit · 1h</span>
+                </div>
+                {cd.bnLongRatio != null && (
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: 'rgba(248,113,113,0.65)', fontVariantNumeric: 'tabular-nums' }}>
+                      {(cd.bnLongRatio * 100).toFixed(0)}%
+                    </span>
+                    <span style={{ fontSize: 10, color: 'var(--txt3)' }}>Binance · 5m</span>
+                  </div>
+                )}
+              </div>
             </div>
+
             <div className="liq-stat-sep" />
+
+            {/* Open Interest — center */}
             <div className="liq-stat-item" style={{ textAlign: 'center' }}>
               <div className="liq-stat-label" style={{ textAlign: 'center' }}>Open Interest</div>
               <div className="liq-stat-val" style={{ color: '#a78bfa', textAlign: 'center' }}>
@@ -440,11 +458,28 @@ export default function LiqPage() {
               </div>
               <div className="liq-stat-sub" style={{ textAlign: 'center' }}>{bands.tierCount}/17 zones in window</div>
             </div>
+
             <div className="liq-stat-sep" />
+
+            {/* Short side — both exchanges */}
             <div className="liq-stat-item" style={{ textAlign: 'right' }}>
-              <div className="liq-stat-label">Short exposure</div>
-              <div className="liq-stat-val" style={{ color: '#34d399' }}>{((cd.shortRatio ?? 0.5)*100).toFixed(0)}%</div>
-              <div className="liq-stat-sub" style={{ textAlign: 'right' }}>of traders are short</div>
+              <div className="liq-stat-label">Short accounts</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', marginTop: 2 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ fontSize: 10, color: 'var(--txt3)' }}>Bybit · 1h</span>
+                  <span style={{ fontSize: 20, fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>
+                    {((cd.shortRatio ?? 0.5) * 100).toFixed(0)}%
+                  </span>
+                </div>
+                {cd.bnShortRatio != null && (
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ fontSize: 10, color: 'var(--txt3)' }}>Binance · 5m</span>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: 'rgba(52,211,153,0.65)', fontVariantNumeric: 'tabular-nums' }}>
+                      {(cd.bnShortRatio * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
