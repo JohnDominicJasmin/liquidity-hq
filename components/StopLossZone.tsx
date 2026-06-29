@@ -95,9 +95,8 @@ function computeTP(d: CoinData, bias: Bias, stop: Level): Level | null {
   return null;
 }
 
-export default function StopLossZone() {
+export default function StopLossZone({ coin }: { coin: CoinId }) {
   const { store } = useMarket();
-  const coin = store.selectedCoin as CoinId;
   const d    = store.coins[coin];
   const dec  = COIN_DEC[coin] ?? 2;
 
@@ -129,7 +128,7 @@ export default function StopLossZone() {
     <div className="sms-card">
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '10px 14px 8px' }}>
-        <span className="sms-title">Stop Loss Zone</span>
+        <span className="sms-title">Trade Setup</span>
         <span style={{ fontSize: 10, color: 'var(--txt3)' }}>
           {coin.toUpperCase()} · {score}/{total} {bias === 'neutral' ? 'signals split' : bias === 'long' ? 'bullish' : 'bearish'}
         </span>
