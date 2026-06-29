@@ -122,8 +122,8 @@ body::after {
 }
 .app-logo { font-size: 15px; font-weight: 700; color: var(--txt); white-space: nowrap; flex-shrink: 0; letter-spacing: -0.2px; }
 .app-logo span { color: var(--purple); }
-.app-content { max-width: 700px; margin: 0 auto; padding: 90px 1rem 2rem; }
-/* 90px = navbar(52) + ticker(28) + 10px gap — safe at all times */
+.app-content { max-width: 700px; margin: 0 auto; padding: 120px 1rem 2rem; }
+/* 120px = navbar(52) + summary-bar(30) + ticker(28) + 10px gap — safe at all times */
 
 /* ── DESKTOP WIDE LAYOUT (≥1100px) ── */
 @media (min-width: 1100px) {
@@ -150,8 +150,8 @@ body::after {
     flex-direction: column;
     gap: 8px;
     position: sticky;
-    top: 68px;
-    max-height: calc(100vh - 80px);
+    top: 98px;
+    max-height: calc(100vh - 110px);
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.05) transparent;
@@ -165,8 +165,8 @@ body::after {
     flex-direction: column;
     gap: 8px;
     position: sticky;
-    top: 68px;
-    max-height: calc(100vh - 80px);
+    top: 98px;
+    max-height: calc(100vh - 110px);
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.05) transparent;
@@ -542,7 +542,7 @@ body[data-rpm-level="high"]::before {
 
 /* ── NEWS TICKER ── */
 .news-ticker {
-  position: fixed; top: 52px; left: 0; right: 0; z-index: 999;
+  position: fixed; top: 82px; left: 0; right: 0; z-index: 999;
   height: 28px; display: flex; align-items: center; gap: 0;
   background: #0a090e;                   /* fully opaque — no bleed-through */
   border-bottom: 0.5px solid rgba(255,255,255,0.06);
@@ -595,7 +595,7 @@ body[data-rpm-level="high"]::before {
 
 /* body.ticker-on no longer needed for app-content — base padding covers both states */
 /* Keep for breaking alerts positioning */
-body.ticker-on .breaking-alert { top: 90px; }
+body.ticker-on .breaking-alert { top: 120px; }
 
 /* ── INDICATORS ── */
 .ind-row  { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
