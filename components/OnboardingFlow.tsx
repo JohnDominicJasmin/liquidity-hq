@@ -15,11 +15,11 @@ type Challenge  = 'read_signals' | 'entry_exit' | 'risk_management' | 'disciplin
 type Heard      = 'social' | 'youtube' | 'tiktok' | 'search' | 'word' | 'other';
 
 const STEP_META = [
-  { key: 'Profile',    label: 'Profile',    accent: '#f59e0b' },
+  { key: 'Profile',    label: 'Profile',    accent: '#a78bfa' },
   { key: 'Experience', label: 'Experience', accent: '#34d399' },
   { key: 'Style',      label: 'Style',      accent: '#60a5fa' },
   { key: 'Goals',      label: 'Goals',      accent: '#f87171' },
-  { key: 'Source',     label: 'Source',     accent: '#a78bfa' },
+  { key: 'Source',     label: 'Source',     accent: '#e879f9' },
 ] as const;
 
 const COUNTRIES = [
