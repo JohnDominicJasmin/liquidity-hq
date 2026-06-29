@@ -131,7 +131,7 @@ export default function StopLossZone() {
   return (
     <div className="sms-card">
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '10px 14px 8px' }}>
         <span className="sms-title">Stop Loss Zone</span>
         <span style={{ fontSize: 10, color: 'var(--txt3)' }}>
           {coin.toUpperCase()} · {score}/{total} signals {bias === 'neutral' ? 'split' : bias === 'long' ? 'bullish' : 'bearish'}
@@ -139,13 +139,13 @@ export default function StopLossZone() {
       </div>
 
       {bias === 'neutral' || !stop || rows.length === 0 ? (
-        <div style={{ fontSize: 12, color: 'var(--txt3)', lineHeight: 1.6 }}>
+        <div style={{ fontSize: 12, color: 'var(--txt3)', lineHeight: 1.6, padding: '0 14px 14px' }}>
           Signals are split — wait for RSI and OI to agree on direction before entering.
         </div>
       ) : (
         <>
-          {/* Direction pill */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+          {/* Direction + R:R pills */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 14px 14px' }}>
             <span style={{
               fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
               color: biasCol, background: biasCol + '18', border: `0.5px solid ${biasCol}40`,
@@ -166,62 +166,46 @@ export default function StopLossZone() {
           </div>
 
           {/* Price ladder */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', padding: '0 14px 14px' }}>
             {rows.map((row, i) => {
               const col = roleCol(row.role);
               const isEntry = row.role === 'entry';
-              const aboveEntry = rows.slice(0, i).some(r => r.role === 'entry');
               const sign = row.price > d.price ? '+' : row.price < d.price ? '-' : '';
 
               return (
-                <div key={row.role} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-                  {/* Left track line + dot */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 16, flexShrink: 0, alignSelf: 'stretch' }}>
-                    {/* Top segment */}
-                    <div style={{
-                      width: 1.5, flex: '0 0 12px',
-                      background: i === 0 ? 'transparent' : 'var(--bdr)',
-                    }} />
-                    {/* Dot */}
+                <div key={row.role} style={{ display: 'flex', alignItems: 'center' }}>
+                  {/* Track line + dot */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 14, flexShrink: 0, alignSelf: 'stretch' }}>
+                    <div style={{ width: 1.5, flex: '0 0 14px', background: i === 0 ? 'transparent' : 'rgba(255,255,255,0.12)' }} />
                     <div style={{
                       width: isEntry ? 6 : 8, height: isEntry ? 6 : 8,
                       borderRadius: '50%', flexShrink: 0,
-                      background: isEntry ? 'var(--txt2)' : col,
-                      border: isEntry ? '1.5px solid var(--bdr)' : 'none',
+                      background: isEntry ? 'rgba(255,255,255,0.25)' : col,
                     }} />
-                    {/* Bottom segment */}
-                    <div style={{
-                      width: 1.5, flex: 1,
-                      background: i === rows.length - 1 ? 'transparent' : 'var(--bdr)',
-                    }} />
+                    <div style={{ width: 1.5, flex: 1, background: i === rows.length - 1 ? 'transparent' : 'rgba(255,255,255,0.12)' }} />
                   </div>
 
-                  {/* Row content */}
+                  {/* Content */}
                   <div style={{
-                    flex: 1, paddingLeft: 10,
-                    paddingTop: i === 0 ? 0 : 8,
-                    paddingBottom: i === rows.length - 1 ? 0 : 8,
+                    flex: 1, paddingLeft: 12,
+                    paddingTop: i === 0 ? 0 : 10,
+                    paddingBottom: i === rows.length - 1 ? 0 : 10,
                   }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                      {/* Role label */}
                       <span style={{
-                        fontSize: 9, fontWeight: 700, letterSpacing: '.07em',
-                        color: isEntry ? 'var(--txt3)' : col,
-                        textTransform: 'uppercase', minWidth: 40,
+                        fontSize: 9, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase',
+                        color: isEntry ? 'var(--txt3)' : col, minWidth: 44,
                       }}>
                         {roleLabel(row.role)}
                       </span>
-                      {/* Price */}
                       <span style={{
-                        fontSize: isEntry ? 13 : 14, fontWeight: 800,
+                        fontSize: isEntry ? 13 : 14, fontWeight: 800, letterSpacing: '-.01em',
                         color: isEntry ? 'var(--txt)' : col,
-                        letterSpacing: '-.01em',
                       }}>
                         ${fmtPrice(row.price, dec)}
                       </span>
-                      {/* Distance + level */}
                       {!isEntry && (
-                        <span style={{ fontSize: 10, color: 'var(--txt3)', marginLeft: 2 }}>
+                        <span style={{ fontSize: 10, color: 'var(--txt3)' }}>
                           {sign}{row.distPct.toFixed(2)}% · {row.levelLabel}
                         </span>
                       )}
