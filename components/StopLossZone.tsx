@@ -110,9 +110,6 @@ export default function StopLossZone() {
 
   const biasCol = bias === 'long' ? '#34d399' : bias === 'short' ? '#f87171' : '#6b7280';
 
-  // Price ladder rows ordered high → low (top of card = highest price)
-  // For long:  TP (top, green) → Entry → SL (bottom, red)
-  // For short: SL (top, red)   → Entry → TP (bottom, green)
   type Row = { role: 'sl' | 'entry' | 'tp'; price: number; distPct: number; levelLabel: string };
   const rows: Row[] = [];
 
@@ -120,13 +117,13 @@ export default function StopLossZone() {
     const slRow:    Row = { role: 'sl',    price: stop.price, distPct: stop.distPct, levelLabel: stop.label };
     const entryRow: Row = { role: 'entry', price: d.price,    distPct: 0,            levelLabel: '' };
     const tpRow:    Row | null = tp ? { role: 'tp', price: tp.price, distPct: tp.distPct, levelLabel: tp.label } : null;
-
     const all: Row[] = tpRow ? [slRow, entryRow, tpRow] : [slRow, entryRow];
-    rows.push(...all.sort((a, b) => b.price - a.price)); // high → low
+    rows.push(...all.sort((a, b) => b.price - a.price));
   }
 
   const roleCol   = (role: Row['role']) => role === 'sl' ? '#f87171' : role === 'tp' ? '#34d399' : 'var(--txt)';
-  const roleLabel = (role: Row['role']) => role === 'sl' ? 'STOP' : role === 'tp' ? 'TARGET' : 'ENTRY';
+  const roleTint  = (role: Row['role']) => role === 'tp' ? 'rgba(52,211,153,0.07)' : role === 'sl' ? 'rgba(248,113,113,0.07)' : 'transparent';
+  const roleLabel = (role: Row['role']) => role === 'sl' ? 'Stop Loss' : role === 'tp' ? 'Take Profit' : 'Entry';
 
   return (
     <div className="sms-card">
@@ -134,7 +131,7 @@ export default function StopLossZone() {
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '10px 14px 8px' }}>
         <span className="sms-title">Stop Loss Zone</span>
         <span style={{ fontSize: 10, color: 'var(--txt3)' }}>
-          {coin.toUpperCase()} · {score}/{total} signals {bias === 'neutral' ? 'split' : bias === 'long' ? 'bullish' : 'bearish'}
+          {coin.toUpperCase()} · {score}/{total} {bias === 'neutral' ? 'signals split' : bias === 'long' ? 'bullish' : 'bearish'}
         </span>
       </div>
 
@@ -144,10 +141,10 @@ export default function StopLossZone() {
         </div>
       ) : (
         <>
-          {/* Direction + R:R pills */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '0 14px 14px' }}>
+          {/* Direction pill + R:R ratio */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 14px 10px' }}>
             <span style={{
-              fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
+              fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 5,
               color: biasCol, background: biasCol + '18', border: `0.5px solid ${biasCol}40`,
               letterSpacing: '.03em',
             }}>
@@ -155,66 +152,78 @@ export default function StopLossZone() {
             </span>
             {rr && (
               <span style={{
-                fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
+                fontSize: 13, fontWeight: 800, letterSpacing: '-.01em',
                 color: rr >= 2 ? '#34d399' : rr >= 1.5 ? '#f59e0b' : '#6b7280',
-                background: 'rgba(255,255,255,0.04)',
-                border: '0.5px solid var(--bdr)',
               }}>
-                R:R 1:{rr.toFixed(1)}
+                R:R&nbsp;1:{rr.toFixed(1)}
               </span>
             )}
           </div>
 
-          {/* Price ladder */}
-          <div style={{ display: 'flex', flexDirection: 'column', padding: '0 14px 14px' }}>
-            {rows.map((row, i) => {
-              const col = roleCol(row.role);
-              const isEntry = row.role === 'entry';
-              const sign = row.price > d.price ? '+' : row.price < d.price ? '-' : '';
+          {/* Proportional reward / risk bar */}
+          {rr && (
+            <div style={{ padding: '0 14px 14px' }}>
+              <div style={{ display: 'flex', height: 5, borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ flex: rr, background: '#34d399', opacity: 0.65, borderRadius: '3px 0 0 3px' }} />
+                <div style={{ flex: 1, background: '#f87171', opacity: 0.65, borderRadius: '0 3px 3px 0' }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                <span style={{ fontSize: 8, color: 'rgba(52,211,153,0.5)', letterSpacing: '.07em', textTransform: 'uppercase' }}>Reward</span>
+                <span style={{ fontSize: 8, color: 'rgba(248,113,113,0.5)', letterSpacing: '.07em', textTransform: 'uppercase' }}>Risk</span>
+              </div>
+            </div>
+          )}
 
-              return (
-                <div key={row.role} style={{ display: 'flex', alignItems: 'center' }}>
-                  {/* Track line + dot */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 14, flexShrink: 0, alignSelf: 'stretch' }}>
-                    <div style={{ width: 1.5, flex: '0 0 14px', background: i === 0 ? 'transparent' : 'rgba(255,255,255,0.12)' }} />
+          {/* Price level rows */}
+          {rows.map((row, i) => {
+            const col     = roleCol(row.role);
+            const isEntry = row.role === 'entry';
+            const sign    = row.price > d.price ? '+' : row.price < d.price ? '-' : '';
+
+            return (
+              <div key={row.role} style={{
+                background: roleTint(row.role),
+                borderTop: '0.5px solid rgba(255,255,255,0.05)',
+              }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: isEntry ? '14px 14px' : '11px 14px',
+                }}>
+                  {/* Left: label above price */}
+                  <div>
                     <div style={{
-                      width: isEntry ? 6 : 8, height: isEntry ? 6 : 8,
-                      borderRadius: '50%', flexShrink: 0,
-                      background: isEntry ? 'rgba(255,255,255,0.25)' : col,
-                    }} />
-                    <div style={{ width: 1.5, flex: 1, background: i === rows.length - 1 ? 'transparent' : 'rgba(255,255,255,0.12)' }} />
-                  </div>
-
-                  {/* Content */}
-                  <div style={{
-                    flex: 1, paddingLeft: 12,
-                    paddingTop: i === 0 ? 0 : 10,
-                    paddingBottom: i === rows.length - 1 ? 0 : 10,
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                      <span style={{
-                        fontSize: 9, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase',
-                        color: isEntry ? 'var(--txt3)' : col, minWidth: 44,
-                      }}>
-                        {roleLabel(row.role)}
-                      </span>
-                      <span style={{
-                        fontSize: isEntry ? 13 : 14, fontWeight: 800, letterSpacing: '-.01em',
-                        color: isEntry ? 'var(--txt)' : col,
-                      }}>
-                        ${fmtPrice(row.price, dec)}
-                      </span>
-                      {!isEntry && (
-                        <span style={{ fontSize: 10, color: 'var(--txt3)' }}>
-                          {sign}{row.distPct.toFixed(2)}% · {row.levelLabel}
-                        </span>
-                      )}
+                      fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
+                      color: isEntry ? 'var(--txt3)' : col,
+                      marginBottom: 5,
+                    }}>
+                      {roleLabel(row.role)}
+                    </div>
+                    <div style={{
+                      fontSize: isEntry ? 17 : 15, fontWeight: 800,
+                      color: isEntry ? 'var(--txt)' : col,
+                      letterSpacing: '-.02em',
+                    }}>
+                      ${fmtPrice(row.price, dec)}
                     </div>
                   </div>
+
+                  {/* Right: bold % above dim level name */}
+                  {!isEntry ? (
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: col, letterSpacing: '-.01em', marginBottom: 4 }}>
+                        {sign}{row.distPct.toFixed(2)}%
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--txt3)' }}>
+                        {row.levelLabel}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.18)' }}>current</div>
+                  )}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </>
       )}
     </div>
