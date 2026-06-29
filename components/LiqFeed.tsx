@@ -333,7 +333,6 @@ export default function LiqFeed({ onClusters }: { onClusters?: (clusters: Bucket
   const totalUsd  = stats.longUsd + stats.shortUsd;
   const longDom   = stats.longUsd  > stats.shortUsd * 1.2;
   const shortDom  = stats.shortUsd > stats.longUsd  * 1.2;
-  const maxCluster = clusters.length ? Math.max(...clusters.map(c => c.total)) : 1;
   const anyLive   = bnStatus === 'live' || bbStatus === 'live';
 
   return (
@@ -403,36 +402,48 @@ export default function LiqFeed({ onClusters }: { onClusters?: (clusters: Bucket
       )}
 
       {/* ── Price clusters ── */}
-      {clusters.length > 0 && (
-        <div className="liq-clusters">
-          <div className="liq-clusters-title">
-            Hot price levels · 24h cluster
-            <span style={{ color: '#444', fontWeight: 400, marginLeft: 6 }}>— where liqs are concentrating</span>
-          </div>
-          {clusters.map(c => (
-            <div key={c.price} className="liq-cluster-row">
-              <span className="liq-cluster-price">{c.label}</span>
-              <div className="liq-cluster-bars">
-                <div
-                  className="liq-cluster-bar liq-cluster-bar-long"
-                  style={{ width: `${(c.longUsd / maxCluster) * 100}%` }}
-                />
-                <div
-                  className="liq-cluster-bar liq-cluster-bar-short"
-                  style={{ width: `${(c.shortUsd / maxCluster) * 100}%` }}
-                />
-              </div>
-              <span className="liq-cluster-amt">{fmtUSD(c.total)}</span>
-              <span
-                className="liq-cluster-dom"
-                style={{ color: c.longUsd > c.shortUsd ? '#f87171' : '#34d399' }}
-              >
-                {c.longUsd > c.shortUsd ? 'L' : 'S'}
-              </span>
+      {clusters.length > 0 && (() => {
+        const filtered = filterCoin === 'ALL'
+          ? clusters
+          : clusters.filter(c => c.coin === filterCoin);
+        if (filtered.length === 0) return null;
+        const displayMax = Math.max(...filtered.map(c => c.total));
+        return (
+          <div className="liq-clusters">
+            <div className="liq-clusters-title">
+              Hot price levels · 24h cluster
+              <span style={{ color: '#444', fontWeight: 400, marginLeft: 6 }}>— where liqs are concentrating</span>
             </div>
-          ))}
-        </div>
-      )}
+            {filtered.map(c => (
+              <div key={`${c.coin}::${c.price}`} className="liq-cluster-row">
+                <div>
+                  {filterCoin === 'ALL' && (
+                    <span style={{ fontSize: 9, fontWeight: 700, color: '#888', letterSpacing: '.06em', display: 'block', marginBottom: 1 }}>{c.coin}</span>
+                  )}
+                  <span className="liq-cluster-price">{c.label}</span>
+                </div>
+                <div className="liq-cluster-bars">
+                  <div
+                    className="liq-cluster-bar liq-cluster-bar-long"
+                    style={{ width: `${(c.longUsd / displayMax) * 100}%` }}
+                  />
+                  <div
+                    className="liq-cluster-bar liq-cluster-bar-short"
+                    style={{ width: `${(c.shortUsd / displayMax) * 100}%` }}
+                  />
+                </div>
+                <span className="liq-cluster-amt">{fmtUSD(c.total)}</span>
+                <span
+                  className="liq-cluster-dom"
+                  style={{ color: c.longUsd > c.shortUsd ? '#f87171' : '#34d399' }}
+                >
+                  {c.longUsd > c.shortUsd ? 'L' : 'S'}
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* ── Coin filter ── */}
       <div className="liq-filter-row">

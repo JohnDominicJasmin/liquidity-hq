@@ -174,7 +174,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
             border: '0.5px solid rgba(52,211,153,0.25)',
           }}>LIVE DATA</span>
         </div>
-        <span style={{ fontSize: 11, color: 'var(--txt3)' }}>4h window · Binance + Bybit</span>
+        <span style={{ fontSize: 11, color: 'var(--txt3)' }}>24h window · Binance + Bybit</span>
       </div>
 
       {/* Column headers */}
