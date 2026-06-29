@@ -46,6 +46,19 @@ function atrArr(candles: OHLCV[], period = 14): number[] {
 }
 
 
+/* ── Adjustable filter parameters ───────────────────────────────────────── */
+export interface SignalFilterParams {
+  spreadMinPct: number;  // EMA9/20 min spread as fraction of price (0.003 = 0.3%)
+  atrMult:      number;  // ATR(14) multiplier for EMA50 clearance buffer (0.35 = 35%)
+  persistBoost: number;  // Integer added to all PERSIST_BY_TF base values (can be negative)
+}
+
+export const DEFAULT_FILTER_PARAMS: SignalFilterParams = {
+  spreadMinPct: 0.003,
+  atrMult:      0.35,
+  persistBoost: 0,
+};
+
 /* ── Types ───────────────────────────────────────────────────────────────── */
 export type StrategyVerdict =
   | 'LONG_SETUP'
@@ -144,11 +157,13 @@ const TF_BY: Record<string, string> = {
 
 /* ── Main hook ───────────────────────────────────────────────────────────── */
 export function useEMAStrategy(
-  coin:        CoinId,
-  tf:          string,
-  fundingRate: number | null,
-  oiPct:       number | null,
+  coin:         CoinId,
+  tf:           string,
+  fundingRate:  number | null,
+  oiPct:        number | null,
+  filterParams: SignalFilterParams = DEFAULT_FILTER_PARAMS,
 ): StrategySignal {
+  const { spreadMinPct, atrMult, persistBoost } = filterParams;
   const [sig, setSig] = useState<StrategySignal>(STRATEGY_LOADING);
   const mountedRef    = useRef(true);
 
@@ -179,7 +194,6 @@ export function useEMAStrategy(
         const e9arr    = emaArr(cl4,  9);
         const e20arr   = emaArr(cl4, 20);
         const e50arr   = emaArr(cl4, 50);
-        const sm200arr = smaArr(cl4,  200); // SMA200 on same timeframe — used for chart markers
         const s200arr  = smaArr(cl1d, 200); // Daily SMA200 — used for strategy card
         const atr14    = atrArr(cRibbon, 14);
 
@@ -343,17 +357,26 @@ export function useEMAStrategy(
         let signalDir: 'long' | 'short' | null = null;
 
         // Anti-chop filters applied to all signal scans:
-        //   ATR buffer: close must clear EMA50 by ≥ 25% of ATR(14) — rejects marginal grazes
-        //   Slope filter: EMA50 must be trending in signal direction over last 5 bars (≥ 0.1%)
-        //                 Flat EMA50 = ranging market = skip
-        const ATR_MULT   = 0.25;
-        const SLOPE_BARS = 5;
-        const SLOPE_MIN  = 0.001;
+        //   ATR buffer:    close must clear EMA50 by ≥ 35% of ATR(14) — rejects marginal grazes
+        //   Slope filter:  EMA50 must be trending in signal direction over last 5 bars (≥ 0.1%)
+        //                  Flat EMA50 = ranging market = skip
+        //   Spread filter: EMA9 and EMA20 must be ≥ 0.3% of price apart at confirmation candle.
+        //                  Tangled ribbons (tight spread) = chop = skip. Trending ribbons are clearly
+        //                  separated. This is the primary filter against sideways whipsaw signals.
+        const ATR_MULT       = atrMult;
+        const SLOPE_BARS     = 5;
+        const SLOPE_MIN      = 0.001;
+        const SPREAD_MIN_PCT = spreadMinPct;
 
         const slopeOK = (k: number, dir: 'long' | 'short'): boolean => {
           if (k < SLOPE_BARS || !isFinite(e50arr[k - SLOPE_BARS])) return true;
           const s = (e50arr[k] - e50arr[k - SLOPE_BARS]) / e50arr[k - SLOPE_BARS];
           return dir === 'long' ? s > -SLOPE_MIN : s < SLOPE_MIN;
+        };
+
+        const spreadOK = (k: number): boolean => {
+          const p = cRibbon[k].close;
+          return p > 0 && Math.abs(e9arr[k] - e20arr[k]) / p >= SPREAD_MIN_PCT;
         };
 
         // Primary signal: gated by 200 SMA (used for EMA ribbon card + Grok context)
@@ -403,9 +426,9 @@ export function useEMAStrategy(
         // Timeframe-relative whipsaw filter: each unit = 1 candle, so we normalise
         // to ~2h of hold time across all timeframes (4h needs 4h, 1h only 2h, etc.)
         const PERSIST_BY_TF: Record<string, number> = {
-          '1m': 8, '5m': 8, '15m': 4, '30m': 4, '1h': 2, '4h': 3, '1d': 2,
+          '1m': 8, '5m': 8, '15m': 4, '30m': 4, '1h': 3, '4h': 3, '1d': 2,
         };
-        const PERSIST = PERSIST_BY_TF[tf] ?? 4;
+        const PERSIST = Math.max(1, (PERSIST_BY_TF[tf] ?? 4) + persistBoost);
 
         // True if price stays on the confirmed side of EMA50 for ≥PERSIST candles after k
         // (or the dataset ends first — the live edge can't be disproven yet).
@@ -437,7 +460,8 @@ export function useEMAStrategy(
               if (!isFinite(e50k)) continue;
               const atrBuf = (atr14[k] ?? 0) * ATR_MULT;
               if (cRibbon[k].close > e50k + atrBuf          // CONFIRM: meaningful close above EMA50
-                  && slopeOK(k, 'long')) {                  // ...and EMA50 is trending up (not flat/ranging)
+                  && slopeOK(k, 'long')                    // ...and EMA50 is trending up (not flat/ranging)
+                  && spreadOK(k)) {                         // ...and ribbon isn't tangled (chop filter)
                 if (holdsBeyond50(k, 'long')) {             // ...and the move stuck (not a whipsaw poke)
                   signalLongs.push({ timestamp: cRibbon[k].time, anchorPrice: cRibbon[k].low });
                   lastDir = 'long';
@@ -455,7 +479,8 @@ export function useEMAStrategy(
               if (!isFinite(e50k)) continue;
               const atrBuf = (atr14[k] ?? 0) * ATR_MULT;
               if (cRibbon[k].close < e50k - atrBuf          // CONFIRM: meaningful close below EMA50
-                  && slopeOK(k, 'short')) {                 // ...and EMA50 is trending down (not flat/ranging)
+                  && slopeOK(k, 'short')                   // ...and EMA50 is trending down (not flat/ranging)
+                  && spreadOK(k)) {                         // ...and ribbon isn't tangled (chop filter)
                 if (holdsBeyond50(k, 'short')) {            // ...and the move stuck (not a whipsaw poke)
                   signalShorts.push({ timestamp: cRibbon[k].time, anchorPrice: cRibbon[k].high });
                   lastDir = 'short';
@@ -495,7 +520,7 @@ export function useEMAStrategy(
       mountedRef.current = false;
       clearInterval(iv);
     };
-  }, [coin, tf, fundingRate, oiPct]);
+  }, [coin, tf, fundingRate, oiPct, spreadMinPct, atrMult, persistBoost]);
 
   return sig;
 }

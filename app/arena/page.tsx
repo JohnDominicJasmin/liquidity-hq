@@ -18,7 +18,7 @@ import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetec
 import EMASignal from '@/components/EMASignal';
 import StopLossZone from '@/components/StopLossZone';
 import LiqHeatmap from '@/components/LiqHeatmap';
-import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal } from '@/lib/useEMAStrategy';
+import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, SignalFilterParams, DEFAULT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
 
 /* ── Pattern detection — delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -142,6 +142,7 @@ export default function Arena() {
     readTf,
     store.coins[selectedCoin]?.fundingRate ?? null,
     oi1h.pct,
+    filterParams,
   );
   const [readLoading, setReadLoading] = useState(false);
   const [readStep, setReadStep]       = useState('');
@@ -157,6 +158,14 @@ export default function Arena() {
   const [quickSignals, setQuickSignals] = useState<Partial<Record<CoinId, string>>>({});
   const [scannerOpen, setScannerOpen]   = useState(false);
   const [scannerSearch, setScannerSearch] = useState('');
+  const [filterOpen, setFilterOpen]     = useState(false);
+  const [filterParams, setFilterParams] = useState<SignalFilterParams>(() => {
+    try {
+      const saved = localStorage.getItem('lhq_signal_filters');
+      if (saved) return { ...DEFAULT_FILTER_PARAMS, ...JSON.parse(saved) };
+    } catch {}
+    return DEFAULT_FILTER_PARAMS;
+  });
   const scannerSearchRef = useRef<HTMLInputElement>(null);
   const [coinCat, setCoinCat]           = useState<'all' | 'majors' | 'alts' | 'defi' | 'meme'>('all');
   const [sigDetailsOpen, setSigDetailsOpen] = useState(false);
@@ -205,6 +214,11 @@ export default function Arena() {
       setAlertSaving(false);
     }
   }
+
+  /* ── Persist signal filter params to localStorage ── */
+  useEffect(() => {
+    try { localStorage.setItem('lhq_signal_filters', JSON.stringify(filterParams)); } catch {}
+  }, [filterParams]);
 
   /* ── Fetch alerts for selected coin (chart overlay lines) ── */
   useEffect(() => {
@@ -800,7 +814,7 @@ export default function Arena() {
             : `${jpyUsd.toFixed(2)} — Safe: below 158, carry trade stable, low JPY liquidation risk`,
       emaStrategy: strategyToGrokLine(emaSignalRef.current, readTf),
       emaATR: emaSignalRef.current.atrLast != null
-        ? `ATR(14) = $${emaSignalRef.current.atrLast.toFixed(2)} · 25% buf = $${(emaSignalRef.current.atrLast * 0.25).toFixed(2)} min clearance above/below EMA50`
+        ? `ATR(14) = $${emaSignalRef.current.atrLast.toFixed(2)} · 35% buf = $${(emaSignalRef.current.atrLast * 0.35).toFixed(2)} min clearance above/below EMA50`
         : '—',
       ema50Slope: (() => {
         const s = emaSignalRef.current.ema50Slope;
@@ -1293,6 +1307,135 @@ export default function Arena() {
           currentPrice={store.coins['btc']?.price ?? 0}
         />
       )}
+
+      {/* Anti-chop filter controls */}
+      <div style={{ marginBottom: 8 }}>
+        <button
+          onClick={() => setFilterOpen(o => !o)}
+          style={{
+            background: 'none',
+            border: '1px solid rgba(255,255,255,0.1)',
+            color: 'var(--txt)',
+            borderRadius: 6,
+            padding: '4px 10px',
+            cursor: 'pointer',
+            fontSize: 12,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <span style={{ opacity: 0.5, fontSize: 13 }}>⚙</span>
+          Signal Filters
+          {JSON.stringify(filterParams) !== JSON.stringify(DEFAULT_FILTER_PARAMS) && (
+            <span style={{
+              background: 'var(--accent)',
+              color: '#000',
+              borderRadius: 3,
+              padding: '0 4px',
+              fontSize: 10,
+              fontWeight: 700,
+            }}>custom</span>
+          )}
+          <span style={{ opacity: 0.35, fontSize: 10 }}>{filterOpen ? '▲' : '▼'}</span>
+        </button>
+
+        {filterOpen && (
+          <div style={{
+            background: 'var(--bg2)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 8,
+            padding: 14,
+            marginTop: 6,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+          }}>
+            {/* EMA Ribbon Spread Min */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                <span style={{ fontSize: 12, opacity: 0.7 }}>EMA Ribbon Spread Min</span>
+                <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>
+                  {(filterParams.spreadMinPct * 100).toFixed(1)}%
+                </span>
+              </div>
+              <input
+                type="range" min={0.001} max={0.010} step={0.001}
+                value={filterParams.spreadMinPct}
+                onChange={e => setFilterParams(p => ({ ...p, spreadMinPct: +e.target.value }))}
+                style={{ width: '100%', accentColor: 'var(--accent)' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, opacity: 0.3, marginTop: 2 }}>
+                <span>0.1% (loose)</span><span>1.0% (strict)</span>
+              </div>
+            </div>
+
+            {/* ATR Buffer */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                <span style={{ fontSize: 12, opacity: 0.7 }}>ATR Buffer (EMA50 clearance)</span>
+                <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>
+                  {(filterParams.atrMult * 100).toFixed(0)}% of ATR(14)
+                </span>
+              </div>
+              <input
+                type="range" min={0.10} max={0.75} step={0.05}
+                value={filterParams.atrMult}
+                onChange={e => setFilterParams(p => ({ ...p, atrMult: +e.target.value }))}
+                style={{ width: '100%', accentColor: 'var(--accent)' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, opacity: 0.3, marginTop: 2 }}>
+                <span>10% (loose)</span><span>75% (strict)</span>
+              </div>
+            </div>
+
+            {/* Persistence Boost */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                <span style={{ fontSize: 12, opacity: 0.7 }}>Persistence Boost (extra candles)</span>
+                <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>
+                  {filterParams.persistBoost >= 0 ? '+' : ''}{filterParams.persistBoost} candle{filterParams.persistBoost !== 1 && filterParams.persistBoost !== -1 ? 's' : ''}
+                </span>
+              </div>
+              <input
+                type="range" min={-2} max={5} step={1}
+                value={filterParams.persistBoost}
+                onChange={e => setFilterParams(p => ({ ...p, persistBoost: +e.target.value }))}
+                style={{ width: '100%', accentColor: 'var(--accent)' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, opacity: 0.3, marginTop: 2 }}>
+                <span>-2 (fewer)</span><span>+5 (more)</span>
+              </div>
+            </div>
+
+            {/* Descriptions + Reset */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+              <p style={{ fontSize: 11, opacity: 0.4, margin: 0, lineHeight: 1.5, maxWidth: 340 }}>
+                Spread - rejects tangled EMA crosses in sideways markets.
+                ATR Buffer - requires price to meaningfully clear EMA50.
+                Persistence - how many candles price must hold after confirmation.
+              </p>
+              {JSON.stringify(filterParams) !== JSON.stringify(DEFAULT_FILTER_PARAMS) && (
+                <button
+                  onClick={() => setFilterParams(DEFAULT_FILTER_PARAMS)}
+                  style={{
+                    background: 'none',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    color: 'rgba(255,255,255,0.4)',
+                    borderRadius: 4,
+                    padding: '3px 10px',
+                    cursor: 'pointer',
+                    fontSize: 11,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Reset to defaults
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* EMA Ribbon Strategy card */}
       <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
