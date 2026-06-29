@@ -88,6 +88,12 @@ function fmtM(v: number): string {
   if (v >= 1)    return '$' + v.toFixed(1) + 'M';
   return '$' + (v * 1000).toFixed(0) + 'K';
 }
+function fmtUsd(v: number): string {
+  if (v >= 1_000_000_000) return '$' + (v / 1_000_000_000).toFixed(1) + 'B';
+  if (v >= 1_000_000)     return '$' + (v / 1_000_000).toFixed(1) + 'M';
+  if (v >= 1_000)         return '$' + (v / 1_000).toFixed(0) + 'K';
+  return '$' + v.toFixed(0);
+}
 
 /* ─── Estimated band row ───────────────────────────────────────────────────── */
 function BandRow({ b }: { b: Band }) {
@@ -211,7 +217,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
                 <div style={{ width: `${shortPct}%`, height: '100%', background: 'rgba(52,211,153,0.65)',  transition: 'width 0.4s' }} />
               </div>
               <div style={{ fontSize: 11, fontWeight: 700, color: domCol, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                {fmtM(c.total)}
+                {fmtUsd(c.total)}
               </div>
               <div style={{ fontSize: 10, fontWeight: 800, color: domCol, textAlign: 'right' }}>
                 {c.longUsd > c.shortUsd ? 'L' : 'S'}
