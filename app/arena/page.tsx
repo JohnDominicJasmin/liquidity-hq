@@ -1298,7 +1298,7 @@ export default function Arena() {
       <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
 
       {/* Stop Loss Zone - S/R anchored stop suggestion */}
-      <StopLossZone coin={selectedCoin} />
+      <StopLossZone coin={selectedCoin} grokSignal={result?.signal} />
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         {/* Quick button — requires sign-in */}

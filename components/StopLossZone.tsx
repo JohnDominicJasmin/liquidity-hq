@@ -95,7 +95,7 @@ function computeTP(d: CoinData, bias: Bias, stop: Level): Level | null {
   return null;
 }
 
-export default function StopLossZone({ coin }: { coin: CoinId }) {
+export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokSignal?: string }) {
   const { store } = useMarket();
   const d    = store.coins[coin];
   const dec  = COIN_DEC[coin] ?? 2;
@@ -108,6 +108,13 @@ export default function StopLossZone({ coin }: { coin: CoinId }) {
   const rr   = stop && tp ? (tp.distPct / stop.distPct) : null;
 
   const biasCol = bias === 'long' ? '#34d399' : bias === 'short' ? '#f87171' : '#6b7280';
+
+  // Conflict: technical indicator bias vs Grok AI signal
+  const grokUp = grokSignal?.toUpperCase() ?? '';
+  const hasConflict = bias !== 'neutral' && (
+    (bias === 'long'  && (grokUp === 'SHORT' || grokUp === 'LEAN SHORT')) ||
+    (bias === 'short' && (grokUp === 'LONG'  || grokUp === 'LEAN LONG'))
+  );
 
   type Row = { role: 'sl' | 'entry' | 'tp'; price: number; distPct: number; levelLabel: string };
   const rows: Row[] = [];
@@ -130,7 +137,7 @@ export default function StopLossZone({ coin }: { coin: CoinId }) {
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '10px 14px 8px' }}>
         <span className="sms-title">Trade Setup</span>
         <span style={{ fontSize: 10, color: 'var(--txt3)' }}>
-          {coin.toUpperCase()} · {score}/{total} {bias === 'neutral' ? 'signals split' : bias === 'long' ? 'bullish' : 'bearish'}
+          {coin.toUpperCase()} · {score}/{total} indicators
         </span>
       </div>
 
@@ -140,6 +147,25 @@ export default function StopLossZone({ coin }: { coin: CoinId }) {
         </div>
       ) : (
         <>
+          {/* Conflict notice — shown when AI signal contradicts indicator bias */}
+          {hasConflict && (
+            <div style={{ padding: '0 14px 10px' }}>
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: 7,
+                padding: '8px 10px', borderRadius: 7,
+                background: 'rgba(245,158,11,0.07)',
+                border: '0.5px solid rgba(245,158,11,0.22)',
+              }}>
+                <span style={{ fontSize: 12, color: '#f59e0b', flexShrink: 0, lineHeight: 1 }}>⚠</span>
+                <span style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.5 }}>
+                  AI analysis leans{' '}
+                  <span style={{ color: '#f59e0b', fontWeight: 700 }}>{grokSignal}</span>
+                  {' '}— indicators may not reflect recent catalysts. Check the AI result below.
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Direction pill + R:R ratio */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 14px 10px' }}>
             <span style={{
@@ -147,13 +173,10 @@ export default function StopLossZone({ coin }: { coin: CoinId }) {
               color: biasCol, background: biasCol + '18', border: `0.5px solid ${biasCol}40`,
               letterSpacing: '.03em',
             }}>
-              {bias === 'long' ? '▲ Long' : '▼ Short'}
+              {bias === 'long' ? '▲ Indicators: Long' : '▼ Indicators: Short'}
             </span>
             {rr && (
-              <span style={{
-                fontSize: 13, fontWeight: 800, letterSpacing: '-.01em',
-                color: rr >= 2 ? '#34d399' : rr >= 1.5 ? '#f59e0b' : '#6b7280',
-              }}>
+              <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '-.01em', color: 'var(--txt2)' }}>
                 R:R&nbsp;1:{rr.toFixed(1)}
               </span>
             )}
