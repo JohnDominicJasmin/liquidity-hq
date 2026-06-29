@@ -16,6 +16,7 @@ import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import MarketStructure, { MSData } from '@/components/MarketStructure';
 import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
 import EMASignal from '@/components/EMASignal';
+import StopLossZone from '@/components/StopLossZone';
 import LiqHeatmap from '@/components/LiqHeatmap';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal } from '@/lib/useEMAStrategy';
 
@@ -1295,6 +1296,10 @@ export default function Arena() {
 
       {/* EMA Ribbon Strategy card */}
       <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
+
+      {/* Stop Loss Zone - S/R anchored stop suggestion */}
+      <StopLossZone />
+
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         {/* Quick button — requires sign-in */}
         <button
