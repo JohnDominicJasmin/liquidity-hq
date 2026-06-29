@@ -6,16 +6,23 @@ import { useSettings } from '@/lib/settings';
 import { getSupabase } from '@/lib/supabase';
 import { T } from '@/lib/tables';
 
-interface Props {
-  onStartTour: () => void;
-}
+interface Props { onStartTour: () => void; }
 
-type Exp   = 'lt6m' | '6to12m' | '1to3y' | '3plus';
-type Style = 'scalp' | 'swing' | 'both' | 'learning';
-type Acct  = '1k5k' | '5k25k' | '25k100k' | '100kplus';
-type Heard = 'social' | 'youtube' | 'tiktok' | 'search' | 'word' | 'other';
+type Exp       = 'lt6m' | '6to12m' | '1to3y' | '3plus';
+type Style     = 'scalp' | 'swing' | 'both' | 'learning';
+type Acct      = '1k5k' | '5k25k' | '25k100k' | '100kplus';
+type Challenge = 'read_signals' | 'entry_exit' | 'risk_management' | 'discipline';
+type Heard     = 'social' | 'youtube' | 'tiktok' | 'search' | 'word' | 'other';
 
-const STEPS = ['Experience', 'Style', 'Account', 'Source'] as const;
+const STEPS = ['Profile', 'Experience', 'Style', 'Goals', 'Source'] as const;
+
+const COUNTRIES = [
+  'Argentina', 'Australia', 'Bangladesh', 'Brazil', 'Canada', 'China',
+  'Ethiopia', 'France', 'Germany', 'Ghana', 'India', 'Indonesia', 'Japan',
+  'Kenya', 'Malaysia', 'Mexico', 'Nigeria', 'Pakistan', 'Philippines',
+  'Russia', 'Singapore', 'South Africa', 'South Korea', 'Thailand', 'Turkey',
+  'UAE', 'Ukraine', 'United Kingdom', 'United States', 'Vietnam', 'Other',
+];
 
 /* ── Single-select option card ── */
 function Option<T extends string>({
@@ -39,9 +46,7 @@ function Option<T extends string>({
         <div style={{ fontSize: 13, fontWeight: 600, color: active ? '#c4b5fd' : 'var(--txt)', lineHeight: 1.3 }}>
           {label}
         </div>
-        {sub && (
-          <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>{sub}</div>
-        )}
+        {sub && <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>{sub}</div>}
       </div>
       <div style={{
         width: 20, height: 20, borderRadius: '50%', flexShrink: 0, marginLeft: 12,
@@ -59,7 +64,39 @@ function Option<T extends string>({
   );
 }
 
-/* ── Source chips (multi-look but single-select) ── */
+/* ── Account size in 2×2 grid ── */
+function AcctGrid({ acct, setAcct }: { acct: Acct | null; setAcct: (v: Acct) => void }) {
+  const opts: { value: Acct; label: string }[] = [
+    { value: '1k5k',    label: '$1k - $5k'    },
+    { value: '5k25k',   label: '$5k - $25k'   },
+    { value: '25k100k', label: '$25k - $100k'  },
+    { value: '100kplus', label: '$100k+'        },
+  ];
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      {opts.map(o => {
+        const active = acct === o.value;
+        return (
+          <button
+            key={o.value}
+            onClick={() => setAcct(o.value)}
+            style={{
+              padding: '12px 10px', borderRadius: 10, cursor: 'pointer', textAlign: 'center',
+              background: active ? 'rgba(167,139,250,0.1)' : 'rgba(255,255,255,0.03)',
+              border: active ? '1px solid rgba(167,139,250,0.5)' : '0.5px solid rgba(255,255,255,0.08)',
+              color: active ? '#c4b5fd' : 'var(--txt)',
+              fontSize: 13, fontWeight: 600, transition: 'all 0.15s',
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Source chips ── */
 function SourceChip({ value, selected, label, onClick }: {
   value: Heard; selected: Heard | null; label: string; onClick: (v: Heard) => void;
 }) {
@@ -81,28 +118,36 @@ function SourceChip({ value, selected, label, onClick }: {
 }
 
 export default function OnboardingFlow({ onStartTour }: Props) {
-  const { user } = useAuth();
+  const { user }              = useAuth();
   const { state, loaded, markDone } = useOnboarding();
-  const { update } = useSettings();
+  const { update }            = useSettings();
 
-  const [step, setStep]       = useState(0);
-  const [saving, setSaving]   = useState(false);
-  const [exp,   setExp]       = useState<Exp | null>(null);
-  const [style, setStyle]     = useState<Style | null>(null);
-  const [acct,  setAcct]      = useState<Acct | null>(null);
-  const [heard, setHeard]     = useState<Heard | null>(null);
+  const [step,        setStep]        = useState(0);
+  const [saving,      setSaving]      = useState(false);
+  // Profile
+  const [displayName, setDisplayName] = useState('');
+  const [country,     setCountry]     = useState('');
+  const [acct,        setAcct]        = useState<Acct | null>(null);
+  // Experience
+  const [exp,         setExp]         = useState<Exp | null>(null);
+  // Style
+  const [style,       setStyle]       = useState<Style | null>(null);
+  // Goals
+  const [challenge,   setChallenge]   = useState<Challenge | null>(null);
+  // Source
+  const [heard,       setHeard]       = useState<Heard | null>(null);
 
-  // Don't show if: not logged in, not loaded, or already completed profile
   if (!user || !loaded || state.profileComplete) return null;
 
-  const isBeginnerExp = exp === 'lt6m' || exp === '6to12m';
+  const isBeginnerExp   = exp === 'lt6m' || exp === '6to12m';
   const isBeginnerStyle = style === 'learning';
 
   function canNext() {
-    if (step === 0) return exp !== null;
-    if (step === 1) return style !== null;
-    if (step === 2) return acct !== null;
-    return true; // step 3 (source) is optional
+    if (step === 0) return country !== '' && acct !== null;
+    if (step === 1) return exp !== null;
+    if (step === 2) return style !== null;
+    if (step === 3) return challenge !== null;
+    return true; // Source is optional
   }
 
   async function finish() {
@@ -117,17 +162,18 @@ export default function OnboardingFlow({ onStartTour }: Props) {
       '1k5k': 2500, '5k25k': 10000, '25k100k': 50000, '100kplus': 150000,
     };
 
-    // Save to settings (local + DB via useSettings)
     update({
       beginner_mode:      beginner,
-      trading_experience: exp ?? undefined,
-      trading_style:      style ?? undefined,
-      how_heard:          heard ?? undefined,
-      ...(acct ? { account_size: acctMap[acct] } : {}),
-      ...(style ? { default_tf: tfMap[style] } : {}),
+      display_name:       displayName || null,
+      country:            country     || null,
+      trading_experience: exp         ?? null,
+      trading_style:      style       ?? null,
+      trading_challenge:  challenge   ?? null,
+      how_heard:          heard       ?? null,
+      ...(acct  ? { account_size: acctMap[acct]   } : {}),
+      ...(style ? { default_tf:   tfMap[style]    } : {}),
     });
 
-    // Mark profile_complete + tourSeen in user_onboarding
     const sb = getSupabase();
     if (sb && user) {
       await sb.from(T.user_onboarding).upsert(
@@ -137,13 +183,11 @@ export default function OnboardingFlow({ onStartTour }: Props) {
     }
     markDone('profileComplete');
     markDone('tourSeen');
-
-    // Launch tour for beginners
     if (beginner) onStartTour();
   }
 
   function next() {
-    if (step < 3) { setStep(s => s + 1); return; }
+    if (step < STEPS.length - 1) { setStep(s => s + 1); return; }
     finish();
   }
 
@@ -159,6 +203,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
         zIndex: 10000,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 20,
+        overflowY: 'auto',
       }}
     >
       <div style={{
@@ -166,8 +211,9 @@ export default function OnboardingFlow({ onStartTour }: Props) {
         border: '0.5px solid var(--bdr)',
         borderRadius: 16,
         padding: '32px 28px',
-        maxWidth: 460,
+        maxWidth: 480,
         width: '100%',
+        margin: 'auto',
       }}>
 
         {/* Progress bar */}
@@ -192,64 +238,129 @@ export default function OnboardingFlow({ onStartTour }: Props) {
           </div>
         </div>
 
-        {/* Step 0 — Experience */}
+        {/* ── Step 0: Profile ── */}
         {step === 0 && (
           <>
-            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 6 }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>
+              Set up your profile
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 20 }}>
+              Helps us personalize your experience. Takes 30 seconds.
+            </div>
+
+            {/* Display name */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--txt3)', marginBottom: 6, letterSpacing: '.04em', textTransform: 'uppercase' }}>
+                Display name <span style={{ color: 'var(--txt3)', fontWeight: 400 }}>(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={displayName}
+                onChange={e => setDisplayName(e.target.value)}
+                placeholder="e.g. trader_dom"
+                maxLength={32}
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  padding: '12px 14px', borderRadius: 10,
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '0.5px solid rgba(255,255,255,0.12)',
+                  color: 'var(--txt)', fontSize: 13, outline: 'none',
+                }}
+              />
+            </div>
+
+            {/* Country */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--txt3)', marginBottom: 6, letterSpacing: '.04em', textTransform: 'uppercase' }}>
+                Country
+              </label>
+              <select
+                value={country}
+                onChange={e => setCountry(e.target.value)}
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  padding: '12px 14px', borderRadius: 10,
+                  background: 'rgba(255,255,255,0.04)',
+                  border: country ? '0.5px solid rgba(167,139,250,0.5)' : '0.5px solid rgba(255,255,255,0.12)',
+                  color: country ? 'var(--txt)' : 'var(--txt3)',
+                  fontSize: 13, outline: 'none', cursor: 'pointer',
+                }}
+              >
+                <option value="" disabled>Select your country…</option>
+                {COUNTRIES.map(c => (
+                  <option key={c} value={c} style={{ background: '#1a1a1a', color: '#fff' }}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Account size */}
+            <div>
+              <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--txt3)', marginBottom: 8, letterSpacing: '.04em', textTransform: 'uppercase' }}>
+                What range fits your trading account?
+              </label>
+              <AcctGrid acct={acct} setAcct={setAcct} />
+            </div>
+          </>
+        )}
+
+        {/* ── Step 1: Experience ── */}
+        {step === 1 && (
+          <>
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>
               How long have you been trading crypto?
             </div>
             <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 20 }}>
-              No judgment — this helps us set up the right view for you.
+              No judgment - this sets Beginner Mode on or off for you.
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <Option<Exp> value="lt6m"   selected={exp} label="Less than 6 months" sub="Just getting started"       onClick={setExp} />
-              <Option<Exp> value="6to12m" selected={exp} label="6-12 months"         sub="Finding my footing"         onClick={setExp} />
-              <Option<Exp> value="1to3y"  selected={exp} label="1-3 years"           sub="Getting comfortable"        onClick={setExp} />
-              <Option<Exp> value="3plus"  selected={exp} label="3+ years"            sub="I know what I am doing"     onClick={setExp} />
+              <Option<Exp> value="lt6m"   selected={exp} label="Less than 6 months" sub="Just getting started"   onClick={setExp} />
+              <Option<Exp> value="6to12m" selected={exp} label="6-12 months"        sub="Finding my footing"     onClick={setExp} />
+              <Option<Exp> value="1to3y"  selected={exp} label="1-3 years"          sub="Getting comfortable"    onClick={setExp} />
+              <Option<Exp> value="3plus"  selected={exp} label="3+ years"           sub="I know what I am doing" onClick={setExp} />
             </div>
           </>
         )}
 
-        {/* Step 1 — Trading style */}
-        {step === 1 && (
+        {/* ── Step 2: Style ── */}
+        {step === 2 && (
           <>
-            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 6 }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>
               How do you mainly trade?
             </div>
             <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 20 }}>
-              We will set your default chart timeframe to match.
+              Sets your default chart timeframe in Arena.
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <Option<Style> value="scalp"    selected={style} label="Scalp"         sub="Minutes to hours — 5m chart" onClick={setStyle} />
-              <Option<Style> value="swing"    selected={style} label="Swing trade"   sub="Days to weeks — 4h chart"    onClick={setStyle} />
-              <Option<Style> value="both"     selected={style} label="Both"          sub="Depends on the setup"        onClick={setStyle} />
-              <Option<Style> value="learning" selected={style} label="Still learning" sub="Not sure yet"               onClick={setStyle} />
+              <Option<Style> value="scalp"    selected={style} label="Scalp"          sub="Minutes to hours - 5m chart" onClick={setStyle} />
+              <Option<Style> value="swing"    selected={style} label="Swing trade"    sub="Days to weeks - 4h chart"    onClick={setStyle} />
+              <Option<Style> value="both"     selected={style} label="Both"           sub="Depends on the setup"        onClick={setStyle} />
+              <Option<Style> value="learning" selected={style} label="Still learning" sub="Not sure yet"                onClick={setStyle} />
             </div>
           </>
         )}
 
-        {/* Step 2 — Account size */}
-        {step === 2 && (
-          <>
-            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 6 }}>
-              What range fits your account?
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 20 }}>
-              Used to pre-fill the position sizer. You can change this anytime.
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <Option<Acct> value="1k5k"     selected={acct} label="$1k - $5k"     onClick={setAcct} />
-              <Option<Acct> value="5k25k"    selected={acct} label="$5k - $25k"    onClick={setAcct} />
-              <Option<Acct> value="25k100k"  selected={acct} label="$25k - $100k"  onClick={setAcct} />
-              <Option<Acct> value="100kplus" selected={acct} label="$100k+"         onClick={setAcct} />
-            </div>
-          </>
-        )}
-
-        {/* Step 3 — Attribution */}
+        {/* ── Step 3: Goals ── */}
         {step === 3 && (
           <>
-            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 6 }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>
+              What is your biggest trading challenge?
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 20 }}>
+              Helps us surface the most relevant signals and tips for you.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <Option<Challenge> value="read_signals"    selected={challenge} label="Reading the signals correctly"       sub="Not sure what the data means"        onClick={setChallenge} />
+              <Option<Challenge> value="entry_exit"      selected={challenge} label="Knowing when to enter and exit"      sub="Always entering too early or too late" onClick={setChallenge} />
+              <Option<Challenge> value="risk_management" selected={challenge} label="Managing risk and not overtrading"   sub="Position sizing, stop losses"         onClick={setChallenge} />
+              <Option<Challenge> value="discipline"      selected={challenge} label="Staying disciplined and patient"     sub="Chasing trades, revenge trading"       onClick={setChallenge} />
+            </div>
+          </>
+        )}
+
+        {/* ── Step 4: Source ── */}
+        {step === 4 && (
+          <>
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>
               Where did you hear about LiquidityHQ?
             </div>
             <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 20 }}>
@@ -257,16 +368,16 @@ export default function OnboardingFlow({ onStartTour }: Props) {
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               <SourceChip value="social"  selected={heard} label="Facebook / Instagram" onClick={setHeard} />
-              <SourceChip value="youtube" selected={heard} label="YouTube"              onClick={setHeard} />
-              <SourceChip value="tiktok"  selected={heard} label="TikTok"              onClick={setHeard} />
-              <SourceChip value="search"  selected={heard} label="Search"              onClick={setHeard} />
-              <SourceChip value="word"    selected={heard} label="Word of mouth"       onClick={setHeard} />
-              <SourceChip value="other"   selected={heard} label="Other"               onClick={setHeard} />
+              <SourceChip value="youtube" selected={heard} label="YouTube"             onClick={setHeard} />
+              <SourceChip value="tiktok"  selected={heard} label="TikTok"             onClick={setHeard} />
+              <SourceChip value="search"  selected={heard} label="Search"             onClick={setHeard} />
+              <SourceChip value="word"    selected={heard} label="Word of mouth"      onClick={setHeard} />
+              <SourceChip value="other"   selected={heard} label="Other"              onClick={setHeard} />
             </div>
           </>
         )}
 
-        {/* Next / Finish button */}
+        {/* Next / Finish */}
         <button
           onClick={next}
           disabled={!canNext() || saving}
@@ -277,15 +388,16 @@ export default function OnboardingFlow({ onStartTour }: Props) {
               ? 'linear-gradient(135deg, #7c3aed, #a78bfa)'
               : 'rgba(255,255,255,0.06)',
             color: canNext() && !saving ? '#fff' : 'var(--txt3)',
-            fontSize: 14, fontWeight: 700, cursor: canNext() && !saving ? 'pointer' : 'not-allowed',
+            fontSize: 14, fontWeight: 700,
+            cursor: canNext() && !saving ? 'pointer' : 'not-allowed',
             transition: 'all 0.15s',
           }}
         >
-          {saving ? 'Setting up...' : step === 3 ? 'Go to Dashboard' : 'Next'}
+          {saving ? 'Setting up...' : step === STEPS.length - 1 ? 'Go to Dashboard' : 'Next'}
         </button>
 
-        {/* Skip */}
-        {step === 3 && (
+        {/* Skip on last step only */}
+        {step === STEPS.length - 1 && (
           <button
             onClick={finish}
             disabled={saving}
@@ -298,6 +410,20 @@ export default function OnboardingFlow({ onStartTour }: Props) {
             Skip this question
           </button>
         )}
+
+        {/* Back button (except first step) */}
+        {step > 0 && !saving && (
+          <button
+            onClick={() => setStep(s => s - 1)}
+            style={{
+              background: 'none', border: 'none', width: '100%', marginTop: 8,
+              fontSize: 11, color: 'var(--txt3)', cursor: 'pointer', padding: '4px 0',
+            }}
+          >
+            ← Back
+          </button>
+        )}
+
       </div>
     </div>
   );

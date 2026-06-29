@@ -7,8 +7,11 @@ export interface UserSettings {
   account_size:       number;
   risk_pct:           number;
   // Onboarding profile answers
+  display_name:       string | null;
+  country:            string | null;
   trading_experience: string | null;  // 'lt6m' | '6to12m' | '1to3y' | '3plus'
   trading_style:      string | null;  // 'scalp' | 'swing' | 'both' | 'learning'
+  trading_challenge:  string | null;  // 'read_signals' | 'entry_exit' | 'risk_management' | 'discipline'
   how_heard:          string | null;  // attribution
   // AI Arena
   default_coin:     string;
@@ -32,8 +35,11 @@ export interface UserSettings {
 export const DEFAULT_SETTINGS: UserSettings = {
   account_size:       1000,
   risk_pct:           1.5,
+  display_name:       null,
+  country:            null,
   trading_experience: null,
   trading_style:      null,
+  trading_challenge:  null,
   how_heard:          null,
   default_coin:       'btc',
   default_tf:         '15m',
@@ -114,9 +120,12 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
   return {
     account_size:       +(row.account_size    ?? DEFAULT_SETTINGS.account_size),
     risk_pct:           +(row.risk_pct        ?? DEFAULT_SETTINGS.risk_pct),
+    display_name:       (row.display_name       as string | null) ?? null,
+    country:            (row.country            as string | null) ?? null,
     trading_experience: (row.trading_experience as string | null) ?? null,
-    trading_style:      (row.trading_style     as string | null) ?? null,
-    how_heard:          (row.how_heard         as string | null) ?? null,
+    trading_style:      (row.trading_style      as string | null) ?? null,
+    trading_challenge:  (row.trading_challenge  as string | null) ?? null,
+    how_heard:          (row.how_heard          as string | null) ?? null,
     default_coin:       String(row.default_coin    ?? DEFAULT_SETTINGS.default_coin),
     default_tf:         (row.default_tf as UserSettings['default_tf']) ?? DEFAULT_SETTINGS.default_tf,
     fr_threshold:       +(row.fr_threshold    ?? DEFAULT_SETTINGS.fr_threshold),

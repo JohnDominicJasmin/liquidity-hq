@@ -48,6 +48,8 @@ export async function PATCH(req: NextRequest) {
     'account_size', 'risk_pct', 'default_coin', 'default_tf',
     'fr_threshold', 'fng_fear', 'fng_greed', 'rsi_ob', 'rsi_os',
     'hidden_sections', 'telegram_chat_id',
+    'beginner_mode', 'trading_experience', 'trading_style', 'how_heard', 'watchlist',
+    'display_name', 'country', 'trading_challenge',
   ];
   const payload: Record<string, unknown> = { user_id: user.id, updated_at: new Date().toISOString() };
   for (const key of ALLOWED) {
