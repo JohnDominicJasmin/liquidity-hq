@@ -18,7 +18,7 @@ interface LiqEvent {
 
 interface Stats  { longUsd: number; shortUsd: number; count: number; }
 interface Cascade { ts: number; totalUsd: number; side: 'LONG' | 'SHORT' | 'MIXED'; coins: string[]; }
-export interface Bucket  { label: string; price: number; longUsd: number; shortUsd: number; total: number; }
+export interface Bucket  { label: string; price: number; longUsd: number; shortUsd: number; total: number; coin: string; }
 
 /* ── Constants ── */
 const FEED_SIZE          = 30;
@@ -118,21 +118,22 @@ export default function LiqFeed({ onClusters }: { onClusters?: (clusters: Bucket
       cascadeTimer.current = setTimeout(() => setCascade(null), CASCADE_HIDE_MS);
     }
 
-    // 4h price clusters (all coins combined — shows which price levels are magnetic)
+    // Price clusters keyed per-coin so callers can filter by selected coin
     const cWin = history.filter(e => now - e.ts < CLUSTER_WIN);
-    const map  = new Map<number, { longUsd: number; shortUsd: number }>();
+    const map  = new Map<string, { longUsd: number; shortUsd: number; coin: string; price: number }>();
     cWin.forEach(e => {
       const bp  = snapBucket(e.price);
-      const cur = map.get(bp) ?? { longUsd: 0, shortUsd: 0 };
+      const key = `${e.coin}::${bp}`;
+      const cur = map.get(key) ?? { longUsd: 0, shortUsd: 0, coin: e.coin, price: bp };
       if (e.side === 'LONG') cur.longUsd += e.usd; else cur.shortUsd += e.usd;
-      map.set(bp, cur);
+      map.set(key, cur);
     });
-    const buckets: Bucket[] = Array.from(map.entries())
-      .map(([price, { longUsd, shortUsd }]) => ({
-        label: fmtBucket(price), price, longUsd, shortUsd, total: longUsd + shortUsd,
+    const buckets: Bucket[] = Array.from(map.values())
+      .map(({ longUsd, shortUsd, coin, price }) => ({
+        label: fmtBucket(price), price, longUsd, shortUsd, total: longUsd + shortUsd, coin,
       }))
       .sort((a, b) => b.total - a.total)
-      .slice(0, 8);
+      .slice(0, 100);
     setClusters(buckets);
     onClusters?.(buckets);
   }, [onClusters]);

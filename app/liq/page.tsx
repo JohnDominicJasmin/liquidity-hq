@@ -343,8 +343,8 @@ export default function LiqPage() {
           )}
 
 
-          {/* Real liquidation clusters from live feeds */}
-          <RealClusters clusters={realClusters} currentPrice={cd.price} />
+          {/* Real liquidation clusters from live feeds — filtered to selected coin */}
+          <RealClusters clusters={realClusters.filter(c => c.coin.toLowerCase() === coin).slice(0, 8)} currentPrice={cd.price} />
 
           {/* Stats row */}
           <div className="liq-stats-row">
