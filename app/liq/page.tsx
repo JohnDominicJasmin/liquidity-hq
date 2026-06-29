@@ -1,6 +1,6 @@
 'use client';
-import { useState, useMemo, useCallback } from 'react';
-import { useMarket, CoinId, COINS } from '@/lib/marketStore';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useMarket, CoinId, COINS, BINANCE_SYMS } from '@/lib/marketStore';
 import LiqFeed, { Bucket } from '@/components/LiqFeed';
 import WhaleTradesFeed from '@/components/WhaleTradesFeed';
 import FundingComparison from '@/components/FundingComparison';
@@ -28,6 +28,14 @@ const TIERS = [
 ];
 
 type TimeRange = '12h' | '24h' | '48h' | '3d' | '1w';
+
+const RANGE_TO_PERIOD: Record<TimeRange, string> = {
+  '12h': '1h',
+  '24h': '4h',
+  '48h': '6h',
+  '3d':  '12h',
+  '1w':  '1d',
+};
 
 const RANGES: { key: TimeRange; label: string; maxDist: number; hint: string }[] = [
   { key: '12h', label: '12h',    maxDist: 0.05,  hint: 'Short-term moves · showing clusters within ±5% of current price' },
@@ -241,6 +249,23 @@ export default function LiqPage() {
   const [range, setRange] = useState<TimeRange>('24h');
   const [realClusters, setRealClusters] = useState<Bucket[]>([]);
   const handleClusters = useCallback((c: Bucket[]) => setRealClusters(c), []);
+  const [whalePos, setWhalePos] = useState<{ longRatio: number; shortRatio: number } | null>(null);
+
+  /* Refetch whale positioning whenever coin or timeframe changes */
+  useEffect(() => {
+    const sym = BINANCE_SYMS[coin];
+    if (!sym) { setWhalePos(null); return; }   // Bybit-only coin (HYPE etc.)
+    const period = RANGE_TO_PERIOD[range];
+    let cancelled = false;
+    fetch(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${sym}&period=${period}&limit=1`)
+      .then(r => r.json())
+      .then((data: Array<{ longAccount: string; shortAccount: string }>) => {
+        if (cancelled || !Array.isArray(data) || !data[0]) return;
+        setWhalePos({ longRatio: parseFloat(data[0].longAccount), shortRatio: parseFloat(data[0].shortAccount) });
+      })
+      .catch(() => { if (!cancelled) setWhalePos(null); });
+    return () => { cancelled = true; };
+  }, [coin, range]);
 
   const cd         = store.coins[coin];
   const rangeConf  = RANGES.find(r => r.key === range)!;
@@ -411,9 +436,9 @@ export default function LiqPage() {
           </div>
 
           {/* ══ WHALE POSITIONING ════════════════════════════════ */}
-          {cd.bnWhaleLongRatio != null && cd.bnWhaleShortRatio != null && (() => {
-            const whaleLong  = cd.bnWhaleLongRatio!;
-            const whaleShort = cd.bnWhaleShortRatio!;
+          {(whalePos != null || (cd.bnWhaleLongRatio != null && cd.bnWhaleShortRatio != null)) && (() => {
+            const whaleLong  = whalePos?.longRatio  ?? cd.bnWhaleLongRatio!;
+            const whaleShort = whalePos?.shortRatio ?? cd.bnWhaleShortRatio!;
             const retailLong = cd.bnLongRatio ?? 0.5;
 
             // Divergence: retail leaning one way, whales leaning opposite
@@ -451,7 +476,7 @@ export default function LiqPage() {
                     </span>
                   </div>
                   <span style={{ fontSize: 10, color: 'var(--txt3)' }}>
-                    Binance top traders · position-weighted · 5m
+                    Binance top traders · position-weighted · {whalePos != null ? RANGE_TO_PERIOD[range] : '5m'}
                   </span>
                 </div>
 
