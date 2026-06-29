@@ -2,10 +2,11 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, computeSqueezeScore } from '@/lib/marketStore';
+import type { CoinId } from '@/lib/marketStore';
 
 type SortKey = 'volume' | 'change' | 'grade' | 'signal' | 'name';
 
-function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][string]): { text: string; col: string } {
+function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): { text: string; col: string } {
   if (!d) return { text: '—', col: '#333' };
   if (d.fundingRate != null) {
     const fr = d.fundingRate * 100;
