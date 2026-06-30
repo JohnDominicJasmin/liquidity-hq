@@ -59,6 +59,14 @@ export const DEFAULT_FILTER_PARAMS: SignalFilterParams = {
   persistBoost: 0,
 };
 
+// Anti-chop OFF: raw EMA9/20 cross + first close beyond EMA50 confirms immediately —
+// no spread requirement, no ATR clearance buffer, no forward persistence wait.
+export const ANTICHOP_DISABLED_PARAMS: SignalFilterParams = {
+  spreadMinPct: 0,
+  atrMult:      0,
+  persistBoost: -10,
+};
+
 /* ── Types ───────────────────────────────────────────────────────────────── */
 export type StrategyVerdict =
   | 'LONG_SETUP'
@@ -428,7 +436,7 @@ export function useEMAStrategy(
         const PERSIST_BY_TF: Record<string, number> = {
           '1m': 8, '5m': 8, '15m': 4, '30m': 4, '1h': 3, '4h': 3, '1d': 2,
         };
-        const PERSIST = Math.max(1, (PERSIST_BY_TF[tf] ?? 4) + persistBoost);
+        const PERSIST = Math.max(0, (PERSIST_BY_TF[tf] ?? 4) + persistBoost);
 
         // True if price stays on the confirmed side of EMA50 for ≥PERSIST candles after k
         // (or the dataset ends first — the live edge can't be disproven yet).
