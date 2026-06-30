@@ -5,6 +5,7 @@ import {
   emaArr, smaArr, volMA, atrArr, detectEMASignals,
   SignalFilterParams, DEFAULT_FILTER_PARAMS, ANTICHOP_DISABLED_PARAMS,
 } from './strategyCore';
+import { getWaveTrendConfirmation } from './waveTrend';
 
 export type { SignalFilterParams } from './strategyCore';
 export { DEFAULT_FILTER_PARAMS, ANTICHOP_DISABLED_PARAMS } from './strategyCore';
@@ -218,6 +219,14 @@ export function useEMAStrategy(
             : 'Daily below 200 SMA but 4H ribbon not bearish — wait for EMA alignment';
         }
 
+        // WaveTrend (Cipher B) confirmation — cross-from-extreme or divergence agreeing
+        // with the verdict direction. A separate, orthogonal momentum confirmation
+        // layered on top of the EMA ribbon, not a replacement for it.
+        const wtDir: 'long' | 'short' | null =
+          (verdict === 'LONG_SETUP' || verdict === 'TRENDING_LONG') ? 'long' :
+          (verdict === 'SHORT_SETUP' || verdict === 'TRENDING_SHORT') ? 'short' : null;
+        const wtConfirm = getWaveTrendConfirmation(cRibbon, wtDir);
+
         // SL / TP (0.5% buffer beyond 50 EMA)
         const BUF = 0.005;
         let sl: number | null = null;
@@ -298,6 +307,11 @@ export function useEMAStrategy(
             detail: volma20 > 0
               ? `Candle vol ${(lastVol / 1e6).toFixed(2)}M vs MA ${(volma20 / 1e6).toFixed(2)}M (${(lastVol / volma20 * 100).toFixed(0)}%)`
               : 'Volume data unavailable',
+          },
+          {
+            label: 'WaveTrend Confirming',
+            pass:  wtConfirm.pass,
+            detail: wtConfirm.detail,
           },
         ];
 
