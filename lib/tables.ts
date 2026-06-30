@@ -14,4 +14,5 @@ export const T = {
   user_onboarding:    `${p}user_onboarding`,
   user_subscriptions: `${p}user_subscriptions`,
   alert_grok_log:     `${p}alert_grok_log`,
+  live_signals:       `${p}live_signals`,
 } as const;

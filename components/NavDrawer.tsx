@@ -50,6 +50,7 @@ const SCANNERS = [
   { path: '/funding',     label: 'FR History'        },
   { path: '/correlation', label: 'Correlation'       },
   { path: '/backtest',    label: 'Backtest'          },
+  { path: '/live-tracking', label: 'Live Tracking'   },
 ];
 
 const TOOLS = [
@@ -81,6 +82,7 @@ const MOBILE_NAV: NavEntry[] = [
   { path: '/funding',     label: 'FR History'        },
   { path: '/correlation', label: 'Correlation'       },
   { path: '/backtest',    label: 'Backtest'          },
+  { path: '/live-tracking', label: 'Live Tracking'   },
 
   { header: 'Research' },
   { path: '/news',          label: 'News'              },
