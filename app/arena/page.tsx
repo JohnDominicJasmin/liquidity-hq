@@ -1319,34 +1319,41 @@ export default function Arena() {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
-            background: antiChopEnabled ? 'rgba(167,139,250,0.12)' : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${antiChopEnabled ? 'var(--accent)' : 'rgba(255,255,255,0.12)'}`,
+            gap: 9,
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.09)',
             borderRadius: 999,
-            padding: '5px 12px 5px 5px',
+            padding: '6px 13px 6px 6px',
             cursor: 'pointer',
             fontSize: 12,
             color: 'var(--txt)',
+            transition: 'border-color 0.15s, background 0.15s',
           }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.2)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.09)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.03)'; }}
         >
           <span style={{
-            width: 30,
-            height: 17,
+            width: 32,
+            height: 18,
             borderRadius: 9,
-            background: antiChopEnabled ? 'var(--accent)' : 'rgba(255,255,255,0.18)',
+            background: antiChopEnabled ? '#34d399' : 'rgba(255,255,255,0.14)',
+            boxShadow: antiChopEnabled
+              ? '0 0 0 1px rgba(52,211,153,0.35), 0 0 8px rgba(52,211,153,0.45)'
+              : 'inset 0 1px 3px rgba(0,0,0,0.45)',
             position: 'relative',
-            transition: 'background 0.2s',
             flexShrink: 0,
+            transition: 'background 0.25s ease, box-shadow 0.25s ease',
           }}>
             <span style={{
               position: 'absolute',
               top: 2,
-              left: antiChopEnabled ? 15 : 2,
-              width: 13,
-              height: 13,
+              left: antiChopEnabled ? 16 : 2,
+              width: 14,
+              height: 14,
               borderRadius: '50%',
               background: '#fff',
-              transition: 'left 0.2s',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+              transition: 'left 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
             }} />
           </span>
           <Tip
@@ -1354,9 +1361,8 @@ export default function Arena() {
             iconColor="rgba(255,255,255,0.6)"
             text="Filters out fake-looking EMA crosses. Requires the EMA9/20 ribbon to clearly separate, price to close meaningfully past EMA50, and the move to hold for several candles before a marker confirms. ON = fewer, more reliable signals. OFF = every raw cross shows immediately, including fakeouts that may reverse on the very next candle."
           >
-            Anti-Chop Filter
+            <span style={{ opacity: 0.8, letterSpacing: '0.01em' }}>Anti-Chop Filter</span>
           </Tip>
-          <span style={{ fontWeight: 700, opacity: 0.7 }}>{antiChopEnabled ? 'ON' : 'OFF'}</span>
         </button>
         <span style={{ fontSize: 11, opacity: 0.35 }}>
           {antiChopEnabled
