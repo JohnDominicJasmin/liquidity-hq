@@ -80,6 +80,7 @@ const SL_BUF     = 0.005; // 0.5% buffer beyond EMA50 for stop loss — matches 
 export interface SignalEvent {
   timestamp:   number;
   index:       number;          // index into the candles array passed in — needed for backtest forward-walk
+  armIndex:    number;          // index of the EMA9/20 cross that armed this signal (before the later confirm index)
   dir:         'long' | 'short';
   anchorPrice: number;          // low for long, high for short — chart marker placement
   entryPrice:  number;          // close of confirmation candle — backtest entry fill
@@ -134,7 +135,7 @@ export function detectEMASignals(
     return n >= PERSIST || (k + 1 + n >= candles.length);
   };
 
-  const mkSignal = (k: number, dir: 'long' | 'short'): SignalEvent => {
+  const mkSignal = (k: number, armIndex: number, dir: 'long' | 'short'): SignalEvent => {
     const entryPrice = candles[k].close;
     const e50k = e50arr[k];
     const sl = dir === 'long' ? e50k * (1 - SL_BUF) : e50k * (1 + SL_BUF);
@@ -142,6 +143,7 @@ export function detectEMASignals(
     return {
       timestamp: candles[k].time,
       index: k,
+      armIndex,
       dir,
       anchorPrice: dir === 'long' ? candles[k].low : candles[k].high,
       entryPrice, sl, tp,
@@ -166,7 +168,7 @@ export function detectEMASignals(
         const atrBuf = (atr14[k] ?? 0) * ATR_MULT;
         if (candles[k].close > e50k + atrBuf && slopeOK(k, 'long') && spreadOK(k)) {
           if (holdsBeyond50(k, 'long')) {
-            signalLongs.push(mkSignal(k, 'long'));
+            signalLongs.push(mkSignal(k, i, 'long'));
             lastDir = 'long';
             break;
           }
@@ -183,7 +185,7 @@ export function detectEMASignals(
         const atrBuf = (atr14[k] ?? 0) * ATR_MULT;
         if (candles[k].close < e50k - atrBuf && slopeOK(k, 'short') && spreadOK(k)) {
           if (holdsBeyond50(k, 'short')) {
-            signalShorts.push(mkSignal(k, 'short'));
+            signalShorts.push(mkSignal(k, i, 'short'));
             lastDir = 'short';
             break;
           }

@@ -12,6 +12,14 @@ const YEARS_BACK_BY_TF: Record<TF, number> = {
   '30m': 2, '1h': 3, '4h': 4, '1d': 4,
 };
 
+const WT_VARIANT_LABELS: Record<string, string> = {
+  current:         'Current (5-bar window)',
+  looseRecency:    'Loose Recency (20-bar)',
+  armWindow:       'Arm Window (full cross phase)',
+  divergenceOnly:  'Divergence Only (no cross req.)',
+  looseThresholds: 'Loose Thresholds (±45 + arm)',
+};
+
 function fmtPct(n: number) { return (n * 100).toFixed(1) + '%'; }
 function fmtR(n: number) { return (n >= 0 ? '+' : '') + n.toFixed(2) + 'R'; }
 
@@ -152,8 +160,35 @@ export default function BacktestPage() {
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 24 }}>
             <SideCard title="ANTI-CHOP ON" stats={result.antiChopOn.stats} color="#34d399" />
             <SideCard title="ANTI-CHOP OFF" stats={result.antiChopOff.stats} color="#f87171" />
-            <SideCard title="ANTI-CHOP ON + WAVETREND" stats={result.antiChopOnWaveTrend.stats} color="#60a5fa" />
           </div>
+
+          <div className="mb-title" style={{ fontSize: 15, marginBottom: 4 }}>WaveTrend Confirming-Layer Tuning</div>
+          <p style={{ fontSize: 11, opacity: 0.4, marginBottom: 8 }}>
+            Each row requires WaveTrend to also agree before counting an Anti-Chop ON signal as a trade. Compare against the Anti-Chop ON baseline above ({fmtPct(result.antiChopOn.stats.winRate)} win rate, {result.antiChopOn.stats.totalTrades} trades, PF {isFinite(result.antiChopOn.stats.profitFactor) ? result.antiChopOn.stats.profitFactor.toFixed(2) : '∞'}).
+          </p>
+          <table className="frh-table" style={{ marginBottom: 24 }}>
+            <thead>
+              <tr>
+                <th>Variant</th><th>Trades</th><th>Win Rate</th><th>Avg R</th><th>Profit Factor</th><th>Max DD</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(result.waveTrendVariants).map(([name, side]) => {
+                const s = side.stats;
+                const beatsBaseline = isFinite(s.profitFactor) && s.profitFactor > result.antiChopOn.stats.profitFactor;
+                return (
+                  <tr key={name}>
+                    <td style={{ fontWeight: 600 }}>{WT_VARIANT_LABELS[name] ?? name}{beatsBaseline ? ' 🟢' : ''}</td>
+                    <td>{s.totalTrades} ({s.wins}W/{s.losses}L)</td>
+                    <td style={{ color: s.winRate >= 0.5 ? '#34d399' : '#f87171' }}>{fmtPct(s.winRate)}</td>
+                    <td style={{ color: s.avgR >= 0 ? '#34d399' : '#f87171' }}>{fmtR(s.avgR)}</td>
+                    <td style={{ color: beatsBaseline ? '#34d399' : 'var(--txt)' }}>{isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}</td>
+                    <td>-{s.maxDrawdownR.toFixed(2)}R</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
 
           <div className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Per-Coin Breakdown (Anti-Chop ON)</div>
           <table className="frh-table">

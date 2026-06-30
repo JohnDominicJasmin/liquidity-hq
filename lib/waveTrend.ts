@@ -12,7 +12,13 @@ const OB_LEVEL     = 53;   // overbought threshold
 const OS_LEVEL     = -53;  // oversold threshold
 const PIVOT_WINDOW  = 3;   // candles each side required to confirm a local high/low
 const DIVERGENCE_LOOKBACK = 60; // candles to scan back for divergence pivots
-const CROSS_RECENCY_BARS  = 5;  // how many candles back a cross still counts as "recent"
+// Validated via backtest sweep (lib/backtestEngine.ts WT_VARIANTS): a 5-bar window was
+// too tight given EMA's confirmation lag (cross + ATR buffer + persistence wait means
+// EMA fires several candles after WaveTrend has already turned). 20 bars beat the
+// Anti-Chop ON baseline outright — same edge per trade, half the max drawdown, 63%
+// fewer trades for the same win rate. See app/backtest "WaveTrend Confirming-Layer
+// Tuning" table to re-validate if the underlying strategy logic changes.
+const CROSS_RECENCY_BARS  = 20; // how many candles back a cross still counts as "recent"
 
 /* EMA over an array that may start with a run of NaN — skip the NaN prefix,
    compute EMA on the valid tail, then re-pad so indices still line up. */
@@ -157,9 +163,29 @@ export interface WaveTrendConfirmation {
   wt2Last: number | null;
 }
 
+export interface WaveTrendParams {
+  obLevel:            number;  // overbought threshold (positive)
+  osLevel:             number;  // oversold threshold (negative)
+  divergenceLookback:  number;  // candles to scan back for divergence pivots
+  requireCross:        boolean; // if false, only divergence can confirm (cross check skipped entirely)
+  crossWindowBars:     number;  // fixed-mode: how many candles back from the confirm candle a cross still counts
+  useArmWindow:        boolean; // if true, a cross anywhere between the signal's arm and confirm candle counts,
+                                 // instead of only within the last crossWindowBars before confirm
+}
+
+// Matches the original hardcoded behavior exactly — the values this file used
+// before parameters were exposed for tuning.
+export const DEFAULT_WT_PARAMS: WaveTrendParams = {
+  obLevel: OB_LEVEL, osLevel: OS_LEVEL,
+  divergenceLookback: DIVERGENCE_LOOKBACK,
+  requireCross: true, crossWindowBars: CROSS_RECENCY_BARS, useArmWindow: false,
+};
+
 export function getWaveTrendConfirmation(
   candles: OHLCV[],
   dir: 'long' | 'short' | null,
+  armIndex?: number,
+  params: WaveTrendParams = DEFAULT_WT_PARAMS,
 ): WaveTrendConfirmation {
   if (candles.length < CHANNEL_LEN + AVG_LEN + SIGNAL_LEN) {
     return { pass: null, detail: 'Not enough data for WaveTrend', wt1Last: null, wt2Last: null };
@@ -173,22 +199,29 @@ export function getWaveTrendConfirmation(
     return { pass: null, detail: 'WaveTrend unavailable', wt1Last, wt2Last };
   }
 
-  const div = detectWaveTrendDivergence(candles, wt1);
-  const crosses = detectWaveTrendCrosses(candles, wt1, wt2);
-  const lastCross = crosses[crosses.length - 1];
-  const recentCrossAgrees = !!lastCross && lastCross.dir === dir && (last - lastCross.index) <= CROSS_RECENCY_BARS;
+  const div = detectWaveTrendDivergence(candles, wt1, params.divergenceLookback);
+
+  let crossAgrees = false;
+  let crossDetail = '';
+  if (params.requireCross) {
+    const crosses = detectWaveTrendCrosses(candles, wt1, wt2, params.obLevel, params.osLevel);
+    const windowStart = (params.useArmWindow && armIndex != null) ? armIndex : last - params.crossWindowBars;
+    // Most recent cross matching direction, within the window — not just the absolute
+    // last cross regardless of direction (that was a real bug in the original version).
+    const matchingCross = [...crosses].reverse().find(c => c.dir === dir && c.index >= windowStart && c.index <= last);
+    if (matchingCross) {
+      crossAgrees = true;
+      crossDetail = `WaveTrend crossed ${dir === 'long' ? 'bullish from oversold' : 'bearish from overbought'} ${last - matchingCross.index} candle(s) ago — momentum confirms`;
+    }
+  }
 
   if (dir === 'long') {
     if (div.bullish) return { pass: true, detail: div.detailBullish, wt1Last, wt2Last };
-    if (recentCrossAgrees) {
-      return { pass: true, detail: `WaveTrend crossed bullish from oversold ${last - lastCross.index} candle(s) ago — momentum confirms`, wt1Last, wt2Last };
-    }
+    if (crossAgrees) return { pass: true, detail: crossDetail, wt1Last, wt2Last };
     return { pass: false, detail: `WaveTrend at ${wt1Last.toFixed(1)} — no recent bullish cross or divergence to confirm`, wt1Last, wt2Last };
   } else {
     if (div.bearish) return { pass: true, detail: div.detailBearish, wt1Last, wt2Last };
-    if (recentCrossAgrees) {
-      return { pass: true, detail: `WaveTrend crossed bearish from overbought ${last - lastCross.index} candle(s) ago — momentum confirms`, wt1Last, wt2Last };
-    }
+    if (crossAgrees) return { pass: true, detail: crossDetail, wt1Last, wt2Last };
     return { pass: false, detail: `WaveTrend at ${wt1Last.toFixed(1)} — no recent bearish cross or divergence to confirm`, wt1Last, wt2Last };
   }
 }

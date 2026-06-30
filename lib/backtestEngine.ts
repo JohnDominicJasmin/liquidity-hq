@@ -7,7 +7,19 @@ import {
   OHLCV, SignalEvent, SignalFilterParams,
   DEFAULT_FILTER_PARAMS, ANTICHOP_DISABLED_PARAMS, detectEMASignals,
 } from './strategyCore';
-import { getWaveTrendConfirmation } from './waveTrend';
+import { getWaveTrendConfirmation, WaveTrendParams, DEFAULT_WT_PARAMS } from './waveTrend';
+
+// Tuning variants for the WaveTrend confirming-layer backtest sweep — each targets a
+// specific hypothesis for why the original (DEFAULT_WT_PARAMS) version underperformed:
+// EMA confirmation fires late (after the cross + ATR buffer + persistence wait), so by
+// the time it fires WaveTrend has often already cycled out of its extreme.
+export const WT_VARIANTS: Record<string, WaveTrendParams> = {
+  current:          DEFAULT_WT_PARAMS,
+  looseRecency:     { ...DEFAULT_WT_PARAMS, crossWindowBars: 20 },
+  armWindow:        { ...DEFAULT_WT_PARAMS, useArmWindow: true },
+  divergenceOnly:   { ...DEFAULT_WT_PARAMS, requireCross: false },
+  looseThresholds:  { ...DEFAULT_WT_PARAMS, obLevel: 45, osLevel: -45, useArmWindow: true },
+};
 
 /* ── TF → exchange interval strings + milliseconds ──────────────────────── */
 const TF_BN: Record<string, string> = {
@@ -121,10 +133,10 @@ export function simulateTrades(signals: SignalEvent[], candles: OHLCV[], coin: C
 // signal fired. Slices the candle array to each signal's own index before checking —
 // WaveTrend's divergence detection needs a few forward candles to confirm a pivot, so
 // computing it on the full array would leak future data into a historical decision.
-function filterSignalsByWaveTrend(signals: SignalEvent[], candles: OHLCV[]): SignalEvent[] {
+function filterSignalsByWaveTrend(signals: SignalEvent[], candles: OHLCV[], params: WaveTrendParams): SignalEvent[] {
   return signals.filter(s => {
     const historical = candles.slice(0, s.index + 1);
-    return getWaveTrendConfirmation(historical, s.dir).pass === true;
+    return getWaveTrendConfirmation(historical, s.dir, s.armIndex, params).pass === true;
   });
 }
 
@@ -183,9 +195,9 @@ export interface BacktestRunResult {
   yearsBack:        number;
   coins:            CoinId[];
   failedCoins:      CoinId[];
-  antiChopOn:       BacktestSide;
-  antiChopOff:      BacktestSide;
-  antiChopOnWaveTrend: BacktestSide;
+  antiChopOn:        BacktestSide;
+  antiChopOff:       BacktestSide;
+  waveTrendVariants: Record<string, BacktestSide>; // keys match WT_VARIANTS
 }
 
 export async function runBacktest(
@@ -195,12 +207,18 @@ export async function runBacktest(
   onProgress?: (done: number, total: number, currentCoin: CoinId) => void,
 ): Promise<BacktestRunResult> {
   const CONCURRENCY = 4;
-  const allTradesOn:    SimulatedTrade[] = [];
-  const allTradesOff:   SimulatedTrade[] = [];
-  const allTradesOnWt:  SimulatedTrade[] = [];
-  const perCoinOn:   Partial<Record<CoinId, BacktestStats>> = {};
-  const perCoinOff:  Partial<Record<CoinId, BacktestStats>> = {};
-  const perCoinOnWt: Partial<Record<CoinId, BacktestStats>> = {};
+  const variantNames = Object.keys(WT_VARIANTS);
+
+  const allTradesOn:  SimulatedTrade[] = [];
+  const allTradesOff: SimulatedTrade[] = [];
+  const perCoinOn:  Partial<Record<CoinId, BacktestStats>> = {};
+  const perCoinOff: Partial<Record<CoinId, BacktestStats>> = {};
+
+  // One trade accumulator + per-coin map per variant, keyed by variant name.
+  const allTradesByVariant: Record<string, SimulatedTrade[]> = {};
+  const perCoinByVariant:   Record<string, Partial<Record<CoinId, BacktestStats>>> = {};
+  for (const name of variantNames) { allTradesByVariant[name] = []; perCoinByVariant[name] = {}; }
+
   const failedCoins: CoinId[] = [];
   let done = 0;
 
@@ -208,21 +226,25 @@ export async function runBacktest(
     try {
       const candles = await fetchHistoricalOHLCV(coin, tf, yearsBack);
       if (candles.length > 60) {
+        // Fetch + EMA detection happens once per coin — the expensive (network) part.
+        // Only the WaveTrend filter + simulate step repeats per variant (no network).
         const onSignals  = detectEMASignals(candles, tf, DEFAULT_FILTER_PARAMS);
         const offSignals = detectEMASignals(candles, tf, ANTICHOP_DISABLED_PARAMS);
         const onTrades  = [...simulateTrades(onSignals.signalLongs, candles, coin), ...simulateTrades(onSignals.signalShorts, candles, coin)];
         const offTrades = [...simulateTrades(offSignals.signalLongs, candles, coin), ...simulateTrades(offSignals.signalShorts, candles, coin)];
-
-        const onWtLongs  = filterSignalsByWaveTrend(onSignals.signalLongs, candles);
-        const onWtShorts = filterSignalsByWaveTrend(onSignals.signalShorts, candles);
-        const onWtTrades = [...simulateTrades(onWtLongs, candles, coin), ...simulateTrades(onWtShorts, candles, coin)];
-
         allTradesOn.push(...onTrades);
         allTradesOff.push(...offTrades);
-        allTradesOnWt.push(...onWtTrades);
-        perCoinOn[coin]   = computeStats(onTrades);
-        perCoinOff[coin]  = computeStats(offTrades);
-        perCoinOnWt[coin] = computeStats(onWtTrades);
+        perCoinOn[coin]  = computeStats(onTrades);
+        perCoinOff[coin] = computeStats(offTrades);
+
+        for (const name of variantNames) {
+          const params = WT_VARIANTS[name];
+          const wtLongs  = filterSignalsByWaveTrend(onSignals.signalLongs, candles, params);
+          const wtShorts = filterSignalsByWaveTrend(onSignals.signalShorts, candles, params);
+          const wtTrades = [...simulateTrades(wtLongs, candles, coin), ...simulateTrades(wtShorts, candles, coin)];
+          allTradesByVariant[name].push(...wtTrades);
+          perCoinByVariant[name][coin] = computeStats(wtTrades);
+        }
       } else {
         failedCoins.push(coin);
       }
@@ -244,10 +266,19 @@ export async function runBacktest(
   }
   await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
 
+  const waveTrendVariants: Record<string, BacktestSide> = {};
+  for (const name of variantNames) {
+    waveTrendVariants[name] = {
+      stats: computeStats(allTradesByVariant[name]),
+      perCoin: perCoinByVariant[name],
+      trades: allTradesByVariant[name],
+    };
+  }
+
   return {
     tf, yearsBack, coins, failedCoins,
-    antiChopOn:          { stats: computeStats(allTradesOn),   perCoin: perCoinOn,   trades: allTradesOn },
-    antiChopOnWaveTrend: { stats: computeStats(allTradesOnWt), perCoin: perCoinOnWt, trades: allTradesOnWt },
+    antiChopOn:  { stats: computeStats(allTradesOn),  perCoin: perCoinOn,  trades: allTradesOn },
     antiChopOff: { stats: computeStats(allTradesOff), perCoin: perCoinOff, trades: allTradesOff },
+    waveTrendVariants,
   };
 }
