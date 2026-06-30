@@ -827,6 +827,11 @@ export default function Arena() {
         const label = s > 0.001 ? 'RISING — bullish slope confirmed' : s < -0.001 ? 'FALLING — bearish slope confirmed' : 'FLAT — ranging market, slope filter fails';
         return `${pct}% over 5 bars — ${label}`;
       })(),
+      waveTrend: (() => {
+        const c = emaSignalRef.current.conditions.find(x => x.label === 'WaveTrend Confirming');
+        if (!c) return '—';
+        return `${c.pass === true ? 'CONFIRMING' : c.pass === false ? 'NOT CONFIRMING' : 'N/A'} — ${c.detail}`;
+      })(),
     };
   };
 

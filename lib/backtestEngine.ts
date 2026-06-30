@@ -7,6 +7,7 @@ import {
   OHLCV, SignalEvent, SignalFilterParams,
   DEFAULT_FILTER_PARAMS, ANTICHOP_DISABLED_PARAMS, detectEMASignals,
 } from './strategyCore';
+import { getWaveTrendConfirmation } from './waveTrend';
 
 /* ── TF → exchange interval strings + milliseconds ──────────────────────── */
 const TF_BN: Record<string, string> = {
@@ -116,6 +117,17 @@ export function simulateTrades(signals: SignalEvent[], candles: OHLCV[], coin: C
   return signals.map(s => simulateTrade(s, candles, coin));
 }
 
+// Keeps only signals where WaveTrend (Cipher B) would have confirmed AT THE TIME the
+// signal fired. Slices the candle array to each signal's own index before checking —
+// WaveTrend's divergence detection needs a few forward candles to confirm a pivot, so
+// computing it on the full array would leak future data into a historical decision.
+function filterSignalsByWaveTrend(signals: SignalEvent[], candles: OHLCV[]): SignalEvent[] {
+  return signals.filter(s => {
+    const historical = candles.slice(0, s.index + 1);
+    return getWaveTrendConfirmation(historical, s.dir).pass === true;
+  });
+}
+
 /* ── Stats aggregation ─────────────────────────────────────────────────────── */
 export interface BacktestStats {
   totalTrades:   number;
@@ -167,12 +179,13 @@ export interface BacktestSide {
 }
 
 export interface BacktestRunResult {
-  tf:          string;
-  yearsBack:   number;
-  coins:       CoinId[];
-  failedCoins: CoinId[];
-  antiChopOn:  BacktestSide;
-  antiChopOff: BacktestSide;
+  tf:               string;
+  yearsBack:        number;
+  coins:            CoinId[];
+  failedCoins:      CoinId[];
+  antiChopOn:       BacktestSide;
+  antiChopOff:      BacktestSide;
+  antiChopOnWaveTrend: BacktestSide;
 }
 
 export async function runBacktest(
@@ -182,10 +195,12 @@ export async function runBacktest(
   onProgress?: (done: number, total: number, currentCoin: CoinId) => void,
 ): Promise<BacktestRunResult> {
   const CONCURRENCY = 4;
-  const allTradesOn:  SimulatedTrade[] = [];
-  const allTradesOff: SimulatedTrade[] = [];
-  const perCoinOn:  Partial<Record<CoinId, BacktestStats>> = {};
-  const perCoinOff: Partial<Record<CoinId, BacktestStats>> = {};
+  const allTradesOn:    SimulatedTrade[] = [];
+  const allTradesOff:   SimulatedTrade[] = [];
+  const allTradesOnWt:  SimulatedTrade[] = [];
+  const perCoinOn:   Partial<Record<CoinId, BacktestStats>> = {};
+  const perCoinOff:  Partial<Record<CoinId, BacktestStats>> = {};
+  const perCoinOnWt: Partial<Record<CoinId, BacktestStats>> = {};
   const failedCoins: CoinId[] = [];
   let done = 0;
 
@@ -197,10 +212,17 @@ export async function runBacktest(
         const offSignals = detectEMASignals(candles, tf, ANTICHOP_DISABLED_PARAMS);
         const onTrades  = [...simulateTrades(onSignals.signalLongs, candles, coin), ...simulateTrades(onSignals.signalShorts, candles, coin)];
         const offTrades = [...simulateTrades(offSignals.signalLongs, candles, coin), ...simulateTrades(offSignals.signalShorts, candles, coin)];
+
+        const onWtLongs  = filterSignalsByWaveTrend(onSignals.signalLongs, candles);
+        const onWtShorts = filterSignalsByWaveTrend(onSignals.signalShorts, candles);
+        const onWtTrades = [...simulateTrades(onWtLongs, candles, coin), ...simulateTrades(onWtShorts, candles, coin)];
+
         allTradesOn.push(...onTrades);
         allTradesOff.push(...offTrades);
-        perCoinOn[coin]  = computeStats(onTrades);
-        perCoinOff[coin] = computeStats(offTrades);
+        allTradesOnWt.push(...onWtTrades);
+        perCoinOn[coin]   = computeStats(onTrades);
+        perCoinOff[coin]  = computeStats(offTrades);
+        perCoinOnWt[coin] = computeStats(onWtTrades);
       } else {
         failedCoins.push(coin);
       }
@@ -224,7 +246,8 @@ export async function runBacktest(
 
   return {
     tf, yearsBack, coins, failedCoins,
-    antiChopOn:  { stats: computeStats(allTradesOn),  perCoin: perCoinOn,  trades: allTradesOn },
+    antiChopOn:          { stats: computeStats(allTradesOn),   perCoin: perCoinOn,   trades: allTradesOn },
+    antiChopOnWaveTrend: { stats: computeStats(allTradesOnWt), perCoin: perCoinOnWt, trades: allTradesOnWt },
     antiChopOff: { stats: computeStats(allTradesOff), perCoin: perCoinOff, trades: allTradesOff },
   };
 }

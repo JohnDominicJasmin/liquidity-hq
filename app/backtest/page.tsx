@@ -152,6 +152,7 @@ export default function BacktestPage() {
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 24 }}>
             <SideCard title="ANTI-CHOP ON" stats={result.antiChopOn.stats} color="#34d399" />
             <SideCard title="ANTI-CHOP OFF" stats={result.antiChopOff.stats} color="#f87171" />
+            <SideCard title="ANTI-CHOP ON + WAVETREND" stats={result.antiChopOnWaveTrend.stats} color="#60a5fa" />
           </div>
 
           <div className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Per-Coin Breakdown (Anti-Chop ON)</div>
