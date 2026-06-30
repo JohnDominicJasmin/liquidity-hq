@@ -1351,6 +1351,7 @@ export default function Arena() {
           </span>
           <Tip
             width={260}
+            iconColor="rgba(255,255,255,0.6)"
             text="Filters out fake-looking EMA crosses. Requires the EMA9/20 ribbon to clearly separate, price to close meaningfully past EMA50, and the move to hold for several candles before a marker confirms. ON = fewer, more reliable signals. OFF = every raw cross shows immediately, including fakeouts that may reverse on the very next candle."
           >
             Anti-Chop Filter
