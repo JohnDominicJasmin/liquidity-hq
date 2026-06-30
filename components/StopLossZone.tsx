@@ -18,6 +18,13 @@ function scoreBias(d: CoinData): { bias: Bias; score: number; total: number } {
   if (d.takerBuyRatio != null) { if (d.takerBuyRatio > 0.55) bull++; else if (d.takerBuyRatio < 0.45) bear++; }
   if (d.poc  != null) { if (d.price > d.poc)  bull++; else bear++; }
   if (d.vwap != null) { if (d.price > d.vwap) bull++; else bear++; }
+  // Funding — contrarian: high funding = crowded longs paying to stay in = bearish tilt.
+  // Negative funding = crowded shorts = bullish tilt. Same logic as TradeSetupCard.tsx.
+  if (d.fundingRate != null) {
+    const fr = d.fundingRate * 100;
+    if (fr >= 0.04) bear++;
+    else if (fr <= -0.02) bull++;
+  }
   const total = bull + bear;
   if (bull > bear) return { bias: 'long',  score: bull, total };
   if (bear > bull) return { bias: 'short', score: bear, total };
@@ -135,7 +142,7 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
     <div className="sms-card">
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '10px 14px 8px' }}>
-        <span className="sms-title">Trade Setup</span>
+        <span className="sms-title">Order Flow Setup</span>
         <span style={{ fontSize: 10, color: 'var(--txt3)' }}>
           {coin.toUpperCase()} · {score}/{total} indicators
         </span>
