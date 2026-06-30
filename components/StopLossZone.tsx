@@ -19,7 +19,7 @@ function scoreBias(d: CoinData): { bias: Bias; score: number; total: number } {
   if (d.poc  != null) { if (d.price > d.poc)  bull++; else bear++; }
   if (d.vwap != null) { if (d.price > d.vwap) bull++; else bear++; }
   // Funding — contrarian: high funding = crowded longs paying to stay in = bearish tilt.
-  // Negative funding = crowded shorts = bullish tilt. Same logic as TradeSetupCard.tsx.
+  // Negative funding = crowded shorts = bullish tilt.
   if (d.fundingRate != null) {
     const fr = d.fundingRate * 100;
     if (fr >= 0.04) bear++;
