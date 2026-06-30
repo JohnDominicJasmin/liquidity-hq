@@ -1,7 +1,9 @@
 'use client';
 import { useState } from 'react';
 import { CoinId, COINS } from '@/lib/marketStore';
-import { runBacktest, BacktestRunResult, BacktestStats } from '@/lib/backtestEngine';
+import { runBacktest, BacktestRunResult, BacktestStats, runOrderFlowBacktest, OrderFlowBacktestResult } from '@/lib/backtestEngine';
+
+const OF_YEARS_BACK = 1; // shorter than EMA's lookback — 15m+1h+4h+funding fetch per coin is much heavier
 
 const TIMEFRAMES = ['30m', '1h', '4h', '1d'] as const;
 type TF = typeof TIMEFRAMES[number];
@@ -82,6 +84,11 @@ export default function BacktestPage() {
   const [result, setResult]       = useState<BacktestRunResult | null>(null);
   const [error, setError]         = useState<string | null>(null);
 
+  const [ofRunning, setOfRunning] = useState(false);
+  const [ofProgress, setOfProgress] = useState<{ done: number; total: number; coin: string } | null>(null);
+  const [ofResult, setOfResult]   = useState<OrderFlowBacktestResult | null>(null);
+  const [ofError, setOfError]     = useState<string | null>(null);
+
   const coins = coinScope === 'majors' ? MAJORS : COINS;
 
   async function run() {
@@ -98,6 +105,23 @@ export default function BacktestPage() {
       setError(String(err));
     } finally {
       setRunning(false);
+    }
+  }
+
+  async function runOrderFlow() {
+    setOfRunning(true);
+    setOfError(null);
+    setOfResult(null);
+    setOfProgress({ done: 0, total: coins.length, coin: '' });
+    try {
+      const res = await runOrderFlowBacktest(coins, OF_YEARS_BACK, (done, total, currentCoin) => {
+        setOfProgress({ done, total, coin: currentCoin.toUpperCase() });
+      });
+      setOfResult(res);
+    } catch (err) {
+      setOfError(String(err));
+    } finally {
+      setOfRunning(false);
     }
   }
 
@@ -200,6 +224,81 @@ export default function BacktestPage() {
             <tbody>
               {result.coins.filter(c => result.antiChopOn.perCoin[c]).map(c => {
                 const s = result.antiChopOn.perCoin[c]!;
+                return (
+                  <tr key={c}>
+                    <td style={{ fontWeight: 600 }}>{c.toUpperCase()}</td>
+                    <td>{s.totalTrades} ({s.wins}W/{s.losses}L)</td>
+                    <td style={{ color: s.winRate >= 0.5 ? '#34d399' : '#f87171' }}>{fmtPct(s.winRate)}</td>
+                    <td style={{ color: s.avgR >= 0 ? '#34d399' : '#f87171' }}>{fmtR(s.avgR)}</td>
+                    <td>{isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      <div style={{ borderTop: '1px solid var(--bdr)', margin: '32px 0 20px' }} />
+
+      <div className="mb-header">
+        <div className="mb-title">Order Flow Setup Validation</div>
+        <div className="mb-subtitle">
+          Tests the Arena page&apos;s &quot;Order Flow Setup&quot; card — but only the 5 signals that can be faithfully
+          replayed from history: RSI on 15m/1h/4h, price vs POC, price vs VWAP, and funding rate.
+        </div>
+      </div>
+
+      <p style={{ fontSize: 11, opacity: 0.4, marginBottom: 14, maxWidth: 640 }}>
+        Open Interest trend, CVD divergence, and taker buy ratio (3 of the live card&apos;s 8 signals) are
+        intentionally excluded — those need trade-level/positioning data exchanges don&apos;t retain far enough
+        back to backtest meaningfully (Binance&apos;s OI history, for example, only goes back ~30 days). Lookback
+        is {OF_YEARS_BACK} year{OF_YEARS_BACK !== 1 ? 's' : ''} (shorter than the EMA backtest above — fetching
+        15m+1h+4h+funding per coin is a much heavier pull) · uses the same coin scope selected above ({coins.length} coins).
+      </p>
+
+      <button
+        onClick={runOrderFlow}
+        disabled={ofRunning}
+        style={{
+          background: ofRunning ? 'rgba(255,255,255,0.06)' : 'rgba(251,191,36,0.1)',
+          color: ofRunning ? 'rgba(255,255,255,0.4)' : '#fbbf24',
+          border: `1px solid ${ofRunning ? 'var(--bdr)' : 'rgba(251,191,36,0.3)'}`,
+          borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 700,
+          cursor: ofRunning ? 'default' : 'pointer', marginBottom: 18,
+        }}
+      >
+        {ofRunning
+          ? `Running… ${ofProgress?.done ?? 0}/${ofProgress?.total ?? coins.length}${ofProgress?.coin ? ` (${ofProgress.coin})` : ''}`
+          : 'Run Order Flow Backtest'}
+      </button>
+
+      {ofError && (
+        <div style={{ color: '#f87171', fontSize: 12, marginBottom: 14 }}>Error: {ofError}</div>
+      )}
+
+      {ofResult && (
+        <>
+          {ofResult.failedCoins.length > 0 && (
+            <div style={{ fontSize: 11, opacity: 0.4, marginBottom: 12 }}>
+              Skipped {ofResult.failedCoins.length} coin{ofResult.failedCoins.length !== 1 ? 's' : ''} (no data or fetch error): {ofResult.failedCoins.map(c => c.toUpperCase()).join(', ')}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 24 }}>
+            <SideCard title="ORDER FLOW SETUP (5 SIGNALS)" stats={ofResult.side.stats} color="#fbbf24" />
+          </div>
+
+          <div className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Per-Coin Breakdown</div>
+          <table className="frh-table">
+            <thead>
+              <tr>
+                <th>Coin</th><th>Trades</th><th>Win Rate</th><th>Avg R</th><th>Profit Factor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ofResult.coins.filter(c => ofResult.side.perCoin[c]).map(c => {
+                const s = ofResult.side.perCoin[c]!;
                 return (
                   <tr key={c}>
                     <td style={{ fontWeight: 600 }}>{c.toUpperCase()}</td>
