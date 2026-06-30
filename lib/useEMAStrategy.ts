@@ -1,71 +1,13 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore';
+import {
+  emaArr, smaArr, volMA, atrArr, detectEMASignals,
+  SignalFilterParams, DEFAULT_FILTER_PARAMS, ANTICHOP_DISABLED_PARAMS,
+} from './strategyCore';
 
-/* ── Math helpers ─────────────────────────────────────────────────────────── */
-function emaArr(closes: number[], period: number): number[] {
-  const result = new Array<number>(closes.length).fill(NaN);
-  if (closes.length < period) return result;
-  const k = 2 / (period + 1);
-  let e = closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
-  result[period - 1] = e;
-  for (let i = period; i < closes.length; i++) {
-    e = closes[i] * k + e * (1 - k);
-    result[i] = e;
-  }
-  return result;
-}
-
-function smaArr(values: number[], period: number): number[] {
-  return values.map((_, i) => {
-    if (i < period - 1) return NaN;
-    return values.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0) / period;
-  });
-}
-
-function volMA(volumes: number[], period = 20): number {
-  const slice = volumes.slice(-period).filter(v => !isNaN(v));
-  return slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : 0;
-}
-
-function atrArr(candles: OHLCV[], period = 14): number[] {
-  const result = new Array<number>(candles.length).fill(NaN);
-  if (candles.length < period + 1) return result;
-  const tr = candles.map((c, i) => {
-    if (i === 0) return c.high - c.low;
-    const pc = candles[i - 1].close;
-    return Math.max(c.high - c.low, Math.abs(c.high - pc), Math.abs(c.low - pc));
-  });
-  let atr = tr.slice(0, period).reduce((a, b) => a + b, 0) / period;
-  result[period - 1] = atr;
-  for (let i = period; i < candles.length; i++) {
-    atr = (tr[i] + atr * (period - 1)) / period;
-    result[i] = atr;
-  }
-  return result;
-}
-
-
-/* ── Adjustable filter parameters ───────────────────────────────────────── */
-export interface SignalFilterParams {
-  spreadMinPct: number;  // EMA9/20 min spread as fraction of price (0.003 = 0.3%)
-  atrMult:      number;  // ATR(14) multiplier for EMA50 clearance buffer (0.35 = 35%)
-  persistBoost: number;  // Integer added to all PERSIST_BY_TF base values (can be negative)
-}
-
-export const DEFAULT_FILTER_PARAMS: SignalFilterParams = {
-  spreadMinPct: 0.003,
-  atrMult:      0.35,
-  persistBoost: 0,
-};
-
-// Anti-chop OFF: raw EMA9/20 cross + first close beyond EMA50 confirms immediately —
-// no spread requirement, no ATR clearance buffer, no forward persistence wait.
-export const ANTICHOP_DISABLED_PARAMS: SignalFilterParams = {
-  spreadMinPct: 0,
-  atrMult:      0,
-  persistBoost: -10,
-};
+export type { SignalFilterParams } from './strategyCore';
+export { DEFAULT_FILTER_PARAMS, ANTICHOP_DISABLED_PARAMS } from './strategyCore';
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 export type StrategyVerdict =
@@ -416,88 +358,14 @@ export function useEMAStrategy(
           }
         }
 
-        // Chart markers — 2-step strategy, exactly as the trader's rule:
-        //   Step 1 (ARM):     EMA9 crosses EMA20. Bullish cross arms a long; bearish cross arms a short.
-        //   Step 2 (CONFIRM): wait forward for the first candle that CLOSES across EMA50 in that direction.
-        //                     Close above EMA50 after a bullish cross = BUY (marker at candle low).
-        //                     Close below EMA50 after a bearish cross = SELL (marker at candle high).
-        //   The marker is placed on the CONFIRMATION candle, not the cross candle.
-        //   The forward scan aborts if EMA9/20 flips back before confirmation (cross invalidated).
-        // Alternation (lastDir): signals strictly alternate Buy↔Sell. Once you're in a position you
-        //   HOLD it until the opposite side of EMA50 is genuinely taken — you never get a second
-        //   same-direction signal stacked next to the one you already have. Result: buy→sell→buy→sell.
-        // PERSIST (whipsaw filter): the confirmation close must STAY on its side of EMA50 for at least
-        //   PERSIST candles. A brief poke that grazes EMA50 and pops straight back is noise, not a
-        //   position change — it's rejected and the existing position is kept. This removes the "extra"
-        //   buy/sell that used to appear when price just dipped a few points across EMA50 and reversed.
-        //   The newest signal is accepted tentatively if the data ends before PERSIST candles pass.
-        // Timeframe-relative whipsaw filter: each unit = 1 candle, so we normalise
-        // to ~2h of hold time across all timeframes (4h needs 4h, 1h only 2h, etc.)
-        const PERSIST_BY_TF: Record<string, number> = {
-          '1m': 8, '5m': 8, '15m': 4, '30m': 4, '1h': 3, '4h': 3, '1d': 2,
-        };
-        const PERSIST = Math.max(0, (PERSIST_BY_TF[tf] ?? 4) + persistBoost);
-
-        // True if price stays on the confirmed side of EMA50 for ≥PERSIST candles after k
-        // (or the dataset ends first — the live edge can't be disproven yet).
-        const holdsBeyond50 = (k: number, dir: 'long' | 'short'): boolean => {
-          let n = 0;
-          for (let j = k + 1; j < cRibbon.length; j++) {
-            const e50j = e50arr[j];
-            if (!isFinite(e50j)) { n++; continue; }
-            const above = cRibbon[j].close > e50j;
-            if (dir === 'long' ? above : !above) n++; else break;
-          }
-          return n >= PERSIST || (k + 1 + n >= cRibbon.length);
-        };
-
-        const signalLongs:  Array<{ timestamp: number; anchorPrice: number }> = [];
-        const signalShorts: Array<{ timestamp: number; anchorPrice: number }> = [];
-        let lastDir: 'long' | 'short' | null = null;
-
-        for (let i = 1; i < cRibbon.length; i++) {
-          const e9 = e9arr[i], e20 = e20arr[i];
-          const e9p = e9arr[i - 1], e20p = e20arr[i - 1];
-          if (!isFinite(e9) || !isFinite(e20)) continue;
-
-          // Bullish cross → arm long, then forward-scan for the EMA50 confirmation candle
-          if (e9 > e20 && e9p <= e20p && lastDir !== 'long') {
-            for (let k = i; k < cRibbon.length; k++) {
-              if (e9arr[k] < e20arr[k]) break;              // ribbon flipped back — cross invalidated
-              const e50k = e50arr[k];
-              if (!isFinite(e50k)) continue;
-              const atrBuf = (atr14[k] ?? 0) * ATR_MULT;
-              if (cRibbon[k].close > e50k + atrBuf          // CONFIRM: meaningful close above EMA50
-                  && slopeOK(k, 'long')                    // ...and EMA50 is trending up (not flat/ranging)
-                  && spreadOK(k)) {                         // ...and ribbon isn't tangled (chop filter)
-                if (holdsBeyond50(k, 'long')) {             // ...and the move stuck (not a whipsaw poke)
-                  signalLongs.push({ timestamp: cRibbon[k].time, anchorPrice: cRibbon[k].low });
-                  lastDir = 'long';
-                  break;
-                }
-              }
-            }
-          }
-
-          // Bearish cross → arm short, then forward-scan for the EMA50 confirmation candle
-          if (e9 < e20 && e9p >= e20p && lastDir !== 'short') {
-            for (let k = i; k < cRibbon.length; k++) {
-              if (e9arr[k] > e20arr[k]) break;              // ribbon flipped back — cross invalidated
-              const e50k = e50arr[k];
-              if (!isFinite(e50k)) continue;
-              const atrBuf = (atr14[k] ?? 0) * ATR_MULT;
-              if (cRibbon[k].close < e50k - atrBuf          // CONFIRM: meaningful close below EMA50
-                  && slopeOK(k, 'short')                   // ...and EMA50 is trending down (not flat/ranging)
-                  && spreadOK(k)) {                         // ...and ribbon isn't tangled (chop filter)
-                if (holdsBeyond50(k, 'short')) {            // ...and the move stuck (not a whipsaw poke)
-                  signalShorts.push({ timestamp: cRibbon[k].time, anchorPrice: cRibbon[k].high });
-                  lastDir = 'short';
-                  break;
-                }
-              }
-            }
-          }
-        }
+        // Chart markers — delegated to the shared core (lib/strategyCore.ts) so live
+        // signals and the backtest engine run the exact same detection logic and can
+        // never silently drift apart. See strategyCore.ts for the full rule writeup:
+        // 2-step arm/confirm, ATR buffer, EMA50 slope, ribbon spread, whipsaw persistence,
+        // and strict buy/sell alternation.
+        const detected = detectEMASignals(cRibbon, tf, filterParams);
+        const signalLongs  = detected.signalLongs.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice }));
+        const signalShorts = detected.signalShorts.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice }));
 
         // Expose ATR and EMA50 slope for Grok context (Quick/Deep Research + chatbot)
         const atrLast = isFinite(atr14[atr14.length - 1]) ? atr14[atr14.length - 1] : null;

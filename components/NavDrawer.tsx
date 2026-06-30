@@ -49,6 +49,7 @@ const SCANNERS = [
   { path: '/liq',         label: 'Liquidation Map'   },
   { path: '/funding',     label: 'FR History'        },
   { path: '/correlation', label: 'Correlation'       },
+  { path: '/backtest',    label: 'Backtest'          },
 ];
 
 const TOOLS = [
@@ -79,6 +80,7 @@ const MOBILE_NAV: NavEntry[] = [
   { path: '/liq',         label: 'Liquidation Map'   },
   { path: '/funding',     label: 'FR History'        },
   { path: '/correlation', label: 'Correlation'       },
+  { path: '/backtest',    label: 'Backtest'          },
 
   { header: 'Research' },
   { path: '/news',          label: 'News'              },
