@@ -6,6 +6,7 @@ import { detectPatterns } from '@/lib/patterns';
 import { T } from '@/lib/tables';
 import { recordFires } from '@/lib/alertHistory';
 import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS } from '@/lib/coins';
+import { getWaveTrendConfirmation } from '@/lib/waveTrend';
 
 export const dynamic = 'force-dynamic';
 
@@ -1266,6 +1267,14 @@ async function checkEMASetup(
 
       const cl4h = raw4h.map(k => parseFloat(k[4] as string));
       const cl1d = raw1d.map(k => parseFloat(k[4] as string));
+      const ohlc4h = raw4h.map(k => ({
+        time: +(k[0] as number),
+        open: parseFloat(k[1] as string),
+        high: parseFloat(k[2] as string),
+        low: parseFloat(k[3] as string),
+        close: parseFloat(k[4] as string),
+        volume: parseFloat(k[5] as string),
+      }));
 
       const ema9   = calcEMALocal(cl4h, 9);
       const ema20  = calcEMALocal(cl4h, 20);
@@ -1285,6 +1294,10 @@ async function checkEMASetup(
       const inValueZone  = inVZoneLong || inVZoneShort;
       if (!inValueZone) return;
 
+      // Spread filter: ribbon must be separated ≥ 0.3% of price — tangled EMAs = chop = skip
+      const spreadOK = price > 0 && Math.abs(ema9 - ema20) / price >= 0.003;
+      if (!spreadOK) return;
+
       const fundingOK = fr == null ? true
         : ribbonBull ? fr <= 0.0005
         : fr >= -0.0005;
@@ -1300,11 +1313,18 @@ async function checkEMASetup(
       const sl     = dir === 'LONG' ? ema50 * 0.995 : ema50 * 1.005;
       const tp     = dir === 'LONG' ? price + (price - sl) * 2 : price - (sl - price) * 2;
 
+      // WaveTrend (Cipher B) — confirming layer, NOT a hard gate. Informational only,
+      // same framing as the live Arena card and Grok context.
+      const wt = getWaveTrendConfirmation(ohlc4h, dir === 'LONG' ? 'long' : 'short');
+      const wtLine = wt.pass === true ? `WaveTrend confirming: ${wt.detail}`
+        : wt.pass === false ? `WaveTrend not yet confirming: ${wt.detail}`
+        : 'WaveTrend: unavailable';
+
       const grokTake = await grokAnalyze(
         `Elite crypto trader. ${label}/USDT EMA Ribbon Strategy setup triggered on 4H chart. ` +
         `Direction: ${dir}. Price $${fmtP(price)} pulled into the 9-20 EMA value zone. ` +
         `EMA9: $${fmtP(ema9)}, EMA20: $${fmtP(ema20)}, EMA50: $${fmtP(ema50)}, Daily 200 SMA: $${fmtP(sma200)}. ` +
-        `Funding: ${frPct}. ` +
+        `Funding: ${frPct}. ${wtLine} (confirming layer, not a blocking filter — weigh it but don't auto-reject on it). ` +
         `In 2-3 sentences: is this a high-conviction entry or wait for confirmation? ` +
         `What volume or OI confirmation would seal it? Direct, no hedging. ` +
         `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
@@ -1320,7 +1340,8 @@ async function checkEMASetup(
           `EMA20: <b>$${fmtP(ema20)}</b> (entry target)\n` +
           `EMA50: <b>$${fmtP(ema50)}</b> (stop baseline)\n` +
           `SMA200 (1D): <b>$${fmtP(sma200)}</b>\n` +
-          `Funding: <b>${frPct}</b>\n\n` +
+          `Funding: <b>${frPct}</b>\n` +
+          `${wt.pass === true ? '✅' : wt.pass === false ? '⚪' : '—'} ${wtLine}\n\n` +
           `SL: $${fmtP(sl)} · TP: $${fmtP(tp)} (2:1)\n` +
           `Wait for bounce candle with above-avg volume to enter.` +
           `${fmtGrok(grokTake)}\n\n` +

@@ -5,9 +5,10 @@ interface TipProps {
   text: string;
   children: React.ReactNode;
   width?: number;
+  iconColor?: string;
 }
 
-export default function Tip({ text, children, width = 230 }: TipProps) {
+export default function Tip({ text, children, width = 230, iconColor = 'rgba(255,255,255,0.2)' }: TipProps) {
   const [open, setOpen]   = useState(false);
   const [above, setAbove] = useState(false);
   const [coords, setCoords] = useState({ top: 0, bottom: 0, left: 0 });
@@ -46,7 +47,7 @@ export default function Tip({ text, children, width = 230 }: TipProps) {
         {children}
         <span style={{
           fontSize: 9,
-          color: 'rgba(255,255,255,0.2)',
+          color: iconColor,
           fontWeight: 400,
           lineHeight: 1,
           flexShrink: 0,
@@ -54,7 +55,7 @@ export default function Tip({ text, children, width = 230 }: TipProps) {
           transition: 'color 0.15s',
         }}
           onMouseEnter={e => { (e.currentTarget as HTMLSpanElement).style.color = 'rgba(167,139,250,0.7)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLSpanElement).style.color = 'rgba(255,255,255,0.2)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLSpanElement).style.color = iconColor; }}
         >ⓘ</span>
       </span>
 

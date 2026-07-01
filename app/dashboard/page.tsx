@@ -218,29 +218,11 @@ function CascadeAlertBanner() {
 function EdgeSignals() {
   const { store } = useMarket();
   const coin = store.coins[store.selectedCoin];
-  const [tipOpen, setTipOpen] = useState(false);
   const [takerExpanded, setTakerExpanded] = useState(false);
   const [takerSearch, setTakerSearch]     = useState('');
   const takerSearchRef = useRef<HTMLInputElement>(null);
   const oi1h  = useOI1h(store.selectedCoin);
   const sq    = computeSqueezeScore(coin);
-  const tipRef = useRef<HTMLDivElement>(null);
-
-  /* ── Close OI tooltip on outside tap / click (mobile-friendly) ── */
-  useEffect(() => {
-    if (!tipOpen) return;
-    const close = (e: MouseEvent | TouchEvent) => {
-      if (tipRef.current && !tipRef.current.contains(e.target as Node)) {
-        setTipOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', close);
-    document.addEventListener('touchstart', close as EventListener, { passive: true });
-    return () => {
-      document.removeEventListener('mousedown', close);
-      document.removeEventListener('touchstart', close as EventListener);
-    };
-  }, [tipOpen]);
 
   /* ── Coinbase Premium ── */
   const cbAmt = store.cbPremium;
@@ -314,13 +296,11 @@ function EdgeSignals() {
         </div>
 
         {/* OI Trend — selected coin */}
-        <div ref={tipRef} className="edge-card" style={{ borderColor: oiBdr }}>
-          <div className="edge-card-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            Open Interest · {store.selectedCoin.toUpperCase()}
-            <span
-              className="oi-info-icon"
-              onClick={e => { e.stopPropagation(); setTipOpen(o => !o); }}
-            >ⓘ</span>
+        <div className="edge-card" style={{ borderColor: oiBdr }}>
+          <div className="edge-card-label">
+            <Tip text="Open Interest is the total number of live futures contracts. Rising OI + rising price = new longs entering (real conviction). Falling OI + rising price = shorts covering (weaker signal). Use this to judge if a move has real backing or is just a squeeze.">
+              Open Interest · {store.selectedCoin.toUpperCase()}
+            </Tip>
           </div>
           {oiMeta ? (
             <>
@@ -332,14 +312,19 @@ function EdgeSignals() {
               {!hasPerp ? 'No perp data' : 'Warming up…'}
             </div>
           )}
-          {tipOpen && (
-            <div className="oi-inline-tip">
-              <div className="oi-tip-row"><span className="oi-tip-badge tip-green">▲ ↑Open Int ↑P</span><span>New longs — real trend</span></div>
-              <div className="oi-tip-row"><span className="oi-tip-badge tip-red">▼ ↑Open Int ↓P</span><span>New shorts — real dump</span></div>
-              <div className="oi-tip-row"><span className="oi-tip-badge tip-weak-up">△ ↓Open Int ↑P</span><span>Short covering — fake pump</span></div>
-              <div className="oi-tip-row"><span className="oi-tip-badge tip-weak-down">▽ ↓Open Int ↓P</span><span>Long exits — no panic</span></div>
-            </div>
-          )}
+          {/* Always-visible legend — active state full opacity, others dimmed */}
+          <div className="oi-inline-tip">
+            {(Object.entries(OI_TREND_META) as [string, { txt: string; sub: string; col: string }][]).map(([key, m]) => {
+              const isActive = coin?.oiTrend === key;
+              const badgeCls = key === 'strong_up' ? 'tip-green' : key === 'strong_down' ? 'tip-red' : key === 'weak_up' ? 'tip-weak-up' : 'tip-weak-down';
+              return (
+                <div key={key} className="oi-tip-row" style={{ opacity: isActive ? 1 : 0.28, transition: 'opacity 0.3s' }}>
+                  <span className={`oi-tip-badge ${badgeCls}`}>{m.txt}</span>
+                  <span>{m.sub}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Funding Rate + Next FR Estimate */}
