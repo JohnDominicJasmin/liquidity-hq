@@ -1268,7 +1268,12 @@ async function checkEMASetup(
       const cl4h = raw4h.map(k => parseFloat(k[4] as string));
       const cl1d = raw1d.map(k => parseFloat(k[4] as string));
       const ohlc4h = raw4h.map(k => ({
-        time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5],
+        time: +(k[0] as number),
+        open: parseFloat(k[1] as string),
+        high: parseFloat(k[2] as string),
+        low: parseFloat(k[3] as string),
+        close: parseFloat(k[4] as string),
+        volume: parseFloat(k[5] as string),
       }));
 
       const ema9   = calcEMALocal(cl4h, 9);

@@ -1,4 +1,5 @@
 'use client';
+import { useEffect } from 'react';
 import MarketProvider from './MarketProvider';
 import NewsProvider from './NewsProvider';
 import NavDrawer from './NavDrawer';
@@ -13,6 +14,16 @@ import SetupChecklist from './SetupChecklist';
 import GrokUsageProvider from './GrokUsageProvider';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    try {
+      const t = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    } catch {}
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  }, []);
+
   return (
     <PostHogProvider>
       <AuthProvider>

@@ -1680,49 +1680,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 .oi-trend-table { background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: 16px; overflow: hidden; margin-bottom: 8px; }
 .oi-trend-title { font-size: 10px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 14px 6px; display: flex; align-items: center; gap: 6px; }
 
-/* ── OI info tooltip ── */
-.oi-info-wrap { position: relative; display: inline-flex; align-items: center; }
-.oi-info-icon {
-  font-size: 13px; color: var(--txt3); cursor: pointer; line-height: 1;
-  transition: color 0.15s, background 0.12s; text-transform: none; letter-spacing: 0;
-  /* Larger tap target for mobile — 44×44 dp minimum */
-  padding: 6px; margin: -6px; border-radius: 6px;
-  -webkit-tap-highlight-color: transparent;
-}
-.oi-info-icon:hover  { color: var(--txt2); }
-.oi-info-icon:active { background: rgba(255,255,255,0.08); color: var(--txt); }
-.oi-info-wrap:hover .oi-info-icon,
-.oi-info-wrap.open .oi-info-icon { color: var(--txt3); }
-.oi-info-tip {
-  display: none;
-  position: absolute;
-  left: 50%; bottom: calc(100% + 8px);
-  transform: translateX(-50%);
-  min-width: 290px;
-  background: #111;
-  border: 0.5px solid rgba(255,255,255,0.12);
-  border-radius: 10px;
-  padding: 10px 12px;
-  z-index: 200;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.8);
-  pointer-events: none;
-}
-/* arrow */
-.oi-info-tip::after {
-  content: '';
-  position: absolute;
-  top: 100%; left: 50%;
-  transform: translateX(-50%);
-  border: 6px solid transparent;
-  border-top-color: rgba(255,255,255,0.12);
-}
-.oi-info-wrap:hover .oi-info-tip,
-.oi-info-wrap.open .oi-info-tip { display: block; }
-/* Mobile: anchor tip to right edge so it doesn't overflow left */
-@media (max-width: 639px) {
-  .oi-info-tip { left: auto; right: 0; transform: none; }
-  .oi-info-tip::after { left: auto; right: 10px; transform: none; }
-}
+
 .oi-tip-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 11px; color: var(--txt2); line-height: 1.4; font-weight: 400; text-transform: none; letter-spacing: 0; }
 .oi-tip-row:not(:last-child) { border-bottom: 0.5px solid rgba(255,255,255,0.04); }
 .oi-tip-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 5px; white-space: nowrap; flex-shrink: 0; font-variant-numeric: tabular-nums; }

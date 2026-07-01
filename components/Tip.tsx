@@ -13,7 +13,7 @@ export default function Tip({ text, children, width = 230, iconColor = 'rgba(255
   const [above, setAbove] = useState(false);
   const [coords, setCoords] = useState({ top: 0, bottom: 0, left: 0 });
   const ref   = useRef<HTMLSpanElement>(null);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const show = useCallback(() => {
     if (!ref.current) return;

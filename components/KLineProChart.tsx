@@ -360,7 +360,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chart.setStyles((dark ? DARK : LIGHT) as any);
 
-      // Register custom ribbon: EMA 9/20/50 + SMA 200 as one indicator
+      // Register custom ribbon: EMA 9/20/50 + EMA 200 as one indicator
       kc.registerIndicator({
         name: 'EMARibbon',
         calc: (dataList) => {
@@ -384,7 +384,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             return out;
           };
 
-          const e9 = emaArr(9), e20 = emaArr(20), e50 = emaArr(50), s200 = smaArr(200);
+          const e9 = emaArr(9), e20 = emaArr(20), e50 = emaArr(50), s200 = emaArr(200);
           return dataList.map((_: unknown, i: number) => ({ e9: e9[i], e20: e20[i], e50: e50[i], s200: s200[i] }));
         },
         figures: [
@@ -398,7 +398,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             { color: '#fbbf24', size: 1   },  // EMA 9  — gold
             { color: '#60a5fa', size: 1.5 },  // EMA 20 — blue
             { color: '#f97316', size: 1.5 },  // EMA 50 — orange
-            { color: '#a78bfa', size: 2   },  // SMA 200 — purple
+            { color: '#a78bfa', size: 2   },  // EMA 200 — purple
           ],
         },
       });
