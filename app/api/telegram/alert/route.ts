@@ -74,7 +74,7 @@ function fmtGrok(raw: string): string {
 }
 
 /* ── Signal queue — for confluence batching ── */
-interface SignalEntry { coin: string; title: string; body: string; name: string }
+interface SignalEntry { coin: string; title: string; body: string; name: string; dir?: 'long' | 'short' }
 
 /* ── Coin maps (sourced from shared lib/coins.ts) ── */
 const BINANCE_PERP  = BINANCE_SYMS;
@@ -396,7 +396,7 @@ async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> 
       if (prevRsi !== undefined) {
         if (prevRsi < 50 && rsi >= 50 && !onCooldown(`rsi50_bull_${coin}`, CD.rsi50)) {
           queue.push({
-            coin, name: `${label} RSI 50 cross ↑`,
+            coin, dir: 'long', name: `${label} RSI 50 cross ↑`,
             title: `RSI 50 Cross ↑ — Bullish (1H)`,
             body: `📊 <b>${label} RSI Crossed 50 — Bullish (1H)</b>\n\nRSI: <b>${r}</b> (prev ${prevRsi.toFixed(1)})\nSignal: Momentum shifted bullish — potential long setup\nAction: Confirm with break above nearest resistance.\n\n<i>${stamp}</i>`,
           });
@@ -404,7 +404,7 @@ async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> 
         }
         if (prevRsi > 50 && rsi < 50 && !onCooldown(`rsi50_bear_${coin}`, CD.rsi50)) {
           queue.push({
-            coin, name: `${label} RSI 50 cross ↓`,
+            coin, dir: 'short', name: `${label} RSI 50 cross ↓`,
             title: `RSI 50 Cross ↓ — Bearish (1H)`,
             body: `📊 <b>${label} RSI Crossed 50 — Bearish (1H)</b>\n\nRSI: <b>${r}</b> (prev ${prevRsi.toFixed(1)})\nSignal: Momentum turned bearish — potential short setup\nAction: Confirm with breakdown below nearest support.\n\n<i>${stamp}</i>`,
           });
@@ -458,7 +458,7 @@ async function checkEMACross(stamp: string, queue: SignalEntry[]): Promise<strin
           `In 2-3 sentences: valid bullish reclaim or false breakout? What confluence confirms? Direct, no hedging. ` +
           `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
         queue.push({
-          coin, name: `${label} crossed above 200 EMA`,
+          coin, dir: 'long', name: `${label} crossed above 200 EMA`,
           title: `200 EMA Cross ↑ (1H)`,
           body: `📈 <b>${label} Crossed Above 200 EMA (1H)</b>\n\n` +
             `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
@@ -475,7 +475,7 @@ async function checkEMACross(stamp: string, queue: SignalEntry[]): Promise<strin
           `In 2-3 sentences: genuine bearish breakdown or fake-out? What to watch for? Direct, no hedging. ` +
           `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
         queue.push({
-          coin, name: `${label} crossed below 200 EMA`,
+          coin, dir: 'short', name: `${label} crossed below 200 EMA`,
           title: `200 EMA Cross ↓ (1H)`,
           body: `📉 <b>${label} Crossed Below 200 EMA (1H)</b>\n\n` +
             `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
@@ -1184,7 +1184,7 @@ async function checkSqueezeAlerts(
     if (dir === 'SHORT_SQ') {
       // Shorts overcrowded — expect pump to flush them
       queue.push({
-        coin, name: `${label} short squeeze building (${score}/100)`,
+        coin, dir: 'long', name: `${label} short squeeze building (${score}/100)`,
         title: `Short Squeeze Building — Score ${score}/100`,
         body:
           `⚡ <b>SHORT SQUEEZE BUILDING — ${label}/USDT</b>\n` +
@@ -1200,7 +1200,7 @@ async function checkSqueezeAlerts(
     } else {
       // Longs overcrowded — expect dump to flush them
       queue.push({
-        coin, name: `${label} long flush building (${score}/100)`,
+        coin, dir: 'short', name: `${label} long flush building (${score}/100)`,
         title: `Long Flush Building — Score ${score}/100`,
         body:
           `🔥 <b>LONG FLUSH BUILDING — ${label}/USDT</b>\n` +
@@ -1331,7 +1331,7 @@ async function checkEMASetup(
       );
 
       queue.push({
-        coin, name: `${label} EMA ribbon ${dir} setup`,
+        coin, dir: dir === 'LONG' ? 'long' : 'short', name: `${label} EMA ribbon ${dir} setup`,
         title: `EMA Ribbon ${dir} Setup — In Value Zone`,
         body:
           `📐 <b>EMA RIBBON ${dir} SETUP — ${label}/USDT</b>\n\n` +
@@ -1362,6 +1362,7 @@ async function checkEMASetup(
 async function checkFRThreshold(
   token: string, stamp: string,
   frMap: Record<string, number | null>,
+  muted: Set<string>,
 ): Promise<string[]> {
   const fired: string[] = [];
   try {
@@ -1380,6 +1381,7 @@ async function checkFRThreshold(
       if (!chatId) continue;
 
       for (const coin of COINS) {
+        if (muted.has(`coin:${coin}`)) continue;
         const fr = frMap[coin];
         if (fr == null) continue;
         const pctAbs = Math.abs(fr) * 100;
@@ -1509,11 +1511,20 @@ async function runAlerts(token: string): Promise<NextResponse> {
     skip('sentiment_extremes') ? none : checkSentimentExtremes(token, chatId, stamp, frMap), // global — sends directly
     skip('squeeze')            ? none : checkSqueezeAlerts(stamp, frMap, lsMap, signalQueue),
     skip('ema_setup')          ? none : checkEMASetup(stamp, frMap, signalQueue),
-    skip('fr_threshold')       ? none : checkFRThreshold(token, stamp, frMap),
+    skip('fr_threshold')       ? none : checkFRThreshold(token, stamp, frMap, muted),
   ]);
 
+  // Per-coin + per-direction filters — set on /alerts page via muted keys
+  // 'coin:<id>' disables a coin entirely; 'dir:long' / 'dir:short' silence
+  // entry signals of that trade direction.
+  const filteredQueue = signalQueue.filter(e =>
+    !muted.has(`coin:${e.coin}`) &&
+    !(e.dir === 'long'  && muted.has('dir:long')) &&
+    !(e.dir === 'short' && muted.has('dir:short'))
+  );
+
   // Flush: single signals → send as-is, 2+ same coin → confluence alert
-  await flushSignals(token, chatId, stamp, signalQueue);
+  await flushSignals(token, chatId, stamp, filteredQueue);
 
   const fired = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
   if (fired.length > 0) recordFires(fired);

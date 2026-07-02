@@ -205,6 +205,9 @@ export default function AlertsPage() {
   const dailySummaryLocalTime = utcHourToLocalTime(7); // scheduled cron fires at 07:00 UTC
 
   const ALERT_GROUPS: { section: string; items: { key: string; dot: string; title: string; desc: string; grok: boolean }[] }[] = [
+    { section: 'Trading Signals', items: [
+      { key: 'ema_setup', dot: '#4ade80', title: 'Entry Signal — EMA Ribbon Setup (4H)', desc: 'Potential LONG or SHORT entry: price pulls into the EMA 9–20 value zone with trend, ribbon spread, and funding aligned · includes stop loss and take profit levels · 6h cooldown', grok: true },
+    ]},
     { section: 'Funding', items: [
       { key: 'fr_extremes', dot: '#f87171', title: 'FR Extremes',       desc: '≥ 0.05% longs overcrowded · ≤ −0.03% shorts crowded · 4h cooldown', grok: false },
       { key: 'fr_flip',     dot: '#60a5fa', title: 'FR Direction Flip', desc: 'FR crosses zero (pos→neg or neg→pos) · fires on transition', grok: false },
@@ -600,8 +603,73 @@ export default function AlertsPage() {
           </div>
           <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#5a6aff', background: 'rgba(90,106,255,0.1)', border: '0.5px solid rgba(90,106,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>
         </div>
-        <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 10, padding: '8px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
-          Monitored: all {COINS.length} coins — BTC · ETH · SOL · XRP · BNB · HYPE · NEAR · SUI · DOGE · AVAX · LINK · ADA · DOT · ATOM · WIF · PEPE · BONK
+        {/* ── Signal direction filter ── */}
+        <div style={{ marginTop: 10, padding: '10px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 4 }}>
+            Signal Direction
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 8 }}>
+            Silence one side of directional signals (entry setups, RSI momentum shifts, 200 EMA crosses, squeeze/flush warnings).
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {([['dir:long', 'Long signals', '#4ade80'], ['dir:short', 'Short signals', '#f87171']] as const).map(([key, label, col]) => {
+              const off = muted.has(key);
+              return (
+                <button
+                  key={key}
+                  onClick={() => toggleMute(key)}
+                  role="switch"
+                  aria-checked={!off}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '6px 14px', borderRadius: 8, cursor: 'pointer',
+                    fontSize: 12, fontWeight: 600,
+                    background: off ? 'var(--bg2)' : `${col}14`,
+                    border: `0.5px solid ${off ? 'var(--bdr)' : col + '55'}`,
+                    color: off ? 'var(--txt3)' : col,
+                    transition: 'all .15s',
+                  }}
+                >
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: off ? 'var(--txt3)' : col }} />
+                  {label}{off ? ' — muted' : ''}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Alert coin selection ── */}
+        <div style={{ marginTop: 12, padding: '10px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 4 }}>
+            Alert Coins — {COINS.filter(c => !muted.has(`coin:${c}`)).length}/{COINS.length} on
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 8 }}>
+            Tap a coin to stop all alerts for it. Your saved price alerts are not affected.
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {COINS.map(c => {
+              const off = muted.has(`coin:${c}`);
+              return (
+                <button
+                  key={c}
+                  onClick={() => toggleMute(`coin:${c}`)}
+                  aria-pressed={!off}
+                  style={{
+                    padding: '4px 10px', borderRadius: 7, cursor: 'pointer',
+                    fontSize: 11, fontWeight: 700, letterSpacing: '.03em',
+                    fontFamily: 'var(--font-mono), monospace',
+                    background: off ? 'transparent' : 'var(--accent-bg)',
+                    border: `0.5px solid ${off ? 'var(--bdr)' : 'var(--accent-bdr)'}`,
+                    color: off ? 'var(--txt3)' : 'var(--accent-2)',
+                    textDecoration: off ? 'line-through' : 'none',
+                    transition: 'all .15s',
+                  }}
+                >
+                  {c.toUpperCase()}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
