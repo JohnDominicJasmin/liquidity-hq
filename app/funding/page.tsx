@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId, useMarket } from '@/lib/marketStore';
+import { coinBadgeColor } from '@/lib/coinBadge';
 
 /* ── types ── */
 interface FRPoint { rate: number; ts: number; }
@@ -451,7 +452,17 @@ export default function FundingHistory() {
                           onClick={() => { if (!noData) setSelected(id); }}
                           style={selected !== id && current != null ? { boxShadow: `inset 3px 0 0 ${frSignal(current).color}44` } : undefined}
                         >
-                          <td className="frh-coin">{COIN_LABELS[id]}</td>
+                          <td className="frh-coin" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{
+                              width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 7, fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
+                              background: coinBadgeColor(id) + '24', color: coinBadgeColor(id), border: `0.5px solid ${coinBadgeColor(id)}55`,
+                            }}>
+                              {id.slice(0, 2).toUpperCase()}
+                            </span>
+                            {COIN_LABELS[id]}
+                          </td>
                           <td style={{ color: current != null ? frColor(current) : 'var(--txt3)', fontWeight: 700 }}>
                             {current != null ? frFmt(current) : '—'}
                           </td>

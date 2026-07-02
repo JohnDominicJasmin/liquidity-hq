@@ -6,6 +6,7 @@ import { useSettings } from '@/lib/settings';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { utcHourToLocalTime } from '@/lib/resetTime';
+import { coinBadgeColor } from '@/lib/coinBadge';
 
 interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; created_at: string }
 
@@ -649,12 +650,14 @@ export default function AlertsPage() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {COINS.map(c => {
               const off = muted.has(`coin:${c}`);
+              const badgeCol = coinBadgeColor(c);
               return (
                 <button
                   key={c}
                   onClick={() => toggleMute(`coin:${c}`)}
                   aria-pressed={!off}
                   style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
                     padding: '4px 10px', borderRadius: 7, cursor: 'pointer',
                     fontSize: 11, fontWeight: 700, letterSpacing: '.03em',
                     fontFamily: 'var(--font-mono), monospace',
@@ -665,6 +668,7 @@ export default function AlertsPage() {
                     transition: 'all .15s',
                   }}
                 >
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0, background: off ? 'var(--txt3)' : badgeCol }} />
                   {c.toUpperCase()}
                 </button>
               );

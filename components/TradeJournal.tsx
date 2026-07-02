@@ -7,6 +7,7 @@ import { getSupabase } from '@/lib/supabase';
 import AuthGate from './AuthGate';
 import { track } from '@/lib/analytics';
 import { T } from '@/lib/tables';
+import { coinBadgeColor } from '@/lib/coinBadge';
 
 type Direction = 'LONG' | 'SHORT';
 type TradeResult = 'OPEN' | 'WIN' | 'LOSS' | 'BE';
@@ -62,6 +63,7 @@ function Inner() {
     { result: 'OPEN', exit_price: '', pnl_usd: '', notes: '' }
   );
   const [noDb,      setNoDb]      = useState(false);
+  const [historyPage, setHistoryPage] = useState(0);
 
   /* Form state — pre-fill from URL params (from Position Sizer) */
   const [coin,      setCoin]      = useState<CoinId>((sp.get('coin') as CoinId) || 'btc');
@@ -207,6 +209,12 @@ function Inner() {
     await loadTrades();
   };
 
+  /* Trade history pagination */
+  const HISTORY_PAGE_SIZE = 20;
+  const historyPageCount = Math.max(1, Math.ceil(trades.length / HISTORY_PAGE_SIZE));
+  const historyPageSafe  = Math.min(historyPage, historyPageCount - 1);
+  const pagedTrades = trades.slice(historyPageSafe * HISTORY_PAGE_SIZE, historyPageSafe * HISTORY_PAGE_SIZE + HISTORY_PAGE_SIZE);
+
   /* Stats */
   const stats = useMemo(() => {
     const closed = trades.filter(t => t.result !== 'OPEN');
@@ -298,7 +306,13 @@ function Inner() {
             <div className="tj-card-lbl">Coin & Direction</div>
             <div className="tj-coins">
               {COINS.map(c => (
-                <button key={c} className={`tj-coin${coin === c ? ' on' : ''}`} onClick={() => setCoin(c)}>
+                <button
+                  key={c}
+                  className={`tj-coin${coin === c ? ' on' : ''}`}
+                  onClick={() => setCoin(c)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                >
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0, background: coinBadgeColor(c) }} />
                   {c.toUpperCase()}
                 </button>
               ))}
@@ -441,11 +455,14 @@ function Inner() {
           {!loading && trades.length === 0 && (
             <div className="tj-empty-state">No trades logged yet — start tracking your trades!</div>
           )}
-          {trades.map(trade => (
+          {pagedTrades.map(trade => (
             <div key={trade.id} className={`tj-trade tj-trade-${trade.result.toLowerCase()}`}>
               <div className="tj-trade-top">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span className="tj-trade-coin">{trade.coin.toUpperCase()}</span>
+                  <span className="tj-trade-coin" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: coinBadgeColor(trade.coin) }} />
+                    {trade.coin.toUpperCase()}
+                  </span>
                   <span className={`tj-trade-dir-tag ${trade.direction === 'LONG' ? 'tj-long' : 'tj-short'}`}>
                     {trade.direction === 'LONG' ? '▲' : '▼'} {trade.direction}
                   </span>
@@ -574,6 +591,60 @@ function Inner() {
               )}
             </div>
           ))}
+
+          {/* Pagination */}
+          {trades.length > HISTORY_PAGE_SIZE && (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 10, flexWrap: 'wrap', padding: '14px 2px 0', marginTop: 4,
+              borderTop: '0.5px solid var(--bdr)',
+            }}>
+              <span style={{ fontSize: 10, color: 'var(--txt3)', fontFamily: 'var(--font-mono), monospace' }}>
+                {historyPageSafe * HISTORY_PAGE_SIZE + 1}–{Math.min(trades.length, historyPageSafe * HISTORY_PAGE_SIZE + HISTORY_PAGE_SIZE)} of {trades.length}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button
+                  onClick={() => setHistoryPage(p => Math.max(0, p - 1))}
+                  disabled={historyPageSafe === 0}
+                  style={{
+                    padding: '5px 10px', fontSize: 11, borderRadius: 6,
+                    border: '0.5px solid var(--bdr)', background: 'transparent',
+                    color: historyPageSafe === 0 ? 'var(--txt3)' : 'var(--txt2)',
+                    cursor: historyPageSafe === 0 ? 'default' : 'pointer', opacity: historyPageSafe === 0 ? 0.4 : 1,
+                  }}
+                >
+                  ← Prev
+                </button>
+                {Array.from({ length: historyPageCount }, (_, i) => i).map(i => (
+                  <button
+                    key={i}
+                    onClick={() => setHistoryPage(i)}
+                    style={{
+                      width: 26, height: 26, fontSize: 11, fontWeight: 700, borderRadius: 6,
+                      border: `0.5px solid ${i === historyPageSafe ? 'var(--accent-bdr)' : 'var(--bdr)'}`,
+                      background: i === historyPageSafe ? 'var(--accent)' : 'transparent',
+                      color: i === historyPageSafe ? '#fff' : 'var(--txt3)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setHistoryPage(p => Math.min(historyPageCount - 1, p + 1))}
+                  disabled={historyPageSafe >= historyPageCount - 1}
+                  style={{
+                    padding: '5px 10px', fontSize: 11, borderRadius: 6,
+                    border: '0.5px solid var(--bdr)', background: 'transparent',
+                    color: historyPageSafe >= historyPageCount - 1 ? 'var(--txt3)' : 'var(--txt2)',
+                    cursor: historyPageSafe >= historyPageCount - 1 ? 'default' : 'pointer', opacity: historyPageSafe >= historyPageCount - 1 ? 0.4 : 1,
+                  }}
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
