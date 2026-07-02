@@ -228,14 +228,45 @@ export default function LandingPage() {
 
       {/* ── FOOTER ── */}
       <footer className="lp-footer">
-        <div className="lp-footer-inner">
-          <span className="lp-logo lp-footer-logo">LiquidityHQ<span>.ai</span></span>
-          <div className="lp-footer-links">
-            <Link href="/login">Sign In</Link>
-            <Link href="/arena">Arena</Link>
+        <div className="lp-footer-grid">
+          <div className="lp-footer-brand">
+            <span className="lp-logo">LiquidityHQ<span>.ai</span></span>
+            <p>Live crypto intelligence for retail traders — squeeze scores, whale alerts, AI analysis, and macro events in one dashboard.</p>
+          </div>
+
+          <div className="lp-footer-col">
+            <div className="lp-footer-col-title">Product</div>
+            <Link href="/dashboard">Dashboard</Link>
+            <Link href="/arena">AI Arena</Link>
             <Link href="/briefing">Briefing</Link>
             <Link href="/news">News</Link>
           </div>
+
+          <div className="lp-footer-col">
+            <div className="lp-footer-col-title">Analysis</div>
+            <Link href="/scanner">Setup Scanner</Link>
+            <Link href="/liq">Liquidation Map</Link>
+            <Link href="/funding">FR History</Link>
+            <Link href="/correlation">Correlation</Link>
+          </div>
+
+          <div className="lp-footer-col">
+            <div className="lp-footer-col-title">Tools</div>
+            <Link href="/journal">Journal</Link>
+            <Link href="/calc">Position Sizer</Link>
+            <Link href="/alerts">Alerts</Link>
+            <Link href="/hours">Best Hours</Link>
+          </div>
+
+          <div className="lp-footer-col">
+            <div className="lp-footer-col-title">Account</div>
+            <Link href="/login">Sign In</Link>
+            <Link href="/login?signup=1">Create Account</Link>
+            <Link href="/upgrade">Pricing</Link>
+            <Link href="/about">About</Link>
+          </div>
+        </div>
+        <div className="lp-footer-bottom">
           <span className="lp-footer-copy">© 2026 LiquidityHQ.ai · For educational purposes only · Not financial advice</span>
         </div>
       </footer>

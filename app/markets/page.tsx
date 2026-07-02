@@ -1,8 +1,10 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, computeSqueezeScore } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
+import { coinBadgeColor } from '@/lib/coinBadge';
+import Sparkline24h from '@/components/Sparkline24h';
 
 type SortKey = 'volume' | 'change' | 'grade' | 'signal' | 'name';
 
@@ -23,6 +25,8 @@ function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): {
 }
 
 const GRADE_ORDER: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, F: 4, '—': 5 };
+const PAGE_SIZE = 20;
+const ROW_COLS = '28px 1fr 40px 96px 58px 80px 1fr';
 
 export default function MarketsPage() {
   const { store, selectCoin } = useMarket();
@@ -30,6 +34,7 @@ export default function MarketsPage() {
   const [query, setQuery]   = useState('');
   const [sort, setSort]     = useState<SortKey>('volume');
   const [sortAsc, setSortAsc] = useState(false);
+  const [page, setPage] = useState(0);
 
   const rows = useMemo(() => {
     const filtered = COINS.filter(id => id.toLowerCase().includes(query.toLowerCase()));
@@ -53,6 +58,15 @@ export default function MarketsPage() {
       return sortAsc ? cmp : -cmp;
     });
   }, [store.coins, query, sort, sortAsc]);
+
+  // Reset to page 1 whenever the result set changes shape
+  useEffect(() => { setPage(0); }, [query, sort, sortAsc]);
+
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const pageSafe  = Math.min(page, pageCount - 1);
+  const pageRows  = rows.slice(pageSafe * PAGE_SIZE, pageSafe * PAGE_SIZE + PAGE_SIZE);
+  const rangeStart = rows.length === 0 ? 0 : pageSafe * PAGE_SIZE + 1;
+  const rangeEnd   = Math.min(rows.length, pageSafe * PAGE_SIZE + PAGE_SIZE);
 
   const bullCount = COINS.filter(id => topSignal(store.coins[id]).col === '#34d399').length;
   const bearCount = COINS.filter(id => topSignal(store.coins[id]).col === '#f87171').length;
@@ -78,11 +92,11 @@ export default function MarketsPage() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&display=swap');
-        .mkt-mono { font-family: 'IBM Plex Mono', monospace; }
+        .mkt-mono { font-family: var(--font-mono), monospace; }
         .mkt-row { transition: background 0.1s; }
         .mkt-row:hover { background: rgba(255,255,255,0.03) !important; }
         .mkt-sort-btn { transition: color 0.15s, border-color 0.15s, background 0.15s; }
+        .mkt-page-btn { transition: color 0.15s, border-color 0.15s, background 0.15s; }
       `}</style>
 
       <div style={{ maxWidth: 860, margin: '0 auto', padding: '0 12px 80px' }}>
@@ -128,7 +142,7 @@ export default function MarketsPage() {
             placeholder="Search coins…"
             style={{
               flex: 1, minWidth: 120,
-              background: 'var(--card)', border: '0.5px solid var(--bdr)',
+              background: 'var(--bg1)', border: '0.5px solid var(--bdr)',
               borderRadius: 8, padding: '7px 12px',
               fontSize: 12, color: 'var(--txt)', outline: 'none',
             }}
@@ -140,10 +154,10 @@ export default function MarketsPage() {
               onClick={() => handleSort(key)}
               style={{
                 padding: '6px 12px', fontSize: 11,
-                border: `0.5px solid ${sort === key ? 'rgba(184,174,255,0.4)' : 'var(--bdr)'}`,
+                border: `0.5px solid ${sort === key ? 'var(--accent-bdr)' : 'var(--bdr)'}`,
                 borderRadius: 8,
-                background: sort === key ? 'rgba(184,174,255,0.08)' : 'transparent',
-                color: sort === key ? '#b8aeff' : 'var(--txt3)',
+                background: sort === key ? 'var(--accent-bg)' : 'transparent',
+                color: sort === key ? 'var(--accent-2)' : 'var(--txt3)',
                 cursor: 'pointer', textTransform: 'capitalize',
               }}
             >
@@ -155,7 +169,7 @@ export default function MarketsPage() {
         {/* Column headers */}
         <div className="mkt-mono" style={{
           display: 'grid',
-          gridTemplateColumns: '28px 1fr 96px 58px 80px 1fr',
+          gridTemplateColumns: ROW_COLS,
           padding: '0 10px 6px',
           fontSize: 9, fontWeight: 700, letterSpacing: '.1em',
           textTransform: 'uppercase', color: 'var(--txt3)',
@@ -163,6 +177,7 @@ export default function MarketsPage() {
         }}>
           <div />
           <div style={{ paddingLeft: 10 }}>Coin</div>
+          <div />
           <div style={{ textAlign: 'right' }}>Price</div>
           <div style={{ textAlign: 'right' }}>24h</div>
           <div style={{ paddingLeft: 4 }}>Pressure</div>
@@ -170,7 +185,7 @@ export default function MarketsPage() {
         </div>
 
         {/* Rows */}
-        {rows.map(id => {
+        {pageRows.map(id => {
           const d      = store.coins[id];
           const dec    = COIN_DEC[id] ?? 2;
           const chg    = d?.change ?? 0;
@@ -180,6 +195,7 @@ export default function MarketsPage() {
           const tbp    = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : 50;
           const gradeStyle = GRADE_STYLE[health.grade] ?? GRADE_STYLE.F;
           const barCol = tbp >= 55 ? '#34d399' : tbp <= 45 ? '#f87171' : '#555';
+          const badgeCol = coinBadgeColor(id);
 
           return (
             <div
@@ -188,7 +204,7 @@ export default function MarketsPage() {
               onClick={() => goToArena(id)}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '28px 1fr 96px 58px 80px 1fr',
+                gridTemplateColumns: ROW_COLS,
                 alignItems: 'center',
                 padding: '8px 10px',
                 borderBottom: '0.5px solid rgba(255,255,255,0.03)',
@@ -202,14 +218,29 @@ export default function MarketsPage() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 9, fontWeight: 800,
                 background: gradeStyle.bg, color: gradeStyle.col,
-                fontFamily: 'IBM Plex Mono, monospace',
+                fontFamily: 'var(--font-mono), monospace',
               }}>
                 {health.grade}
               </div>
 
-              {/* Coin name */}
-              <div style={{ paddingLeft: 10, fontSize: 12, fontWeight: 700, color: 'var(--txt)', letterSpacing: '.02em' }}>
-                {id.toUpperCase()}
+              {/* Coin badge + name */}
+              <div style={{ paddingLeft: 10, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                <span style={{
+                  width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 8, fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
+                  background: badgeCol + '24', color: badgeCol, border: `0.5px solid ${badgeCol}55`,
+                }}>
+                  {id.slice(0, 2).toUpperCase()}
+                </span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt)', letterSpacing: '.02em' }}>
+                  {id.toUpperCase()}
+                </span>
+              </div>
+
+              {/* Sparkline */}
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <Sparkline24h coin={id} width={34} height={14} />
               </div>
 
               {/* Price */}
@@ -257,6 +288,63 @@ export default function MarketsPage() {
         {rows.length === 0 && (
           <div style={{ padding: '32px 10px', textAlign: 'center', fontSize: 12, color: 'var(--txt3)' }}>
             No coins match &ldquo;{query}&rdquo;
+          </div>
+        )}
+
+        {/* Pagination */}
+        {rows.length > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 10, flexWrap: 'wrap', padding: '14px 10px 0', marginTop: 4,
+            borderTop: '0.5px solid var(--bdr)',
+          }}>
+            <span className="mkt-mono" style={{ fontSize: 10, color: 'var(--txt3)' }}>
+              {rangeStart}–{rangeEnd} of {rows.length}
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button
+                className="mkt-page-btn"
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={pageSafe === 0}
+                style={{
+                  padding: '5px 10px', fontSize: 11, borderRadius: 6,
+                  border: '0.5px solid var(--bdr)', background: 'transparent',
+                  color: pageSafe === 0 ? 'var(--txt3)' : 'var(--txt2)',
+                  cursor: pageSafe === 0 ? 'default' : 'pointer', opacity: pageSafe === 0 ? 0.4 : 1,
+                }}
+              >
+                ← Prev
+              </button>
+              {Array.from({ length: pageCount }, (_, i) => i).map(i => (
+                <button
+                  key={i}
+                  className="mkt-page-btn"
+                  onClick={() => setPage(i)}
+                  style={{
+                    width: 26, height: 26, fontSize: 11, fontWeight: 700, borderRadius: 6,
+                    border: `0.5px solid ${i === pageSafe ? 'var(--accent-bdr)' : 'var(--bdr)'}`,
+                    background: i === pageSafe ? 'var(--accent)' : 'transparent',
+                    color: i === pageSafe ? '#fff' : 'var(--txt3)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button
+                className="mkt-page-btn"
+                onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))}
+                disabled={pageSafe >= pageCount - 1}
+                style={{
+                  padding: '5px 10px', fontSize: 11, borderRadius: 6,
+                  border: '0.5px solid var(--bdr)', background: 'transparent',
+                  color: pageSafe >= pageCount - 1 ? 'var(--txt3)' : 'var(--txt2)',
+                  cursor: pageSafe >= pageCount - 1 ? 'default' : 'pointer', opacity: pageSafe >= pageCount - 1 ? 0.4 : 1,
+                }}
+              >
+                Next →
+              </button>
+            </div>
           </div>
         )}
       </div>
