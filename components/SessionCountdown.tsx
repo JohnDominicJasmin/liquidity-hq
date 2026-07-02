@@ -78,7 +78,7 @@ export default function SessionCountdown() {
         {current && (
           <div className="sc-timer-block">
             <span className="sc-timer-label">currently open — closes in</span>
-            <span className="sc-timer" style={{ color: current.color }}>
+            <span suppressHydrationWarning className="sc-timer" style={{ color: current.color }}>
               {fmtMs(endsInMs)}
             </span>
           </div>
@@ -101,7 +101,7 @@ export default function SessionCountdown() {
             {next.win.name}
           </span>
           <span className="sc-next-sep">opens in</span>
-          <span className="sc-next-timer">{fmtMs(nextInMs)}</span>
+          <span suppressHydrationWarning className="sc-next-timer">{fmtMs(nextInMs)}</span>
         </div>
       )}
 

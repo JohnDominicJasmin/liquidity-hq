@@ -53,11 +53,11 @@ export default function BestHours() {
       <SessionCountdown />
 
       <div className="card" style={{ textAlign: 'center', marginBottom: 14 }}>
-        <div style={{ fontSize: 36, fontWeight: 700, fontFamily: 'monospace', color: 'var(--txt)', letterSpacing: -1 }}>
+        <div suppressHydrationWarning style={{ fontSize: 36, fontWeight: 700, fontFamily: 'monospace', color: 'var(--txt)', letterSpacing: -1 }}>
           {pad(h12)}:{pad(m)}:{pad(s)}
           <span style={{ fontSize: 14, color: 'var(--txt3)', marginLeft: 8 }}>{ampm} PHT</span>
         </div>
-        <div style={{ fontSize: 13, color: 'var(--txt3)', marginTop: 4 }}>
+        <div suppressHydrationWarning style={{ fontSize: 13, color: 'var(--txt3)', marginTop: 4 }}>
           {days[pht.getDay()]}, {months[pht.getMonth()]} {pht.getDate()} {pht.getFullYear()}
         </div>
 

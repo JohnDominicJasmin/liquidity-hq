@@ -30,7 +30,7 @@ function SessionPill() {
   const m = Math.floor((endsMs % 3_600_000) / 60_000);
   const timeStr = h > 0 ? `${h}h ${pad2(m)}m` : `${m}m left`;
   return (
-    <div className="session-pill" style={{ color: win.color, background: win.bg, borderColor: win.color + '44' }}>
+    <div suppressHydrationWarning className="session-pill" style={{ color: win.color, background: win.bg, borderColor: win.color + '44' }}>
       <span className="session-pill-dot" style={{ background: win.color }} />
       {win.name.toUpperCase()} · {timeStr}
     </div>

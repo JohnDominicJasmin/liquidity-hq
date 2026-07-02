@@ -81,7 +81,7 @@ export default function SessionContext() {
     next.setUTCDate(now.getUTCDate() + daysUntil);
     return {
       weeklyLabel: daysUntil === 0
-        ? 'Today ⚡'
+        ? 'Today'
         : next.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }),
       isWeeklyToday: daysUntil === 0,
     };
@@ -117,7 +117,7 @@ export default function SessionContext() {
         </div>
 
         {current ? (
-          <span className="sctx-timing">
+          <span suppressHydrationWarning className="sctx-timing">
             Ends in{' '}
             <strong style={{ color: current.color }}>{fmtMs(endsInMs)}</strong>
           </span>
@@ -130,7 +130,7 @@ export default function SessionContext() {
         {next && (
           <>
             <span className="sctx-dot">·</span>
-            <span className="sctx-timing">
+            <span suppressHydrationWarning className="sctx-timing">
               Next{' '}
               <strong style={{ color: next.win.color }}>{next.win.name}</strong>
               {' '}in {fmtMs(nextInMs)}
@@ -151,14 +151,14 @@ export default function SessionContext() {
         <div className="sctx-evt-sep" />
         <div className="sctx-evt">
           <span className="sctx-evt-label">Weekly expiry</span>
-          <span className={`sctx-evt-value${isWeeklyToday ? ' sctx-hot' : ''}`}>
+          <span suppressHydrationWarning className={`sctx-evt-value${isWeeklyToday ? ' sctx-hot' : ''}`}>
             {weeklyLabel}
           </span>
         </div>
         <div className="sctx-evt-sep" />
         <div className="sctx-evt">
           <span className="sctx-evt-label">Monthly expiry</span>
-          <span className="sctx-evt-value">{monthlyLabel}</span>
+          <span suppressHydrationWarning className="sctx-evt-value">{monthlyLabel}</span>
         </div>
       </div>
 
