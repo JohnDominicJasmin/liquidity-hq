@@ -546,7 +546,6 @@ export default function GrokChat() {
               onClick={() => setShowLoginModal(false)}
               aria-label="Close"
             >✕</button>
-            <div style={{ fontSize: 40, marginBottom: 4 }}>🔒</div>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)' }}>
               Sign in to use Grok
             </div>
@@ -582,7 +581,7 @@ export default function GrokChat() {
                     onClick={() => setLiveSearch(v => !v)}
                     title={liveSearch ? 'Live web+X search ON — click to turn off' : 'Search OFF — click to enable live web+X search'}
                   >
-                    {liveSearch ? '🌐 Live' : '⚡ Fast'}
+                    {liveSearch ? 'Live' : 'Fast'}
                   </button>
                   {searchRemaining !== null && (
                     <span style={{
@@ -596,7 +595,11 @@ export default function GrokChat() {
                   )}
                 </div>
                 {msgs.length > 0 && (
-                  <button className="gchat-icon-btn" onClick={clearChat} title="Clear chat">🗑</button>
+                  <button className="gchat-icon-btn" onClick={clearChat} title="Clear chat" aria-label="Clear chat">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+                      <path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </button>
                 )}
               </>
             )}
@@ -613,8 +616,11 @@ export default function GrokChat() {
               className={`gchat-icon-btn${histView ? ' gchat-hist-active' : ''}`}
               onClick={() => setHistView(v => !v)}
               title={histView ? 'Back to chat' : 'Conversation history'}
+              aria-label={histView ? 'Back to chat' : 'Conversation history'}
             >
-              🕐
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+              </svg>
             </button>
             <button
               className="gchat-icon-btn"
@@ -632,7 +638,6 @@ export default function GrokChat() {
           <div className="gchat-hist-view">
             {convos.length === 0 ? (
               <div className="gchat-hist-empty">
-                <div style={{ fontSize: 28, marginBottom: 8 }}>🕐</div>
                 <div style={{ fontSize: 13, color: 'var(--txt3)' }}>No saved conversations yet</div>
                 <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 4 }}>Conversations are saved automatically</div>
                 <button className="gchat-new-chat-btn" style={{ marginTop: 16, padding: '8px 20px' }} onClick={newChat}>
@@ -663,8 +668,11 @@ export default function GrokChat() {
                       className="gchat-hist-del"
                       onClick={(e) => deleteConvo(c.id, e)}
                       title="Delete conversation"
+                      aria-label="Delete conversation"
                     >
-                      🗑
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+                        <path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
                     </button>
                   </div>
                 ))}
@@ -711,7 +719,7 @@ export default function GrokChat() {
                         {coin.toUpperCase()}/USDT
                       </div>
                       <div style={{ fontSize: 11, color: '#444' }}>
-                        {liveSearch ? '🌐 Live search ON' : '⚡ Fast mode · toggle 🌐 for live search'}
+                        {liveSearch ? 'Live search ON' : 'Fast mode · toggle Live for web search'}
                       </div>
                     </>
                   ) : (

@@ -78,7 +78,7 @@ export default function LandingPage() {
           <div className="lp-features">
 
             <div className="lp-feature-card lp-feat-purple">
-              <div className="lp-feat-icon">⚡</div>
+              
               <h3>AI Arena</h3>
               <p>35-signal confluence engine with live chart and Grok AI analysis. Funding rate, CVD, open interest trend, squeeze score, whale flow, GEX — all in one view.</p>
               <div className="lp-feat-pills">
@@ -87,7 +87,7 @@ export default function LandingPage() {
             </div>
 
             <div className="lp-feature-card lp-feat-green">
-              <div className="lp-feat-icon">📲</div>
+              
               <h3>Telegram Alerts</h3>
               <p>Auto-fire alerts for squeeze setups, whale trades, RSI extremes, EMA crosses, rapid price moves, open interest spikes, and breaking news — before the crowd.</p>
               <div className="lp-feat-pills">
@@ -96,7 +96,7 @@ export default function LandingPage() {
             </div>
 
             <div className="lp-feature-card lp-feat-amber">
-              <div className="lp-feat-icon">🌅</div>
+              
               <h3>Morning Briefing</h3>
               <p>Daily macro snapshot: BTC dominance, DXY, S&P correlation, ETF flows, economic calendar, and hot setups. Know the backdrop before the session opens.</p>
               <div className="lp-feat-pills">
@@ -105,7 +105,7 @@ export default function LandingPage() {
             </div>
 
             <div className="lp-feature-card lp-feat-blue">
-              <div className="lp-feat-icon">📡</div>
+              
               <h3>News Feed</h3>
               <p>Reuters, AP, Al Jazeera, Fox News, Politico, TruthSocial, CoinDesk and more — all classified and scored. Breaking geo-political news that moves crypto.</p>
               <div className="lp-feat-pills">
@@ -114,7 +114,7 @@ export default function LandingPage() {
             </div>
 
             <div className="lp-feature-card lp-feat-red">
-              <div className="lp-feat-icon">🐋</div>
+              
               <h3>Whale Tracker</h3>
               <p>Real-time large trade detection across Binance and Bybit. Know when institutions move size. Configurable thresholds with per-coin sensitivity.</p>
               <div className="lp-feat-pills">
@@ -123,7 +123,7 @@ export default function LandingPage() {
             </div>
 
             <div className="lp-feature-card lp-feat-purple">
-              <div className="lp-feat-icon">🔬</div>
+              
               <h3>Squeeze Scanner</h3>
               <p>3-signal squeeze score across all 17 coins simultaneously. Funding rate + L/S ratio + taker pressure — when all three align, the flush is coming.</p>
               <div className="lp-feat-pills">

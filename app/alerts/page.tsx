@@ -534,7 +534,7 @@ export default function AlertsPage() {
             <div style={{ marginTop: 10, fontSize: 11, color: 'var(--txt2)', lineHeight: 1.7 }}>
               {checkResult.fired?.length === 0
                 ? `✓ No conditions active right now.${checkResult.note ? ` (${checkResult.note})` : ''}`
-                : `🔔 Fired: ${checkResult.fired.join(', ')}`}
+                : `Fired: ${checkResult.fired.join(', ')}`}
             </div>
           )}
           {checkState === 'err' && (

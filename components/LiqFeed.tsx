@@ -25,7 +25,7 @@ const FEED_SIZE          = 30;
 const STATS_WIN          = 60 * 60 * 1000;        // 1h stats window
 const CLUSTER_WIN        = 24 * 60 * 60 * 1000;   // 24h cluster accumulation
 const MIN_SHOW           = 10_000;                 // $10K minimum to appear
-const MIN_ALERT          = 500_000;                // $500K = big hit 🔥
+const MIN_ALERT          = 500_000;                // $500K = big hit
 const CASCADE_THRESHOLD  = 3_000_000;              // $3M in 30s = cascade
 const CASCADE_WIN        = 30_000;                 // 30-second window
 const CASCADE_HIDE_MS    = 12_000;                 // show cascade badge 12s
@@ -401,7 +401,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
           </div>
           <div className="liqfeed-bias-label">
             {longDom  && <span style={{ color: '#f87171' }}>⚠ Longs getting wrecked — price accelerating down</span>}
-            {shortDom && <span style={{ color: '#34d399' }}>🚀 Shorts getting wrecked — price accelerating up</span>}
+            {shortDom && <span style={{ color: '#34d399' }}>Shorts getting wrecked — price accelerating up</span>}
             {!longDom && !shortDom && <span style={{ color: 'var(--txt3)' }}>Balanced — no dominant side liquidating</span>}
           </div>
         </>
@@ -474,7 +474,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
                 {isLong ? 'LONG LIQ' : 'SHORT LIQ'}
               </span>
               <span className="liqfeed-row-usd" style={{ color: isBig ? accent : '#8e8e93' }}>
-                {fmtUSD(ev.usd)}{isBig ? ' 🔥' : ''}
+                {fmtUSD(ev.usd)}
               </span>
               <span className="liqfeed-row-price">{fmtEventPrice(ev.price)}</span>
               <span className="liqfeed-row-time">

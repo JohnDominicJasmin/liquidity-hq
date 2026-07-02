@@ -13,8 +13,8 @@ const STREAMS  = SYMBOLS.map(s => `${s}@aggTrade`).join('/');
 const WS_URL   = `wss://fstream.binance.com/stream?streams=${STREAMS}`;
 
 const MIN_USD  = 50_000;      // $50K  — large trade threshold
-const BIG_USD  = 200_000;     // $200K — whale 🐋
-const MEGA_USD = 1_000_000;   // $1M   — mega whale 🔱
+const BIG_USD  = 200_000;     // $200K — whale
+const MEGA_USD = 1_000_000;   // $1M   — mega whale
 const FEED_MAX = 30;
 const STATS_WIN = 60 * 60 * 1000; // 1h
 
@@ -119,7 +119,7 @@ export default function WhaleTradesFeed() {
       {/* Header */}
       <div className="wf-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--txt)' }}>🐋 Whale Trades</span>
+          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--txt)' }}>Whale Trades</span>
           <span className={`wf-dot wf-dot-${status}`} title={status} />
         </div>
         <span style={{ fontSize: 11, color: 'var(--txt3)' }}>All markets · &gt;$50K · {msgCount > 0 ? `${msgCount} msgs` : 'waiting…'}</span>
@@ -157,8 +157,8 @@ export default function WhaleTradesFeed() {
       )}
       {totalUsd > 0 && (
         <div className="wf-bias-label">
-          {netBull && <span style={{ color: '#22d3ee' }}>🐋 Whales net buying — institutional accumulation</span>}
-          {netBear && <span style={{ color: '#f97316' }}>🩸 Whales net selling — institutional distribution</span>}
+          {netBull && <span style={{ color: '#22d3ee' }}>Whales net buying — institutional accumulation</span>}
+          {netBear && <span style={{ color: '#f97316' }}>Whales net selling — institutional distribution</span>}
           {!netBull && !netBear && <span style={{ color: 'var(--txt3)' }}>Balanced whale flow — watching both sides</span>}
         </div>
       )}
@@ -182,7 +182,7 @@ export default function WhaleTradesFeed() {
           const isMega = t.usd >= MEGA_USD;
           const isBig  = t.usd >= BIG_USD;
           const accent = isBuy ? '#22d3ee' : '#f97316';
-          const badge  = isMega ? '🔱 MEGA' : isBig ? '🐋 WHALE' : t.side;
+          const badge  = isMega ? 'MEGA' : isBig ? 'WHALE' : t.side;
 
           return (
             <div

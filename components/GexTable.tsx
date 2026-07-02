@@ -30,7 +30,7 @@ export default function GexTable() {
     <div className="gex-table">
       {/* Title + net GEX chip */}
       <div className="gex-title-row">
-        <div className="gex-title">🔬 BTC Options Market Pressure <span style={{ fontSize: 10, fontWeight: 400, opacity: 0.5 }}>(GEX)</span></div>
+        <div className="gex-title">BTC Options Market Pressure <span style={{ fontSize: 10, fontWeight: 400, opacity: 0.5 }}>(GEX)</span></div>
         {gexLoaded ? (
           <div
             className="gex-net-chip"

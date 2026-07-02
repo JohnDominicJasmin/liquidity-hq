@@ -149,7 +149,7 @@ export default function BacktestPage() {
                 const beatsBaseline = isFinite(s.profitFactor) && s.profitFactor > result.antiChopOn.stats.profitFactor;
                 return (
                   <tr key={name}>
-                    <td style={{ fontWeight: 600 }}>{WT_VARIANT_LABELS[name] ?? name}{beatsBaseline ? ' 🟢' : ''}</td>
+                    <td style={{ fontWeight: 600 }}>{WT_VARIANT_LABELS[name] ?? name}{beatsBaseline ? <span style={{ color: '#4ade80' }}> ▲</span> : ''}</td>
                     <td>{s.totalTrades} ({s.wins}W/{s.losses}L)</td>
                     <td style={{ color: s.winRate >= 0.5 ? '#34d399' : '#f87171' }}>{fmtPct(s.winRate)}</td>
                     <td style={{ color: s.avgR >= 0 ? '#34d399' : '#f87171' }}>{fmtR(s.avgR)}</td>

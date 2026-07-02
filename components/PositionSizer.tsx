@@ -208,7 +208,7 @@ export default function PositionSizer() {
           )}
 
           <button className="ps-log-btn" onClick={logTrade}>
-            📓 Log This Trade in Journal →
+            Log This Trade in Journal →
           </button>
         </>
       ) : (

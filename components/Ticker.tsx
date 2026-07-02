@@ -4,7 +4,7 @@ import { useMarket, COINS, CoinId, COIN_DEC, fmtPrice, fmtChg, classifyFunding, 
 
 function VolRatioText({ ratio }: { ratio: number | null | undefined }) {
   if (ratio == null) return <div className="ticker-vol">Vol: loading...</div>;
-  if (ratio >= 2.0) return <div className={`ticker-vol vol-spike`}>Vol: {ratio.toFixed(1)}x normal 🔥</div>;
+  if (ratio >= 2.0) return <div className={`ticker-vol vol-spike`}>Vol: {ratio.toFixed(1)}x normal</div>;
   if (ratio >= 1.4) return <div className={`ticker-vol vol-spike`}>Vol: {ratio.toFixed(1)}x normal ↑</div>;
   if (ratio <= 0.5) return <div className={`ticker-vol vol-dry`}>Vol: {ratio.toFixed(1)}x normal ↓</div>;
   return <div className="ticker-vol">Vol: {ratio.toFixed(1)}x normal</div>;

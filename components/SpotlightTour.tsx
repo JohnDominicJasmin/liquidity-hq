@@ -5,19 +5,16 @@ import { useOnboarding } from './OnboardingProvider';
 const STEPS = [
   {
     id: 'tour-raidmeter',
-    emoji: '🎯',
     title: 'Is now a good time to trade?',
     body: 'The Raid Probability Meter scores current market conditions out of 100. Start here every session before opening any trade.',
   },
   {
     id: 'tour-best-setup',
-    emoji: '🏆',
     title: 'See what is setting up',
     body: 'The Setup of the Day shows the single best trade opportunity right now. One clear answer - not 12 things to figure out.',
   },
   {
     id: 'tour-coin-signals',
-    emoji: '✅',
     title: 'Confirm with coin signals',
     body: 'These cards confirm the setup. Check funding, open interest, and the average daily price before entering a trade.',
   },
@@ -166,7 +163,6 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
           zIndex: 9002,
           boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
         }}>
-          <div style={{ fontSize: 22, marginBottom: 8 }}>{current.emoji}</div>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--txt1)', marginBottom: 6 }}>
             {current.title}
           </div>

@@ -9,7 +9,7 @@ export default function NotFound() {
       alignItems: 'center', justifyContent: 'center', gap: 14, padding: '2rem',
       textAlign: 'center',
     }}>
-      <div style={{ fontSize: 44 }}>🎯</div>
+      
       <div style={{
         fontSize: 28, fontWeight: 800, color: 'var(--txt1, #e8e8e8)',
         fontFamily: "'JetBrains Mono', monospace",
@@ -33,7 +33,7 @@ export default function NotFound() {
           color: '#34d399', background: 'rgba(52,211,153,0.08)',
           border: '0.5px solid rgba(52,211,153,0.3)', textDecoration: 'none',
         }}>
-          🔥 Liquidation Map
+          Liquidation Map
         </Link>
       </div>
     </div>

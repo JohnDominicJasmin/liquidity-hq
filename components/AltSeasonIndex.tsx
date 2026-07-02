@@ -4,10 +4,10 @@ import { useMarket } from '@/lib/marketStore';
 
 // ─── Labels & notes ────────────────────────────────────────────────────────
 function getLabel(score: number) {
-  if (score >= 75) return 'Alt Season 🚀';
+  if (score >= 75) return 'Alt Season';
   if (score >= 50) return 'Leaning Alts';
   if (score >= 25) return 'Leaning BTC';
-  return 'Bitcoin Season ₿';
+  return 'Bitcoin Season';
 }
 
 function getScoreCls(score: number) {
@@ -18,10 +18,10 @@ function getScoreCls(score: number) {
 }
 
 const NOTES: Record<string, string> = {
-  'Alt Season 🚀':  'Broad alt rally active — ride alts',
+  'Alt Season':     'Broad alt rally active — ride alts',
   'Leaning Alts':   'Alts beating BTC — early rotation',
   'Leaning BTC':    'Alts lagging — ride BTC strength',
-  'Bitcoin Season ₿': 'BTC dominance rising — stay selective',
+  'Bitcoin Season': 'BTC dominance rising — stay selective',
 };
 
 // ─── Storage keys for yesterday comparison ─────────────────────────────────

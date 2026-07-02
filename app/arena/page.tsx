@@ -79,7 +79,7 @@ function ReasoningText({ text }: { text: string }) {
           return <strong key={i}>{seg.slice(2, -2)}</strong>;
         const link = seg.match(/^\[(\[?[^\]]*\]?)\]\(([^)]+)\)$/);
         if (link) {
-          const label = link[1].replace(/^\[/, '').replace(/\]$/, '') || '🔗';
+          const label = link[1].replace(/^\[/, '').replace(/\]$/, '') || 'link';
           return (
             <a key={i} href={link[2]} target="_blank" rel="noopener noreferrer" className="reasoning-link">
               {label}
@@ -433,15 +433,15 @@ export default function Arena() {
     /* 2 — Fear & Greed extreme (4 hour cooldown) */
     if (store.fng != null && (store.fng <= settings.fng_fear || store.fng >= settings.fng_greed))
       fire(`fng-${store.fng <= settings.fng_fear ? 'fear' : 'greed'}-${b4h}`,
-        store.fng <= settings.fng_fear ? '🩸 Extreme Fear' : '🔴 Extreme Greed',
+        store.fng <= settings.fng_fear ? 'Extreme Fear' : 'Extreme Greed',
         `Fear & Greed: ${store.fng} (${store.fngLabel}) — ${store.fng <= settings.fng_fear ? 'Potential bottom signal' : 'Markets overextended'}`);
 
     /* 3 — CVD Divergence (1 hour cooldown) */
     if (coin?.cvdDivergence)
       fire(`cvd-${selectedCoin}-${coin.cvdDivergence}-${b1h}`,
         coin.cvdDivergence === 'bullish'
-          ? `📈 ${sym} Bullish CVD Divergence`
-          : `📉 ${sym} Bearish CVD Divergence`,
+          ? `${sym} Bullish CVD Divergence`
+          : `${sym} Bearish CVD Divergence`,
         coin.cvdDivergence === 'bullish'
           ? 'Price falling but buyers absorbing — smart money accumulating. Watch for reversal ↑'
           : 'Price rising but sellers increasing — distribution detected. Watch for reversal ↓');
@@ -464,22 +464,22 @@ export default function Arena() {
       const isBear = /bear|lower high|engulf.*bear|shooting|hanging|double top/i.test(coin.chartPattern);
       if (isBull)
         fire(`pat-bull-${selectedCoin}-${b30}`,
-          `📊 ${sym} Bullish Pattern`,
+          `${sym} Bullish Pattern`,
           `${coin.chartPattern.split(';')[0].trim()} — Check for entry confirmation.`);
       else if (isBear)
         fire(`pat-bear-${selectedCoin}-${b30}`,
-          `📊 ${sym} Bearish Pattern`,
+          `${sym} Bearish Pattern`,
           `${coin.chartPattern.split(';')[0].trim()} — Watch for breakdown confirmation.`);
     }
 
     /* 6 — OI trend signal (1 hour cooldown) */
     if (coin?.oiTrend === 'strong_up')
       fire(`oi-sup-${selectedCoin}-${b1h}`,
-        `📈 ${sym} Open Interest Spike — New Longs`,
+        `${sym} Open Interest Spike — New Longs`,
         'Open interest rising with price — real trend, new money entering. Bullish continuation likely.');
     else if (coin?.oiTrend === 'strong_down')
       fire(`oi-sdn-${selectedCoin}-${b1h}`,
-        `📉 ${sym} Open Interest Spike — New Shorts`,
+        `${sym} Open Interest Spike — New Shorts`,
         'Open interest rising with price falling — new shorts entering. Bearish continuation likely.');
 
     /* 7 — Sentiment Extremes: F&G + FR + L/S all aligned (#20) */
@@ -491,12 +491,12 @@ export default function Arena() {
       // Bearish: all 3 screaming "longs overcrowded"
       if (fng >= 75 && fr >= 0.04 && longRat >= 60)
         fire(`sent-bear-${b4h}`,
-          '🚨 Sentiment Extremes — Bearish',
+          'Sentiment Extremes — Bearish',
           `F&G ${fng} (Extreme Greed) · FR +${fr.toFixed(3)}% · ${longRat.toFixed(0)}% Long — all 3 at extremes. Long flush risk elevated. Tighten stops.`);
       // Contrarian bullish: all 3 screaming "shorts overcrowded"
       if (fng <= 25 && fr <= -0.02 && longRat <= 40)
         fire(`sent-bull-${b4h}`,
-          '🟢 Sentiment Extremes — Contrarian Bullish',
+          'Sentiment Extremes — Contrarian Bullish',
           `F&G ${fng} (Extreme Fear) · FR ${fr.toFixed(3)}% · ${shortRat.toFixed(0)}% Short — all 3 at extremes. Potential reversal zone. Wait for confirmation.`);
     }
 
@@ -699,7 +699,7 @@ export default function Arena() {
       .join('\n');
     const upcomingList = econEvents
       .filter(e => { const lh = (e.dt.getTime() - now) / 3600000; return lh > 0 && lh < 48; }).slice(0, 6)
-      .map(e => `📅 UPCOMING: ${e.name} (${e.dateStr}, impact: ${e.impact})${e.estimate ? ' | Est: ' + e.estimate : ''}`)
+      .map(e => `UPCOMING: ${e.name} (${e.dateStr}, impact: ${e.impact})${e.estimate ? ' | Est: ' + e.estimate : ''}`)
       .join('\n') || 'None in next 48h';
     const upcoming = [recentlyReleased, upcomingList].filter(Boolean).join('\n');
 
@@ -1144,7 +1144,13 @@ export default function Arena() {
               color: notifEnabled ? '#7de0a4' : '#444',
               fontSize: 12, cursor: 'pointer', flexShrink: 0, lineHeight: 1,
             }}
-          >{notifEnabled ? '🔔' : '🔕'}</div>
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              {!notifEnabled && <line x1="2" y1="2" x2="22" y2="22" />}
+            </svg>
+          </div>
           <span style={{ fontSize: 10, color: '#333', flexShrink: 0 }}>{scannerOpen ? '▲' : '▼'}</span>
         </button>
 
@@ -1400,7 +1406,7 @@ export default function Arena() {
           {readLoading && readMode === 'quick' ? readStep || 'Working…' : (
             !user ? (
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1.2 }}>
-                <span>🔒 Quick Research</span>
+                <span>Quick Research</span>
                 <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.04em', color: '#a37a2a' }}>sign in →</span>
               </span>
             ) : 'Quick Research'
@@ -1423,7 +1429,7 @@ export default function Arena() {
         >
           {readLoading && readMode === 'deep' ? readStep || 'Working…' : (
             <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1.2 }}>
-              <span>{!user ? '🔒 ' : ''}Deep Research</span>
+              <span>Deep Research</span>
               {!user && <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '.04em', color: '#a37a2a' }}>sign in →</span>}
             </span>
           )}
@@ -1436,7 +1442,7 @@ export default function Arena() {
             onClick={() => alertFormOpen ? setAlertFormOpen(false) : openAlertForm()}
             title="Set a price alert for this coin"
           >
-            🔔 Set Alert
+            Set Alert
           </button>
         )}
 
@@ -1467,7 +1473,7 @@ export default function Arena() {
           ) : (
             <>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt2)', letterSpacing: '.04em' }}>
-                🔔 Price alert — {selectedCoin.toUpperCase()}
+                Price alert — {selectedCoin.toUpperCase()}
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 {/* Above / Below toggle */}
@@ -1556,7 +1562,7 @@ export default function Arena() {
                     color: cacheEntry?.mode === 'quick' ? '#34d399' : '#b8aeff',
                     border: `0.5px solid ${cacheEntry?.mode === 'quick' ? 'rgba(52,211,153,0.25)' : 'rgba(90,106,255,0.25)'}`,
                   }}>
-                    {cacheEntry?.mode === 'quick' ? '⚡ Quick' : '🔬 Deep'}
+                    {cacheEntry?.mode === 'quick' ? 'Quick' : 'Deep'}
                   </span>
                 </div>
               </div>
@@ -1603,7 +1609,7 @@ export default function Arena() {
               <div className="arena-wait-for">
                 <div className="arena-wait-for-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span>
-                    {result.signal === 'LEAN SHORT' ? '→ Confirms to SHORT' : result.signal === 'LEAN LONG' ? '→ Confirms to LONG' : '👁 Watch For'}
+                    {result.signal === 'LEAN SHORT' ? '→ Confirms to SHORT' : result.signal === 'LEAN LONG' ? '→ Confirms to LONG' : 'Watch For'}
                   </span>
                   {result.signal === 'FLAT' && result.bias && result.bias !== 'NEUTRAL' && (
                     <span style={{
@@ -1678,7 +1684,6 @@ export default function Arena() {
                 overflow: 'hidden',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 12px 6px', borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
-                  <span style={{ fontSize: 15 }}>{result.raidSetup === 'SHORT SQUEEZE' ? '⚡' : '🔥'}</span>
                   <span style={{
                     fontSize: 11, fontWeight: 800, letterSpacing: '.05em',
                     color: result.raidSetup === 'SHORT SQUEEZE' ? '#34d399' : '#f87171',

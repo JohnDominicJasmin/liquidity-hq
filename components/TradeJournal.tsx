@@ -267,7 +267,7 @@ function Inner() {
   /* No Supabase */
   if (noDb) return (
     <div style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--txt3)', fontSize: 13 }}>
-      <div style={{ fontSize: 32, marginBottom: 8 }}>🔌</div>
+      
       <div style={{ fontWeight: 600, marginBottom: 6 }}>Supabase not configured</div>
       <div>Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable the trade journal.</div>
     </div>
@@ -429,7 +429,7 @@ function Inner() {
           </div>
 
           <button className="tj-submit" onClick={saveTrade} disabled={saving || !entry || !stopLoss}>
-            {saving ? 'Saving…' : '📓 Log Trade'}
+            {saving ? 'Saving…' : 'Log Trade'}
           </button>
         </div>
       )}

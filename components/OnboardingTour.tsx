@@ -78,7 +78,7 @@ export default function OnboardingTour() {
             className="ob-btn ob-btn-primary"
             onClick={() => isLast ? close() : setStep(s => s + 1)}
           >
-            {isLast ? "Let's go! 🚀" : 'Next →'}
+            {isLast ? "Let's go" : 'Next →'}
           </button>
         </div>
       </div>

@@ -15,11 +15,11 @@ const TIMELINE_SEGS = [
 ];
 
 const WINDOWS = [
-  { cls: 'wp-god', badge: '👑 GOD TIER', time: 'Sunday 11PM – Monday 3AM PHT', desc: 'Lowest volume of the week. Retail asleep globally. Minimum capital needed to move price. Highest probability of violent raids. Maximum priority.' },
-  { cls: 'wp-prime', badge: '⚡ PRIME', time: 'Daily 2AM – 5AM PHT', desc: 'Asia/Europe overlap. High institutional activity. Volume picks up. Best daily window for clean setups. 4:00–4:45AM PHT is the single most consistent reversal sub-window.' },
-  { cls: 'wp-prime', badge: '🔥 MON EVENING', time: 'Monday 8PM – 11PM PHT', desc: 'Weekly liquidity build-up complete. US session active. Strong trend continuation or violent reversal setups. High probability of 3-5% moves.' },
-  { cls: 'wp-london', badge: '🌍 LONDON OPEN', time: '3PM – 6PM PHT (9:30–11AM UTC)', desc: 'European institutions enter. Volume spike. Almost always a fake move first to trap early entries, then real direction emerges. Never trade the first 15 minutes.' },
-  { cls: 'wp-dead', badge: '💀 DEAD ZONE', time: '12PM – 3PM PHT', desc: 'Do not trade. US pre-market, Europe lunch, Asia sleeping. Fake moves, tight spreads, no follow-through. Highest probability of stopping out on noise.' },
+  { cls: 'wp-god', badge: 'GOD TIER', time: 'Sunday 11PM – Monday 3AM PHT', desc: 'Lowest volume of the week. Retail asleep globally. Minimum capital needed to move price. Highest probability of violent raids. Maximum priority.' },
+  { cls: 'wp-prime', badge: 'PRIME', time: 'Daily 2AM – 5AM PHT', desc: 'Asia/Europe overlap. High institutional activity. Volume picks up. Best daily window for clean setups. 4:00–4:45AM PHT is the single most consistent reversal sub-window.' },
+  { cls: 'wp-prime', badge: 'MON EVENING', time: 'Monday 8PM – 11PM PHT', desc: 'Weekly liquidity build-up complete. US session active. Strong trend continuation or violent reversal setups. High probability of 3-5% moves.' },
+  { cls: 'wp-london', badge: 'LONDON OPEN', time: '3PM – 6PM PHT (9:30–11AM UTC)', desc: 'European institutions enter. Volume spike. Almost always a fake move first to trap early entries, then real direction emerges. Never trade the first 15 minutes.' },
+  { cls: 'wp-dead', badge: 'DEAD ZONE', time: '12PM – 3PM PHT', desc: 'Do not trade. US pre-market, Europe lunch, Asia sleeping. Fake moves, tight spreads, no follow-through. Highest probability of stopping out on noise.' },
 ];
 
 function pad(n: number) { return n < 10 ? '0' + n : '' + n; }

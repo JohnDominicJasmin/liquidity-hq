@@ -64,9 +64,9 @@ export function classifyNews(text: string): NewsType | null {
 }
 
 export function tagLabel(type: NewsType): string {
-  if (type === 'red')    return '🔴 Breaking';
-  if (type === 'amber')  return '🟡 Macro';
-  return '🟣 Crypto';
+  if (type === 'red')    return 'Breaking';
+  if (type === 'amber')  return 'Macro';
+  return 'Crypto';
 }
 
 // ── Geo keyword groups — drives "War & Geo" tab + impact notes ───────────────

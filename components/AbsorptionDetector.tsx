@@ -318,7 +318,7 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
       {/* ── Near level ── */}
       {d.nearLevel && (
         <div className="abs-level-row">
-          <span className="abs-level-lbl">📍 Level</span>
+          <span className="abs-level-lbl">Level</span>
           <span className="abs-level-val">{d.nearLevel}</span>
         </div>
       )}

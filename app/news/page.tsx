@@ -230,7 +230,7 @@ function HeroCard({ a }: { a: AlertItem }) {
         </div>
       ) : (
         <div className="ncard-grid-placeholder">
-          <span style={{ fontSize: 44, opacity: 0.12, userSelect: 'none' }}>📰</span>
+          
         </div>
       )}
       <div className="ncard-grid-body">
@@ -285,7 +285,7 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
         </div>
       ) : (
         <div className="ncard-grid-placeholder">
-          <span style={{ fontSize: 44, opacity: 0.12, userSelect: 'none' }}>📰</span>
+          
         </div>
       )}
       <div className="ncard-grid-body">
@@ -428,7 +428,7 @@ export default function NewsPage() {
         <div className="nfeed">
           {breaking.length === 0 ? (
             <div className="nfeed-empty">
-              <div style={{ fontSize: 28, marginBottom: 10 }}>📡</div>
+              
               <div style={{ fontSize: 14, color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>No breaking news</div>
               <div style={{ fontSize: 12, color: 'var(--txt3)' }}>War · blockades · sanctions · crashes will appear here</div>
             </div>
@@ -465,7 +465,7 @@ export default function NewsPage() {
 
           {foryouEmpty && alertsLoaded && (
             <div className="nfeed-empty">
-              <div style={{ fontSize: 28, marginBottom: 10 }}>📡</div>
+              
               <div style={{ fontSize: 14, color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>Scanning for catalysts…</div>
               <div style={{ fontSize: 12, color: 'var(--txt3)' }}>High-impact news + whale trades will appear here</div>
               <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 12, opacity: 0.7 }}>
@@ -489,7 +489,7 @@ export default function NewsPage() {
                 <div className="ncard-grid-body">
                   <div className="ncard-grid-top">
                     <span className="ncard-type-badge" style={{ color: col }}>
-                      🐋 {w.symbol} Whale {isBuy ? 'BUY' : 'SELL'}
+                      {w.symbol} Whale {isBuy ? 'BUY' : 'SELL'}
                     </span>
                     <span className="ncard-meta">{timeAgo(w.ts)}</span>
                   </div>
@@ -522,7 +522,7 @@ export default function NewsPage() {
           {extraGeo.map((g, i) => (
             <div key={i} className="ncard-grid">
               <div className="ncard-grid-placeholder">
-                <span style={{ fontSize: 44, opacity: 0.12, userSelect: 'none' }}>🌐</span>
+                
               </div>
               <div className="ncard-grid-body">
                 <div className="ncard-grid-top">
@@ -548,7 +548,7 @@ export default function NewsPage() {
         <div className="nfeed">
           {isEmpty && (
             <div className="nfeed-empty">
-              <div style={{ fontSize: 24, marginBottom: 8 }}>📭</div>
+              
               <div style={{ fontSize: 13, color: 'var(--txt3)' }}>
                 {tab === 'geo'     ? 'No war/conflict alerts yet'
                 : tab === 'crypto' ? 'No crypto news yet'
@@ -614,7 +614,7 @@ export default function NewsPage() {
                       alignItems: 'start',
                     }}>
                       <span style={{ fontSize: 12, color: urgent ? '#f87171' : soon ? '#fbbf24' : 'var(--txt2)', fontWeight: 600, paddingTop: 1 }}>
-                        {urgent ? '🔴 NOW' : timePHT}
+                        {urgent ? 'NOW' : timePHT}
                       </span>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--txt1)', marginBottom: note ? 4 : 0 }}>{decodeEntities(e.name)}</div>

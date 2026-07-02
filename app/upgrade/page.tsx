@@ -141,7 +141,7 @@ export default function UpgradePage() {
             </>
           ) : (
             <div style={{ borderRadius: 14, padding: '28px 36px', border: '0.5px solid rgba(90,106,255,.3)', background: 'rgba(90,106,255,.06)', maxWidth: 400, width: '100%' }}>
-              <div style={{ fontSize: 22, marginBottom: 12 }}>🚀</div>
+              
               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)', marginBottom: 8 }}>
                 Pro payments launching soon
               </div>

@@ -126,7 +126,7 @@ function BandRow({ b }: { b: Band }) {
         {b.distPct < 1 ? b.distPct.toFixed(1) : Math.round(b.distPct)}%
       </span>
       <span className="liq-row-lev" style={{ color: accent }}>
-        {b.lev}{b.isMagnet ? ' 🧲' : ''}
+        {b.lev}{b.isMagnet ? ' ◆' : ''}
       </span>
       <div className="liq-row-bar-wrap">
         <div className="liq-row-bar" style={{
@@ -658,7 +658,7 @@ export default function LiqPage() {
               <span><strong style={{ color: '#f87171' }}>Long Liquidation Zones</strong> - price levels below current price where modeled long positions get force-closed. Larger traders dump price DOWN into these.</span>
             </div>
             <div className="liq-howto-row">
-              <span style={{ flexShrink: 0 }}>🧲</span>
+              <span style={{ flexShrink: 0 }}>◆</span>
               <span><strong>Magnet</strong> - the largest estimated cluster in the selected window. The most likely price target for the next big move.</span>
             </div>
           </div>

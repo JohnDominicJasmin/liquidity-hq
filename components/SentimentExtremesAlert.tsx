@@ -46,7 +46,7 @@ export default function SentimentExtremesAlert() {
   const bdr     = isBear ? 'rgba(248,113,113,0.22)' : 'rgba(52,211,153,0.22)';
   const label   = isBear ? 'Bearish Setup' : 'Contrarian Bullish';
   const conviction = count >= 3 ? 'HIGH CONVICTION' : 'MODERATE';
-  const icon    = isBear ? '🚨' : '🟢';
+  
 
   const signals = isBear
     ? [
@@ -74,7 +74,6 @@ export default function SentimentExtremesAlert() {
       {/* ── Header ── */}
       <div className="sent-banner-header">
         <div className="sent-banner-left">
-          <span className="sent-icon">{icon}</span>
           <div>
             <div className="sent-banner-title" style={{ color: col }}>
               Sentiment Extremes — {label}

@@ -43,7 +43,7 @@ export default function NewsFeed() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div className="lbl" style={{ margin: 0 }}>News Feed</div>
           {nySession && (
-            <span className="nf-ny-badge">🗽 NY Session</span>
+            <span className="nf-ny-badge">NY Session</span>
           )}
         </div>
         <div style={{ fontSize: 10, color: '#444' }}>

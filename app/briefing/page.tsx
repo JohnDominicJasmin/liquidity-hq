@@ -476,7 +476,7 @@ export default function MorningBriefing() {
                   background:  div === 'bullish' ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.08)',
                 }}
               >
-                {id.toUpperCase()} {div === 'bullish' ? '🟢 Bull' : '🔴 Bear'}
+                {id.toUpperCase()} {div === 'bullish' ? '▲ Bull' : '▼ Bear'}
               </div>
             ))}
           </div>
@@ -701,7 +701,7 @@ export default function MorningBriefing() {
               background: isPast ? 'rgba(100,100,100,0.15)' : lh < 2 ? 'rgba(248,113,113,0.15)' : 'rgba(251,191,36,0.1)',
               color: isPast ? 'var(--txt3)' : lh < 2 ? '#f87171' : '#fbbf24',
             }}>
-              {isPast ? '✓' : '📅'} {e.type}
+              {isPast ? '✓ ' : ''}{e.type}
             </div>
             <div className="mb-event-name">{e.name}</div>
             <div className="mb-event-time" style={{
@@ -736,7 +736,7 @@ export default function MorningBriefing() {
               background: w.side === 'BUY' ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)',
               color: w.side === 'BUY' ? '#34d399' : '#f87171',
             }}>
-              🐋 {w.side}
+              WHALE {w.side}
             </div>
             <div className="mb-event-name">
               {w.symbol} · ${(w.usdValue / 1_000_000).toFixed(1)}M @ ${w.price.toLocaleString()}

@@ -113,7 +113,7 @@ export default function SessionContext() {
         >
           {current
             ? current.name.toUpperCase()
-            : dead ? '💀 Dead zone' : '💤 Off-peak'}
+            : dead ? 'Dead zone' : 'Off-peak'}
         </div>
 
         {current ? (

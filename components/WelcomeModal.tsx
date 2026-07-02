@@ -50,7 +50,7 @@ export default function WelcomeModal({ onStartTour }: Props) {
         width: '100%',
         textAlign: 'center',
       }}>
-        <div style={{ fontSize: 36, marginBottom: 14 }}>👋</div>
+        
         <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt1)', marginBottom: 8 }}>
           Welcome to LiquidityHQ
         </div>
@@ -75,7 +75,7 @@ export default function WelcomeModal({ onStartTour }: Props) {
             }}
           >
             <div style={{ fontSize: 14, fontWeight: 700, color: '#34d399', marginBottom: 4 }}>
-              🌱 I am just getting started
+              I am just getting started
             </div>
             <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.5 }}>
               Show me a quick tour. Keep the dashboard simple with plain English labels.

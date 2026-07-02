@@ -196,7 +196,6 @@ export default function EconCalendarPage() {
 
                     {/* COUNTRY */}
                     <div style={{ fontSize: 11, color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span>🇺🇸</span>
                       <span style={{ fontWeight: 600 }}>US</span>
                     </div>
 

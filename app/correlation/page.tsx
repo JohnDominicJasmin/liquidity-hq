@@ -90,26 +90,26 @@ function cellColor(r: number | null, diag: boolean): string {
 }
 
 /* ── alt season signal ── */
-interface AltSig { emoji: string; label: string; desc: string; color: string; bg: string; }
+interface AltSig { label: string; desc: string; color: string; bg: string; }
 function altSignal(avg: number | null): AltSig {
-  if (avg == null) return { emoji: '⏳', label: 'Loading…', desc: '', color: '#a0a0a0', bg: 'transparent' };
+  if (avg == null) return { label: 'Loading…', desc: '', color: '#a0a0a0', bg: 'transparent' };
   if (avg < 0.30)  return {
-    emoji: '🚀', label: 'Alt Season Conditions',
+    label: 'Alt Season Conditions',
     color: '#34d399', bg: 'rgba(52,211,153,0.08)',
     desc: `BTC-alt avg correlation is ${avg.toFixed(2)} — very low. Altcoins are moving independently from BTC. This is when alts can outperform BTC significantly. Rotate into high-conviction alt setups.`,
   };
   if (avg < 0.55)  return {
-    emoji: '⚡', label: 'Mixed Market',
+    label: 'Mixed Market',
     color: '#fbbf24', bg: 'rgba(251,191,36,0.07)',
     desc: `Moderate BTC-alt correlation (${avg.toFixed(2)}). Some alts following BTC, others moving on their own catalyst. Selective alt plays possible but watch BTC direction first.`,
   };
   if (avg < 0.75)  return {
-    emoji: '📊', label: 'BTC Leading',
+    label: 'BTC Leading',
     color: '#d4b483', bg: 'rgba(212,180,131,0.06)',
     desc: `High BTC-alt correlation (${avg.toFixed(2)}). BTC is dragging most alts. Get BTC direction right before trading alts — individual setups matter less when correlation is this high.`,
   };
   return {
-    emoji: '🔗', label: 'BTC Dominance — Alts Lockstep',
+    label: 'BTC Dominance — Alts Lockstep',
     color: '#f87171', bg: 'rgba(248,113,113,0.07)',
     desc: `Very high BTC-alt correlation (${avg.toFixed(2)}). Everything pumps and dumps with BTC. No independent alt edge right now — trade BTC or wait for correlation to break.`,
   };
@@ -199,7 +199,6 @@ export default function CorrelationHeatmap() {
           {/* Alt season signal */}
           <div className="card" style={{ marginBottom: 10, border: `0.5px solid ${sig.color}55`, background: sig.bg }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-              <span style={{ fontSize: 22, flexShrink: 0 }}>{sig.emoji}</span>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: sig.color, marginBottom: 4 }}>
                   {sig.label}

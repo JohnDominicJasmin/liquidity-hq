@@ -234,7 +234,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
           )}
           {highestShortSq && highestShortSq.score >= 40 && (
             <div className="scan-alert scan-alert-bull">
-              <span className="scan-alert-icon">🚀</span>
+              
               <span>
                 <strong style={{ color: '#34d399' }}>{highestShortSq.id.toUpperCase()}</strong>
                 {' '}Short squeeze setup — score {highestShortSq.score}
