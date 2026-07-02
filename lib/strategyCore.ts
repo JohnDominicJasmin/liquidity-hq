@@ -69,7 +69,7 @@ export const ANTICHOP_DISABLED_PARAMS: SignalFilterParams = {
 };
 
 export const PERSIST_BY_TF: Record<string, number> = {
-  '1m': 8, '5m': 8, '15m': 4, '30m': 4, '1h': 3, '4h': 3, '1d': 2,
+  '1m': 8, '5m': 8, '15m': 8, '30m': 4, '1h': 3, '4h': 3, '1d': 2,
 };
 
 const SLOPE_BARS = 5;

@@ -54,7 +54,7 @@ export default function Tip({ text, children, width = 230, iconColor = 'rgba(255
           userSelect: 'none',
           transition: 'color 0.15s',
         }}
-          onMouseEnter={e => { (e.currentTarget as HTMLSpanElement).style.color = 'rgba(167,139,250,0.7)'; }}
+          onMouseEnter={e => { (e.currentTarget as HTMLSpanElement).style.color = 'rgba(155,164,255,0.85)'; }}
           onMouseLeave={e => { (e.currentTarget as HTMLSpanElement).style.color = iconColor; }}
         >ⓘ</span>
       </span>
@@ -69,9 +69,9 @@ export default function Tip({ text, children, width = 230, iconColor = 'rgba(255
             left: coords.left,
             zIndex: 9990,
             width,
-            background: '#13121c',
-            border: '0.5px solid rgba(167,139,250,0.2)',
-            borderRadius: 8,
+            background: '#12152b',
+            border: '0.5px solid rgba(122,134,255,0.25)',
+            borderRadius: 10,
             padding: '9px 11px',
             boxShadow: '0 8px 28px rgba(0,0,0,0.75)',
             fontSize: 11.5,

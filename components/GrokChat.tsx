@@ -9,6 +9,7 @@ import { useNews, GeoEvent } from '@/components/NewsProvider';
 import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { getSupabase } from '@/lib/supabase';
+import { nextResetLocalTime } from '@/lib/resetTime';
 
 interface Msg {
   role: 'user' | 'assistant';
@@ -398,7 +399,7 @@ export default function GrokChat() {
             const u = j.usage;
             if (u && usage) setUsage({ ...usage, ...u });
             setRateLimited(true);
-            setError('No live searches left today — resets midnight UTC.');
+            setError(`No live searches left today — resets at ${nextResetLocalTime()}.`);
             setLoading(false);
             return;
           }
@@ -425,7 +426,7 @@ export default function GrokChat() {
             const u = j.usage;
             if (u && usage) setUsage({ ...usage, ...u });
             setRateLimited(true);
-            setError('No chat messages left today — resets midnight UTC.');
+            setError(`No chat messages left today — resets at ${nextResetLocalTime()}.`);
             setLoading(false);
             return;
           }

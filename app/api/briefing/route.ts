@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
   if (briefingUsed >= briefingLimit) {
     return NextResponse.json(
       {
-        error: `Daily limit of ${briefingLimit} briefings reached. Resets at midnight UTC.`,
+        error: `Daily limit of ${briefingLimit} briefings reached.`,
         code: 'RATE_LIMIT',
         usage: { briefing_used: briefingUsed, briefing_limit: briefingLimit },
       },

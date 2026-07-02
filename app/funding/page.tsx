@@ -494,7 +494,7 @@ export default function FundingHistory() {
               <div className="card frh-chart-card" style={{ marginBottom: 0 }}>
                 <div className="frh-chart-header">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: '#a78bfa', fontFamily: "'JetBrains Mono', monospace" }}>{COIN_LABELS[selected]}</span>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: '#5a6aff', fontFamily: "'JetBrains Mono', monospace" }}>{COIN_LABELS[selected]}</span>
                     <span style={{ color: 'var(--txt3)', fontSize: 11 }}>· {rangeKey.toUpperCase()} CHART</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

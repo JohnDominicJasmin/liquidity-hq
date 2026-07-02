@@ -398,7 +398,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             { color: '#fbbf24', size: 1   },  // EMA 9  — gold
             { color: '#60a5fa', size: 1.5 },  // EMA 20 — blue
             { color: '#f97316', size: 1.5 },  // EMA 50 — orange
-            { color: '#a78bfa', size: 2   },  // EMA 200 — purple
+            { color: '#5a6aff', size: 2   },  // EMA 200 — purple
           ],
         },
       });
@@ -827,7 +827,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       label: 'Setup Forming',
       detail: `Near ${nearSR.type} (${nearSR.touches} touches) · Squeeze ${sq.score}/100`,
       explanation: `Squeeze pressure is building near a key ${nearSR.type} level, but signals aren't fully aligned yet. Watch for direction confirmation — don't jump in early.`,
-      color: '#a78bfa', bg: 'rgba(167,139,250,0.10)', bdr: 'rgba(167,139,250,0.28)',
+      color: '#5a6aff', bg: 'rgba(90,106,255,0.10)', bdr: 'rgba(90,106,255,0.28)',
     };
   })();
 

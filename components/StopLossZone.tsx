@@ -25,6 +25,14 @@ function scoreBias(d: CoinData): { bias: Bias; score: number; total: number } {
     if (fr >= 0.04) bear++;
     else if (fr <= -0.02) bull++;
   }
+  // Liquidation delta — same contrarian/fade convention as funding above: heavy net
+  // long liquidations means the over-leveraged long crowd just got flushed out, which
+  // tends to mark exhaustion of the down-move (fade it, bullish). Heavy net short
+  // liquidations is the mirror case (a squeeze exhausting itself, fade it, bearish).
+  if (d.liqDelta != null) {
+    if (d.liqDelta > 0) bull++;
+    else if (d.liqDelta < 0) bear++;
+  }
   const total = bull + bear;
   if (bull > bear) return { bias: 'long',  score: bull, total };
   if (bear > bull) return { bias: 'short', score: bear, total };

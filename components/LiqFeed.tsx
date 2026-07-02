@@ -383,7 +383,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
         <div className="liqfeed-stat-sep" />
         <div className="liqfeed-stat" style={{ textAlign: 'center' }}>
           <span className="liqfeed-stat-lbl">Events</span>
-          <span className="liqfeed-stat-val" style={{ color: '#a78bfa' }}>{stats.count}</span>
+          <span className="liqfeed-stat-val" style={{ color: '#5a6aff' }}>{stats.count}</span>
         </div>
         <div className="liqfeed-stat-sep" />
         <div className="liqfeed-stat" style={{ textAlign: 'right' }}>

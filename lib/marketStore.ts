@@ -64,6 +64,11 @@ export interface CoinData {
   /* Next funding rate prediction (mark–index premium spread) */
   nextFrEstimate: number | null;   // predicted next 8h FR (decimal, e.g. 0.0001)
   nextFundingTime: number | null;  // unix ms of next settlement
+  /* Liquidation delta — net long vs short liquidation $ over a rolling 15min window
+     (Binance futures forceOrder stream, majors only — BTC/ETH/SOL/XRP/BNB/NEAR/SUI) */
+  liqDelta:    number | null;  // liqLongUsd - liqShortUsd (signed net)
+  liqLongUsd:  number | null;  // long positions force-liquidated
+  liqShortUsd: number | null;  // short positions force-liquidated
 }
 
 

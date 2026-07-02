@@ -203,7 +203,7 @@ function CascadeAlertBanner() {
       <div className="cascade-dot" style={{ background: col }} />
       <div className="cascade-body">
         <div className="cascade-title" style={{ color: col }}>
-          ⚡ {alert.coin} — {label}
+          {alert.coin} — {label}
         </div>
         <div className="cascade-sub">{usdStr} in 60s · {hint}</div>
       </div>
@@ -230,9 +230,9 @@ function EdgeSignals() {
   const cbCol  = cbPct == null ? 'var(--txt3)' : cbPct > 0.02 ? 'var(--green)' : cbPct < -0.02 ? 'var(--red)' : 'var(--txt2)';
   const cbBdr  = cbPct == null ? 'var(--bdr)'  : cbPct > 0.05 ? 'var(--green-bdr)' : cbPct < -0.05 ? 'var(--red-bdr)' : 'var(--bdr)';
   const cbSig  = cbPct == null ? 'Loading…'
-               : cbPct > 0.05  ? '🇺🇸 US institutions buying'
+               : cbPct > 0.05  ? 'US institutions buying'
                : cbPct > 0.01  ? 'Slight US buying'
-               : cbPct < -0.05 ? '🇺🇸 US investors selling'
+               : cbPct < -0.05 ? 'US investors selling'
                : cbPct < -0.01 ? 'Slight US selling'
                : 'Neutral — no US demand edge';
 
@@ -298,7 +298,10 @@ function EdgeSignals() {
         {/* OI Trend — selected coin */}
         <div className="edge-card" style={{ borderColor: oiBdr }}>
           <div className="edge-card-label">
-            <Tip text="Open Interest is the total number of live futures contracts. Rising OI + rising price = new longs entering (real conviction). Falling OI + rising price = shorts covering (weaker signal). Use this to judge if a move has real backing or is just a squeeze.">
+            <Tip
+              width={260}
+              text="Open Interest is the total number of live futures contracts. Rising OI + rising price = new longs entering (real conviction). Falling OI + rising price = shorts covering (weaker signal). Use this to judge if a move has real backing or is just a squeeze. The 4 possible readings: ▲ new longs — real trend, ▼ new shorts — real dump, △ short covering — weak, ▽ long exits — no panic."
+            >
               Open Interest · {store.selectedCoin.toUpperCase()}
             </Tip>
           </div>
@@ -309,22 +312,9 @@ function EdgeSignals() {
             </>
           ) : (
             <div className="edge-card-signal" style={{ color: 'var(--txt3)', marginTop: 4 }}>
-              {!hasPerp ? 'No perp data' : 'Warming up…'}
+              {!hasPerp ? 'No perp data' : coin?.oi != null ? 'Flat — no strong signal' : 'Warming up…'}
             </div>
           )}
-          {/* Always-visible legend — active state full opacity, others dimmed */}
-          <div className="oi-inline-tip">
-            {(Object.entries(OI_TREND_META) as [string, { txt: string; sub: string; col: string }][]).map(([key, m]) => {
-              const isActive = coin?.oiTrend === key;
-              const badgeCls = key === 'strong_up' ? 'tip-green' : key === 'strong_down' ? 'tip-red' : key === 'weak_up' ? 'tip-weak-up' : 'tip-weak-down';
-              return (
-                <div key={key} className="oi-tip-row" style={{ opacity: isActive ? 1 : 0.28, transition: 'opacity 0.3s' }}>
-                  <span className={`oi-tip-badge ${badgeCls}`}>{m.txt}</span>
-                  <span>{m.sub}</span>
-                </div>
-              );
-            })}
-          </div>
         </div>
 
         {/* Funding Rate + Next FR Estimate */}

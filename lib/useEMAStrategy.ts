@@ -214,9 +214,10 @@ export function useEMAStrategy(
           }
         } else {
           verdict = 'FREEZE';
+          const tfLabel = tf.toUpperCase();
           phase   = above200D
-            ? 'Daily above 200 SMA but 4H ribbon not bullish — wait for EMA alignment'
-            : 'Daily below 200 SMA but 4H ribbon not bearish — wait for EMA alignment';
+            ? `Daily above 200 SMA but ${tfLabel} ribbon not bullish — wait for EMA alignment`
+            : `Daily below 200 SMA but ${tfLabel} ribbon not bearish — wait for EMA alignment`;
         }
 
         // WaveTrend (Cipher B) confirmation — cross-from-extreme or divergence agreeing

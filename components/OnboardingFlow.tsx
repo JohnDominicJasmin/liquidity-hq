@@ -15,7 +15,7 @@ type Challenge  = 'read_signals' | 'entry_exit' | 'risk_management' | 'disciplin
 type Heard      = 'social' | 'youtube' | 'tiktok' | 'search' | 'word' | 'other';
 
 const STEP_META = [
-  { key: 'Profile',    label: 'Profile',    accent: '#a78bfa' },
+  { key: 'Profile',    label: 'Profile',    accent: '#5a6aff' },
   { key: 'Experience', label: 'Experience', accent: '#34d399' },
   { key: 'Style',      label: 'Style',      accent: '#60a5fa' },
   { key: 'Goals',      label: 'Goals',      accent: '#f87171' },

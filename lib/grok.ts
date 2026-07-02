@@ -1,4 +1,5 @@
 import { getSupabase } from './supabase';
+import { nextResetLocalTime } from './resetTime';
 
 export interface GrokUsageInfo {
   deep_used:     number; deep_limit:     number;
@@ -29,7 +30,9 @@ export async function callGrokViaProxy(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as { error?: string; code?: string; usage?: GrokUsageInfo };
-    const msg = err.error ?? 'Grok proxy error';
+    const msg = err.code === 'RATE_LIMIT'
+      ? `${err.error ?? 'Rate limit reached.'} Resets at ${nextResetLocalTime()}.`
+      : err.error ?? 'Grok proxy error';
     throw Object.assign(new Error(msg), { code: err.code, usage: err.usage });
   }
 

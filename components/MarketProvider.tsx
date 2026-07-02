@@ -41,6 +41,8 @@ const LIQ_CASCADE_THRESHOLDS: Record<string, number> = {
   BTC: 5_000_000, ETH: 2_000_000, SOL: 1_000_000, DEFAULT: 800_000,
 };
 const MARKET_CASCADE_THRESHOLD = 20_000_000;
+const LIQ_DELTA_WINDOW_MS = 15 * 60_000; // rolling window for the net long/short liquidation delta
+const LIQ_DELTA_MIN_TOTAL = 20_000; // ignore near-zero noise below this combined $ volume
 
 function sendCascadeAlert(
   coin: string,
@@ -1224,8 +1226,9 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           if (!isFinite(usd) || usd <= 0) return;
           const now = Date.now();
           liqBufferRef.current.push({ coin, side, usd, ts: now });
-          // Keep rolling 2-min buffer (cascade window is 60s — extra headroom)
-          liqBufferRef.current = liqBufferRef.current.filter(l => l.ts > now - 120_000);
+          // Keep rolling buffer covering both the 60s cascade window and the
+          // longer liquidation-delta window (LIQ_DELTA_WINDOW_MS) below.
+          liqBufferRef.current = liqBufferRef.current.filter(l => l.ts > now - (LIQ_DELTA_WINDOW_MS + 60_000));
         } catch { /* */ }
       };
       ws.onclose = () => { if (alive) reconnectTimer = setTimeout(connect, 5_000); };
@@ -1267,6 +1270,19 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           setStore(s => ({ ...s, cascadeAlert: { coin: 'MARKET', side, totalUsd: mktTotal, ts: now } }));
           sendCascadeAlert('MARKET', side, mktTotal, cascadeCooldown.current);
         }
+      }
+
+      // Liquidation delta — net long vs short liquidation $ over the longer rolling
+      // window, exposed per-coin for display and for StopLossZone's bias scoring.
+      const wDelta = liqBufferRef.current.filter(l => l.ts > now - LIQ_DELTA_WINDOW_MS);
+      const deltaByCoin: Record<string, { l: number; s: number }> = {};
+      wDelta.forEach(({ coin, side, usd }) => {
+        if (!deltaByCoin[coin]) deltaByCoin[coin] = { l: 0, s: 0 };
+        if (side === 'LONG') deltaByCoin[coin].l += usd; else deltaByCoin[coin].s += usd;
+      });
+      for (const [coin, { l, s }] of Object.entries(deltaByCoin)) {
+        if (l + s < LIQ_DELTA_MIN_TOTAL) continue;
+        updateCoin(coin.toLowerCase() as CoinId, { liqDelta: l - s, liqLongUsd: l, liqShortUsd: s });
       }
     }, 5_000);
 

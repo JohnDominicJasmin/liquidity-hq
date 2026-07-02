@@ -7,10 +7,11 @@ import { useSettings } from '@/lib/settings';
 import { DASHBOARD_SECTIONS } from '@/lib/settings';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import UsageRings from '@/components/UsageRings';
+import CoinMultiSelect from '@/components/CoinMultiSelect';
 import { track } from '@/lib/analytics';
 import { COINS } from '@/lib/marketStore';
 
-const TFS    = ['15m', '1h', '4h', '1d'] as const;
+const TFS    = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'] as const;
 const RISK_PRESETS = ['0.25', '0.5', '1', '1.5', '2'];
 
 /* ── Auto-save toast ── */
@@ -33,13 +34,10 @@ function SaveToast({ status }: { status: 'idle' | 'saving' | 'saved' | 'error' }
 }
 
 /* ── Section card wrapper ── */
-function Section({ title, icon, children }: { title: string; icon?: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="st-section">
-      <div className="st-section-title">
-        {icon && <span className="st-section-icon">{icon}</span>}
-        {title}
-      </div>
+      <div className="st-section-title">{title}</div>
       {children}
     </div>
   );
@@ -65,7 +63,7 @@ export default function SettingsPage() {
     return (
       <div className="st-page">
         <div className="st-header"><div className="st-header-title">Settings</div></div>
-        <Section title="Appearance" icon="🎨">
+        <Section title="Appearance">
           <div className="st-field">
             <label className="st-field-label">Theme</label>
             <div className="st-chip-row">
@@ -79,7 +77,7 @@ export default function SettingsPage() {
                     window.dispatchEvent(new Event('theme-change'));
                   }}
                 >
-                  {t === 'dark' ? '◑ Dark' : '☀ Light'}
+                  {t === 'dark' ? 'Dark' : 'Light'}
                 </button>
               ))}
             </div>
@@ -112,7 +110,7 @@ export default function SettingsPage() {
       </div>
 
       {/* ── 1. Account ── */}
-      <Section title="Account" icon="👤">
+      <Section title="Account">
         <div className="st-field">
           <div className="st-field-label">Signed in as</div>
           <div className="st-field-value">{user?.email}</div>
@@ -137,30 +135,16 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 2. Watchlist ── */}
-      <Section title="My Watchlist" icon="⭐">
+      <Section title="My Watchlist">
         <div className="st-desc">Select coins to track in your watchlist feed on the dashboard.</div>
-        <div className="st-chip-row" style={{ flexWrap: 'wrap' }}>
-          {COINS.map(c => {
-            const inList = (settings.watchlist ?? []).includes(c);
-            return (
-              <button
-                key={c}
-                className={`st-chip${inList ? ' on' : ''}`}
-                onClick={() => {
-                  const current = settings.watchlist ?? [];
-                  const next = inList ? current.filter(x => x !== c) : [...current, c];
-                  update({ watchlist: next });
-                }}
-              >
-                {c.toUpperCase()}
-              </button>
-            );
-          })}
-        </div>
+        <CoinMultiSelect
+          value={settings.watchlist ?? []}
+          onChange={next => update({ watchlist: next })}
+        />
       </Section>
 
       {/* ── 3. Trading Profile ── */}
-      <Section title="Trading Profile" icon="📊">
+      <Section title="Trading Profile">
         <div className="st-row">
           <div className="st-field st-field-half">
             <label className="st-field-label">Account Size</label>
@@ -218,20 +202,18 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 3. AI Arena Defaults ── */}
-      <Section title="AI Arena Defaults" icon="⚡">
+      <Section title="AI Arena Defaults">
         <div className="st-field">
           <label className="st-field-label">Default Coin</label>
-          <div className="st-chip-row">
+          <select
+            className="st-input"
+            value={settings.default_coin}
+            onChange={e => update({ default_coin: e.target.value as typeof settings.default_coin })}
+          >
             {COINS.map(c => (
-              <button
-                key={c}
-                className={`st-chip${settings.default_coin === c ? ' on' : ''}`}
-                onClick={() => update({ default_coin: c })}
-              >
-                {c.toUpperCase()}
-              </button>
+              <option key={c} value={c}>{c.toUpperCase()}</option>
             ))}
-          </div>
+          </select>
         </div>
         <div className="st-field">
           <label className="st-field-label">Default Timeframe</label>
@@ -250,7 +232,7 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 4. Notification Thresholds ── */}
-      <Section title="Notification Thresholds" icon="🔔">
+      <Section title="Notification Thresholds">
         <div className="st-desc">Controls browser push alerts in AI Arena.</div>
 
         <div className="st-row">
@@ -335,7 +317,7 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 5. Dashboard Sections ── */}
-      <Section title="Dashboard Sections" icon="📋">
+      <Section title="Dashboard Sections">
         <div className="st-desc">Toggle off to hide a section from the dashboard.</div>
         <div className="st-checkbox-grid">
           {DASHBOARD_SECTIONS.map(({ id, label }) => {
@@ -363,7 +345,7 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 6. Appearance ── */}
-      <Section title="Appearance" icon="🎨">
+      <Section title="Appearance">
         <div className="st-field">
           <label className="st-field-label">Theme</label>
           <div className="st-chip-row">
@@ -378,7 +360,7 @@ export default function SettingsPage() {
                   window.dispatchEvent(new Event('theme-change'));
                 }}
               >
-                {t === 'dark' ? '◑ Dark' : '☀ Light'}
+                {t === 'dark' ? 'Dark' : 'Light'}
               </button>
             ))}
           </div>
@@ -386,7 +368,7 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 7. Telegram Alerts ── */}
-      <Section title="Telegram Alerts" icon="📱">
+      <Section title="Telegram Alerts">
         <div className="st-field">
           <div className="st-field-label">Status</div>
           <div className="st-tg-status">

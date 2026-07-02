@@ -119,12 +119,12 @@ function fmtP(n: number): string {
 /* ── Event colour helpers ── */
 function evCol(ev: StructureEvent): string {
   return ev.type === 'CHoCH'
-    ? (ev.dir === 'bullish' ? '#a78bfa' : '#f87171')
+    ? (ev.dir === 'bullish' ? '#5a6aff' : '#f87171')
     : (ev.dir === 'bullish' ? '#34d399' : '#f87171');
 }
 function evBg(ev: StructureEvent): string {
   return ev.type === 'CHoCH'
-    ? (ev.dir === 'bullish' ? 'rgba(167,139,250,0.10)' : 'rgba(248,113,113,0.10)')
+    ? (ev.dir === 'bullish' ? 'rgba(90,106,255,0.10)' : 'rgba(248,113,113,0.10)')
     : (ev.dir === 'bullish' ? 'rgba(52,211,153,0.10)'  : 'rgba(248,113,113,0.10)');
 }
 

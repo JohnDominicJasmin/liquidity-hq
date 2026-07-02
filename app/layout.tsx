@@ -1,6 +1,18 @@
 import type { Metadata, Viewport } from 'next';
+import { Figtree, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 import AppShell from '@/components/AppShell';
+
+const figtree = Figtree({
+  subsets: ['latin'],
+  variable: '--font-sans',
+});
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-mono',
+});
 
 export const metadata: Metadata = {
   title: {
@@ -36,7 +48,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="dark" suppressHydrationWarning>
+    <html lang="en" data-theme="dark" className={`${figtree.variable} ${plexMono.variable}`} suppressHydrationWarning>
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>

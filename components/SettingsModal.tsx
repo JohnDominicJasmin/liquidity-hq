@@ -7,6 +7,7 @@ import { useSettings, DASHBOARD_SECTIONS } from '@/lib/settings';
 import { COINS } from '@/lib/marketStore';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import UsageRings from '@/components/UsageRings';
+import CoinMultiSelect from '@/components/CoinMultiSelect';
 import { track } from '@/lib/analytics';
 
 const TFS          = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'] as const;
@@ -107,24 +108,10 @@ export default function SettingsModal({ open, onClose }: Props) {
           <div className="smod-section">
             <div className="smod-section-title">My Watchlist</div>
             <div className="st-desc">Select coins to track in your watchlist feed on the dashboard.</div>
-            <div className="st-chip-row" style={{ flexWrap: 'wrap' }}>
-              {COINS.map(c => {
-                const inList = (settings.watchlist ?? []).includes(c);
-                return (
-                  <button
-                    key={c}
-                    className={`st-chip${inList ? ' on' : ''}`}
-                    onClick={() => {
-                      const current = settings.watchlist ?? [];
-                      const next = inList ? current.filter(x => x !== c) : [...current, c];
-                      update({ watchlist: next });
-                    }}
-                  >
-                    {c.toUpperCase()}
-                  </button>
-                );
-              })}
-            </div>
+            <CoinMultiSelect
+              value={settings.watchlist ?? []}
+              onChange={next => update({ watchlist: next })}
+            />
           </div>
 
           {/* ── Trading Profile ── */}
@@ -171,12 +158,15 @@ export default function SettingsModal({ open, onClose }: Props) {
             <div className="smod-section-title">AI Arena Defaults</div>
             <div className="st-field">
               <label className="st-field-label">Default Coin</label>
-              <div className="st-chip-row">
+              <select
+                className="st-input"
+                value={settings.default_coin}
+                onChange={e => update({ default_coin: e.target.value as typeof settings.default_coin })}
+              >
                 {COINS.map(c => (
-                  <button key={c} className={`st-chip${settings.default_coin === c ? ' on' : ''}`}
-                    onClick={() => update({ default_coin: c })}>{c.toUpperCase()}</button>
+                  <option key={c} value={c}>{c.toUpperCase()}</option>
                 ))}
-              </div>
+              </select>
             </div>
             <div className="st-field" style={{ marginBottom: 0 }}>
               <label className="st-field-label">Default Timeframe</label>
@@ -246,20 +236,26 @@ export default function SettingsModal({ open, onClose }: Props) {
           {/* ── Dashboard Sections ── */}
           <div className="smod-section">
             <div className="smod-section-title">Dashboard Sections</div>
-            <div className="st-desc">Uncheck to hide a section from the dashboard.</div>
+            <div className="st-desc">Toggle off to hide a section from the dashboard.</div>
             <div className="st-checkbox-grid">
               {DASHBOARD_SECTIONS.map(({ id, label }) => {
-                const hidden = settings.hidden_sections.includes(id);
+                const visible = !settings.hidden_sections.includes(id);
                 return (
                   <label key={id} className="st-checkbox-item">
-                    <input type="checkbox" checked={!hidden}
-                      onChange={e => {
-                        const next = e.target.checked
-                          ? settings.hidden_sections.filter(s => s !== id)
-                          : [...settings.hidden_sections, id];
+                    <span className="st-toggle-label">{label}</span>
+                    <button
+                      role="switch"
+                      aria-checked={visible}
+                      className={`st-toggle${visible ? ' on' : ''}`}
+                      onClick={() => {
+                        const next = visible
+                          ? [...settings.hidden_sections, id]
+                          : settings.hidden_sections.filter(s => s !== id);
                         update({ hidden_sections: next });
-                      }} />
-                    <span>{label}</span>
+                      }}
+                    >
+                      <span className="st-toggle-thumb" />
+                    </button>
                   </label>
                 );
               })}

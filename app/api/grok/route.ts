@@ -122,13 +122,13 @@ export async function POST(req: NextRequest) {
 
   if (type === 'deep' && deepUsed >= deepLimit) {
     return NextResponse.json(
-      { error: `Daily limit of ${deepLimit} deep analyses reached. Resets at midnight UTC.`, code: 'RATE_LIMIT', usage: allUsage() },
+      { error: `Daily limit of ${deepLimit} deep analyses reached.`, code: 'RATE_LIMIT', usage: allUsage() },
       { status: 429 }
     );
   }
   if (type === 'quick' && quickUsed >= quickLimit) {
     return NextResponse.json(
-      { error: `Daily limit of ${quickLimit} quick analyses reached. Resets at midnight UTC.`, code: 'RATE_LIMIT', usage: allUsage() },
+      { error: `Daily limit of ${quickLimit} quick analyses reached.`, code: 'RATE_LIMIT', usage: allUsage() },
       { status: 429 }
     );
   }

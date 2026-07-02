@@ -1,6 +1,6 @@
 'use client';
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useMarket, CoinId, COINS, BINANCE_SYMS } from '@/lib/marketStore';
+import { useMarket, CoinId, COINS, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
 import LiqFeed, { Bucket } from '@/components/LiqFeed';
 import WhaleTradesFeed from '@/components/WhaleTradesFeed';
 
@@ -28,10 +28,23 @@ const TIERS = [
 
 type TimeRange = '12h' | '24h' | '48h' | '3d' | '1w';
 
+// Coins covered by the liquidation delta feed (Binance futures forceOrder stream mapping)
+const LIQ_DELTA_COINS: CoinId[] = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'near', 'sui'];
+
 const RANGE_TO_PERIOD: Record<TimeRange, string> = {
   '12h': '1h',
   '24h': '4h',
   '48h': '6h',
+  '3d':  '12h',
+  '1w':  '1d',
+};
+
+// Bybit's account-ratio endpoint only accepts 5min/15min/30min/1h/4h/12h/1d —
+// no 6h or 2h option (unlike Binance), so it needs its own mapping.
+const RANGE_TO_BYBIT_PERIOD: Record<TimeRange, string> = {
+  '12h': '1h',
+  '24h': '4h',
+  '48h': '4h',
   '3d':  '12h',
   '1w':  '1d',
 };
@@ -249,6 +262,8 @@ export default function LiqPage() {
   const [realClusters, setRealClusters] = useState<Bucket[]>([]);
   const handleClusters = useCallback((c: Bucket[]) => setRealClusters(c), []);
   const [whalePos, setWhalePos] = useState<{ longRatio: number; shortRatio: number } | null>(null);
+  const [retailPos, setRetailPos] = useState<{ longRatio: number; shortRatio: number } | null>(null);
+  const [bybitPos, setBybitPos] = useState<{ longRatio: number; shortRatio: number } | null>(null);
 
   /* Refetch whale positioning whenever coin or timeframe changes */
   useEffect(() => {
@@ -263,6 +278,43 @@ export default function LiqPage() {
         setWhalePos({ longRatio: parseFloat(data[0].longAccount), shortRatio: parseFloat(data[0].shortAccount) });
       })
       .catch(() => { if (!cancelled) setWhalePos(null); });
+    return () => { cancelled = true; };
+  }, [coin, range]);
+
+  /* Refetch retail (all-account) long/short ratio whenever coin or timeframe changes —
+     the "Long/Short accounts" stat row previously always showed the global store's
+     fixed-period snapshot (Bybit 1h / Binance 5m) regardless of the Time Range selector. */
+  useEffect(() => {
+    const sym = BINANCE_SYMS[coin];
+    if (!sym) { setRetailPos(null); return; }   // Bybit-only coin (HYPE etc.)
+    const period = RANGE_TO_PERIOD[range];
+    let cancelled = false;
+    fetch(`https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=${period}&limit=1`)
+      .then(r => r.json())
+      .then((data: Array<{ longAccount: string; shortAccount: string }>) => {
+        if (cancelled || !Array.isArray(data) || !data[0]) return;
+        setRetailPos({ longRatio: parseFloat(data[0].longAccount), shortRatio: parseFloat(data[0].shortAccount) });
+      })
+      .catch(() => { if (!cancelled) setRetailPos(null); });
+    return () => { cancelled = true; };
+  }, [coin, range]);
+
+  /* Refetch Bybit account ratio whenever coin or timeframe changes — same fix as the
+     Binance retail ratio above, using Bybit's own supported period values (no 6h/2h). */
+  useEffect(() => {
+    const sym = BYBIT_SYMS[coin];
+    if (!sym) { setBybitPos(null); return; }
+    const period = RANGE_TO_BYBIT_PERIOD[range];
+    let cancelled = false;
+    fetch(`https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${sym}&period=${period}&limit=1`)
+      .then(r => r.json())
+      .then((d: { result?: { list?: Array<{ buyRatio: string; sellRatio: string }> } }) => {
+        if (cancelled) return;
+        const item = d.result?.list?.[0];
+        if (!item) return;
+        setBybitPos({ longRatio: parseFloat(item.buyRatio), shortRatio: parseFloat(item.sellRatio) });
+      })
+      .catch(() => { if (!cancelled) setBybitPos(null); });
     return () => { cancelled = true; };
   }, [coin, range]);
 
@@ -304,7 +356,7 @@ export default function LiqPage() {
             onChange={e => setCoin(e.target.value as CoinId)}
             style={{
               background: 'var(--bg2)',
-              border: '0.5px solid rgba(139,92,246,0.45)',
+              border: '0.5px solid rgba(60,72,200,0.45)',
               color: 'var(--txt)',
               fontSize: 13,
               fontWeight: 700,
@@ -384,16 +436,16 @@ export default function LiqPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 2 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span style={{ fontSize: 20, fontWeight: 800, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>
-                    {((cd.longRatio ?? 0.5) * 100).toFixed(0)}%
+                    {((bybitPos?.longRatio ?? cd.longRatio ?? 0.5) * 100).toFixed(0)}%
                   </span>
-                  <span style={{ fontSize: 10, color: 'var(--txt3)' }}>Bybit · 1h</span>
+                  <span style={{ fontSize: 10, color: 'var(--txt3)' }}>Bybit · {bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h'}</span>
                 </div>
-                {cd.bnLongRatio != null && (
+                {(retailPos?.longRatio ?? cd.bnLongRatio) != null && (
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                     <span style={{ fontSize: 16, fontWeight: 700, color: 'rgba(248,113,113,0.65)', fontVariantNumeric: 'tabular-nums' }}>
-                      {(cd.bnLongRatio * 100).toFixed(0)}%
+                      {((retailPos?.longRatio ?? cd.bnLongRatio!) * 100).toFixed(0)}%
                     </span>
-                    <span style={{ fontSize: 10, color: 'var(--txt3)' }}>Binance · 5m</span>
+                    <span style={{ fontSize: 10, color: 'var(--txt3)' }}>Binance · {retailPos ? RANGE_TO_PERIOD[range] : '5m'}</span>
                   </div>
                 )}
               </div>
@@ -404,7 +456,7 @@ export default function LiqPage() {
             {/* Open Interest — center */}
             <div className="liq-stat-item" style={{ textAlign: 'center' }}>
               <div className="liq-stat-label" style={{ textAlign: 'center' }}>Open Interest</div>
-              <div className="liq-stat-val" style={{ color: '#a78bfa', textAlign: 'center' }}>
+              <div className="liq-stat-val" style={{ color: '#5a6aff', textAlign: 'center' }}>
                 {fmtM(cd.oi / 1e6)}
               </div>
               <div className="liq-stat-sub" style={{ textAlign: 'center' }}>{bands.tierCount}/17 zones in window</div>
@@ -417,22 +469,48 @@ export default function LiqPage() {
               <div className="liq-stat-label">Short accounts</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', marginTop: 2 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                  <span style={{ fontSize: 10, color: 'var(--txt3)' }}>Bybit · 1h</span>
+                  <span style={{ fontSize: 10, color: 'var(--txt3)' }}>Bybit · {bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h'}</span>
                   <span style={{ fontSize: 20, fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>
-                    {((cd.shortRatio ?? 0.5) * 100).toFixed(0)}%
+                    {((bybitPos?.shortRatio ?? cd.shortRatio ?? 0.5) * 100).toFixed(0)}%
                   </span>
                 </div>
-                {cd.bnShortRatio != null && (
+                {(retailPos?.shortRatio ?? cd.bnShortRatio) != null && (
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                    <span style={{ fontSize: 10, color: 'var(--txt3)' }}>Binance · 5m</span>
+                    <span style={{ fontSize: 10, color: 'var(--txt3)' }}>Binance · {retailPos ? RANGE_TO_PERIOD[range] : '5m'}</span>
                     <span style={{ fontSize: 16, fontWeight: 700, color: 'rgba(52,211,153,0.65)', fontVariantNumeric: 'tabular-nums' }}>
-                      {(cd.bnShortRatio * 100).toFixed(0)}%
+                      {((retailPos?.shortRatio ?? cd.bnShortRatio!) * 100).toFixed(0)}%
                     </span>
                   </div>
                 )}
               </div>
             </div>
           </div>
+
+          {/* ══ LIQUIDATION DELTA — net long vs short liquidation $ (15min window) ══ */}
+          {cd.liqDelta != null && cd.liqLongUsd != null && cd.liqShortUsd != null ? (() => {
+            const netCol = cd.liqDelta! > 0 ? '#f87171' : cd.liqDelta! < 0 ? '#34d399' : 'var(--txt3)';
+            const netTxt = cd.liqDelta! > 0
+              ? 'Net longs liquidated'
+              : cd.liqDelta! < 0
+              ? 'Net shorts liquidated'
+              : 'Balanced';
+            return (
+              <div className="liq-bias-card" style={{ borderColor: `${netCol}33`, marginTop: 10 }}>
+                <span className="liq-bias-badge" style={{ color: netCol, background: `${netCol}16` }}>
+                  {cd.liqDelta! >= 0 ? '+' : '−'}{fmtM(Math.abs(cd.liqDelta!) / 1e6)}
+                </span>
+                <span className="liq-bias-sub">
+                  {netTxt} in the last 15m — Longs {fmtM(cd.liqLongUsd / 1e6)} · Shorts {fmtM(cd.liqShortUsd / 1e6)}
+                </span>
+              </div>
+            );
+          })() : (
+            <div style={{ fontSize: 11, color: 'var(--txt3)', padding: '4px 2px 0' }}>
+              {LIQ_DELTA_COINS.includes(coin)
+                ? 'Warming up — waiting for enough liquidation volume in the last 15m.'
+                : `Liquidation delta unavailable for ${coin.toUpperCase()} — tracked for ${LIQ_DELTA_COINS.map(c => c.toUpperCase()).join(', ')} only.`}
+            </div>
+          )}
 
           {/* ══ WHALE POSITIONING ════════════════════════════════ */}
           {(whalePos != null || (cd.bnWhaleLongRatio != null && cd.bnWhaleShortRatio != null)) && (() => {

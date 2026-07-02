@@ -5,10 +5,10 @@ import { useOnboarding } from './OnboardingProvider';
 import { useAuth } from './AuthProvider';
 
 const ITEMS = [
-  { key: 'telegram'   as const, label: 'Connect Telegram alerts', icon: '🔔', href: '/alerts' },
-  { key: 'priceAlert' as const, label: 'Set a price alert',       icon: '🎯', href: '/alerts' },
-  { key: 'grok'       as const, label: 'Get an AI market analysis', icon: '🤖', href: '/arena'  },
-  { key: 'coins'      as const, label: 'Explore the Arena',       icon: '🪙', href: '/arena'  },
+  { key: 'telegram'   as const, label: 'Connect Telegram alerts', href: '/alerts' },
+  { key: 'priceAlert' as const, label: 'Set a price alert',       href: '/alerts' },
+  { key: 'grok'       as const, label: 'Get an AI market analysis', href: '/arena'  },
+  { key: 'coins'      as const, label: 'Explore the Arena',       href: '/arena'  },
 ];
 
 export default function SetupChecklist() {
@@ -54,7 +54,6 @@ export default function SetupChecklist() {
               onKeyDown={e => !done && e.key === 'Enter' && router.push(item.href)}
             >
               <span className="ob-cl-chk">{done ? '✓' : '○'}</span>
-              <span className="ob-cl-ico">{item.icon}</span>
               <span className="ob-cl-lbl">{item.label}</span>
               {!done && <span className="ob-cl-arrow">→</span>}
             </div>

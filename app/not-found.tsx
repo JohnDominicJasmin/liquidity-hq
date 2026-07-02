@@ -23,8 +23,8 @@ export default function NotFound() {
       <div style={{ display: 'flex', gap: 10, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
         <Link href="/" style={{
           padding: '9px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700,
-          color: '#a78bfa', background: 'rgba(167,139,250,0.1)',
-          border: '0.5px solid rgba(167,139,250,0.35)', textDecoration: 'none',
+          color: '#5a6aff', background: 'rgba(90,106,255,0.1)',
+          border: '0.5px solid rgba(90,106,255,0.35)', textDecoration: 'none',
         }}>
           ← Dashboard
         </Link>

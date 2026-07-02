@@ -5,6 +5,7 @@ import { COINS } from '@/lib/marketStore';
 import { useSettings } from '@/lib/settings';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
+import { utcHourToLocalTime } from '@/lib/resetTime';
 
 interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; created_at: string }
 
@@ -201,6 +202,7 @@ export default function AlertsPage() {
 
   const botLink = botUsername ? `https://t.me/${botUsername}` : null;
   const botLabel = botUsername ? `@${botUsername}` : 'LiquidityHQ Bot';
+  const dailySummaryLocalTime = utcHourToLocalTime(7); // scheduled cron fires at 07:00 UTC
 
   const ALERT_GROUPS: { section: string; items: { key: string; dot: string; title: string; desc: string; grok: boolean }[] }[] = [
     { section: 'Funding', items: [
@@ -215,7 +217,7 @@ export default function AlertsPage() {
       { key: 'ema_cross', dot: '#34d399', title: '200 EMA Cross (1H)', desc: 'Price reclaims (bullish) or loses (bearish) the major moving average · 12h cooldown', grok: true },
     ]},
     { section: 'Flow', items: [
-      { key: 'whales',   dot: '#a78bfa', title: 'Whale Trades',        desc: 'BTC >$5M · ETH >$2M · SOL >$1M · XRP/BNB >$750K · others >$500K · 30min cooldown', grok: true },
+      { key: 'whales',   dot: '#5a6aff', title: 'Whale Trades',        desc: 'BTC >$5M · ETH >$2M · SOL >$1M · XRP/BNB >$750K · others >$500K · 30min cooldown', grok: true },
       { key: 'oi_spike', dot: '#fbbf24', title: 'Open Interest Spike ±15% / 1h', desc: 'New money entering — big move building · 2h cooldown', grok: true },
       { key: 'cvd',      dot: '#34d399', title: 'CVD Divergence',      desc: 'Bullish: price down but buyers absorbing · Bearish: price up but sellers dominate · 1h cooldown', grok: false },
       { key: 'squeeze',  dot: '#f43f5e', title: 'Squeeze / Flush ≥ 70', desc: 'Crowd positioning extreme — squeeze score threshold hit · 4h cooldown', grok: true },
@@ -226,8 +228,8 @@ export default function AlertsPage() {
       { key: 'sentiment_extremes', dot: '#f43f5e', title: 'Sentiment Extremes',    desc: 'F&G + BTC funding + BTC L/S ratio all at extremes simultaneously · 4h cooldown', grok: true },
     ]},
     { section: 'Price & Summary', items: [
-      { key: 'price_alerts',  dot: '#c084fc', title: 'Price Level Alerts', desc: 'Your saved price targets · fires once then deactivates', grok: true },
-      { key: 'daily_summary', dot: '#fbbf24', title: 'Daily 7am Summary',  desc: 'FR snapshot + F&G + active price alerts + LiquidityAI outlook · once daily at 7am UTC', grok: true },
+      { key: 'price_alerts',  dot: '#9ba4ff', title: 'Price Level Alerts', desc: 'Your saved price targets · fires once then deactivates', grok: true },
+      { key: 'daily_summary', dot: '#fbbf24', title: `Daily ${dailySummaryLocalTime} Summary`, desc: `FR snapshot + F&G + active price alerts + LiquidityAI outlook · once daily at ${dailySummaryLocalTime}`, grok: true },
     ]},
   ];
 
@@ -547,7 +549,7 @@ export default function AlertsPage() {
       <div className="card" style={{ marginBottom: 10 }}>
         <div className="lbl" style={{ marginBottom: 4 }}>Alert Conditions</div>
         <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 10 }}>
-          Toggle off to mute. <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#a78bfa', background: 'rgba(167,139,250,0.1)', border: '0.5px solid rgba(167,139,250,0.25)', padding: '2px 6px', borderRadius: 4 }}>AI</span> = includes LiquidityAI analysis.
+          Toggle off to mute. <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#5a6aff', background: 'rgba(90,106,255,0.1)', border: '0.5px solid rgba(90,106,255,0.25)', padding: '2px 6px', borderRadius: 4 }}>AI</span> = includes LiquidityAI analysis.
         </div>
         {muteErr && <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 8 }}>{muteErr}</div>}
         {ALERT_GROUPS.map(group => (
@@ -570,7 +572,7 @@ export default function AlertsPage() {
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>{c.desc}</div>
                   </div>
-                  {c.grok && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#a78bfa', background: 'rgba(167,139,250,0.1)', border: '0.5px solid rgba(167,139,250,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>}
+                  {c.grok && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#5a6aff', background: 'rgba(90,106,255,0.1)', border: '0.5px solid rgba(90,106,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>}
                   <button
                     role="switch"
                     aria-checked={!isMuted}
@@ -596,7 +598,7 @@ export default function AlertsPage() {
               2+ signals on the same coin in one run → single combined ping · LiquidityAI weighs all signals together
             </div>
           </div>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#a78bfa', background: 'rgba(167,139,250,0.1)', border: '0.5px solid rgba(167,139,250,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#5a6aff', background: 'rgba(90,106,255,0.1)', border: '0.5px solid rgba(90,106,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>
         </div>
         <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 10, padding: '8px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
           Monitored: all {COINS.length} coins — BTC · ETH · SOL · XRP · BNB · HYPE · NEAR · SUI · DOGE · AVAX · LINK · ADA · DOT · ATOM · WIF · PEPE · BONK

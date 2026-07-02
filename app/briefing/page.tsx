@@ -10,6 +10,7 @@ import SessionCountdown from '@/components/SessionCountdown';
 import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { getSupabase } from '@/lib/supabase';
+import { nextResetLocalTime } from '@/lib/resetTime';
 
 /* ── helpers ── */
 
@@ -257,7 +258,11 @@ export default function MorningBriefing() {
         _usage?: { briefing_used: number; briefing_limit: number };
       };
       if (!res.ok || data.error) {
-        setBriefErr(data.error ?? 'Unknown error');
+        setBriefErr(
+          data.code === 'RATE_LIMIT'
+            ? `${data.error ?? 'Rate limit reached.'} Resets at ${nextResetLocalTime()}.`
+            : data.error ?? 'Unknown error'
+        );
       } else {
         setBrief(data.briefing ?? '');
         if (data._usage && usage) setUsage({ ...usage, ...data._usage });
@@ -617,7 +622,7 @@ export default function MorningBriefing() {
             else if (fr <= -0.03) chips.push({ text: `FR ${fr.toFixed(3)}%`,  color: '#34d399' });
           }
           if (c.volRatio != null && c.volRatio >= 1.5)
-            chips.push({ text: `Vol ${c.volRatio.toFixed(1)}x`, color: '#a78bfa' });
+            chips.push({ text: `Vol ${c.volRatio.toFixed(1)}x`, color: '#5a6aff' });
           if (c.oiTrend === 'strong_up')        chips.push({ text: 'OI ↑↑',    color: '#34d399' });
           else if (c.oiTrend === 'strong_down') chips.push({ text: 'OI ↓↓',    color: '#f87171' });
           if (c.cvdDivergence === 'bullish')    chips.push({ text: 'CVD Bull', color: '#34d399' });
@@ -715,8 +720,8 @@ export default function MorningBriefing() {
                 ? 'rgba(52,211,153,0.1)'
                 : e.style === 'speech'
                 ? 'rgba(96,165,250,0.1)'
-                : 'rgba(167,139,250,0.1)',
-              color: e.style === 'crypto' ? '#34d399' : e.style === 'speech' ? '#60a5fa' : '#a78bfa',
+                : 'rgba(90,106,255,0.1)',
+              color: e.style === 'crypto' ? '#34d399' : e.style === 'speech' ? '#60a5fa' : '#5a6aff',
             }}>
               {e.tag}
             </div>

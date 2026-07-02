@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
   if (isSearch && searchUsed >= searchLimit) {
     return NextResponse.json(
       {
-        error: `Daily limit of ${searchLimit} live search messages reached. Resets at midnight UTC.`,
+        error: `Daily limit of ${searchLimit} live search messages reached.`,
         code: 'RATE_LIMIT',
         usage: { chat_used: chatUsed, chat_limit: chatLimit, search_used: searchUsed, search_limit: searchLimit },
       },
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
   if (!isSearch && chatUsed >= chatLimit) {
     return NextResponse.json(
       {
-        error: `Daily limit of ${chatLimit} chat messages reached. Resets at midnight UTC.`,
+        error: `Daily limit of ${chatLimit} chat messages reached.`,
         code: 'RATE_LIMIT',
         usage: { chat_used: chatUsed, chat_limit: chatLimit, search_used: searchUsed, search_limit: searchLimit },
       },

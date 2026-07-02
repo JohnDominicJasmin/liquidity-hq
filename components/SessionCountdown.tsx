@@ -72,7 +72,7 @@ export default function SessionCountdown() {
         <div className="sc-badge" style={{ color: statusCol, background: statusBg, borderColor: statusCol + '44' }}>
           {current
             ? current.name.toUpperCase()
-            : dead ? '💀 DEAD ZONE' : '💤 OFF-PEAK'}
+            : dead ? 'DEAD ZONE' : 'OFF-PEAK'}
         </div>
 
         {current && (
