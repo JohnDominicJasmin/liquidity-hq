@@ -3525,7 +3525,7 @@ body.landing {
 .lp-live-dot    { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; animation: lp-pulse 2s infinite; }
 @keyframes lp-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 .lp-h1          { font-size: clamp(36px, 6vw, 64px); font-weight: 900; line-height: 1.08; letter-spacing: -.03em; margin: 0; }
-.lp-h1-accent   { background: linear-gradient(135deg, #5a6aff 0%, #60a5fa 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.lp-h1-accent   { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 400; color: var(--accent-2); }
 .lp-hero-sub    { font-size: 17px; color: var(--txt2); line-height: 1.65; max-width: 520px; margin: 0; }
 .lp-hero-ctas   { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 .lp-cta-primary { font-size: 15px; font-weight: 700; color: #fff; background: var(--accent); padding: 13px 28px; border-radius: 10px; text-decoration: none; transition: opacity .15s, transform .15s; }
