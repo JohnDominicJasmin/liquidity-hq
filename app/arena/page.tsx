@@ -1462,53 +1462,99 @@ export default function Arena() {
         </button>
       </div>
 
-      {/* ── Price alert inline form ── */}
+      {/* ── Price alert inline form — buy/sell-panel styling ── */}
       {alertFormOpen && user && (
-        <div style={{ margin: '8px 0', padding: '14px 16px', borderRadius: 12, border: '0.5px solid rgba(90,106,255,0.3)', background: 'rgba(90,106,255,0.06)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{
+          margin: '8px 0', padding: 16, borderRadius: 14,
+          border: '0.5px solid var(--bdr)', background: 'var(--bg2)',
+          display: 'flex', flexDirection: 'column', gap: 12,
+        }}>
           {alertSuccess ? (
             <div style={{ fontSize: 13, fontWeight: 600, textAlign: 'center', padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
-              <span style={{ color: '#5a6aff' }}>✓ Alert set for {selectedCoin.toUpperCase()}</span>
+              <span style={{ color: 'var(--accent-2)' }}>✓ Alert set for {selectedCoin.toUpperCase()}</span>
               <a href="/alerts" style={{ fontSize: 12, color: 'var(--txt3)', textDecoration: 'underline' }}>View all alerts →</a>
             </div>
           ) : (
             <>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt2)', letterSpacing: '.04em' }}>
-                Price alert — {selectedCoin.toUpperCase()}
+              {/* Above / Below tab switcher */}
+              <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', background: 'var(--bg1)', padding: 3, gap: 3 }}>
+                {(['above', 'below'] as const).map(d => (
+                  <button
+                    key={d}
+                    onClick={() => setAlertDir(d)}
+                    style={{
+                      flex: 1, padding: '7px 12px', fontSize: 12, fontWeight: 700, letterSpacing: '.02em',
+                      border: 'none', borderRadius: 8, cursor: 'pointer', transition: 'background .15s, color .15s',
+                      background: alertDir === d ? (d === 'above' ? 'var(--green-bg)' : 'var(--red-bg)') : 'transparent',
+                      color: alertDir === d ? (d === 'above' ? '#4ade80' : '#f87171') : 'var(--txt3)',
+                    }}
+                  >
+                    {d === 'above' ? '▲ Above' : '▼ Below'}
+                  </button>
+                ))}
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                {/* Above / Below toggle */}
-                <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '0.5px solid var(--bdr)', flexShrink: 0 }}>
-                  {(['above', 'below'] as const).map(d => (
-                    <button key={d} onClick={() => setAlertDir(d)} style={{ padding: '5px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: alertDir === d ? 'var(--accent)' : 'var(--bg1)', color: alertDir === d ? '#fff' : 'var(--txt2)', transition: 'background .15s' }}>
-                      {d === 'above' ? '▲ Above' : '▼ Below'}
-                    </button>
-                  ))}
+
+              {/* Target price — input box with coin suffix chip */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>
+                  Target price
                 </div>
-                {/* Price input */}
-                <input
-                  type="number"
-                  value={alertPrice}
-                  onChange={e => setAlertPrice(e.target.value)}
-                  placeholder="Target price"
-                  style={{ flex: 1, minWidth: 120, padding: '5px 10px', fontSize: 13, borderRadius: 8, border: '0.5px solid var(--bdr)', background: 'var(--bg1)', color: 'var(--txt)', outline: 'none' }}
-                />
-                {/* Optional label */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 10,
+                  padding: '4px 6px 4px 12px',
+                }}>
+                  <span style={{ fontSize: 13, color: 'var(--txt3)', flexShrink: 0 }}>$</span>
+                  <input
+                    type="number"
+                    value={alertPrice}
+                    onChange={e => setAlertPrice(e.target.value)}
+                    placeholder="0.00"
+                    style={{ flex: 1, minWidth: 0, padding: '7px 0', fontSize: 14, fontFamily: 'var(--font-mono), monospace', border: 'none', background: 'transparent', color: 'var(--txt)', outline: 'none' }}
+                  />
+                  <span style={{
+                    flexShrink: 0, fontSize: 11, fontWeight: 700, letterSpacing: '.03em',
+                    color: 'var(--accent-2)', background: 'var(--accent-bg)', border: '0.5px solid var(--accent-bdr)',
+                    borderRadius: 7, padding: '4px 9px',
+                  }}>
+                    {selectedCoin.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Optional label */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>
+                  Label <span style={{ textTransform: 'none', fontWeight: 400, color: 'var(--txt3)' }}>(optional)</span>
+                </div>
                 <input
                   type="text"
                   value={alertLabel}
                   onChange={e => setAlertLabel(e.target.value)}
-                  placeholder="Label (optional)"
-                  style={{ flex: 1, minWidth: 100, padding: '5px 10px', fontSize: 13, borderRadius: 8, border: '0.5px solid var(--bdr)', background: 'var(--bg1)', color: 'var(--txt)', outline: 'none' }}
+                  placeholder="e.g. breakout level"
+                  style={{ width: '100%', padding: '9px 12px', fontSize: 13, borderRadius: 10, border: '0.5px solid var(--bdr)', background: 'var(--bg1)', color: 'var(--txt)', outline: 'none' }}
                 />
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={saveArenaAlert} disabled={alertSaving || !alertPrice} style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '6px 18px', cursor: alertSaving || !alertPrice ? 'default' : 'pointer', opacity: alertSaving || !alertPrice ? 0.6 : 1 }}>
-                  {alertSaving ? 'Saving…' : 'Set Alert'}
-                </button>
-                <button onClick={() => setAlertFormOpen(false)} style={{ fontSize: 12, color: 'var(--txt3)', background: 'none', border: '0.5px solid var(--bdr)', borderRadius: 8, padding: '6px 14px', cursor: 'pointer' }}>
-                  Cancel
-                </button>
-              </div>
+
+              {/* CTA */}
+              <button
+                onClick={saveArenaAlert}
+                disabled={alertSaving || !alertPrice}
+                style={{
+                  width: '100%', fontSize: 14, fontWeight: 700, color: '#fff',
+                  background: 'var(--accent)', border: 'none', borderRadius: 10, padding: '12px 18px',
+                  cursor: alertSaving || !alertPrice ? 'default' : 'pointer',
+                  opacity: alertSaving || !alertPrice ? 0.5 : 1, transition: 'opacity .15s',
+                }}
+              >
+                {alertSaving ? 'Saving…' : `Set Alert — ${selectedCoin.toUpperCase()}`}
+              </button>
+              <button
+                onClick={() => setAlertFormOpen(false)}
+                style={{ fontSize: 12, color: 'var(--txt3)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0' }}
+              >
+                Cancel
+              </button>
             </>
           )}
         </div>
