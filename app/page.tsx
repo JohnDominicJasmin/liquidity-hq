@@ -10,7 +10,7 @@ export default function LandingPage() {
 
   /* Redirect signed-in users straight to the app */
   useEffect(() => {
-    if (!loading && user) router.replace('/arena');
+    if (!loading && user) router.replace('/dashboard');
   }, [user, loading, router]);
 
   /* Hide the app shell nav + ticker on this page */
@@ -20,7 +20,7 @@ export default function LandingPage() {
   }, []);
 
   // Show landing page immediately — don't blank-screen while auth resolves.
-  // Once loaded and user is known, useEffect redirects to /arena.
+  // Once loaded and user is known, useEffect redirects to /dashboard.
   if (!loading && user) return null;
 
   return (
