@@ -162,6 +162,13 @@ export default function NavDrawer() {
   const authRef  = useRef<HTMLDivElement>(null);
   const initials = user?.email?.[0]?.toUpperCase() ?? '?';
 
+  // Hide the floating Ask AI button while the mobile nav drawer is open —
+  // it otherwise sits on top of the bottom nav links and eats their taps.
+  useEffect(() => {
+    document.body.classList.toggle('nav-drawer-open', drawerOpen);
+    return () => { document.body.classList.remove('nav-drawer-open'); };
+  }, [drawerOpen]);
+
   useEffect(() => {
     if (!openDrop) return;
     const handler = () => setOpenDrop(null);
