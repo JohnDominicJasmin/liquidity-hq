@@ -15,7 +15,6 @@ import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import MarketStructure, { MSData } from '@/components/MarketStructure';
 import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
-import AccumulationTracker from '@/components/AccumulationTracker';
 import EMASignal from '@/components/EMASignal';
 import StopLossZone from '@/components/StopLossZone';
 import Tip from '@/components/Tip';
@@ -1315,9 +1314,6 @@ export default function Arena() {
         <MarketStructure coin={selectedCoin} onData={handleMsData} />
         <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />
       </div>
-
-      {/* Accumulation Tracker — quiet coins being loaded before the move */}
-      <AccumulationTracker />
 
       {/* BTC Liquidation Heatmap — shows only when BTC selected and data available */}
       {selectedCoin === 'btc' && store.btcLiqLevels.length > 0 && (

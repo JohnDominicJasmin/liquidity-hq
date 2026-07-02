@@ -26,6 +26,8 @@ import Tip from '@/components/Tip';
 import CycleChart from '@/components/CycleChart';
 import GexTable from '@/components/GexTable';
 import MacroStrip from '@/components/MacroStrip';
+import AccumulationTracker from '@/components/AccumulationTracker';
+import { coinBadgeColor } from '@/lib/coinBadge';
 
 
 const OI_TREND_META: Record<string, { txt: string; sub: string; hint: string; col: string }> = {
@@ -52,6 +54,7 @@ function CoinSidebar() {
         const sel = store.selectedCoin === id;
         const tbp    = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : 50;
         const health = computeCoinHealth(d);
+        const badgeCol = coinBadgeColor(id);
 
         // ── Single priority signal ──
         let sig: { text: string; col: string } | null = null;
@@ -94,8 +97,16 @@ function CoinSidebar() {
             className={`csb2-card${sel ? ' csb2-sel' : ''}`}
             onClick={() => selectCoin(id)}
           >
-            {/* Top row: name + health grade + price */}
+            {/* Top row: badge + name + health grade + price */}
             <div className="csb2-top">
+              <span style={{
+                width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 8, fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
+                background: badgeCol + '24', color: badgeCol, border: `0.5px solid ${badgeCol}55`,
+              }}>
+                {id.slice(0, 2).toUpperCase()}
+              </span>
               <span className="csb2-name">{id.toUpperCase()}</span>
               {d?.price && (
                 <span style={{
@@ -671,6 +682,9 @@ export default function Dashboard() {
           </div>
           <WatchlistFeed />
         </div>
+
+        {/* 0.6 Accumulation Tracker — quiet coins being loaded before the move */}
+        {!hide('accumulation') && <AccumulationTracker />}
 
         {/* 1. Coin signals — first thing traders look at after selecting a coin (desktop only; mobile renders above) */}
         {!hide('coin_signals') && <div id="tour-coin-signals" className="desktop-only">

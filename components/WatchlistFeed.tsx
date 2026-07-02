@@ -2,6 +2,7 @@
 import { useMarket, COIN_DEC, fmtPrice, computeCoinHealth } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
 import { useSettings } from '@/lib/settings';
+import { coinBadgeColor } from '@/lib/coinBadge';
 
 export default function WatchlistFeed() {
   const { store, selectCoin } = useMarket();
@@ -12,7 +13,7 @@ export default function WatchlistFeed() {
     return (
       <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--txt3)' }}>
         No coins in your watchlist.{' '}
-        <a href="/settings" style={{ color: 'var(--purple)', textDecoration: 'none' }}>Add coins →</a>
+        <a href="/settings" style={{ color: 'var(--accent-2)', textDecoration: 'none' }}>Add coins →</a>
       </div>
     );
   }
@@ -26,6 +27,7 @@ export default function WatchlistFeed() {
         const up     = chg >= 0;
         const sel    = store.selectedCoin === id;
         const health = computeCoinHealth(d);
+        const badgeCol = coinBadgeColor(id);
 
         // Top signal — same priority logic as CoinSidebar
         let sig: { text: string; col: string } | null = null;
@@ -44,18 +46,28 @@ export default function WatchlistFeed() {
             key={id}
             onClick={() => selectCoin(id as CoinId)}
             style={{
-              background: sel ? 'rgba(184,174,255,0.08)' : 'var(--card)',
-              border: `0.5px solid ${sel ? 'rgba(184,174,255,0.35)' : 'var(--bdr)'}`,
-              borderRadius: 10,
+              background: sel ? 'var(--accent-bg)' : 'linear-gradient(180deg, var(--bg2) 0%, var(--bg1) 100%)',
+              border: `0.5px solid ${sel ? 'var(--accent-bdr)' : 'var(--bdr)'}`,
+              borderRadius: 'var(--radius-card)',
               padding: '10px 12px',
               cursor: 'pointer',
               transition: 'border-color 0.15s, background 0.15s',
             }}
           >
-            {/* Top row: name + health grade */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt)', letterSpacing: '.03em' }}>
-                {id.toUpperCase()}
+            {/* Top row: badge + name + health grade */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, gap: 6 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                <span style={{
+                  width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 7, fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
+                  background: badgeCol + '24', color: badgeCol, border: `0.5px solid ${badgeCol}55`,
+                }}>
+                  {id.slice(0, 2).toUpperCase()}
+                </span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt)', letterSpacing: '.03em' }}>
+                  {id.toUpperCase()}
+                </span>
               </span>
               {d?.price && (
                 <span style={{
