@@ -1,13 +1,20 @@
 'use client';
+import { useEffect } from 'react';
 import { useMarket, COIN_DEC, fmtPrice, computeCoinHealth } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
 import { useSettings } from '@/lib/settings';
 import { coinBadgeColor } from '@/lib/coinBadge';
+import { recordPrice, getSparkline } from '@/lib/priceSparkline';
+import Sparkline from '@/components/Sparkline';
 
 export default function WatchlistFeed() {
   const { store, selectCoin } = useMarket();
   const { settings } = useSettings();
   const watchlist = settings.watchlist ?? [];
+
+  useEffect(() => {
+    for (const id of watchlist) recordPrice(id, store.coins[id as CoinId]?.price);
+  }, [store.coins, watchlist]);
 
   if (watchlist.length === 0) {
     return (
@@ -88,9 +95,12 @@ export default function WatchlistFeed() {
               {d?.price ? '$' + fmtPrice(d.price, dec) : '—'}
             </div>
 
-            {/* Change */}
-            <div style={{ fontSize: 11, fontWeight: 600, color: up ? '#34d399' : '#f87171', marginBottom: 6 }}>
-              {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%
+            {/* Change + sparkline */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: up ? '#34d399' : '#f87171' }}>
+                {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%
+              </span>
+              <Sparkline points={getSparkline(id)} width={40} height={14} />
             </div>
 
             {/* Signal */}

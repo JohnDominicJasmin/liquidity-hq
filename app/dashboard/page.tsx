@@ -28,6 +28,8 @@ import GexTable from '@/components/GexTable';
 import MacroStrip from '@/components/MacroStrip';
 import AccumulationTracker from '@/components/AccumulationTracker';
 import { coinBadgeColor } from '@/lib/coinBadge';
+import { recordPrice, getSparkline } from '@/lib/priceSparkline';
+import Sparkline from '@/components/Sparkline';
 
 
 const OI_TREND_META: Record<string, { txt: string; sub: string; hint: string; col: string }> = {
@@ -43,6 +45,10 @@ const SIDEBAR_DEFAULT = 7;
 function CoinSidebar() {
   const { store, selectCoin } = useMarket();
   const visibleCoins = COINS.slice(0, SIDEBAR_DEFAULT);
+
+  useEffect(() => {
+    for (const id of visibleCoins) recordPrice(id, store.coins[id]?.price);
+  }, [store.coins, visibleCoins]);
 
   return (
     <div className="csb2-container">
@@ -125,11 +131,12 @@ function CoinSidebar() {
               </span>
             </div>
 
-            {/* Bottom row: change + signal */}
+            {/* Bottom row: change + sparkline + signal */}
             <div className="csb2-bottom">
               <span className={`csb2-chg ${up ? 'chg-up' : 'chg-dn'}`}>
                 {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%
               </span>
+              <Sparkline points={getSparkline(id)} width={36} height={14} />
               {sig && (
                 <span className="csb2-sig" style={{ color: sig.col }}>
                   {sig.text}
@@ -524,9 +531,13 @@ function EdgeSignals() {
                     : isMildSell ? '#fca5a5'
                     : 'var(--txt3)';
 
+                  const badgeCol = coinBadgeColor(id);
                   return (
                     <div key={id} className="taker-row">
-                      <div className="taker-coin">{id.toUpperCase()}</div>
+                      <div className="taker-coin" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ width: 5, height: 5, borderRadius: '50%', background: badgeCol, flexShrink: 0 }} />
+                        {id.toUpperCase()}
+                      </div>
                       <div className="taker-bar-wrap">
                         {buyPct != null ? (
                           <>
