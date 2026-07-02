@@ -1,20 +1,14 @@
 'use client';
-import { useEffect } from 'react';
 import { useMarket, COIN_DEC, fmtPrice, computeCoinHealth } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
 import { useSettings } from '@/lib/settings';
 import { coinBadgeColor } from '@/lib/coinBadge';
-import { recordPrice, getSparkline } from '@/lib/priceSparkline';
-import Sparkline from '@/components/Sparkline';
+import Sparkline24h from '@/components/Sparkline24h';
 
 export default function WatchlistFeed() {
   const { store, selectCoin } = useMarket();
   const { settings } = useSettings();
   const watchlist = settings.watchlist ?? [];
-
-  useEffect(() => {
-    for (const id of watchlist) recordPrice(id, store.coins[id as CoinId]?.price);
-  }, [store.coins, watchlist]);
 
   if (watchlist.length === 0) {
     return (
@@ -100,7 +94,7 @@ export default function WatchlistFeed() {
               <span style={{ fontSize: 11, fontWeight: 600, color: up ? '#34d399' : '#f87171' }}>
                 {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%
               </span>
-              <Sparkline points={getSparkline(id)} width={40} height={14} />
+              <Sparkline24h coin={id} width={40} height={14} />
             </div>
 
             {/* Signal */}

@@ -28,8 +28,7 @@ import GexTable from '@/components/GexTable';
 import MacroStrip from '@/components/MacroStrip';
 import AccumulationTracker from '@/components/AccumulationTracker';
 import { coinBadgeColor } from '@/lib/coinBadge';
-import { recordPrice, getSparkline } from '@/lib/priceSparkline';
-import Sparkline from '@/components/Sparkline';
+import Sparkline24h from '@/components/Sparkline24h';
 
 
 const OI_TREND_META: Record<string, { txt: string; sub: string; hint: string; col: string }> = {
@@ -45,10 +44,6 @@ const SIDEBAR_DEFAULT = 7;
 function CoinSidebar() {
   const { store, selectCoin } = useMarket();
   const visibleCoins = COINS.slice(0, SIDEBAR_DEFAULT);
-
-  useEffect(() => {
-    for (const id of visibleCoins) recordPrice(id, store.coins[id]?.price);
-  }, [store.coins, visibleCoins]);
 
   return (
     <div className="csb2-container">
@@ -136,7 +131,7 @@ function CoinSidebar() {
               <span className={`csb2-chg ${up ? 'chg-up' : 'chg-dn'}`}>
                 {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%
               </span>
-              <Sparkline points={getSparkline(id)} width={36} height={14} />
+              <Sparkline24h coin={id} width={36} height={14} />
               {sig && (
                 <span className="csb2-sig" style={{ color: sig.col }}>
                   {sig.text}
