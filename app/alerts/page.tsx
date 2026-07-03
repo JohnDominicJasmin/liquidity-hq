@@ -109,7 +109,11 @@ export default function AlertsPage() {
     if (isOff) {
       const onCount = COINS.filter(x => !muted.has(`coin:${x}`)).length;
       if (onCount >= ALERT_COIN_CAP) {
-        setCoinCapMsg(`Limit reached (${ALERT_COIN_CAP}/${ALERT_COIN_CAP} coins) — turn one off to add another.`);
+        setCoinCapMsg(
+          onCount > ALERT_COIN_CAP
+            ? `You have ${onCount} coins on, above the ${ALERT_COIN_CAP}-coin limit — turn some off before adding another.`
+            : `Limit reached (${ALERT_COIN_CAP}/${ALERT_COIN_CAP} coins) — turn one off to add another.`
+        );
         return;
       }
     }
@@ -659,7 +663,12 @@ export default function AlertsPage() {
         {/* ── Alert coin selection ── */}
         <div style={{ marginTop: 12, padding: '10px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 4 }}>
-            Alert Coins — {COINS.filter(c => !muted.has(`coin:${c}`)).length}/{ALERT_COIN_CAP} on
+            {(() => {
+              const onCount = COINS.filter(c => !muted.has(`coin:${c}`)).length;
+              return onCount > ALERT_COIN_CAP
+                ? `Alert Coins — ${onCount} on (limit ${ALERT_COIN_CAP} — turn some off)`
+                : `Alert Coins — ${onCount}/${ALERT_COIN_CAP} on`;
+            })()}
           </div>
           <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 8 }}>
             Tap a coin to stop all alerts for it, including which coins the EMA Ribbon Setup entry signals scan. Your saved price alerts are not affected.
