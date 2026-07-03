@@ -5,6 +5,7 @@ import {
   emaArr, volMA, atrArr, detectEMASignals,
   SignalFilterParams, DEFAULT_FILTER_PARAMS, ANTICHOP_DISABLED_PARAMS,
 } from './strategyCore';
+import { simulateTrades } from './backtestEngine';
 import { getWaveTrendConfirmation } from './waveTrend';
 
 export type { SignalFilterParams } from './strategyCore';
@@ -47,6 +48,10 @@ export interface StrategySignal {
   signalShorts: Array<{ timestamp: number; anchorPrice: number }>;
   atrLast:    number | null;  // last ATR(14) — for Grok context
   ema50Slope: number | null;  // EMA50 slope over last 5 bars as a fraction
+  // Outcome of every signal detected in the loaded candle window, simulated with the
+  // backtest engine's fill rules (entry after the persistence hold, SL at the EMA50
+  // buffer, 2:1 TP). Free to compute — reuses the candles already fetched.
+  recentStats: { total: number; wins: number; losses: number; open: number; netR: number } | null;
 }
 
 interface OHLCV { time: number; open: number; high: number; low: number; close: number; volume: number }
@@ -94,6 +99,7 @@ export const STRATEGY_LOADING: StrategySignal = {
   signalTimestamp: null, signalAnchorPrice: null, signalDir: null,
   signalLongs: [], signalShorts: [],
   atrLast: null, ema50Slope: null,
+  recentStats: null,
 };
 
 /* ── TF → exchange interval strings ─────────────────────────────────────── */
@@ -389,6 +395,17 @@ export function useEMAStrategy(
         const signalLongs  = detected.signalLongs.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice }));
         const signalShorts = detected.signalShorts.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice }));
 
+        // Recent record — simulate every detected signal on the same candle window
+        // using the backtest engine's fill rules. No extra network calls.
+        const simTrades = simulateTrades([...detected.signalLongs, ...detected.signalShorts], cRibbon, coin);
+        const rsWins    = simTrades.filter(t => t.outcome === 'win').length;
+        const rsLosses  = simTrades.filter(t => t.outcome === 'loss').length;
+        const rsOpen    = simTrades.filter(t => t.outcome === 'open').length;
+        const rsNetR    = simTrades.reduce((a, t) => a + t.rMultiple, 0);
+        const recentStats = simTrades.length > 0
+          ? { total: simTrades.length, wins: rsWins, losses: rsLosses, open: rsOpen, netR: rsNetR }
+          : null;
+
         // Expose ATR and EMA50 slope for Grok context (Quick/Deep Research + chatbot)
         const atrLast = isFinite(atr14[atr14.length - 1]) ? atr14[atr14.length - 1] : null;
         const slopeIdx = e50arr.length - 1;
@@ -405,6 +422,7 @@ export function useEMAStrategy(
           signalTimestamp, signalAnchorPrice, signalDir,
           signalLongs, signalShorts,
           atrLast, ema50Slope,
+          recentStats,
         });
     } catch (err) {
       if (!mountedRef.current) return;

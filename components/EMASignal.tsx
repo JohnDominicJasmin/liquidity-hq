@@ -188,6 +188,24 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         </div>
       )}
 
+      {/* Recent record — every signal in the loaded history, backtest fill rules */}
+      {!signal.loading && signal.recentStats && (
+        <div
+          title="Outcome of every signal this strategy fired in the loaded candle history for this coin and timeframe, simulated with the backtest fill rules: entry once the whipsaw hold confirms, stop at the 50 EMA buffer, take profit at 2 to 1."
+          style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 8, cursor: 'default' }}
+        >
+          Recent record ({tf.toUpperCase()}):{' '}
+          <b style={{ color: 'var(--txt2)' }}>
+            {signal.recentStats.wins} wins / {signal.recentStats.losses} losses
+          </b>
+          {' · '}
+          <b style={{ color: signal.recentStats.netR >= 0 ? '#34d399' : '#f87171' }}>
+            {signal.recentStats.netR >= 0 ? '+' : ''}{signal.recentStats.netR.toFixed(1)}R
+          </b>
+          {signal.recentStats.open > 0 ? ` · ${signal.recentStats.open} open` : ''}
+        </div>
+      )}
+
       {/* Explain This Signal button */}
       {canExplain && (
         <button
