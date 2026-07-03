@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
-import { getCurrentWindow, isDead, type Window as SessionWindow } from '@/lib/session';
+import { getCurrentWindow, isDead, getActiveHolidays, type Window as SessionWindow } from '@/lib/session';
 
 /* ── helpers ── */
 function pad(n: number) { return String(n).padStart(2, '0'); }
@@ -50,14 +50,15 @@ export default function SessionCountdown() {
     return () => clearInterval(id);
   }, []);
 
-  const { current, dead, next, endsInMs, nextInMs } = useMemo(() => {
+  const { current, dead, next, endsInMs, nextInMs, holidays } = useMemo(() => {
     const now      = new Date(nowMs);
     const current  = getCurrentWindow(now);
     const dead     = isDead(now);
     const next     = findNextSession(nowMs, current?.name);
     const endsInMs = current ? findSessionEndMs(nowMs, current.name) : 0;
     const nextInMs = next?.startsInMs ?? 0;
-    return { current, dead, next, endsInMs, nextInMs };
+    const holidays = getActiveHolidays(now);
+    return { current, dead, next, endsInMs, nextInMs, holidays };
   }, [nowMs]);
 
   /* colours */
@@ -102,6 +103,16 @@ export default function SessionCountdown() {
           </span>
           <span className="sc-next-sep">opens in</span>
           <span suppressHydrationWarning className="sc-next-timer">{fmtMs(nextInMs)}</span>
+        </div>
+      )}
+
+      {/* Row 3 — active market holidays (NY/London/Asia/China) — reduced liquidity heads-up */}
+      {holidays.length > 0 && (
+        <div className="sc-row-next" style={{ marginTop: 4 }}>
+          <span className="sc-next-label" style={{ color: '#fbbf24' }}>Holiday</span>
+          <span style={{ fontSize: 11, color: 'var(--txt2)' }}>
+            {holidays.map(h => `${h.region} closed — ${h.name}`).join(' · ')}
+          </span>
         </div>
       )}
 

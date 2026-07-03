@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
-import { getCurrentWindow, isDead } from '@/lib/session';
+import { getCurrentWindow, isDead, getActiveHolidays } from '@/lib/session';
 
 /* ── helpers ── */
 function pad(n: number) { return String(n).padStart(2, '0'); }
@@ -43,14 +43,15 @@ export default function SessionContext() {
   }, []);
 
   // ── Session ──────────────────────────────────────────────────
-  const { current, dead, next, endsInMs, nextInMs } = useMemo(() => {
+  const { current, dead, next, endsInMs, nextInMs, holidays } = useMemo(() => {
     const now     = new Date(nowMs);
     const current = getCurrentWindow(now);
     const dead    = isDead(now);
     const next    = findNextSession(nowMs);
     const endsInMs = current ? findSessionEndMs(nowMs, current.name) : 0;
     const nextInMs = next?.startsInMs ?? 0;
-    return { current, dead, next, endsInMs, nextInMs };
+    const holidays = getActiveHolidays(now);
+    return { current, dead, next, endsInMs, nextInMs, holidays };
   }, [nowMs]);
 
   const statusCol = current?.color ?? (dead ? '#f87171' : '#48484a');
@@ -138,6 +139,16 @@ export default function SessionContext() {
           </>
         )}
       </div>
+
+      {/* Row 1b — active market holidays (NY/London/Asia/China) */}
+      {holidays.length > 0 && (
+        <div className="sctx-session-row" style={{ marginTop: 2 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#fbbf24' }}>Holiday</span>
+          <span className="sctx-note">
+            {holidays.map(h => `${h.region} closed — ${h.name}`).join(' · ')}
+          </span>
+        </div>
+      )}
 
       {/* Divider */}
       <div className="sctx-divider" />
