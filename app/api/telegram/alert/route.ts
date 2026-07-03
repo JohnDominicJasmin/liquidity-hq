@@ -7,6 +7,7 @@ import { T } from '@/lib/tables';
 import { recordFires } from '@/lib/alertHistory';
 import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS } from '@/lib/coins';
 import { getWaveTrendConfirmation } from '@/lib/waveTrend';
+import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +22,7 @@ const GROK_CONCURRENCY = 3;
 function inferSignalType(prompt: string): string {
   if (prompt.includes('Multiple signals fired')) return 'confluence';
   if (prompt.includes('EMA Ribbon Strategy setup')) return 'ema_setup';
+  if (prompt.includes('Distribution detected')) return 'distribution';
   if (prompt.includes('200-period EMA')) return 'ema_cross';
   if (prompt.includes('Morning briefing')) return 'daily_summary';
   if (prompt.includes('sentiment indicators')) return 'sentiment_extremes';
@@ -123,6 +125,7 @@ const CD: Record<string, number> = {
   ema_setup_1h:  2 * 3600_000,   // EMA ribbon strategy (1H) — faster TF, shorter cooldown
   ema_setup_30m: 60 * 60_000,    // EMA ribbon strategy (30M)
   ema_setup_15m: 30 * 60_000,    // EMA ribbon strategy (15M) — fastest TF, shortest cooldown
+  distribution:  4 * 3600_000,   // Distribution — big players taking profit into strength
 };
 
 /* ── Concurrency limiter — runs tasks in chunks to avoid ETIMEDOUT under Render free tier ── */
@@ -1135,6 +1138,137 @@ async function checkSqueezeAlerts(
 }
 
 /* ════════════════════════════════════════
+   12b. DISTRIBUTION — BIG PLAYERS TAKING PROFIT
+   Server-side twin of the Dashboard's Distribution Tracker. Scoring lives in
+   lib/distribution.ts (shared with the client) — this function only derives
+   the inputs from Binance futures data: 1h klines carry taker-buy volume
+   (field 9) for the sell-flow + CVD proxy, openInterestHist gives the OI
+   trend, topLongShortPositionRatio gives whale positioning, funding from
+   frMap. Fires at score ≥ 70 with a 4h per-coin cooldown. Muted coins are
+   skipped before fetching.
+   ════════════════════════════════════════ */
+
+async function checkDistribution(
+  stamp: string,
+  frMap: Record<string, number | null>,
+  queue: SignalEntry[],
+  muted: Set<string>,
+): Promise<string[]> {
+  const fired: string[] = [];
+
+  const tasks = COINS
+    .filter(coin => !muted.has(`coin:${coin}`) && BINANCE_PERP[coin])
+    .map(coin => async () => {
+      try {
+        const sym = BINANCE_PERP[coin];
+        const [kRes, oiRes, topRes] = await Promise.allSettled([
+          fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1h&limit=26`,
+            { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
+          fetch(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${sym}&period=1h&limit=25`,
+            { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
+          fetch(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${sym}&period=1h&limit=1`,
+            { cache: 'no-store', signal: AbortSignal.timeout(8_000) }),
+        ]);
+        if (kRes.status !== 'fulfilled' || !kRes.value.ok) return;
+        const kl = await kRes.value.json() as Array<unknown[]>;
+        if (kl.length < 26) return;
+
+        const closes = kl.map(k => parseFloat(k[4] as string));
+        const vols   = kl.map(k => parseFloat(k[5] as string));
+        const tbVols = kl.map(k => parseFloat(k[9] as string)); // taker buy base volume
+        const price  = closes[closes.length - 1];
+        const base24 = closes[closes.length - 25];
+        if (!(base24 > 0)) return;
+        const change24hPct = (price - base24) / base24 * 100;
+
+        // Taker ratio over the last ~5h
+        const v5  = vols.slice(-5).reduce((a, b) => a + b, 0);
+        const tb5 = tbVols.slice(-5).reduce((a, b) => a + b, 0);
+        const takerBuyRatio = v5 > 0 ? tb5 / v5 : null;
+
+        // CVD proxy over the last 12h: delta = taker buys − taker sells.
+        // Bearish divergence = price up over the window while net delta is selling.
+        const v12  = vols.slice(-12).reduce((a, b) => a + b, 0);
+        const tb12 = tbVols.slice(-12).reduce((a, b) => a + b, 0);
+        const base12 = closes[closes.length - 13];
+        const px12Pct = base12 > 0 ? (price - base12) / base12 * 100 : 0;
+        const cvdDivergence: 'bearish' | null = (px12Pct >= 1 && (2 * tb12 - v12) < 0) ? 'bearish' : null;
+
+        // OI trend vs price — same semantics as the client store's oiTrend
+        let oiTrend: DistributionInputs['oiTrend'] = null;
+        if (oiRes.status === 'fulfilled' && oiRes.value.ok) {
+          const oi = await oiRes.value.json() as Array<{ sumOpenInterest: string }>;
+          if (oi.length >= 20) {
+            const oiStart = parseFloat(oi[0].sumOpenInterest);
+            const oiEnd   = parseFloat(oi[oi.length - 1].sumOpenInterest);
+            if (oiStart > 0) {
+              const oiChg = (oiEnd - oiStart) / oiStart * 100;
+              const pxUp = change24hPct >= 0.5, pxDn = change24hPct <= -0.5;
+              oiTrend = oiChg >= 2  ? (pxUp ? 'strong_up' : pxDn ? 'strong_down' : null)
+                      : oiChg <= -2 ? (pxUp ? 'weak_up'   : pxDn ? 'weak_down'   : null)
+                      : null;
+            }
+          }
+        }
+
+        // Top-trader dollar-weighted long share
+        let whaleLongRatio: number | null = null;
+        if (topRes.status === 'fulfilled' && topRes.value.ok) {
+          const top = await topRes.value.json() as Array<{ longAccount: string }>;
+          const v = parseFloat(top[0]?.longAccount ?? '');
+          if (isFinite(v)) whaleLongRatio = v;
+        }
+
+        const avg20 = vols.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;
+        const fr = frMap[coin];
+
+        const res = computeDistributionScore({
+          change24hPct,
+          cvdDivergence,
+          takerBuyRatio,
+          oiTrend,
+          whaleLongRatio,
+          fundingRatePct: fr != null ? fr * 100 : null,
+          volRatio: avg20 > 0 ? vols[vols.length - 1] / avg20 : null,
+          priceBelowVwap: null, // not derived server-side
+        });
+        if (!res || res.score < 70) return;
+
+        const key = `distribution_${coin}`;
+        if (onCooldown(key, CD.distribution)) return;
+
+        const label = LABELS[coin];
+        const fmtP  = (n: number) => n >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : n.toFixed(4);
+
+        const grokTake = await grokAnalyze(
+          `Elite crypto trader. Distribution detected on ${label}/USDT — score ${res.score}/100. ` +
+          `Price $${fmtP(price)} is +${change24hPct.toFixed(1)}% in 24h but flow says big players are taking profit into strength: ${res.reasons.join(', ')}. ` +
+          `In 2-3 sentences: is this a local top forming or healthy rotation? What confirms the exit (levels, flow)? Direct, no hedging. ` +
+          `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
+        );
+
+        queue.push({
+          coin, dir: 'short', name: `${label} distribution (${res.score}/100)`,
+          title: `Distribution Detected — Score ${res.score}/100`,
+          body:
+            `💰 <b>DISTRIBUTION DETECTED — ${label}/USDT</b>\n` +
+            `Score: <b>${res.score}/100</b>\n\n` +
+            `Price still up <b>+${change24hPct.toFixed(1)}%</b> in 24h, but big players look to be taking profits into strength:\n` +
+            res.reasons.map(r => `• ${r}`).join('\n') + '\n\n' +
+            `Caution on new longs — watch for lower highs and loss of VWAP.` +
+            `${fmtGrok(grokTake)}\n\n` +
+            `<i>${stamp}</i>`,
+        });
+        markSent(key);
+        fired.push(`${label} distribution detected (${res.score}/100)`);
+      } catch { /* skip */ }
+    });
+
+  await runBatched(tasks, 5);
+  return fired;
+}
+
+/* ════════════════════════════════════════
    13. EMA RIBBON STRATEGY SETUP
    Fires when all core conditions pass: daily 200 EMA trend gate (LONG only
    above / SHORT only below — same rule as the Arena strategy card) + ribbon
@@ -1371,6 +1505,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     skip('price_alerts')       ? none : checkPriceAlerts(token, stamp, prices, allChatIds),
     skip('sentiment_extremes') ? none : checkSentimentExtremes(token, chatId, stamp, frMap), // global — sends directly
     skip('squeeze')            ? none : checkSqueezeAlerts(stamp, frMap, lsMap, signalQueue),
+    skip('distribution')       ? none : checkDistribution(stamp, frMap, signalQueue, muted),
     skip('ema_setup')          ? none : checkEMASetup(stamp, frMap, signalQueue, muted, '4h'),
     skip('ema_setup_1h')       ? none : checkEMASetup(stamp, frMap, signalQueue, muted, '1h'),
     skip('ema_setup_30m')      ? none : checkEMASetup(stamp, frMap, signalQueue, muted, '30m'),
@@ -1395,7 +1530,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   return NextResponse.json({
     ok: true, fired,
     muted: [...muted],
-    checked: ['RSI', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'EMA Ribbon Setup (4H)', 'EMA Ribbon Setup (1H)', 'EMA Ribbon Setup (30M)', 'EMA Ribbon Setup (15M)'],
+    checked: ['RSI', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'Distribution', 'EMA Ribbon Setup (4H)', 'EMA Ribbon Setup (1H)', 'EMA Ribbon Setup (30M)', 'EMA Ribbon Setup (15M)'],
     coins: COINS.length,
     session: nyActive ? 'NY/Pre-NY (high activity)' : 'Asia/London',
     cooldowns: { whale: `${CD.whale / 60_000}min`, news: `${CD.news / 60_000}min` },

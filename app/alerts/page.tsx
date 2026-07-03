@@ -241,6 +241,7 @@ export default function AlertsPage() {
       { key: 'oi_spike', dot: '#fbbf24', title: 'Open Interest Spike ±15% / 1h', desc: 'New money entering — big move building · 2h cooldown', grok: true },
       { key: 'cvd',      dot: '#34d399', title: 'CVD Divergence',      desc: 'Bullish: price down but buyers absorbing · Bearish: price up but sellers dominate · 1h cooldown', grok: false },
       { key: 'squeeze',  dot: '#f43f5e', title: 'Squeeze / Flush ≥ 70', desc: 'Crowd positioning extreme — squeeze score threshold hit · 4h cooldown', grok: true },
+      { key: 'distribution', dot: '#f97316', title: 'Distribution — Big Players Taking Profit', desc: 'Coin still up on the day but sellers hit into strength, open interest unwinds, whales lean out, retail keeps paying funding · fires at score ≥ 70 · 4h cooldown', grok: true },
     ]},
     { section: 'News & Sentiment', items: [
       { key: 'news',               dot: '#f87171', title: 'Breaking News',         desc: 'Geopolitical / macro Finnhub headlines · 15min cooldown', grok: true },

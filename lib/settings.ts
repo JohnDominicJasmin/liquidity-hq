@@ -61,6 +61,7 @@ export const DASHBOARD_SECTIONS: { id: string; label: string }[] = [
   { id: 'cascade',      label: 'Cascade Alert'       },
   { id: 'coin_signals', label: 'Coin Signals'        },
   { id: 'accumulation', label: 'Accumulation Tracker' },
+  { id: 'distribution', label: 'Distribution Tracker' },
   { id: 'session',      label: 'Session Context'     },
   { id: 'catalysts',    label: 'Catalysts & Events'  },
   { id: 'gex',          label: 'GEX (mobile)'        },

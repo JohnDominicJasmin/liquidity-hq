@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useMarket, classifyFunding, CoinId, COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
+import { useMarket, classifyFunding, CoinId, CoinData, COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
 import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
@@ -20,9 +20,24 @@ import StopLossZone from '@/components/StopLossZone';
 import Tip from '@/components/Tip';
 import LiqHeatmap from '@/components/LiqHeatmap';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, ANTICHOP_DISABLED_PARAMS } from '@/lib/useEMAStrategy';
+import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 
 /* ── Pattern detection — delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
+
+/* ── Distribution score inputs from live store data (shared scorer in lib/distribution.ts) ── */
+function distInputsFromCoin(d: CoinData): DistributionInputs {
+  return {
+    change24hPct:   d.change ?? null,
+    cvdDivergence:  d.cvdDivergence,
+    takerBuyRatio:  d.takerBuyRatio,
+    oiTrend:        d.oiTrend,
+    whaleLongRatio: d.bnWhaleLongRatio,
+    fundingRatePct: d.fundingRate != null ? d.fundingRate * 100 : null,
+    volRatio:       d.volRatio,
+    priceBelowVwap: d.vwap != null && d.price ? d.price < d.vwap : null,
+  };
+}
 
 /* ── Crypto coin icon — CDN with letter-avatar fallback ── */
 function CoinIcon({ coin, size = 22, color, bg }: { coin: CoinId; size?: number; color?: string; bg?: string }) {
@@ -772,6 +787,12 @@ export default function Arena() {
       pocLine, dxyLine, spxLine, goldLine,
       cbPremium, vwap, oiTrend, takerRatio, crossExchangeFunding,
       cascadeLine, whaleFlow,
+      distribution: (() => {
+        if (!coin?.price) return '—';
+        const res = computeDistributionScore(distInputsFromCoin(coin));
+        if (!res) return 'Not applicable — no 24h run-up (profit-taking needs prior strength)';
+        return `${res.score}/100 — ${res.label}${res.reasons.length ? ' · ' + res.reasons.join(', ') : ''}`;
+      })(),
       setupScan: (() => {
         const sq = computeSqueezeScore(coin);
         const oiChip  = coin?.oiTrend   ? { strong_up: 'Open Int ↑↑', weak_up: 'Open Int ↑', weak_down: 'Open Int ↓', strong_down: 'Open Int ↓↓' }[coin.oiTrend] ?? 'Open Int —' : 'Open Int —';
@@ -1040,6 +1061,23 @@ export default function Arena() {
               }}>
                 <span style={{ width: 5, height: 5, borderRadius: '50%', background: col, boxShadow: `0 0 5px ${col}` }} />
                 JPY {jpyUsd.toFixed(0)} · {label}
+              </span>
+            );
+          })()}
+          {(() => {
+            const d = store.coins[selectedCoin];
+            const res = d?.price ? computeDistributionScore(distInputsFromCoin(d)) : null;
+            if (!res || res.score < 45) return null;
+            const col = distributionColor(res.score);
+            return (
+              <span title={`Distribution score ${res.score}/100 — big players taking profit into strength: ${res.reasons.join(', ')}`} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+                color: col, background: col + '14', border: `0.5px solid ${col}44`,
+                letterSpacing: '.04em', cursor: 'default',
+              }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: col, boxShadow: `0 0 5px ${col}` }} />
+                Distribution {res.score}
               </span>
             );
           })()}

@@ -27,6 +27,7 @@ import CycleChart from '@/components/CycleChart';
 import GexTable from '@/components/GexTable';
 import MacroStrip from '@/components/MacroStrip';
 import AccumulationTracker from '@/components/AccumulationTracker';
+import DistributionTracker from '@/components/DistributionTracker';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import Sparkline24h from '@/components/Sparkline24h';
 
@@ -691,6 +692,9 @@ export default function Dashboard() {
 
         {/* 0.6 Accumulation Tracker — quiet coins being loaded before the move */}
         {!hide('accumulation') && <AccumulationTracker />}
+
+        {/* 0.7 Distribution Tracker — the mirror: big players taking profit into strength */}
+        {!hide('distribution') && <DistributionTracker />}
 
         {/* 1. Coin signals — first thing traders look at after selecting a coin (desktop only; mobile renders above) */}
         {!hide('coin_signals') && <div id="tour-coin-signals" className="desktop-only">

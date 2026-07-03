@@ -129,6 +129,8 @@ export interface GrokContext {
   crossExchangeFunding: string;
   /* Setup Scanner — squeeze risk score for selected coin */
   setupScan: string;
+  /* Distribution score — big players taking profit into strength */
+  distribution: string;
   /* OI 1h change from OI Spike Scanner */
   oi1hChange: string;
   /* Market Structure (4H BOS/CHoCH) */
@@ -210,6 +212,8 @@ export function buildPrompt(ctx: GrokContext): string {
     `Squeeze score:  ${ctx.squeezeScore}`,
     `Setup Scanner: ${ctx.setupScan}`,
     '(Setup Scanner score 0-100: measures how overcrowded longs or shorts are. High Long Liq Risk = too many longs, whales incentivised to dump. High Short Squeeze = too many shorts, whales incentivised to pump.)',
+    `Distribution score: ${ctx.distribution}`,
+    '(Distribution score 0-100: how strongly flow says big players are taking profit INTO strength — CVD sellers into strength, open interest unwinding out of a rally, top traders leaning out of longs, retail still paying positive funding. Only computed after a 24h run-up. ≥70 = active distribution: strong caution on new longs, favour trailing stops / partial exits. 45-69 = early signs.)',
     '',
     '=== OPTIONS MARKET (DERIBIT) ===',
     `BTC Put/Call Ratio:  ${ctx.pcRatio}`,
