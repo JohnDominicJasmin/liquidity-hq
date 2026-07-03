@@ -1136,8 +1136,9 @@ async function checkSqueezeAlerts(
 
 /* ════════════════════════════════════════
    13. EMA RIBBON STRATEGY SETUP
-   Fires when all 5 core conditions pass: 200 EMA filter + ribbon aligned +
-   value zone (price between 9 & 20 EMA) + funding OK + OI stable/rising
+   Fires when all core conditions pass: daily 200 EMA trend gate (LONG only
+   above / SHORT only below — same rule as the Arena strategy card) + ribbon
+   aligned + value zone (price between 9 & 20 EMA) + ribbon spread + funding OK.
    Checked across all coins — muted coins (via the Alert Coins toggle on
    /alerts) are skipped before fetching, so a user's coin selection there
    directly controls both scan cost and which coins this can fire for.
@@ -1213,7 +1214,7 @@ async function checkEMASetup(
       const ribbonBull = ema9 > ema20 && ema20 > ema50;
       const ribbonBear = ema50 > ema20 && ema20 > ema9;
 
-      const inVZoneLong  = ribbonBull && price <= ema9 && price >= ema20;
+      const inVZoneLong  = ribbonBull && above200D  && price <= ema9 && price >= ema20;
       const inVZoneShort = ribbonBear && !above200D && price >= ema9 && price <= ema20;
       const inValueZone  = inVZoneLong || inVZoneShort;
       if (!inValueZone) return;
