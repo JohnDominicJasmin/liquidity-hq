@@ -990,9 +990,6 @@ export default function Arena() {
     }
   }, [selectedCoin, readTf, store, latestHeadlines, econEvents, fundingData, resultsCache]);
 
-  const ctx = gatherContext();
-  const sq = computeSqueezeScore(store.coins[selectedCoin]);
-
   /* ── Squeeze scanner data — sorted by 24h volume descending (BTC → ETH → ...) ── */
   const btcChange = store.coins['btc']?.change ?? null;
   const scannerRows = COINS
@@ -1886,8 +1883,4 @@ export default function Arena() {
       </div> {/* end arena-below-chart */}
     </div>
   );
-}
-
-function squeezeToLine(sq: { score: number; label: string; color: string }): string {
-  return sq.score + '/100';
 }

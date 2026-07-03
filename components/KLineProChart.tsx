@@ -376,14 +376,6 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             for (let i = period; i < n; i++) { e = closes[i] * k + e * (1 - k); out[i] = e; }
             return out;
           };
-          const smaArr = (period: number) => {
-            const out = new Array<number | null>(n).fill(null);
-            for (let i = period - 1; i < n; i++) {
-              out[i] = closes.slice(i - period + 1, i + 1).reduce((a: number, b: number) => a + b, 0) / period;
-            }
-            return out;
-          };
-
           const e9 = emaArr(9), e20 = emaArr(20), e50 = emaArr(50), s200 = emaArr(200);
           return dataList.map((_: unknown, i: number) => ({ e9: e9[i], e20: e20[i], e50: e50[i], s200: s200[i] }));
         },
