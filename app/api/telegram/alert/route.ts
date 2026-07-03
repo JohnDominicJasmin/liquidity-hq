@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { classifyNews } from '@/lib/classify';
-import { getSupabase } from '@/lib/supabase';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { detectPatterns } from '@/lib/patterns';
 import { T } from '@/lib/tables';
@@ -1417,13 +1416,17 @@ async function checkEMASetup(
 /* ════════════════════════════════════════
    MAIN HANDLER
    ════════════════════════════════════════ */
-/* Muted alert groups — set on /alerts page, stored in Supabase. Fail-open. */
+/* Muted alert groups — set on /alerts page, stored in Supabase. Fail-open.
+   Uses the admin client: lhq_muted_alerts has RLS enabled with no policies
+   (no per-user ownership to write one against), so the anon key silently
+   sees zero rows here — which, combined with fail-open, meant mutes were
+   never actually being respected. See app/api/alert-prefs/route.ts for the
+   write side of this same bug. */
 async function fetchMutedKeys(): Promise<Set<string>> {
   const fallback = new Set<string>();
   const query = (async () => {
     try {
-      const db = getSupabase();
-      if (!db) return fallback;
+      const db = getSupabaseAdmin();
       const { data, error } = await db.from(T.muted_alerts).select('key');
       if (error || !data) return fallback;
       return new Set(data.map(r => String(r.key)));
