@@ -208,7 +208,9 @@ export default function AlertsPage() {
   const ALERT_GROUPS: { section: string; items: { key: string; dot: string; title: string; desc: string; grok: boolean }[] }[] = [
     { section: 'Trading Signals', items: [
       { key: 'ema_setup', dot: '#4ade80', title: 'Entry Signal — EMA Ribbon Setup (4H)', desc: 'Potential LONG or SHORT entry: price pulls into the EMA 9–20 value zone with trend, ribbon spread, and funding aligned · includes stop loss and take profit levels · 6h cooldown', grok: true },
-      { key: 'ema_setup_1h', dot: '#4ade80', title: 'Entry Signal — EMA Ribbon Setup (1H)', desc: 'Same EMA ribbon value-zone setup, checked on the 1H chart for faster-moving entries · includes stop loss and take profit levels · 2h cooldown', grok: true },
+      { key: 'ema_setup_1h', dot: '#4ade80', title: 'Entry Signal — EMA Ribbon Setup (1H)', desc: 'Same EMA ribbon value-zone setup, checked on the 1H chart · includes stop loss and take profit levels · 2h cooldown', grok: true },
+      { key: 'ema_setup_30m', dot: '#4ade80', title: 'Entry Signal — EMA Ribbon Setup (30M)', desc: 'Same EMA ribbon value-zone setup, checked on the 30M chart for faster-moving entries · includes stop loss and take profit levels · 1h cooldown', grok: true },
+      { key: 'ema_setup_15m', dot: '#4ade80', title: 'Entry Signal — EMA Ribbon Setup (15M)', desc: 'Same EMA ribbon value-zone setup, checked on the 15M chart for the fastest entries · includes stop loss and take profit levels · 30min cooldown', grok: true },
     ]},
     { section: 'Momentum', items: [
       { key: 'rsi',        dot: '#fbbf24', title: 'RSI (1H)', desc: '> 78 overbought · < 22 oversold · 4h cooldown', grok: false },
@@ -642,7 +644,7 @@ export default function AlertsPage() {
             Alert Coins — {COINS.filter(c => !muted.has(`coin:${c}`)).length}/{COINS.length} on
           </div>
           <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 8 }}>
-            Tap a coin to stop all alerts for it. Your saved price alerts are not affected.
+            Tap a coin to stop all alerts for it, including which coins the EMA Ribbon Setup entry signals scan. Your saved price alerts are not affected.
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {COINS.map(c => {

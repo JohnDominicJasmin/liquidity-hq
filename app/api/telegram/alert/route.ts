@@ -119,8 +119,10 @@ const CD: Record<string, number> = {
   daily:     23 * 3600_000,   // Daily 7am summary
   sentiment:  4 * 3600_000,   // Sentiment Extremes — all 3 indicators aligned
   squeeze:      4 * 3600_000,   // Squeeze/Flush threshold alert per coin per direction
-  ema_setup:    6 * 3600_000,   // EMA ribbon strategy (4H) — all conditions green
-  ema_setup_1h: 2 * 3600_000,   // EMA ribbon strategy (1H) — faster TF, shorter cooldown
+  ema_setup:     6 * 3600_000,   // EMA ribbon strategy (4H) — all conditions green
+  ema_setup_1h:  2 * 3600_000,   // EMA ribbon strategy (1H) — faster TF, shorter cooldown
+  ema_setup_30m: 60 * 60_000,    // EMA ribbon strategy (30M)
+  ema_setup_15m: 30 * 60_000,    // EMA ribbon strategy (15M) — fastest TF, shortest cooldown
 };
 
 /* ── Concurrency limiter — runs tasks in chunks to avoid ETIMEDOUT under Render free tier ── */
@@ -1136,10 +1138,10 @@ async function checkSqueezeAlerts(
    13. EMA RIBBON STRATEGY SETUP
    Fires when all 5 core conditions pass: 200 EMA filter + ribbon aligned +
    value zone (price between 9 & 20 EMA) + funding OK + OI stable/rising
-   Checked on top 6 coins only to stay within Render timeout budget.
+   Checked across all coins — muted coins (via the Alert Coins toggle on
+   /alerts) are skipped before fetching, so a user's coin selection there
+   directly controls both scan cost and which coins this can fire for.
    ════════════════════════════════════════ */
-
-const EMA_SETUP_COINS = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'near', 'sui', 'doge', 'avax', 'link', 'ada', 'arb'] as const;
 
 function calcEMALocal(closes: number[], period: number): number {
   if (closes.length < period) return closes[closes.length - 1] ?? 0;
@@ -1149,22 +1151,27 @@ function calcEMALocal(closes: number[], period: number): number {
   return e;
 }
 
-type EMASetupTF = '1h' | '4h';
-const EMA_SETUP_TF_CONFIG: Record<EMASetupTF, { binanceInterval: string; label: string; cooldownKey: 'ema_setup' | 'ema_setup_1h' }> = {
-  '4h': { binanceInterval: '4h', label: '4H', cooldownKey: 'ema_setup' },
-  '1h': { binanceInterval: '1h', label: '1H', cooldownKey: 'ema_setup_1h' },
+type EMASetupTF = '15m' | '30m' | '1h' | '4h';
+type EMASetupCooldownKey = 'ema_setup_15m' | 'ema_setup_30m' | 'ema_setup_1h' | 'ema_setup';
+const EMA_SETUP_TF_CONFIG: Record<EMASetupTF, { binanceInterval: string; label: string; cooldownKey: EMASetupCooldownKey }> = {
+  '15m': { binanceInterval: '15m', label: '15M', cooldownKey: 'ema_setup_15m' },
+  '30m': { binanceInterval: '30m', label: '30M', cooldownKey: 'ema_setup_30m' },
+  '1h':  { binanceInterval: '1h',  label: '1H',  cooldownKey: 'ema_setup_1h' },
+  '4h':  { binanceInterval: '4h',  label: '4H',  cooldownKey: 'ema_setup' },
 };
 
 async function checkEMASetup(
   stamp: string,
   frMap: Record<string, number | null>,
   queue: SignalEntry[],
+  muted: Set<string>,
   tf: EMASetupTF = '4h',
 ): Promise<string[]> {
   const { binanceInterval, label: tfLabel, cooldownKey } = EMA_SETUP_TF_CONFIG[tf];
   const fired: string[] = [];
 
-  await Promise.all(EMA_SETUP_COINS.map(async coin => {
+  await Promise.all(COINS.map(async coin => {
+    if (muted.has(`coin:${coin}`)) return;
     const sym = BINANCE_PERP[coin];
     if (!sym) return;
     try {
@@ -1363,8 +1370,10 @@ async function runAlerts(token: string): Promise<NextResponse> {
     skip('price_alerts')       ? none : checkPriceAlerts(token, stamp, prices, allChatIds),
     skip('sentiment_extremes') ? none : checkSentimentExtremes(token, chatId, stamp, frMap), // global — sends directly
     skip('squeeze')            ? none : checkSqueezeAlerts(stamp, frMap, lsMap, signalQueue),
-    skip('ema_setup')          ? none : checkEMASetup(stamp, frMap, signalQueue, '4h'),
-    skip('ema_setup_1h')       ? none : checkEMASetup(stamp, frMap, signalQueue, '1h'),
+    skip('ema_setup')          ? none : checkEMASetup(stamp, frMap, signalQueue, muted, '4h'),
+    skip('ema_setup_1h')       ? none : checkEMASetup(stamp, frMap, signalQueue, muted, '1h'),
+    skip('ema_setup_30m')      ? none : checkEMASetup(stamp, frMap, signalQueue, muted, '30m'),
+    skip('ema_setup_15m')      ? none : checkEMASetup(stamp, frMap, signalQueue, muted, '15m'),
   ]);
 
   // Per-coin + per-direction filters — set on /alerts page via muted keys
@@ -1385,7 +1394,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   return NextResponse.json({
     ok: true, fired,
     muted: [...muted],
-    checked: ['RSI', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'EMA Ribbon Setup (4H)', 'EMA Ribbon Setup (1H)'],
+    checked: ['RSI', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'EMA Ribbon Setup (4H)', 'EMA Ribbon Setup (1H)', 'EMA Ribbon Setup (30M)', 'EMA Ribbon Setup (15M)'],
     coins: COINS.length,
     session: nyActive ? 'NY/Pre-NY (high activity)' : 'Asia/London',
     cooldowns: { whale: `${CD.whale / 60_000}min`, news: `${CD.news / 60_000}min` },
