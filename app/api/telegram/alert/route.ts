@@ -1269,7 +1269,7 @@ async function checkDistribution(
 
 /* ════════════════════════════════════════
    13. EMA RIBBON STRATEGY SETUP
-   Fires when all core conditions pass: daily 200 EMA trend gate (LONG only
+   Fires when all core conditions pass: daily 200 SMA trend gate (LONG only
    above / SHORT only below — same rule as the Arena strategy card) + ribbon
    aligned + value zone (price between 9 & 20 EMA) + ribbon spread + funding OK.
    Checked across all coins — muted coins (via the Alert Coins toggle on
@@ -1283,6 +1283,12 @@ function calcEMALocal(closes: number[], period: number): number {
   let e = closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
   for (let i = period; i < closes.length; i++) e = closes[i] * k + e * (1 - k);
   return e;
+}
+
+function calcSMALocal(closes: number[], period: number): number {
+  if (closes.length < period) return closes[closes.length - 1] ?? 0;
+  const slice = closes.slice(-period);
+  return slice.reduce((a, b) => a + b, 0) / period;
 }
 
 type EMASetupTF = '15m' | '30m' | '1h' | '4h';
@@ -1337,13 +1343,13 @@ async function checkEMASetup(
       const ema9   = calcEMALocal(clTf, 9);
       const ema20  = calcEMALocal(clTf, 20);
       const ema50  = calcEMALocal(clTf, 50);
-      const ema200 = calcEMALocal(cl1d, 200);
+      const sma200 = calcSMALocal(cl1d, 200);
       const price  = clTf[clTf.length - 1];
       const priceD = cl1d[cl1d.length - 1];
       const fr     = frMap[coin];
 
       // Rule checks
-      const above200D  = priceD > ema200;
+      const above200D  = priceD > sma200;
       const ribbonBull = ema9 > ema20 && ema20 > ema50;
       const ribbonBear = ema50 > ema20 && ema20 > ema9;
 
@@ -1381,7 +1387,7 @@ async function checkEMASetup(
       const grokTake = await grokAnalyze(
         `Elite crypto trader. ${label}/USDT EMA Ribbon Strategy setup triggered on ${tfLabel} chart. ` +
         `Direction: ${dir}. Price $${fmtP(price)} pulled into the 9-20 EMA value zone. ` +
-        `EMA9: $${fmtP(ema9)}, EMA20: $${fmtP(ema20)}, EMA50: $${fmtP(ema50)}, Daily 200 EMA: $${fmtP(ema200)}. ` +
+        `EMA9: $${fmtP(ema9)}, EMA20: $${fmtP(ema20)}, EMA50: $${fmtP(ema50)}, Daily 200 SMA: $${fmtP(sma200)}. ` +
         `Funding: ${frPct}. ${wtLine} (confirming layer, not a blocking filter — weigh it but don't auto-reject on it). ` +
         `In 2-3 sentences: is this a high-conviction entry or wait for confirmation? ` +
         `What volume or OI confirmation would seal it? Direct, no hedging. ` +
@@ -1397,7 +1403,7 @@ async function checkEMASetup(
           `EMA9:  <b>$${fmtP(ema9)}</b> (trigger)\n` +
           `EMA20: <b>$${fmtP(ema20)}</b> (entry target)\n` +
           `EMA50: <b>$${fmtP(ema50)}</b> (stop baseline)\n` +
-          `EMA200 (1D): <b>$${fmtP(ema200)}</b>\n` +
+          `SMA200 (1D): <b>$${fmtP(sma200)}</b>\n` +
           `Funding: <b>${frPct}</b>\n` +
           `${wt.pass === true ? '✅' : wt.pass === false ? '⚪' : '—'} ${wtLine}\n\n` +
           `SL: $${fmtP(sl)} · TP: $${fmtP(tp)} (2:1)\n` +

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMarket, classifyFunding, CoinId, CoinData, COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
-import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
+import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { detectPatternsStr, Candle } from '@/lib/patterns';
 import { getSessionName } from '@/lib/session';
@@ -906,7 +906,7 @@ export default function Arena() {
       const closes  = candles.map(c => c.c);
       const vis     = candles.slice(-80);
       const ema9    = calcEMA(closes, 9).at(-1) ?? null;
-      const ema200  = calcEMA(closes, 200).at(-1) ?? null;
+      const sma200  = calcSMA(closes, 200).at(-1) ?? null;
       const rsi     = calcRSI(closes, 14).at(-1) ?? null;
       const lastC    = vis[vis.length - 1].c;
       const pDec     = lastC >= 10000 ? 0 : lastC >= 100 ? 2 : lastC >= 1 ? 3 : 4;
@@ -914,7 +914,7 @@ export default function Arena() {
       const recent20 = vis.slice(-15).map(c => `O:${c.o.toFixed(pDec)} H:${c.h.toFixed(pDec)} L:${c.l.toFixed(pDec)} C:${c.c.toFixed(pDec)} V:${c.v >= 1e6 ? (c.v/1e6).toFixed(2)+'M' : c.v >= 1e3 ? (c.v/1e3).toFixed(1)+'K' : c.v.toFixed(0)}`).join(' | ');
       const detectedPatterns = detectPatterns(vis);
       const chartData: ChartData = {
-        tf: readTf, ema9, ema200, rsi, recent20,
+        tf: readTf, ema9, sma200, rsi, recent20,
         hi: Math.max(...vis.map(c => c.h)),
         lo: Math.min(...vis.map(c => c.l)),
         lastClose: vis[vis.length - 1].c,

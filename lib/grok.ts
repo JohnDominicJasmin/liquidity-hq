@@ -170,7 +170,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '',
     '=== TECHNICALS (MULTI-TIMEFRAME) ===',
     `EMA Ribbon Strategy: ${ctx.emaStrategy}`,
-    '(VERDICT KEY — LONG_SETUP: bullish ribbon 9>20>50 + daily above 200 EMA + price pulled back to 20 EMA value zone = high-probability long entry. SHORT_SETUP: reverse = high-probability short entry. TRENDING_LONG/SHORT: ribbon aligned but price not yet in entry zone — directional bias, wait for pullback to value zone. FREEZE: ribbon is tangled (EMAs not stacked) or price broke through 50 EMA against trend = no clear bias, avoid new positions. SL = 0.5% beyond 50 EMA. TP = 2:1 R:R from entry.)',
+    '(VERDICT KEY — LONG_SETUP: bullish ribbon 9>20>50 + daily above 200 SMA + price pulled back to 20 EMA value zone = high-probability long entry. SHORT_SETUP: reverse = high-probability short entry. TRENDING_LONG/SHORT: ribbon aligned but price not yet in entry zone — directional bias, wait for pullback to value zone. FREEZE: ribbon is tangled (EMAs not stacked) or price broke through 50 EMA against trend = no clear bias, avoid new positions. SL = 0.5% beyond 50 EMA. TP = 2:1 R:R from entry.)',
     'EMA RIBBON DECISION WEIGHT — apply this BEFORE forming your final signal:',
     '  • LONG_SETUP → strong bullish structural signal. Add +20 to bullish case. If 2+ other bullish signals confirm, upgrade LEAN LONG → LONG.',
     '  • SHORT_SETUP → strong bearish structural signal. Add +20 to bearish case. If 2+ other bearish signals confirm, upgrade LEAN SHORT → SHORT.',
@@ -272,7 +272,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '',
     'BEARISH MOMENTUM REGIME — present if 3 or more of these are true:',
     `  • 24h change worse than −8% → ${ctx.change24h}`,
-    `  • Price below EMA9 AND EMA9 below EMA200 (check chart section below)`,
+    `  • Price below EMA9 AND EMA9 below SMA200 (check chart section below)`,
     `  • OI Trend is strong_down or weak_down → ${ctx.oiTrend}`,
     `  • Long/Short ratio > 1.8:1 → ${ctx.longShortRatio}`,
     `  • Taker sell > 55% → ${ctx.takerRatio}`,
@@ -290,7 +290,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '',
     'BULLISH MOMENTUM REGIME — present if 3 or more of these are true:',
     `  • 24h change better than +8% → ${ctx.change24h}`,
-    `  • Price above EMA9 AND EMA9 above EMA200`,
+    `  • Price above EMA9 AND EMA9 above SMA200`,
     `  • OI Trend is strong_up → ${ctx.oiTrend}`,
     `  • Long/Short ratio < 0.8:1 (crowded shorts = squeeze risk)`,
     `  • Taker buy > 55% → ${ctx.takerRatio}`,
@@ -348,8 +348,8 @@ export function buildPrompt(ctx: GrokContext): string {
     'STEP 2: Synthesize ALL data within that regime context. Do NOT let oscillators override the regime.',
     '',
     '1. TECHNICALS — REGIME-AWARE:',
-    '   • In BEARISH REGIME: RSI oversold = strong downside momentum. EMA9 < EMA200 = bearish structure. Do NOT use oversold RSI as a buy trigger.',
-    '   • In BULLISH REGIME: RSI overbought = strong upside momentum. EMA9 > EMA200 = bullish structure.',
+    '   • In BEARISH REGIME: RSI oversold = strong downside momentum. EMA9 < SMA200 = bearish structure. Do NOT use oversold RSI as a buy trigger.',
+    '   • In BULLISH REGIME: RSI overbought = strong upside momentum. EMA9 > SMA200 = bullish structure.',
     '   • Price vs MA20, EMA cross, volume confirmation still apply for timing entries.',
     '2. DERIVATIVES: Funding rate direction bias, OI trend vs price, long/short imbalance.',
     '   • Long/Short ratio > 1.8:1 during a DECLINE = crowded longs at flush risk = BEARISH signal, not bullish.',
@@ -412,6 +412,17 @@ export function calcEMA(closes: number[], period: number): (number | null)[] {
   return out;
 }
 
+export function calcSMA(closes: number[], period: number): (number | null)[] {
+  const n = closes.length;
+  const out: (number | null)[] = new Array(n).fill(null);
+  for (let i = period - 1; i < n; i++) {
+    let sum = 0;
+    for (let j = i - period + 1; j <= i; j++) sum += closes[j];
+    out[i] = sum / period;
+  }
+  return out;
+}
+
 export function calcRSI(closes: number[], period = 14): (number | null)[] {
   const n = closes.length;
   const out: (number | null)[] = new Array(n).fill(null);
@@ -438,7 +449,7 @@ export function calcRSI(closes: number[], period = 14): (number | null)[] {
 export interface ChartData {
   tf: string;
   ema9: number | null;
-  ema200: number | null;
+  sma200: number | null;
   rsi: number | null;
   recent20: string;
   hi: number;
@@ -480,10 +491,10 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     `Timeframe: ${chart.tf}  |  Last Close: $${chart.lastClose.toFixed(0)}`,
     `Range (visible 80 candles): High $${chart.hi.toFixed(0)} / Low $${chart.lo.toFixed(0)}`,
     `EMA 9:   ${chart.ema9   != null ? '$' + chart.ema9.toFixed(0)   : '—'}`,
-    `EMA 200: ${chart.ema200 != null ? '$' + chart.ema200.toFixed(0) : '—'}`,
+    `SMA 200: ${chart.sma200 != null ? '$' + chart.sma200.toFixed(0) : '—'}`,
     `RSI(14): ${chart.rsi    != null ? chart.rsi.toFixed(1) + (chart.rsi >= 70 ? ' (Overbought)' : chart.rsi <= 30 ? ' (Oversold)' : ' (Neutral)') : '—'}`,
-    `EMA cross: ${chart.ema9 != null && chart.ema200 != null ? (chart.ema9 > chart.ema200 ? 'EMA 9 ABOVE EMA 200 — bullish structure, prefer LONG setups' : 'EMA 9 BELOW EMA 200 — bearish structure, prefer SHORT setups but LONG still valid on 3+ exhaustion signals') : '—'}`,
-    `Price vs EMA200: ${chart.ema200 != null ? (chart.lastClose > chart.ema200 ? `ABOVE EMA200 ($${chart.ema200.toFixed(2)}) — bullish` : `BELOW EMA200 ($${chart.ema200.toFixed(2)}) — bearish, do not call LONG without reversal catalyst`) : '—'}`,
+    `EMA/SMA cross: ${chart.ema9 != null && chart.sma200 != null ? (chart.ema9 > chart.sma200 ? 'EMA 9 ABOVE SMA 200 — bullish structure, prefer LONG setups' : 'EMA 9 BELOW SMA 200 — bearish structure, prefer SHORT setups but LONG still valid on 3+ exhaustion signals') : '—'}`,
+    `Price vs SMA200: ${chart.sma200 != null ? (chart.lastClose > chart.sma200 ? `ABOVE SMA200 ($${chart.sma200.toFixed(2)}) — bullish` : `BELOW SMA200 ($${chart.sma200.toFixed(2)}) — bearish, do not call LONG without reversal catalyst`) : '—'}`,
     `Last 20 candles (OHLC): ${chart.recent20}`,
     chart.detectedPatterns ? `Pre-detected basic patterns: ${chart.detectedPatterns}` : '',
     '',
