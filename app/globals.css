@@ -3599,6 +3599,25 @@ body.landing {
 .lp-final-cta h2 { font-size: clamp(28px, 4vw, 40px); font-weight: 800; letter-spacing: -.03em; margin: 0; }
 .lp-final-cta p  { font-size: 16px; color: var(--txt2); margin: 0; }
 
+/* ── PLATFORM FOOTER — disclaimer bar on every authenticated app page ──── */
+.pf-footer {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  flex-wrap: wrap; text-align: center;
+  padding: 14px 20px 22px;
+  border-top: 0.5px solid var(--bdr);
+  margin-top: 24px;
+}
+.pf-footer-text {
+  font-size: 11px; line-height: 1.5; color: var(--txt3);
+  max-width: 640px;
+}
+.pf-footer-link {
+  font-size: 11px; font-weight: 700; letter-spacing: .02em;
+  color: var(--accent-2); text-decoration: none; white-space: nowrap;
+  border-bottom: 0.5px solid transparent; transition: border-color .15s;
+}
+.pf-footer-link:hover { border-bottom-color: var(--accent-2); }
+
 /* ── LP FOOTER ───────────────────────────────────────────────────────── */
 .lp-footer       { border-top: 0.5px solid var(--bdr); padding: 48px 24px 24px; }
 .lp-footer-grid  {

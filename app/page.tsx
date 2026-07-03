@@ -264,10 +264,14 @@ export default function LandingPage() {
             <Link href="/login?signup=1">Create Account</Link>
             <Link href="/upgrade">Pricing</Link>
             <Link href="/about">About</Link>
+            <Link href="/disclaimer">Disclaimer</Link>
           </div>
         </div>
         <div className="lp-footer-bottom">
-          <span className="lp-footer-copy">© 2026 LiquidityHQ.ai · For educational purposes only · Not financial advice</span>
+          <span className="lp-footer-copy">
+            © 2026 LiquidityHQ.ai · Educational content only, not financial advice ·{' '}
+            <Link href="/disclaimer" style={{ color: 'var(--txt3)', textDecoration: 'underline' }}>Full disclaimer</Link>
+          </span>
         </div>
       </footer>
 

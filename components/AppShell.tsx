@@ -12,6 +12,7 @@ import OnboardingProvider from './OnboardingProvider';
 import OnboardingTour from './OnboardingTour';
 import SetupChecklist from './SetupChecklist';
 import GrokUsageProvider from './GrokUsageProvider';
+import PlatformFooter from './PlatformFooter';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -35,6 +36,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   <NavDrawer />
                   <NewsTicker />
                   <div className="app-content">{children}</div>
+                  <PlatformFooter />
                   <GrokChat />
                   <OnboardingTour />
                   <SetupChecklist />
