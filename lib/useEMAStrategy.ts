@@ -118,25 +118,32 @@ export function useEMAStrategy(
   const [sig, setSig] = useState<StrategySignal>(STRATEGY_LOADING);
   const mountedRef    = useRef(true);
 
-  useEffect(() => {
-    mountedRef.current = true;
-    setSig(STRATEGY_LOADING);
+  // Live inputs read at compute time. Funding/OI tick frequently and the anti-chop
+  // toggle swaps filter params — none of those need new candles, so they must not be
+  // fetch-effect dependencies (that caused a full candle refetch + LOADING flash on
+  // every funding update). They live in refs; a recompute-from-cache effect below
+  // re-derives the signal when they change.
+  const frRef      = useRef(fundingRate);
+  const oiRef      = useRef(oiPct);
+  const paramsRef  = useRef(filterParams);
+  frRef.current     = fundingRate;
+  oiRef.current     = oiPct;
+  paramsRef.current = filterParams;
 
-    const bnInterval = TF_BN[tf] ?? '4h';
-    const byInterval = TF_BY[tf] ?? '240';
+  const candlesRef = useRef<{ coin: CoinId; tf: string; cRibbon: OHLCV[]; c1d: OHLCV[] } | null>(null);
 
-    const load = async () => {
-      try {
-        const [cRibbon, c1d] = await Promise.all([
-          fetchOHLCV(coin, bnInterval, byInterval, 500),
-          fetchOHLCV(coin, '1d', 'D', 220),
-        ]);
-        if (!mountedRef.current) return;
-        if (cRibbon.length < 55 || c1d.length < 205) {
-          setSig({ ...STRATEGY_LOADING, loading: false, error: 'Not enough candle data', signalTimestamp: null, signalAnchorPrice: null, signalDir: null });
-          return;
-        }
-
+  // Full signal computation from cached candles. Reassigned every render so it always
+  // closes over the current coin/tf; the cache guard rejects stale candle sets.
+  const computeRef = useRef<() => void>(() => {});
+  computeRef.current = () => {
+    const cached = candlesRef.current;
+    if (!cached || cached.coin !== coin || cached.tf !== tf) return;
+    const { cRibbon, c1d } = cached;
+    const fundingRate  = frRef.current;
+    const oiPct        = oiRef.current;
+    const filterParams = paramsRef.current;
+    const { spreadMinPct, atrMult } = filterParams;
+    try {
         const cl4  = cRibbon.map(c => c.close);
         const vol4 = cRibbon.map(c => c.volume);
         const cl1d = c1d.map(c => c.close);
@@ -399,6 +406,35 @@ export function useEMAStrategy(
           signalLongs, signalShorts,
           atrLast, ema50Slope,
         });
+    } catch (err) {
+      if (!mountedRef.current) return;
+      setSig({ ...STRATEGY_LOADING, loading: false, error: String(err) });
+    }
+  };
+
+  /* Fetch candles when coin/tf change (and every 5 min) — the only path that hits
+     the network or shows the LOADING state. */
+  useEffect(() => {
+    mountedRef.current = true;
+    setSig(STRATEGY_LOADING);
+    candlesRef.current = null;
+
+    const bnInterval = TF_BN[tf] ?? '4h';
+    const byInterval = TF_BY[tf] ?? '240';
+
+    const load = async () => {
+      try {
+        const [cRibbon, c1d] = await Promise.all([
+          fetchOHLCV(coin, bnInterval, byInterval, 500),
+          fetchOHLCV(coin, '1d', 'D', 220),
+        ]);
+        if (!mountedRef.current) return;
+        if (cRibbon.length < 55 || c1d.length < 205) {
+          setSig({ ...STRATEGY_LOADING, loading: false, error: 'Not enough candle data', signalTimestamp: null, signalAnchorPrice: null, signalDir: null });
+          return;
+        }
+        candlesRef.current = { coin, tf, cRibbon, c1d };
+        computeRef.current();
       } catch (err) {
         if (!mountedRef.current) return;
         setSig({ ...STRATEGY_LOADING, loading: false, error: String(err) });
@@ -411,7 +447,13 @@ export function useEMAStrategy(
       mountedRef.current = false;
       clearInterval(iv);
     };
-  }, [coin, tf, fundingRate, oiPct, spreadMinPct, atrMult, persistBoost]);
+  }, [coin, tf]);
+
+  /* Funding/OI ticks and anti-chop filter changes: re-derive conditions from the
+     cached candles — no refetch, no LOADING flash, chart markers stay put. */
+  useEffect(() => {
+    computeRef.current();
+  }, [fundingRate, oiPct, spreadMinPct, atrMult, persistBoost]);
 
   return sig;
 }
