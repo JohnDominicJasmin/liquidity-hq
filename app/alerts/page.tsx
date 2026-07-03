@@ -13,8 +13,7 @@ interface PriceAlert { id: number; coin: string; target_price: number; direction
 const COIN_OPTIONS = COINS;
 const COIN_LABELS: Record<string, string> = Object.fromEntries(COINS.map(c => [c, c.toUpperCase()]));
 
-const FREE_COIN_CAP = 3;
-const PRO_COIN_CAP  = 20;
+const ALERT_COIN_CAP = 20; // Alerts is a Pro-only feature — single cap, no free/pro split needed here
 
 export default function AlertsPage() {
   const { user, isPro } = useAuth();
@@ -108,14 +107,9 @@ export default function AlertsPage() {
     const key = `coin:${c}`;
     const isOff = muted.has(key);
     if (isOff) {
-      const cap = isPro ? PRO_COIN_CAP : FREE_COIN_CAP;
       const onCount = COINS.filter(x => !muted.has(`coin:${x}`)).length;
-      if (onCount >= cap) {
-        setCoinCapMsg(
-          isPro
-            ? `Pro tier limit reached (${cap}/${cap} coins).`
-            : `Free tier limit reached (${cap}/${cap} coins) — upgrade to Pro for up to ${PRO_COIN_CAP}.`
-        );
+      if (onCount >= ALERT_COIN_CAP) {
+        setCoinCapMsg(`Limit reached (${ALERT_COIN_CAP}/${ALERT_COIN_CAP} coins) — turn one off to add another.`);
         return;
       }
     }
@@ -664,15 +658,14 @@ export default function AlertsPage() {
         {/* ── Alert coin selection ── */}
         <div style={{ marginTop: 12, padding: '10px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 4 }}>
-            Alert Coins — {COINS.filter(c => !muted.has(`coin:${c}`)).length}/{isPro ? PRO_COIN_CAP : FREE_COIN_CAP} on ({isPro ? 'Pro' : 'Free'} tier)
+            Alert Coins — {COINS.filter(c => !muted.has(`coin:${c}`)).length}/{ALERT_COIN_CAP} on
           </div>
           <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 8 }}>
             Tap a coin to stop all alerts for it, including which coins the EMA Ribbon Setup entry signals scan. Your saved price alerts are not affected.
           </div>
           {coinCapMsg && (
-            <div style={{ fontSize: 11, color: '#f87171', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ fontSize: 11, color: '#f87171', marginBottom: 8 }}>
               {coinCapMsg}
-              {!isPro && <a href="/upgrade" style={{ color: 'var(--accent-2)', fontWeight: 700, textDecoration: 'none' }}>Upgrade →</a>}
             </div>
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
