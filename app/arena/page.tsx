@@ -21,6 +21,7 @@ import Tip from '@/components/Tip';
 import LiqHeatmap from '@/components/LiqHeatmap';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, ANTICHOP_DISABLED_PARAMS } from '@/lib/useEMAStrategy';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
+import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 
 /* ── Pattern detection — delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -1338,6 +1339,9 @@ export default function Arena() {
         )}
       </div>
 
+      {/* ── Market snapshot — VWAP / Open Interest / Funding for the selected coin ── */}
+      <CoinMarketSnapshot coin={selectedCoin} />
+
       {/* ── CHART — KLineChart with auto Entry/SL/TP overlays ── */}
       <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={setReadTf} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} />
 
@@ -1416,6 +1420,33 @@ export default function Arena() {
             : 'Raw EMA9/20 cross signals — no chop filtering'}
         </span>
       </div>
+
+      {/* ── Pullback warning — reuses the Distribution score for the selected coin.
+          "This pump is getting weaker" made explicit as text, not just a header chip. ── */}
+      {(() => {
+        const d = store.coins[selectedCoin];
+        const res = d?.price ? computeDistributionScore(distInputsFromCoin(d)) : null;
+        if (!res || res.score < 45) return null;
+        const col = distributionColor(res.score);
+        return (
+          <div style={{
+            marginBottom: 10, padding: '10px 12px', borderRadius: 10,
+            background: col + '0f', border: `0.5px solid ${col}44`,
+            display: 'flex', alignItems: 'flex-start', gap: 8,
+          }}>
+            <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>⚠</span>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: col, marginBottom: 2 }}>
+                {res.score >= 70 ? 'Potential pullback — pump is getting weaker' : 'Early weakness — watch for a pullback'}
+                <span style={{ fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>({res.score}/100)</span>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--txt2)', lineHeight: 1.4 }}>
+                {res.reasons.join(' · ')}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* EMA Ribbon Strategy card */}
       <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
