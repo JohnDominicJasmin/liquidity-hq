@@ -210,12 +210,8 @@ export default function AlertsPage() {
       { key: 'ema_setup', dot: '#4ade80', title: 'Entry Signal — EMA Ribbon Setup (4H)', desc: 'Potential LONG or SHORT entry: price pulls into the EMA 9–20 value zone with trend, ribbon spread, and funding aligned · includes stop loss and take profit levels · 6h cooldown', grok: true },
       { key: 'ema_setup_1h', dot: '#4ade80', title: 'Entry Signal — EMA Ribbon Setup (1H)', desc: 'Same EMA ribbon value-zone setup, checked on the 1H chart for faster-moving entries · includes stop loss and take profit levels · 2h cooldown', grok: true },
     ]},
-    { section: 'Funding', items: [
-      { key: 'fr_extremes', dot: '#f87171', title: 'FR Extremes',       desc: '≥ 0.05% longs overcrowded · ≤ −0.03% shorts crowded · 4h cooldown', grok: false },
-      { key: 'fr_flip',     dot: '#60a5fa', title: 'FR Direction Flip', desc: 'FR crosses zero (pos→neg or neg→pos) · fires on transition', grok: false },
-    ]},
     { section: 'Momentum', items: [
-      { key: 'rsi',        dot: '#fbbf24', title: 'RSI (1H)', desc: '> 78 overbought · < 22 oversold · 50-cross momentum shifts · 4–6h cooldowns', grok: false },
+      { key: 'rsi',        dot: '#fbbf24', title: 'RSI (1H)', desc: '> 78 overbought · < 22 oversold · 4h cooldown', grok: false },
       { key: 'rapid_move', dot: '#fb923c', title: 'Rapid Moves',     desc: '±5% 1H candle · ±10% 4H candle · flash ±4% in 5 min · 30min–4h cooldowns', grok: true },
     ]},
     { section: 'Trend', items: [
@@ -611,7 +607,7 @@ export default function AlertsPage() {
             Signal Direction
           </div>
           <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 8 }}>
-            Silence one side of directional signals (entry setups, RSI momentum shifts, 200 EMA crosses, squeeze/flush warnings).
+            Silence one side of directional signals (entry setups, 200 EMA crosses, squeeze/flush warnings).
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             {([['dir:long', 'Long signals', '#4ade80'], ['dir:short', 'Short signals', '#f87171']] as const).map(([key, label, col]) => {

@@ -103,14 +103,10 @@ const WHALE_THRESHOLD: Record<string, number> = {
 
 /* ── In-memory state ── */
 const lastSent   = new Map<string, number>();
-const frSignMap  = new Map<string, number>();               // FR flip detection
-const rsiLastMap = new Map<string, number>();               // RSI 50 cross detection
 const emaSideMap = new Map<string, 'above' | 'below'>();   // EMA 200 cross detection
 
 const CD: Record<string, number> = {
-  fr:         4 * 3600_000,
   rsi:        4 * 3600_000,
-  rsi50:      6 * 3600_000,
   ema:       12 * 3600_000,
   move5m:    30 * 60_000,
   move1h:     2 * 3600_000,
@@ -125,7 +121,6 @@ const CD: Record<string, number> = {
   squeeze:      4 * 3600_000,   // Squeeze/Flush threshold alert per coin per direction
   ema_setup:    6 * 3600_000,   // EMA ribbon strategy (4H) — all conditions green
   ema_setup_1h: 2 * 3600_000,   // EMA ribbon strategy (1H) — faster TF, shorter cooldown
-  fr_threshold: 2 * 3600_000,   // Per-user custom FR threshold alert
 };
 
 /* ── Concurrency limiter — runs tasks in chunks to avoid ETIMEDOUT under Render free tier ── */
@@ -271,68 +266,7 @@ async function fetchBybitKlines(symbol: string, interval: string, limit: number)
 }
 
 /* ════════════════════════════════════════
-   1. FR EXTREMES
-   ════════════════════════════════════════ */
-async function checkFRExtremes(stamp: string, frMap: Record<string, number | null>, queue: SignalEntry[]): Promise<string[]> {
-  const fired: string[] = [];
-  for (const coin of COINS) {
-    const fr = frMap[coin];
-    if (fr == null) continue;
-    const pct   = (fr * 100).toFixed(4);
-    const label = LABELS[coin];
-    if (fr >= 0.05 && !onCooldown(`fr_long_${coin}`, CD.fr)) {
-      queue.push({
-        coin, name: `${label} FR long extreme`,
-        title: `FR Extreme +${pct}% — Longs Overcrowded`,
-        body: `🔴 <b>${label} Funding Extreme — Longs Overcrowded</b>\n\nRate: <b>+${pct}%</b>\nSignal: Longs Overcrowded — Dump Risk\nAction: Consider fading longs or tightening stops.\n\n<i>${stamp}</i>`,
-      });
-      markSent(`fr_long_${coin}`); fired.push(`${label} FR long extreme`);
-    }
-    if (fr <= -0.03 && !onCooldown(`fr_short_${coin}`, CD.fr)) {
-      queue.push({
-        coin, name: `${label} FR short squeeze`,
-        title: `FR Extreme ${pct}% — Shorts Crowded`,
-        body: `🟢 <b>${label} Short Squeeze Setup</b>\n\nRate: <b>${pct}%</b>\nSignal: Shorts Crowded — Squeeze Setup\nAction: Watch for a violent squeeze. Long bias above key level.\n\n<i>${stamp}</i>`,
-      });
-      markSent(`fr_short_${coin}`); fired.push(`${label} FR short squeeze`);
-    }
-  }
-  return fired;
-}
-
-/* ════════════════════════════════════════
-   2. FR DIRECTION FLIP
-   ════════════════════════════════════════ */
-async function checkFRFlip(stamp: string, frMap: Record<string, number | null>, queue: SignalEntry[]): Promise<string[]> {
-  const fired: string[] = [];
-  for (const coin of COINS) {
-    const fr = frMap[coin];
-    if (fr == null) continue;
-    const sign     = fr > 0.001 ? 1 : fr < -0.001 ? -1 : 0;
-    const lastSign = frSignMap.get(coin);
-    if (sign !== 0) {
-      if (lastSign !== undefined && lastSign !== 0 && sign !== lastSign) {
-        const label     = LABELS[coin];
-        const pct       = (fr * 100).toFixed(4);
-        const flippedTo = sign > 0 ? 'Positive' : 'Negative';
-        const desc      = sign > 0
-          ? 'FR flipped positive — longs now paying shorts. Early bull bias forming, momentum shifting.'
-          : 'FR flipped negative — shorts now paying longs. Early squeeze setup, watch for short covering.';
-        queue.push({
-          coin, name: `${label} FR flip to ${flippedTo}`,
-          title: `FR Flipped ${flippedTo}`,
-          body: `🔄 <b>${label} FR Flipped ${flippedTo}</b>\n\nRate: <b>${sign > 0 ? '+' : ''}${pct}%</b>\n${desc}\n\n<i>${stamp}</i>`,
-        });
-        fired.push(`${label} FR flip to ${flippedTo}`);
-      }
-      frSignMap.set(coin, sign);
-    }
-  }
-  return fired;
-}
-
-/* ════════════════════════════════════════
-   3. RSI (extremes + 50 cross)
+   3. RSI (extremes)
    ════════════════════════════════════════ */
 function computeRSI(closes: number[], period = 14): number {
   if (closes.length < period + 2) return 50;
@@ -390,27 +324,6 @@ async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> 
           body: `⚡ <b>${label} RSI Oversold (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Oversold — Bounce Setup\nAction: Watch for bounce from key support. Long bias on confirmation.\n\n<i>${stamp}</i>`,
         });
         markSent(`rsi_os_${coin}`); fired.push(`${label} RSI oversold (${r})`);
-      }
-      // RSI 50 centerline cross — momentum shift
-      const prevRsi = rsiLastMap.get(coin);
-      rsiLastMap.set(coin, rsi);
-      if (prevRsi !== undefined) {
-        if (prevRsi < 50 && rsi >= 50 && !onCooldown(`rsi50_bull_${coin}`, CD.rsi50)) {
-          queue.push({
-            coin, dir: 'long', name: `${label} RSI 50 cross ↑`,
-            title: `RSI 50 Cross ↑ — Bullish (1H)`,
-            body: `📊 <b>${label} RSI Crossed 50 — Bullish (1H)</b>\n\nRSI: <b>${r}</b> (prev ${prevRsi.toFixed(1)})\nSignal: Momentum shifted bullish — potential long setup\nAction: Confirm with break above nearest resistance.\n\n<i>${stamp}</i>`,
-          });
-          markSent(`rsi50_bull_${coin}`); fired.push(`${label} RSI 50 cross ↑`);
-        }
-        if (prevRsi > 50 && rsi < 50 && !onCooldown(`rsi50_bear_${coin}`, CD.rsi50)) {
-          queue.push({
-            coin, dir: 'short', name: `${label} RSI 50 cross ↓`,
-            title: `RSI 50 Cross ↓ — Bearish (1H)`,
-            body: `📊 <b>${label} RSI Crossed 50 — Bearish (1H)</b>\n\nRSI: <b>${r}</b> (prev ${prevRsi.toFixed(1)})\nSignal: Momentum turned bearish — potential short setup\nAction: Confirm with breakdown below nearest support.\n\n<i>${stamp}</i>`,
-          });
-          markSent(`rsi50_bear_${coin}`); fired.push(`${label} RSI 50 cross ↓`);
-        }
       }
     } catch { /* skip */ }
   }), 6);
@@ -1360,68 +1273,6 @@ async function checkEMASetup(
 }
 
 /* ════════════════════════════════════════
-   18. PER-USER CUSTOM FUNDING RATE THRESHOLD
-   Fires per-user when any coin's |FR| >= their fr_threshold setting.
-   ════════════════════════════════════════ */
-async function checkFRThreshold(
-  token: string, stamp: string,
-  frMap: Record<string, number | null>,
-  muted: Set<string>,
-): Promise<string[]> {
-  const fired: string[] = [];
-  try {
-    const admin = getSupabaseAdmin();
-    const { data } = await admin
-      .from(T.user_settings)
-      .select('user_id, telegram_chat_id, fr_threshold')
-      .not('telegram_chat_id', 'is', null)
-      .neq('telegram_chat_id', '');
-    if (!data?.length) return fired;
-
-    for (const row of data) {
-      const chatId   = (row.telegram_chat_id as string)?.trim();
-      const userId   = row.user_id as string;
-      const threshold = typeof row.fr_threshold === 'number' && row.fr_threshold > 0 ? row.fr_threshold : 0.05;
-      if (!chatId) continue;
-
-      for (const coin of COINS) {
-        if (muted.has(`coin:${coin}`)) continue;
-        const fr = frMap[coin];
-        if (fr == null) continue;
-        const pctAbs = Math.abs(fr) * 100;
-        if (pctAbs < threshold) continue;
-
-        const key = `fr_thr_${userId}_${coin}`;
-        if (onCooldown(key, CD.fr_threshold)) continue;
-
-        const label  = LABELS[coin];
-        const pct    = (fr * 100).toFixed(4);
-        const sign   = fr >= 0 ? '+' : '';
-        const isLong = fr > 0;
-        const signal = isLong
-          ? 'Longs are overextended — shorts are being paid to hold'
-          : 'Shorts are overextended — potential squeeze, longs being paid';
-        const action = isLong
-          ? 'Caution on new longs. Watch for long liquidation cascade.'
-          : 'Watch for violent short squeeze. Avoid new shorts near support.';
-
-        const msg =
-          `📊 <b>Funding Rate Alert — ${label}/USDT</b>\n\n` +
-          `Rate: <b>${sign}${pct}%</b>  (Your threshold: ${threshold}%)\n` +
-          `Signal: ${signal}\n` +
-          `Action: ${action}\n\n` +
-          `<i>${stamp}</i>`;
-
-        await tg(token, chatId, msg);
-        markSent(key);
-        fired.push(`${label} FR threshold alert (${sign}${pct}%) → ${userId.slice(0, 8)}`);
-      }
-    }
-  } catch { /* admin not configured — skip */ }
-  return fired;
-}
-
-/* ════════════════════════════════════════
    MAIN HANDLER
    ════════════════════════════════════════ */
 /* Muted alert groups — set on /alerts page, stored in Supabase. Fail-open. */
@@ -1500,8 +1351,6 @@ async function runAlerts(token: string): Promise<NextResponse> {
   const none: string[] = [];
 
   const results = await Promise.allSettled([
-    skip('fr_extremes')        ? none : checkFRExtremes(stamp, frMap, signalQueue),
-    skip('fr_flip')            ? none : checkFRFlip(stamp, frMap, signalQueue),
     skip('rsi')                ? none : checkRSI(stamp, signalQueue),
     skip('ema_cross')          ? none : checkEMACross(stamp, signalQueue),
     skip('rapid_move')         ? none : checkRapidMove(stamp, signalQueue),
@@ -1516,7 +1365,6 @@ async function runAlerts(token: string): Promise<NextResponse> {
     skip('squeeze')            ? none : checkSqueezeAlerts(stamp, frMap, lsMap, signalQueue),
     skip('ema_setup')          ? none : checkEMASetup(stamp, frMap, signalQueue, '4h'),
     skip('ema_setup_1h')       ? none : checkEMASetup(stamp, frMap, signalQueue, '1h'),
-    skip('fr_threshold')       ? none : checkFRThreshold(token, stamp, frMap, muted),
   ]);
 
   // Per-coin + per-direction filters — set on /alerts page via muted keys
@@ -1537,7 +1385,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   return NextResponse.json({
     ok: true, fired,
     muted: [...muted],
-    checked: ['FR extremes', 'FR flip', 'RSI', 'RSI 50 cross', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'EMA Ribbon Setup (4H)', 'EMA Ribbon Setup (1H)', 'FR threshold (per-user)'],
+    checked: ['RSI', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'EMA Ribbon Setup (4H)', 'EMA Ribbon Setup (1H)'],
     coins: COINS.length,
     session: nyActive ? 'NY/Pre-NY (high activity)' : 'Asia/London',
     cooldowns: { whale: `${CD.whale / 60_000}min`, news: `${CD.news / 60_000}min` },
