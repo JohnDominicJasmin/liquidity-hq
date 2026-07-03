@@ -3601,22 +3601,35 @@ body.landing {
 
 /* ── PLATFORM FOOTER — disclaimer bar on every authenticated app page ──── */
 .pf-footer {
-  display: flex; align-items: center; justify-content: center; gap: 12px;
-  flex-wrap: wrap; text-align: center;
-  padding: 14px 20px 22px;
-  border-top: 0.5px solid var(--bdr);
-  margin-top: 24px;
+  display: flex; align-items: center; gap: 12px;
+  background: linear-gradient(180deg, var(--bg2) 0%, var(--bg1) 100%);
+  border: 0.5px solid var(--bdr); border-radius: var(--radius-card);
+  box-shadow: var(--nm-raise-sm);
+  padding: 14px 18px;
+  margin: 28px 0 24px;
 }
-.pf-footer-text {
-  font-size: 11px; line-height: 1.5; color: var(--txt3);
-  max-width: 640px;
+.pf-footer-icon {
+  flex-shrink: 0; font-size: 16px; line-height: 1; color: var(--accent-2);
 }
+.pf-footer-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.pf-footer-label {
+  font-family: var(--font-mono), monospace; font-size: 9px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
+}
+.pf-footer-text { font-size: 11.5px; line-height: 1.5; color: var(--txt3); }
 .pf-footer-link {
-  font-size: 11px; font-weight: 700; letter-spacing: .02em;
-  color: var(--accent-2); text-decoration: none; white-space: nowrap;
-  border-bottom: 0.5px solid transparent; transition: border-color .15s;
+  flex-shrink: 0; font-size: 11px; font-weight: 700; letter-spacing: .02em;
+  color: var(--accent-2); background: var(--accent-bg); border: 0.5px solid var(--accent-bdr);
+  border-radius: var(--radius-chip); padding: 7px 14px;
+  text-decoration: none; white-space: nowrap; transition: opacity .15s;
 }
-.pf-footer-link:hover { border-bottom-color: var(--accent-2); }
+.pf-footer-link:hover { opacity: .75; }
+
+@media (max-width: 640px) {
+  .pf-footer { flex-wrap: wrap; }
+  .pf-footer-icon { display: none; }
+  .pf-footer-link { width: 100%; text-align: center; }
+}
 
 /* ── LP FOOTER ───────────────────────────────────────────────────────── */
 .lp-footer       { border-top: 0.5px solid var(--bdr); padding: 48px 24px 24px; }
