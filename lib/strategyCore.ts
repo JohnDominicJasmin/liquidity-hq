@@ -79,13 +79,18 @@ const SL_BUF     = 0.005; // 0.5% buffer beyond EMA50 for stop loss — matches 
 /* ── Signal detection ─────────────────────────────────────────────────────── */
 export interface SignalEvent {
   timestamp:   number;
-  index:       number;          // index into the candles array passed in — needed for backtest forward-walk
+  index:       number;          // confirmation candle index — chart marker placement
+  fillIndex:   number;          // first index at which the signal is actually KNOWABLE: the
+                                // confirmation candle plus the PERSIST forward hold. Backtest
+                                // entries fill here so results can't peek at closes that hadn't
+                                // printed yet; the chart marker stays anchored at `index`.
+  fillPrice:   number;          // close of the fill candle — honest backtest entry price
   armIndex:    number;          // index of the EMA9/20 cross that armed this signal (before the later confirm index)
   dir:         'long' | 'short';
   anchorPrice: number;          // low for long, high for short — chart marker placement
-  entryPrice:  number;          // close of confirmation candle — backtest entry fill
+  entryPrice:  number;          // close of confirmation candle (marker candle) — display only
   sl:          number;
-  tp:          number;          // fixed 2:1 R:R target, same formula as the live strategy card
+  tp:          number;          // fixed 2:1 R:R target measured from the fill price
 }
 
 export interface DetectedSignals {
@@ -137,12 +142,19 @@ export function detectEMASignals(
 
   const mkSignal = (k: number, armIndex: number, dir: 'long' | 'short'): SignalEvent => {
     const entryPrice = candles[k].close;
+    // The signal only becomes knowable after the forward persistence hold resolves —
+    // PERSIST candles past the confirmation close. Fill there, not at k, or the
+    // backtest enters at a price whose validity depends on future closes.
+    const fillIndex = Math.min(k + PERSIST, candles.length - 1);
+    const fillPrice = candles[fillIndex].close;
     const e50k = e50arr[k];
     const sl = dir === 'long' ? e50k * (1 - SL_BUF) : e50k * (1 + SL_BUF);
-    const tp = dir === 'long' ? entryPrice + (entryPrice - sl) * 2 : entryPrice - (sl - entryPrice) * 2;
+    const tp = dir === 'long' ? fillPrice + (fillPrice - sl) * 2 : fillPrice - (sl - fillPrice) * 2;
     return {
       timestamp: candles[k].time,
       index: k,
+      fillIndex,
+      fillPrice,
       armIndex,
       dir,
       anchorPrice: dir === 'long' ? candles[k].low : candles[k].high,

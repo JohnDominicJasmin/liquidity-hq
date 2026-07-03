@@ -172,24 +172,29 @@ export interface SimulatedTrade {
 }
 
 function simulateTrade(signal: SignalEvent, candles: OHLCV[], coin: CoinId): SimulatedTrade {
-  const { dir, index, entryPrice, sl, tp, timestamp } = signal;
+  // Enter at the FILL candle — the first candle at which the signal is actually
+  // knowable (confirmation + persistence hold) — never at the confirmation candle,
+  // whose validity depends on closes that hadn't printed yet at its own close.
+  const { dir, fillIndex, fillPrice, sl, tp } = signal;
+  const entryPrice = fillPrice;
+  const entryTime  = candles[fillIndex]?.time ?? signal.timestamp;
   const riskDist   = Math.abs(entryPrice - sl);
   const rewardDist = Math.abs(tp - entryPrice);
   const winR = riskDist > 0 ? rewardDist / riskDist : 0;
-  for (let j = index + 1; j < candles.length; j++) {
+  for (let j = fillIndex + 1; j < candles.length; j++) {
     const c = candles[j];
     const hitTP = dir === 'long' ? c.high >= tp : c.low <= tp;
     const hitSL = dir === 'long' ? c.low <= sl : c.high >= sl;
     // Conservative same-candle tie-break: with only OHLC data we can't know intracandle
     // order, so assume the worse outcome (SL) hit first.
     if (hitSL) {
-      return { coin, dir, entryTime: timestamp, entryPrice, sl, tp, exitTime: c.time, exitPrice: sl, outcome: 'loss', rMultiple: -1 };
+      return { coin, dir, entryTime, entryPrice, sl, tp, exitTime: c.time, exitPrice: sl, outcome: 'loss', rMultiple: -1 };
     }
     if (hitTP) {
-      return { coin, dir, entryTime: timestamp, entryPrice, sl, tp, exitTime: c.time, exitPrice: tp, outcome: 'win', rMultiple: winR };
+      return { coin, dir, entryTime, entryPrice, sl, tp, exitTime: c.time, exitPrice: tp, outcome: 'win', rMultiple: winR };
     }
   }
-  return { coin, dir, entryTime: timestamp, entryPrice, sl, tp, exitTime: null, exitPrice: null, outcome: 'open', rMultiple: 0 };
+  return { coin, dir, entryTime, entryPrice, sl, tp, exitTime: null, exitPrice: null, outcome: 'open', rMultiple: 0 };
 }
 
 export function simulateTrades(signals: SignalEvent[], candles: OHLCV[], coin: CoinId): SimulatedTrade[] {
@@ -401,7 +406,9 @@ async function processOrderFlowCoin(coin: CoinId, yearsBack: number): Promise<Si
     if (!zones) continue;
 
     signals.push({
-      timestamp: t, index: i, armIndex: i, dir: bias,
+      // Order-flow signals evaluate at candle i using only past data, so the signal
+      // is knowable at its own close — fill index and price equal the eval candle.
+      timestamp: t, index: i, fillIndex: i, fillPrice: price, armIndex: i, dir: bias,
       anchorPrice: price, entryPrice: price, sl: zones.sl, tp: zones.tp,
     });
     lastDir = bias;
