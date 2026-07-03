@@ -208,6 +208,7 @@ export default function AlertsPage() {
   const ALERT_GROUPS: { section: string; items: { key: string; dot: string; title: string; desc: string; grok: boolean }[] }[] = [
     { section: 'Trading Signals', items: [
       { key: 'ema_setup', dot: '#4ade80', title: 'Entry Signal — EMA Ribbon Setup (4H)', desc: 'Potential LONG or SHORT entry: price pulls into the EMA 9–20 value zone with trend, ribbon spread, and funding aligned · includes stop loss and take profit levels · 6h cooldown', grok: true },
+      { key: 'ema_setup_1h', dot: '#4ade80', title: 'Entry Signal — EMA Ribbon Setup (1H)', desc: 'Same EMA ribbon value-zone setup, checked on the 1H chart for faster-moving entries · includes stop loss and take profit levels · 2h cooldown', grok: true },
     ]},
     { section: 'Funding', items: [
       { key: 'fr_extremes', dot: '#f87171', title: 'FR Extremes',       desc: '≥ 0.05% longs overcrowded · ≤ −0.03% shorts crowded · 4h cooldown', grok: false },

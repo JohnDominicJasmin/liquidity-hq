@@ -173,7 +173,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         </div>
       )}
 
-      {/* EMA / SMA values strip */}
+      {/* EMA values strip */}
       {!signal.loading && signal.ema9_4h != null && (
         <div style={{
           display: 'flex', gap: 14, flexWrap: 'wrap',
@@ -184,7 +184,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
           <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Fast avg <b style={{ color: '#fbbf24' }}>${fmt(signal.ema9_4h)}</b></span>
           <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Mid avg <b style={{ color: '#60a5fa' }}>${fmt(signal.ema20_4h ?? null)}</b></span>
           <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Slow avg <b style={{ color: '#f97316' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
-          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Daily trend <b style={{ color: '#5a6aff' }}>${fmt(signal.sma200_1d ?? null)}</b></span>
+          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Daily trend <b style={{ color: '#5a6aff' }}>${fmt(signal.ema200_1d ?? null)}</b></span>
         </div>
       )}
 

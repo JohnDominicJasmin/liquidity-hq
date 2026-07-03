@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore';
 import {
-  emaArr, smaArr, volMA, atrArr, detectEMASignals,
+  emaArr, volMA, atrArr, detectEMASignals,
   SignalFilterParams, DEFAULT_FILTER_PARAMS, ANTICHOP_DISABLED_PARAMS,
 } from './strategyCore';
 import { getWaveTrendConfirmation } from './waveTrend';
@@ -32,7 +32,7 @@ export interface StrategySignal {
   ema9_4h:           number | null;
   ema20_4h:          number | null;
   ema50_4h:          number | null;
-  sma200_1d:         number | null;
+  ema200_1d:         number | null;
   volMA20:           number | null;
   lastVol:           number | null;
   priceInValueZone:  boolean;
@@ -88,7 +88,7 @@ async function fetchOHLCV(coin: CoinId, bnInterval: string, bybitInterval: strin
 /* ── Initial / loading state ─────────────────────────────────────────────── */
 export const STRATEGY_LOADING: StrategySignal = {
   verdict: 'LOADING', phase: 'Loading…', conditions: [],
-  ema9_4h: null, ema20_4h: null, ema50_4h: null, sma200_1d: null,
+  ema9_4h: null, ema20_4h: null, ema50_4h: null, ema200_1d: null,
   volMA20: null, lastVol: null, priceInValueZone: false,
   sl: null, tp: null, loading: true, error: null,
   signalTimestamp: null, signalAnchorPrice: null, signalDir: null,
@@ -145,13 +145,13 @@ export function useEMAStrategy(
         const e9arr    = emaArr(cl4,  9);
         const e20arr   = emaArr(cl4, 20);
         const e50arr   = emaArr(cl4, 50);
-        const s200arr  = smaArr(cl1d, 200); // Daily SMA200 — used for strategy card
+        const e200arr  = emaArr(cl1d, 200); // Daily EMA200 — used for strategy card
         const atr14    = atrArr(cRibbon, 14);
 
         const ema9   = e9arr[e9arr.length - 1];
         const ema20  = e20arr[e20arr.length - 1];
         const ema50  = e50arr[e50arr.length - 1];
-        const sma200 = s200arr[s200arr.length - 1];
+        const ema200 = e200arr[e200arr.length - 1];
 
         const price   = cl4[cl4.length - 1];
         const lastVol = vol4[vol4.length - 1];
@@ -159,7 +159,7 @@ export function useEMAStrategy(
         const priceD  = cl1d[cl1d.length - 1];
 
         // Strategy rules
-        const above200D  = priceD > sma200;
+        const above200D  = priceD > ema200;
         const ribbonBull = ema9 > ema20 && ema20 > ema50;
         const ribbonBear = ema50 > ema20 && ema20 > ema9;
 
@@ -216,8 +216,8 @@ export function useEMAStrategy(
           verdict = 'FREEZE';
           const tfLabel = tf.toUpperCase();
           phase   = above200D
-            ? `Daily above 200 SMA but ${tfLabel} ribbon not bullish — wait for EMA alignment`
-            : `Daily below 200 SMA but ${tfLabel} ribbon not bearish — wait for EMA alignment`;
+            ? `Daily above 200 EMA but ${tfLabel} ribbon not bullish — wait for EMA alignment`
+            : `Daily below 200 EMA but ${tfLabel} ribbon not bearish — wait for EMA alignment`;
         }
 
         // WaveTrend (Cipher B) confirmation — cross-from-extreme or divergence agreeing
@@ -244,11 +244,11 @@ export function useEMAStrategy(
         const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 4 });
         const conditions: StrategyCondition[] = [
           {
-            label: '200 SMA Filter (Daily)',
+            label: '200 EMA Filter (Daily)',
             pass:  above200D ? true : (ribbonBear ? true : false),
             detail: above200D
-              ? `Price $${fmt(priceD)} above Daily 200 SMA $${fmt(sma200)} — LONG only`
-              : `Price below Daily 200 SMA — SHORT only`,
+              ? `Price $${fmt(priceD)} above Daily 200 EMA $${fmt(ema200)} — LONG only`
+              : `Price below Daily 200 EMA — SHORT only`,
           },
           {
             label: 'Ribbon Aligned',
@@ -344,7 +344,7 @@ export function useEMAStrategy(
           return p > 0 && Math.abs(e9arr[k] - e20arr[k]) / p >= SPREAD_MIN_PCT;
         };
 
-        // Primary signal: gated by 200 SMA (used for EMA ribbon card + Grok context)
+        // Primary signal: gated by 200 EMA (used for EMA ribbon card + Grok context)
         if (above200D) {
           for (let i = cRibbon.length - 1; i >= 1; i--) {
             const e50i = e50arr[i] ?? 0;
@@ -392,7 +392,7 @@ export function useEMAStrategy(
         if (!mountedRef.current) return;
         setSig({
           verdict, phase, conditions,
-          ema9_4h: ema9, ema20_4h: ema20, ema50_4h: ema50, sma200_1d: sma200,
+          ema9_4h: ema9, ema20_4h: ema20, ema50_4h: ema50, ema200_1d: ema200,
           volMA20: volma20, lastVol, priceInValueZone: inValueZone,
           sl, tp, loading: false, error: null,
           signalTimestamp, signalAnchorPrice, signalDir,
@@ -426,5 +426,5 @@ export function strategyToGrokLine(sig: StrategySignal, tf = '4h'): string {
   const sltp    = sig.sl && sig.tp
     ? ` · SL $${sig.sl.toFixed(4)} · TP $${sig.tp.toFixed(4)}`
     : '';
-  return `[${tf.toUpperCase()} ribbon + 1D SMA200 filter] ${sig.verdict} · ${sig.phase} · ${condStr}${sltp}`;
+  return `[${tf.toUpperCase()} ribbon + 1D EMA200 filter] ${sig.verdict} · ${sig.phase} · ${condStr}${sltp}`;
 }

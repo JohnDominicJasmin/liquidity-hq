@@ -123,7 +123,8 @@ const CD: Record<string, number> = {
   daily:     23 * 3600_000,   // Daily 7am summary
   sentiment:  4 * 3600_000,   // Sentiment Extremes — all 3 indicators aligned
   squeeze:      4 * 3600_000,   // Squeeze/Flush threshold alert per coin per direction
-  ema_setup:    6 * 3600_000,   // EMA ribbon strategy — all conditions green
+  ema_setup:    6 * 3600_000,   // EMA ribbon strategy (4H) — all conditions green
+  ema_setup_1h: 2 * 3600_000,   // EMA ribbon strategy (1H) — faster TF, shorter cooldown
   fr_threshold: 2 * 3600_000,   // Per-user custom FR threshold alert
 };
 
@@ -1220,7 +1221,7 @@ async function checkSqueezeAlerts(
 
 /* ════════════════════════════════════════
    13. EMA RIBBON STRATEGY SETUP
-   Fires when all 5 core conditions pass: 200 SMA filter + ribbon aligned +
+   Fires when all 5 core conditions pass: 200 EMA filter + ribbon aligned +
    value zone (price between 9 & 20 EMA) + funding OK + OI stable/rising
    Checked on top 6 coins only to stay within Render timeout budget.
    ════════════════════════════════════════ */
@@ -1235,39 +1236,42 @@ function calcEMALocal(closes: number[], period: number): number {
   return e;
 }
 
-function calcSMALocal(values: number[], period: number): number {
-  const slice = values.slice(-period);
-  return slice.reduce((a, b) => a + b, 0) / slice.length;
-}
+type EMASetupTF = '1h' | '4h';
+const EMA_SETUP_TF_CONFIG: Record<EMASetupTF, { binanceInterval: string; label: string; cooldownKey: 'ema_setup' | 'ema_setup_1h' }> = {
+  '4h': { binanceInterval: '4h', label: '4H', cooldownKey: 'ema_setup' },
+  '1h': { binanceInterval: '1h', label: '1H', cooldownKey: 'ema_setup_1h' },
+};
 
 async function checkEMASetup(
   stamp: string,
   frMap: Record<string, number | null>,
-  queue: SignalEntry[]
+  queue: SignalEntry[],
+  tf: EMASetupTF = '4h',
 ): Promise<string[]> {
+  const { binanceInterval, label: tfLabel, cooldownKey } = EMA_SETUP_TF_CONFIG[tf];
   const fired: string[] = [];
 
   await Promise.all(EMA_SETUP_COINS.map(async coin => {
     const sym = BINANCE_PERP[coin];
     if (!sym) return;
     try {
-      // Fetch 4H (200 candles) and Daily (220 candles) in parallel
-      const [r4h, r1d] = await Promise.allSettled([
-        fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=4h&limit=200`,
+      // Fetch ribbon TF (200 candles) and Daily (220 candles) in parallel
+      const [rTf, r1d] = await Promise.allSettled([
+        fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${binanceInterval}&limit=200`,
           { cache: 'no-store', signal: AbortSignal.timeout(9_000) }),
         fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1d&limit=220`,
           { cache: 'no-store', signal: AbortSignal.timeout(9_000) }),
       ]);
-      if (r4h.status !== 'fulfilled' || !r4h.value.ok) return;
+      if (rTf.status !== 'fulfilled' || !rTf.value.ok) return;
       if (r1d.status !== 'fulfilled' || !r1d.value.ok) return;
 
-      const raw4h  = await r4h.value.json() as Array<unknown[]>;
+      const rawTf  = await rTf.value.json() as Array<unknown[]>;
       const raw1d  = await r1d.value.json() as Array<unknown[]>;
-      if (raw4h.length < 55 || raw1d.length < 205) return;
+      if (rawTf.length < 55 || raw1d.length < 205) return;
 
-      const cl4h = raw4h.map(k => parseFloat(k[4] as string));
+      const clTf = rawTf.map(k => parseFloat(k[4] as string));
       const cl1d = raw1d.map(k => parseFloat(k[4] as string));
-      const ohlc4h = raw4h.map(k => ({
+      const ohlcTf = rawTf.map(k => ({
         time: +(k[0] as number),
         open: parseFloat(k[1] as string),
         high: parseFloat(k[2] as string),
@@ -1276,16 +1280,16 @@ async function checkEMASetup(
         volume: parseFloat(k[5] as string),
       }));
 
-      const ema9   = calcEMALocal(cl4h, 9);
-      const ema20  = calcEMALocal(cl4h, 20);
-      const ema50  = calcEMALocal(cl4h, 50);
-      const sma200 = calcSMALocal(cl1d, 200);
-      const price  = cl4h[cl4h.length - 1];
+      const ema9   = calcEMALocal(clTf, 9);
+      const ema20  = calcEMALocal(clTf, 20);
+      const ema50  = calcEMALocal(clTf, 50);
+      const ema200 = calcEMALocal(cl1d, 200);
+      const price  = clTf[clTf.length - 1];
       const priceD = cl1d[cl1d.length - 1];
       const fr     = frMap[coin];
 
       // Rule checks
-      const above200D  = priceD > sma200;
+      const above200D  = priceD > ema200;
       const ribbonBull = ema9 > ema20 && ema20 > ema50;
       const ribbonBear = ema50 > ema20 && ema20 > ema9;
 
@@ -1304,8 +1308,8 @@ async function checkEMASetup(
       if (!fundingOK) return;
 
       const dir   = inVZoneLong ? 'LONG' : 'SHORT';
-      const key   = `ema_setup_${dir}_${coin}`;
-      if (onCooldown(key, CD.ema_setup)) return;
+      const key   = `ema_setup_${tf}_${dir}_${coin}`;
+      if (onCooldown(key, CD[cooldownKey])) return;
 
       const label  = LABELS[coin];
       const fmtP   = (n: number) => n >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : n.toFixed(4);
@@ -1315,15 +1319,15 @@ async function checkEMASetup(
 
       // WaveTrend (Cipher B) — confirming layer, NOT a hard gate. Informational only,
       // same framing as the live Arena card and Grok context.
-      const wt = getWaveTrendConfirmation(ohlc4h, dir === 'LONG' ? 'long' : 'short');
+      const wt = getWaveTrendConfirmation(ohlcTf, dir === 'LONG' ? 'long' : 'short');
       const wtLine = wt.pass === true ? `WaveTrend confirming: ${wt.detail}`
         : wt.pass === false ? `WaveTrend not yet confirming: ${wt.detail}`
         : 'WaveTrend: unavailable';
 
       const grokTake = await grokAnalyze(
-        `Elite crypto trader. ${label}/USDT EMA Ribbon Strategy setup triggered on 4H chart. ` +
+        `Elite crypto trader. ${label}/USDT EMA Ribbon Strategy setup triggered on ${tfLabel} chart. ` +
         `Direction: ${dir}. Price $${fmtP(price)} pulled into the 9-20 EMA value zone. ` +
-        `EMA9: $${fmtP(ema9)}, EMA20: $${fmtP(ema20)}, EMA50: $${fmtP(ema50)}, Daily 200 SMA: $${fmtP(sma200)}. ` +
+        `EMA9: $${fmtP(ema9)}, EMA20: $${fmtP(ema20)}, EMA50: $${fmtP(ema50)}, Daily 200 EMA: $${fmtP(ema200)}. ` +
         `Funding: ${frPct}. ${wtLine} (confirming layer, not a blocking filter — weigh it but don't auto-reject on it). ` +
         `In 2-3 sentences: is this a high-conviction entry or wait for confirmation? ` +
         `What volume or OI confirmation would seal it? Direct, no hedging. ` +
@@ -1331,15 +1335,15 @@ async function checkEMASetup(
       );
 
       queue.push({
-        coin, dir: dir === 'LONG' ? 'long' : 'short', name: `${label} EMA ribbon ${dir} setup`,
-        title: `EMA Ribbon ${dir} Setup — In Value Zone`,
+        coin, dir: dir === 'LONG' ? 'long' : 'short', name: `${label} EMA ribbon ${dir} setup (${tfLabel})`,
+        title: `EMA Ribbon ${dir} Setup — In Value Zone (${tfLabel})`,
         body:
-          `📐 <b>EMA RIBBON ${dir} SETUP — ${label}/USDT</b>\n\n` +
+          `📐 <b>EMA RIBBON ${dir} SETUP (${tfLabel}) — ${label}/USDT</b>\n\n` +
           `Price pulled into the EMA 9–20 Value Zone\n\n` +
           `EMA9:  <b>$${fmtP(ema9)}</b> (trigger)\n` +
           `EMA20: <b>$${fmtP(ema20)}</b> (entry target)\n` +
           `EMA50: <b>$${fmtP(ema50)}</b> (stop baseline)\n` +
-          `SMA200 (1D): <b>$${fmtP(sma200)}</b>\n` +
+          `EMA200 (1D): <b>$${fmtP(ema200)}</b>\n` +
           `Funding: <b>${frPct}</b>\n` +
           `${wt.pass === true ? '✅' : wt.pass === false ? '⚪' : '—'} ${wtLine}\n\n` +
           `SL: $${fmtP(sl)} · TP: $${fmtP(tp)} (2:1)\n` +
@@ -1348,7 +1352,7 @@ async function checkEMASetup(
           `<i>${stamp}</i>`,
       });
       markSent(key);
-      fired.push(`${label} EMA ribbon ${dir} setup in value zone`);
+      fired.push(`${label} EMA ribbon ${dir} setup in value zone (${tfLabel})`);
     } catch { /* skip */ }
   }));
 
@@ -1510,7 +1514,8 @@ async function runAlerts(token: string): Promise<NextResponse> {
     skip('price_alerts')       ? none : checkPriceAlerts(token, stamp, prices, allChatIds),
     skip('sentiment_extremes') ? none : checkSentimentExtremes(token, chatId, stamp, frMap), // global — sends directly
     skip('squeeze')            ? none : checkSqueezeAlerts(stamp, frMap, lsMap, signalQueue),
-    skip('ema_setup')          ? none : checkEMASetup(stamp, frMap, signalQueue),
+    skip('ema_setup')          ? none : checkEMASetup(stamp, frMap, signalQueue, '4h'),
+    skip('ema_setup_1h')       ? none : checkEMASetup(stamp, frMap, signalQueue, '1h'),
     skip('fr_threshold')       ? none : checkFRThreshold(token, stamp, frMap, muted),
   ]);
 
@@ -1532,7 +1537,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   return NextResponse.json({
     ok: true, fired,
     muted: [...muted],
-    checked: ['FR extremes', 'FR flip', 'RSI', 'RSI 50 cross', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'EMA Ribbon Setup', 'FR threshold (per-user)'],
+    checked: ['FR extremes', 'FR flip', 'RSI', 'RSI 50 cross', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'EMA Ribbon Setup (4H)', 'EMA Ribbon Setup (1H)', 'FR threshold (per-user)'],
     coins: COINS.length,
     session: nyActive ? 'NY/Pre-NY (high activity)' : 'Asia/London',
     cooldowns: { whale: `${CD.whale / 60_000}min`, news: `${CD.news / 60_000}min` },
