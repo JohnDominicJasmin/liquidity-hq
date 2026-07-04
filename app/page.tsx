@@ -30,6 +30,7 @@ export default function LandingPage() {
   if (loading || user) {
     return (
       <div className="lp-loading" aria-hidden="true">
+        <span className="lp-loading-logo">LiquidityHQ<span>.ai</span></span>
         <span className="lp-loading-spin" />
       </div>
     );

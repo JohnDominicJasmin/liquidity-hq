@@ -140,6 +140,10 @@ body::after {
 .app-content { max-width: 700px; margin: 0 auto; padding: 90px 1rem 2rem; }
 /* 90px = navbar(52) + ticker(28) + 10px gap — safe at all times */
 
+/* Smooth entry instead of a hard cut — most noticeable right after the
+   auth-redirect from "/" lands here, but applies on any fresh page load. */
+.dashboard-grid { animation: lp-content-in 0.35s ease-out; }
+
 /* ── DESKTOP WIDE LAYOUT (≥1100px) ── */
 @media (min-width: 1100px) {
   .app-bar-inner { max-width: 1340px; }
@@ -3484,7 +3488,11 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 /* ── LANDING PAGE — hide app shell ──────────────────────────────────── */
 body.landing .app-bar,
 body.landing .nav-drawer,
-body.landing .news-ticker { display: none !important; }
+body.landing .news-ticker,
+body.landing .gchat-fab,
+body.landing .gchat-panel,
+body.landing .ob-checklist,
+body.landing .ob-overlay { display: none !important; }
 body.landing .app-content {
   max-width: 100% !important;
   width: 100% !important;
@@ -3502,20 +3510,35 @@ body.landing {
 .lp-loading {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 18px;
   background: #050505;
+  animation: lp-fade-in 0.2s ease-out;
 }
+.lp-loading-logo {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #f2f2f7;
+  opacity: 0.85;
+}
+.lp-loading-logo span { color: #5a6aff; }
 .lp-loading-spin {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.12);
+  border: 2.5px solid rgba(255,255,255,0.1);
   border-top-color: #5a6aff;
-  animation: lp-loading-spin 0.7s linear infinite;
+  animation: lp-loading-spin 0.8s linear infinite;
 }
 @keyframes lp-loading-spin {
   to { transform: rotate(360deg); }
+}
+@keyframes lp-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* ── LANDING PAGE — root & reset ────────────────────────────────────── */
@@ -3529,6 +3552,11 @@ body.landing {
   --bdr:    rgba(255,255,255,0.07);
   --accent: #5a6aff;
   display: flex; flex-direction: column; min-height: 100vh; color: var(--txt); background: var(--bg0); font-family: inherit;
+  animation: lp-content-in 0.45s ease-out;
+}
+@keyframes lp-content-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ── LP NAV ─────────────────────────────────────────────────────────── */
