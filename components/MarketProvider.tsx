@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel,
+  MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel, IVPoint,
   BINANCE_SYMS, BYBIT_SYMS,
 } from '@/lib/marketStore';
 import { detectPatterns } from '@/lib/patterns';
@@ -802,6 +802,10 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       const gexByStrike: Record<number, number> = {};
       let spotForGex = 0;
 
+      // ATM IV per expiry — nearest strike to live spot, used as a term-structure
+      // point for the Arena Edge Calculator (real-world binary-probability model).
+      const atmByExpiry: Record<string, { strike: number; iv: number; diff: number }> = {};
+
       summaries.forEach(({ instrument_name, open_interest, mark_iv, underlying_price }) => {
         const parts = instrument_name.split('-');
         if (parts.length < 4) return;
@@ -809,6 +813,13 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         const type   = parts[3]; // 'C' or 'P'
         if (isNaN(strike)) return;
         const oi = open_interest || 0;
+
+        if (mark_iv > 0 && underlying_price > 0) {
+          const expStr = parts[1];
+          const diff = Math.abs(strike - underlying_price);
+          const cur = atmByExpiry[expStr];
+          if (!cur || diff < cur.diff) atmByExpiry[expStr] = { strike, iv: mark_iv, diff };
+        }
 
         /* ── P/C ratio OI tracking ── */
         if (type === 'C') { callsOI[strike] = (callsOI[strike] ?? 0) + oi; totalCallOI += oi; }
@@ -888,6 +899,12 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         .sort((a, b) => b.strike - a.strike)
         .slice(0, 8);
 
+      /* ── ATM IV term structure ── */
+      const btcIVTermStructure: IVPoint[] = Object.entries(atmByExpiry)
+        .map(([expStr, { iv }]) => ({ days: (expiryMs(expStr) - now) / (24 * 3600 * 1000), iv }))
+        .filter(p => p.days > 0)
+        .sort((a, b) => a.days - b.days);
+
       setStore(s => ({
         ...s,
         btcPcRatio: pcRatio,
@@ -895,6 +912,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         btcNetGex,                         // proper null only when no data
         btcGexFlip: btcGexFlip ?? null,
         btcGexLevels,
+        btcIVTermStructure,
       }));
     } catch { /* fail silently */ }
   }, []);
