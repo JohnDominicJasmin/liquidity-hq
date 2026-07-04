@@ -23,7 +23,6 @@ import LiqHeatmap from '@/components/LiqHeatmap';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, ANTICHOP_DISABLED_PARAMS } from '@/lib/useEMAStrategy';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
-import EdgeCalculator from '@/components/EdgeCalculator';
 
 /* ── Pattern detection — delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -1469,9 +1468,6 @@ function ArenaContent() {
 
       {/* Stop Loss Zone - S/R anchored stop suggestion */}
       <StopLossZone coin={selectedCoin} grokSignal={result?.signal} />
-
-      {/* Edge Calculator — Black-Scholes probability vs. prediction-market pricing */}
-      <EdgeCalculator />
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         {/* Quick button — requires sign-in */}

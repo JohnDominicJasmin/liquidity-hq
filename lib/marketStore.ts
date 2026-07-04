@@ -9,11 +9,6 @@ export interface GexLevel {
   gex: number;     // net GEX at this strike (positive = long gamma = stabilising, negative = short gamma = amplifying)
 }
 
-export interface IVPoint {
-  days: number;    // days to expiry
-  iv: number;      // ATM implied volatility, annualized %, e.g. 55 for 55%
-}
-
 export interface LiqWall {
   price: number;
   size: number;
@@ -153,7 +148,6 @@ export type MarketStore = {
   btcNetGex: number | null;    // total net GEX in $ (positive = dealers long gamma)
   btcGexFlip: number | null;   // zero-gamma strike — cross = regime change
   btcGexLevels: GexLevel[];    // top strikes near ATM for chart
-  btcIVTermStructure: IVPoint[]; // live ATM implied vol by days-to-expiry, from Deribit
   /* Liquidation Cascade Alert */
   cascadeAlert: {
     coin: string;              // e.g. 'BTC', 'MARKET'
@@ -193,7 +187,6 @@ export const defaultStore: MarketStore = {
   btcNetGex: null,
   btcGexFlip: null,
   btcGexLevels: [],
-  btcIVTermStructure: [],
   cascadeAlert: null,
 };
 
