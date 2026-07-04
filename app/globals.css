@@ -142,7 +142,7 @@ body::after {
 
 /* Smooth entry instead of a hard cut — most noticeable right after the
    auth-redirect from "/" lands here, but applies on any fresh page load. */
-.dashboard-grid { animation: lp-content-in 0.35s ease-out; }
+.dashboard-grid { animation: lp-content-in 0.4s var(--ease-settle); }
 
 /* ── DESKTOP WIDE LAYOUT (≥1100px) ── */
 @media (min-width: 1100px) {
@@ -3504,6 +3504,12 @@ body.landing {
   background: #050505 !important;
 }
 
+/* Shared entrance curve — a considered "settle in" rather than the flatter
+   default ease-out, used everywhere something fades/slides into place
+   across the loading → landing/dashboard handoff so it reads as one motion
+   language instead of several unrelated animations. */
+:root { --ease-settle: cubic-bezier(0.16, 1, 0.3, 1); }
+
 /* Shown instead of the landing page while auth is still resolving (identical
    on server + client first render, so no hydration mismatch) — a returning
    session sees this, never the marketing content, before the redirect. */
@@ -3513,9 +3519,9 @@ body.landing {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 18px;
+  gap: 20px;
   background: #050505;
-  animation: lp-fade-in 0.2s ease-out;
+  animation: lp-loading-in 0.3s var(--ease-settle);
 }
 .lp-loading-logo {
   font-size: 18px;
@@ -3526,19 +3532,19 @@ body.landing {
 }
 .lp-loading-logo span { color: #5a6aff; }
 .lp-loading-spin {
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  border: 2.5px solid rgba(255,255,255,0.1);
+  border: 3px solid rgba(255,255,255,0.1);
   border-top-color: #5a6aff;
   animation: lp-loading-spin 0.8s linear infinite;
 }
 @keyframes lp-loading-spin {
   to { transform: rotate(360deg); }
 }
-@keyframes lp-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+@keyframes lp-loading-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
 }
 
 /* ── LANDING PAGE — root & reset ────────────────────────────────────── */
@@ -3552,11 +3558,18 @@ body.landing {
   --bdr:    rgba(255,255,255,0.07);
   --accent: #5a6aff;
   display: flex; flex-direction: column; min-height: 100vh; color: var(--txt); background: var(--bg0); font-family: inherit;
-  animation: lp-content-in 0.45s ease-out;
+  animation: lp-content-in 0.5s var(--ease-settle);
 }
 @keyframes lp-content-in {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* The spinner's rotation stays — it communicates actual loading state, not
+   decoration — but the fade/scale/slide entrances are pure decoration and
+   get removed entirely for users who've asked for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .lp-loading, .lp-root, .dashboard-grid { animation: none; }
 }
 
 /* ── LP NAV ─────────────────────────────────────────────────────────── */

@@ -29,9 +29,10 @@ export default function LandingPage() {
   // window, on server and client alike.
   if (loading || user) {
     return (
-      <div className="lp-loading" aria-hidden="true">
-        <span className="lp-loading-logo">LiquidityHQ<span>.ai</span></span>
-        <span className="lp-loading-spin" />
+      <div className="lp-loading">
+        <span className="lp-loading-logo" aria-hidden="true">LiquidityHQ<span>.ai</span></span>
+        <span className="lp-loading-spin" aria-hidden="true" />
+        <span className="sr-only" role="status">Loading your session…</span>
       </div>
     );
   }
