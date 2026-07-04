@@ -21,11 +21,11 @@ function CallbackInner() {
       // PKCE flow: exchange auth code for session
       sb.auth.exchangeCodeForSession(code).then(({ error }) => {
         if (error) setErrMsg(error.message);
-        else router.push('/');
+        else router.push('/arena');
       });
     } else {
       // Implicit flow: Supabase picks up token from URL hash automatically
-      router.push('/');
+      router.push('/arena');
     }
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -10,7 +10,7 @@ export default function LandingPage() {
 
   /* Redirect signed-in users straight to the app */
   useEffect(() => {
-    if (!loading && user) router.replace('/dashboard');
+    if (!loading && user) router.replace('/arena');
   }, [user, loading, router]);
 
   /* Hide the app shell nav + ticker on this page */

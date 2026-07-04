@@ -1,5 +1,6 @@
 'use client';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useMarket, classifyFunding, CoinId, CoinData, COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
 import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
@@ -141,13 +142,21 @@ interface HistItem {
 
 const ARENA_HIST_KEY = 'arena-session-history-v1';
 
-export default function Arena() {
+function ArenaContent() {
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
   const { user, loading: authLoading, isPro } = useAuth();
   const { settings } = useSettings();
-  const [selectedCoin, setSelectedCoin] = useState<CoinId>('btc');
-  const [readTf, setReadTf]         = useState<ChartTf>('15m');
+  const searchParams = useSearchParams();
+  const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
+    const c = searchParams.get('coin')?.toLowerCase() ?? '';
+    return (COINS as string[]).includes(c) ? c as CoinId : 'btc';
+  });
+  const [readTf, setReadTf] = useState<ChartTf>(() => {
+    const tf = searchParams.get('tf') ?? '';
+    const valid: ChartTf[] = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
+    return valid.includes(tf as ChartTf) ? tf as ChartTf : '15m';
+  });
   const arenaInitRef  = useRef(false);
   const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '—' });
   const msDataRef     = useRef<MSData | null>(null);
@@ -240,6 +249,14 @@ export default function Arena() {
     try { localStorage.setItem('lhq_anti_chop_enabled', String(antiChopEnabled)); } catch {}
   }, [antiChopEnabled]);
 
+  /* ── Sync coin + tf to URL so the page is shareable ── */
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('coin', selectedCoin);
+    url.searchParams.set('tf', readTf);
+    window.history.replaceState(null, '', url.toString());
+  }, [selectedCoin, readTf]);
+
   /* ── Fetch alerts for selected coin (chart overlay lines) ── */
   useEffect(() => {
     if (!user) return;
@@ -308,15 +325,14 @@ export default function Arena() {
 
   /* ── Seed coin + TF from settings once settings are loaded ── */
   useEffect(() => {
-    if (arenaInitRef.current || settings.default_coin === 'btc' && settings.default_tf === '15m') {
-      // Only override if settings differ from hardcoded defaults, and only once
-    }
     if (!arenaInitRef.current) {
       arenaInitRef.current = true;
-      if (COINS.includes(settings.default_coin as CoinId)) {
+      // URL params take priority — only apply settings defaults when no URL params present
+      const urlParams = new URLSearchParams(window.location.search);
+      if (!urlParams.has('coin') && COINS.includes(settings.default_coin as CoinId)) {
         setSelectedCoin(settings.default_coin as CoinId);
       }
-      if (['1m', '5m', '15m', '30m', '1h', '4h', '1d'].includes(settings.default_tf)) {
+      if (!urlParams.has('tf') && ['1m', '5m', '15m', '30m', '1h', '4h', '1d'].includes(settings.default_tf)) {
         setReadTf(settings.default_tf as ChartTf);
       }
     }
@@ -1951,5 +1967,13 @@ export default function Arena() {
 
       </div> {/* end arena-below-chart */}
     </div>
+  );
+}
+
+export default function Arena() {
+  return (
+    <Suspense>
+      <ArenaContent />
+    </Suspense>
   );
 }
