@@ -3496,6 +3496,11 @@ body.landing {
   background: #050505 !important;
 }
 
+/* Pre-paint guard (set by the blocking script in layout.tsx, before React
+   hydrates) — hides the landing page for a returning session so it's never
+   painted at all, instead of flashing before the client-side redirect. */
+html.lp-pending .lp-root { display: none; }
+
 /* ── LANDING PAGE — root & reset ────────────────────────────────────── */
 /* Force dark palette regardless of user's saved theme */
 .lp-root {

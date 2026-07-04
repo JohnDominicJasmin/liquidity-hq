@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
@@ -8,21 +8,18 @@ export default function LandingPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  // Sniffed synchronously (before Supabase's async getSession() resolves) so
-  // returning users never see the landing page flash before the redirect —
-  // a stored session token means they're almost certainly signed in already.
-  const [hasStoredSession] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      return Object.keys(localStorage).some(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
-    } catch {
-      return false;
-    }
-  });
-
-  /* Redirect signed-in users straight to the app */
+  /* Redirect signed-in users straight to the app. The pre-paint "lp-pending"
+     class (added by the blocking inline script in layout.tsx, before this
+     component ever hydrates) is what actually hides the landing markup for
+     returning sessions — that has to happen before React runs at all, since
+     the server has no access to localStorage and always renders the full
+     landing page. Once auth resolves we know for sure, so drop the guard:
+     either the redirect below unmounts this page, or (stale/invalid token)
+     the landing page becomes visible again. */
   useEffect(() => {
-    if (!loading && user) router.replace('/dashboard');
+    if (loading) return;
+    document.documentElement.classList.remove('lp-pending');
+    if (user) router.replace('/dashboard');
   }, [user, loading, router]);
 
   /* Hide the app shell nav + ticker on this page */
@@ -32,10 +29,7 @@ export default function LandingPage() {
   }, []);
 
   // Show landing page immediately — don't blank-screen while auth resolves.
-  // Exception: a returning user with a stored session holds off entirely
-  // (rendering nothing) until auth resolves, instead of flashing the
-  // landing page right before the redirect kicks in.
-  if (hasStoredSession && (loading || user)) return null;
+  // Once loaded and user is known, useEffect above redirects to /dashboard.
   if (!loading && user) return null;
 
   return (
