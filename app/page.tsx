@@ -8,18 +8,9 @@ export default function LandingPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  /* Redirect signed-in users straight to the app. The pre-paint "lp-pending"
-     class (added by the blocking inline script in layout.tsx, before this
-     component ever hydrates) is what actually hides the landing markup for
-     returning sessions — that has to happen before React runs at all, since
-     the server has no access to localStorage and always renders the full
-     landing page. Once auth resolves we know for sure, so drop the guard:
-     either the redirect below unmounts this page, or (stale/invalid token)
-     the landing page becomes visible again. */
+  /* Redirect signed-in users straight to the app */
   useEffect(() => {
-    if (loading) return;
-    document.documentElement.classList.remove('lp-pending');
-    if (user) router.replace('/dashboard');
+    if (!loading && user) router.replace('/dashboard');
   }, [user, loading, router]);
 
   /* Hide the app shell nav + ticker on this page */
@@ -28,9 +19,21 @@ export default function LandingPage() {
     return () => document.body.classList.remove('landing');
   }, []);
 
-  // Show landing page immediately — don't blank-screen while auth resolves.
-  // Once loaded and user is known, useEffect above redirects to /dashboard.
-  if (!loading && user) return null;
+  // `loading` starts true on both the server render and the client's first
+  // hydration pass (Supabase's session check is async either way), so this
+  // branch is identical on both sides — no hydration mismatch. It also means
+  // the marketing page is never painted at all for a returning session: the
+  // server can't see localStorage, so it can't know someone's signed in, but
+  // it also has no reason to render the real landing content until we're
+  // sure — this loader is the only thing that ever gets sent for that brief
+  // window, on server and client alike.
+  if (loading || user) {
+    return (
+      <div className="lp-loading" aria-hidden="true">
+        <span className="lp-loading-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="lp-root">

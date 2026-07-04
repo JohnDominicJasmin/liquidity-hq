@@ -3496,10 +3496,27 @@ body.landing {
   background: #050505 !important;
 }
 
-/* Pre-paint guard (set by the blocking script in layout.tsx, before React
-   hydrates) — hides the landing page for a returning session so it's never
-   painted at all, instead of flashing before the client-side redirect. */
-html.lp-pending .lp-root { display: none; }
+/* Shown instead of the landing page while auth is still resolving (identical
+   on server + client first render, so no hydration mismatch) — a returning
+   session sees this, never the marketing content, before the redirect. */
+.lp-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #050505;
+}
+.lp-loading-spin {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.12);
+  border-top-color: #5a6aff;
+  animation: lp-loading-spin 0.7s linear infinite;
+}
+@keyframes lp-loading-spin {
+  to { transform: rotate(360deg); }
+}
 
 /* ── LANDING PAGE — root & reset ────────────────────────────────────── */
 /* Force dark palette regardless of user's saved theme */
