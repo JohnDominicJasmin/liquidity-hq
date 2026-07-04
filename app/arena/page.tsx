@@ -1140,9 +1140,19 @@ function ArenaContent() {
             background: sqzCount > 0 ? '#34d399' : flushCount > 0 ? '#f87171' : '#333',
             boxShadow: sqzCount > 0 ? '0 0 6px #34d39966' : flushCount > 0 ? '0 0 6px #f8717166' : 'none',
           }} />
-          <span style={{ fontSize: 11, fontWeight: 600, color: '#555', letterSpacing: '.04em', flex: 1 }}>
-            Squeeze Scanner
+          {/* Selected coin chip — left side */}
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            fontSize: 11, fontWeight: 700, color: '#b8aeff',
+            background: 'rgba(184,174,255,0.1)', padding: '2px 9px 2px 5px',
+            borderRadius: 20, border: '0.5px solid rgba(184,174,255,0.2)',
+            flexShrink: 0,
+          }}>
+            <CoinIcon coin={selectedCoin} size={16} color="#b8aeff" bg="rgba(184,174,255,0.15)" />
+            {selectedCoin.toUpperCase()}
           </span>
+          {/* Spacer */}
+          <span style={{ flex: 1 }} />
           {/* Active signal chips */}
           {sqzCount > 0 && (
             <span style={{ fontSize: 10, fontWeight: 700, color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid rgba(52,211,153,0.2)' }}>
@@ -1157,17 +1167,6 @@ function ArenaContent() {
           {sqzCount === 0 && flushCount === 0 && (
             <span style={{ fontSize: 10, color: '#333' }}>All neutral</span>
           )}
-          {/* Selected coin chip */}
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 5,
-            fontSize: 11, fontWeight: 700, color: '#b8aeff',
-            background: 'rgba(184,174,255,0.1)', padding: '2px 9px 2px 5px',
-            borderRadius: 20, border: '0.5px solid rgba(184,174,255,0.2)',
-            flexShrink: 0,
-          }}>
-            <CoinIcon coin={selectedCoin} size={16} color="#b8aeff" bg="rgba(184,174,255,0.15)" />
-            {selectedCoin.toUpperCase()}
-          </span>
           {/* Coin Health grade badge */}
           {(() => {
             const h = computeCoinHealth(store.coins[selectedCoin]);
