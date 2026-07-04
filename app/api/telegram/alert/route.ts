@@ -300,12 +300,16 @@ async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> 
     try {
       let closes: number[];
       if (BINANCE_SPOT[coin]) {
-        const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=20`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
+        // Wilder's RSI smoothing needs a long lookback to converge to the value
+        // TradingView/Bybit show — 20 candles only gives ~5 smoothing iterations
+        // past the initial seed, nowhere near enough. 300 matches what the
+        // Arena chart reader uses for the same calculation.
+        const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=300`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
         if (!res.ok) return;
         const data = await res.json() as Array<unknown[]>;
         closes = data.map(c => parseFloat(c[4] as string));
       } else if (BYBIT_KLINE_SYMS[coin]) {
-        closes = await fetchBybitKlines(BYBIT_KLINE_SYMS[coin], '60', 20);
+        closes = await fetchBybitKlines(BYBIT_KLINE_SYMS[coin], '60', 300);
         if (closes.length === 0) return;
       } else {
         return;
