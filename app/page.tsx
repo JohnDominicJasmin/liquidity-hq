@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
@@ -7,6 +7,18 @@ import { useAuth } from '@/components/AuthProvider';
 export default function LandingPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+
+  // Sniffed synchronously (before Supabase's async getSession() resolves) so
+  // returning users never see the landing page flash before the redirect —
+  // a stored session token means they're almost certainly signed in already.
+  const [hasStoredSession] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return Object.keys(localStorage).some(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+    } catch {
+      return false;
+    }
+  });
 
   /* Redirect signed-in users straight to the app */
   useEffect(() => {
@@ -20,7 +32,10 @@ export default function LandingPage() {
   }, []);
 
   // Show landing page immediately — don't blank-screen while auth resolves.
-  // Once loaded and user is known, useEffect redirects to /dashboard.
+  // Exception: a returning user with a stored session holds off entirely
+  // (rendering nothing) until auth resolves, instead of flashing the
+  // landing page right before the redirect kicks in.
+  if (hasStoredSession && (loading || user)) return null;
   if (!loading && user) return null;
 
   return (
