@@ -65,9 +65,13 @@ export default function AlertsPage() {
     fetch('/api/telegram/bot-info').then(r => r.json())
       .then(d => { setBotUsername(d.username ?? null); setWebhookOk(d.webhook_ok !== false); })
       .catch(() => {});
-    fetch('/api/alert-prefs').then(r => r.json())
-      .then(d => setMuted(new Set<string>(d.muted ?? [])))
-      .catch(() => {});
+    getAuthToken().then(token => {
+      if (!token) return;
+      fetch('/api/alert-prefs', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(d => setMuted(new Set<string>(d.muted ?? [])))
+        .catch(() => {});
+    });
     fetchHistory();
     histTimerRef.current = setInterval(fetchHistory, 60_000);
     return () => { if (histTimerRef.current) clearInterval(histTimerRef.current); };
@@ -90,9 +94,10 @@ export default function AlertsPage() {
     setMuted(prev => { const n = new Set(prev); willMute ? n.add(key) : n.delete(key); return n; });
     setMuteErr('');
     try {
+      const token = await getAuthToken();
       const res = await fetch('/api/alert-prefs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ key, muted: willMute }),
       });
       const d = await res.json();

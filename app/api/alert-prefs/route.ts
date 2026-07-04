@@ -1,6 +1,19 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+
+async function requireAuth(req: NextRequest | Request): Promise<boolean> {
+  const token = (req.headers as Headers).get('Authorization')?.replace('Bearer ', '');
+  if (!token) return false;
+  const sb = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${token}` } } },
+  );
+  const { data } = await sb.auth.getUser();
+  return !!data.user;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +28,10 @@ export const dynamic = 'force-dynamic';
    a table anyone could otherwise mute alerts on.
    Fail-open: if Supabase is unreachable, nothing is muted. */
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!await requireAuth(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const db = getSupabaseAdmin();
     const { data, error } = await db.from(T.muted_alerts).select('key');
@@ -26,7 +42,10 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  if (!await requireAuth(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   let body: { key?: string; muted?: boolean };
   try { body = await req.json(); } catch { return NextResponse.json({ ok: false, error: 'Invalid JSON' }, { status: 400 }); }
   const { key, muted } = body;

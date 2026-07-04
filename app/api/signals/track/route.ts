@@ -130,7 +130,13 @@ async function runTracking(): Promise<{ logged: string[]; resolved: string[]; er
   return { logged, resolved, errors };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const secret = process.env.CRON_SECRET;
+  if (secret) {
+    const auth = req.headers.get('x-cron-secret') ?? new URL(req.url).searchParams.get('secret');
+    if (auth !== secret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   // Safety net — never exceed Render's 30s request limit, same pattern as the
   // Telegram alert route.
   let timerId: ReturnType<typeof setTimeout>;
