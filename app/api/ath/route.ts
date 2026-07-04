@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 const CG_IDS: Record<string, string> = {
   btc:  'bitcoin',
@@ -26,7 +27,10 @@ export interface AthEntry {
   drawdownPct: number; // negative — how far below ATH current price is
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!rateLimit(`ath:${getClientIp(req)}`, 20, 60_000)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
   const ids = Object.values(CG_IDS).join(',');
   const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&per_page=50&sparkline=false`;
 

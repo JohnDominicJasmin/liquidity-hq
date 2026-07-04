@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,7 +58,10 @@ async function getBybit(): Promise<{ rates: Record<string, number>; nextMs: Reco
   return { rates, nextMs };
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!rateLimit(`funding:${getClientIp(req)}`, 20, 60_000)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
   try {
     const [bnResult, bbResult] = await Promise.allSettled([getBinance(), getBybit()]);
 

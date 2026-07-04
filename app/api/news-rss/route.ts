@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 // Free RSS feeds — no API key required
 const FEEDS = [
@@ -98,7 +99,10 @@ function parseRSS(xml: string, source: string, cat: RSSItem['cat']): RSSItem[] {
 let cache: { ts: number; items: RSSItem[] } | null = null;
 const CACHE_TTL = 30 * 1000; // 30 seconds — fast refresh for breaking news
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!rateLimit(`news-rss:${getClientIp(req)}`, 20, 60_000)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
   // Serve from cache if fresh
   if (cache && Date.now() - cache.ts < CACHE_TTL) {
     return NextResponse.json({ items: cache.items });

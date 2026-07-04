@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!rateLimit(`forex-jpy:${getClientIp(req)}`, 20, 60_000)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
   try {
     const r = await fetch('https://open.er-api.com/v6/latest/USD', {
       next: { revalidate: 300 },

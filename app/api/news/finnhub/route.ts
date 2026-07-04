@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 const KEY  = process.env.FINNHUB_KEY ?? '';
 const BASE = 'https://finnhub.io/api/v1';
 
 export async function GET(req: NextRequest) {
+  if (!rateLimit(`finnhub:${getClientIp(req)}`, 20, 60_000)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
+
   if (!KEY) {
     return NextResponse.json({ error: 'FINNHUB_KEY not configured' }, { status: 500 });
   }

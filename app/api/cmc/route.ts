@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 const CMC_KEY = process.env.CMC_API_KEY ?? '';
 const BASE    = 'https://pro-api.coinmarketcap.com';
@@ -8,6 +9,10 @@ function cmcHeaders() {
 }
 
 export async function GET(req: NextRequest) {
+  if (!rateLimit(`cmc:${getClientIp(req)}`, 20, 60_000)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
+
   if (!CMC_KEY) {
     return NextResponse.json({ error: 'CMC_API_KEY not configured' }, { status: 500 });
   }

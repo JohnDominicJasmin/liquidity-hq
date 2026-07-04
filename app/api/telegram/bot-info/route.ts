@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return NextResponse.json({ ok: false, username: null, first_name: null, webhook_ok: true });
 
@@ -14,14 +14,18 @@ export async function GET(req: NextRequest) {
   const me          = await meRes.json() as { ok: boolean; result?: { username?: string; first_name?: string } };
   const webhookInfo = await webhookRes.json() as { ok: boolean; result?: { url?: string } };
 
-  const host    = req.headers.get('host') ?? '';
-  const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
+  // Never trust the request's Host header for the URL registered with Telegram —
+  // this route runs unauthenticated on every /alerts page load, so a spoofed
+  // Host would silently redirect all future bot updates to an attacker's server.
+  const appUrl  = process.env.NEXT_PUBLIC_APP_URL ?? '';
+  const isLocal = !appUrl || appUrl.includes('localhost') || appUrl.includes('127.0.0.1');
 
   let webhookOk = true; // assume OK unless we needed to register and it failed
 
   if (!isLocal) {
-    const expectedUrl = `https://${host}/api/telegram/webhook`;
-    const currentUrl  = webhookInfo.result?.url ?? '';
+    const expectedUrl   = `${appUrl.replace(/\/$/, '')}/api/telegram/webhook`;
+    const currentUrl    = webhookInfo.result?.url ?? '';
+    const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
 
     if (currentUrl !== expectedUrl) {
       // Await registration — surface failure to the UI instead of silent drop
@@ -29,7 +33,7 @@ export async function GET(req: NextRequest) {
         const setRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: expectedUrl }),
+          body: JSON.stringify({ url: expectedUrl, ...(webhookSecret ? { secret_token: webhookSecret } : {}) }),
           signal: AbortSignal.timeout(5_000),
         });
         const setData = await setRes.json() as { ok: boolean };

@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { classifyEcon } from '@/lib/classify';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 const FINNHUB_KEY = process.env.FINNHUB_KEY ?? '';
 
@@ -307,7 +308,10 @@ function computeMacroSchedule(now: Date): CalEvent[] {
   return events;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!rateLimit(`econ-calendar:${getClientIp(req)}`, 20, 60_000)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
   const now  = new Date();
   const from = new Date(+now - 864e5).toISOString().slice(0, 10);
   const to   = new Date(+now + 90 * 864e5).toISOString().slice(0, 10);

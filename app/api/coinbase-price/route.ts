@@ -1,9 +1,13 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 // Coinbase Exchange public ticker — no auth required, no CORS issues from server
 const CB_TICKER = 'https://api.exchange.coinbase.com/products/BTC-USD/ticker';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!rateLimit(`coinbase-price:${getClientIp(req)}`, 20, 60_000)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
   try {
     const res = await fetch(CB_TICKER, {
       headers: { Accept: 'application/json' },

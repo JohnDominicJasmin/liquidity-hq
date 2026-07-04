@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 export interface CyclePoint { day: number; ratio: number; }
 
@@ -82,7 +83,10 @@ async function fetchCycle2024(): Promise<CyclePoint[]> {
   })).filter(p => p.day >= 0);
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!rateLimit(`cycle:${getClientIp(req)}`, 20, 60_000)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
   const currentDay = Math.floor((Date.now() - HALVING_2024_MS) / 86400000);
 
   try {

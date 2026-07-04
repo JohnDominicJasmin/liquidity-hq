@@ -9,8 +9,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 export async function GET(req: NextRequest) {
+  if (!rateLimit(`proxy:${getClientIp(req)}`, 20, 60_000)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
+
   const type = req.nextUrl.searchParams.get('type');
 
   try {

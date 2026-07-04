@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { classifyNews } from '@/lib/classify';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { detectPatterns } from '@/lib/patterns';
@@ -1447,7 +1447,16 @@ async function fetchMutedKeys(): Promise<Set<string>> {
   return Promise.race([query, cap]);
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Protect with CRON_SECRET if set — same opt-in pattern as macro-alert.
+  // Without this, anyone who finds the URL can trigger it: burns Grok budget,
+  // spams every connected Telegram chat, and force-deactivates price alerts.
+  const secret = process.env.CRON_SECRET;
+  if (secret) {
+    const auth = req.headers.get('x-cron-secret') ?? req.nextUrl.searchParams.get('secret');
+    if (auth !== secret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token)
     return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN not set' }, { status: 503 });
