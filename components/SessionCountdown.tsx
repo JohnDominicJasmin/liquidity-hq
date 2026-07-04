@@ -43,9 +43,21 @@ function findSessionEndMs(nowMs: number, name: string): number {
 
 /* ── component ── */
 export default function SessionCountdown() {
+  // This page is statically prerendered, so "which session is active" in the
+  // server HTML reflects whenever the last build ran, not the real current
+  // time — sessions change several times a day, so that snapshot is stale
+  // almost immediately. Gating the current/dead/next/holiday blocks on
+  // `mounted` makes the server render (and the client's first render, before
+  // this effect runs) agree on rendering none of them, then swaps in the
+  // real, live state right after mount — a client-only update, so there's
+  // nothing for hydration to compare. suppressHydrationWarning (used
+  // elsewhere in this file) only covers text content, not whether an
+  // element exists at all, so it can't fix this class of mismatch.
+  const [mounted, setMounted] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
+    setMounted(true);
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
@@ -70,13 +82,13 @@ export default function SessionCountdown() {
 
       {/* Row 1 — active session or status */}
       <div className="sc-row-main">
-        <div className="sc-badge" style={{ color: statusCol, background: statusBg, borderColor: statusCol + '44' }}>
+        <div suppressHydrationWarning className="sc-badge" style={{ color: statusCol, background: statusBg, borderColor: statusCol + '44' }}>
           {current
             ? current.name.toUpperCase()
             : dead ? 'DEAD ZONE' : 'OFF-PEAK'}
         </div>
 
-        {current && (
+        {mounted && current && (
           <div className="sc-timer-block">
             <span className="sc-timer-label">currently open — closes in</span>
             <span suppressHydrationWarning className="sc-timer" style={{ color: current.color }}>
@@ -85,20 +97,20 @@ export default function SessionCountdown() {
           </div>
         )}
 
-        {!current && dead && (
+        {mounted && !current && dead && (
           <span className="sc-note">Stay out — no follow-through</span>
         )}
 
-        {!current && !dead && (
+        {mounted && !current && !dead && (
           <span className="sc-note">No high-probability window active</span>
         )}
       </div>
 
       {/* Row 2 — next session countdown */}
-      {next && (
+      {mounted && next && (
         <div className="sc-row-next">
           <span className="sc-next-label">Next</span>
-          <span className="sc-next-name" style={{ color: next.win.color }}>
+          <span suppressHydrationWarning className="sc-next-name" style={{ color: next.win.color }}>
             {next.win.name}
           </span>
           <span className="sc-next-sep">opens in</span>
@@ -107,10 +119,10 @@ export default function SessionCountdown() {
       )}
 
       {/* Row 3 — active market holidays (NY/London/Asia/China) — reduced liquidity heads-up */}
-      {holidays.length > 0 && (
+      {mounted && holidays.length > 0 && (
         <div className="sc-row-next" style={{ marginTop: 4 }}>
           <span className="sc-next-label" style={{ color: '#fbbf24' }}>Holiday</span>
-          <span style={{ fontSize: 11, color: 'var(--txt2)' }}>
+          <span suppressHydrationWarning style={{ fontSize: 11, color: 'var(--txt2)' }}>
             {holidays.map(h => `${h.region} closed — ${h.name}`).join(' · ')}
           </span>
         </div>

@@ -129,12 +129,12 @@ export default function RaidMeter() {
             </div>
           </div>
           <div className="rpm-score-wrap">
-            <div className={`rpm-score ${rpm.col}`}>{rpm.total}</div>
+            <div suppressHydrationWarning className={`rpm-score ${rpm.col}`}>{rpm.total}</div>
             <div className="rpm-max">/ 100</div>
           </div>
         </div>
-        <div className={`rpm-verdict ${rpm.col}`}>{rpm.verdict}</div>
-        <div className="rpm-sub">{rpm.sub}</div>
+        <div suppressHydrationWarning className={`rpm-verdict ${rpm.col}`}>{rpm.verdict}</div>
+        <div suppressHydrationWarning className="rpm-sub">{rpm.sub}</div>
         <div className="rpm-bar-track">
           <div className={`rpm-bar-fill ${rpm.barCl}`} style={{ width: rpm.total + '%' }} />
         </div>
@@ -148,8 +148,8 @@ export default function RaidMeter() {
             <div key={f.l} className="rpm-factor">
               <div className="rpm-factor-label">{f.l}</div>
               <div className="rpm-factor-row">
-                <div className="rpm-factor-val">{f.v}</div>
-                <div className="rpm-factor-pts">{f.p} pts</div>
+                <div suppressHydrationWarning className="rpm-factor-val">{f.v}</div>
+                <div suppressHydrationWarning className="rpm-factor-pts">{f.p} pts</div>
               </div>
             </div>
           ))}

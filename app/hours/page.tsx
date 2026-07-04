@@ -25,8 +25,16 @@ const WINDOWS = [
 function pad(n: number) { return n < 10 ? '0' + n : '' + n; }
 
 export default function BestHours() {
+  // This page is statically prerendered, so which session window is "active"
+  // in the server HTML reflects whenever the last build ran, not real time.
+  // Gate the win/dead-driven blocks below on `mounted` so the server render
+  // and the client's first render agree on showing none of them, then swap
+  // in the live state right after mount (client-only, nothing for hydration
+  // to compare against).
+  const [mounted, setMounted] = useState(false);
   const [tick, setTick] = useState(0);
   useEffect(() => {
+    setMounted(true);
     const t = setInterval(() => setTick(v => v + 1), 1000);
     return () => clearInterval(t);
   }, []);
@@ -62,7 +70,7 @@ export default function BestHours() {
         </div>
 
         <div style={{ marginTop: 12 }}>
-          {win ? (
+          {mounted && (win ? (
             <div className="window-pill" style={{ background: win.bg, color: win.color, display: 'inline-block' }}>
               ✦ {win.name} — Active now
             </div>
@@ -70,7 +78,7 @@ export default function BestHours() {
             <div className="window-pill wp-dead" style={{ display: 'inline-block' }}>⚠ Dead zone — do not trade</div>
           ) : (
             <div className="window-pill wp-other" style={{ display: 'inline-block' }}>◆ Outside prime windows</div>
-          )}
+          ))}
         </div>
       </div>
 
@@ -144,15 +152,15 @@ export default function BestHours() {
         {/* Current position label */}
         <div style={{ fontSize: 11, color: 'var(--txt3)', textAlign: 'center' }}>
           ▲ now: <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>{pad(h12)}:{pad(m)} {ampm} PHT</span>
-          {win && <span style={{ marginLeft: 8, color: win.color, fontWeight: 600 }}>· {win.name}</span>}
-          {dead && <span style={{ marginLeft: 8, color: '#f87171', fontWeight: 600 }}>· Dead Zone</span>}
+          {mounted && win && <span style={{ marginLeft: 8, color: win.color, fontWeight: 600 }}>· {win.name}</span>}
+          {mounted && dead && <span style={{ marginLeft: 8, color: '#f87171', fontWeight: 600 }}>· Dead Zone</span>}
         </div>
       </div>
 
       {/* Active or upcoming */}
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="lbl">Next windows</div>
-        {win ? (
+        {mounted && (win ? (
           <div className="nw-row" style={{ marginBottom: 0 }}>
             <div>
               <div className="nw-name" style={{ color: win.color }}>✦ {win.name} is active RIGHT NOW</div>
@@ -174,7 +182,7 @@ export default function BestHours() {
           </div>
         ) : (
           <div style={{ fontSize: 12, color: 'var(--txt3)' }}>No windows detected in next 7 days</div>
-        )}
+        ))}
       </div>
 
       {/* Window descriptions */}

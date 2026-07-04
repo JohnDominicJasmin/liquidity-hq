@@ -58,7 +58,7 @@ export default function CycleDayCounter() {
             Cycle Day
           </span>
         </div>
-        <span style={{
+        <span suppressHydrationWarning style={{
           fontSize: 9, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
           color: dotColor, background: dotColor + '18', border: `0.5px solid ${dotColor}44`,
           padding: '2px 7px', borderRadius: 20,
@@ -67,7 +67,7 @@ export default function CycleDayCounter() {
 
       {/* Main number */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <span style={{ fontSize: 36, fontWeight: 800, color: 'var(--txt)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+        <span suppressHydrationWarning style={{ fontSize: 36, fontWeight: 800, color: 'var(--txt)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
           {day.toLocaleString()}
         </span>
         <span style={{ fontSize: 13, color: 'var(--txt3)' }}>days since 4th halving</span>
@@ -106,24 +106,24 @@ export default function CycleDayCounter() {
         {prePeak && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <span style={{ fontSize: 10, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Days to peak zone</span>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>{PEAK_WINDOW.start - day}</span>
+            <span suppressHydrationWarning style={{ fontSize: 14, fontWeight: 700, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>{PEAK_WINDOW.start - day}</span>
           </div>
         )}
         {inPeakWindow && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <span style={{ fontSize: 10, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Days in peak zone</span>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>{day - PEAK_WINDOW.start}</span>
+            <span suppressHydrationWarning style={{ fontSize: 14, fontWeight: 700, color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>{day - PEAK_WINDOW.start}</span>
           </div>
         )}
         {pastPeak && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <span style={{ fontSize: 10, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Days past peak zone</span>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>{day - PEAK_WINDOW.end}</span>
+            <span suppressHydrationWarning style={{ fontSize: 14, fontWeight: 700, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>{day - PEAK_WINDOW.end}</span>
           </div>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           <span style={{ fontSize: 10, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Est. next halving</span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums' }}>~{daysToNext}d (Mar 2028)</span>
+          <span suppressHydrationWarning style={{ fontSize: 14, fontWeight: 700, color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums' }}>~{daysToNext}d (Mar 2028)</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           <span style={{ fontSize: 10, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Historical context</span>

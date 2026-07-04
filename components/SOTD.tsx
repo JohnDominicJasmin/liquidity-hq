@@ -13,11 +13,11 @@ export default function SOTD() {
   return (
     <div className="sotd-wrap">
       <div className="sotd-label">
-        <span className="sotd-num-inline">PLAY #{secret.n} of {SECRETS.length}</span>
+        <span suppressHydrationWarning className="sotd-num-inline">PLAY #{secret.n} of {SECRETS.length}</span>
         <button className="sotd-refresh" onClick={newSecret}>new play</button>
       </div>
-      <div className="sotd-name">{secret.name}</div>
-      <div className="sotd-text">{secret.text}</div>
+      <div suppressHydrationWarning className="sotd-name">{secret.name}</div>
+      <div suppressHydrationWarning className="sotd-text">{secret.text}</div>
       <div className="sotd-footer">Tap &ldquo;new play&rdquo; to get another. Every day a different play loads automatically.</div>
     </div>
   );

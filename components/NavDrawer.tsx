@@ -18,11 +18,21 @@ function findEndsInMs(nowMs: number, name: string): number {
   return 6 * 3600_000;
 }
 function SessionPill() {
+  // This pill is rendered on every page (via the root layout), most of which
+  // are statically prerendered — so "is a window active" can only be decided
+  // once we're actually on the client with the real current time. Gating on
+  // `mounted` makes the server render (and client's first render, before this
+  // effect runs) always emit nothing, avoiding a hydration mismatch on
+  // whether this element exists at all (suppressHydrationWarning can't help
+  // here — it only covers text content, not element presence).
+  const [mounted, setMounted] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
+    setMounted(true);
     const id = setInterval(() => setNowMs(Date.now()), 60_000);
     return () => clearInterval(id);
   }, []);
+  if (!mounted) return null;
   const win = getCurrentWindow(new Date(nowMs));
   if (!win) return null;
   const endsMs = findEndsInMs(nowMs, win.name);

@@ -35,9 +35,19 @@ function findSessionEndMs(nowMs: number, name: string): number {
 
 /* ── component ── */
 export default function SessionContext() {
+  // This page is statically prerendered, so which of the current/dead/next/
+  // holiday blocks should exist reflects whenever the last build ran, not
+  // real time — sessions change several times a day, so gate these on
+  // `mounted` so server and the client's first render agree on rendering
+  // none of them, then swap in the live state right after mount (a
+  // client-only update, nothing for hydration to compare). This is
+  // different from suppressHydrationWarning (used below), which only
+  // covers text content, not whether an element exists at all.
+  const [mounted, setMounted] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
+    setMounted(true);
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
@@ -109,6 +119,7 @@ export default function SessionContext() {
       {/* Row 1 — session window status */}
       <div className="sctx-session-row">
         <div
+          suppressHydrationWarning
           className="sc-badge"
           style={{ color: statusCol, background: statusBg, borderColor: statusCol + '44' }}
         >
@@ -117,23 +128,23 @@ export default function SessionContext() {
             : dead ? 'Dead zone' : 'Off-peak'}
         </div>
 
-        {current ? (
+        {mounted && (current ? (
           <span suppressHydrationWarning className="sctx-timing">
             Ends in{' '}
-            <strong style={{ color: current.color }}>{fmtMs(endsInMs)}</strong>
+            <strong suppressHydrationWarning style={{ color: current.color }}>{fmtMs(endsInMs)}</strong>
           </span>
         ) : dead ? (
           <span className="sctx-note">Stay out — no follow-through</span>
         ) : (
           <span className="sctx-note">No high-probability window active</span>
-        )}
+        ))}
 
-        {next && (
+        {mounted && next && (
           <>
             <span className="sctx-dot">·</span>
             <span suppressHydrationWarning className="sctx-timing">
               Next{' '}
-              <strong style={{ color: next.win.color }}>{next.win.name}</strong>
+              <strong suppressHydrationWarning style={{ color: next.win.color }}>{next.win.name}</strong>
               {' '}in {fmtMs(nextInMs)}
             </span>
           </>
@@ -141,10 +152,10 @@ export default function SessionContext() {
       </div>
 
       {/* Row 1b — active market holidays (NY/London/Asia/China) */}
-      {holidays.length > 0 && (
+      {mounted && holidays.length > 0 && (
         <div className="sctx-session-row" style={{ marginTop: 2 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: '#fbbf24' }}>Holiday</span>
-          <span className="sctx-note">
+          <span suppressHydrationWarning className="sctx-note">
             {holidays.map(h => `${h.region} closed — ${h.name}`).join(' · ')}
           </span>
         </div>
