@@ -3730,6 +3730,24 @@ body.landing {
   .lp-plan     { min-width: 0; width: 100%; max-width: 100%; }
 }
 
+/* ── LP LOCALIZATION ─────────────────────────────────────────────────── */
+/* Georgia/Times italic serif has no Arabic or CJK glyph forms — falls back
+   to a faux-slanted default font that looks broken in those scripts, so
+   translated locales get the accent color without the italic serif treatment. */
+html[lang="ko"] .lp-h1-accent,
+html[lang="zh"] .lp-h1-accent,
+html[lang="ar"] .lp-h1-accent {
+  font-family: inherit;
+  font-style: normal;
+}
+
+/* RTL: flexbox/grid already reorder automatically via `dir`, these are the
+   few spots with asymmetric visuals that need an explicit mirror. */
+[dir="rtl"] .lp-footer-col a { text-align: right; }
+[dir="rtl"] .lp-plan-features li { flex-direction: row-reverse; }
+[dir="rtl"] .lp-feature-card h3,
+[dir="rtl"] .lp-step h3 { text-align: right; }
+
 /* ══════════════════════════════════════════════
    PRO GATE
    ══════════════════════════════════════════════ */
