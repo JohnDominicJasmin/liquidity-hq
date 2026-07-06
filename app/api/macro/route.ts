@@ -49,15 +49,16 @@ async function yf(sym: string) {
 }
 
 export async function GET() {
-  const [oil, dxy, spx, gold] = await Promise.all([
+  const [oil, dxy, spx, gold, jpy] = await Promise.all([
     yf('CL%3DF'),      // WTI Crude Oil
     yf('DX-Y.NYB'),    // DXY (US Dollar Index)
     yf('%5EGSPC'),     // S&P 500
     yf('GC%3DF'),      // Gold futures
+    yf('JPY%3DX'),     // USD/JPY — yen carry-trade direction (day change %)
   ]);
 
   return NextResponse.json(
-    { oil, dxy, spx, gold },
+    { oil, dxy, spx, gold, jpy },
     { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } },
   );
 }

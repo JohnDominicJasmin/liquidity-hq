@@ -137,6 +137,8 @@ export type MarketStore = {
   /* Macro correlations */
   dxy: number | null;        // US Dollar Index
   dxyChg: number | null;     // 24h % change
+  jpy: number | null;        // USD/JPY spot
+  jpyChg: number | null;     // 24h % change — yen carry-trade direction
   spx: number | null;        // S&P 500
   spxChg: number | null;
   gold: number | null;       // Gold spot $/oz
@@ -181,6 +183,7 @@ export const defaultStore: MarketStore = {
   btcLiqLevels: [],
   googleTrendsBtc: null,
   dxy: null, dxyChg: null,
+  jpy: null, jpyChg: null,
   spx: null, spxChg: null,
   gold: null, goldChg: null,
   cbPremium: null, cbPremiumPct: null,

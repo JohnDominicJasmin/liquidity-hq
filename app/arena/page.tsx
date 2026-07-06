@@ -1098,6 +1098,49 @@ function ArenaContent() {
               </span>
             );
           })()}
+          {(() => {
+            const { dxyChg, jpyChg } = store;
+            if (dxyChg == null || jpyChg == null) return null;
+            const FLAT = 0.05; // % — below this, treat the move as noise
+            const dxyUp = dxyChg > FLAT, dxyDown = dxyChg < -FLAT;
+            const jpyUp = jpyChg > FLAT, jpyDown = jpyChg < -FLAT; // USD/JPY up = yen weakening
+
+            let label: string, col: string, flash: boolean, desc: string;
+            if (dxyDown && jpyUp) {
+              label = 'CHEAP MONEY'; col = '#34d399'; flash = false;
+              desc = 'DXY falling (dollar broadly weak, mostly EUR-driven — it’s 57.6% of the index vs JPY’s 13.6%) AND the yen weakening (USD/JPY up, carry trade intact). Both cheap at once — the regime crypto pumps in.';
+            } else if (dxyUp && jpyDown) {
+              label = 'EXPENSIVE MONEY'; col = '#f87171'; flash = true;
+              desc = 'DXY rising AND the yen strengthening (USD/JPY down) at the same time — dollar expensive, carry trade unwinding. The hardest regime for crypto: no cheap money anywhere.';
+            } else if (dxyUp && jpyUp) {
+              label = 'STRONG DOLLAR'; col = '#fbbf24'; flash = true;
+              desc = 'DXY rising (dollar broadly strong) even though the yen is still weakening (carry trade intact). Strong-dollar headwind tends to dominate — net bearish for crypto liquidity.';
+            } else if (dxyDown && jpyDown) {
+              label = 'CARRY UNWIND RISK'; col = '#fbbf24'; flash = true;
+              desc = 'DXY is falling, but that’s not the same as "cheap money" — the yen is strengthening (USD/JPY down), which signals carry-trade unwinding. That’s historically been a risk-off trigger for crypto even with DXY down.';
+            } else {
+              label = 'MIXED SIGNALS'; col = '#8e8e93'; flash = false;
+              desc = 'DXY and USD/JPY aren’t moving together in either direction right now. DXY alone is an incomplete crypto signal — it’s 57.6% Euro, only 13.6% yen — so check both before reading the macro backdrop.';
+            }
+
+            return (
+              <span
+                className={flash ? 'macro-regime-badge-flash' : undefined}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+                  color: col, background: col + '14', border: `0.5px solid ${col}44`,
+                  letterSpacing: '.04em',
+                  ...(flash ? ({ '--flash-color': col } as React.CSSProperties) : {}),
+                }}
+              >
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: col, boxShadow: `0 0 5px ${col}`, flexShrink: 0 }} />
+                <Tip width={280} iconColor={col + '99'} text={desc}>
+                  {label}
+                </Tip>
+              </span>
+            );
+          })()}
         </div>
         <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Chart · 35-signal engine · confluence · scanner — one page</div>
       </div>

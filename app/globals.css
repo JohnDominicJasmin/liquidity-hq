@@ -1043,6 +1043,11 @@ body.ticker-on .breaking-alert { top: 90px; }
 .arena-loading-dots { font-size: 24px; letter-spacing: 4px; animation: blink 1.2s infinite; }
 @keyframes blink { 0%,100%{opacity:1}50%{opacity:0.2} }
 .arena-loading-text { font-size: 12px; margin-top: 8px; color: var(--txt3); }
+@keyframes macro-regime-flash {
+  0%, 100% { box-shadow: 0 0 4px var(--flash-color); border-color: var(--flash-color); }
+  50%      { box-shadow: 0 0 12px var(--flash-color); border-color: transparent; }
+}
+.macro-regime-badge-flash { animation: macro-regime-flash 1.6s ease-in-out infinite; }
 .arena-err       { background: var(--red-bg); border: 0.5px solid var(--red-bdr); border-radius: 12px; padding: 12px 14px; font-size: 13px; color: var(--red); margin-bottom: 10px; }
 .arena-no-key    { background: var(--purple-bg); border: 0.5px solid var(--purple-bdr); border-radius: 16px; padding: 16px; text-align: center; margin-bottom: 14px; }
 .arena-no-key-icon  { font-size: 28px; margin-bottom: 8px; }

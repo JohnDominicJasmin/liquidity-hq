@@ -1077,6 +1077,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         dxy:  { price: number; chg: number } | null;
         spx:  { price: number; chg: number } | null;
         gold: { price: number; chg: number } | null;
+        jpy:  { price: number; chg: number } | null;
       } = await res.json();
 
       setStore(s => ({
@@ -1085,6 +1086,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         ...(d.dxy  ? { dxy:  d.dxy.price,  dxyChg:  d.dxy.chg  }       : {}),
         ...(d.spx  ? { spx:  d.spx.price,  spxChg:  d.spx.chg  }       : {}),
         ...(d.gold ? { gold: d.gold.price, goldChg: d.gold.chg  }       : {}),
+        ...(d.jpy  ? { jpy:  d.jpy.price,  jpyChg:  d.jpy.chg  }       : {}),
       }));
     } catch { /* fail silently */ }
   }, []);
