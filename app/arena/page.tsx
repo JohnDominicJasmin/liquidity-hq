@@ -1070,14 +1070,16 @@ function ArenaContent() {
             const col = jpyUsd >= 160 ? '#f87171' : jpyUsd >= 158 ? '#fbbf24' : '#34d399';
             const label = jpyUsd >= 160 ? 'DANGER' : jpyUsd >= 158 ? 'WARN' : 'SAFE';
             return (
-              <span title={`USD/JPY ${jpyUsd.toFixed(2)} — Yen carry trade risk indicator. Danger zone: ≥160`} style={{
+              <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5,
                 fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
                 color: col, background: col + '14', border: `0.5px solid ${col}44`,
-                letterSpacing: '.04em', cursor: 'default',
+                letterSpacing: '.04em',
               }}>
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: col, boxShadow: `0 0 5px ${col}` }} />
-                JPY {jpyUsd.toFixed(0)} · {label}
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: col, boxShadow: `0 0 5px ${col}`, flexShrink: 0 }} />
+                <Tip width={260} iconColor={col + '99'} text={`USD/JPY ${jpyUsd.toFixed(2)} — yen carry-trade risk indicator. ≥160 = danger zone (BOJ intervention risk, unwind can trigger BTC liquidations). ≥158 = approaching it. Below 158 = stable.`}>
+                  JPY {jpyUsd.toFixed(0)} · {label}
+                </Tip>
               </span>
             );
           })()}
