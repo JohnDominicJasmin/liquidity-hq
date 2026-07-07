@@ -1143,6 +1143,33 @@ function ArenaContent() {
               </span>
             );
           })()}
+          {(() => {
+            const { cbPremium, cbPremiumPct } = store;
+            if (cbPremium == null || cbPremiumPct == null) return null;
+            const bullish = cbPremiumPct > 0.05, bearish = cbPremiumPct < -0.05;
+            const col = bullish ? '#34d399' : bearish ? '#f87171' : '#8e8e93';
+            const sign = cbPremiumPct >= 0 ? '+' : '-';
+            const magUsd = Math.abs(cbPremium).toFixed(1);
+            const magPct = Math.abs(cbPremiumPct).toFixed(3);
+            const readOut = bullish
+              ? 'US spot demand outpacing the rest of the world (bullish tell).'
+              : bearish
+              ? 'US selling into global bids (bearish tell).'
+              : 'No meaningful US/global spot imbalance right now.';
+            return (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+                color: col, background: col + '14', border: `0.5px solid ${col}44`,
+                letterSpacing: '.04em',
+              }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: col, boxShadow: `0 0 5px ${col}`, flexShrink: 0 }} />
+                <Tip width={260} iconColor={col + '99'} text={`Coinbase BTC price vs Bybit: ${sign}$${magUsd} (${sign}${magPct}%). ${readOut} Positive = Coinbase above Bybit, negative = below. Threshold: ±0.05%.`}>
+                  CB {sign}{Math.abs(cbPremiumPct).toFixed(2)}%
+                </Tip>
+              </span>
+            );
+          })()}
         </div>
         <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Chart · 35-signal engine · confluence · scanner — one page</div>
       </div>
