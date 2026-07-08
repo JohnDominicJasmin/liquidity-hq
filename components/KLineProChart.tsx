@@ -41,6 +41,40 @@ const TOOLS = [
   { id: 'rect',                   label: '▭ Rect'    },
 ] as const;
 
+// ── Drawing persistence — user-drawn lines survive a page refresh, per coin ──
+const DRAWING_GROUP = 'user_drawing';
+const drawingsKey = (coin: CoinId) => `lhq_chart_drawings_${coin}`;
+
+interface PersistedOverlay {
+  name: string;
+  points: Array<{ timestamp?: number; value?: number }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  styles?: any;
+  lock?: boolean;
+}
+
+function saveDrawings(chart: KChart, coin: CoinId) {
+  try {
+    const overlays = chart.getOverlays({ groupId: DRAWING_GROUP });
+    const persisted: PersistedOverlay[] = overlays.map(o => ({
+      name: o.name,
+      points: o.points.map(p => ({ timestamp: p.timestamp, value: p.value })),
+      styles: o.styles,
+      lock: o.lock,
+    }));
+    localStorage.setItem(drawingsKey(coin), JSON.stringify(persisted));
+  } catch { /* storage full/unavailable — drawings just won't persist */ }
+}
+
+function loadDrawings(coin: CoinId): PersistedOverlay[] {
+  try {
+    const raw = localStorage.getItem(drawingsKey(coin));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
 // ── Theme configs — use setStyles after init to avoid deep-type gymnastics ──
 
 const DARK: Record<string, unknown> = {
@@ -266,6 +300,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const { store } = useMarket();
   const coinData = store.coins[coin];
   const srOverlayIds              = useRef<string[]>([]);
+  const userDrawOverlayIds        = useRef<string[]>([]);
   // Track the last loaded coin/tf so we only re-fetch what actually changed,
   // and a monotonic load token so stale in-flight fetches are dropped on arrival.
   const prevCoinRef    = useRef<CoinId>(coin);
@@ -408,6 +443,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         { isStack: false, pane: { id: 'candle_pane' } }
       );
       chart.createIndicator('VOL', { pane: { height: 60, minHeight: 30 } });
+      // RSI-14 (Wilder's smoothing) — matches the period used everywhere else
+      // in the app (marketStore rsi14/rsi1h/rsi4h/rsiDaily), instead of the
+      // built-in indicator's default 3-line [6,12,24] preset.
+      chart.createIndicator(
+        { name: 'RSI', calcParams: [14], styles: { lines: [{ color: '#b8aeff', size: 1.5 }] } },
+        { pane: { height: 70, minHeight: 30 } }
+      );
 
       if (!emaSignalOverlayRegistered) {
         emaSignalOverlayRegistered = true;
@@ -772,6 +814,29 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     }
   }, [srLevels, showSR, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Restore user-drawn lines for this coin, and swap them out on coin change ──
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+
+    userDrawOverlayIds.current.forEach(id => chart.removeOverlay({ id }));
+    userDrawOverlayIds.current = [];
+
+    for (const p of loadDrawings(coin)) {
+      const id = chart.createOverlay({
+        name: p.name,
+        groupId: DRAWING_GROUP,
+        points: p.points,
+        styles: p.styles,
+        lock: p.lock ?? false,
+        onDrawEnd: () => saveDrawings(chart, coinRef.current),
+        onRemoved: () => saveDrawings(chart, coinRef.current),
+        onPressedMoveEnd: () => saveDrawings(chart, coinRef.current),
+      } as OverlayCreate);
+      if (typeof id === 'string') userDrawOverlayIds.current.push(id);
+    }
+  }, [coin, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Drawing toolbar ──────────────────────────────────────────────────
   const handleTool = (toolId: string) => {
     const chart = chartRef.current;
@@ -780,7 +845,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       chart.removeOverlay({ name: toolId });
       setActiveTool(null);
     } else {
-      chart.createOverlay(toolId);
+      const id = chart.createOverlay({
+        name: toolId,
+        groupId: DRAWING_GROUP,
+        onDrawEnd: () => saveDrawings(chart, coinRef.current),
+        onRemoved: () => saveDrawings(chart, coinRef.current),
+        onPressedMoveEnd: () => saveDrawings(chart, coinRef.current),
+      } as OverlayCreate);
+      if (typeof id === 'string') userDrawOverlayIds.current.push(id);
       setActiveTool(toolId);
     }
   };
@@ -788,7 +860,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const handleClear = () => {
     chartRef.current?.removeOverlay();
     analysisIds.current = [];
+    userDrawOverlayIds.current = [];
     setActiveTool(null);
+    try { localStorage.removeItem(drawingsKey(coin)); } catch { /* ignore */ }
   };
 
   const handleCopy = (price: number, label: string) => {
