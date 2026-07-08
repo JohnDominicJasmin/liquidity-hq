@@ -420,9 +420,20 @@ function ArenaContent() {
     return () => { clearInterval(iv); document.removeEventListener('visibilitychange', onVisibility); };
   }, []);
 
-  /* ── Push notifications ── */
+  /* ── Push notifications ──
+     notifEnabled starts false (SSR-safe — Notification isn't available on the
+     server, so reading it in a useState initializer would mismatch during
+     hydration). This effect syncs it to the browser's actual, already-decided
+     permission right after mount, so a returning user whose permission is
+     already 'granted' sees the bell lit immediately instead of "off" and
+     clickable again — which is what made it feel like it was asking twice. */
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'granted') setNotifEnabled(true);
+  }, []);
+
   const enableNotifications = async () => {
     if (!('Notification' in window)) { alert('Notifications not supported in this browser.'); return; }
+    if (Notification.permission === 'granted') { setNotifEnabled(true); return; }
     const perm = await Notification.requestPermission();
     if (perm === 'granted') setNotifEnabled(true);
     else alert('Notification permission denied. Enable in browser settings.');
