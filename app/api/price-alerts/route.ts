@@ -28,7 +28,8 @@ export async function GET(req: NextRequest) {
     .select('*')
     .eq('user_id', user.id)
     .eq('active', true)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(100);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ alerts: data ?? [] });

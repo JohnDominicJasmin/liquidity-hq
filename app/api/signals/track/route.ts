@@ -94,7 +94,9 @@ async function runTracking(): Promise<{ logged: string[]; resolved: string[]; er
     .select('id, coin, tf, dir, entry_price, sl, tp, signal_time')
     .eq('outcome', 'open');
 
-  for (const sig of (openSignals ?? []) as OpenRow[]) {
+  // Each signal resolves independently (different coin/tf/id) — run them
+  // concurrently instead of one sequential DB round-trip after another.
+  await Promise.all(((openSignals ?? []) as OpenRow[]).map(async sig => {
     try {
       const candles = await fetchOHLCV(sig.coin as CoinId, sig.tf, 500);
       const sinceTime = new Date(sig.signal_time).getTime();
@@ -125,7 +127,7 @@ async function runTracking(): Promise<{ logged: string[]; resolved: string[]; er
     } catch (err) {
       errors.push(`resolve #${sig.id}: ${String(err)}`);
     }
-  }
+  }));
 
   return { logged, resolved, errors };
 }

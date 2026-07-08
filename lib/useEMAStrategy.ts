@@ -105,11 +105,11 @@ export const STRATEGY_LOADING: StrategySignal = {
 /* ── TF → exchange interval strings ─────────────────────────────────────── */
 const TF_BN: Record<string, string> = {
   '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m',
-  '1h': '1h', '4h': '4h', '1d': '1d',
+  '1h': '1h', '2h': '2h', '4h': '4h', '1d': '1d',
 };
 const TF_BY: Record<string, string> = {
   '1m': '1', '5m': '5', '15m': '15', '30m': '30',
-  '1h': '60', '4h': '240', '1d': 'D',
+  '1h': '60', '2h': '120', '4h': '240', '1d': 'D',
 };
 
 /* ── Main hook ───────────────────────────────────────────────────────────── */

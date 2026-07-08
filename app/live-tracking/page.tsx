@@ -50,7 +50,8 @@ export default function LiveTrackingPage() {
       const { data, error: err } = await sb
         .from(T.live_signals)
         .select('*')
-        .order('signal_time', { ascending: true });
+        .order('signal_time', { ascending: true })
+        .limit(5000); // safety cap — this table grows continuously via the tracking cron
       if (cancelled) return;
       if (err) setError(err.message);
       else setRows(data as LiveSignalRow[]);

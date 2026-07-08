@@ -154,7 +154,7 @@ function ArenaContent() {
   });
   const [readTf, setReadTf] = useState<ChartTf>(() => {
     const tf = searchParams.get('tf') ?? '';
-    const valid: ChartTf[] = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'];
+    const valid: ChartTf[] = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'];
     return valid.includes(tf as ChartTf) ? tf as ChartTf : '15m';
   });
   const arenaInitRef  = useRef(false);
@@ -332,7 +332,7 @@ function ArenaContent() {
       if (!urlParams.has('coin') && COINS.includes(settings.default_coin as CoinId)) {
         setSelectedCoin(settings.default_coin as CoinId);
       }
-      if (!urlParams.has('tf') && ['1m', '5m', '15m', '30m', '1h', '4h', '1d'].includes(settings.default_tf)) {
+      if (!urlParams.has('tf') && ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'].includes(settings.default_tf)) {
         setReadTf(settings.default_tf as ChartTf);
       }
     }
@@ -911,7 +911,7 @@ function ArenaContent() {
         raw = await r.json();
       } else {
         // Bybit klines: interval uses numbers (1, 5, 15, 30, 60, 240) or 'D'; response is newest-first
-        const bybitInterval = readTf === '1m' ? '1' : readTf === '5m' ? '5' : readTf === '30m' ? '30' : readTf === '15m' ? '15' : readTf === '1h' ? '60' : readTf === '4h' ? '240' : 'D';
+        const bybitInterval = readTf === '1m' ? '1' : readTf === '5m' ? '5' : readTf === '30m' ? '30' : readTf === '15m' ? '15' : readTf === '1h' ? '60' : readTf === '2h' ? '120' : readTf === '4h' ? '240' : 'D';
         const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${bybitInterval}&limit=300`);
         if (!r.ok) throw new Error('Bybit API error');
         const data = await r.json();

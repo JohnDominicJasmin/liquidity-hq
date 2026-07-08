@@ -10,7 +10,7 @@ import UsageRings from '@/components/UsageRings';
 import CoinMultiSelect from '@/components/CoinMultiSelect';
 import { track } from '@/lib/analytics';
 
-const TFS          = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'] as const;
+const TFS          = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'] as const;
 const RISK_PRESETS = ['0.25', '0.5', '1', '1.5', '2'];
 
 function SaveIndicator({ status }: { status: 'idle' | 'saving' | 'saved' | 'error' }) {

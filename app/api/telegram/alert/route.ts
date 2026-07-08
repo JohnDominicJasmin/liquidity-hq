@@ -778,6 +778,10 @@ async function checkPriceAlerts(
       if (id) chatIdByUser.set(row.user_id as string, id);
     }
 
+    // Collect ids to deactivate and issue ONE batched UPDATE after the loop,
+    // instead of a separate round-trip per triggered alert (N+1).
+    const triggeredIds: number[] = [];
+
     for (const alert of alertsRes.data as PriceAlert[]) {
       const price = prices[alert.coin];
       if (price == null) continue;
@@ -808,9 +812,15 @@ async function checkPriceAlerts(
 
       await tg(token, recipient, body);
 
-      // Deactivate immediately — fire once then done
-      await admin.from(T.price_alerts).update({ active: false, triggered_at: new Date().toISOString() }).eq('id', alert.id);
+      triggeredIds.push(alert.id);
       fired.push(`${label} price alert at $${alert.target_price.toLocaleString()}`);
+    }
+
+    // Deactivate all fired alerts in a single round-trip
+    if (triggeredIds.length > 0) {
+      await admin.from(T.price_alerts)
+        .update({ active: false, triggered_at: new Date().toISOString() })
+        .in('id', triggeredIds);
     }
   } catch { /* skip */ }
   return fired;

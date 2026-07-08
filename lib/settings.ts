@@ -15,7 +15,7 @@ export interface UserSettings {
   how_heard:          string | null;  // attribution
   // AI Arena
   default_coin:     string;
-  default_tf:       '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d';
+  default_tf:       '1m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '1d';
   // Notification thresholds (client-side push alerts)
   fr_threshold:     number;   // e.g. 0.05 = 0.05%
   fng_fear:         number;   // alert when F&G <= this

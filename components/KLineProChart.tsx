@@ -13,6 +13,7 @@ const TF_TO_PERIOD: Record<string, Period> = {
   '15m': { type: 'minute', span: 15 },
   '30m': { type: 'minute', span: 30 },
   '1h':  { type: 'hour',   span: 1  },
+  '2h':  { type: 'hour',   span: 2  },
   '4h':  { type: 'hour',   span: 4  },
   '1d':  { type: 'day',    span: 1  },
 };
@@ -179,7 +180,7 @@ const LIGHT: Record<string, unknown> = {
 
 // ── Component ─────────────────────────────────────────────────────────────
 
-export type ChartTf = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d';
+export type ChartTf = '1m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '1d';
 
 export interface ChartAlert {
   id:           string;
@@ -198,7 +199,7 @@ interface Props {
   onAlertMove?:  (id: string, newPrice: number) => void;
 }
 
-const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','4h','1d'];
+const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d'];
 
 let emaSignalOverlayRegistered = false;
 let srLevelLineRegistered = false;
@@ -311,7 +312,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   useEffect(() => {
     const MS: Record<string, number> = {
       '1m': 60_000, '5m': 300_000, '15m': 900_000, '30m': 1_800_000,
-      '1h': 3_600_000, '4h': 14_400_000, '1d': 86_400_000,
+      '1h': 3_600_000, '2h': 7_200_000, '4h': 14_400_000, '1d': 86_400_000,
     };
     const periodMs = MS[tf];
     if (!periodMs) return;
