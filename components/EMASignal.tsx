@@ -85,7 +85,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
       marginBottom: 10,
     }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 10 }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 3 }}>
             EMA Ribbon Strategy
@@ -94,14 +94,41 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
             3 moving averages (fast/mid/slow) · {tf.toUpperCase()} chart · daily trend filter
           </div>
         </div>
-        <span style={{
-          fontSize: 11, fontWeight: 700, letterSpacing: '.04em',
-          padding: '4px 12px', borderRadius: 20,
-          color: cfg.color, background: cfg.bg, border: `0.5px solid ${cfg.border}`,
-          whiteSpace: 'nowrap',
-        }}>
-          {signal.loading ? '…' : cfg.label}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {!signal.loading && signal.chopRegime && (() => {
+            const col = signal.chopRegime === 'choppy' ? '#fbbf24' : signal.chopRegime === 'trending' ? '#34d399' : '#8e8e93';
+            const label = signal.chopRegime === 'choppy' ? 'CHOPPY' : signal.chopRegime === 'trending' ? 'TRENDING' : 'MIXED';
+            return (
+              <span
+                title={`Choppiness Index ${signal.chopIndex?.toFixed(0)}/100 on the ${tf.toUpperCase()} chart. ${
+                  signal.chopRegime === 'choppy'
+                    ? 'Range-bound right now — price is moving a lot but not covering ground. Ribbon signals are more likely to whipsaw here.'
+                    : signal.chopRegime === 'trending'
+                    ? 'Genuinely trending — price is covering real ground, not just oscillating.'
+                    : 'Neither clearly trending nor clearly choppy — a transitional read.'
+                } Warns rather than filters — the persistence rule still decides which signals actually fire.`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  fontSize: 9, fontWeight: 700, letterSpacing: '.04em',
+                  padding: '3px 8px', borderRadius: 20,
+                  color: col, background: col + '14', border: `0.5px solid ${col}44`,
+                  whiteSpace: 'nowrap', cursor: 'default',
+                }}
+              >
+                <span style={{ width: 4, height: 4, borderRadius: '50%', background: col, flexShrink: 0 }} />
+                {label}
+              </span>
+            );
+          })()}
+          <span style={{
+            fontSize: 11, fontWeight: 700, letterSpacing: '.04em',
+            padding: '4px 12px', borderRadius: 20,
+            color: cfg.color, background: cfg.bg, border: `0.5px solid ${cfg.border}`,
+            whiteSpace: 'nowrap',
+          }}>
+            {signal.loading ? '…' : cfg.label}
+          </span>
+        </div>
       </div>
 
       {/* Phase */}

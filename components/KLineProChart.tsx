@@ -203,6 +203,7 @@ const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d'];
 
 let emaSignalOverlayRegistered = false;
 let srLevelLineRegistered = false;
+let reversalOverlayRegistered = false;
 
 interface SRLevel { price: number; type: 'support' | 'resistance'; touches: number; }
 
@@ -498,6 +499,43 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         });
       }
 
+      if (!reversalOverlayRegistered) {
+        reversalOverlayRegistered = true;
+        // Amber diamond — deliberately NOT green/red like the confirmed buy/sell
+        // markers. This is a leading exhaustion warning (RSI divergence), not an
+        // instruction — different color family so it can't be mistaken for one.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kc as any).registerOverlay({
+          name: 'reversalWarning',
+          totalStep: 1,
+          needDefaultPointFigure: false,
+          needDefaultXAxisFigure: false,
+          needDefaultYAxisFigure: false,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
+            const { dir } = overlay.extendData as { dir: 'bullish' | 'bearish' };
+            const coord = coordinates[0];
+            if (!coord || !isFinite(coord.x) || !isFinite(coord.y) || coord.y < 0) return [];
+            const x = coord.x;
+            // bearish warning sits above price (potential top); bullish sits below (potential bottom)
+            const y = dir === 'bearish' ? coord.y - 22 : coord.y + 22;
+            const r = 7;
+            return [
+              {
+                type: 'polygon',
+                attrs: { coordinates: [{ x, y: y - r }, { x: x + r, y }, { x, y: y + r }, { x: x - r, y }] },
+                styles: { style: 'fill', color: '#fbbf24' },
+              },
+              {
+                type: 'text',
+                attrs: { x, y, text: '?', align: 'center', baseline: 'middle' },
+                styles: { color: '#1a1400', size: 10, weight: 'bold', backgroundColor: 'transparent' },
+              },
+            ];
+          },
+        });
+      }
+
       if (!srLevelLineRegistered) {
         srLevelLineRegistered = true;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -664,6 +702,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     alertOverlayMap.current.forEach(oid => chart.removeOverlay({ id: oid }));
     alertOverlayMap.current.clear();
     chart.removeOverlay({ name: 'emaSignal' });
+    chart.removeOverlay({ name: 'reversalWarning' });
     srOverlayIds.current.forEach(id => chart.removeOverlay({ id }));
     srOverlayIds.current = [];
     setSrLevels([]);
@@ -764,6 +803,24 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
     for (const sig of emaSignal.signalLongs)  place('long',  sig.timestamp, sig.anchorPrice);
     for (const sig of emaSignal.signalShorts) place('short', sig.timestamp, sig.anchorPrice);
+  }, [emaSignal, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Reversal warnings — RSI divergence, a leading heads-up distinct from the
+  //     ribbon's confirmed buy/sell markers above ─────────────────────────────
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+
+    chart.removeOverlay({ name: 'reversalWarning' });
+    if (!emaSignal || emaSignal.loading) return;
+
+    for (const w of emaSignal.reversalWarnings) {
+      chart.createOverlay({
+        name: 'reversalWarning', lock: true,
+        extendData: { dir: w.dir },
+        points: [{ timestamp: w.timestamp, value: w.anchorPrice }],
+      } as OverlayCreate);
+    }
   }, [emaSignal, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Sync price alert lines ───────────────────────────────────────────

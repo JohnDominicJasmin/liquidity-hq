@@ -3,8 +3,10 @@ import { useState, useEffect, useRef } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore';
 import {
   emaArr, smaArr, volMA, atrArr, detectEMASignals,
+  choppinessIndexArr, chopRegimeFor, ChopRegime,
   SignalFilterParams, DEFAULT_FILTER_PARAMS, ANTICHOP_DISABLED_PARAMS,
 } from './strategyCore';
+import { detectRSIDivergence } from './divergence';
 import { simulateTrades } from './backtestEngine';
 import { getWaveTrendConfirmation } from './waveTrend';
 
@@ -48,6 +50,12 @@ export interface StrategySignal {
   signalShorts: Array<{ timestamp: number; anchorPrice: number }>;
   atrLast:    number | null;  // last ATR(14) — for Grok context
   ema50Slope: number | null;  // EMA50 slope over last 5 bars as a fraction
+  chopIndex:  number | null;  // Choppiness Index (0-100) — high = range-bound
+  chopRegime: ChopRegime | null;
+  // RSI divergence — a LEADING possible-reversal warning (momentum fading while
+  // price still pushes to a new extreme), distinct from the ribbon's lagging
+  // trend-continuation signal. 'bullish' = possible reversal up, 'bearish' = down.
+  reversalWarnings: Array<{ timestamp: number; anchorPrice: number; dir: 'bullish' | 'bearish' }>;
   // Outcome of every signal detected in the loaded candle window, simulated with the
   // backtest engine's fill rules (entry after the persistence hold, SL at the EMA50
   // buffer, 2:1 TP). Free to compute — reuses the candles already fetched.
@@ -99,6 +107,8 @@ export const STRATEGY_LOADING: StrategySignal = {
   signalTimestamp: null, signalAnchorPrice: null, signalDir: null,
   signalLongs: [], signalShorts: [],
   atrLast: null, ema50Slope: null,
+  chopIndex: null, chopRegime: null,
+  reversalWarnings: [],
   recentStats: null,
 };
 
@@ -413,6 +423,17 @@ export function useEMAStrategy(
           ? (e50arr[slopeIdx] - e50arr[slopeIdx - SLOPE_BARS]) / e50arr[slopeIdx - SLOPE_BARS]
           : null;
 
+        // Choppiness Index — warns the trader the coin is range-bound right now,
+        // rather than relying on the persistence filter to silently eat the signal.
+        const chopArr = choppinessIndexArr(cRibbon, 14);
+        const chopLast = chopArr[chopArr.length - 1];
+        const chopIndex = isFinite(chopLast) ? chopLast : null;
+        const chopRegime = chopIndex != null ? chopRegimeFor(chopIndex) : null;
+
+        // RSI divergence — leading reversal warning, same candle window, no extra fetch.
+        const reversalWarnings = detectRSIDivergence(cRibbon, 14)
+          .map(e => ({ timestamp: e.timestamp, anchorPrice: e.anchorPrice, dir: e.dir }));
+
         if (!mountedRef.current) return;
         setSig({
           verdict, phase, conditions,
@@ -421,6 +442,8 @@ export function useEMAStrategy(
           sl, tp, loading: false, error: null,
           signalTimestamp, signalAnchorPrice, signalDir,
           signalLongs, signalShorts,
+          chopIndex, chopRegime,
+          reversalWarnings,
           atrLast, ema50Slope,
           recentStats,
         });

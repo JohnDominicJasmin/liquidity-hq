@@ -47,6 +47,40 @@ export function atrArr(candles: OHLCV[], period = 14): number[] {
   return result;
 }
 
+// Choppiness Index (E.W. Dreiss) — 0-100, bounded. High = range-bound/choppy
+// (true range is large relative to net price travel — lots of back-and-forth).
+// Low = trending (price is actually covering ground). Standard thresholds:
+// >61.8 choppy, <38.2 trending, in between transitional. Warns instead of
+// silently filtering — the EMA ribbon's persistence rule already does the
+// filtering; this just tells the trader WHY a coin feels hard to read right now.
+export function choppinessIndexArr(candles: OHLCV[], period = 14): number[] {
+  const result = new Array<number>(candles.length).fill(NaN);
+  if (candles.length < period + 1) return result;
+  const tr = candles.map((c, i) => {
+    if (i === 0) return c.high - c.low;
+    const pc = candles[i - 1].close;
+    return Math.max(c.high - c.low, Math.abs(c.high - pc), Math.abs(c.low - pc));
+  });
+  const log10Period = Math.log10(period);
+  for (let i = period - 1; i < candles.length; i++) {
+    const window = candles.slice(i - period + 1, i + 1);
+    const trSum = tr.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+    const hh = Math.max(...window.map(c => c.high));
+    const ll = Math.min(...window.map(c => c.low));
+    const range = hh - ll;
+    if (range <= 0 || trSum <= 0) continue;
+    result[i] = 100 * Math.log10(trSum / range) / log10Period;
+  }
+  return result;
+}
+
+export type ChopRegime = 'trending' | 'transitional' | 'choppy';
+export function chopRegimeFor(ci: number): ChopRegime {
+  if (ci >= 61.8) return 'choppy';
+  if (ci <= 38.2) return 'trending';
+  return 'transitional';
+}
+
 /* ── Adjustable filter parameters ───────────────────────────────────────── */
 export interface SignalFilterParams {
   spreadMinPct: number;  // EMA9/20 min spread as fraction of price (0.003 = 0.3%)
