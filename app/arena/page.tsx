@@ -18,6 +18,7 @@ import MarketStructure, { MSData } from '@/components/MarketStructure';
 import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
 import EMASignal from '@/components/EMASignal';
 import ConfluenceScore from '@/components/ConfluenceScore';
+import HigherTfMoveBadge from '@/components/HigherTfMoveBadge';
 import StopLossZone from '@/components/StopLossZone';
 import Tip from '@/components/Tip';
 import LiqHeatmap from '@/components/LiqHeatmap';
@@ -1554,6 +1555,11 @@ function ArenaContent() {
       {/* Confluence Score — EMA Ribbon + Order Flow + Multi-TF RSI combined, plus a
           separate macro/event risk overlay (econ calendar + JPY carry-trade risk) */}
       <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} />
+
+      {/* Informational only (not a filter — see component header for why): flags when
+          the 4h has already moved a lot, so a same-direction lower-TF signal doesn't
+          look more trustworthy than it is. Only shows on 1m/5m/15m/30m. */}
+      <HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />
 
       {/* EMA Ribbon Strategy card */}
       <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
