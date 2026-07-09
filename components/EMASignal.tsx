@@ -1,6 +1,7 @@
 'use client';
 import { StrategySignal, StrategyVerdict } from '@/lib/useEMAStrategy';
 import { CoinId } from '@/lib/marketStore';
+import { ROUND_TRIP_COST_PCT, TAKER_FEE_PCT, SLIPPAGE_PCT } from '@/lib/backtestEngine';
 
 const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; color: string; bg: string; border: string }> = {
   LONG_SETUP:     { label: '▲ LONG SETUP',     color: '#34d399', bg: 'rgba(52,211,153,0.08)',  border: 'rgba(52,211,153,0.25)'  },
@@ -227,7 +228,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
       {/* Recent record — every signal in the loaded history, backtest fill rules */}
       {!signal.loading && signal.recentStats && (
         <div
-          title="Outcome of every signal this strategy fired in the loaded candle history for this coin and timeframe, simulated with the backtest fill rules: entry once the whipsaw hold confirms, stop at the 50 EMA buffer, take profit at 2 to 1."
+          title={`Outcome of every signal this strategy fired in the loaded candle history for this coin and timeframe, simulated with the backtest fill rules: entry once the whipsaw hold confirms, stop at the 50 EMA buffer, take profit at 2 to 1. Net of an estimated ${ROUND_TRIP_COST_PCT.toFixed(2)}% round-trip cost (${TAKER_FEE_PCT}% taker fee + ${SLIPPAGE_PCT}% slippage, each side) — not gross.`}
           style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 8, cursor: 'default' }}
         >
           Recent record ({tf.toUpperCase()}):{' '}

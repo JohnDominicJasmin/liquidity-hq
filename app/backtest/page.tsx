@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { CoinId, COINS } from '@/lib/marketStore';
-import { runBacktest, BacktestRunResult, runOrderFlowBacktest, OrderFlowBacktestResult } from '@/lib/backtestEngine';
+import { runBacktest, BacktestRunResult, runOrderFlowBacktest, OrderFlowBacktestResult, ROUND_TRIP_COST_PCT, TAKER_FEE_PCT, SLIPPAGE_PCT } from '@/lib/backtestEngine';
 import { SideCard, fmtPct, fmtR } from '@/components/BacktestStatsUI';
 
 const OF_YEARS_BACK = 1; // shorter than EMA's lookback — 15m+1h+4h+funding fetch per coin is much heavier
@@ -97,7 +97,7 @@ export default function BacktestPage() {
       </div>
 
       <p style={{ fontSize: 11, opacity: 0.4, marginBottom: 14 }}>
-        Lookback: {YEARS_BACK_BY_TF[tf]} years · Pooled across {coins.length} coin{coins.length !== 1 ? 's' : ''} · Fixed 2:1 R:R per signal (matches live strategy SL/TP rule)
+        Lookback: {YEARS_BACK_BY_TF[tf]} years · Pooled across {coins.length} coin{coins.length !== 1 ? 's' : ''} · Fixed 2:1 R:R per signal (matches live strategy SL/TP rule) · Net of an estimated {ROUND_TRIP_COST_PCT.toFixed(2)}% round-trip cost ({TAKER_FEE_PCT}% taker fee + {SLIPPAGE_PCT}% slippage, each side) — not gross
       </p>
 
       <button
@@ -202,6 +202,7 @@ export default function BacktestPage() {
         back to backtest meaningfully (Binance&apos;s OI history, for example, only goes back ~30 days). Lookback
         is {OF_YEARS_BACK} year{OF_YEARS_BACK !== 1 ? 's' : ''} (shorter than the EMA backtest above — fetching
         15m+1h+4h+funding per coin is a much heavier pull) · uses the same coin scope selected above ({coins.length} coins).
+        Also net of the same {ROUND_TRIP_COST_PCT.toFixed(2)}% round-trip fee + slippage estimate.
       </p>
 
       <button

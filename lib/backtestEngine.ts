@@ -165,10 +165,28 @@ export interface SimulatedTrade {
   exitTime:   number | null;
   exitPrice:  number | null;
   outcome:    'win' | 'loss' | 'open'; // open = signal fired but neither SL nor TP hit before data ran out
-  rMultiple:  number;                  // computed from actual SL/TP distance — a loss is always exactly -1R
-                                        // by definition; a win is (reward distance / risk distance), which
-                                        // equals +2 for the EMA strategy's fixed 2:1 rule and varies for
-                                        // strategies (like Order Flow) whose TP is found, not fixed
+  rMultiple:  number;                  // net of estimated fees + slippage (see ROUND_TRIP_COST_PCT below).
+                                        // Gross, a loss is exactly -1R and a win is (reward distance / risk
+                                        // distance) — +2 for the EMA strategy's fixed 2:1 rule, variable for
+                                        // strategies (like Order Flow) whose TP is found, not fixed. costR is
+                                        // subtracted from both so the number reported is realistic, not gross.
+}
+
+// Binance/Bybit USDT-perp taker fee is ~0.05% per side; SLIPPAGE_PCT is a conservative
+// placeholder for market-order fill slippage (thinner for majors, worse for illiquid
+// alts — kept uniform here rather than per-coin to avoid a false sense of precision).
+// Applied as entry + exit (round trip), then converted into R-multiple terms per trade
+// because the cost is a fixed % of notional but R is measured against each trade's own
+// (variable) stop distance — a tight stop eats proportionally more of its R to costs
+// than a wide one. Exported so the UI can disclose the assumption instead of silently
+// baking it in.
+export const TAKER_FEE_PCT = 0.05;
+export const SLIPPAGE_PCT  = 0.03;
+export const ROUND_TRIP_COST_PCT = (TAKER_FEE_PCT + SLIPPAGE_PCT) * 2; // entry + exit, each fee + slippage
+
+function costInR(entryPrice: number, riskDist: number): number {
+  if (riskDist <= 0) return 0;
+  return (ROUND_TRIP_COST_PCT / 100 * entryPrice) / riskDist;
 }
 
 function simulateTrade(signal: SignalEvent, candles: OHLCV[], coin: CoinId): SimulatedTrade {
@@ -180,7 +198,8 @@ function simulateTrade(signal: SignalEvent, candles: OHLCV[], coin: CoinId): Sim
   const entryTime  = candles[fillIndex]?.time ?? signal.timestamp;
   const riskDist   = Math.abs(entryPrice - sl);
   const rewardDist = Math.abs(tp - entryPrice);
-  const winR = riskDist > 0 ? rewardDist / riskDist : 0;
+  const winR  = riskDist > 0 ? rewardDist / riskDist : 0;
+  const costR = costInR(entryPrice, riskDist);
   for (let j = fillIndex + 1; j < candles.length; j++) {
     const c = candles[j];
     const hitTP = dir === 'long' ? c.high >= tp : c.low <= tp;
@@ -188,12 +207,14 @@ function simulateTrade(signal: SignalEvent, candles: OHLCV[], coin: CoinId): Sim
     // Conservative same-candle tie-break: with only OHLC data we can't know intracandle
     // order, so assume the worse outcome (SL) hit first.
     if (hitSL) {
-      return { coin, dir, entryTime, entryPrice, sl, tp, exitTime: c.time, exitPrice: sl, outcome: 'loss', rMultiple: -1 };
+      return { coin, dir, entryTime, entryPrice, sl, tp, exitTime: c.time, exitPrice: sl, outcome: 'loss', rMultiple: -1 - costR };
     }
     if (hitTP) {
-      return { coin, dir, entryTime, entryPrice, sl, tp, exitTime: c.time, exitPrice: tp, outcome: 'win', rMultiple: winR };
+      return { coin, dir, entryTime, entryPrice, sl, tp, exitTime: c.time, exitPrice: tp, outcome: 'win', rMultiple: winR - costR };
     }
   }
+  // Open trades haven't incurred an exit cost yet — leave at 0, matching the existing
+  // "unresolved, excluded from win/loss stats" treatment.
   return { coin, dir, entryTime, entryPrice, sl, tp, exitTime: null, exitPrice: null, outcome: 'open', rMultiple: 0 };
 }
 
