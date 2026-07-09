@@ -149,11 +149,9 @@ body::after {
   .app-bar-inner { max-width: 1340px; }
   .app-content   { max-width: 1340px; padding-left: 20px; padding-right: 20px; }
 
-  /* Dashboard 2-column grid — the former 3rd (right) column was always empty
-     and has been removed; see git history if a right rail is needed again. */
   .dashboard-grid {
     display: grid;
-    grid-template-columns: 252px 1fr;
+    grid-template-columns: 252px 1fr 260px;
     gap: 16px;
     align-items: start;
   }
@@ -177,6 +175,12 @@ body::after {
   }
   .dash-sidebar::-webkit-scrollbar { display: block; width: 3px; }
   .dash-sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+
+  /* Sticky right rail */
+  .dash-right {
+    position: sticky;
+    top: 68px;
+  }
 
   /* Hide mobile-only elements on desktop */
   .mobile-only { display: none !important; }
