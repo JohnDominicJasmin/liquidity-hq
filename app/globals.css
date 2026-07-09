@@ -315,6 +315,26 @@ body::after {
   box-shadow: var(--nm-raise);
 }
 .lbl { font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--txt3); margin-bottom: 10px; }
+/* ── Side-by-side tile pair (2 columns on desktop, stacks on mobile) ── */
+.dash-tile-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+  align-items: start;
+}
+@media (max-width: 1099px) {
+  .dash-tile-pair { grid-template-columns: 1fr; }
+}
+
+/* ── Disclaimer page 3-col grid collapses on narrow screens ── */
+@media (max-width: 800px) {
+  .disc-grid { grid-template-columns: 1fr !important; }
+}
+@media (min-width: 801px) and (max-width: 1099px) {
+  .disc-grid { grid-template-columns: 1fr 1fr !important; }
+}
+
 .dash-section {
   display: flex; align-items: center; gap: 10px;
   font-family: var(--font-mono), monospace;
@@ -3639,34 +3659,20 @@ body.landing {
 
 /* ── PLATFORM FOOTER — disclaimer bar on every authenticated app page ──── */
 .pf-footer {
-  display: flex; align-items: center; gap: 12px;
-  background: linear-gradient(180deg, var(--bg2) 0%, var(--bg1) 100%);
-  border: 0.5px solid var(--bdr); border-radius: var(--radius-card);
-  box-shadow: var(--nm-raise-sm);
-  padding: 14px 18px;
-  margin: 28px 0 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+  border-top: 1px solid var(--bdr);
+  padding: 20px 0 24px;
+  margin-top: 40px;
+  font-size: 11px; color: var(--txt3);
 }
-.pf-footer-icon {
-  flex-shrink: 0; font-size: 16px; line-height: 1; color: var(--accent-2);
-}
-.pf-footer-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.pf-footer-label {
-  font-family: var(--font-mono), monospace; font-size: 9px; font-weight: 700;
-  letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
-}
-.pf-footer-text { font-size: 11.5px; line-height: 1.5; color: var(--txt3); }
-.pf-footer-link {
-  flex-shrink: 0; font-size: 11px; font-weight: 700; letter-spacing: .02em;
-  color: var(--accent-2); background: var(--accent-bg); border: 0.5px solid var(--accent-bdr);
-  border-radius: var(--radius-chip); padding: 7px 14px;
-  text-decoration: none; white-space: nowrap; transition: opacity .15s;
-}
-.pf-footer-link:hover { opacity: .75; }
+.pf-footer-copy { line-height: 1.5; }
+.pf-footer-links { display: flex; gap: 20px; flex-shrink: 0; }
+.pf-footer-link { color: var(--txt3); text-decoration: none; }
+.pf-footer-link:hover { color: var(--txt2); }
 
 @media (max-width: 640px) {
-  .pf-footer { flex-wrap: wrap; }
-  .pf-footer-icon { display: none; }
-  .pf-footer-link { width: 100%; text-align: center; }
+  .pf-footer { flex-direction: column; gap: 10px; }
 }
 
 /* ── LP FOOTER ───────────────────────────────────────────────────────── */

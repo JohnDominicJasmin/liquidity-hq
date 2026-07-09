@@ -5,7 +5,6 @@ import { useSettings } from '@/lib/settings';
 import Ticker from '@/components/Ticker';
 import FearGreed from '@/components/FearGreed';
 import AltSeasonIndex from '@/components/AltSeasonIndex';
-import RaidMeter from '@/components/RaidMeter';
 import SOTD from '@/components/SOTD';
 import NewsBanner from '@/components/NewsBanner';
 import SessionCountdown from '@/components/SessionCountdown';
@@ -446,8 +445,11 @@ export default function Dashboard() {
           <div className="ind-row"><AltSeasonIndex /></div>
         </div>
 
-        {/* 0. Market session indicator — always visible at the top */}
-        <SessionCountdown />
+        {/* 0. Market session indicator — right rail on desktop, inline on mobile */}
+        <div className="mobile-only">
+          <SessionCountdown />
+          <SessionContext />
+        </div>
 
         {/* 0.5 Watchlist feed */}
         <div className="desktop-only">
@@ -458,11 +460,13 @@ export default function Dashboard() {
           <WatchlistFeed />
         </div>
 
-        {/* 0.6 Accumulation Tracker — quiet coins being loaded before the move */}
-        {!hide('accumulation') && <AccumulationTracker />}
-
-        {/* 0.7 Distribution Tracker — the mirror: big players taking profit into strength */}
-        {!hide('distribution') && <DistributionTracker />}
+        {/* 0.6 + 0.7 Accumulation + Distribution side by side */}
+        {(!hide('accumulation') || !hide('distribution')) && (
+          <div className="dash-tile-pair">
+            {!hide('accumulation') && <AccumulationTracker />}
+            {!hide('distribution') && <DistributionTracker />}
+          </div>
+        )}
 
         {/* 1. Coin signals — first thing traders look at after selecting a coin (desktop only; mobile renders above) */}
         {!hide('coin_signals') && <div id="tour-coin-signals" className="desktop-only">
@@ -489,7 +493,6 @@ export default function Dashboard() {
         </div>
         {marketCtxOpen && (
           <div className="desktop-only">
-            {!hide('raid_meter') && <div id="tour-raidmeter"><RaidMeter /></div>}
             {!hide('best_setup') && <div id="tour-best-setup">
               {/* Not live analysis — dash-section-hot ("live, decision-critical") was
                   misleading here since SOTD is a static/rotating educational tip, not
@@ -501,9 +504,8 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* RaidMeter + SOTD always visible on mobile (no collapsible there) */}
+        {/* SOTD always visible on mobile (no collapsible there) */}
         <div className="mobile-only">
-          {!hide('raid_meter') && <div id="tour-raidmeter-mobile"><RaidMeter /></div>}
           {!hide('best_setup') && <div>
             <div className="dash-section">Trading Playbook</div>
             <SOTD />
@@ -516,21 +518,22 @@ export default function Dashboard() {
         {/* 6. Catalysts & market events */}
         {!hide('catalysts') && <NewsBanner />}
 
-        {/* 7. Market Context — Cycle, BTC Risk, GEX, Macro (hidden in beginner mode) */}
-        {!beginnerMode && (
-          <>
-            <div className="dash-section" style={{ marginTop: 8 }}>Market Context</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-              <CycleDayCounter />
-              <BtcRiskLevel />
-            </div>
-            <CycleChart />
-            {!hide('gex') && <GexTable />}
-            {!hide('macro') && <MacroStrip />}
-          </>
-        )}
+        {/* 7. Market Context — Cycle, BTC Risk, GEX, Macro */}
+        <div className="dash-section" style={{ marginTop: 8 }}>Market Context</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <CycleDayCounter />
+          <BtcRiskLevel />
+        </div>
+        <CycleChart />
+        {!hide('gex') && <GexTable />}
+        {!hide('macro') && <MacroStrip />}
 
       </div>
+
+      {/* ── Right rail (desktop only) ── */}
+      <aside className="dash-right">
+        <SessionCountdown />
+      </aside>
 
     </div>
   );
