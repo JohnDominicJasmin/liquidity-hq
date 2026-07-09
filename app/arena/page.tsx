@@ -1095,7 +1095,7 @@ function ArenaContent() {
               }}>
                 <span style={{ width: 5, height: 5, borderRadius: '50%', background: col, boxShadow: `0 0 5px ${col}`, flexShrink: 0 }} />
                 <Tip width={260} iconColor={col + '99'} text={`USD/JPY ${jpyUsd.toFixed(2)} — yen carry-trade risk indicator. ≥160 = danger zone (BOJ intervention risk, unwind can trigger BTC liquidations). ≥158 = approaching it. Below 158 = stable.`}>
-                  JPY {jpyUsd.toFixed(0)} · {label}
+                  JPY {jpyUsd.toFixed(1)} · {label}
                 </Tip>
               </span>
             );
