@@ -88,18 +88,29 @@ export interface SignalFilterParams {
   persistBoost: number;  // Integer added to all PERSIST_BY_TF base values (can be negative)
 }
 
+// Raw EMA9/20 cross + first close beyond EMA50 confirms immediately — no spread
+// requirement, no ATR clearance buffer, no forward persistence wait. This is the
+// default because a 3-year majors/1h backtest showed it beats the stricter filter
+// below on every metric: 36.2% win rate vs 32.9%, profit factor 1.13 vs 0.98, and
+// smaller max drawdown (-54R vs -78R) despite firing ~2.2x more often. The extra
+// confirmation steps below don't earn their keep — they cut a real (if thin) edge
+// down to a coin flip. See app/backtest to re-validate if the core logic changes.
 export const DEFAULT_FILTER_PARAMS: SignalFilterParams = {
-  spreadMinPct: 0.003,
-  atrMult:      0.35,
-  persistBoost: 0,
-};
-
-// Anti-chop OFF: raw EMA9/20 cross + first close beyond EMA50 confirms immediately —
-// no spread requirement, no ATR clearance buffer, no forward persistence wait.
-export const ANTICHOP_DISABLED_PARAMS: SignalFilterParams = {
   spreadMinPct: 0,
   atrMult:      0,
   persistBoost: -10,
+};
+
+// Stricter, persistence-based confirmation — requires the EMA9/20 ribbon to clearly
+// separate, price to close meaningfully past EMA50, and the move to hold for several
+// candles before a marker confirms. Fewer, calmer-looking signals, but empirically a
+// coin flip (PF 0.98) rather than a real edge on the same sample above. Kept as an
+// opt-in (Arena's Anti-Chop Filter toggle) for traders who'd rather have fewer alerts
+// than more total return.
+export const STRICT_FILTER_PARAMS: SignalFilterParams = {
+  spreadMinPct: 0.003,
+  atrMult:      0.35,
+  persistBoost: 0,
 };
 
 export const PERSIST_BY_TF: Record<string, number> = {

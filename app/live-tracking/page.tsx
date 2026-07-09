@@ -76,7 +76,7 @@ export default function LiveTrackingPage() {
       <div className="mb-header">
         <div className="mb-title">Live Outcome Tracking</div>
         <div className="mb-subtitle">
-          Real EMA Ribbon signals (Anti-Chop ON, majors, 1h + 4h) as they actually fired — not a replay.
+          Real EMA Ribbon signals (default filter, majors, 1h + 4h) as they actually fired — not a replay.
           Complements the historical backtest by validating the strategy against current market conditions.
         </div>
       </div>

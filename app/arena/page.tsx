@@ -20,7 +20,7 @@ import EMASignal from '@/components/EMASignal';
 import StopLossZone from '@/components/StopLossZone';
 import Tip from '@/components/Tip';
 import LiqHeatmap from '@/components/LiqHeatmap';
-import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, ANTICHOP_DISABLED_PARAMS } from '@/lib/useEMAStrategy';
+import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 
@@ -163,9 +163,13 @@ function ArenaContent() {
   const absDataRef    = useRef<AbsorptionData | null>(null);
   const emaSignalRef  = useRef<StrategySignal>(STRATEGY_LOADING);
   const oi1h          = useOI1h(selectedCoin);
-  const [antiChopEnabled, setAntiChopEnabled] = useState(true);
+  // Default OFF: a 3-year majors/1h backtest showed raw signals (this filter off) beat
+  // the stricter persistence-based filter on every metric — see STRICT_FILTER_PARAMS
+  // in lib/strategyCore.ts for the numbers. Explicit user choices are still respected
+  // via localStorage below.
+  const [antiChopEnabled, setAntiChopEnabled] = useState(false);
   const filterLoadedRef = useRef(false);
-  const filterParams = antiChopEnabled ? DEFAULT_FILTER_PARAMS : ANTICHOP_DISABLED_PARAMS;
+  const filterParams = antiChopEnabled ? STRICT_FILTER_PARAMS : DEFAULT_FILTER_PARAMS;
   const emaSignal     = useEMAStrategy(
     selectedCoin,
     readTf,
@@ -1507,7 +1511,7 @@ function ArenaContent() {
           <Tip
             width={260}
             iconColor="rgba(255,255,255,0.6)"
-            text="Filters out fake-looking EMA crosses. Requires the EMA9/20 ribbon to clearly separate, price to close meaningfully past EMA50, and the move to hold for several candles before a marker confirms. ON = fewer, more reliable signals. OFF = every raw cross shows immediately, including fakeouts that may reverse on the very next candle."
+            text="Adds a stricter confirmation step: requires the EMA9/20 ribbon to clearly separate, price to close meaningfully past EMA50, and the move to hold for several candles before a marker confirms. Fewer, calmer-looking signals — but a 3-year backtest found this filter cuts a real edge down to a coin flip (1.13 profit factor raw vs 0.98 filtered). OFF (default) shows every raw cross immediately, including some that reverse fast, but has the better track record. ON trades quieter alerts for a worse actual outcome."
           >
             <span style={{ opacity: 0.8, letterSpacing: '0.01em' }}>Anti-Chop Filter</span>
           </Tip>

@@ -6,8 +6,8 @@ import { detectEMASignals, DEFAULT_FILTER_PARAMS, OHLCV } from '@/lib/strategyCo
 
 export const dynamic = 'force-dynamic';
 
-// Live outcome tracking — majors only, 1h + 4h, the config validated in the backtest
-// (Anti-Chop ON). Runs on a schedule: detects newly-confirmed EMA Ribbon signals using
+// Live outcome tracking — majors only, 1h + 4h, using the default (raw signal) filter
+// validated in the backtest. Runs on a schedule: detects newly-confirmed EMA Ribbon signals using
 // the exact same shared detectEMASignals core the Arena chart and backtest engine use,
 // logs them, then checks previously-logged open signals against current price to
 // resolve win/loss. See app/backtest for the historical validation this complements.

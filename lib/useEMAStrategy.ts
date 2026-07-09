@@ -4,14 +4,14 @@ import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore';
 import {
   emaArr, smaArr, volMA, atrArr, detectEMASignals,
   choppinessIndexArr, chopRegimeFor, ChopRegime,
-  SignalFilterParams, DEFAULT_FILTER_PARAMS, ANTICHOP_DISABLED_PARAMS,
+  SignalFilterParams, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS,
 } from './strategyCore';
 import { detectRSIDivergence } from './divergence';
 import { simulateTrades } from './backtestEngine';
 import { getWaveTrendConfirmation } from './waveTrend';
 
 export type { SignalFilterParams } from './strategyCore';
-export { DEFAULT_FILTER_PARAMS, ANTICHOP_DISABLED_PARAMS } from './strategyCore';
+export { DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from './strategyCore';
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 export type StrategyVerdict =

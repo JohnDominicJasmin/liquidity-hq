@@ -5,7 +5,7 @@
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore';
 import {
   OHLCV, SignalEvent, SignalFilterParams,
-  DEFAULT_FILTER_PARAMS, ANTICHOP_DISABLED_PARAMS, detectEMASignals,
+  DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, detectEMASignals,
 } from './strategyCore';
 import { getWaveTrendConfirmation, WaveTrendParams, DEFAULT_WT_PARAMS } from './waveTrend';
 import {
@@ -300,8 +300,10 @@ export async function runBacktest(
       if (candles.length > 60) {
         // Fetch + EMA detection happens once per coin — the expensive (network) part.
         // Only the WaveTrend filter + simulate step repeats per variant (no network).
-        const onSignals  = detectEMASignals(candles, tf, DEFAULT_FILTER_PARAMS);
-        const offSignals = detectEMASignals(candles, tf, ANTICHOP_DISABLED_PARAMS);
+        // "ON" = the stricter, persistence-based filter; "OFF" = raw signals (now the
+        // live default — see DEFAULT_FILTER_PARAMS in strategyCore.ts for why).
+        const onSignals  = detectEMASignals(candles, tf, STRICT_FILTER_PARAMS);
+        const offSignals = detectEMASignals(candles, tf, DEFAULT_FILTER_PARAMS);
         const onTrades  = [...simulateTrades(onSignals.signalLongs, candles, coin), ...simulateTrades(onSignals.signalShorts, candles, coin)];
         const offTrades = [...simulateTrades(offSignals.signalLongs, candles, coin), ...simulateTrades(offSignals.signalShorts, candles, coin)];
         allTradesOn.push(...onTrades);
