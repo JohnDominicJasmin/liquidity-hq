@@ -25,6 +25,7 @@ import LiqHeatmap from '@/components/LiqHeatmap';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
+import MultiTFAlignment from '@/components/MultiTFAlignment';
 
 /* ── Pattern detection — delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -1483,6 +1484,8 @@ function ArenaContent() {
       {/* Confluence Score — EMA Ribbon + Order Flow + Multi-TF RSI combined, plus a
           separate macro/event risk overlay (econ calendar + JPY carry-trade risk) */}
       <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} />
+
+      <MultiTFAlignment coin={selectedCoin} />
 
       {/* Informational only (not a filter — see component header for why): flags when
           the 4h has already moved a lot, so a same-direction lower-TF signal doesn't

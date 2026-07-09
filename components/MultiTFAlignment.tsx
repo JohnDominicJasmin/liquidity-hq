@@ -79,9 +79,9 @@ function RsiRow({ tf, rsi, bias, last }: { tf: string; rsi: number | null; bias:
   );
 }
 
-export default function MultiTFAlignment() {
+export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) {
   const { store } = useMarket();
-  const coin = store.selectedCoin;
+  const coin = (coinProp ?? store.selectedCoin) as ReturnType<typeof useMarket>['store']['selectedCoin'];
   const d = store.coins[coin];
 
   const rsi14 = d?.rsi14 ?? null;

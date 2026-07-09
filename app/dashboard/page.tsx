@@ -11,9 +11,7 @@ import SOTD from '@/components/SOTD';
 import NewsBanner from '@/components/NewsBanner';
 import SessionCountdown from '@/components/SessionCountdown';
 import SessionContext from '@/components/SessionContext';
-import MultiTFAlignment from '@/components/MultiTFAlignment';
 import SmartMoneyScore from '@/components/SmartMoneyScore';
-import OISpikeScanner from '@/components/OISpikeScanner';
 import SentimentExtremesAlert from '@/components/SentimentExtremesAlert';
 import OnboardingFlow from '@/components/OnboardingFlow';
 import SpotlightTour from '@/components/SpotlightTour';
@@ -579,9 +577,7 @@ export default function Dashboard() {
           {!hide('coin_signals') && <>
             <CoinSignalsHeader />
             <EdgeSignals />
-            <MultiTFAlignment />
             <SmartMoneyScore />
-            <OISpikeScanner />
           </>}
           <div className="dash-section">Market indicators</div>
           <div className="ind-row"><FearGreed /></div>
@@ -612,9 +608,7 @@ export default function Dashboard() {
         {!hide('coin_signals') && <div id="tour-coin-signals" className="desktop-only">
           <CoinSignalsHeader />
           <EdgeSignals />
-          <MultiTFAlignment />
           <SmartMoneyScore />
-          <OISpikeScanner />
         </div>}
 
         {/* 2. Contextual alert banners */}
