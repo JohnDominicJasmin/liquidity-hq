@@ -3659,21 +3659,23 @@ body.landing {
 
 /* ── PLATFORM FOOTER — disclaimer bar on every authenticated app page ──── */
 .pf-footer {
-  display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: 12px;
   border-top: 1px solid var(--bdr);
-  padding: 20px 0 24px;
+  padding: 20px 0 28px;
   margin-top: 40px;
   font-size: 11px; color: var(--txt3);
 }
+.pf-footer-top {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
 .pf-footer-copy { line-height: 1.5; }
-.pf-footer-links { display: flex; gap: 20px; flex-shrink: 0; }
 .pf-footer-link { color: var(--txt3); text-decoration: none; }
 .pf-footer-link:hover { color: var(--txt2); }
-
-@media (max-width: 640px) {
-  .pf-footer { flex-direction: column; gap: 10px; }
+.pf-footer-disclaimer {
+  font-size: 10px; color: var(--txt3); line-height: 1.75;
+  opacity: 0.7;
 }
+.pf-footer-disclaimer strong { font-weight: 600; opacity: 1; }
 
 /* ── LP FOOTER ───────────────────────────────────────────────────────── */
 .lp-footer       { border-top: 0.5px solid var(--bdr); padding: 48px 24px 24px; }
