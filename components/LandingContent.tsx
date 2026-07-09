@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import type { LandingDict, Locale } from '@/lib/i18n/dictionaries';
+import { BeamsBackground } from '@/components/BeamsBackground';
 
 interface Props {
   dict: LandingDict;
@@ -68,8 +69,9 @@ export default function LandingContent({ dict, locale, dir }: Props) {
 
       {/* ── HERO ── */}
       <section className="lp-hero">
+        <BeamsBackground intensity="medium" />
         <div className="lp-hero-glow" />
-        <div className="lp-hero-inner">
+        <div className="lp-hero-inner" style={{ position: 'relative', zIndex: 2 }}>
           <div className="lp-hero-badge">
             <span className="lp-live-dot" />
             {dict.hero.badge}
