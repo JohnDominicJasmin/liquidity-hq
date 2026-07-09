@@ -461,10 +461,22 @@ export default function Dashboard() {
         {!hide('cascade') && <CascadeAlertBanner />}
         <SentimentExtremesAlert />
 
-        {/* 3. Market Context — collapsible so it doesn't bury coin signals */}
+        {/* ── Context divider ── */}
+        <div className="dash-ctx-sep" />
+
+        {/* Catalysts & market events */}
+        {!hide('catalysts') && <NewsBanner />}
+
+        {/* Trading Playbook — always visible */}
+        {!hide('best_setup') && <div id="tour-best-setup">
+          <div className="dash-section">Trading Playbook</div>
+          <SOTD />
+        </div>}
+
+        {/* Market Context — collapsible, contains Cycle/Risk/GEX/Macro */}
         <div
-          className="dash-section desktop-only"
-          style={{ cursor: 'pointer', userSelect: 'none', marginTop: 4 }}
+          className="dash-section"
+          style={{ cursor: 'pointer', userSelect: 'none', marginTop: 8 }}
           onClick={() => setMarketCtxOpen(o => !o)}
         >
           Market Context
@@ -473,41 +485,16 @@ export default function Dashboard() {
           </span>
         </div>
         {marketCtxOpen && (
-          <div className="desktop-only">
-            {!hide('best_setup') && <div id="tour-best-setup">
-              {/* Not live analysis — dash-section-hot ("live, decision-critical") was
-                  misleading here since SOTD is a static/rotating educational tip, not
-                  computed from market data. Plain header + SOTD's own styling now make
-                  that distinction visible instead of implying it's another live signal. */}
-              <div className="dash-section">Trading Playbook</div>
-              <SOTD />
-            </div>}
-          </div>
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <CycleDayCounter />
+              <BtcRiskLevel />
+            </div>
+            <CycleChart />
+            {!hide('gex') && <GexTable />}
+            {!hide('macro') && <MacroStrip />}
+          </>
         )}
-
-        {/* SOTD always visible on mobile (no collapsible there) */}
-        <div className="mobile-only">
-          {!hide('best_setup') && <div>
-            <div className="dash-section">Trading Playbook</div>
-            <SOTD />
-          </div>}
-        </div>
-
-        {/* ── Context divider ── */}
-        <div className="dash-ctx-sep" />
-
-        {/* 6. Catalysts & market events */}
-        {!hide('catalysts') && <NewsBanner />}
-
-        {/* 7. Market Context — Cycle, BTC Risk, GEX, Macro */}
-        <div className="dash-section" style={{ marginTop: 8 }}>Market Context</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-          <CycleDayCounter />
-          <BtcRiskLevel />
-        </div>
-        <CycleChart />
-        {!hide('gex') && <GexTable />}
-        {!hide('macro') && <MacroStrip />}
 
       </div>
 
