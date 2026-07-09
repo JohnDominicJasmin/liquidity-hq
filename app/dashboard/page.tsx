@@ -448,7 +448,6 @@ export default function Dashboard() {
         {/* 0. Market session indicator — right rail on desktop, inline on mobile */}
         <div className="mobile-only">
           <SessionCountdown />
-          <SessionContext />
         </div>
 
         {/* 0.5 Watchlist feed */}
