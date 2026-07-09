@@ -25,6 +25,7 @@ import AccumulationTracker from '@/components/AccumulationTracker';
 import DistributionTracker from '@/components/DistributionTracker';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import Sparkline24h from '@/components/Sparkline24h';
+import { ParticleCard, GlobalSpotlight, useMobile } from '@/components/MagicBento';
 
 
 /* ── Coin Sidebar v2 — signal cards ── */
@@ -32,6 +33,7 @@ const SIDEBAR_DEFAULT = 7;
 
 function CoinSidebar() {
   const { store, selectCoin } = useMarket();
+  const isMobile = useMobile();
   const visibleCoins = COINS.slice(0, SIDEBAR_DEFAULT);
 
   return (
@@ -82,10 +84,14 @@ function CoinSidebar() {
         const barCol = tbp >= 60 ? '#34d399' : tbp <= 40 ? '#f87171' : '#404040';
 
         return (
-          <div
+          <ParticleCard
             key={id}
-            className={`csb2-card${sel ? ' csb2-sel' : ''}`}
+            className={`csb2-card mb-glow-card${sel ? ' csb2-sel' : ''}`}
             onClick={() => selectCoin(id)}
+            disableAnimations={isMobile}
+            particleCount={5}
+            enableMagnetism={false}
+            clickEffect={true}
           >
             {/* Top row: badge + name + health grade + price */}
             <div className="csb2-top">
@@ -135,7 +141,7 @@ function CoinSidebar() {
                 style={{ width: tbp + '%', background: barCol }}
               />
             </div>
-          </div>
+          </ParticleCard>
         );
       })}
 
@@ -385,26 +391,32 @@ function CoinSignalsHeader() {
 
 export default function Dashboard() {
   const [showTour, setShowTour] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
+  const isMobile = useMobile();
 
   const { settings } = useSettings();
   const hide = (id: string) => settings.hidden_sections.includes(id);
 
   return (
-    <div className="dashboard-grid">
+    <div className="dashboard-grid" data-spotlight-section>
       <OnboardingFlow onStartTour={() => setShowTour(true)} />
       {showTour && <SpotlightTour onDone={() => setShowTour(false)} />}
       <SetupChecklist />
 
+      <GlobalSpotlight gridRef={sidebarRef} cardSelector=".mb-glow-card" radius={260} disableAnimations={isMobile} />
+      <GlobalSpotlight gridRef={mainRef} cardSelector=".mb-glow-card" radius={320} disableAnimations={isMobile} />
+
       {/* ── Left sticky sidebar (desktop only) ── */}
-      <aside className="dash-sidebar">
+      <aside className="dash-sidebar" ref={sidebarRef}>
         <CoinSidebar />
-        <div className="ind-row" style={{ margin: 0 }}><FearGreed /></div>
-        <div className="ind-row" style={{ margin: 0 }}><BTCDominance /></div>
-        <div className="ind-row" style={{ margin: 0 }}><AltSeasonIndex /></div>
+        <ParticleCard className="ind-row mb-glow-card" style={{ margin: 0 }} disableAnimations={isMobile} particleCount={6} clickEffect={false}><FearGreed /></ParticleCard>
+        <ParticleCard className="ind-row mb-glow-card" style={{ margin: 0 }} disableAnimations={isMobile} particleCount={6} clickEffect={false}><BTCDominance /></ParticleCard>
+        <ParticleCard className="ind-row mb-glow-card" style={{ margin: 0 }} disableAnimations={isMobile} particleCount={6} clickEffect={false}><AltSeasonIndex /></ParticleCard>
       </aside>
 
       {/* ── Main content ── */}
-      <div className="dash-main">
+      <div className="dash-main" ref={mainRef}>
 
 
 
@@ -429,7 +441,7 @@ export default function Dashboard() {
         </div>
 
         {/* 0.5 Watchlist feed */}
-        <div className="desktop-only">
+        <div className="desktop-only mb-glow-card" style={{ borderRadius: 10 }}>
           <div className="dash-section" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>My Watchlist</span>
             <a href="/settings" style={{ fontSize: 10, color: 'var(--txt3)', textDecoration: 'none', fontWeight: 500 }}>Edit →</a>
@@ -439,14 +451,14 @@ export default function Dashboard() {
 
         {/* 0.6 + 0.7 Accumulation + Distribution stacked */}
         {(!hide('accumulation') || !hide('distribution')) && (
-          <div>
+          <div className="mb-glow-card" style={{ borderRadius: 10 }}>
             {!hide('accumulation') && <AccumulationTracker />}
             {!hide('distribution') && <DistributionTracker />}
           </div>
         )}
 
         {/* 1. Coin signals — first thing traders look at after selecting a coin (desktop only; mobile renders above) */}
-        {!hide('coin_signals') && <div id="tour-coin-signals" className="desktop-only">
+        {!hide('coin_signals') && <div id="tour-coin-signals" className="desktop-only mb-glow-card" style={{ borderRadius: 10 }}>
           <CoinSignalsHeader />
           <TakerPressureTable />
         </div>}
@@ -462,7 +474,7 @@ export default function Dashboard() {
         {!hide('catalysts') && <NewsBanner />}
 
         {/* Trading Playbook — always visible */}
-        {!hide('best_setup') && <div id="tour-best-setup">
+        {!hide('best_setup') && <div id="tour-best-setup" className="mb-glow-card" style={{ borderRadius: 10 }}>
           <div className="dash-section">Trading Playbook</div>
           <SOTD />
         </div>}
@@ -470,11 +482,11 @@ export default function Dashboard() {
         {/* Market Context */}
         <div className="dash-section" style={{ marginTop: 8 }}>Market Context</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-          <CycleDayCounter />
-          <BtcRiskLevel />
+          <div className="mb-glow-card" style={{ borderRadius: 10 }}><CycleDayCounter /></div>
+          <div className="mb-glow-card" style={{ borderRadius: 10 }}><BtcRiskLevel /></div>
         </div>
-        <CycleChart />
-        {!hide('gex') && <GexTable />}
+        <div className="mb-glow-card" style={{ borderRadius: 10 }}><CycleChart /></div>
+        {!hide('gex') && <div className="mb-glow-card" style={{ borderRadius: 10 }}><GexTable /></div>}
         {!hide('macro') && <MacroStrip />}
 
       </div>

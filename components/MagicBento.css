@@ -1,0 +1,74 @@
+/* MagicBento — hover effects for dashboard cards */
+
+/* Particle card base */
+.mb-particle-card {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Border glow cards — add this class to existing card elements */
+.mb-glow-card {
+  --glow-x: 50%;
+  --glow-y: 50%;
+  --glow-intensity: 0;
+  --glow-radius: 200px;
+  transition: box-shadow 0.3s ease, transform 0.2s ease;
+}
+
+.mb-glow-card:hover {
+  transform: translateY(-1px);
+}
+
+/* The glowing border that follows the cursor */
+.mb-glow-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  background: radial-gradient(
+    var(--glow-radius) circle at var(--glow-x) var(--glow-y),
+    rgba(90, 106, 255, calc(var(--glow-intensity) * 0.9)) 0%,
+    rgba(90, 106, 255, calc(var(--glow-intensity) * 0.4)) 35%,
+    transparent 60%
+  );
+  border-radius: inherit;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity 0.3s ease;
+}
+
+.mb-glow-card:hover {
+  box-shadow:
+    0 4px 20px rgba(22, 27, 64, 0.5),
+    0 0 24px rgba(90, 106, 255, 0.12);
+}
+
+/* Particle elements */
+.mb-particle {
+  position: absolute;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.mb-particle::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: rgba(90, 106, 255, 0.15);
+  border-radius: 50%;
+}
+
+/* Global spotlight */
+.mb-spotlight {
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
