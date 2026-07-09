@@ -437,9 +437,9 @@ export default function Dashboard() {
           <WatchlistFeed />
         </div>
 
-        {/* 0.6 + 0.7 Accumulation + Distribution side by side */}
+        {/* 0.6 + 0.7 Accumulation + Distribution stacked */}
         {(!hide('accumulation') || !hide('distribution')) && (
-          <div className="dash-tile-pair">
+          <div>
             {!hide('accumulation') && <AccumulationTracker />}
             {!hide('distribution') && <DistributionTracker />}
           </div>
