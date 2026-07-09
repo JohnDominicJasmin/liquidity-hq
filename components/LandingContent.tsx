@@ -233,6 +233,8 @@ export default function LandingContent({ dict, locale, dir }: Props) {
             <Link href="/upgrade">{dict.footer.links.pricing}</Link>
             <Link href="/about">{dict.footer.links.about}</Link>
             <Link href="/disclaimer">{dict.footer.links.disclaimer}</Link>
+            <Link href="/terms">Terms of Use</Link>
+            <Link href="/privacy">Privacy Policy</Link>
           </div>
         </div>
         {/* Risk Disclosure */}
@@ -262,6 +264,12 @@ export default function LandingContent({ dict, locale, dir }: Props) {
           <span className="lp-footer-copy">
             {dict.footer.copyright}{' '}
             <Link href="/disclaimer" style={{ color: 'var(--txt3)', textDecoration: 'underline' }}>{dict.footer.fullDisclaimer}</Link>
+          </span>
+          <span className="lp-footer-ack">
+            By using LiquidityHQ, you acknowledge that you understand and agree to our{' '}
+            <Link href="/disclaimer" style={{ color: 'var(--txt3)', textDecoration: 'underline' }}>Disclaimer</Link>,{' '}
+            <Link href="/terms" style={{ color: 'var(--txt3)', textDecoration: 'underline' }}>Terms of Use</Link>, and{' '}
+            <Link href="/privacy" style={{ color: 'var(--txt3)', textDecoration: 'underline' }}>Privacy Policy</Link>.
           </span>
         </div>
       </footer>

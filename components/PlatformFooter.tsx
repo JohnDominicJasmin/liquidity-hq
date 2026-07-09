@@ -44,6 +44,8 @@ export default function PlatformFooter() {
         </div>
         <nav className="pf-footer-nav">
           <Link href="/about" className="pf-footer-link">About</Link>
+          <Link href="/terms" className="pf-footer-link">Terms of Use</Link>
+          <Link href="/privacy" className="pf-footer-link">Privacy Policy</Link>
           <Link href="/disclaimer" className="pf-footer-link">Full Disclaimer</Link>
         </nav>
       </div>
@@ -64,10 +66,15 @@ export default function PlatformFooter() {
         ))}
       </div>
 
-      {/* Bottom copyright */}
+      {/* Acknowledgment + copyright */}
       <div className="pf-footer-bottom">
         <span>© {new Date().getFullYear()} LiquidityHQ. All rights reserved.</span>
-        <span className="pf-footer-bottom-note">For educational use only — not financial advice.</span>
+        <span className="pf-footer-bottom-note">
+          By using LiquidityHQ, you acknowledge that you understand and agree to our{' '}
+          <Link href="/disclaimer" className="pf-footer-bottom-link">Disclaimer</Link>,{' '}
+          <Link href="/terms" className="pf-footer-bottom-link">Terms of Use</Link>, and{' '}
+          <Link href="/privacy" className="pf-footer-bottom-link">Privacy Policy</Link>.
+        </span>
       </div>
 
     </footer>
