@@ -96,18 +96,23 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
   const bullCount = biases.filter(b => b === 'bullish').length;
   const bearCount = biases.filter(b => b === 'bearish').length;
 
-  const verdict: 'bullish' | 'bearish' | 'mixed' =
-    bullCount >= 2 ? 'bullish' : bearCount >= 2 ? 'bearish' : 'mixed';
+  const verdict: 'bullish' | 'bearish' | 'conflicting' | 'mixed' =
+    bullCount >= 2 ? 'bullish'
+    : bearCount >= 2 ? 'bearish'
+    : (bullCount > 0 && bearCount > 0) ? 'conflicting'
+    : 'mixed';
 
-  const verdictLabel = verdict === 'bullish' ? '▲ Bullish' : verdict === 'bearish' ? '▼ Bearish' : 'Mixed Signals';
-  const verdictColor = verdict === 'bullish' ? '#34d399' : verdict === 'bearish' ? '#f87171' : 'var(--txt3)';
-  const verdictBorder = verdict === 'bullish' ? 'rgba(52,211,153,0.4)' : verdict === 'bearish' ? 'rgba(248,113,113,0.4)' : 'rgba(255,255,255,0.18)';
-  const verdictBg = verdict === 'bullish' ? 'rgba(52,211,153,0.1)' : verdict === 'bearish' ? 'rgba(248,113,113,0.1)' : 'transparent';
+  const verdictLabel = verdict === 'bullish' ? '▲ Bullish' : verdict === 'bearish' ? '▼ Bearish' : verdict === 'conflicting' ? 'Conflicting' : 'Mixed Signals';
+  const verdictColor = verdict === 'bullish' ? '#34d399' : verdict === 'bearish' ? '#f87171' : verdict === 'conflicting' ? '#fbbf24' : 'var(--txt3)';
+  const verdictBorder = verdict === 'bullish' ? 'rgba(52,211,153,0.4)' : verdict === 'bearish' ? 'rgba(248,113,113,0.4)' : verdict === 'conflicting' ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.18)';
+  const verdictBg = verdict === 'bullish' ? 'rgba(52,211,153,0.1)' : verdict === 'bearish' ? 'rgba(248,113,113,0.1)' : verdict === 'conflicting' ? 'rgba(251,191,36,0.1)' : 'transparent';
 
   const footerText = verdict === 'bullish'
     ? 'RSI aligned bullish across timeframes. Momentum favors longs.'
     : verdict === 'bearish'
     ? 'RSI aligned bearish across timeframes. Momentum favors shorts.'
+    : verdict === 'conflicting'
+    ? 'Higher and lower timeframes disagree. Stay out or reduce size — no clear edge.'
     : 'No clear directional bias across timeframes. Wait for RSI to pick a side.';
 
   return (

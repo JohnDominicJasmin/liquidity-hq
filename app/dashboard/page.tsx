@@ -6,7 +6,6 @@ import { useSettings } from '@/lib/settings';
 import Ticker from '@/components/Ticker';
 import FearGreed from '@/components/FearGreed';
 import AltSeasonIndex from '@/components/AltSeasonIndex';
-import RaidMeter from '@/components/RaidMeter';
 import SOTD from '@/components/SOTD';
 import NewsBanner from '@/components/NewsBanner';
 import SessionCountdown from '@/components/SessionCountdown';
@@ -628,7 +627,6 @@ export default function Dashboard() {
         </div>
         {marketCtxOpen && (
           <div className="desktop-only">
-            {!hide('raid_meter') && <div id="tour-raidmeter"><RaidMeter /></div>}
             {!hide('best_setup') && <div id="tour-best-setup">
               <div className="dash-section dash-section-hot">Best Setup Today</div>
               <SOTD />
@@ -636,9 +634,8 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* RaidMeter + SOTD always visible on mobile (no collapsible there) */}
+        {/* SOTD always visible on mobile (no collapsible there) */}
         <div className="mobile-only">
-          {!hide('raid_meter') && <div id="tour-raidmeter-mobile"><RaidMeter /></div>}
           {!hide('best_setup') && <div>
             <div className="dash-section dash-section-hot">Best Setup Today</div>
             <SOTD />
@@ -651,19 +648,15 @@ export default function Dashboard() {
         {/* 6. Catalysts & market events */}
         {!hide('catalysts') && <NewsBanner />}
 
-        {/* 7. Market Context — Cycle, BTC Risk, GEX, Macro (hidden in beginner mode) */}
-        {!beginnerMode && (
-          <>
-            <div className="dash-section" style={{ marginTop: 8 }}>Market Context</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-              <CycleDayCounter />
-              <BtcRiskLevel />
-            </div>
-            <CycleChart />
-            {!hide('gex') && <GexTable />}
-            {!hide('macro') && <MacroStrip />}
-          </>
-        )}
+        {/* 7. Market Context — Cycle, BTC Risk, GEX, Macro */}
+        <div className="dash-section" style={{ marginTop: 8 }}>Market Context</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <CycleDayCounter />
+          <BtcRiskLevel />
+        </div>
+        <CycleChart />
+        {!hide('gex') && <GexTable />}
+        {!hide('macro') && <MacroStrip />}
 
       </div>
 
