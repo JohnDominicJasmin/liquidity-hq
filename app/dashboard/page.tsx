@@ -384,8 +384,7 @@ function CoinSignalsHeader() {
 }
 
 export default function Dashboard() {
-  const [marketCtxOpen, setMarketCtxOpen] = useState(false);
-  const [showTour, setShowTour]         = useState(false);
+  const [showTour, setShowTour] = useState(false);
 
   const { settings } = useSettings();
   const hide = (id: string) => settings.hidden_sections.includes(id);
@@ -468,28 +467,15 @@ export default function Dashboard() {
           <SOTD />
         </div>}
 
-        {/* Market Context — collapsible, contains Cycle/Risk/GEX/Macro */}
-        <div
-          className="dash-section"
-          style={{ cursor: 'pointer', userSelect: 'none', marginTop: 8 }}
-          onClick={() => setMarketCtxOpen(o => !o)}
-        >
-          Market Context
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--txt3)', letterSpacing: 0 }}>
-            {marketCtxOpen ? '▲ hide' : '▼ show'}
-          </span>
+        {/* Market Context */}
+        <div className="dash-section" style={{ marginTop: 8 }}>Market Context</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <CycleDayCounter />
+          <BtcRiskLevel />
         </div>
-        {marketCtxOpen && (
-          <>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-              <CycleDayCounter />
-              <BtcRiskLevel />
-            </div>
-            <CycleChart />
-            {!hide('gex') && <GexTable />}
-            {!hide('macro') && <MacroStrip />}
-          </>
-        )}
+        <CycleChart />
+        {!hide('gex') && <GexTable />}
+        {!hide('macro') && <MacroStrip />}
 
       </div>
 
