@@ -1083,83 +1083,11 @@ function ArenaContent() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>LiquidityAI Arena</div>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>LiquidityAI · LIVE X</span>
-          {jpyUsd != null && (() => {
-            const col = jpyUsd >= 160 ? '#f87171' : jpyUsd >= 158 ? '#fbbf24' : '#34d399';
-            const label = jpyUsd >= 160 ? 'DANGER' : jpyUsd >= 158 ? 'WARN' : 'SAFE';
-            return (
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
-                color: col, background: col + '14', border: `0.5px solid ${col}44`,
-                letterSpacing: '.04em',
-              }}>
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: col, boxShadow: `0 0 5px ${col}`, flexShrink: 0 }} />
-                <Tip width={260} iconColor={col + '99'} text={`USD/JPY ${jpyUsd.toFixed(2)} — yen carry-trade risk indicator. ≥160 = danger zone (BOJ intervention risk, unwind can trigger BTC liquidations). ≥158 = approaching it. Below 158 = stable.`}>
-                  JPY {jpyUsd.toFixed(1)} · {label}
-                </Tip>
-              </span>
-            );
-          })()}
-          {(() => {
-            const d = store.coins[selectedCoin];
-            const res = d?.price ? computeDistributionScore(distInputsFromCoin(d)) : null;
-            if (!res || res.score < 45) return null;
-            const col = distributionColor(res.score);
-            return (
-              <span title={`Distribution score ${res.score}/100 — big players taking profit into strength: ${res.reasons.join(', ')}`} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
-                color: col, background: col + '14', border: `0.5px solid ${col}44`,
-                letterSpacing: '.04em', cursor: 'default',
-              }}>
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: col, boxShadow: `0 0 5px ${col}` }} />
-                Distribution {res.score}
-              </span>
-            );
-          })()}
-          {(() => {
-            const { dxyChg, jpyChg } = store;
-            if (dxyChg == null || jpyChg == null) return null;
-            const FLAT = 0.05; // % — below this, treat the move as noise
-            const dxyUp = dxyChg > FLAT, dxyDown = dxyChg < -FLAT;
-            const jpyUp = jpyChg > FLAT, jpyDown = jpyChg < -FLAT; // USD/JPY up = yen weakening
-
-            let label: string, col: string, flash: boolean, desc: string;
-            if (dxyDown && jpyUp) {
-              label = 'CHEAP MONEY'; col = '#34d399'; flash = false;
-              desc = 'DXY falling (dollar broadly weak, mostly EUR-driven — it’s 57.6% of the index vs JPY’s 13.6%) AND the yen weakening (USD/JPY up, carry trade intact). Both cheap at once — the regime crypto pumps in.';
-            } else if (dxyUp && jpyDown) {
-              label = 'EXPENSIVE MONEY'; col = '#f87171'; flash = true;
-              desc = 'DXY rising AND the yen strengthening (USD/JPY down) at the same time — dollar expensive, carry trade unwinding. The hardest regime for crypto: no cheap money anywhere.';
-            } else if (dxyUp && jpyUp) {
-              label = 'STRONG DOLLAR'; col = '#fbbf24'; flash = true;
-              desc = 'DXY rising (dollar broadly strong) even though the yen is still weakening (carry trade intact). Strong-dollar headwind tends to dominate — net bearish for crypto liquidity.';
-            } else if (dxyDown && jpyDown) {
-              label = 'CARRY UNWIND RISK'; col = '#fbbf24'; flash = true;
-              desc = 'DXY is falling, but that’s not the same as "cheap money" — the yen is strengthening (USD/JPY down), which signals carry-trade unwinding. That’s historically been a risk-off trigger for crypto even with DXY down.';
-            } else {
-              label = 'MIXED SIGNALS'; col = '#8e8e93'; flash = false;
-              desc = 'DXY and USD/JPY aren’t moving together in either direction right now. DXY alone is an incomplete crypto signal — it’s 57.6% Euro, only 13.6% yen — so check both before reading the macro backdrop.';
-            }
-
-            return (
-              <span
-                className={flash ? 'macro-regime-badge-flash' : undefined}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
-                  color: col, background: col + '14', border: `0.5px solid ${col}44`,
-                  letterSpacing: '.04em',
-                  ...(flash ? ({ '--flash-color': col } as React.CSSProperties) : {}),
-                }}
-              >
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: col, boxShadow: `0 0 5px ${col}`, flexShrink: 0 }} />
-                <Tip width={280} iconColor={col + '99'} text={desc}>
-                  {label}
-                </Tip>
-              </span>
-            );
-          })()}
+          {/* JPY carry-risk and DXY/JPY "regime" badges were removed from here — both
+              restated Dashboard's MacroStrip (which already shows DXY/SPX/Gold/10Y/JPY
+              coherently together). Distribution score badge removed too — it duplicated
+              the pullback warning banner further down this same page. jpyUsd itself is
+              still fetched and feeds ConfluenceScore's macro risk overlay below. */}
           {(() => {
             const { cbPremium, cbPremiumPct } = store;
             if (cbPremium == null || cbPremiumPct == null) return null;

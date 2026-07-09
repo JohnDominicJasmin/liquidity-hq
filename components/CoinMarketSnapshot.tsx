@@ -5,12 +5,12 @@ import Tip from '@/components/Tip';
 
 /* ── Coin Market Snapshot ─────────────────────────────────────────────────
    Compact VWAP / Open Interest / Funding / OI 1h-change strip for a single
-   coin — the same signals shown on the Dashboard's per-coin Edge Cards
-   (EdgeSignals in app/dashboard/page.tsx), extracted here so Arena can show
-   them for whichever coin is selected there without touching the dashboard's
-   own `store.selectedCoin` state. Pure display — reads live data already in
-   the market store plus the existing useOI1h hook, no new fetches beyond
-   what useOI1h itself does. */
+   coin. This is the single canonical home for these per-coin metrics — the
+   Dashboard used to show a duplicate set of cards (formerly "EdgeSignals" in
+   app/dashboard/page.tsx), which was removed since it was a direct restatement
+   of this component. Pure display — reads live data already in the market
+   store plus the existing useOI1h hook, no new fetches beyond what useOI1h
+   itself does. */
 
 const OI_TREND_META: Record<string, { txt: string; sub: string; col: string }> = {
   strong_up:   { txt: '▲ New buyers opening', sub: 'Open interest rising with price — real trend', col: '#34d399' },

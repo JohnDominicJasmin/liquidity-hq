@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { useMarket, COINS, BYBIT_SYMS, COIN_DEC, fmtPrice, fmtChg, fmtOI, classifyFunding, computeSqueezeScore, computeCoinHealth } from '@/lib/marketStore';
-import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
+import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth } from '@/lib/marketStore';
 import { useSettings } from '@/lib/settings';
 import Ticker from '@/components/Ticker';
 import FearGreed from '@/components/FearGreed';
@@ -9,7 +8,6 @@ import AltSeasonIndex from '@/components/AltSeasonIndex';
 import RaidMeter from '@/components/RaidMeter';
 import SOTD from '@/components/SOTD';
 import NewsBanner from '@/components/NewsBanner';
-import SessionContext from '@/components/SessionContext';
 import SessionCountdown from '@/components/SessionCountdown';
 import SmartMoneyScore from '@/components/SmartMoneyScore';
 import OISpikeScanner from '@/components/OISpikeScanner';
@@ -18,7 +16,6 @@ import OnboardingFlow from '@/components/OnboardingFlow';
 import SpotlightTour from '@/components/SpotlightTour';
 import SetupChecklist from '@/components/SetupChecklist';
 import Link from 'next/link';
-import MultiTFAlignment from '@/components/MultiTFAlignment';
 import WatchlistFeed from '@/components/WatchlistFeed';
 import CycleDayCounter from '@/components/CycleDayCounter';
 import BtcRiskLevel from '@/components/BtcRiskLevel';
@@ -31,13 +28,6 @@ import DistributionTracker from '@/components/DistributionTracker';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import Sparkline24h from '@/components/Sparkline24h';
 
-
-const OI_TREND_META: Record<string, { txt: string; sub: string; hint: string; col: string }> = {
-  strong_up:   { txt: '▲ ↑Open Int ↑P', sub: 'New longs — real trend',  hint: 'New money entering longs. Trend has conviction — follow it.',      col: '#34d399' },
-  strong_down: { txt: '▼ ↑Open Int ↓P', sub: 'New shorts — real dump',  hint: 'Fresh shorts being added. Real downtrend — not a dip to buy.',     col: '#f87171' },
-  weak_up:     { txt: '△ ↓Open Int ↑P', sub: 'Short covering — weak',   hint: 'Shorts exiting, not new longs. Fake pump — no fresh conviction.',  col: '#fbbf24' },
-  weak_down:   { txt: '▽ ↓Open Int ↓P', sub: 'Long exits — no panic',   hint: 'Longs taking profit/exiting. Not new shorts — capitulation risk.', col: '#94a3b8' },
-};
 
 /* ── Coin Sidebar v2 — signal cards ── */
 const SIDEBAR_DEFAULT = 7;
@@ -229,238 +219,19 @@ function CascadeAlertBanner() {
   );
 }
 
-function EdgeSignals() {
+// Formerly "EdgeSignals" — the CB Premium / VWAP / OI trend / Funding / OI-1h-change /
+// Setup Scanner cards this used to render were a direct duplicate of Arena's
+// CoinMarketSnapshot + Squeeze Scanner for the selected coin (down to reusing the same
+// component comment admitting the extraction). Arena is the single-coin deep-dive page;
+// Dashboard's job is market-wide scanning, so only the genuinely unique, all-coin Taker
+// Buy/Sell table stays here.
+function TakerPressureTable() {
   const { store } = useMarket();
-  const coin = store.coins[store.selectedCoin];
   const [takerExpanded, setTakerExpanded] = useState(false);
   const [takerSearch, setTakerSearch]     = useState('');
   const takerSearchRef = useRef<HTMLInputElement>(null);
-  const oi1h  = useOI1h(store.selectedCoin);
-  const sq    = computeSqueezeScore(coin);
-
-  /* ── Coinbase Premium ── */
-  const cbAmt = store.cbPremium;
-  const cbPct = store.cbPremiumPct;
-  const cbCol  = cbPct == null ? 'var(--txt3)' : cbPct > 0.02 ? 'var(--green)' : cbPct < -0.02 ? 'var(--red)' : 'var(--txt2)';
-  const cbBdr  = cbPct == null ? 'var(--bdr)'  : cbPct > 0.05 ? 'var(--green-bdr)' : cbPct < -0.05 ? 'var(--red-bdr)' : 'var(--bdr)';
-  const cbSig  = cbPct == null ? 'Loading…'
-               : cbPct > 0.05  ? 'US institutions buying'
-               : cbPct > 0.01  ? 'Slight US buying'
-               : cbPct < -0.05 ? 'US investors selling'
-               : cbPct < -0.01 ? 'Slight US selling'
-               : 'Neutral — no US demand edge';
-
-  /* ── VWAP ── */
-  const vwap  = coin?.vwap;
-  const price = coin?.price;
-  const vwapAbove = vwap != null && price != null ? price > vwap : null;
-  const vwapPct   = vwap && price ? ((price - vwap) / vwap) * 100 : null;
-  const vwapCol   = vwapAbove === null ? 'var(--txt3)' : vwapAbove ? 'var(--green)' : 'var(--red)';
-  const vwapBdr   = vwapAbove === null ? 'var(--bdr)' : vwapAbove ? 'var(--green-bdr)' : 'var(--red-bdr)';
-
-  /* ── OI Trend (selected coin) ── */
-  const oiMeta  = coin?.oiTrend ? OI_TREND_META[coin.oiTrend] : null;
-  const hasPerp = store.selectedCoin in BYBIT_SYMS;
-  const oiBdr   = oiMeta ? oiMeta.col + '44' : 'var(--bdr)';
 
   return (
-    <>
-      {/* Row 1: CB Premium + VWAP */}
-      <div className="edge-grid">
-        <div className="edge-card" style={{ borderColor: cbBdr }}>
-          <div className="edge-card-label"><Tip text="The price difference between Coinbase (US-biased) and Binance (global market). Positive means US institutions are paying a premium to buy — historically a bullish signal for BTC direction.">US Buyer Demand</Tip> <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--txt3)' }}>Coinbase vs Bybit price</span></div>
-          <div className="edge-card-value" style={{ color: cbCol }}>
-            {cbAmt != null
-              ? (cbAmt >= 0 ? '+$' : '−$') + Math.abs(cbAmt).toFixed(1)
-              : '—'}
-          </div>
-          {cbPct != null && (
-            <div className="edge-card-sub" style={{ color: cbCol }}>
-              {(cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%'}
-            </div>
-          )}
-          <div className="edge-card-signal" style={{ color: cbCol }}>{cbSig}</div>
-        </div>
-
-        <div className="edge-card" style={{ borderColor: vwapBdr }}>
-          <div className="edge-card-label"><Tip text="Volume Weighted Average Price — the average price across the day, weighted by how much was traded at each level. Price above VWAP signals buy-side control; below signals sellers are in charge.">VWAP · {store.selectedCoin.toUpperCase()}</Tip> <span style={{ fontSize: 9, fontWeight: 400, color: 'var(--txt3)' }}>avg daily price</span></div>
-          {/* Show LIVE price as the hero number */}
-          <div className="edge-card-value" style={{ color: vwapCol, fontSize: 15 }}>
-            {price != null
-              ? '$' + fmtPrice(price, COIN_DEC[store.selectedCoin])
-              : '—'}
-          </div>
-          {/* VWAP reference line */}
-          {vwap != null && (
-            <div className="edge-card-sub">
-              <span style={{ color: 'var(--txt3)' }}>VWAP </span>
-              <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>
-                ${vwap.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-              </span>
-              {vwapPct != null && (
-                <span style={{ color: vwapCol }}>
-                  {' '}({vwapPct >= 0 ? '+' : ''}{vwapPct.toFixed(2)}%)
-                </span>
-              )}
-            </div>
-          )}
-          <div className="edge-card-signal" style={{ color: vwapCol }}>
-            {vwapAbove === null ? 'Calculating…' : vwapAbove ? '▲ Above VWAP — bullish' : '▼ Below VWAP — bearish'}
-          </div>
-        </div>
-
-        {/* OI Trend — selected coin */}
-        <div className="edge-card" style={{ borderColor: oiBdr }}>
-          <div className="edge-card-label">
-            <Tip
-              width={260}
-              text="Open Interest is the total number of live futures contracts. Rising OI + rising price = new longs entering (real conviction). Falling OI + rising price = shorts covering (weaker signal). Use this to judge if a move has real backing or is just a squeeze. The 4 possible readings: ▲ new longs — real trend, ▼ new shorts — real dump, △ short covering — weak, ▽ long exits — no panic."
-            >
-              Open Interest · {store.selectedCoin.toUpperCase()}
-            </Tip>
-          </div>
-          {oiMeta ? (
-            <>
-              <div className="edge-card-value" style={{ color: oiMeta.col }}>{oiMeta.txt}</div>
-              <div className="edge-card-signal" style={{ color: oiMeta.col }}>{oiMeta.sub}</div>
-            </>
-          ) : (
-            <div className="edge-card-signal" style={{ color: 'var(--txt3)', marginTop: 4 }}>
-              {!hasPerp ? 'No perp data' : coin?.oi != null ? 'Flat — no strong signal' : 'Warming up…'}
-            </div>
-          )}
-        </div>
-
-        {/* Funding Rate + Next FR Estimate */}
-        {(() => {
-          const fr      = coin?.fundingRate;
-          const nextFr  = coin?.nextFrEstimate;
-          const nextFt  = coin?.nextFundingTime;
-          const frPct   = fr   != null ? fr   * 100 : null;
-          const nfrPct  = nextFr != null ? nextFr * 100 : null;
-
-          const frCol = frPct == null ? 'var(--txt3)'
-            : frPct >= 0.05  ? '#f87171'
-            : frPct >= 0.01  ? '#fca5a5'
-            : frPct <= -0.03 ? '#34d399'
-            : frPct <= -0.005? '#86efac'
-            : 'var(--txt2)';
-          const frBdr = frPct == null ? 'var(--bdr)'
-            : frPct >= 0.05  ? 'rgba(248,113,113,0.3)'
-            : frPct <= -0.03 ? 'rgba(52,211,153,0.3)'
-            : 'var(--bdr)';
-          const frSig = frPct == null ? 'Loading…'
-            : frPct >= 0.05  ? 'Longs overcrowded ↓'
-            : frPct >= 0.01  ? 'Mild long bias'
-            : frPct <= -0.03 ? 'Shorts overcrowded ↑'
-            : frPct <= -0.005? 'Mild short bias'
-            : 'Neutral';
-
-          // Countdown to next settlement
-          let countdown = '';
-          if (nextFt && nextFt > Date.now()) {
-            const diff = nextFt - Date.now();
-            const hh   = Math.floor(diff / 3_600_000);
-            const mm   = Math.floor((diff % 3_600_000) / 60_000);
-            countdown  = `${hh}h ${mm.toString().padStart(2, '0')}m`;
-          }
-
-          const nfrCol = nfrPct == null ? 'var(--txt3)'
-            : nfrPct >= 0.01  ? '#f87171'
-            : nfrPct <= -0.005? '#34d399'
-            : 'var(--txt3)';
-
-          const trend = (nfrPct != null && frPct != null)
-            ? (nfrPct > frPct + 0.0002 ? '↑' : nfrPct < frPct - 0.0002 ? '↓' : '→')
-            : null;
-          const trendCol = trend === '↑' ? '#f87171' : trend === '↓' ? '#34d399' : 'var(--txt3)';
-
-          return (
-            <div className="edge-card" style={{ borderColor: frBdr }}>
-              <div className="edge-card-label"><Tip text="The fee longs pay shorts every 8 hours to keep perpetual futures positions open. Strongly positive means too many people are leveraged long — whales often dump price to liquidate them and pocket the fee.">Funding · {store.selectedCoin.toUpperCase()}</Tip></div>
-              <div className="edge-card-value" style={{ color: frCol }}>
-                {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '—'}
-              </div>
-              {nfrPct != null && (
-                <div className="edge-card-sub">
-                  <span style={{ color: 'var(--txt3)' }}>est next </span>
-                  <span style={{ color: nfrCol, fontWeight: 600 }}>
-                    {(nfrPct >= 0 ? '+' : '') + nfrPct.toFixed(4) + '%'}
-                  </span>
-                  {trend && (
-                    <span style={{ color: trendCol, marginLeft: 3 }}>{trend}</span>
-                  )}
-                </div>
-              )}
-              {countdown && (
-                <div className="edge-card-sub" style={{ color: 'var(--txt3)' }}>
-                  settles in {countdown}
-                </div>
-              )}
-              <div className="edge-card-signal" style={{ color: frCol }}>{frSig}</div>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* Row 3: OI 1h Change + Setup Scanner */}
-      {(() => {
-        /* ── OI 1h Change ── */
-        const { txt: oi1hTxt, col: oi1hCol } = oi1hSignal(oi1h.pct, coin?.oiTrend);
-        const oi1hPctStr = oi1h.pct != null
-          ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%'
-          : '—';
-        const oi1hBdr = oi1h.pct == null ? 'var(--bdr)'
-          : oi1h.pct >= 10  ? 'var(--green-bdr)'
-          : oi1h.pct <= -10 ? 'var(--red-bdr)'
-          : 'var(--bdr)';
-
-        const oi1hUsdStr = oi1h.oiUsd != null
-          ? oi1h.oiUsd >= 1e9 ? '$' + (oi1h.oiUsd / 1e9).toFixed(2) + 'B'
-          : oi1h.oiUsd >= 1e6 ? '$' + (oi1h.oiUsd / 1e6).toFixed(1) + 'M'
-          : '$' + oi1h.oiUsd.toFixed(0)
-          : null;
-
-        /* ── Setup Scanner ── */
-        const sqCol = sq.dir === 'LONG_LIQ' ? '#f87171'
-          : sq.dir === 'SHORT_SQ'           ? '#34d399'
-          : 'var(--txt3)';
-        const sqBdr = sq.dir === 'LONG_LIQ' ? 'var(--red-bdr)'
-          : sq.dir === 'SHORT_SQ'           ? 'var(--green-bdr)'
-          : 'var(--bdr)';
-
-        return (
-          <div className="edge-grid">
-            {/* OI 1h Change */}
-            <div className="edge-card" style={{ borderColor: oi1hBdr }}>
-              <div className="edge-card-label"><Tip text="How much the total value of open futures positions changed in the last hour. A sharp rise means new money is entering aggressively; a sharp drop means mass liquidations or traders closing positions.">Open Interest Change (1h) · {store.selectedCoin.toUpperCase()}</Tip></div>
-              <div className="edge-card-value" style={{ color: oi1hCol }}>
-                {oi1h.loading ? '—' : oi1hPctStr}
-              </div>
-              {oi1hUsdStr && (
-                <div className="edge-card-sub" style={{ color: 'var(--txt3)' }}>{oi1hUsdStr}</div>
-              )}
-              <div className="edge-card-signal" style={{ color: oi1hCol }}>
-                {oi1h.loading ? 'Loading…' : oi1hTxt}
-              </div>
-            </div>
-
-            {/* Setup Scanner */}
-            <div className="edge-card" style={{ borderColor: sqBdr }}>
-              <div className="edge-card-label"><Tip text="A 0–100 squeeze score combining funding rate, long/short ratio, and volume pressure. Above 65 means a high-probability forced liquidation event is forming — either a short squeeze (price pumps) or a long flush (price dumps).">Setup Scanner · {store.selectedCoin.toUpperCase()}</Tip></div>
-              <div className="edge-card-value" style={{ color: sqCol }}>
-                {sq.score}<span style={{ fontSize: 11, color: 'var(--txt3)', fontWeight: 400 }}>/100</span>
-              </div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: sqCol, marginBottom: 2 }}>
-                {sq.score >= 70 ? 'Strong Setup' : sq.score >= 45 ? 'Moderate Setup' : 'No Clear Setup'}
-              </div>
-              <div className="edge-card-signal" style={{ color: 'var(--txt3)', fontSize: 10 }}>{sq.label}</div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Row 4: Taker Buy/Sell ratio table */}
       <div className="taker-table">
         <div className="taker-title">
           <Tip text="Shows who is placing urgent market orders — buyers hitting the ask (buying now at any price) vs sellers hitting the bid (selling now at any price). Above 60% buy takers signals strong upside pressure; below 40% means sellers are in control.">Taker Buy/Sell Pressure</Tip>
@@ -581,8 +352,6 @@ function EdgeSignals() {
           );
         })()}
       </div>
-
-    </>
   );
 }
 
@@ -667,8 +436,7 @@ export default function Dashboard() {
           {/* Coin Signals immediately below Live Prices on mobile/tablet so selecting a coin shows signals without scrolling */}
           {!hide('coin_signals') && <>
             <CoinSignalsHeader />
-            <EdgeSignals />
-            <MultiTFAlignment />
+            <TakerPressureTable />
             <SmartMoneyScore />
             <OISpikeScanner />
           </>}
@@ -699,8 +467,7 @@ export default function Dashboard() {
         {/* 1. Coin signals — first thing traders look at after selecting a coin (desktop only; mobile renders above) */}
         {!hide('coin_signals') && <div id="tour-coin-signals" className="desktop-only">
           <CoinSignalsHeader />
-          <EdgeSignals />
-          <MultiTFAlignment />
+          <TakerPressureTable />
           <SmartMoneyScore />
           <OISpikeScanner />
         </div>}
@@ -724,7 +491,11 @@ export default function Dashboard() {
           <div className="desktop-only">
             {!hide('raid_meter') && <div id="tour-raidmeter"><RaidMeter /></div>}
             {!hide('best_setup') && <div id="tour-best-setup">
-              <div className="dash-section dash-section-hot">Best Setup Today</div>
+              {/* Not live analysis — dash-section-hot ("live, decision-critical") was
+                  misleading here since SOTD is a static/rotating educational tip, not
+                  computed from market data. Plain header + SOTD's own styling now make
+                  that distinction visible instead of implying it's another live signal. */}
+              <div className="dash-section">Trading Playbook</div>
               <SOTD />
             </div>}
           </div>
@@ -734,16 +505,13 @@ export default function Dashboard() {
         <div className="mobile-only">
           {!hide('raid_meter') && <div id="tour-raidmeter-mobile"><RaidMeter /></div>}
           {!hide('best_setup') && <div>
-            <div className="dash-section dash-section-hot">Best Setup Today</div>
+            <div className="dash-section">Trading Playbook</div>
             <SOTD />
           </div>}
         </div>
 
         {/* ── Context divider ── */}
         <div className="dash-ctx-sep" />
-
-        {/* 5. Session context — timing reference (after you know the play) */}
-        {!hide('session') && <SessionContext />}
 
         {/* 6. Catalysts & market events */}
         {!hide('catalysts') && <NewsBanner />}
@@ -763,9 +531,6 @@ export default function Dashboard() {
         )}
 
       </div>
-
-      {/* ── Right panel (desktop ≥1100px only) ── */}
-      <aside className="dash-right" />
 
     </div>
   );

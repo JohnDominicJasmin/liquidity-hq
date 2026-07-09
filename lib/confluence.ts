@@ -62,8 +62,9 @@ export function orderFlowFactor(bias: Bias): DirectionalFactor {
   return { kind: 'directional', label: 'Order Flow Setup', dir: bias === 'long' ? 'bull' : bias === 'short' ? 'bear' : 'neutral', weight: 25 };
 }
 
-/* ── Multi-TF RSI alignment (15m/1h/4h) → confluence factor — same thresholds as
-   components/MultiTFAlignment.tsx so the two cards never silently disagree. ── */
+/* ── Multi-TF RSI alignment (15m/1h/4h) → confluence factor. This is now the
+   sole home for this signal — the standalone MultiTFAlignment card on
+   Dashboard was removed since it was a full-card duplicate of this factor. ── */
 export function multiTfRsiFactor(rsi14: number | null, rsi1h: number | null, rsi4h: number | null): DirectionalFactor {
   const dir = (r: number | null) => r == null ? 0 : r > 57 ? 1 : r < 43 ? -1 : 0;
   const sum = dir(rsi14) + dir(rsi1h) + dir(rsi4h);
