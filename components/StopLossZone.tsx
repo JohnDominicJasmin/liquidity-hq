@@ -2,11 +2,11 @@
 import { useMarket, COIN_DEC, fmtPrice, computeFibLevels } from '@/lib/marketStore';
 import type { CoinData, CoinId } from '@/lib/marketStore';
 
-type Bias = 'long' | 'short' | 'neutral';
+export type Bias = 'long' | 'short' | 'neutral';
 
 interface Level { price: number; label: string; distPct: number; }
 
-function scoreBias(d: CoinData): { bias: Bias; score: number; total: number } {
+export function scoreBias(d: CoinData): { bias: Bias; score: number; total: number } {
   let bull = 0, bear = 0;
   if (d.rsi14 != null)  { if (d.rsi14  > 55) bull++; else if (d.rsi14  < 45) bear++; }
   if (d.rsi1h  != null) { if (d.rsi1h  > 55) bull++; else if (d.rsi1h  < 45) bear++; }

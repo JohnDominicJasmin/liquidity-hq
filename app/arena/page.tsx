@@ -17,6 +17,7 @@ import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import MarketStructure, { MSData } from '@/components/MarketStructure';
 import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
 import EMASignal from '@/components/EMASignal';
+import ConfluenceScore from '@/components/ConfluenceScore';
 import StopLossZone from '@/components/StopLossZone';
 import Tip from '@/components/Tip';
 import LiqHeatmap from '@/components/LiqHeatmap';
@@ -1549,6 +1550,10 @@ function ArenaContent() {
           </div>
         );
       })()}
+
+      {/* Confluence Score — EMA Ribbon + Order Flow + Multi-TF RSI combined, plus a
+          separate macro/event risk overlay (econ calendar + JPY carry-trade risk) */}
+      <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} />
 
       {/* EMA Ribbon Strategy card */}
       <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
