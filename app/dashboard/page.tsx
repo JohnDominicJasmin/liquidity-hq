@@ -386,12 +386,10 @@ function CoinSignalsHeader() {
 
 export default function Dashboard() {
   const [marketCtxOpen, setMarketCtxOpen] = useState(false);
-  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [showTour, setShowTour]         = useState(false);
 
-  const { settings, update } = useSettings();
+  const { settings } = useSettings();
   const hide = (id: string) => settings.hidden_sections.includes(id);
-  const beginnerMode = settings.beginner_mode;
 
   return (
     <div className="dashboard-grid">
@@ -409,23 +407,7 @@ export default function Dashboard() {
 
       {/* ── Main content ── */}
       <div className="dash-main">
-        {/* First-time Beginner Mode banner */}
-        {beginnerMode && !bannerDismissed && (
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            background: 'rgba(52,211,153,0.08)', border: '0.5px solid rgba(52,211,153,0.25)',
-            borderRadius: 10, padding: '8px 12px', marginBottom: 10, gap: 10,
-          }}>
-            <span style={{ fontSize: 11, color: '#34d399', lineHeight: 1.5 }}>
-              <strong>Beginner Mode is on</strong> — advanced panels are hidden to keep things simple.
-              Turn it off below to see GEX, Macro Correlations, and Cycle charts.
-            </span>
-            <button
-              onClick={() => setBannerDismissed(true)}
-              style={{ background: 'none', border: 'none', color: '#34d399', cursor: 'pointer', fontSize: 14, padding: '0 4px', flexShrink: 0 }}
-            >✕</button>
-          </div>
-        )}
+
 
 
         {/* Mobile-only ticker + coin signals + market indicators (desktop shows in sidebar) */}
