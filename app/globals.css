@@ -3661,25 +3661,59 @@ body.landing {
 .lp-final-cta h2 { font-size: clamp(28px, 4vw, 40px); font-weight: 800; letter-spacing: -.03em; margin: 0; }
 .lp-final-cta p  { font-size: 16px; color: var(--txt2); margin: 0; }
 
-/* ── PLATFORM FOOTER — disclaimer bar on every authenticated app page ──── */
+/* ── PLATFORM FOOTER ──────────────────────────────────────────────────── */
 .pf-footer {
-  border-top: 1px solid var(--bdr);
-  padding: 20px 0 28px;
-  margin-top: 40px;
-  font-size: 11px; color: var(--txt3);
+  margin-top: 48px;
+  padding-bottom: 12px;
+  position: relative;
+}
+.pf-footer::before {
+  content: '';
+  display: block;
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent) 0%, rgba(90,106,255,0.25) 35%, transparent 70%);
+  margin-bottom: 28px;
 }
 .pf-footer-top {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 24px; margin-bottom: 28px;
+}
+.pf-footer-brand { display: flex; flex-direction: column; gap: 5px; }
+.pf-footer-logo { font-size: 15px; font-weight: 700; color: var(--txt); letter-spacing: -0.02em; }
+.pf-footer-tagline { font-size: 12px; color: var(--txt3); line-height: 1.4; }
+.pf-footer-nav { display: flex; gap: 20px; align-items: center; flex-shrink: 0; }
+.pf-footer-link { font-size: 12px; color: var(--txt3); text-decoration: none; transition: color 0.15s; letter-spacing: 0.01em; }
+.pf-footer-link:hover { color: var(--txt); }
+.pf-footer-divider { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.pf-footer-divider-label {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px; font-weight: 600; letter-spacing: 0.12em;
+  color: var(--accent); opacity: 0.6; white-space: nowrap;
+}
+.pf-footer-divider-line { flex: 1; height: 1px; background: var(--bdr); }
+.pf-footer-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 20px 36px; margin-bottom: 28px;
+}
+.pf-footer-item-label {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--txt2); margin-bottom: 6px;
+}
+.pf-footer-item-text { font-size: 13px; color: var(--txt3); line-height: 1.65; margin: 0; }
+.pf-footer-bottom {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 14px;
+  flex-wrap: wrap; gap: 8px;
+  padding-top: 18px; border-top: 1px solid var(--bdr);
+  font-size: 11px; color: var(--txt3);
 }
-.pf-footer-copy { line-height: 1.5; }
-.pf-footer-link { color: var(--txt3); text-decoration: none; }
-.pf-footer-link:hover { color: var(--txt2); }
-.pf-footer-disclaimer {
-  font-size: 10px; color: var(--txt3); line-height: 1.75;
-  opacity: 0.7;
+.pf-footer-bottom-note { opacity: 0.55; font-style: italic; }
+@media (max-width: 900px) { .pf-footer-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) {
+  .pf-footer-top { flex-direction: column; }
+  .pf-footer-grid { grid-template-columns: 1fr; gap: 16px; }
+  .pf-footer-bottom { flex-direction: column; align-items: flex-start; }
 }
-.pf-footer-disclaimer strong { font-weight: 600; opacity: 1; }
 
 /* ── LP FOOTER ───────────────────────────────────────────────────────── */
 .lp-footer       { border-top: 0.5px solid var(--bdr); padding: 48px 24px 24px; }
