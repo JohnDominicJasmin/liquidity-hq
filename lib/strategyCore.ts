@@ -86,26 +86,20 @@ export interface SignalFilterParams {
   spreadMinPct: number;  // EMA9/20 min spread as fraction of price (0.003 = 0.3%)
   atrMult:      number;  // ATR(14) multiplier for EMA50 clearance buffer (0.35 = 35%)
   persistBoost: number;  // Integer added to all PERSIST_BY_TF base values (can be negative)
-  chopGate:     number;  // Choppiness Index threshold above which signals are suppressed (61.8 = standard choppy, 100 = disabled)
-  rangeExPct:   number;  // Fraction of recent 20-candle range to exclude at extremes: don't buy in top N%, don't sell in bottom N% (0 = disabled)
 }
 
 export const DEFAULT_FILTER_PARAMS: SignalFilterParams = {
   spreadMinPct: 0.003,
   atrMult:      0.35,
   persistBoost: 0,
-  chopGate:     61.8,   // suppress signals when CI confirms choppy/ranging regime
-  rangeExPct:   0.25,   // don't buy in top 25% or sell in bottom 25% of recent range
 };
 
 // Anti-chop OFF: raw EMA9/20 cross + first close beyond EMA50 confirms immediately —
-// no spread requirement, no ATR clearance buffer, no forward persistence wait, no regime gates.
+// no spread requirement, no ATR clearance buffer, no forward persistence wait.
 export const ANTICHOP_DISABLED_PARAMS: SignalFilterParams = {
   spreadMinPct: 0,
   atrMult:      0,
   persistBoost: -10,
-  chopGate:     100,    // disabled — all regimes allowed
-  rangeExPct:   0,      // disabled — range position not checked
 };
 
 export const PERSIST_BY_TF: Record<string, number> = {
@@ -147,18 +141,16 @@ export function detectEMASignals(
   tf:           string,
   filterParams: SignalFilterParams = DEFAULT_FILTER_PARAMS,
 ): DetectedSignals {
-  const { spreadMinPct, atrMult, persistBoost, chopGate, rangeExPct } = filterParams;
+  const { spreadMinPct, atrMult, persistBoost } = filterParams;
   const cl     = candles.map(c => c.close);
   const e9arr  = emaArr(cl, 9);
   const e20arr = emaArr(cl, 20);
   const e50arr = emaArr(cl, 50);
   const atr14  = atrArr(candles, 14);
-  const chopArr = choppinessIndexArr(candles, 14);
 
   const ATR_MULT       = atrMult;
   const SPREAD_MIN_PCT = spreadMinPct;
   const PERSIST         = Math.max(0, (PERSIST_BY_TF[tf] ?? 4) + persistBoost);
-  const RANGE_LOOKBACK  = 20;
 
   const slopeOK = (k: number, dir: 'long' | 'short'): boolean => {
     if (k < SLOPE_BARS || !isFinite(e50arr[k - SLOPE_BARS])) return true;
@@ -169,29 +161,6 @@ export function detectEMASignals(
   const spreadOK = (k: number): boolean => {
     const p = candles[k].close;
     return p > 0 && Math.abs(e9arr[k] - e20arr[k]) / p >= SPREAD_MIN_PCT;
-  };
-
-  // Suppress confirmation when the market is in a clearly-choppy/ranging regime.
-  // When CI is NaN (insufficient history) we allow through — better to show early signals
-  // than to silently suppress them at the start of a loaded candle window.
-  const chopOK = (k: number): boolean => {
-    const ci = chopArr[k];
-    return !isFinite(ci) || ci < chopGate;
-  };
-
-  // Prevent buy signals from confirming in the top N% of the recent price range
-  // and sell signals from confirming in the bottom N% — directly addresses the
-  // "buy at the top / sell at the bottom" problem in ranging markets.
-  const rangeOK = (k: number, dir: 'long' | 'short'): boolean => {
-    if (rangeExPct <= 0) return true;
-    const start = Math.max(0, k - RANGE_LOOKBACK + 1);
-    const win = candles.slice(start, k + 1);
-    const hh = Math.max(...win.map(c => c.high));
-    const ll = Math.min(...win.map(c => c.low));
-    const range = hh - ll;
-    if (range <= 0) return true;
-    const pos = (candles[k].close - ll) / range; // 0 = range bottom, 1 = range top
-    return dir === 'long' ? pos <= (1 - rangeExPct) : pos >= rangeExPct;
   };
 
   const holdsBeyond50 = (k: number, dir: 'long' | 'short'): boolean => {
@@ -243,7 +212,7 @@ export function detectEMASignals(
         const e50k = e50arr[k];
         if (!isFinite(e50k)) continue;
         const atrBuf = (atr14[k] ?? 0) * ATR_MULT;
-        if (candles[k].close > e50k + atrBuf && slopeOK(k, 'long') && spreadOK(k) && chopOK(k) && rangeOK(k, 'long')) {
+        if (candles[k].close > e50k + atrBuf && slopeOK(k, 'long') && spreadOK(k)) {
           if (holdsBeyond50(k, 'long')) {
             signalLongs.push(mkSignal(k, i, 'long'));
             lastDir = 'long';
@@ -260,7 +229,7 @@ export function detectEMASignals(
         const e50k = e50arr[k];
         if (!isFinite(e50k)) continue;
         const atrBuf = (atr14[k] ?? 0) * ATR_MULT;
-        if (candles[k].close < e50k - atrBuf && slopeOK(k, 'short') && spreadOK(k) && chopOK(k) && rangeOK(k, 'short')) {
+        if (candles[k].close < e50k - atrBuf && slopeOK(k, 'short') && spreadOK(k)) {
           if (holdsBeyond50(k, 'short')) {
             signalShorts.push(mkSignal(k, i, 'short'));
             lastDir = 'short';

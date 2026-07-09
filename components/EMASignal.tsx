@@ -72,8 +72,17 @@ interface Props { signal: StrategySignal; tf?: string; coin?: CoinId }
 
 export default function EMASignal({ signal, tf = '4h', coin }: Props) {
   const v   = signal.verdict;
-  const cfg = VERDICT_CONFIG[v];
   const isSetup = v === 'LONG_SETUP' || v === 'SHORT_SETUP';
+  // Downgrade the badge instead of the entry itself — testing showed that filtering
+  // entry timing (a Choppiness Index gate, a range-position gate) doesn't fix a
+  // genuinely weak track record, because a real EMA50 breakout confirmation is always
+  // near the edge of its own recent range by definition. What DOES help: not showing
+  // a confident-looking SETUP badge when this coin+timeframe has recently lost more
+  // than it's won.
+  const weak = isSetup && signal.weakEdge;
+  const cfg = weak
+    ? { label: `${VERDICT_CONFIG[v].label} · WEAK EDGE`, color: '#fbbf24', bg: 'rgba(251,191,36,0.08)', border: 'rgba(251,191,36,0.25)' }
+    : VERDICT_CONFIG[v];
   const canExplain = coin && !signal.loading && signal.verdict !== 'LOADING';
 
   return (

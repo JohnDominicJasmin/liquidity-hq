@@ -60,6 +60,14 @@ export interface StrategySignal {
   // backtest engine's fill rules (entry after the persistence hold, SL at the EMA50
   // buffer, 2:1 TP). Free to compute — reuses the candles already fetched.
   recentStats: { total: number; wins: number; losses: number; open: number; netR: number } | null;
+  // True when recentStats has enough closed trades to be meaningful (>=5) and the win
+  // rate is clearly sub-coinflip (<40%). Surfaced so a confident-looking LONG/SHORT
+  // SETUP badge doesn't overstate a setup this coin+timeframe has recently lost on —
+  // no amount of entry-timing filtering fixes a track record like that (tested and
+  // reverted: neither a Choppiness Index gate nor a range-position gate at the
+  // confirmation candle moved the needle, because a genuine EMA50 breakout is by
+  // definition already near the edge of its own recent range).
+  weakEdge: boolean;
 }
 
 interface OHLCV { time: number; open: number; high: number; low: number; close: number; volume: number }
@@ -110,6 +118,7 @@ export const STRATEGY_LOADING: StrategySignal = {
   chopIndex: null, chopRegime: null,
   reversalWarnings: [],
   recentStats: null,
+  weakEdge: false,
 };
 
 /* ── TF → exchange interval strings ─────────────────────────────────────── */
@@ -415,6 +424,8 @@ export function useEMAStrategy(
         const recentStats = simTrades.length > 0
           ? { total: simTrades.length, wins: rsWins, losses: rsLosses, open: rsOpen, netR: rsNetR }
           : null;
+        const rsClosed = rsWins + rsLosses;
+        const weakEdge = rsClosed >= 5 && (rsWins / rsClosed) < 0.4;
 
         // Expose ATR and EMA50 slope for Grok context (Quick/Deep Research + chatbot)
         const atrLast = isFinite(atr14[atr14.length - 1]) ? atr14[atr14.length - 1] : null;
@@ -445,7 +456,7 @@ export function useEMAStrategy(
           chopIndex, chopRegime,
           reversalWarnings,
           atrLast, ema50Slope,
-          recentStats,
+          recentStats, weakEdge,
         });
     } catch (err) {
       if (!mountedRef.current) return;
