@@ -260,17 +260,21 @@ export default function LandingContent({ dict, locale, dir }: Props) {
           </div>
         </div>
 
-        <div className="lp-footer-bottom">
-          <span className="lp-footer-copy">
+        <div style={{
+          maxWidth: 1100, margin: '36px auto 0', paddingTop: 20,
+          borderTop: '0.5px solid var(--bdr)',
+          display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+          <p style={{ fontSize: 11, color: 'var(--txt3)', margin: 0, lineHeight: 1.6 }}>
             {dict.footer.copyright}{' '}
-            <Link href="/disclaimer" style={{ color: 'var(--txt3)', textDecoration: 'underline' }}>{dict.footer.fullDisclaimer}</Link>
-          </span>
-          <span className="lp-footer-ack">
+            <Link href="/disclaimer" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{dict.footer.fullDisclaimer}</Link>
+          </p>
+          <p style={{ fontSize: 11, color: 'var(--txt3)', margin: 0, lineHeight: 1.6, opacity: 0.7 }}>
             By using LiquidityHQ, you acknowledge that you understand and agree to our{' '}
-            <Link href="/disclaimer" style={{ color: 'var(--txt3)', textDecoration: 'underline' }}>Disclaimer</Link>,{' '}
-            <Link href="/terms" style={{ color: 'var(--txt3)', textDecoration: 'underline' }}>Terms of Use</Link>, and{' '}
-            <Link href="/privacy" style={{ color: 'var(--txt3)', textDecoration: 'underline' }}>Privacy Policy</Link>.
-          </span>
+            <Link href="/disclaimer" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Disclaimer</Link>,{' '}
+            <Link href="/terms" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Terms of Use</Link>, and{' '}
+            <Link href="/privacy" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Privacy Policy</Link>.
+          </p>
         </div>
       </footer>
 
