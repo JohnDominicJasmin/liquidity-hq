@@ -77,52 +77,6 @@ export default function SessionCountdown() {
   const statusCol = current?.color ?? (dead ? '#f87171' : '#48484a');
   const statusBg  = current?.bg    ?? (dead ? 'rgba(248,113,113,0.08)' : 'transparent');
 
-  // ── FR Settlement countdown ───────────────────────────────────
-  const frCountdown = (() => {
-    const now = new Date(nowMs);
-    const h   = now.getUTCHours();
-    let nextH = h < 8 ? 8 : h < 16 ? 16 : 24;
-    const next = new Date(now);
-    next.setUTCHours(nextH % 24, 0, 0, 0);
-    if (nextH === 24) next.setUTCDate(next.getUTCDate() + 1);
-    const diff = next.getTime() - now.getTime();
-    const hh = Math.floor(diff / 3_600_000);
-    const mm = Math.floor((diff % 3_600_000) / 60_000);
-    const ss = Math.floor((diff % 60_000) / 1_000);
-    return `${hh}h ${pad(mm)}m ${pad(ss)}s`;
-  })();
-
-  // ── Weekly options expiry (next Friday 08:00 UTC) ─────────────
-  const { weeklyLabel, isWeeklyToday } = (() => {
-    const now = new Date(nowMs);
-    const day = now.getUTCDay();
-    let daysUntil = (5 - day + 7) % 7;
-    if (daysUntil === 0 && now.getUTCHours() >= 8) daysUntil = 7;
-    const next = new Date(now);
-    next.setUTCDate(now.getUTCDate() + daysUntil);
-    return {
-      weeklyLabel: daysUntil === 0
-        ? 'Today'
-        : next.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }),
-      isWeeklyToday: daysUntil === 0,
-    };
-  })();
-
-  // ── Monthly expiry (last Friday of month) ────────────────────
-  const monthlyLabel = (() => {
-    const now = new Date(nowMs);
-    const yr  = now.getUTCFullYear();
-    const mo  = now.getUTCMonth();
-    const lastDay = new Date(Date.UTC(yr, mo + 1, 0));
-    while (lastDay.getUTCDay() !== 5) lastDay.setUTCDate(lastDay.getUTCDate() - 1);
-    if (lastDay.getTime() <= now.getTime()) {
-      const nxt = new Date(Date.UTC(yr, mo + 2, 0));
-      while (nxt.getUTCDay() !== 5) nxt.setUTCDate(nxt.getUTCDate() - 1);
-      return nxt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-    }
-    return lastDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-  })();
-
   return (
     <div className="sc-wrap">
 
@@ -173,28 +127,6 @@ export default function SessionCountdown() {
           </span>
         </div>
       )}
-
-      {/* Row 4 — settlement & expiry clocks (merged in from the former SessionContext
-          component, which duplicated this component's session-status logic) */}
-      <div className="sctx-divider" />
-      <div className="sctx-events-row">
-        <div className="sctx-evt">
-          <span className="sctx-evt-label">FR settlement</span>
-          <span className="sctx-evt-value sctx-mono" suppressHydrationWarning>{frCountdown}</span>
-        </div>
-        <div className="sctx-evt-sep" />
-        <div className="sctx-evt">
-          <span className="sctx-evt-label">Weekly expiry</span>
-          <span suppressHydrationWarning className={`sctx-evt-value${isWeeklyToday ? ' sctx-hot' : ''}`}>
-            {weeklyLabel}
-          </span>
-        </div>
-        <div className="sctx-evt-sep" />
-        <div className="sctx-evt">
-          <span className="sctx-evt-label">Monthly expiry</span>
-          <span suppressHydrationWarning className="sctx-evt-value">{monthlyLabel}</span>
-        </div>
-      </div>
 
     </div>
   );

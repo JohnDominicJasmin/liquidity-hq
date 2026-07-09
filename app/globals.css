@@ -149,11 +149,9 @@ body::after {
   .app-bar-inner { max-width: 1340px; }
   .app-content   { max-width: 1340px; padding-left: 20px; padding-right: 20px; }
 
-  /* Dashboard 2-column grid — the former 3rd (right) column was always empty
-     and has been removed; see git history if a right rail is needed again. */
   .dashboard-grid {
     display: grid;
-    grid-template-columns: 252px 1fr;
+    grid-template-columns: 252px 1fr 272px;
     gap: 16px;
     align-items: start;
   }
@@ -162,6 +160,21 @@ body::after {
      Without min-width: 0, it expands to fit its widest child (e.g. the
      horizontal-scroll news banner) and overflows the viewport. */
   .dash-main  { min-width: 0; overflow-x: hidden; }
+
+  /* Sticky right rail */
+  .dash-right {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: sticky;
+    top: 68px;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.05) transparent;
+  }
+  .dash-right::-webkit-scrollbar { display: block; width: 3px; }
+  .dash-right::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
 
   /* Sticky left sidebar */
   .dash-sidebar {
@@ -186,6 +199,7 @@ body::after {
 @media (max-width: 1099px) {
   .dashboard-grid { display: block; }
   .dash-sidebar   { display: none; }
+  .dash-right     { display: none; }
   /* Coin Signals rendered inside mobile-only block instead */
   .desktop-only   { display: none !important; }
 }
