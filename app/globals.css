@@ -3696,9 +3696,8 @@ body.landing {
   gap: 20px 36px; margin-bottom: 28px;
 }
 .pf-footer-item-label {
-  font-family: var(--font-mono, monospace);
-  font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
-  text-transform: uppercase; color: var(--txt2); margin-bottom: 6px;
+  font-size: 13px; font-weight: 700;
+  color: var(--txt); margin-bottom: 6px;
 }
 .pf-footer-item-text { font-size: 13px; color: var(--txt3); line-height: 1.65; margin: 0; }
 .pf-footer-bottom {
