@@ -1,6 +1,6 @@
-{
-  "name": "LiquidityHQ.ai",
-  "short_name": "LiquidityHQ.ai",
+﻿{
+  "name": "LiquidityHQ",
+  "short_name": "LiquidityHQ",
   "description": "Personal crypto trading intelligence tool",
   "start_url": "/",
   "display": "standalone",

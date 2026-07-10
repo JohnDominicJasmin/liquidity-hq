@@ -45,7 +45,7 @@ export default function LandingContent({ dict, locale, dir }: Props) {
   if (loading || user) {
     return (
       <div className="lp-loading">
-        <span className="lp-loading-logo" aria-hidden="true">LiquidityHQ<span>.ai</span></span>
+        <span className="lp-loading-logo" aria-hidden="true">LiquidityHQ</span>
         <span className="lp-loading-spin" aria-hidden="true" />
         <span className="sr-only" role="status">Loading your session…</span>
       </div>
@@ -58,7 +58,7 @@ export default function LandingContent({ dict, locale, dir }: Props) {
       {/* ── NAV ── */}
       <nav className="lp-nav">
         <div className="lp-nav-inner">
-          <span className="lp-logo">LiquidityHQ<span>.ai</span></span>
+          <span className="lp-logo">LiquidityHQ</span>
           <div className="lp-nav-actions">
             <LanguageSwitcher locale={locale} />
             <Link href="/login" className="lp-btn-ghost">{dict.nav.signIn}</Link>
@@ -200,7 +200,7 @@ export default function LandingContent({ dict, locale, dir }: Props) {
       <footer className="lp-footer">
         <div className="lp-footer-grid">
           <div className="lp-footer-brand">
-            <span className="lp-logo">LiquidityHQ<span>.ai</span></span>
+            <span className="lp-logo">LiquidityHQ</span>
             <p>{dict.footer.brandDesc}</p>
           </div>
 

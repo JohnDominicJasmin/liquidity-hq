@@ -1,4 +1,4 @@
-// Landing-page translation dictionaries. Only the landing page is localized
+﻿// Landing-page translation dictionaries. Only the landing page is localized
 // for now — the rest of the app (dashboard, Arena, etc.) stays English-only.
 
 export const SUPPORTED_LOCALES = ['ko', 'zh', 'ar'] as const;
@@ -110,7 +110,7 @@ export const en: LandingDict = {
       journal: 'Journal', calc: 'Position Sizer', alerts: 'Alerts', hours: 'Best Hours',
       signIn: 'Sign In', createAccount: 'Create Account', pricing: 'Pricing', about: 'About', disclaimer: 'Disclaimer',
     },
-    copyright: '© 2026 LiquidityHQ.ai · Educational content only, not financial advice ·',
+    copyright: '© 2026 LiquidityHQ · Educational content only, not financial advice ·',
     fullDisclaimer: 'Full disclaimer',
   },
 };
@@ -171,7 +171,7 @@ export const ko: LandingDict = {
       journal: '매매일지', calc: '포지션 사이저', alerts: '알림', hours: '최적 시간대',
       signIn: '로그인', createAccount: '계정 만들기', pricing: '요금제', about: '소개', disclaimer: '면책조항',
     },
-    copyright: '© 2026 LiquidityHQ.ai · 교육 목적의 콘텐츠이며 투자 자문이 아닙니다 ·',
+    copyright: '© 2026 LiquidityHQ · 교육 목적의 콘텐츠이며 투자 자문이 아닙니다 ·',
     fullDisclaimer: '전체 면책조항 보기',
   },
 };
@@ -232,7 +232,7 @@ export const zh: LandingDict = {
       journal: '交易日志', calc: '仓位计算器', alerts: '提醒', hours: '最佳时段',
       signIn: '登录', createAccount: '创建账户', pricing: '定价', about: '关于我们', disclaimer: '免责声明',
     },
-    copyright: '© 2026 LiquidityHQ.ai · 仅供教育用途,非投资建议 ·',
+    copyright: '© 2026 LiquidityHQ · 仅供教育用途,非投资建议 ·',
     fullDisclaimer: '查看完整免责声明',
   },
 };
@@ -293,7 +293,7 @@ export const ar: LandingDict = {
       journal: 'سجل التداول', calc: 'حاسبة حجم المركز', alerts: 'التنبيهات', hours: 'أفضل الأوقات',
       signIn: 'تسجيل الدخول', createAccount: 'إنشاء حساب', pricing: 'الأسعار', about: 'من نحن', disclaimer: 'إخلاء المسؤولية',
     },
-    copyright: '© 2026 LiquidityHQ.ai · محتوى تعليمي فقط، وليس نصيحة مالية ·',
+    copyright: '© 2026 LiquidityHQ · محتوى تعليمي فقط، وليس نصيحة مالية ·',
     fullDisclaimer: 'إخلاء المسؤولية الكامل',
   },
 };

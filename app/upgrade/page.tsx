@@ -62,7 +62,7 @@ export default function UpgradePage() {
           ← Back
         </Link>
         <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: '-.02em', color: 'var(--txt)' }}>
-          LiquidityHQ<span style={{ color: 'var(--accent)' }}>.ai</span>
+          LiquidityHQ
         </span>
         <div style={{ width: 48 }} />
       </nav>

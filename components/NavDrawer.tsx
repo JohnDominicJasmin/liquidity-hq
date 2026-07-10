@@ -217,7 +217,7 @@ export default function NavDrawer() {
       <div className="app-bar">
         <div className="app-bar-inner">
           <Link href="/dashboard" className="app-logo" style={{ display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}>
-            LiquidityHQ<span>.ai</span>
+            LiquidityHQ
             <span className={`status-dot ${dot.cls}`} title={dot.title} />
           </Link>
 

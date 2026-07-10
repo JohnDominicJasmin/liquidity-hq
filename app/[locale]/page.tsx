@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+﻿import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import LandingContent from '@/components/LandingContent';
 import { getDictionary, dirForLocale, isSupportedLocale } from '@/lib/i18n/dictionaries';
@@ -14,9 +14,9 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   if (!isSupportedLocale(locale)) return {};
   const dict = getDictionary(locale);
   return {
-    title: 'LiquidityHQ.ai',
+    title: 'LiquidityHQ',
     description: dict.hero.sub,
-    openGraph: { title: 'LiquidityHQ.ai', description: dict.hero.sub },
+    openGraph: { title: 'LiquidityHQ', description: dict.hero.sub },
   };
 }
 
