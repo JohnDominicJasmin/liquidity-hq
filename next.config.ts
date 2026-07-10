@@ -5,6 +5,10 @@ const supabaseHost = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '')
   .replace(/^https?:\/\//, '')
   .replace(/\/$/, '');
 
+// PostHog host (defaults to US cloud if not overridden)
+const posthogHost = (process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com')
+  .replace(/\/$/, '');
+
 // Content Security Policy
 // - script-src 'unsafe-inline': required for Next.js hydration inline scripts
 // - script-src 'unsafe-eval': required for GSAP and motion in dev + some Next.js internals
@@ -12,21 +16,33 @@ const supabaseHost = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '')
 // - connect-src 'self': covers same-origin API routes and HMR WebSocket in dev
 // - img-src https:: coin logos and chart images may come from any HTTPS origin
 // - font-src 'self': next/font/google downloads fonts at build time → served from self
+//   font-src also includes fonts.gstatic.com as defensive fallback for any CDN font loads
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-  "style-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us-assets.i.posthog.com`,
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: blob: https:",
-  "font-src 'self' data:",
+  "font-src 'self' data: https://fonts.gstatic.com",
   [
     "connect-src 'self'",
     supabaseHost ? `https://${supabaseHost} wss://${supabaseHost}` : "",
-    // Binance spot (port 9443 and default 443)
+    // Binance WebSocket streams (spot + futures)
     "wss://stream.binance.com wss://stream.binance.com:9443",
-    // Binance futures
     "wss://fstream.binance.com",
-    // Bybit (primary + fallback)
+    // Bybit WebSocket (primary + fallback)
     "wss://stream.bybit.com wss://stream.bytick.com",
+    // Binance REST APIs — called client-side by MarketProvider
+    "https://api.binance.com https://fapi.binance.com",
+    // Bybit REST API — called client-side by MarketProvider
+    "https://api.bybit.com",
+    // Deribit — options GEX / put-call ratio
+    "https://www.deribit.com",
+    // External data feeds
+    "https://api.alternative.me",   // Fear & Greed Index
+    "https://stablecoins.llama.fi", // Stablecoin supply (DefiLlama)
+    // PostHog analytics
+    posthogHost,
+    "https://us-assets.i.posthog.com https://us.posthog.com",
   ].filter(Boolean).join(" "),
   "frame-src 'none'",
   "object-src 'none'",
