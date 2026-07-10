@@ -3956,3 +3956,118 @@ html[lang="ar"] .lp-h1-accent {
   .ob-step-title { font-size: 18px; }
   .ob-checklist { right: 12px; bottom: 128px; width: 220px; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* TERMINAL UI — Bloomberg / Coinglass aesthetic, dashboard-only             */
+/* Activated by body.terminal-page + .dash-terminal on dashboard-grid        */
+/* ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Page-level: kill the navy gradient, go pure near-black ── */
+body.terminal-page {
+  background: #06070a !important;
+}
+html:has(body.terminal-page) {
+  background: #06070a !important;
+}
+
+/* ── CSS variable overrides — all children inherit these ── */
+.dash-terminal {
+  /* True charcoal-black, no blue tint */
+  --bg0: #030405;
+  --bg1: #06070a;
+  --bg2: #0a0c10;
+  --bg3: #0f1115;
+  --bg4: #14161a;
+
+  /* Hairline borders — neutral white, not indigo-tinted */
+  --bdr:  rgba(255,255,255,0.08);
+  --bdr2: rgba(255,255,255,0.14);
+
+  /* Eliminate all elevation and glow */
+  --nm-raise:    none;
+  --nm-raise-sm: none;
+  --nm-inset:    none;
+  --nm-btn:      none;
+  --glow-green:  none;
+  --glow-red:    none;
+  --glow-accent: none;
+  --glow-purple: none;
+  --glow-amber:  none;
+
+  /* Tight radius — terminal feel */
+  --radius-card: 4px;
+  --radius-chip: 3px;
+}
+
+/* ── MagicBento — disable all glow and hover lift ── */
+.dash-terminal .mb-glow-card::after { display: none !important; }
+.dash-terminal .mb-glow-card:hover  { transform: none !important; box-shadow: none !important; }
+
+/* ── Cards — flat, single hairline border ── */
+.dash-terminal .card,
+.dash-terminal .ind-card {
+  background: var(--bg2) !important;
+  border: 1px solid var(--bdr) !important;
+  box-shadow: none !important;
+}
+
+/* ── Coin sidebar — table rows, not floating cards ── */
+.dash-terminal .csb2-container {
+  gap: 0;
+  padding-bottom: 0;
+  background: var(--bg2);
+  border: 1px solid var(--bdr);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+.dash-terminal .csb2-card {
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid var(--bdr);
+  background: transparent;
+  padding: 7px 10px 0;
+}
+.dash-terminal .csb2-card:last-child { border-bottom: none; }
+.dash-terminal .csb2-card:hover      { background: rgba(255,255,255,0.02); border-color: transparent; }
+.dash-terminal .csb2-card.csb2-sel  {
+  background: rgba(255,255,255,0.035) !important;
+  border-left: 2px solid var(--accent) !important;
+  box-shadow: none !important;
+}
+
+/* ── Section headers — whisper-gray label ── */
+.dash-terminal .dash-section {
+  color: rgba(255,255,255,0.3);
+  font-size: 9px;
+  margin: 14px 0 8px;
+}
+.dash-terminal .dash-section::after {
+  background: rgba(255,255,255,0.08) !important;
+  height: 1px;
+}
+.dash-terminal .dash-section-hot { color: rgba(255,255,255,0.5); }
+.dash-terminal .dash-section-hot::after  { background: rgba(255,255,255,0.08) !important; }
+.dash-terminal .dash-section-hot::before { box-shadow: none; }
+
+/* ── Watchlist / bordered containers ── */
+.dash-terminal .watchlist-container,
+.dash-terminal .at-container,
+.dash-terminal .dt-container,
+.dash-terminal .es-wrap,
+.dash-terminal .sms-card,
+.dash-terminal [class*="-card"],
+.dash-terminal [class*="-wrap"],
+.dash-terminal [class*="-container"] {
+  background: var(--bg2) !important;
+  border-color: var(--bdr) !important;
+  box-shadow: none !important;
+  border-radius: var(--radius-card) !important;
+}
+
+/* ── Accent chips and inline cards — flatten ── */
+.dash-terminal [class*="-chip"] { border-radius: var(--radius-chip) !important; }
+
+/* ── Context separator ── */
+.dash-terminal .dash-ctx-sep {
+  background: rgba(255,255,255,0.07) !important;
+}

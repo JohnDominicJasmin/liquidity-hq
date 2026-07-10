@@ -540,8 +540,13 @@ export default function Dashboard() {
   const { settings } = useSettings();
   const hide = (id: string) => settings.hidden_sections.includes(id);
 
+  useEffect(() => {
+    document.body.classList.add('terminal-page');
+    return () => { document.body.classList.remove('terminal-page'); };
+  }, []);
+
   return (
-    <div className="dashboard-grid" data-spotlight-section>
+    <div className="dashboard-grid dash-terminal" data-spotlight-section>
       <OnboardingFlow onStartTour={() => setShowTour(true)} />
       {showTour && <SpotlightTour onDone={() => setShowTour(false)} />}
       <SetupChecklist />
