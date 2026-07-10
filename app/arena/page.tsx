@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useMarket, classifyFunding, CoinId, CoinData, COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
@@ -1545,7 +1545,7 @@ function ArenaContent() {
         {user && (
           <button
             className="arena-ask-grok-btn"
-            style={{ width: 'auto', marginBottom: 0, background: alertFormOpen ? 'rgba(90,106,255,0.15)' : undefined }}
+            style={{ width: 'auto', marginBottom: 0, background: alertFormOpen ? 'rgba(26,122,255,0.15)' : undefined }}
             onClick={() => alertFormOpen ? setAlertFormOpen(false) : openAlertForm()}
             title="Set a price alert for this coin"
           >
@@ -1711,9 +1711,9 @@ function ArenaContent() {
                   <span style={{
                     marginLeft: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.04em',
                     padding: '1px 6px', borderRadius: 4,
-                    background: cacheEntry?.mode === 'quick' ? 'rgba(52,211,153,0.1)' : 'rgba(90,106,255,0.1)',
+                    background: cacheEntry?.mode === 'quick' ? 'rgba(52,211,153,0.1)' : 'rgba(26,122,255,0.1)',
                     color: cacheEntry?.mode === 'quick' ? '#34d399' : '#b8aeff',
-                    border: `0.5px solid ${cacheEntry?.mode === 'quick' ? 'rgba(52,211,153,0.25)' : 'rgba(90,106,255,0.25)'}`,
+                    border: `0.5px solid ${cacheEntry?.mode === 'quick' ? 'rgba(52,211,153,0.25)' : 'rgba(26,122,255,0.25)'}`,
                   }}>
                     {cacheEntry?.mode === 'quick' ? 'Quick' : 'Deep'}
                   </span>
@@ -1901,9 +1901,9 @@ function ArenaContent() {
                       {result.patterns.map((p, i) => {
                         const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
                         const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
-                        const col = isBull ? '#34d399' : isBear ? '#f87171' : '#5a6aff';
-                        const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(90,106,255,0.08)';
-                        const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(90,106,255,0.25)';
+                        const col = isBull ? '#34d399' : isBear ? '#f87171' : '#1a7aff';
+                        const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
+                        const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
                         return (
                           <span key={i} style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
                         );

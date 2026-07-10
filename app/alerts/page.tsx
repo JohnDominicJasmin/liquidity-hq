@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AuthGate from '@/components/AuthGate';
 import { COINS } from '@/lib/marketStore';
@@ -246,7 +246,7 @@ export default function AlertsPage() {
       { key: 'ema_cross', dot: '#34d399', title: '200 EMA Cross (1H)', desc: 'Price reclaims (bullish) or loses (bearish) the major moving average · 12h cooldown', grok: true },
     ]},
     { section: 'Flow', items: [
-      { key: 'whales',   dot: '#5a6aff', title: 'Whale Trades',        desc: 'BTC >$5M · ETH >$2M · SOL >$1M · XRP/BNB >$750K · others >$500K · 30min cooldown', grok: true },
+      { key: 'whales',   dot: '#1a7aff', title: 'Whale Trades',        desc: 'BTC >$5M · ETH >$2M · SOL >$1M · XRP/BNB >$750K · others >$500K · 30min cooldown', grok: true },
       { key: 'oi_spike', dot: '#fbbf24', title: 'Open Interest Spike ±15% / 1h', desc: 'New money entering — big move building · 2h cooldown', grok: true },
       { key: 'cvd',      dot: '#34d399', title: 'CVD Divergence',      desc: 'Bullish: price down but buyers absorbing · Bearish: price up but sellers dominate · 1h cooldown', grok: false },
       { key: 'squeeze',  dot: '#f43f5e', title: 'Squeeze / Flush ≥ 70', desc: 'Crowd positioning extreme — squeeze score threshold hit · 4h cooldown', grok: true },
@@ -579,7 +579,7 @@ export default function AlertsPage() {
       <div className="card" style={{ marginBottom: 10 }}>
         <div className="lbl" style={{ marginBottom: 4 }}>Alert Conditions</div>
         <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 10 }}>
-          Toggle off to mute. <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#5a6aff', background: 'rgba(90,106,255,0.1)', border: '0.5px solid rgba(90,106,255,0.25)', padding: '2px 6px', borderRadius: 4 }}>AI</span> = includes LiquidityAI analysis.
+          Toggle off to mute. <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4 }}>AI</span> = includes LiquidityAI analysis.
         </div>
         {muteErr && <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 8 }}>{muteErr}</div>}
         {ALERT_GROUPS.map(group => (
@@ -602,7 +602,7 @@ export default function AlertsPage() {
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>{c.desc}</div>
                   </div>
-                  {c.grok && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#5a6aff', background: 'rgba(90,106,255,0.1)', border: '0.5px solid rgba(90,106,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>}
+                  {c.grok && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>}
                   <button
                     role="switch"
                     aria-checked={!isMuted}
@@ -628,7 +628,7 @@ export default function AlertsPage() {
               2+ signals on the same coin in one run → single combined ping · LiquidityAI weighs all signals together
             </div>
           </div>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#5a6aff', background: 'rgba(90,106,255,0.1)', border: '0.5px solid rgba(90,106,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>
         </div>
         {/* ── Signal direction filter ── */}
         <div style={{ marginTop: 10, padding: '10px 0 0', borderTop: '0.5px solid var(--bdr)' }}>

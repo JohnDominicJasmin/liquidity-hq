@@ -1,10 +1,10 @@
-'use client';
+﻿'use client';
 
 import { useRef, useEffect, useCallback, useState, ReactNode, CSSProperties, RefObject } from 'react';
 import { gsap } from 'gsap';
 import './MagicBento.css';
 
-export const GLOW_COLOR = '90, 106, 255'; // matches app --accent #5a6aff
+export const GLOW_COLOR = '26, 122, 255'; // matches app --accent #1a7aff
 const DEFAULT_PARTICLE_COUNT = 8;
 const DEFAULT_SPOTLIGHT_RADIUS = 280;
 const MOBILE_BREAKPOINT = 768;
