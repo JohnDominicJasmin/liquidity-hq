@@ -329,6 +329,24 @@ export default function NavDrawer() {
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
+      {/* Mobile bottom tab bar — 1-tap switching between key pages */}
+      <nav className="mobile-tab-bar" aria-label="Main navigation">
+        {[
+          { path: '/dashboard', label: 'Dashboard', icon: '⊞' },
+          { path: '/arena',     label: 'Arena',     icon: '⚡' },
+          { path: '/news',      label: 'News',      icon: '◉'  },
+        ].map(item => (
+          <Link
+            key={item.path}
+            href={item.path}
+            className={`mobile-tab-item${pathname === item.path ? ' on' : ''}`}
+          >
+            <span className="mobile-tab-icon" aria-hidden="true">{item.icon}</span>
+            <span className="mobile-tab-label">{item.label}</span>
+          </Link>
+        ))}
+      </nav>
+
       <div className={`nav-drawer${drawerOpen ? ' open' : ''}`}>
         <div className="nav-overlay" onClick={() => setDrawerOpen(false)} />
         <div className="nav-menu">
