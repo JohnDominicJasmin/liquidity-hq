@@ -265,7 +265,7 @@ export default function AlertsPage() {
 
   const stepStyle: React.CSSProperties = { display: 'flex', gap: 12, marginBottom: 16 };
   const numStyle: React.CSSProperties = {
-    width: 24, height: 24, borderRadius: '50%', background: '#7c3aed',
+    width: 24, height: 24, borderRadius: '50%', background: 'var(--accent)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0, marginTop: 1,
   };
@@ -283,7 +283,7 @@ export default function AlertsPage() {
         <div className="card tier-pro-gate" style={{ marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#b8aeff', marginBottom: 3 }}>Pro plan required for Telegram alerts</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', marginBottom: 3 }}>Pro plan required for Telegram alerts</div>
               <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.6 }}>
                 Upgrade to get push alerts for funding rate extremes, RSI signals, open interest spikes, whale moves, and price levels directly to Telegram.
               </div>

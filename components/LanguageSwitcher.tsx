@@ -29,7 +29,7 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
         onClick={() => setOpen(v => !v)}
         style={{
           fontSize: 12, fontWeight: 600, color: 'var(--txt2)',
-          background: 'rgba(255,255,255,.05)', border: '0.5px solid var(--bdr)',
+          background: 'var(--bg2)', border: '0.5px solid var(--bdr)',
           borderRadius: 8, padding: '6px 10px', cursor: 'pointer',
           display: 'inline-flex', alignItems: 'center', gap: 5,
         }}
@@ -40,8 +40,8 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
       {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 6px)', insetInlineEnd: 0, zIndex: 50,
-          background: '#111', border: '0.5px solid rgba(255,255,255,0.1)', borderRadius: 10,
-          overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.6)', minWidth: 120,
+          background: 'var(--bg1)', border: '0.5px solid var(--bdr2)', borderRadius: 10,
+          overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.18)', minWidth: 120,
         }}>
           {OPTIONS.map(o => (
             <Link

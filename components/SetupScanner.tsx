@@ -84,7 +84,7 @@ function CoinCard({ row, rank }: { row: ScanRow; rank: number }) {
     ? 'rgba(52,211,153,0.06)' : 'transparent';
   const dirBdr = row.dir === 'LONG_LIQ'
     ? 'rgba(248,113,113,0.18)' : row.dir === 'SHORT_SQ'
-    ? 'rgba(52,211,153,0.18)' : 'rgba(255,255,255,0.05)';
+    ? 'rgba(52,211,153,0.18)' : 'var(--bdr)';
 
   return (
     <div className="scan-card" style={{ background: dirBg, borderColor: dirBdr }}>

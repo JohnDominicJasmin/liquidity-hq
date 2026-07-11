@@ -92,7 +92,7 @@ export default function BestHours() {
         {/* Bar + needle wrapper — overflow visible so needle tip shows */}
         <div style={{ position: 'relative', marginBottom: 6 }}>
           {/* Segment strips */}
-          <div style={{ position: 'relative', height: 44, borderRadius: 8, background: 'rgba(255,255,255,0.04)', overflow: 'hidden' }}>
+          <div style={{ position: 'relative', height: 44, borderRadius: 8, background: 'var(--bg3)', overflow: 'hidden' }}>
             {TIMELINE_SEGS.map((seg, i) => {
               const left  = (seg.start / 24) * 100;
               const width = ((seg.end - seg.start) / 24) * 100;
@@ -121,10 +121,10 @@ export default function BestHours() {
                 <div style={{
                   position: 'absolute', top: -6, height: 56,
                   left: `${pct}%`, width: 2,
-                  background: 'rgba(255,255,255,0.95)',
+                  background: 'var(--accent)',
                   borderRadius: 2,
                   transform: 'translateX(-1px)',
-                  boxShadow: '0 0 8px rgba(255,255,255,0.6)',
+                  boxShadow: '0 0 6px var(--accent)',
                   zIndex: 10,
                   pointerEvents: 'none',
                 }} />
@@ -132,7 +132,7 @@ export default function BestHours() {
                   position: 'absolute', top: -16,
                   left: `${pct}%`,
                   transform: 'translateX(-50%)',
-                  fontSize: 10, color: '#fff', lineHeight: 1,
+                  fontSize: 10, color: 'var(--accent)', lineHeight: 1,
                   pointerEvents: 'none',
                 }}>▼</div>
               </>

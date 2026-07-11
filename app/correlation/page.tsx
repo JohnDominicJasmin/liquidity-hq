@@ -84,9 +84,9 @@ function cellBg(r: number | null, diag: boolean): string {
 }
 
 function cellColor(r: number | null, diag: boolean): string {
-  if (diag) return '#c4b5fd';
-  if (r == null) return '#333';
-  return Math.abs(r) >= 0.8 ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.55)';
+  if (diag) return 'var(--accent)';
+  if (r == null) return 'var(--txt3)';
+  return Math.abs(r) >= 0.8 ? 'var(--txt)' : 'var(--txt3)';
 }
 
 /* ── alt season signal ── */

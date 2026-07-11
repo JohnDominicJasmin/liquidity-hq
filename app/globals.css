@@ -596,7 +596,7 @@ body[data-rpm-level="high"]::before {
 .ba-meta { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .ba-source { font-size: 10px; color: var(--txt3); }
 .ba-time   { font-size: 10px; color: var(--txt3); }
-.ba-bar { height: 2px; border-radius: 1px; margin-top: 8px; background: rgba(255,255,255,0.07); overflow: hidden; }
+.ba-bar { height: 2px; border-radius: 1px; margin-top: 8px; background: var(--bdr); overflow: hidden; }
 .ba-bar-fill { height: 100%; border-radius: 1px; width: 100%; transition: width linear; }
 .type-red    .ba-bar-fill { background: var(--red); }
 .type-amber  .ba-bar-fill { background: var(--amber); }
@@ -3223,6 +3223,33 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 /* Light theme overrides */
 [data-theme="light"] .auth-signin-btn:hover { background: rgba(0,0,0,0.05); color: var(--txt); }
 [data-theme="light"] .auth-dropdown { background: #fff; border-color: rgba(0,0,0,0.1); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+
+/* Card elevation in light mode */
+[data-theme="light"] .card { box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(0,0,0,0.05); }
+
+/* News ticker — keep dark in light mode but ensure borders read */
+[data-theme="light"] .news-ticker { border-bottom-color: rgba(0,0,0,0.15); }
+[data-theme="light"] .ticker-sep  { background: rgba(0,0,0,0.15); }
+
+/* Nav divider — rgba(white) is invisible on light bg */
+[data-theme="light"] .nav-divider { background: rgba(0,0,0,0.07); }
+
+/* Coin sidebar row borders */
+[data-theme="light"] .csb-row     { border-bottom-color: rgba(0,0,0,0.05); }
+
+/* Coin sidebar 2 signal badge + bar track */
+[data-theme="light"] .csb2-sig       { background: var(--bg3); }
+[data-theme="light"] .csb2-bar-track { background: var(--bg3); }
+
+/* Liq feed — large-liq row highlight + cluster bar track */
+[data-theme="light"] .liqfeed-row-big  { background: var(--bg3); }
+[data-theme="light"] .liq-cluster-bars { background: var(--bg3); }
+
+/* Hours page — hamburger hover */
+[data-theme="light"] .hamburger:hover { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.1); }
+
+/* Login page google button */
+[data-theme="light"] .login-google-btn { background: var(--bg1); border-color: var(--bdr2); }
 
 /* ── AUTH — Login Page ────────────────────────────────────────────────────── */
 .login-wrap {
