@@ -47,12 +47,54 @@ function fmtDate(s: string) {
     + ' ' + d.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
 }
 
+/* ── Shadow Account result renderer ── */
+const SHADOW_SECTIONS: { key: string; label: string; color?: string }[] = [
+  { key: 'IMPLICIT_RULES',       label: 'Implicit Trading Rules' },
+  { key: 'BEHAVIORAL_PATTERNS',  label: 'Behavioral Patterns' },
+  { key: 'SHADOW_STRATEGY',      label: 'Shadow Strategy', color: '#5a6aff' },
+  { key: 'RULE_VIOLATIONS',      label: 'Rule Violations', color: '#f87171' },
+  { key: 'RECOMMENDATIONS',      label: 'Recommendations', color: '#34d399' },
+  { key: 'KEY_INSIGHT',          label: 'Key Insight', color: '#fbbf24' },
+];
+
+function parseShadowSection(text: string, key: string): string {
+  const regex = new RegExp(key + ':\\s*([\\s\\S]*?)(?=' + SHADOW_SECTIONS.map(s => s.key).join(':|') + ':|$)');
+  return (text.match(regex)?.[1] ?? '').trim();
+}
+
+function ShadowAccountResult({ text }: { text: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {SHADOW_SECTIONS.map(({ key, label, color }) => {
+        const content = parseShadowSection(text, key);
+        if (!content) return null;
+        return (
+          <div key={key} style={{
+            background: 'var(--bg1)', border: '0.5px solid var(--bdr)',
+            borderRadius: 'var(--radius-card)', padding: '12px 14px',
+          }}>
+            <div style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+              color: color ?? 'var(--txt3)', marginBottom: 8,
+            }}>
+              {label}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+              {content}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ── inner component (needs useSearchParams) ── */
 function Inner() {
   const sp     = useSearchParams();
   const router = useRouter();
 
-  const [tab,       setTab]       = useState<'log' | 'history' | 'stats'>('log');
+  const [tab,       setTab]       = useState<'log' | 'history' | 'stats' | 'shadow'>('log');
   const [trades,    setTrades]    = useState<Trade[]>([]);
   const [loading,   setLoading]   = useState(false);
   const [saving,    setSaving]    = useState(false);
@@ -64,6 +106,11 @@ function Inner() {
   );
   const [noDb,      setNoDb]      = useState(false);
   const [historyPage, setHistoryPage] = useState(0);
+
+  /* Shadow Account state */
+  const [shadowLoading,  setShadowLoading]  = useState(false);
+  const [shadowAnalysis, setShadowAnalysis] = useState<string | null>(null);
+  const [shadowError,    setShadowError]    = useState<string | null>(null);
 
   /* Form state — pre-fill from URL params (from Position Sizer) */
   const [coin,      setCoin]      = useState<CoinId>((sp.get('coin') as CoinId) || 'btc');
@@ -98,6 +145,38 @@ function Inner() {
   };
 
   useEffect(() => { loadTrades(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const runShadowAccount = async () => {
+    const db = getSupabase();
+    if (!db) return;
+    setShadowLoading(true);
+    setShadowError(null);
+    setShadowAnalysis(null);
+    try {
+      const token = (await db.auth.getSession()).data.session?.access_token;
+      const res = await fetch('/api/shadow-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const json = await res.json() as { analysis?: string; error?: string; count?: number };
+      if (!res.ok) {
+        if (json.error === 'NEED_MORE_TRADES') {
+          setShadowError(`Need at least 5 closed trades to run analysis (you have ${json.count ?? 0}).`);
+        } else {
+          setShadowError(json.error ?? 'Analysis failed');
+        }
+      } else {
+        setShadowAnalysis(json.analysis ?? null);
+      }
+    } catch {
+      setShadowError('Network error — try again');
+    } finally {
+      setShadowLoading(false);
+    }
+  };
 
   /* Go to log tab if pre-filled from calc */
   useEffect(() => { if (sp.get('entry')) setTab('log'); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -291,11 +370,10 @@ function Inner() {
 
       {/* Tabs */}
       <div className="tj-tabs">
-        {(['log', 'history', 'stats'] as const).map(t => (
-          <button key={t} className={`tj-tab${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}>
-            {t === 'log' ? '+ Log Trade' : t === 'history' ? `History (${trades.length})` : 'Stats'}
-          </button>
-        ))}
+        <button className={`tj-tab${tab === 'log' ? ' on' : ''}`} onClick={() => setTab('log')}>+ Log Trade</button>
+        <button className={`tj-tab${tab === 'history' ? ' on' : ''}`} onClick={() => setTab('history')}>History ({trades.length})</button>
+        <button className={`tj-tab${tab === 'stats' ? ' on' : ''}`} onClick={() => setTab('stats')}>Stats</button>
+        <button className={`tj-tab${tab === 'shadow' ? ' on' : ''}`} onClick={() => setTab('shadow')}>Shadow Account</button>
       </div>
 
       {/* ──────── LOG TAB ──────── */}
@@ -645,6 +723,50 @@ function Inner() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ──────── SHADOW ACCOUNT TAB ──────── */}
+      {tab === 'shadow' && (
+        <div>
+          <div style={{ padding: '12px 0 16px' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Shadow Account</div>
+            <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 16, maxWidth: 520 }}>
+              AI analysis of your trade history — extracts your implicit trading rules, identifies your best and worst patterns, flags rule violations, and shows what your stats would look like if you only took your highest-probability setups.
+            </div>
+            {!shadowAnalysis && (
+              <button
+                onClick={runShadowAccount}
+                disabled={shadowLoading}
+                style={{
+                  background: shadowLoading ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
+                  color: shadowLoading ? 'var(--txt3)' : '#5a6aff',
+                  border: `1px solid ${shadowLoading ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
+                  borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 700,
+                  cursor: shadowLoading ? 'default' : 'pointer',
+                }}
+              >
+                {shadowLoading ? 'Analyzing your trades…' : 'Analyze My Trades'}
+              </button>
+            )}
+            {shadowAnalysis && (
+              <button
+                onClick={() => { setShadowAnalysis(null); setShadowError(null); }}
+                style={{
+                  background: 'transparent', color: 'var(--txt3)',
+                  border: '0.5px solid var(--bdr)', borderRadius: 6,
+                  padding: '6px 12px', fontSize: 11, cursor: 'pointer', marginBottom: 16,
+                }}
+              >
+                Re-run Analysis
+              </button>
+            )}
+            {shadowError && (
+              <div style={{ color: '#f87171', fontSize: 12, marginTop: 8 }}>{shadowError}</div>
+            )}
+          </div>
+
+          {shadowAnalysis && <ShadowAccountResult text={shadowAnalysis} />}
         </div>
       )}
 

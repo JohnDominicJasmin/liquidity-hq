@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { CoinId, COINS } from '@/lib/marketStore';
 import { runBacktest, BacktestRunResult, runOrderFlowBacktest, OrderFlowBacktestResult, ROUND_TRIP_COST_PCT, TAKER_FEE_PCT, SLIPPAGE_PCT } from '@/lib/backtestEngine';
 import { SideCard, fmtPct, fmtR } from '@/components/BacktestStatsUI';
+import { getSupabase } from '@/lib/supabase';
 
 const OF_YEARS_BACK = 1; // shorter than EMA's lookback — 15m+1h+4h+funding fetch per coin is much heavier
 
@@ -23,6 +24,21 @@ const WT_VARIANT_LABELS: Record<string, string> = {
   looseThresholds: 'Loose Thresholds (±45 + arm)',
 };
 
+const STRATEGY_SECTIONS = [
+  { key: 'THEORETICAL_EDGE',      label: 'Theoretical Edge' },
+  { key: 'OPTIMAL_CONDITIONS',    label: 'Optimal Conditions' },
+  { key: 'KEY_RISKS',             label: 'Key Risks', color: '#f87171' },
+  { key: 'PARAMETER_SUGGESTIONS', label: 'Parameter Suggestions', color: '#34d399' },
+  { key: 'CRYPTO_NOTES',          label: 'Crypto Notes', color: '#fbbf24' },
+  { key: 'HONEST_ASSESSMENT',     label: 'Honest Assessment', color: '#5a6aff' },
+];
+
+function parseSection(text: string, key: string): string {
+  const keys = STRATEGY_SECTIONS.map(s => s.key);
+  const regex = new RegExp(key + ':\\s*([\\s\\S]*?)(?=' + keys.join(':|') + ':|$)');
+  return (text.match(regex)?.[1] ?? '').trim();
+}
+
 export default function BacktestPage() {
   const [tf, setTf]               = useState<TF>('1h');
   const [coinScope, setCoinScope] = useState<'majors' | 'all'>('majors');
@@ -36,7 +52,42 @@ export default function BacktestPage() {
   const [ofResult, setOfResult]   = useState<OrderFlowBacktestResult | null>(null);
   const [ofError, setOfError]     = useState<string | null>(null);
 
+  /* Strategy Research state */
+  const [srPrompt,   setSrPrompt]   = useState('');
+  const [srRunning,  setSrRunning]  = useState(false);
+  const [srResult,   setSrResult]   = useState<string | null>(null);
+  const [srError,    setSrError]    = useState<string | null>(null);
+
   const coins = coinScope === 'majors' ? MAJORS : COINS;
+
+  async function runStrategyResearch() {
+    if (!srPrompt.trim()) return;
+    setSrRunning(true);
+    setSrError(null);
+    setSrResult(null);
+    try {
+      const db = getSupabase();
+      const token = db ? (await db.auth.getSession()).data.session?.access_token : undefined;
+      const res = await fetch('/api/strategy-research', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ description: srPrompt }),
+      });
+      const json = await res.json() as { analysis?: string; error?: string };
+      if (!res.ok) {
+        setSrError(json.error ?? 'Analysis failed');
+      } else {
+        setSrResult(json.analysis ?? null);
+      }
+    } catch {
+      setSrError('Network error — try again');
+    } finally {
+      setSrRunning(false);
+    }
+  }
 
   async function run() {
     setRunning(true);
@@ -260,6 +311,87 @@ export default function BacktestPage() {
             </tbody>
           </table>
         </>
+      )}
+
+      {/* ── AI Strategy Research ─────────────────────────────────────────────── */}
+      <div style={{ borderTop: '1px solid var(--bdr)', margin: '36px 0 20px' }} />
+
+      <div className="mb-header">
+        <div className="mb-title">AI Strategy Research</div>
+        <div className="mb-subtitle">Describe any trading strategy in plain English — get an honest analysis of its edge, risks, optimal conditions, and crypto-specific parameters.</div>
+      </div>
+
+      <p style={{ fontSize: 11, opacity: 0.4, marginBottom: 14, maxWidth: 560 }}>
+        Examples: &quot;EMA 9/20 crossover with RSI confirmation on 1h BTC&quot; · &quot;Buy the open interest spike with funding rate reversal&quot; · &quot;Mean reversion after 3 consecutive red 4h candles&quot;
+      </p>
+
+      <textarea
+        value={srPrompt}
+        onChange={e => setSrPrompt(e.target.value)}
+        placeholder="Describe a strategy to research…"
+        rows={3}
+        style={{
+          width: '100%', boxSizing: 'border-box',
+          padding: '10px 12px', borderRadius: 8,
+          border: '0.5px solid var(--bdr)', background: 'var(--bg1)',
+          color: 'var(--txt)', fontSize: 13, resize: 'vertical',
+          outline: 'none', marginBottom: 10,
+        }}
+      />
+
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 18 }}>
+        <button
+          onClick={runStrategyResearch}
+          disabled={srRunning || !srPrompt.trim()}
+          style={{
+            background: srRunning || !srPrompt.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
+            color: srRunning || !srPrompt.trim() ? 'var(--txt3)' : '#5a6aff',
+            border: `1px solid ${srRunning || !srPrompt.trim() ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
+            borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 700,
+            cursor: srRunning || !srPrompt.trim() ? 'default' : 'pointer',
+          }}
+        >
+          {srRunning ? 'Researching…' : 'Research Strategy'}
+        </button>
+        {srResult && (
+          <button
+            onClick={() => { setSrResult(null); setSrError(null); }}
+            style={{
+              background: 'transparent', color: 'var(--txt3)',
+              border: '0.5px solid var(--bdr)', borderRadius: 6,
+              padding: '6px 12px', fontSize: 11, cursor: 'pointer',
+            }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {srError && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 14 }}>{srError}</div>}
+
+      {srResult && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {STRATEGY_SECTIONS.map(({ key, label, color }) => {
+            const content = parseSection(srResult, key);
+            if (!content) return null;
+            return (
+              <div key={key} style={{
+                background: 'var(--bg1)', border: '0.5px solid var(--bdr)',
+                borderRadius: 'var(--radius-card)', padding: '12px 14px',
+              }}>
+                <div style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                  color: color ?? 'var(--txt3)', marginBottom: 8,
+                }}>
+                  {label}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                  {content}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
