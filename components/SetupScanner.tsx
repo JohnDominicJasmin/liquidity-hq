@@ -200,7 +200,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
   // ── Single-coin mode (used by Arena) ──────────────────────────────────────
   if (coinProp) {
     const row = rows.find(r => r.id === coinProp);
-    if (!row) return <div style={{ padding: '1rem 0', fontSize: 12, color: '#444' }}>No data for {coinProp.toUpperCase()}</div>;
+    if (!row) return <div style={{ padding: '1rem 0', fontSize: 12, color: 'var(--txt3)' }}>No data for {coinProp.toUpperCase()}</div>;
     return (
       <div style={{ paddingTop: 8 }}>
         <CoinCard row={row} rank={sorted.indexOf(row) + 1} />
@@ -301,7 +301,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
 
       {/* Cards */}
       {searchDisplayed.length === 0 && (
-        <div style={{ textAlign: 'center', color: '#444', padding: '3rem 0', fontSize: 13 }}>
+        <div style={{ textAlign: 'center', color: 'var(--txt3)', padding: '3rem 0', fontSize: 13 }}>
           {search.trim()
             ? `No coins match "${search.trim()}"`
             : strongOnly
@@ -331,7 +331,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
           <span className="scan-legend-dot" style={{ background: '#606060' }} />
           <span><strong>Balanced</strong> — no extreme positioning on either side. Sit out or trade structure.</span>
         </div>
-        <div style={{ marginTop: 8, fontSize: 11, color: '#444' }}>
+        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--txt3)' }}>
           Score 0–100: funding rate (0–40 pts) + long/short ratio (0–40 pts) + volume spike bonus (0–20 pts)
         </div>
       </div>

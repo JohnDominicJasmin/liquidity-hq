@@ -1716,21 +1716,21 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .liq-row:hover { background: rgba(255,255,255,0.018); }
 .liq-row-magnet { background: rgba(255,255,255,0.022) !important; }
 .liq-row-price { font-size: 11px; color: var(--txt3); font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.liq-row-dist { font-size: 10px; color: #3a3a3a; font-variant-numeric: tabular-nums; text-align: right; }
+.liq-row-dist { font-size: 10px; color: var(--txt3); font-variant-numeric: tabular-nums; text-align: right; }
 .liq-row-lev { font-size: 10px; font-weight: 700; white-space: nowrap; }
 .liq-row-bar-wrap { height: 12px; background: rgba(255,255,255,0.035); border-radius: 2px; overflow: hidden; position: relative; }
 .liq-row-bar { height: 100%; border-radius: 2px; transition: width 0.55s cubic-bezier(.4,0,.2,1); }
 .liq-row-usd { font-size: 10px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* Column header matches the 5-col grid */
-.liq-col-hdr { display: grid; grid-template-columns: 72px 30px 38px 1fr 48px; align-items: center; gap: 5px; padding: 4px 14px; font-size: 10px; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 0.07em; border-bottom: 0.5px solid rgba(255,255,255,0.025); }
+.liq-col-hdr { display: grid; grid-template-columns: 72px 30px 38px 1fr 48px; align-items: center; gap: 5px; padding: 4px 14px; font-size: 10px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.07em; border-bottom: 0.5px solid var(--bdr); }
 
 .liq-howto { background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: var(--radius-card); padding: 14px 16px; margin-bottom: 10px; }
 .liq-howto-title { font-size: 10px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 10px; }
 .liq-howto-row { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: var(--txt2); line-height: 1.55; margin-bottom: 8px; }
 .liq-howto-row:last-child { margin-bottom: 0; }
 .liq-howto-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
-.liq-disclaimer { font-size: 10px; color: #333; line-height: 1.6; padding: 4px 0 14px; }
+.liq-disclaimer { font-size: 10px; color: var(--txt3); line-height: 1.6; padding: 4px 0 14px; }
 
 /* ── Edge Signals (CB Premium · VWAP · OI Trend) ── */
 .edge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-bottom: 8px; }
@@ -1742,20 +1742,20 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 
 .oi-trend-table { background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: var(--radius-card); overflow: hidden; margin-bottom: 8px; }
 .oi-trend-title { font-size: 10px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 14px 6px; display: flex; align-items: center; gap: 6px; }
-.oi-trend-hdr  { display: grid; grid-template-columns: 44px auto 1fr; gap: 8px; padding: 4px 14px 5px; font-size: 10px; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 0.07em; border-bottom: 0.5px solid var(--bdr); }
+.oi-trend-hdr  { display: grid; grid-template-columns: 44px auto 1fr; gap: 8px; padding: 4px 14px 5px; font-size: 10px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.07em; border-bottom: 0.5px solid var(--bdr); }
 .oi-trend-row  { display: grid; grid-template-columns: 44px auto 1fr; gap: 8px; padding: 5.5px 14px; border-bottom: 0.5px solid rgba(255,255,255,0.02); align-items: center; transition: background 0.1s; }
 .oi-trend-row:last-child { border-bottom: none; }
 .oi-trend-row:hover { background: rgba(255,255,255,0.015); }
 .oi-trend-coin  { font-size: 11px; font-weight: 700; color: var(--txt2); }
 .oi-trend-desc  { font-size: 10px; color: var(--txt3); line-height: 1.4; }
-.oi-trend-hint  { font-size: 10px; color: #3a3a3a; margin-top: 2px; line-height: 1.35; }
+.oi-trend-hint  { font-size: 10px; color: var(--txt3); margin-top: 2px; line-height: 1.35; }
 .oi-trend-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; white-space: nowrap; flex-shrink: 0; }
 
 /* ── Taker Buy/Sell Ratio table ── */
 .taker-table  { background: linear-gradient(180deg, var(--bg2) 0%, var(--bg1) 100%); border: 0.5px solid var(--bdr); border-radius: var(--radius-card); overflow: hidden; margin-bottom: 8px; box-shadow: var(--nm-raise-sm); }
 .taker-title  { font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.12em; padding: 10px 14px 6px; display: flex; align-items: center; gap: 6px; }
-.taker-subtitle { font-size: 10px; font-weight: 400; color: #2a2a2a; text-transform: none; letter-spacing: 0; }
-.taker-hdr    { display: grid; grid-template-columns: 44px 1fr 100px; gap: 6px; padding: 4px 14px 5px; font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 600; color: #47474d; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 0.5px solid var(--bdr); }
+.taker-subtitle { font-size: 10px; font-weight: 400; color: var(--txt3); text-transform: none; letter-spacing: 0; }
+.taker-hdr    { display: grid; grid-template-columns: 44px 1fr 100px; gap: 6px; padding: 4px 14px 5px; font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 0.5px solid var(--bdr); }
 .taker-row    { display: grid; grid-template-columns: 44px 1fr 100px; gap: 6px; padding: 5px 14px; border-bottom: 0.5px solid rgba(255,255,255,0.02); align-items: center; transition: background 0.1s; }
 .taker-row:last-child { border-bottom: none; }
 .taker-row:hover { background: rgba(255,255,255,0.015); }
@@ -1801,7 +1801,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .sms-gauge-labels{ display: flex; justify-content: space-between; font-size: 10px; font-weight: 600; letter-spacing: .04em; color: var(--txt3); text-transform: uppercase; }
 
 /* Breakdown table */
-.sms-hdr         { display: grid; grid-template-columns: 1.6fr 72px 44px 1fr; gap: 6px; padding: 4px 14px 5px; font-size: 10px; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 0.07em; border-top: 0.5px solid var(--bdr); border-bottom: 0.5px solid var(--bdr); }
+.sms-hdr         { display: grid; grid-template-columns: 1.6fr 72px 44px 1fr; gap: 6px; padding: 4px 14px 5px; font-size: 10px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.07em; border-top: 0.5px solid var(--bdr); border-bottom: 0.5px solid var(--bdr); }
 .sms-row         { display: grid; grid-template-columns: 1.6fr 72px 44px 1fr; gap: 6px; padding: 5px 14px; border-bottom: 0.5px solid rgba(255,255,255,0.02); align-items: center; transition: background 0.1s; }
 .sms-row:last-of-type { border-bottom: none; }
 .sms-row:hover   { background: rgba(255,255,255,0.015); }
@@ -1818,7 +1818,6 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 [data-theme="light"] .sms-gauge-track { background: rgba(0,0,0,0.06); }
 [data-theme="light"] .sms-gauge-center{ background: rgba(0,0,0,0.15); }
 [data-theme="light"] .sms-badge       { background: rgba(0,0,0,0.06); color: #888; }
-[data-theme="light"] .sms-hdr        { color: var(--txt3); }
 
 
 /* ── GEX (Gamma Exposure) Table ── */
@@ -1826,10 +1825,10 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gex-title-row   { display: flex; align-items: center; gap: 8px; padding: 10px 14px 6px; flex-wrap: wrap; }
 .gex-title       { font-size: 10px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.08em; }
 .gex-net-chip    { font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 6px; }
-.gex-meta        { font-size: 10px; color: #3a3a3a; margin-left: auto; }
+.gex-meta        { font-size: 10px; color: var(--txt3); margin-left: auto; }
 .gex-signal-row  { padding: 0 14px 8px; font-size: 10px; color: var(--txt3); line-height: 1.4; border-bottom: 0.5px solid var(--bdr); }
 .gex-signal-row  span { font-weight: 600; }
-.gex-hdr         { display: grid; grid-template-columns: 84px 1fr 80px; gap: 8px; padding: 5px 14px 4px; font-size: 10px; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 0.07em; }
+.gex-hdr         { display: grid; grid-template-columns: 84px 1fr 80px; gap: 8px; padding: 5px 14px 4px; font-size: 10px; font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.07em; }
 .gex-row         { display: grid; grid-template-columns: 84px 1fr 80px; gap: 8px; padding: 5px 14px; align-items: center; border-bottom: 0.5px solid rgba(255,255,255,0.02); transition: background 0.1s; }
 .gex-row:last-child { border-bottom: none; }
 .gex-row:hover   { background: rgba(255,255,255,0.015); }
@@ -1840,7 +1839,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gex-bar-fill    { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; transition: width 0.6s cubic-bezier(.4,0,.2,1); }
 .gex-value       { font-size: 10px; font-weight: 700; text-align: right; }
 .gex-insight     { padding: 10px 14px; font-size: 12px; color: rgba(255,255,255,0.65); line-height: 1.65; border-bottom: 1px solid rgba(255,255,255,0.06); }
-.gex-flip-row    { padding: 6px 14px 8px; font-size: 10px; color: #3a3a3a; display: flex; gap: 12px; flex-wrap: wrap; }
+.gex-flip-row    { padding: 6px 14px 8px; font-size: 10px; color: var(--txt3); display: flex; gap: 12px; flex-wrap: wrap; }
 .gex-flip-row span { color: var(--txt3); font-weight: 600; }
 
 /* ── Macro Correlation Strip ── */
@@ -2023,8 +2022,9 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 [data-theme="light"] .taker-hdr   { color: var(--txt3); }
 
 /* Current price bar in liq map */
-[data-theme="light"] .liq-current-bar { background: rgba(109,40,217,0.06); }
-[data-theme="light"] .liq-current-tag { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-bdr); }
+[data-theme="light"] .liq-current-bar   { background: rgba(109,40,217,0.06); }
+[data-theme="light"] .liq-current-price { color: var(--txt); }
+[data-theme="light"] .liq-current-tag   { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-bdr); }
 
 /* Nav drawer on light */
 [data-theme="light"] .hamburger .ham-line { background: var(--txt2); }
