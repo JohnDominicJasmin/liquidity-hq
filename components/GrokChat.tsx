@@ -530,7 +530,7 @@ export default function GrokChat() {
         ) : (
           <>
             <span style={{ fontSize: 18, lineHeight: 1 }}>✦</span>
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', color: 'rgba(220,210,255,0.95)' }}>Ask AI</span>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', color: 'inherit' }}>Ask AI</span>
           </>
         )}
       </button>
