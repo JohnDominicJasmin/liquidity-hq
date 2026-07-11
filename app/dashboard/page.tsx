@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, classifyFunding, computeSqueezeScore, BYBIT_SYMS, fmtOI, fmtChg } from '@/lib/marketStore';
+import type { CoinId } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { useSettings } from '@/lib/settings';
 import Ticker from '@/components/Ticker';
@@ -25,6 +26,7 @@ import VolatilityRegime from '@/components/VolatilityRegime';
 import DryPowder from '@/components/DryPowder';
 import GlobalMacroContext from '@/components/GlobalMacroContext';
 import MorningBriefingPrompt from '@/components/MorningBriefingPrompt';
+import JournalMiniStats from '@/components/JournalMiniStats';
 import GexTable from '@/components/GexTable';
 import MacroStrip from '@/components/MacroStrip';
 import AccumulationTracker from '@/components/AccumulationTracker';
@@ -47,7 +49,11 @@ const SIDEBAR_DEFAULT = 7;
 function CoinSidebar() {
   const { store, selectCoin } = useMarket();
   const isMobile = useMobile();
-  const visibleCoins = COINS.slice(0, SIDEBAR_DEFAULT);
+  const { settings } = useSettings();
+  const watchlist = settings.watchlist ?? [];
+  const pinned = watchlist.filter((id): id is CoinId => (COINS as string[]).includes(id));
+  const rest    = COINS.filter(id => !watchlist.includes(id));
+  const visibleCoins = [...pinned, ...rest].slice(0, SIDEBAR_DEFAULT);
 
   return (
     <div className="csb2-container">
@@ -586,6 +592,7 @@ export default function Dashboard() {
         <SessionCountdown />
         <SessionContext />
         <MorningBriefingPrompt />
+        <JournalMiniStats />
 
         {/* 0.5 Watchlist feed */}
         <div className="desktop-only mb-glow-card" style={{ borderRadius: 10 }}>
