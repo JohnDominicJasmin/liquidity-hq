@@ -21,6 +21,7 @@ import CycleDayCounter from '@/components/CycleDayCounter';
 import BtcRiskLevel from '@/components/BtcRiskLevel';
 import Tip from '@/components/Tip';
 import CycleChart from '@/components/CycleChart';
+import VolatilityRegime from '@/components/VolatilityRegime';
 import GexTable from '@/components/GexTable';
 import MacroStrip from '@/components/MacroStrip';
 import AccumulationTracker from '@/components/AccumulationTracker';
@@ -650,6 +651,7 @@ export default function Dashboard() {
           <div className="mb-glow-card" style={{ borderRadius: 10 }}><CycleDayCounter /></div>
           <div className="mb-glow-card" style={{ borderRadius: 10 }}><BtcRiskLevel /></div>
         </div>
+        <div className="mb-glow-card" style={{ borderRadius: 10 }}><VolatilityRegime /></div>
         <div className="mb-glow-card" style={{ borderRadius: 10 }}><CycleChart /></div>
         {!hide('gex') && <div className="mb-glow-card" style={{ borderRadius: 10 }}><GexTable /></div>}
         {!hide('macro') && <MacroStrip />}
