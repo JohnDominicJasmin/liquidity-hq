@@ -13,6 +13,72 @@ type Direction = 'LONG' | 'SHORT';
 type TradeResult = 'OPEN' | 'WIN' | 'LOSS' | 'BE';
 type SetupType = 'Squeeze' | 'Breakout' | 'Reversal' | 'Range' | 'News' | 'Other';
 
+/* ── Rule Engine types ── */
+type RuleField    = 'coin' | 'direction' | 'setup_type' | 'leverage' | 'session';
+type RuleOperator = 'is' | 'is_not' | 'lte' | 'gte';
+
+interface TradingRule {
+  id:       string;
+  name:     string;
+  field:    RuleField;
+  operator: RuleOperator;
+  value:    string;   // comma-separated for multi-value (coin, session)
+  enabled:  boolean;
+}
+
+const RULE_FIELD_LABELS: Record<RuleField, string> = {
+  coin:       'Coin',
+  direction:  'Direction',
+  setup_type: 'Setup',
+  leverage:   'Leverage',
+  session:    'Session',
+};
+
+const RULE_OP_LABELS: Record<RuleOperator, string> = {
+  is:     'is',
+  is_not: 'is not',
+  lte:    '≤',
+  gte:    '≥',
+};
+
+const SESSIONS = ['New York', 'London', 'Asia', 'Pre-Market', 'Weekend'];
+
+/* Check a single rule against live form fields. Returns true = VIOLATION */
+function ruleViolated(rule: TradingRule, fields: {
+  coin: string; direction: string; setup_type: string; leverage: number; session: string;
+}): boolean {
+  if (!rule.enabled) return false;
+  const raw = fields[rule.field];
+  const vals = rule.value.split(',').map(v => v.trim().toLowerCase());
+  const cmp  = String(raw).toLowerCase();
+  switch (rule.operator) {
+    case 'is':     return !vals.includes(cmp);
+    case 'is_not': return vals.includes(cmp);
+    case 'lte':    return Number(raw) > Number(rule.value);
+    case 'gte':    return Number(raw) < Number(rule.value);
+  }
+}
+
+/* Human-readable rule summary */
+function ruleLabel(r: TradingRule): string {
+  const field = RULE_FIELD_LABELS[r.field];
+  const op    = RULE_OP_LABELS[r.operator];
+  const val   = (r.operator === 'lte' || r.operator === 'gte')
+    ? (r.field === 'leverage' ? r.value + 'x' : r.value)
+    : r.value.split(',').map(v => v.trim()).join(', ');
+  return `${field} ${op} ${val}`;
+}
+
+/* Quick-add presets */
+const RULE_PRESETS: Omit<TradingRule, 'id'>[] = [
+  { name: 'Only long BTC/ETH',      field: 'coin',       operator: 'is',     value: 'btc,eth',      enabled: true },
+  { name: 'Max 20x leverage',       field: 'leverage',   operator: 'lte',    value: '20',           enabled: true },
+  { name: 'Only LONG trades',       field: 'direction',  operator: 'is',     value: 'LONG',         enabled: true },
+  { name: 'Squeeze setups only',    field: 'setup_type', operator: 'is',     value: 'Squeeze',      enabled: true },
+  { name: 'NY or London only',      field: 'session',    operator: 'is',     value: 'New York,London', enabled: true },
+  { name: 'No Other setup',         field: 'setup_type', operator: 'is_not', value: 'Other',        enabled: true },
+];
+
 interface Trade {
   id?: string;
   created_at?: string;
@@ -94,7 +160,7 @@ function Inner() {
   const sp     = useSearchParams();
   const router = useRouter();
 
-  const [tab,       setTab]       = useState<'log' | 'history' | 'stats' | 'shadow'>('log');
+  const [tab,       setTab]       = useState<'log' | 'history' | 'stats' | 'rules' | 'shadow'>('log');
   const [trades,    setTrades]    = useState<Trade[]>([]);
   const [loading,   setLoading]   = useState(false);
   const [saving,    setSaving]    = useState(false);
@@ -111,6 +177,14 @@ function Inner() {
   const [shadowLoading,  setShadowLoading]  = useState(false);
   const [shadowAnalysis, setShadowAnalysis] = useState<string | null>(null);
   const [shadowError,    setShadowError]    = useState<string | null>(null);
+
+  /* Rule Engine state */
+  const [rules,        setRules]        = useState<TradingRule[]>([]);
+  const [ruleField,    setRuleField]    = useState<RuleField>('coin');
+  const [ruleOp,       setRuleOp]       = useState<RuleOperator>('is');
+  const [ruleValue,    setRuleValue]    = useState('');
+  const [ruleName,     setRuleName]     = useState('');
+  const [showRuleForm, setShowRuleForm] = useState(false);
 
   /* Form state — pre-fill from URL params (from Position Sizer) */
   const [coin,      setCoin]      = useState<CoinId>((sp.get('coin') as CoinId) || 'btc');
@@ -145,6 +219,69 @@ function Inner() {
   };
 
   useEffect(() => { loadTrades(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* Load / save rules from localStorage */
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('lhq_trading_rules');
+      if (saved) setRules(JSON.parse(saved) as TradingRule[]);
+    } catch { /* ignore */ }
+  }, []);
+
+  const persistRules = (next: TradingRule[]) => {
+    setRules(next);
+    try { localStorage.setItem('lhq_trading_rules', JSON.stringify(next)); } catch { /* ignore */ }
+  };
+
+  const addRule = (partial: Omit<TradingRule, 'id'>) => {
+    persistRules([...rules, { ...partial, id: Date.now().toString() }]);
+  };
+
+  const deleteRule = (id: string) => persistRules(rules.filter(r => r.id !== id));
+
+  const toggleRule = (id: string) =>
+    persistRules(rules.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r));
+
+  const addPreset = (preset: Omit<TradingRule, 'id'>) => {
+    if (rules.some(r => r.name === preset.name)) return;
+    addRule(preset);
+  };
+
+  /* Live violations for the current form state */
+  const pht     = typeof window !== 'undefined' ? getLocalNow() : new Date();
+  const session = getSessionName(pht) ?? '';
+
+  const activeViolations = useMemo(() => {
+    const liveFields = { coin, direction, setup_type: setup, leverage, session };
+    return rules.filter(r => r.enabled && ruleViolated(r, liveFields));
+  }, [rules, coin, direction, setup, leverage, session]);
+
+  /* Which closed trades violate at least one active rule */
+  const violatingTradeIds = useMemo(() => {
+    const active = rules.filter(r => r.enabled);
+    if (!active.length) return new Set<string>();
+    return new Set(
+      trades
+        .filter(t => t.result !== 'OPEN' && t.id && active.some(r =>
+          ruleViolated(r, {
+            coin:       t.coin,
+            direction:  t.direction,
+            setup_type: t.setup_type,
+            leverage:   t.leverage ?? 1,
+            session:    t.session ?? '',
+          })
+        ))
+        .map(t => t.id!)
+    );
+  }, [rules, trades]);
+
+  /* Compliance score over closed trades */
+  const complianceScore = useMemo(() => {
+    const closed = trades.filter(t => t.result !== 'OPEN');
+    if (!closed.length || !rules.some(r => r.enabled)) return null;
+    const clean = closed.filter(t => !violatingTradeIds.has(t.id!));
+    return { pct: Math.round((clean.length / closed.length) * 100), clean: clean.length, total: closed.length };
+  }, [trades, violatingTradeIds, rules]);
 
   const runShadowAccount = async () => {
     const db = getSupabase();
@@ -373,6 +510,15 @@ function Inner() {
         <button className={`tj-tab${tab === 'log' ? ' on' : ''}`} onClick={() => setTab('log')}>+ Log Trade</button>
         <button className={`tj-tab${tab === 'history' ? ' on' : ''}`} onClick={() => setTab('history')}>History ({trades.length})</button>
         <button className={`tj-tab${tab === 'stats' ? ' on' : ''}`} onClick={() => setTab('stats')}>Stats</button>
+        <button className={`tj-tab${tab === 'rules' ? ' on' : ''}`} onClick={() => setTab('rules')} style={{ position: 'relative' }}>
+          Rules{rules.filter(r => r.enabled).length > 0 && (
+            <span style={{
+              marginLeft: 5, fontSize: 9, fontWeight: 700,
+              background: 'var(--accent)', color: '#fff',
+              borderRadius: 10, padding: '1px 5px',
+            }}>{rules.filter(r => r.enabled).length}</span>
+          )}
+        </button>
         <button className={`tj-tab${tab === 'shadow' ? ' on' : ''}`} onClick={() => setTab('shadow')}>Shadow Account</button>
       </div>
 
@@ -520,8 +666,24 @@ function Inner() {
             />
           </div>
 
+          {activeViolations.length > 0 && (
+            <div style={{
+              background: 'rgba(248,113,113,0.08)', border: '0.5px solid rgba(248,113,113,0.3)',
+              borderRadius: 8, padding: '10px 12px', marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#f87171', marginBottom: 6 }}>
+                Rule violation{activeViolations.length > 1 ? 's' : ''} — review before logging
+              </div>
+              {activeViolations.map(r => (
+                <div key={r.id} style={{ fontSize: 11, color: '#f87171', opacity: 0.85, lineHeight: 1.5 }}>
+                  · {r.name} ({ruleLabel(r)})
+                </div>
+              ))}
+            </div>
+          )}
+
           <button className="tj-submit" onClick={saveTrade} disabled={saving || !entry || !stopLoss}>
-            {saving ? 'Saving…' : 'Log Trade'}
+            {saving ? 'Saving…' : activeViolations.length > 0 ? `Log Trade (${activeViolations.length} violation${activeViolations.length > 1 ? 's' : ''})` : 'Log Trade'}
           </button>
         </div>
       )}
@@ -557,6 +719,14 @@ function Inner() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span className={`tj-result-badge tj-rb-${trade.result.toLowerCase()}`}>{trade.result}</span>
+                  {trade.id && violatingTradeIds.has(trade.id) && (
+                    <span title="Violated one or more active rules" style={{
+                      fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+                      background: 'rgba(248,113,113,0.12)', color: '#f87171',
+                      border: '0.5px solid rgba(248,113,113,0.3)',
+                      borderRadius: 4, padding: '2px 5px',
+                    }}>RULE</span>
+                  )}
                   <button className="tj-edit-btn" title="Edit" onClick={() => editingId === trade.id ? setEditingId(null) : startEdit(trade)}>✎</button>
                   <button className="tj-del-btn" onClick={() => trade.id && deleteTrade(trade.id)}>✕</button>
                 </div>
@@ -726,6 +896,217 @@ function Inner() {
         </div>
       )}
 
+      {/* ──────── RULES TAB ──────── */}
+      {tab === 'rules' && (
+        <div style={{ paddingTop: 8 }}>
+
+          {/* Header */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Trading Rules</div>
+            <div style={{ fontSize: 12, color: 'var(--txt3)' }}>
+              Define your rules — violations flag in real time when logging a trade and badge past trades in History.
+            </div>
+          </div>
+
+          {/* Quick-add presets */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 8 }}>Quick Add</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {RULE_PRESETS.map(p => {
+                const exists = rules.some(r => r.name === p.name);
+                return (
+                  <button
+                    key={p.name}
+                    onClick={() => addPreset(p)}
+                    disabled={exists}
+                    style={{
+                      fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20,
+                      border: `0.5px solid ${exists ? 'var(--bdr)' : 'var(--accent-bdr)'}`,
+                      background: exists ? 'transparent' : 'var(--accent-bg)',
+                      color: exists ? 'var(--txt3)' : 'var(--accent)',
+                      cursor: exists ? 'default' : 'pointer', opacity: exists ? 0.4 : 1,
+                    }}
+                  >
+                    {exists ? '✓ ' : '+ '}{p.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Active rules list */}
+          {rules.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 8 }}>
+                Active Rules ({rules.filter(r => r.enabled).length} of {rules.length} enabled)
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {rules.map(r => (
+                  <div key={r.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    background: 'var(--bg1)', border: `0.5px solid ${r.enabled ? 'var(--bdr)' : 'var(--bdr)'}`,
+                    borderRadius: 8, padding: '8px 12px', opacity: r.enabled ? 1 : 0.45,
+                  }}>
+                    <button
+                      onClick={() => toggleRule(r.id)}
+                      title={r.enabled ? 'Disable' : 'Enable'}
+                      style={{
+                        width: 28, height: 16, borderRadius: 8, flexShrink: 0, cursor: 'pointer',
+                        background: r.enabled ? 'var(--accent)' : 'rgba(255,255,255,0.12)',
+                        border: 'none', position: 'relative', transition: 'background 0.15s',
+                      }}
+                    >
+                      <span style={{
+                        position: 'absolute', top: 2, left: r.enabled ? 14 : 2,
+                        width: 12, height: 12, borderRadius: '50%', background: '#fff',
+                        transition: 'left 0.15s',
+                      }} />
+                    </button>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)', marginBottom: 1 }}>{r.name}</div>
+                      <div style={{ fontSize: 10, color: 'var(--txt3)', fontFamily: 'var(--font-mono), monospace' }}>{ruleLabel(r)}</div>
+                    </div>
+                    <button
+                      onClick={() => deleteRule(r.id)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)', fontSize: 14, padding: '2px 4px', lineHeight: 1 }}
+                    >✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {rules.length === 0 && (
+            <div style={{ color: 'var(--txt3)', fontSize: 12, marginBottom: 16 }}>No rules yet — add a preset above or create a custom rule below.</div>
+          )}
+
+          {/* Custom rule form */}
+          <button
+            onClick={() => setShowRuleForm(v => !v)}
+            style={{
+              fontSize: 12, fontWeight: 600, padding: '7px 14px', borderRadius: 8,
+              border: '0.5px solid var(--bdr)', background: 'transparent',
+              color: 'var(--txt2)', cursor: 'pointer', marginBottom: showRuleForm ? 12 : 0,
+            }}
+          >
+            {showRuleForm ? '− Cancel' : '+ Custom Rule'}
+          </button>
+
+          {showRuleForm && (
+            <div style={{
+              background: 'var(--bg1)', border: '0.5px solid var(--bdr)',
+              borderRadius: 8, padding: '12px 14px',
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 10 }}>New Rule</div>
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                {/* Field */}
+                <select
+                  value={ruleField}
+                  onChange={e => { setRuleField(e.target.value as RuleField); setRuleValue(''); }}
+                  style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, cursor: 'pointer' }}
+                >
+                  {(Object.entries(RULE_FIELD_LABELS) as [RuleField, string][]).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+
+                {/* Operator */}
+                <select
+                  value={ruleOp}
+                  onChange={e => setRuleOp(e.target.value as RuleOperator)}
+                  style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, cursor: 'pointer' }}
+                >
+                  {(ruleField === 'leverage'
+                    ? (['lte', 'gte'] as RuleOperator[])
+                    : (['is', 'is_not'] as RuleOperator[])
+                  ).map(op => (
+                    <option key={op} value={op}>{RULE_OP_LABELS[op]}</option>
+                  ))}
+                </select>
+
+                {/* Value — context-sensitive */}
+                {ruleField === 'coin' && (
+                  <select
+                    value={ruleValue}
+                    onChange={e => setRuleValue(e.target.value)}
+                    style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, cursor: 'pointer' }}
+                  >
+                    <option value="">Select coin</option>
+                    {COINS.map(c => <option key={c} value={c}>{c.toUpperCase()}</option>)}
+                  </select>
+                )}
+                {ruleField === 'direction' && (
+                  <select
+                    value={ruleValue}
+                    onChange={e => setRuleValue(e.target.value)}
+                    style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, cursor: 'pointer' }}
+                  >
+                    <option value="">Select direction</option>
+                    <option value="LONG">LONG</option>
+                    <option value="SHORT">SHORT</option>
+                  </select>
+                )}
+                {ruleField === 'setup_type' && (
+                  <select
+                    value={ruleValue}
+                    onChange={e => setRuleValue(e.target.value)}
+                    style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, cursor: 'pointer' }}
+                  >
+                    <option value="">Select setup</option>
+                    {SETUPS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                )}
+                {ruleField === 'session' && (
+                  <select
+                    value={ruleValue}
+                    onChange={e => setRuleValue(e.target.value)}
+                    style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, cursor: 'pointer' }}
+                  >
+                    <option value="">Select session</option>
+                    {SESSIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                )}
+                {ruleField === 'leverage' && (
+                  <input
+                    type="number" min={1} max={125}
+                    value={ruleValue}
+                    onChange={e => setRuleValue(e.target.value)}
+                    placeholder="e.g. 20"
+                    style={{ width: 70, padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12 }}
+                  />
+                )}
+              </div>
+
+              <input
+                type="text"
+                placeholder="Rule name (e.g. No high leverage)"
+                value={ruleName}
+                onChange={e => setRuleName(e.target.value)}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, marginBottom: 10, outline: 'none' }}
+              />
+
+              <button
+                disabled={!ruleValue || !ruleName.trim()}
+                onClick={() => {
+                  if (!ruleValue || !ruleName.trim()) return;
+                  addRule({ name: ruleName.trim(), field: ruleField, operator: ruleOp, value: ruleValue, enabled: true });
+                  setRuleName(''); setRuleValue(''); setShowRuleForm(false);
+                }}
+                style={{
+                  padding: '7px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  background: !ruleValue || !ruleName.trim() ? 'rgba(255,255,255,0.04)' : 'var(--accent-bg)',
+                  color: !ruleValue || !ruleName.trim() ? 'var(--txt3)' : 'var(--accent)',
+                  border: `0.5px solid ${!ruleValue || !ruleName.trim() ? 'var(--bdr)' : 'var(--accent-bdr)'}`,
+                }}
+              >
+                Add Rule
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ──────── SHADOW ACCOUNT TAB ──────── */}
       {tab === 'shadow' && (
         <div>
@@ -777,6 +1158,26 @@ function Inner() {
             <div className="tj-empty-state">Close at least one trade to see stats</div>
           ) : (
             <>
+              {complianceScore && (
+                <div style={{
+                  background: complianceScore.pct >= 80 ? 'rgba(52,211,153,0.07)' : complianceScore.pct >= 60 ? 'rgba(251,191,36,0.07)' : 'rgba(248,113,113,0.07)',
+                  border: `0.5px solid ${complianceScore.pct >= 80 ? 'rgba(52,211,153,0.25)' : complianceScore.pct >= 60 ? 'rgba(251,191,36,0.25)' : 'rgba(248,113,113,0.25)'}`,
+                  borderRadius: 'var(--radius-card)', padding: '10px 14px', marginBottom: 14,
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 2 }}>Rule Compliance</div>
+                    <div style={{ fontSize: 11, color: 'var(--txt3)' }}>{complianceScore.clean} of {complianceScore.total} closed trades followed all rules</div>
+                  </div>
+                  <div style={{
+                    fontSize: 26, fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
+                    color: complianceScore.pct >= 80 ? '#34d399' : complianceScore.pct >= 60 ? '#fbbf24' : '#f87171',
+                  }}>
+                    {complianceScore.pct}%
+                  </div>
+                </div>
+              )}
+
               <div className="tj-stats-grid">
                 <div className="tj-stat">
                   <div className="tj-stat-lbl">Win Rate</div>
