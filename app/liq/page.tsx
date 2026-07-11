@@ -456,7 +456,7 @@ export default function LiqPage() {
             {/* Open Interest — center */}
             <div className="liq-stat-item" style={{ textAlign: 'center' }}>
               <div className="liq-stat-label" style={{ textAlign: 'center' }}>Open Interest</div>
-              <div className="liq-stat-val" style={{ color: '#5a6aff', textAlign: 'center' }}>
+              <div className="liq-stat-val" style={{ color: 'var(--accent)', textAlign: 'center' }}>
                 {fmtM(cd.oi / 1e6)}
               </div>
               <div className="liq-stat-sub" style={{ textAlign: 'center' }}>{bands.tierCount}/17 zones in window</div>

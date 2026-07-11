@@ -160,7 +160,7 @@ const SOURCE_COLORS: Record<string, string> = {
   'AP Business':      '#60a5fa',
   'BBC World':        '#e11d48',
   'BBC Business':     '#e11d48',
-  'CoinDesk':         '#5a6aff',
+  'CoinDesk':         '#1a7aff',
   'CoinTelegraph':    '#34d399',
   'Decrypt':          '#fb923c',
   'The Block':        '#38bdf8',
@@ -173,7 +173,7 @@ const SOURCE_COLORS: Record<string, string> = {
 const TYPE_CFG = {
   red:    { dot: '#f87171', label: 'Breaking', accentBg: 'rgba(248,113,113,0.08)'  },
   amber:  { dot: '#fbbf24', label: 'Macro',    accentBg: 'rgba(251,191,36,0.07)'  },
-  purple: { dot: '#5a6aff', label: 'Crypto',   accentBg: 'rgba(90,106,255,0.07)' },
+  purple: { dot: '#1a7aff', label: 'Crypto',   accentBg: 'rgba(26,122,255,0.07)' },
 };
 
 /* ── Market impact chip — first 6 words of note ── */
@@ -527,14 +527,14 @@ export default function NewsPage() {
               <div className="ncard-grid-body">
                 <div className="ncard-grid-top">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className="ncard-type-badge" style={{ color: '#5a6aff' }}>{g.tag}</span>
+                    <span className="ncard-type-badge" style={{ color: 'var(--accent)' }}>{g.tag}</span>
                     <SourcePill source={g.source} />
                   </div>
                   <span className="ncard-meta">{g.timeStr}</span>
                 </div>
                 <div className="ncard-grid-headline">{decodeEntities(g.headline)}</div>
                 <div className="ncard-grid-actions">
-                  <ImpactChip note={g.note} color="#5a6aff" />
+                  <ImpactChip note={g.note} color="var(--accent)" />
                   <button className="ncard-ask-btn" style={{ margin: 0 }} onClick={() => askGrok(g.headline)}>Ask LiquidityAI →</button>
                 </div>
               </div>

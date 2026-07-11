@@ -127,7 +127,7 @@ function CoinCard({ row, rank }: { row: ScanRow; rank: number }) {
         </div>
         <div className="scan-stat">
           <span className="scan-stat-lbl">Vol ratio</span>
-          <span className="scan-stat-val" style={{ color: (cd.volRatio ?? 0) >= 1.5 ? '#5a6aff' : '#8e8e93' }}>
+          <span className="scan-stat-val" style={{ color: (cd.volRatio ?? 0) >= 1.5 ? 'var(--accent)' : 'var(--txt3)' }}>
             {fmtVR(cd.volRatio)}
           </span>
         </div>

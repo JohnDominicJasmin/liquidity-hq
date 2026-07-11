@@ -51,7 +51,7 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
               style={{
                 display: 'block', padding: '9px 14px', fontSize: 13, textDecoration: 'none',
                 color: o.code === locale ? 'var(--accent-2)' : 'var(--txt2)',
-                background: o.code === locale ? 'rgba(90,106,255,0.1)' : 'transparent',
+                background: o.code === locale ? 'var(--accent-bg)' : 'transparent',
               }}
             >
               {o.label}

@@ -622,7 +622,7 @@ export default function MorningBriefing() {
             else if (fr <= -0.03) chips.push({ text: `FR ${fr.toFixed(3)}%`,  color: '#34d399' });
           }
           if (c.volRatio != null && c.volRatio >= 1.5)
-            chips.push({ text: `Vol ${c.volRatio.toFixed(1)}x`, color: '#5a6aff' });
+            chips.push({ text: `Vol ${c.volRatio.toFixed(1)}x`, color: 'var(--accent)' });
           if (c.oiTrend === 'strong_up')        chips.push({ text: 'OI ↑↑',    color: '#34d399' });
           else if (c.oiTrend === 'strong_down') chips.push({ text: 'OI ↓↓',    color: '#f87171' });
           if (c.cvdDivergence === 'bullish')    chips.push({ text: 'CVD Bull', color: '#34d399' });
@@ -720,8 +720,8 @@ export default function MorningBriefing() {
                 ? 'rgba(52,211,153,0.1)'
                 : e.style === 'speech'
                 ? 'rgba(96,165,250,0.1)'
-                : 'rgba(90,106,255,0.1)',
-              color: e.style === 'crypto' ? '#34d399' : e.style === 'speech' ? '#60a5fa' : '#5a6aff',
+                : 'var(--accent-bg)',
+              color: e.style === 'crypto' ? '#34d399' : e.style === 'speech' ? '#60a5fa' : 'var(--accent)',
             }}>
               {e.tag}
             </div>

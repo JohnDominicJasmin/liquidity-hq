@@ -72,7 +72,7 @@ export default function UpgradePage() {
 
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--accent)', background: 'rgba(90,106,255,.1)', border: '0.5px solid rgba(90,106,255,.3)', borderRadius: 20, padding: '4px 14px', marginBottom: 20 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--accent)', background: 'var(--accent-bg)', border: '0.5px solid var(--accent-bdr)', borderRadius: 20, padding: '4px 14px', marginBottom: 20 }}>
             Pro Plan
           </div>
           <h1 style={{ fontSize: 'clamp(28px, 5vw, 44px)', fontWeight: 900, letterSpacing: '-.03em', margin: '0 0 14px', lineHeight: 1.1 }}>
@@ -101,7 +101,7 @@ export default function UpgradePage() {
           </div>
 
           {/* Pro card */}
-          <div style={{ borderRadius: 16, padding: '24px 28px', border: '0.5px solid rgba(90,106,255,.5)', background: 'linear-gradient(160deg, rgba(90,106,255,.1) 0%, var(--bg1) 60%)', position: 'relative' }}>
+          <div style={{ borderRadius: 16, padding: '24px 28px', border: '0.5px solid var(--accent-bdr)', background: 'linear-gradient(160deg, var(--accent-bg) 0%, var(--bg1) 60%)', position: 'relative' }}>
             <div style={{ position: 'absolute', top: -11, left: '50%', transform: 'translateX(-50%)', fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', background: 'var(--accent)', color: '#fff', padding: '3px 14px', borderRadius: 20, whiteSpace: 'nowrap' }}>
               Recommended
             </div>
@@ -111,7 +111,7 @@ export default function UpgradePage() {
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
               {PRO_FEATURES.map(f => (
                 <li key={f} style={{ fontSize: 13, color: 'var(--txt2)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <span style={{ color: '#5a6aff', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span> {f}
+                  <span style={{ color: 'var(--accent)', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span> {f}
                 </li>
               ))}
             </ul>
@@ -140,7 +140,7 @@ export default function UpgradePage() {
               </div>
             </>
           ) : (
-            <div style={{ borderRadius: 14, padding: '28px 36px', border: '0.5px solid rgba(90,106,255,.3)', background: 'rgba(90,106,255,.06)', maxWidth: 400, width: '100%' }}>
+            <div style={{ borderRadius: 14, padding: '28px 36px', border: '0.5px solid var(--accent-bdr)', background: 'var(--accent-bg)', maxWidth: 400, width: '100%' }}>
               
               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)', marginBottom: 8 }}>
                 Pro payments launching soon

@@ -546,7 +546,7 @@ body[data-rpm-level="high"]::before {
 .nav-more-item.on    { color: var(--purple); background: var(--purple-bg); }
 .nav-more-icon       { font-size: 13px; width: 18px; text-align: center; flex-shrink: 0; }
 
-[data-theme="light"] .nav-more-dropdown { background: #f5f2ea; border-color: rgba(0,0,0,0.1); box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
+[data-theme="light"] .nav-more-dropdown { background: #fff; border-color: rgba(0,0,0,0.1); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
 [data-theme="light"] .nav-more-item:hover { background: rgba(0,0,0,0.05); }
 
 /* ── NEWS FEED (legacy) ── */
@@ -1871,31 +1871,39 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 
 /* ── LIGHT THEME — Paper ─────────────────────────────────────────── */
 [data-theme="light"] {
-  /* Paper surface tones */
-  --bg:  #EEEAE2;
-  --bg1: #F8F6F0;
-  --bg2: #F2F0E8;
-  --bg3: #E8E5DC;
-  --bg4: #DEDAD0;
+  /* Clean neutral — white cards on light gray canvas */
+  --bg:  #E8EAED;
+  --bg1: #FFFFFF;
+  --bg2: #F2F3F5;
+  --bg3: #E4E6E9;
+  --bg4: #D8DADD;
 
-  /* Ink typography */
-  --txt:  #1A1916;
-  --txt2: #48463E;
-  --txt3: #908C82;
+  /* Typography */
+  --txt:  #111318;
+  --txt2: #44475A;
+  --txt3: #888B99;
   --bdr:  rgba(0,0,0,0.08);
   --bdr2: rgba(0,0,0,0.14);
 
-  /* Shadows — warm paper lift */
+  /* Shadows */
   --nm-raise:    0 1px 4px rgba(0,0,0,0.09), 0 0 0 0.5px rgba(0,0,0,0.07);
   --nm-raise-sm: 0 1px 2px rgba(0,0,0,0.07), 0 0 0 0.5px rgba(0,0,0,0.05);
   --nm-inset:    inset 0 1px 3px rgba(0,0,0,0.07), 0 0 0 0.5px rgba(0,0,0,0.05);
   --nm-btn:      0 1px 3px rgba(0,0,0,0.09), 0 0 0 0.5px rgba(0,0,0,0.07);
 
-  /* Brighter accent tones for ink-on-paper contrast */
-  --purple:     #6D28D9;
-  --purple-dim: rgba(109,40,217,0.10);
-  --purple-bg:  rgba(109,40,217,0.07);
-  --purple-bdr: rgba(109,40,217,0.20);
+  /* Accent — darker blue for legibility on white */
+  --accent:     #0052CC;
+  --accent-2:   #0066E8;
+  --accent-dim: rgba(0,82,204,0.10);
+  --accent-bg:  rgba(0,82,204,0.07);
+  --accent-bdr: rgba(0,82,204,0.22);
+
+  /* Purple aliased to accent — no separate violet in light mode */
+  --purple:     var(--accent);
+  --purple-dim: var(--accent-dim);
+  --purple-bg:  var(--accent-bg);
+  --purple-bdr: var(--accent-bdr);
+
   --green:     #047857;
   --green-bg:  rgba(4,120,87,0.07);
   --green-bdr: rgba(4,120,87,0.20);
@@ -1911,24 +1919,24 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 
   --glow-green:  0 0 16px rgba(4,120,87,0.12);
   --glow-red:    0 0 16px rgba(185,28,28,0.12);
-  --glow-purple: 0 0 16px rgba(109,40,217,0.12);
+  --glow-purple: 0 0 16px rgba(0,82,204,0.12);
   --glow-amber:  0 0 16px rgba(180,83,9,0.12);
 }
 
-[data-theme="light"] html { background: #EEEAE2; }
+[data-theme="light"] html { background: #E8EAED; }
 [data-theme="light"] body {
-  background: linear-gradient(160deg, #E8E4DC 0%, #EEE9E0 40%, #F2EEE5 100%);
+  background: #E8EAED;
   background-attachment: fixed;
 }
-[data-theme="light"] body::after { opacity: 0.012; }
+[data-theme="light"] body::after { opacity: 0; }
 
 /* Nav & App Bar */
 [data-theme="light"] .app-bar {
-  background: rgba(238,234,226,0.94);
+  background: rgba(255,255,255,0.92);
   border-bottom-color: rgba(0,0,0,0.09);
 }
 [data-theme="light"] .nav-menu {
-  background: #F5F2EA;
+  background: #FFFFFF;
   border-left-color: rgba(0,0,0,0.09);
 }
 [data-theme="light"] .nav-overlay { background: rgba(0,0,0,0.4); }
@@ -2265,8 +2273,8 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   border-color: var(--purple-bdr);
   color: var(--purple);
 }
-[data-theme="light"] .arena-tab-btn { background: #f2f2f7; color: #555; }
-[data-theme="light"] .arena-tab-btn.on { background: #e8e9fe; color: #3d47c9; border-color: #b3bbff; }
+[data-theme="light"] .arena-tab-btn { background: var(--bg2); color: var(--txt2); }
+[data-theme="light"] .arena-tab-btn.on { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-bdr); }
 
 /* ── POSITION SIZER ──────────────────────────────────────────────────────── */
 .ps-coins { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -3214,7 +3222,7 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 
 /* Light theme overrides */
 [data-theme="light"] .auth-signin-btn:hover { background: rgba(0,0,0,0.05); color: var(--txt); }
-[data-theme="light"] .auth-dropdown { background: #F5F2EA; border-color: rgba(0,0,0,0.1); box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
+[data-theme="light"] .auth-dropdown { background: #fff; border-color: rgba(0,0,0,0.1); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
 
 /* ── AUTH — Login Page ────────────────────────────────────────────────────── */
 .login-wrap {
