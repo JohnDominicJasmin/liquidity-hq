@@ -155,12 +155,90 @@ function ShadowAccountResult({ text }: { text: string }) {
   );
 }
 
+/* ── Behavioral Bias ── */
+const BIAS_SECTIONS: { key: string; label: string; color?: string }[] = [
+  { key: 'DISPOSITION_EFFECT', label: 'Disposition Effect',   color: '#f87171' },
+  { key: 'OVERTRADING',        label: 'Overtrading',          color: '#fb923c' },
+  { key: 'MOMENTUM_CHASING',   label: 'Momentum Chasing',     color: '#fbbf24' },
+  { key: 'ANCHORING_BIAS',     label: 'Anchoring Bias',       color: '#a78bfa' },
+  { key: 'PNL_IMPACT',         label: 'P&L Impact by Bias',   color: '#5a6aff' },
+  { key: 'PRIORITY_FIX',       label: 'Priority Fix',         color: '#34d399' },
+];
+
+function parseBiasSection(text: string, key: string): string {
+  const regex = new RegExp(key + ':\\s*([\\s\\S]*?)(?=' + BIAS_SECTIONS.map(s => s.key).join(':|') + ':|$)');
+  return (text.match(regex)?.[1] ?? '').trim();
+}
+
+function BiasResult({ text }: { text: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {BIAS_SECTIONS.map(({ key, label, color }) => {
+        const content = parseBiasSection(text, key);
+        if (!content) return null;
+        return (
+          <div key={key} style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 'var(--radius-card)', padding: '12px 14px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: color ?? 'var(--txt3)', marginBottom: 8 }}>
+              {label}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+              {content}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Thesis Tracker ── */
+interface TradeThesis {
+  id:            string;
+  symbol:        string;
+  direction:     'LONG' | 'SHORT';
+  entryDate:     string;
+  thesisText:    string;
+  assumptions:   string[];
+  lastScore?:    number;
+  lastScoreDate?: string;
+  lastFeedback?:  string;
+  createdAt:     string;
+}
+
+const THESIS_KEY = 'lhq_theses';
+
+const THESIS_CHECK_SECTIONS: { key: string; label: string; color?: string }[] = [
+  { key: 'ASSUMPTION_CHECK', label: 'Assumption Check'            },
+  { key: 'THESIS_HEALTH',    label: 'Thesis Health Score', color: '#5a6aff' },
+  { key: 'KEY_RISK',         label: 'Key Risk',            color: '#f87171' },
+  { key: 'RECOMMENDATION',   label: 'Recommendation',      color: '#34d399' },
+];
+
+function parseThesisSection(text: string, key: string): string {
+  const regex = new RegExp(key + ':\\s*([\\s\\S]*?)(?=' + THESIS_CHECK_SECTIONS.map(s => s.key).join(':|') + ':|$)');
+  return (text.match(regex)?.[1] ?? '').trim();
+}
+
+function extractScore(feedback: string): number | undefined {
+  const m = feedback.match(/Score:\s*(\d+)\s*\/\s*10/i);
+  return m ? parseInt(m[1]) : undefined;
+}
+
+function loadTheses(): TradeThesis[] {
+  try { return JSON.parse(localStorage.getItem(THESIS_KEY) ?? '[]') as TradeThesis[]; }
+  catch { return []; }
+}
+
+function saveTheses(ts: TradeThesis[]) {
+  try { localStorage.setItem(THESIS_KEY, JSON.stringify(ts)); } catch { /* ignore */ }
+}
+
 /* ── inner component (needs useSearchParams) ── */
 function Inner() {
   const sp     = useSearchParams();
   const router = useRouter();
 
-  const [tab,       setTab]       = useState<'log' | 'history' | 'stats' | 'rules' | 'shadow'>('log');
+  const [tab,       setTab]       = useState<'log' | 'history' | 'stats' | 'rules' | 'shadow' | 'bias' | 'thesis'>('log');
   const [trades,    setTrades]    = useState<Trade[]>([]);
   const [loading,   setLoading]   = useState(false);
   const [saving,    setSaving]    = useState(false);
@@ -172,6 +250,21 @@ function Inner() {
   );
   const [noDb,      setNoDb]      = useState(false);
   const [historyPage, setHistoryPage] = useState(0);
+
+  /* Behavioral Bias state */
+  const [biasLoading,  setBiasLoading]  = useState(false);
+  const [biasAnalysis, setBiasAnalysis] = useState<string | null>(null);
+  const [biasError,    setBiasError]    = useState<string | null>(null);
+
+  /* Thesis Tracker state */
+  const [theses,           setTheses]           = useState<TradeThesis[]>(() => loadTheses());
+  const [showThesisForm,   setShowThesisForm]   = useState(false);
+  const [checkingThesisId, setCheckingThesisId] = useState<string | null>(null);
+  const [thesisFormSymbol,     setThesisFormSymbol]     = useState('');
+  const [thesisFormDirection,  setThesisFormDirection]  = useState<'LONG' | 'SHORT'>('LONG');
+  const [thesisFormDate,       setThesisFormDate]       = useState(() => new Date().toISOString().slice(0, 10));
+  const [thesisFormText,       setThesisFormText]       = useState('');
+  const [thesisFormAssumptions, setThesisFormAssumptions] = useState(['', '', '']);
 
   /* Shadow Account state */
   const [shadowLoading,  setShadowLoading]  = useState(false);
@@ -312,6 +405,104 @@ function Inner() {
       setShadowError('Network error — try again');
     } finally {
       setShadowLoading(false);
+    }
+  };
+
+  /* Behavioral Bias runner */
+  const runBiasAnalysis = async () => {
+    const db = getSupabase();
+    if (!db) return;
+    setBiasLoading(true);
+    setBiasError(null);
+    setBiasAnalysis(null);
+    try {
+      const token = (await db.auth.getSession()).data.session?.access_token;
+      const res = await fetch('/api/behavioral-bias', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const json = await res.json() as { analysis?: string; error?: string; count?: number };
+      if (!res.ok) {
+        if (json.error === 'NEED_MORE_TRADES') {
+          setBiasError(`Need at least 5 closed trades (you have ${json.count ?? 0}).`);
+        } else {
+          setBiasError(json.error ?? 'Analysis failed');
+        }
+      } else {
+        setBiasAnalysis(json.analysis ?? null);
+      }
+    } catch {
+      setBiasError('Network error — try again');
+    } finally {
+      setBiasLoading(false);
+    }
+  };
+
+  /* Thesis helpers */
+  const addThesis = () => {
+    if (!thesisFormSymbol.trim() || !thesisFormText.trim()) return;
+    const validAssumptions = thesisFormAssumptions.filter(a => a.trim());
+    if (validAssumptions.length < 1) return;
+    const thesis: TradeThesis = {
+      id:          crypto.randomUUID(),
+      symbol:      thesisFormSymbol.toUpperCase().trim(),
+      direction:   thesisFormDirection,
+      entryDate:   thesisFormDate,
+      thesisText:  thesisFormText.trim(),
+      assumptions: validAssumptions,
+      createdAt:   new Date().toISOString(),
+    };
+    const updated = [thesis, ...theses];
+    setTheses(updated);
+    saveTheses(updated);
+    setShowThesisForm(false);
+    setThesisFormSymbol('');
+    setThesisFormText('');
+    setThesisFormAssumptions(['', '', '']);
+    setThesisFormDate(new Date().toISOString().slice(0, 10));
+  };
+
+  const deleteThesis = (id: string) => {
+    const updated = theses.filter(t => t.id !== id);
+    setTheses(updated);
+    saveTheses(updated);
+  };
+
+  const checkThesisHealth = async (thesis: TradeThesis) => {
+    const db = getSupabase();
+    if (!db) return;
+    setCheckingThesisId(thesis.id);
+    try {
+      const token = (await db.auth.getSession()).data.session?.access_token;
+      const res = await fetch('/api/thesis-check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          symbol:      thesis.symbol,
+          direction:   thesis.direction,
+          entryDate:   thesis.entryDate,
+          thesisText:  thesis.thesisText,
+          assumptions: thesis.assumptions,
+        }),
+      });
+      const json = await res.json() as { analysis?: string; error?: string };
+      if (!res.ok) return;
+      const feedback = json.analysis ?? '';
+      const score    = extractScore(feedback);
+      const updated  = theses.map(t => t.id === thesis.id
+        ? { ...t, lastFeedback: feedback, lastScore: score, lastScoreDate: new Date().toISOString().slice(0, 10) }
+        : t,
+      );
+      setTheses(updated);
+      saveTheses(updated);
+    } finally {
+      setCheckingThesisId(null);
     }
   };
 
@@ -520,6 +711,12 @@ function Inner() {
           )}
         </button>
         <button className={`tj-tab${tab === 'shadow' ? ' on' : ''}`} onClick={() => setTab('shadow')}>Shadow Account</button>
+        <button className={`tj-tab${tab === 'bias' ? ' on' : ''}`} onClick={() => setTab('bias')}>Bias Diagnostics</button>
+        <button className={`tj-tab${tab === 'thesis' ? ' on' : ''}`} onClick={() => setTab('thesis')} style={{ position: 'relative' }}>
+          Thesis Tracker{theses.length > 0 && (
+            <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 700, background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '1px 5px' }}>{theses.length}</span>
+          )}
+        </button>
       </div>
 
       {/* ──────── LOG TAB ──────── */}
@@ -1148,6 +1345,242 @@ function Inner() {
           </div>
 
           {shadowAnalysis && <ShadowAccountResult text={shadowAnalysis} />}
+        </div>
+      )}
+
+      {/* ──────── BIAS DIAGNOSTICS TAB ──────── */}
+      {tab === 'bias' && (
+        <div>
+          <div style={{ padding: '12px 0 16px' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Behavioral Bias Diagnostics</div>
+            <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 16, maxWidth: 520 }}>
+              Analyzes your trade history for the four most damaging trader biases — disposition effect, overtrading, momentum chasing, and anchoring — with specific examples from your actual trades and estimated P&L drag per bias.
+            </div>
+            {!biasAnalysis && (
+              <button
+                onClick={runBiasAnalysis}
+                disabled={biasLoading}
+                style={{
+                  background: biasLoading ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
+                  color: biasLoading ? 'var(--txt3)' : '#5a6aff',
+                  border: `1px solid ${biasLoading ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
+                  borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 700,
+                  cursor: biasLoading ? 'default' : 'pointer',
+                }}
+              >
+                {biasLoading ? 'Analyzing your trades…' : 'Run Bias Diagnostics'}
+              </button>
+            )}
+            {biasAnalysis && (
+              <button
+                onClick={() => { setBiasAnalysis(null); setBiasError(null); }}
+                style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '6px 12px', fontSize: 11, cursor: 'pointer', marginBottom: 16 }}
+              >
+                Re-run Analysis
+              </button>
+            )}
+            {biasError && (
+              <div style={{ color: '#f87171', fontSize: 12, marginTop: 8 }}>{biasError}</div>
+            )}
+          </div>
+          {biasAnalysis && <BiasResult text={biasAnalysis} />}
+        </div>
+      )}
+
+      {/* ──────── THESIS TRACKER TAB ──────── */}
+      {tab === 'thesis' && (
+        <div>
+          <div style={{ padding: '12px 0 4px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Thesis Tracker</div>
+              <div style={{ fontSize: 12, color: 'var(--txt3)', maxWidth: 480 }}>
+                Write a trade thesis with measurable assumptions. Grok checks whether your assumptions still hold and scores thesis health 1-10.
+              </div>
+            </div>
+            <button
+              onClick={() => setShowThesisForm(v => !v)}
+              style={{
+                background: showThesisForm ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
+                color: showThesisForm ? 'var(--txt3)' : '#5a6aff',
+                border: `1px solid ${showThesisForm ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
+                borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              {showThesisForm ? 'Cancel' : '+ New Thesis'}
+            </button>
+          </div>
+
+          {/* New thesis form */}
+          {showThesisForm && (
+            <div style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 'var(--radius-card)', padding: '14px', marginBottom: 16, marginTop: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>New Thesis</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                <input
+                  value={thesisFormSymbol}
+                  onChange={e => setThesisFormSymbol(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))}
+                  placeholder="Ticker (e.g. BTC)"
+                  maxLength={10}
+                  style={{ width: 110, padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, outline: 'none', fontFamily: 'var(--font-mono), monospace', fontWeight: 700 }}
+                />
+                <select
+                  value={thesisFormDirection}
+                  onChange={e => setThesisFormDirection(e.target.value as 'LONG' | 'SHORT')}
+                  style={{ padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, cursor: 'pointer' }}
+                >
+                  <option value="LONG">LONG</option>
+                  <option value="SHORT">SHORT</option>
+                </select>
+                <input
+                  type="date"
+                  value={thesisFormDate}
+                  onChange={e => setThesisFormDate(e.target.value)}
+                  style={{ padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, outline: 'none' }}
+                />
+              </div>
+              <textarea
+                value={thesisFormText}
+                onChange={e => setThesisFormText(e.target.value)}
+                placeholder="Your trade thesis — why are you taking this position? What is the setup?"
+                rows={3}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, resize: 'vertical', outline: 'none', marginBottom: 10 }}
+              />
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
+                Measurable Assumptions (3-5) — these get checked by Grok
+              </div>
+              {thesisFormAssumptions.map((a, i) => (
+                <input
+                  key={i}
+                  value={a}
+                  onChange={e => {
+                    const copy = [...thesisFormAssumptions];
+                    copy[i] = e.target.value;
+                    setThesisFormAssumptions(copy);
+                  }}
+                  placeholder={`Assumption ${i + 1} — e.g. "BTC holds above $95k support"`}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, outline: 'none', marginBottom: 6 }}
+                />
+              ))}
+              <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                {thesisFormAssumptions.length < 5 && (
+                  <button
+                    onClick={() => setThesisFormAssumptions(a => [...a, ''])}
+                    style={{ fontSize: 11, color: '#5a6aff', background: 'transparent', border: '0.5px solid rgba(90,106,255,0.3)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
+                  >
+                    + Add Assumption
+                  </button>
+                )}
+                {thesisFormAssumptions.length > 1 && (
+                  <button
+                    onClick={() => setThesisFormAssumptions(a => a.slice(0, -1))}
+                    style={{ fontSize: 11, color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
+                  >
+                    Remove Last
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={addThesis}
+                disabled={!thesisFormSymbol.trim() || !thesisFormText.trim() || !thesisFormAssumptions.some(a => a.trim())}
+                style={{
+                  display: 'block', marginTop: 14, width: '100%',
+                  background: 'rgba(90,106,255,0.12)', color: '#5a6aff',
+                  border: '1px solid rgba(90,106,255,0.35)', borderRadius: 8,
+                  padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                Save Thesis
+              </button>
+            </div>
+          )}
+
+          {/* Thesis list */}
+          {theses.length === 0 && !showThesisForm && (
+            <div className="tj-empty-state" style={{ marginTop: 16 }}>No theses yet — click New Thesis to track your first position thesis.</div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
+            {theses.map(thesis => {
+              const score     = thesis.lastScore;
+              const scoreCol  = score == null ? 'var(--txt3)' : score >= 8 ? '#34d399' : score >= 5 ? '#fbbf24' : '#f87171';
+              const isChecking = checkingThesisId === thesis.id;
+              return (
+                <div key={thesis.id} style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 'var(--radius-card)', padding: '12px 14px' }}>
+                  {/* Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--txt)', fontFamily: 'var(--font-mono), monospace' }}>{thesis.symbol}</span>
+                    <span style={{
+                      fontSize: 9, padding: '2px 6px', borderRadius: 10, fontWeight: 700,
+                      background: thesis.direction === 'LONG' ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)',
+                      color: thesis.direction === 'LONG' ? '#34d399' : '#f87171',
+                      border: `0.5px solid ${thesis.direction === 'LONG' ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
+                    }}>
+                      {thesis.direction}
+                    </span>
+                    <span style={{ fontSize: 10, color: 'var(--txt3)' }}>Entry: {thesis.entryDate}</span>
+                    {score != null && (
+                      <span style={{ fontSize: 11, fontWeight: 800, color: scoreCol, fontFamily: 'var(--font-mono), monospace', marginLeft: 'auto' }}>
+                        {score}/10
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Thesis text */}
+                  <div style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.5, marginBottom: 8 }}>{thesis.thesisText}</div>
+
+                  {/* Assumptions */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>
+                    {thesis.assumptions.map((a, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                        <span style={{ fontSize: 9, color: 'var(--txt3)', flexShrink: 0, marginTop: 1 }}>A{i + 1}</span>
+                        <span style={{ fontSize: 11, color: 'var(--txt3)' }}>{a}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Grok feedback */}
+                  {thesis.lastFeedback && (
+                    <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 10, marginBottom: 10 }}>
+                      <div style={{ fontSize: 9, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+                        Last checked: {thesis.lastScoreDate}
+                      </div>
+                      {THESIS_CHECK_SECTIONS.map(({ key, label, color }) => {
+                        const content = parseThesisSection(thesis.lastFeedback!, key);
+                        if (!content) return null;
+                        return (
+                          <div key={key} style={{ marginBottom: 8 }}>
+                            <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: color ?? 'var(--txt3)', marginBottom: 3 }}>{label}</div>
+                            <div style={{ fontSize: 11, color: 'var(--txt2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{content}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      onClick={() => checkThesisHealth(thesis)}
+                      disabled={isChecking}
+                      style={{
+                        background: isChecking ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.10)',
+                        color: isChecking ? 'var(--txt3)' : '#5a6aff',
+                        border: `0.5px solid ${isChecking ? 'var(--bdr)' : 'rgba(90,106,255,0.3)'}`,
+                        borderRadius: 6, padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: isChecking ? 'default' : 'pointer',
+                      }}
+                    >
+                      {isChecking ? 'Checking…' : thesis.lastFeedback ? 'Re-check Health' : 'Check Thesis Health'}
+                    </button>
+                    <button
+                      onClick={() => deleteThesis(thesis.id)}
+                      style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

@@ -104,6 +104,12 @@ export default function BacktestPage() {
   const [ulResult,   setUlResult]   = useState<string | null>(null);
   const [ulError,    setUlError]    = useState<string | null>(null);
 
+  /* Pine Script Export state */
+  const [psRunning,  setPsRunning]  = useState(false);
+  const [psResult,   setPsResult]   = useState<string | null>(null);
+  const [psError,    setPsError]    = useState<string | null>(null);
+  const [psCopied,   setPsCopied]   = useState(false);
+
   const coins = coinScope === 'majors' ? MAJORS : COINS;
 
   async function runStrategyResearch() {
@@ -132,6 +138,33 @@ export default function BacktestPage() {
       setSrError('Network error — try again');
     } finally {
       setSrRunning(false);
+    }
+  }
+
+  async function runPineScript() {
+    if (!srResult) return;
+    setPsRunning(true);
+    setPsError(null);
+    setPsResult(null);
+    setPsCopied(false);
+    try {
+      const db    = getSupabase();
+      const token = db ? (await db.auth.getSession()).data.session?.access_token : undefined;
+      const res   = await fetch('/api/pine-script', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ description: srPrompt, analysisText: srResult }),
+      });
+      const json = await res.json() as { code?: string; error?: string };
+      if (!res.ok) setPsError(json.error ?? 'Generation failed');
+      else         setPsResult(json.code ?? null);
+    } catch {
+      setPsError('Network error — try again');
+    } finally {
+      setPsRunning(false);
     }
   }
 
@@ -468,28 +501,93 @@ export default function BacktestPage() {
       {srError && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 14 }}>{srError}</div>}
 
       {srResult && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {STRATEGY_SECTIONS.map(({ key, label, color }) => {
-            const content = parseSection(srResult, key);
-            if (!content) return null;
-            return (
-              <div key={key} style={{
-                background: 'var(--bg1)', border: '0.5px solid var(--bdr)',
-                borderRadius: 'var(--radius-card)', padding: '12px 14px',
-              }}>
-                <div style={{
-                  fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
-                  color: color ?? 'var(--txt3)', marginBottom: 8,
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+            {STRATEGY_SECTIONS.map(({ key, label, color }) => {
+              const content = parseSection(srResult, key);
+              if (!content) return null;
+              return (
+                <div key={key} style={{
+                  background: 'var(--bg1)', border: '0.5px solid var(--bdr)',
+                  borderRadius: 'var(--radius-card)', padding: '12px 14px',
                 }}>
-                  {label}
+                  <div style={{
+                    fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                    color: color ?? 'var(--txt3)', marginBottom: 8,
+                  }}>
+                    {label}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                    {content}
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                  {content}
-                </div>
+              );
+            })}
+          </div>
+
+          {/* Pine Script Export */}
+          <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 14 }}>
+            <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 8 }}>
+              Export this strategy to TradingView
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: psResult ? 12 : 0 }}>
+              {!psResult && (
+                <button
+                  onClick={runPineScript}
+                  disabled={psRunning}
+                  style={{
+                    background: psRunning ? 'rgba(255,255,255,0.06)' : 'rgba(52,211,153,0.10)',
+                    color: psRunning ? 'var(--txt3)' : '#34d399',
+                    border: `1px solid ${psRunning ? 'var(--bdr)' : 'rgba(52,211,153,0.3)'}`,
+                    borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 700,
+                    cursor: psRunning ? 'default' : 'pointer',
+                  }}
+                >
+                  {psRunning ? 'Generating Pine Script…' : 'Generate TradingView Alert'}
+                </button>
+              )}
+              {psResult && (
+                <>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(psResult).then(() => {
+                        setPsCopied(true);
+                        setTimeout(() => setPsCopied(false), 2000);
+                      });
+                    }}
+                    style={{
+                      background: psCopied ? 'rgba(52,211,153,0.12)' : 'rgba(90,106,255,0.10)',
+                      color: psCopied ? '#34d399' : '#5a6aff',
+                      border: `1px solid ${psCopied ? 'rgba(52,211,153,0.3)' : 'rgba(90,106,255,0.3)'}`,
+                      borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    }}
+                  >
+                    {psCopied ? 'Copied!' : 'Copy Pine Script'}
+                  </button>
+                  <button
+                    onClick={() => { setPsResult(null); setPsError(null); }}
+                    style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '6px 10px', fontSize: 11, cursor: 'pointer' }}
+                  >
+                    Regenerate
+                  </button>
+                </>
+              )}
+            </div>
+            {psError && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 10 }}>{psError}</div>}
+            {psResult && (
+              <div style={{
+                background: 'rgba(0,0,0,0.3)', border: '0.5px solid var(--bdr)',
+                borderRadius: 8, padding: '12px 14px', overflowX: 'auto',
+              }}>
+                <pre style={{
+                  margin: 0, fontSize: 11, color: '#34d399',
+                  fontFamily: 'var(--font-mono), monospace', lineHeight: 1.5,
+                  whiteSpace: 'pre', overflowX: 'auto',
+                }}>{psResult}</pre>
               </div>
-            );
-          })}
-        </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* ── SMC Snapshot ─────────────────────────────────────────────────────── */}
