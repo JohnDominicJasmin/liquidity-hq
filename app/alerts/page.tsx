@@ -485,8 +485,10 @@ export default function AlertsPage() {
           {paLoading ? (
             <div style={{ fontSize: 12, color: 'var(--txt3)', marginTop: 10 }}>Loading…</div>
           ) : priceAlerts.length === 0 ? (
-            <div style={{ fontSize: 12, color: 'var(--txt3)', marginTop: 10, padding: '10px 0', textAlign: 'center' }}>
-              No price alerts set. Add one above.
+            <div className="empty-state" style={{ marginTop: 8 }}>
+              <div className="empty-state-icon">🔔</div>
+              <div className="empty-state-title">No price alerts</div>
+              <div className="empty-state-sub">Add a coin, direction, and target above to get started.</div>
             </div>
           ) : (
             <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -521,8 +523,10 @@ export default function AlertsPage() {
           )}
         </div>
         {history.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'var(--txt3)', padding: '10px 0', textAlign: 'center' }}>
-            No alerts fired since last server start
+          <div className="empty-state">
+            <div className="empty-state-icon">⚡</div>
+            <div className="empty-state-title">No alerts fired yet</div>
+            <div className="empty-state-sub">Alerts fire once when price crosses your target — history appears here.</div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>

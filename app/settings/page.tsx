@@ -60,9 +60,11 @@ export default function SettingsPage() {
 
   // Show limited page (Appearance only) when not signed in
   if (!authLoading && !user) {
+    const LOCKED = ['Account', 'My Watchlist', 'Trading Profile', 'AI Arena Defaults', 'Notification Thresholds', 'Dashboard Sections', 'Telegram Alerts'];
     return (
       <div className="st-page">
         <div className="st-header"><div className="st-header-title">Settings</div></div>
+
         <Section title="Appearance">
           <div className="st-field">
             <label className="st-field-label">Theme</label>
@@ -83,8 +85,36 @@ export default function SettingsPage() {
             </div>
           </div>
         </Section>
-        <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--txt3)', fontSize: 12 }}>
-          <a href="/login" style={{ color: 'var(--purple)', fontWeight: 600 }}>Sign in</a> to access full settings
+
+        <div className="st-section">
+          <div className="st-section-title">Sign in to continue</div>
+          <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 20, opacity: 0.35, pointerEvents: 'none' }}>
+            {LOCKED.map(name => (
+              <div key={name} style={{
+                padding: '9px 0', borderBottom: '0.5px solid var(--bdr)',
+                fontSize: 11, fontWeight: 700, letterSpacing: '.08em',
+                textTransform: 'uppercase', color: 'var(--txt2)',
+              }}>
+                {name}
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <a href="/login?signup=1" style={{
+              flex: 1, display: 'block', padding: '9px 0', borderRadius: 8,
+              background: 'var(--accent)', color: '#fff',
+              fontSize: 12, fontWeight: 700, textAlign: 'center', textDecoration: 'none',
+            }}>
+              Create free account
+            </a>
+            <a href="/login" style={{
+              flex: 1, display: 'block', padding: '9px 0', borderRadius: 8,
+              border: '0.5px solid var(--bdr)', color: 'var(--txt2)',
+              fontSize: 12, fontWeight: 600, textAlign: 'center', textDecoration: 'none',
+            }}>
+              Sign in
+            </a>
+          </div>
         </div>
       </div>
     );
