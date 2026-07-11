@@ -13,6 +13,7 @@ import OnboardingTour from './OnboardingTour';
 import SetupChecklist from './SetupChecklist';
 import GrokUsageProvider from './GrokUsageProvider';
 import PlatformFooter from './PlatformFooter';
+import PWAInstallPrompt from './PWAInstallPrompt';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
@@ -42,6 +43,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   <GrokChat />
                   <OnboardingTour />
                   <SetupChecklist />
+                  <PWAInstallPrompt />
                 </GrokUsageProvider>
               </OnboardingProvider>
             </NewsProvider>

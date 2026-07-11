@@ -11,6 +11,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { getSupabase } from '@/lib/supabase';
 import { nextResetLocalTime } from '@/lib/resetTime';
+import PageHint from '@/components/PageHint';
 
 /* ── helpers ── */
 
@@ -339,6 +340,12 @@ export default function MorningBriefing() {
         <div className="mb-title">Morning Briefing</div>
         <div className="mb-subtitle">{dateStr} · {timeStr}</div>
       </div>
+
+      <PageHint
+        pageKey="briefing"
+        title="Morning Briefing"
+        body="Your daily market summary — top setups, key support and resistance levels, macro signals, and AI-generated trade ideas updated each morning."
+      />
 
       {/* ── Top 3 Setups Today ── */}
       <div className="card" style={{ marginBottom: 10 }}>

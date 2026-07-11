@@ -24,6 +24,7 @@ import Tip from '@/components/Tip';
 import LiqHeatmap from '@/components/LiqHeatmap';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
+import PageHint from '@/components/PageHint';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import MultiTFAlignment from '@/components/MultiTFAlignment';
 
@@ -1119,6 +1120,12 @@ function ArenaContent() {
         </div>
         <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Chart · 35-signal engine · confluence · scanner — one page</div>
       </div>
+
+      <PageHint
+        pageKey="arena"
+        title="Arena"
+        body="Select a coin, pick a timeframe, and run the AI analysis. The engine reads 35 signals — EMA crosses, squeeze, funding, OI trend, whale CVD — and gives you a directional read with a confidence score."
+      />
 
       {/* ── COIN CATEGORY TABS ── */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
