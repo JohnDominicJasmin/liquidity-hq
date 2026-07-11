@@ -27,6 +27,7 @@ import DryPowder from '@/components/DryPowder';
 import GlobalMacroContext from '@/components/GlobalMacroContext';
 import MorningBriefingPrompt from '@/components/MorningBriefingPrompt';
 import JournalMiniStats from '@/components/JournalMiniStats';
+import OnChainScore from '@/components/OnChainScore';
 import GexTable from '@/components/GexTable';
 import MacroStrip from '@/components/MacroStrip';
 import AccumulationTracker from '@/components/AccumulationTracker';
@@ -665,6 +666,7 @@ export default function Dashboard() {
         <div className="mb-glow-card" style={{ borderRadius: 10 }}><VolatilityRegime /></div>
         <div className="mb-glow-card" style={{ borderRadius: 10 }}><DryPowder /></div>
         <div className="mb-glow-card" style={{ borderRadius: 10 }}><GlobalMacroContext /></div>
+        <div className="mb-glow-card" style={{ borderRadius: 10 }}><OnChainScore /></div>
         <div className="mb-glow-card" style={{ borderRadius: 10 }}><CycleChart /></div>
         {!hide('gex') && <div className="mb-glow-card" style={{ borderRadius: 10 }}><GexTable /></div>}
         {!hide('macro') && <MacroStrip />}

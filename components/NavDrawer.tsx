@@ -65,6 +65,7 @@ const SCANNERS = [
 
 const TOOLS = [
   { path: '/journal',        label: 'Journal'             },
+  { path: '/research',       label: 'Research'            },
   { path: '/calc',           label: 'Calculators'         },
   { path: '/econ-calendar',  label: 'Economic Calendar'   },
   { path: '/alerts',         label: 'Alerts'              },
@@ -95,6 +96,7 @@ const MOBILE_NAV: NavEntry[] = [
   { path: '/live-tracking', label: 'Live Tracking'   },
 
   { header: 'Research' },
+  { path: '/research',      label: 'Research Hypotheses' },
   { path: '/news',          label: 'News'              },
   { path: '/econ-calendar', label: 'Economic Calendar' },
 
