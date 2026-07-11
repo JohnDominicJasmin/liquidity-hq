@@ -101,14 +101,14 @@ export default function SettingsPage() {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <a href="/login?signup=1" style={{
-              flex: 1, display: 'block', padding: '9px 0', borderRadius: 8,
-              background: 'var(--accent)', color: '#fff',
+              flex: 1, display: 'block', padding: '9px 0', borderRadius: 'var(--radius-card)',
+              background: 'var(--accent-bg)', border: '0.5px solid var(--accent-bdr)', color: 'var(--accent)',
               fontSize: 12, fontWeight: 700, textAlign: 'center', textDecoration: 'none',
             }}>
               Create free account
             </a>
             <a href="/login" style={{
-              flex: 1, display: 'block', padding: '9px 0', borderRadius: 8,
+              flex: 1, display: 'block', padding: '9px 0', borderRadius: 'var(--radius-card)',
               border: '0.5px solid var(--bdr)', color: 'var(--txt2)',
               fontSize: 12, fontWeight: 600, textAlign: 'center', textDecoration: 'none',
             }}>

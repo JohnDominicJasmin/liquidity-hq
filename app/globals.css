@@ -3319,12 +3319,12 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 .login-email-input:focus { border-color: var(--purple-bdr); }
 .login-email-btn {
   width: 100%; padding: 11px 16px; border-radius: 12px;
-  background: var(--purple); border: none;
-  color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
+  background: var(--accent-bg); border: 0.5px solid var(--accent-bdr);
+  color: var(--accent); font-size: 13px; font-weight: 600; cursor: pointer;
   transition: all 0.15s; font-family: inherit; letter-spacing: -0.1px;
   display: flex; align-items: center; justify-content: center; gap: 8px;
 }
-.login-email-btn:hover:not(:disabled) { filter: brightness(1.15); }
+.login-email-btn:hover:not(:disabled) { background: rgba(26,122,255,0.12); border-color: var(--accent); }
 .login-email-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Error */
