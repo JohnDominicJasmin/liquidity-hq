@@ -24,6 +24,7 @@ import CycleChart from '@/components/CycleChart';
 import VolatilityRegime from '@/components/VolatilityRegime';
 import DryPowder from '@/components/DryPowder';
 import GlobalMacroContext from '@/components/GlobalMacroContext';
+import MorningBriefingPrompt from '@/components/MorningBriefingPrompt';
 import GexTable from '@/components/GexTable';
 import MacroStrip from '@/components/MacroStrip';
 import AccumulationTracker from '@/components/AccumulationTracker';
@@ -584,6 +585,7 @@ export default function Dashboard() {
         {/* 0. Market session indicator — always visible at the top */}
         <SessionCountdown />
         <SessionContext />
+        <MorningBriefingPrompt />
 
         {/* 0.5 Watchlist feed */}
         <div className="desktop-only mb-glow-card" style={{ borderRadius: 10 }}>

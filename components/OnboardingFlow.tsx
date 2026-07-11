@@ -20,6 +20,7 @@ const STEP_META = [
   { key: 'Style',      label: 'Style',      accent: '#60a5fa' },
   { key: 'Goals',      label: 'Goals',      accent: '#f87171' },
   { key: 'Source',     label: 'Source',     accent: '#e879f9' },
+  { key: 'Alerts',     label: 'Alerts',     accent: '#fbbf24' },
 ] as const;
 
 const COUNTRIES = [
@@ -62,6 +63,7 @@ const STEP_COPY = [
   { headline: ['How do you', 'mainly trade?'],            desc: 'Pre-selects your default chart timeframe in Arena.' },
   { headline: ['What is your biggest', 'challenge?'],     desc: 'Surfaces the most relevant signals and education for you.' },
   { headline: ['Where did you find', 'LiquidityHQ?'],    desc: 'Optional - helps us know where to invest our energy.' },
+  { headline: ['Get alerts on', 'Telegram.'],             desc: 'Connect once and get live price alerts, funding extremes, and your morning briefing directly in Telegram.' },
 ];
 
 /* ── Custom country dropdown with emoji flags ── */
@@ -437,7 +439,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
     if (step === 1) return exp !== null;
     if (step === 2) return tradeStyle !== null;
     if (step === 3) return challenge !== null;
-    return true;
+    return true; // step 4 (source) and step 5 (alerts) are always optional
   }
 
   async function finish() {
@@ -732,6 +734,54 @@ export default function OnboardingFlow({ onStartTour }: Props) {
               <SourceChip value="search"  selected={heard} accent={accent} label="Search"             onClick={setHeard} />
               <SourceChip value="word"    selected={heard} accent={accent} label="Word of mouth"      onClick={setHeard} />
               <SourceChip value="other"   selected={heard} accent={accent} label="Other"              onClick={setHeard} />
+            </div>
+          )}
+
+          {/* ── Step 5: Telegram alerts ── */}
+          {step === 5 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{
+                background: 'rgba(251,191,36,0.06)',
+                border: '1px solid rgba(251,191,36,0.18)',
+                borderRadius: 12, padding: '16px 18px',
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#fbbf24', marginBottom: 12, letterSpacing: '.03em' }}>
+                  What you get with Telegram alerts
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {[
+                    'Live price alerts when your targets or stops are hit',
+                    'Funding rate extremes that signal squeeze setups',
+                    'Morning briefing delivered to Telegram every day',
+                    'Works while the app is closed or your screen is off',
+                  ].map(item => (
+                    <div key={item} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <span style={{ color: '#fbbf24', fontSize: 11, marginTop: 1, flexShrink: 0 }}>▸</span>
+                      <span style={{ fontSize: 13, color: '#d1d5db', lineHeight: 1.45 }}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <a
+                href="/alerts"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'block', textAlign: 'center',
+                  padding: '14px', borderRadius: 10,
+                  background: 'rgba(251,191,36,0.1)',
+                  border: '1px solid rgba(251,191,36,0.32)',
+                  color: '#fbbf24', fontSize: 13, fontWeight: 700,
+                  textDecoration: 'none', letterSpacing: '.02em',
+                  transition: 'filter 0.15s',
+                }}
+              >
+                Open Alerts Setup →
+              </a>
+              <div style={{ fontSize: 11, color: '#444', textAlign: 'center', lineHeight: 1.6 }}>
+                Opens in a new tab. Takes about 60 seconds to connect.<br />
+                You can also do this later from Alerts in the navigation.
+              </div>
             </div>
           )}
         </div>

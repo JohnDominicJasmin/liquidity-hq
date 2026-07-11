@@ -302,6 +302,30 @@ export default function BacktestPage() {
         <div style={{ color: '#f87171', fontSize: 12, marginBottom: 14 }}>Error: {error}</div>
       )}
 
+      {!result && !srResult && !smcResult && !ulResult && !running && !srRunning && !smcRunning && !ulRunning && (
+        <div style={{ border: '0.5px solid var(--bdr)', borderRadius: 10, padding: '16px 18px', marginBottom: 20 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+            4 tools on this page — pick one to get started
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+            {([
+              { dot: '#5a6aff', label: 'Strategy Backtest',       desc: 'Replay the EMA ribbon against 2-4 years of candles. Pick a timeframe and scope above, then hit Run Backtest.' },
+              { dot: '#a78bfa', label: 'Strategy Research',       desc: 'Describe any trading strategy in plain English. Grok evaluates its edge, risks, and optimal entry conditions. Scroll down.' },
+              { dot: '#fbbf24', label: 'SMC Snapshot',            desc: 'Pick a coin and timeframe. Grok reads live candles and identifies Break of Structure, Fair Value Gaps, Order Blocks, and Liquidity zones.' },
+              { dot: '#f87171', label: 'Token Unlock Forecaster', desc: 'Enter any token ticker. Grok assesses 30-day and 90-day sell pressure risk based on vesting schedules and unlock history.' },
+            ] as const).map(t => (
+              <div key={t.label} style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.02)', border: '0.5px solid var(--bdr)', borderRadius: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: t.dot, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt)' }}>{t.label}</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.55 }}>{t.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {result && (
         <>
           {result.failedCoins.length > 0 && (

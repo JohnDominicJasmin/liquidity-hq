@@ -890,7 +890,36 @@ function Inner() {
         <div>
           {loading && <div className="tj-loading">Loading trades…</div>}
           {!loading && trades.length === 0 && (
-            <div className="tj-empty-state">No trades logged yet — start tracking your trades!</div>
+            <div style={{
+              border: '0.5px solid var(--bdr)', borderRadius: 10,
+              padding: '24px 20px', margin: '8px 0', textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--txt)', marginBottom: 8 }}>
+                Your trade history starts here
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.65, marginBottom: 16, maxWidth: 320, margin: '0 auto 16px' }}>
+                Log your first trade to start tracking P&amp;L, win rate, R-factor, and behavioral patterns across your entire trading history.
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginBottom: 18, flexWrap: 'wrap' }}>
+                {(['Track P&L and R-factor', 'Win rate by setup type', 'Spot your behavioral biases'] as const).map(item => (
+                  <span key={item} style={{ fontSize: 10, color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', flexShrink: 0 }} />
+                    {item}
+                  </span>
+                ))}
+              </div>
+              <button
+                onClick={() => setTab('log')}
+                style={{
+                  background: 'var(--accent-bg)', border: '0.5px solid var(--accent-bdr)',
+                  color: 'var(--accent)', borderRadius: 8,
+                  padding: '9px 20px', fontSize: 12, fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Log your first trade →
+              </button>
+            </div>
           )}
           {pagedTrades.map(trade => (
             <div key={trade.id} className={`tj-trade tj-trade-${trade.result.toLowerCase()}`}>
