@@ -74,7 +74,6 @@ export default function DistributionTracker() {
 
       {rows.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">📉</div>
           <div className="empty-state-title">No distribution detected</div>
           <div className="empty-state-sub">Signals appear when a coin shows sellers into strength, OI unwinding, or whales leaning out.</div>
         </div>

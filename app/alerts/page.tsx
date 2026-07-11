@@ -486,7 +486,6 @@ export default function AlertsPage() {
             <div style={{ fontSize: 12, color: 'var(--txt3)', marginTop: 10 }}>Loading…</div>
           ) : priceAlerts.length === 0 ? (
             <div className="empty-state" style={{ marginTop: 8 }}>
-              <div className="empty-state-icon">🔔</div>
               <div className="empty-state-title">No price alerts</div>
               <div className="empty-state-sub">Add a coin, direction, and target above to get started.</div>
             </div>
@@ -524,7 +523,6 @@ export default function AlertsPage() {
         </div>
         {history.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-state-icon">⚡</div>
             <div className="empty-state-title">No alerts fired yet</div>
             <div className="empty-state-sub">Alerts fire once when price crosses your target — history appears here.</div>
           </div>
