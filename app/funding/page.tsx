@@ -354,6 +354,86 @@ export default function FundingHistory() {
         <div className="mb-subtitle">8-hour settlement · red above zero = longs paying · green below = shorts paying</div>
       </div>
 
+      {/* FR Regime Overview — live data from market store, no history needed */}
+      {(() => {
+        const liveCoins = COINS.map(id => {
+          const fr = store.coins[id]?.fundingRate;
+          if (fr == null) return null;
+          const sig        = frSignal(fr);
+          const p          = fr * 100;
+          const carryArb   = Math.abs(p) > 0.03;
+          const contraShort = sig.crowd === 'Longs Overcrowded' || sig.crowd === 'Longs Heavy';
+          const contraLong  = sig.crowd === 'Shorts Overcrowded' || sig.crowd === 'Shorts Crowded';
+          return { id, fr, sig, carryArb, contraShort, contraLong };
+        }).filter((x): x is NonNullable<typeof x> => x !== null);
+
+        const shortSignals = liveCoins.filter(c => c.contraShort);
+        const longSignals  = liveCoins.filter(c => c.contraLong);
+        const arbs         = liveCoins.filter(c => c.carryArb);
+
+        if (!liveCoins.length) return null;
+
+        return (
+          <div className="card" style={{ padding: '12px 14px', marginBottom: 12 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 8 }}>
+              Regime Overview
+            </div>
+
+            {/* Summary chips */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+              <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, background: 'rgba(248,113,113,0.10)', color: '#f87171', border: '0.5px solid rgba(248,113,113,0.25)', fontWeight: 700 }}>
+                {shortSignals.length} Contrarian Short{shortSignals.length !== 1 ? 's' : ''}
+              </span>
+              <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, background: 'rgba(52,211,153,0.10)', color: '#34d399', border: '0.5px solid rgba(52,211,153,0.25)', fontWeight: 700 }}>
+                {longSignals.length} Contrarian Long{longSignals.length !== 1 ? 's' : ''}
+              </span>
+              <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, background: 'rgba(90,106,255,0.10)', color: '#5a6aff', border: '0.5px solid rgba(90,106,255,0.25)', fontWeight: 700 }}>
+                {arbs.length} Carry Arb
+              </span>
+            </div>
+
+            {/* Coin regime rows */}
+            <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+              {liveCoins.map(({ id, fr, sig, carryArb, contraShort, contraLong }) => (
+                <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderTop: '0.5px solid var(--bdr)' }}>
+                  <span style={{ fontSize: 9, fontWeight: 800, color: coinBadgeColor(id), minWidth: 32, flexShrink: 0, fontFamily: 'var(--font-mono), monospace' }}>
+                    {id.toUpperCase()}
+                  </span>
+                  <span style={{ fontSize: 9, color: frColor(fr), fontFamily: 'var(--font-mono), monospace', minWidth: 64, flexShrink: 0 }}>
+                    {frFmt(fr)}
+                  </span>
+                  <span style={{ fontSize: 8, padding: '1px 5px', borderRadius: 8, background: sig.bg, color: sig.color, border: `0.5px solid ${sig.color}33`, fontWeight: 600, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
+                    {sig.crowd}
+                  </span>
+                  <span style={{ flex: 1 }} />
+                  {contraShort && (
+                    <span style={{ fontSize: 8, padding: '1px 5px', borderRadius: 3, background: 'rgba(248,113,113,0.12)', color: '#f87171', fontWeight: 700, flexShrink: 0 }}>
+                      Short
+                    </span>
+                  )}
+                  {contraLong && (
+                    <span style={{ fontSize: 8, padding: '1px 5px', borderRadius: 3, background: 'rgba(52,211,153,0.12)', color: '#34d399', fontWeight: 700, flexShrink: 0 }}>
+                      Long
+                    </span>
+                  )}
+                  {carryArb && (
+                    <span style={{ fontSize: 8, padding: '1px 5px', borderRadius: 3, background: 'rgba(90,106,255,0.10)', color: '#5a6aff', fontWeight: 600, flexShrink: 0 }}>
+                      Arb
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {arbs.length > 0 && (
+              <div style={{ fontSize: 9, color: 'var(--txt3)', marginTop: 8, paddingTop: 6, borderTop: '0.5px solid var(--bdr)' }}>
+                Carry Arb: annualized rate exceeds ~40% (|FR| greater than 0.03%/8h) — long spot + short perp captures the premium delta-neutral.
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Range selector */}
       <div className="frh-range-row">
         {RANGES.map(r => (

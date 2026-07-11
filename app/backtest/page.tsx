@@ -24,6 +24,39 @@ const WT_VARIANT_LABELS: Record<string, string> = {
   looseThresholds: 'Loose Thresholds (±45 + arm)',
 };
 
+const SMC_TFS = ['5m', '15m', '30m', '1h', '4h', '1d'] as const;
+type SMCTF = typeof SMC_TFS[number];
+
+const SMC_SECTIONS = [
+  { key: 'MARKET_STRUCTURE', label: 'Market Structure', color: '#5a6aff' },
+  { key: 'FAIR_VALUE_GAPS',  label: 'Fair Value Gaps',  color: '#fbbf24' },
+  { key: 'ORDER_BLOCKS',     label: 'Order Blocks',     color: '#fb923c' },
+  { key: 'LIQUIDITY_ZONES',  label: 'Liquidity Zones',  color: '#a78bfa' },
+  { key: 'BIAS',             label: 'Directional Bias'                   },
+  { key: 'KEY_LEVELS',       label: 'Key Levels',       color: '#34d399' },
+];
+
+const UNLOCK_SECTIONS = [
+  { key: 'CURRENT_SUPPLY',     label: 'Current Supply'                         },
+  { key: 'UNLOCK_SCHEDULE',    label: 'Unlock Schedule',    color: '#fbbf24'   },
+  { key: 'SELL_PRESSURE_30D',  label: '30-Day Sell Pressure', color: '#f87171' },
+  { key: 'SELL_PRESSURE_90D',  label: '90-Day Sell Pressure', color: '#fb923c' },
+  { key: 'HISTORICAL_PATTERN', label: 'Historical Pattern'                      },
+  { key: 'RECOMMENDATION',     label: 'Recommendation',     color: '#34d399'   },
+];
+
+function parseSMCSection(text: string, key: string): string {
+  const keys = SMC_SECTIONS.map(s => s.key);
+  const regex = new RegExp(key + ':\\s*([\\s\\S]*?)(?=' + keys.join(':|') + ':|$)');
+  return (text.match(regex)?.[1] ?? '').trim();
+}
+
+function parseUnlockSection(text: string, key: string): string {
+  const keys = UNLOCK_SECTIONS.map(s => s.key);
+  const regex = new RegExp(key + ':\\s*([\\s\\S]*?)(?=' + keys.join(':|') + ':|$)');
+  return (text.match(regex)?.[1] ?? '').trim();
+}
+
 const STRATEGY_SECTIONS = [
   { key: 'THEORETICAL_EDGE',      label: 'Theoretical Edge' },
   { key: 'OPTIMAL_CONDITIONS',    label: 'Optimal Conditions' },
@@ -58,6 +91,19 @@ export default function BacktestPage() {
   const [srResult,   setSrResult]   = useState<string | null>(null);
   const [srError,    setSrError]    = useState<string | null>(null);
 
+  /* SMC Snapshot state */
+  const [smcAsset,   setSmcAsset]   = useState('BTC');
+  const [smcTf,      setSmcTf]      = useState<SMCTF>('1h');
+  const [smcRunning, setSmcRunning] = useState(false);
+  const [smcResult,  setSmcResult]  = useState<string | null>(null);
+  const [smcError,   setSmcError]   = useState<string | null>(null);
+
+  /* Token Unlock state */
+  const [ulSymbol,   setUlSymbol]   = useState('');
+  const [ulRunning,  setUlRunning]  = useState(false);
+  const [ulResult,   setUlResult]   = useState<string | null>(null);
+  const [ulError,    setUlError]    = useState<string | null>(null);
+
   const coins = coinScope === 'majors' ? MAJORS : COINS;
 
   async function runStrategyResearch() {
@@ -86,6 +132,58 @@ export default function BacktestPage() {
       setSrError('Network error — try again');
     } finally {
       setSrRunning(false);
+    }
+  }
+
+  async function runSMCSnapshot() {
+    if (!smcAsset.trim()) return;
+    setSmcRunning(true);
+    setSmcError(null);
+    setSmcResult(null);
+    try {
+      const db    = getSupabase();
+      const token = db ? (await db.auth.getSession()).data.session?.access_token : undefined;
+      const res   = await fetch('/api/smc-snapshot', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ asset: smcAsset, tf: smcTf }),
+      });
+      const json = await res.json() as { analysis?: string; error?: string };
+      if (!res.ok) setSmcError(json.error ?? 'Analysis failed');
+      else         setSmcResult(json.analysis ?? null);
+    } catch {
+      setSmcError('Network error — try again');
+    } finally {
+      setSmcRunning(false);
+    }
+  }
+
+  async function runTokenUnlock() {
+    if (!ulSymbol.trim()) return;
+    setUlRunning(true);
+    setUlError(null);
+    setUlResult(null);
+    try {
+      const db    = getSupabase();
+      const token = db ? (await db.auth.getSession()).data.session?.access_token : undefined;
+      const res   = await fetch('/api/token-unlock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ symbol: ulSymbol }),
+      });
+      const json = await res.json() as { analysis?: string; error?: string };
+      if (!res.ok) setUlError(json.error ?? 'Analysis failed');
+      else         setUlResult(json.analysis ?? null);
+    } catch {
+      setUlError('Network error — try again');
+    } finally {
+      setUlRunning(false);
     }
   }
 
@@ -373,6 +471,165 @@ export default function BacktestPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {STRATEGY_SECTIONS.map(({ key, label, color }) => {
             const content = parseSection(srResult, key);
+            if (!content) return null;
+            return (
+              <div key={key} style={{
+                background: 'var(--bg1)', border: '0.5px solid var(--bdr)',
+                borderRadius: 'var(--radius-card)', padding: '12px 14px',
+              }}>
+                <div style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                  color: color ?? 'var(--txt3)', marginBottom: 8,
+                }}>
+                  {label}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                  {content}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── SMC Snapshot ─────────────────────────────────────────────────────── */}
+      <div style={{ borderTop: '1px solid var(--bdr)', margin: '36px 0 20px' }} />
+
+      <div className="mb-header">
+        <div className="mb-title">SMC Snapshot</div>
+        <div className="mb-subtitle">Pick an asset and timeframe - Grok analyzes recent price action using Smart Money Concepts: Break of Structure, Fair Value Gaps, Order Blocks, and Liquidity zones.</div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
+        <input
+          value={smcAsset}
+          onChange={e => setSmcAsset(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))}
+          placeholder="BTC"
+          maxLength={10}
+          style={{
+            width: 80, padding: '8px 10px', borderRadius: 6,
+            border: '0.5px solid var(--bdr)', background: 'var(--bg1)',
+            color: 'var(--txt)', fontSize: 13, outline: 'none',
+            fontFamily: 'var(--font-mono), monospace', fontWeight: 700,
+          }}
+        />
+        <div style={{ display: 'flex', gap: 4 }}>
+          {SMC_TFS.map(t => (
+            <button
+              key={t}
+              className={`frh-range-btn${smcTf === t ? ' on' : ''}`}
+              onClick={() => setSmcTf(t)}
+              disabled={smcRunning}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={runSMCSnapshot}
+          disabled={smcRunning || !smcAsset.trim()}
+          style={{
+            background: smcRunning || !smcAsset.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
+            color: smcRunning || !smcAsset.trim() ? 'var(--txt3)' : '#5a6aff',
+            border: `1px solid ${smcRunning || !smcAsset.trim() ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
+            borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700,
+            cursor: smcRunning || !smcAsset.trim() ? 'default' : 'pointer',
+          }}
+        >
+          {smcRunning ? 'Analyzing…' : 'Run SMC Analysis'}
+        </button>
+        {smcResult && (
+          <button
+            onClick={() => { setSmcResult(null); setSmcError(null); }}
+            style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {smcError && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 14 }}>{smcError}</div>}
+
+      {smcResult && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 8 }}>
+          {SMC_SECTIONS.map(({ key, label, color }) => {
+            const content = parseSMCSection(smcResult, key);
+            if (!content) return null;
+            return (
+              <div key={key} style={{
+                background: 'var(--bg1)', border: '0.5px solid var(--bdr)',
+                borderRadius: 'var(--radius-card)', padding: '12px 14px',
+              }}>
+                <div style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                  color: color ?? 'var(--txt3)', marginBottom: 8,
+                }}>
+                  {label}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                  {content}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Token Unlock Sell Pressure Forecaster ────────────────────────────── */}
+      <div style={{ borderTop: '1px solid var(--bdr)', margin: '36px 0 20px' }} />
+
+      <div className="mb-header">
+        <div className="mb-title">Token Unlock Sell Pressure</div>
+        <div className="mb-subtitle">Enter a token symbol - Grok analyzes upcoming vesting cliff events and classifies sell pressure impact for the next 30 and 90 days.</div>
+      </div>
+
+      <p style={{ fontSize: 11, opacity: 0.4, marginBottom: 14, maxWidth: 560 }}>
+        Examples: ARB · OP · PYTH · JUP · STRK · SUI · W · ZK · EIGEN
+      </p>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 18 }}>
+        <input
+          value={ulSymbol}
+          onChange={e => setUlSymbol(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))}
+          onKeyDown={e => e.key === 'Enter' && runTokenUnlock()}
+          placeholder="e.g. ARB"
+          maxLength={10}
+          style={{
+            width: 110, padding: '8px 10px', borderRadius: 6,
+            border: '0.5px solid var(--bdr)', background: 'var(--bg1)',
+            color: 'var(--txt)', fontSize: 13, outline: 'none',
+            fontFamily: 'var(--font-mono), monospace', fontWeight: 700,
+          }}
+        />
+        <button
+          onClick={runTokenUnlock}
+          disabled={ulRunning || !ulSymbol.trim()}
+          style={{
+            background: ulRunning || !ulSymbol.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
+            color: ulRunning || !ulSymbol.trim() ? 'var(--txt3)' : '#5a6aff',
+            border: `1px solid ${ulRunning || !ulSymbol.trim() ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
+            borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700,
+            cursor: ulRunning || !ulSymbol.trim() ? 'default' : 'pointer',
+          }}
+        >
+          {ulRunning ? 'Analyzing…' : 'Analyze Unlock Risk'}
+        </button>
+        {ulResult && (
+          <button
+            onClick={() => { setUlResult(null); setUlError(null); }}
+            style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {ulError && <div style={{ color: '#f87171', fontSize: 12, marginBottom: 14 }}>{ulError}</div>}
+
+      {ulResult && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {UNLOCK_SECTIONS.map(({ key, label, color }) => {
+            const content = parseUnlockSection(ulResult, key);
             if (!content) return null;
             return (
               <div key={key} style={{
