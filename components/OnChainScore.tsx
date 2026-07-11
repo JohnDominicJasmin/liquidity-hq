@@ -154,7 +154,7 @@ export default function OnChainScore() {
             whiteSpace: 'nowrap',
           }}
         >
-          {loading ? 'Analyzing…' : data ? 'Re-analyze' : '🔍 Analyze'}
+          {loading ? 'Analyzing…' : data ? 'Re-analyze' : 'Analyze'}
         </button>
       </div>
 

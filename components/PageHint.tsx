@@ -35,7 +35,7 @@ export default function PageHint({ pageKey, title, body }: Props) {
       padding: '10px 12px',
       marginBottom: 14,
     }}>
-      <span style={{ fontSize: 15, lineHeight: '1.4', flexShrink: 0 }}>💡</span>
+      <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--accent)', background: 'rgba(90,106,255,0.18)', borderRadius: '50%', width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, letterSpacing: 0 }}>i</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginBottom: 3 }}>{title}</div>
         <div style={{ fontSize: 12, color: 'var(--txt3)', lineHeight: 1.55 }}>{body}</div>

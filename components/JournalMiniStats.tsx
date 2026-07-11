@@ -53,7 +53,7 @@ export default function JournalMiniStats() {
   const stats = [
     { label: 'Trades logged', value: String(closed.length), col: 'var(--txt)' },
     { label: 'Win rate',      value: winRate.toFixed(0) + '%', col: winRateCol },
-    { label: 'Streak',        value: curDir ? `${curStreak}${curDir}` : '—', col: streakCol },
+    { label: 'Streak',        value: curDir ? `${curStreak} ${curDir === 'W' ? (curStreak === 1 ? 'win' : 'wins') : (curStreak === 1 ? 'loss' : 'losses')}` : '—', col: streakCol },
   ];
 
   return (

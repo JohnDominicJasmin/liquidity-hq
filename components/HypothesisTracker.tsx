@@ -456,7 +456,7 @@ export default function HypothesisTracker() {
                       width: '100%',
                     }}
                   >
-                    {isAnalyzing ? 'Grok is analyzing evidence…' : h.grok_verdict ? '↻ Re-run Grok Analysis' : '🤖 Run Grok Analysis'}
+                    {isAnalyzing ? 'Grok is analyzing evidence…' : h.grok_verdict ? '↻ Re-run Grok Analysis' : 'Run Grok Analysis'}
                   </button>
 
                   {/* Evidence log */}

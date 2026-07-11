@@ -14,7 +14,9 @@ const ITEMS = [
 export default function SetupChecklist() {
   const { user } = useAuth();
   const { state, loaded, allDone } = useOnboarding();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() =>
+    typeof window !== 'undefined' && window.innerWidth < 640
+  );
   const router = useRouter();
 
   // Hidden until: logged in, data loaded, tour seen, and not all done yet
