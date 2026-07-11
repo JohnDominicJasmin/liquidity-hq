@@ -88,8 +88,8 @@ export default function OnChainScore() {
     setError('');
     try {
       const sb = getSupabase();
-      const { data: { session: s } } = await (sb?.auth.getSession() ?? Promise.resolve({ data: { session: null } }));
-      const token = s?.access_token ?? '';
+      const session = sb ? (await sb.auth.getSession()).data.session : null;
+      const token = session?.access_token ?? '';
 
       const res = await fetch(`/api/onchain?price=${btcPrice}`, {
         headers: { Authorization: `Bearer ${token}` },

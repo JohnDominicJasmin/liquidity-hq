@@ -74,7 +74,6 @@ export default function HypothesisTracker() {
   const [evidenceMap, setEvidenceMap] = useState<Record<string, Evidence[]>>({});
   const [showCreate, setShowCreate] = useState(false);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
-  const [analysisResult, setAnalysisResult] = useState<Record<string, string>>({});
 
   // Create form state
   const [cfTitle, setCfTitle] = useState('');
@@ -82,6 +81,7 @@ export default function HypothesisTracker() {
   const [cfCriteria, setCfCriteria] = useState(['', '', '']);
   const [cfTargetDate, setCfTargetDate] = useState('');
   const [cfSaving, setCfSaving] = useState(false);
+  const [cfError, setCfError] = useState('');
 
   // Evidence form state
   const [evType, setEvType] = useState<'supporting' | 'against' | 'neutral'>('supporting');
@@ -94,8 +94,10 @@ export default function HypothesisTracker() {
     setLoading(true);
     try {
       const res = await apiFetch('/api/hypotheses');
-      const json = await res.json() as { hypotheses?: Hypothesis[] };
+      const json = await res.json() as { hypotheses?: Hypothesis[]; error?: string };
       setHypotheses(json.hypotheses ?? []);
+    } catch {
+      // silently keep existing list on network error
     } finally {
       setLoading(false);
     }
@@ -112,12 +114,15 @@ export default function HypothesisTracker() {
   const toggleExpand = useCallback(async (id: string) => {
     if (expandedId === id) { setExpandedId(null); return; }
     setExpandedId(id);
+    setEvContent('');
+    setEvSource('');
     if (!evidenceMap[id]) await fetchEvidence(id);
   }, [expandedId, evidenceMap, fetchEvidence]);
 
   const createHypothesis = async () => {
     if (!cfTitle.trim() || !cfHypothesis.trim()) return;
     setCfSaving(true);
+    setCfError('');
     try {
       const res = await apiFetch('/api/hypotheses', {
         method: 'POST',
@@ -132,23 +137,32 @@ export default function HypothesisTracker() {
         setCfTitle(''); setCfHypothesis(''); setCfCriteria(['', '', '']); setCfTargetDate('');
         setShowCreate(false);
         await fetchHypotheses();
+      } else {
+        const e = await res.json().catch(() => ({})) as { error?: string };
+        setCfError(e.error ?? 'Failed to save hypothesis');
       }
+    } catch {
+      setCfError('Network error — please try again');
     } finally { setCfSaving(false); }
   };
 
   const deleteHypothesis = async (id: string) => {
     if (!confirm('Delete this hypothesis and all its evidence?')) return;
-    await apiFetch(`/api/hypotheses/${id}`, { method: 'DELETE' });
-    setHypotheses(prev => prev.filter(h => h.id !== id));
-    if (expandedId === id) setExpandedId(null);
+    const res = await apiFetch(`/api/hypotheses/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      setHypotheses(prev => prev.filter(h => h.id !== id));
+      if (expandedId === id) setExpandedId(null);
+    }
   };
 
   const updateStatus = async (id: string, status: string) => {
-    await apiFetch(`/api/hypotheses/${id}`, {
+    const res = await apiFetch(`/api/hypotheses/${id}`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });
-    setHypotheses(prev => prev.map(h => h.id === id ? { ...h, status: status as Hypothesis['status'] } : h));
+    if (res.ok) {
+      setHypotheses(prev => prev.map(h => h.id === id ? { ...h, status: status as Hypothesis['status'] } : h));
+    }
   };
 
   const addEvidence = async (hypothesisId: string) => {
@@ -167,27 +181,24 @@ export default function HypothesisTracker() {
   };
 
   const deleteEvidence = async (hypothesisId: string, evidenceId: string) => {
-    await apiFetch(`/api/hypotheses/${hypothesisId}/evidence?evidenceId=${evidenceId}`, { method: 'DELETE' });
-    setEvidenceMap(prev => ({
-      ...prev,
-      [hypothesisId]: (prev[hypothesisId] ?? []).filter(e => e.id !== evidenceId),
-    }));
+    const res = await apiFetch(`/api/hypotheses/${hypothesisId}/evidence?evidenceId=${evidenceId}`, { method: 'DELETE' });
+    if (res.ok) {
+      setEvidenceMap(prev => ({
+        ...prev,
+        [hypothesisId]: (prev[hypothesisId] ?? []).filter(e => e.id !== evidenceId),
+      }));
+    }
   };
 
   const runAnalysis = async (id: string) => {
     setAnalyzingId(id);
     try {
       const res = await apiFetch(`/api/hypotheses/${id}/analyze`, { method: 'POST' });
-      const json = await res.json() as {
-        verdict?: string;
-        key_insight?: string;
-        next_check?: string;
-        full_analysis?: string;
-        status?: string;
-      };
+      const json = await res.json() as { verdict?: string; status?: string };
       if (json.verdict) {
-        setAnalysisResult(prev => ({ ...prev, [id]: json.full_analysis ?? '' }));
         await fetchHypotheses();
+        // re-fetch evidence so the expanded card reflects any DB changes
+        await fetchEvidence(id);
       }
     } finally { setAnalyzingId(null); }
   };
@@ -296,6 +307,9 @@ export default function HypothesisTracker() {
             />
           </div>
 
+          {cfError && (
+            <div style={{ fontSize: 11, color: '#f87171', marginBottom: 8 }}>{cfError}</div>
+          )}
           <button
             onClick={createHypothesis}
             disabled={cfSaving || !cfTitle.trim() || !cfHypothesis.trim()}
