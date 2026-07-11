@@ -334,6 +334,7 @@ export default function NavDrawer() {
         {[
           { path: '/dashboard', label: 'Dashboard', icon: '⊞' },
           { path: '/arena',     label: 'Arena',     icon: '⚡' },
+          { path: '/briefing',  label: 'Briefing',  icon: '☀' },
           { path: '/news',      label: 'News',      icon: '◉'  },
         ].map(item => (
           <Link
