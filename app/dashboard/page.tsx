@@ -659,7 +659,7 @@ export default function Dashboard() {
 
         {/* 7. Market Context — Cycle, BTC Risk, GEX, Macro */}
         <div className="dash-section" style={{ marginTop: 8 }}>Market Context</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 10 }}>
           <div className="mb-glow-card" style={{ borderRadius: 10 }}><CycleDayCounter /></div>
           <div className="mb-glow-card" style={{ borderRadius: 10 }}><BtcRiskLevel /></div>
         </div>

@@ -3660,6 +3660,17 @@ body.landing {
   .mkt-col-spark, .mkt-col-pressure { display: none !important; }
 }
 
+/* ── DASHBOARD — mobile fixes ────────────────────────────────────────── */
+@media (max-width: 480px) {
+  /* AccumulationTracker: hide price+change columns so reason badges have room */
+  .at-price, .at-change { display: none !important; }
+  /* SessionContext expiry row: reduce padding so "Monthly expiry" fits in 375px */
+  .sctx-evt { padding: 0 6px !important; }
+  .sctx-evt:first-child { padding-left: 0 !important; }
+  .sctx-evt:last-child  { padding-right: 0 !important; }
+  .sctx-evt-label { letter-spacing: 0.03em !important; }
+}
+
 /* ── LANDING PAGE — root & reset ────────────────────────────────────── */
 /* Force dark palette regardless of user's saved theme */
 .lp-root {

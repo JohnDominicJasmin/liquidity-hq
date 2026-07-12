@@ -141,13 +141,13 @@ export default function AccumulationTracker() {
                   </span>
                 ))}
               </span>
-              <span style={{
+              <span className="at-price" style={{
                 fontFamily: 'var(--font-mono), monospace', fontSize: 11, color: 'var(--txt2)',
                 flexShrink: 0, fontVariantNumeric: 'tabular-nums',
               }}>
                 ${fmtPrice(r.price, COIN_DEC[r.id])}
               </span>
-              <span style={{
+              <span className="at-change" style={{
                 fontSize: 10, fontWeight: 600, flexShrink: 0, width: 48, textAlign: 'right',
                 color: r.change >= 0 ? '#4ade80' : '#f87171', fontVariantNumeric: 'tabular-nums',
               }}>

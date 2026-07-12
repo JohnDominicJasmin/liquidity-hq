@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOnboarding } from './OnboardingProvider';
 import { useAuth } from './AuthProvider';
@@ -14,9 +14,10 @@ const ITEMS = [
 export default function SetupChecklist() {
   const { user } = useAuth();
   const { state, loaded, allDone } = useOnboarding();
-  const [collapsed, setCollapsed] = useState(() =>
-    typeof window !== 'undefined' && window.innerWidth < 640
-  );
+  const [collapsed, setCollapsed] = useState(true);
+  useEffect(() => {
+    if (window.innerWidth >= 640) setCollapsed(false);
+  }, []);
   const router = useRouter();
 
   // Hidden until: logged in, data loaded, tour seen, and not all done yet
