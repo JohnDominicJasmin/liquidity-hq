@@ -1741,6 +1741,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 @media (max-width: 480px) {
   .liq-stat-sep { margin: 0 6px; }
   .liq-stat-label { font-size: 9px; letter-spacing: 0.02em; }
+  .liq-section-hdr { flex-wrap: wrap; }
 }
 
 /* ── Edge Signals (CB Premium · VWAP · OI Trend) ── */
@@ -2255,11 +2256,13 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .liq-src-bb { background: rgba(123,104,238,0.15); color: #7b68ee; }
 
 @media (max-width: 480px) {
+  .liqfeed-header { flex-wrap: wrap; gap: 2px 0; }
   .liqfeed-row {
     grid-template-columns: 44px 76px 1fr 76px 44px;
     padding: 6px 10px;
     gap: 4px;
   }
+  .liqfeed-row .liq-src { display: none; }
   .scan-stats { grid-template-columns: repeat(2, 1fr); }
   .liq-cluster-row { grid-template-columns: 68px 1fr 48px 14px; gap: 6px; }
 }
