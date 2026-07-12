@@ -536,9 +536,9 @@ export default function LiqPage() {
                 <div style={{
                   padding: '10px 16px 8px',
                   borderBottom: '0.5px solid var(--bdr)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 8px',
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--txt)' }}>
                       Whale Positioning
                     </span>
@@ -552,7 +552,7 @@ export default function LiqPage() {
                       {whaleSide === 'long' ? 'Whale Long' : 'Whale Short'}
                     </span>
                   </div>
-                  <span style={{ fontSize: 10, color: 'var(--txt3)' }}>
+                  <span style={{ fontSize: 10, color: 'var(--txt3)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
                     Binance top traders · position-weighted · {whalePos != null ? RANGE_TO_PERIOD[range] : '5m'}
                   </span>
                 </div>

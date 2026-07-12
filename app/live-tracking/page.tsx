@@ -97,54 +97,58 @@ export default function LiveTrackingPage() {
           </div>
 
           <div className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Per-Coin Breakdown</div>
-          <table className="frh-table" style={{ marginBottom: 24 }}>
-            <thead>
-              <tr>
-                <th>Coin</th><th>Trades</th><th>Win Rate</th><th>Avg R</th><th>Profit Factor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...perCoin.entries()].map(([coin, coinRows]) => {
-                const s = computeStats(coinRows.map(rowToTrade));
-                return (
-                  <tr key={coin}>
-                    <td style={{ fontWeight: 600 }}>{coin.toUpperCase()}</td>
-                    <td>{s.totalTrades} ({s.wins}W/{s.losses}L/{s.open} open)</td>
-                    <td style={{ color: s.winRate >= 0.5 ? '#34d399' : '#f87171' }}>{fmtPct(s.winRate)}</td>
-                    <td style={{ color: s.avgR >= 0 ? '#34d399' : '#f87171' }}>{fmtR(s.avgR)}</td>
-                    <td>{isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div style={{ overflowX: 'auto', marginBottom: 24 }}>
+            <table className="frh-table">
+              <thead>
+                <tr>
+                  <th>Coin</th><th>Trades</th><th>Win Rate</th><th>Avg R</th><th>Profit Factor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...perCoin.entries()].map(([coin, coinRows]) => {
+                  const s = computeStats(coinRows.map(rowToTrade));
+                  return (
+                    <tr key={coin}>
+                      <td style={{ fontWeight: 600 }}>{coin.toUpperCase()}</td>
+                      <td>{s.totalTrades} ({s.wins}W/{s.losses}L/{s.open} open)</td>
+                      <td style={{ color: s.winRate >= 0.5 ? '#34d399' : '#f87171' }}>{fmtPct(s.winRate)}</td>
+                      <td style={{ color: s.avgR >= 0 ? '#34d399' : '#f87171' }}>{fmtR(s.avgR)}</td>
+                      <td>{isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
           <div className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Recent Signals</div>
-          <table className="frh-table">
-            <thead>
-              <tr>
-                <th>Coin</th><th>TF</th><th>Dir</th><th>Entry</th><th>Signal Time</th><th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recent.map(r => {
-                const statusCol = r.outcome === 'win' ? '#34d399' : r.outcome === 'loss' ? '#f87171' : 'var(--txt3)';
-                const statusLabel = r.outcome === 'win' ? `WIN (${r.r_multiple != null ? '+' + r.r_multiple.toFixed(2) + 'R' : ''})`
-                  : r.outcome === 'loss' ? 'LOSS (-1R)'
-                  : 'OPEN';
-                return (
-                  <tr key={r.id}>
-                    <td style={{ fontWeight: 600 }}>{r.coin.toUpperCase()}</td>
-                    <td>{r.tf.toUpperCase()}</td>
-                    <td style={{ color: r.dir === 'long' ? '#34d399' : '#f87171' }}>{r.dir.toUpperCase()}</td>
-                    <td>${r.entry_price.toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
-                    <td style={{ fontSize: 11, opacity: 0.6 }}>{new Date(r.signal_time).toLocaleString()}</td>
-                    <td style={{ color: statusCol, fontWeight: 600 }}>{statusLabel}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="frh-table">
+              <thead>
+                <tr>
+                  <th>Coin</th><th>TF</th><th>Dir</th><th>Entry</th><th>Signal Time</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recent.map(r => {
+                  const statusCol = r.outcome === 'win' ? '#34d399' : r.outcome === 'loss' ? '#f87171' : 'var(--txt3)';
+                  const statusLabel = r.outcome === 'win' ? `WIN (${r.r_multiple != null ? '+' + r.r_multiple.toFixed(2) + 'R' : ''})`
+                    : r.outcome === 'loss' ? 'LOSS (-1R)'
+                    : 'OPEN';
+                  return (
+                    <tr key={r.id}>
+                      <td style={{ fontWeight: 600 }}>{r.coin.toUpperCase()}</td>
+                      <td>{r.tf.toUpperCase()}</td>
+                      <td style={{ color: r.dir === 'long' ? '#34d399' : '#f87171' }}>{r.dir.toUpperCase()}</td>
+                      <td>${r.entry_price.toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
+                      <td style={{ fontSize: 11, opacity: 0.6 }}>{new Date(r.signal_time).toLocaleString()}</td>
+                      <td style={{ color: statusCol, fontWeight: 600 }}>{statusLabel}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
     </div>

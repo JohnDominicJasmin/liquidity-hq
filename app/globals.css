@@ -1709,7 +1709,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .liq-current-price { font-size: 20px; font-weight: 800; color: #fff; font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; }
 .liq-current-chg { font-size: 12px; font-weight: 700; }
 .liq-current-tag { font-size: 10px; font-weight: 700; color: var(--purple); background: var(--purple-bg); border: 0.5px solid var(--purple-bdr); padding: 2px 7px; border-radius: 6px; letter-spacing: 0.06em; animation: liq-pulse 2s infinite; }
-.liq-current-oi { font-size: 11px; color: var(--txt3); margin-left: auto; font-weight: 600; }
+.liq-current-oi { font-size: 11px; color: var(--txt3); margin-left: auto; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 
 .liq-row { display: grid; grid-template-columns: 72px 30px 38px 1fr 48px; align-items: center; gap: 5px; padding: 3.5px 14px; border-bottom: 0.5px solid rgba(255,255,255,0.02); transition: background 0.12s; }
 .liq-row:last-child { border-bottom: none; }
@@ -1731,6 +1731,10 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .liq-howto-row:last-child { margin-bottom: 0; }
 .liq-howto-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
 .liq-disclaimer { font-size: 10px; color: var(--txt3); line-height: 1.6; padding: 4px 0 14px; }
+@media (max-width: 480px) {
+  .liq-stat-sep { margin: 0 6px; }
+  .liq-stat-label { font-size: 9px; letter-spacing: 0.02em; }
+}
 
 /* ── Edge Signals (CB Premium · VWAP · OI Trend) ── */
 .edge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-bottom: 8px; }

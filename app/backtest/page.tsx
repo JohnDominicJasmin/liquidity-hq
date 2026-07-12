@@ -343,52 +343,56 @@ export default function BacktestPage() {
           <p style={{ fontSize: 11, opacity: 0.4, marginBottom: 8 }}>
             Each row requires WaveTrend to also agree before counting an Anti-Chop ON signal as a trade. Compare against the Anti-Chop ON baseline above ({fmtPct(result.antiChopOn.stats.winRate)} win rate, {result.antiChopOn.stats.totalTrades} trades, PF {isFinite(result.antiChopOn.stats.profitFactor) ? result.antiChopOn.stats.profitFactor.toFixed(2) : '∞'}).
           </p>
-          <table className="frh-table" style={{ marginBottom: 24 }}>
-            <thead>
-              <tr>
-                <th>Variant</th><th>Trades</th><th>Win Rate</th><th>Avg R</th><th>Profit Factor</th><th>Max DD</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(result.waveTrendVariants).map(([name, side]) => {
-                const s = side.stats;
-                const beatsBaseline = isFinite(s.profitFactor) && s.profitFactor > result.antiChopOn.stats.profitFactor;
-                return (
-                  <tr key={name}>
-                    <td style={{ fontWeight: 600 }}>{WT_VARIANT_LABELS[name] ?? name}{beatsBaseline ? <span style={{ color: '#4ade80' }}> ▲</span> : ''}</td>
-                    <td>{s.totalTrades} ({s.wins}W/{s.losses}L)</td>
-                    <td style={{ color: s.winRate >= 0.5 ? '#34d399' : '#f87171' }}>{fmtPct(s.winRate)}</td>
-                    <td style={{ color: s.avgR >= 0 ? '#34d399' : '#f87171' }}>{fmtR(s.avgR)}</td>
-                    <td style={{ color: beatsBaseline ? '#34d399' : 'var(--txt)' }}>{isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}</td>
-                    <td>-{s.maxDrawdownR.toFixed(2)}R</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div style={{ overflowX: 'auto', marginBottom: 24 }}>
+            <table className="frh-table">
+              <thead>
+                <tr>
+                  <th>Variant</th><th>Trades</th><th>Win Rate</th><th>Avg R</th><th>Profit Factor</th><th>Max DD</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(result.waveTrendVariants).map(([name, side]) => {
+                  const s = side.stats;
+                  const beatsBaseline = isFinite(s.profitFactor) && s.profitFactor > result.antiChopOn.stats.profitFactor;
+                  return (
+                    <tr key={name}>
+                      <td style={{ fontWeight: 600 }}>{WT_VARIANT_LABELS[name] ?? name}{beatsBaseline ? <span style={{ color: '#4ade80' }}> ▲</span> : ''}</td>
+                      <td>{s.totalTrades} ({s.wins}W/{s.losses}L)</td>
+                      <td style={{ color: s.winRate >= 0.5 ? '#34d399' : '#f87171' }}>{fmtPct(s.winRate)}</td>
+                      <td style={{ color: s.avgR >= 0 ? '#34d399' : '#f87171' }}>{fmtR(s.avgR)}</td>
+                      <td style={{ color: beatsBaseline ? '#34d399' : 'var(--txt)' }}>{isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}</td>
+                      <td>-{s.maxDrawdownR.toFixed(2)}R</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
           <div className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Per-Coin Breakdown (Anti-Chop ON)</div>
-          <table className="frh-table">
-            <thead>
-              <tr>
-                <th>Coin</th><th>Trades</th><th>Win Rate</th><th>Avg R</th><th>Profit Factor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.coins.filter(c => result.antiChopOn.perCoin[c]).map(c => {
-                const s = result.antiChopOn.perCoin[c]!;
-                return (
-                  <tr key={c}>
-                    <td style={{ fontWeight: 600 }}>{c.toUpperCase()}</td>
-                    <td>{s.totalTrades} ({s.wins}W/{s.losses}L)</td>
-                    <td style={{ color: s.winRate >= 0.5 ? '#34d399' : '#f87171' }}>{fmtPct(s.winRate)}</td>
-                    <td style={{ color: s.avgR >= 0 ? '#34d399' : '#f87171' }}>{fmtR(s.avgR)}</td>
-                    <td>{isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="frh-table">
+              <thead>
+                <tr>
+                  <th>Coin</th><th>Trades</th><th>Win Rate</th><th>Avg R</th><th>Profit Factor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.coins.filter(c => result.antiChopOn.perCoin[c]).map(c => {
+                  const s = result.antiChopOn.perCoin[c]!;
+                  return (
+                    <tr key={c}>
+                      <td style={{ fontWeight: 600 }}>{c.toUpperCase()}</td>
+                      <td>{s.totalTrades} ({s.wins}W/{s.losses}L)</td>
+                      <td style={{ color: s.winRate >= 0.5 ? '#34d399' : '#f87171' }}>{fmtPct(s.winRate)}</td>
+                      <td style={{ color: s.avgR >= 0 ? '#34d399' : '#f87171' }}>{fmtR(s.avgR)}</td>
+                      <td>{isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
 
@@ -444,27 +448,29 @@ export default function BacktestPage() {
           </div>
 
           <div className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Per-Coin Breakdown</div>
-          <table className="frh-table">
-            <thead>
-              <tr>
-                <th>Coin</th><th>Trades</th><th>Win Rate</th><th>Avg R</th><th>Profit Factor</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ofResult.coins.filter(c => ofResult.side.perCoin[c]).map(c => {
-                const s = ofResult.side.perCoin[c]!;
-                return (
-                  <tr key={c}>
-                    <td style={{ fontWeight: 600 }}>{c.toUpperCase()}</td>
-                    <td>{s.totalTrades} ({s.wins}W/{s.losses}L)</td>
-                    <td style={{ color: s.winRate >= 0.5 ? '#34d399' : '#f87171' }}>{fmtPct(s.winRate)}</td>
-                    <td style={{ color: s.avgR >= 0 ? '#34d399' : '#f87171' }}>{fmtR(s.avgR)}</td>
-                    <td>{isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="frh-table">
+              <thead>
+                <tr>
+                  <th>Coin</th><th>Trades</th><th>Win Rate</th><th>Avg R</th><th>Profit Factor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ofResult.coins.filter(c => ofResult.side.perCoin[c]).map(c => {
+                  const s = ofResult.side.perCoin[c]!;
+                  return (
+                    <tr key={c}>
+                      <td style={{ fontWeight: 600 }}>{c.toUpperCase()}</td>
+                      <td>{s.totalTrades} ({s.wins}W/{s.losses}L)</td>
+                      <td style={{ color: s.winRate >= 0.5 ? '#34d399' : '#f87171' }}>{fmtPct(s.winRate)}</td>
+                      <td style={{ color: s.avgR >= 0 ? '#34d399' : '#f87171' }}>{fmtR(s.avgR)}</td>
+                      <td>{isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
 
