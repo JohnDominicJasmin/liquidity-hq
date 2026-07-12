@@ -1263,14 +1263,14 @@ function ArenaContent() {
             </div>
 
             {/* Column header */}
-            <div style={{
+            <div className="scanner-flyout-grid" style={{
               display: 'grid', gridTemplateColumns: '1fr 78px 44px 44px 72px 32px',
               padding: '6px 12px',
               borderBottom: '0.5px solid rgba(255,255,255,0.06)',
               background: 'rgba(255,255,255,0.02)',
             }}>
               {[['Name', 'left'], ['Price', 'right'], ['24h', 'right'], ['vs BTC', 'right'], ['Status', 'right'], ['Score', 'right']].map(([h, align]) => (
-                <span key={h} style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: '#333', textAlign: align as 'left' | 'right' }}>{h}</span>
+                <span key={h} className={h === 'vs BTC' ? 'scanner-flyout-vsbtc' : undefined} style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: '#333', textAlign: align as 'left' | 'right' }}>{h}</span>
               ))}
             </div>
 
@@ -1287,6 +1287,7 @@ function ArenaContent() {
               return (
                 <button
                   key={c}
+                  className="scanner-flyout-grid"
                   onClick={() => {
                     setSelectedCoin(c); setScannerOpen(false); setScannerSearch(''); window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'coins' }));
                   }}
@@ -1343,7 +1344,7 @@ function ArenaContent() {
                     {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : '—'}
                   </span>
                   {/* vs BTC */}
-                  <span style={{ fontSize: 10, fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: vsBtcColor }}>
+                  <span className="scanner-flyout-vsbtc" style={{ fontSize: 10, fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: vsBtcColor }}>
                     {vsBtc != null ? (vsBtc >= 0 ? '+' : '') + vsBtc.toFixed(1) + '%' : c === 'btc' ? '—' : '—'}
                   </span>
                   {/* Status */}
