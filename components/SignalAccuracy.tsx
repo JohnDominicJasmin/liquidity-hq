@@ -83,10 +83,11 @@ export default function SignalAccuracy() {
 
       {/* Column headers */}
       {data?.stats && data.stats.length > 0 && (
-        <>
+        <div style={{ overflowX: 'auto' }}>
           <div style={{
             display: 'grid',
             gridTemplateColumns: '1fr 52px 80px 80px 64px',
+            minWidth: 340,
             padding: '5px 14px',
             borderBottom: '0.5px solid rgba(255,255,255,0.05)',
             background: 'rgba(255,255,255,0.02)',
@@ -114,6 +115,7 @@ export default function SignalAccuracy() {
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '1fr 52px 80px 80px 64px',
+                  minWidth: 340,
                   alignItems: 'center',
                   padding: '8px 14px',
                   borderBottom: '0.5px solid rgba(255,255,255,0.04)',
@@ -161,7 +163,7 @@ export default function SignalAccuracy() {
               Win Rate = % of signals where price moved in the expected direction after 12h or 24h
             </span>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
