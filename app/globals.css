@@ -3654,6 +3654,12 @@ body.landing {
   to   { opacity: 1; transform: scale(1); }
 }
 
+/* ── MARKETS PAGE — mobile grid ─────────────────────────────────────── */
+@media (max-width: 480px) {
+  .mkt-row, .mkt-hdr-row { grid-template-columns: 28px 1fr 96px 58px 1fr !important; }
+  .mkt-col-spark, .mkt-col-pressure { display: none !important; }
+}
+
 /* ── LANDING PAGE — root & reset ────────────────────────────────────── */
 /* Force dark palette regardless of user's saved theme */
 .lp-root {

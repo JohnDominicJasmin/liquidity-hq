@@ -95,7 +95,7 @@ export default function PricesPage() {
                   </span>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {d?.vol24 != null && (
                   <span style={{ fontSize: 9, color: 'var(--txt3)', opacity: 0.7 }}>
                     Vol {fmtVol(d.vol24)}

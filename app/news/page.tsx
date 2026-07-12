@@ -592,8 +592,9 @@ export default function NewsPage() {
                   </span>
                   {g.isToday && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 8, background: 'rgba(251,191,36,0.12)', color: 'var(--amber)', fontWeight: 600 }}>LIVE</span>}
                 </div>
+                <div style={{ overflowX: 'auto' }}>
                 {/* Column headers */}
-                <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr 72px 72px 72px 52px', gap: 4, padding: '4px 8px', fontSize: 10, color: 'var(--txt3)', fontWeight: 600, letterSpacing: '0.04em' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr 72px 72px 72px 52px', gap: 4, padding: '4px 8px', fontSize: 10, color: 'var(--txt3)', fontWeight: 600, letterSpacing: '0.04em', minWidth: 370 }}>
                   <span>TIME (PHT)</span><span>EVENT</span><span style={{ textAlign: 'right' }}>PREV</span><span style={{ textAlign: 'right' }}>EST</span><span style={{ textAlign: 'right' }}>ACTUAL</span><span style={{ textAlign: 'center' }}>IMPACT</span>
                 </div>
                 {/* Rows */}
@@ -607,7 +608,7 @@ export default function NewsPage() {
                   return (
                     <div key={ei} style={{
                       display: 'grid', gridTemplateColumns: '70px 1fr 72px 72px 72px 52px',
-                      gap: 4, padding: '10px 8px',
+                      gap: 4, padding: '10px 8px', minWidth: 370,
                       borderLeft: `3px solid ${past && !urgent ? 'var(--border)' : borderColor}`,
                       borderBottom: '1px solid var(--border)',
                       opacity: past && !urgent ? 0.55 : 1,
@@ -629,6 +630,7 @@ export default function NewsPage() {
                     </div>
                   );
                 })}
+                </div>
               </div>
             ));
           })()}

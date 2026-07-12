@@ -167,7 +167,7 @@ export default function MarketsPage() {
         </div>
 
         {/* Column headers */}
-        <div className="mkt-mono" style={{
+        <div className="mkt-mono mkt-hdr-row" style={{
           display: 'grid',
           gridTemplateColumns: ROW_COLS,
           padding: '0 10px 6px',
@@ -177,10 +177,10 @@ export default function MarketsPage() {
         }}>
           <div />
           <div style={{ paddingLeft: 10 }}>Coin</div>
-          <div />
+          <div className="mkt-col-spark" />
           <div style={{ textAlign: 'right' }}>Price</div>
           <div style={{ textAlign: 'right' }}>24h</div>
-          <div style={{ paddingLeft: 4 }}>Pressure</div>
+          <div className="mkt-col-pressure" style={{ paddingLeft: 4 }}>Pressure</div>
           <div style={{ paddingLeft: 12 }}>Signal</div>
         </div>
 
@@ -239,7 +239,7 @@ export default function MarketsPage() {
               </div>
 
               {/* Sparkline */}
-              <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div className="mkt-col-spark" style={{ display: 'flex', justifyContent: 'center' }}>
                 <Sparkline24h coin={id} width={34} height={14} />
               </div>
 
@@ -257,7 +257,7 @@ export default function MarketsPage() {
               </div>
 
               {/* Pressure bar */}
-              <div style={{ paddingLeft: 4, paddingRight: 8 }}>
+              <div className="mkt-col-pressure" style={{ paddingLeft: 4, paddingRight: 8 }}>
                 <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2 }}>
                   <div style={{ height: '100%', width: tbp + '%', background: barCol, borderRadius: 2, transition: 'width 0.5s' }} />
                 </div>
