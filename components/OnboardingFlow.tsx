@@ -14,7 +14,7 @@ type Acct       = '1k5k' | '5k25k' | '25k100k' | '100kplus';
 type Challenge  = 'read_signals' | 'entry_exit' | 'risk_management' | 'discipline';
 type Heard      = 'social' | 'youtube' | 'tiktok' | 'search' | 'word' | 'other';
 
-const ACCENT   = '#5a6aff';
+const ACCENT   = '#1a7aff';
 const DONE_CLR = '#4ade80';
 
 const STEP_META = [
