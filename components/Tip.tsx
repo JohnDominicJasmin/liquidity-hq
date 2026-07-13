@@ -8,7 +8,7 @@ interface TipProps {
   iconColor?: string;
 }
 
-export default function Tip({ text, children, width = 230, iconColor = 'rgba(255,255,255,0.2)' }: TipProps) {
+export default function Tip({ text, children, width = 230, iconColor = 'var(--txt3)' }: TipProps) {
   const [open, setOpen]   = useState(false);
   const [above, setAbove] = useState(false);
   const [coords, setCoords] = useState({ top: 0, bottom: 0, left: 0 });
@@ -54,7 +54,7 @@ export default function Tip({ text, children, width = 230, iconColor = 'rgba(255
           userSelect: 'none',
           transition: 'color 0.15s',
         }}
-          onMouseEnter={e => { (e.currentTarget as HTMLSpanElement).style.color = 'rgba(155,164,255,0.85)'; }}
+          onMouseEnter={e => { (e.currentTarget as HTMLSpanElement).style.color = 'var(--accent)'; }}
           onMouseLeave={e => { (e.currentTarget as HTMLSpanElement).style.color = iconColor; }}
         >ⓘ</span>
       </span>

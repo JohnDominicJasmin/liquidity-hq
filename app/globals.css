@@ -3242,9 +3242,19 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 /* Card elevation in light mode */
 [data-theme="light"] .card { box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(0,0,0,0.05); }
 
-/* News ticker — keep dark in light mode but ensure borders read */
-[data-theme="light"] .news-ticker { border-bottom-color: rgba(0,0,0,0.15); }
+/* News ticker — adapt to light mode */
+[data-theme="light"] .news-ticker { background: #fff; border-bottom-color: rgba(0,0,0,0.10); }
 [data-theme="light"] .ticker-sep  { background: rgba(0,0,0,0.15); }
+[data-theme="light"] .ticker-red    { border-bottom-color: rgba(185,28,28,0.25); }
+[data-theme="light"] .ticker-amber  { border-bottom-color: rgba(180,83,9,0.25); }
+[data-theme="light"] .ticker-purple { border-bottom-color: rgba(0,82,204,0.25); }
+[data-theme="light"] .ticker-red .ticker-badge,
+[data-theme="light"] .ticker-amber .ticker-badge,
+[data-theme="light"] .ticker-purple .ticker-badge { color: #fff; }
+[data-theme="light"] .ticker-content span               { color: var(--txt2); }
+[data-theme="light"] .ticker-red    .ticker-content span { color: var(--red); }
+[data-theme="light"] .ticker-amber  .ticker-content span { color: var(--amber); }
+[data-theme="light"] .ticker-purple .ticker-content span { color: var(--accent); }
 
 /* Nav divider — rgba(white) is invisible on light bg */
 [data-theme="light"] .nav-divider { background: rgba(0,0,0,0.07); }
