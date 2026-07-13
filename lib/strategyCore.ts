@@ -195,14 +195,17 @@ export function detectEMASignals(
     const e50k = e50arr[k];
     const sl = dir === 'long' ? e50k * (1 - SL_BUF) : e50k * (1 + SL_BUF);
     const tp = dir === 'long' ? fillPrice + (fillPrice - sl) * 2 : fillPrice - (sl - fillPrice) * 2;
+    // Chart marker is placed at the ARM candle (EMA9/20 cross) so traders see
+    // the signal as soon as momentum shifts — not delayed to the EMA50
+    // confirmation candle. Entry/SL/TP/backtest fill still use candle k onward.
     return {
-      timestamp: candles[k].time,
+      timestamp: candles[armIndex].time,
       index: k,
       fillIndex,
       fillPrice,
       armIndex,
       dir,
-      anchorPrice: dir === 'long' ? candles[k].low : candles[k].high,
+      anchorPrice: dir === 'long' ? candles[armIndex].low : candles[armIndex].high,
       entryPrice, sl, tp,
     };
   };
