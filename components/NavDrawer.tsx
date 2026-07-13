@@ -50,11 +50,11 @@ function SessionPill() {
 /* ── Nav data ──────────────────────────────────────────────────────────────── */
 const PRIMARY = [
   { path: '/dashboard', label: 'Dashboard' },
+  { path: '/arena',     label: 'Arena'     },
   { path: '/briefing',  label: 'Briefing'  },
 ];
 
 const SCANNERS = [
-  { path: '/arena',       label: 'LiquidityAI'       },
   { path: '/scanner',     label: 'Setup Scanner'     },
   { path: '/liq',         label: 'Liquidation Map'   },
   { path: '/funding',     label: 'FR History'        },
@@ -87,7 +87,7 @@ const MOBILE_NAV: NavEntry[] = [
   { path: '/briefing',  label: 'Briefing'  },
 
   { header: 'Analysis' },
-  { path: '/arena',       label: 'LiquidityAI'       },
+  { path: '/arena',       label: 'Arena'              },
   { path: '/scanner',     label: 'Setup Scanner'     },
   { path: '/liq',         label: 'Liquidation Map'   },
   { path: '/funding',     label: 'FR History'        },
