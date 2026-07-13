@@ -516,21 +516,34 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const { dir } = overlay.extendData as { dir: 'bullish' | 'bearish' };
             const coord = coordinates[0];
             if (!coord || !isFinite(coord.x) || !isFinite(coord.y) || coord.y < 0) return [];
-            const x = coord.x;
+            const cx = coord.x;
             // bearish warning sits above price (potential top); bullish sits below (potential bottom)
-            const y = dir === 'bearish' ? coord.y - 22 : coord.y + 22;
-            const r = 7;
+            const cy = dir === 'bearish' ? coord.y - 24 : coord.y + 24;
+            // N-gon approximating a circle — used to build the ring layers
+            const ring = (r: number, n = 16): Array<{ x: number; y: number }> => {
+              const pts: Array<{ x: number; y: number }> = [];
+              for (let i = 0; i < n; i++) {
+                const a = (2 * Math.PI / n) * i - Math.PI / 2;
+                pts.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+              }
+              return pts;
+            };
+            // Chevron direction: V-down for bearish (potential top), V-up for bullish (potential bottom)
+            const v = dir === 'bearish'
+              ? [{ x: cx - 3.5, y: cy - 2.5 }, { x: cx, y: cy + 2.5 }, { x: cx + 3.5, y: cy - 2.5 }]
+              : [{ x: cx - 3.5, y: cy + 2.5 }, { x: cx, y: cy - 2.5 }, { x: cx + 3.5, y: cy + 2.5 }];
             return [
-              {
-                type: 'polygon',
-                attrs: { coordinates: [{ x, y: y - r }, { x: x + r, y }, { x, y: y + r }, { x: x - r, y }] },
-                styles: { style: 'fill', color: '#fbbf24' },
-              },
-              {
-                type: 'text',
-                attrs: { x, y, text: '?', align: 'center', baseline: 'middle' },
-                styles: { color: '#1a1400', size: 10, weight: 'bold', backgroundColor: 'transparent' },
-              },
+              // Outer glow ring
+              { type: 'polygon', attrs: { coordinates: ring(12) }, styles: { style: 'stroke', borderColor: 'rgba(251,191,36,0.15)', borderSize: 5 } },
+              // Translucent amber fill
+              { type: 'polygon', attrs: { coordinates: ring(9) }, styles: { style: 'fill', color: 'rgba(245,158,11,0.1)' } },
+              // Crisp amber ring
+              { type: 'polygon', attrs: { coordinates: ring(9) }, styles: { style: 'stroke', borderColor: '#f59e0b', borderSize: 1.5 } },
+              // Center diamond accent
+              { type: 'polygon', attrs: { coordinates: [{ x: cx, y: cy - 3 }, { x: cx + 3, y: cy }, { x: cx, y: cy + 3 }, { x: cx - 3, y: cy }] }, styles: { style: 'fill', color: '#fcd34d' } },
+              // Directional chevron (two line segments)
+              { type: 'line', attrs: { coordinates: [v[0], v[1]] }, styles: { color: '#fde68a', size: 1.5 } },
+              { type: 'line', attrs: { coordinates: [v[1], v[2]] }, styles: { color: '#fde68a', size: 1.5 } },
             ];
           },
         });
