@@ -1190,7 +1190,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           }}>
             <span style={{ color: '#f59e0b', fontWeight: 600, marginRight: 5 }}>⚠</span>
             {rwTooltip.dir === 'bearish'
-              ? 'Potential top — RSI divergence detected'
+              ? 'Trend reversal — RSI divergence detected'
               : 'Potential bottom — RSI divergence detected'}
           </div>
         )}
