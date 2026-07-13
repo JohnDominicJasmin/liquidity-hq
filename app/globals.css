@@ -3282,6 +3282,30 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
   color: var(--txt3);
 }
 
+/* News cards — rgba(white) borders invisible in light mode */
+[data-theme="light"] .ncard      { border-color: var(--bdr); }
+[data-theme="light"] .ncard-top  { border-bottom-color: var(--bdr); }
+[data-theme="light"] .ncard-hero { border-color: var(--bdr); }
+
+/* Telegram setup — rgba(white) backgrounds invisible in light mode */
+[data-theme="light"] .tg-list li code          { background: var(--bg3); }
+[data-theme="light"] .tg-copy-box              { background: var(--bg2); }
+[data-theme="light"] .tg-btn-secondary         { background: var(--bg2); }
+[data-theme="light"] .tg-btn-secondary:hover:not(:disabled) { background: var(--bg3); }
+
+/* Price alert rows — rgba(white) background invisible in light mode */
+[data-theme="light"] .pa-row { background: var(--bg2); }
+
+/* Smart Money Score verdict badge — rgba(white) background invisible */
+[data-theme="light"] .sms-verdict { background: var(--bg3); }
+
+/* Liquidation bias card — rgba(white) background invisible */
+[data-theme="light"] .liq-bias-card { background: var(--bg2); }
+
+/* Arena refresh button — rgba(white) backgrounds invisible */
+[data-theme="light"] .arena-cache-refresh       { background: var(--bg2); border-color: var(--bdr2); }
+[data-theme="light"] .arena-cache-refresh:hover { background: var(--bg3); border-color: var(--bdr2); }
+
 /* ── AUTH — Login Page ────────────────────────────────────────────────────── */
 .login-wrap {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
