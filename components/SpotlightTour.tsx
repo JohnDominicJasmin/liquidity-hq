@@ -198,37 +198,182 @@ function Step4Visual() {
   );
 }
 
-/* ── Step 5 visual: live coin scores ── */
+/* ── Step 5 visual: animated arena chart mockup ── */
 function Step5Visual() {
-  const coins = [
-    { coin: 'BTC', score: 82, type: 'SHORT_SQ', col: RED },
-    { coin: 'SOL', score: 71, type: 'SHORT_SQ', col: RED },
-    { coin: 'ETH', score: 58, type: 'LONG_LIQ', col: '#f97316' },
+  const [phase,       setPhase]       = useState(0);
+  const [markerScale, setMarkerScale] = useState(0);
+  const [pulse,       setPulse]       = useState(false);
+
+  // Staggered reveal sequence
+  useEffect(() => {
+    const ts = [
+      setTimeout(() => setPhase(1),  100),  // candles
+      setTimeout(() => setPhase(2),  420),  // EMA lines
+      setTimeout(() => setPhase(3),  740),  // signal marker
+      setTimeout(() => setPhase(4),  980),  // signal card
+      setTimeout(() => setPhase(5), 1240),  // telegram toast
+    ];
+    return () => ts.forEach(clearTimeout);
+  }, []);
+
+  // Bounce-in when marker appears
+  useEffect(() => {
+    if (phase < 3) return;
+    setMarkerScale(0);
+    const ts = [
+      setTimeout(() => setMarkerScale(1.45), 10),
+      setTimeout(() => setMarkerScale(0.82), 190),
+      setTimeout(() => setMarkerScale(1.14), 300),
+      setTimeout(() => setMarkerScale(1.0),  390),
+    ];
+    return () => ts.forEach(clearTimeout);
+  }, [phase]);
+
+  // Pulse glow ring via setInterval (works without rAF)
+  useEffect(() => {
+    if (phase < 3) return;
+    const id = setInterval(() => setPulse(p => !p), 850);
+    return () => clearInterval(id);
+  }, [phase]);
+
+  // Chart geometry — viewBox 0 0 264 84
+  const MIN_P = 38, MAX_P = 70, CH = 80;
+  const yp = (p: number) => 4 + (1 - (p - MIN_P) / (MAX_P - MIN_P)) * CH;
+
+  // [cx, open, close, high, low]
+  const CANDLES: [number, number, number, number, number][] = [
+    [14,  48, 44, 50, 43],
+    [40,  44, 47, 48, 43],
+    [66,  47, 45, 48, 44],
+    [92,  45, 49, 51, 44],
+    [118, 49, 47, 50, 46],
+    [144, 47, 53, 55, 46],
+    [170, 53, 51, 54, 49],
+    [196, 51, 56, 58, 50],
+    [222, 56, 60, 62, 55],
+    [248, 60, 66, 68, 59],  // signal candle
   ];
+  const CW = 18;
+
+  // Pre-computed EMA values (EMA9 crosses above EMA20 at candle ~5)
+  const ema9  = [47.0, 46.6, 46.3, 46.8, 47.0, 48.8, 49.4, 50.9, 52.6, 55.0];
+  const ema20 = [47.0, 46.6, 46.4, 46.7, 47.0, 47.9, 48.3, 49.1, 50.0, 51.2];
+  const ema50 = [47.0, 46.8, 46.7, 46.8, 46.9, 47.2, 47.4, 47.8, 48.3, 49.0];
+  const pts   = (vals: number[]) => CANDLES.map(([cx], i) => `${cx},${yp(vals[i]).toFixed(1)}`).join(' ');
+
+  const [sigCX, , , , sigLow] = CANDLES[CANDLES.length - 1];
+  const sigY = yp(sigLow) + 11;
+
   return (
-    <div style={{ width: '100%', background: BG2, border: `1px solid ${BDR}`, borderRadius: 12, padding: '16px' }}>
-      <div style={{ fontSize: 9, color: TXT3, fontFamily: MONO, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>
-        Live scanner right now
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {coins.map((c, i) => (
-          <div key={c.coin} style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            padding: '10px 12px', borderRadius: 8,
-            background: `${c.col}08`, border: `1px solid ${c.col}20`,
-            opacity: 0, animation: `ob-fade-up 0.3s ${i * 100 + 100}ms both`,
-          }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: TXT1, fontFamily: MONO, width: 36 }}>{c.coin}</span>
-            <span style={{
-              fontSize: 9, fontWeight: 700, padding: '2px 7px',
-              borderRadius: 100, background: `${c.col}18`, color: c.col, fontFamily: MONO,
-            }}>{c.type}</span>
-            <div style={{ flex: 1, height: 4, background: 'rgba(140,150,255,0.06)', borderRadius: 100, overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${c.score}%`, background: c.col, borderRadius: 100, opacity: 0.7 }} />
-            </div>
-            <span style={{ fontSize: 14, fontWeight: 900, color: c.col, fontFamily: MONO, width: 32, textAlign: 'right' }}>{c.score}</span>
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 7 }}>
+      {/* Chart */}
+      <div style={{ background: BG0, border: `1px solid ${BDR}`, borderRadius: 10, padding: '8px 8px 4px' }}>
+        {/* Chart header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+          <span style={{ fontSize: 9, color: TXT3, fontFamily: MONO, letterSpacing: '.08em' }}>BTCUSDT · 4H</span>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {([['EMA9', ACCENT], ['EMA20', '#f97316'], ['EMA50', TXT3]] as const).map(([l, c]) => (
+              <span key={l} style={{ fontSize: 7.5, color: c, fontFamily: MONO }}>─ {l}</span>
+            ))}
           </div>
-        ))}
+        </div>
+
+        <svg width="100%" viewBox="0 0 264 96" style={{ display: 'block', overflow: 'visible' }}>
+          {/* Subtle grid */}
+          {[22, 44, 66].map(y => (
+            <line key={y} x1="0" y1={y} x2="264" y2={y} stroke="rgba(140,150,255,0.05)" strokeWidth="0.5" />
+          ))}
+
+          {/* EMA lines — phase 2 */}
+          {phase >= 2 && <>
+            <polyline points={pts(ema50)} fill="none" stroke={TXT3}     strokeWidth="1"   strokeOpacity="0.35" />
+            <polyline points={pts(ema20)} fill="none" stroke="#f97316"  strokeWidth="1.2" strokeOpacity="0.55" />
+            <polyline points={pts(ema9)}  fill="none" stroke={ACCENT}   strokeWidth="1.5" strokeOpacity="0.9" />
+          </>}
+
+          {/* Candles — phase 1, staggered */}
+          {phase >= 1 && CANDLES.map(([cx, o, c, h, l], i) => {
+            const bull  = c >= o;
+            const col   = bull ? GREEN : RED;
+            const bTop  = yp(Math.max(o, c));
+            const bH    = Math.max(Math.abs(yp(o) - yp(c)), 1.5);
+            const isLast = i === CANDLES.length - 1;
+            return (
+              <g key={i} style={{ opacity: 1, transition: `opacity 0.22s ${i * 32}ms` }}>
+                <line x1={cx} y1={yp(h)} x2={cx} y2={yp(l)}
+                  stroke={col} strokeWidth="1.2" strokeOpacity={isLast ? 0.9 : 0.6} />
+                <rect x={cx - CW / 2} y={bTop} width={CW} height={bH} rx="1.5"
+                  fill={col} fillOpacity={isLast ? 0.92 : 0.65} />
+              </g>
+            );
+          })}
+
+          {/* Score badge above signal candle */}
+          {phase >= 3 && (
+            <g transform={`translate(${sigCX - 13}, 0)`}>
+              <rect width="26" height="13" rx="3" fill={ACCENT} />
+              <text x="13" y="9.5" fontSize="7.5" fill="white" fontWeight="800"
+                textAnchor="middle" fontFamily="var(--font-mono,'IBM Plex Mono',monospace)">87</text>
+            </g>
+          )}
+
+          {/* BUY signal marker — phase 3, bounce + pulse */}
+          {phase >= 3 && (
+            <g transform={`translate(${sigCX},${sigY}) scale(${markerScale})`}>
+              {/* Expanding glow ring */}
+              <circle r="13" fill="none" stroke={GREEN} strokeWidth="1"
+                style={{ opacity: pulse ? 0.55 : 0.08, transition: 'opacity 0.85s ease' }} />
+              {/* Inner glow disc */}
+              <circle r="7" fill={`${GREEN}1a`} />
+              {/* Upward triangle */}
+              <polygon points="0,-6.5 -5.5,3.5 5.5,3.5" fill={GREEN} />
+              {/* BUY label */}
+              <text x="9" y="2.5" fontSize="7" fill={GREEN} fontWeight="700"
+                fontFamily="var(--font-mono,'IBM Plex Mono',monospace)">BUY</text>
+            </g>
+          )}
+        </svg>
+      </div>
+
+      {/* Signal card */}
+      <div style={{
+        background: `${GREEN}08`, border: `1px solid ${GREEN}22`,
+        borderLeft: `2px solid ${GREEN}`,
+        borderRadius: 8, padding: '8px 11px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
+        opacity: phase >= 4 ? 1 : 0,
+        transform: phase >= 4 ? 'translateY(0)' : 'translateY(5px)',
+        transition: 'opacity 0.3s, transform 0.3s',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: TXT1, fontFamily: MONO }}>BTC</span>
+          <span style={{
+            fontSize: 8, padding: '2px 7px', borderRadius: 100,
+            background: `${GREEN}18`, color: GREEN, fontFamily: MONO, fontWeight: 700, letterSpacing: '.05em',
+          }}>LONG_SQ</span>
+          {(['EMA ×', 'VOL 2.1×', 'FR+'] as const).map(chip => (
+            <span key={chip} style={{
+              fontSize: 8, padding: '2px 6px', borderRadius: 4, fontFamily: MONO, fontWeight: 600,
+              background: `${ACCENT}12`, color: ACCENT, border: `1px solid ${ACCENT}22`,
+            }}>{chip}</span>
+          ))}
+        </div>
+        <span style={{ fontSize: 18, fontWeight: 900, color: GREEN, fontFamily: MONO, flexShrink: 0 }}>87</span>
+      </div>
+
+      {/* Telegram toast */}
+      <div style={{
+        background: 'rgba(34,158,217,0.06)', border: '1px solid rgba(34,158,217,0.28)',
+        borderRadius: 8, padding: '7px 12px',
+        display: 'flex', alignItems: 'center', gap: 9,
+        opacity: phase >= 5 ? 1 : 0,
+        transform: phase >= 5 ? 'translateY(0)' : 'translateY(4px)',
+        transition: 'opacity 0.3s, transform 0.3s',
+      }}>
+        <span style={{ fontSize: 14, flexShrink: 0 }}>✈</span>
+        <span style={{ fontSize: 10, fontWeight: 700, color: '#4db8e8', fontFamily: MONO }}>
+          Alert fired — BTC LONG_SQ 87/100
+        </span>
       </div>
     </div>
   );
