@@ -182,6 +182,7 @@ export default function SettingsPage() {
               <span className="st-affix">$</span>
               <input
                 className="st-input"
+                aria-label="Account Size"
                 type="number"
                 min="0"
                 placeholder="1000"
@@ -195,6 +196,7 @@ export default function SettingsPage() {
             <div className="st-input-wrap">
               <input
                 className="st-input"
+                aria-label="Risk Per Trade"
                 type="number"
                 min="0.1"
                 max="10"
@@ -237,6 +239,7 @@ export default function SettingsPage() {
           <label className="st-field-label">Default Coin</label>
           <select
             className="st-input"
+            aria-label="Default Coin"
             value={settings.default_coin}
             onChange={e => update({ default_coin: e.target.value as typeof settings.default_coin })}
           >
@@ -271,6 +274,7 @@ export default function SettingsPage() {
             <div className="st-input-wrap">
               <input
                 className="st-input"
+                aria-label="Funding Rate trigger"
                 type="number"
                 min="0.01"
                 max="0.5"
@@ -289,6 +293,7 @@ export default function SettingsPage() {
             <div className="st-input-wrap">
               <input
                 className="st-input"
+                aria-label="Extreme Fear below"
                 type="number"
                 min="1"
                 max="40"
@@ -302,6 +307,7 @@ export default function SettingsPage() {
             <div className="st-input-wrap">
               <input
                 className="st-input"
+                aria-label="Extreme Greed above"
                 type="number"
                 min="60"
                 max="99"
@@ -318,6 +324,7 @@ export default function SettingsPage() {
             <div className="st-input-wrap">
               <input
                 className="st-input"
+                aria-label="RSI 1h overbought"
                 type="number"
                 min="60"
                 max="90"
@@ -331,6 +338,7 @@ export default function SettingsPage() {
             <div className="st-input-wrap">
               <input
                 className="st-input"
+                aria-label="RSI 1h oversold"
                 type="number"
                 min="10"
                 max="40"

@@ -761,25 +761,25 @@ function Inner() {
               <div className="tj-field">
                 <label className="tj-lbl">Entry *</label>
                 <div className="tj-irow"><span className="tj-affix">$</span>
-                  <input className="tj-inp" type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
+                  <input className="tj-inp" aria-label="Entry" type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
                 </div>
               </div>
               <div className="tj-field">
                 <label className="tj-lbl">Stop Loss *</label>
                 <div className="tj-irow"><span className="tj-affix">$</span>
-                  <input className="tj-inp tj-inp-stop" type="number" placeholder="0.00" value={stopLoss} onChange={e => setStopLoss(e.target.value)} />
+                  <input className="tj-inp tj-inp-stop" aria-label="Stop Loss" type="number" placeholder="0.00" value={stopLoss} onChange={e => setStopLoss(e.target.value)} />
                 </div>
               </div>
               <div className="tj-field">
                 <label className="tj-lbl">Take Profit</label>
                 <div className="tj-irow"><span className="tj-affix">$</span>
-                  <input className="tj-inp tj-inp-tp" type="number" placeholder="0.00" value={tpPrice} onChange={e => setTpPrice(e.target.value)} />
+                  <input className="tj-inp tj-inp-tp" aria-label="Take Profit" type="number" placeholder="0.00" value={tpPrice} onChange={e => setTpPrice(e.target.value)} />
                 </div>
               </div>
               <div className="tj-field">
                 <label className="tj-lbl">Position Size ($)</label>
                 <div className="tj-irow"><span className="tj-affix">$</span>
-                  <input className="tj-inp" type="number" placeholder="from calc" value={posUSD} onChange={e => setPosUSD(e.target.value)} />
+                  <input className="tj-inp" aria-label="Position Size" type="number" placeholder="from calc" value={posUSD} onChange={e => setPosUSD(e.target.value)} />
                 </div>
               </div>
             </div>
@@ -802,6 +802,7 @@ function Inner() {
                   <input
                     type="range"
                     className="tj-lev-slider"
+                    aria-label="Leverage"
                     min={1} max={125} step={1}
                     value={leverage}
                     onChange={e => setLeverage(Number(e.target.value))}
@@ -831,6 +832,7 @@ function Inner() {
                   <input
                     type="number"
                     className="tj-lev-num"
+                    aria-label="Leverage value"
                     min={1} max={125}
                     value={leverage}
                     onChange={e => setLeverage(Math.max(1, Math.min(125, parseInt(e.target.value) || 1)))}
@@ -856,6 +858,7 @@ function Inner() {
             <div className="tj-card-lbl">Notes</div>
             <textarea
               className="tj-notes"
+              aria-label="Trade notes"
               rows={3}
               placeholder="Why you took this trade, market context, setup quality…"
               value={notes}

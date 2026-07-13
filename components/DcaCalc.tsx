@@ -66,6 +66,7 @@ export default function DcaCalc() {
                 <span className="ps-affix">$</span>
                 <input
                   className="ps-inp"
+                  aria-label={`Entry Price ${i + 1}`}
                   type="number"
                   min="0"
                   placeholder="0.00"
@@ -76,6 +77,7 @@ export default function DcaCalc() {
               <div className="ps-irow">
                 <input
                   className="ps-inp"
+                  aria-label={`Quantity ${i + 1}`}
                   type="number"
                   min="0"
                   placeholder="0.00"
@@ -118,6 +120,7 @@ export default function DcaCalc() {
               <span className="ps-affix">$</span>
               <input
                 className="ps-inp"
+                aria-label="Market Price"
                 type="number"
                 placeholder="Enter current price to calculate PnL"
                 value={currentPrice}

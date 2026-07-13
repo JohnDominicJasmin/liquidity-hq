@@ -806,6 +806,7 @@ export default function GrokChat() {
               <textarea
                 ref={inputRef}
                 className="gchat-input"
+                aria-label="Ask LiquidityAI"
                 rows={1}
                 value={input}
                 onChange={e => {

@@ -101,13 +101,13 @@ export default function PositionSizer() {
             <label className="ps-lbl">Account Size</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp" type="number" placeholder="10000" value={account} onChange={e => saveAccount(e.target.value)} />
+              <input className="ps-inp" aria-label="Account Size" type="number" placeholder="10000" value={account} onChange={e => saveAccount(e.target.value)} />
             </div>
           </div>
           <div className="ps-field ps-field-sm">
             <label className="ps-lbl">Risk %</label>
             <div className="ps-irow">
-              <input className="ps-inp" type="number" placeholder="1" step="0.1" min="0.1" max="10" value={riskPct} onChange={e => saveRisk(e.target.value)} />
+              <input className="ps-inp" aria-label="Risk Percentage" type="number" placeholder="1" step="0.1" min="0.1" max="10" value={riskPct} onChange={e => saveRisk(e.target.value)} />
               <span className="ps-affix ps-suffix">%</span>
             </div>
           </div>
@@ -132,14 +132,14 @@ export default function PositionSizer() {
             <label className="ps-lbl">Entry Price</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp" type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
+              <input className="ps-inp" aria-label="Entry Price" type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
             </div>
           </div>
           <div className="ps-field">
             <label className="ps-lbl">Stop Loss</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp ps-inp-stop" type="number" placeholder="0.00" value={stop} onChange={e => setStop(e.target.value)} />
+              <input className="ps-inp ps-inp-stop" aria-label="Stop Loss" type="number" placeholder="0.00" value={stop} onChange={e => setStop(e.target.value)} />
             </div>
           </div>
         </div>
@@ -148,7 +148,7 @@ export default function PositionSizer() {
             <label className="ps-lbl">Take Profit <span className="ps-opt">(optional — shows R:R)</span></label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp ps-inp-tp" type="number" placeholder="0.00" value={tp} onChange={e => setTp(e.target.value)} />
+              <input className="ps-inp ps-inp-tp" aria-label="Take Profit" type="number" placeholder="0.00" value={tp} onChange={e => setTp(e.target.value)} />
             </div>
           </div>
         </div>

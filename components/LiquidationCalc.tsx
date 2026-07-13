@@ -72,14 +72,14 @@ export default function LiquidationCalc() {
             <label className="ps-lbl">Entry Price</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp" type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
+              <input className="ps-inp" aria-label="Entry Price" type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
             </div>
           </div>
           <div className="ps-field">
             <label className="ps-lbl">Margin (Collateral)</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp" type="number" placeholder="1000" value={margin} onChange={e => setMargin(e.target.value)} />
+              <input className="ps-inp" aria-label="Margin" type="number" placeholder="1000" value={margin} onChange={e => setMargin(e.target.value)} />
             </div>
           </div>
         </div>
@@ -87,14 +87,14 @@ export default function LiquidationCalc() {
           <div className="ps-field ps-field-sm">
             <label className="ps-lbl">Leverage</label>
             <div className="ps-irow">
-              <input className="ps-inp" type="number" placeholder="10" min="1" max="125" value={leverage} onChange={e => setLeverage(e.target.value)} />
+              <input className="ps-inp" aria-label="Leverage" type="number" placeholder="10" min="1" max="125" value={leverage} onChange={e => setLeverage(e.target.value)} />
               <span className="ps-affix ps-suffix">x</span>
             </div>
           </div>
           <div className="ps-field ps-field-sm">
             <label className="ps-lbl">Maintenance Margin</label>
             <div className="ps-irow">
-              <input className="ps-inp" type="number" placeholder="0.5" step="0.01" value={mmr} onChange={e => setMmr(e.target.value)} />
+              <input className="ps-inp" aria-label="Maintenance Margin" type="number" placeholder="0.5" step="0.01" value={mmr} onChange={e => setMmr(e.target.value)} />
               <span className="ps-affix ps-suffix">%</span>
             </div>
           </div>

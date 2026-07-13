@@ -63,13 +63,13 @@ export default function FundingCostCalc() {
             <label className="ps-lbl">Position Size (Notional)</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp" type="number" placeholder="10000" value={posSize} onChange={e => setPosSize(e.target.value)} />
+              <input className="ps-inp" aria-label="Position Size" type="number" placeholder="10000" value={posSize} onChange={e => setPosSize(e.target.value)} />
             </div>
           </div>
           <div className="ps-field ps-field-sm">
             <label className="ps-lbl">Funding Rate (8h)</label>
             <div className="ps-irow">
-              <input className="ps-inp" type="number" placeholder="0.01" step="0.001" value={fundingRate} onChange={e => setFundingRate(e.target.value)} />
+              <input className="ps-inp" aria-label="Funding Rate (8h)" type="number" placeholder="0.01" step="0.001" value={fundingRate} onChange={e => setFundingRate(e.target.value)} />
               <span className="ps-affix ps-suffix">%</span>
             </div>
           </div>
@@ -89,7 +89,7 @@ export default function FundingCostCalc() {
           <div className="ps-field">
             <label className="ps-lbl">Duration (hours)</label>
             <div className="ps-irow">
-              <input className="ps-inp" type="number" placeholder="24" min="1" value={hours} onChange={e => setHours(e.target.value)} />
+              <input className="ps-inp" aria-label="Duration (hours)" type="number" placeholder="24" min="1" value={hours} onChange={e => setHours(e.target.value)} />
               <span className="ps-affix ps-suffix">h</span>
             </div>
           </div>

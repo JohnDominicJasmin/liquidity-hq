@@ -419,6 +419,7 @@ export default function AlertsPage() {
                   <input
                     type="text"
                     className="pa-input"
+                    aria-label="Telegram Chat ID"
                     placeholder="e.g. 123456789"
                     value={chatIdInput}
                     onChange={e => { setChatIdInput(e.target.value); setDetected(false); setDetectError(''); }}
@@ -463,19 +464,19 @@ export default function AlertsPage() {
         <div className="card" style={{ marginBottom: 10 }}>
           <div className="lbl" style={{ marginBottom: 12 }}>Price Alerts</div>
           <div className="pa-form">
-            <select className="pa-select" value={paCoin} onChange={e => setPaCoin(e.target.value)}>
+            <select className="pa-select" aria-label="Coin" value={paCoin} onChange={e => setPaCoin(e.target.value)}>
               {COIN_OPTIONS.map(c => <option key={c} value={c}>{COIN_LABELS[c]}</option>)}
             </select>
-            <select className="pa-select" value={paDir} onChange={e => setPaDir(e.target.value as 'above' | 'below')}>
+            <select className="pa-select" aria-label="Alert direction" value={paDir} onChange={e => setPaDir(e.target.value as 'above' | 'below')}>
               <option value="above">↑ Above</option>
               <option value="below">↓ Below</option>
             </select>
             <input
-              className="pa-input" type="number" placeholder="Price (e.g. 95000)"
+              className="pa-input" aria-label="Alert price" type="number" placeholder="Price (e.g. 95000)"
               value={paPrice} onChange={e => setPaPrice(e.target.value)}
             />
             <input
-              className="pa-input pa-input-label" type="text" placeholder="Note (optional)"
+              className="pa-input pa-input-label" aria-label="Alert note" type="text" placeholder="Note (optional)"
               value={paLabel} onChange={e => setPaLabel(e.target.value)}
             />
             <button className="tg-action-btn" onClick={addPriceAlert} disabled={paAdding || !paPrice}>

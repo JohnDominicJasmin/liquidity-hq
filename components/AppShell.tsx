@@ -36,10 +36,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <GrokUsageProvider>
                   <NavDrawer />
                   <NewsTicker />
-                  <div className="app-content">
+                  <main className="app-content">
                     {children}
                     <PlatformFooter />
-                  </div>
+                  </main>
                   <GrokChat />
                   <OnboardingTour />
                   <SetupChecklist />

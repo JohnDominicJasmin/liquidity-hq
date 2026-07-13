@@ -58,14 +58,14 @@ export default function RiskRewardCalc() {
             <label className="ps-lbl">Entry Price</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp" type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
+              <input className="ps-inp" aria-label="Entry Price" type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
             </div>
           </div>
           <div className="ps-field">
             <label className="ps-lbl">Stop Loss</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp ps-inp-stop" type="number" placeholder="0.00" value={sl} onChange={e => setSl(e.target.value)} />
+              <input className="ps-inp ps-inp-stop" aria-label="Stop Loss" type="number" placeholder="0.00" value={sl} onChange={e => setSl(e.target.value)} />
             </div>
           </div>
         </div>
@@ -74,13 +74,13 @@ export default function RiskRewardCalc() {
             <label className="ps-lbl">Take Profit</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp ps-inp-tp" type="number" placeholder="0.00" value={tp} onChange={e => setTp(e.target.value)} />
+              <input className="ps-inp ps-inp-tp" aria-label="Take Profit" type="number" placeholder="0.00" value={tp} onChange={e => setTp(e.target.value)} />
             </div>
           </div>
           <div className="ps-field ps-field-sm">
             <label className="ps-lbl">Win Rate</label>
             <div className="ps-irow">
-              <input className="ps-inp" type="number" placeholder="50" min="1" max="99" value={winRate} onChange={e => setWinRate(e.target.value)} />
+              <input className="ps-inp" aria-label="Win Rate" type="number" placeholder="50" min="1" max="99" value={winRate} onChange={e => setWinRate(e.target.value)} />
               <span className="ps-affix ps-suffix">%</span>
             </div>
           </div>
