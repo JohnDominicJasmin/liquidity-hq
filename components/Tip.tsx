@@ -81,6 +81,9 @@ export default function Tip({ text, children, width = 230, iconColor = 'rgba(255
             fontWeight: 400,
             pointerEvents: 'all',
             display: 'block',
+            textTransform: 'none',
+            whiteSpace: 'normal',
+            letterSpacing: 'normal',
           }}
         >
           {text}
