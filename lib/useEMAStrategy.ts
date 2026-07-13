@@ -177,23 +177,24 @@ export function useEMAStrategy(
         const e9arr    = emaArr(cl4,  9);
         const e20arr   = emaArr(cl4, 20);
         const e50arr   = emaArr(cl4, 50);
-        const s200arr  = smaArr(cl1d, 200); // Daily SMA200 — used for strategy card
+        const s200arr  = cl1d.length >= 200 ? smaArr(cl1d, 200) : [];
         const atr14    = atrArr(cRibbon, 14);
 
         const ema9   = e9arr[e9arr.length - 1];
         const ema20  = e20arr[e20arr.length - 1];
         const ema50  = e50arr[e50arr.length - 1];
-        const sma200 = s200arr[s200arr.length - 1];
+        const sma200: number | null = s200arr.length > 0 ? s200arr[s200arr.length - 1] : null;
 
         const price   = cl4[cl4.length - 1];
         const lastVol = vol4[vol4.length - 1];
         const volma20 = volMA(vol4, 20);
         const priceD  = cl1d[cl1d.length - 1];
 
-        // Strategy rules
-        const above200D  = priceD > sma200;
+        // Strategy rules — above200D falls back to ribbon direction when SMA200 is unavailable
         const ribbonBull = ema9 > ema20 && ema20 > ema50;
         const ribbonBear = ema50 > ema20 && ema20 > ema9;
+        const have200D  = sma200 != null && !isNaN(sma200);
+        const above200D = have200D ? priceD > sma200 : ribbonBull;
 
         // Value zone: price between the 9 and 20 EMA (from the correct side)
         const inVZoneLong  = ribbonBull && price <= ema9 && price >= ema20;
@@ -277,10 +278,12 @@ export function useEMAStrategy(
         const conditions: StrategyCondition[] = [
           {
             label: '200 SMA Filter (Daily)',
-            pass:  above200D ? true : (ribbonBear ? true : false),
-            detail: above200D
-              ? `Price $${fmt(priceD)} above Daily 200 SMA $${fmt(sma200)} — LONG only`
-              : `Price below Daily 200 SMA — SHORT only`,
+            pass:  !have200D ? null : (above200D ? true : (ribbonBear ? true : false)),
+            detail: !have200D
+              ? 'Insufficient daily history — ribbon used as trend proxy'
+              : above200D
+                ? `Price $${fmt(priceD)} above Daily 200 SMA $${sma200 !== null ? fmt(sma200) : '—'} — LONG only`
+                : `Price below Daily 200 SMA — SHORT only`,
           },
           {
             label: 'Ribbon Aligned',
@@ -478,10 +481,10 @@ export function useEMAStrategy(
       try {
         const [cRibbon, c1d] = await Promise.all([
           fetchOHLCV(coin, bnInterval, byInterval, 500),
-          fetchOHLCV(coin, '1d', 'D', 220),
+          fetchOHLCV(coin, '1d', 'D', 1000),
         ]);
         if (!mountedRef.current) return;
-        if (cRibbon.length < 55 || c1d.length < 205) {
+        if (cRibbon.length < 55 || c1d.length < 5) {
           setSig({ ...STRATEGY_LOADING, loading: false, error: 'Not enough candle data', signalTimestamp: null, signalAnchorPrice: null, signalDir: null });
           return;
         }
