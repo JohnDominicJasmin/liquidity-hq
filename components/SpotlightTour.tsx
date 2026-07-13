@@ -29,7 +29,6 @@ function Step1Visual() {
         <div key={c.label} style={{
           flex: 1, background: BG2, border: `1px solid ${BDR}`,
           borderRadius: 10, padding: '14px 10px', textAlign: 'center',
-          borderTop: `2px solid ${c.color}`,
         }}>
           <div style={{ fontSize: 9, color: TXT3, fontFamily: MONO, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 6 }}>
             {c.label}
@@ -52,12 +51,7 @@ function Step2Visual() {
   useEffect(() => { const t = setTimeout(() => setWidth(78), 120); return () => clearTimeout(t); }, []);
   const ticks = ['+0.10%', '+0.05%', '0%', '-0.05%', '-0.10%'];
   return (
-    <div style={{
-      width: '100%',
-      background: `radial-gradient(ellipse 85% 32px at 50% 0%, ${RED}1e 0%, transparent 100%), ${BG2}`,
-      border: `1px solid ${BDR}`, borderTop: `2px solid ${RED}`,
-      borderRadius: 12, padding: '20px 18px',
-    }}>
+    <div style={{ width: '100%', background: BG2, border: `1px solid ${BDR}`, borderRadius: 12, padding: '20px 18px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <span style={{ fontSize: 10, color: TXT2, fontFamily: MONO, letterSpacing: '.08em', textTransform: 'uppercase' }}>Funding Rate — BTC</span>
         <span style={{ fontSize: 16, fontWeight: 800, color: RED, fontFamily: MONO }}>-0.07%</span>
@@ -113,12 +107,7 @@ function Step3Visual() {
   const [animated, setAnimated] = useState(false);
   useEffect(() => { const t = setTimeout(() => setAnimated(true), 100); return () => clearTimeout(t); }, []);
   return (
-    <div style={{
-      width: '100%',
-      background: `radial-gradient(ellipse 85% 32px at 50% 0%, ${RED}1e 0%, transparent 100%), ${BG2}`,
-      border: `1px solid ${BDR}`, borderTop: `2px solid ${RED}`,
-      borderRadius: 12, padding: '20px 18px',
-    }}>
+    <div style={{ width: '100%', background: BG2, border: `1px solid ${BDR}`, borderRadius: 12, padding: '20px 18px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <span style={{ fontSize: 10, color: TXT2, fontFamily: MONO, letterSpacing: '.08em', textTransform: 'uppercase' }}>Open Interest Change — BTC</span>
         <span style={{ fontSize: 16, fontWeight: 800, color: RED, fontFamily: MONO }}>+$38.4M</span>
@@ -153,8 +142,7 @@ function Step4Visual() {
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
       {/* Signal card */}
       <div style={{
-        background: `radial-gradient(ellipse 85% 32px at 50% 0%, ${RED}1e 0%, transparent 100%), ${BG2}`,
-        border: `1px solid ${BDR}`, borderTop: `2px solid ${RED}`,
+        background: BG2, border: `1px solid ${BDR}`,
         borderRadius: 10, padding: '14px 16px',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -347,8 +335,7 @@ function Step5Visual() {
 
       {/* Signal card */}
       <div style={{
-        background: `radial-gradient(ellipse 85% 26px at 50% 0%, ${GREEN}18 0%, transparent 100%), ${BG2}`,
-        border: `1px solid ${BDR}`, borderTop: `2px solid ${GREEN}`,
+        background: BG2, border: `1px solid ${BDR}`,
         borderRadius: 8, padding: '8px 11px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
         opacity: phase >= 4 ? 1 : 0,
