@@ -62,7 +62,7 @@ export default function Disclaimer() {
       {/* 3-column grid */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
         gap: '40px 52px',
         marginBottom: 64,
       }}>
