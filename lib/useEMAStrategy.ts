@@ -480,7 +480,7 @@ export function useEMAStrategy(
     const load = async () => {
       try {
         const [cRibbon, c1d] = await Promise.all([
-          fetchOHLCV(coin, bnInterval, byInterval, 500),
+          fetchOHLCV(coin, bnInterval, byInterval, 1000),
           fetchOHLCV(coin, '1d', 'D', 1000),
         ]);
         if (!mountedRef.current) return;
