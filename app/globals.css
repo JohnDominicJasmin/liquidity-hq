@@ -4029,6 +4029,22 @@ html[lang="ar"] .lp-h1-accent {
 @keyframes ob-fade-in  { from { opacity: 0 } to { opacity: 1 } }
 @keyframes ob-slide-up { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: none } }
 
+/* ── OnboardingFlow animations ── */
+@keyframes obFadeUp   { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+@keyframes obCheckIn  { from { transform:scale(0) rotate(-45deg); opacity:0; } to { transform:scale(1) rotate(0); opacity:1; } }
+@keyframes obGlow     { 0%,100% { opacity:.3; } 50% { opacity:.6; } }
+@keyframes obFadeDown { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+.ob-fade-up   { animation: obFadeUp 0.38s cubic-bezier(0.16,1,0.3,1) both; }
+.ob-check-in  { animation: obCheckIn 0.28s cubic-bezier(0.175,0.885,0.32,1.275) both; }
+.ob-glow      { animation: obGlow 3.5s ease-in-out infinite; }
+.ob-fade-down { animation: obFadeDown 0.18s ease both; }
+.ob-opt:hover       { filter: brightness(1.07); }
+.ob-next:not(:disabled):hover { filter:brightness(1.1); transform:translateY(-1px); }
+.ob-next      { transition: all 0.2s !important; }
+.ob-country:hover { background: rgba(140,150,255,0.08) !important; }
+.ob-back:hover    { color: #9296b5 !important; }
+.ob-skip:hover    { color: #4e5374 !important; }
+
 /* ── Setup Checklist (fixed bottom-right) ── */
 .ob-checklist {
   position: fixed; bottom: 140px; right: 20px; z-index: 800;

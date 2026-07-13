@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useOnboarding } from './OnboardingProvider';
 import { useAuth } from './AuthProvider';
 import { useSettings } from '@/lib/settings';
@@ -397,29 +397,28 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   const [challenge,   setChallenge]  = useState<Challenge | null>(null);
   const [heard,       setHeard]      = useState<Heard | null>(null);
 
-  // Inject fonts + CSS animations (class-based since inline can't do keyframes/hover)
+  const stepRef = useRef<HTMLDivElement>(null);
+
+  // Before paint: set initial hidden state so first frame starts invisible
+  useLayoutEffect(() => {
+    const el = stepRef.current;
+    if (!el) return;
+    el.style.transition = 'none';
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(14px)';
+  }, [animKey]);
+
+  // After paint: trigger the reveal transition (setTimeout fires even when rAF doesn't)
   useEffect(() => {
-    if (document.getElementById('ob-styles')) return;
-    const el = document.createElement('style');
-    el.id = 'ob-styles';
-    el.textContent = `
-      @keyframes obFadeUp   { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
-      @keyframes obCheckIn  { from { transform:scale(0) rotate(-45deg); opacity:0; } to { transform:scale(1) rotate(0); opacity:1; } }
-      @keyframes obGlow     { 0%,100% { opacity:.3; } 50% { opacity:.6; } }
-      @keyframes obFadeDown { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
-      .ob-fade-up  { animation: obFadeUp 0.38s cubic-bezier(0.16,1,0.3,1) both; }
-      .ob-check-in { animation: obCheckIn 0.28s cubic-bezier(0.175,0.885,0.32,1.275) both; }
-      .ob-glow     { animation: obGlow 3.5s ease-in-out infinite; }
-      .ob-fade-down{ animation: obFadeDown 0.18s ease both; }
-      .ob-opt:hover       { filter: brightness(1.07); }
-      .ob-next:not(:disabled):hover { filter:brightness(1.1); transform:translateY(-1px); }
-      .ob-next            { transition: all 0.2s !important; }
-      .ob-back:hover      { color: #9296b5 !important; }
-      .ob-skip:hover      { color: #4e5374 !important; }
-    `;
-    document.head.appendChild(el);
-    return () => { document.getElementById('ob-styles')?.remove(); };
-  }, []);
+    const el = stepRef.current;
+    if (!el) return;
+    const id = setTimeout(() => {
+      el.style.transition = 'opacity 0.38s cubic-bezier(0.16,1,0.3,1), transform 0.38s cubic-bezier(0.16,1,0.3,1)';
+      el.style.opacity = '1';
+      el.style.transform = 'translateY(0)';
+    }, 16);
+    return () => clearTimeout(id);
+  }, [animKey]);
 
   // Responsive: detect mobile
   useEffect(() => {
@@ -468,13 +467,12 @@ export default function OnboardingFlow({ onStartTour }: Props) {
     const sb = getSupabase();
     if (sb && user) {
       await sb.from(T.user_onboarding).upsert(
-        { user_id: user.id, profile_complete: true, tour_seen: true, updated_at: new Date().toISOString() },
+        { user_id: user.id, profile_complete: true, updated_at: new Date().toISOString() },
         { onConflict: 'user_id' },
       );
     }
     markDone('profileComplete');
-    markDone('tourSeen');
-    if (beginner) onStartTour();
+    onStartTour();
   }
 
   function goNext() {
@@ -622,7 +620,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
         </div>
 
         {/* Animated step content */}
-        <div key={animKey} className="ob-fade-up">
+        <div key={animKey} ref={stepRef}>
           {/* Headline */}
           <div style={{ marginBottom: 10 }}>
             {copy.headline.map((line, i) => (
