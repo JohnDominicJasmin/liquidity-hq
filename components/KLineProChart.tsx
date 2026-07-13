@@ -299,6 +299,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const [srLevels, setSrLevels]   = useState<SRLevel[]>([]);
   const srSetRef                  = useRef(setSrLevels);
   const [sqHover, setSqHover]     = useState(false);
+  const [rwTooltip, setRwTooltip] = useState<{ x: number; y: number; dir: 'bullish' | 'bearish' } | null>(null);
   const { store } = useMarket();
   const coinData = store.coins[coin];
   const srOverlayIds              = useRef<string[]>([]);
@@ -1128,7 +1129,33 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       )}
 
       {/* Chart canvas */}
-      <div style={{ position: 'relative' }}>
+      <div
+        style={{ position: 'relative' }}
+        onMouseMove={(e) => {
+          const chart = chartRef.current;
+          const warnings = emaSignal?.reversalWarnings;
+          if (!chart || !warnings?.length) { setRwTooltip(null); return; }
+          const rect = containerRef.current?.getBoundingClientRect();
+          if (!rect) { setRwTooltip(null); return; }
+          const mx = e.clientX - rect.left;
+          const my = e.clientY - rect.top;
+          for (const w of warnings) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const coord = (chart as any).convertToPixel?.(
+              { timestamp: w.timestamp, value: w.anchorPrice },
+              { paneId: 'candle_pane' },
+            ) as { x: number; y: number } | null;
+            if (!coord || !isFinite(coord.x) || !isFinite(coord.y)) continue;
+            const cy = w.dir === 'bearish' ? coord.y - 24 : coord.y + 24;
+            if (Math.sqrt((mx - coord.x) ** 2 + (my - cy) ** 2) <= 14) {
+              setRwTooltip({ x: e.clientX, y: e.clientY, dir: w.dir });
+              return;
+            }
+          }
+          setRwTooltip(null);
+        }}
+        onMouseLeave={() => setRwTooltip(null)}
+      >
         <div ref={containerRef} className="klc-canvas" />
         {/* Screenshot crossfade — holds old chart image while new data loads, then fades out */}
         <div ref={canvasFadeRef} style={{
@@ -1138,6 +1165,36 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           opacity: 0,
           pointerEvents: 'none',
         }} />
+        {/* Reversal warning hover tooltip */}
+        {rwTooltip && (
+          <div style={{
+            position: 'fixed',
+            top: rwTooltip.y - 52,
+            left: rwTooltip.x,
+            transform: 'translateX(-50%)',
+            zIndex: 9999,
+            background: '#13172e',
+            border: '0.5px solid rgba(245,158,11,0.35)',
+            borderRadius: 8,
+            padding: '7px 12px',
+            fontSize: 11.5,
+            lineHeight: 1.5,
+            color: 'rgba(255,255,255,0.78)',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            fontWeight: 400,
+            pointerEvents: 'none',
+            whiteSpace: 'nowrap',
+            boxShadow: '0 6px 20px rgba(0,0,0,0.7)',
+            textTransform: 'none',
+            letterSpacing: 'normal',
+          }}>
+            <span style={{ color: '#f59e0b', fontWeight: 600, marginRight: 5 }}>⚠</span>
+            {rwTooltip.dir === 'bearish'
+              ? 'Potential top — RSI divergence detected'
+              : 'Potential bottom — RSI divergence detected'}
+          </div>
+        )}
+
         {/* Candle-close countdown — anchored below the klinecharts current-price label */}
         {priceLabelY !== null && (
           <div style={{
