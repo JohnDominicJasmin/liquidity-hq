@@ -14,13 +14,16 @@ type Acct       = '1k5k' | '5k25k' | '25k100k' | '100kplus';
 type Challenge  = 'read_signals' | 'entry_exit' | 'risk_management' | 'discipline';
 type Heard      = 'social' | 'youtube' | 'tiktok' | 'search' | 'word' | 'other';
 
+const ACCENT   = '#5a6aff';
+const DONE_CLR = '#4ade80';
+
 const STEP_META = [
-  { key: 'Profile',    label: 'Profile',    accent: '#5a6aff' },
-  { key: 'Experience', label: 'Experience', accent: '#34d399' },
-  { key: 'Style',      label: 'Style',      accent: '#60a5fa' },
-  { key: 'Goals',      label: 'Goals',      accent: '#f87171' },
-  { key: 'Source',     label: 'Source',     accent: '#e879f9' },
-  { key: 'Alerts',     label: 'Alerts',     accent: '#fbbf24' },
+  { key: 'Profile',    label: 'Profile',    accent: ACCENT },
+  { key: 'Experience', label: 'Experience', accent: ACCENT },
+  { key: 'Style',      label: 'Style',      accent: ACCENT },
+  { key: 'Goals',      label: 'Goals',      accent: ACCENT },
+  { key: 'Source',     label: 'Source',     accent: ACCENT },
+  { key: 'Alerts',     label: 'Alerts',     accent: ACCENT },
 ] as const;
 
 const COUNTRIES = [
@@ -102,9 +105,9 @@ function CountrySelect({ value, onChange, accent }: {
           width: '100%', boxSizing: 'border-box',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
           padding: '13px 16px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-          background: value ? `${accent}0c` : 'rgba(255,255,255,0.03)',
-          border: `1px solid ${value ? accent + '40' : 'rgba(255,255,255,0.08)'}`,
-          color: value ? '#e5e7eb' : '#555', fontSize: 14,
+          background: value ? `${accent}0c` : 'rgba(140,150,255,0.04)',
+          border: `1px solid ${value ? accent + '40' : 'rgba(140,150,255,0.12)'}`,
+          color: value ? '#eef0fa' : '#4e5374', fontSize: 14,
           boxShadow: value ? `0 0 0 1px ${accent}18` : 'none',
           transition: 'all 0.2s',
         }}
@@ -132,12 +135,12 @@ function CountrySelect({ value, onChange, accent }: {
           className="ob-fade-down"
           style={{
             position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 200,
-            background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12,
-            boxShadow: '0 24px 72px rgba(0,0,0,0.95), 0 4px 16px rgba(0,0,0,0.6)',
+            background: '#0c0f1c', border: '1px solid rgba(140,150,255,0.12)', borderRadius: 12,
+            boxShadow: '0 24px 72px rgba(0,0,0,0.85), 0 4px 16px rgba(0,0,0,0.5)',
             overflow: 'hidden',
           }}
         >
-          <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(140,150,255,0.08)' }}>
             <input
               ref={searchRef}
               type="text"
@@ -146,14 +149,14 @@ function CountrySelect({ value, onChange, accent }: {
               placeholder="Search country…"
               style={{
                 width: '100%', boxSizing: 'border-box',
-                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: 7, padding: '8px 12px', fontSize: 13, color: '#e5e7eb', outline: 'none',
+                background: 'rgba(140,150,255,0.06)', border: '1px solid rgba(140,150,255,0.12)',
+                borderRadius: 7, padding: '8px 12px', fontSize: 13, color: '#eef0fa', outline: 'none',
               }}
             />
           </div>
           <div style={{ maxHeight: 220, overflowY: 'auto' }}>
             {filtered.length === 0 ? (
-              <div style={{ padding: 16, textAlign: 'center', fontSize: 12, color: '#444' }}>No match</div>
+              <div style={{ padding: 16, textAlign: 'center', fontSize: 12, color: '#4e5374' }}>No match</div>
             ) : filtered.map(c => {
               const isActive = value === c.name;
               return (
@@ -166,7 +169,7 @@ function CountrySelect({ value, onChange, accent }: {
                     width: '100%', display: 'flex', alignItems: 'center', gap: 12,
                     padding: '10px 14px', border: 'none', cursor: 'pointer', textAlign: 'left',
                     background: isActive ? `${accent}15` : 'transparent',
-                    color: isActive ? accent : '#ccc',
+                    color: isActive ? accent : '#9296b5',
                     fontSize: 14, transition: 'background 0.1s',
                   }}
                 >
@@ -205,9 +208,9 @@ function OptionCard<T extends string>({
         padding: '15px 18px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
         boxSizing: 'border-box', position: 'relative', overflow: 'hidden',
         background: active
-          ? `linear-gradient(135deg, ${accent}10 0%, ${accent}06 100%)`
-          : 'rgba(255,255,255,0.025)',
-        border: `1px solid ${active ? accent + '45' : 'rgba(255,255,255,0.07)'}`,
+          ? `linear-gradient(135deg, ${accent}12 0%, ${accent}06 100%)`
+          : 'rgba(140,150,255,0.03)',
+        border: `1px solid ${active ? accent + '45' : 'rgba(140,150,255,0.1)'}`,
         borderLeft: `3px solid ${active ? accent : 'transparent'}`,
         boxShadow: active ? `0 0 28px ${accent}1a, inset 0 1px 0 ${accent}10` : 'none',
         transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -216,7 +219,7 @@ function OptionCard<T extends string>({
     >
       <div style={{
         width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-        border: `2px solid ${active ? accent : 'rgba(255,255,255,0.16)'}`,
+        border: `2px solid ${active ? accent : 'rgba(140,150,255,0.2)'}`,
         background: active ? accent : 'transparent',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         transition: 'all 0.2s',
@@ -231,7 +234,7 @@ function OptionCard<T extends string>({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           fontSize: 13, fontWeight: 600, lineHeight: 1.3,
-          color: active ? accent : '#d1d5db',
+          color: active ? accent : '#eef0fa',
           transition: 'color 0.2s',
         }}>
           {label}
@@ -239,7 +242,7 @@ function OptionCard<T extends string>({
         {sub && (
           <div style={{
             fontSize: 11, marginTop: 3, lineHeight: 1.4,
-            color: active ? `${accent}90` : '#5a5a6a',
+            color: active ? `${accent}90` : '#4e5374',
             transition: 'color 0.2s',
           }}>
             {sub}
@@ -272,10 +275,10 @@ function AcctGrid({ acct, setAcct, accent }: { acct: Acct | null; setAcct: (v: A
               padding: '15px 12px', borderRadius: 10, cursor: 'pointer', textAlign: 'center',
               background: active
                 ? `linear-gradient(160deg, ${accent}14 0%, ${accent}07 100%)`
-                : 'rgba(255,255,255,0.025)',
-              border: `1px solid ${active ? accent + '45' : 'rgba(255,255,255,0.07)'}`,
+                : 'rgba(140,150,255,0.03)',
+              border: `1px solid ${active ? accent + '45' : 'rgba(140,150,255,0.1)'}`,
               borderTop: `2px solid ${active ? accent : 'transparent'}`,
-              color: active ? accent : '#888',
+              color: active ? accent : '#9296b5',
               fontSize: 13, fontWeight: 700, letterSpacing: '-.01em',
               boxShadow: active ? `0 0 20px ${accent}18` : 'none',
               transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -302,9 +305,9 @@ function SourceChip({ value, selected, label, accent, onClick }: {
       style={{
         padding: '9px 18px', borderRadius: 100, cursor: 'pointer',
         fontSize: 12, fontWeight: 700, letterSpacing: '.03em',
-        background: active ? `${accent}18` : 'rgba(255,255,255,0.04)',
-        border: `1px solid ${active ? accent + '55' : 'rgba(255,255,255,0.08)'}`,
-        color: active ? accent : '#555',
+        background: active ? `${accent}18` : 'rgba(140,150,255,0.05)',
+        border: `1px solid ${active ? accent + '55' : 'rgba(140,150,255,0.12)'}`,
+        color: active ? accent : '#9296b5',
         boxShadow: active ? `0 0 18px ${accent}25` : 'none',
         transition: 'all 0.18s',
       }}
@@ -327,17 +330,17 @@ function StepList({ step: currentStep }: { step: number }) {
               <div style={{
                 width: 28, height: 28, borderRadius: '50%',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: active ? s.accent : done ? 'rgba(52,211,153,0.1)' : 'rgba(255,255,255,0.04)',
-                border: `1.5px solid ${active ? s.accent : done ? '#34d39945' : 'rgba(255,255,255,0.07)'}`,
-                boxShadow: active ? `0 0 20px ${s.accent}55` : 'none',
+                background: active ? ACCENT : done ? 'rgba(74,222,128,0.08)' : 'rgba(140,150,255,0.04)',
+                border: `1.5px solid ${active ? ACCENT : done ? DONE_CLR + '40' : 'rgba(140,150,255,0.1)'}`,
+                boxShadow: active ? `0 0 20px ${ACCENT}55` : 'none',
                 transition: 'all 0.3s',
                 fontSize: 10, fontWeight: 700,
-                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                color: active ? '#000' : done ? '#34d399' : '#4a4a4a',
+                fontFamily: "var(--font-mono, 'IBM Plex Mono', monospace)",
+                color: active ? '#fff' : done ? DONE_CLR : '#4e5374',
               }}>
                 {done ? (
                   <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                    <path d="M1 4L3.5 6.5L9 1" stroke="#34d399" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M1 4L3.5 6.5L9 1" stroke={DONE_CLR} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 ) : String(i + 1).padStart(2, '0')}
               </div>
@@ -345,8 +348,8 @@ function StepList({ step: currentStep }: { step: number }) {
                 <div style={{
                   width: 1.5, height: 32, marginTop: 4,
                   background: done
-                    ? 'linear-gradient(180deg, #34d39940, rgba(255,255,255,0.03))'
-                    : 'rgba(255,255,255,0.09)',
+                    ? `linear-gradient(180deg, ${DONE_CLR}30, rgba(140,150,255,0.03))`
+                    : 'rgba(140,150,255,0.08)',
                   transition: 'background 0.4s',
                 }} />
               )}
@@ -354,8 +357,8 @@ function StepList({ step: currentStep }: { step: number }) {
             <div style={{ paddingTop: 6, paddingBottom: i < STEP_META.length - 1 ? 32 : 0 }}>
               <div style={{
                 fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase',
-                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                color: active ? s.accent : done ? '#34d399' : '#4a4a4a',
+                fontFamily: "var(--font-mono, 'IBM Plex Mono', monospace)",
+                color: active ? ACCENT : done ? DONE_CLR : '#4e5374',
                 transition: 'color 0.3s',
               }}>
                 {s.label}
@@ -400,7 +403,6 @@ export default function OnboardingFlow({ onStartTour }: Props) {
     const el = document.createElement('style');
     el.id = 'ob-styles';
     el.textContent = `
-      @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
       @keyframes obFadeUp   { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
       @keyframes obCheckIn  { from { transform:scale(0) rotate(-45deg); opacity:0; } to { transform:scale(1) rotate(0); opacity:1; } }
       @keyframes obGlow     { 0%,100% { opacity:.3; } 50% { opacity:.6; } }
@@ -410,10 +412,10 @@ export default function OnboardingFlow({ onStartTour }: Props) {
       .ob-glow     { animation: obGlow 3.5s ease-in-out infinite; }
       .ob-fade-down{ animation: obFadeDown 0.18s ease both; }
       .ob-opt:hover       { filter: brightness(1.07); }
-      .ob-next:not(:disabled):hover { filter:brightness(1.1); transform:translateY(-1px); box-shadow-transition:box-shadow 0.2s; }
+      .ob-next:not(:disabled):hover { filter:brightness(1.1); transform:translateY(-1px); }
       .ob-next            { transition: all 0.2s !important; }
-      .ob-back:hover      { color: rgba(255,255,255,0.42) !important; }
-      .ob-skip:hover      { color: rgba(255,255,255,0.38) !important; }
+      .ob-back:hover      { color: #9296b5 !important; }
+      .ob-skip:hover      { color: #4e5374 !important; }
     `;
     document.head.appendChild(el);
     return () => { document.getElementById('ob-styles')?.remove(); };
@@ -486,8 +488,8 @@ export default function OnboardingFlow({ onStartTour }: Props) {
     setStep(s => s - 1);
   }
 
-  const monoFont = "'JetBrains Mono', 'Fira Code', monospace";
-  const serifFont = "'Outfit', system-ui, sans-serif";
+  const monoFont  = "var(--font-mono, 'IBM Plex Mono', monospace)";
+  const serifFont = "var(--font-sans, 'Figtree', system-ui, sans-serif)";
 
   return (
     <div
@@ -495,8 +497,8 @@ export default function OnboardingFlow({ onStartTour }: Props) {
       aria-modal="true"
       style={{
         position: 'fixed', inset: 0, zIndex: 10000,
-        display: 'flex', background: '#0d0f18',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        display: 'flex', background: '#07090f',
+        fontFamily: serifFont,
         overflowY: 'auto',
       }}
     >
@@ -519,16 +521,15 @@ export default function OnboardingFlow({ onStartTour }: Props) {
           width: 288, flexShrink: 0,
           display: 'flex', flexDirection: 'column',
           padding: '52px 36px',
-          borderRight: '1px solid rgba(255,255,255,0.08)',
+          borderRight: '1px solid rgba(140,150,255,0.1)',
           position: 'relative', overflow: 'hidden',
-          backgroundImage: `radial-gradient(${accent}16 1px, transparent 1px)`,
+          backgroundImage: 'radial-gradient(rgba(90,106,255,0.09) 1px, transparent 1px)',
           backgroundSize: '22px 22px',
-          transition: 'background-image 0.5s',
         }}>
           {/* Fade grid out at top and bottom */}
           <div style={{
             position: 'absolute', inset: 0, pointerEvents: 'none',
-            background: 'linear-gradient(180deg, #0d0f18 0%, transparent 14%, transparent 82%, #0d0f18 100%)',
+            background: 'linear-gradient(180deg, #07090f 0%, transparent 14%, transparent 82%, #07090f 100%)',
           }} />
           <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
             {/* Logo */}
@@ -550,13 +551,13 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                 transition: 'border-color 0.45s',
               }}>
                 <div style={{
-                  fontSize: 11.5, lineHeight: 1.75, color: '#4a4a5a',
+                  fontSize: 11.5, lineHeight: 1.75, color: '#4e5374',
                   fontFamily: serifFont,
                 }}>
                   &ldquo;The edge goes to those who read the market, not the crowd.&rdquo;
                 </div>
                 <div style={{
-                  fontSize: 9, color: '#3a3a50', marginTop: 8,
+                  fontSize: 9, color: '#2e3150', marginTop: 8,
                   fontFamily: monoFont, letterSpacing: '.09em', textTransform: 'uppercase',
                 }}>
                   — LIQUIDITYHQ
@@ -591,13 +592,13 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                 <div key={s.key} style={{ display: 'flex', alignItems: 'center' }}>
                   <div style={{
                     height: 6, width: i === step ? 20 : 6, borderRadius: 100,
-                    background: i < step ? '#34d399' : i === step ? accent : 'rgba(255,255,255,0.07)',
+                    background: i < step ? DONE_CLR : i === step ? ACCENT : 'rgba(140,150,255,0.1)',
                     transition: 'all 0.35s cubic-bezier(0.16,1,0.3,1)',
                   }} />
                   {i < STEP_META.length - 1 && (
                     <div style={{
                       width: 12, height: 1.5,
-                      background: i < step ? '#34d39938' : 'rgba(255,255,255,0.04)',
+                      background: i < step ? DONE_CLR + '30' : 'rgba(140,150,255,0.06)',
                       transition: 'background 0.35s',
                     }} />
                   )}
@@ -615,9 +616,9 @@ export default function OnboardingFlow({ onStartTour }: Props) {
           <span style={{ color: accent, transition: 'color 0.45s' }}>
             {`STEP ${String(step + 1).padStart(2, '0')}`}
           </span>
-          <span style={{ color: '#444' }}>/</span>
-          <span style={{ color: '#444' }}>{String(STEP_META.length).padStart(2, '0')}</span>
-          <span style={{ color: '#555' }}>&nbsp;&mdash;&nbsp;{meta.label.toUpperCase()}</span>
+          <span style={{ color: '#4e5374' }}>/</span>
+          <span style={{ color: '#4e5374' }}>{String(STEP_META.length).padStart(2, '0')}</span>
+          <span style={{ color: '#4e5374' }}>&nbsp;&mdash;&nbsp;{meta.label.toUpperCase()}</span>
         </div>
 
         {/* Animated step content */}
@@ -631,7 +632,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                   fontFamily: serifFont,
                   fontSize: isMobile ? 28 : 38,
                   lineHeight: 1.1, fontWeight: 800,
-                  color: i === copy.headline.length - 1 ? accent : '#fff',
+                  color: i === copy.headline.length - 1 ? ACCENT : '#eef0fa',
                   transition: 'color 0.45s',
                 }}
               >
@@ -639,7 +640,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
               </div>
             ))}
           </div>
-          <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 28, lineHeight: 1.65 }}>
+          <div style={{ fontSize: 12, color: '#9296b5', marginBottom: 28, lineHeight: 1.65 }}>
             {copy.desc}
           </div>
 
@@ -649,9 +650,9 @@ export default function OnboardingFlow({ onStartTour }: Props) {
               <div style={{ marginBottom: 16 }}>
                 <label style={{
                   display: 'block', fontSize: 9, fontWeight: 700, letterSpacing: '.12em',
-                  textTransform: 'uppercase', color: '#6b7280', marginBottom: 8, fontFamily: monoFont,
+                  textTransform: 'uppercase', color: '#9296b5', marginBottom: 8, fontFamily: monoFont,
                 }}>
-                  Display name <span style={{ color: '#222', fontWeight: 400 }}>(optional)</span>
+                  Display name <span style={{ color: '#4e5374', fontWeight: 400 }}>(optional)</span>
                 </label>
                 <input
                   type="text"
@@ -662,9 +663,9 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                   style={{
                     width: '100%', boxSizing: 'border-box',
                     padding: '13px 16px', borderRadius: 10, outline: 'none',
-                    background: 'rgba(255,255,255,0.03)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    color: '#e5e7eb', fontSize: 14,
+                    background: 'rgba(140,150,255,0.04)',
+                    border: '1px solid rgba(140,150,255,0.12)',
+                    color: '#eef0fa', fontSize: 14,
                     fontFamily: monoFont,
                     transition: 'border-color 0.2s, box-shadow 0.2s',
                   }}
@@ -676,7 +677,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
               <div style={{ marginBottom: 20 }}>
                 <label style={{
                   display: 'block', fontSize: 9, fontWeight: 700, letterSpacing: '.12em',
-                  textTransform: 'uppercase', color: '#6b7280', marginBottom: 8, fontFamily: monoFont,
+                  textTransform: 'uppercase', color: '#9296b5', marginBottom: 8, fontFamily: monoFont,
                 }}>
                   Country
                 </label>
@@ -757,7 +758,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                   ].map(item => (
                     <div key={item} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                       <span style={{ color: '#fbbf24', fontSize: 11, marginTop: 1, flexShrink: 0 }}>▸</span>
-                      <span style={{ fontSize: 13, color: '#d1d5db', lineHeight: 1.45 }}>{item}</span>
+                      <span style={{ fontSize: 13, color: '#9296b5', lineHeight: 1.45 }}>{item}</span>
                     </div>
                   ))}
                 </div>
@@ -778,7 +779,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
               >
                 Open Alerts Setup →
               </a>
-              <div style={{ fontSize: 11, color: '#444', textAlign: 'center', lineHeight: 1.6 }}>
+              <div style={{ fontSize: 11, color: '#4e5374', textAlign: 'center', lineHeight: 1.6 }}>
                 Opens in a new tab. Takes about 60 seconds to connect.<br />
                 You can also do this later from Alerts in the navigation.
               </div>
@@ -795,8 +796,8 @@ export default function OnboardingFlow({ onStartTour }: Props) {
               onClick={goBack}
               style={{
                 padding: '14px 18px', borderRadius: 10,
-                border: '1px solid rgba(255,255,255,0.07)',
-                background: 'transparent', color: '#303030',
+                border: '1px solid rgba(140,150,255,0.1)',
+                background: 'transparent', color: '#4e5374',
                 fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
                 fontFamily: monoFont, letterSpacing: '.06em',
                 transition: 'color 0.2s',
@@ -812,8 +813,8 @@ export default function OnboardingFlow({ onStartTour }: Props) {
             disabled={!canNext() || saving}
             style={{
               flex: 1, padding: '15px 0', borderRadius: 10, border: 'none',
-              background: canNext() && !saving ? accent : 'rgba(255,255,255,0.05)',
-              color: canNext() && !saving ? '#000' : '#282828',
+              background: canNext() && !saving ? accent : 'rgba(140,150,255,0.06)',
+              color: canNext() && !saving ? '#fff' : '#4e5374',
               fontSize: 11, fontWeight: 800, letterSpacing: '.09em', textTransform: 'uppercase',
               fontFamily: monoFont,
               cursor: canNext() && !saving ? 'pointer' : 'not-allowed',
@@ -832,7 +833,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
             onClick={finish}
             style={{
               background: 'none', border: 'none', width: '100%', marginTop: 12,
-              fontSize: 10, color: '#444', cursor: 'pointer', padding: '4px 0',
+              fontSize: 10, color: '#4e5374', cursor: 'pointer', padding: '4px 0',
               fontFamily: monoFont, letterSpacing: '.07em', transition: 'color 0.2s',
             }}
           >
