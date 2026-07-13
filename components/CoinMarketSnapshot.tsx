@@ -64,7 +64,7 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
     <div className="edge-grid" style={{ marginBottom: 10 }}>
       <div className="edge-card" style={{ borderColor: vwapBdr }}>
         <div className="edge-card-label"><Tip text="Volume Weighted Average Price — the average price across the day, weighted by how much was traded at each level. Price above VWAP signals buy-side control; below signals sellers are in charge.">VWAP</Tip></div>
-        <div className="edge-card-value" style={{ color: vwapCol, fontSize: 15 }}>
+        <div className="edge-card-value" style={{ color: vwapCol }}>
           {price != null ? '$' + fmtPrice(price, COIN_DEC[coin]) : '—'}
         </div>
         {vwap != null && (
@@ -85,7 +85,7 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
         </div>
         {oiMeta ? (
           <>
-            <div className="edge-card-value" style={{ color: oiMeta.col, fontSize: 15 }}>{oiMeta.txt}</div>
+            <div className="edge-card-value" style={{ color: oiMeta.col }}>{oiMeta.txt}</div>
             <div className="edge-card-signal" style={{ color: oiMeta.col }}>{oiMeta.sub}</div>
           </>
         ) : (
