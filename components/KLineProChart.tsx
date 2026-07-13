@@ -466,7 +466,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
             const { dir } = overlay.extendData as { dir: 'long' | 'short' };
             const coord = coordinates[0];
-            if (!coord || !isFinite(coord.x) || !isFinite(coord.y) || coord.y < 0) return [];
+            if (!coord || !isFinite(coord.x) || !isFinite(coord.y) || coord.x < 0 || coord.y < 0) return [];
             const x = coord.x;
             const y = coord.y;
             if (dir === 'long') {
