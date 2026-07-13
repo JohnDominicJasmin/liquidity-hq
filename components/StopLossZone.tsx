@@ -188,7 +188,7 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
               color: biasCol, background: biasCol + '18', border: `0.5px solid ${biasCol}40`,
               letterSpacing: '.03em',
             }}>
-              {bias === 'long' ? '▲ Indicators: Long' : '▼ Indicators: Short'}
+              {bias === 'long' ? '▲ Bullish' : '▼ Bearish'}
             </span>
             {rr && (
               <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '-.01em', color: 'var(--txt2)' }}>
