@@ -121,6 +121,11 @@ export const STRATEGY_LOADING: StrategySignal = {
   weakEdge: false,
 };
 
+/* ── Module-level kline cache — survives component unmount/remount ───────── */
+interface KlineCacheEntry { cRibbon: OHLCV[]; c1d: OHLCV[]; fetchedAt: number }
+const klineCache = new Map<string, KlineCacheEntry>();
+const KLINE_CACHE_TTL_MS = 5 * 60_000; // matches the 5-min refresh interval
+
 /* ── TF → exchange interval strings ─────────────────────────────────────── */
 const TF_BN: Record<string, string> = {
   '1m': '1m', '5m': '5m', '15m': '15m', '30m': '30m',
@@ -468,11 +473,22 @@ export function useEMAStrategy(
   };
 
   /* Fetch candles when coin/tf change (and every 5 min) — the only path that hits
-     the network or shows the LOADING state. */
+     the network or shows the LOADING state. If module-level cache is fresh, serve
+     it immediately (no loading flash) and refresh in background. */
   useEffect(() => {
     mountedRef.current = true;
-    setSig(STRATEGY_LOADING);
-    candlesRef.current = null;
+
+    const cacheKey = `${coin}:${tf}`;
+    const cached = klineCache.get(cacheKey);
+    const cacheHit = !!cached && (Date.now() - cached.fetchedAt < KLINE_CACHE_TTL_MS);
+
+    if (cacheHit) {
+      candlesRef.current = { coin, tf, cRibbon: cached.cRibbon, c1d: cached.c1d };
+      computeRef.current();
+    } else {
+      setSig(STRATEGY_LOADING);
+      candlesRef.current = null;
+    }
 
     const bnInterval = TF_BN[tf] ?? '4h';
     const byInterval = TF_BY[tf] ?? '240';
@@ -488,6 +504,7 @@ export function useEMAStrategy(
           setSig({ ...STRATEGY_LOADING, loading: false, error: 'Not enough candle data', signalTimestamp: null, signalAnchorPrice: null, signalDir: null });
           return;
         }
+        klineCache.set(cacheKey, { cRibbon, c1d, fetchedAt: Date.now() });
         candlesRef.current = { coin, tf, cRibbon, c1d };
         computeRef.current();
       } catch (err) {
@@ -497,7 +514,7 @@ export function useEMAStrategy(
     };
 
     load();
-    const iv = setInterval(load, 5 * 60_000);
+    const iv = setInterval(load, KLINE_CACHE_TTL_MS);
     return () => {
       mountedRef.current = false;
       clearInterval(iv);
