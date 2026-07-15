@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
-import { BINANCE_SYMS, BYBIT_SYMS, CoinId, useMarket, computeSqueezeScore } from '@/lib/marketStore';
+import { BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, CoinId, useMarket, computeSqueezeScore } from '@/lib/marketStore';
 import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 
@@ -750,7 +750,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       const bnSym    = BINANCE_SYMS[coin] as string | undefined;
       const bybitSym = BYBIT_SYMS[coin]   as string | undefined;
       const baseSym  = bnSym ?? bybitSym ?? 'BTCUSDT';
-      chart.setSymbol({ ticker: baseSym, shortName: coin.toUpperCase() + '/USDT' });
+      chart.setSymbol({ ticker: baseSym, shortName: coin.toUpperCase() + '/USDT', pricePrecision: COIN_DEC[coin] ?? 2 });
     }
     if (tfChanged) {
       loadGenRef.current += 1;
@@ -1255,6 +1255,6 @@ function fmtPx(n: number): string {
 function setChartSymbolPeriod(chart: KChart, coin: CoinId, tf: string) {
   const bnSym    = BINANCE_SYMS[coin] as string | undefined;
   const bybitSym = BYBIT_SYMS[coin]   as string | undefined;
-  chart.setSymbol({ ticker: bnSym ?? bybitSym ?? 'BTCUSDT', shortName: coin.toUpperCase() + '/USDT' });
+  chart.setSymbol({ ticker: bnSym ?? bybitSym ?? 'BTCUSDT', shortName: coin.toUpperCase() + '/USDT', pricePrecision: COIN_DEC[coin] ?? 2 });
   chart.setPeriod(TF_TO_PERIOD[tf] ?? TF_TO_PERIOD['15m']);
 }
