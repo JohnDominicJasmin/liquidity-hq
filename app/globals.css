@@ -158,7 +158,7 @@ body::after {
 
   .dashboard-grid {
     display: grid;
-    grid-template-columns: 252px 1fr 272px;
+    grid-template-columns: 252px 1fr;
     gap: 16px;
     align-items: start;
   }

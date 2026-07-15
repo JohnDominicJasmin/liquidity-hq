@@ -1,5 +1,6 @@
 'use client';
 import { Fragment, useState, useEffect } from 'react';
+import MacroStrip from '@/components/MacroStrip';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId } from '@/lib/marketStore';
 
 /* ── constants ── */
@@ -167,6 +168,9 @@ export default function CorrelationHeatmap() {
 
   return (
     <div>
+
+      {/* Macro correlations strip */}
+      <MacroStrip />
 
       {/* Header */}
       <div className="mb-header">

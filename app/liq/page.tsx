@@ -3,6 +3,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useMarket, CoinId, COINS, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
 import LiqFeed, { Bucket } from '@/components/LiqFeed';
 import WhaleTradesFeed from '@/components/WhaleTradesFeed';
+import GexTable from '@/components/GexTable';
 
 
 /* ─── All leverage tiers — every real level Binance/Bybit offers ──────────── */
@@ -674,6 +675,9 @@ export default function LiqPage() {
 
       {/* Whale Trade Feed */}
       <WhaleTradesFeed />
+
+      {/* Options GEX levels */}
+      <GexTable />
 
     </div>
   );
