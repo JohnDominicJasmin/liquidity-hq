@@ -6,6 +6,7 @@ import { useSettings } from '@/lib/settings';
 import { getSupabase } from '@/lib/supabase';
 import { T } from '@/lib/tables';
 
+
 interface Props { onStartTour: () => void; }
 
 type Exp        = 'lt6m' | '6to12m' | '1to3y' | '3plus';
@@ -388,6 +389,8 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   const [step,        setStep]       = useState(0);
   const [animKey,     setAnimKey]    = useState(0);
   const [saving,      setSaving]     = useState(false);
+  const [pushDone,    setPushDone]   = useState(false);
+  const [pushWorking, setPushWorking]= useState(false);
   const [isMobile,    setIsMobile]   = useState(false);
   const [displayName, setDisplayName]= useState('');
   const [country,     setCountry]    = useState('');
@@ -441,6 +444,35 @@ export default function OnboardingFlow({ onStartTour }: Props) {
     if (step === 2) return tradeStyle !== null;
     if (step === 3) return challenge !== null;
     return true; // step 4 (source) and step 5 (alerts) are always optional
+  }
+
+  async function handleEnablePush() {
+    if (pushWorking || pushDone) return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    setPushWorking(true);
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return;
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!vapidKey) return;
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: vapidKey,
+      });
+      const sb = getSupabase();
+      if (!sb) return;
+      const { data: { session } } = await sb.auth.getSession();
+      const token = session?.access_token;
+      await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(sub.toJSON()),
+      });
+      setPushDone(true);
+    } catch { /* non-blocking */ } finally {
+      setPushWorking(false);
+    }
   }
 
   async function finish() {
@@ -736,7 +768,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
             </div>
           )}
 
-          {/* ── Step 5: Telegram alerts ── */}
+          {/* ── Step 5: Telegram alerts + Web Push ── */}
           {step === 5 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{
@@ -745,13 +777,13 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                 borderRadius: 12, padding: '16px 18px',
               }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#fbbf24', marginBottom: 12, letterSpacing: '.03em' }}>
-                  What you get with Telegram alerts
+                  What you get with alerts
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {[
                     'Live price alerts when your targets or stops are hit',
                     'Funding rate extremes that signal squeeze setups',
-                    'Morning briefing delivered to Telegram every day',
+                    'Morning briefing delivered every day',
                     'Works while the app is closed or your screen is off',
                   ].map(item => (
                     <div key={item} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -761,6 +793,25 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                   ))}
                 </div>
               </div>
+
+              {/* Push notification button */}
+              <button
+                onClick={handleEnablePush}
+                disabled={pushWorking || pushDone}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'center',
+                  padding: '14px', borderRadius: 10, cursor: pushDone ? 'default' : 'pointer',
+                  background: pushDone ? 'rgba(74,222,128,0.1)' : 'rgba(26,122,255,0.12)',
+                  border: pushDone ? '1px solid rgba(74,222,128,0.3)' : '1px solid rgba(26,122,255,0.35)',
+                  color: pushDone ? '#4ade80' : '#1a7aff',
+                  fontSize: 13, fontWeight: 700, letterSpacing: '.02em',
+                  opacity: pushWorking ? 0.6 : 1, transition: 'all 0.2s',
+                }}
+              >
+                {pushDone ? 'Push notifications enabled' : pushWorking ? 'Enabling…' : 'Enable push notifications'}
+              </button>
+
+              {/* Telegram setup link */}
               <a
                 href="/alerts"
                 target="_blank"
@@ -775,11 +826,11 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                   transition: 'filter 0.15s',
                 }}
               >
-                Open Alerts Setup →
+                Set up Telegram alerts →
               </a>
               <div style={{ fontSize: 11, color: '#4e5374', textAlign: 'center', lineHeight: 1.6 }}>
-                Opens in a new tab. Takes about 60 seconds to connect.<br />
-                You can also do this later from Alerts in the navigation.
+                Telegram setup takes about 60 seconds.<br />
+                You can enable either or both — they work independently.
               </div>
             </div>
           )}

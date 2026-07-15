@@ -11,6 +11,8 @@ import CoinMultiSelect from '@/components/CoinMultiSelect';
 import { track } from '@/lib/analytics';
 import { COINS } from '@/lib/marketStore';
 
+
+
 const TFS    = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'] as const;
 const RISK_PRESETS = ['0.25', '0.5', '1', '1.5', '2'];
 
@@ -50,6 +52,9 @@ export default function SettingsPage() {
   const { settings, saveStatus, update } = useSettings();
   const { usage }                                                    = useGrokUsage();
   const [tgStatus, setTgStatus] = useState<'loading' | 'configured' | 'not_configured'>('loading');
+  const [pushEnabled,  setPushEnabled]  = useState(false);
+  const [pushWorking,  setPushWorking]  = useState(false);
+  const [testResult,   setTestResult]   = useState<'idle' | 'sent' | 'error'>('idle');
 
   // Fetch Telegram status on mount
   useEffect(() => {
@@ -57,6 +62,79 @@ export default function SettingsPage() {
       .then(d => setTgStatus(d.configured ? 'configured' : 'not_configured'))
       .catch(() => setTgStatus('not_configured'));
   }, []);
+
+  // Detect current push subscription state
+  useEffect(() => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    navigator.serviceWorker.ready.then(reg => {
+      reg.pushManager.getSubscription().then(sub => setPushEnabled(!!sub));
+    }).catch(() => {});
+  }, []);
+
+  async function getToken(): Promise<string | null> {
+    const { createClient } = await import('@supabase/supabase-js');
+    const sb = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    const { data } = await sb.auth.getSession();
+    return data.session?.access_token ?? null;
+  }
+
+  async function handlePushToggle() {
+    if (pushWorking) return;
+    setPushWorking(true);
+    try {
+      if (pushEnabled) {
+        // Unsubscribe
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          const token = await getToken();
+          await fetch('/api/push/subscribe', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            body: JSON.stringify({ endpoint: sub.endpoint }),
+          });
+          await sub.unsubscribe();
+        }
+        setPushEnabled(false);
+      } else {
+        // Subscribe
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') return;
+        const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+        if (!vapidKey) { alert('Push not configured — VAPID key missing.'); return; }
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: vapidKey,
+        });
+        const token = await getToken();
+        await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify(sub.toJSON()),
+        });
+        setPushEnabled(true);
+      }
+    } catch (e) {
+      console.error('Push toggle error:', e);
+    } finally {
+      setPushWorking(false);
+    }
+  }
+
+  async function handleTestPush() {
+    setTestResult('idle');
+    const token = await getToken();
+    const res = await fetch('/api/push/test', {
+      method: 'POST',
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    setTestResult(res.ok ? 'sent' : 'error');
+    setTimeout(() => setTestResult('idle'), 3000);
+  }
 
   // Show limited page (Appearance only) when not signed in
   if (!authLoading && !user) {
@@ -266,7 +344,47 @@ export default function SettingsPage() {
 
       {/* ── 4. Notification Thresholds ── */}
       <Section title="Notification Thresholds">
-        <div className="st-desc">Controls browser push alerts in AI Arena.</div>
+        <div className="st-desc">Browser push — get alerts even when the tab is closed.</div>
+
+        {/* Push enable/disable toggle */}
+        <div className="st-field" style={{ marginBottom: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div>
+              <div className="st-field-label" style={{ marginBottom: 2 }}>Push Notifications</div>
+              <div style={{ fontSize: 11, color: 'var(--txt3)' }}>
+                {pushEnabled ? 'Active on this device' : 'Not enabled on this device'}
+              </div>
+            </div>
+            <button
+              className={`st-toggle${pushEnabled ? ' on' : ''}`}
+              role="switch"
+              aria-checked={pushEnabled}
+              disabled={pushWorking}
+              onClick={handlePushToggle}
+              style={{ opacity: pushWorking ? 0.5 : 1 }}
+            >
+              <span className="st-toggle-thumb" />
+            </button>
+          </div>
+        </div>
+
+        {/* Test notification button — only shown when subscribed */}
+        {pushEnabled && (
+          <button
+            onClick={handleTestPush}
+            style={{
+              width: '100%', padding: '9px 0', borderRadius: 8, marginBottom: 16,
+              background: testResult === 'sent' ? 'rgba(74,222,128,0.1)' : testResult === 'error' ? 'rgba(248,113,113,0.1)' : 'rgba(140,150,255,0.08)',
+              border: `0.5px solid ${testResult === 'sent' ? 'rgba(74,222,128,0.3)' : testResult === 'error' ? 'rgba(248,113,113,0.3)' : 'var(--bdr)'}`,
+              color: testResult === 'sent' ? 'var(--green)' : testResult === 'error' ? 'var(--red)' : 'var(--txt2)',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+            }}
+          >
+            {testResult === 'sent' ? 'Notification sent' : testResult === 'error' ? 'Failed — check console' : 'Send test notification'}
+          </button>
+        )}
+
+        <div style={{ height: 1, background: 'var(--bdr)', margin: '4px 0 16px' }} />
 
         <div className="st-row">
           <div className="st-field st-field-half">

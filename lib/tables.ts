@@ -15,6 +15,7 @@ export const T = {
   user_subscriptions: `${p}user_subscriptions`,
   alert_grok_log:     `${p}alert_grok_log`,
   live_signals:       `${p}live_signals`,
-  hypotheses:         `${p}hypotheses`,
-  hypothesis_evidence:`${p}hypothesis_evidence`,
+  hypotheses:          `${p}hypotheses`,
+  hypothesis_evidence: `${p}hypothesis_evidence`,
+  push_subscriptions:  `${p}push_subscriptions`,
 } as const;

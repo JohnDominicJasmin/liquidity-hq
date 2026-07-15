@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import webpush from 'web-push';
 import { classifyNews } from '@/lib/classify';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { detectPatterns } from '@/lib/patterns';
@@ -1434,6 +1435,63 @@ async function checkEMASetup(
 }
 
 /* ════════════════════════════════════════
+   WEB PUSH DISPATCH
+   ════════════════════════════════════════ */
+async function dispatchPush(queue: SignalEntry[]): Promise<void> {
+  const pubKey  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const privKey = process.env.VAPID_PRIVATE_KEY;
+  const email   = process.env.VAPID_EMAIL;
+  if (!pubKey || !privKey || !email) return;
+
+  const admin = getSupabaseAdmin();
+  const { data: subs } = await admin.from(T.push_subscriptions).select('*');
+  if (!subs?.length) return;
+
+  webpush.setVapidDetails(email, pubKey, privKey);
+
+  // Group by coin — same logic as flushSignals
+  const byCoin = new Map<string, SignalEntry[]>();
+  for (const e of queue) {
+    const arr = byCoin.get(e.coin) ?? [];
+    arr.push(e);
+    byCoin.set(e.coin, arr);
+  }
+
+  const expired: string[] = [];
+
+  for (const [coin, entries] of byCoin) {
+    const label = LABELS[coin] ?? coin.toUpperCase();
+    const body  = entries.length === 1
+      ? `${label}: ${entries[0].title}`
+      : `${label}: ${entries.length} signals aligned`;
+
+    const payload = JSON.stringify({
+      title: 'LiquidityHQ',
+      body,
+      tag:  `lhq-${coin}`,
+      url:  '/',
+    });
+
+    await Promise.allSettled(
+      (subs as Array<{ endpoint: string; p256dh: string; auth: string }>).map(async sub => {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            payload
+          );
+        } catch (err: unknown) {
+          if ((err as { statusCode?: number }).statusCode === 410) expired.push(sub.endpoint);
+        }
+      })
+    );
+  }
+
+  if (expired.length > 0) {
+    await admin.from(T.push_subscriptions).delete().in('endpoint', expired);
+  }
+}
+
+/* ════════════════════════════════════════
    MAIN HANDLER
    ════════════════════════════════════════ */
 /* Muted alert groups — set on /alerts page, stored in Supabase. Fail-open.
@@ -1555,6 +1613,9 @@ async function runAlerts(token: string): Promise<NextResponse> {
 
   // Flush: single signals → send as-is, 2+ same coin → confluence alert
   await flushSignals(token, chatId, stamp, filteredQueue);
+
+  // Web Push — fire-and-forget, never let it block or throw
+  void dispatchPush(filteredQueue).catch(() => {});
 
   const fired = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
   if (fired.length > 0) recordFires(fired);
