@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { parseCombinedResponse } from '@/lib/grok';
 import { T } from '@/lib/tables';
+import { getUserRole } from '@/lib/entitlements';
 
 // Keys / limits
 const GROK_KEY          = process.env.GROK_API_KEY ?? '';
@@ -37,14 +38,6 @@ async function getUsageRow(token: string, userId: string, today: string) {
     searchUsed:   data?.chat_search_count ?? 0,
     briefingUsed: data?.briefing_count    ?? 0,
   };
-}
-
-async function getUserRole(token: string, userId: string): Promise<'free' | 'pro'> {
-  const { data } = await sb(token).from(T.user_subscriptions)
-    .select('role')
-    .eq('user_id', userId)
-    .maybeSingle();
-  return data?.role === 'pro' ? 'pro' : 'free';
 }
 
 // ── GET — return today's usage without running an analysis ──────────────────

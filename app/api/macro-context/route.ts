@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
+import { getUserRole } from '@/lib/entitlements';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // DXY/VIX/gold/oil/10Y don't meaningfully shift within a few minutes — cache
@@ -96,6 +97,13 @@ export async function GET(req: NextRequest) {
 
   const { data: authData } = await sb(token).auth.getUser();
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // Pro-only feature — checked server-side so the paid Grok call can't be
+  // reached by skipping the client gate.
+  const role = await getUserRole(token, authData.user.id);
+  if (role !== 'pro') {
+    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Global macro context is a Pro feature.' }, { status: 403 });
+  }
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 

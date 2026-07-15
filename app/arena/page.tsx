@@ -13,6 +13,7 @@ import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
 import { T } from '@/lib/tables';
 import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
+import UpgradeGateModal, { LockedFeatureCard } from '@/components/UpgradeGateModal';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import MarketStructure, { MSData } from '@/components/MarketStructure';
 import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
@@ -146,6 +147,14 @@ interface HistItem {
 
 const ARENA_HIST_KEY = 'arena-session-history-v1';
 
+// Fast timeframes are Pro-only. Free users are clamped to 30m and up; tapping
+// a gated timeframe opens the upgrade modal instead of switching.
+const GATED_TFS: readonly ChartTf[] = ['1m', '5m', '15m'];
+const FREE_FALLBACK_TF: ChartTf = '1h';
+const TF_FEATURE_LABEL: Record<string, string> = {
+  '1m': 'The 1 minute timeframe', '5m': 'The 5 minute timeframe', '15m': 'The 15 minute timeframe',
+};
+
 function ArenaContent() {
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
@@ -161,6 +170,8 @@ function ArenaContent() {
     const valid: ChartTf[] = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'];
     return valid.includes(tf as ChartTf) ? tf as ChartTf : '15m';
   });
+  // Which Pro feature the user just tried to open (null = modal closed)
+  const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
   const arenaInitRef  = useRef(false);
   const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '—' });
   const msDataRef     = useRef<MSData | null>(null);
@@ -345,6 +356,27 @@ function ArenaContent() {
       }
     }
   }, [settings.default_coin, settings.default_tf]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── Pro gate: fast timeframes ──
+     Intercepts every timeframe switch (chart toolbar buttons come through
+     here via onTfChange). Free users tapping 1m/5m/15m get the upgrade modal
+     instead of a switch. */
+  const handleTfChange = (tf: ChartTf) => {
+    if (!isPro && GATED_TFS.includes(tf)) {
+      setUpgradeGate(TF_FEATURE_LABEL[tf] ?? 'This timeframe');
+      return;
+    }
+    setReadTf(tf);
+  };
+
+  /* Clamp: a free user can still land on a gated timeframe without clicking —
+     URL ?tf= param, a saved default from Settings, or a session that was Pro
+     when the timeframe was chosen. Once the role is known, bump them to the
+     free fallback rather than serving gated signals. */
+  useEffect(() => {
+    if (authLoading || isPro) return;
+    if (GATED_TFS.includes(readTf)) setReadTf(FREE_FALLBACK_TF);
+  }, [authLoading, isPro, readTf]);
 
   /* ── Sync OI 1h hook data → ref (used by Grok context builder) ── */
   useEffect(() => {
@@ -1384,15 +1416,17 @@ function ArenaContent() {
       <CoinMarketSnapshot coin={selectedCoin} />
 
       {/* ── CHART — KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={setReadTf} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} />
+      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} />
 
       {/* ── BELOW CHART: left-aligned, max 860px on wide screens ── */}
       <div className="arena-below-chart">
 
-      {/* Data collectors — run hooks for Grok context, render nothing */}
+      {/* Data collectors — run hooks for Grok context, render nothing.
+          AbsorptionDetector is Pro-only: for free users it is not mounted at
+          all, so its data never reaches the AI context either. */}
       <div style={{ display: 'none' }}>
         <MarketStructure coin={selectedCoin} onData={handleMsData} />
-        <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />
+        {isPro && <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />}
       </div>
 
       {/* BTC Liquidation Heatmap — shows only when BTC selected and data available */}
@@ -1490,8 +1524,17 @@ function ArenaContent() {
       })()}
 
       {/* Confluence Score — EMA Ribbon + Order Flow + Multi-TF RSI combined, plus a
-          separate macro/event risk overlay (econ calendar + JPY carry-trade risk) */}
-      <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} />
+          separate macro/event risk overlay (econ calendar + JPY carry-trade risk).
+          Pro-only: free users get an in-place locked card so the layout holds. */}
+      {isPro ? (
+        <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} />
+      ) : (
+        <LockedFeatureCard
+          title="Confluence Score"
+          description="Order flow bias, absorption detection, and the combined confluence verdict are part of Pro."
+          onUnlock={() => setUpgradeGate('The Confluence Score')}
+        />
+      )}
 
       <MultiTFAlignment coin={selectedCoin} />
 
@@ -2002,6 +2045,13 @@ function ArenaContent() {
 
 
       </div> {/* end arena-below-chart */}
+
+      {/* Pro upgrade modal — opened by the timeframe gate and locked cards */}
+      <UpgradeGateModal
+        open={upgradeGate !== null}
+        onClose={() => setUpgradeGate(null)}
+        feature={upgradeGate ?? undefined}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
+import { getUserRole } from '@/lib/entitlements';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,14 +38,6 @@ async function getUsageRow(token: string, userId: string, today: string) {
     .eq('date', today)
     .maybeSingle();
   return { briefingUsed: data?.briefing_count ?? 0 };
-}
-
-async function getUserRole(token: string, userId: string): Promise<'free' | 'pro'> {
-  const { data } = await sb(token).from(T.user_subscriptions)
-    .select('role')
-    .eq('user_id', userId)
-    .maybeSingle();
-  return data?.role === 'pro' ? 'pro' : 'free';
 }
 
 export async function POST(req: NextRequest) {
