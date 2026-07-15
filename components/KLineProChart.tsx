@@ -465,12 +465,21 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           needDefaultYAxisFigure: false,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
-            const { dir } = overlay.extendData as { dir: 'long' | 'short' };
+            const { dir, pending } = overlay.extendData as { dir: 'long' | 'short'; pending: boolean };
             const coord = coordinates[0];
             if (!coord || !isFinite(coord.x) || !isFinite(coord.y) || coord.x < 0 || coord.y < 0) return [];
             const x = coord.x;
             const y = coord.y;
             if (dir === 'long') {
+              if (pending) {
+                return [
+                  {
+                    type: 'polygon',
+                    attrs: { coordinates: [{ x, y: y + 4 }, { x: x - 14, y: y + 28 }, { x: x + 14, y: y + 28 }] },
+                    styles: { style: 'stroke', color: 'rgba(34,197,94,0.55)', size: 1.5 },
+                  },
+                ];
+              }
               return [
                 {
                   type: 'polygon',
@@ -481,6 +490,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   type: 'text',
                   attrs: { x, y: y + 20, text: 'Buy', align: 'center', baseline: 'middle' },
                   styles: { color: '#ffffff', size: 9, weight: 'bold', backgroundColor: 'transparent' },
+                },
+              ];
+            }
+            if (pending) {
+              return [
+                {
+                  type: 'polygon',
+                  attrs: { coordinates: [{ x, y: y - 4 }, { x: x - 14, y: y - 28 }, { x: x + 14, y: y - 28 }] },
+                  styles: { style: 'stroke', color: 'rgba(239,68,68,0.55)', size: 1.5 },
                 },
               ];
             }
@@ -807,16 +825,16 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     chart.removeOverlay({ name: 'emaSignal' });
     if (!emaSignal || emaSignal.loading) return;
 
-    const place = (dir: 'long' | 'short', ts: number, price: number) => {
+    const place = (dir: 'long' | 'short', ts: number, price: number, pending: boolean) => {
       chart.createOverlay({
         name: 'emaSignal', lock: true,
-        extendData: { dir },
+        extendData: { dir, pending },
         points: [{ timestamp: ts, value: price }],
       } as OverlayCreate);
     };
 
-    for (const sig of emaSignal.signalLongs)  place('long',  sig.timestamp, sig.anchorPrice);
-    for (const sig of emaSignal.signalShorts) place('short', sig.timestamp, sig.anchorPrice);
+    for (const sig of emaSignal.signalLongs)  place('long',  sig.timestamp, sig.anchorPrice, sig.pending ?? false);
+    for (const sig of emaSignal.signalShorts) place('short', sig.timestamp, sig.anchorPrice, sig.pending ?? false);
   }, [emaSignal, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Reversal warnings — RSI divergence, a leading heads-up distinct from the

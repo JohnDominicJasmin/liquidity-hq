@@ -46,8 +46,8 @@ export interface StrategySignal {
   signalTimestamp:   number | null;
   signalAnchorPrice: number | null;
   signalDir:         'long' | 'short' | null;
-  signalLongs:  Array<{ timestamp: number; anchorPrice: number }>;
-  signalShorts: Array<{ timestamp: number; anchorPrice: number }>;
+  signalLongs:  Array<{ timestamp: number; anchorPrice: number; pending: boolean }>;
+  signalShorts: Array<{ timestamp: number; anchorPrice: number; pending: boolean }>;
   atrLast:    number | null;  // last ATR(14) — for Grok context
   ema50Slope: number | null;  // EMA50 slope over last 5 bars as a fraction
   chopIndex:  number | null;  // Choppiness Index (0-100) — high = range-bound
@@ -419,12 +419,12 @@ export function useEMAStrategy(
         // 2-step arm/confirm, ATR buffer, EMA50 slope, ribbon spread, whipsaw persistence,
         // and strict buy/sell alternation.
         const detected = detectEMASignals(cRibbon, tf, filterParams);
-        const signalLongs  = detected.signalLongs.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice }));
-        const signalShorts = detected.signalShorts.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice }));
+        const signalLongs  = detected.signalLongs.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
+        const signalShorts = detected.signalShorts.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
 
-        // Recent record — simulate every detected signal on the same candle window
-        // using the backtest engine's fill rules. No extra network calls.
-        const simTrades = simulateTrades([...detected.signalLongs, ...detected.signalShorts], cRibbon, coin);
+        // Recent record — confirmed signals only (pending have unreliable fillPrice at live edge)
+        const confirmedSignals = [...detected.signalLongs, ...detected.signalShorts].filter(s => !s.pending);
+        const simTrades = simulateTrades(confirmedSignals, cRibbon, coin);
         const rsWins    = simTrades.filter(t => t.outcome === 'win').length;
         const rsLosses  = simTrades.filter(t => t.outcome === 'loss').length;
         const rsOpen    = simTrades.filter(t => t.outcome === 'open').length;

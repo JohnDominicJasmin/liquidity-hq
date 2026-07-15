@@ -325,8 +325,9 @@ export async function runBacktest(
         // live default — see DEFAULT_FILTER_PARAMS in strategyCore.ts for why).
         const onSignals  = detectEMASignals(candles, tf, STRICT_FILTER_PARAMS);
         const offSignals = detectEMASignals(candles, tf, DEFAULT_FILTER_PARAMS);
-        const onTrades  = [...simulateTrades(onSignals.signalLongs, candles, coin), ...simulateTrades(onSignals.signalShorts, candles, coin)];
-        const offTrades = [...simulateTrades(offSignals.signalLongs, candles, coin), ...simulateTrades(offSignals.signalShorts, candles, coin)];
+        const confirmed = <T extends { pending: boolean }>(arr: T[]) => arr.filter(s => !s.pending);
+        const onTrades  = [...simulateTrades(confirmed(onSignals.signalLongs), candles, coin), ...simulateTrades(confirmed(onSignals.signalShorts), candles, coin)];
+        const offTrades = [...simulateTrades(confirmed(offSignals.signalLongs), candles, coin), ...simulateTrades(confirmed(offSignals.signalShorts), candles, coin)];
         allTradesOn.push(...onTrades);
         allTradesOff.push(...offTrades);
         perCoinOn[coin]  = computeStats(onTrades);
@@ -334,8 +335,8 @@ export async function runBacktest(
 
         for (const name of variantNames) {
           const params = WT_VARIANTS[name];
-          const wtLongs  = filterSignalsByWaveTrend(onSignals.signalLongs, candles, params);
-          const wtShorts = filterSignalsByWaveTrend(onSignals.signalShorts, candles, params);
+          const wtLongs  = filterSignalsByWaveTrend(confirmed(onSignals.signalLongs), candles, params);
+          const wtShorts = filterSignalsByWaveTrend(confirmed(onSignals.signalShorts), candles, params);
           const wtTrades = [...simulateTrades(wtLongs, candles, coin), ...simulateTrades(wtShorts, candles, coin)];
           allTradesByVariant[name].push(...wtTrades);
           perCoinByVariant[name][coin] = computeStats(wtTrades);
@@ -432,7 +433,7 @@ async function processOrderFlowCoin(coin: CoinId, yearsBack: number): Promise<Si
       // Order-flow signals evaluate at candle i using only past data, so the signal
       // is knowable at its own close — fill index and price equal the eval candle.
       timestamp: t, index: i, fillIndex: i, fillPrice: price, armIndex: i, dir: bias,
-      anchorPrice: price, entryPrice: price, sl: zones.sl, tp: zones.tp,
+      anchorPrice: price, entryPrice: price, sl: zones.sl, tp: zones.tp, pending: false,
     });
     lastDir = bias;
   }

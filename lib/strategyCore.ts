@@ -114,7 +114,7 @@ export const STRICT_FILTER_PARAMS: SignalFilterParams = {
 };
 
 export const PERSIST_BY_TF: Record<string, number> = {
-  '1m': 8, '5m': 8, '15m': 8, '30m': 4, '1h': 3, '2h': 3, '4h': 3, '1d': 2,
+  '1m': 4, '5m': 5, '15m': 8, '30m': 4, '1h': 3, '2h': 3, '4h': 3, '1d': 2,
 };
 
 const SLOPE_BARS = 5;
@@ -136,6 +136,7 @@ export interface SignalEvent {
   entryPrice:  number;          // close of confirmation candle (marker candle) — display only
   sl:          number;
   tp:          number;          // fixed 2:1 R:R target measured from the fill price
+  pending:     boolean;         // true = PERSIST hold incomplete (live edge) — hollow marker, exclude from backtest
 }
 
 export interface DetectedSignals {
@@ -174,18 +175,26 @@ export function detectEMASignals(
     return p > 0 && Math.abs(e9arr[k] - e20arr[k]) / p >= SPREAD_MIN_PCT;
   };
 
-  const holdsBeyond50 = (k: number, dir: 'long' | 'short'): boolean => {
+  const holdsBeyond50 = (k: number, dir: 'long' | 'short'): 'confirmed' | 'pending' | 'rejected' => {
+    // PERSIST=0 (DEFAULT mode / anti-chop OFF) — fire immediately on EMA50 confirmation close.
+    if (PERSIST === 0) return 'confirmed';
     let n = 0;
     for (let j = k + 1; j < candles.length; j++) {
       const e50j = e50arr[j];
       if (!isFinite(e50j)) { n++; continue; }
       const above = candles[j].close > e50j;
-      if (dir === 'long' ? above : !above) n++; else break;
+      if (dir === 'long' ? above : !above) {
+        n++;
+        if (n >= PERSIST) return 'confirmed'; // threshold met — confirmed even if price later crosses back
+      } else {
+        return 'rejected'; // crossed back before PERSIST candles held
+      }
     }
-    return n >= PERSIST || (k + 1 + n >= candles.length);
+    // Ran out of candles before PERSIST met — live edge, show hollow pending marker.
+    return 'pending';
   };
 
-  const mkSignal = (k: number, armIndex: number, dir: 'long' | 'short'): SignalEvent => {
+  const mkSignal = (k: number, armIndex: number, dir: 'long' | 'short', pending: boolean): SignalEvent => {
     const entryPrice = candles[k].close;
     // The signal only becomes knowable after the forward persistence hold resolves —
     // PERSIST candles past the confirmation close. Fill there, not at k, or the
@@ -207,6 +216,7 @@ export function detectEMASignals(
       dir,
       anchorPrice: dir === 'long' ? candles[armIndex].low : candles[armIndex].high,
       entryPrice, sl, tp,
+      pending,
     };
   };
 
@@ -227,11 +237,13 @@ export function detectEMASignals(
         if (!isFinite(e50k)) continue;
         const atrBuf = (atr14[k] ?? 0) * ATR_MULT;
         if (candles[k].close > e50k + atrBuf && slopeOK(k, 'long') && spreadOK(k)) {
-          if (holdsBeyond50(k, 'long')) {
-            signalLongs.push(mkSignal(k, i, 'long'));
+          const hold = holdsBeyond50(k, 'long');
+          if (hold === 'confirmed' || hold === 'pending') {
+            signalLongs.push(mkSignal(k, i, 'long', hold === 'pending'));
             lastDir = 'long';
             break;
           }
+          // hold === 'rejected': candle broke EMA50 before PERSIST — keep scanning for next confirm
         }
       }
     }
@@ -244,11 +256,13 @@ export function detectEMASignals(
         if (!isFinite(e50k)) continue;
         const atrBuf = (atr14[k] ?? 0) * ATR_MULT;
         if (candles[k].close < e50k - atrBuf && slopeOK(k, 'short') && spreadOK(k)) {
-          if (holdsBeyond50(k, 'short')) {
-            signalShorts.push(mkSignal(k, i, 'short'));
+          const hold = holdsBeyond50(k, 'short');
+          if (hold === 'confirmed' || hold === 'pending') {
+            signalShorts.push(mkSignal(k, i, 'short', hold === 'pending'));
             lastDir = 'short';
             break;
           }
+          // hold === 'rejected': candle broke EMA50 before PERSIST — keep scanning for next confirm
         }
       }
     }
