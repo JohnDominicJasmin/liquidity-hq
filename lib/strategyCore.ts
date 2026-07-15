@@ -83,7 +83,7 @@ export function chopRegimeFor(ci: number): ChopRegime {
 
 /* ── Adjustable filter parameters ───────────────────────────────────────── */
 export interface SignalFilterParams {
-  spreadMinPct: number;  // EMA9/20 min spread as fraction of price (0.003 = 0.3%)
+  spreadMinPct: number;  // 0 = off, >0 = on — actual per-TF threshold resolved via SPREAD_MIN_BY_TF
   atrMult:      number;  // ATR(14) multiplier for EMA50 clearance buffer (0.35 = 35%)
   persistBoost: number;  // Integer added to all PERSIST_BY_TF base values (can be negative)
 }
@@ -116,6 +116,27 @@ export const STRICT_FILTER_PARAMS: SignalFilterParams = {
 export const PERSIST_BY_TF: Record<string, number> = {
   '1m': 4, '5m': 5, '15m': 8, '30m': 4, '1h': 3, '2h': 3, '4h': 3, '1d': 2,
 };
+
+// EMA9/20 spread required before a ribbon counts as "clearly separated" (STRICT mode
+// only — DEFAULT mode leaves spreadMinPct at 0 and skips this filter entirely). A flat
+// 0.3% was previously applied to every timeframe; measured against live BTC candles
+// that's above the 90th percentile of actual spread on 1m/5m/15m (near-unreachable —
+// only ~1% of 5m candles ever cleared it) while sitting BELOW the 50th percentile on
+// 1h/4h/1d (no filtering at all up there). These are each timeframe's ~75th percentile
+// of EMA9/20 spread on BTC, so "clearly separated" means the same relative thing at
+// every timeframe instead of one absolute number that only happened to fit 30m.
+export const SPREAD_MIN_BY_TF: Record<string, number> = {
+  '1m': 0.0006, '5m': 0.0011, '15m': 0.0015, '30m': 0.0033,
+  '1h': 0.0045, '2h': 0.0065, '4h': 0.0083, '1d': 0.0245,
+};
+
+// Resolves the requested spread strictness (0 = off, >0 = "on") to the actual
+// per-timeframe threshold. Keeps SignalFilterParams.spreadMinPct as a simple on/off
+// switch in DEFAULT_FILTER_PARAMS / STRICT_FILTER_PARAMS while the real number scales
+// with the timeframe being scanned.
+function resolveSpreadMin(tf: string, requested: number): number {
+  return requested > 0 ? (SPREAD_MIN_BY_TF[tf] ?? requested) : 0;
+}
 
 const SLOPE_BARS = 5;
 const SLOPE_MIN  = 0.001;
@@ -161,7 +182,7 @@ export function detectEMASignals(
   const atr14  = atrArr(candles, 14);
 
   const ATR_MULT       = atrMult;
-  const SPREAD_MIN_PCT = spreadMinPct;
+  const SPREAD_MIN_PCT = resolveSpreadMin(tf, spreadMinPct);
   const PERSIST         = Math.max(0, (PERSIST_BY_TF[tf] ?? 4) + persistBoost);
 
   const slopeOK = (k: number, dir: 'long' | 'short'): boolean => {

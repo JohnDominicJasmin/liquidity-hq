@@ -5,6 +5,7 @@ import {
   emaArr, smaArr, volMA, atrArr, detectEMASignals,
   choppinessIndexArr, chopRegimeFor, ChopRegime,
   SignalFilterParams, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS,
+  SPREAD_MIN_BY_TF,
 } from './strategyCore';
 import { detectRSIDivergence } from './divergence';
 import { simulateTrades } from './backtestEngine';
@@ -371,7 +372,7 @@ export function useEMAStrategy(
         const ATR_MULT       = atrMult;
         const SLOPE_BARS     = 5;
         const SLOPE_MIN      = 0.001;
-        const SPREAD_MIN_PCT = spreadMinPct;
+        const SPREAD_MIN_PCT = spreadMinPct > 0 ? (SPREAD_MIN_BY_TF[tf] ?? spreadMinPct) : 0;
 
         const slopeOK = (k: number, dir: 'long' | 'short'): boolean => {
           if (k < SLOPE_BARS || !isFinite(e50arr[k - SLOPE_BARS])) return true;
