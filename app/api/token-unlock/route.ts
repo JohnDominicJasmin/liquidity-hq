@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { cached } from '@/lib/apiCache';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
+// Vesting schedules don't change hour to hour, and every visitor checking the
+// same symbol gets an identical Grok answer — cache per symbol.
+const CACHE_TTL = 6 * 60 * 60_000;
 
 function sb(token: string) {
   return createClient(
@@ -49,25 +53,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Enter a valid token symbol (e.g. ARB, OP, PYTH)' }, { status: 400 });
   }
 
-  const prompt = buildUnlockPrompt(symbol);
+  try {
+    const result = await cached(`token-unlock:${symbol}`, CACHE_TTL, async () => {
+      const prompt = buildUnlockPrompt(symbol);
 
-  const aiRes = await fetch('https://api.x.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
-    body: JSON.stringify({
-      model: 'grok-4.3',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 900,
-    }),
-  });
+      const aiRes = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
+        body: JSON.stringify({
+          model: 'grok-4.3',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 900,
+        }),
+      });
 
-  if (!aiRes.ok) {
-    const err = await aiRes.json().catch(() => ({})) as { error?: string };
-    return NextResponse.json({ error: err.error ?? 'AI error' }, { status: 502 });
+      if (!aiRes.ok) {
+        const err = await aiRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error ?? 'AI error');
+      }
+
+      const aiData = await aiRes.json();
+      const analysis: string = aiData.choices?.[0]?.message?.content ?? '';
+
+      return { analysis, symbol };
+    });
+    return NextResponse.json(result);
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Request failed' }, { status: 502 });
   }
-
-  const aiData = await aiRes.json();
-  const analysis: string = aiData.choices?.[0]?.message?.content ?? '';
-
-  return NextResponse.json({ analysis, symbol });
 }

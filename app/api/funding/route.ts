@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
+import { cached } from '@/lib/apiCache';
 
 export const dynamic = 'force-dynamic';
+// Funding rates settle every 8h — a 20s cache collapses concurrent visitor
+// fan-out into one upstream call without making the data noticeably stale.
+const CACHE_TTL = 20_000;
 
 interface BNTicker { symbol: string; lastFundingRate: string; nextFundingTime: number }
 interface BBTicker { symbol: string; fundingRate: string; nextFundingTime: string }
@@ -63,19 +67,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
   try {
-    const [bnResult, bbResult] = await Promise.allSettled([getBinance(), getBybit()]);
+    const result = await cached('funding', CACHE_TTL, async () => {
+      const [bnResult, bbResult] = await Promise.allSettled([getBinance(), getBybit()]);
 
-    const bn = bnResult.status === 'fulfilled' ? bnResult.value : { rates: {}, nextMs: {} };
-    const bb = bbResult.status === 'fulfilled' ? bbResult.value : { rates: {}, nextMs: {} };
+      const bn = bnResult.status === 'fulfilled' ? bnResult.value : { rates: {}, nextMs: {} };
+      const bb = bbResult.status === 'fulfilled' ? bbResult.value : { rates: {}, nextMs: {} };
 
-    const data = COINS.map(coin => ({
-      coin,
-      binance:       bn.rates[coin] ?? null,
-      bybit:         bb.rates[coin] ?? null,
-      nextFundingMs: bn.nextMs[coin] ?? bb.nextMs[coin] ?? null,
-    }));
+      const data = COINS.map(coin => ({
+        coin,
+        binance:       bn.rates[coin] ?? null,
+        bybit:         bb.rates[coin] ?? null,
+        nextFundingMs: bn.nextMs[coin] ?? bb.nextMs[coin] ?? null,
+      }));
 
-    return NextResponse.json({ data, ts: Date.now() });
+      return { data, ts: Date.now() };
+    });
+    return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

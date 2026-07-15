@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { cached } from '@/lib/apiCache';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
+// Every visitor requesting the same asset+timeframe within this window gets
+// the same candles and the same Grok read — cache per (asset, tf).
+const CACHE_TTL = 2 * 60_000;
 
 const SYMBOL_MAP: Record<string, string> = {
   BTC: 'BTCUSDT', ETH: 'ETHUSDT', SOL: 'SOLUSDT', XRP: 'XRPUSDT',
@@ -87,36 +91,35 @@ export async function POST(req: NextRequest) {
 
   const symbol = SYMBOL_MAP[asset] ?? `${asset}USDT`;
 
-  let candles: Candle[];
   try {
-    candles = await fetchCandles(symbol, tf, 50);
+    const result = await cached(`smc-snapshot:${asset}:${tf}`, CACHE_TTL, async () => {
+      const candles = await fetchCandles(symbol, tf, 50);
+      if (candles.length < 20) throw new Error('Not enough candle data — try a different timeframe');
+
+      const prompt = buildSMCPrompt(asset, tf, candles);
+
+      const aiRes = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
+        body: JSON.stringify({
+          model: 'grok-4.3',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 900,
+        }),
+      });
+
+      if (!aiRes.ok) {
+        const err = await aiRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error ?? 'AI error');
+      }
+
+      const aiData = await aiRes.json();
+      const analysis: string = aiData.choices?.[0]?.message?.content ?? '';
+
+      return { analysis, asset, tf };
+    });
+    return NextResponse.json(result);
   } catch (e) {
-    return NextResponse.json({ error: `No candle data for ${asset} ${tf}: ${e}` }, { status: 502 });
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Request failed' }, { status: 502 });
   }
-
-  if (candles.length < 20) {
-    return NextResponse.json({ error: 'Not enough candle data — try a different timeframe' }, { status: 502 });
-  }
-
-  const prompt = buildSMCPrompt(asset, tf, candles);
-
-  const aiRes = await fetch('https://api.x.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
-    body: JSON.stringify({
-      model: 'grok-4.3',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 900,
-    }),
-  });
-
-  if (!aiRes.ok) {
-    const err = await aiRes.json().catch(() => ({})) as { error?: string };
-    return NextResponse.json({ error: err.error ?? 'AI error' }, { status: 502 });
-  }
-
-  const aiData = await aiRes.json();
-  const analysis: string = aiData.choices?.[0]?.message?.content ?? '';
-
-  return NextResponse.json({ analysis, asset, tf });
 }

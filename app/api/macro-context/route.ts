@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { cached } from '@/lib/apiCache';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
+// DXY/VIX/gold/oil/10Y don't meaningfully shift within a few minutes — cache
+// across visitors instead of hitting Yahoo Finance + Grok on every page load.
+const CACHE_TTL = 5 * 60_000;
 
 function sb(token: string) {
   return createClient(
@@ -95,60 +99,67 @@ export async function GET(req: NextRequest) {
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
-  const [dxyData, vixData, goldData, oilData, tnxData] = await Promise.all([
-    fetchYF('DX-Y.NYB'),
-    fetchYF('%5EVIX'),
-    fetchYF('GC%3DF'),
-    fetchYF('CL%3DF'),
-    fetchYF('%5ETNX'),
-  ]);
+  try {
+    const result = await cached('macro-context', CACHE_TTL, async () => {
+      const [dxyData, vixData, goldData, oilData, tnxData] = await Promise.all([
+        fetchYF('DX-Y.NYB'),
+        fetchYF('%5EVIX'),
+        fetchYF('GC%3DF'),
+        fetchYF('CL%3DF'),
+        fetchYF('%5ETNX'),
+      ]);
 
-  const missing = [
-    !dxyData && 'DXY',
-    !vixData && 'VIX',
-    !goldData && 'Gold',
-    !oilData && 'Oil',
-    !tnxData && '10Y Treasury',
-  ].filter(Boolean);
+      const missing = [
+        !dxyData && 'DXY',
+        !vixData && 'VIX',
+        !goldData && 'Gold',
+        !oilData && 'Oil',
+        !tnxData && '10Y Treasury',
+      ].filter(Boolean);
 
-  if (missing.length >= 3) {
-    return NextResponse.json({ error: `Could not fetch macro data (${missing.join(', ')})` }, { status: 502 });
+      if (missing.length >= 3) {
+        throw new Error(`Could not fetch macro data (${missing.join(', ')})`);
+      }
+
+      const dxy  = dxyData  ?? { price: 103.5, prev: 103.5 };
+      const vix  = vixData  ?? { price: 18,    prev: 18    };
+      const gold = goldData ?? { price: 2350,  prev: 2350  };
+      const oil  = oilData  ?? { price: 78,    prev: 78    };
+      const tnx  = tnxData  ?? { price: 4.3,   prev: 4.3   };
+
+      const payload = {
+        dxy:  dxy.price,  dxyChg:  pctChange(dxy.price,  dxy.prev),
+        vix:  vix.price,  vixChg:  pctChange(vix.price,  vix.prev),
+        gold: gold.price, goldChg: pctChange(gold.price, gold.prev),
+        oil:  oil.price,  oilChg:  pctChange(oil.price,  oil.prev),
+        tnx:  tnx.price,  tnxChg:  pctChange(tnx.price,  tnx.prev),
+        goldOilRatio: gold.price / oil.price,
+      };
+
+      const prompt = buildMacroPrompt(payload);
+
+      const aiRes = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
+        body: JSON.stringify({
+          model: 'grok-4.3',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 600,
+        }),
+      });
+
+      if (!aiRes.ok) {
+        const err = await aiRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error ?? 'AI error');
+      }
+
+      const aiData = await aiRes.json();
+      const analysis: string = aiData.choices?.[0]?.message?.content ?? '';
+
+      return { ...payload, analysis, missingData: missing };
+    });
+    return NextResponse.json(result);
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Request failed' }, { status: 502 });
   }
-
-  const dxy  = dxyData  ?? { price: 103.5, prev: 103.5 };
-  const vix  = vixData  ?? { price: 18,    prev: 18    };
-  const gold = goldData ?? { price: 2350,  prev: 2350  };
-  const oil  = oilData  ?? { price: 78,    prev: 78    };
-  const tnx  = tnxData  ?? { price: 4.3,   prev: 4.3   };
-
-  const payload = {
-    dxy:  dxy.price,  dxyChg:  pctChange(dxy.price,  dxy.prev),
-    vix:  vix.price,  vixChg:  pctChange(vix.price,  vix.prev),
-    gold: gold.price, goldChg: pctChange(gold.price, gold.prev),
-    oil:  oil.price,  oilChg:  pctChange(oil.price,  oil.prev),
-    tnx:  tnx.price,  tnxChg:  pctChange(tnx.price,  tnx.prev),
-    goldOilRatio: gold.price / oil.price,
-  };
-
-  const prompt = buildMacroPrompt(payload);
-
-  const aiRes = await fetch('https://api.x.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
-    body: JSON.stringify({
-      model: 'grok-4.3',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 600,
-    }),
-  });
-
-  if (!aiRes.ok) {
-    const err = await aiRes.json().catch(() => ({})) as { error?: string };
-    return NextResponse.json({ error: err.error ?? 'AI error' }, { status: 502 });
-  }
-
-  const aiData = await aiRes.json();
-  const analysis: string = aiData.choices?.[0]?.message?.content ?? '';
-
-  return NextResponse.json({ ...payload, analysis, missingData: missing });
 }

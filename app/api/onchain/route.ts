@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { cached } from '@/lib/apiCache';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
+// On-chain metrics (MVRV/SOPR/NVT/exchange flow) don't move within minutes, and
+// this is an expensive Grok web_search+x_search call — cache it across visitors.
+const CACHE_TTL = 10 * 60_000;
 
 function sb(token: string) {
   return createClient(
@@ -112,40 +116,39 @@ export async function GET(req: NextRequest) {
 
   const btcPrice = parseFloat(req.nextUrl.searchParams.get('price') ?? '0') || 0;
 
-  const stats = await fetchBlockchainStats();
-  const prompt = buildOnChainPrompt(stats, btcPrice);
-
-  let raw = '';
   try {
-    const r = await fetch('https://api.x.ai/v1/responses', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
-      body: JSON.stringify({
-        model: 'grok-4.3',
-        input: [{ role: 'user', content: prompt }],
-        tools: [{ type: 'web_search' }, { type: 'x_search' }],
-      }),
-      signal: AbortSignal.timeout(45000),
+    const result = await cached('onchain', CACHE_TTL, async () => {
+      const stats = await fetchBlockchainStats();
+      const prompt = buildOnChainPrompt(stats, btcPrice);
+
+      const r = await fetch('https://api.x.ai/v1/responses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
+        body: JSON.stringify({
+          model: 'grok-4.3',
+          input: [{ role: 'user', content: prompt }],
+          tools: [{ type: 'web_search' }, { type: 'x_search' }],
+        }),
+        signal: AbortSignal.timeout(45000),
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({})) as { error?: string };
+        throw new Error(e.error ?? 'Grok error');
+      }
+      const d = await r.json();
+      const msg = (d.output as Array<{ type: string; content?: Array<{ text: string }> }>)
+        ?.find(o => o.type === 'message');
+      const raw = msg?.content?.[0]?.text ?? '';
+
+      let parsed: Record<string, unknown> | null = null;
+      const m = raw.match(/\{[\s\S]*\}/);
+      if (m) { try { parsed = JSON.parse(m[0]) as Record<string, unknown>; } catch { /* fall through */ } }
+      if (!parsed) throw new Error('Could not parse AI response');
+
+      return { ...parsed, blockchain_stats: stats ?? undefined, timestamp: new Date().toISOString() };
     });
-    if (!r.ok) {
-      const e = await r.json().catch(() => ({})) as { error?: string };
-      return NextResponse.json({ error: e.error ?? 'Grok error' }, { status: 502 });
-    }
-    const d = await r.json();
-    const msg = (d.output as Array<{ type: string; content?: Array<{ text: string }> }>)
-      ?.find(o => o.type === 'message');
-    raw = msg?.content?.[0]?.text ?? '';
+    return NextResponse.json(result);
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Request failed' }, { status: 500 });
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Request failed' }, { status: 502 });
   }
-
-  let parsed: Record<string, unknown> | null = null;
-  try {
-    const m = raw.match(/\{[\s\S]*\}/);
-    if (m) parsed = JSON.parse(m[0]) as Record<string, unknown>;
-  } catch { /* fall through */ }
-
-  if (!parsed) return NextResponse.json({ error: 'Could not parse AI response', raw }, { status: 502 });
-
-  return NextResponse.json({ ...parsed, blockchain_stats: stats ?? undefined, timestamp: new Date().toISOString() });
 }

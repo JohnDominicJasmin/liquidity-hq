@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { cached } from '@/lib/apiCache';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
+// DeFi Llama's stablecoin series only updates once a day — cache generously.
+const CACHE_TTL = 60 * 60_000;
 
 function sb(token: string) {
   return createClient(
@@ -57,46 +60,39 @@ export async function GET(req: NextRequest) {
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
-  let series: number[];
   try {
-    series = await fetchStablecoinSeries();
+    const result = await cached('dry-powder', CACHE_TTL, async () => {
+      const series = await fetchStablecoinSeries();
+      if (series.length < 32) throw new Error('Insufficient stablecoin data');
+
+      const current = series[series.length - 1];
+      const prev30  = series[Math.max(0, series.length - 31)];
+      const prev90  = series[0];
+
+      const prompt = buildPrompt(current, prev30, prev90);
+
+      const aiRes = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
+        body: JSON.stringify({
+          model: 'grok-4.3',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 350,
+        }),
+      });
+
+      if (!aiRes.ok) {
+        const err = await aiRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error ?? 'AI error');
+      }
+
+      const aiData = await aiRes.json();
+      const analysis: string = aiData.choices?.[0]?.message?.content ?? '';
+
+      return { current, prev30, prev90, series: series.slice(-30), analysis };
+    });
+    return NextResponse.json(result);
   } catch (e) {
-    return NextResponse.json({ error: `DeFi Llama fetch failed: ${e}` }, { status: 502 });
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Request failed' }, { status: 502 });
   }
-
-  if (series.length < 32) {
-    return NextResponse.json({ error: 'Insufficient stablecoin data' }, { status: 502 });
-  }
-
-  const current = series[series.length - 1];
-  const prev30  = series[Math.max(0, series.length - 31)];
-  const prev90  = series[0];
-
-  const prompt = buildPrompt(current, prev30, prev90);
-
-  const aiRes = await fetch('https://api.x.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
-    body: JSON.stringify({
-      model: 'grok-4.3',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 350,
-    }),
-  });
-
-  if (!aiRes.ok) {
-    const err = await aiRes.json().catch(() => ({})) as { error?: string };
-    return NextResponse.json({ error: err.error ?? 'AI error' }, { status: 502 });
-  }
-
-  const aiData = await aiRes.json();
-  const analysis: string = aiData.choices?.[0]?.message?.content ?? '';
-
-  return NextResponse.json({
-    current,
-    prev30,
-    prev90,
-    series: series.slice(-30),
-    analysis,
-  });
 }

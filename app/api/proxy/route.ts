@@ -10,6 +10,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
+import { cached } from '@/lib/apiCache';
+
+// Google Trends' 7-day bitcoin score barely moves hour to hour, and the
+// unofficial endpoint blocks aggressively under repeated hits — cache long.
+const TRENDS_TTL = 60 * 60_000;
 
 export async function GET(req: NextRequest) {
   if (!rateLimit(`proxy:${getClientIp(req)}`, 20, 60_000)) {
@@ -41,63 +46,60 @@ export async function GET(req: NextRequest) {
 
     /* ── Google Trends: bitcoin 7-day search score (2-step) ── */
     if (type === 'trends') {
+      const EMPTY = { default: { timelineData: [] } };
       try {
-        // Step 1: get widget token
-        const exploreReq = JSON.stringify({
-          comparisonItem: [{ keyword: 'bitcoin', geo: '', time: 'now 7-d' }],
-          category: 0,
-          property: '',
+        const json = await cached('trends', TRENDS_TTL, async () => {
+          // Step 1: get widget token
+          const exploreReq = JSON.stringify({
+            comparisonItem: [{ keyword: 'bitcoin', geo: '', time: 'now 7-d' }],
+            category: 0,
+            property: '',
+          });
+          const exploreUrl =
+            'https://trends.google.com/trends/api/explore?hl=en-US&tz=480&req=' +
+            encodeURIComponent(exploreReq);
+
+          const exploreRes = await fetch(exploreUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'Accept-Language': 'en-US,en;q=0.9',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            },
+            signal: AbortSignal.timeout(8000),
+          });
+
+          // Google blocked / rate-limited — throw so this failure isn't cached
+          if (!exploreRes.ok) throw new Error('trends explore blocked');
+
+          const raw1 = await exploreRes.text();
+          const json1 = JSON.parse(raw1.replace(/^\)\]\}'\n?/, ''));
+          const widgets: Array<{ id: string; token: string; request: unknown }> =
+            json1?.widgets ?? [];
+          const ts = widgets.find(w => w.id === 'TIMESERIES');
+          if (!ts?.token || !ts?.request) throw new Error('trends token missing');
+
+          // Step 2: fetch timeline data
+          const dataUrl =
+            'https://trends.google.com/trends/api/widgetdata/multiline?hl=en-US&tz=480&req=' +
+            encodeURIComponent(JSON.stringify(ts.request)) +
+            '&token=' + encodeURIComponent(ts.token);
+
+          const dataRes = await fetch(dataUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            },
+            signal: AbortSignal.timeout(8000),
+          });
+
+          if (!dataRes.ok) throw new Error('trends data blocked');
+
+          const raw2 = await dataRes.text();
+          return JSON.parse(raw2.replace(/^\)\]\}'\n?/, ''));
         });
-        const exploreUrl =
-          'https://trends.google.com/trends/api/explore?hl=en-US&tz=480&req=' +
-          encodeURIComponent(exploreReq);
-
-        const exploreRes = await fetch(exploreUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          },
-          signal: AbortSignal.timeout(8000),
-        });
-
-        if (!exploreRes.ok) {
-          // Google blocked / rate-limited — return null gracefully, no 500
-          return NextResponse.json({ default: { timelineData: [] } });
-        }
-
-        const raw1 = await exploreRes.text();
-        const json1 = JSON.parse(raw1.replace(/^\)\]\}'\n?/, ''));
-        const widgets: Array<{ id: string; token: string; request: unknown }> =
-          json1?.widgets ?? [];
-        const ts = widgets.find(w => w.id === 'TIMESERIES');
-        if (!ts?.token || !ts?.request) {
-          return NextResponse.json({ default: { timelineData: [] } });
-        }
-
-        // Step 2: fetch timeline data
-        const dataUrl =
-          'https://trends.google.com/trends/api/widgetdata/multiline?hl=en-US&tz=480&req=' +
-          encodeURIComponent(JSON.stringify(ts.request)) +
-          '&token=' + encodeURIComponent(ts.token);
-
-        const dataRes = await fetch(dataUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-          },
-          signal: AbortSignal.timeout(8000),
-        });
-
-        if (!dataRes.ok) {
-          return NextResponse.json({ default: { timelineData: [] } });
-        }
-
-        const raw2 = await dataRes.text();
-        const json2 = JSON.parse(raw2.replace(/^\)\]\}'\n?/, ''));
-        return NextResponse.json(json2);
+        return NextResponse.json(json);
       } catch {
-        // Google Trends blocked / timed out — return empty, never 500
-        return NextResponse.json({ default: { timelineData: [] } });
+        // Google Trends blocked / timed out — return empty, never 500, never cached
+        return NextResponse.json(EMPTY);
       }
     }
 
