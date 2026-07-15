@@ -3851,6 +3851,10 @@ body.landing {
   color: var(--accent); opacity: 0.6; white-space: nowrap;
 }
 .pf-footer-divider-line { flex: 1; height: 1px; background: var(--bdr); }
+.pf-footer-disclaimer {
+  font-size: 14px; font-weight: 700; color: var(--txt);
+  line-height: 1.6; margin: 0 0 24px; max-width: 780px;
+}
 .pf-footer-grid {
   display: grid; grid-template-columns: repeat(3, 1fr);
   gap: 20px 36px; margin-bottom: 28px;

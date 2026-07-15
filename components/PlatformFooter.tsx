@@ -56,6 +56,13 @@ export default function PlatformFooter() {
         <div className="pf-footer-divider-line" />
       </div>
 
+      {/* Unmissable financial disclaimer — exact required wording */}
+      <p className="pf-footer-disclaimer">
+        LiquidityHQ provides data analytics and software tools for informational purposes only.
+        This is not financial, investment, or trading advice. Past performance does not guarantee
+        future results. Trade at your own risk.
+      </p>
+
       {/* Disclosure grid */}
       <div className="pf-footer-grid">
         {DISCLOSURES.map(item => (

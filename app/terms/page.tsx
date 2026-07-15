@@ -73,6 +73,16 @@ export default function TermsOfUse() {
       </div>
 
       <div style={{
+        fontSize: 15, fontWeight: 700, color: 'var(--txt)', lineHeight: 1.6,
+        padding: '20px 24px', marginBottom: 48,
+        background: 'var(--bg2)', borderRadius: 12,
+      }}>
+        LiquidityHQ provides data analytics and software tools for informational purposes only.
+        This is not financial, investment, or trading advice. Past performance does not guarantee
+        future results. Trade at your own risk.
+      </div>
+
+      <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
         gap: '40px 52px',
