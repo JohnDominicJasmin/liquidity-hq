@@ -166,7 +166,7 @@ export default function WhaleTradesFeed() {
       {/* Feed states */}
       {feed.length === 0 && status === 'connecting' && (
         <div style={{ textAlign: 'center', padding: '1.5rem', color: '#444', fontSize: 12 }}>
-          Connecting to Binance aggTrade stream…
+          Connecting to live trade feed…
         </div>
       )}
       {feed.length === 0 && status === 'live' && (

@@ -548,7 +548,7 @@ export default function AlertsPage() {
           </div>
         )}
         <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 8, paddingTop: 8, borderTop: '0.5px solid var(--bdr)' }}>
-          In-memory — resets on server restart · auto-refreshes every 60s
+          Auto-refreshes every 60s
         </div>
       </div>
 
@@ -717,7 +717,7 @@ export default function AlertsPage() {
       </div>
 
       <div style={{ fontSize: 10, color: 'var(--txt3)', textAlign: 'center', marginBottom: 16 }}>
-        In-memory cooldowns reset on server restart · keep UptimeRobot running to minimise restarts
+        Cooldown timers may occasionally reset after routine maintenance — you might see a rare duplicate alert
       </div>
     </div>
   );

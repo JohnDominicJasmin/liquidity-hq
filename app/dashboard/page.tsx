@@ -241,7 +241,7 @@ function CoinSidebar() {
               : '#34d399',
           }}
         />
-        <span>{store.wsStatus.includes('backup') ? 'REST' : store.wsStatus.includes('Live') ? 'Live' : 'Connecting'}</span>
+        <span>{store.wsStatus.includes('backup') ? 'Backup' : store.wsStatus.includes('Live') ? 'Live' : 'Connecting'}</span>
       </div>
     </div>
   );
