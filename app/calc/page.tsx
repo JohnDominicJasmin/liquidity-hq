@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import PositionSizer    from '@/components/PositionSizer';
 import LiquidationCalc  from '@/components/LiquidationCalc';
 import PnLCalc          from '@/components/PnLCalc';
@@ -16,7 +16,7 @@ const TABS = [
   { id: 'dca',         label: 'DCA Average'        },
 ];
 
-export default function CalcPage() {
+function CalcPageContent() {
   const [tab, setTab] = useState('sizer');
 
   return (
@@ -39,5 +39,13 @@ export default function CalcPage() {
       {tab === 'funding'     && <FundingCostCalc />}
       {tab === 'dca'         && <DcaCalc />}
     </div>
+  );
+}
+
+export default function CalcPage() {
+  return (
+    <Suspense>
+      <CalcPageContent />
+    </Suspense>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { Download } from '@/components/icons';
 
 export default function PWAInstallPrompt() {
   const [prompt, setPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -62,7 +63,13 @@ export default function PWAInstallPrompt() {
       maxWidth: 320,
       width: 'calc(100vw - 32px)',
     }}>
-      <img src="/icons/icon-192.png" alt="LiquidityHQ" width={34} height={34} style={{ flexShrink: 0, borderRadius: 8 }} />
+      <span style={{
+        flexShrink: 0, width: 34, height: 34, borderRadius: 10,
+        background: 'rgba(90,106,255,0.14)', border: '0.5px solid rgba(90,106,255,0.3)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)',
+      }}>
+        <Download size={17} style={{ verticalAlign: 'baseline' }} />
+      </span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Add to Home Screen</div>
         <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.4 }}>Install LiquidityHQ for instant access</div>
@@ -88,11 +95,11 @@ export default function PWAInstallPrompt() {
             background: 'none',
             border: 'none',
             cursor: 'pointer',
-            color: 'var(--txt3)',
+            color: 'var(--txt)',
             fontSize: 18,
             lineHeight: 1,
             padding: '0 2px',
-            opacity: 0.6,
+            opacity: 0.75,
           }}
           aria-label="Dismiss"
         >×</button>

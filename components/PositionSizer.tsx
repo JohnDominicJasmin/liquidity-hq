@@ -1,6 +1,6 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSettings } from '@/lib/settings';
 import { useMarket, COINS, COIN_LABELS, COIN_DEC, fmtPrice, type CoinId } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
@@ -46,12 +46,17 @@ export default function PositionSizer() {
   const router = useRouter();
   const { store } = useMarket();
   const { settings, update: updateSettings } = useSettings();
-  const [account, setAccount] = useState('');
-  const [riskPct, setRiskPct] = useState('1');
-  const [coin,    setCoin]    = useState<CoinId | ''>('');
-  const [entry,   setEntry]   = useState('');
-  const [stop,    setStop]    = useState('');
-  const [tp,      setTp]      = useState('');
+  const searchParams = useSearchParams();
+  const [account, setAccount] = useState(() => searchParams.get('acc') ?? '');
+  const [riskPct, setRiskPct] = useState(() => searchParams.get('risk') ?? '1');
+  const [coin,    setCoin]    = useState<CoinId | ''>(() => {
+    const c = searchParams.get('coin')?.toLowerCase() ?? '';
+    return (COINS as string[]).includes(c) ? c as CoinId : '';
+  });
+  const [entry,   setEntry]   = useState(() => searchParams.get('entry') ?? '');
+  const [stop,    setStop]    = useState(() => searchParams.get('stop') ?? '');
+  const [tp,      setTp]      = useState(() => searchParams.get('tp') ?? '');
+  const seededRef = useRef(false);
 
   const livePrice = coin ? (store.coins[coin]?.price ?? null) : null;
   const coinLabel = coin ? COIN_LABELS[coin] : '';
@@ -67,11 +72,30 @@ export default function PositionSizer() {
     }
   };
 
-  /* Seed from Settings (replaces old localStorage read) */
+  /* Seed from Settings (replaces old localStorage read) — URL params win, so a
+     shared link always reproduces the sender's exact setup. */
   useEffect(() => {
-    if (settings.account_size) setAccount(String(settings.account_size));
-    if (settings.risk_pct)     setRiskPct(String(settings.risk_pct));
+    if (seededRef.current) return;
+    seededRef.current = true;
+    const urlParams = new URLSearchParams(window.location.search);
+    if (!urlParams.has('acc')  && settings.account_size) setAccount(String(settings.account_size));
+    if (!urlParams.has('risk') && settings.risk_pct)      setRiskPct(String(settings.risk_pct));
   }, [settings.account_size, settings.risk_pct]);
+
+  /* Sync every input to the URL so the setup — coin, entry, stop, TP, account,
+     risk — is shareable, same pattern as Arena's coin+tf sync. */
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const p = url.searchParams;
+    const set = (k: string, v: string) => { v ? p.set(k, v) : p.delete(k); };
+    set('coin',  coin);
+    set('acc',   account);
+    set('risk',  riskPct);
+    set('entry', entry);
+    set('stop',  stop);
+    set('tp',    tp);
+    window.history.replaceState(null, '', url.toString());
+  }, [coin, account, riskPct, entry, stop, tp]);
 
   const saveAccount = (v: string) => {
     setAccount(v);
