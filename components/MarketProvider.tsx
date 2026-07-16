@@ -143,7 +143,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           low: parseFloat(d.lowPrice),
         });
       });
-      setStore(s => ({ ...s, wsStatus: 'Live via REST · updates every 5s' }));
+      setStore(s => ({ ...s, wsStatus: 'Live · backup feed' }));
     } catch { /* ignore */ }
   }, [updateCoin]);
 
@@ -157,7 +157,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     ws.onopen = () => {
       retriesRef.current = 0; urlIdxRef.current = 0;
       if (restTimerRef.current) { clearInterval(restTimerRef.current); restTimerRef.current = null; }
-      setStore(s => ({ ...s, wsStatus: 'Live · Binance WebSocket' }));
+      setStore(s => ({ ...s, wsStatus: 'Live' }));
     };
 
     ws.onmessage = (e) => {
@@ -181,7 +181,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       if (retriesRef.current <= 5) {
         setTimeout(startWS, 2000 * retriesRef.current);
       } else {
-        setStore(s => ({ ...s, wsStatus: 'Live via REST · updates every 5s' }));
+        setStore(s => ({ ...s, wsStatus: 'Live · backup feed' }));
         restPoll();
         restTimerRef.current = setInterval(restPoll, 5000);
       }

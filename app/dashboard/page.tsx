@@ -236,12 +236,12 @@ function CoinSidebar() {
         <span
           className="csb2-status-dot"
           style={{
-            background: store.wsStatus.includes('REST') ? '#fb923c'
+            background: store.wsStatus.includes('backup') ? '#fb923c'
               : store.wsStatus.includes('error') || store.wsStatus.includes('Error') ? '#f87171'
               : '#34d399',
           }}
         />
-        <span>{store.wsStatus.includes('REST') ? 'REST' : store.wsStatus.includes('Live') ? 'Live' : 'Connecting'}</span>
+        <span>{store.wsStatus.includes('backup') ? 'REST' : store.wsStatus.includes('Live') ? 'Live' : 'Connecting'}</span>
       </div>
     </div>
   );

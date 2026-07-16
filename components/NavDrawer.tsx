@@ -117,8 +117,8 @@ function useStatusDot() {
   const { store } = useMarket();
   const ws = store.wsStatus;
   if (!ws || ws === 'Connecting...') return { cls: 'dot-connecting', title: 'Connecting…' };
-  if (ws.includes('WebSocket')) return { cls: 'dot-live', title: 'Live · Binance WebSocket' };
-  if (ws.includes('REST')) return { cls: 'dot-rest', title: 'Live via REST fallback' };
+  if (ws.includes('backup')) return { cls: 'dot-rest', title: 'Live · backup feed' };
+  if (ws === 'Live') return { cls: 'dot-live', title: 'Live' };
   return { cls: 'dot-error', title: 'Connection error' };
 }
 
