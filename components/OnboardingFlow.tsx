@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useOnboarding } from './OnboardingProvider';
 import { useAuth } from './AuthProvider';
 import { useSettings } from '@/lib/settings';
@@ -15,16 +15,13 @@ type Acct       = '1k5k' | '5k25k' | '25k100k' | '100kplus';
 type Challenge  = 'read_signals' | 'entry_exit' | 'risk_management' | 'discipline';
 type Heard      = 'social' | 'youtube' | 'tiktok' | 'search' | 'word' | 'other';
 
-const ACCENT   = '#1a7aff';
-const DONE_CLR = '#4ade80';
-
 const STEP_META = [
-  { key: 'Profile',    label: 'Profile',    accent: ACCENT },
-  { key: 'Experience', label: 'Experience', accent: ACCENT },
-  { key: 'Style',      label: 'Style',      accent: ACCENT },
-  { key: 'Goals',      label: 'Goals',      accent: ACCENT },
-  { key: 'Source',     label: 'Source',     accent: ACCENT },
-  { key: 'Alerts',     label: 'Alerts',     accent: ACCENT },
+  { key: 'Profile',    label: 'Profile'    },
+  { key: 'Experience', label: 'Experience' },
+  { key: 'Style',      label: 'Style'      },
+  { key: 'Goals',      label: 'Goals'      },
+  { key: 'Source',     label: 'Source'     },
+  { key: 'Alerts',     label: 'Alerts'     },
 ] as const;
 
 const COUNTRIES = [
@@ -62,18 +59,25 @@ const COUNTRIES = [
 ];
 
 const STEP_COPY = [
-  { headline: ['Set up your', 'profile.'],               desc: 'Personalizes your signals, alerts, and position sizing.' },
-  { headline: ['How long have you been', 'trading crypto?'], desc: 'Sets Beginner Mode on or off for your dashboard.' },
-  { headline: ['How do you', 'mainly trade?'],            desc: 'Pre-selects your default chart timeframe in Arena.' },
-  { headline: ['What is your biggest', 'challenge?'],     desc: 'Surfaces the most relevant signals and education for you.' },
-  { headline: ['Where did you find', 'LiquidityHQ?'],    desc: 'Optional - helps us know where to invest our energy.' },
-  { headline: ['Get alerts on', 'Telegram.'],             desc: 'Connect once and get live price alerts, funding extremes, and your morning briefing directly in Telegram.' },
+  { headline: ['Set up your', 'profile.'],                    desc: 'Personalizes your signals, alerts, and position sizing.' },
+  { headline: ['How long have you been', 'trading crypto?'],  desc: 'Sets Beginner Mode on or off for your dashboard.' },
+  { headline: ['How do you', 'mainly trade?'],                desc: 'Pre-selects your default chart timeframe in Arena.' },
+  { headline: ['What is your biggest', 'challenge?'],         desc: 'Surfaces the most relevant signals and education for you.' },
+  { headline: ['Where did you find', 'LiquidityHQ?'],         desc: 'Optional - helps us know where to invest our energy.' },
+  { headline: ['Get alerts on', 'Telegram.'],                 desc: 'Connect once and get live price alerts, funding extremes, and your morning briefing directly in Telegram.' },
 ];
 
+/* ── Reusable check glyph for selection indicators ── */
+function CheckGlyph() {
+  return (
+    <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+      <path d="M1 4L3.5 6.5L9 1" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /* ── Custom country dropdown with emoji flags ── */
-function CountrySelect({ value, onChange, accent }: {
-  value: string; onChange: (v: string) => void; accent: string;
-}) {
+function CountrySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen]   = useState(false);
   const [query, setQuery] = useState('');
   const containerRef      = useRef<HTMLDivElement>(null);
@@ -102,16 +106,7 @@ function CountrySelect({ value, onChange, accent }: {
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', boxSizing: 'border-box',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-          padding: '13px 16px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-          background: value ? `${accent}0c` : 'rgba(140,150,255,0.04)',
-          border: `1px solid ${value ? accent + '40' : 'rgba(140,150,255,0.12)'}`,
-          color: value ? '#eef0fa' : '#4e5374', fontSize: 14,
-          boxShadow: value ? `0 0 0 1px ${accent}18` : 'none',
-          transition: 'all 0.2s',
-        }}
+        className={`obw-select ${value ? 'is-selected' : 'is-empty'}`}
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           {selected ? (
@@ -125,60 +120,42 @@ function CountrySelect({ value, onChange, accent }: {
         </span>
         <svg
           width="12" height="12" viewBox="0 0 12 12" fill="none"
-          style={{ flexShrink: 0, opacity: 0.4, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}
+          style={{ flexShrink: 0, opacity: 0.5, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}
         >
-          <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
 
       {open && (
-        <div
-          className="ob-fade-down"
-          style={{
-            position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 200,
-            background: '#0c0f1c', border: '1px solid rgba(140,150,255,0.12)', borderRadius: 12,
-            boxShadow: '0 24px 72px rgba(0,0,0,0.85), 0 4px 16px rgba(0,0,0,0.5)',
-            overflow: 'hidden',
-          }}
-        >
-          <div style={{ padding: '10px 12px', borderBottom: '1px solid rgba(140,150,255,0.08)' }}>
+        <div className="obw-menu">
+          <div className="obw-menu-search">
             <input
               ref={searchRef}
               type="text"
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Search country…"
-              style={{
-                width: '100%', boxSizing: 'border-box',
-                background: 'rgba(140,150,255,0.06)', border: '1px solid rgba(140,150,255,0.12)',
-                borderRadius: 7, padding: '8px 12px', fontSize: 13, color: '#eef0fa', outline: 'none',
-              }}
+              className="obw-input"
+              style={{ padding: '8px 12px', fontSize: 13 }}
             />
           </div>
-          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+          <div className="obw-menu-list">
             {filtered.length === 0 ? (
-              <div style={{ padding: 16, textAlign: 'center', fontSize: 12, color: '#4e5374' }}>No match</div>
+              <div style={{ padding: 16, textAlign: 'center', fontSize: 12, color: 'var(--txt3)' }}>No match</div>
             ) : filtered.map(c => {
               const isActive = value === c.name;
               return (
                 <button
                   key={c.name}
                   type="button"
-                  className="ob-opt"
+                  className={`obw-menu-opt ${isActive ? 'is-selected' : ''}`}
                   onClick={() => { onChange(c.name); setOpen(false); }}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '10px 14px', border: 'none', cursor: 'pointer', textAlign: 'left',
-                    background: isActive ? `${accent}15` : 'transparent',
-                    color: isActive ? accent : '#9296b5',
-                    fontSize: 14, transition: 'background 0.1s',
-                  }}
                 >
                   <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>{c.flag}</span>
                   <span style={{ flex: 1 }}>{c.name}</span>
                   {isActive && (
                     <svg width="12" height="10" viewBox="0 0 12 10" fill="none" style={{ flexShrink: 0 }}>
-                      <path d="M1 5L4.5 8.5L11 1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M1 5L4.5 8.5L11 1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   )}
                 </button>
@@ -191,191 +168,42 @@ function CountrySelect({ value, onChange, accent }: {
   );
 }
 
-/* ── Option card with glow + animated check ── */
-function OptionCard<T extends string>({
-  value, selected, label, sub, accent, onClick, delay = 0,
-}: {
-  value: T; selected: T | null; label: string; sub?: string;
-  accent: string; onClick: (v: T) => void; delay?: number;
+/* ── Selection row (radio-style) ── */
+function OptionRow<T extends string>({ value, selected, label, sub, onClick }: {
+  value: T; selected: T | null; label: string; sub?: string; onClick: (v: T) => void;
 }) {
   const active = selected === value;
   return (
-    <button
-      type="button"
-      className="ob-opt"
-      onClick={() => onClick(value)}
-      style={{
-        width: '100%', display: 'flex', alignItems: 'center', gap: 14,
-        padding: '15px 18px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-        boxSizing: 'border-box', position: 'relative', overflow: 'hidden',
-        background: active
-          ? `linear-gradient(135deg, ${accent}12 0%, ${accent}06 100%)`
-          : 'rgba(140,150,255,0.03)',
-        border: `1px solid ${active ? accent + '45' : 'rgba(140,150,255,0.1)'}`,
-        borderLeft: `3px solid ${active ? accent : 'transparent'}`,
-        boxShadow: active ? `0 0 28px ${accent}1a, inset 0 1px 0 ${accent}10` : 'none',
-        transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-        animationDelay: `${delay}ms`,
-      }}
-    >
-      <div style={{
-        width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-        border: `2px solid ${active ? accent : 'rgba(140,150,255,0.2)'}`,
-        background: active ? accent : 'transparent',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        transition: 'all 0.2s',
-        boxShadow: active ? `0 0 14px ${accent}55` : 'none',
-      }}>
-        {active && (
-          <svg className="ob-check-in" width="10" height="8" viewBox="0 0 10 8" fill="none">
-            <path d="M1 4L3.5 6.5L9 1" stroke="#000" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        )}
+    <button type="button" className={`obw-row ${active ? 'is-selected' : ''}`} onClick={() => onClick(value)}>
+      <div className="obw-row-main">
+        <div className="obw-row-label">{label}</div>
+        {sub && <div className="obw-row-sub">{sub}</div>}
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontSize: 13, fontWeight: 600, lineHeight: 1.3,
-          color: active ? accent : '#eef0fa',
-          transition: 'color 0.2s',
-        }}>
-          {label}
-        </div>
-        {sub && (
-          <div style={{
-            fontSize: 11, marginTop: 3, lineHeight: 1.4,
-            color: active ? `${accent}90` : '#4e5374',
-            transition: 'color 0.2s',
-          }}>
-            {sub}
-          </div>
-        )}
-      </div>
+      <span className="obw-ind">{active && <CheckGlyph />}</span>
     </button>
   );
 }
 
 /* ── Account size 2x2 grid ── */
-function AcctGrid({ acct, setAcct, accent }: { acct: Acct | null; setAcct: (v: Acct) => void; accent: string }) {
+function AcctGrid({ acct, setAcct }: { acct: Acct | null; setAcct: (v: Acct) => void }) {
   const opts: { value: Acct; label: string }[] = [
     { value: '1k5k',     label: '$1k - $5k'    },
     { value: '5k25k',    label: '$5k - $25k'   },
-    { value: '25k100k',  label: '$25k - $100k'  },
-    { value: '100kplus', label: '$100k+'         },
+    { value: '25k100k',  label: '$25k - $100k' },
+    { value: '100kplus', label: '$100k+'       },
   ];
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-      {opts.map(o => {
-        const active = acct === o.value;
-        return (
-          <button
-            key={o.value}
-            type="button"
-            className="ob-opt"
-            onClick={() => setAcct(o.value)}
-            style={{
-              padding: '15px 12px', borderRadius: 10, cursor: 'pointer', textAlign: 'center',
-              background: active
-                ? `linear-gradient(160deg, ${accent}14 0%, ${accent}07 100%)`
-                : 'rgba(140,150,255,0.03)',
-              border: `1px solid ${active ? accent + '45' : 'rgba(140,150,255,0.1)'}`,
-              borderTop: `2px solid ${active ? accent : 'transparent'}`,
-              color: active ? accent : '#9296b5',
-              fontSize: 13, fontWeight: 700, letterSpacing: '-.01em',
-              boxShadow: active ? `0 0 20px ${accent}18` : 'none',
-              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-            }}
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/* ── Source attribution chip ── */
-function SourceChip({ value, selected, label, accent, onClick }: {
-  value: Heard; selected: Heard | null; label: string; accent: string; onClick: (v: Heard) => void;
-}) {
-  const active = selected === value;
-  return (
-    <button
-      type="button"
-      className="ob-opt"
-      onClick={() => onClick(value)}
-      style={{
-        padding: '9px 18px', borderRadius: 100, cursor: 'pointer',
-        fontSize: 12, fontWeight: 700, letterSpacing: '.03em',
-        background: active ? `${accent}18` : 'rgba(140,150,255,0.05)',
-        border: `1px solid ${active ? accent + '55' : 'rgba(140,150,255,0.12)'}`,
-        color: active ? accent : '#9296b5',
-        boxShadow: active ? `0 0 18px ${accent}25` : 'none',
-        transition: 'all 0.18s',
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-/* ── Left panel step list ── */
-function StepList({ step: currentStep }: { step: number }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
-      {STEP_META.map((s, i) => {
-        const done   = i < currentStep;
-        const active = i === currentStep;
-        return (
-          <div key={s.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, width: 28 }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: '50%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: active ? ACCENT : done ? 'rgba(74,222,128,0.08)' : 'rgba(140,150,255,0.04)',
-                border: `1.5px solid ${active ? ACCENT : done ? DONE_CLR + '40' : 'rgba(140,150,255,0.1)'}`,
-                boxShadow: active ? `0 0 20px ${ACCENT}55` : 'none',
-                transition: 'all 0.3s',
-                fontSize: 10, fontWeight: 700,
-                fontFamily: "var(--font-mono, 'IBM Plex Mono', monospace)",
-                color: active ? '#fff' : done ? DONE_CLR : '#4e5374',
-              }}>
-                {done ? (
-                  <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                    <path d="M1 4L3.5 6.5L9 1" stroke={DONE_CLR} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                ) : String(i + 1).padStart(2, '0')}
-              </div>
-              {i < STEP_META.length - 1 && (
-                <div style={{
-                  width: 1.5, height: 32, marginTop: 4,
-                  background: done
-                    ? `linear-gradient(180deg, ${DONE_CLR}30, rgba(140,150,255,0.03))`
-                    : 'rgba(140,150,255,0.08)',
-                  transition: 'background 0.4s',
-                }} />
-              )}
-            </div>
-            <div style={{ paddingTop: 6, paddingBottom: i < STEP_META.length - 1 ? 32 : 0 }}>
-              <div style={{
-                fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase',
-                fontFamily: "var(--font-mono, 'IBM Plex Mono', monospace)",
-                color: active ? ACCENT : done ? DONE_CLR : '#4e5374',
-                transition: 'color 0.3s',
-              }}>
-                {s.label}
-              </div>
-              {active && (
-                <div style={{
-                  fontSize: 9, color: '#555', marginTop: 2,
-                  fontFamily: "'JetBrains Mono', monospace", letterSpacing: '.06em',
-                }}>
-                  YOU ARE HERE
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
+    <div className="obw-grid">
+      {opts.map(o => (
+        <button
+          key={o.value}
+          type="button"
+          className={`obw-tile ${acct === o.value ? 'is-selected' : ''}`}
+          onClick={() => setAcct(o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -387,11 +215,9 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   const { update }                  = useSettings();
 
   const [step,        setStep]       = useState(0);
-  const [animKey,     setAnimKey]    = useState(0);
   const [saving,      setSaving]     = useState(false);
   const [pushDone,    setPushDone]   = useState(false);
   const [pushWorking, setPushWorking]= useState(false);
-  const [isMobile,    setIsMobile]   = useState(false);
   const [displayName, setDisplayName]= useState('');
   const [country,     setCountry]    = useState('');
   const [acct,        setAcct]       = useState<Acct | null>(null);
@@ -399,37 +225,6 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   const [tradeStyle,  setTradeStyle] = useState<TradeStyle | null>(null);
   const [challenge,   setChallenge]  = useState<Challenge | null>(null);
   const [heard,       setHeard]      = useState<Heard | null>(null);
-
-  const stepRef = useRef<HTMLDivElement>(null);
-
-  // Before paint: set initial hidden state so first frame starts invisible
-  useLayoutEffect(() => {
-    const el = stepRef.current;
-    if (!el) return;
-    el.style.transition = 'none';
-    el.style.opacity = '0';
-    el.style.transform = 'translateY(14px)';
-  }, [animKey]);
-
-  // After paint: trigger the reveal transition (setTimeout fires even when rAF doesn't)
-  useEffect(() => {
-    const el = stepRef.current;
-    if (!el) return;
-    const id = setTimeout(() => {
-      el.style.transition = 'opacity 0.38s cubic-bezier(0.16,1,0.3,1), transform 0.38s cubic-bezier(0.16,1,0.3,1)';
-      el.style.opacity = '1';
-      el.style.transform = 'translateY(0)';
-    }, 16);
-    return () => clearTimeout(id);
-  }, [animKey]);
-
-  // Responsive: detect mobile
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
 
   if (!user || state.profileComplete) return null;
 
@@ -445,7 +240,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
       <div style={{
         position: 'fixed', inset: 0, zIndex: 10000,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: '#07090f',
+        background: 'var(--bg)',
       }}>
         <div className="login-spinner-lg" />
       </div>
@@ -453,7 +248,6 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   }
 
   const meta   = STEP_META[step];
-  const accent = meta.accent;
   const isLast = step === STEP_META.length - 1;
   const copy   = STEP_COPY[step];
 
@@ -527,417 +321,233 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   }
 
   function goNext() {
-    setAnimKey(k => k + 1);
     if (step < STEP_META.length - 1) setStep(s => s + 1);
     else finish();
   }
 
   function goBack() {
-    setAnimKey(k => k + 1);
     setStep(s => s - 1);
   }
 
-  const monoFont  = "var(--font-mono, 'IBM Plex Mono', monospace)";
-  const serifFont = "var(--font-sans, 'Figtree', system-ui, sans-serif)";
-
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      style={{
-        position: 'fixed', inset: 0, zIndex: 10000,
-        display: 'flex', background: '#07090f',
-        fontFamily: serifFont,
-        overflowY: 'auto',
-      }}
-    >
-      {/* Ambient glow — color tracks the active step */}
-      <div
-        className="ob-glow"
-        style={{
-          position: 'fixed',
-          top: '10%', left: isMobile ? '0%' : '35%',
-          width: 800, height: 800,
-          background: `radial-gradient(circle, ${accent}22 0%, transparent 65%)`,
-          pointerEvents: 'none', borderRadius: '50%',
-          transition: 'background 0.55s ease',
-        }}
-      />
+    <div role="dialog" aria-modal="true" className="obw-root">
 
-      {/* ── LEFT BRAND PANEL ── */}
-      {!isMobile && (
-        <div style={{
-          width: 288, flexShrink: 0,
-          display: 'flex', flexDirection: 'column',
-          padding: '52px 36px',
-          borderRight: '1px solid rgba(140,150,255,0.1)',
-          position: 'relative', overflow: 'hidden',
-          backgroundImage: 'radial-gradient(rgba(90,106,255,0.09) 1px, transparent 1px)',
-          backgroundSize: '22px 22px',
-        }}>
-          {/* Fade grid out at top and bottom */}
-          <div style={{
-            position: 'absolute', inset: 0, pointerEvents: 'none',
-            background: 'linear-gradient(180deg, #07090f 0%, transparent 14%, transparent 82%, #07090f 100%)',
-          }} />
-          <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {/* Logo */}
-            <div style={{ marginBottom: 52 }}>
-              <img
-                src="/icons/icon-192.png"
-                alt="LiquidityHQ"
-                style={{ width: 80, height: 80, borderRadius: 18, display: 'block' }}
-              />
-            </div>
-
-            <StepList step={step} />
-
-            {/* Quote */}
-            <div style={{ marginTop: 'auto' }}>
-              <div style={{
-                borderLeft: `2px solid ${accent}35`,
-                paddingLeft: 14,
-                transition: 'border-color 0.45s',
-              }}>
-                <div style={{
-                  fontSize: 11.5, lineHeight: 1.75, color: '#4e5374',
-                  fontFamily: serifFont,
-                }}>
-                  &ldquo;The edge goes to those who read the market, not the crowd.&rdquo;
-                </div>
-                <div style={{
-                  fontSize: 9, color: '#2e3150', marginTop: 8,
-                  fontFamily: monoFont, letterSpacing: '.09em', textTransform: 'uppercase',
-                }}>
-                  — LIQUIDITYHQ
-                </div>
-              </div>
-            </div>
+      {/* ── Segmented progress bar ── */}
+      <div className="obw-progress">
+        {STEP_META.map((s, i) => (
+          <div key={s.key} className={`obw-seg ${i < step ? 'is-done' : ''} ${i === step ? 'is-active' : ''}`}>
+            <div className="obw-seg-track"><span className="obw-seg-fill" /></div>
+            <div className="obw-seg-label">{s.label}</div>
           </div>
-        </div>
-      )}
+        ))}
+      </div>
 
-      {/* ── RIGHT FORM PANEL ── */}
-      <div style={{
-        flex: 1, display: 'flex', flexDirection: 'column',
-        padding: isMobile ? '40px 24px 48px' : '52px 64px',
-        position: 'relative', minHeight: '100vh',
-        justifyContent: 'center',
-        maxWidth: isMobile ? '100%' : 640,
-      }}>
-        {/* Mobile top bar: logo + step dots */}
-        {isMobile && (
-          <div style={{ marginBottom: 36 }}>
-            <div style={{ marginBottom: 20 }}>
-              <img
-                src="/icons/icon-192.png"
-                alt="LiquidityHQ"
-                style={{ width: 52, height: 52, borderRadius: 12, display: 'block' }}
-              />
+      {/* ── Centered content ── */}
+      <div className="obw-main">
+        <div className="obw-panel">
+          <div key={step} className="obw-step">
+            {/* Step meta */}
+            <div className="obw-eyebrow">
+              <span className="k">{`STEP ${String(step + 1).padStart(2, '0')}`}</span>
+              <span className="d">/ {String(STEP_META.length).padStart(2, '0')}</span>
+              <span className="d">&mdash; {meta.label.toUpperCase()}</span>
             </div>
-            {/* Pill dots */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-              {STEP_META.map((s, i) => (
-                <div key={s.key} style={{ display: 'flex', alignItems: 'center' }}>
-                  <div style={{
-                    height: 6, width: i === step ? 20 : 6, borderRadius: 100,
-                    background: i < step ? DONE_CLR : i === step ? ACCENT : 'rgba(140,150,255,0.1)',
-                    transition: 'all 0.35s cubic-bezier(0.16,1,0.3,1)',
-                  }} />
-                  {i < STEP_META.length - 1 && (
-                    <div style={{
-                      width: 12, height: 1.5,
-                      background: i < step ? DONE_CLR + '30' : 'rgba(140,150,255,0.06)',
-                      transition: 'background 0.35s',
-                    }} />
-                  )}
-                </div>
+
+            {/* Headline */}
+            <h1 className="obw-headline">
+              {copy.headline.map((line, i) => (
+                <span key={i} style={{ display: 'block' }} className={i === copy.headline.length - 1 ? 'accent' : undefined}>
+                  {line}
+                </span>
               ))}
-            </div>
-          </div>
-        )}
+            </h1>
+            <div className="obw-desc">{copy.desc}</div>
 
-        {/* Step label */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14,
-          fontSize: 10, fontWeight: 700, letterSpacing: '.14em', fontFamily: monoFont,
-        }}>
-          <span style={{ color: accent, transition: 'color 0.45s' }}>
-            {`STEP ${String(step + 1).padStart(2, '0')}`}
-          </span>
-          <span style={{ color: '#4e5374' }}>/</span>
-          <span style={{ color: '#4e5374' }}>{String(STEP_META.length).padStart(2, '0')}</span>
-          <span style={{ color: '#4e5374' }}>&nbsp;&mdash;&nbsp;{meta.label.toUpperCase()}</span>
-        </div>
-
-        {/* Animated step content */}
-        <div key={animKey} ref={stepRef}>
-          {/* Headline */}
-          <div style={{ marginBottom: 10 }}>
-            {copy.headline.map((line, i) => (
-              <div
-                key={i}
-                style={{
-                  fontFamily: serifFont,
-                  fontSize: isMobile ? 28 : 38,
-                  lineHeight: 1.1, fontWeight: 800,
-                  color: i === copy.headline.length - 1 ? ACCENT : '#eef0fa',
-                  transition: 'color 0.45s',
-                }}
-              >
-                {line}
-              </div>
-            ))}
-          </div>
-          <div style={{ fontSize: 12, color: '#9296b5', marginBottom: 28, lineHeight: 1.65 }}>
-            {copy.desc}
-          </div>
-
-          {/* ── Step 0: Profile ── */}
-          {step === 0 && (
-            <>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{
-                  display: 'block', fontSize: 9, fontWeight: 700, letterSpacing: '.12em',
-                  textTransform: 'uppercase', color: '#9296b5', marginBottom: 8, fontFamily: monoFont,
-                }}>
-                  Display name <span style={{ color: '#4e5374', fontWeight: 400 }}>(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={displayName}
-                  onChange={e => setDisplayName(e.target.value)}
-                  placeholder="e.g. trader_dom"
-                  maxLength={32}
-                  style={{
-                    width: '100%', boxSizing: 'border-box',
-                    padding: '13px 16px', borderRadius: 10, outline: 'none',
-                    background: 'rgba(140,150,255,0.04)',
-                    border: '1px solid rgba(140,150,255,0.12)',
-                    color: '#eef0fa', fontSize: 14,
-                    fontFamily: monoFont,
-                    transition: 'border-color 0.2s, box-shadow 0.2s',
-                  }}
-                  onFocus={e => { e.target.style.borderColor = `${accent}60`; e.target.style.boxShadow = `0 0 0 2px ${accent}14`; }}
-                  onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; e.target.style.boxShadow = 'none'; }}
-                />
-              </div>
-
-              <div style={{ marginBottom: 20 }}>
-                <label style={{
-                  display: 'block', fontSize: 9, fontWeight: 700, letterSpacing: '.12em',
-                  textTransform: 'uppercase', color: '#9296b5', marginBottom: 8, fontFamily: monoFont,
-                }}>
-                  Country
-                </label>
-                <CountrySelect value={country} onChange={setCountry} accent={accent} />
-              </div>
-
-              <div>
-                <label style={{
-                  display: 'block', fontSize: 9, fontWeight: 700, letterSpacing: '.12em',
-                  textTransform: 'uppercase', color: '#6b7280', marginBottom: 10, fontFamily: monoFont,
-                }}>
-                  Trading account range
-                </label>
-                <AcctGrid acct={acct} setAcct={setAcct} accent={accent} />
-              </div>
-            </>
-          )}
-
-          {/* ── Step 1: Experience ── */}
-          {step === 1 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <OptionCard<Exp> value="lt6m"   selected={exp} accent={accent} label="Less than 6 months" sub="Just getting started — Beginner Mode enabled" onClick={setExp} delay={0} />
-              <OptionCard<Exp> value="6to12m" selected={exp} accent={accent} label="6-12 months"        sub="Finding my footing — Beginner Mode enabled"  onClick={setExp} delay={55} />
-              <OptionCard<Exp> value="1to3y"  selected={exp} accent={accent} label="1-3 years"          sub="Getting comfortable — full tools unlocked"    onClick={setExp} delay={110} />
-              <OptionCard<Exp> value="3plus"  selected={exp} accent={accent} label="3+ years"           sub="I know what I am doing — full access"        onClick={setExp} delay={165} />
-            </div>
-          )}
-
-          {/* ── Step 2: Style ── */}
-          {step === 2 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <OptionCard<TradeStyle> value="scalp"    selected={tradeStyle} accent={accent} label="Scalp"          sub="Minutes to hours — defaults to 5m chart"      onClick={setTradeStyle} delay={0} />
-              <OptionCard<TradeStyle> value="swing"    selected={tradeStyle} accent={accent} label="Swing trade"    sub="Days to weeks — defaults to 4h chart"         onClick={setTradeStyle} delay={55} />
-              <OptionCard<TradeStyle> value="both"     selected={tradeStyle} accent={accent} label="Both"           sub="Depends on the setup — defaults to 15m chart"  onClick={setTradeStyle} delay={110} />
-              <OptionCard<TradeStyle> value="learning" selected={tradeStyle} accent={accent} label="Still learning" sub="Not sure yet — Beginner Mode on"              onClick={setTradeStyle} delay={165} />
-            </div>
-          )}
-
-          {/* ── Step 3: Goals ── */}
-          {step === 3 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <OptionCard<Challenge> value="read_signals"    selected={challenge} accent={accent} label="Reading the signals correctly"     sub="Not sure what the data is telling me"       onClick={setChallenge} delay={0} />
-              <OptionCard<Challenge> value="entry_exit"      selected={challenge} accent={accent} label="Knowing when to enter and exit"    sub="Always too early, too late, or too scared"  onClick={setChallenge} delay={55} />
-              <OptionCard<Challenge> value="risk_management" selected={challenge} accent={accent} label="Managing risk and not overtrading" sub="Position sizing, stop losses, overexposure" onClick={setChallenge} delay={110} />
-              <OptionCard<Challenge> value="discipline"      selected={challenge} accent={accent} label="Staying disciplined and patient"   sub="Chasing trades, revenge trading, FOMO"      onClick={setChallenge} delay={165} />
-            </div>
-          )}
-
-          {/* ── Step 4: Source ── */}
-          {step === 4 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-              <SourceChip value="social"  selected={heard} accent={accent} label="Facebook / Instagram" onClick={setHeard} />
-              <SourceChip value="youtube" selected={heard} accent={accent} label="YouTube"             onClick={setHeard} />
-              <SourceChip value="tiktok"  selected={heard} accent={accent} label="TikTok"             onClick={setHeard} />
-              <SourceChip value="search"  selected={heard} accent={accent} label="Search"             onClick={setHeard} />
-              <SourceChip value="word"    selected={heard} accent={accent} label="Word of mouth"      onClick={setHeard} />
-              <SourceChip value="other"   selected={heard} accent={accent} label="Other"              onClick={setHeard} />
-            </div>
-          )}
-
-          {/* ── Step 5: Telegram alerts + Web Push ── */}
-          {step === 5 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{
-                background: 'rgba(251,191,36,0.06)',
-                border: '1px solid rgba(251,191,36,0.18)',
-                borderRadius: 12, padding: '16px 18px',
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#fbbf24', marginBottom: 12, letterSpacing: '.03em' }}>
-                  What you get with alerts
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {[
-                    'Live price alerts when your targets or stops are hit',
-                    'Funding rate extremes that signal squeeze setups',
-                    'Morning briefing delivered every day',
-                    'Works while the app is closed or your screen is off',
-                  ].map(item => (
-                    <div key={item} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                      <span style={{ color: '#fbbf24', fontSize: 11, marginTop: 1, flexShrink: 0 }}>▸</span>
-                      <span style={{ fontSize: 13, color: '#9296b5', lineHeight: 1.45 }}>{item}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Push notification button */}
-              <button
-                onClick={handleEnablePush}
-                disabled={pushWorking || pushDone}
-                style={{
-                  display: 'block', width: '100%', textAlign: 'center',
-                  padding: '14px', borderRadius: 10, cursor: pushDone ? 'default' : 'pointer',
-                  background: pushDone ? 'rgba(74,222,128,0.1)' : 'rgba(26,122,255,0.12)',
-                  border: pushDone ? '1px solid rgba(74,222,128,0.3)' : '1px solid rgba(26,122,255,0.35)',
-                  color: pushDone ? '#4ade80' : '#1a7aff',
-                  fontSize: 13, fontWeight: 700, letterSpacing: '.02em',
-                  opacity: pushWorking ? 0.6 : 1, transition: 'all 0.2s',
-                }}
-              >
-                {pushDone ? 'Push notifications enabled' : pushWorking ? 'Enabling…' : 'Enable push notifications'}
-              </button>
-
-              {/* Telegram setup link — Pro-only. Free accounts get an honest
-                  locked state here instead of a working-looking button that
-                  connects to nothing, since the alert pipeline (server-side)
-                  won't deliver to a free user's chat_id regardless. */}
-              {isPro ? (
-                <a
-                  href="/alerts"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: 'block', textAlign: 'center',
-                    padding: '14px', borderRadius: 10,
-                    background: 'rgba(251,191,36,0.1)',
-                    border: '1px solid rgba(251,191,36,0.32)',
-                    color: '#fbbf24', fontSize: 13, fontWeight: 700,
-                    textDecoration: 'none', letterSpacing: '.02em',
-                    transition: 'filter 0.15s',
-                  }}
-                >
-                  Set up Telegram alerts →
-                </a>
-              ) : (
-                <a
-                  href="/upgrade"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    padding: '14px', borderRadius: 10,
-                    background: 'rgba(140,150,255,0.06)',
-                    border: '1px solid rgba(140,150,255,0.16)',
-                    color: '#9296b5', fontSize: 13, fontWeight: 700,
-                    textDecoration: 'none', letterSpacing: '.02em',
-                  }}
-                >
-                  Telegram alerts — Pro feature
-                  <span style={{
-                    fontSize: 9, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
-                    color: 'var(--accent-2)', border: '1px solid var(--accent-2)', borderRadius: 20,
-                    padding: '2px 8px',
+            {/* ── Step 0: Profile ── */}
+            {step === 0 && (
+              <>
+                <div style={{ marginBottom: 'var(--space-4)' }}>
+                  <label className="obw-label">
+                    Display name <span className="opt">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={e => setDisplayName(e.target.value)}
+                    placeholder="e.g. trader_dom"
+                    maxLength={32}
+                    className="obw-input"
+                  />
+                  <div style={{
+                    marginTop: 6, textAlign: 'right', fontFamily: 'var(--font-mono), monospace',
+                    fontSize: 10, letterSpacing: '0.06em', color: 'var(--txt3)',
                   }}>
-                    Upgrade
-                  </span>
-                </a>
-              )}
-              <div style={{ fontSize: 11, color: '#4e5374', textAlign: 'center', lineHeight: 1.6 }}>
-                {isPro
-                  ? <>Telegram setup takes about 60 seconds.<br />You can enable either or both — they work independently.</>
-                  : 'Push notifications are free. Telegram alerts require Pro.'}
-              </div>
-            </div>
-          )}
-        </div>
+                    {displayName.length}/32
+                  </div>
+                </div>
 
-        {/* ── Navigation ── */}
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 38 }}>
-          {step > 0 && !saving && (
+                <div style={{ marginBottom: 'var(--space-5)' }}>
+                  <label className="obw-label">Country</label>
+                  <CountrySelect value={country} onChange={setCountry} />
+                </div>
+
+                <div>
+                  <label className="obw-label">Trading account range</label>
+                  <AcctGrid acct={acct} setAcct={setAcct} />
+                </div>
+              </>
+            )}
+
+            {/* ── Step 1: Experience ── */}
+            {step === 1 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                <OptionRow<Exp> value="lt6m"   selected={exp} label="Less than 6 months" sub="Just getting started — Beginner Mode enabled" onClick={setExp} />
+                <OptionRow<Exp> value="6to12m" selected={exp} label="6-12 months"        sub="Finding my footing — Beginner Mode enabled"  onClick={setExp} />
+                <OptionRow<Exp> value="1to3y"  selected={exp} label="1-3 years"          sub="Getting comfortable — full tools unlocked"   onClick={setExp} />
+                <OptionRow<Exp> value="3plus"  selected={exp} label="3+ years"           sub="I know what I am doing — full access"        onClick={setExp} />
+              </div>
+            )}
+
+            {/* ── Step 2: Style ── */}
+            {step === 2 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                <OptionRow<TradeStyle> value="scalp"    selected={tradeStyle} label="Scalp"          sub="Minutes to hours — defaults to 5m chart"      onClick={setTradeStyle} />
+                <OptionRow<TradeStyle> value="swing"    selected={tradeStyle} label="Swing trade"    sub="Days to weeks — defaults to 4h chart"         onClick={setTradeStyle} />
+                <OptionRow<TradeStyle> value="both"     selected={tradeStyle} label="Both"           sub="Depends on the setup — defaults to 15m chart" onClick={setTradeStyle} />
+                <OptionRow<TradeStyle> value="learning" selected={tradeStyle} label="Still learning" sub="Not sure yet — Beginner Mode on"              onClick={setTradeStyle} />
+              </div>
+            )}
+
+            {/* ── Step 3: Goals ── */}
+            {step === 3 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                <OptionRow<Challenge> value="read_signals"    selected={challenge} label="Reading the signals correctly"     sub="Not sure what the data is telling me"       onClick={setChallenge} />
+                <OptionRow<Challenge> value="entry_exit"      selected={challenge} label="Knowing when to enter and exit"    sub="Always too early, too late, or too scared"  onClick={setChallenge} />
+                <OptionRow<Challenge> value="risk_management" selected={challenge} label="Managing risk and not overtrading" sub="Position sizing, stop losses, overexposure" onClick={setChallenge} />
+                <OptionRow<Challenge> value="discipline"      selected={challenge} label="Staying disciplined and patient"   sub="Chasing trades, revenge trading, FOMO"      onClick={setChallenge} />
+              </div>
+            )}
+
+            {/* ── Step 4: Source ── */}
+            {step === 4 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                {([
+                  ['social',  'Facebook / Instagram'],
+                  ['youtube', 'YouTube'],
+                  ['tiktok',  'TikTok'],
+                  ['search',  'Search'],
+                  ['word',    'Word of mouth'],
+                  ['other',   'Other'],
+                ] as [Heard, string][]).map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    className={`obw-chip ${heard === val ? 'is-selected' : ''}`}
+                    onClick={() => setHeard(val)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* ── Step 5: Telegram alerts + Web Push ── */}
+            {step === 5 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                <div className="obw-note">
+                  <div className="obw-note-title">What you get with alerts</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {[
+                      'Live price alerts when your targets or stops are hit',
+                      'Funding rate extremes that signal squeeze setups',
+                      'Morning briefing delivered every day',
+                      'Works while the app is closed or your screen is off',
+                    ].map(item => (
+                      <div key={item} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                        <span style={{ color: 'var(--accent)', fontSize: 11, marginTop: 1, flexShrink: 0 }}>▸</span>
+                        <span style={{ fontSize: 13, color: 'var(--txt2)', lineHeight: 1.45 }}>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Push notification button */}
+                <button
+                  onClick={handleEnablePush}
+                  disabled={pushWorking || pushDone}
+                  className={`obw-cta ${pushDone ? 'obw-cta-done' : 'obw-cta-primary'}`}
+                  style={{ opacity: pushWorking ? 0.6 : 1 }}
+                >
+                  {pushDone ? 'Push notifications enabled' : pushWorking ? 'Enabling…' : 'Enable push notifications'}
+                </button>
+
+                {/* Telegram setup link — Pro-only. Free accounts get an honest
+                    locked state here instead of a working-looking button that
+                    connects to nothing, since the alert pipeline (server-side)
+                    won't deliver to a free user's chat_id regardless. */}
+                {isPro ? (
+                  <a href="/alerts" target="_blank" rel="noopener noreferrer" className="obw-cta obw-cta-solid">
+                    Set up Telegram alerts →
+                  </a>
+                ) : (
+                  <a href="/upgrade" target="_blank" rel="noopener noreferrer" className="obw-cta obw-cta-muted">
+                    Telegram alerts — Pro feature
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+                      color: 'var(--accent)', border: '1px solid var(--accent-bdr)', borderRadius: 'var(--radius-sharp)',
+                      padding: '2px 8px',
+                    }}>
+                      Upgrade
+                    </span>
+                  </a>
+                )}
+                <div style={{ fontSize: 11, color: 'var(--txt3)', textAlign: 'center', lineHeight: 1.6 }}>
+                  {isPro
+                    ? <>Telegram setup takes about 60 seconds.<br />You can enable either or both — they work independently.</>
+                    : 'Push notifications are free. Telegram alerts require Pro.'}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── Navigation ── */}
+          <div className="obw-nav">
+            {step > 0 && !saving && (
+              <button type="button" className="obw-btn obw-btn-back" onClick={goBack}>
+                ← Back
+              </button>
+            )}
             <button
               type="button"
-              className="ob-back"
-              onClick={goBack}
-              style={{
-                padding: '14px 18px', borderRadius: 10,
-                border: '1px solid rgba(140,150,255,0.1)',
-                background: 'transparent', color: '#4e5374',
-                fontSize: 11, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
-                fontFamily: monoFont, letterSpacing: '.06em',
-                transition: 'color 0.2s',
-              }}
+              className="obw-btn obw-btn-next"
+              onClick={goNext}
+              disabled={!canNext() || saving}
             >
-              ← BACK
+              {saving ? 'Setting up…' : isLast ? 'Launch Dashboard →' : 'Continue →'}
+            </button>
+          </div>
+
+          {isLast && !saving && (
+            <button type="button" className="obw-skip" onClick={finish}>
+              Skip this question →
             </button>
           )}
-          <button
-            type="button"
-            className="ob-next"
-            onClick={goNext}
-            disabled={!canNext() || saving}
-            style={{
-              flex: 1, padding: '15px 0', borderRadius: 10, border: 'none',
-              background: canNext() && !saving ? accent : 'rgba(140,150,255,0.06)',
-              color: canNext() && !saving ? '#fff' : '#4e5374',
-              fontSize: 11, fontWeight: 800, letterSpacing: '.09em', textTransform: 'uppercase',
-              fontFamily: monoFont,
-              cursor: canNext() && !saving ? 'pointer' : 'not-allowed',
-              boxShadow: canNext() && !saving ? `0 8px 32px ${accent}45` : 'none',
-              transition: 'all 0.2s',
-            }}
-          >
-            {saving ? 'Setting up…' : isLast ? 'Launch Dashboard →' : 'Continue →'}
-          </button>
         </div>
-
-        {isLast && !saving && (
-          <button
-            type="button"
-            className="ob-skip"
-            onClick={finish}
-            style={{
-              background: 'none', border: 'none', width: '100%', marginTop: 12,
-              fontSize: 10, color: '#4e5374', cursor: 'pointer', padding: '4px 0',
-              fontFamily: monoFont, letterSpacing: '.07em', transition: 'color 0.2s',
-            }}
-          >
-            SKIP THIS QUESTION →
-          </button>
-        )}
       </div>
+
+      {/* ── Footer: disclaimer + legal links ── */}
+      <footer className="obw-footer">
+        <p className="obw-footer-disc">
+          LiquidityHQ provides data analytics and software tools for informational purposes only.
+          This is not financial, investment, or trading advice. Trade at your own risk.
+        </p>
+        <div className="obw-footer-links">
+          <a href="/terms" target="_blank" rel="noopener noreferrer" className="obw-footer-link">Terms of Use</a>
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="obw-footer-link">Privacy Policy</a>
+          <a href="/disclaimer" target="_blank" rel="noopener noreferrer" className="obw-footer-link">Full Disclaimer</a>
+        </div>
+        <div className="obw-footer-copy">© {new Date().getFullYear()} LIQUIDITYHQ</div>
+      </footer>
     </div>
   );
 }
