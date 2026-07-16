@@ -21,7 +21,6 @@ const STEP_META = [
   { key: 'Style',      label: 'Style'      },
   { key: 'Goals',      label: 'Goals'      },
   { key: 'Source',     label: 'Source'     },
-  { key: 'Alerts',     label: 'Alerts'     },
 ] as const;
 
 const COUNTRIES = [
@@ -64,7 +63,6 @@ const STEP_COPY = [
   { headline: ['How do you', 'mainly trade?'],                desc: 'Pre-selects your default chart timeframe in Arena.' },
   { headline: ['What is your biggest', 'challenge?'],         desc: 'Surfaces the most relevant signals and education for you.' },
   { headline: ['Where did you find', 'LiquidityHQ?'],         desc: 'Optional - helps us know where to invest our energy.' },
-  { headline: ['Get alerts on', 'Telegram.'],                 desc: 'Connect once and get live price alerts, funding extremes, and your morning briefing directly in Telegram.' },
 ];
 
 /* ── Reusable check glyph for selection indicators ── */
@@ -210,14 +208,12 @@ function AcctGrid({ acct, setAcct }: { acct: Acct | null; setAcct: (v: Acct) => 
 
 /* ── Main onboarding component ── */
 export default function OnboardingFlow({ onStartTour }: Props) {
-  const { user, isPro }             = useAuth();
+  const { user }                    = useAuth();
   const { state, loaded, markDone } = useOnboarding();
   const { update }                  = useSettings();
 
   const [step,        setStep]       = useState(0);
   const [saving,      setSaving]     = useState(false);
-  const [pushDone,    setPushDone]   = useState(false);
-  const [pushWorking, setPushWorking]= useState(false);
   const [displayName, setDisplayName]= useState('');
   const [country,     setCountry]    = useState('');
   const [acct,        setAcct]       = useState<Acct | null>(null);
@@ -256,36 +252,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
     if (step === 1) return exp !== null;
     if (step === 2) return tradeStyle !== null;
     if (step === 3) return challenge !== null;
-    return true; // step 4 (source) and step 5 (alerts) are always optional
-  }
-
-  async function handleEnablePush() {
-    if (pushWorking || pushDone) return;
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-    setPushWorking(true);
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') return;
-      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!vapidKey) return;
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: vapidKey,
-      });
-      const sb = getSupabase();
-      if (!sb) return;
-      const { data: { session } } = await sb.auth.getSession();
-      const token = session?.access_token;
-      await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify(sub.toJSON()),
-      });
-      setPushDone(true);
-    } catch { /* non-blocking */ } finally {
-      setPushWorking(false);
-    }
+    return true; // step 4 (source) is always optional
   }
 
   async function finish() {
@@ -448,64 +415,6 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                     {label}
                   </button>
                 ))}
-              </div>
-            )}
-
-            {/* ── Step 5: Telegram alerts + Web Push ── */}
-            {step === 5 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-                <div className="obw-note">
-                  <div className="obw-note-title">What you get with alerts</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {[
-                      'Live price alerts when your targets or stops are hit',
-                      'Funding rate extremes that signal squeeze setups',
-                      'Morning briefing delivered every day',
-                      'Works while the app is closed or your screen is off',
-                    ].map(item => (
-                      <div key={item} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                        <span style={{ color: 'var(--accent)', fontSize: 11, marginTop: 1, flexShrink: 0 }}>▸</span>
-                        <span style={{ fontSize: 13, color: 'var(--txt2)', lineHeight: 1.45 }}>{item}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Push notification button */}
-                <button
-                  onClick={handleEnablePush}
-                  disabled={pushWorking || pushDone}
-                  className={`obw-cta ${pushDone ? 'obw-cta-done' : 'obw-cta-primary'}`}
-                  style={{ opacity: pushWorking ? 0.6 : 1 }}
-                >
-                  {pushDone ? 'Push notifications enabled' : pushWorking ? 'Enabling…' : 'Enable push notifications'}
-                </button>
-
-                {/* Telegram setup link — Pro-only. Free accounts get an honest
-                    locked state here instead of a working-looking button that
-                    connects to nothing, since the alert pipeline (server-side)
-                    won't deliver to a free user's chat_id regardless. */}
-                {isPro ? (
-                  <a href="/alerts" target="_blank" rel="noopener noreferrer" className="obw-cta obw-cta-solid">
-                    Set up Telegram alerts →
-                  </a>
-                ) : (
-                  <a href="/upgrade" target="_blank" rel="noopener noreferrer" className="obw-cta obw-cta-muted">
-                    Telegram alerts — Pro feature
-                    <span style={{
-                      fontSize: 9, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
-                      color: 'var(--accent)', border: '1px solid var(--accent-bdr)', borderRadius: 'var(--radius-sharp)',
-                      padding: '2px 8px',
-                    }}>
-                      Upgrade
-                    </span>
-                  </a>
-                )}
-                <div style={{ fontSize: 11, color: 'var(--txt3)', textAlign: 'center', lineHeight: 1.6 }}>
-                  {isPro
-                    ? <>Telegram setup takes about 60 seconds.<br />You can enable either or both — they work independently.</>
-                    : 'Push notifications are free. Telegram alerts require Pro.'}
-                </div>
               </div>
             )}
           </div>
