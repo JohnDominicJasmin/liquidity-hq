@@ -431,7 +431,26 @@ export default function OnboardingFlow({ onStartTour }: Props) {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  if (!user || !loaded || state.profileComplete) return null;
+  if (!user || state.profileComplete) return null;
+
+  // `loaded` is a separate, async-resolved state (Supabase fetch to
+  // user_onboarding) from `user` itself — while it's still resolving we don't
+  // yet know whether to show the wizard. Returning null here let the
+  // dashboard render fully underneath for that window, then this overlay
+  // would snap in once the fetch finished, producing a visible flash for
+  // brand-new signups. Block with the same full-screen backdrop instead so
+  // nothing shows through.
+  if (!loaded) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 10000,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: '#07090f',
+      }}>
+        <div className="login-spinner-lg" />
+      </div>
+    );
+  }
 
   const meta   = STEP_META[step];
   const accent = meta.accent;
