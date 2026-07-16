@@ -3784,6 +3784,24 @@ body.landing {
 .lp-btn-ghost:hover { color: var(--txt); background: rgba(255,255,255,.05); }
 .lp-btn-primary { font-size: 13px; font-weight: 600; color: #fff; background: var(--accent); padding: 7px 16px; border-radius: var(--radius-chip); text-decoration: none; transition: opacity .15s; min-height: 36px; display: inline-flex; align-items: center; }
 .lp-btn-primary:hover { opacity: .85; }
+.lp-lang-short { display: none; }
+
+/* Nav has 2 flex children (logo + actions group) with no shrink/wrap — at
+   375px the logo, language switcher, and both buttons need more width than
+   is available and visibly collide. Compact everything instead of letting
+   it overflow: smaller logo/buttons, tighter gaps, and the language
+   switcher shows a 2-letter code instead of the full language name. */
+@media (max-width: 480px) {
+  .lp-nav-inner   { padding: 0 14px; }
+  .lp-logo        { font-size: 14px; }
+  .lp-nav-actions { gap: 6px; }
+  .lp-btn-ghost, .lp-btn-primary {
+    padding: 6px 10px; font-size: 12px; white-space: nowrap; min-height: 32px;
+  }
+  .lp-lang-btn    { padding: 5px 8px !important; font-size: 11px !important; }
+  .lp-lang-full   { display: none; }
+  .lp-lang-short  { display: inline; }
+}
 
 /* ── LP HERO ─────────────────────────────────────────────────────────── */
 .lp-hero        { position: relative; padding: 96px 24px 80px; text-align: center; overflow: hidden; }

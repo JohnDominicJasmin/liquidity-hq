@@ -27,6 +27,7 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
     <div ref={ref} style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen(v => !v)}
+        className="lp-lang-btn"
         style={{
           fontSize: 12, fontWeight: 600, color: 'var(--txt2)',
           background: 'var(--bg2)', border: '0.5px solid var(--bdr)',
@@ -34,7 +35,8 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
           display: 'inline-flex', alignItems: 'center', gap: 5,
         }}
       >
-        {current.label}
+        <span className="lp-lang-full">{current.label}</span>
+        <span className="lp-lang-short">{current.code.toUpperCase()}</span>
         <span style={{ fontSize: 9, opacity: 0.6 }}>▾</span>
       </button>
       {open && (
