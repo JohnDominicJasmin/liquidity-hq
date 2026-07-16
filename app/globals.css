@@ -3661,6 +3661,34 @@ body.landing {
   background: #050505 !important;
 }
 
+/* The landing page is dark-only by design (background above is fixed
+   regardless of theme), but its .lp-* rules pull from the shared --bg2/
+   --txt/--accent tokens, which the light theme overrides globally — so a
+   visitor with light mode set elsewhere in the app got a black page with
+   light-mode card/text colors bleeding through. Re-pin the dark values
+   here, scoped to the landing subtree only, so nothing outside it changes. */
+[data-theme="light"] body.landing {
+  --bg0: #030405;
+  --bg:  #000000;
+  --bg1: #06070a;
+  --bg2: #0a0c10;
+  --bg3: #0f1115;
+  --bg4: #14161a;
+
+  --txt:  #e8eaf0;
+  --txt2: #7a7e94;
+  --txt3: #3e4258;
+
+  --bdr:  rgba(255,255,255,0.08);
+  --bdr2: rgba(255,255,255,0.14);
+
+  --accent:     #1a7aff;
+  --accent-2:   #5aa3ff;
+  --accent-dim: rgba(26,122,255,0.12);
+  --accent-bg:  rgba(26,122,255,0.07);
+  --accent-bdr: rgba(26,122,255,0.22);
+}
+
 /* Shared entrance curve — a considered "settle in" rather than the flatter
    default ease-out, used everywhere something fades/slides into place
    across the loading → landing/dashboard handoff so it reads as one motion
