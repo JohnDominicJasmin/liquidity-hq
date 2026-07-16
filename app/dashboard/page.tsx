@@ -11,6 +11,8 @@ import SessionContext from '@/components/SessionContext';
 import SmartMoneyScore from '@/components/SmartMoneyScore';
 import SentimentExtremesAlert from '@/components/SentimentExtremesAlert';
 import OnboardingFlow from '@/components/OnboardingFlow';
+import { useAuth } from '@/components/AuthProvider';
+import { useOnboarding } from '@/components/OnboardingProvider';
 import SpotlightTour from '@/components/SpotlightTour';
 import SetupChecklist from '@/components/SetupChecklist';
 import Tip from '@/components/Tip';
@@ -456,6 +458,19 @@ export default function Dashboard() {
 
   const { settings } = useSettings();
   const hide = (id: string) => settings.hidden_sections.includes(id);
+
+  const { user } = useAuth();
+  const { state: onboardingState, loaded: onboardingLoaded } = useOnboarding();
+
+  // OnboardingFlow is normally just a child below, mounted alongside the rest
+  // of this page's JSX — but a child returning an overlay can't stop its own
+  // siblings from painting in the same frame. Without this gate, a brand-new
+  // signup sees the full dashboard flash for one frame before the wizard
+  // overlay catches up and covers it. Block the whole page here instead so
+  // the dashboard never enters the tree until we know it should.
+  if (user && (!onboardingLoaded || !onboardingState.profileComplete)) {
+    return <OnboardingFlow onStartTour={() => setShowTour(true)} />;
+  }
 
   return (
     <div className="dashboard-grid" data-spotlight-section>
