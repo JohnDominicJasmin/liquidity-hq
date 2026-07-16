@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useSettings } from '@/lib/settings';
 import { useMarket, COINS, COIN_LABELS, COIN_DEC, fmtPrice, type CoinId } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
+import CoinIcon from '@/components/CoinIcon';
 
 interface CalcResult {
   riskUSD:      number;
@@ -57,6 +58,8 @@ export default function PositionSizer() {
   const [stop,    setStop]    = useState(() => searchParams.get('stop') ?? '');
   const [tp,      setTp]      = useState(() => searchParams.get('tp') ?? '');
   const seededRef = useRef(false);
+  const [coinMenuOpen, setCoinMenuOpen] = useState(false);
+  const coinMenuRef = useRef<HTMLDivElement>(null);
 
   const livePrice = coin ? (store.coins[coin]?.price ?? null) : null;
   const coinLabel = coin ? COIN_LABELS[coin] : '';
@@ -66,6 +69,7 @@ export default function PositionSizer() {
   // button re-syncs on demand).
   const pickCoin = (c: CoinId | '') => {
     setCoin(c);
+    setCoinMenuOpen(false);
     if (c) {
       const p = store.coins[c]?.price;
       if (p != null) setEntry(String(p));
@@ -96,6 +100,24 @@ export default function PositionSizer() {
     set('tp',    tp);
     window.history.replaceState(null, '', url.toString());
   }, [coin, account, riskPct, entry, stop, tp]);
+
+  /* Close the coin dropdown on outside click / Escape — it's a custom listbox
+     (not a native <select>) so it can be size- and position-constrained
+     instead of the browser rendering a huge native popup that can flip
+     upward and cover the screen. */
+  useEffect(() => {
+    if (!coinMenuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (coinMenuRef.current && !coinMenuRef.current.contains(e.target as Node)) setCoinMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCoinMenuOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [coinMenuOpen]);
 
   const saveAccount = (v: string) => {
     setAccount(v);
@@ -172,10 +194,50 @@ export default function PositionSizer() {
         <div className="ps-coin-row">
           <label className="ps-lbl">Coin <span className="ps-opt">(optional — auto-fills entry with the live price)</span></label>
           <div className="ps-coin-irow">
-            <select className="ps-inp ps-coin-select" aria-label="Coin" value={coin} onChange={e => pickCoin(e.target.value as CoinId | '')}>
-              <option value="">Any coin (enter prices manually)</option>
-              {COINS.map(c => <option key={c} value={c}>{COIN_LABELS[c]}</option>)}
-            </select>
+            <div className="ps-coin-combo" ref={coinMenuRef}>
+              <button
+                type="button"
+                className="ps-coin-trigger"
+                aria-haspopup="listbox"
+                aria-expanded={coinMenuOpen}
+                onClick={() => setCoinMenuOpen(o => !o)}
+              >
+                {coin
+                  ? <CoinIcon coin={coin} size={18} />
+                  : <span className="ps-coin-trigger-dot" />}
+                <span className="ps-coin-trigger-label">{coin ? COIN_LABELS[coin] : 'Any coin (enter prices manually)'}</span>
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" className="ps-coin-chevron">
+                  <path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              {coinMenuOpen && (
+                <div className="ps-coin-menu" role="listbox">
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={coin === ''}
+                    className={`ps-coin-opt${coin === '' ? ' on' : ''}`}
+                    onClick={() => pickCoin('')}
+                  >
+                    <span className="ps-coin-opt-dot" />
+                    <span>Any coin (enter prices manually)</span>
+                  </button>
+                  {COINS.map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      role="option"
+                      aria-selected={coin === c}
+                      className={`ps-coin-opt${coin === c ? ' on' : ''}`}
+                      onClick={() => pickCoin(c)}
+                    >
+                      <CoinIcon coin={c} size={18} />
+                      <span>{COIN_LABELS[c]}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             {coin && (
               livePrice != null ? (
                 <button type="button" className="ps-live-btn" onClick={() => setEntry(String(livePrice))} title="Set entry to the current live price">

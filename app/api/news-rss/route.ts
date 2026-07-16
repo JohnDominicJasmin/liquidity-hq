@@ -41,6 +41,20 @@ function extractCDATA(text: string): string {
   return m ? m[1].trim() : text.trim();
 }
 
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+};
+
+// RSS titles carry HTML/XML entities (curly quotes, en/em dashes, &amp; etc.)
+// that render as literal "&#8216;" text in plain-text contexts like desktop
+// Notifications, which don't parse HTML — decode them here before display.
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&([a-zA-Z]+);/g, (m, name) => NAMED_ENTITIES[name] ?? m);
+}
+
 function extractLink(block: string): string | undefined {
   // Prefer <link> that's not an <atom:link>
   // RSS uses bare <link>URL</link> or <link href="..."/>
@@ -81,7 +95,7 @@ function parseRSS(xml: string, source: string, cat: RSSItem['cat']): RSSItem[] {
     const block = m[1];
 
     const titleRaw = block.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? '';
-    const title = extractCDATA(titleRaw);
+    const title = decodeEntities(extractCDATA(titleRaw));
     if (!title) continue;
 
     const dateStr = block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1]?.trim() ?? '';
