@@ -1,18 +1,41 @@
 'use client';
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
+import { useAuth } from '@/components/AuthProvider';
+
+// Only allow same-origin path redirects — anything else ("//evil.com",
+// "https://...") falls back to the dashboard, so ?next= can't be used as an
+// open redirect.
+function safeNext(raw: string | null): string {
+  if (raw && raw.startsWith('/') && !raw.startsWith('//')) return raw;
+  return '/dashboard';
+}
 
 function LoginInner() {
   const searchParams = useSearchParams();
+  const router       = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const isSignup     = searchParams.get('signup') === '1';
+  const nextUrl      = safeNext(searchParams.get('next'));
   const [email, setEmail]               = useState('');
   const [emailSent, setEmailSent]       = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError]               = useState('');
+
+  // Already signed in — the login form has nothing to offer, go where the
+  // user was headed (?next=) or to the dashboard.
+  useEffect(() => {
+    if (!authLoading && user) router.replace(nextUrl);
+  }, [authLoading, user, nextUrl, router]);
+
+  // Carry ?next= through the OAuth/magic-link round trip so /auth/callback
+  // can land the user where they originally wanted to go.
+  const callbackUrl = () =>
+    `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextUrl)}`;
 
   const signInWithGoogle = async () => {
     const sb = getSupabase();
@@ -23,7 +46,7 @@ function LoginInner() {
     const { error } = await sb.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: callbackUrl(),
       },
     });
     if (error) { setError(error.message); setGoogleLoading(false); }
@@ -40,12 +63,16 @@ function LoginInner() {
     track.signIn('magic_link');
     const { error } = await sb.auth.signInWithOtp({
       email: trimmed,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: callbackUrl() },
     });
     setEmailLoading(false);
     if (error) setError(error.message);
     else setEmailSent(true);
   };
+
+  // While the session is resolving (or a redirect is in flight), show the
+  // spinner card instead of flashing the sign-in form at a signed-in user.
+  if (authLoading || user) return <LoginFallback />;
 
   return (
     <div className="login-wrap">

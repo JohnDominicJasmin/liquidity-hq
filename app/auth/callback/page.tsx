@@ -12,6 +12,11 @@ function CallbackInner() {
     const code  = params.get('code');
     const error = params.get('error_description') ?? params.get('error');
 
+    // Honor the ?next= the login page threaded through — same-origin paths
+    // only, so the callback can't be turned into an open redirect.
+    const rawNext = params.get('next');
+    const dest = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/arena';
+
     if (error) { setErrMsg(error); return; }
 
     const sb = getSupabase();
@@ -21,11 +26,11 @@ function CallbackInner() {
       // PKCE flow: exchange auth code for session
       sb.auth.exchangeCodeForSession(code).then(({ error }) => {
         if (error) setErrMsg(error.message);
-        else router.push('/arena');
+        else router.push(dest);
       });
     } else {
       // Implicit flow: Supabase picks up token from URL hash automatically
-      router.push('/arena');
+      router.push(dest);
     }
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 

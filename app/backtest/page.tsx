@@ -262,6 +262,15 @@ export default function BacktestPage() {
   // never sees a paywall flash, then replace the entire page for free users.
   if (authLoading) return <div style={{ minHeight: '60vh' }} />;
   if (!isPro) {
+    // Same fallback logic as UpgradeGateModal: while checkout is not
+    // configured, signed-in users go to /upgrade, signed-out to signup.
+    const checkoutConfigured = !!(
+      process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL &&
+      process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL !== '#'
+    );
+    const ctaHref = checkoutConfigured
+      ? getCheckoutUrl(user)
+      : user ? '/upgrade' : '/login?signup=1&next=/upgrade';
     return (
       <div style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{
@@ -287,7 +296,7 @@ export default function BacktestPage() {
             and the AI strategy research tools.
           </p>
           <a
-            href={getCheckoutUrl(user)}
+            href={ctaHref}
             style={{
               display: 'block', textAlign: 'center',
               background: 'var(--accent)', color: '#fff',

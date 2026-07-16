@@ -60,6 +60,18 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
 export default function UpgradeGateModal({ open, onClose, feature }: Props) {
   const { user } = useAuth();
 
+  // While LemonSqueezy checkout is not configured, getCheckoutUrl falls back
+  // to the signup page — a dead end for someone already signed in. Send
+  // signed-in users to /upgrade instead (it explains payments are launching
+  // soon), and signed-out users to signup with /upgrade as the destination.
+  const checkoutConfigured = !!(
+    process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL &&
+    process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL !== '#'
+  );
+  const ctaHref = checkoutConfigured
+    ? getCheckoutUrl(user)
+    : user ? '/upgrade' : '/login?signup=1&next=/upgrade';
+
   // Escape closes; body scroll locks while open
   useEffect(() => {
     if (!open) return;
@@ -135,7 +147,7 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
 
         {/* CTA */}
         <a
-          href={getCheckoutUrl(user)}
+          href={ctaHref}
           style={{
             display: 'block', textAlign: 'center',
             background: 'var(--accent)', color: '#fff',
