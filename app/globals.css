@@ -2327,9 +2327,11 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .ps-preset  { flex: 0 0 auto; padding: 4px 12px; border-radius: 20px; border: 0.5px solid var(--bdr2); background: var(--bg3); color: var(--txt2); font-size: 11px; font-weight: 600; cursor: pointer; }
 .ps-preset.on { background: rgba(26,122,255,.12); border-color: var(--purple-bdr); color: var(--purple); }
 .ps-risk-line { font-size: 11px; color: var(--txt3); margin-top: 8px; }
-.ps-banner { padding: 10px 14px; border-radius: var(--radius-card); font-size: 13px; font-weight: 700; margin-bottom: 10px; text-align: center; }
-.ps-banner-long  { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-bdr); }
-.ps-banner-short { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bdr); }
+/* Direction is a computed status, not a control — render it as a compact pill
+   inside the results grid (not a full-width bar that reads as a button). */
+.ps-dir-pill  { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
+.ps-dir-long  { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-bdr); }
+.ps-dir-short { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bdr); }
 .ps-results { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
 .ps-result  { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: var(--radius-card); padding: 10px 12px; }
 .ps-result-risk   { border-color: var(--red-bdr);   background: var(--red-bg); }

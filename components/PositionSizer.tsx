@@ -158,11 +158,15 @@ export default function PositionSizer() {
       {/* Results */}
       {result ? (
         <>
-          <div className={`ps-banner${result.isLong ? ' ps-banner-long' : ' ps-banner-short'}`}>
-            {result.isLong ? '▲ LONG' : '▼ SHORT'}
-          </div>
-
           <div className="ps-results">
+            <div className="ps-result">
+              <div className="ps-rlbl">Direction</div>
+              <div className="ps-rval">
+                <span className={`ps-dir-pill${result.isLong ? ' ps-dir-long' : ' ps-dir-short'}`}>
+                  {result.isLong ? '▲ LONG' : '▼ SHORT'}
+                </span>
+              </div>
+            </div>
             <div className="ps-result ps-result-risk">
               <div className="ps-rlbl">$ at Risk</div>
               <div className="ps-rval">{fmtUSD(result.riskUSD)}</div>
