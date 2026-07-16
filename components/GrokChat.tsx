@@ -8,6 +8,7 @@ import { getSessionName } from '@/lib/session';
 import { useNews, GeoEvent } from '@/components/NewsProvider';
 import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
+import { Warn } from '@/components/icons';
 import { getSupabase } from '@/lib/supabase';
 import { nextResetLocalTime } from '@/lib/resetTime';
 
@@ -529,7 +530,12 @@ export default function GrokChat() {
           <span style={{ fontSize: 15, color: 'var(--txt3)' }}>✕</span>
         ) : (
           <>
-            <span style={{ fontSize: 18, lineHeight: 1 }}>✦</span>
+            <span style={{ lineHeight: 0 }}>
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" />
+                <path d="M15.6 12.6C15.8 14 16.2 14.4 17.6 14.6 16.2 14.8 15.8 15.2 15.6 16.6 15.4 15.2 15 14.8 13.6 14.6 15 14.4 15.4 14 15.6 12.6Z" fill="currentColor" opacity="0.65" />
+              </svg>
+            </span>
             <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', color: 'inherit' }}>Ask AI</span>
           </>
         )}
@@ -590,7 +596,7 @@ export default function GrokChat() {
                       opacity: liveSearch ? 1 : 0.5,
                       fontVariantNumeric: 'tabular-nums',
                     }}>
-                      {searchRemaining === 0 ? '✕ None left' : searchRemaining === 1 ? `⚠ 1 left` : `${searchRemaining} left`}
+                      {searchRemaining === 0 ? '✕ None left' : searchRemaining === 1 ? <><Warn size={11} /> 1 left</> : `${searchRemaining} left`}
                     </span>
                   )}
                 </div>
@@ -698,7 +704,7 @@ export default function GrokChat() {
             {/* Rate-limit / error status bar — sits between coins and messages, not in chat stream */}
             {error && (
               <div style={{ padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,154,146,0.06)', lineHeight: 1.6 }}>
-                <div style={{ fontSize: 11, color: '#ff9a92' }}>⚠ {error}</div>
+                <div style={{ fontSize: 11, color: '#ff9a92', display: 'flex', alignItems: 'center', gap: 5 }}><Warn size={12} /> {error}</div>
                 {rateLimited && (
                   <Link href="/upgrade" style={{ fontSize: 11, color: '#b8aeff', textDecoration: 'underline' }}>
                     Upgrade to Pro for higher limits →
@@ -711,7 +717,12 @@ export default function GrokChat() {
             <div className="gchat-msgs" ref={msgsRef}>
               {msgs.length === 0 && (
                 <div className="gchat-empty">
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>✦</div>
+                  <div style={{ marginBottom: 8, lineHeight: 0, color: 'var(--accent)' }}>
+                    <svg width="32" height="32" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" />
+                      <path d="M15.6 12.6C15.8 14 16.2 14.4 17.6 14.6 16.2 14.8 15.8 15.2 15.6 16.6 15.4 15.2 15 14.8 13.6 14.6 15 14.4 15.4 14 15.6 12.6Z" fill="currentColor" opacity="0.65" />
+                    </svg>
+                  </div>
                   {user ? (
                     <>
                       <div style={{ fontSize: 13, fontWeight: 600, color: '#a0a0a0' }}>Ask anything about</div>

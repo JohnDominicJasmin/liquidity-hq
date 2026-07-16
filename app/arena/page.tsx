@@ -12,6 +12,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { track } from '@/lib/analytics';
 import { T } from '@/lib/tables';
+import { Warn } from '@/components/icons';
 import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
 import UpgradeGateModal, { LockedFeatureCard } from '@/components/UpgradeGateModal';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
@@ -509,7 +510,7 @@ function ArenaContent() {
       const fr = coin.fundingRate * 100;
       if (Math.abs(fr) >= settings.fr_threshold)
         fire(`fund-${selectedCoin}-${b30}`,
-          `⚡ ${sym} Extreme Funding`,
+          `${sym} Extreme Funding`,
           `${fr >= 0 ? '+' : ''}${fr.toFixed(4)}% — ${fr > 0 ? 'Longs at risk ↓' : 'Shorts being squeezed ↑'}`);
     }
 
@@ -533,11 +534,11 @@ function ArenaContent() {
     if (coin?.rsi1h != null) {
       if (coin.rsi1h >= settings.rsi_ob)
         fire(`rsi-ob-${selectedCoin}-${b2h}`,
-          `⚠ ${sym} Momentum too high (1H)`,
+          `${sym} Momentum too high (1H)`,
           `Momentum (RSI): ${coin.rsi1h.toFixed(0)} — Exhaustion zone. Avoid chasing longs, watch for reversal candle.`);
       else if (coin.rsi1h <= settings.rsi_os)
         fire(`rsi-os-${selectedCoin}-${b2h}`,
-          `⚠ ${sym} Momentum too low (1H)`,
+          `${sym} Momentum too low (1H)`,
           `Momentum (RSI): ${coin.rsi1h.toFixed(0)} — Bounce setup forming. Watch for volume spike + rejection candle.`);
     }
 
@@ -833,7 +834,7 @@ function ArenaContent() {
             : avg * 100 <= -0.05 ? ' — extreme short crowding (squeeze risk)'
             : avg * 100 <= -0.01 ? ' — shorts paying, mild crowding'
             : ' — neutral';
-          return `Binance ${fmt(cf.binance)} | Bybit ${fmt(cf.bybit)} | Avg ${fmt(avg)}${sentiment}${divergent ? ' ⚡ DIVERGENCE: exchanges differ — flow imbalance' : ''}`;
+          return `Binance ${fmt(cf.binance)} | Bybit ${fmt(cf.bybit)} | Avg ${fmt(avg)}${sentiment}${divergent ? ' · DIVERGENCE: exchanges differ — flow imbalance' : ''}`;
         })()
       : '—';
 
@@ -1509,7 +1510,7 @@ function ArenaContent() {
             background: col + '0f', border: `0.5px solid ${col}44`,
             display: 'flex', alignItems: 'flex-start', gap: 8,
           }}>
-            <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>⚠</span>
+            <span style={{ color: col, lineHeight: 0, flexShrink: 0, marginTop: 1 }}><Warn size={14} /></span>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: col, marginBottom: 2 }}>
                 {res.score >= 70 ? 'Potential pullback — pump is getting weaker' : 'Early weakness — watch for a pullback'}

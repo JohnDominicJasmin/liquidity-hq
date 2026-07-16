@@ -267,7 +267,7 @@ export default function MarketsPage() {
               </div>
 
               {/* Signal */}
-              <div style={{
+              <div className="mkt-signal" style={{
                 paddingLeft: 12, fontSize: 10,
                 color: sig.col === '#333' ? 'var(--txt3)' : sig.col,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',

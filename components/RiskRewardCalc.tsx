@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { Warn } from '@/components/icons';
 
 interface RRResult {
   isLong:       boolean;
@@ -126,10 +127,10 @@ export default function RiskRewardCalc() {
             </div>
           </div>
           {result.rr < 1.5 && (
-            <div className="ps-warn">⚠ R:R below 1.5 — not worth taking unless win rate is very high</div>
+            <div className="ps-warn"><Warn /> R:R below 1.5 — not worth taking unless win rate is very high</div>
           )}
           {result.ev < 0 && (
-            <div className="ps-warn">⚠ Negative expected value at {winRate}% win rate — skip this trade</div>
+            <div className="ps-warn"><Warn /> Negative expected value at {winRate}% win rate — skip this trade</div>
           )}
           {result.rr >= 2 && result.ev > 0 && (
             <div style={{ background: 'var(--green-bg)', border: '0.5px solid var(--green-bdr)', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: 'var(--green)', marginBottom: 8 }}>

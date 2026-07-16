@@ -88,7 +88,7 @@ export default function MacroStrip() {
           </div>
           <div className="macro-item-chg" style={{ color: jpyCol }}>
             {jpyUsd != null
-              ? jpyUsd >= 160 ? '⚠ Danger' : jpyUsd >= 158 ? '⚡ Warning' : '✓ Safe'
+              ? jpyUsd >= 160 ? 'Danger' : jpyUsd >= 158 ? 'Warning' : 'Safe'
               : '—'}
           </div>
           {jpySig && (

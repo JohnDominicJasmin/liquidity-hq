@@ -71,13 +71,14 @@ export default function BestHours() {
 
         <div style={{ marginTop: 12 }}>
           {mounted && (win ? (
-            <div className="window-pill" style={{ background: win.bg, color: win.color, display: 'inline-block' }}>
-              ✦ {win.name} — Active now
+            <div className="window-pill" style={{ background: win.bg, color: win.color, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" /></svg>
+              {win.name} — Active now
             </div>
           ) : dead ? (
-            <div className="window-pill wp-dead" style={{ display: 'inline-block' }}>⚠ Dead zone — do not trade</div>
+            <div className="window-pill wp-dead" style={{ display: 'inline-block' }}>Dead zone — do not trade</div>
           ) : (
-            <div className="window-pill wp-other" style={{ display: 'inline-block' }}>◆ Outside prime windows</div>
+            <div className="window-pill wp-other" style={{ display: 'inline-block' }}>Outside prime windows</div>
           ))}
         </div>
       </div>
@@ -163,7 +164,10 @@ export default function BestHours() {
         {mounted && (win ? (
           <div className="nw-row" style={{ marginBottom: 0 }}>
             <div>
-              <div className="nw-name" style={{ color: win.color }}>✦ {win.name} is active RIGHT NOW</div>
+              <div className="nw-name" style={{ color: win.color, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <svg width="13" height="13" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" /></svg>
+                {win.name} is active RIGHT NOW
+              </div>
               <div className="nw-time">{win.label}</div>
             </div>
             <div className="nw-countdown" style={{ color: win.color }}>Go hunt.</div>

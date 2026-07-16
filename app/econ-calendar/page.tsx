@@ -152,7 +152,7 @@ export default function EconCalendarPage() {
             <div style={{ overflowX: 'auto' }}>
 
               {/* Column header */}
-              <div style={{
+              <div className="ec-grid ec-hdr" style={{
                 display: 'grid', gridTemplateColumns: COLS,
                 padding: '8px 16px', gap: 8,
                 borderBottom: '0.5px solid var(--bdr)',
@@ -176,6 +176,7 @@ export default function EconCalendarPage() {
                 return (
                   <div
                     key={i}
+                    className="ec-grid ec-row"
                     style={{
                       display: 'grid', gridTemplateColumns: COLS, gap: 8,
                       padding: '11px 16px', alignItems: 'center',

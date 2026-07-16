@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { Warn } from '@/components/icons';
 
 type Dir = 'long' | 'short';
 
@@ -134,10 +135,10 @@ export default function LiquidationCalc() {
             </div>
           </div>
           {result.distPct < 5 && (
-            <div className="ps-warn">⚠ Less than 5% from liquidation — dangerously close</div>
+            <div className="ps-warn"><Warn /> Less than 5% from liquidation — dangerously close</div>
           )}
           {result.distPct < 10 && result.distPct >= 5 && (
-            <div className="ps-warn">⚠ Less than 10% from liquidation — high risk</div>
+            <div className="ps-warn"><Warn /> Less than 10% from liquidation — high risk</div>
           )}
         </>
       ) : (

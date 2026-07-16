@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useMarket } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
+import { Warn } from '@/components/icons';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { scoreBias } from './StopLossZone';
 import {
@@ -93,7 +94,7 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
           color: macroCol, padding: '8px 10px', borderRadius: 8,
           background: macroCol + '14', border: `0.5px solid ${macroCol}44`,
         }}>
-          {macro.reasons.map((r, i) => <div key={i}>⚠ {r}</div>)}
+          {macro.reasons.map((r, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Warn /> {r}</div>)}
         </div>
       )}
 

@@ -4,6 +4,7 @@ import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinech
 import { BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, CoinId, useMarket, computeSqueezeScore } from '@/lib/marketStore';
 import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
+import { Warn } from '@/components/icons';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
 
@@ -1206,7 +1207,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             textTransform: 'none',
             letterSpacing: 'normal',
           }}>
-            <span style={{ color: '#f59e0b', fontWeight: 600, marginRight: 5 }}>⚠</span>
+            <span style={{ color: '#f59e0b', marginRight: 5, lineHeight: 0 }}><Warn size={13} /></span>
             {rwTooltip.dir === 'bearish'
               ? 'Trend reversal — RSI divergence detected'
               : 'Potential bottom — RSI divergence detected'}

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { Fragment, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
@@ -86,7 +86,7 @@ export default function LandingContent({ dict, locale, dir }: Props) {
             <Link href="/briefing" className="lp-cta-ghost">{dict.hero.ctaGhost}</Link>
           </div>
           <div className="lp-hero-stats">
-            <div className="lp-stat"><span>17</span>{dict.hero.stats.coins}</div>
+            <div className="lp-stat"><span>50</span>{dict.hero.stats.coins}</div>
             <div className="lp-stat-sep" />
             <div className="lp-stat"><span>35</span>{dict.hero.stats.signals}</div>
             <div className="lp-stat-sep" />
@@ -126,14 +126,14 @@ export default function LandingContent({ dict, locale, dir }: Props) {
           <h2 className="lp-h2">{dict.howItWorks.h2}</h2>
           <div className="lp-steps">
             {dict.howItWorks.steps.map((step, i) => (
-              <div key={i} style={{ display: 'contents' }}>
+              <Fragment key={i}>
                 <div className="lp-step">
                   <div className="lp-step-num">{i + 1}</div>
                   <h3>{step.title}</h3>
                   <p>{step.desc}</p>
                 </div>
                 {i < dict.howItWorks.steps.length - 1 && <div className="lp-step-arrow">{stepArrow}</div>}
-              </div>
+              </Fragment>
             ))}
           </div>
         </div>

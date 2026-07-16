@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId, useMarket } from '@/lib/marketStore';
 import { coinBadgeColor } from '@/lib/coinBadge';
+import { Warn } from '@/components/icons';
 
 /* ── types ── */
 interface FRPoint { rate: number; ts: number; }
@@ -597,8 +598,8 @@ export default function FundingHistory() {
                     {(() => {
                       const s = getStats(selected);
                       return s?.extremes ? (
-                        <span style={{ fontSize: 11, color: '#fbbf24' }}>
-                          ⚠ {s.extremes} extreme{s.extremes > 1 ? 's' : ''}
+                        <span style={{ fontSize: 11, color: '#fbbf24', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <Warn size={12} /> {s.extremes} extreme{s.extremes > 1 ? 's' : ''}
                         </span>
                       ) : null;
                     })()}

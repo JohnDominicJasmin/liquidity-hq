@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { Warn } from '@/components/icons';
 
 interface FundResult {
   totalCost:    number;
@@ -139,7 +140,7 @@ export default function FundingCostCalc() {
             </div>
           </div>
           {result.annualRate > 50 && isPaying && (
-            <div className="ps-warn">⚠ Annualized rate over 50% — funding is eating your position fast</div>
+            <div className="ps-warn"><Warn /> Annualized rate over 50% — funding is eating your position fast</div>
           )}
         </>
       ) : (

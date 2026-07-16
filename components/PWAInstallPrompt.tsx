@@ -62,7 +62,7 @@ export default function PWAInstallPrompt() {
       maxWidth: 320,
       width: 'calc(100vw - 32px)',
     }}>
-      <span style={{ fontSize: 20, flexShrink: 0 }}>📲</span>
+      <img src="/icons/icon-192.png" alt="LiquidityHQ" width={34} height={34} style={{ flexShrink: 0, borderRadius: 8 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Add to Home Screen</div>
         <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.4 }}>Install LiquidityHQ for instant access</div>

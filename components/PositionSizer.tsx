@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSettings } from '@/lib/settings';
+import { Warn } from '@/components/icons';
 
 interface CalcResult {
   riskUSD:      number;
@@ -178,7 +179,7 @@ export default function PositionSizer() {
             </div>
             <div className={`ps-result${result.leverage > 10 ? ' ps-result-danger' : result.leverage > 5 ? ' ps-result-warn' : ''}`}>
               <div className="ps-rlbl">Leverage</div>
-              <div className="ps-rval">{result.leverage.toFixed(1)}x{result.leverage > 10 ? ' ⚠' : ''}</div>
+              <div className="ps-rval">{result.leverage.toFixed(1)}x{result.leverage > 10 ? <Warn style={{ marginLeft: 3 }} /> : null}</div>
             </div>
             <div className="ps-result">
               <div className="ps-rlbl">Stop Distance</div>
@@ -201,10 +202,10 @@ export default function PositionSizer() {
           </div>
 
           {result.leverage > 10 && (
-            <div className="ps-warn">⚠ Leverage over 10x — reduce size or widen stop</div>
+            <div className="ps-warn"><Warn /> Leverage over 10x — reduce size or widen stop</div>
           )}
           {result.rrRatio != null && result.rrRatio < 1.5 && (
-            <div className="ps-warn">⚠ R:R below 1.5 — skip or move TP further out</div>
+            <div className="ps-warn"><Warn /> R:R below 1.5 — skip or move TP further out</div>
           )}
 
           <button className="ps-log-btn" onClick={logTrade}>

@@ -1,5 +1,6 @@
 'use client';
 import { useMarket } from '@/lib/marketStore';
+import { Warn } from '@/components/icons';
 
 /* ── Thresholds ────────────────────────────────────────────────────────────
    Bearish (longs overcrowded):
@@ -104,7 +105,7 @@ export default function SentimentExtremesAlert() {
         {signals.map(({ label: sl, value, hit, hint }) => (
           <div key={sl} className="sent-signal-row">
             <span className="sent-signal-icon" style={{ color: hit ? col : 'var(--txt3)' }}>
-              {hit ? '⚠' : '·'}
+              {hit ? <Warn size={12} /> : '·'}
             </span>
             <span className="sent-signal-label">{sl}</span>
             <span className="sent-signal-value" style={{ color: hit ? col : 'var(--txt2)' }}>{value}</span>

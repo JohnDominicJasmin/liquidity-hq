@@ -1906,7 +1906,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   /* Typography */
   --txt:  #111318;
   --txt2: #44475A;
-  --txt3: #888B99;
+  --txt3: #63656F; /* was #888B99 (3.39:1 — fails AA). AA on white/card/canvas: 5.80/5.22/4.81 */
   --bdr:  rgba(0,0,0,0.08);
   --bdr2: rgba(0,0,0,0.14);
 
@@ -3734,8 +3734,32 @@ body.landing {
 
 /* ── MARKETS PAGE — mobile grid ─────────────────────────────────────── */
 @media (max-width: 480px) {
-  .mkt-row, .mkt-hdr-row { grid-template-columns: 28px 1fr 96px 58px 1fr !important; }
+  /* Give the SIGNAL column ~1.7x the coin column and let it wrap to 2 lines
+     instead of truncating to "..." (was 1fr + nowrap → every signal clipped). */
+  .mkt-row, .mkt-hdr-row { grid-template-columns: 28px 0.9fr 92px 54px 1.7fr !important; align-items: center; }
   .mkt-col-spark, .mkt-col-pressure { display: none !important; }
+  .mkt-signal {
+    white-space: normal !important; overflow: visible !important; text-overflow: clip !important;
+    line-height: 1.15; padding-left: 10px !important;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+}
+
+/* ── ECONOMIC CALENDAR — mobile grid ─────────────────────────────────── */
+@media (max-width: 480px) {
+  /* Collapse COUNTRY (always "US"), DELTA and IMPACT (impact already shown as the
+     row's left border) so TIME/EVENT/PREVIOUS/CONSENSUS/ACTUAL fit without the
+     680px min-width forcing an undiscoverable horizontal scroll. */
+  .ec-grid {
+    grid-template-columns: 52px 0 1fr 54px 58px 54px 0 0 !important;
+    min-width: 0 !important; column-gap: 4px !important;
+    padding-left: 10px !important; padding-right: 10px !important;
+  }
+  .ec-grid > *:nth-child(2),
+  .ec-grid > *:nth-child(7),
+  .ec-grid > *:nth-child(8) { overflow: hidden; white-space: nowrap; }
+  /* Header labels: drop tracking + shrink so PREVIOUS/CONSENSUS/ACTUAL don't collide */
+  .ec-hdr > div { font-size: 9px !important; letter-spacing: 0 !important; overflow: hidden; }
 }
 
 /* ── DASHBOARD — mobile fixes ────────────────────────────────────────── */
@@ -3804,6 +3828,13 @@ body.landing {
 }
 
 /* ── LP HERO ─────────────────────────────────────────────────────────── */
+/* .lp-nav is sticky at 56px tall with nothing compensating for it anywhere
+   on the page — any scroll that lands mid-page instead of a smooth top-to-
+   bottom scroll (scroll anchoring during layout shift, browser back/forward
+   restoring position, a future anchor link, Ctrl+F) shows whatever's at that
+   position cut off behind the header. scroll-margin-top guarantees a clear
+   gap below the nav no matter how scroll position was reached. */
+.lp-hero, .lp-section { scroll-margin-top: 96px; }
 .lp-hero        { position: relative; padding: 96px 24px 80px; text-align: center; overflow: hidden; }
 .lp-hero-glow   { display: none; }
 .lp-hero-inner  { position: relative; max-width: 680px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 20px; }
@@ -3961,6 +3992,12 @@ body.landing {
   .lp-features { grid-template-columns: repeat(2, 1fr); }
   .lp-steps    { flex-direction: column; align-items: center; }
   .lp-step-arrow { transform: rotate(90deg); }
+  /* The first/last-child padding removal exists so the desktop row spans
+     edge-to-edge without extra outer padding - in this column layout every
+     step is centered independently, so that asymmetry just pushes the
+     circle/heading/text off-center. Force symmetric padding for all of
+     them here. */
+  .lp-step:first-child, .lp-step:last-child { padding-left: 28px; padding-right: 28px; }
   .lp-footer-grid { grid-template-columns: 1fr 1fr 1fr; row-gap: 28px; }
   .lp-footer-brand { grid-column: 1 / -1; }
   .lp-footer-brand p { max-width: 420px; }
@@ -4543,11 +4580,13 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   [data-theme="light"] .mobile-tab-bar { background: rgba(255,255,255,0.96); border-top-color: rgba(0,0,0,0.10); }
   .mobile-tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: var(--txt3); font-size: 10px; font-weight: 700; letter-spacing: 0.04em; transition: color 0.15s; padding: 6px 0; }
   .mobile-tab-item.on { color: var(--accent); }
-  .mobile-tab-icon { font-size: 16px; line-height: 1; display: block; }
+  .mobile-tab-icon-wrap { display: flex; align-items: center; justify-content: center; line-height: 1; }
   .mobile-tab-label { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
   .gchat-fab { bottom: 76px !important; }
   .gchat-panel { bottom: 140px !important; }
-  .app-content { padding-bottom: 56px; }
+  /* Reserve space for tab bar (56px) + the FAB above it (bottom:76 + 64 tall = 140).
+     Prevents the fixed "Ask AI" FAB from overlapping the last content on every page. */
+  .app-content { padding-bottom: 148px; }
   /* Edge signal cards — equal height in 2-col mobile grid */
   .edge-grid { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; align-items: stretch; }
   .edge-card { display: flex; flex-direction: column; }

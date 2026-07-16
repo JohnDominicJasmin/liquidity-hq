@@ -587,7 +587,7 @@ export default function NewsPage() {
                   display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0 8px',
                   borderBottom: '1px solid var(--border)',
                 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: g.isToday ? 'var(--amber)' : 'var(--txt1)' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: g.isToday ? 'var(--amber)' : 'var(--txt)' }}>
                     {g.isToday ? `Today — ${g.dateLabel}` : g.dateLabel}
                   </span>
                   {g.isToday && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 8, background: 'rgba(251,191,36,0.12)', color: 'var(--amber)', fontWeight: 600 }}>LIVE</span>}
@@ -618,7 +618,7 @@ export default function NewsPage() {
                         {urgent ? 'NOW' : timePHT}
                       </span>
                       <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--txt1)', marginBottom: note ? 4 : 0 }}>{decodeEntities(e.name)}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--txt)', marginBottom: note ? 4 : 0 }}>{decodeEntities(e.name)}</div>
                         {note && <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.4 }}>{note.split('.')[0]}.</div>}
                       </div>
                       <span style={{ fontSize: 12, color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.previous ?? '—'}</span>

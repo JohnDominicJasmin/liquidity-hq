@@ -5,6 +5,7 @@ import { COINS, CoinId } from '@/lib/marketStore';
 import { getLocalNow, getSessionName } from '@/lib/session';
 import { getSupabase } from '@/lib/supabase';
 import AuthGate from './AuthGate';
+import { Warn } from './icons';
 import { track } from '@/lib/analytics';
 import { T } from '@/lib/tables';
 import { coinBadgeColor } from '@/lib/coinBadge';
@@ -841,12 +842,13 @@ function Inner() {
 
                 {/* Risk warning */}
                 {leverage >= 25 && (
-                  <div className="tj-lev-warn" style={{ color: levColor }}>
+                  <div className="tj-lev-warn" style={{ color: levColor, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Warn />
                     {leverage >= 75
-                      ? '⚠ Liquidation risk is extreme — positions can vanish instantly'
+                      ? 'Liquidation risk is extreme — positions can vanish instantly'
                       : leverage >= 50
-                      ? '⚠ Very high leverage — use micro position sizes only'
-                      : '⚠ High leverage — ensure your stop loss is tight'}
+                      ? 'Very high leverage — use micro position sizes only'
+                      : 'High leverage — ensure your stop loss is tight'}
                   </div>
                 )}
               </div>

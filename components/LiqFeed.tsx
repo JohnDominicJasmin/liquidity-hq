@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { getSupabase } from '@/lib/supabase';
+import { Warn } from '@/components/icons';
 import { T } from '@/lib/tables';
 
 /* ── Types ── */
@@ -347,7 +348,10 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
       {/* ── Header ── */}
       <div className="liqfeed-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--txt)' }}>⚡ Live Liquidations</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 16, fontWeight: 700, color: 'var(--txt)' }}>
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M11 1.5 3.5 11.5H9L8 18.5 16 8H10.5L11 1.5Z" fill="currentColor" /></svg>
+            Live Liquidations
+          </span>
           <span className={`liqfeed-dot liqfeed-dot-${bnStatus}`} title={`Binance: ${bnStatus}`} />
           <span className={`liqfeed-dot liqfeed-dot-${bbStatus}`} title={`Bybit: ${bbStatus}`} />
         </div>
@@ -359,7 +363,9 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
       {/* ── Cascade alert ── */}
       {cascade && (
         <div className={`liq-cascade liq-cascade-${cascade.side.toLowerCase()}`}>
-          <span className="liq-cascade-icon">⚡⚡</span>
+          <span className="liq-cascade-icon" style={{ display: 'inline-flex', lineHeight: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M11 1.5 3.5 11.5H9L8 18.5 16 8H10.5L11 1.5Z" fill="currentColor" /></svg>
+          </span>
           <div className="liq-cascade-body">
             <span className="liq-cascade-label">
               {cascade.side === 'LONG' ? 'LONG CASCADE' : cascade.side === 'SHORT' ? 'SHORT CASCADE' : 'CASCADE'}
@@ -400,7 +406,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
             <div className="liqfeed-bias-bar liqfeed-bias-short" style={{ width: `${(stats.shortUsd / totalUsd) * 100}%` }} />
           </div>
           <div className="liqfeed-bias-label">
-            {longDom  && <span style={{ color: '#f87171' }}>⚠ Longs getting wrecked — price accelerating down</span>}
+            {longDom  && <span style={{ color: '#f87171', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Warn /> Longs getting wrecked — price accelerating down</span>}
             {shortDom && <span style={{ color: '#34d399' }}>Shorts getting wrecked — price accelerating up</span>}
             {!longDom && !shortDom && <span style={{ color: 'var(--txt3)' }}>Balanced — no dominant side liquidating</span>}
           </div>

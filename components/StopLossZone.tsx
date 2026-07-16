@@ -1,6 +1,7 @@
 'use client';
 import { useMarket, COIN_DEC, fmtPrice, computeFibLevels } from '@/lib/marketStore';
 import type { CoinData, CoinId } from '@/lib/marketStore';
+import { Warn } from '@/components/icons';
 
 export type Bias = 'long' | 'short' | 'neutral';
 
@@ -171,7 +172,7 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
                 background: 'rgba(245,158,11,0.07)',
                 border: '0.5px solid rgba(245,158,11,0.22)',
               }}>
-                <span style={{ fontSize: 12, color: '#f59e0b', flexShrink: 0, lineHeight: 1 }}>⚠</span>
+                <span style={{ color: '#f59e0b', flexShrink: 0, lineHeight: 0 }}><Warn size={12} /></span>
                 <span style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.5 }}>
                   AI analysis leans{' '}
                   <span style={{ color: '#f59e0b', fontWeight: 700 }}>{grokSignal}</span>

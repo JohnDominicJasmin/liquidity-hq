@@ -1,6 +1,7 @@
 'use client';
 import { useMemo, useRef, useState } from 'react';
 import { useMarket, COINS, CoinId, CoinData, computeSqueezeScore, classifyFunding } from '@/lib/marketStore';
+import { Warn } from '@/components/icons';
 
 type FilterDir = 'all' | 'LONG_LIQ' | 'SHORT_SQ' | 'NEUTRAL';
 
@@ -225,7 +226,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
         <div className="scan-alert-row">
           {highestLongLiq && highestLongLiq.score >= 40 && (
             <div className="scan-alert scan-alert-bear">
-              <span className="scan-alert-icon">⚠️</span>
+              <span className="scan-alert-icon" style={{ lineHeight: 0 }}><Warn size={14} /></span>
               <span>
                 <strong style={{ color: '#f87171' }}>{highestLongLiq.id.toUpperCase()}</strong>
                 {' '}Long liquidation risk — score {highestLongLiq.score}

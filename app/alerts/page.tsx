@@ -1,6 +1,7 @@
 ﻿'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AuthGate from '@/components/AuthGate';
+import { Warn } from '@/components/icons';
 import { COINS } from '@/lib/marketStore';
 import { useSettings } from '@/lib/settings';
 import { getSupabase } from '@/lib/supabase';
@@ -360,7 +361,7 @@ export default function AlertsPage() {
                 fontSize: 11, color: '#f87171', marginBottom: 14, padding: '8px 12px',
                 background: '#f8717114', borderRadius: 6, border: '0.5px solid #f8717144',
               }}>
-                ⚠ Bot webhook registration failed — the bot may not reply to /start. Try refreshing, or enter your Chat ID manually below.
+                <Warn /> Bot webhook registration failed — the bot may not reply to /start. Try refreshing, or enter your Chat ID manually below.
               </div>
             )}
 

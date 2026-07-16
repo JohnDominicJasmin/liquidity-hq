@@ -6,6 +6,7 @@ import {
   classifyFunding, computeSqueezeScore, type CoinId, type MarketStore, type CoinData,
 } from '@/lib/marketStore';
 import { useNews } from '@/components/NewsProvider';
+import { Warn } from '@/components/icons';
 import SessionCountdown from '@/components/SessionCountdown';
 import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
@@ -447,7 +448,7 @@ export default function MorningBriefing() {
         )}
 
         {briefErr && (
-          <div style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>⚠ {briefErr}</div>
+          <div style={{ fontSize: 12, color: '#f87171', marginTop: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Warn /> {briefErr}</div>
         )}
 
         {brief && !generating && (
@@ -471,7 +472,10 @@ export default function MorningBriefing() {
       {/* ── CVD Divergence Callout ── */}
       {cvdAlerts.length > 0 && (
         <div className="card mb-cvd-card">
-          <div className="lbl" style={{ marginBottom: 6 }}>⚡ Active CVD Divergences</div>
+          <div className="lbl" style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <svg width="13" height="13" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M11 1.5 3.5 11.5H9L8 18.5 16 8H10.5L11 1.5Z" fill="currentColor" /></svg>
+            Active CVD Divergences
+          </div>
           <div className="mb-cvd-row">
             {cvdAlerts.map(({ id, div }) => (
               <div
@@ -590,7 +594,7 @@ export default function MorningBriefing() {
               <span style={{
                 position: 'absolute', bottom: 0, left: `${warn158Pct}%`, transform: 'translateX(-50%)',
                 fontSize: 9, color: '#fbbf24', fontWeight: 600,
-              }}>158⚠</span>
+              }}>158<Warn size={9} style={{ verticalAlign: '-1px', marginLeft: 1 }} /></span>
               <span style={{
                 position: 'absolute', bottom: 0, left: `${danger160Pct}%`, transform: 'translateX(-50%)',
                 fontSize: 9, color: '#f87171', fontWeight: 600,

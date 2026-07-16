@@ -40,7 +40,17 @@ export default function MorningBriefingPrompt() {
       marginBottom: 10,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-        <span style={{ fontSize: 15, flexShrink: 0, lineHeight: 1 }}>☀</span>
+        <span style={{ flexShrink: 0, lineHeight: 0, color: 'var(--amber)' }}>
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="10" r="3.4" fill="currentColor" />
+            <g stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+              <line x1="10" y1="2" x2="10" y2="3.6" /><line x1="10" y1="16.4" x2="10" y2="18" />
+              <line x1="2" y1="10" x2="3.6" y2="10" /><line x1="16.4" y1="10" x2="18" y2="10" />
+              <line x1="4.2" y1="4.2" x2="5.4" y2="5.4" /><line x1="14.6" y1="14.6" x2="15.8" y2="15.8" />
+              <line x1="15.8" y1="4.2" x2="14.6" y2="5.4" /><line x1="5.4" y1="14.6" x2="4.2" y2="15.8" />
+            </g>
+          </svg>
+        </span>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt)', lineHeight: 1.3 }}>
             Your morning briefing is ready

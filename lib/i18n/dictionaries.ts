@@ -57,7 +57,7 @@ export interface LandingDict {
 export const en: LandingDict = {
   nav: { signIn: 'Sign In', getStarted: 'Get Started Free' },
   hero: {
-    badge: 'Live · 17 coins · Real-time signals',
+    badge: 'Live · 50 coins · Real-time signals',
     h1Line1: 'Read the map.',
     h1Line2: 'Hunt the stops.',
     sub: 'Professional-grade crypto intelligence for retail traders. Squeeze scores, whale alerts, AI analysis, and macro events — all in one dashboard.',
@@ -69,12 +69,12 @@ export const en: LandingDict = {
     label: 'What you get',
     h2: 'Everything a serious trader needs',
     cards: [
-      { title: 'AI Arena', desc: '35-signal confluence engine with live chart and Grok AI analysis. Funding rate, CVD, open interest trend, squeeze score, whale flow, GEX — all in one view.', pills: ['Grok 4.3', '35 signals', '17 coins'] },
+      { title: 'AI Arena', desc: '35-signal confluence engine with live chart and Grok AI analysis. Funding rate, CVD, open interest trend, squeeze score, whale flow, GEX — all in one view.', pills: ['Grok 4.3', '35 signals', '50 coins'] },
       { title: 'Telegram Alerts', desc: 'Auto-fire alerts for squeeze setups, whale trades, RSI extremes, EMA crosses, rapid price moves, open interest spikes, and breaking news — before the crowd.', pills: ['Squeeze alerts', 'Whale trades', 'Breaking news'] },
       { title: 'Morning Briefing', desc: 'Daily macro snapshot: BTC dominance, DXY, S&P correlation, ETF flows, economic calendar, and hot setups. Know the backdrop before the session opens.', pills: ['Macro events', 'ETF flows', 'Hot setups'] },
       { title: 'News Feed', desc: 'Reuters, AP, Al Jazeera, Fox News, Politico, TruthSocial, CoinDesk and more — all classified and scored. Breaking geo-political news that moves crypto.', pills: ['12+ sources', 'Auto-classify', '~1 min lag'] },
-      { title: 'Whale Tracker', desc: 'Real-time large trade detection across Binance and Bybit. Know when institutions move size. Configurable thresholds with per-coin sensitivity.', pills: ['Real-time', 'Binance + Bybit', 'All 17 coins'] },
-      { title: 'Squeeze Scanner', desc: '3-signal squeeze score across all 17 coins simultaneously. Funding rate + L/S ratio + taker pressure — when all three align, the flush is coming.', pills: ['Score 0–100', 'All coins', '4h cooldown'] },
+      { title: 'Whale Tracker', desc: 'Real-time large trade detection across Binance and Bybit. Know when institutions move size. Configurable thresholds with per-coin sensitivity.', pills: ['Real-time', 'Binance + Bybit', 'All 50 coins'] },
+      { title: 'Squeeze Scanner', desc: '3-signal squeeze score across all 50 coins simultaneously. Funding rate + L/S ratio + taker pressure — when all three align, the flush is coming.', pills: ['Score 0–100', 'All coins', '4h cooldown'] },
     ],
   },
   howItWorks: {
@@ -82,7 +82,7 @@ export const en: LandingDict = {
     h2: 'From signal to trade in seconds',
     steps: [
       { title: 'Connect Telegram', desc: 'Link your Telegram in Settings. Alerts fire automatically — squeeze setups, whale trades, FR extremes, breaking news.' },
-      { title: 'Pick your coins', desc: 'Choose from 17 coins across majors, alts, and meme. The Squeeze Scanner watches all of them live, 24/7.' },
+      { title: 'Pick your coins', desc: 'Choose from 50 coins across majors, alts, and meme. The Squeeze Scanner watches all of them live, 24/7.' },
       { title: 'Run AI analysis', desc: 'Open AI Arena, select a coin, hit Analyze. Grok reads 35 live signals and gives you a direct, actionable trade bias.' },
     ],
   },
@@ -91,7 +91,7 @@ export const en: LandingDict = {
     h2: 'Start free. Upgrade when ready.',
     free: {
       name: 'Free', sub: 'Always free, no card needed',
-      features: ['Dashboard + market overview', 'Morning briefing', 'News feed', 'All 17 coins — squeeze scanner', '7 Quick + 5 Deep AI analyses / day', '15 AI chat messages / day', 'Telegram alerts', 'Price alerts'],
+      features: ['Dashboard + market overview', 'Morning briefing', 'News feed', 'All 50 coins — squeeze scanner', '7 Quick + 5 Deep AI analyses / day', '15 AI chat messages / day', 'Telegram alerts', 'Price alerts'],
       cta: 'Get started free',
     },
     pro: {
@@ -118,7 +118,7 @@ export const en: LandingDict = {
 export const ko: LandingDict = {
   nav: { signIn: '로그인', getStarted: '무료로 시작하기' },
   hero: {
-    badge: '실시간 · 17개 코인 · 실시간 신호',
+    badge: '실시간 · 50개 코인 · 실시간 신호',
     h1Line1: '지도를 읽으세요.',
     h1Line2: '손절을 사냥하세요.',
     sub: '리테일 트레이더를 위한 전문가급 암호화폐 인텔리전스. 스퀴즈 점수, 고래 알림, AI 분석, 매크로 이벤트까지 하나의 대시보드에서 확인하세요.',
@@ -130,12 +130,12 @@ export const ko: LandingDict = {
     label: '제공 기능',
     h2: '진지한 트레이더에게 필요한 모든 것',
     cards: [
-      { title: 'AI 아레나', desc: '35개 신호가 합류하는 엔진에 실시간 차트와 Grok AI 분석까지. 펀딩비, CVD, 미결제약정 추세, 스퀴즈 점수, 고래 흐름, GEX를 한 화면에서 확인하세요.', pills: ['Grok 4.3', '35개 신호', '17개 코인'] },
+      { title: 'AI 아레나', desc: '35개 신호가 합류하는 엔진에 실시간 차트와 Grok AI 분석까지. 펀딩비, CVD, 미결제약정 추세, 스퀴즈 점수, 고래 흐름, GEX를 한 화면에서 확인하세요.', pills: ['Grok 4.3', '35개 신호', '50개 코인'] },
       { title: '텔레그램 알림', desc: '스퀴즈 셋업, 고래 거래, RSI 과열/과매도, EMA 교차, 급격한 가격 변동, 미결제약정 급등, 속보까지 — 남들보다 먼저 자동으로 알려드립니다.', pills: ['스퀴즈 알림', '고래 거래', '속보'] },
       { title: '모닝 브리핑', desc: '매일의 매크로 스냅샷: BTC 도미넌스, 달러 지수(DXY), S&P 상관관계, ETF 자금 흐름, 경제 캘린더, 핫한 셋업까지. 장이 열리기 전에 배경을 파악하세요.', pills: ['매크로 이벤트', 'ETF 자금 흐름', '핫 셋업'] },
       { title: '뉴스 피드', desc: '로이터, AP, 알자지라, 폭스뉴스, 폴리티코, 트루스소셜, 코인데스크 등 — 모두 분류되고 점수화됩니다. 암호화폐를 움직이는 지정학적 속보까지.', pills: ['12개 이상 소스', '자동 분류', '약 1분 지연'] },
-      { title: '고래 트래커', desc: '바이낸스와 바이빗 전반의 대형 거래를 실시간으로 감지합니다. 기관이 대규모로 움직이는 순간을 놓치지 마세요. 코인별 민감도로 임계값을 설정할 수 있습니다.', pills: ['실시간', 'Binance + Bybit', '17개 코인 전체'] },
-      { title: '스퀴즈 스캐너', desc: '17개 코인 전체를 동시에 스캔하는 3가지 신호 기반 스퀴즈 점수. 펀딩비 + 롱숏 비율 + 테이커 압력 — 세 가지가 모두 일치하면 플러시가 옵니다.', pills: ['0~100점', '전체 코인', '4시간 쿨다운'] },
+      { title: '고래 트래커', desc: '바이낸스와 바이빗 전반의 대형 거래를 실시간으로 감지합니다. 기관이 대규모로 움직이는 순간을 놓치지 마세요. 코인별 민감도로 임계값을 설정할 수 있습니다.', pills: ['실시간', 'Binance + Bybit', '50개 코인 전체'] },
+      { title: '스퀴즈 스캐너', desc: '50개 코인 전체를 동시에 스캔하는 3가지 신호 기반 스퀴즈 점수. 펀딩비 + 롱숏 비율 + 테이커 압력 — 세 가지가 모두 일치하면 플러시가 옵니다.', pills: ['0~100점', '전체 코인', '4시간 쿨다운'] },
     ],
   },
   howItWorks: {
@@ -143,7 +143,7 @@ export const ko: LandingDict = {
     h2: '신호에서 거래까지, 몇 초 만에',
     steps: [
       { title: '텔레그램 연결', desc: '설정에서 텔레그램을 연결하세요. 스퀴즈 셋업, 고래 거래, 펀딩비 극값, 속보까지 알림이 자동으로 발송됩니다.' },
-      { title: '코인 선택', desc: '메이저, 알트, 밈 코인까지 17개 코인 중에서 선택하세요. 스퀴즈 스캐너가 24시간 실시간으로 모두 감시합니다.' },
+      { title: '코인 선택', desc: '메이저, 알트, 밈 코인까지 50개 코인 중에서 선택하세요. 스퀴즈 스캐너가 24시간 실시간으로 모두 감시합니다.' },
       { title: 'AI 분석 실행', desc: 'AI 아레나를 열고 코인을 선택한 뒤 분석하기를 누르세요. Grok이 35개의 실시간 신호를 읽고 명확하고 실행 가능한 트레이딩 방향을 제시합니다.' },
     ],
   },
@@ -152,7 +152,7 @@ export const ko: LandingDict = {
     h2: '무료로 시작하고, 준비되면 업그레이드하세요.',
     free: {
       name: '무료', sub: '항상 무료, 카드 필요 없음',
-      features: ['대시보드 + 시장 개요', '모닝 브리핑', '뉴스 피드', '전체 17개 코인 — 스퀴즈 스캐너', '일일 퀵 분석 7회 + 딥 분석 5회', '일일 AI 채팅 15회', '텔레그램 알림', '가격 알림'],
+      features: ['대시보드 + 시장 개요', '모닝 브리핑', '뉴스 피드', '전체 50개 코인 — 스퀴즈 스캐너', '일일 퀵 분석 7회 + 딥 분석 5회', '일일 AI 채팅 15회', '텔레그램 알림', '가격 알림'],
       cta: '무료로 시작하기',
     },
     pro: {
@@ -179,7 +179,7 @@ export const ko: LandingDict = {
 export const zh: LandingDict = {
   nav: { signIn: '登录', getStarted: '免费开始使用' },
   hero: {
-    badge: '实时 · 17种币 · 实时信号',
+    badge: '实时 · 50种币 · 实时信号',
     h1Line1: '读懂地图。',
     h1Line2: '猎取止损点。',
     sub: '为散户交易者打造的专业级加密货币情报系统。挤压评分、巨鲸警报、AI分析和宏观事件——尽在一个仪表盘。',
@@ -191,12 +191,12 @@ export const zh: LandingDict = {
     label: '您将获得',
     h2: '专业交易者所需的一切',
     cards: [
-      { title: 'AI Arena', desc: '35信号共振引擎,搭载实时图表与Grok AI分析。资金费率、CVD、未平仓合约趋势、挤压评分、巨鲸流向、GEX——尽在一屏。', pills: ['Grok 4.3', '35个信号', '17种币'] },
+      { title: 'AI Arena', desc: '35信号共振引擎,搭载实时图表与Grok AI分析。资金费率、CVD、未平仓合约趋势、挤压评分、巨鲸流向、GEX——尽在一屏。', pills: ['Grok 4.3', '35个信号', '50种币'] },
       { title: 'Telegram提醒', desc: '挤压形态、巨鲸交易、RSI极值、EMA交叉、价格快速波动、未平仓合约激增、突发新闻——自动提醒,抢先一步。', pills: ['挤压提醒', '巨鲸交易', '突发新闻'] },
       { title: '晨间简报', desc: '每日宏观快照:BTC市占率、美元指数(DXY)、标普关联性、ETF资金流向、经济日历及热门形态。开盘前先了解大局。', pills: ['宏观事件', 'ETF资金流', '热门形态'] },
       { title: '新闻资讯', desc: '路透社、美联社、半岛电视台、福克斯新闻、Politico、TruthSocial、CoinDesk等——全部经过分类与评分。影响加密市场的地缘政治突发新闻。', pills: ['12+信息源', '自动分类', '约1分钟延迟'] },
-      { title: '巨鲸追踪', desc: '实时侦测币安与Bybit上的大额交易。机构大举出手时第一时间知晓。可按币种自定义灵敏度阈值。', pills: ['实时', 'Binance + Bybit', '全部17种币'] },
-      { title: '挤压扫描器', desc: '同时扫描全部17种币的三信号挤压评分。资金费率+多空比+吃单压力——三者共振时,插针行情即将到来。', pills: ['0-100分', '所有币种', '4小时冷却'] },
+      { title: '巨鲸追踪', desc: '实时侦测币安与Bybit上的大额交易。机构大举出手时第一时间知晓。可按币种自定义灵敏度阈值。', pills: ['实时', 'Binance + Bybit', '全部50种币'] },
+      { title: '挤压扫描器', desc: '同时扫描全部50种币的三信号挤压评分。资金费率+多空比+吃单压力——三者共振时,插针行情即将到来。', pills: ['0-100分', '所有币种', '4小时冷却'] },
     ],
   },
   howItWorks: {
@@ -204,7 +204,7 @@ export const zh: LandingDict = {
     h2: '从信号到交易,只需几秒',
     steps: [
       { title: '连接Telegram', desc: '在设置中连接您的Telegram。警报将自动触发——挤压形态、巨鲸交易、资金费率极值、突发新闻。' },
-      { title: '选择币种', desc: '从主流币、山寨币到meme币,共17种可供选择。挤压扫描器24/7实时监控全部币种。' },
+      { title: '选择币种', desc: '从主流币、山寨币到meme币,共50种可供选择。挤压扫描器24/7实时监控全部币种。' },
       { title: '运行AI分析', desc: '打开AI Arena,选择币种,点击分析。Grok读取35个实时信号,为您提供直接、可执行的交易倾向。' },
     ],
   },
@@ -213,7 +213,7 @@ export const zh: LandingDict = {
     h2: '免费开始,准备好后再升级。',
     free: {
       name: '免费版', sub: '永久免费,无需信用卡',
-      features: ['仪表盘+市场概览', '晨间简报', '新闻资讯', '全部17种币——挤压扫描器', '每日7次快速+5次深度AI分析', '每日15条AI聊天消息', 'Telegram提醒', '价格提醒'],
+      features: ['仪表盘+市场概览', '晨间简报', '新闻资讯', '全部50种币——挤压扫描器', '每日7次快速+5次深度AI分析', '每日15条AI聊天消息', 'Telegram提醒', '价格提醒'],
       cta: '免费开始使用',
     },
     pro: {
@@ -240,7 +240,7 @@ export const zh: LandingDict = {
 export const ar: LandingDict = {
   nav: { signIn: 'تسجيل الدخول', getStarted: 'ابدأ مجانًا' },
   hero: {
-    badge: 'مباشر · 17 عملة · إشارات لحظية',
+    badge: 'مباشر · 50 عملة · إشارات لحظية',
     h1Line1: 'اقرأ الخريطة.',
     h1Line2: 'اصطد نقاط وقف الخسارة.',
     sub: 'معلومات احترافية عن العملات الرقمية لصالح المتداولين الأفراد. درجات الانضغاط، تنبيهات الحيتان، تحليل الذكاء الاصطناعي، والأحداث الاقتصادية الكلية — كل ذلك في لوحة تحكم واحدة.',
@@ -252,12 +252,12 @@ export const ar: LandingDict = {
     label: 'ما ستحصل عليه',
     h2: 'كل ما يحتاجه المتداول الجاد',
     cards: [
-      { title: 'AI Arena', desc: 'محرك تقارب من 35 إشارة مع مخطط مباشر وتحليل Grok للذكاء الاصطناعي. معدل التمويل، CVD، اتجاه الفائدة المفتوحة، درجة الانضغاط، تدفق الحيتان، GEX — كل ذلك في شاشة واحدة.', pills: ['Grok 4.3', '35 إشارة', '17 عملة'] },
+      { title: 'AI Arena', desc: 'محرك تقارب من 35 إشارة مع مخطط مباشر وتحليل Grok للذكاء الاصطناعي. معدل التمويل، CVD، اتجاه الفائدة المفتوحة، درجة الانضغاط، تدفق الحيتان، GEX — كل ذلك في شاشة واحدة.', pills: ['Grok 4.3', '35 إشارة', '50 عملة'] },
       { title: 'تنبيهات تيليجرام', desc: 'تنبيهات تلقائية لإعدادات الانضغاط، صفقات الحيتان، تطرف RSI، تقاطعات EMA، تحركات الأسعار السريعة، ارتفاعات الفائدة المفتوحة، والأخبار العاجلة — قبل الجميع.', pills: ['تنبيهات الانضغاط', 'صفقات الحيتان', 'أخبار عاجلة'] },
       { title: 'الموجز الصباحي', desc: 'لقطة اقتصادية يومية: هيمنة البيتكوين، مؤشر الدولار DXY، الارتباط مع S&P، تدفقات صناديق ETF، التقويم الاقتصادي، وأفضل الإعدادات. اعرف الخلفية قبل بدء الجلسة.', pills: ['أحداث اقتصادية كلية', 'تدفقات ETF', 'إعدادات رائجة'] },
       { title: 'خلاصة الأخبار', desc: 'رويترز، أسوشيتد برس، الجزيرة، فوكس نيوز، بوليتيكو، تروث سوشال، كوين ديسك، والمزيد — مصنّفة ومقيّمة بالكامل. أخبار جيوسياسية عاجلة تحرك سوق العملات الرقمية.', pills: ['+12 مصدر', 'تصنيف تلقائي', 'تأخير ~دقيقة واحدة'] },
-      { title: 'متتبع الحيتان', desc: 'كشف لحظي للصفقات الكبيرة عبر Binance وBybit. اعرف متى تتحرك المؤسسات بكميات كبيرة. حدود قابلة للتخصيص لكل عملة.', pills: ['لحظي', 'Binance + Bybit', 'جميع العملات الـ17'] },
-      { title: 'ماسح الانضغاط', desc: 'درجة انضغاط بثلاث إشارات عبر جميع العملات الـ17 في آن واحد. معدل التمويل + نسبة الشراء/البيع + ضغط المتداولين — عندما تتوافق الثلاثة، يقترب الانفجار السعري.', pills: ['درجة 0-100', 'جميع العملات', 'فترة انتظار 4 ساعات'] },
+      { title: 'متتبع الحيتان', desc: 'كشف لحظي للصفقات الكبيرة عبر Binance وBybit. اعرف متى تتحرك المؤسسات بكميات كبيرة. حدود قابلة للتخصيص لكل عملة.', pills: ['لحظي', 'Binance + Bybit', 'جميع العملات الـ50'] },
+      { title: 'ماسح الانضغاط', desc: 'درجة انضغاط بثلاث إشارات عبر جميع العملات الـ50 في آن واحد. معدل التمويل + نسبة الشراء/البيع + ضغط المتداولين — عندما تتوافق الثلاثة، يقترب الانفجار السعري.', pills: ['درجة 0-100', 'جميع العملات', 'فترة انتظار 4 ساعات'] },
     ],
   },
   howItWorks: {
@@ -265,7 +265,7 @@ export const ar: LandingDict = {
     h2: 'من الإشارة إلى الصفقة في ثوانٍ',
     steps: [
       { title: 'اربط تيليجرام', desc: 'اربط حساب تيليجرام في الإعدادات. تُرسَل التنبيهات تلقائيًا — إعدادات الانضغاط، صفقات الحيتان، تطرف معدل التمويل، الأخبار العاجلة.' },
-      { title: 'اختر عملاتك', desc: 'اختر من بين 17 عملة تشمل العملات الرئيسية والبديلة وعملات الميم. يراقب ماسح الانضغاط جميعها مباشرة على مدار الساعة.' },
+      { title: 'اختر عملاتك', desc: 'اختر من بين 50 عملة تشمل العملات الرئيسية والبديلة وعملات الميم. يراقب ماسح الانضغاط جميعها مباشرة على مدار الساعة.' },
       { title: 'شغّل تحليل الذكاء الاصطناعي', desc: 'افتح AI Arena، اختر عملة، واضغط تحليل. يقرأ Grok 35 إشارة مباشرة ويمنحك اتجاه تداول واضحًا وقابلاً للتنفيذ.' },
     ],
   },
@@ -274,7 +274,7 @@ export const ar: LandingDict = {
     h2: 'ابدأ مجانًا. قم بالترقية عندما تكون جاهزًا.',
     free: {
       name: 'مجاني', sub: 'مجاني دائمًا، بدون الحاجة لبطاقة',
-      features: ['لوحة التحكم + نظرة عامة على السوق', 'الموجز الصباحي', 'خلاصة الأخبار', 'جميع العملات الـ17 — ماسح الانضغاط', '7 تحليلات سريعة + 5 تحليلات معمّقة يوميًا', '15 رسالة دردشة ذكاء اصطناعي يوميًا', 'تنبيهات تيليجرام', 'تنبيهات الأسعار'],
+      features: ['لوحة التحكم + نظرة عامة على السوق', 'الموجز الصباحي', 'خلاصة الأخبار', 'جميع العملات الـ50 — ماسح الانضغاط', '7 تحليلات سريعة + 5 تحليلات معمّقة يوميًا', '15 رسالة دردشة ذكاء اصطناعي يوميًا', 'تنبيهات تيليجرام', 'تنبيهات الأسعار'],
       cta: 'ابدأ مجانًا',
     },
     pro: {

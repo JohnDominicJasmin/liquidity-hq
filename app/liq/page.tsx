@@ -4,6 +4,7 @@ import { useMarket, CoinId, COINS, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/market
 import LiqFeed, { Bucket } from '@/components/LiqFeed';
 import WhaleTradesFeed from '@/components/WhaleTradesFeed';
 import GexTable from '@/components/GexTable';
+import { Warn } from '@/components/icons';
 
 
 /* ─── All leverage tiers — every real level Binance/Bybit offers ──────────── */
@@ -589,7 +590,7 @@ export default function LiqPage() {
                     border: '0.5px solid rgba(245,158,11,0.3)',
                     display: 'flex', gap: 8, alignItems: 'flex-start',
                   }}>
-                    <span style={{ color: '#f59e0b', fontSize: 13, flexShrink: 0 }}>⚠</span>
+                    <span style={{ color: '#f59e0b', flexShrink: 0, lineHeight: 0 }}><Warn size={13} /></span>
                     <div style={{ fontSize: 12, color: 'var(--txt3)', lineHeight: 1.6 }}>
                       {longSqueezeRisk ? (
                         <>
