@@ -14,13 +14,21 @@ const FREE_FEATURES = [
   'Dashboard + market overview',
   'Morning briefing',
   'News feed',
-  'All 17 coins — squeeze scanner',
+  'Squeeze scanner on every tracked coin',
+  'Charts + signals on 30 minute and higher timeframes',
   '7 Quick + 5 Deep AI analyses / day',
   '15 AI chat messages / day',
 ];
 
+// Keep this list in sync with the actual gates: the timeframe clamp and
+// locked cards in app/arena/page.tsx, the /backtest paywall, and the
+// PRO_REQUIRED checks in /api/onchain and /api/macro-context.
 const PRO_FEATURES = [
   'Everything in Free',
+  'Signals on the 1 minute, 5 minute, and 15 minute charts',
+  'Confluence Score, Order Flow, and Absorption Detector',
+  'Full strategy backtesting',
+  'On-chain and global macro AI analysis',
   'Telegram alerts — all signal types',
   'Unlimited price alerts',
   '50 Quick + 25 Deep AI analyses / day',
@@ -79,7 +87,7 @@ export default function UpgradePage() {
             Unlock the full stack
           </h1>
           <p style={{ fontSize: 16, color: 'var(--txt2)', margin: 0, lineHeight: 1.65, maxWidth: 440, marginInline: 'auto' }}>
-            More AI calls, Telegram alerts, and price alerts. Everything a serious trader needs in one place.
+            Fast timeframes, the full signal stack, backtesting, and more AI everywhere. Everything a serious trader needs in one place.
           </p>
         </div>
 
