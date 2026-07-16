@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, classifyFunding, computeSqueezeScore } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
@@ -10,9 +11,6 @@ import SessionCountdown from '@/components/SessionCountdown';
 import SessionContext from '@/components/SessionContext';
 import SmartMoneyScore from '@/components/SmartMoneyScore';
 import SentimentExtremesAlert from '@/components/SentimentExtremesAlert';
-import OnboardingFlow from '@/components/OnboardingFlow';
-import { useAuth } from '@/components/AuthProvider';
-import { useOnboarding } from '@/components/OnboardingProvider';
 import SpotlightTour from '@/components/SpotlightTour';
 import SetupChecklist from '@/components/SetupChecklist';
 import Tip from '@/components/Tip';
@@ -455,26 +453,24 @@ export default function Dashboard() {
   const sidebarRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
   const isMobile = useMobile();
+  const router = useRouter();
 
   const { settings } = useSettings();
   const hide = (id: string) => settings.hidden_sections.includes(id);
 
-  const { user } = useAuth();
-  const { state: onboardingState, loaded: onboardingLoaded } = useOnboarding();
-
-  // OnboardingFlow is normally just a child below, mounted alongside the rest
-  // of this page's JSX — but a child returning an overlay can't stop its own
-  // siblings from painting in the same frame. Without this gate, a brand-new
-  // signup sees the full dashboard flash for one frame before the wizard
-  // overlay catches up and covers it. Block the whole page here instead so
-  // the dashboard never enters the tree until we know it should.
-  if (user && (!onboardingLoaded || !onboardingState.profileComplete)) {
-    return <OnboardingFlow onStartTour={() => setShowTour(true)} />;
-  }
+  // OnboardingGate (in AppShell) redirects here with ?tour=1 right after a
+  // user finishes onboarding, since the spotlight tour targets dashboard-only
+  // DOM (data-spotlight-section, .mb-glow-card) that doesn't exist elsewhere.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('tour') === '1') {
+      setShowTour(true);
+      router.replace('/dashboard');
+    }
+  }, [router]);
 
   return (
     <div className="dashboard-grid" data-spotlight-section>
-      <OnboardingFlow onStartTour={() => setShowTour(true)} />
       {showTour && <SpotlightTour onDone={() => setShowTour(false)} />}
       <SetupChecklist />
 
