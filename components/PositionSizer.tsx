@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSettings } from '@/lib/settings';
+import { useMarket, COINS, COIN_LABELS, COIN_DEC, fmtPrice, type CoinId } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
 
 interface CalcResult {
@@ -43,12 +44,28 @@ function fmtUSD(v: number) {
 
 export default function PositionSizer() {
   const router = useRouter();
+  const { store } = useMarket();
   const { settings, update: updateSettings } = useSettings();
   const [account, setAccount] = useState('');
   const [riskPct, setRiskPct] = useState('1');
+  const [coin,    setCoin]    = useState<CoinId | ''>('');
   const [entry,   setEntry]   = useState('');
   const [stop,    setStop]    = useState('');
   const [tp,      setTp]      = useState('');
+
+  const livePrice = coin ? (store.coins[coin]?.price ?? null) : null;
+  const coinLabel = coin ? COIN_LABELS[coin] : '';
+
+  // Pick a coin → auto-fill Entry with its current live price (one-shot, so
+  // later price ticks don't overwrite what the user is editing; the "live"
+  // button re-syncs on demand).
+  const pickCoin = (c: CoinId | '') => {
+    setCoin(c);
+    if (c) {
+      const p = store.coins[c]?.price;
+      if (p != null) setEntry(String(p));
+    }
+  };
 
   /* Seed from Settings (replaces old localStorage read) */
   useEffect(() => {
@@ -128,6 +145,24 @@ export default function PositionSizer() {
       {/* Trade Levels */}
       <div className="ps-card">
         <div className="ps-card-lbl">Trade Levels</div>
+        <div className="ps-coin-row">
+          <label className="ps-lbl">Coin <span className="ps-opt">(optional — auto-fills entry with the live price)</span></label>
+          <div className="ps-coin-irow">
+            <select className="ps-inp ps-coin-select" aria-label="Coin" value={coin} onChange={e => pickCoin(e.target.value as CoinId | '')}>
+              <option value="">Any coin (enter prices manually)</option>
+              {COINS.map(c => <option key={c} value={c}>{COIN_LABELS[c]}</option>)}
+            </select>
+            {coin && (
+              livePrice != null ? (
+                <button type="button" className="ps-live-btn" onClick={() => setEntry(String(livePrice))} title="Set entry to the current live price">
+                  <span className="ps-live-dot" /> {fmtPrice(livePrice, COIN_DEC[coin])}
+                </button>
+              ) : (
+                <span className="ps-live-wait">price loading…</span>
+              )
+            )}
+          </div>
+        </div>
         <div className="ps-row">
           <div className="ps-field">
             <label className="ps-lbl">Entry Price</label>
@@ -176,9 +211,9 @@ export default function PositionSizer() {
               <div className="ps-rval">{fmtUSD(result.posUSD)}</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">Units</div>
+              <div className="ps-rlbl">Units{coinLabel ? ` (${coinLabel})` : ''}</div>
               <div className="ps-rval">
-                {result.posUnits < 1 ? result.posUnits.toFixed(6) : result.posUnits.toFixed(4)}
+                {result.posUnits < 1 ? result.posUnits.toFixed(6) : result.posUnits.toFixed(4)}{coinLabel ? ` ${coinLabel}` : ''}
               </div>
             </div>
             <div className={`ps-result${result.leverage > 10 ? ' ps-result-danger' : result.leverage > 5 ? ' ps-result-warn' : ''}`}>

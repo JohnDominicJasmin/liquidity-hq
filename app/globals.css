@@ -2332,6 +2332,19 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .ps-dir-pill  { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
 .ps-dir-long  { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-bdr); }
 .ps-dir-short { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bdr); }
+
+/* Optional coin selector — auto-fills entry with the live price */
+.ps-coin-row    { margin-bottom: 12px; }
+.ps-coin-irow   { display: flex; gap: 8px; align-items: stretch; }
+.ps-coin-select { flex: 1; min-width: 0; cursor: pointer; appearance: none; -webkit-appearance: none; padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' stroke='%23888' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center; }
+.ps-live-btn    { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; padding: 0 14px; border-radius: 10px;
+  border: 0.5px solid var(--accent-bdr); background: var(--accent-bg); color: var(--accent); font-size: 13px; font-weight: 700;
+  cursor: pointer; font-variant-numeric: tabular-nums; transition: background 0.15s, border-color 0.15s; }
+.ps-live-btn:hover { background: rgba(26,122,255,0.12); border-color: var(--accent); }
+.ps-live-dot    { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); flex-shrink: 0; }
+.ps-live-wait   { display: inline-flex; align-items: center; padding: 0 12px; font-size: 12px; color: var(--txt3); white-space: nowrap; }
 .ps-results { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
 .ps-result  { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: var(--radius-card); padding: 10px 12px; }
 .ps-result-risk   { border-color: var(--red-bdr);   background: var(--red-bg); }
