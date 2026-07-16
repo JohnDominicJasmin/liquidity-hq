@@ -68,21 +68,29 @@ Also: **deleted dead `WelcomeModal.tsx`** (NEW-4); fixed live undefined **`--txt
 
 ## 3. Data-correctness / QA bugs (highest priority — trading-tool trust)
 
-### QA-1 — Journal "Avg R/Trade" is wrong `[High]`
-Logged trade: ETH LONG, Entry `$64,500`, Stop `$63,500` (risk `$1,000`), Exit `$64,600` (reward `$100`) → true R = 100/1000 = **+0.10R**. Stats tab shows **"Avg R/Trade +0.00R"**. R-multiple is a core discipline metric; showing 0.00R for a real winner misrepresents performance. (Win Rate 100%, P&L +$1.09, streaks all render correctly — only R is wrong.)
+### QA-1 — Journal "Avg R/Trade" is wrong `[High]` — ✅ fixed
+Logged trade: ETH LONG, Entry `$64,500`, Stop `$63,500` (risk `$1,000`), Exit `$64,600` (reward `$100`) → true R = 100/1000 = **+0.10R**. Stats tab showed **"Avg R/Trade +0.00R"**. R-multiple is a core discipline metric; showing 0.00R for a real winner misrepresents performance. (Win Rate 100%, P&L +$1.09, streaks all rendered correctly - only R was wrong.)
 
-### QA-2 — No sanity validation on trade levels `[Medium]`
-History card shows **TP `$100`** for that long (entry `$64,500`). A take-profit far below entry is nonsensical for a LONG, yet it was accepted and displayed as-is. Validate TP is on the correct side of entry (or flag it).
+Root cause ([TradeJournal.tsx](components/TradeJournal.tsx)): `pnl_r` was computed on close as `pnl_usd / trade.risk_usd`, and `risk_usd` was only ever populated from the Position Sizer's `acc`+`risk` URL params - both had to be filled in the sizer *and* the trade had to be logged via its "Log This Trade" link. Any other path (direct entry, or the sizer used without an account size) saved `risk_usd = null`, so `pnl_r` silently stayed `null` and the trade dropped out of every R stat with zero visible error.
+
+Fix: R-multiple is now computed from price levels alone - `(exit - entry) * dir / |entry - stop|` - which needs no `risk_usd`/position size at all (they cancel out of the true ratio). Applied at close time going forward, and as a display-time fallback (`tradeR()`) for the stats calc and History row R badge, so already-logged legacy rows with `pnl_r = null` (like the example above) show the correct R immediately without a DB backfill. Also added a `risk_usd` fallback derived from entry/stop/position-size at log time, so the "✓ Risk: $X" auto-fill line works even when not arriving from the sizer. Type-checked clean (`tsc --noEmit`); couldn't re-verify live against the exact logged example since local dev has no authenticated session (same limitation noted in §9) - the fix should be re-confirmed against that trade on the authenticated deployed build.
+
+### QA-2 — No sanity validation on trade levels `[Medium]` — ✅ fixed
+History card shows **TP `$100`** for that long (entry `$64,500`). A take-profit far below entry is nonsensical for a LONG, yet it was accepted and displayed as-is. Fix ([TradeJournal.tsx](components/TradeJournal.tsx)): added a `levelWarnings` check (same advisory pattern as the existing rule-violation box, not a hard block - the user may be logging a trade after the fact with approximate levels) that flags stop-loss on the wrong side of entry for the chosen direction, and take-profit on the wrong side of entry, shown above the Log Trade button. Type-checked clean; not yet re-verified live (log form is behind auth, no local session - same blocker noted throughout §9).
 
 ### QA-4 — Position Sizer LONG/SHORT colors were inverted `[High]` — ✅ fixed
 `.ps-banner-long` was styled `var(--red)` and `.ps-banner-short` `var(--green)` ([globals.css:2331-2332](app/globals.css)) — so a **LONG** position showed **red** and SHORT showed green, the opposite of the universal trading convention (long=bullish=green). Data-trust bug on a trading tool. Swapped so long=green / short=red; verified live (`▲ LONG` computes `rgb(4,120,87)`). Other long/short color pairs across the app were audited and are correct; the `long→red` cases in LiqFeed/liq/dashboard are **liquidation events** (a long *liquidation* is bearish → red is right there).
 
-### QA-3 — Backtest tuning "variants" return identical metrics `[High]`
-In the WaveTrend Confirming-Layer Tuning table, two pairs of supposedly-different parameter sets are **byte-identical**:
+### QA-3 — Backtest tuning "variants" return identical metrics `[High]` — 🟡 one pair fixed, one pair investigated
+In the WaveTrend Confirming-Layer Tuning table, two pairs of supposedly-different parameter sets were **byte-identical**:
 - "Current (5-bar window)" == "Loose Recency (20-bar)" → 959 trades / 318W-636L / 33.3% / −0.08R / PF 0.89 / −92.51R
 - "Arm Window (full cross phase)" == "Loose Thresholds (±45 + arm)" → 308 / 91W-217L / 29.5% / −0.19R / PF 0.75 / −69.11R
 
-Distinct variants producing the exact same result strongly implies the variant params aren't actually applied — a correctness bug on a paid analytics tool. (Backtest run reference: Anti-Chop ON — WR 33.1%, 2672 trades, PF 0.88, Max DD −235.86R; OFF — WR 35.3%, 7894 trades, PF 0.87, Max DD −782.24R.)
+**Pair 1 — confirmed bug, fixed.** [lib/backtestEngine.ts](lib/backtestEngine.ts) `WT_VARIANTS.looseRecency` was defined as `{ ...DEFAULT_WT_PARAMS, crossWindowBars: 20 }` - but `DEFAULT_WT_PARAMS.crossWindowBars` (via `CROSS_RECENCY_BARS` in [waveTrend.ts](lib/waveTrend.ts)) was *already* 20, per that file's own comment documenting a prior tuning pass that moved the default from 5→20 bars. So "current" and "looseRecency" resolved to the literal same params object - not a plumbing bug, a stale variant definition left over from before the default changed. The UI label compounded it: "Current (5-bar window)" was also wrong (current is 20-bar). Fixed: renamed the variant to `tightRecency` at the true old value (`crossWindowBars: 5`) so the table compares the current 20-bar default against the actual pre-tuning baseline, and corrected both labels in [app/backtest/page.tsx](app/backtest/page.tsx).
+
+**Pair 2 — code reviewed, not a plumbing bug; needs a live re-run to confirm.** Traced `filterSignalsByWaveTrend` → `getWaveTrendConfirmation` (waveTrend.ts): per-variant params ARE correctly threaded (`armWindow` and `looseThresholds` are genuinely different objects, `obLevel`/`osLevel` 53 vs 45, both `useArmWindow: true`), and `armIndex` is a real per-signal value from `strategyCore.ts` (not undefined/inert). The likely explanation is that within each signal's arm-to-confirm window, the *most recent* cross matching direction usually already clears the stricter ±53 threshold outright (a real WaveTrend reversal cross is typically a strong move) - so loosening to ±45 rarely changes *which* cross gets picked, and in this specific historical sample it apparently never did. That's a plausible non-bug outcome, not a proven one. Couldn't re-run the backtest to confirm empirically - it's Pro+auth gated and local dev has no session (same blocker as §9); needs re-verification on the authenticated deployed build after this fix.
+
+(Backtest run reference at time of original audit: Anti-Chop ON — WR 33.1%, 2672 trades, PF 0.88, Max DD −235.86R; OFF — WR 35.3%, 7894 trades, PF 0.87, Max DD −782.24R.)
 
 ---
 
@@ -235,9 +243,9 @@ Rules: **11px floor** (retire 7/7.5/8/9/9.5/10px). Title→caption ≥ one full 
 ## 8. Prioritized improvement list (open items — nothing here is fixed yet)
 
 ### Correctness first
-1. `[High]` **QA-1** — fix Journal R-multiple calc (shows 0.00R for a real +0.10R trade).
-2. `[High]` **QA-3** — Backtest tuning variants return identical metrics (params not applied).
-3. `[Med]` **QA-2** — validate trade levels (TP on the correct side of entry).
+1. `[High]` **QA-1** — ✅ fixed, see §3. Re-verify against the exact example trade on the authenticated deployed build.
+2. `[High]` **QA-3** — 🟡 pair 1 fixed (stale duplicate variant), pair 2 investigated (code correct, needs live re-run to confirm - see §3).
+3. `[Med]` **QA-2** — ✅ fixed, see §3. Re-verify live (needs an authed session).
 
 ### Deploy + biggest UX
 4. `[High]` **Deploy the §2 fixes to prod** (verified locally, absent on `-dev`).

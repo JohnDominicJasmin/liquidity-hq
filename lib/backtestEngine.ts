@@ -16,9 +16,16 @@ import {
 // specific hypothesis for why the original (DEFAULT_WT_PARAMS) version underperformed:
 // EMA confirmation fires late (after the cross + ATR buffer + persistence wait), so by
 // the time it fires WaveTrend has often already cycled out of its extreme.
+//
+// QA-3 fix: this used to define `looseRecency: { ...DEFAULT_WT_PARAMS, crossWindowBars: 20 }`
+// as a comparison against "current" - but DEFAULT_WT_PARAMS.crossWindowBars (CROSS_RECENCY_BARS
+// in waveTrend.ts) was already updated to 20 in a prior tuning pass, so the two variants
+// resolved to byte-identical params and produced byte-identical backtest stats (the exact
+// bug reported in AUDIT.md QA-3). Replaced with `tightRecency` at the old pre-tuning value
+// (5 bars) so the table still shows a real current-vs-alternative comparison.
 export const WT_VARIANTS: Record<string, WaveTrendParams> = {
   current:          DEFAULT_WT_PARAMS,
-  looseRecency:     { ...DEFAULT_WT_PARAMS, crossWindowBars: 20 },
+  tightRecency:     { ...DEFAULT_WT_PARAMS, crossWindowBars: 5 },
   armWindow:        { ...DEFAULT_WT_PARAMS, useArmWindow: true },
   divergenceOnly:   { ...DEFAULT_WT_PARAMS, requireCross: false },
   looseThresholds:  { ...DEFAULT_WT_PARAMS, obLevel: 45, osLevel: -45, useArmWindow: true },

@@ -108,6 +108,20 @@ function fmtUSD(v: number | null | undefined, showSign = true) {
   return sign + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/* R-multiple from price levels alone - independent of position_size_usd /
+   risk_usd, which cancel out in the true ratio: (exit-entry)*dir / |entry-stop|.
+   Falls back to this whenever a trade's stored pnl_r is null (legacy rows
+   closed before risk_usd was reliably captured - see QA-1), so a real
+   winning/losing trade never silently drops out of the R stats. */
+function tradeR(t: Trade): number | null {
+  if (t.pnl_r != null) return t.pnl_r;
+  if (t.exit_price == null) return null;
+  const stopDist = Math.abs(t.entry_price - t.stop_loss);
+  if (stopDist <= 0) return null;
+  const dir = t.direction === 'LONG' ? 1 : -1;
+  return ((t.exit_price - t.entry_price) * dir) / stopDist;
+}
+
 function fmtDate(s: string) {
   const d = new Date(s);
   return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
@@ -298,6 +312,20 @@ function Inner() {
     return acc && risk ? parseFloat(acc) * (parseFloat(risk) / 100) : null;
   }, [sp]);
 
+  /* True $ at risk for THIS trade - derived from entry/stop/position size
+     whenever all three are known, so it's correct regardless of how the
+     trade was logged. Falls back to the sizer's account×risk% only when no
+     position size is set. Without this, any trade logged without a URL
+     acc+risk pair (e.g. direct entry, or the sizer used without an account
+     size filled in) saved risk_usd=null - pnl_r then never computes on
+     close, silently dropping the trade out of every R-multiple stat. */
+  const riskFromLevels = useMemo(() => {
+    const e = parseFloat(entry), s = parseFloat(stopLoss), p = parseFloat(posUSD);
+    if (!e || !s || !p || e === s) return null;
+    return (p / e) * Math.abs(e - s);
+  }, [entry, stopLoss, posUSD]);
+  const riskUsd = riskFromLevels ?? autoRiskUSD;
+
   /* Load trades */
   const loadTrades = async () => {
     const db = getSupabase();
@@ -349,6 +377,25 @@ function Inner() {
     const liveFields = { coin, direction, setup_type: setup, leverage, session };
     return rules.filter(r => r.enabled && ruleViolated(r, liveFields));
   }, [rules, coin, direction, setup, leverage, session]);
+
+  /* QA-2: flag price levels that are nonsensical for the chosen direction -
+     e.g. a take-profit below entry on a LONG. Advisory only (same pattern as
+     rule violations above), not a hard block, since the user may be logging
+     a trade after the fact with approximate levels. */
+  const levelWarnings = useMemo(() => {
+    const warnings: string[] = [];
+    const e = parseFloat(entry), s = parseFloat(stopLoss), t = parseFloat(tpPrice);
+    const long = direction === 'LONG';
+    if (e && s) {
+      if (long && s >= e)  warnings.push(`Stop $${s} is above entry $${e} on a LONG - stop should be below entry.`);
+      if (!long && s <= e) warnings.push(`Stop $${s} is below entry $${e} on a SHORT - stop should be above entry.`);
+    }
+    if (e && tpPrice && t) {
+      if (long && t <= e)  warnings.push(`Take-profit $${t} is at or below entry $${e} on a LONG - TP should be above entry.`);
+      if (!long && t >= e) warnings.push(`Take-profit $${t} is at or above entry $${e} on a SHORT - TP should be below entry.`);
+    }
+    return warnings;
+  }, [entry, stopLoss, tpPrice, direction]);
 
   /* Which closed trades violate at least one active rule */
   const violatingTradeIds = useMemo(() => {
@@ -528,7 +575,7 @@ function Inner() {
       exit_price:       null,
       take_profit:      tpPrice ? parseFloat(tpPrice) : null,
       position_size_usd: posUSD ? parseFloat(posUSD) : null,
-      risk_usd:         autoRiskUSD,
+      risk_usd:         riskUsd,
       leverage,
       result:           'OPEN',
       pnl_usd:          null,
@@ -564,13 +611,16 @@ function Inner() {
 
     const dir = trade.direction === 'LONG' ? 1 : -1;
     let pnl_usd: number | null = null;
-    let pnl_r:   number | null = null;
 
     if (trade.position_size_usd && trade.entry_price) {
       const units = trade.position_size_usd / trade.entry_price;
       pnl_usd = (exitNum - trade.entry_price) * units * dir;
-      if (trade.risk_usd && trade.risk_usd > 0) pnl_r = pnl_usd / trade.risk_usd;
     }
+
+    // R-multiple from price levels alone - doesn't need risk_usd (which was
+    // often unset - see QA-1), since units cancel out in the true ratio.
+    const stopDist = Math.abs(trade.entry_price - trade.stop_loss);
+    const pnl_r = stopDist > 0 ? ((exitNum - trade.entry_price) * dir) / stopDist : null;
 
     let result: TradeResult;
     if (pnl_usd != null) {
@@ -630,8 +680,8 @@ function Inner() {
     const losses = closed.filter(t => t.result === 'LOSS').length;
     const winRate   = closed.length ? (wins / closed.length) * 100 : 0;
     const totalPnL  = closed.reduce((s, t) => s + (t.pnl_usd ?? 0), 0);
-    const rTrades   = closed.filter(t => t.pnl_r != null);
-    const avgR      = rTrades.length ? rTrades.reduce((s, t) => s + (t.pnl_r ?? 0), 0) / rTrades.length : 0;
+    const rValues   = closed.map(tradeR).filter((r): r is number => r != null);
+    const avgR      = rValues.length ? rValues.reduce((s, r) => s + r, 0) / rValues.length : 0;
 
     const byCoin: Record<string, { total: number; wins: number; pnl: number }> = {};
     closed.forEach(t => {
@@ -784,8 +834,10 @@ function Inner() {
                 </div>
               </div>
             </div>
-            {autoRiskUSD != null && (
-              <div className="tj-autofill">✓ Risk: ${autoRiskUSD.toFixed(2)} (auto from Position Sizer)</div>
+            {riskUsd != null && (
+              <div className="tj-autofill">
+                ✓ Risk: ${riskUsd.toFixed(2)}{riskFromLevels == null ? ' (auto from Position Sizer)' : ''}
+              </div>
             )}
           </div>
 
@@ -867,6 +919,22 @@ function Inner() {
               onChange={e => setNotes(e.target.value)}
             />
           </div>
+
+          {levelWarnings.length > 0 && (
+            <div style={{
+              background: 'rgba(217,119,6,0.08)', border: '0.5px solid rgba(217,119,6,0.3)',
+              borderRadius: 8, padding: '10px 12px', marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#f59e0b', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Warn /> Price levels don&apos;t match direction
+              </div>
+              {levelWarnings.map((w, i) => (
+                <div key={i} style={{ fontSize: 11, color: '#f59e0b', opacity: 0.85, lineHeight: 1.5 }}>
+                  · {w}
+                </div>
+              ))}
+            </div>
+          )}
 
           {activeViolations.length > 0 && (
             <div style={{
@@ -980,14 +1048,18 @@ function Inner() {
                     </span>
                   </div>
                 )}
-                {trade.pnl_r != null && Math.abs(trade.pnl_r) >= 0.005 && (
-                  <div className="tj-tp">
-                    <span className="tj-tp-lbl">R</span>
-                    <span className="tj-tp-val" style={{ color: trade.pnl_r >= 0 ? '#34d399' : '#f87171' }}>
-                      {trade.pnl_r >= 0 ? '+' : ''}{trade.pnl_r.toFixed(2)}R
-                    </span>
-                  </div>
-                )}
+                {(() => {
+                  const r = tradeR(trade);
+                  if (r == null || Math.abs(r) < 0.005) return null;
+                  return (
+                    <div className="tj-tp">
+                      <span className="tj-tp-lbl">R</span>
+                      <span className="tj-tp-val" style={{ color: r >= 0 ? '#34d399' : '#f87171' }}>
+                        {r >= 0 ? '+' : ''}{r.toFixed(2)}R
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               {trade.notes && <div className="tj-trade-notes">{trade.notes}</div>}

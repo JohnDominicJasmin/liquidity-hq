@@ -20,8 +20,8 @@ const YEARS_BACK_BY_TF: Record<TF, number> = {
 };
 
 const WT_VARIANT_LABELS: Record<string, string> = {
-  current:         'Current (5-bar window)',
-  looseRecency:    'Loose Recency (20-bar)',
+  current:         'Current (20-bar window)',
+  tightRecency:    'Tight Recency (5-bar, pre-tuning default)',
   armWindow:       'Arm Window (full cross phase)',
   divergenceOnly:  'Divergence Only (no cross req.)',
   looseThresholds: 'Loose Thresholds (±45 + arm)',
