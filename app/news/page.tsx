@@ -117,6 +117,7 @@ function SentimentBadge({ headline }: { headline: string }) {
 function CoinBuzzBar({ mentions }: { mentions: { symbol: string; total: number; bullish: number; bearish: number }[] }) {
   if (mentions.length < 2) return null;
   return (
+    <div className="hscroll-fade-outer">
     <div style={{
       display: 'flex', alignItems: 'center', gap: 6,
       padding: '8px 0 10px', overflowX: 'auto', scrollbarWidth: 'none',
@@ -147,6 +148,8 @@ function CoinBuzzBar({ mentions }: { mentions: { symbol: string; total: number; 
           </span>
         );
       })}
+    </div>
+    <div className="hscroll-fade" />
     </div>
   );
 }
@@ -403,21 +406,24 @@ export default function NewsPage() {
       </div>
 
       {/* ── Tab bar ── */}
-      <div className="ntab-bar">
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            className={`ntab-btn${tab === t.id ? ' on' : ''}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-            {hasBadge(t.id) && (
-              <span className="ntab-count">
-                {t.id === 'breaking' ? breaking.length : catalysts.length + whaleAlerts.length}
-              </span>
-            )}
-          </button>
-        ))}
+      <div className="hscroll-fade-outer">
+        <div className="ntab-bar">
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              className={`ntab-btn${tab === t.id ? ' on' : ''}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+              {hasBadge(t.id) && (
+                <span className="ntab-count">
+                  {t.id === 'breaking' ? breaking.length : catalysts.length + whaleAlerts.length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="hscroll-fade" />
       </div>
 
       {/* ── Coin buzz summary ── */}

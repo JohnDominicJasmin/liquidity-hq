@@ -222,7 +222,7 @@ Blockers do **not** block page access — every main page was opened. They stop 
 
 **Notable per-page issues (beyond the systemic ones above):**
 - **Arena (mobile):** ✅ fixed — klinecharts OHLC/legend text overlapped the candles + price axis at 390px height, unreadable (desktop was fine, chart has room there). Root cause: `candle.tooltip.showRule` / `indicator.tooltip.showRule` weren't set in [KLineProChart.tsx](components/KLineProChart.tsx)'s theme configs, so klinecharts used its library default (`always`) - a permanent OHLC/volume text overlay regardless of screen size. Set both to `follow_cross` (only shows while actively touching/dragging the crosshair, same pattern most trading apps use on phones) and bumped the ≤420px canvas height from 320px→380px for more breathing room. Verified live on `/arena` — permanent OHLC overlay is gone, candle pane is clean.
-- **News:** filter-tab + coin-buzz rows scroll horizontally but clip chips mid-word with no fade/arrow affordance.
+- **News:** ✅ fixed — filter-tab + coin-buzz rows scroll horizontally but clipped chips mid-word with no fade/arrow affordance. `NewsBanner.tsx` already had this exact pattern (`.news-scroll-outer` + right-edge `.news-scroll-fade`) for its own econ/geo event row - extracted it into shared `.hscroll-fade-outer`/`.hscroll-fade` classes ([globals.css](app/globals.css)) and applied to the News page's tab bar and `CoinBuzzBar` ([app/news/page.tsx](app/news/page.tsx)), plus Grok's coin selector and quick-prompt rows ([GrokChat.tsx](components/GrokChat.tsx)) via a `.hscroll-fade-panel` variant (uses the panel background `var(--bg1)` instead of the page background, since the Grok panel isn't page-colored). Verified live: all 4 fade elements render with correct per-context background.
 - **Journal:** `AuthGate.tsx:22` has an empty `<div>` where an icon was removed (dead markup) in the logged-out gate.
 - **Upgrade / gates:** sign-in prompts are worded/styled 3 ways (AuthGate component, settings "SIGN IN TO CONTINUE" list, upgrade signup card) — unify for trust. Logged-out `/upgrade` hides pricing behind auth — friction on the conversion page.
 - **Settings (light):** the locked "SIGN IN TO CONTINUE" list is near-invisible grey-on-white.
@@ -275,7 +275,7 @@ Rules: **11px floor** (retire 7/7.5/8/9/9.5/10px). Title→caption ≥ one full 
 
 ### Layout / responsive
 6. `[High]` Arena mobile — ✅ fixed, see §6.
-7. `[Med]` Scroll affordance (edge fade/arrow) on News/Arena/Grok horizontal chip rows.
+7. `[Med]` Scroll affordance on horizontal chip rows — ✅ fixed, see §6. (Arena was checked - its coin-category filter is 5 short buttons that fit without scrolling, no clipping found there; fix applied to the two surfaces that actually clip: News and Grok.)
 8. `[Med]` Reduce the repeated bold RISK-DISCLOSURE footer footprint on mobile.
 
 ### Theme / color

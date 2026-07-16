@@ -689,16 +689,19 @@ export default function GrokChat() {
           /* ════ CHAT VIEW ════ */
           <>
             {/* Coin selector */}
-            <div className="gchat-coins">
-              {COINS.map(c => (
-                <button
-                  key={c}
-                  className={`gchat-coin${c === coin ? ' on' : ''}`}
-                  onClick={() => { if (c !== coin) { newChat(); setCoin(c); } }}
-                >
-                  {c.toUpperCase()}
-                </button>
-              ))}
+            <div className="hscroll-fade-outer">
+              <div className="gchat-coins">
+                {COINS.map(c => (
+                  <button
+                    key={c}
+                    className={`gchat-coin${c === coin ? ' on' : ''}`}
+                    onClick={() => { if (c !== coin) { newChat(); setCoin(c); } }}
+                  >
+                    {c.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+              <div className="hscroll-fade hscroll-fade-panel" />
             </div>
 
             {/* Rate-limit / error status bar — sits between coins and messages, not in chat stream */}
@@ -799,17 +802,20 @@ export default function GrokChat() {
             </div>
 
             {/* Quick prompts */}
-            <div className="gchat-quick-row">
-              {QUICK.map(q => (
-                <button
-                  key={q}
-                  className="gchat-quick"
-                  onClick={() => !loading && sendMsg(q)}
-                  disabled={loading}
-                >
-                  {q}
-                </button>
-              ))}
+            <div className="hscroll-fade-outer">
+              <div className="gchat-quick-row">
+                {QUICK.map(q => (
+                  <button
+                    key={q}
+                    className="gchat-quick"
+                    onClick={() => !loading && sendMsg(q)}
+                    disabled={loading}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+              <div className="hscroll-fade hscroll-fade-panel" />
             </div>
 
             {/* Input */}

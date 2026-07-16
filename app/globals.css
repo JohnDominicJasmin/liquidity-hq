@@ -824,6 +824,19 @@ body.ticker-on .breaking-alert { top: 90px; }
   pointer-events: none;
   background: linear-gradient(to right, transparent, var(--bg));
 }
+/* Shared version of the same right-edge fade, for any horizontally
+   scrollable chip/tab row (audit item #7: News tab bar + coin buzz,
+   Arena coin row, Grok coin/quick-prompt rows all clipped chips with no
+   affordance that there was more to scroll to). .hscroll-fade defaults to
+   the page background; add .hscroll-fade-panel on top when the scroll row
+   sits on a card/panel background (var(--bg1)) instead of the page. */
+.hscroll-fade-outer { position: relative; }
+.hscroll-fade {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 28px;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--bg));
+}
+.hscroll-fade-panel { background: linear-gradient(to right, transparent, var(--bg1)); }
 .news-scroll  { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
 .news-row     { display: flex; gap: 8px; min-width: max-content; }
 .nc { border-radius: 12px; padding: 10px 12px; min-width: 175px; max-width: 210px; border: 0.5px solid; flex-shrink: 0; }
