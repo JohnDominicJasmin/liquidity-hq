@@ -99,12 +99,20 @@ In the WaveTrend Confirming-Layer Tuning table, two pairs of supposedly-differen
 ### CRIT-1 — Nav-bar theme toggle leaves charts stuck in old theme `[Critical]` — ✅ fixed (local), live in prod
 Two theme toggles behave differently: the **nav-bar** toggle ([NavDrawer.tsx:256](components/NavDrawer.tsx)) set `data-theme`+`localStorage` but did **not** dispatch `theme-change`; the **settings** toggle + modal do. `KLineProChart` ([KLineProChart.tsx:376](components/KLineProChart.tsx)) + `GrokSignalChart` re-style **only** on that event. Live-confirmed on `/arena` (both local pre-fix and prod): page went light, candlestick chart stayed fully dark. Fix dispatches the event; also consider a `MutationObserver` on `data-theme` and consolidating the 3 duplicate toggle implementations.
 
-### AUTH-1 — "QUICK SETUP" onboarding overlay + FAB cover primary UI on every authenticated page `[High]`
+### AUTH-1 — "QUICK SETUP" onboarding overlay + FAB cover primary UI on every authenticated page `[High]` — ✅ fixed (root cause), not yet re-verified live
 Signed in, a `SetupChecklist` panel ("QUICK SETUP · 1/4 done") + a "Setup 1/4" progress bar float `position:fixed` and overlap real content on every page (all combos):
 - **Mobile:** covers dashboard Open-Interest card + Smart Money gauge; journal **▼ SHORT** button; settings watchlist selector; briefing **Generate** button; alerts price-alerts; upgrade feature list. The "Ask AI" FAB (also bottom-right) compounds it.
 - **Desktop:** covers arena chart's right price axis; journal Position-Size field; funding 7D chart header; calc Take-Profit field; backtest Anti-Chop-OFF stats; scanner heatmap right column; markets/news/playbook right rows.
 
-Only a "—" collapse, no clear dismiss; reappears. Biggest authenticated issue. *Fix:* make it an inline dismissible card, reserve space, keep it + FAB off interactive controls.
+Only a "—" collapse, no clear dismiss; reappears.
+
+Root cause ([SetupChecklist.tsx](components/SetupChecklist.tsx)): `useState(true)` for `collapsed` was immediately overridden by `useEffect(() => { if (window.innerWidth >= 640) setCollapsed(false); }, [])` - i.e. it force-expanded to the full 244px-wide, ~4-row panel on every screen *except phones*. That's why it covered the price axis / form fields on desktop specifically: desktop was the one case that never got the small pill.
+
+Fix:
+1. Removed the forced-expand effect - it now always starts as the small progress pill (`Setup N/4` + thin bar) everywhere, matching the mobile behavior that was already fine. Full panel is now opt-in (click to expand), same as before.
+2. Added a real dismiss - a `×` next to the minimize `−` on the full panel, and one on the mini pill, persisted to `localStorage` (`lhq_setup_dismissed`) so it's gone for good, not just re-collapsed until next page load.
+
+Type-checked clean. Couldn't re-verify live: the component only renders for a signed-in user past the tour with `allDone=false`, and local dev has no session (same blocker as §9) - needs a pass on the authenticated deployed build to confirm the pill no longer covers content and the × sticks across reloads.
 
 ### CRIT-2 — Economic Calendar cramped/clipped on mobile `[High]` — ✅ fixed (local), live in prod
 Event rows are an 8-col grid (`min-width:680`) in an `overflow-x:auto` wrapper: technically scrollable, but at 390px you see under half, no scroll affordance, page doesn't scroll → reads as clipped (CONSENSUS/ACTUAL cut off). Fix collapses COUNTRY/DELTA/IMPACT ≤480px so the 5 key columns fit. Prod still clips.
@@ -249,7 +257,7 @@ Rules: **11px floor** (retire 7/7.5/8/9/9.5/10px). Title→caption ≥ one full 
 
 ### Deploy + biggest UX
 4. `[High]` **Deploy the §2 fixes to prod** (verified locally, absent on `-dev`).
-5. `[High]` **AUTH-1** — make QUICK SETUP an inline dismissible card; reserve space; keep it + FAB off CTAs.
+5. `[High]` **AUTH-1** — ✅ fixed, see §4. Re-verify live (needs an authed session).
 
 ### Layout / responsive
 6. `[High]` Arena mobile: give the KLine chart more height / hide the overlapping OHLC legend at small sizes; keep FAB off the price axis.

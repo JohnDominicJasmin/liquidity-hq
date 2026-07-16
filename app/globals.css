@@ -4495,6 +4495,12 @@ html[lang="ar"] .lp-h1-accent {
   height: 100%; background: var(--purple); border-radius: 2px;
   transition: width 0.3s;
 }
+.ob-cl-mini-close {
+  background: none; border: none; color: var(--txt3);
+  font-size: 16px; cursor: pointer; line-height: 1; padding: 0; flex-shrink: 0;
+  opacity: 0.7;
+}
+.ob-cl-mini-close:hover { opacity: 1; color: var(--txt); }
 
 /* Mobile */
 @media (max-width: 420px) {
