@@ -276,7 +276,7 @@ Rules: **11px floor** (retire 7/7.5/8/9/9.5/10px). Title→caption ≥ one full 
 ### Layout / responsive
 6. `[High]` Arena mobile — ✅ fixed, see §6.
 7. `[Med]` Scroll affordance on horizontal chip rows — ✅ fixed, see §6. (Arena was checked - its coin-category filter is 5 short buttons that fit without scrolling, no clipping found there; fix applied to the two surfaces that actually clip: News and Grok.)
-8. `[Med]` Reduce the repeated bold RISK-DISCLOSURE footer footprint on mobile.
+8. `[Med]` Reduce the repeated bold RISK-DISCLOSURE footer footprint — ✅ fixed. [PlatformFooter.tsx](components/PlatformFooter.tsx) rendered the full 6-item disclosure grid (label + 2-3 line paragraph each) on every single page, stacking to one column ≤640px - a large scroll footprint repeated site-wide. Collapsed the grid behind a "Show full risk disclosures" toggle; the required bold disclaimer sentence ("LiquidityHQ provides data analytics... trade at your own risk") stays always visible, un-gated - only the elaborating grid is opt-in. Verified live on `/about`: collapsed by default, expands/collapses cleanly on click, chevron rotates.
 
 ### Theme / color
 9. `[Med]` **AUTH-4** — theme the "← Back" overlay header (upgrade/markets/prices).

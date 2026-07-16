@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -31,6 +32,7 @@ const DISCLOSURES = [
 
 export default function PlatformFooter() {
   const pathname = usePathname();
+  const [expanded, setExpanded] = useState(false);
   if (pathname === '/' || pathname === '/login') return null;
 
   return (
@@ -56,22 +58,37 @@ export default function PlatformFooter() {
         <div className="pf-footer-divider-line" />
       </div>
 
-      {/* Unmissable financial disclaimer — exact required wording */}
+      {/* Unmissable financial disclaimer — exact required wording. Always shown,
+          never gated behind the expand toggle below — only the elaborating
+          6-item grid is collapsible (audit item #8: that grid repeated on
+          every single page was a big scroll footprint on mobile). */}
       <p className="pf-footer-disclaimer">
         LiquidityHQ provides data analytics and software tools for informational purposes only.
         This is not financial, investment, or trading advice. Past performance does not guarantee
         future results. Trade at your own risk.
       </p>
 
+      <button
+        type="button"
+        className="pf-footer-expand"
+        onClick={() => setExpanded(v => !v)}
+        aria-expanded={expanded}
+      >
+        {expanded ? 'Hide full risk disclosures' : 'Show full risk disclosures'}
+        <span className={`pf-footer-expand-chevron${expanded ? ' up' : ''}`}>▾</span>
+      </button>
+
       {/* Disclosure grid */}
-      <div className="pf-footer-grid">
-        {DISCLOSURES.map(item => (
-          <div key={item.label} className="pf-footer-item">
-            <div className="pf-footer-item-label">{item.label}</div>
-            <p className="pf-footer-item-text">{item.text}</p>
-          </div>
-        ))}
-      </div>
+      {expanded && (
+        <div className="pf-footer-grid">
+          {DISCLOSURES.map(item => (
+            <div key={item.label} className="pf-footer-item">
+              <div className="pf-footer-item-label">{item.label}</div>
+              <p className="pf-footer-item-text">{item.text}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Acknowledgment + copyright */}
       <div className="pf-footer-bottom">
