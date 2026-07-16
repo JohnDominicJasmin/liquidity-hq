@@ -1478,7 +1478,7 @@ body.ticker-on .breaking-alert { top: 90px; }
   .klc-canvas { height: 540px; }
 }
 @media (max-width: 420px) {
-  .klc-canvas { height: 320px; }
+  .klc-canvas { height: 380px; }
   /* Hide drawing tools on mobile — touch devices can't use them precisely */
   .klc-tool-btn:not(.klc-tf-btn):not(.klc-clear):not(.klc-fullscreen-btn) { display: none !important; }
   .klc-sep { display: none !important; }

@@ -79,6 +79,11 @@ function loadDrawings(coin: CoinId): PersistedOverlay[] {
 
 // ── Theme configs — use setStyles after init to avoid deep-type gymnastics ──
 
+// Mobile (arena chart legend audit item #6): klinecharts' built-in OHLC
+// tooltip defaults to "always" - a permanent text block that overlaps the
+// candles + price axis on a short mobile chart pane. "follow_cross" only
+// shows it while the user is actively touching/dragging the crosshair,
+// which is how most trading apps handle a short chart on a phone.
 const DARK: Record<string, unknown> = {
   grid: {
     horizontal: { color: 'rgba(255,255,255,0.04)', size: 1 },
@@ -94,6 +99,7 @@ const DARK: Record<string, unknown> = {
       upWickColor:        '#26a69a',
       downWickColor:      '#ef5350',
     },
+    tooltip: { showRule: 'follow_cross' },
     priceMark: {
       high: { show: true, color: 'rgba(255,255,255,0.45)', textSize: 10 },
       low:  { show: true, color: 'rgba(255,255,255,0.45)', textSize: 10 },
@@ -127,6 +133,9 @@ const DARK: Record<string, unknown> = {
   overlay: {
     line: { color: '#b8aeff', size: 1 },
   },
+  indicator: {
+    tooltip: { showRule: 'follow_cross' },
+  },
 };
 
 const LIGHT: Record<string, unknown> = {
@@ -144,6 +153,7 @@ const LIGHT: Record<string, unknown> = {
       upWickColor:        '#16a34a',
       downWickColor:      '#dc2626',
     },
+    tooltip: { showRule: 'follow_cross' },
     priceMark: {
       high: { show: true, color: 'rgba(0,0,0,0.35)', textSize: 10 },
       low:  { show: true, color: 'rgba(0,0,0,0.35)', textSize: 10 },
@@ -176,6 +186,9 @@ const LIGHT: Record<string, unknown> = {
   },
   overlay: {
     line: { color: '#5b21b6', size: 1 },
+  },
+  indicator: {
+    tooltip: { showRule: 'follow_cross' },
   },
 };
 
