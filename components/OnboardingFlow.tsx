@@ -382,7 +382,7 @@ function StepList({ step: currentStep }: { step: number }) {
 
 /* ── Main onboarding component ── */
 export default function OnboardingFlow({ onStartTour }: Props) {
-  const { user }                    = useAuth();
+  const { user, isPro }             = useAuth();
   const { state, loaded, markDone } = useOnboarding();
   const { update }                  = useSettings();
 
@@ -811,26 +811,55 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                 {pushDone ? 'Push notifications enabled' : pushWorking ? 'Enabling…' : 'Enable push notifications'}
               </button>
 
-              {/* Telegram setup link */}
-              <a
-                href="/alerts"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'block', textAlign: 'center',
-                  padding: '14px', borderRadius: 10,
-                  background: 'rgba(251,191,36,0.1)',
-                  border: '1px solid rgba(251,191,36,0.32)',
-                  color: '#fbbf24', fontSize: 13, fontWeight: 700,
-                  textDecoration: 'none', letterSpacing: '.02em',
-                  transition: 'filter 0.15s',
-                }}
-              >
-                Set up Telegram alerts →
-              </a>
+              {/* Telegram setup link — Pro-only. Free accounts get an honest
+                  locked state here instead of a working-looking button that
+                  connects to nothing, since the alert pipeline (server-side)
+                  won't deliver to a free user's chat_id regardless. */}
+              {isPro ? (
+                <a
+                  href="/alerts"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'block', textAlign: 'center',
+                    padding: '14px', borderRadius: 10,
+                    background: 'rgba(251,191,36,0.1)',
+                    border: '1px solid rgba(251,191,36,0.32)',
+                    color: '#fbbf24', fontSize: 13, fontWeight: 700,
+                    textDecoration: 'none', letterSpacing: '.02em',
+                    transition: 'filter 0.15s',
+                  }}
+                >
+                  Set up Telegram alerts →
+                </a>
+              ) : (
+                <a
+                  href="/upgrade"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    padding: '14px', borderRadius: 10,
+                    background: 'rgba(140,150,255,0.06)',
+                    border: '1px solid rgba(140,150,255,0.16)',
+                    color: '#9296b5', fontSize: 13, fontWeight: 700,
+                    textDecoration: 'none', letterSpacing: '.02em',
+                  }}
+                >
+                  Telegram alerts — Pro feature
+                  <span style={{
+                    fontSize: 9, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+                    color: 'var(--accent-2)', border: '1px solid var(--accent-2)', borderRadius: 20,
+                    padding: '2px 8px',
+                  }}>
+                    Upgrade
+                  </span>
+                </a>
+              )}
               <div style={{ fontSize: 11, color: '#4e5374', textAlign: 'center', lineHeight: 1.6 }}>
-                Telegram setup takes about 60 seconds.<br />
-                You can enable either or both — they work independently.
+                {isPro
+                  ? <>Telegram setup takes about 60 seconds.<br />You can enable either or both — they work independently.</>
+                  : 'Push notifications are free. Telegram alerts require Pro.'}
               </div>
             </div>
           )}

@@ -87,16 +87,26 @@ export async function GET(req: Request) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN not set' }, { status: 503 });
 
-  // Collect all Telegram chat IDs
+  // Telegram alerts are Pro-only — resolve Pro users before collecting
+  // recipients (same gate as app/api/telegram/alert/route.ts).
+  const proUserIds = new Set<string>();
+  try {
+    const admin = getSupabaseAdmin();
+    const { data } = await admin.from(T.user_subscriptions).select('user_id').eq('role', 'pro');
+    for (const row of data ?? []) proUserIds.add(row.user_id as string);
+  } catch { /* admin not configured — chatIds falls back to the env var below */ }
+
+  // Collect Pro users' Telegram chat IDs
   const chatIds: string[] = [];
   try {
     const admin = getSupabaseAdmin();
     const { data } = await admin
       .from(T.user_settings)
-      .select('telegram_chat_id')
+      .select('user_id, telegram_chat_id')
       .not('telegram_chat_id', 'is', null)
       .neq('telegram_chat_id', '');
     for (const row of data ?? []) {
+      if (!proUserIds.has(row.user_id as string)) continue;
       const id = (row.telegram_chat_id as string)?.trim();
       if (id && !chatIds.includes(id)) chatIds.push(id);
     }

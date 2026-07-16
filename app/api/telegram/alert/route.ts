@@ -758,7 +758,7 @@ interface PriceAlert { id: number; coin: string; target_price: number; direction
 
 async function checkPriceAlerts(
   token: string, stamp: string, prices: Record<string, number>,
-  allChatIds: string[]
+  allChatIds: string[], proUserIds: Set<string>
 ): Promise<string[]> {
   const fired: string[] = [];
   try {
@@ -772,11 +772,14 @@ async function checkPriceAlerts(
 
     if (!alertsRes.data?.length) return [];
 
-    // Build user_id → telegram_chat_id lookup
+    // Build user_id → telegram_chat_id lookup — Telegram alerts are Pro-only,
+    // so a free user's chat_id (however it got saved) never receives a ping.
     const chatIdByUser = new Map<string, string>();
     for (const row of settingsRes.data ?? []) {
+      const userId = row.user_id as string;
+      if (!proUserIds.has(userId)) continue;
       const id = (row.telegram_chat_id as string)?.trim();
-      if (id) chatIdByUser.set(row.user_id as string, id);
+      if (id) chatIdByUser.set(userId, id);
     }
 
     // Collect ids to deactivate and issue ONE batched UPDATE after the loop,
@@ -1541,22 +1544,36 @@ export async function GET(req: NextRequest) {
 
 async function runAlerts(token: string): Promise<NextResponse> {
 
-  // Collect all users who have connected their Telegram
+  // Telegram alerts are a Pro-only feature (matches the /alerts page gate and
+  // the /upgrade pricing card) — resolve which connected users are actually
+  // Pro before collecting recipients, so a free user's chat_id (however it
+  // got saved — the UI disables the connect form, but that's not a security
+  // boundary) never receives a broadcast.
+  const proUserIds = new Set<string>();
+  try {
+    const admin = getSupabaseAdmin();
+    const { data } = await admin.from(T.user_subscriptions).select('user_id').eq('role', 'pro');
+    for (const row of data ?? []) proUserIds.add(row.user_id as string);
+  } catch { /* admin key not configured — allChatIds falls back to the env var below */ }
+
+  // Collect Pro users who have connected their Telegram
   const allChatIds: string[] = [];
   try {
     const admin = getSupabaseAdmin();
     const { data } = await admin
       .from(T.user_settings)
-      .select('telegram_chat_id')
+      .select('user_id, telegram_chat_id')
       .not('telegram_chat_id', 'is', null)
       .neq('telegram_chat_id', '');
     for (const row of data ?? []) {
+      if (!proUserIds.has(row.user_id as string)) continue;
       const id = (row.telegram_chat_id as string)?.trim();
       if (id && !allChatIds.includes(id)) allChatIds.push(id);
     }
   } catch { /* admin key not configured — fall through to env var */ }
 
-  // Env var fallback (legacy / single-user installs)
+  // Env var fallback (legacy / single-user installs) — not a per-user row,
+  // predates the Pro gate, always allowed.
   const envChatId = process.env.TELEGRAM_CHAT_ID;
   if (envChatId && !allChatIds.includes(envChatId)) allChatIds.push(envChatId);
 
@@ -1592,7 +1609,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     skip('daily_summary')      ? none : checkDailySummary(token, chatId, stamp, frMap),      // global — sends directly
     skip('oi_spike')           ? none : checkOISpike(stamp, prices, signalQueue),
     skip('cvd')                ? none : checkCVD(stamp, signalQueue),
-    skip('price_alerts')       ? none : checkPriceAlerts(token, stamp, prices, allChatIds),
+    skip('price_alerts')       ? none : checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds),
     skip('sentiment_extremes') ? none : checkSentimentExtremes(token, chatId, stamp, frMap), // global — sends directly
     skip('squeeze')            ? none : checkSqueezeAlerts(stamp, frMap, lsMap, signalQueue),
     skip('distribution')       ? none : checkDistribution(stamp, frMap, signalQueue, muted),

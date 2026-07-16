@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
+import { getUserRole } from '@/lib/entitlements';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +25,12 @@ export async function GET(req: NextRequest) {
     const sb = makeSb(userToken);
     const { data: { user } } = await sb.auth.getUser();
     if (user) {
+      // Telegram alerts are Pro-only — don't send a reassuring "connected!"
+      // message to a free user whose real alerts will never arrive.
+      const role = await getUserRole(userToken, user.id);
+      if (role !== 'pro') {
+        return NextResponse.json({ ok: false, error: 'PRO_REQUIRED', message: 'Telegram alerts are a Pro feature.' });
+      }
       const { data } = await sb
         .from(T.user_settings)
         .select('telegram_chat_id')
