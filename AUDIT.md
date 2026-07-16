@@ -74,6 +74,9 @@ Logged trade: ETH LONG, Entry `$64,500`, Stop `$63,500` (risk `$1,000`), Exit `$
 ### QA-2 — No sanity validation on trade levels `[Medium]`
 History card shows **TP `$100`** for that long (entry `$64,500`). A take-profit far below entry is nonsensical for a LONG, yet it was accepted and displayed as-is. Validate TP is on the correct side of entry (or flag it).
 
+### QA-4 — Position Sizer LONG/SHORT colors were inverted `[High]` — ✅ fixed
+`.ps-banner-long` was styled `var(--red)` and `.ps-banner-short` `var(--green)` ([globals.css:2331-2332](app/globals.css)) — so a **LONG** position showed **red** and SHORT showed green, the opposite of the universal trading convention (long=bullish=green). Data-trust bug on a trading tool. Swapped so long=green / short=red; verified live (`▲ LONG` computes `rgb(4,120,87)`). Other long/short color pairs across the app were audited and are correct; the `long→red` cases in LiqFeed/liq/dashboard are **liquidation events** (a long *liquidation* is bearish → red is right there).
+
 ### QA-3 — Backtest tuning "variants" return identical metrics `[High]`
 In the WaveTrend Confirming-Layer Tuning table, two pairs of supposedly-different parameter sets are **byte-identical**:
 - "Current (5-bar window)" == "Loose Recency (20-bar)" → 959 trades / 318W-636L / 33.3% / −0.08R / PF 0.89 / −92.51R

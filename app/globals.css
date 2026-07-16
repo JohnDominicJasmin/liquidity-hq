@@ -2328,8 +2328,8 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .ps-preset.on { background: rgba(26,122,255,.12); border-color: var(--purple-bdr); color: var(--purple); }
 .ps-risk-line { font-size: 11px; color: var(--txt3); margin-top: 8px; }
 .ps-banner { padding: 10px 14px; border-radius: var(--radius-card); font-size: 13px; font-weight: 700; margin-bottom: 10px; text-align: center; }
-.ps-banner-long  { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bdr); }
-.ps-banner-short { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-bdr); }
+.ps-banner-long  { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-bdr); }
+.ps-banner-short { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bdr); }
 .ps-results { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
 .ps-result  { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: var(--radius-card); padding: 10px 12px; }
 .ps-result-risk   { border-color: var(--red-bdr);   background: var(--red-bg); }
