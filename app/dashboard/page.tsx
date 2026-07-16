@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useOnboarding } from '@/components/OnboardingProvider';
 import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, classifyFunding, computeSqueezeScore } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
@@ -453,21 +453,24 @@ export default function Dashboard() {
   const sidebarRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
   const isMobile = useMobile();
-  const router = useRouter();
 
   const { settings } = useSettings();
   const hide = (id: string) => settings.hidden_sections.includes(id);
 
-  // OnboardingGate (in AppShell) redirects here with ?tour=1 right after a
-  // user finishes onboarding, since the spotlight tour targets dashboard-only
-  // DOM (data-spotlight-section, .mb-glow-card) that doesn't exist elsewhere.
+  const { tourPending, clearTourPending } = useOnboarding();
+
+  // OnboardingGate flips tourPending right after a user finishes onboarding
+  // (from whatever page they were on) and routes here, since the spotlight
+  // tour targets dashboard-only DOM (data-spotlight-section, .mb-glow-card)
+  // that doesn't exist elsewhere. Read from context, not a ?tour=1 query
+  // param — the flag and this mount both land from the same finish() call,
+  // so it's guaranteed visible on Dashboard's first render.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (new URLSearchParams(window.location.search).get('tour') === '1') {
+    if (tourPending) {
       setShowTour(true);
-      router.replace('/dashboard');
+      clearTourPending();
     }
-  }, [router]);
+  }, [tourPending, clearTourPending]);
 
   return (
     <div className="dashboard-grid" data-spotlight-section>

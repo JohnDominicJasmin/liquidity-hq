@@ -20,11 +20,15 @@ interface OnboardingCtx {
   loaded:  boolean;
   markDone: (key: OnboardingKey) => void;
   allDone: boolean;
+  tourPending:      boolean;
+  requestTour:      () => void;
+  clearTourPending: () => void;
 }
 
 const CTX = createContext<OnboardingCtx>({
   state: { tourSeen: false, profileComplete: false, telegram: false, priceAlert: false, grok: false, coins: false },
   loaded: false, markDone: () => {}, allDone: false,
+  tourPending: false, requestTour: () => {}, clearTourPending: () => {},
 });
 
 export function useOnboarding() { return useContext(CTX); }
@@ -44,6 +48,7 @@ export default function OnboardingProvider({ children }: { children: React.React
     tourSeen: false, profileComplete: false, telegram: false, priceAlert: false, grok: false, coins: false,
   });
   const [loaded, setLoaded] = useState(false);
+  const [tourPending, setTourPending] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;          // wait for auth to hydrate first
@@ -93,8 +98,11 @@ export default function OnboardingProvider({ children }: { children: React.React
 
   const allDone = state.telegram && state.priceAlert && state.grok && state.coins;
 
+  const requestTour      = useCallback(() => setTourPending(true), []);
+  const clearTourPending = useCallback(() => setTourPending(false), []);
+
   return (
-    <CTX.Provider value={{ state, loaded, markDone, allDone }}>
+    <CTX.Provider value={{ state, loaded, markDone, allDone, tourPending, requestTour, clearTourPending }}>
       {children}
     </CTX.Provider>
   );
