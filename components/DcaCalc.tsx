@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import EmptyState from '@/components/EmptyState';
 
 interface Entry { price: string; qty: string; }
 
@@ -177,7 +178,7 @@ export default function DcaCalc() {
           )}
         </>
       ) : (
-        <div className="ps-empty">Add at least one entry with a price and quantity</div>
+        <EmptyState dashed title="Add at least one entry with a price and quantity" />
       )}
     </div>
   );

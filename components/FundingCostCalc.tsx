@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { Warn } from '@/components/icons';
+import EmptyState from '@/components/EmptyState';
 
 interface FundResult {
   totalCost:    number;
@@ -144,7 +145,7 @@ export default function FundingCostCalc() {
           )}
         </>
       ) : (
-        <div className="ps-empty">Fill in position size and funding rate to calculate</div>
+        <EmptyState dashed title="Fill in position size and funding rate to calculate" />
       )}
     </div>
   );

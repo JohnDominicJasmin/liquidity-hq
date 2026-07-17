@@ -2439,13 +2439,15 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .ps-warn { background: rgba(217,119,6,.1); border: 0.5px solid rgba(217,119,6,.3); border-radius: 8px; padding: 8px 12px; font-size: 0.6875rem; color: #f59e0b; margin-bottom: 8px; }
 .ps-log-btn { width: 100%; padding: 13px; border-radius: var(--radius-card); border: 0.5px solid var(--green-bdr); background: var(--green-bg); color: var(--green); font-size: 0.8125rem; font-weight: 700; cursor: pointer; margin-top: 4px; transition: box-shadow .15s; }
 .ps-log-btn:hover { box-shadow: 0 0 16px rgba(52,211,153,.2); }
-.ps-empty { text-align: center; padding: 28px 16px 24px; color: var(--txt3); font-size: 0.75rem; background: var(--bg1); border: 0.5px dashed var(--bdr2); border-radius: var(--radius-card); line-height: 1.55; }
-
 /* ── Shared empty state pattern ── */
 .empty-state { padding: 24px 16px 20px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 5px; }
 .empty-state-icon { display: none; }
 .empty-state-title { font-size: 0.8125rem; font-weight: 600; color: var(--txt2); }
 .empty-state-sub { font-size: 0.6875rem; color: var(--txt3); line-height: 1.55; max-width: 240px; }
+/* Dashed-card variant (item #25) - was PositionSizer's one-off .ps-empty,
+   now the shared component's "this is a placeholder frame" treatment for
+   spots that want a visibly bounded empty box instead of plain text. */
+.empty-state-dashed { background: var(--bg1); border: 0.5px dashed var(--bdr2); border-radius: var(--radius-card); padding: 28px 16px 24px; }
 [data-theme="light"] .ps-card { background: #fafafa; }
 [data-theme="light"] .ps-irow { background: #fff; border-color: #ddd; }
 [data-theme="light"] .ps-affix { background: #f5f5f5; border-color: #ddd; }

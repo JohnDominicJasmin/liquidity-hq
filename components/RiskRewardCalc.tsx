@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { Warn } from '@/components/icons';
+import EmptyState from '@/components/EmptyState';
 
 interface RRResult {
   isLong:       boolean;
@@ -139,7 +140,7 @@ export default function RiskRewardCalc() {
           )}
         </>
       ) : (
-        <div className="ps-empty">Fill in entry, stop loss and take profit to calculate</div>
+        <EmptyState dashed title="Fill in entry, stop loss and take profit to calculate" />
       )}
     </div>
   );

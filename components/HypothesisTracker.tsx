@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthProvider';
 import { getSupabase } from '@/lib/supabase';
+import EmptyState from '@/components/EmptyState';
 
 interface Hypothesis {
   id: string;
@@ -324,12 +325,7 @@ export default function HypothesisTracker() {
       {loading ? (
         <div style={{ color: 'var(--txt3)', fontSize: '0.75rem', padding: '16px 0' }}>Loading…</div>
       ) : hypotheses.length === 0 ? (
-        <div style={{
-          textAlign: 'center', padding: '32px 16px', color: 'var(--txt3)',
-          fontSize: '0.8125rem', border: '0.5px dashed var(--bdr)', borderRadius: 10,
-        }}>
-          No hypotheses yet. Click &ldquo;New Hypothesis&rdquo; to track your first market thesis.
-        </div>
+        <EmptyState dashed title="No hypotheses yet. Click &ldquo;New Hypothesis&rdquo; to track your first market thesis." />
       ) : (
         hypotheses.map(h => {
           const sm = STATUS_META[h.status] ?? STATUS_META.active;

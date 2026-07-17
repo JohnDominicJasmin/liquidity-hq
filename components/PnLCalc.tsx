@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import EmptyState from '@/components/EmptyState';
 
 type Dir = 'long' | 'short';
 
@@ -133,7 +134,7 @@ export default function PnLCalc() {
           </div>
         </>
       ) : (
-        <div className="ps-empty">Fill in entry, exit, margin and leverage to calculate</div>
+        <EmptyState dashed title="Fill in entry, exit, margin and leverage to calculate" />
       )}
     </div>
   );

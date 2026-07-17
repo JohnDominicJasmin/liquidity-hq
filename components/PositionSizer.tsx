@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useSettings } from '@/lib/settings';
 import { useMarket, COINS, COIN_LABELS, COIN_DEC, fmtPrice, type CoinId } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
+import EmptyState from '@/components/EmptyState';
 import CoinIcon from '@/components/CoinIcon';
 
 interface CalcResult {
@@ -338,7 +339,7 @@ export default function PositionSizer() {
           </button>
         </>
       ) : (
-        <div className="ps-empty">Fill in account size, entry and stop loss to calculate</div>
+        <EmptyState dashed title="Fill in account size, entry and stop loss to calculate" />
       )}
     </div>
   );
