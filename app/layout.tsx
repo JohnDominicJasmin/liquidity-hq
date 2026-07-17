@@ -1,5 +1,6 @@
 ﻿import type { Metadata, Viewport } from 'next';
 import { Figtree, IBM_Plex_Mono } from 'next/font/google';
+import Script from 'next/script';
 import './globals.css';
 import AppShell from '@/components/AppShell';
 
@@ -53,6 +54,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
       <body>
+        {/* beforeInteractive - injected into the initial server HTML and
+            runs before hydration, so data-theme is correct before first
+            paint (no flash of the wrong theme). Mirrors lib/theme.ts's
+            getStoredTheme(): explicit localStorage choice wins, otherwise
+            follow the device's prefers-color-scheme. */}
+        <Script id="theme-init" strategy="beforeInteractive">
+          {`(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`}
+        </Script>
         <AppShell>{children}</AppShell>
       </body>
     </html>

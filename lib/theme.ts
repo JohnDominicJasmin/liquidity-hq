@@ -9,18 +9,35 @@ import { useState, useEffect, useCallback } from 'react';
 
 export type Theme = 'dark' | 'light';
 
-export function getStoredTheme(): Theme {
-  if (typeof window === 'undefined') return 'dark';
+function systemTheme(): Theme {
   try {
-    return localStorage.getItem('theme') === 'light' ? 'light' : 'dark';
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   } catch {
     return 'dark';
   }
 }
 
-/** Apply + persist a theme. Dispatches 'theme-change' - KLineProChart and
-    GrokSignalChart re-style only on that event, so without it canvas charts
-    stay in the old theme until a full reload. */
+/** Explicit choice only - null means the user never toggled, so the app
+    should keep following the device theme (including live OS changes). */
+export function getExplicitTheme(): Theme | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = localStorage.getItem('theme');
+    return stored === 'light' || stored === 'dark' ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+export function getStoredTheme(): Theme {
+  if (typeof window === 'undefined') return 'dark';
+  return getExplicitTheme() ?? systemTheme();
+}
+
+/** Apply + persist a theme as an explicit user choice. Dispatches
+    'theme-change' - KLineProChart and GrokSignalChart re-style only on
+    that event, so without it canvas charts stay in the old theme until a
+    full reload. */
 export function applyTheme(next: Theme) {
   document.documentElement.setAttribute('data-theme', next);
   try { localStorage.setItem('theme', next); } catch {}
@@ -30,10 +47,26 @@ export function applyTheme(next: Theme) {
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme>('dark');
 
-  // Read the real stored value after mount (SSR has no localStorage/DOM,
-  // so the initial 'dark' avoids a hydration mismatch).
+  // Read the real stored/system value after mount (SSR has no
+  // localStorage/matchMedia, so the initial 'dark' avoids a hydration
+  // mismatch - the blocking script in layout.tsx already set the correct
+  // data-theme on <html> before paint, so there's no visible flash).
   useEffect(() => {
     setThemeState(getStoredTheme());
+
+    // No explicit choice yet - keep following the device theme live, same
+    // as the initial-load behavior, until the user actually toggles.
+    if (getExplicitTheme() != null) return;
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    const onChange = () => {
+      if (getExplicitTheme() != null) return;
+      const next = systemTheme();
+      document.documentElement.setAttribute('data-theme', next);
+      window.dispatchEvent(new Event('theme-change'));
+      setThemeState(next);
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
   }, []);
 
   const setTheme = useCallback((next: Theme) => {
