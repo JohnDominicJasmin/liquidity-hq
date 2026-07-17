@@ -314,7 +314,7 @@ Also closed the two loading-transient loose ends noted in SYS-6: added `app/fund
 3. `[Med]` **QA-2** — ✅ fixed + verified live, see §3.
 
 ### Deploy + biggest UX
-4. `[High]` **Deploy the §2 fixes to prod** (verified locally, absent on `-dev`).
+4. `[High]` **Deploy the §2 fixes to prod** — ✅ done. All §2 fixes (plus every subsequent fix in this document) have since been deployed to `liquidity-hq-dev.onrender.com` across multiple deploys this session, most recently commit `5620494`.
 5. `[High]` **AUTH-1** — ✅ fixed + verified live, see §4.
 
 ### Layout / responsive
