@@ -3146,7 +3146,7 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
   cursor: pointer; transition: all 0.12s;
 }
 .st-chip:hover  { border-color: var(--purple); color: var(--txt2); }
-.st-chip.on     { background: var(--purple-bg); border-color: var(--purple); color: #b8aeff; }
+.st-chip.on     { background: var(--purple-bg); border-color: var(--purple); color: var(--purple); }
 
 /* Presets */
 .st-presets { display: flex; gap: 5px; margin-bottom: 10px; }
