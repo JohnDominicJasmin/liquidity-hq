@@ -1,6 +1,7 @@
 'use client';
 import { Fragment, useState, useEffect } from 'react';
 import MacroStrip from '@/components/MacroStrip';
+import LoadingState from '@/components/LoadingState';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId } from '@/lib/marketStore';
 
 /* ── constants ── */
@@ -191,11 +192,7 @@ export default function CorrelationHeatmap() {
         ))}
       </div>
 
-      {loading && (
-        <div className="card" style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--txt3)', fontSize: 13 }}>
-          Calculating correlations…
-        </div>
-      )}
+      {loading && <LoadingState message="Calculating correlations…" />}
 
       {!loading && (
         <>

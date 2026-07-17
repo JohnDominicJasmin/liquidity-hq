@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId, useMarket } from '@/lib/marketStore';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { Warn } from '@/components/icons';
+import LoadingState from '@/components/LoadingState';
 
 /* ── types ── */
 interface FRPoint { rate: number; ts: number; }
@@ -452,11 +453,7 @@ export default function FundingHistory() {
       </div>
 
       {/* Loading state */}
-      {loading && (
-        <div className="card" style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--txt3)', fontSize: 13 }}>
-          Fetching funding history…
-        </div>
-      )}
+      {loading && <LoadingState message="Fetching funding history…" />}
 
       {!loading && (() => {
         let longCnt = 0, shortCnt = 0, neutralCnt = 0;

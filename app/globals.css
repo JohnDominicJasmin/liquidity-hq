@@ -1519,7 +1519,12 @@ body.ticker-on .breaking-alert { top: 90px; }
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
 }
 .gchat-fab:hover { box-shadow: 0 6px 32px rgba(0,0,0,0.9), 0 0 30px rgba(26,122,255,0.25); transform: scale(1.04); }
-.gchat-fab-open { background: var(--bg2); border-color: var(--bdr2); color: var(--txt3); box-shadow: 0 4px 24px rgba(0,0,0,0.8); }
+/* AUTH-6/item #18 fix: the FAB used to swap to an ✕ glyph while the panel
+   was open, duplicating the panel's own header ✕ — two close buttons on
+   screen at once, worse when expanded since the FAB (bottom-right) reads
+   as disconnected from the centered modal. Hide it instead; the panel's
+   header ✕ is the single, unambiguous close control. */
+.gchat-fab-open { opacity: 0; pointer-events: none; }
 /* Scroll-hide: applied by JS on mobile only (window.innerWidth check in component) */
 .gchat-fab-scrolling { opacity: 0; transform: scale(0.75) translateY(8px); pointer-events: none; }
 /* The FAB sits above the mobile nav drawer (z-index 9995 vs 999) and otherwise
@@ -3297,14 +3302,17 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 .auth-dropdown-email {
   font-size: 11px; color: var(--txt3); padding: 4px 8px 10px;
   border-bottom: 0.5px solid var(--bdr); margin-bottom: 4px;
-  word-break: break-all;
+  /* break-all wraps at ANY character, which is what produced the reported
+     "…edu.p / h" mid-domain split - overflow-wrap only breaks when a word
+     truly can't fit, preferring natural boundaries (@, .) first (AUTH-2). */
+  overflow-wrap: anywhere;
 }
 .auth-dropdown-usage {
-  display: block; font-size: 11px; color: var(--txt3);
+  display: block; font-size: 11px; color: var(--txt2);
   padding: 6px 8px; border-radius: 8px; text-decoration: none;
   transition: background 0.1s; margin-bottom: 2px;
 }
-.auth-dropdown-usage:hover { background: rgba(255,255,255,0.04); color: var(--txt2); }
+.auth-dropdown-usage:hover { background: rgba(255,255,255,0.04); color: var(--txt); }
 .auth-dropdown-usage span { color: var(--purple); text-decoration: underline; text-underline-offset: 2px; }
 
 .auth-signout-btn {
@@ -3368,12 +3376,6 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 }
 [data-theme="light"] .gchat-fab:hover {
   box-shadow: 0 6px 28px rgba(0,82,204,0.30), 0 2px 6px rgba(0,0,0,0.12);
-}
-[data-theme="light"] .gchat-fab-open {
-  background: var(--bg1);
-  border-color: var(--bdr2);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
-  color: var(--txt3);
 }
 
 /* News cards — rgba(white) borders invisible in light mode */

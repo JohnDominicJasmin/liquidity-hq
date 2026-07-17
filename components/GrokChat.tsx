@@ -519,26 +519,25 @@ export default function GrokChat() {
       {/* ── Backdrop (expanded only) ── */}
       {open && expanded && <div className="gchat-backdrop" onClick={closeAll} aria-hidden />}
 
-      {/* ── Floating action button ── */}
+      {/* ── Floating action button ──
+          Hidden via CSS (.gchat-fab-open) while the panel is open, so the
+          panel's own header ✕ is the single close control instead of two
+          redundant ones on screen at once (item #18). onClick still toggles
+          for the mini-panel case, but the button is unclickable (and
+          invisible) while open, so that path is effectively unreachable. */}
       <button
         className={`gchat-fab${open ? ' gchat-fab-open' : ''}${!fabVisible ? ' gchat-fab-scrolling' : ''}`}
         onClick={() => { setOpen(v => !v); if (open) { setExpanded(false); setShowLoginModal(false); } }}
-        title={open ? 'Close chat' : 'Ask Grok'}
-        aria-label={open ? 'Close Grok chat' : 'Open Grok chat'}
+        title="Ask Grok"
+        aria-label="Open Grok chat"
       >
-        {open ? (
-          <span style={{ fontSize: 15, color: 'var(--txt3)' }}>✕</span>
-        ) : (
-          <>
-            <span style={{ lineHeight: 0 }}>
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                <path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" />
-                <path d="M15.6 12.6C15.8 14 16.2 14.4 17.6 14.6 16.2 14.8 15.8 15.2 15.6 16.6 15.4 15.2 15 14.8 13.6 14.6 15 14.4 15.4 14 15.6 12.6Z" fill="currentColor" opacity="0.65" />
-              </svg>
-            </span>
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', color: 'inherit' }}>Ask AI</span>
-          </>
-        )}
+        <span style={{ lineHeight: 0 }}>
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" />
+            <path d="M15.6 12.6C15.8 14 16.2 14.4 17.6 14.6 16.2 14.8 15.8 15.2 15.6 16.6 15.4 15.2 15 14.8 13.6 14.6 15 14.4 15.4 14 15.6 12.6Z" fill="currentColor" opacity="0.65" />
+          </svg>
+        </span>
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', color: 'inherit' }}>Ask AI</span>
       </button>
 
       {/* ── Chat panel ── */}

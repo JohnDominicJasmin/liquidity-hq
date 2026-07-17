@@ -140,8 +140,10 @@ Fixed FAB with no reserved bottom padding overlapped content on every mobile pag
 ### SYS-5 — Missing per-page `<title>` `[Medium]` — ✅ fixed (local), live in prod
 9 client-page routes lacked a `layout.tsx` metadata export → all inherited generic "LiquidityHQ" (incl. the main dashboard). Fix adds titled layouts.
 
-### SYS-6 — Inconsistent loading & empty states `[Medium]`
+### SYS-6 — Inconsistent loading & empty states `[Medium]` — 🟡 partially fixed
 No unified skeleton: `/funding` flashes blank black before paint; `/upgrade` bare "Loading…"; `/correlation` proper "Calculating correlations…" but its DXY/SPX/GOLD macro cards briefly show bare "—" (a load transient — they do populate); `/live-tracking` clean sentence. Pick one loader + one empty-state pattern.
+
+Fix (item #16): `/funding` and `/correlation` already had near-identical inline card styling for their loading text; `/upgrade` used a completely different full-page div with a hardcoded `#888` (ignores theme entirely) instead of a token. Extracted a shared [components/LoadingState.tsx](components/LoadingState.tsx) (`fullPage` prop for the whole-page case, inline card otherwise) and swapped all three onto it - one component, one visual language, correctly themed in both modes now. Didn't chase the deeper "blank flash before paint" on `/funding` - that's an initial-hydration/bundle-loading timing issue, not a copy/styling inconsistency, and is really the same underlying work as item #25 (shared skeleton/empty-state set) rather than a quick win here. The DXY/SPX/GOLD "—" transient (in `MacroStrip.tsx`) also wasn't touched - self-resolving per the original note, lower priority than the three named "Loading" text inconsistencies.
 
 ### SYS-7 — All font sizes fixed `px`, none `rem` `[Medium, a11y]`
 Zero `rem` in `globals.css`; inline styles px too. Text ignores browser font-size preference / resists zoom-reflow. See §7.
@@ -153,11 +155,11 @@ Zero `rem` in `globals.css`; inline styles px too. Text ignores browser font-siz
 - Em-dashes throughout UI copy vs the project's hyphen-only standard.
 
 ### Authenticated-specific (AUTH-2..7)
-- **AUTH-2 `[Med]`** Account menu: email `20-60951@g.batstate-u.edu.ph` wraps mid-domain (`…edu.p`/`h`) — no `word-break`; "Settings" item near-invisible grey vs blue "view usage" / red "Sign out".
+- **AUTH-2 `[Med]`** — ✅ fixed. Account menu: email `20-60951@g.batstate-u.edu.ph` wrapped mid-domain (`…edu.p`/`h`); "Settings" item near-invisible grey vs blue "view usage" / red "Sign out". `.auth-dropdown-email` actually already had `word-break: break-all` (not "no word-break" as originally described) - but `break-all` breaks at *any* character, which is exactly what produced the ugly `edu.p`/`h` split. Switched to `overflow-wrap: anywhere`, which only breaks when a word truly can't fit, preferring natural boundaries first. `.auth-dropdown-usage` (shared by "LiquidityAI — view usage" and "Settings") had its base color at `var(--txt3)`, with only "view usage" getting a nested `<span>` accent-color boost - "Settings" and the "LiquidityAI —" prefix had no such boost and stayed dim. Bumped the base to `var(--txt2)`. Verified live: injected the real long email from the audit via console - now wraps at a hyphen (`20-60951@g.batstate-` / `u.edu.ph`) instead of mid-domain, confirmed no overflow (170px content in a 188px dropdown); "Settings" now reads clearly next to "view usage" and "Sign out".
 - **AUTH-3 `[Med]`** — ✅ fixed. Alerts (free tier): a "Pro plan required" upsell sat **above a fully-rendered but greyed/disabled Telegram connect flow** (`opacity: 0.4; pointerEvents: 'none'` on the whole wizard card) - a dead form the user could look at but not use. Price Alerts (free) worked below, unaffected. Replaced the banner + dimmed form with a single `LockedFeatureCard` ([app/alerts/page.tsx](app/alerts/page.tsx)) - the same shared Pro-gate pattern already used on Arena's other locked cards - wired to the shared `UpgradeGateModal`. Verified live both ways: free tier shows the locked card and its "Unlock with Pro" button opens the paywall modal correctly; Pro tier shows the full interactive wizard with no dimming, no regression.
 - **AUTH-4 `[Med]`** — ✅ fixed. `/upgrade`'s nav header ([app/upgrade/page.tsx](app/upgrade/page.tsx)) had `background: 'rgba(10,10,14,0.9)'` hardcoded, unlike every other themed surface - stayed black in light theme. `/markets` and `/prices` were checked and are already theme-aware (`var(--bg)`), so this specific fix only touched `/upgrade`. Switched to `background: 'var(--bg)'`, matching the other two pages' pattern; dropped the now-redundant `backdropFilter: blur()` since the background is opaque. Not independently re-verified live - the test account is Pro, so `/upgrade` redirects away, and reverting Pro status just to see a one-line CSS fix wasn't worth the churn; the identical `var(--bg)` pattern is already confirmed working on `/markets` and `/prices`.
 - **AUTH-5 `[Med]`** — ✅ already fixed (found working, not new work this pass). Research BTC-Risk-Level card was reported listing factor rows (Fear & Greed / BTC RSI / Funding Rate) with **no values**. [BtcRiskLevel.tsx](components/BtcRiskLevel.tsx) already guards this correctly - a row is only pushed to the list when its underlying value is non-null, and always carries a real value string when it is (`if (fng != null) signals.push({..., value: String(fng)})`), with an explicit "Waiting for market data…" fallback when nothing has loaded yet. Structurally can't render a labeled row with a blank value. Verified live on `/research`: card shows real numbers - Fear & Greed 27, BTC RSI (Daily) 54.0, Funding Rate +0.0000%. Likely a stale loading-state screenshot in the original pass, or fixed in an earlier session alongside similar work. (Unrelated, spotted in passing: the same page's Stablecoin Dry Powder and Global Macro Context cards show "AI service not configured / Retry" - a distinct, real issue, not part of this finding - flagging for a future pass, not fixed here.)
-- **AUTH-6 `[Low]`** Grok chat: input enabled + "5 left" usage counter + Fast toggle (good), but **two close buttons** (header ✕ + floating bottom ✕); "Where to set stop?" quick-prompt clips; coin chips 40×28px (below 44px tap target). Expand control appears to toggle the panel closed.
+- **AUTH-6 `[Low]`** Grok chat: input enabled + "5 left" usage counter + Fast toggle (good). **Two close buttons — ✅ fixed** (item #18): the FAB swapped to an ✕ glyph while the panel was open, duplicating the panel's own header ✕. Hid the FAB via CSS while open (`opacity/pointer-events`) instead, matching the existing scroll-hide pattern already used elsewhere on the same element - the panel's header ✕ is now the single, unambiguous close control. Verified live: opening the chat makes the FAB disappear entirely, only the header ✕ remains. **Expand control — investigated (item #15), doesn't reproduce**: clicked it live and the panel genuinely expands to a large centered modal with backdrop, doesn't close. Both the toggle logic and CSS looked structurally correct on read-through too. Likely already fixed in an earlier pass, or the original finding mis-clicked an adjacent header icon (search/clear/history/expand/close are tightly packed). "Where to set stop?" quick-prompt clips; coin chips 40×28px (below 44px tap target) - both still open, not touched this pass.
 - **AUTH-7 `[Low]`** Settings "Resets at 8:00 AM" states no timezone (user is PHT); News desktop renders an image-less article as a solid black card.
 
 ### State-dependent surfaces (onboarding / errors / i18n / PWA)
@@ -205,7 +207,7 @@ Blockers do **not** block page access — every main page was opened. They stop 
 | `/disclaimer` | ✅ | M | Clean |
 | `/not-found` (404) | ✅ | M | On-brand ("stop-hunted") |
 | `/offline` | ✅ | M | Clean "No connection" |
-| Grok chat panel | ✅ | D Dk+Lt · M | Input enabled authed; AUTH-6; send not run (credit) |
+| Grok chat panel | ✅ | D Dk+Lt · M | Input enabled authed; AUTH-6 (single close button ✅ fixed, expand doesn't reproduce); send not run (credit) |
 | `/auth/callback` | ✅ | live (Chrome) | Redirects to `/arena` when no auth code — pure transient redirect, no standalone UI |
 | PWA install prompt | ✅ | live (Chrome) | Fired naturally; bottom-center fixed toast **overlaps content** (feature card / chart) on desktop |
 | `/[locale]` (`/ko`,`/zh`,`/ar`) | ✅ | live (Chrome) `/ko` | Localized landing renders; dark-only; still "17개 코인" on prod (fix not deployed) |
@@ -287,10 +289,10 @@ Rules: **11px floor** (retire 7/7.5/8/9/9.5/10px). Title→caption ≥ one full 
 ### Interaction / functional
 13. `[Med]` **AUTH-3** — ✅ fixed + verified live, see §4.
 14. `[Med]` **AUTH-5** — ✅ already fixed, see §4.
-15. `[Med]` Verify Grok **Expand** control (appears to close instead of expand).
-16. `[Med]` Unify loading (one skeleton) + empty states (SYS-6).
-17. `[Low]` **AUTH-2** — fix account-menu email wrap + Settings-item contrast.
-18. `[Low]` Grok single close button; unify gate copy (3 styles → 1); consider public pricing on `/upgrade`.
+15. `[Med]` Verify Grok **Expand** control — ✅ investigated, doesn't reproduce, see AUTH-6.
+16. `[Med]` Unify loading (one skeleton) + empty states — 🟡 partially fixed, see SYS-6. (Blank-flash timing + MacroStrip "—" transient still open, same underlying work as #25.)
+17. `[Low]` **AUTH-2** — ✅ fixed + verified live, see AUTH-2.
+18. `[Low]` Grok single close button — ✅ fixed + verified live, see AUTH-6. Gate-copy unification (3 styles → 1) and public `/upgrade` pricing still open.
 
 ### Accessibility
 19. `[High]` Retire all text < 11px (7/7.5/8/9px).

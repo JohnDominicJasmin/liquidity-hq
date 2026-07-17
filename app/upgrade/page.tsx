@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { getCheckoutUrl } from '@/lib/checkout';
+import LoadingState from '@/components/LoadingState';
 
 const CHECKOUT_CONFIGURED = !!(
   process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL &&
@@ -54,11 +55,7 @@ export default function UpgradePage() {
   }
 
   if (loading || !user || isPro) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#888', fontSize: 13 }}>
-        {isPro ? 'Redirecting…' : 'Loading…'}
-      </div>
-    );
+    return <LoadingState message={isPro ? 'Redirecting…' : 'Loading…'} fullPage />;
   }
 
   return (
