@@ -58,6 +58,7 @@ export default function AlertsPage() {
   const [paDir, setPaDir]             = useState<'above' | 'below'>('above');
   const [paLabel, setPaLabel]         = useState('');
   const [paAdding, setPaAdding]       = useState(false);
+  const [paError, setPaError]         = useState('');
 
   const fetchHistory = useCallback(() => {
     fetch('/api/telegram/history').then(r => r.json())
@@ -147,9 +148,10 @@ export default function AlertsPage() {
   const addPriceAlert = async () => {
     if (!paPrice || isNaN(parseFloat(paPrice))) return;
     setPaAdding(true);
+    setPaError('');
     try {
       const token = await getAuthToken();
-      await fetch('/api/price-alerts', {
+      const res = await fetch('/api/price-alerts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -157,22 +159,31 @@ export default function AlertsPage() {
         },
         body: JSON.stringify({ coin: paCoin, target_price: parseFloat(paPrice), direction: paDir, label: paLabel }),
       });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? 'Failed to add alert');
       setPaPrice(''); setPaLabel('');
       window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'priceAlert' }));
       await loadPriceAlerts();
-    } catch { /* skip */ }
+    } catch (e) {
+      setPaError(e instanceof Error ? e.message : 'Failed to add alert');
+    }
     setPaAdding(false);
   };
 
   const deletePriceAlert = async (id: number) => {
+    setPaError('');
     try {
       const token = await getAuthToken();
-      await fetch(`/api/price-alerts?id=${id}`, {
+      const res = await fetch(`/api/price-alerts?id=${id}`, {
         method: 'DELETE',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? 'Failed to remove alert');
       setPriceAlerts(prev => prev.filter(a => a.id !== id));
-    } catch { /* skip */ }
+    } catch (e) {
+      setPaError(e instanceof Error ? e.message : 'Failed to remove alert');
+    }
   };
 
   const sendTest = async () => {
@@ -485,6 +496,7 @@ export default function AlertsPage() {
               {paAdding ? 'Adding…' : '+ Add Alert'}
             </button>
           </div>
+          {paError && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 8 }}>{paError}</div>}
           {paLoading ? (
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 10 }}>Loading…</div>
           ) : priceAlerts.length === 0 ? (
