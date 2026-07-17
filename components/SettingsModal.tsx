@@ -8,6 +8,7 @@ import { COINS } from '@/lib/marketStore';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import UsageRings from '@/components/UsageRings';
 import CoinMultiSelect from '@/components/CoinMultiSelect';
+import ThemeChips from '@/components/ThemeChips';
 import { track } from '@/lib/analytics';
 
 const TFS          = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'] as const;
@@ -267,38 +268,7 @@ export default function SettingsModal({ open, onClose }: Props) {
             <div className="smod-section-title">Appearance</div>
             <div className="st-field" style={{ marginBottom: 0 }}>
               <label className="st-field-label">Theme</label>
-              <div className="st-chip-row">
-                {(['dark', 'light'] as const).map(t => {
-                  const active = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === t;
-                  return (
-                    <button key={t} className={`st-chip${active ? ' on' : ''}`}
-                      onClick={() => {
-                        document.documentElement.setAttribute('data-theme', t);
-                        localStorage.setItem('theme', t);
-                        window.dispatchEvent(new Event('theme-change'));
-                      }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        {t === 'dark' ? (
-                          <svg width="13" height="13" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                            <path d="M16.5 12.7A7 7 0 0 1 7.3 3.5 7 7 0 1 0 16.5 12.7Z" fill="currentColor" />
-                          </svg>
-                        ) : (
-                          <svg width="13" height="13" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                            <circle cx="10" cy="10" r="3.5" fill="currentColor" />
-                            <g stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                              <line x1="10" y1="2" x2="10" y2="3.6" /><line x1="10" y1="16.4" x2="10" y2="18" />
-                              <line x1="2" y1="10" x2="3.6" y2="10" /><line x1="16.4" y1="10" x2="18" y2="10" />
-                              <line x1="4.2" y1="4.2" x2="5.4" y2="5.4" /><line x1="14.6" y1="14.6" x2="15.8" y2="15.8" />
-                              <line x1="15.8" y1="4.2" x2="14.6" y2="5.4" /><line x1="5.4" y1="14.6" x2="4.2" y2="15.8" />
-                            </g>
-                          </svg>
-                        )}
-                        {t === 'dark' ? 'Dark' : 'Light'}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+              <ThemeChips />
             </div>
           </div>
 

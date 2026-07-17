@@ -46,3 +46,32 @@ export function Download({ size = 14, style }: IconProps) {
     </svg>
   );
 }
+
+/** Sun — light-mode indicator, used by the nav theme toggle and Settings'
+    theme chips (previously three separately-inlined copies). */
+export function IconSun({ size = 16, style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true" style={style}>
+      <circle cx="10" cy="10" r="3.5" fill="currentColor" />
+      <g stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+        <line x1="10" y1="1.5" x2="10" y2="3.3" />
+        <line x1="10" y1="16.7" x2="10" y2="18.5" />
+        <line x1="1.5" y1="10" x2="3.3" y2="10" />
+        <line x1="16.7" y1="10" x2="18.5" y2="10" />
+        <line x1="4" y1="4" x2="5.3" y2="5.3" />
+        <line x1="14.7" y1="14.7" x2="16" y2="16" />
+        <line x1="16" y1="4" x2="14.7" y2="5.3" />
+        <line x1="5.3" y1="14.7" x2="4" y2="16" />
+      </g>
+    </svg>
+  );
+}
+
+/** Moon — dark-mode indicator, same context as IconSun above. */
+export function IconMoon({ size = 16, style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true" style={style}>
+      <path d="M16.5 12.7A7 7 0 0 1 7.3 3.5 7 7 0 1 0 16.5 12.7Z" fill="currentColor" />
+    </svg>
+  );
+}

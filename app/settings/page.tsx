@@ -8,6 +8,7 @@ import { DASHBOARD_SECTIONS } from '@/lib/settings';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import UsageRings from '@/components/UsageRings';
 import CoinMultiSelect from '@/components/CoinMultiSelect';
+import ThemeChips from '@/components/ThemeChips';
 import { track } from '@/lib/analytics';
 import { COINS } from '@/lib/marketStore';
 
@@ -146,27 +147,13 @@ export default function SettingsPage() {
         <Section title="Appearance">
           <div className="st-field">
             <label className="st-field-label">Theme</label>
-            <div className="st-chip-row">
-              {(['dark', 'light'] as const).map(t => (
-                <button
-                  key={t}
-                  className={`st-chip${(typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === t) ? ' on' : ''}`}
-                  onClick={() => {
-                    document.documentElement.setAttribute('data-theme', t);
-                    localStorage.setItem('theme', t);
-                    window.dispatchEvent(new Event('theme-change'));
-                  }}
-                >
-                  {t === 'dark' ? 'Dark' : 'Light'}
-                </button>
-              ))}
-            </div>
+            <ThemeChips />
           </div>
         </Section>
 
         <div className="st-section">
           <div className="st-section-title">Sign in to continue</div>
-          <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 20, opacity: 0.35, pointerEvents: 'none' }}>
+          <div className="st-locked-list" style={{ display: 'flex', flexDirection: 'column', marginBottom: 20, pointerEvents: 'none' }}>
             {LOCKED.map(name => (
               <div key={name} style={{
                 padding: '9px 0', borderBottom: '0.5px solid var(--bdr)',
@@ -504,22 +491,7 @@ export default function SettingsPage() {
       <Section title="Appearance">
         <div className="st-field">
           <label className="st-field-label">Theme</label>
-          <div className="st-chip-row">
-            {(['dark', 'light'] as const).map(t => (
-              <button
-                key={t}
-                className={`st-chip${(typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === t) ? ' on' : ''}`}
-                onClick={() => {
-                  document.documentElement.setAttribute('data-theme', t);
-                  localStorage.setItem('theme', t);
-                  // Force re-render so the active state updates
-                  window.dispatchEvent(new Event('theme-change'));
-                }}
-              >
-                {t === 'dark' ? 'Dark' : 'Light'}
-              </button>
-            ))}
-          </div>
+          <ThemeChips />
         </div>
       </Section>
 

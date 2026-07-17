@@ -155,7 +155,7 @@ Zero `rem` in `globals.css`; inline styles px too. Text ignores browser font-siz
 ### Authenticated-specific (AUTH-2..7)
 - **AUTH-2 `[Med]`** Account menu: email `20-60951@g.batstate-u.edu.ph` wraps mid-domain (`…edu.p`/`h`) — no `word-break`; "Settings" item near-invisible grey vs blue "view usage" / red "Sign out".
 - **AUTH-3 `[Med]`** Alerts (free tier): a "Pro plan required" upsell sits **above a fully-rendered but greyed/disabled Telegram connect flow** — a dead form the user can't use. Price Alerts (free) work below.
-- **AUTH-4 `[Med]`** `/upgrade` (and `/markets` `/prices`) "← Back / LiquidityHQ" header is hardcoded dark — stays black on a light page.
+- **AUTH-4 `[Med]`** — ✅ fixed. `/upgrade`'s nav header ([app/upgrade/page.tsx](app/upgrade/page.tsx)) had `background: 'rgba(10,10,14,0.9)'` hardcoded, unlike every other themed surface - stayed black in light theme. `/markets` and `/prices` were checked and are already theme-aware (`var(--bg)`), so this specific fix only touched `/upgrade`. Switched to `background: 'var(--bg)'`, matching the other two pages' pattern; dropped the now-redundant `backdropFilter: blur()` since the background is opaque. Not independently re-verified live - the test account is Pro, so `/upgrade` redirects away, and reverting Pro status just to see a one-line CSS fix wasn't worth the churn; the identical `var(--bg)` pattern is already confirmed working on `/markets` and `/prices`.
 - **AUTH-5 `[Med]`** Research BTC-Risk-Level card lists factor rows (Fear & Greed / BTC RSI / Funding Rate) with **no values** — reads unfinished.
 - **AUTH-6 `[Low]`** Grok chat: input enabled + "5 left" usage counter + Fast toggle (good), but **two close buttons** (header ✕ + floating bottom ✕); "Where to set stop?" quick-prompt clips; coin chips 40×28px (below 44px tap target). Expand control appears to toggle the panel closed.
 - **AUTH-7 `[Low]`** Settings "Resets at 8:00 AM" states no timezone (user is PHT); News desktop renders an image-less article as a solid black card.
@@ -176,7 +176,7 @@ Blockers do **not** block page access — every main page was opened. They stop 
 
 | Route | Status | Combos (authed unless noted) | Notes / blocker |
 |-------|--------|------------------------------|-----------------|
-| `/` landing | ✅ | D·M Dk+Lt | **Dark-only** (ignores theme); hero fixed to "50 coins" |
+| `/` landing | ✅ | D·M Dk+Lt | **Dark-only, intentionally** - `[data-theme="light"] body.landing` re-pins every token to its dark value (already shipped, verified via computed styles - see §8 item 10); hero fixed to "50 coins" |
 | `/dashboard` | ✅ | D·M Dk+Lt | QUICK SETUP overlay covers signal cards |
 | `/arena` | ✅ | D·M Dk+Lt | CRIT-1 chart no-flip; mobile chart legend overlaps candles; Fire not run (credit) |
 | `/briefing` | ✅ | M | Generate covered by overlay; PHT timestamp; Generate not run (credit) |
@@ -197,7 +197,7 @@ Blockers do **not** block page access — every main page was opened. They stop 
 | `/markets` | ✅ | D + Part A | Signal readable on desktop (trunc = mobile, fixed local) |
 | `/prices` | ✅ | M + Part A | Dark "← Back" header (AUTH-4) |
 | `/settings` | ✅ | D·M Dk+Lt | Account panels + usage rings; overlay covers watchlist; Save not run |
-| `/upgrade` | ✅ | M | Real pricing (Free vs Pro); dark back-header; checkout not run (payment) |
+| `/upgrade` | ✅ | M | Real pricing (Free vs Pro); dark back-header - ✅ fixed, see §4 AUTH-4; checkout not run (payment) |
 | `/login` | ✅ | D·M (Part A) | Google + magic link |
 | `/about` | ✅ | M | Stale "17 coins" in Data Sources |
 | `/terms` | ✅ | M | Doubled tab title |
@@ -225,7 +225,7 @@ Blockers do **not** block page access — every main page was opened. They stop 
 - **News:** ✅ fixed — filter-tab + coin-buzz rows scroll horizontally but clipped chips mid-word with no fade/arrow affordance. `NewsBanner.tsx` already had this exact pattern (`.news-scroll-outer` + right-edge `.news-scroll-fade`) for its own econ/geo event row - extracted it into shared `.hscroll-fade-outer`/`.hscroll-fade` classes ([globals.css](app/globals.css)) and applied to the News page's tab bar and `CoinBuzzBar` ([app/news/page.tsx](app/news/page.tsx)), plus Grok's coin selector and quick-prompt rows ([GrokChat.tsx](components/GrokChat.tsx)) via a `.hscroll-fade-panel` variant (uses the panel background `var(--bg1)` instead of the page background, since the Grok panel isn't page-colored). Verified live: all 4 fade elements render with correct per-context background.
 - **Journal:** `AuthGate.tsx:22` has an empty `<div>` where an icon was removed (dead markup) in the logged-out gate.
 - **Upgrade / gates:** sign-in prompts are worded/styled 3 ways (AuthGate component, settings "SIGN IN TO CONTINUE" list, upgrade signup card) — unify for trust. Logged-out `/upgrade` hides pricing behind auth — friction on the conversion page.
-- **Settings (light):** the locked "SIGN IN TO CONTINUE" list is near-invisible grey-on-white.
+- **Settings (light):** ✅ fixed - the locked "SIGN IN TO CONTINUE" list was near-invisible grey-on-white. `opacity: 0.35` on the whole list (conveying "disabled") combined with light theme's `--txt2` blended down to unreadable. Extracted to a `.st-locked-list` class with a `[data-theme="light"]` override raising it to `0.6` - dark theme's near-white `--txt2` survives 0.35 fine, so only light needed the bump. Verified live: computed opacity is `0.6` under light theme.
 
 ---
 
@@ -279,10 +279,10 @@ Rules: **11px floor** (retire 7/7.5/8/9/9.5/10px). Title→caption ≥ one full 
 8. `[Med]` Reduce the repeated bold RISK-DISCLOSURE footer footprint — ✅ fixed. [PlatformFooter.tsx](components/PlatformFooter.tsx) rendered the full 6-item disclosure grid (label + 2-3 line paragraph each) on every single page, stacking to one column ≤640px - a large scroll footprint repeated site-wide. Collapsed the grid behind a "Show full risk disclosures" toggle; the required bold disclaimer sentence ("LiquidityHQ provides data analytics... trade at your own risk") stays always visible, un-gated - only the elaborating grid is opt-in. Verified live on `/about`: collapsed by default, expands/collapses cleanly on click, chevron rotates.
 
 ### Theme / color
-9. `[Med]` **AUTH-4** — theme the "← Back" overlay header (upgrade/markets/prices).
-10. `[Med]` Wire landing to light theme (or make dark-only intentional/consistent).
-11. `[Med]` Settings light: make the locked "Sign in to continue" list legible.
-12. `[Low]` Consolidate the 3 theme-toggle implementations into one hook.
+9. `[Med]` **AUTH-4** — ✅ fixed, see §4.
+10. `[Med]` Wire landing to light theme — ✅ already done (found already shipped, not new work this pass) - `[data-theme="light"] body.landing` re-pins all tokens dark, verified via computed styles. See §5 landing row.
+11. `[Med]` Settings light: locked list legibility — ✅ fixed, see §6.
+12. `[Low]` Consolidate the 3 theme-toggle implementations into one hook — ✅ fixed. There were actually 4 copies (NavDrawer's toggle, SettingsModal's chips, and Settings page's chips duplicated across its logged-out/logged-in views), each hand-rolling `data-theme` + `localStorage` + the `theme-change` event dispatch separately. Consolidated into [lib/theme.ts](lib/theme.ts) (`useTheme()` hook) + a shared [components/ThemeChips.tsx](components/ThemeChips.tsx), and moved the sun/moon SVGs (previously inlined 3 times with slightly different sizes) into [components/icons.tsx](components/icons.tsx) alongside the existing `Warn`/`Download` icons. Verified live: toggling from the nav updates Settings' chips and vice versa, both directions, both themes.
 
 ### Interaction / functional
 13. `[Med]` **AUTH-3** — don't render a dead Telegram form under the Pro upsell.

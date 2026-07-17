@@ -7,6 +7,8 @@ import { useAuth } from './AuthProvider';
 import { track } from '@/lib/analytics';
 import SettingsModal from './SettingsModal';
 import { getCurrentWindow } from '@/lib/session';
+import { useTheme } from '@/lib/theme';
+import { IconSun, IconMoon } from './icons';
 
 /* ── Mobile tab bar icons — plain SVGs, not emoji. Emoji glyphs like ⚡ render
    as native color emoji on most platforms (a hardcoded yellow bolt) and
@@ -53,30 +55,6 @@ function IconNews() {
       <circle cx="5" cy="15" r="2" fill="currentColor" />
       <path d="M5 9.5C9.5 9.5 13 13 13 17.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       <path d="M5 5C12.5 5 17 9.5 17 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-function IconSun() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <circle cx="10" cy="10" r="3.5" fill="currentColor" />
-      <g stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-        <line x1="10" y1="1.5" x2="10" y2="3.3" />
-        <line x1="10" y1="16.7" x2="10" y2="18.5" />
-        <line x1="1.5" y1="10" x2="3.3" y2="10" />
-        <line x1="16.7" y1="10" x2="18.5" y2="10" />
-        <line x1="4" y1="4" x2="5.3" y2="5.3" />
-        <line x1="14.7" y1="14.7" x2="16" y2="16" />
-        <line x1="16" y1="4" x2="14.7" y2="5.3" />
-        <line x1="5.3" y1="14.7" x2="4" y2="16" />
-      </g>
-    </svg>
-  );
-}
-function IconMoon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path d="M16.5 12.7A7 7 0 0 1 7.3 3.5 7 7 0 1 0 16.5 12.7Z" fill="currentColor" />
     </svg>
   );
 }
@@ -239,7 +217,7 @@ export default function NavDrawer() {
   const [openDrop, setOpenDrop]         = useState<DropKey | null>(null);
   const [authOpen, setAuthOpen]         = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [theme, setTheme]               = useState<'dark' | 'light'>('dark');
+  const { theme, toggleTheme }          = useTheme();
   const pathname = usePathname();
   const router   = useRouter();
   const dot      = useStatusDot();
@@ -269,23 +247,6 @@ export default function NavDrawer() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [authOpen]);
-
-  useEffect(() => {
-    const saved = (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) as 'dark' | 'light' | null;
-    const initial: 'dark' | 'light' = saved === 'light' ? 'light' : 'dark';
-    setTheme(initial);
-    document.documentElement.setAttribute('data-theme', initial);
-  }, []);
-
-  const toggleTheme = () => {
-    const next: 'dark' | 'light' = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem('theme', next);
-    // Charts (KLineProChart, GrokSignalChart) re-style only on this event.
-    // Without it, canvas charts stay in the old theme until a full reload.
-    window.dispatchEvent(new Event('theme-change'));
-  };
 
   const toggleDrop = (key: DropKey) => setOpenDrop(v => v === key ? null : key);
   const closeDrop  = () => setOpenDrop(null);

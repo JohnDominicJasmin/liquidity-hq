@@ -3186,6 +3186,14 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 [data-theme="light"] .st-affix   { background: #f0f0f0; }
 [data-theme="light"] .st-chip    { background: #f0f0f0; }
 
+/* Locked "Sign in to continue" feature list — opacity alone conveys the
+   disabled state, but 0.35 over a light card blends var(--txt2) down to
+   near-invisible grey-on-white (AUTH note in AUDIT.md item #11). Dark
+   theme's near-white --txt2 survives the same opacity fine, so only the
+   light-theme value needs raising. */
+.st-locked-list { opacity: 0.35; }
+[data-theme="light"] .st-locked-list { opacity: 0.6; }
+
 /* ── Coin multi-select dropdown (replaces the full chip-grid watchlist picker) ── */
 .cms-trigger {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
