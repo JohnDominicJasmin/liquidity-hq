@@ -44,9 +44,13 @@ export default function UpgradePage() {
 
   useEffect(() => {
     if (loading) return;
-    if (!user) { router.replace('/login?signup=1&next=/upgrade'); return; }
+    // Pro users already have everything this page sells - send them
+    // onward. Logged-out visitors see the pricing itself (no redirect);
+    // login is only required at the actual "Get Pro" click, in
+    // handleCheckout below - a pricing page that bounces anonymous
+    // visitors before they've seen a price is pure conversion friction.
     if (isPro) { router.replace('/arena'); return; }
-  }, [user, loading, isPro, router]);
+  }, [isPro, router]);
 
   function handleCheckout() {
     if (!user) { router.push('/login?signup=1&next=/upgrade'); return; }
@@ -54,7 +58,7 @@ export default function UpgradePage() {
     window.location.href = getCheckoutUrl(user);
   }
 
-  if (loading || !user || isPro) {
+  if (loading || isPro) {
     return <LoadingState message={isPro ? 'Redirecting…' : 'Loading…'} fullPage />;
   }
 
@@ -151,9 +155,15 @@ export default function UpgradePage() {
                 Pro payments launching soon
               </div>
               <p style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.65, margin: '0 0 16px' }}>
-                We&apos;re finalising the payment system. You&apos;ll be notified at{' '}
-                <span style={{ color: 'var(--accent)' }}>{user.email}</span>{' '}
-                as soon as Pro is available.
+                {user ? (
+                  <>We&apos;re finalising the payment system. You&apos;ll be notified at{' '}
+                  <span style={{ color: 'var(--accent)' }}>{user.email}</span>{' '}
+                  as soon as Pro is available.</>
+                ) : (
+                  <>We&apos;re finalising the payment system.{' '}
+                  <a href="/login?signup=1&next=/upgrade" style={{ color: 'var(--accent)' }}>Sign up</a>{' '}
+                  to get notified as soon as Pro is available.</>
+                )}
               </p>
               <Link href="/arena" style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', textDecoration: 'underline' }}>
                 Back to Arena
