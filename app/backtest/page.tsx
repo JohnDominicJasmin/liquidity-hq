@@ -434,9 +434,9 @@ export default function BacktestPage() {
         onClick={runOrderFlow}
         disabled={ofRunning}
         style={{
-          background: ofRunning ? 'rgba(255,255,255,0.06)' : 'rgba(251,191,36,0.1)',
-          color: ofRunning ? 'rgba(255,255,255,0.4)' : '#fbbf24',
-          border: `1px solid ${ofRunning ? 'var(--bdr)' : 'rgba(251,191,36,0.3)'}`,
+          background: ofRunning ? 'rgba(255,255,255,0.06)' : 'var(--amber-bg)',
+          color: ofRunning ? 'rgba(255,255,255,0.4)' : 'var(--amber)',
+          border: `1px solid ${ofRunning ? 'var(--bdr)' : 'var(--amber-bdr)'}`,
           borderRadius: 8, padding: '10px 20px', fontSize: 'var(--fs-label)', fontWeight: 700,
           cursor: ofRunning ? 'default' : 'pointer', marginBottom: 18,
         }}
@@ -459,7 +459,7 @@ export default function BacktestPage() {
           )}
 
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 24 }}>
-            <SideCard title="ORDER FLOW SETUP (5 SIGNALS)" stats={ofResult.side.stats} color="#fbbf24" />
+            <SideCard title="ORDER FLOW SETUP (5 SIGNALS)" stats={ofResult.side.stats} color="var(--amber)" />
           </div>
 
           <h2 className="mb-title" style={{ fontSize: 'var(--fs-card-title)', marginBottom: 8 }}>Per-Coin Breakdown</h2>
