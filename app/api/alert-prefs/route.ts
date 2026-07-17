@@ -3,38 +3,38 @@ import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 
-async function requireAuth(req: NextRequest | Request): Promise<boolean> {
+async function getAuthedUserId(req: NextRequest | Request): Promise<string | null> {
   const token = (req.headers as Headers).get('Authorization')?.replace('Bearer ', '');
-  if (!token) return false;
+  if (!token) return null;
   const sb = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { global: { headers: { Authorization: `Bearer ${token}` } } },
   );
   const { data } = await sb.auth.getUser();
-  return !!data.user;
+  return data.user?.id ?? null;
 }
 
 export const dynamic = 'force-dynamic';
 
-/* Muted Telegram alert groups - stored as one row per muted key. This is a
-   single global config table with no per-user ownership (no user_id column),
-   so there's no meaningful RLS policy to write for it - same reasoning as
-   the rest of the alert system (app/api/telegram/alert/route.ts reads/writes
-   it via the admin client too). RLS is enabled on the table with zero
-   policies defined, which silently blocks the anon key on every operation
-   including SELECT (returns empty, not an error) - using the service-role
-   client here bypasses that instead of granting anon broad write access to
-   a table anyone could otherwise mute alerts on.
+/* Muted Telegram alert groups - one row per (user_id, key). Was a single
+   global config table with no per-user ownership until 2026-07-17 (see
+   supabase/migrations/20260717_muted_alerts_per_user.sql) - any user muting
+   a coin/rule silenced it for every Pro user's Telegram feed. Now scoped:
+   every read/write is filtered to the authenticated user's own rows. Uses
+   the service-role client (not the user's own token) because the cron route
+   (app/api/telegram/alert/route.ts) also needs bulk cross-user reads - the
+   user_id filter here is what actually enforces the boundary, not RLS.
    Fail-open: if Supabase is unreachable, nothing is muted. */
 
 export async function GET(req: NextRequest) {
-  if (!await requireAuth(req)) {
+  const userId = await getAuthedUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   try {
     const db = getSupabaseAdmin();
-    const { data, error } = await db.from(T.muted_alerts).select('key');
+    const { data, error } = await db.from(T.muted_alerts).select('key').eq('user_id', userId);
     if (error) return NextResponse.json({ muted: [], error: error.message });
     return NextResponse.json({ muted: (data ?? []).map(r => String(r.key)) });
   } catch {
@@ -43,7 +43,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!await requireAuth(req)) {
+  const userId = await getAuthedUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   let body: { key?: string; muted?: boolean };
@@ -55,8 +56,8 @@ export async function POST(req: NextRequest) {
   try {
     const db = getSupabaseAdmin();
     const res = muted
-      ? await db.from(T.muted_alerts).upsert({ key })
-      : await db.from(T.muted_alerts).delete().eq('key', key);
+      ? await db.from(T.muted_alerts).upsert({ user_id: userId, key })
+      : await db.from(T.muted_alerts).delete().eq('user_id', userId).eq('key', key);
     if (res.error) return NextResponse.json({ ok: false, error: res.error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   } catch (e) {

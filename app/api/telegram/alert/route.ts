@@ -76,7 +76,31 @@ function fmtGrok(raw: string): string {
 }
 
 /* ── Signal queue - for confluence batching ── */
-interface SignalEntry { coin: string; title: string; body: string; name: string; dir?: 'long' | 'short' }
+// ruleKey matches the mute-toggle key used on /alerts (e.g. 'rsi', 'squeeze',
+// 'ema_setup_1h') - used at send time to filter recipients who muted this
+// specific rule, independent of the coin:/dir: keys also checked per entry.
+interface SignalEntry { coin: string; title: string; body: string; name: string; dir?: 'long' | 'short'; ruleKey: string }
+
+/* ── Per-recipient mute-aware delivery ── */
+interface Recipient { userId: string; chatId: string }
+
+function isMutedFor(mutedByUser: Map<string, Set<string>>, userId: string, ...keys: string[]): boolean {
+  const set = mutedByUser.get(userId);
+  if (!set) return false;
+  return keys.some(k => set.has(k));
+}
+
+function entryMuteKeys(e: Pick<SignalEntry, 'coin' | 'dir' | 'ruleKey'>): string[] {
+  const keys = [e.ruleKey, `coin:${e.coin}`];
+  if (e.dir) keys.push(`dir:${e.dir}`);
+  return keys;
+}
+
+// For global (non-coin) checks that send directly rather than via the queue -
+// just the recipients who haven't muted this one rule key.
+function recipientChatIds(recipients: Recipient[], mutedByUser: Map<string, Set<string>>, ruleKey: string): string[] {
+  return recipients.filter(r => !isMutedFor(mutedByUser, r.userId, ruleKey)).map(r => r.chatId);
+}
 
 /* ── Coin maps (sourced from shared lib/coins.ts) ── */
 const BINANCE_PERP  = BINANCE_SYMS;
@@ -171,9 +195,20 @@ async function tg(token: string, chatId: string | string[], text: string): Promi
 
 /* ════════════════════════════════════════
    FLUSH - group signals by coin, send single or confluence
+   Per-recipient mute-aware: recipients are grouped by which subset of a
+   coin's fired entries they're actually eligible for (ruleKey/coin:/dir:
+   mutes), so a confluence message only bundles what each person opted into.
+   In the common case (nobody's muted anything) every recipient shares one
+   group, so this collapses to exactly the old one-message-per-coin behavior.
    ════════════════════════════════════════ */
-async function flushSignals(token: string, chatId: string | string[], stamp: string, queue: SignalEntry[]): Promise<void> {
-  if (queue.length === 0) return;
+async function flushSignals(
+  token: string,
+  recipients: Recipient[],
+  mutedByUser: Map<string, Set<string>>,
+  stamp: string,
+  queue: SignalEntry[],
+): Promise<void> {
+  if (queue.length === 0 || recipients.length === 0) return;
 
   // Group by coin
   const byCoin = new Map<string, SignalEntry[]>();
@@ -184,28 +219,42 @@ async function flushSignals(token: string, chatId: string | string[], stamp: str
   }
 
   await Promise.all([...byCoin.entries()].map(async ([coin, entries]) => {
-    if (entries.length === 1) {
-      // Single signal - send as-is
-      await tg(token, chatId, entries[0].body);
-      return;
+    // Group recipients by the exact subset of this coin's entries they're
+    // eligible for (identical mute config -> identical subset -> one send).
+    const groups = new Map<string, { entries: SignalEntry[]; chatIds: string[] }>();
+    for (const r of recipients) {
+      const eligible = entries.filter(e => !isMutedFor(mutedByUser, r.userId, ...entryMuteKeys(e)));
+      if (eligible.length === 0) continue;
+      const sig = eligible.map(e => e.ruleKey + '_' + (e.dir ?? '')).join('|');
+      if (!groups.has(sig)) groups.set(sig, { entries: eligible, chatIds: [] });
+      groups.get(sig)!.chatIds.push(r.chatId);
     }
 
-    // Confluence - 2+ signals on same coin
-    const label   = LABELS[coin] ?? coin.toUpperCase();
-    const bullets = entries.map(e => `• ${e.title}`).join('\n');
-    const grokTake = await grokAnalyze(
-      `Elite crypto trader. Multiple signals fired simultaneously for ${label}:\n${bullets}\n\n` +
-      `In 3-4 sentences: do these signals reinforce each other or diverge? ` +
-      `What is the highest-conviction trade setup right now considering all signals together? ` +
-      `Direct action bias, no hedging. ` +
-      `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
-    );
-    await tg(token, chatId,
-      `🔀 <b>${label} - ${entries.length} Signals Aligned</b>\n\n` +
-      `${bullets}` +
-      `${fmtGrok(grokTake)}\n\n` +
-      `<i>${stamp}</i>`
-    );
+    const label = LABELS[coin] ?? coin.toUpperCase();
+
+    await Promise.all([...groups.values()].map(async ({ entries: elig, chatIds }) => {
+      if (elig.length === 1) {
+        // Single signal - send as-is
+        await tg(token, chatIds, elig[0].body);
+        return;
+      }
+
+      // Confluence - 2+ signals this group is eligible for on this coin
+      const bullets = elig.map(e => `• ${e.title}`).join('\n');
+      const grokTake = await grokAnalyze(
+        `Elite crypto trader. Multiple signals fired simultaneously for ${label}:\n${bullets}\n\n` +
+        `In 3-4 sentences: do these signals reinforce each other or diverge? ` +
+        `What is the highest-conviction trade setup right now considering all signals together? ` +
+        `Direct action bias, no hedging. ` +
+        `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
+      );
+      await tg(token, chatIds,
+        `🔀 <b>${label} - ${elig.length} Signals Aligned</b>\n\n` +
+        `${bullets}` +
+        `${fmtGrok(grokTake)}\n\n` +
+        `<i>${stamp}</i>`
+      );
+    }));
   }));
 }
 
@@ -320,7 +369,7 @@ async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> 
       const label  = LABELS[coin];
       if (rsi > 78 && !onCooldown(`rsi_ob_${coin}`, CD.rsi)) {
         queue.push({
-          coin, name: `${label} RSI overbought (${r})`,
+          coin, ruleKey: 'rsi', name: `${label} RSI overbought (${r})`,
           title: `RSI Overbought ${r} (1H)`,
           body: `⚡ <b>${label} RSI Overbought (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Exhaustion - Potential Reversal\nAction: Avoid chasing longs. Watch for rejection / reversal candle.\n\n<i>${stamp}</i>`,
         });
@@ -328,7 +377,7 @@ async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> 
       }
       if (rsi < 22 && !onCooldown(`rsi_os_${coin}`, CD.rsi)) {
         queue.push({
-          coin, name: `${label} RSI oversold (${r})`,
+          coin, ruleKey: 'rsi', name: `${label} RSI oversold (${r})`,
           title: `RSI Oversold ${r} (1H)`,
           body: `⚡ <b>${label} RSI Oversold (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Oversold - Bounce Setup\nAction: Watch for bounce from key support. Long bias on confirmation.\n\n<i>${stamp}</i>`,
         });
@@ -381,7 +430,7 @@ async function checkEMACross(stamp: string, queue: SignalEntry[]): Promise<strin
           `In 2-3 sentences: valid bullish reclaim or false breakout? What confluence confirms? Direct, no hedging. ` +
           `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
         queue.push({
-          coin, dir: 'long', name: `${label} crossed above 200 EMA`,
+          coin, dir: 'long', ruleKey: 'ema_cross', name: `${label} crossed above 200 EMA`,
           title: `200 EMA Cross ↑ (1H)`,
           body: `📈 <b>${label} Crossed Above 200 EMA (1H)</b>\n\n` +
             `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
@@ -398,7 +447,7 @@ async function checkEMACross(stamp: string, queue: SignalEntry[]): Promise<strin
           `In 2-3 sentences: genuine bearish breakdown or fake-out? What to watch for? Direct, no hedging. ` +
           `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
         queue.push({
-          coin, dir: 'short', name: `${label} crossed below 200 EMA`,
+          coin, dir: 'short', ruleKey: 'ema_cross', name: `${label} crossed below 200 EMA`,
           title: `200 EMA Cross ↓ (1H)`,
           body: `📉 <b>${label} Crossed Below 200 EMA (1H)</b>\n\n` +
             `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
@@ -470,7 +519,7 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[]): Promise<stri
             `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
 
           queue.push({
-            coin, name: `${label} rapid ${dir} ${sign}${pct.toFixed(1)}% (${tfLabel})`,
+            coin, ruleKey: 'rapid_move', name: `${label} rapid ${dir} ${sign}${pct.toFixed(1)}% (${tfLabel})`,
             title: `Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})`,
             body: `${emoji} <b>${label} Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})</b>\n\n` +
               `Price: <b>$${currClose.toLocaleString()}</b>\n` +
@@ -518,7 +567,7 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
             `In 2-3 sentences: short-term (1-4h) market impact? Worth acting on now or wait for confirmation? Direct, no hedging. ` +
             `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
           queue.push({
-            coin, name: `${label} whale ${side} ${usdFmt}`,
+            coin, ruleKey: 'whales', name: `${label} whale ${side} ${usdFmt}`,
             title: `Whale ${side} ${usdFmt}`,
             body: side === 'BUY'
               ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy - institutional accumulation${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`
@@ -554,7 +603,7 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
             `In 2-3 sentences: short-term (1-4h) market impact? Worth acting on now or wait for confirmation? Direct, no hedging. ` +
             `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
           queue.push({
-            coin, name: `${label} whale ${side} ${usdFmt}`,
+            coin, ruleKey: 'whales', name: `${label} whale ${side} ${usdFmt}`,
             title: `Whale ${side} ${usdFmt}`,
             body: side === 'BUY'
               ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy - institutional accumulation${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`
@@ -574,8 +623,12 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
 interface FinnhubItem { id: number; headline: string; datetime: number; source: string }
 const FINNHUB_KEY = process.env.FINNHUB_KEY ?? '';
 
-async function checkNews(token: string, chatId: string | string[], stamp: string): Promise<string[]> {
+async function checkNews(
+  token: string, recipients: Recipient[], mutedByUser: Map<string, Set<string>>, stamp: string,
+): Promise<string[]> {
   const fired: string[] = [];
+  const chatId = recipientChatIds(recipients, mutedByUser, 'news');
+  if (chatId.length === 0) return fired;
   const since = Math.floor(Date.now() / 1000) - 600;
   try {
     const [cryptoR, generalR] = await Promise.allSettled([
@@ -644,7 +697,7 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
         const grokLine = fmtGrok(grokTake);
 
         queue.push({
-          coin, name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
+          coin, ruleKey: 'oi_spike', name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
           title: `Open Interest ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
           body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} - ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
             `Open interest changed from ${(oldest / 1000).toFixed(1)}K to ${(newest / 1000).toFixed(1)}K contracts\n` +
@@ -683,7 +736,7 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
             ` In 2-3 sentences: Is this new longs, new shorts, or liquidation-driven? What's the likely next move? Direct, no hedging. ` +
             `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
           queue.push({
-            coin, name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
+            coin, ruleKey: 'oi_spike', name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
             title: `Open Interest ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
             body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} - ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
               `Open interest: ${(oldest / 1000).toFixed(1)}K → ${(newest / 1000).toFixed(1)}K contracts\n` +
@@ -730,7 +783,7 @@ async function checkCVD(stamp: string, queue: SignalEntry[]): Promise<string[]> 
 
       if (priceChangePct > THRESH && netCVD < 0 && !onCooldown(`cvd_bear_${coin}`, CD.cvd)) {
         queue.push({
-          coin, name: `${label} bearish CVD divergence`,
+          coin, ruleKey: 'cvd', name: `${label} bearish CVD divergence`,
           title: `Bearish CVD Divergence`,
           body: `⚠️ <b>${label} Bearish CVD Divergence</b>\n\nPrice: <b>+${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Negative</b> - sellers dominating volume\nSignal: Price pump not supported by buying - likely a fake move\nAction: Avoid chasing longs. Watch for reversal.\n\n<i>${stamp}</i>`,
         });
@@ -738,7 +791,7 @@ async function checkCVD(stamp: string, queue: SignalEntry[]): Promise<string[]> 
       }
       if (priceChangePct < -THRESH && netCVD > 0 && !onCooldown(`cvd_bull_${coin}`, CD.cvd)) {
         queue.push({
-          coin, name: `${label} bullish CVD divergence`,
+          coin, ruleKey: 'cvd', name: `${label} bullish CVD divergence`,
           title: `Bullish CVD Divergence`,
           body: `⚡ <b>${label} Bullish CVD Divergence</b>\n\nPrice: <b>${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Positive</b> - buyers absorbing the dip\nSignal: Price drop not matched by sell volume - accumulation signal\nAction: Watch for bounce from key support.\n\n<i>${stamp}</i>`,
         });
@@ -835,8 +888,12 @@ async function checkPriceAlerts(
    ════════════════════════════════════════ */
 interface FNGData { value: string; value_classification: string }
 
-async function checkFearGreed(token: string, chatId: string | string[], stamp: string): Promise<string[]> {
+async function checkFearGreed(
+  token: string, recipients: Recipient[], mutedByUser: Map<string, Set<string>>, stamp: string,
+): Promise<string[]> {
   const fired: string[] = [];
+  const chatId = recipientChatIds(recipients, mutedByUser, 'fear_greed');
+  if (chatId.length === 0) return fired;
   try {
     const res  = await fetch('https://api.alternative.me/fng/', { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
     if (!res.ok) return [];
@@ -871,7 +928,7 @@ async function checkFearGreed(token: string, chatId: string | string[], stamp: s
    10. DAILY 7AM PHT SUMMARY
    ════════════════════════════════════════ */
 async function checkDailySummary(
-  token: string, chatId: string | string[], stamp: string,
+  token: string, recipients: Recipient[], mutedByUser: Map<string, Set<string>>, stamp: string,
   frMap: Record<string, number | null>
 ): Promise<string[]> {
   const d       = new Date();
@@ -879,6 +936,8 @@ async function checkDailySummary(
   const phtMin  = d.getUTCMinutes();
   if (phtHour !== 7 || phtMin > 10) return [];
   if (onCooldown('daily_summary', CD.daily)) return [];
+  const chatId = recipientChatIds(recipients, mutedByUser, 'daily_summary');
+  if (chatId.length === 0) return [];
 
   const dateStr = d.toLocaleString('en-PH', {
     timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric',
@@ -951,10 +1010,12 @@ async function checkDailySummary(
 interface LSItem { longShortRatio: string; longAccount: string; shortAccount: string }
 
 async function checkSentimentExtremes(
-  token: string, chatId: string | string[], stamp: string,
+  token: string, recipients: Recipient[], mutedByUser: Map<string, Set<string>>, stamp: string,
   frMap: Record<string, number | null>
 ): Promise<string[]> {
   const fired: string[] = [];
+  const chatId = recipientChatIds(recipients, mutedByUser, 'sentiment_extremes');
+  if (chatId.length === 0) return fired;
   try {
     const btcFR = frMap['btc'];
     if (btcFR == null) return [];
@@ -1120,7 +1181,7 @@ async function checkSqueezeAlerts(
     if (dir === 'SHORT_SQ') {
       // Shorts overcrowded - expect pump to flush them
       queue.push({
-        coin, dir: 'long', name: `${label} short squeeze building (${score}/100)`,
+        coin, dir: 'long', ruleKey: 'squeeze', name: `${label} short squeeze building (${score}/100)`,
         title: `Short Squeeze Building - Score ${score}/100`,
         body:
           `⚡ <b>SHORT SQUEEZE BUILDING - ${label}/USDT</b>\n` +
@@ -1136,7 +1197,7 @@ async function checkSqueezeAlerts(
     } else {
       // Longs overcrowded - expect dump to flush them
       queue.push({
-        coin, dir: 'short', name: `${label} long flush building (${score}/100)`,
+        coin, dir: 'short', ruleKey: 'squeeze', name: `${label} long flush building (${score}/100)`,
         title: `Long Flush Building - Score ${score}/100`,
         body:
           `🔥 <b>LONG FLUSH BUILDING - ${label}/USDT</b>\n` +
@@ -1169,12 +1230,12 @@ async function checkDistribution(
   stamp: string,
   frMap: Record<string, number | null>,
   queue: SignalEntry[],
-  muted: Set<string>,
+  fullyMutedCoins: Set<string>,
 ): Promise<string[]> {
   const fired: string[] = [];
 
   const tasks = COINS
-    .filter(coin => !muted.has(`coin:${coin}`) && BINANCE_PERP[coin])
+    .filter(coin => !fullyMutedCoins.has(coin) && BINANCE_PERP[coin])
     .map(coin => async () => {
       try {
         const sym = BINANCE_PERP[coin];
@@ -1265,7 +1326,7 @@ async function checkDistribution(
         );
 
         queue.push({
-          coin, dir: 'short', name: `${label} distribution (${res.score}/100)`,
+          coin, dir: 'short', ruleKey: 'distribution', name: `${label} distribution (${res.score}/100)`,
           title: `Distribution Detected - Score ${res.score}/100`,
           body:
             `💰 <b>DISTRIBUTION DETECTED - ${label}/USDT</b>\n` +
@@ -1322,14 +1383,14 @@ async function checkEMASetup(
   stamp: string,
   frMap: Record<string, number | null>,
   queue: SignalEntry[],
-  muted: Set<string>,
+  fullyMutedCoins: Set<string>,
   tf: EMASetupTF = '4h',
 ): Promise<string[]> {
   const { binanceInterval, label: tfLabel, cooldownKey } = EMA_SETUP_TF_CONFIG[tf];
   const fired: string[] = [];
 
   await Promise.all(COINS.map(async coin => {
-    if (muted.has(`coin:${coin}`)) return;
+    if (fullyMutedCoins.has(coin)) return;
     const sym = BINANCE_PERP[coin];
     if (!sym) return;
     try {
@@ -1413,7 +1474,7 @@ async function checkEMASetup(
       );
 
       queue.push({
-        coin, dir: dir === 'LONG' ? 'long' : 'short', name: `${label} EMA ribbon ${dir} setup (${tfLabel})`,
+        coin, dir: dir === 'LONG' ? 'long' : 'short', ruleKey: cooldownKey, name: `${label} EMA ribbon ${dir} setup (${tfLabel})`,
         title: `EMA Ribbon ${dir} Setup - In Value Zone (${tfLabel})`,
         body:
           `📐 <b>EMA RIBBON ${dir} SETUP (${tfLabel}) - ${label}/USDT</b>\n\n` +
@@ -1440,7 +1501,7 @@ async function checkEMASetup(
 /* ════════════════════════════════════════
    WEB PUSH DISPATCH
    ════════════════════════════════════════ */
-async function dispatchPush(queue: SignalEntry[]): Promise<void> {
+async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<string>>): Promise<void> {
   const pubKey  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const privKey = process.env.VAPID_PRIVATE_KEY;
   const email   = process.env.VAPID_EMAIL;
@@ -1464,19 +1525,15 @@ async function dispatchPush(queue: SignalEntry[]): Promise<void> {
 
   for (const [coin, entries] of byCoin) {
     const label = LABELS[coin] ?? coin.toUpperCase();
-    const body  = entries.length === 1
-      ? `${label}: ${entries[0].title}`
-      : `${label}: ${entries.length} signals aligned`;
-
-    const payload = JSON.stringify({
-      title: 'LiquidityHQ',
-      body,
-      tag:  `lhq-${coin}`,
-      url:  '/',
-    });
 
     await Promise.allSettled(
-      (subs as Array<{ endpoint: string; p256dh: string; auth: string }>).map(async sub => {
+      (subs as Array<{ endpoint: string; p256dh: string; auth: string; user_id: string }>).map(async sub => {
+        const eligible = entries.filter(e => !isMutedFor(mutedByUser, sub.user_id, ...entryMuteKeys(e)));
+        if (eligible.length === 0) return;
+        const body = eligible.length === 1
+          ? `${label}: ${eligible[0].title}`
+          : `${label}: ${eligible.length} signals aligned`;
+        const payload = JSON.stringify({ title: 'LiquidityHQ', body, tag: `lhq-${coin}`, url: '/' });
         try {
           await webpush.sendNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
@@ -1497,24 +1554,29 @@ async function dispatchPush(queue: SignalEntry[]): Promise<void> {
 /* ════════════════════════════════════════
    MAIN HANDLER
    ════════════════════════════════════════ */
-/* Muted alert groups - set on /alerts page, stored in Supabase. Fail-open.
-   Uses the admin client: lhq_muted_alerts has RLS enabled with no policies
-   (no per-user ownership to write one against), so the anon key silently
-   sees zero rows here - which, combined with fail-open, meant mutes were
-   never actually being respected. See app/api/alert-prefs/route.ts for the
-   write side of this same bug. */
-async function fetchMutedKeys(): Promise<Set<string>> {
-  const fallback = new Set<string>();
+/* Muted alert groups - set on /alerts page, stored in Supabase, one row per
+   (user_id, key) since 2026-07-17 (previously a single global table - any
+   user's mute silenced everyone's Telegram feed, see
+   supabase/migrations/20260717_muted_alerts_per_user.sql). Fail-open: if
+   Supabase is unreachable, nothing is muted for anyone. */
+async function fetchMutedKeysByUser(): Promise<Map<string, Set<string>>> {
+  const fallback = new Map<string, Set<string>>();
   const query = (async () => {
     try {
       const db = getSupabaseAdmin();
-      const { data, error } = await db.from(T.muted_alerts).select('key');
+      const { data, error } = await db.from(T.muted_alerts).select('user_id, key');
       if (error || !data) return fallback;
-      return new Set(data.map(r => String(r.key)));
+      const map = new Map<string, Set<string>>();
+      for (const row of data) {
+        const uid = String(row.user_id);
+        if (!map.has(uid)) map.set(uid, new Set());
+        map.get(uid)!.add(String(row.key));
+      }
+      return map;
     } catch { return fallback; }
   })();
   // 5s cap - if Supabase is slow, fail-open (no keys muted)
-  const cap = new Promise<Set<string>>(res => setTimeout(() => res(fallback), 5_000));
+  const cap = new Promise<Map<string, Set<string>>>(res => setTimeout(() => res(fallback), 5_000));
   return Promise.race([query, cap]);
 }
 
@@ -1558,6 +1620,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
 
   // Collect Pro users who have connected their Telegram
   const allChatIds: string[] = [];
+  const recipients: Recipient[] = [];
   try {
     const admin = getSupabaseAdmin();
     const { data } = await admin
@@ -1566,21 +1629,25 @@ async function runAlerts(token: string): Promise<NextResponse> {
       .not('telegram_chat_id', 'is', null)
       .neq('telegram_chat_id', '');
     for (const row of data ?? []) {
-      if (!proUserIds.has(row.user_id as string)) continue;
+      const userId = row.user_id as string;
+      if (!proUserIds.has(userId)) continue;
       const id = (row.telegram_chat_id as string)?.trim();
-      if (id && !allChatIds.includes(id)) allChatIds.push(id);
+      if (id && !allChatIds.includes(id)) {
+        allChatIds.push(id);
+        recipients.push({ userId, chatId: id });
+      }
     }
   } catch { /* admin key not configured - fall through to env var */ }
 
   // Env var fallback (legacy / single-user installs) - not a per-user row,
-  // predates the Pro gate, always allowed.
+  // predates the Pro gate, always allowed. Has no user_id, so it can't be
+  // muted per-rule - only ever reachable via the broadcast-fallback paths
+  // (checkPriceAlerts' legacy branch), not the per-recipient ones below.
   const envChatId = process.env.TELEGRAM_CHAT_ID;
   if (envChatId && !allChatIds.includes(envChatId)) allChatIds.push(envChatId);
 
   if (allChatIds.length === 0)
     return NextResponse.json({ error: 'No Telegram recipients configured' }, { status: 503 });
-
-  const chatId = allChatIds; // alias - all functions now accept string | string[]
 
   // Session-based cooldowns - tighter during pre-NY + NY (8pm–4am PHT)
   const nyActive = isHighActivity();
@@ -1590,56 +1657,59 @@ async function runAlerts(token: string): Promise<NextResponse> {
   const now   = new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit' });
   const stamp = `⏰ ${now} PHT · ${getSession()}`;
 
-  // Fetch shared data once (+ muted alert groups)
-  const [frMap, prices, lsMap, muted] = await Promise.all([fetchAllFR(), fetchSpotPrices(), fetchAllLSR(), fetchMutedKeys()]);
+  // Fetch shared data once (+ per-user muted alert groups)
+  const [frMap, prices, lsMap, mutedByUser] = await Promise.all([fetchAllFR(), fetchSpotPrices(), fetchAllLSR(), fetchMutedKeysByUser()]);
 
-  // Per-request signal queue - all coin checks push here, flushed after
-  const signalQueue: SignalEntry[] = [];
-
-  const skip = (key: string) => muted.has(key);
-  const none: string[] = [];
-
-  const results = await Promise.allSettled([
-    skip('rsi')                ? none : checkRSI(stamp, signalQueue),
-    skip('ema_cross')          ? none : checkEMACross(stamp, signalQueue),
-    skip('rapid_move')         ? none : checkRapidMove(stamp, signalQueue),
-    skip('whales')             ? none : checkWhales(stamp, signalQueue),
-    skip('news')               ? none : checkNews(token, chatId, stamp),                     // global - sends directly
-    skip('fear_greed')         ? none : checkFearGreed(token, chatId, stamp),                // global - sends directly
-    skip('daily_summary')      ? none : checkDailySummary(token, chatId, stamp, frMap),      // global - sends directly
-    skip('oi_spike')           ? none : checkOISpike(stamp, prices, signalQueue),
-    skip('cvd')                ? none : checkCVD(stamp, signalQueue),
-    skip('price_alerts')       ? none : checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds),
-    skip('sentiment_extremes') ? none : checkSentimentExtremes(token, chatId, stamp, frMap), // global - sends directly
-    skip('squeeze')            ? none : checkSqueezeAlerts(stamp, frMap, lsMap, signalQueue),
-    skip('distribution')       ? none : checkDistribution(stamp, frMap, signalQueue, muted),
-    skip('ema_setup')          ? none : checkEMASetup(stamp, frMap, signalQueue, muted, '4h'),
-    skip('ema_setup_1h')       ? none : checkEMASetup(stamp, frMap, signalQueue, muted, '1h'),
-    skip('ema_setup_30m')      ? none : checkEMASetup(stamp, frMap, signalQueue, muted, '30m'),
-    skip('ema_setup_15m')      ? none : checkEMASetup(stamp, frMap, signalQueue, muted, '15m'),
-  ]);
-
-  // Per-coin + per-direction filters - set on /alerts page via muted keys
-  // 'coin:<id>' disables a coin entirely; 'dir:long' / 'dir:short' silence
-  // entry signals of that trade direction.
-  const filteredQueue = signalQueue.filter(e =>
-    !muted.has(`coin:${e.coin}`) &&
-    !(e.dir === 'long'  && muted.has('dir:long')) &&
-    !(e.dir === 'short' && muted.has('dir:short'))
+  // Coins muted by every single recipient - the only case it's safe to skip
+  // fetching entirely (checkDistribution/checkEMASetup's cost-control
+  // pre-filter). Anything less than 100% agreement still has to be fetched;
+  // per-recipient eligibility is decided later, at flush/push time.
+  const fullyMutedCoins = new Set(
+    COINS.filter(coin => recipients.every(r => mutedByUser.get(r.userId)?.has(`coin:${coin}`))),
   );
 
-  // Flush: single signals → send as-is, 2+ same coin → confluence alert
-  await flushSignals(token, chatId, stamp, filteredQueue);
+  // Per-request signal queue - all coin checks push here, flushed after.
+  // Every check now runs unconditionally (compute is shared/unavoidable
+  // regardless of who's muted what) - the old top-level skip() gate used to
+  // disable a whole rule for every recipient at once, which is exactly the
+  // global-mute bug being fixed here. Muting now only affects who receives
+  // the result, decided per-recipient in flushSignals/dispatchPush/below.
+  const signalQueue: SignalEntry[] = [];
+
+  const results = await Promise.allSettled([
+    checkRSI(stamp, signalQueue),
+    checkEMACross(stamp, signalQueue),
+    checkRapidMove(stamp, signalQueue),
+    checkWhales(stamp, signalQueue),
+    checkNews(token, recipients, mutedByUser, stamp),                     // global - sends directly
+    checkFearGreed(token, recipients, mutedByUser, stamp),                // global - sends directly
+    checkDailySummary(token, recipients, mutedByUser, stamp, frMap),      // global - sends directly
+    checkOISpike(stamp, prices, signalQueue),
+    checkCVD(stamp, signalQueue),
+    checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds),       // already per-user (own table)
+    checkSentimentExtremes(token, recipients, mutedByUser, stamp, frMap), // global - sends directly
+    checkSqueezeAlerts(stamp, frMap, lsMap, signalQueue),
+    checkDistribution(stamp, frMap, signalQueue, fullyMutedCoins),
+    checkEMASetup(stamp, frMap, signalQueue, fullyMutedCoins, '4h'),
+    checkEMASetup(stamp, frMap, signalQueue, fullyMutedCoins, '1h'),
+    checkEMASetup(stamp, frMap, signalQueue, fullyMutedCoins, '30m'),
+    checkEMASetup(stamp, frMap, signalQueue, fullyMutedCoins, '15m'),
+  ]);
+
+  // Flush: single signals → send as-is, 2+ same coin → confluence alert.
+  // Per-recipient coin:/dir:/ruleKey eligibility is decided inside.
+  await flushSignals(token, recipients, mutedByUser, stamp, signalQueue);
 
   // Web Push - fire-and-forget, never let it block or throw
-  void dispatchPush(filteredQueue).catch(() => {});
+  void dispatchPush(signalQueue, mutedByUser).catch(() => {});
 
   const fired = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
   if (fired.length > 0) recordFires(fired);
 
   return NextResponse.json({
     ok: true, fired,
-    muted: [...muted],
+    recipients: recipients.length,
+    mutedUsers: mutedByUser.size,
     checked: ['RSI', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'Distribution', 'EMA Ribbon Setup (4H)', 'EMA Ribbon Setup (1H)', 'EMA Ribbon Setup (30M)', 'EMA Ribbon Setup (15M)'],
     coins: COINS.length,
     session: nyActive ? 'NY/Pre-NY (high activity)' : 'Asia/London',
