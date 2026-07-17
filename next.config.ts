@@ -12,7 +12,7 @@ const posthogHost = (process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posth
 // Content Security Policy
 // - script-src 'unsafe-inline': required for Next.js hydration inline scripts
 // - script-src 'unsafe-eval': required for GSAP and motion in dev + some Next.js internals
-// - style-src 'unsafe-inline': required — app uses extensive inline style props
+// - style-src 'unsafe-inline': required - app uses extensive inline style props
 // - connect-src 'self': covers same-origin API routes and HMR WebSocket in dev
 // - img-src https:: coin logos and chart images may come from any HTTPS origin
 // - font-src 'self': next/font/google downloads fonts at build time → served from self
@@ -31,11 +31,11 @@ const csp = [
     "wss://fstream.binance.com",
     // Bybit WebSocket (primary + fallback)
     "wss://stream.bybit.com wss://stream.bytick.com",
-    // Binance REST APIs — called client-side by MarketProvider
+    // Binance REST APIs - called client-side by MarketProvider
     "https://api.binance.com https://fapi.binance.com",
-    // Bybit REST API — called client-side by MarketProvider
+    // Bybit REST API - called client-side by MarketProvider
     "https://api.bybit.com",
-    // Deribit — options GEX / put-call ratio
+    // Deribit - options GEX / put-call ratio
     "https://www.deribit.com",
     // External data feeds
     "https://api.alternative.me",   // Fear & Greed Index
@@ -52,15 +52,15 @@ const csp = [
 ].join("; ");
 
 const securityHeaders = [
-  // HSTS — 2 years, include subdomains, submit to preload list
+  // HSTS - 2 years, include subdomains, submit to preload list
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
-  // Clickjacking — deny all framing (also covered by CSP frame-ancestors)
+  // Clickjacking - deny all framing (also covered by CSP frame-ancestors)
   { key: "X-Frame-Options", value: "DENY" },
-  // MIME sniffing — browsers must respect declared content-type
+  // MIME sniffing - browsers must respect declared content-type
   { key: "X-Content-Type-Options", value: "nosniff" },
-  // Referrer — send origin only on cross-origin requests
+  // Referrer - send origin only on cross-origin requests
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Feature/Permissions policy — disable unused browser APIs
+  // Feature/Permissions policy - disable unused browser APIs
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()" },
   // CSP
   { key: "Content-Security-Policy", value: csp },

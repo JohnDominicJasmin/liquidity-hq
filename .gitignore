@@ -30,7 +30,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files — .env.example is tracked deliberately (placeholders only, no secrets)
+# env files - .env.example is tracked deliberately (placeholders only, no secrets)
 .env*
 !.env.example
 

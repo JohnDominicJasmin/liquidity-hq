@@ -19,4 +19,4 @@ ALTER TABLE public.user_subscriptions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "sub_select_own" ON public.user_subscriptions
   FOR SELECT USING (auth.uid() = user_id);
 
--- Only service role (webhook) can insert/update — no user-facing write policy
+-- Only service role (webhook) can insert/update - no user-facing write policy

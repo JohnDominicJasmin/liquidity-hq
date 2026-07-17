@@ -17,7 +17,7 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Only intercept navigation requests — API calls and static assets fail naturally
+// Only intercept navigation requests - API calls and static assets fail naturally
 // so JSON.parse() in API handlers isn't handed the offline HTML page
 self.addEventListener('fetch', e => {
   if (e.request.mode !== 'navigate') return;

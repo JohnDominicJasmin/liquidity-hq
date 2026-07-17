@@ -1,5 +1,5 @@
 -- lhq_liq_events: stores significant liquidation events (>$10K) for cross-session cluster history.
--- RLS disabled — this is shared global market data, not user-specific.
+-- RLS disabled - this is shared global market data, not user-specific.
 -- Events are retained for 7 days; old rows are purged by the LiqFeed save routine.
 
 create table if not exists lhq_liq_events (

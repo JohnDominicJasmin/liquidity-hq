@@ -1,4 +1,4 @@
--- Liquidity Hunter HQ — Supabase Schema
+-- Liquidity Hunter HQ - Supabase Schema
 -- Run this in your Supabase SQL Editor once.
 -- No auth: this is a private personal tool.
 
@@ -36,7 +36,7 @@ create table if not exists signals (
 
 -- ─────────────────────────────────────────
 -- Row-level security
--- Disable RLS (private single-user tool — access via anon key from your device only)
+-- Disable RLS (private single-user tool - access via anon key from your device only)
 -- ─────────────────────────────────────────
 alter table clusters disable row level security;
 alter table signals  disable row level security;

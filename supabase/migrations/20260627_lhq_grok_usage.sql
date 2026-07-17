@@ -20,7 +20,7 @@ create policy "users_own_usage" on lhq_grok_usage
   using  (user_id = auth.uid())
   with check (user_id = auth.uid());
 
--- Dev table — same structure
+-- Dev table - same structure
 create table if not exists lhq_dev_grok_usage (
   user_id           uuid        not null references auth.users(id) on delete cascade,
   date              date        not null,

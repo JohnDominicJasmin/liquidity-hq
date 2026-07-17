@@ -1,5 +1,5 @@
 services:
-  # ── Production — auto-deploys from main ─────────────────────────────────────
+  # ── Production - auto-deploys from main ─────────────────────────────────────
   - type: web
     name: liquidity-hq
     runtime: node
@@ -20,7 +20,7 @@ services:
       # TELEGRAM_CHAT_ID
       # LEMONSQUEEZY_WEBHOOK_SECRET
 
-  # ── Development — auto-deploys from dev ─────────────────────────────────────
+  # ── Development - auto-deploys from dev ─────────────────────────────────────
   - type: web
     name: liquidity-hq-dev
     runtime: node
@@ -30,7 +30,7 @@ services:
     envVars:
       - key: NEXT_PUBLIC_APP_ENV
         value: dev
-      # Same Supabase project as prod — set these in the Render dashboard:
+      # Same Supabase project as prod - set these in the Render dashboard:
       # NEXT_PUBLIC_SUPABASE_URL
       # NEXT_PUBLIC_SUPABASE_ANON_KEY
       # GROK_API_KEY

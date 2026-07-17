@@ -1,5 +1,5 @@
 -- Server-side log of every Grok API call made by the Telegram alert cron.
--- No user_id — this is system-level spend, not per-user quota.
+-- No user_id - this is system-level spend, not per-user quota.
 -- Run once in the Supabase SQL Editor.
 
 create table if not exists lhq_alert_grok_log (

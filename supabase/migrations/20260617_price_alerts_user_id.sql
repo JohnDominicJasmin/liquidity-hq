@@ -1,5 +1,5 @@
 -- Add user_id to price_alerts for per-user ownership and routing.
--- Nullable so existing rows (no user_id) stay valid — they fall back to
+-- Nullable so existing rows (no user_id) stay valid - they fall back to
 -- broadcasting to all connected Telegram users (legacy single-user behaviour).
 
 ALTER TABLE public.price_alerts
