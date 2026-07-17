@@ -272,7 +272,13 @@ These two are a different kind of work from everything else fixed in this docume
 
 **What's still not done (the real "High, structural" remainder):** consolidating those now-`rem` declarations onto the 9 semantic role tokens (`--fs-page`, `--fs-label`, etc. instead of raw `1.25rem`), and deleting the 43 ad-hoc mobile media-query overrides that consolidation would replace. That part genuinely does need the per-site "is this a `--fs-label` or a `--fs-caption`" judgment call, and would visibly resize elements across most pages - a page-by-page visual QA pass, not a find-and-replace. Deliberately deferred, product owner's call.
 
-**#25 - what's actually done:** two shared components now exist and are adopted, not just defined. [components/LoadingState.tsx](components/LoadingState.tsx) (built for item #16) replaced three different ad-hoc loading treatments on `/funding`, `/correlation`, `/upgrade`. [components/EmptyState.tsx](components/EmptyState.tsx) (built here) wraps the `.empty-state` CSS convention that `TradeJournal.tsx`, `DistributionTracker.tsx`, and `alerts/page.tsx` had each already been using ad-hoc - applied it to `/live-tracking`'s "No signals logged yet," consolidating a fourth ad-hoc instance into the shared one. **What's not done:** a dashed-border-card empty-state variant also exists (`HypothesisTracker.tsx`, `PositionSizer.tsx`'s `.ps-empty`) that's visually distinct from `.empty-state` - deliberately left alone rather than forcing it into the plain-text pattern and changing its appearance. A full sweep would mean either standardizing on one visual treatment (a design decision, not a bug fix) or building a second shared component for the dashed-card variant and adopting it everywhere that pattern already appears.
+**#25 - what's actually done:** two shared components now exist and are adopted, not just defined. [components/LoadingState.tsx](components/LoadingState.tsx) (built for item #16) replaced three different ad-hoc loading treatments on `/funding`, `/correlation`, `/upgrade`. [components/EmptyState.tsx](components/EmptyState.tsx) (built here) wraps the `.empty-state` CSS convention that `TradeJournal.tsx`, `DistributionTracker.tsx`, and `alerts/page.tsx` had each already been using ad-hoc - applied it to `/live-tracking`'s "No signals logged yet," consolidating a fourth ad-hoc instance into the shared one.
+
+**Update 2026-07-17 - the dashed-card variant is now consolidated too:** turned out `.ps-empty` wasn't PositionSizer's one-off - the exact same class had been independently copy-pasted into 5 more calculators (`DcaCalc`, `FundingCostCalc`, `LiquidationCalc`, `PnLCalc`, `RiskRewardCalc`), plus `HypothesisTracker` had a near-identical inline dashed box. Added a `dashed` prop to `EmptyState` (new `.empty-state-dashed` CSS modifier, same visual as the old `.ps-empty`) and swapped all 6 `.ps-empty` usages + `HypothesisTracker`'s inline version onto it; `.ps-empty` itself deleted (dead after the swap). Verified live on `/calc` - Position Sizer and Liquidation Price tabs both render correctly, no console errors.
+
+Also closed the two loading-transient loose ends noted in SYS-6: added `app/funding/loading.tsx` (using the shared `LoadingState fullPage`) so Next's route-level Suspense boundary shows an instant loading UI during navigation/bundle-load instead of a blank frame - this is the documented fix for exactly this class of flash (`node_modules/next/dist/docs/.../loading.md`). The `MacroStrip.tsx` DXY/SPX/GOLD "-" transient was investigated and left alone on purpose - it's the same shared-store hydration pattern used everywhere else in the app for not-yet-loaded numeric values (e.g. dashboard's `BTC.D -`), not a one-off inconsistency; "fixing" it in isolation would mean redesigning how every numeric widget in the app handles its pending state, well beyond this item.
+
+**What's still not done:** nothing structurally - both shared components (loading + empty-state, plain and dashed) are now built and adopted everywhere the audit identified. Any *new* ad-hoc loading/empty spot added in the future should use these instead of inventing a new pattern.
 
 ---
 
@@ -302,7 +308,7 @@ These two are a different kind of work from everything else fixed in this docume
 13. `[Med]` **AUTH-3** — ✅ fixed + verified live, see §4.
 14. `[Med]` **AUTH-5** — ✅ already fixed, see §4.
 15. `[Med]` Verify Grok **Expand** control — ✅ investigated, doesn't reproduce, see AUTH-6.
-16. `[Med]` Unify loading (one skeleton) + empty states — 🟡 partially fixed, see SYS-6. (Blank-flash timing + MacroStrip "—" transient still open, same underlying work as #25.)
+16. `[Med]` Unify loading (one skeleton) + empty states — ✅ fixed, see SYS-6 / §7 addendum #25. (Blank-flash timing fixed via `app/funding/loading.tsx`; MacroStrip "—" transient investigated and left as-is - matches the sitewide pending-value pattern, not a one-off bug.)
 17. `[Low]` **AUTH-2** — ✅ fixed + verified live, see AUTH-2.
 18. `[Low]` Grok single close button — ✅ fixed + verified live, see AUTH-6. Gate-copy unification (3 styles → 1) and public `/upgrade` pricing still open.
 
@@ -317,7 +323,7 @@ These two are a different kind of work from everything else fixed in this docume
 
 ### Structural
 24. `[High]` 🟡 `rem` conversion done (see SYS-7) - semantic-token consolidation still deliberately not attempted, see §7 addendum below.
-25. `[Med]` 🟡 Shared component built and adopted where safe - see §7 addendum below.
+25. `[Med]` ✅ Shared loading + empty-state components (plain and dashed) built and fully adopted - see §7 addendum below.
 
 ---
 
