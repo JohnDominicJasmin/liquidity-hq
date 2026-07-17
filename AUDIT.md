@@ -348,6 +348,7 @@ Also closed the two loading-transient loose ends noted in SYS-6: added `app/fund
 ### Structural
 24. `[High]` ✅ Fully done - `rem` conversion + semantic-token consolidation, both CSS (615 of 690 declarations) and inline JSX (878 of 924 sites), all now on the 9 role tokens - see §7 addendum below.
 25. `[Med]` ✅ Shared loading + empty-state components (plain and dashed) built and fully adopted - see §7 addendum below.
+26. `[Med, future]` 🔵 Not started - product owner flagged 2026-07-17. **`/alerts`' "Alert Coins" grid** ([app/alerts/page.tsx:690-712](app/alerts/page.tsx)) is a flat `flex-wrap` chip cloud rendering every entry in `COINS` as an individual toggle button, no search/filter/grouping. Works fine at today's 50 coins (3-4 rows), but doesn't scale - at 100+ coins it's just more and more wrapped rows with nothing to help a user quickly find/manage one coin among them. Needs a better pattern (search box + filtered list, grouped by category, virtualized list, etc.) before the coin count grows further. Explicitly deferred - logged now, not fixed this pass.
 
 ---
 
