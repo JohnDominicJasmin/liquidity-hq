@@ -44,7 +44,7 @@ export default function BtcRiskLevel() {
   const score = maxPossible > 0 ? Math.round((total / maxPossible) * 100) : null;
 
   const { label, color } = score == null
-    ? { label: '—', color: 'var(--txt3)' }
+    ? { label: '-', color: 'var(--txt3)' }
     : score <= 30 ? { label: 'Low Risk',      color: '#34d399' }
     : score <= 55 ? { label: 'Moderate',       color: '#fbbf24' }
     : score <= 75 ? { label: 'High Risk',      color: '#fb923c' }
@@ -72,7 +72,7 @@ export default function BtcRiskLevel() {
       {/* Score */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 10 }}>
         <span style={{ fontSize: 36, fontWeight: 800, color: score != null ? color : 'var(--txt3)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
-          {score ?? '—'}
+          {score ?? '-'}
         </span>
         <span style={{ fontSize: 12, color: 'var(--txt3)' }}>/ 100</span>
         {btcDom != null && (

@@ -20,7 +20,6 @@ export default function AuthGate({ children, title, desc }: Props) {
   if (!user) {
     return (
       <div className="auth-gate">
-        
         <div className="auth-gate-title">{title ?? 'Sign in required'}</div>
         <div className="auth-gate-desc">
           {desc ?? 'Create a free account to access this feature.'}

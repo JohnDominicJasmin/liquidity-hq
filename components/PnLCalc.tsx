@@ -107,7 +107,7 @@ export default function PnLCalc() {
               ? { background: 'var(--green-bg)', color: 'var(--green)', border: '0.5px solid var(--green-bdr)' }
               : { background: 'var(--red-bg)',   color: 'var(--red)',   border: '0.5px solid var(--red-bdr)'   }
           }>
-            {isProfit ? '▲ PROFIT' : '▼ LOSS'} — {result.pnlPct >= 0 ? '+' : ''}{result.pnlPct.toFixed(2)}%
+            {isProfit ? '▲ PROFIT' : '▼ LOSS'} - {result.pnlPct >= 0 ? '+' : ''}{result.pnlPct.toFixed(2)}%
           </div>
           <div className="ps-results">
             <div className={`ps-result ${isProfit ? 'ps-result-profit' : 'ps-result-risk'}`}>

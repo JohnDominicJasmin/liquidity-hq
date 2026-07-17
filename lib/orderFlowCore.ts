@@ -1,15 +1,15 @@
-// Pure, framework-agnostic Order Flow Setup scoring — replicates the 5 backtestable
+// Pure, framework-agnostic Order Flow Setup scoring - replicates the 5 backtestable
 // signals from components/StopLossZone.tsx's scoreBias/computeStop/computeTP (RSI on
 // 15m/1h/4h, POC, VWAP, funding rate). OI trend, CVD divergence, and taker buy ratio
-// are deliberately excluded — they require trade-level/positioning data that exchanges
+// are deliberately excluded - they require trade-level/positioning data that exchanges
 // don't retain far enough back to backtest meaningfully (see app/backtest page notes).
 
 import { OHLCV } from './strategyCore';
 import { computeFibLevels } from './marketStore';
 
-/* ── Windowed RSI(14) — matches MarketProvider.tsx's computeRSI14 exactly:
+/* ── Windowed RSI(14) - matches MarketProvider.tsx's computeRSI14 exactly:
    a fresh average over the last 14 changes each time, not Wilder's continuous
-   smoothing. This is deliberate — it's what the live Order Flow card actually uses. */
+   smoothing. This is deliberate - it's what the live Order Flow card actually uses. */
 export function simpleRSI14(closes: number[]): number | null {
   if (closes.length < 15) return null;
   const changes = closes.slice(1).map((c, i) => c - closes[i]);
@@ -20,7 +20,7 @@ export function simpleRSI14(closes: number[]): number | null {
   return avgLoss === 0 ? 100 : Math.round(100 - (100 / (1 + avgGain / avgLoss)));
 }
 
-/* Finds the index of the most recent item that has fully CLOSED by timeMs —
+/* Finds the index of the most recent item that has fully CLOSED by timeMs -
    item.time is an OPEN/event time, so it's closed once timeMs >= time + intervalMs
    (pass intervalMs=0 for point-in-time events like funding rate changes, where the
    value simply takes effect at its own timestamp). Binary search avoids leaking a
@@ -35,7 +35,7 @@ export function lastClosedIndexBefore(items: { time: number }[], timeMs: number,
   return ans;
 }
 
-/* ── Rolling volume profile (POC/VAH/VAL) + VWAP — matches MarketProvider.tsx's
+/* ── Rolling volume profile (POC/VAH/VAL) + VWAP - matches MarketProvider.tsx's
    fetchKlines exactly: 60 buckets across the window's high/low range, volume spread
    across each candle's high-low span, POC = max-volume bucket, value area = expand
    from POC until 70% of volume captured, VWAP = typical-price weighted by base volume. */
@@ -88,7 +88,7 @@ export function computeVolumeProfile(window: OHLCV[]): VolumeProfile | null {
   return { poc, vah, val, vwap };
 }
 
-/* ── Bias scoring — RSI15m + RSI1h + RSI4h + POC + VWAP + funding (5 of the live
+/* ── Bias scoring - RSI15m + RSI1h + RSI4h + POC + VWAP + funding (5 of the live
    card's 8 signals; OI/CVD/taker excluded, see file header). Same thresholds as
    components/StopLossZone.tsx's scoreBias. ── */
 export type OFBias = 'long' | 'short' | 'neutral';
@@ -114,7 +114,7 @@ export function scoreOrderFlowBias(
   return { bias: 'neutral', bull, bear, total };
 }
 
-/* ── Entry/SL/TP zone candidates — mirrors StopLossZone.tsx's candidatesBelow/Above
+/* ── Entry/SL/TP zone candidates - mirrors StopLossZone.tsx's candidatesBelow/Above
    and computeStop/computeTP, using only backtestable inputs (no order book walls). ── */
 interface Level { price: number; label: string }
 

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 
-// Single source of truth for theme state — this used to be reimplemented
+// Single source of truth for theme state - this used to be reimplemented
 // four times (NavDrawer's toggle, SettingsModal's chips, and two copies of
 // the same chips in app/settings/page.tsx for the logged-out/logged-in
 // views), each hand-rolling the same three steps and easy to get out of
@@ -18,7 +18,7 @@ export function getStoredTheme(): Theme {
   }
 }
 
-/** Apply + persist a theme. Dispatches 'theme-change' — KLineProChart and
+/** Apply + persist a theme. Dispatches 'theme-change' - KLineProChart and
     GrokSignalChart re-style only on that event, so without it canvas charts
     stay in the old theme until a full reload. */
 export function applyTheme(next: Theme) {

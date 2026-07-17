@@ -89,7 +89,7 @@ export default function OnboardingProvider({ children }: { children: React.React
       .then(() => {});
   }, [user]);
 
-  // Global event bridge — any page can fire: window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }))
+  // Global event bridge - any page can fire: window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }))
   useEffect(() => {
     const h = (e: Event) => markDone((e as CustomEvent<OnboardingKey>).detail);
     window.addEventListener('onboarding:done', h);

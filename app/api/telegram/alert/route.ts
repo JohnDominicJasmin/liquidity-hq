@@ -11,10 +11,10 @@ import { computeDistributionScore, DistributionInputs } from '@/lib/distribution
 
 export const dynamic = 'force-dynamic';
 
-/* ── Grok (lightweight — no web search, pure reasoning) ── */
+/* ── Grok (lightweight - no web search, pure reasoning) ── */
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
-// Cap concurrent Grok calls — excess requests return '' immediately rather than
+// Cap concurrent Grok calls - excess requests return '' immediately rather than
 // chaining 12s timeouts (e.g. 17 whale signals firing at once = 204s chained).
 let grokInFlight = 0;
 const GROK_CONCURRENCY = 3;
@@ -48,7 +48,7 @@ async function grokAnalyze(prompt: string): Promise<string> {
     if (!res.ok) return '';
     const data = await res.json();
     const text = (data.choices?.[0]?.message?.content ?? '').trim();
-    // fire-and-forget: log to DB — never let this block or throw
+    // fire-and-forget: log to DB - never let this block or throw
     void (async () => { try { await getSupabaseAdmin().from(T.alert_grok_log).insert({ signal_type: inferSignalType(prompt) }); } catch { } })();
     return text;
   } catch { return ''; } finally {
@@ -64,8 +64,8 @@ function parseConviction(raw: string): { text: string; badge: string } {
   const text  = raw.replace(/\n?CONVICTION:\s*(High|Moderate|Weak)/i, '').trim();
   const badges: Record<string, string> = {
     High:     '🔴 <i>High conviction</i>',
-    Moderate: '🟡 <i>Moderate — wait for confirmation</i>',
-    Weak:     '⚪ <i>Weak signal — observe only</i>',
+    Moderate: '🟡 <i>Moderate - wait for confirmation</i>',
+    Weak:     '⚪ <i>Weak signal - observe only</i>',
   };
   return { text, badge: badges[level] };
 }
@@ -75,14 +75,14 @@ function fmtGrok(raw: string): string {
   return `\n\n🤖 <b>LiquidityAI:</b> ${text}${badge ? `\n${badge}` : ''}`;
 }
 
-/* ── Signal queue — for confluence batching ── */
+/* ── Signal queue - for confluence batching ── */
 interface SignalEntry { coin: string; title: string; body: string; name: string; dir?: 'long' | 'short' }
 
 /* ── Coin maps (sourced from shared lib/coins.ts) ── */
 const BINANCE_PERP  = BINANCE_SYMS;
 const BYBIT_PERP    = BYBIT_SYMS;
 const BINANCE_SPOT  = BINANCE_SYMS;   // spot symbols are identical to perp symbols
-// Bybit-only coins: not listed on Binance perp — use Bybit for klines / OI / whale checks
+// Bybit-only coins: not listed on Binance perp - use Bybit for klines / OI / whale checks
 const BYBIT_KLINE_SYMS: Record<string, string> = Object.fromEntries(
   Object.entries(BYBIT_SYMS).filter(([c]) => !BINANCE_SYMS[c])
 );
@@ -100,7 +100,7 @@ const WHALE_THRESHOLD: Record<string, number> = {
   stx: 250_000,   jup: 250_000,   wld: 250_000,  render: 250_000, tao: 500_000, fet: 250_000,
   ondo: 250_000,  pyth: 250_000,  ena: 250_000,  dydx: 250_000,
   sand: 250_000,  mana: 250_000,  gmt: 250_000,
-  // xau/spx excluded — synthetic perps with non-standard trade sizing
+  // xau/spx excluded - synthetic perps with non-standard trade sizing
 };
 
 /* ── In-memory state ── */
@@ -119,16 +119,16 @@ const CD: Record<string, number> = {
   cvd:       60 * 60_000,
   fng:       23 * 3600_000,   // Fear & Greed extreme (once per day)
   daily:     23 * 3600_000,   // Daily 7am summary
-  sentiment:  4 * 3600_000,   // Sentiment Extremes — all 3 indicators aligned
+  sentiment:  4 * 3600_000,   // Sentiment Extremes - all 3 indicators aligned
   squeeze:      4 * 3600_000,   // Squeeze/Flush threshold alert per coin per direction
-  ema_setup:     6 * 3600_000,   // EMA ribbon strategy (4H) — all conditions green
-  ema_setup_1h:  2 * 3600_000,   // EMA ribbon strategy (1H) — faster TF, shorter cooldown
+  ema_setup:     6 * 3600_000,   // EMA ribbon strategy (4H) - all conditions green
+  ema_setup_1h:  2 * 3600_000,   // EMA ribbon strategy (1H) - faster TF, shorter cooldown
   ema_setup_30m: 60 * 60_000,    // EMA ribbon strategy (30M)
-  ema_setup_15m: 30 * 60_000,    // EMA ribbon strategy (15M) — fastest TF, shortest cooldown
-  distribution:  4 * 3600_000,   // Distribution — big players taking profit into strength
+  ema_setup_15m: 30 * 60_000,    // EMA ribbon strategy (15M) - fastest TF, shortest cooldown
+  distribution:  4 * 3600_000,   // Distribution - big players taking profit into strength
 };
 
-/* ── Concurrency limiter — runs tasks in chunks to avoid ETIMEDOUT under Render free tier ── */
+/* ── Concurrency limiter - runs tasks in chunks to avoid ETIMEDOUT under Render free tier ── */
 async function runBatched<T>(tasks: Array<() => Promise<T>>, batchSize = 5): Promise<T[]> {
   const results: T[] = [];
   for (let i = 0; i < tasks.length; i += batchSize) {
@@ -170,7 +170,7 @@ async function tg(token: string, chatId: string | string[], text: string): Promi
 }
 
 /* ════════════════════════════════════════
-   FLUSH — group signals by coin, send single or confluence
+   FLUSH - group signals by coin, send single or confluence
    ════════════════════════════════════════ */
 async function flushSignals(token: string, chatId: string | string[], stamp: string, queue: SignalEntry[]): Promise<void> {
   if (queue.length === 0) return;
@@ -185,12 +185,12 @@ async function flushSignals(token: string, chatId: string | string[], stamp: str
 
   await Promise.all([...byCoin.entries()].map(async ([coin, entries]) => {
     if (entries.length === 1) {
-      // Single signal — send as-is
+      // Single signal - send as-is
       await tg(token, chatId, entries[0].body);
       return;
     }
 
-    // Confluence — 2+ signals on same coin
+    // Confluence - 2+ signals on same coin
     const label   = LABELS[coin] ?? coin.toUpperCase();
     const bullets = entries.map(e => `• ${e.title}`).join('\n');
     const grokTake = await grokAnalyze(
@@ -201,7 +201,7 @@ async function flushSignals(token: string, chatId: string | string[], stamp: str
       `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
     );
     await tg(token, chatId,
-      `🔀 <b>${label} — ${entries.length} Signals Aligned</b>\n\n` +
+      `🔀 <b>${label} - ${entries.length} Signals Aligned</b>\n\n` +
       `${bullets}` +
       `${fmtGrok(grokTake)}\n\n` +
       `<i>${stamp}</i>`
@@ -263,7 +263,7 @@ async function fetchBybitKlines(symbol: string, interval: string, limit: number)
     if (!res.ok) return [];
     const data = await res.json() as { result?: { list?: string[][] } };
     const list = data.result?.list ?? [];
-    // Bybit returns newest-first — reverse so index 0 = oldest
+    // Bybit returns newest-first - reverse so index 0 = oldest
     // Apply 0.001 factor for 1000x denomination symbols (e.g. 1000PEPEUSDT, 1000BONKUSDT)
     const pf = symbol.startsWith('1000') ? 0.001 : 1;
     return list.map(c => parseFloat(c[4]) * pf).reverse();
@@ -302,7 +302,7 @@ async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> 
       let closes: number[];
       if (BINANCE_SPOT[coin]) {
         // Wilder's RSI smoothing needs a long lookback to converge to the value
-        // TradingView/Bybit show — 20 candles only gives ~5 smoothing iterations
+        // TradingView/Bybit show - 20 candles only gives ~5 smoothing iterations
         // past the initial seed, nowhere near enough. 300 matches what the
         // Arena chart reader uses for the same calculation.
         const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=300`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
@@ -322,7 +322,7 @@ async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> 
         queue.push({
           coin, name: `${label} RSI overbought (${r})`,
           title: `RSI Overbought ${r} (1H)`,
-          body: `⚡ <b>${label} RSI Overbought (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Exhaustion — Potential Reversal\nAction: Avoid chasing longs. Watch for rejection / reversal candle.\n\n<i>${stamp}</i>`,
+          body: `⚡ <b>${label} RSI Overbought (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Exhaustion - Potential Reversal\nAction: Avoid chasing longs. Watch for rejection / reversal candle.\n\n<i>${stamp}</i>`,
         });
         markSent(`rsi_ob_${coin}`); fired.push(`${label} RSI overbought (${r})`);
       }
@@ -330,7 +330,7 @@ async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> 
         queue.push({
           coin, name: `${label} RSI oversold (${r})`,
           title: `RSI Oversold ${r} (1H)`,
-          body: `⚡ <b>${label} RSI Oversold (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Oversold — Bounce Setup\nAction: Watch for bounce from key support. Long bias on confirmation.\n\n<i>${stamp}</i>`,
+          body: `⚡ <b>${label} RSI Oversold (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Oversold - Bounce Setup\nAction: Watch for bounce from key support. Long bias on confirmation.\n\n<i>${stamp}</i>`,
         });
         markSent(`rsi_os_${coin}`); fired.push(`${label} RSI oversold (${r})`);
       }
@@ -385,7 +385,7 @@ async function checkEMACross(stamp: string, queue: SignalEntry[]): Promise<strin
           title: `200 EMA Cross ↑ (1H)`,
           body: `📈 <b>${label} Crossed Above 200 EMA (1H)</b>\n\n` +
             `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
-            `Signal: Bullish — price reclaimed major moving average\n` +
+            `Signal: Bullish - price reclaimed major moving average\n` +
             `Action: Watch for EMA retest as support and higher-high confirmation.` +
             `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
         });
@@ -402,7 +402,7 @@ async function checkEMACross(stamp: string, queue: SignalEntry[]): Promise<strin
           title: `200 EMA Cross ↓ (1H)`,
           body: `📉 <b>${label} Crossed Below 200 EMA (1H)</b>\n\n` +
             `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
-            `Signal: Bearish — price lost major moving average\n` +
+            `Signal: Bearish - price lost major moving average\n` +
             `Action: Watch for failed EMA retest as resistance and lower-low confirmation.` +
             `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
         });
@@ -474,7 +474,7 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[]): Promise<stri
             title: `Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})`,
             body: `${emoji} <b>${label} Rapid ${pct > 0 ? 'Pump' : 'Dump'} ${sign}${pct.toFixed(1)}% (${tfLabel})</b>\n\n` +
               `Price: <b>$${currClose.toLocaleString()}</b>\n` +
-              `Signal: ${Math.abs(pct).toFixed(1)}% candle — ${pct > 0 ? 'momentum surge' : 'flash dump'}\n` +
+              `Signal: ${Math.abs(pct).toFixed(1)}% candle - ${pct > 0 ? 'momentum surge' : 'flash dump'}\n` +
               (patternStr ? `Pattern: <b>${patternStr}</b>\n` : '') +
               `Action: Check volume + OI. Next candle direction is key.` +
               `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
@@ -521,8 +521,8 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
             coin, name: `${label} whale ${side} ${usdFmt}`,
             title: `Whale ${side} ${usdFmt}`,
             body: side === 'BUY'
-              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy — institutional accumulation${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`
-              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell — institutional distribution${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
+              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy - institutional accumulation${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`
+              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell - institutional distribution${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
           });
           markSent(key); fired.push(`${label} whale ${side} ${usdFmt}`); break;
         }
@@ -557,8 +557,8 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
             coin, name: `${label} whale ${side} ${usdFmt}`,
             title: `Whale ${side} ${usdFmt}`,
             body: side === 'BUY'
-              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy — institutional accumulation${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`
-              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell — institutional distribution${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
+              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy - institutional accumulation${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`
+              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell - institutional distribution${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
           });
           markSent(key); fired.push(`${label} whale ${side} ${usdFmt}`); break;
         }
@@ -569,7 +569,7 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
 }
 
 /* ════════════════════════════════════════
-   5. BREAKING NEWS (global — stays direct, no coin grouping)
+   5. BREAKING NEWS (global - stays direct, no coin grouping)
    ════════════════════════════════════════ */
 interface FinnhubItem { id: number; headline: string; datetime: number; source: string }
 const FINNHUB_KEY = process.env.FINNHUB_KEY ?? '';
@@ -646,9 +646,9 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
         queue.push({
           coin, name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
           title: `Open Interest ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
-          body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} — ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
+          body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} - ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
             `Open interest changed from ${(oldest / 1000).toFixed(1)}K to ${(newest / 1000).toFixed(1)}K contracts\n` +
-            `Signal: ${pct > 0 ? 'New money entering — big move likely building' : 'Positions closing — potential trend reversal'}` +
+            `Signal: ${pct > 0 ? 'New money entering - big move likely building' : 'Positions closing - potential trend reversal'}` +
             `${grokLine}\n\n<i>${stamp}</i>`,
         });
         markSent(key); fired.push(`${label} OI ${dir} ${pct.toFixed(1)}%`);
@@ -685,9 +685,9 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
           queue.push({
             coin, name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
             title: `Open Interest ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
-            body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} — ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
+            body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} - ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
               `Open interest: ${(oldest / 1000).toFixed(1)}K → ${(newest / 1000).toFixed(1)}K contracts\n` +
-              `Signal: ${pct > 0 ? 'New money entering — big move likely building' : 'Positions closing — potential trend reversal'}` +
+              `Signal: ${pct > 0 ? 'New money entering - big move likely building' : 'Positions closing - potential trend reversal'}` +
               `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
           });
           markSent(key); fired.push(`${label} OI ${dir} ${pct.toFixed(1)}%`);
@@ -732,7 +732,7 @@ async function checkCVD(stamp: string, queue: SignalEntry[]): Promise<string[]> 
         queue.push({
           coin, name: `${label} bearish CVD divergence`,
           title: `Bearish CVD Divergence`,
-          body: `⚠️ <b>${label} Bearish CVD Divergence</b>\n\nPrice: <b>+${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Negative</b> — sellers dominating volume\nSignal: Price pump not supported by buying — likely a fake move\nAction: Avoid chasing longs. Watch for reversal.\n\n<i>${stamp}</i>`,
+          body: `⚠️ <b>${label} Bearish CVD Divergence</b>\n\nPrice: <b>+${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Negative</b> - sellers dominating volume\nSignal: Price pump not supported by buying - likely a fake move\nAction: Avoid chasing longs. Watch for reversal.\n\n<i>${stamp}</i>`,
         });
         markSent(`cvd_bear_${coin}`); fired.push(`${label} bearish CVD divergence`);
       }
@@ -740,7 +740,7 @@ async function checkCVD(stamp: string, queue: SignalEntry[]): Promise<string[]> 
         queue.push({
           coin, name: `${label} bullish CVD divergence`,
           title: `Bullish CVD Divergence`,
-          body: `⚡ <b>${label} Bullish CVD Divergence</b>\n\nPrice: <b>${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Positive</b> — buyers absorbing the dip\nSignal: Price drop not matched by sell volume — accumulation signal\nAction: Watch for bounce from key support.\n\n<i>${stamp}</i>`,
+          body: `⚡ <b>${label} Bullish CVD Divergence</b>\n\nPrice: <b>${priceChangePct.toFixed(1)}%</b> in 1h\nCVD: <b>Positive</b> - buyers absorbing the dip\nSignal: Price drop not matched by sell volume - accumulation signal\nAction: Watch for bounce from key support.\n\n<i>${stamp}</i>`,
         });
         markSent(`cvd_bull_${coin}`); fired.push(`${label} bullish CVD divergence`);
       }
@@ -772,7 +772,7 @@ async function checkPriceAlerts(
 
     if (!alertsRes.data?.length) return [];
 
-    // Build user_id → telegram_chat_id lookup — Telegram alerts are Pro-only,
+    // Build user_id → telegram_chat_id lookup - Telegram alerts are Pro-only,
     // so a free user's chat_id (however it got saved) never receives a ping.
     const chatIdByUser = new Map<string, string>();
     for (const row of settingsRes.data ?? []) {
@@ -847,18 +847,18 @@ async function checkFearGreed(token: string, chatId: string | string[], stamp: s
 
     if (val <= 15 && !onCooldown('fng_fear', CD.fng)) {
       await tg(token, chatId,
-        `🩸 <b>Extreme Fear — Fear &amp; Greed: ${val}</b>\n\n` +
+        `🩸 <b>Extreme Fear - Fear &amp; Greed: ${val}</b>\n\n` +
         `Classification: <b>${cls}</b>\n` +
-        `Signal: Market in panic — historically a contrarian accumulation zone\n` +
+        `Signal: Market in panic - historically a contrarian accumulation zone\n` +
         `Action: Watch for capitulation candle + volume spike as entry signal.\n\n` +
         `<i>${stamp}</i>`);
       markSent('fng_fear'); fired.push(`Fear & Greed extreme fear (${val})`);
     }
     if (val >= 85 && !onCooldown('fng_greed', CD.fng)) {
       await tg(token, chatId,
-        `🔥 <b>Extreme Greed — Fear &amp; Greed: ${val}</b>\n\n` +
+        `🔥 <b>Extreme Greed - Fear &amp; Greed: ${val}</b>\n\n` +
         `Classification: <b>${cls}</b>\n` +
-        `Signal: Market euphoria — historically a distribution zone\n` +
+        `Signal: Market euphoria - historically a distribution zone\n` +
         `Action: Consider tightening stops and reducing position size.\n\n` +
         `<i>${stamp}</i>`);
       markSent('fng_greed'); fired.push(`Fear & Greed extreme greed (${val})`);
@@ -897,7 +897,7 @@ async function checkDailySummary(
     }
   } catch { /* skip */ }
 
-  // Funding rates — two rows of 4
+  // Funding rates - two rows of 4
   const frParts = COINS.map(coin => {
     const fr = frMap[coin];
     if (fr == null) return null;
@@ -921,7 +921,7 @@ async function checkDailySummary(
     }
   } catch { /* skip */ }
 
-  // Grok daily outlook (no conviction label — this is an overview, not a signal)
+  // Grok daily outlook (no conviction label - this is an overview, not a signal)
   const grokRaw  = await grokAnalyze(
     `Elite crypto trader. Morning briefing for ${dateStr}. ` +
     fngForGrok +
@@ -932,7 +932,7 @@ async function checkDailySummary(
   const grokLine = grokRaw ? `\n\n🤖 <b>LiquidityAI:</b> ${grokRaw}` : '';
 
   await tg(token, chatId,
-    `☀️ <b>Morning Briefing — ${dateStr}</b>` +
+    `☀️ <b>Morning Briefing - ${dateStr}</b>` +
     `${fngLine}\n\n` +
     `📊 <b>Funding Rates:</b>\n${frBlock}` +
     `${grokLine}` +
@@ -990,17 +990,17 @@ async function checkSentimentExtremes(
         `Direct, no hedging. End with: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
       );
       await tg(token, chatId,
-        `🚨 <b>Sentiment Extremes — ALL 3 BEARISH</b>\n\n` +
+        `🚨 <b>Sentiment Extremes - ALL 3 BEARISH</b>\n\n` +
         `😱 F&amp;G: <b>${fng}</b> (${fngCls})\n` +
-        `💸 BTC FR: <b>+${frPct.toFixed(4)}%</b> — Longs overcrowded\n` +
+        `💸 BTC FR: <b>+${frPct.toFixed(4)}%</b> - Longs overcrowded\n` +
         `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
-        `Signal: All 3 sentiment gauges at extremes — <b>long flush risk elevated</b>\n` +
+        `Signal: All 3 sentiment gauges at extremes - <b>long flush risk elevated</b>\n` +
         `Action: Tighten stops on longs. Do NOT add longs into this setup.` +
         `${fmtGrok(grokTake)}\n\n` +
         `<i>${stamp}</i>`
       );
       markSent('sentiment_bear');
-      fired.push(`Sentiment extremes — bearish (F&G ${fng}, FR +${frPct.toFixed(4)}%, Long ${longPct.toFixed(0)}%)`);
+      fired.push(`Sentiment extremes - bearish (F&G ${fng}, FR +${frPct.toFixed(4)}%, Long ${longPct.toFixed(0)}%)`);
     }
 
     // ── BULLISH EXTREME (contrarian): F&G fearful + FR short-heavy + L/S short-heavy ──
@@ -1008,23 +1008,23 @@ async function checkSentimentExtremes(
     if (fng <= 25 && frPct <= -0.02 && longPct <= 40 && !onCooldown('sentiment_bull', CD.sentiment)) {
       const grokTake = await grokAnalyze(
         `Elite crypto trader. All 3 sentiment indicators are simultaneously at CONTRARIAN BULLISH extremes: ` +
-        `Fear & Greed ${fng} (${fngCls}) — extreme fear, BTC Funding Rate ${frPct.toFixed(4)}% (shorts paying), ` +
+        `Fear & Greed ${fng} (${fngCls}) - extreme fear, BTC Funding Rate ${frPct.toFixed(4)}% (shorts paying), ` +
         `BTC L/S Ratio ${longPct.toFixed(1)}% long / ${shortPct.toFixed(1)}% short (overleveraged shorts). ` +
         `In 3-4 sentences: Is this genuine capitulation or a dead-cat bounce zone? ` +
         `What confirms this as a valid reversal entry? Direct, no hedging. End with: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
       );
       await tg(token, chatId,
-        `🟢 <b>Sentiment Extremes — Contrarian BULLISH Setup</b>\n\n` +
+        `🟢 <b>Sentiment Extremes - Contrarian BULLISH Setup</b>\n\n` +
         `😨 F&amp;G: <b>${fng}</b> (${fngCls})\n` +
-        `💸 BTC FR: <b>${frPct.toFixed(4)}%</b> — Shorts paying\n` +
+        `💸 BTC FR: <b>${frPct.toFixed(4)}%</b> - Shorts paying\n` +
         `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
-        `Signal: All 3 sentiment gauges at fear extremes — <b>potential contrarian reversal zone</b>\n` +
+        `Signal: All 3 sentiment gauges at fear extremes - <b>potential contrarian reversal zone</b>\n` +
         `Action: Watch for capitulation candle + volume spike before entering long.` +
         `${fmtGrok(grokTake)}\n\n` +
         `<i>${stamp}</i>`
       );
       markSent('sentiment_bull');
-      fired.push(`Sentiment extremes — contrarian bullish (F&G ${fng}, FR ${frPct.toFixed(4)}%, Long ${longPct.toFixed(0)}%)`);
+      fired.push(`Sentiment extremes - contrarian bullish (F&G ${fng}, FR ${frPct.toFixed(4)}%, Long ${longPct.toFixed(0)}%)`);
     }
   } catch { /* skip */ }
   return fired;
@@ -1113,37 +1113,37 @@ async function checkSqueezeAlerts(
     if (onCooldown(key, CD.squeeze)) continue;
 
     const label    = LABELS[coin];
-    const frPct    = fr != null ? (fr >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : '—';
-    const longPct  = longRat != null ? (longRat * 100).toFixed(1) + '%' : '—';
-    const shortPct = longRat != null ? ((1 - longRat) * 100).toFixed(1) + '%' : '—';
+    const frPct    = fr != null ? (fr >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : '-';
+    const longPct  = longRat != null ? (longRat * 100).toFixed(1) + '%' : '-';
+    const shortPct = longRat != null ? ((1 - longRat) * 100).toFixed(1) + '%' : '-';
 
     if (dir === 'SHORT_SQ') {
-      // Shorts overcrowded — expect pump to flush them
+      // Shorts overcrowded - expect pump to flush them
       queue.push({
         coin, dir: 'long', name: `${label} short squeeze building (${score}/100)`,
-        title: `Short Squeeze Building — Score ${score}/100`,
+        title: `Short Squeeze Building - Score ${score}/100`,
         body:
-          `⚡ <b>SHORT SQUEEZE BUILDING — ${label}/USDT</b>\n` +
+          `⚡ <b>SHORT SQUEEZE BUILDING - ${label}/USDT</b>\n` +
           `Score: <b>${score}/100</b>\n\n` +
           `Funding: <b>${frPct}</b> (shorts paying heavily)\n` +
           `L/S Ratio: <b>${longPct} long / ${shortPct} short</b>\n\n` +
-          `Shorts overcrowded — price likely pumps to flush them.\n` +
+          `Shorts overcrowded - price likely pumps to flush them.\n` +
           `Watch for break above key resistance with volume spike.\n\n` +
           `<i>${stamp}</i>`,
       });
       markSent(key);
       fired.push(`${label} short squeeze building (${score}/100)`);
     } else {
-      // Longs overcrowded — expect dump to flush them
+      // Longs overcrowded - expect dump to flush them
       queue.push({
         coin, dir: 'short', name: `${label} long flush building (${score}/100)`,
-        title: `Long Flush Building — Score ${score}/100`,
+        title: `Long Flush Building - Score ${score}/100`,
         body:
-          `🔥 <b>LONG FLUSH BUILDING — ${label}/USDT</b>\n` +
+          `🔥 <b>LONG FLUSH BUILDING - ${label}/USDT</b>\n` +
           `Score: <b>${score}/100</b>\n\n` +
           `Funding: <b>${frPct}</b> (longs paying heavily)\n` +
           `L/S Ratio: <b>${longPct} long / ${shortPct} short</b>\n\n` +
-          `Longs overcrowded — price likely dumps to flush them.\n` +
+          `Longs overcrowded - price likely dumps to flush them.\n` +
           `Watch for break below key support with volume spike.\n\n` +
           `<i>${stamp}</i>`,
       });
@@ -1155,9 +1155,9 @@ async function checkSqueezeAlerts(
 }
 
 /* ════════════════════════════════════════
-   12b. DISTRIBUTION — BIG PLAYERS TAKING PROFIT
+   12b. DISTRIBUTION - BIG PLAYERS TAKING PROFIT
    Server-side twin of the Dashboard's Distribution Tracker. Scoring lives in
-   lib/distribution.ts (shared with the client) — this function only derives
+   lib/distribution.ts (shared with the client) - this function only derives
    the inputs from Binance futures data: 1h klines carry taker-buy volume
    (field 9) for the sell-flow + CVD proxy, openInterestHist gives the OI
    trend, topLongShortPositionRatio gives whale positioning, funding from
@@ -1211,7 +1211,7 @@ async function checkDistribution(
         const px12Pct = base12 > 0 ? (price - base12) / base12 * 100 : 0;
         const cvdDivergence: 'bearish' | null = (px12Pct >= 1 && (2 * tb12 - v12) < 0) ? 'bearish' : null;
 
-        // OI trend vs price — same semantics as the client store's oiTrend
+        // OI trend vs price - same semantics as the client store's oiTrend
         let oiTrend: DistributionInputs['oiTrend'] = null;
         if (oiRes.status === 'fulfilled' && oiRes.value.ok) {
           const oi = await oiRes.value.json() as Array<{ sumOpenInterest: string }>;
@@ -1258,7 +1258,7 @@ async function checkDistribution(
         const fmtP  = (n: number) => n >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : n.toFixed(4);
 
         const grokTake = await grokAnalyze(
-          `Elite crypto trader. Distribution detected on ${label}/USDT — score ${res.score}/100. ` +
+          `Elite crypto trader. Distribution detected on ${label}/USDT - score ${res.score}/100. ` +
           `Price $${fmtP(price)} is +${change24hPct.toFixed(1)}% in 24h but flow says big players are taking profit into strength: ${res.reasons.join(', ')}. ` +
           `In 2-3 sentences: is this a local top forming or healthy rotation? What confirms the exit (levels, flow)? Direct, no hedging. ` +
           `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
@@ -1266,13 +1266,13 @@ async function checkDistribution(
 
         queue.push({
           coin, dir: 'short', name: `${label} distribution (${res.score}/100)`,
-          title: `Distribution Detected — Score ${res.score}/100`,
+          title: `Distribution Detected - Score ${res.score}/100`,
           body:
-            `💰 <b>DISTRIBUTION DETECTED — ${label}/USDT</b>\n` +
+            `💰 <b>DISTRIBUTION DETECTED - ${label}/USDT</b>\n` +
             `Score: <b>${res.score}/100</b>\n\n` +
             `Price still up <b>+${change24hPct.toFixed(1)}%</b> in 24h, but big players look to be taking profits into strength:\n` +
             res.reasons.map(r => `• ${r}`).join('\n') + '\n\n' +
-            `Caution on new longs — watch for lower highs and loss of VWAP.` +
+            `Caution on new longs - watch for lower highs and loss of VWAP.` +
             `${fmtGrok(grokTake)}\n\n` +
             `<i>${stamp}</i>`,
         });
@@ -1288,9 +1288,9 @@ async function checkDistribution(
 /* ════════════════════════════════════════
    13. EMA RIBBON STRATEGY SETUP
    Fires when all core conditions pass: daily 200 SMA trend gate (LONG only
-   above / SHORT only below — same rule as the Arena strategy card) + ribbon
+   above / SHORT only below - same rule as the Arena strategy card) + ribbon
    aligned + value zone (price between 9 & 20 EMA) + ribbon spread + funding OK.
-   Checked across all coins — muted coins (via the Alert Coins toggle on
+   Checked across all coins - muted coins (via the Alert Coins toggle on
    /alerts) are skipped before fetching, so a user's coin selection there
    directly controls both scan cost and which coins this can fire for.
    ════════════════════════════════════════ */
@@ -1376,7 +1376,7 @@ async function checkEMASetup(
       const inValueZone  = inVZoneLong || inVZoneShort;
       if (!inValueZone) return;
 
-      // Spread filter: ribbon must be separated ≥ 0.3% of price — tangled EMAs = chop = skip
+      // Spread filter: ribbon must be separated ≥ 0.3% of price - tangled EMAs = chop = skip
       const spreadOK = price > 0 && Math.abs(ema9 - ema20) / price >= 0.003;
       if (!spreadOK) return;
 
@@ -1391,11 +1391,11 @@ async function checkEMASetup(
 
       const label  = LABELS[coin];
       const fmtP   = (n: number) => n >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : n.toFixed(4);
-      const frPct  = fr != null ? `${(fr >= 0 ? '+' : '')}${(fr * 100).toFixed(4)}%` : '—';
+      const frPct  = fr != null ? `${(fr >= 0 ? '+' : '')}${(fr * 100).toFixed(4)}%` : '-';
       const sl     = dir === 'LONG' ? ema50 * 0.995 : ema50 * 1.005;
       const tp     = dir === 'LONG' ? price + (price - sl) * 2 : price - (sl - price) * 2;
 
-      // WaveTrend (Cipher B) — confirming layer, NOT a hard gate. Informational only,
+      // WaveTrend (Cipher B) - confirming layer, NOT a hard gate. Informational only,
       // same framing as the live Arena card and Grok context.
       const wt = getWaveTrendConfirmation(ohlcTf, dir === 'LONG' ? 'long' : 'short');
       const wtLine = wt.pass === true ? `WaveTrend confirming: ${wt.detail}`
@@ -1406,7 +1406,7 @@ async function checkEMASetup(
         `Elite crypto trader. ${label}/USDT EMA Ribbon Strategy setup triggered on ${tfLabel} chart. ` +
         `Direction: ${dir}. Price $${fmtP(price)} pulled into the 9-20 EMA value zone. ` +
         `EMA9: $${fmtP(ema9)}, EMA20: $${fmtP(ema20)}, EMA50: $${fmtP(ema50)}, Daily 200 SMA: $${fmtP(sma200)}. ` +
-        `Funding: ${frPct}. ${wtLine} (confirming layer, not a blocking filter — weigh it but don't auto-reject on it). ` +
+        `Funding: ${frPct}. ${wtLine} (confirming layer, not a blocking filter - weigh it but don't auto-reject on it). ` +
         `In 2-3 sentences: is this a high-conviction entry or wait for confirmation? ` +
         `What volume or OI confirmation would seal it? Direct, no hedging. ` +
         `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
@@ -1414,16 +1414,16 @@ async function checkEMASetup(
 
       queue.push({
         coin, dir: dir === 'LONG' ? 'long' : 'short', name: `${label} EMA ribbon ${dir} setup (${tfLabel})`,
-        title: `EMA Ribbon ${dir} Setup — In Value Zone (${tfLabel})`,
+        title: `EMA Ribbon ${dir} Setup - In Value Zone (${tfLabel})`,
         body:
-          `📐 <b>EMA RIBBON ${dir} SETUP (${tfLabel}) — ${label}/USDT</b>\n\n` +
+          `📐 <b>EMA RIBBON ${dir} SETUP (${tfLabel}) - ${label}/USDT</b>\n\n` +
           `Price pulled into the EMA 9–20 Value Zone\n\n` +
           `EMA9:  <b>$${fmtP(ema9)}</b> (trigger)\n` +
           `EMA20: <b>$${fmtP(ema20)}</b> (entry target)\n` +
           `EMA50: <b>$${fmtP(ema50)}</b> (stop baseline)\n` +
           `SMA200 (1D): <b>$${fmtP(sma200)}</b>\n` +
           `Funding: <b>${frPct}</b>\n` +
-          `${wt.pass === true ? '✅' : wt.pass === false ? '⚪' : '—'} ${wtLine}\n\n` +
+          `${wt.pass === true ? '✅' : wt.pass === false ? '⚪' : '-'} ${wtLine}\n\n` +
           `SL: $${fmtP(sl)} · TP: $${fmtP(tp)} (2:1)\n` +
           `Wait for bounce candle with above-avg volume to enter.` +
           `${fmtGrok(grokTake)}\n\n` +
@@ -1452,7 +1452,7 @@ async function dispatchPush(queue: SignalEntry[]): Promise<void> {
 
   webpush.setVapidDetails(email, pubKey, privKey);
 
-  // Group by coin — same logic as flushSignals
+  // Group by coin - same logic as flushSignals
   const byCoin = new Map<string, SignalEntry[]>();
   for (const e of queue) {
     const arr = byCoin.get(e.coin) ?? [];
@@ -1497,10 +1497,10 @@ async function dispatchPush(queue: SignalEntry[]): Promise<void> {
 /* ════════════════════════════════════════
    MAIN HANDLER
    ════════════════════════════════════════ */
-/* Muted alert groups — set on /alerts page, stored in Supabase. Fail-open.
+/* Muted alert groups - set on /alerts page, stored in Supabase. Fail-open.
    Uses the admin client: lhq_muted_alerts has RLS enabled with no policies
    (no per-user ownership to write one against), so the anon key silently
-   sees zero rows here — which, combined with fail-open, meant mutes were
+   sees zero rows here - which, combined with fail-open, meant mutes were
    never actually being respected. See app/api/alert-prefs/route.ts for the
    write side of this same bug. */
 async function fetchMutedKeys(): Promise<Set<string>> {
@@ -1513,13 +1513,13 @@ async function fetchMutedKeys(): Promise<Set<string>> {
       return new Set(data.map(r => String(r.key)));
     } catch { return fallback; }
   })();
-  // 5s cap — if Supabase is slow, fail-open (no keys muted)
+  // 5s cap - if Supabase is slow, fail-open (no keys muted)
   const cap = new Promise<Set<string>>(res => setTimeout(() => res(fallback), 5_000));
   return Promise.race([query, cap]);
 }
 
 export async function GET(req: NextRequest) {
-  // Protect with CRON_SECRET if set — same opt-in pattern as macro-alert.
+  // Protect with CRON_SECRET if set - same opt-in pattern as macro-alert.
   // Without this, anyone who finds the URL can trigger it: burns Grok budget,
   // spams every connected Telegram chat, and force-deactivates price alerts.
   const secret = process.env.CRON_SECRET;
@@ -1532,10 +1532,10 @@ export async function GET(req: NextRequest) {
   if (!token)
     return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN not set' }, { status: 503 });
 
-  // Safety net — never exceed Render's 30s limit
+  // Safety net - never exceed Render's 30s limit
   let timerId: ReturnType<typeof setTimeout>;
   const timeout = new Promise<NextResponse>(res => {
-    timerId = setTimeout(() => res(NextResponse.json({ ok: true, fired: [], note: 'timeout — some checks skipped' })), 28_000);
+    timerId = setTimeout(() => res(NextResponse.json({ ok: true, fired: [], note: 'timeout - some checks skipped' })), 28_000);
   });
   const result = await Promise.race([runAlerts(token), timeout]);
   clearTimeout(timerId!);
@@ -1545,16 +1545,16 @@ export async function GET(req: NextRequest) {
 async function runAlerts(token: string): Promise<NextResponse> {
 
   // Telegram alerts are a Pro-only feature (matches the /alerts page gate and
-  // the /upgrade pricing card) — resolve which connected users are actually
+  // the /upgrade pricing card) - resolve which connected users are actually
   // Pro before collecting recipients, so a free user's chat_id (however it
-  // got saved — the UI disables the connect form, but that's not a security
+  // got saved - the UI disables the connect form, but that's not a security
   // boundary) never receives a broadcast.
   const proUserIds = new Set<string>();
   try {
     const admin = getSupabaseAdmin();
     const { data } = await admin.from(T.user_subscriptions).select('user_id').eq('role', 'pro');
     for (const row of data ?? []) proUserIds.add(row.user_id as string);
-  } catch { /* admin key not configured — allChatIds falls back to the env var below */ }
+  } catch { /* admin key not configured - allChatIds falls back to the env var below */ }
 
   // Collect Pro users who have connected their Telegram
   const allChatIds: string[] = [];
@@ -1570,9 +1570,9 @@ async function runAlerts(token: string): Promise<NextResponse> {
       const id = (row.telegram_chat_id as string)?.trim();
       if (id && !allChatIds.includes(id)) allChatIds.push(id);
     }
-  } catch { /* admin key not configured — fall through to env var */ }
+  } catch { /* admin key not configured - fall through to env var */ }
 
-  // Env var fallback (legacy / single-user installs) — not a per-user row,
+  // Env var fallback (legacy / single-user installs) - not a per-user row,
   // predates the Pro gate, always allowed.
   const envChatId = process.env.TELEGRAM_CHAT_ID;
   if (envChatId && !allChatIds.includes(envChatId)) allChatIds.push(envChatId);
@@ -1580,9 +1580,9 @@ async function runAlerts(token: string): Promise<NextResponse> {
   if (allChatIds.length === 0)
     return NextResponse.json({ error: 'No Telegram recipients configured' }, { status: 503 });
 
-  const chatId = allChatIds; // alias — all functions now accept string | string[]
+  const chatId = allChatIds; // alias - all functions now accept string | string[]
 
-  // Session-based cooldowns — tighter during pre-NY + NY (8pm–4am PHT)
+  // Session-based cooldowns - tighter during pre-NY + NY (8pm–4am PHT)
   const nyActive = isHighActivity();
   CD.whale = nyActive ? 5 * 60_000  : 30 * 60_000;
   CD.news  = nyActive ? 5 * 60_000  : 15 * 60_000;
@@ -1593,7 +1593,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // Fetch shared data once (+ muted alert groups)
   const [frMap, prices, lsMap, muted] = await Promise.all([fetchAllFR(), fetchSpotPrices(), fetchAllLSR(), fetchMutedKeys()]);
 
-  // Per-request signal queue — all coin checks push here, flushed after
+  // Per-request signal queue - all coin checks push here, flushed after
   const signalQueue: SignalEntry[] = [];
 
   const skip = (key: string) => muted.has(key);
@@ -1604,13 +1604,13 @@ async function runAlerts(token: string): Promise<NextResponse> {
     skip('ema_cross')          ? none : checkEMACross(stamp, signalQueue),
     skip('rapid_move')         ? none : checkRapidMove(stamp, signalQueue),
     skip('whales')             ? none : checkWhales(stamp, signalQueue),
-    skip('news')               ? none : checkNews(token, chatId, stamp),                     // global — sends directly
-    skip('fear_greed')         ? none : checkFearGreed(token, chatId, stamp),                // global — sends directly
-    skip('daily_summary')      ? none : checkDailySummary(token, chatId, stamp, frMap),      // global — sends directly
+    skip('news')               ? none : checkNews(token, chatId, stamp),                     // global - sends directly
+    skip('fear_greed')         ? none : checkFearGreed(token, chatId, stamp),                // global - sends directly
+    skip('daily_summary')      ? none : checkDailySummary(token, chatId, stamp, frMap),      // global - sends directly
     skip('oi_spike')           ? none : checkOISpike(stamp, prices, signalQueue),
     skip('cvd')                ? none : checkCVD(stamp, signalQueue),
     skip('price_alerts')       ? none : checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds),
-    skip('sentiment_extremes') ? none : checkSentimentExtremes(token, chatId, stamp, frMap), // global — sends directly
+    skip('sentiment_extremes') ? none : checkSentimentExtremes(token, chatId, stamp, frMap), // global - sends directly
     skip('squeeze')            ? none : checkSqueezeAlerts(stamp, frMap, lsMap, signalQueue),
     skip('distribution')       ? none : checkDistribution(stamp, frMap, signalQueue, muted),
     skip('ema_setup')          ? none : checkEMASetup(stamp, frMap, signalQueue, muted, '4h'),
@@ -1619,7 +1619,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     skip('ema_setup_15m')      ? none : checkEMASetup(stamp, frMap, signalQueue, muted, '15m'),
   ]);
 
-  // Per-coin + per-direction filters — set on /alerts page via muted keys
+  // Per-coin + per-direction filters - set on /alerts page via muted keys
   // 'coin:<id>' disables a coin entirely; 'dir:long' / 'dir:short' silence
   // entry signals of that trade direction.
   const filteredQueue = signalQueue.filter(e =>
@@ -1631,7 +1631,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // Flush: single signals → send as-is, 2+ same coin → confluence alert
   await flushSignals(token, chatId, stamp, filteredQueue);
 
-  // Web Push — fire-and-forget, never let it block or throw
+  // Web Push - fire-and-forget, never let it block or throw
   void dispatchPush(filteredQueue).catch(() => {});
 
   const fired = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);

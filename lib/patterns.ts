@@ -1,5 +1,5 @@
 /**
- * Chart pattern detection — pure OHLC logic.
+ * Chart pattern detection - pure OHLC logic.
  * Works in browser (MarketProvider, Arena) and Node.js (Telegram alert route).
  */
 
@@ -20,7 +20,7 @@ export function detectPatterns(candles: Candle[]): string[] {
 
   const last = candles[candles.length - 1];
 
-  // ── 1. Trend structure (last 10 candles — sequential highs/lows) ──
+  // ── 1. Trend structure (last 10 candles - sequential highs/lows) ──
   const r10 = candles.slice(-10);
   const highs10 = r10.map(c => c.h);
   const lows10  = r10.map(c => c.l);
@@ -42,7 +42,7 @@ export function detectPatterns(candles: Candle[]): string[] {
       found.push('Bullish engulfing');
   }
 
-  // ── 3. Doji — indecision (body < 10% of total range) ──
+  // ── 3. Doji - indecision (body < 10% of total range) ──
   const wick = last.h - last.l;
   if (wick > 0 && Math.abs(last.c - last.o) / wick < 0.1)
     found.push('Doji (indecision)');
@@ -74,14 +74,14 @@ export function detectPatterns(candles: Candle[]): string[] {
         ? 'Bull flag (sharp rally + tight consolidation)'
         : 'Bear flag (sharp drop + tight consolidation)');
     } else {
-      found.push('Tight consolidation (compression — breakout pending)');
+      found.push('Tight consolidation (compression - breakout pending)');
     }
   }
 
   // ── 6. Double top / Double bottom (last 20 candles) ──
   if (candles.length >= 20) {
     const r20 = candles.slice(-20);
-    // Find two highest highs — if within 0.5% of each other with a valley between = double top
+    // Find two highest highs - if within 0.5% of each other with a valley between = double top
     let h1i = 0, h2i = 0;
     r20.forEach((c, i) => {
       if (c.h > r20[h1i].h) { h2i = h1i; h1i = i; }

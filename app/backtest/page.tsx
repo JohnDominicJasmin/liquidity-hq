@@ -8,7 +8,7 @@ import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { getCheckoutUrl } from '@/lib/checkout';
 
-const OF_YEARS_BACK = 1; // shorter than EMA's lookback — 15m+1h+4h+funding fetch per coin is much heavier
+const OF_YEARS_BACK = 1; // shorter than EMA's lookback - 15m+1h+4h+funding fetch per coin is much heavier
 
 const TIMEFRAMES = ['30m', '1h', '4h', '1d'] as const;
 type TF = typeof TIMEFRAMES[number];
@@ -139,7 +139,7 @@ export default function BacktestPage() {
         setSrResult(json.analysis ?? null);
       }
     } catch {
-      setSrError('Network error — try again');
+      setSrError('Network error - try again');
     } finally {
       setSrRunning(false);
     }
@@ -166,7 +166,7 @@ export default function BacktestPage() {
       if (!res.ok) setPsError(json.error ?? 'Generation failed');
       else         setPsResult(json.code ?? null);
     } catch {
-      setPsError('Network error — try again');
+      setPsError('Network error - try again');
     } finally {
       setPsRunning(false);
     }
@@ -192,7 +192,7 @@ export default function BacktestPage() {
       if (!res.ok) setSmcError(json.error ?? 'Analysis failed');
       else         setSmcResult(json.analysis ?? null);
     } catch {
-      setSmcError('Network error — try again');
+      setSmcError('Network error - try again');
     } finally {
       setSmcRunning(false);
     }
@@ -218,7 +218,7 @@ export default function BacktestPage() {
       if (!res.ok) setUlError(json.error ?? 'Analysis failed');
       else         setUlResult(json.analysis ?? null);
     } catch {
-      setUlError('Network error — try again');
+      setUlError('Network error - try again');
     } finally {
       setUlRunning(false);
     }
@@ -291,8 +291,8 @@ export default function BacktestPage() {
             Backtesting is part of Pro.
           </h1>
           <p style={{ fontSize: 13.5, color: 'var(--txt2)', lineHeight: 1.7, margin: '0 0 22px' }}>
-            Replay the full signal engine against years of historical candles — every coin,
-            every timeframe, Anti-Chop on and off side by side — plus the order flow backtest
+            Replay the full signal engine against years of historical candles - every coin,
+            every timeframe, Anti-Chop on and off side by side - plus the order flow backtest
             and the AI strategy research tools.
           </p>
           <a
@@ -321,7 +321,7 @@ export default function BacktestPage() {
     <div>
       <div className="mb-header">
         <h1 className="mb-title">Strategy Backtest</h1>
-        <div className="mb-subtitle">EMA ribbon strategy replayed against historical candles — Anti-Chop ON vs OFF, side by side</div>
+        <div className="mb-subtitle">EMA ribbon strategy replayed against historical candles - Anti-Chop ON vs OFF, side by side</div>
       </div>
 
       <div className="frh-range-row">
@@ -342,7 +342,7 @@ export default function BacktestPage() {
       </div>
 
       <p style={{ fontSize: 11, opacity: 0.4, marginBottom: 14 }}>
-        Lookback: {YEARS_BACK_BY_TF[tf]} years · Pooled across {coins.length} coin{coins.length !== 1 ? 's' : ''} · Fixed 2:1 R:R per signal (matches live strategy SL/TP rule) · Net of an estimated {ROUND_TRIP_COST_PCT.toFixed(2)}% round-trip cost ({TAKER_FEE_PCT}% taker fee + {SLIPPAGE_PCT}% slippage, each side) — not gross
+        Lookback: {YEARS_BACK_BY_TF[tf]} years · Pooled across {coins.length} coin{coins.length !== 1 ? 's' : ''} · Fixed 2:1 R:R per signal (matches live strategy SL/TP rule) · Net of an estimated {ROUND_TRIP_COST_PCT.toFixed(2)}% round-trip cost ({TAKER_FEE_PCT}% taker fee + {SLIPPAGE_PCT}% slippage, each side) - not gross
       </p>
 
       <button
@@ -368,7 +368,7 @@ export default function BacktestPage() {
       {!result && !srResult && !smcResult && !ulResult && !running && !srRunning && !smcRunning && !ulRunning && (
         <div style={{ border: '0.5px solid var(--bdr)', borderRadius: 10, padding: '16px 18px', marginBottom: 20 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
-            4 tools on this page — pick one to get started
+            4 tools on this page - pick one to get started
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
             {([
@@ -464,16 +464,16 @@ export default function BacktestPage() {
       <div className="mb-header">
         <h2 className="mb-title">Order Flow Setup Validation</h2>
         <div className="mb-subtitle">
-          Tests the Arena page&apos;s &quot;Order Flow Setup&quot; card — but only the 5 signals that can be faithfully
+          Tests the Arena page&apos;s &quot;Order Flow Setup&quot; card - but only the 5 signals that can be faithfully
           replayed from history: RSI on 15m/1h/4h, price vs POC, price vs VWAP, and funding rate.
         </div>
       </div>
 
       <p style={{ fontSize: 11, opacity: 0.4, marginBottom: 14, maxWidth: 640 }}>
         Open Interest trend, CVD divergence, and taker buy ratio (3 of the live card&apos;s 8 signals) are
-        intentionally excluded — those need trade-level/positioning data exchanges don&apos;t retain far enough
+        intentionally excluded - those need trade-level/positioning data exchanges don&apos;t retain far enough
         back to backtest meaningfully (Binance&apos;s OI history, for example, only goes back ~30 days). Lookback
-        is {OF_YEARS_BACK} year{OF_YEARS_BACK !== 1 ? 's' : ''} (shorter than the EMA backtest above — fetching
+        is {OF_YEARS_BACK} year{OF_YEARS_BACK !== 1 ? 's' : ''} (shorter than the EMA backtest above - fetching
         15m+1h+4h+funding per coin is a much heavier pull) · uses the same coin scope selected above ({coins.length} coins).
         Also net of the same {ROUND_TRIP_COST_PCT.toFixed(2)}% round-trip fee + slippage estimate.
       </p>
@@ -542,7 +542,7 @@ export default function BacktestPage() {
 
       <div className="mb-header">
         <h2 className="mb-title">AI Strategy Research</h2>
-        <div className="mb-subtitle">Describe any trading strategy in plain English — get an honest analysis of its edge, risks, optimal conditions, and crypto-specific parameters.</div>
+        <div className="mb-subtitle">Describe any trading strategy in plain English - get an honest analysis of its edge, risks, optimal conditions, and crypto-specific parameters.</div>
       </div>
 
       <p style={{ fontSize: 11, opacity: 0.4, marginBottom: 14, maxWidth: 560 }}>

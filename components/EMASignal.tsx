@@ -13,7 +13,7 @@ const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; color: string; bg
 };
 
 function fmt(n: number | null, decimals = 2): string {
-  if (n == null || isNaN(n)) return '—';
+  if (n == null || isNaN(n)) return '-';
   if (n >= 10000)  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
   if (n >= 100)    return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
   if (n >= 1)      return n.toFixed(Math.max(decimals, 3));
@@ -37,7 +37,7 @@ function buildSignalPrompt(signal: StrategySignal, coin: CoinId, tf: string, cfg
     : '';
 
   return [
-    `Explain this ${coin.toUpperCase()} trading signal to me like I'm a beginner. Use plain English — no jargon.`,
+    `Explain this ${coin.toUpperCase()} trading signal to me like I'm a beginner. Use plain English - no jargon.`,
     '',
     `Coin: ${coin.toUpperCase()} · Timeframe: ${tf.toUpperCase()}`,
     `Signal: ${cfg.label}`,
@@ -48,7 +48,7 @@ function buildSignalPrompt(signal: StrategySignal, coin: CoinId, tf: string, cfg
     '',
     'Answer these 3 things simply:',
     '1. What is this signal actually telling me about the market right now?',
-    '2. Should I buy, sell, or wait — and exactly why?',
+    '2. Should I buy, sell, or wait - and exactly why?',
     '3. What would need to change for this to become a clear entry?',
   ].filter(Boolean).join('\n');
 }
@@ -56,7 +56,7 @@ function buildSignalPrompt(signal: StrategySignal, coin: CoinId, tf: string, cfg
 function buildConditionPrompt(label: string, pass: boolean | null, detail: string, coin: CoinId, tf: string): string {
   const status = pass === true ? 'PASSING' : pass === false ? 'FAILING' : 'NOT YET RELEVANT';
   return [
-    `Explain the "${label}" condition to me in plain English. I'm new to trading — avoid jargon.`,
+    `Explain the "${label}" condition to me in plain English. I'm new to trading - avoid jargon.`,
     '',
     `Coin: ${coin.toUpperCase()} · Timeframe: ${tf.toUpperCase()}`,
     `Status: ${status}`,
@@ -65,7 +65,7 @@ function buildConditionPrompt(label: string, pass: boolean | null, detail: strin
     'Answer these 3 things:',
     `1. What does "${label}" mean in simple terms?`,
     '2. Why does this condition matter before entering a trade?',
-    `3. What does the current status (${status.toLowerCase()}) tell me — should I act or wait?`,
+    `3. What does the current status (${status.toLowerCase()}) tell me - should I act or wait?`,
   ].join('\n');
 }
 
@@ -74,7 +74,7 @@ interface Props { signal: StrategySignal; tf?: string; coin?: CoinId }
 export default function EMASignal({ signal, tf = '4h', coin }: Props) {
   const v   = signal.verdict;
   const isSetup = v === 'LONG_SETUP' || v === 'SHORT_SETUP';
-  // Downgrade the badge instead of the entry itself — testing showed that filtering
+  // Downgrade the badge instead of the entry itself - testing showed that filtering
   // entry timing (a Choppiness Index gate, a range-position gate) doesn't fix a
   // genuinely weak track record, because a real EMA50 breakout confirmation is always
   // near the edge of its own recent range by definition. What DOES help: not showing
@@ -112,11 +112,11 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
               <span
                 title={`Choppiness Index ${signal.chopIndex?.toFixed(0)}/100 on the ${tf.toUpperCase()} chart. ${
                   signal.chopRegime === 'choppy'
-                    ? 'Range-bound right now — price is moving a lot but not covering ground. Ribbon signals are more likely to whipsaw here.'
+                    ? 'Range-bound right now - price is moving a lot but not covering ground. Ribbon signals are more likely to whipsaw here.'
                     : signal.chopRegime === 'trending'
-                    ? 'Genuinely trending — price is covering real ground, not just oscillating.'
-                    : 'Neither clearly trending nor clearly choppy — a transitional read.'
-                } Warns rather than filters — the persistence rule still decides which signals actually fire.`}
+                    ? 'Genuinely trending - price is covering real ground, not just oscillating.'
+                    : 'Neither clearly trending nor clearly choppy - a transitional read.'
+                } Warns rather than filters - the persistence rule still decides which signals actually fire.`}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 4,
                   fontSize: 11, fontWeight: 700, letterSpacing: '.04em',
@@ -148,7 +148,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         </div>
       )}
 
-      {/* Conditions grid — each chip clickable to explain */}
+      {/* Conditions grid - each chip clickable to explain */}
       {signal.conditions.length > 0 && (
         <div style={{
           display: 'grid',
@@ -160,7 +160,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
             const pass = c.pass;
             const col  = pass === true ? '#34d399' : pass === false ? '#f87171' : '#555';
             const bg   = pass === true ? 'rgba(52,211,153,0.07)' : pass === false ? 'rgba(248,113,113,0.07)' : 'rgba(255,255,255,0.02)';
-            const icon = pass === true ? '✓' : pass === false ? '✗' : '—';
+            const icon = pass === true ? '✓' : pass === false ? '✗' : '-';
             return (
               <div
                 key={i}
@@ -186,7 +186,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         </div>
       )}
 
-      {/* SL / TP — only for actionable setups */}
+      {/* SL / TP - only for actionable setups */}
       {isSetup && signal.sl && signal.tp && (
         <div style={{
           display: 'flex', gap: 8, flexWrap: 'wrap',
@@ -225,10 +225,10 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         </div>
       )}
 
-      {/* Recent record — every signal in the loaded history, backtest fill rules */}
+      {/* Recent record - every signal in the loaded history, backtest fill rules */}
       {!signal.loading && signal.recentStats && (
         <div
-          title={`Outcome of every signal this strategy fired in the loaded candle history for this coin and timeframe, simulated with the backtest fill rules: entry once the whipsaw hold confirms, stop at the 50 EMA buffer, take profit at 2 to 1. Net of an estimated ${ROUND_TRIP_COST_PCT.toFixed(2)}% round-trip cost (${TAKER_FEE_PCT}% taker fee + ${SLIPPAGE_PCT}% slippage, each side) — not gross.`}
+          title={`Outcome of every signal this strategy fired in the loaded candle history for this coin and timeframe, simulated with the backtest fill rules: entry once the whipsaw hold confirms, stop at the 50 EMA buffer, take profit at 2 to 1. Net of an estimated ${ROUND_TRIP_COST_PCT.toFixed(2)}% round-trip cost (${TAKER_FEE_PCT}% taker fee + ${SLIPPAGE_PCT}% slippage, each side) - not gross.`}
           style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 8, cursor: 'default' }}
         >
           Recent record ({tf.toUpperCase()}):{' '}

@@ -1,7 +1,7 @@
 'use client';
 import { BINANCE_SYMS, BYBIT_SYMS } from './coins';
 
-// Real 24h hourly close series per coin — same public REST endpoints already
+// Real 24h hourly close series per coin - same public REST endpoints already
 // used client-side by KLineProChart, just a much smaller request (24 candles).
 // Cached at module scope so every consumer (sidebar, watchlist) shares one fetch.
 
@@ -31,7 +31,7 @@ async function fetchKlines(coin: string): Promise<number[]> {
         if (closes.length >= 2) return closes;
       }
     }
-  } catch { /* network hiccup — keep stale cache, try again next refresh */ }
+  } catch { /* network hiccup - keep stale cache, try again next refresh */ }
   return [];
 }
 

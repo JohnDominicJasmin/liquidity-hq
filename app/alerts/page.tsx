@@ -15,14 +15,14 @@ interface PriceAlert { id: number; coin: string; target_price: number; direction
 const COIN_OPTIONS = COINS;
 const COIN_LABELS: Record<string, string> = Object.fromEntries(COINS.map(c => [c, c.toUpperCase()]));
 
-const ALERT_COIN_CAP = 20; // Alerts is a Pro-only feature — single cap, no free/pro split needed here
+const ALERT_COIN_CAP = 20; // Alerts is a Pro-only feature - single cap, no free/pro split needed here
 
 export default function AlertsPage() {
   const { user, isPro } = useAuth();
   const { settings, loading: settingsLoading, update } = useSettings();
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
 
-  // Derived from settings — no separate API call needed
+  // Derived from settings - no separate API call needed
   const isConnected = !settingsLoading && !!settings.telegram_chat_id;
 
   const [testState, setTestState]   = useState<'idle' | 'sending' | 'ok' | 'err'>('idle');
@@ -119,8 +119,8 @@ export default function AlertsPage() {
       if (onCount >= ALERT_COIN_CAP) {
         setCoinCapMsg(
           onCount > ALERT_COIN_CAP
-            ? `You have ${onCount} coins on, above the ${ALERT_COIN_CAP}-coin limit — turn some off before adding another.`
-            : `Limit reached (${ALERT_COIN_CAP}/${ALERT_COIN_CAP} coins) — turn one off to add another.`
+            ? `You have ${onCount} coins on, above the ${ALERT_COIN_CAP}-coin limit - turn some off before adding another.`
+            : `Limit reached (${ALERT_COIN_CAP}/${ALERT_COIN_CAP} coins) - turn one off to add another.`
         );
         return;
       }
@@ -236,10 +236,10 @@ export default function AlertsPage() {
 
   const ALERT_GROUPS: { section: string; items: { key: string; dot: string; title: string; desc: string; grok: boolean }[] }[] = [
     { section: 'Trading Signals', items: [
-      { key: 'ema_setup', dot: '#4ade80', title: 'Entry Signal — EMA Ribbon Setup (4H)', desc: 'Potential LONG or SHORT entry: price pulls into the EMA 9–20 value zone with trend, ribbon spread, and funding aligned · includes stop loss and take profit levels · 6h cooldown', grok: true },
-      { key: 'ema_setup_1h', dot: '#4ade80', title: 'Entry Signal — EMA Ribbon Setup (1H)', desc: 'Same EMA ribbon value-zone setup, checked on the 1H chart · includes stop loss and take profit levels · 2h cooldown', grok: true },
-      { key: 'ema_setup_30m', dot: '#4ade80', title: 'Entry Signal — EMA Ribbon Setup (30M)', desc: 'Same EMA ribbon value-zone setup, checked on the 30M chart for faster-moving entries · includes stop loss and take profit levels · 1h cooldown', grok: true },
-      { key: 'ema_setup_15m', dot: '#4ade80', title: 'Entry Signal — EMA Ribbon Setup (15M)', desc: 'Same EMA ribbon value-zone setup, checked on the 15M chart for the fastest entries · includes stop loss and take profit levels · 30min cooldown', grok: true },
+      { key: 'ema_setup', dot: '#4ade80', title: 'Entry Signal - EMA Ribbon Setup (4H)', desc: 'Potential LONG or SHORT entry: price pulls into the EMA 9–20 value zone with trend, ribbon spread, and funding aligned · includes stop loss and take profit levels · 6h cooldown', grok: true },
+      { key: 'ema_setup_1h', dot: '#4ade80', title: 'Entry Signal - EMA Ribbon Setup (1H)', desc: 'Same EMA ribbon value-zone setup, checked on the 1H chart · includes stop loss and take profit levels · 2h cooldown', grok: true },
+      { key: 'ema_setup_30m', dot: '#4ade80', title: 'Entry Signal - EMA Ribbon Setup (30M)', desc: 'Same EMA ribbon value-zone setup, checked on the 30M chart for faster-moving entries · includes stop loss and take profit levels · 1h cooldown', grok: true },
+      { key: 'ema_setup_15m', dot: '#4ade80', title: 'Entry Signal - EMA Ribbon Setup (15M)', desc: 'Same EMA ribbon value-zone setup, checked on the 15M chart for the fastest entries · includes stop loss and take profit levels · 30min cooldown', grok: true },
     ]},
     { section: 'Momentum', items: [
       { key: 'rsi',        dot: '#fbbf24', title: 'RSI (1H)', desc: '> 78 overbought · < 22 oversold · 4h cooldown', grok: false },
@@ -250,10 +250,10 @@ export default function AlertsPage() {
     ]},
     { section: 'Flow', items: [
       { key: 'whales',   dot: '#1a7aff', title: 'Whale Trades',        desc: 'BTC >$5M · ETH >$2M · SOL >$1M · XRP/BNB >$750K · others >$500K · 30min cooldown', grok: true },
-      { key: 'oi_spike', dot: '#fbbf24', title: 'Open Interest Spike ±15% / 1h', desc: 'New money entering — big move building · 2h cooldown', grok: true },
+      { key: 'oi_spike', dot: '#fbbf24', title: 'Open Interest Spike ±15% / 1h', desc: 'New money entering - big move building · 2h cooldown', grok: true },
       { key: 'cvd',      dot: '#34d399', title: 'CVD Divergence',      desc: 'Bullish: price down but buyers absorbing · Bearish: price up but sellers dominate · 1h cooldown', grok: false },
-      { key: 'squeeze',  dot: '#f43f5e', title: 'Squeeze / Flush ≥ 70', desc: 'Crowd positioning extreme — squeeze score threshold hit · 4h cooldown', grok: true },
-      { key: 'distribution', dot: '#f97316', title: 'Distribution — Big Players Taking Profit', desc: 'Coin still up on the day but sellers hit into strength, open interest unwinds, whales lean out, retail keeps paying funding · fires at score ≥ 70 · 4h cooldown', grok: true },
+      { key: 'squeeze',  dot: '#f43f5e', title: 'Squeeze / Flush ≥ 70', desc: 'Crowd positioning extreme - squeeze score threshold hit · 4h cooldown', grok: true },
+      { key: 'distribution', dot: '#f97316', title: 'Distribution - Big Players Taking Profit', desc: 'Coin still up on the day but sellers hit into strength, open interest unwinds, whales lean out, retail keeps paying funding · fires at score ≥ 70 · 4h cooldown', grok: true },
     ]},
     { section: 'News & Sentiment', items: [
       { key: 'news',               dot: '#f87171', title: 'Breaking News',         desc: 'Geopolitical / macro Finnhub headlines · 15min cooldown', grok: true },
@@ -278,20 +278,20 @@ export default function AlertsPage() {
       {/* Header */}
       <div className="mb-header">
         <h1 className="mb-title">Telegram Alerts</h1>
-        <div className="mb-subtitle">Real-time push alerts to your phone — funding, momentum, whale flow, sentiment, and price levels</div>
+        <div className="mb-subtitle">Real-time push alerts to your phone - funding, momentum, whale flow, sentiment, and price levels</div>
       </div>
 
       {/* ── Telegram: Pro gate ──
           AUTH-3 fix: this used to show the upsell banner ABOVE a fully-
           rendered Connect Telegram wizard, just dimmed to 0.4 opacity with
-          pointer-events:none — a dead, unusable form sitting right under an
+          pointer-events:none - a dead, unusable form sitting right under an
           upgrade pitch. Free users now get a single locked-feature card
           (same component/pattern as Arena's other Pro-gated cards) instead
           of a form they can look at but not touch. */}
       {user && !isPro ? (
         <LockedFeatureCard
           title="Connect Telegram"
-          description="Push alerts for funding rate extremes, RSI signals, open interest spikes, whale moves, and price levels — sent directly to Telegram."
+          description="Push alerts for funding rate extremes, RSI signals, open interest spikes, whale moves, and price levels - sent directly to Telegram."
           onUnlock={() => setUpgradeGate('Telegram Alerts')}
         />
       ) : (
@@ -360,7 +360,7 @@ export default function AlertsPage() {
                 fontSize: 11, color: '#f87171', marginBottom: 14, padding: '8px 12px',
                 background: '#f8717114', borderRadius: 6, border: '0.5px solid #f8717144',
               }}>
-                <Warn /> Bot webhook registration failed — the bot may not reply to /start. Try refreshing, or enter your Chat ID manually below.
+                <Warn /> Bot webhook registration failed - the bot may not reply to /start. Try refreshing, or enter your Chat ID manually below.
               </div>
             )}
 
@@ -403,7 +403,7 @@ export default function AlertsPage() {
                   &nbsp;in the chat
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--txt3)' }}>
-                  The bot replies with your <strong style={{ color: 'var(--txt2)' }}>Chat ID</strong> — copy that number.
+                  The bot replies with your <strong style={{ color: 'var(--txt2)' }}>Chat ID</strong> - copy that number.
                 </div>
               </div>
             </div>
@@ -526,7 +526,7 @@ export default function AlertsPage() {
         {history.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-title">No alerts fired yet</div>
-            <div className="empty-state-sub">Alerts fire once when price crosses your target — history appears here.</div>
+            <div className="empty-state-sub">Alerts fire once when price crosses your target - history appears here.</div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -562,7 +562,7 @@ export default function AlertsPage() {
             onClick={checkNow}
             disabled={checkState === 'checking'}
           >
-            {checkState === 'checking' ? 'Checking…' : checkState === 'err' ? '✕ Failed — retry?' : 'Check Alerts Now'}
+            {checkState === 'checking' ? 'Checking…' : checkState === 'err' ? '✕ Failed - retry?' : 'Check Alerts Now'}
           </button>
           {checkState === 'done' && checkResult && (
             <div style={{ marginTop: 10, fontSize: 11, color: 'var(--txt2)', lineHeight: 1.7 }}>
@@ -573,7 +573,7 @@ export default function AlertsPage() {
           )}
           {checkState === 'err' && (
             <div style={{ marginTop: 8, fontSize: 11, color: 'var(--red)' }}>
-              {checkErr || 'Request timed out — server may be cold starting. Try again in 30s.'}
+              {checkErr || 'Request timed out - server may be cold starting. Try again in 30s.'}
             </div>
           )}
         </div>
@@ -662,7 +662,7 @@ export default function AlertsPage() {
                   }}
                 >
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: off ? 'var(--txt3)' : col }} />
-                  {label}{off ? ' — muted' : ''}
+                  {label}{off ? ' - muted' : ''}
                 </button>
               );
             })}
@@ -675,8 +675,8 @@ export default function AlertsPage() {
             {(() => {
               const onCount = COINS.filter(c => !muted.has(`coin:${c}`)).length;
               return onCount > ALERT_COIN_CAP
-                ? `Alert Coins — ${onCount} on (limit ${ALERT_COIN_CAP} — turn some off)`
-                : `Alert Coins — ${onCount}/${ALERT_COIN_CAP} on`;
+                ? `Alert Coins - ${onCount} on (limit ${ALERT_COIN_CAP} - turn some off)`
+                : `Alert Coins - ${onCount}/${ALERT_COIN_CAP} on`;
             })()}
           </div>
           <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 8 }}>
@@ -718,7 +718,7 @@ export default function AlertsPage() {
       </div>
 
       <div style={{ fontSize: 10, color: 'var(--txt3)', textAlign: 'center', marginBottom: 16 }}>
-        Cooldown timers may occasionally reset after routine maintenance — you might see a rare duplicate alert
+        Cooldown timers may occasionally reset after routine maintenance - you might see a rare duplicate alert
       </div>
 
       <UpgradeGateModal

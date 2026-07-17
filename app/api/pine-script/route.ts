@@ -32,9 +32,9 @@ function buildPinePrompt(description: string, analysisText: string): string {
     '   - A simple but accurate title reflecting the strategy',
     '4. Add inline comments explaining each key logic step',
     '5. Make the inputs (lengths, thresholds) adjustable via input() functions',
-    '6. Do NOT use deprecated functions — use ta.ema() not ema(), ta.rsi() not rsi(), etc.',
+    '6. Do NOT use deprecated functions - use ta.ema() not ema(), ta.rsi() not rsi(), etc.',
     '',
-    'Output the Pine Script code ONLY — no explanation text before or after. Start directly with //@version=6',
+    'Output the Pine Script code ONLY - no explanation text before or after. Start directly with //@version=6',
   ].join('\n');
 }
 

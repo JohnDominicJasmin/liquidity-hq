@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useNews } from '@/components/NewsProvider';
 import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline } from '@/lib/classify';
+import { ArticleIcon } from '@/components/icons';
 
 type Tab = 'foryou' | 'breaking' | 'all' | 'geo' | 'crypto' | 'events';
 
@@ -20,7 +21,7 @@ function decodeEntities(str: string): string {
     .replace(/&#8216;|&#8217;|&lsquo;|&rsquo;/g, "'")
     .replace(/&#8220;|&#8221;|&ldquo;|&rdquo;/g, '"')
     .replace(/&#8211;|&ndash;/g, '–')
-    .replace(/&#8212;|&mdash;/g, '—')
+    .replace(/&#8212;|&mdash;/g, '-')
     .replace(/&#38;|&amp;/g, '&')
     .replace(/&#39;|&apos;/g, "'")
     .replace(/&lt;/g, '<')
@@ -113,7 +114,7 @@ function SentimentBadge({ headline }: { headline: string }) {
   );
 }
 
-/* ── Coin Buzz Bar — summary of coin mentions across all alerts ── */
+/* ── Coin Buzz Bar - summary of coin mentions across all alerts ── */
 function CoinBuzzBar({ mentions }: { mentions: { symbol: string; total: number; bullish: number; bearish: number }[] }) {
   if (mentions.length < 2) return null;
   return (
@@ -179,10 +180,10 @@ const TYPE_CFG = {
   purple: { dot: '#1a7aff', label: 'Crypto',   accentBg: 'rgba(26,122,255,0.07)' },
 };
 
-/* ── Market impact chip — first 6 words of note ── */
+/* ── Market impact chip - first 6 words of note ── */
 function ImpactChip({ note, color }: { note: string; color: string }) {
   // derive a very short label: first 5 words
-  const short = note.split(' ').slice(0, 7).join(' ').replace(/—.*/, '').trim();
+  const short = note.split(' ').slice(0, 7).join(' ').replace(/-.*/, '').trim();
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -211,7 +212,7 @@ function SourcePill({ source }: { source: string }) {
 type AlertItem = ReturnType<typeof useNews>['alerts'][0];
 
 /* ────────────────────────────────────────────────
-   HERO CARD — first story, spans all 3 columns
+   HERO CARD - first story, spans all 3 columns
 ──────────────────────────────────────────────── */
 function HeroCard({ a }: { a: AlertItem }) {
   const cfg   = TYPE_CFG[a.type];
@@ -233,7 +234,7 @@ function HeroCard({ a }: { a: AlertItem }) {
         </div>
       ) : (
         <div className="ncard-grid-placeholder">
-          
+          <ArticleIcon size={26} style={{ color: 'var(--txt3)', opacity: 0.35 }} />
         </div>
       )}
       <div className="ncard-grid-body">
@@ -263,7 +264,7 @@ function HeroCard({ a }: { a: AlertItem }) {
 }
 
 /* ────────────────────────────────────────────────
-   GRID NEWS CARD — one cell in the 3-col grid
+   GRID NEWS CARD - one cell in the 3-col grid
 ──────────────────────────────────────────────── */
 function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; note: string } | null }; hero?: boolean }) {
   if (hero) return <HeroCard a={a} />;
@@ -288,7 +289,7 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
         </div>
       ) : (
         <div className="ncard-grid-placeholder">
-          
+          <ArticleIcon size={26} style={{ color: 'var(--txt3)', opacity: 0.35 }} />
         </div>
       )}
       <div className="ncard-grid-body">
@@ -453,7 +454,7 @@ export default function NewsPage() {
               background: 'var(--bg2)', border: '0.5px solid var(--bdr)',
               fontSize: 11, color: 'var(--txt3)', lineHeight: 1.5,
             }}>
-              No breaking catalysts right now — showing latest crypto news
+              No breaking catalysts right now - showing latest crypto news
             </div>
           )}
 
@@ -507,7 +508,7 @@ export default function NewsPage() {
                   </div>
                   <div className="ncard-grid-actions">
                     <ImpactChip
-                      note={isBuy ? 'Institutional accumulation — watch follow-through' : 'Distribution signal — sell pressure incoming'}
+                      note={isBuy ? 'Institutional accumulation - watch follow-through' : 'Distribution signal - sell pressure incoming'}
                       color={col}
                     />
                     <button className="ncard-ask-btn" style={{ margin: 0 }} onClick={() =>
@@ -521,14 +522,14 @@ export default function NewsPage() {
             );
           })}
 
-          {/* Catalysts / fallback crypto — first card is hero */}
+          {/* Catalysts / fallback crypto - first card is hero */}
           {tabContent.foryou.map((a, i) => <NewsCard key={a.id} a={a} hero={i === 0 && whaleAlerts.length === 0} />)}
 
           {/* Extra geo events */}
           {extraGeo.map((g, i) => (
             <div key={i} className="ncard-grid">
               <div className="ncard-grid-placeholder">
-                
+                <ArticleIcon size={26} style={{ color: 'var(--txt3)', opacity: 0.35 }} />
               </div>
               <div className="ncard-grid-body">
                 <div className="ncard-grid-top">
@@ -558,7 +559,7 @@ export default function NewsPage() {
               <div style={{ fontSize: 13, color: 'var(--txt3)' }}>
                 {tab === 'geo'     ? 'No war/conflict alerts yet'
                 : tab === 'crypto' ? 'No crypto news yet'
-                : 'Fetching news — feeds loading…'}
+                : 'Fetching news - feeds loading…'}
               </div>
             </div>
           )}
@@ -594,7 +595,7 @@ export default function NewsPage() {
                   borderBottom: '1px solid var(--border)',
                 }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: g.isToday ? 'var(--amber)' : 'var(--txt)' }}>
-                    {g.isToday ? `Today — ${g.dateLabel}` : g.dateLabel}
+                    {g.isToday ? `Today - ${g.dateLabel}` : g.dateLabel}
                   </span>
                   {g.isToday && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 8, background: 'rgba(251,191,36,0.12)', color: 'var(--amber)', fontWeight: 600 }}>LIVE</span>}
                 </div>
@@ -627,9 +628,9 @@ export default function NewsPage() {
                         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--txt)', marginBottom: note ? 4 : 0 }}>{decodeEntities(e.name)}</div>
                         {note && <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.4 }}>{note.split('.')[0]}.</div>}
                       </div>
-                      <span style={{ fontSize: 12, color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.previous ?? '—'}</span>
-                      <span style={{ fontSize: 12, color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.estimate ?? '—'}</span>
-                      <span style={{ fontSize: 12, fontWeight: e.actual ? 700 : 400, color: e.actual ? 'var(--green)' : 'var(--txt3)', textAlign: 'right', paddingTop: 1 }}>{e.actual ?? '—'}</span>
+                      <span style={{ fontSize: 12, color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.previous ?? '-'}</span>
+                      <span style={{ fontSize: 12, color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.estimate ?? '-'}</span>
+                      <span style={{ fontSize: 12, fontWeight: e.actual ? 700 : 400, color: e.actual ? 'var(--green)' : 'var(--txt3)', textAlign: 'right', paddingTop: 1 }}>{e.actual ?? '-'}</span>
                       <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 1 }}>
                         <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.15)', color: '#f87171', fontWeight: 700, letterSpacing: '0.03em' }}>HIGH</span>
                       </div>

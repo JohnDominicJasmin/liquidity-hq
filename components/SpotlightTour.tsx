@@ -53,7 +53,7 @@ function Step2Visual() {
   return (
     <div style={{ width: '100%', background: BG2, border: `1px solid ${BDR}`, borderRadius: 12, padding: '20px 18px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <span style={{ fontSize: 10, color: TXT2, fontFamily: MONO, letterSpacing: '.08em', textTransform: 'uppercase' }}>Funding Rate — BTC</span>
+        <span style={{ fontSize: 10, color: TXT2, fontFamily: MONO, letterSpacing: '.08em', textTransform: 'uppercase' }}>Funding Rate - BTC</span>
         <span style={{ fontSize: 16, fontWeight: 800, color: RED, fontFamily: MONO }}>-0.07%</span>
       </div>
       {/* Scale */}
@@ -109,7 +109,7 @@ function Step3Visual() {
   return (
     <div style={{ width: '100%', background: BG2, border: `1px solid ${BDR}`, borderRadius: 12, padding: '20px 18px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <span style={{ fontSize: 10, color: TXT2, fontFamily: MONO, letterSpacing: '.08em', textTransform: 'uppercase' }}>Open Interest Change — BTC</span>
+        <span style={{ fontSize: 10, color: TXT2, fontFamily: MONO, letterSpacing: '.08em', textTransform: 'uppercase' }}>Open Interest Change - BTC</span>
         <span style={{ fontSize: 16, fontWeight: 800, color: RED, fontFamily: MONO }}>+$38.4M</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 64 }}>
@@ -128,7 +128,7 @@ function Step3Visual() {
         ))}
       </div>
       <div style={{ marginTop: 12, fontSize: 11, color: TXT3, lineHeight: 1.5 }}>
-        Each red bar = more shorts entering. The last 3 bars (red) accelerated — a squeeze is loading.
+        Each red bar = more shorts entering. The last 3 bars (red) accelerated - a squeeze is loading.
       </div>
     </div>
   );
@@ -189,7 +189,7 @@ function Step4Visual() {
         <span style={{ fontSize: 18, flexShrink: 0 }}>✈</span>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: GREEN, fontFamily: MONO }}>Telegram alert sent</div>
-          <div style={{ fontSize: 10, color: TXT3, marginTop: 1 }}>BTC SHORT_SQ 82/100 — squeeze forming</div>
+          <div style={{ fontSize: 10, color: TXT3, marginTop: 1 }}>BTC SHORT_SQ 82/100 - squeeze forming</div>
         </div>
       </div>
     </div>
@@ -234,7 +234,7 @@ function Step5Visual() {
     return () => clearInterval(id);
   }, [phase]);
 
-  // Chart geometry — viewBox 0 0 264 84
+  // Chart geometry - viewBox 0 0 264 84
   const MIN_P = 38, MAX_P = 70, CH = 80;
   const yp = (p: number) => 4 + (1 - (p - MIN_P) / (MAX_P - MIN_P)) * CH;
 
@@ -282,14 +282,14 @@ function Step5Visual() {
             <line key={y} x1="0" y1={y} x2="264" y2={y} stroke="rgba(140,150,255,0.05)" strokeWidth="0.5" />
           ))}
 
-          {/* EMA lines — phase 2 */}
+          {/* EMA lines - phase 2 */}
           {phase >= 2 && <>
             <polyline points={pts(ema50)} fill="none" stroke={TXT3}     strokeWidth="1"   strokeOpacity="0.35" />
             <polyline points={pts(ema20)} fill="none" stroke="#f97316"  strokeWidth="1.2" strokeOpacity="0.55" />
             <polyline points={pts(ema9)}  fill="none" stroke={ACCENT}   strokeWidth="1.5" strokeOpacity="0.9" />
           </>}
 
-          {/* Candles — phase 1, staggered */}
+          {/* Candles - phase 1, staggered */}
           {phase >= 1 && CANDLES.map(([cx, o, c, h, l], i) => {
             const bull  = c >= o;
             const col   = bull ? GREEN : RED;
@@ -315,7 +315,7 @@ function Step5Visual() {
             </g>
           )}
 
-          {/* BUY signal marker — phase 3, bounce + pulse */}
+          {/* BUY signal marker - phase 3, bounce + pulse */}
           {phase >= 3 && (
             <g transform={`translate(${sigCX},${sigY}) scale(${markerScale})`}>
               {/* Expanding glow ring */}
@@ -369,7 +369,7 @@ function Step5Visual() {
       }}>
         <span style={{ fontSize: 14, flexShrink: 0 }}>✈</span>
         <span style={{ fontSize: 10, fontWeight: 700, color: '#4db8e8', fontFamily: MONO }}>
-          Alert fired — BTC LONG_SQ 87/100
+          Alert fired - BTC LONG_SQ 87/100
         </span>
       </div>
     </div>
@@ -380,19 +380,19 @@ const STEPS = [
   {
     tag:     'THE SETUP',
     title:   'This is a squeeze setup.',
-    body:    'When shorts overcrowd a market and price reverses, they all close at once — that spike is the squeeze. LiquidityHQ detects it before it fires.',
+    body:    'When shorts overcrowd a market and price reverses, they all close at once - that spike is the squeeze. LiquidityHQ detects it before it fires.',
     Visual:  Step1Visual,
   },
   {
     tag:     'SIGNAL 1 OF 3',
     title:   'Funding rate goes negative.',
-    body:    "When funding is negative, shorts pay longs to hold their position. It means the market is overcrowded on the short side — and that's exactly the fuel a squeeze needs.",
+    body:    "When funding is negative, shorts pay longs to hold their position. It means the market is overcrowded on the short side - and that's exactly the fuel a squeeze needs.",
     Visual:  Step2Visual,
   },
   {
     tag:     'SIGNAL 2 OF 3',
     title:   'Open interest climbs.',
-    body:    'More shorts are opening. Every new short is potential energy. When price reverses even slightly, margin calls cascade — that acceleration is the squeeze.',
+    body:    'More shorts are opening. Every new short is potential energy. When price reverses even slightly, margin calls cascade - that acceleration is the squeeze.',
     Visual:  Step3Visual,
   },
   {

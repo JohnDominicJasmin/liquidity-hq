@@ -10,7 +10,7 @@ import { getCurrentWindow } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { IconSun, IconMoon } from './icons';
 
-/* ── Mobile tab bar icons — plain SVGs, not emoji. Emoji glyphs like ⚡ render
+/* ── Mobile tab bar icons - plain SVGs, not emoji. Emoji glyphs like ⚡ render
    as native color emoji on most platforms (a hardcoded yellow bolt) and
    ignore CSS `color` entirely, which is why Arena's icon stayed yellow
    regardless of active state. currentColor lets these follow the same
@@ -70,12 +70,12 @@ function findEndsInMs(nowMs: number, name: string): number {
 }
 function SessionPill() {
   // This pill is rendered on every page (via the root layout), most of which
-  // are statically prerendered — so "is a window active" can only be decided
+  // are statically prerendered - so "is a window active" can only be decided
   // once we're actually on the client with the real current time. Gating on
   // `mounted` makes the server render (and client's first render, before this
   // effect runs) always emit nothing, avoiding a hydration mismatch on
   // whether this element exists at all (suppressHydrationWarning can't help
-  // here — it only covers text content, not element presence).
+  // here - it only covers text content, not element presence).
   const [mounted, setMounted] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
@@ -225,7 +225,7 @@ export default function NavDrawer() {
   const authRef  = useRef<HTMLDivElement>(null);
   const initials = user?.email?.[0]?.toUpperCase() ?? '?';
 
-  // Hide the floating Ask AI button while the mobile nav drawer is open —
+  // Hide the floating Ask AI button while the mobile nav drawer is open -
   // it otherwise sits on top of the bottom nav links and eats their taps.
   useEffect(() => {
     document.body.classList.toggle('nav-drawer-open', drawerOpen);
@@ -329,7 +329,7 @@ export default function NavDrawer() {
                     <div className="auth-dropdown">
                       <div className="auth-dropdown-email">{user.email}</div>
                       <Link href="/arena" className="auth-dropdown-usage" onClick={() => setAuthOpen(false)}>
-                        LiquidityAI — <span>view usage</span>
+                        LiquidityAI - <span>view usage</span>
                       </Link>
                       <button
                         className="auth-dropdown-usage"
@@ -368,7 +368,7 @@ export default function NavDrawer() {
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      {/* Mobile bottom tab bar — 1-tap switching between key pages. The
+      {/* Mobile bottom tab bar - 1-tap switching between key pages. The
           active tab expands into a labeled pill; inactive tabs collapse to
           just their icon, so all four fit without crowding. */}
       <nav className="mobile-tab-bar" aria-label="Main navigation">

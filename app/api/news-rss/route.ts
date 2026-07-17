@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
-// Free RSS feeds — no API key required
+// Free RSS feeds - no API key required
 const FEEDS = [
   // ── Global breaking / geopolitical ──────────────────────────────────────
   { url: 'https://feeds.reuters.com/reuters/topNews',          source: 'Reuters',          cat: 'geo'    },
@@ -12,11 +12,11 @@ const FEEDS = [
   { url: 'https://feeds.bbci.co.uk/news/world/rss.xml',        source: 'BBC World',        cat: 'geo'    },
   { url: 'https://feeds.bbci.co.uk/news/business/rss.xml',     source: 'BBC Business',     cat: 'macro'  },
   { url: 'https://www.aljazeera.com/xml/rss/all.xml',          source: 'Al Jazeera',       cat: 'geo'    },
-  // ── US political breaking news — fastest on Trump/policy/tariffs ────────
+  // ── US political breaking news - fastest on Trump/policy/tariffs ────────
   { url: 'https://moxie.foxnews.com/google-publisher/politics.xml', source: 'Fox News Politics', cat: 'geo' },
   { url: 'https://feeds.nbcnews.com/nbcnews/public/news',      source: 'NBC News',         cat: 'geo'    },
   { url: 'https://rss.politico.com/politics-news.xml',         source: 'Politico',         cat: 'geo'    },
-  // ── TruthSocial — Trump's primary platform (Mastodon RSS) ───────────────
+  // ── TruthSocial - Trump's primary platform (Mastodon RSS) ───────────────
   { url: 'https://truthsocial.com/@realDonaldTrump.rss',        source: 'TruthSocial',      cat: 'geo'    },
   // ── Crypto news ─────────────────────────────────────────────────────────
   { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', source: 'CoinDesk',         cat: 'crypto' },
@@ -47,7 +47,7 @@ const NAMED_ENTITIES: Record<string, string> = {
 
 // RSS titles carry HTML/XML entities (curly quotes, en/em dashes, &amp; etc.)
 // that render as literal "&#8216;" text in plain-text contexts like desktop
-// Notifications, which don't parse HTML — decode them here before display.
+// Notifications, which don't parse HTML - decode them here before display.
 function decodeEntities(text: string): string {
   return text
     .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
@@ -111,7 +111,7 @@ function parseRSS(xml: string, source: string, cat: RSSItem['cat']): RSSItem[] {
 }
 
 let cache: { ts: number; items: RSSItem[] } | null = null;
-const CACHE_TTL = 30 * 1000; // 30 seconds — fast refresh for breaking news
+const CACHE_TTL = 30 * 1000; // 30 seconds - fast refresh for breaking news
 
 export async function GET(req: NextRequest) {
   if (!rateLimit(`news-rss:${getClientIp(req)}`, 20, 60_000)) {

@@ -12,7 +12,7 @@ function CallbackInner() {
     const code  = params.get('code');
     const error = params.get('error_description') ?? params.get('error');
 
-    // Honor the ?next= the login page threaded through — same-origin paths
+    // Honor the ?next= the login page threaded through - same-origin paths
     // only, so the callback can't be turned into an open redirect.
     const rawNext = params.get('next');
     const dest = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/arena';

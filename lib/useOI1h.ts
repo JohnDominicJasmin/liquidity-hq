@@ -91,20 +91,20 @@ export function useOI1h(coin: CoinId): OI1hData {
 
 /* ── Derive signal text from pct + oiTrend ── */
 const OI_TREND_TXT: Record<string, string> = {
-  strong_up:   'New longs — real trend ▲',
-  strong_down: 'New shorts — real dump ▼',
-  weak_up:     'Short covering — weak pump',
-  weak_down:   'Long exits — no panic',
+  strong_up:   'New longs - real trend ▲',
+  strong_down: 'New shorts - real dump ▼',
+  weak_up:     'Short covering - weak pump',
+  weak_down:   'Long exits - no panic',
 };
 
 export function oi1hSignal(pct: number | null, oiTrend?: string | null): { txt: string; col: string } {
-  if (pct == null) return { txt: '—', col: 'var(--txt3)' };
+  if (pct == null) return { txt: '-', col: 'var(--txt3)' };
   const isPos   = pct > 0;
   const isSpike = Math.abs(pct) >= 10;
   const trendTxt = oiTrend ? OI_TREND_TXT[oiTrend] : null;
 
   const txt = isSpike
-    ? (trendTxt ?? (isPos ? 'OI spike — rising' : 'OI spike — unwinding'))
+    ? (trendTxt ?? (isPos ? 'OI spike - rising' : 'OI spike - unwinding'))
     : trendTxt ?? (Math.abs(pct) < 2 ? 'Stable' : isPos ? 'Rising' : 'Unwinding');
 
   const col = isSpike && isPos ? '#34d399'

@@ -10,7 +10,7 @@ import { Warn } from '@/components/icons';
    Bullish (shorts overcrowded):
      • F&G ≤ 25  (Extreme Fear)
      • Funding ≤ −0.02%  (shorts paying)
-     • Long ratio ≤ 40%  (60%+ short — squeeze risk)
+     • Long ratio ≤ 40%  (60%+ short - squeeze risk)
    Fires at 2/3 (MODERATE) or 3/3 (HIGH CONVICTION)
 ──────────────────────────────────────────────────────────────────────────── */
 
@@ -51,23 +51,23 @@ export default function SentimentExtremesAlert() {
 
   const signals = isBear
     ? [
-        { label: 'Fear & Greed', value: `${fng} (${store.fngLabel})`,     hit: bearFng, hint: 'Extreme Greed — longs overcrowded'  },
-        { label: 'Funding Rate', value: `+${fr.toFixed(3)}%`,             hit: bearFr,  hint: 'Longs paying heavily — flush risk'  },
-        { label: 'Long Ratio',   value: `${longPct.toFixed(0)}% Long`,    hit: bearLs,  hint: 'Overleveraged longs — cascade risk' },
+        { label: 'Fear & Greed', value: `${fng} (${store.fngLabel})`,     hit: bearFng, hint: 'Extreme Greed - longs overcrowded'  },
+        { label: 'Funding Rate', value: `+${fr.toFixed(3)}%`,             hit: bearFr,  hint: 'Longs paying heavily - flush risk'  },
+        { label: 'Long Ratio',   value: `${longPct.toFixed(0)}% Long`,    hit: bearLs,  hint: 'Overleveraged longs - cascade risk' },
       ]
     : [
-        { label: 'Fear & Greed', value: `${fng} (${store.fngLabel})`,     hit: bullFng, hint: 'Extreme Fear — shorts overcrowded'  },
-        { label: 'Funding Rate', value: `${fr.toFixed(3)}%`,              hit: bullFr,  hint: 'Shorts paying — squeeze risk'       },
-        { label: 'Short Ratio',  value: `${shortPct.toFixed(0)}% Short`,  hit: bullLs,  hint: 'Overleveraged shorts — squeeze risk' },
+        { label: 'Fear & Greed', value: `${fng} (${store.fngLabel})`,     hit: bullFng, hint: 'Extreme Fear - shorts overcrowded'  },
+        { label: 'Funding Rate', value: `${fr.toFixed(3)}%`,              hit: bullFr,  hint: 'Shorts paying - squeeze risk'       },
+        { label: 'Short Ratio',  value: `${shortPct.toFixed(0)}% Short`,  hit: bullLs,  hint: 'Overleveraged shorts - squeeze risk' },
       ];
 
   const desc = isBear
     ? count >= 3
-      ? 'All 3 signals confirm longs are overcrowded. High flush risk — tighten stops, reduce size, or wait for a cascade trigger before entering new longs.'
-      : 'Two sentiment signals lean bearish. Longs at elevated risk. Avoid chasing — wait for confirmation before new long entries.'
+      ? 'All 3 signals confirm longs are overcrowded. High flush risk - tighten stops, reduce size, or wait for a cascade trigger before entering new longs.'
+      : 'Two sentiment signals lean bearish. Longs at elevated risk. Avoid chasing - wait for confirmation before new long entries.'
     : count >= 3
-      ? 'All 3 signals confirm shorts are overcrowded. High squeeze potential — watch for a sharp reversal candle on the next funding cycle.'
-      : 'Two sentiment signals lean contrarian bullish. Shorts at elevated risk. Watch for a reversal setup — not a buy signal yet, wait for confirmation.';
+      ? 'All 3 signals confirm shorts are overcrowded. High squeeze potential - watch for a sharp reversal candle on the next funding cycle.'
+      : 'Two sentiment signals lean contrarian bullish. Shorts at elevated risk. Watch for a reversal setup - not a buy signal yet, wait for confirmation.';
 
   return (
     <div className="sent-banner" style={{ borderColor: bdr, background: bg }}>
@@ -77,7 +77,7 @@ export default function SentimentExtremesAlert() {
         <div className="sent-banner-left">
           <div>
             <div className="sent-banner-title" style={{ color: col }}>
-              Sentiment Extremes — {label}
+              Sentiment Extremes - {label}
             </div>
             <div className="sent-banner-sub">
               {count}/3 signals aligned ·{' '}

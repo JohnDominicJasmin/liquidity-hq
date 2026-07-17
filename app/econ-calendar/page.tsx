@@ -15,7 +15,7 @@ function fmtHeaderDate(iso: string): string {
   const today = new Date();
   const isToday = d.toDateString() === today.toDateString();
   const label = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  return isToday ? `Today — ${label}` : label;
+  return isToday ? `Today - ${label}` : label;
 }
 
 function fmtDateKey(iso: string): string {
@@ -94,7 +94,7 @@ export default function EconCalendarPage() {
           Economic Calendar
         </div>
         <div style={{ fontSize: 12, color: 'var(--txt3)' }}>
-          High-impact US macro events — FOMC, NFP, CPI, PCE, GDP and more
+          High-impact US macro events - FOMC, NFP, CPI, PCE, GDP and more
           {source && <span style={{ marginLeft: 8, opacity: .5 }}>· {source}</span>}
         </div>
       </div>
@@ -209,12 +209,12 @@ export default function EconCalendarPage() {
 
                     {/* PREVIOUS */}
                     <div style={{ fontSize: 12, color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums' }}>
-                      {e.previous || '—'}
+                      {e.previous || '-'}
                     </div>
 
                     {/* CONSENSUS */}
                     <div style={{ fontSize: 12, color: e.estimate ? '#fbbf24' : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', fontWeight: e.estimate ? 500 : 400 }}>
-                      {e.estimate || '—'}
+                      {e.estimate || '-'}
                     </div>
 
                     {/* ACTUAL */}
@@ -224,7 +224,7 @@ export default function EconCalendarPage() {
                         ? (delta ? (delta.positive ? '#34d399' : '#f87171') : '#34d399')
                         : 'var(--txt3)',
                     }}>
-                      {e.actual || '—'}
+                      {e.actual || '-'}
                     </div>
 
                     {/* DELTA */}
@@ -232,7 +232,7 @@ export default function EconCalendarPage() {
                       fontSize: 12, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
                       color: delta ? (delta.positive ? '#34d399' : '#f87171') : 'var(--txt3)',
                     }}>
-                      {delta?.text || '—'}
+                      {delta?.text || '-'}
                     </div>
 
                     {/* IMPACT */}

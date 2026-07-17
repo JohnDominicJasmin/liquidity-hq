@@ -7,7 +7,7 @@ import GexTable from '@/components/GexTable';
 import { Warn } from '@/components/icons';
 
 
-/* ─── All leverage tiers — every real level Binance/Bybit offers ──────────── */
+/* ─── All leverage tiers - every real level Binance/Bybit offers ──────────── */
 const TIERS = [
   { lev: 125, dist: 0.0080, w: 0.02 },
   { lev: 100, dist: 0.0100, w: 0.04 },
@@ -41,7 +41,7 @@ const RANGE_TO_PERIOD: Record<TimeRange, string> = {
   '1w':  '1d',
 };
 
-// Bybit's account-ratio endpoint only accepts 5min/15min/30min/1h/4h/12h/1d —
+// Bybit's account-ratio endpoint only accepts 5min/15min/30min/1h/4h/12h/1d -
 // no 6h or 2h option (unlike Binance), so it needs its own mapping.
 const RANGE_TO_BYBIT_PERIOD: Record<TimeRange, string> = {
   '12h': '1h',
@@ -156,7 +156,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
           background: '#fbbf24', boxShadow: '0 0 6px #fbbf2466',
         }} />
         <span style={{ fontSize: 12, color: 'var(--txt3)' }}>
-          Real cluster data building from live Binance + Bybit feeds — takes a few minutes on first load.
+          Real cluster data building from live Binance + Bybit feeds - takes a few minutes on first load.
         </span>
       </div>
     );
@@ -283,7 +283,7 @@ export default function LiqPage() {
     return () => { cancelled = true; };
   }, [coin, range]);
 
-  /* Refetch retail (all-account) long/short ratio whenever coin or timeframe changes —
+  /* Refetch retail (all-account) long/short ratio whenever coin or timeframe changes -
      the "Long/Short accounts" stat row previously always showed the global store's
      fixed-period snapshot (Bybit 1h / Binance 5m) regardless of the Time Range selector. */
   useEffect(() => {
@@ -301,7 +301,7 @@ export default function LiqPage() {
     return () => { cancelled = true; };
   }, [coin, range]);
 
-  /* Refetch Bybit account ratio whenever coin or timeframe changes — same fix as the
+  /* Refetch Bybit account ratio whenever coin or timeframe changes - same fix as the
      Binance retail ratio above, using Bybit's own supported period values (no 6h/2h). */
   useEffect(() => {
     const sym = BYBIT_SYMS[coin];
@@ -342,9 +342,9 @@ export default function LiqPage() {
     <div>
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>
-          Liquidation Heatmap
-        </div>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>
+          Liquidation Map
+        </h1>
         <div style={{ fontSize: 12, color: 'var(--txt3)' }}>
           Estimated liquidation zones · nearest dense cluster = price magnet
         </div>
@@ -418,7 +418,7 @@ export default function LiqPage() {
 
       {bands && cd?.price && cd?.oi && (
         <>
-          {/* Bias — most actionable signal, show first */}
+          {/* Bias - most actionable signal, show first */}
           {bias && (
             <div className="liq-bias-card" style={{ borderColor: `${bias.col}33` }}>
               <span className="liq-bias-badge" style={{ color: bias.col, background: `${bias.col}16` }}>{bias.txt}</span>
@@ -427,12 +427,12 @@ export default function LiqPage() {
           )}
 
 
-          {/* Real liquidation clusters from live feeds — filtered to selected coin */}
+          {/* Real liquidation clusters from live feeds - filtered to selected coin */}
           <RealClusters clusters={realClusters.filter(c => c.coin.toLowerCase() === coin).slice(0, 8)} currentPrice={cd.price} />
 
           {/* Stats row */}
           <div className="liq-stats-row">
-            {/* Long side — both exchanges */}
+            {/* Long side - both exchanges */}
             <div className="liq-stat-item">
               <div className="liq-stat-label">Long accounts</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 2 }}>
@@ -455,7 +455,7 @@ export default function LiqPage() {
 
             <div className="liq-stat-sep" />
 
-            {/* Open Interest — center */}
+            {/* Open Interest - center */}
             <div className="liq-stat-item" style={{ textAlign: 'center' }}>
               <div className="liq-stat-label" style={{ textAlign: 'center' }}>Open Interest</div>
               <div className="liq-stat-val" style={{ color: 'var(--accent)', textAlign: 'center' }}>
@@ -466,7 +466,7 @@ export default function LiqPage() {
 
             <div className="liq-stat-sep" />
 
-            {/* Short side — both exchanges */}
+            {/* Short side - both exchanges */}
             <div className="liq-stat-item" style={{ textAlign: 'right' }}>
               <div className="liq-stat-label">Short accounts</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', marginTop: 2 }}>
@@ -488,7 +488,7 @@ export default function LiqPage() {
             </div>
           </div>
 
-          {/* ══ LIQUIDATION DELTA — net long vs short liquidation $ (15min window) ══ */}
+          {/* ══ LIQUIDATION DELTA - net long vs short liquidation $ (15min window) ══ */}
           {cd.liqDelta != null && cd.liqLongUsd != null && cd.liqShortUsd != null ? (() => {
             const netCol = cd.liqDelta! > 0 ? '#f87171' : cd.liqDelta! < 0 ? '#34d399' : 'var(--txt3)';
             const netTxt = cd.liqDelta! > 0
@@ -502,15 +502,15 @@ export default function LiqPage() {
                   {cd.liqDelta! >= 0 ? '+' : '−'}{fmtM(Math.abs(cd.liqDelta!) / 1e6)}
                 </span>
                 <span className="liq-bias-sub">
-                  {netTxt} in the last 15m — Longs {fmtM(cd.liqLongUsd / 1e6)} · Shorts {fmtM(cd.liqShortUsd / 1e6)}
+                  {netTxt} in the last 15m - Longs {fmtM(cd.liqLongUsd / 1e6)} · Shorts {fmtM(cd.liqShortUsd / 1e6)}
                 </span>
               </div>
             );
           })() : (
             <div style={{ fontSize: 11, color: 'var(--txt3)', padding: '4px 2px 0' }}>
               {LIQ_DELTA_COINS.includes(coin)
-                ? 'Warming up — waiting for enough liquidation volume in the last 15m.'
-                : `Liquidation delta unavailable for ${coin.toUpperCase()} — tracked for ${LIQ_DELTA_COINS.map(c => c.toUpperCase()).join(', ')} only.`}
+                ? 'Warming up - waiting for enough liquidation volume in the last 15m.'
+                : `Liquidation delta unavailable for ${coin.toUpperCase()} - tracked for ${LIQ_DELTA_COINS.map(c => c.toUpperCase()).join(', ')} only.`}
             </div>
           )}
 
@@ -666,7 +666,7 @@ export default function LiqPage() {
           </div>
 
           <div className="liq-disclaimer">
-            Model only — price levels are mathematically correct (1/leverage), bar widths and USD amounts show relative density across tiers modeled from open interest.
+            Model only - price levels are mathematically correct (1/leverage), bar widths and USD amounts show relative density across tiers modeled from open interest.
           </div>
         </>
       )}

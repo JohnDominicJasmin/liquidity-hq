@@ -17,13 +17,13 @@ async function requireAuth(req: NextRequest | Request): Promise<boolean> {
 
 export const dynamic = 'force-dynamic';
 
-/* Muted Telegram alert groups — stored as one row per muted key. This is a
+/* Muted Telegram alert groups - stored as one row per muted key. This is a
    single global config table with no per-user ownership (no user_id column),
-   so there's no meaningful RLS policy to write for it — same reasoning as
+   so there's no meaningful RLS policy to write for it - same reasoning as
    the rest of the alert system (app/api/telegram/alert/route.ts reads/writes
    it via the admin client too). RLS is enabled on the table with zero
    policies defined, which silently blocks the anon key on every operation
-   including SELECT (returns empty, not an error) — using the service-role
+   including SELECT (returns empty, not an error) - using the service-role
    client here bypasses that instead of granting anon broad write access to
    a table anyone could otherwise mute alerts on.
    Fail-open: if Supabase is unreachable, nothing is muted. */

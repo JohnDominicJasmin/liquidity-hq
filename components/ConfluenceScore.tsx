@@ -34,7 +34,7 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
         if (!r.ok) return;
         const j = await r.json() as { events?: CalEvent[] };
         if (!cancelled) setEconEvents(j.events ?? []);
-      } catch { /* silent — macro overlay is best-effort */ }
+      } catch { /* silent - macro overlay is best-effort */ }
     }
     load();
     const id = setInterval(load, ECON_REFRESH_MS);
@@ -77,7 +77,7 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
       <div className="sms-header">
         <div>
           <div className="sms-title">
-            <Tip text="Weighted blend of the EMA Ribbon verdict, the 9-signal Order Flow bias, and 15m/1h/4h RSI alignment. Choppiness and an active RSI-divergence warning reduce confidence without flipping direction. Macro/event risk is shown separately below — it's not blended into this number since an FOMC print doesn't change the technicals, only the risk of holding through it.">
+            <Tip text="Weighted blend of the EMA Ribbon verdict, the 9-signal Order Flow bias, and 15m/1h/4h RSI alignment. Choppiness and an active RSI-divergence warning reduce confidence without flipping direction. Macro/event risk is shown separately below - it's not blended into this number since an FOMC print doesn't change the technicals, only the risk of holding through it.">
               Confluence Score
             </Tip>
           </div>
@@ -115,7 +115,7 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
             : f.dir === 'bull' ? '#34d399' : f.dir === 'bear' ? '#f87171' : 'var(--txt3)';
           const valueText = isPenalty
             ? (f.active ? `−${f.weight} confidence` : 'clear')
-            : (f.dir === 'neutral' ? '—' : `${f.dir === 'bull' ? '▲' : '▼'} ${f.weight}`);
+            : (f.dir === 'neutral' ? '-' : `${f.dir === 'bull' ? '▲' : '▼'} ${f.weight}`);
           return (
             <div key={i} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',

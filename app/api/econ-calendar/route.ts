@@ -66,7 +66,7 @@ async function tryFinnhub(from: string, to: string): Promise<CalEvent[]> {
 }
 
 // ── Source 2: ForexFactory XML feed ───────────────────────────────────────────
-// FF occasionally rate-limits with a 200 HTML page — check content before parsing.
+// FF occasionally rate-limits with a 200 HTML page - check content before parsing.
 // Module-level cache keeps dev from hammering the endpoint.
 const _ffCache: { data: CalEvent[]; ts: number } = { data: [], ts: 0 };
 const FF_TTL = 60 * 60 * 1000;
@@ -88,7 +88,7 @@ async function tryForexFactory(now: Date): Promise<CalEvent[]> {
       });
       if (!r.ok) continue;
       const text = await r.text();
-      // Rate-limit returns HTML — bail if it's not XML
+      // Rate-limit returns HTML - bail if it's not XML
       if (!text.trimStart().startsWith('<?xml')) continue;
 
       const blocks: string[] = [];
@@ -239,7 +239,7 @@ async function enrichWithFRED(events: CalEvent[], now: Date): Promise<void> {
   const windowMs = 30 * 24 * 3600_000;
   const past = events.filter(e => {
     const diff = new Date(e.isoDate).getTime() - now.getTime();
-    // Include events up to 6h in the future — FF timestamps can drift vs actual release time
+    // Include events up to 6h in the future - FF timestamps can drift vs actual release time
     return diff < 6 * 3600_000 && diff > -windowMs && !e.actual;
   });
   if (past.length === 0) return;
@@ -256,7 +256,7 @@ async function enrichWithFRED(events: CalEvent[], now: Date): Promise<void> {
 }
 
 // ── Source 4: Computed schedule for key US macro releases ─────────────────────
-// Approximate release patterns — accurate within a few days. Used when no live
+// Approximate release patterns - accurate within a few days. Used when no live
 // feed is available. Covers the 8 most market-moving releases.
 function computeMacroSchedule(now: Date): CalEvent[] {
   const events: CalEvent[] = [];
@@ -316,7 +316,7 @@ export async function GET(req: NextRequest) {
   const from = new Date(+now - 864e5).toISOString().slice(0, 10);
   const to   = new Date(+now + 90 * 864e5).toISOString().slice(0, 10);
 
-  // Source 1: Finnhub — comprehensive 90-day when key is configured
+  // Source 1: Finnhub - comprehensive 90-day when key is configured
   try {
     const events = await tryFinnhub(from, to);
     if (events.length > 0) {

@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: 'Disclaimer' };
 const SECTIONS = [
   {
     title: 'Educational Content Only',
-    body: 'LiquidityHQ provides market data, charting tools, and AI-generated analysis for educational and informational purposes only. Nothing on this platform — including signals, scores, alerts, or LiquidityAI commentary — constitutes a recommendation to buy, sell, or hold any asset.',
+    body: 'LiquidityHQ provides market data, charting tools, and AI-generated analysis for educational and informational purposes only. Nothing on this platform - including signals, scores, alerts, or LiquidityAI commentary - constitutes a recommendation to buy, sell, or hold any asset.',
   },
   {
     title: 'Trading Risks',
@@ -14,7 +14,7 @@ const SECTIONS = [
   },
   {
     title: 'No Guarantees',
-    body: 'Squeeze scores, distribution scores, EMA ribbon setups, backtest results, and every other metric on this platform describe historical or current conditions — they do not predict future price movement. Past performance does not guarantee future results.',
+    body: 'Squeeze scores, distribution scores, EMA ribbon setups, backtest results, and every other metric on this platform describe historical or current conditions - they do not predict future price movement. Past performance does not guarantee future results.',
   },
   {
     title: 'Not Financial Advice',
@@ -22,7 +22,7 @@ const SECTIONS = [
   },
   {
     title: 'No Trade Execution',
-    body: 'LiquidityHQ does not execute trades, place orders, or manage funds on your behalf, and never has access to your exchange API keys or account credentials. The platform is a data and analytics tool only — all trading decisions and actions are made by you, on your own exchange account.',
+    body: 'LiquidityHQ does not execute trades, place orders, or manage funds on your behalf, and never has access to your exchange API keys or account credentials. The platform is a data and analytics tool only - all trading decisions and actions are made by you, on your own exchange account.',
   },
   {
     title: 'AI-Generated Analysis',
@@ -95,7 +95,7 @@ export default function Disclaimer() {
       }}>
         <p>
           By using LiquidityHQ, you acknowledge that you understand and agree to this disclaimer.
-          Market data and signals are for informational use only — not investment advice.
+          Market data and signals are for informational use only - not investment advice.
         </p>
         <p style={{ marginTop: 20, display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
           <span>© {new Date().getFullYear()} LiquidityHQ. All rights reserved.</span>

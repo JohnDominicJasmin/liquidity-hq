@@ -39,16 +39,16 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
     const longPct  = ((currentPrice - bigLong.price)  / currentPrice * 100).toFixed(1);
     const shortBig = bigShort.amount > bigLong.amount;
     if (shortBig) {
-      insight = `Biggest pool: ${fmtAmt(bigShort.amount)} in shorts at ${fmtK(bigShort.price)} (+${shortPct}% above) — whales likely push price up to sweep them.`;
+      insight = `Biggest pool: ${fmtAmt(bigShort.amount)} in shorts at ${fmtK(bigShort.price)} (+${shortPct}% above) - whales likely push price up to sweep them.`;
     } else {
-      insight = `Biggest pool: ${fmtAmt(bigLong.amount)} in longs at ${fmtK(bigLong.price)} (-${longPct}% below) — whales likely push price down to sweep them.`;
+      insight = `Biggest pool: ${fmtAmt(bigLong.amount)} in longs at ${fmtK(bigLong.price)} (-${longPct}% below) - whales likely push price down to sweep them.`;
     }
   } else if (bigShort) {
     const pct = ((bigShort.price - currentPrice) / currentPrice * 100).toFixed(1);
-    insight = `${fmtAmt(bigShort.amount)} in short liquidations at ${fmtK(bigShort.price)} (+${pct}% above) — bulls may spike toward it.`;
+    insight = `${fmtAmt(bigShort.amount)} in short liquidations at ${fmtK(bigShort.price)} (+${pct}% above) - bulls may spike toward it.`;
   } else if (bigLong) {
     const pct = ((currentPrice - bigLong.price) / currentPrice * 100).toFixed(1);
-    insight = `${fmtAmt(bigLong.amount)} in long liquidations at ${fmtK(bigLong.price)} (-${pct}% below) — bears may push toward it.`;
+    insight = `${fmtAmt(bigLong.amount)} in long liquidations at ${fmtK(bigLong.price)} (-${pct}% below) - bears may push toward it.`;
   }
 
   const Row = ({ l, side }: { l: LiqLevel; side: 'above' | 'below' }) => {
@@ -87,11 +87,11 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
         <span style={{ fontSize: 10, color: 'var(--txt3)' }}>BTC only · Coinglass</span>
       </div>
 
-      {/* Short liq clusters — above price */}
+      {/* Short liq clusters - above price */}
       {above.length > 0 && (
         <>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#34d399', letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 4 }}>
-            Short liquidations above — bulls target here
+            Short liquidations above - bulls target here
           </div>
           {above.map((l, i) => <Row key={i} l={l} side="above" />)}
         </>
@@ -109,12 +109,12 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
         </span>
       </div>
 
-      {/* Long liq clusters — below price */}
+      {/* Long liq clusters - below price */}
       {below.length > 0 && (
         <>
           {below.map((l, i) => <Row key={i} l={l} side="below" />)}
           <div style={{ fontSize: 11, fontWeight: 700, color: '#f87171', letterSpacing: '.06em', textTransform: 'uppercase', marginTop: 4 }}>
-            Long liquidations below — bears target here
+            Long liquidations below - bears target here
           </div>
         </>
       )}

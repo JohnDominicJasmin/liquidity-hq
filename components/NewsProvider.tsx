@@ -2,7 +2,7 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { classifyNews, GEO_KEYWORDS } from '@/lib/classify';
 
-// Finnhub calls go through /api/news/finnhub — key stays server-side
+// Finnhub calls go through /api/news/finnhub - key stays server-side
 
 export interface Alert {
   id: number;
@@ -61,7 +61,7 @@ interface NewsCtx {
 const NewsContext = createContext<NewsCtx | null>(null);
 export function useNews() { return useContext(NewsContext)!; }
 
-// Module-level flag — survives React StrictMode double-mount so permission is only requested once
+// Module-level flag - survives React StrictMode double-mount so permission is only requested once
 let _notifRequested = false;
 
 function timeAgo(ts: number): string {
@@ -111,7 +111,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     const id = alertIdRef.current++;
     setAlerts(prev => [...prev, { id, headline, source, ts, type, link, image }]);
 
-    // Only notify for articles < 15 min old — prevents stale articles re-firing on page refresh
+    // Only notify for articles < 15 min old - prevents stale articles re-firing on page refresh
     const ageMs = Date.now() - ts * 1000;
     if ('Notification' in window && Notification.permission === 'granted' && ageMs < 15 * 60 * 1000) {
       new Notification(headline, {
@@ -126,7 +126,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     setAlerts(prev => prev.filter(a => a.id !== id));
   }, []);
 
-  /* ── Finnhub REST news — primary source (crypto + general) ── */
+  /* ── Finnhub REST news - primary source (crypto + general) ── */
   const fetchFinnhubNews = useCallback(async () => {
     try {
       const [cryptoRes, generalRes] = await Promise.allSettled([
@@ -162,7 +162,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     } catch { /* */ }
   }, [pushAlert]);
 
-  /* ── Economic calendar — Finnhub primary, Trading Economics fallback ── */
+  /* ── Economic calendar - Finnhub primary, Trading Economics fallback ── */
   const fetchEconEvents = useCallback(async () => {
     const now = new Date();
     try {
@@ -184,7 +184,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
           .sort((a, b) => a.dt.getTime() - b.dt.getTime());
         setEconEvents(events);
         events.filter(e => e.h >= 0 && e.h < 1).forEach(e => {
-          pushAlert(`Upcoming: ${e.name} — ${countdown(e.h)}`, 'Calendar', Math.floor(Date.now() / 1000), 'amber');
+          pushAlert(`Upcoming: ${e.name} - ${countdown(e.h)}`, 'Calendar', Math.floor(Date.now() / 1000), 'amber');
         });
       }
     } catch { /* */ }
@@ -268,7 +268,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
 
     const intervals = [
       setInterval(fetchFinnhubNews,  2 * 60 * 1000),    // every 2 min
-      setInterval(fetchRSSNews,      60 * 1000),         // every 1 min — Reuters/AP/Al Jazeera/CoinDesk
+      setInterval(fetchRSSNews,      60 * 1000),         // every 1 min - Reuters/AP/Al Jazeera/CoinDesk
       setInterval(fetchEconEvents,  60 * 60 * 1000),    // every 1h
       setInterval(fetchGeoEvents,    3 * 60 * 1000),    // every 3 min
     ];

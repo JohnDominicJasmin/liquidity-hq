@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
         `${BASE}/v1/cryptocurrency/listings/latest?limit=100&sort=market_cap&convert=USD`,
         {
           headers: cmcHeaders(),
-          next: { revalidate: 300 },  // cache 5 min — 90d data doesn't move fast
+          next: { revalidate: 300 },  // cache 5 min - 90d data doesn't move fast
         }
       );
       const d = await r.json();

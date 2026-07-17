@@ -19,14 +19,14 @@ export function scoreBias(d: CoinData): { bias: Bias; score: number; total: numb
   if (d.takerBuyRatio != null) { if (d.takerBuyRatio > 0.55) bull++; else if (d.takerBuyRatio < 0.45) bear++; }
   if (d.poc  != null) { if (d.price > d.poc)  bull++; else bear++; }
   if (d.vwap != null) { if (d.price > d.vwap) bull++; else bear++; }
-  // Funding — contrarian: high funding = crowded longs paying to stay in = bearish tilt.
+  // Funding - contrarian: high funding = crowded longs paying to stay in = bearish tilt.
   // Negative funding = crowded shorts = bullish tilt.
   if (d.fundingRate != null) {
     const fr = d.fundingRate * 100;
     if (fr >= 0.04) bear++;
     else if (fr <= -0.02) bull++;
   }
-  // Liquidation delta — same contrarian/fade convention as funding above: heavy net
+  // Liquidation delta - same contrarian/fade convention as funding above: heavy net
   // long liquidations means the over-leveraged long crowd just got flushed out, which
   // tends to mark exhaustion of the down-move (fade it, bullish). Heavy net short
   // liquidations is the mirror case (a squeeze exhausting itself, fade it, bearish).
@@ -159,11 +159,11 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
 
       {bias === 'neutral' || !stop || rows.length === 0 ? (
         <div style={{ fontSize: 12, color: 'var(--txt3)', lineHeight: 1.6, padding: '0 14px 14px' }}>
-          Signals are split — wait for RSI and OI to agree on direction before entering.
+          Signals are split - wait for RSI and OI to agree on direction before entering.
         </div>
       ) : (
         <>
-          {/* Conflict notice — shown when AI signal contradicts indicator bias */}
+          {/* Conflict notice - shown when AI signal contradicts indicator bias */}
           {hasConflict && (
             <div style={{ padding: '0 14px 10px' }}>
               <div style={{
@@ -176,7 +176,7 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
                 <span style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.5 }}>
                   AI analysis leans{' '}
                   <span style={{ color: '#f59e0b', fontWeight: 700 }}>{grokSignal}</span>
-                  {' '}— indicators may not reflect recent catalysts. Check the AI result below.
+                  {' '}- indicators may not reflect recent catalysts. Check the AI result below.
                 </span>
               </div>
             </div>

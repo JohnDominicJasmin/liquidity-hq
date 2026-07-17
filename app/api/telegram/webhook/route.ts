@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   if (!token) return NextResponse.json({ ok: true });
 
   // Telegram echoes this header on every webhook call when a secret_token was
-  // set via setWebhook — verifying it stops anyone who finds this URL from
+  // set via setWebhook - verifying it stops anyone who finds this URL from
   // POSTing fake updates that make the bot DM arbitrary chat_ids on our behalf.
   const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
   if (webhookSecret) {

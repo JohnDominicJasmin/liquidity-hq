@@ -4,7 +4,7 @@ import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
 
 export const dynamic = 'force-dynamic';
-// Funding rates settle every 8h — a 20s cache collapses concurrent visitor
+// Funding rates settle every 8h - a 20s cache collapses concurrent visitor
 // fan-out into one upstream call without making the data noticeably stale.
 const CACHE_TTL = 20_000;
 

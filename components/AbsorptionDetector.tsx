@@ -35,8 +35,8 @@ function classifyC(c: Candle, avgVol: number): CandleClass {
   const isAbsorption = bodyRatio < 0.45 && volRatio > 1.2;
 
   const type: 'accumulation' | 'distribution' | null = isAbsorption
-    ? takerBuyPct < 45   ? 'accumulation'   // sellers dominant but price holding — buyers absorbing sells
-    : takerBuyPct > 55   ? 'distribution'   // buyers dominant but price not rising — sellers absorbing buys
+    ? takerBuyPct < 45   ? 'accumulation'   // sellers dominant but price holding - buyers absorbing sells
+    : takerBuyPct > 55   ? 'distribution'   // buyers dominant but price not rising - sellers absorbing buys
     : 'accumulation'                         // balanced → default accumulation
     : null;
 
@@ -47,7 +47,7 @@ function classifyC(c: Candle, avgVol: number): CandleClass {
    Scoring breakdown (max 100):
    • Body compression  (0–25): tight candle bodies = someone neutralising directional pressure
    • Volume elevation  (0–25): high volume = lots of orders being absorbed
-   • Duration          (0–20): consecutive candles — the longer it holds the more loaded the coil
+   • Duration          (0–20): consecutive candles - the longer it holds the more loaded the coil
    • CVD alignment     (0–15): store's CVD divergence matches detected direction = confirmation
    • MTF 1H confirm    (0–15): same absorption pattern on 1H = institutional, not noise
 ──────────────────────────────────────────────────────────────────────────── */
@@ -208,7 +208,7 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
         c15 = raw15.map(k => ({ t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5], takerBuy: +k[9] }));
         c1h = raw1h.map(k => ({ t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5], takerBuy: +k[9] }));
       } else if (bytSym) {
-        // Bybit klines don't include per-candle taker buy — use 50/50 split (still useful for body+vol)
+        // Bybit klines don't include per-candle taker buy - use 50/50 split (still useful for body+vol)
         const toC = (k: string[]) => ({ t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5], takerBuy: +k[5] * 0.5 });
         const [r15, r1h] = await Promise.all([
           fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bytSym}&interval=15&limit=50`),
@@ -327,7 +327,7 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
       {d.mtfConfirmed && (
         <div className="abs-mtf">
           <span className="abs-mtf-badge">1H ✓</span>
-          <span>Multi-timeframe confirmed — institutional activity</span>
+          <span>Multi-timeframe confirmed - institutional activity</span>
         </div>
       )}
 

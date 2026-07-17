@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
-/* ── DESIGN TOKENS — deep navy + electric blue accent ── */
+/* ── DESIGN TOKENS - deep navy + electric blue accent ── */
 :root {
-  /* Terminal charcoal-black — no blue tint */
+  /* Terminal charcoal-black - no blue tint */
   --bg0: #030405;
   --bg:  #000000;
   --bg1: #06070a;
@@ -15,11 +15,11 @@
   --txt2: #7a7e94;
   --txt3: #3e4258;
 
-  /* Borders — neutral white hairline, no indigo tint */
+  /* Borders - neutral white hairline, no indigo tint */
   --bdr:  rgba(255,255,255,0.08);
   --bdr2: rgba(255,255,255,0.14);
 
-  /* Electric blue — CTAs and interactive elements only */
+  /* Electric blue - CTAs and interactive elements only */
   --accent:     #1a7aff;
   --accent-2:   #5aa3ff;
   --accent-dim: rgba(26,122,255,0.12);
@@ -31,7 +31,7 @@
   --purple-bg:  var(--accent-bg);
   --purple-bdr: var(--accent-bdr);
 
-  /* Semantic colors — unchanged */
+  /* Semantic colors - unchanged */
   --green:     #4ade80;
   --green-bg:  rgba(74,222,128,0.08);
   --green-bdr: rgba(74,222,128,0.22);
@@ -50,7 +50,7 @@
   --blue-bg:  rgba(96,165,250,0.08);
   --blue-bdr: rgba(96,165,250,0.22);
 
-  /* Terminal — flat, no elevation, no glow */
+  /* Terminal - flat, no elevation, no glow */
   --nm-raise:    none;
   --nm-raise-sm: none;
   --nm-inset:    inset 0 1px 3px rgba(0,0,0,0.5);
@@ -62,14 +62,14 @@
   --glow-purple: none;
   --glow-amber:  none;
 
-  /* Radius system — 3 semantic tokens */
+  /* Radius system - 3 semantic tokens */
   --radius-data: 4px;   /* dense data: chips, badges, tight rows */
   --radius-card: 12px;  /* standard cards and panels */
   --radius-chip: 3px;   /* micro chips (change %, small tags) */
   --radius-pill: 20px;  /* pill buttons and filter chips */
   --radius-sharp: 2px;  /* terminal-sharp: onboarding inputs, rows, CTAs */
 
-  /* Type scale — 8 tiers (was 23 distinct sizes) */
+  /* Type scale - 8 tiers (was 23 distinct sizes) */
   --fs-xs:   10px;  /* micro labels, tickers, chart annotations */
   --fs-sm:   11px;  /* secondary metadata, hint text */
   --fs-md:   12px;  /* standard content, table cells */
@@ -79,7 +79,7 @@
   --fs-2xl:  32px;  /* hero numbers, current price */
   --fs-3xl:  48px;  /* display numbers */
 
-  /* Spacing scale — 4px base, 8 steps. Use app-wide for consistent rhythm. */
+  /* Spacing scale - 4px base, 8 steps. Use app-wide for consistent rhythm. */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -116,7 +116,7 @@ body::after {
 }
 
 /* ── SCROLLBARS ── */
-/* Globally hidden — restored selectively below */
+/* Globally hidden - restored selectively below */
 ::-webkit-scrollbar { display: none; }
 * { scrollbar-width: none; }
 
@@ -158,9 +158,9 @@ body::after {
 .app-logo { font-size: 16px; font-weight: 700; color: var(--txt); white-space: nowrap; flex-shrink: 0; letter-spacing: -0.3px; }
 .app-logo span { color: var(--accent-2); }
 .app-content { max-width: 700px; margin: 0 auto; padding: 90px 1rem 2rem; }
-/* 90px = navbar(52) + ticker(28) + 10px gap — safe at all times */
+/* 90px = navbar(52) + ticker(28) + 10px gap - safe at all times */
 
-/* Smooth entry instead of a hard cut — most noticeable right after the
+/* Smooth entry instead of a hard cut - most noticeable right after the
    auth-redirect from "/" lands here, but applies on any fresh page load. */
 .dashboard-grid { animation: lp-content-in 0.4s var(--ease-settle); }
 
@@ -247,7 +247,7 @@ body::after {
 .csb-badge      { font-size: 10px; font-weight: 700; padding: 1px 4px; border-radius: 4px; white-space: nowrap; }
 .csb-status     { padding: 8px 12px; font-size: 10px; color: var(--txt3); border-top: 0.5px solid var(--bdr); }
 
-/* ── COIN SIDEBAR v2 — signal cards ── */
+/* ── COIN SIDEBAR v2 - signal cards ── */
 .csb2-container { display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; }
 .csb2-card      { padding: 8px 10px 0; border-radius: var(--radius-card); border: 0.5px solid transparent; border-left-width: 2px; cursor: pointer; transition: border-color 0.15s, background 0.15s; background: var(--bg2); overflow: hidden; }
 .csb2-card:hover { border-color: var(--bdr2); background: var(--bg3); }
@@ -355,7 +355,7 @@ body::after {
   box-shadow: none;
 }
 
-/* ── PRIMARY ACTION BUTTON — shared base for all confirm/submit actions ── */
+/* ── PRIMARY ACTION BUTTON - shared base for all confirm/submit actions ── */
 .btn-primary {
   display: inline-flex; align-items: center; justify-content: center;
   padding: 8px 16px; border-radius: 8px;
@@ -400,7 +400,7 @@ body::after {
   background: linear-gradient(90deg, var(--bdr) 0%, transparent 100%);
 }
 
-/* ── HOT section headers — live, decision-critical ── */
+/* ── HOT section headers - live, decision-critical ── */
 .dash-section-hot { color: var(--txt); font-weight: 700; }
 .dash-section-hot::after {
   background: linear-gradient(90deg, rgba(52,211,153,0.2) 0%, transparent 100%);
@@ -413,13 +413,13 @@ body::after {
   animation: pulse 2s infinite;
 }
 
-/* ── CONTEXT SECTION DIVIDER — separates live signals from timing/macro ── */
+/* ── CONTEXT SECTION DIVIDER - separates live signals from timing/macro ── */
 .dash-ctx-sep {
   height: 0.5px; margin: 10px 0 6px;
   background: linear-gradient(90deg, transparent 0%, var(--bdr) 25%, var(--bdr) 75%, transparent 100%);
 }
 
-/* ── COLLAPSE TOGGLE — shared style for breakdown/show-more buttons ── */
+/* ── COLLAPSE TOGGLE - shared style for breakdown/show-more buttons ── */
 .collapse-toggle {
   width: 100%; background: none; border: none;
   border-top: 0.5px solid var(--bdr); padding: 8px 0 4px;
@@ -515,7 +515,7 @@ body[data-rpm-level="high"]::before {
   width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
   animation: pulse 2s infinite;
 }
-/* hide below 1100px — the app-bar-inner is max 700px there, so logo+nav+session pill
+/* hide below 1100px - the app-bar-inner is max 700px there, so logo+nav+session pill
    don't fit and the auth button gets clipped. Session pill shows at 1100px+ only. */
 @media (max-width: 1099px) { .session-pill-wrap { display: none; } }
 
@@ -620,12 +620,12 @@ body[data-rpm-level="high"]::before {
 .news-ticker {
   position: fixed; top: 52px; left: 0; right: 0; z-index: 999;
   height: 28px; display: flex; align-items: center; gap: 0;
-  background: #0a090e;                   /* fully opaque — no bleed-through */
+  background: #0a090e;                   /* fully opaque - no bleed-through */
   border-bottom: 0.5px solid rgba(255,255,255,0.06);
   overflow: hidden;
   animation: ticker-slide-in 0.28s ease-out;
 }
-/* Color identity via badge + accent border only — no transparent backgrounds */
+/* Color identity via badge + accent border only - no transparent backgrounds */
 .ticker-red    { border-bottom-color: rgba(248,113,113,0.4); }
 .ticker-amber  { border-bottom-color: rgba(251,191,36,0.35); }
 .ticker-purple { border-bottom-color: rgba(26,122,255,0.35); }
@@ -669,7 +669,7 @@ body[data-rpm-level="high"]::before {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* body.ticker-on no longer needed for app-content — base padding covers both states */
+/* body.ticker-on no longer needed for app-content - base padding covers both states */
 /* Keep for breaking alerts positioning */
 body.ticker-on .breaking-alert { top: 90px; }
 
@@ -795,7 +795,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 .bar-high { background: var(--red); }
 .bar-max  { background: var(--red); box-shadow: 0 0 8px rgba(248,113,113,0.4); }
 
-/* ── SOTD — reference/educational content, deliberately styled distinct from
+/* ── SOTD - reference/educational content, deliberately styled distinct from
    live-data cards (dashed neutral accent instead of the purple→green gradient
    used elsewhere for live bullish signals, plus an explicit "Playbook" badge) ── */
 .sotd-wrap { background: var(--bg1); border: 0.5px dashed var(--bdr2); border-radius: var(--radius-card); padding: 1rem 1.25rem; margin-bottom: 14px; position: relative; overflow: hidden; }
@@ -1042,10 +1042,10 @@ body.ticker-on .breaking-alert { top: 90px; }
 .arena-fire-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .arena-fire-btn:not(:disabled):hover { background: rgba(26,122,255,0.12); border-color: var(--accent); }
 .arena-fire-btn:not(:disabled):active { transform: scale(0.98); }
-/* Quick mode button — green tint */
+/* Quick mode button - green tint */
 .arena-quick-btn { background: rgba(52,211,153,0.08) !important; border-color: rgba(52,211,153,0.3) !important; color: #34d399 !important; }
 .arena-quick-btn:not(:disabled):hover { box-shadow: 0 4px 20px rgba(52,211,153,0.15) !important; border-color: #34d399 !important; }
-/* Deep button — locked state (not signed in) */
+/* Deep button - locked state (not signed in) */
 .arena-deep-locked {
   opacity: 0.75 !important;
   background: rgba(217, 119, 6, 0.06) !important;
@@ -1070,7 +1070,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 .arena-context-key { color: var(--txt3); }
 .arena-context-val { color: var(--txt2); font-weight: 600; text-align: right; max-width: 55%; }
 
-/* Signal cards — with glow */
+/* Signal cards - with glow */
 .arena-signal-card { border-radius: var(--radius-card); padding: 18px; margin-bottom: 10px; border: 0.5px solid var(--bdr); position: relative; overflow: hidden; }
 .arena-signal-card.sig-long       { background: rgba(52,211,153,0.04);  border-color: rgba(52,211,153,0.3);  border-left: 3px solid var(--green);  box-shadow: 0 0 40px rgba(52,211,153,0.07); }
 .arena-signal-card.sig-lean-long  { background: rgba(52,211,153,0.02);  border-color: rgba(52,211,153,0.18); border-left: 3px solid rgba(52,211,153,0.5); }
@@ -1103,7 +1103,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 .arena-hist-item:hover { background: var(--bg2); border-color: var(--bdr2); }
 .arena-hist-item.arena-hist-open { background: var(--bg2); border-color: var(--purple-bdr); border-bottom-left-radius: 0; border-bottom-right-radius: 0; margin-bottom: 0; }
 
-/* Expanded detail panel — attaches flush below the open row */
+/* Expanded detail panel - attaches flush below the open row */
 .arena-hist-detail { border: 0.5px solid var(--bdr); border-top: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; padding: 14px; margin-bottom: 6px; }
 .arena-hist-detail.sig-long       { background: rgba(52,211,153,0.04);  border-color: rgba(52,211,153,0.25); }
 .arena-hist-detail.sig-lean-long  { background: rgba(52,211,153,0.02);  border-color: rgba(52,211,153,0.15); }
@@ -1492,12 +1492,12 @@ body.ticker-on .breaking-alert { top: 90px; }
 }
 @media (max-width: 420px) {
   .klc-canvas { height: 380px; }
-  /* Hide drawing tools on mobile — touch devices can't use them precisely */
+  /* Hide drawing tools on mobile - touch devices can't use them precisely */
   .klc-tool-btn:not(.klc-tf-btn):not(.klc-clear):not(.klc-fullscreen-btn) { display: none !important; }
   .klc-sep { display: none !important; }
   .klc-legend { flex-wrap: wrap; gap: 4px; max-width: calc(100% - 80px); }
 }
-/* Fullscreen — canvas expands to fill the screen minus the toolbar */
+/* Fullscreen - canvas expands to fill the screen minus the toolbar */
 .klc-wrap:fullscreen,
 .klc-wrap:-webkit-full-screen {
   border-radius: 0; background: var(--bg);
@@ -1520,7 +1520,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 }
 .gchat-fab:hover { box-shadow: 0 6px 32px rgba(0,0,0,0.9), 0 0 30px rgba(26,122,255,0.25); transform: scale(1.04); }
 /* AUTH-6/item #18 fix: the FAB used to swap to an ✕ glyph while the panel
-   was open, duplicating the panel's own header ✕ — two close buttons on
+   was open, duplicating the panel's own header ✕ - two close buttons on
    screen at once, worse when expanded since the FAB (bottom-right) reads
    as disconnected from the centered modal. Hide it instead; the panel's
    header ✕ is the single, unambiguous close control. */
@@ -1528,7 +1528,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 /* Scroll-hide: applied by JS on mobile only (window.innerWidth check in component) */
 .gchat-fab-scrolling { opacity: 0; transform: scale(0.75) translateY(8px); pointer-events: none; }
 /* The FAB sits above the mobile nav drawer (z-index 9995 vs 999) and otherwise
-   covers the bottom nav links, eating their taps — hide it while the drawer is open. */
+   covers the bottom nav links, eating their taps - hide it while the drawer is open. */
 body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 
 
@@ -1912,9 +1912,9 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .theme-btn:hover { background: rgba(255,255,255,0.07); color: var(--txt); }
 [data-theme="light"] .theme-btn:hover { background: rgba(0,0,0,0.07); }
 
-/* ── LIGHT THEME — Paper ─────────────────────────────────────────── */
+/* ── LIGHT THEME - Paper ─────────────────────────────────────────── */
 [data-theme="light"] {
-  /* Clean neutral — white cards on light gray canvas */
+  /* Clean neutral - white cards on light gray canvas */
   --bg:  #E8EAED;
   --bg1: #FFFFFF;
   --bg2: #F2F3F5;
@@ -1924,7 +1924,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   /* Typography */
   --txt:  #111318;
   --txt2: #44475A;
-  --txt3: #63656F; /* was #888B99 (3.39:1 — fails AA). AA on white/card/canvas: 5.80/5.22/4.81 */
+  --txt3: #63656F; /* was #888B99 (3.39:1 - fails AA). AA on white/card/canvas: 5.80/5.22/4.81 */
   --bdr:  rgba(0,0,0,0.08);
   --bdr2: rgba(0,0,0,0.14);
 
@@ -1934,14 +1934,14 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --nm-inset:    inset 0 1px 3px rgba(0,0,0,0.07), 0 0 0 0.5px rgba(0,0,0,0.05);
   --nm-btn:      0 1px 3px rgba(0,0,0,0.09), 0 0 0 0.5px rgba(0,0,0,0.07);
 
-  /* Accent — darker blue for legibility on white */
+  /* Accent - darker blue for legibility on white */
   --accent:     #0052CC;
   --accent-2:   #0066E8;
   --accent-dim: rgba(0,82,204,0.10);
   --accent-bg:  rgba(0,82,204,0.07);
   --accent-bdr: rgba(0,82,204,0.22);
 
-  /* Purple aliased to accent — no separate violet in light mode */
+  /* Purple aliased to accent - no separate violet in light mode */
   --purple:     var(--accent);
   --purple-dim: var(--accent-dim);
   --purple-bg:  var(--accent-bg);
@@ -1992,7 +1992,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 /* Breaking alert */
 [data-theme="light"] .ba-card { background: var(--bg2); }
 
-/* Row hovers — dark mode uses rgba(white), light needs rgba(black) */
+/* Row hovers - dark mode uses rgba(white), light needs rgba(black) */
 [data-theme="light"] .oi-trend-row:hover,
 [data-theme="light"] .taker-row:hover,
 [data-theme="light"] .gex-row:hover,
@@ -2345,13 +2345,13 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .ps-preset  { flex: 0 0 auto; padding: 4px 12px; border-radius: 20px; border: 0.5px solid var(--bdr2); background: var(--bg3); color: var(--txt2); font-size: 11px; font-weight: 600; cursor: pointer; }
 .ps-preset.on { background: rgba(26,122,255,.12); border-color: var(--purple-bdr); color: var(--purple); }
 .ps-risk-line { font-size: 11px; color: var(--txt3); margin-top: 8px; }
-/* Direction is a computed status, not a control — render it as a compact pill
+/* Direction is a computed status, not a control - render it as a compact pill
    inside the results grid (not a full-width bar that reads as a button). */
 .ps-dir-pill  { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
 .ps-dir-long  { background: var(--green-bg); color: var(--green); border: 0.5px solid var(--green-bdr); }
 .ps-dir-short { background: var(--red-bg);   color: var(--red);   border: 0.5px solid var(--red-bdr); }
 
-/* Optional coin selector — auto-fills entry with the live price */
+/* Optional coin selector - auto-fills entry with the live price */
 .ps-coin-row    { margin-bottom: 12px; }
 .ps-coin-irow   { display: flex; gap: 8px; align-items: stretch; }
 .ps-coin-combo  { position: relative; flex: 1; min-width: 0; }
@@ -2504,7 +2504,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gsc-error    { padding: 8px 14px; font-size: 11px; color: var(--red); }
 @media (max-width: 639px) { .gsc-tv-frame { height: 420px; } }
 
-/* ── Arena: content below chart — same full-bleed width as TradingView chart ── */
+/* ── Arena: content below chart - same full-bleed width as TradingView chart ── */
 .arena-below-chart { width: 100%; }
 @media (min-width: 1100px) {
   .arena-below-chart { margin-left: -20px; margin-right: -20px; padding-left: 20px; padding-right: 20px; }
@@ -2811,7 +2811,7 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 
 [data-theme="light"] .mb-macro-item { background: var(--bg2); }
 
-/* ── Morning Briefing — AI section ── */
+/* ── Morning Briefing - AI section ── */
 .mb-brief-card    { margin-bottom: 10px; }
 .mb-brief-header  { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
 .mb-brief-btn     { padding: 9px 16px; border-radius: 20px; font-size: 12px; font-weight: 700; cursor: pointer; border: 0.5px solid var(--purple-bdr); background: var(--purple-bg); color: var(--purple); transition: all 0.15s; white-space: nowrap; min-height: 36px; display: inline-flex; align-items: center; }
@@ -2963,7 +2963,7 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 }
 .usage-auth-link:hover { text-decoration: underline; }
 
-/* ── AUTH GATE — inline lock screen for gated features ───────────────────── */
+/* ── AUTH GATE - inline lock screen for gated features ───────────────────── */
 .auth-gate {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   text-align: center; padding: 36px 24px; gap: 10px;
@@ -3191,7 +3191,7 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 [data-theme="light"] .st-affix   { background: #f0f0f0; }
 [data-theme="light"] .st-chip    { background: #f0f0f0; }
 
-/* Locked "Sign in to continue" feature list — opacity alone conveys the
+/* Locked "Sign in to continue" feature list - opacity alone conveys the
    disabled state, but 0.35 over a light card blends var(--txt2) down to
    near-invisible grey-on-white (AUTH note in AUDIT.md item #11). Dark
    theme's near-white --txt2 survives the same opacity fine, so only the
@@ -3246,7 +3246,7 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 [data-theme="light"] .cms-trigger { background: #f8f8f8; }
 [data-theme="light"] .cms-panel   { background: #fff; border-color: rgba(0,0,0,0.1); }
 
-/* ── GROK CHAT — Login modal overlay ─────────────────────────────────────── */
+/* ── GROK CHAT - Login modal overlay ─────────────────────────────────────── */
 .gchat-login-overlay {
   position: absolute; inset: 0; z-index: 20;
   background: rgba(10, 10, 14, 0.94);
@@ -3271,7 +3271,7 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 }
 .gchat-login-close:hover { background: rgba(255,255,255,0.14); color: var(--txt); }
 
-/* ── AUTH — Avatar button & Sign In ───────────────────────────────────────── */
+/* ── AUTH - Avatar button & Sign In ───────────────────────────────────────── */
 .auth-wrap { position: relative; flex-shrink: 0; }
 
 .auth-avatar-btn {
@@ -3323,7 +3323,7 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 }
 .auth-signout-btn:hover { background: var(--red-bg); }
 
-/* Mobile drawer sign out — match nav-item style but destructive color */
+/* Mobile drawer sign out - match nav-item style but destructive color */
 .nav-signout { background: none; border: none; font-family: inherit; width: 100%; text-align: left; color: var(--red) !important; cursor: pointer; }
 
 /* Light theme overrides */
@@ -3333,7 +3333,7 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 /* Card elevation in light mode */
 [data-theme="light"] .card { box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(0,0,0,0.05); }
 
-/* News ticker — adapt to light mode */
+/* News ticker - adapt to light mode */
 [data-theme="light"] .news-ticker { background: #fff; border-bottom-color: rgba(0,0,0,0.10); }
 [data-theme="light"] .ticker-sep  { background: rgba(0,0,0,0.15); }
 [data-theme="light"] .ticker-red    { border-bottom-color: rgba(185,28,28,0.25); }
@@ -3347,7 +3347,7 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 [data-theme="light"] .ticker-amber  .ticker-content span { color: var(--amber); }
 [data-theme="light"] .ticker-purple .ticker-content span { color: var(--accent); }
 
-/* Nav divider — rgba(white) is invisible on light bg */
+/* Nav divider - rgba(white) is invisible on light bg */
 [data-theme="light"] .nav-divider { background: rgba(0,0,0,0.07); }
 
 /* Coin sidebar row borders */
@@ -3357,17 +3357,17 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 [data-theme="light"] .csb2-sig       { background: var(--bg3); }
 [data-theme="light"] .csb2-bar-track { background: var(--bg3); }
 
-/* Liq feed — large-liq row highlight + cluster bar track */
+/* Liq feed - large-liq row highlight + cluster bar track */
 [data-theme="light"] .liqfeed-row-big  { background: var(--bg3); }
 [data-theme="light"] .liq-cluster-bars { background: var(--bg3); }
 
-/* Hours page — hamburger hover */
+/* Hours page - hamburger hover */
 [data-theme="light"] .hamburger:hover { background: rgba(0,0,0,0.05); border-color: rgba(0,0,0,0.1); }
 
 /* Login page google button */
 [data-theme="light"] .login-google-btn { background: var(--bg1); border-color: var(--bdr2); }
 
-/* Chat FAB — solid accent in light mode so it's visible */
+/* Chat FAB - solid accent in light mode so it's visible */
 [data-theme="light"] .gchat-fab {
   background: var(--accent);
   border-color: transparent;
@@ -3378,31 +3378,31 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
   box-shadow: 0 6px 28px rgba(0,82,204,0.30), 0 2px 6px rgba(0,0,0,0.12);
 }
 
-/* News cards — rgba(white) borders invisible in light mode */
+/* News cards - rgba(white) borders invisible in light mode */
 [data-theme="light"] .ncard      { border-color: var(--bdr); }
 [data-theme="light"] .ncard-top  { border-bottom-color: var(--bdr); }
 [data-theme="light"] .ncard-hero { border-color: var(--bdr); }
 
-/* Telegram setup — rgba(white) backgrounds invisible in light mode */
+/* Telegram setup - rgba(white) backgrounds invisible in light mode */
 [data-theme="light"] .tg-list li code          { background: var(--bg3); }
 [data-theme="light"] .tg-copy-box              { background: var(--bg2); }
 [data-theme="light"] .tg-btn-secondary         { background: var(--bg2); }
 [data-theme="light"] .tg-btn-secondary:hover:not(:disabled) { background: var(--bg3); }
 
-/* Price alert rows — rgba(white) background invisible in light mode */
+/* Price alert rows - rgba(white) background invisible in light mode */
 [data-theme="light"] .pa-row { background: var(--bg2); }
 
-/* Smart Money Score verdict badge — rgba(white) background invisible */
+/* Smart Money Score verdict badge - rgba(white) background invisible */
 [data-theme="light"] .sms-verdict { background: var(--bg3); }
 
-/* Liquidation bias card — rgba(white) background invisible */
+/* Liquidation bias card - rgba(white) background invisible */
 [data-theme="light"] .liq-bias-card { background: var(--bg2); }
 
-/* Arena refresh button — rgba(white) backgrounds invisible */
+/* Arena refresh button - rgba(white) backgrounds invisible */
 [data-theme="light"] .arena-cache-refresh       { background: var(--bg2); border-color: var(--bdr2); }
 [data-theme="light"] .arena-cache-refresh:hover { background: var(--bg3); border-color: var(--bdr2); }
 
-/* ── AUTH — Login Page ────────────────────────────────────────────────────── */
+/* ── AUTH - Login Page ────────────────────────────────────────────────────── */
 .login-wrap {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   min-height: 72vh; padding: 20px; gap: 16px;
@@ -3711,7 +3711,7 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 .sent-signal-hint    { font-size: 10px; color: var(--txt3); flex: 1; }
 .sent-desc           { padding: 8px 14px 10px; font-size: 11px; color: var(--txt2); line-height: 1.6; }
 
-/* ── LANDING PAGE — hide app shell ──────────────────────────────────── */
+/* ── LANDING PAGE - hide app shell ──────────────────────────────────── */
 body.landing .app-bar,
 body.landing .nav-drawer,
 body.landing .mobile-tab-bar,
@@ -3733,7 +3733,7 @@ body.landing {
 
 /* The landing page is dark-only by design (background above is fixed
    regardless of theme), but its .lp-* rules pull from the shared --bg2/
-   --txt/--accent tokens, which the light theme overrides globally — so a
+   --txt/--accent tokens, which the light theme overrides globally - so a
    visitor with light mode set elsewhere in the app got a black page with
    light-mode card/text colors bleeding through. Re-pin the dark values
    here, scoped to the landing subtree only, so nothing outside it changes. */
@@ -3759,14 +3759,14 @@ body.landing {
   --accent-bdr: rgba(26,122,255,0.22);
 }
 
-/* Shared entrance curve — a considered "settle in" rather than the flatter
+/* Shared entrance curve - a considered "settle in" rather than the flatter
    default ease-out, used everywhere something fades/slides into place
    across the loading → landing/dashboard handoff so it reads as one motion
    language instead of several unrelated animations. */
 :root { --ease-settle: cubic-bezier(0.16, 1, 0.3, 1); }
 
 /* Shown instead of the landing page while auth is still resolving (identical
-   on server + client first render, so no hydration mismatch) — a returning
+   on server + client first render, so no hydration mismatch) - a returning
    session sees this, never the marketing content, before the redirect. */
 .lp-loading {
   min-height: 100vh;
@@ -3802,7 +3802,7 @@ body.landing {
   to   { opacity: 1; transform: scale(1); }
 }
 
-/* ── MARKETS PAGE — mobile grid ─────────────────────────────────────── */
+/* ── MARKETS PAGE - mobile grid ─────────────────────────────────────── */
 @media (max-width: 480px) {
   /* Give the SIGNAL column ~1.7x the coin column and let it wrap to 2 lines
      instead of truncating to "..." (was 1fr + nowrap → every signal clipped). */
@@ -3815,7 +3815,7 @@ body.landing {
   }
 }
 
-/* ── ECONOMIC CALENDAR — mobile grid ─────────────────────────────────── */
+/* ── ECONOMIC CALENDAR - mobile grid ─────────────────────────────────── */
 @media (max-width: 480px) {
   /* Collapse COUNTRY (always "US"), DELTA and IMPACT (impact already shown as the
      row's left border) so TIME/EVENT/PREVIOUS/CONSENSUS/ACTUAL fit without the
@@ -3832,7 +3832,7 @@ body.landing {
   .ec-hdr > div { font-size: 11px !important; letter-spacing: 0 !important; overflow: hidden; }
 }
 
-/* ── DASHBOARD — mobile fixes ────────────────────────────────────────── */
+/* ── DASHBOARD - mobile fixes ────────────────────────────────────────── */
 @media (max-width: 480px) {
   /* AccumulationTracker: hide price+change columns so reason badges have room */
   .at-price, .at-change { display: none !important; }
@@ -3843,7 +3843,7 @@ body.landing {
   .sctx-evt-label { letter-spacing: 0.03em !important; }
 }
 
-/* ── LANDING PAGE — root & reset ────────────────────────────────────── */
+/* ── LANDING PAGE - root & reset ────────────────────────────────────── */
 /* Force dark palette regardless of user's saved theme */
 .lp-root {
   --bg0:    #050505;
@@ -3861,8 +3861,8 @@ body.landing {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* The spinner's rotation stays — it communicates actual loading state, not
-   decoration — but the fade/scale/slide entrances are pure decoration and
+/* The spinner's rotation stays - it communicates actual loading state, not
+   decoration - but the fade/scale/slide entrances are pure decoration and
    get removed entirely for users who've asked for reduced motion. */
 @media (prefers-reduced-motion: reduce) {
   .lp-loading, .lp-root, .dashboard-grid { animation: none; }
@@ -3880,7 +3880,7 @@ body.landing {
 .lp-btn-primary:hover { opacity: .85; }
 .lp-lang-short { display: none; }
 
-/* Nav has 2 flex children (logo + actions group) with no shrink/wrap — at
+/* Nav has 2 flex children (logo + actions group) with no shrink/wrap - at
    375px the logo, language switcher, and both buttons need more width than
    is available and visibly collide. Compact everything instead of letting
    it overflow: smaller logo/buttons, tighter gaps, and the language
@@ -3899,7 +3899,7 @@ body.landing {
 
 /* ── LP HERO ─────────────────────────────────────────────────────────── */
 /* .lp-nav is sticky at 56px tall with nothing compensating for it anywhere
-   on the page — any scroll that lands mid-page instead of a smooth top-to-
+   on the page - any scroll that lands mid-page instead of a smooth top-to-
    bottom scroll (scroll anchoring during layout shift, browser back/forward
    restoring position, a future anchor link, Ctrl+F) shows whatever's at that
    position cut off behind the header. scroll-margin-top guarantees a clear
@@ -4095,7 +4095,7 @@ body.landing {
 }
 
 /* ── LP LOCALIZATION ─────────────────────────────────────────────────── */
-/* Georgia/Times italic serif has no Arabic or CJK glyph forms — falls back
+/* Georgia/Times italic serif has no Arabic or CJK glyph forms - falls back
    to a faux-slanted default font that looks broken in those scripts, so
    translated locales get the accent color without the italic serif treatment. */
 html[lang="ko"] .lp-h1-accent,
@@ -4216,7 +4216,7 @@ html[lang="ar"] .lp-h1-accent {
 @keyframes ob-slide-up { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: none } }
 
 /* ══════════════════════════════════════════════
-   ONBOARDING WIZARD (terminal) — .obw-*
+   ONBOARDING WIZARD (terminal) - .obw-*
    Bloomberg-terminal restyle: pure-black canvas, sharp corners,
    brand-blue accent (--accent), thin hairline borders, mono meta.
    All values are design tokens so this baseline is reusable app-wide.
@@ -4543,7 +4543,7 @@ html[lang="ar"] .lp-h1-accent {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════ */
-/* TERMINAL UI — Bloomberg / Coinglass aesthetic, dashboard-only             */
+/* TERMINAL UI - Bloomberg / Coinglass aesthetic, dashboard-only             */
 /* Activated by body.terminal-page + .dash-terminal on dashboard-grid        */
 /* ══════════════════════════════════════════════════════════════════════════ */
 
@@ -4555,7 +4555,7 @@ html:has(body.terminal-page) {
   background: #06070a !important;
 }
 
-/* ── CSS variable overrides — all children inherit these ── */
+/* ── CSS variable overrides - all children inherit these ── */
 .dash-terminal {
   /* True charcoal-black, no blue tint */
   --bg0: #030405;
@@ -4564,7 +4564,7 @@ html:has(body.terminal-page) {
   --bg3: #0f1115;
   --bg4: #14161a;
 
-  /* Hairline borders — neutral white, not indigo-tinted */
+  /* Hairline borders - neutral white, not indigo-tinted */
   --bdr:  rgba(255,255,255,0.08);
   --bdr2: rgba(255,255,255,0.14);
 
@@ -4579,16 +4579,16 @@ html:has(body.terminal-page) {
   --glow-purple: none;
   --glow-amber:  none;
 
-  /* Tight radius — terminal feel */
+  /* Tight radius - terminal feel */
   --radius-card: 4px;
   --radius-chip: 3px;
 }
 
-/* ── MagicBento — disable all glow and hover lift ── */
+/* ── MagicBento - disable all glow and hover lift ── */
 .dash-terminal .mb-glow-card::after { display: none !important; }
 .dash-terminal .mb-glow-card:hover  { transform: none !important; box-shadow: none !important; }
 
-/* ── Cards — flat, single hairline border ── */
+/* ── Cards - flat, single hairline border ── */
 .dash-terminal .card,
 .dash-terminal .ind-card {
   background: var(--bg2) !important;
@@ -4596,7 +4596,7 @@ html:has(body.terminal-page) {
   box-shadow: none !important;
 }
 
-/* ── Coin sidebar — table rows, not floating cards ── */
+/* ── Coin sidebar - table rows, not floating cards ── */
 .dash-terminal .csb2-container {
   gap: 0;
   padding-bottom: 0;
@@ -4620,7 +4620,7 @@ html:has(body.terminal-page) {
   box-shadow: none !important;
 }
 
-/* ── Section headers — whisper-gray label ── */
+/* ── Section headers - whisper-gray label ── */
 .dash-terminal .dash-section {
   color: rgba(255,255,255,0.3);
   font-size: 10px;
@@ -4649,7 +4649,7 @@ html:has(body.terminal-page) {
   border-radius: var(--radius-card) !important;
 }
 
-/* ── Accent chips and inline cards — flatten ── */
+/* ── Accent chips and inline cards - flatten ── */
 .dash-terminal [class*="-chip"] { border-radius: var(--radius-chip) !important; }
 
 /* ── Context separator ── */
@@ -4672,7 +4672,7 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   /* Reserve space for tab bar (56px) + the FAB above it (bottom:76 + 64 tall = 140).
      Prevents the fixed "Ask AI" FAB from overlapping the last content on every page. */
   .app-content { padding-bottom: 148px; }
-  /* Edge signal cards — equal height in 2-col mobile grid */
+  /* Edge signal cards - equal height in 2-col mobile grid */
   .edge-grid { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; align-items: stretch; }
   .edge-card { display: flex; flex-direction: column; }
   .edge-card-label { min-width: 0; }

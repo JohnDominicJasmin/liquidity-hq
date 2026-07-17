@@ -137,15 +137,15 @@ export default function DcaCalc() {
           <div className="ps-results">
             <div className="ps-result">
               <div className="ps-rlbl">Average Entry</div>
-              <div className="ps-rval">{avgEntry != null ? fmtUSD(avgEntry) : '—'}</div>
+              <div className="ps-rval">{avgEntry != null ? fmtUSD(avgEntry) : '-'}</div>
             </div>
             <div className="ps-result">
               <div className="ps-rlbl">Total Quantity</div>
-              <div className="ps-rval">{totalQty > 0 ? totalQty.toLocaleString('en-US', { maximumFractionDigits: 6 }) : '—'}</div>
+              <div className="ps-rval">{totalQty > 0 ? totalQty.toLocaleString('en-US', { maximumFractionDigits: 6 }) : '-'}</div>
             </div>
             <div className="ps-result">
               <div className="ps-rlbl">Total Cost</div>
-              <div className="ps-rval">{totalCost > 0 ? fmtUSD(totalCost) : '—'}</div>
+              <div className="ps-rval">{totalCost > 0 ? fmtUSD(totalCost) : '-'}</div>
             </div>
             {curValue != null && (
               <div className="ps-result">

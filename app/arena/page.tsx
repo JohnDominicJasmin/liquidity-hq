@@ -31,7 +31,7 @@ import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import MultiTFAlignment from '@/components/MultiTFAlignment';
 import CoinIcon from '@/components/CoinIcon';
 
-/* ── Pattern detection — delegates to shared lib/patterns.ts ── */
+/* ── Pattern detection - delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
 
 /* ── Distribution score inputs from live store data (shared scorer in lib/distribution.ts) ── */
@@ -48,7 +48,7 @@ function distInputsFromCoin(d: CoinData): DistributionInputs {
   };
 }
 
-/* ── Smart price formatter — preserves decimals for all coins including memes ── */
+/* ── Smart price formatter - preserves decimals for all coins including memes ── */
 function fmtPrice(n: number): string {
   if (n >= 10000)   return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
   if (n >= 100)     return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -98,7 +98,7 @@ const CAT_FILTER_COINS: Record<'all' | 'majors' | 'alts' | 'defi' | 'meme', read
 interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'quick' | 'deep' }
 const PRICE_MOVE_PCT    = 0.5;             // re-analyze when price moves >0.5%
 const ARENA_RESULTS_KEY = 'arena-results-v2';
-const CACHE_MAX_AGE_MS  = 4 * 60 * 60 * 1000; // 4 hours — older results are discarded
+const CACHE_MAX_AGE_MS  = 4 * 60 * 60 * 1000; // 4 hours - older results are discarded
 /** Dynamic TTL: tighter during NY/pre-NY session (volatile), relaxed off-hours */
 function getCacheTTL(): number {
   const utcHour = new Date().getUTCHours();
@@ -143,13 +143,13 @@ function ArenaContent() {
   // Which Pro feature the user just tried to open (null = modal closed)
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
   const arenaInitRef  = useRef(false);
-  const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '—' });
+  const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '-' });
   const msDataRef     = useRef<MSData | null>(null);
   const absDataRef    = useRef<AbsorptionData | null>(null);
   const emaSignalRef  = useRef<StrategySignal>(STRATEGY_LOADING);
   const oi1h          = useOI1h(selectedCoin);
   // Default OFF: a 3-year majors/1h backtest showed raw signals (this filter off) beat
-  // the stricter persistence-based filter on every metric — see STRICT_FILTER_PARAMS
+  // the stricter persistence-based filter on every metric - see STRICT_FILTER_PARAMS
   // in lib/strategyCore.ts for the numbers. Explicit user choices are still respected
   // via localStorage below.
   const [antiChopEnabled, setAntiChopEnabled] = useState(false);
@@ -307,7 +307,7 @@ function ArenaContent() {
     return () => clearInterval(t);
   }, []);
 
-  // Derived — current coin's cached result (persists across coin switches)
+  // Derived - current coin's cached result (persists across coin switches)
   const cacheEntry = resultsCache[selectedCoin] ?? null;
   const result     = cacheEntry?.result ?? null;
   const notifCooldown = useRef<Set<string>>(new Set());
@@ -316,7 +316,7 @@ function ArenaContent() {
   useEffect(() => {
     if (!arenaInitRef.current) {
       arenaInitRef.current = true;
-      // URL params take priority — only apply settings defaults when no URL params present
+      // URL params take priority - only apply settings defaults when no URL params present
       const urlParams = new URLSearchParams(window.location.search);
       if (!urlParams.has('coin') && COINS.includes(settings.default_coin as CoinId)) {
         setSelectedCoin(settings.default_coin as CoinId);
@@ -339,7 +339,7 @@ function ArenaContent() {
     setReadTf(tf);
   };
 
-  /* Clamp: a free user can still land on a gated timeframe without clicking —
+  /* Clamp: a free user can still land on a gated timeframe without clicking -
      URL ?tf= param, a saved default from Settings, or a session that was Pro
      when the timeframe was chosen. Once the role is known, bump them to the
      free fallback rather than serving gated signals. */
@@ -360,7 +360,7 @@ function ArenaContent() {
     if (!emaSignal.loading) emaSignalRef.current = emaSignal;
   }, [emaSignal]);
 
-  /* ── Market Structure data callback — keeps ref in sync without re-renders ── */
+  /* ── Market Structure data callback - keeps ref in sync without re-renders ── */
   const handleMsData = useCallback((d: MSData | null) => {
     msDataRef.current = d;
   }, []);
@@ -382,7 +382,7 @@ function ArenaContent() {
     try { sessionStorage.setItem(ARENA_HIST_KEY, JSON.stringify(history)); } catch { /* ignore */ }
   }, [history]);
 
-  /* ── Persist results cache in localStorage — purge entries older than 4h on load ── */
+  /* ── Persist results cache in localStorage - purge entries older than 4h on load ── */
   useEffect(() => {
     try {
       const saved = localStorage.getItem(ARENA_RESULTS_KEY);
@@ -431,12 +431,12 @@ function ArenaContent() {
   }, []);
 
   /* ── Push notifications ──
-     notifEnabled starts false (SSR-safe — Notification isn't available on the
+     notifEnabled starts false (SSR-safe - Notification isn't available on the
      server, so reading it in a useState initializer would mismatch during
      hydration). This effect syncs it to the browser's actual, already-decided
      permission right after mount, so a returning user whose permission is
      already 'granted' sees the bell lit immediately instead of "off" and
-     clickable again — which is what made it feel like it was asking twice. */
+     clickable again - which is what made it feel like it was asking twice. */
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'granted') setNotifEnabled(true);
   }, []);
@@ -474,68 +474,68 @@ function ArenaContent() {
       fireNotif(title, body);
     };
 
-    /* 1 — Extreme funding rate (30 min cooldown) */
+    /* 1 - Extreme funding rate (30 min cooldown) */
     if (coin?.fundingRate != null) {
       const fr = coin.fundingRate * 100;
       if (Math.abs(fr) >= settings.fr_threshold)
         fire(`fund-${selectedCoin}-${b30}`,
           `${sym} Extreme Funding`,
-          `${fr >= 0 ? '+' : ''}${fr.toFixed(4)}% — ${fr > 0 ? 'Longs at risk ↓' : 'Shorts being squeezed ↑'}`);
+          `${fr >= 0 ? '+' : ''}${fr.toFixed(4)}% - ${fr > 0 ? 'Longs at risk ↓' : 'Shorts being squeezed ↑'}`);
     }
 
-    /* 2 — Fear & Greed extreme (4 hour cooldown) */
+    /* 2 - Fear & Greed extreme (4 hour cooldown) */
     if (store.fng != null && (store.fng <= settings.fng_fear || store.fng >= settings.fng_greed))
       fire(`fng-${store.fng <= settings.fng_fear ? 'fear' : 'greed'}-${b4h}`,
         store.fng <= settings.fng_fear ? 'Extreme Fear' : 'Extreme Greed',
-        `Fear & Greed: ${store.fng} (${store.fngLabel}) — ${store.fng <= settings.fng_fear ? 'Potential bottom signal' : 'Markets overextended'}`);
+        `Fear & Greed: ${store.fng} (${store.fngLabel}) - ${store.fng <= settings.fng_fear ? 'Potential bottom signal' : 'Markets overextended'}`);
 
-    /* 3 — CVD Divergence (1 hour cooldown) */
+    /* 3 - CVD Divergence (1 hour cooldown) */
     if (coin?.cvdDivergence)
       fire(`cvd-${selectedCoin}-${coin.cvdDivergence}-${b1h}`,
         coin.cvdDivergence === 'bullish'
           ? `${sym} Bullish CVD Divergence`
           : `${sym} Bearish CVD Divergence`,
         coin.cvdDivergence === 'bullish'
-          ? 'Price falling but buyers absorbing — smart money accumulating. Watch for reversal ↑'
-          : 'Price rising but sellers increasing — distribution detected. Watch for reversal ↓');
+          ? 'Price falling but buyers absorbing - smart money accumulating. Watch for reversal ↑'
+          : 'Price rising but sellers increasing - distribution detected. Watch for reversal ↓');
 
-    /* 4 — RSI 1h extreme (2 hour cooldown) */
+    /* 4 - RSI 1h extreme (2 hour cooldown) */
     if (coin?.rsi1h != null) {
       if (coin.rsi1h >= settings.rsi_ob)
         fire(`rsi-ob-${selectedCoin}-${b2h}`,
           `${sym} Momentum too high (1H)`,
-          `Momentum (RSI): ${coin.rsi1h.toFixed(0)} — Exhaustion zone. Avoid chasing longs, watch for reversal candle.`);
+          `Momentum (RSI): ${coin.rsi1h.toFixed(0)} - Exhaustion zone. Avoid chasing longs, watch for reversal candle.`);
       else if (coin.rsi1h <= settings.rsi_os)
         fire(`rsi-os-${selectedCoin}-${b2h}`,
           `${sym} Momentum too low (1H)`,
-          `Momentum (RSI): ${coin.rsi1h.toFixed(0)} — Bounce setup forming. Watch for volume spike + rejection candle.`);
+          `Momentum (RSI): ${coin.rsi1h.toFixed(0)} - Bounce setup forming. Watch for volume spike + rejection candle.`);
     }
 
-    /* 5 — Chart pattern detected (30 min cooldown) */
+    /* 5 - Chart pattern detected (30 min cooldown) */
     if (coin?.chartPattern) {
       const isBull = /bull|higher high|engulf.*bull|hammer(?! man)|double bot/i.test(coin.chartPattern);
       const isBear = /bear|lower high|engulf.*bear|shooting|hanging|double top/i.test(coin.chartPattern);
       if (isBull)
         fire(`pat-bull-${selectedCoin}-${b30}`,
           `${sym} Bullish Pattern`,
-          `${coin.chartPattern.split(';')[0].trim()} — Check for entry confirmation.`);
+          `${coin.chartPattern.split(';')[0].trim()} - Check for entry confirmation.`);
       else if (isBear)
         fire(`pat-bear-${selectedCoin}-${b30}`,
           `${sym} Bearish Pattern`,
-          `${coin.chartPattern.split(';')[0].trim()} — Watch for breakdown confirmation.`);
+          `${coin.chartPattern.split(';')[0].trim()} - Watch for breakdown confirmation.`);
     }
 
-    /* 6 — OI trend signal (1 hour cooldown) */
+    /* 6 - OI trend signal (1 hour cooldown) */
     if (coin?.oiTrend === 'strong_up')
       fire(`oi-sup-${selectedCoin}-${b1h}`,
-        `${sym} Open Interest Spike — New Longs`,
-        'Open interest rising with price — real trend, new money entering. Bullish continuation likely.');
+        `${sym} Open Interest Spike - New Longs`,
+        'Open interest rising with price - real trend, new money entering. Bullish continuation likely.');
     else if (coin?.oiTrend === 'strong_down')
       fire(`oi-sdn-${selectedCoin}-${b1h}`,
-        `${sym} Open Interest Spike — New Shorts`,
-        'Open interest rising with price falling — new shorts entering. Bearish continuation likely.');
+        `${sym} Open Interest Spike - New Shorts`,
+        'Open interest rising with price falling - new shorts entering. Bearish continuation likely.');
 
-    /* 7 — Sentiment Extremes: F&G + FR + L/S all aligned (#20) */
+    /* 7 - Sentiment Extremes: F&G + FR + L/S all aligned (#20) */
     if (store.fng != null && coin?.fundingRate != null && coin?.longRatio != null) {
       const fng      = store.fng;
       const fr       = coin.fundingRate * 100;
@@ -544,13 +544,13 @@ function ArenaContent() {
       // Bearish: all 3 screaming "longs overcrowded"
       if (fng >= 75 && fr >= 0.04 && longRat >= 60)
         fire(`sent-bear-${b4h}`,
-          'Sentiment Extremes — Bearish',
-          `F&G ${fng} (Extreme Greed) · FR +${fr.toFixed(3)}% · ${longRat.toFixed(0)}% Long — all 3 at extremes. Long flush risk elevated. Tighten stops.`);
+          'Sentiment Extremes - Bearish',
+          `F&G ${fng} (Extreme Greed) · FR +${fr.toFixed(3)}% · ${longRat.toFixed(0)}% Long - all 3 at extremes. Long flush risk elevated. Tighten stops.`);
       // Contrarian bullish: all 3 screaming "shorts overcrowded"
       if (fng <= 25 && fr <= -0.02 && longRat <= 40)
         fire(`sent-bull-${b4h}`,
-          'Sentiment Extremes — Contrarian Bullish',
-          `F&G ${fng} (Extreme Fear) · FR ${fr.toFixed(3)}% · ${shortRat.toFixed(0)}% Short — all 3 at extremes. Potential reversal zone. Wait for confirmation.`);
+          'Sentiment Extremes - Contrarian Bullish',
+          `F&G ${fng} (Extreme Fear) · FR ${fr.toFixed(3)}% · ${shortRat.toFixed(0)}% Short - all 3 at extremes. Potential reversal zone. Wait for confirmation.`);
     }
 
   }, [store, selectedCoin, notifEnabled, fireNotif, settings]);
@@ -562,25 +562,25 @@ function ArenaContent() {
     /* 15m technicals */
     const rsi14 = coin?.rsi14 != null
       ? coin.rsi14.toFixed(1) + (coin.rsi14 >= 70 ? ' (Overbought)' : coin.rsi14 <= 30 ? ' (Oversold)' : ' (Neutral)')
-      : '—';
-    const ma20 = coin?.ma20 != null ? '$' + coin.ma20.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—';
+      : '-';
+    const ma20 = coin?.ma20 != null ? '$' + coin.ma20.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
     const priceVsMA = coin?.price && coin?.ma20
       ? coin.price > coin.ma20
-        ? 'ABOVE MA20 (+' + ((coin.price / coin.ma20 - 1) * 100).toFixed(2) + '% — bullish)'
-        : 'BELOW MA20 (' + ((coin.price / coin.ma20 - 1) * 100).toFixed(2) + '% — bearish)'
-      : '—';
+        ? 'ABOVE MA20 (+' + ((coin.price / coin.ma20 - 1) * 100).toFixed(2) + '% - bullish)'
+        : 'BELOW MA20 (' + ((coin.price / coin.ma20 - 1) * 100).toFixed(2) + '% - bearish)'
+      : '-';
     const volRatio = coin?.volRatio != null
       ? coin.volRatio.toFixed(2) + 'x' + (coin.volRatio >= 1.5 ? ' (spike)' : coin.volRatio <= 0.6 ? ' (dry)' : ' (normal)')
-      : '—';
+      : '-';
     const longShortRatio = coin?.longRatio != null && coin?.shortRatio != null
       ? 'Long ' + (coin.longRatio * 100).toFixed(1) + '% / Short ' + (coin.shortRatio * 100).toFixed(1) + '%'
         + (coin.longRatio > 0.6 ? ' (overleveraged longs)' : coin.shortRatio > 0.6 ? ' (overleveraged shorts)' : ' (balanced)')
-      : '—';
+      : '-';
 
     /* Multi-TF RSI */
     const fmt = (v: number | null | undefined) => v != null
       ? v.toFixed(0) + (v >= 70 ? ' (Overbought)' : v <= 30 ? ' (Oversold)' : ' (Neutral)')
-      : '—';
+      : '-';
     const rsi1h = fmt(coin?.rsi1h);
     const rsi4h = fmt(coin?.rsi4h);
 
@@ -588,51 +588,51 @@ function ArenaContent() {
     const cvd = coin?.cvd != null
       ? (coin.cvd >= 0 ? '+' : '') + (coin.cvd / 1000).toFixed(1) + 'K'
         + (coin.cvd > 0 ? ' (net buying)' : ' (net selling)')
-      : '—';
+      : '-';
     const cvdDivergence = coin?.cvdDivergence
       ? coin.cvdDivergence === 'bullish'
-        ? 'BULLISH DIVERGENCE DETECTED — price falling but net buying rising (smart money accumulating)'
-        : 'BEARISH DIVERGENCE DETECTED — price rising but net selling rising (distribution)'
+        ? 'BULLISH DIVERGENCE DETECTED - price falling but net buying rising (smart money accumulating)'
+        : 'BEARISH DIVERGENCE DETECTED - price rising but net selling rising (distribution)'
       : 'None';
 
     /* Basis */
     const basis = coin?.perpPrice != null && coin?.price
       ? (() => {
           const b = ((coin.perpPrice - coin.price) / coin.price) * 100;
-          return b.toFixed(4) + '%' + (b > 0.05 ? ' (perp premium — bullish)' : b < -0.05 ? ' (perp discount — bearish)' : ' (neutral)');
+          return b.toFixed(4) + '%' + (b > 0.05 ? ' (perp premium - bullish)' : b < -0.05 ? ' (perp discount - bearish)' : ' (neutral)');
         })()
-      : '—';
+      : '-';
 
     /* Fibonacci nearest */
     const fibNearest = coin?.high && coin?.low && coin.high > coin.low && coin?.price
       ? (() => {
           const fibs = computeFibLevels(coin.high, coin.low, coin.price);
-          if (!fibs.length) return '—';
+          if (!fibs.length) return '-';
           const nearest = fibs.reduce((acc, f) => Math.abs(coin.price - f.price) < Math.abs(coin.price - acc.price) ? f : acc);
           return nearest.label + ' @ $' + nearest.price.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' (' + nearest.dist + ')';
         })()
-      : '—';
+      : '-';
 
     /* Order book walls */
     const orderWalls = coin?.orderBidWalls && coin?.orderAskWalls
       ? 'Bid walls: ' + coin.orderBidWalls.map(w => '$' + w.price.toLocaleString(undefined, { maximumFractionDigits: 0 })).join(', ')
         + ' | Ask walls: ' + coin.orderAskWalls.map(w => '$' + w.price.toLocaleString(undefined, { maximumFractionDigits: 0 })).join(', ')
-      : '—';
+      : '-';
 
     /* Squeeze score */
     const sq = computeSqueezeScore(coin);
-    const squeezeScore = sq.score + '/100 — ' + sq.label;
+    const squeezeScore = sq.score + '/100 - ' + sq.label;
 
     /* Options */
     const pcRatio = store.btcPcRatio != null
-      ? store.btcPcRatio.toFixed(2) + (store.btcPcRatio > 1.2 ? ' (bearish — more puts)' : store.btcPcRatio < 0.7 ? ' (bullish — more calls)' : ' (neutral)')
-      : '—';
-    const maxPain = store.btcMaxPain != null ? '$' + store.btcMaxPain.toLocaleString() : '—';
+      ? store.btcPcRatio.toFixed(2) + (store.btcPcRatio > 1.2 ? ' (bearish - more puts)' : store.btcPcRatio < 0.7 ? ' (bullish - more calls)' : ' (neutral)')
+      : '-';
+    const maxPain = store.btcMaxPain != null ? '$' + store.btcMaxPain.toLocaleString() : '-';
 
     /* Exchange net flow */
     const exchangeNetFlow = store.btcExchangeNetFlow != null
       ? (store.btcExchangeNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.btcExchangeNetFlow).toFixed(1) + 'M'
-        + (store.btcExchangeNetFlow > 50 ? ' (inflow — sell pressure)' : store.btcExchangeNetFlow < -50 ? ' (outflow — accumulation)' : ' (neutral)')
+        + (store.btcExchangeNetFlow > 50 ? ' (inflow - sell pressure)' : store.btcExchangeNetFlow < -50 ? ' (outflow - accumulation)' : ' (neutral)')
       : 'AI will search';
 
     /* Stablecoin flow */
@@ -641,11 +641,11 @@ function ArenaContent() {
         + (store.stablecoinPrev != null
           ? (store.stablecoinSupply > store.stablecoinPrev ? ' ↑ minting (bullish)' : ' ↓ burning (bearish)')
           : '')
-      : '—';
+      : '-';
 
     /* Google Trends */
     const googleTrends = store.googleTrendsBtc != null
-      ? store.googleTrendsBtc + '/100' + (store.googleTrendsBtc > 70 ? ' (high retail — possible top)' : store.googleTrendsBtc < 25 ? ' (low — possible bottom)' : ' (moderate)')
+      ? store.googleTrendsBtc + '/100' + (store.googleTrendsBtc > 70 ? ' (high retail - possible top)' : store.googleTrendsBtc < 25 ? ' (low - possible bottom)' : ' (moderate)')
       : 'AI will search';
 
     /* Liquidation levels */
@@ -661,54 +661,54 @@ function ArenaContent() {
           return (store.btcDom?.toFixed(2) ?? '') + '%'
             + (trend > 0.3 ? ' ↑ rising (alt weakness)' : trend < -0.3 ? ' ↓ falling (alt season)' : ' → flat');
         })()
-      : (store.btcDom != null ? store.btcDom.toFixed(2) + '%' : '—');
+      : (store.btcDom != null ? store.btcDom.toFixed(2) + '%' : '-');
 
     /* Volume Profile POC */
     const pocLine = coin?.poc != null
       ? '$' + coin.poc.toLocaleString(undefined, { maximumFractionDigits: 2 })
         + (coin.vah != null ? ' | VAH $' + coin.vah.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '')
         + (coin.val != null ? ' | VAL $' + coin.val.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '')
-        + (coin.price && coin.poc ? (coin.price > coin.poc ? ' — price ABOVE POC (bullish)' : ' — price BELOW POC (bearish)') : '')
-      : '—';
+        + (coin.price && coin.poc ? (coin.price > coin.poc ? ' - price ABOVE POC (bullish)' : ' - price BELOW POC (bearish)') : '')
+      : '-';
 
     /* Taker Buy/Sell ratio */
     const takerBuy = coin?.takerBuyRatio;
     const takerRatio = takerBuy != null
       ? `Buy ${Math.round(takerBuy * 100)}% / Sell ${Math.round((1 - takerBuy) * 100)}%`
-        + (takerBuy >= 0.65 ? ' — aggressive buyers hitting asks (BULLISH)'
-        :  takerBuy >= 0.55 ? ' — mild buy pressure'
-        :  takerBuy <= 0.35 ? ' — aggressive sellers hitting bids (BEARISH)'
-        :  takerBuy <= 0.45 ? ' — mild sell pressure'
-        :                     ' — balanced flow')
-      : '—';
+        + (takerBuy >= 0.65 ? ' - aggressive buyers hitting asks (BULLISH)'
+        :  takerBuy >= 0.55 ? ' - mild buy pressure'
+        :  takerBuy <= 0.35 ? ' - aggressive sellers hitting bids (BEARISH)'
+        :  takerBuy <= 0.45 ? ' - mild sell pressure'
+        :                     ' - balanced flow')
+      : '-';
 
     /* Coinbase Premium */
     const cbPremium = store.cbPremium != null && store.cbPremiumPct != null
       ? (store.cbPremium >= 0 ? '+' : '') + '$' + Math.abs(store.cbPremium).toFixed(1)
         + ' (' + (store.cbPremiumPct >= 0 ? '+' : '') + store.cbPremiumPct.toFixed(3) + '%)'
-        + (store.cbPremiumPct > 0.05  ? ' — US institutional buying (BULLISH)'
-        :  store.cbPremiumPct < -0.05 ? ' — US institutional selling (BEARISH)'
-        :                               ' — neutral')
-      : '—';
+        + (store.cbPremiumPct > 0.05  ? ' - US institutional buying (BULLISH)'
+        :  store.cbPremiumPct < -0.05 ? ' - US institutional selling (BEARISH)'
+        :                               ' - neutral')
+      : '-';
 
     /* VWAP */
     const vwap = coin?.vwap != null
       ? '$' + coin.vwap.toLocaleString(undefined, { maximumFractionDigits: 2 })
         + (coin.price
           ? (coin.price > coin.vwap
-              ? ' — price ABOVE VWAP (bullish, paying up)'
-              : ' — price BELOW VWAP (bearish, distributing)')
+              ? ' - price ABOVE VWAP (bullish, paying up)'
+              : ' - price BELOW VWAP (bearish, distributing)')
           : '')
-      : '—';
+      : '-';
 
     /* OI Trend vs Price */
     const OI_TREND_LABELS: Record<string, string> = {
-      strong_up:   'Open Interest ↑ + Price ↑ — real bullish trend (new money entering longs)',
-      strong_down: 'Open Interest ↑ + Price ↓ — real bearish trend (new money entering shorts)',
-      weak_up:     'Open Interest ↓ + Price ↑ — short covering rally (no conviction, likely fake)',
-      weak_down:   'Open Interest ↓ + Price ↓ — long exits (capitulation, not fresh shorts)',
+      strong_up:   'Open Interest ↑ + Price ↑ - real bullish trend (new money entering longs)',
+      strong_down: 'Open Interest ↑ + Price ↓ - real bearish trend (new money entering shorts)',
+      weak_up:     'Open Interest ↓ + Price ↑ - short covering rally (no conviction, likely fake)',
+      weak_down:   'Open Interest ↓ + Price ↓ - long exits (capitulation, not fresh shorts)',
     };
-    const oiTrend = coin?.oiTrend ? OI_TREND_LABELS[coin.oiTrend] : '—';
+    const oiTrend = coin?.oiTrend ? OI_TREND_LABELS[coin.oiTrend] : '-';
 
     /* GEX (Gamma Exposure) */
     const btcGex = (() => {
@@ -718,22 +718,22 @@ function ArenaContent() {
       const absN = Math.abs(net);
       const netStr = (net >= 0 ? '+' : '−') + '$' + (absN >= 1e9 ? (absN / 1e9).toFixed(2) + 'B' : (absN / 1e6).toFixed(0) + 'M');
       const regime = net >= 0
-        ? 'Dealers LONG gamma — market pins/mean-reverts near large strikes'
-        : 'Dealers SHORT gamma — moves accelerate, expect trending/explosive vol';
+        ? 'Dealers LONG gamma - market pins/mean-reverts near large strikes'
+        : 'Dealers SHORT gamma - moves accelerate, expect trending/explosive vol';
       const flipStr = flip ? ` | Flip level: $${flip.toLocaleString()} (break = regime shift)` : '';
       const topStrike = store.btcGexLevels.length > 0
         ? store.btcGexLevels.reduce((a, b) => Math.abs(a.gex) > Math.abs(b.gex) ? a : b)
         : null;
       const pinStr = topStrike ? ` | Pin strike: $${topStrike.strike.toLocaleString()}` : '';
-      return `${netStr} — ${regime}${flipStr}${pinStr}`;
+      return `${netStr} - ${regime}${flipStr}${pinStr}`;
     })();
 
     /* Macro */
-    const oilPrice  = store.oilPrice  != null ? '$' + store.oilPrice.toFixed(2)  + '/bbl' : '—';
-    const bonds10y  = store.bonds10y  != null ? store.bonds10y.toFixed(3)  + '%'   : '—';
-    const dxyLine   = store.dxy       != null ? store.dxy.toFixed(2) + (store.dxyChg != null ? ' (' + (store.dxyChg >= 0 ? '+' : '') + store.dxyChg.toFixed(2) + '%)' : '') + (store.dxyChg != null && store.dxyChg > 0.2 ? ' → BTC headwind' : store.dxyChg != null && store.dxyChg < -0.2 ? ' → BTC tailwind' : '') : '—';
-    const spxLine   = store.spx       != null ? store.spx.toLocaleString(undefined, { maximumFractionDigits: 0 }) + (store.spxChg != null ? ' (' + (store.spxChg >= 0 ? '+' : '') + store.spxChg.toFixed(2) + '%)' : '') + (store.spxChg != null && store.spxChg > 0.3 ? ' → risk-on' : store.spxChg != null && store.spxChg < -0.5 ? ' → risk-off' : '') : '—';
-    const goldLine  = store.gold      != null ? '$' + store.gold.toLocaleString(undefined, { maximumFractionDigits: 0 }) + (store.goldChg != null ? ' (' + (store.goldChg >= 0 ? '+' : '') + store.goldChg.toFixed(2) + '%)' : '') : '—';
+    const oilPrice  = store.oilPrice  != null ? '$' + store.oilPrice.toFixed(2)  + '/bbl' : '-';
+    const bonds10y  = store.bonds10y  != null ? store.bonds10y.toFixed(3)  + '%'   : '-';
+    const dxyLine   = store.dxy       != null ? store.dxy.toFixed(2) + (store.dxyChg != null ? ' (' + (store.dxyChg >= 0 ? '+' : '') + store.dxyChg.toFixed(2) + '%)' : '') + (store.dxyChg != null && store.dxyChg > 0.2 ? ' → BTC headwind' : store.dxyChg != null && store.dxyChg < -0.2 ? ' → BTC tailwind' : '') : '-';
+    const spxLine   = store.spx       != null ? store.spx.toLocaleString(undefined, { maximumFractionDigits: 0 }) + (store.spxChg != null ? ' (' + (store.spxChg >= 0 ? '+' : '') + store.spxChg.toFixed(2) + '%)' : '') + (store.spxChg != null && store.spxChg > 0.3 ? ' → risk-on' : store.spxChg != null && store.spxChg < -0.5 ? ' → risk-off' : '') : '-';
+    const goldLine  = store.gold      != null ? '$' + store.gold.toLocaleString(undefined, { maximumFractionDigits: 0 }) + (store.goldChg != null ? ' (' + (store.goldChg >= 0 ? '+' : '') + store.goldChg.toFixed(2) + '%)' : '') : '-';
 
     /* Upcoming events + recently released */
     const now = Date.now();
@@ -769,10 +769,10 @@ function ArenaContent() {
     /* Liquidation cascade size (#30) */
     const ca = store.cascadeAlert;
     const cascadeLine = ca && (Date.now() - ca.ts < 4 * 60 * 60 * 1000)
-      ? `${ca.side} cascade on ${ca.coin} — $${(ca.totalUsd / 1e6).toFixed(1)}M liquidated (${Math.floor((Date.now() - ca.ts) / 60000)}m ago)`
+      ? `${ca.side} cascade on ${ca.coin} - $${(ca.totalUsd / 1e6).toFixed(1)}M liquidated (${Math.floor((Date.now() - ca.ts) / 60000)}m ago)`
       : 'None in last 4h';
 
-    /* Whale net flow — last 1h for selected coin (#29) */
+    /* Whale net flow - last 1h for selected coin (#29) */
     const nowSec = Math.floor(Date.now() / 1000);
     const coinSym = selectedCoin.toUpperCase();
     const recentWhales = whaleAlerts.filter(w => w.symbol === coinSym && nowSec - w.ts < 3600);
@@ -786,36 +786,36 @@ function ArenaContent() {
       });
       const net = buyUsd - sellUsd;
       const f = (v: number) => v >= 1e6 ? `$${(v/1e6).toFixed(1)}M` : `$${(v/1e3).toFixed(0)}K`;
-      return `Net ${net >= 0 ? 'BUY' : 'SELL'} ${f(Math.abs(net))} — ${buyCount} buys (${f(buyUsd)}) vs ${sellCount} sells (${f(sellUsd)}) · ${recentWhales.length} whale trades >$500K in last 1h`;
+      return `Net ${net >= 0 ? 'BUY' : 'SELL'} ${f(Math.abs(net))} - ${buyCount} buys (${f(buyUsd)}) vs ${sellCount} sells (${f(sellUsd)}) · ${recentWhales.length} whale trades >$500K in last 1h`;
     })();
 
     /* Cross-exchange funding */
     const cf = fundingData[selectedCoin];
     const crossExchangeFunding = cf
       ? (() => {
-          const fmt = (v: number | null) => v !== null ? (v >= 0 ? '+' : '') + (v * 100).toFixed(4) + '%' : '—';
+          const fmt = (v: number | null) => v !== null ? (v >= 0 ? '+' : '') + (v * 100).toFixed(4) + '%' : '-';
           const vals = [cf.binance, cf.bybit].filter((v): v is number => v !== null);
           const avg  = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
           const divergent = avg !== null && [cf.binance, cf.bybit]
             .some(v => v !== null && Math.abs(v - avg) * 100 >= 0.02);
-          const sentiment = avg === null ? '' : avg * 100 >= 0.05 ? ' — extreme long crowding (flush risk)'
-            : avg * 100 >= 0.01 ? ' — longs paying, mild crowding'
-            : avg * 100 <= -0.05 ? ' — extreme short crowding (squeeze risk)'
-            : avg * 100 <= -0.01 ? ' — shorts paying, mild crowding'
-            : ' — neutral';
-          return `Binance ${fmt(cf.binance)} | Bybit ${fmt(cf.bybit)} | Avg ${fmt(avg)}${sentiment}${divergent ? ' · DIVERGENCE: exchanges differ — flow imbalance' : ''}`;
+          const sentiment = avg === null ? '' : avg * 100 >= 0.05 ? ' - extreme long crowding (flush risk)'
+            : avg * 100 >= 0.01 ? ' - longs paying, mild crowding'
+            : avg * 100 <= -0.05 ? ' - extreme short crowding (squeeze risk)'
+            : avg * 100 <= -0.01 ? ' - shorts paying, mild crowding'
+            : ' - neutral';
+          return `Binance ${fmt(cf.binance)} | Bybit ${fmt(cf.bybit)} | Avg ${fmt(avg)}${sentiment}${divergent ? ' · DIVERGENCE: exchanges differ - flow imbalance' : ''}`;
         })()
-      : '—';
+      : '-';
 
     return {
       coin: selectedCoin.toUpperCase() + '/USDT',
-      price: coin?.price ? '$' + coin.price.toLocaleString() : '—',
-      change24h: coin?.change != null ? (coin.change >= 0 ? '+' : '') + coin.change.toFixed(2) + '%' : '—',
-      fundingRate: coin?.fundingRate != null ? classifyFunding(coin.fundingRate).label : '—',
-      openInterest: coin?.oi != null ? '$' + (coin.oi / 1e9).toFixed(2) + 'B' : '—',
-      fearGreed: store.fng != null ? store.fng + ' (' + store.fngLabel + ')' : '—',
+      price: coin?.price ? '$' + coin.price.toLocaleString() : '-',
+      change24h: coin?.change != null ? (coin.change >= 0 ? '+' : '') + coin.change.toFixed(2) + '%' : '-',
+      fundingRate: coin?.fundingRate != null ? classifyFunding(coin.fundingRate).label : '-',
+      openInterest: coin?.oi != null ? '$' + (coin.oi / 1e9).toFixed(2) + 'B' : '-',
+      fearGreed: store.fng != null ? store.fng + ' (' + store.fngLabel + ')' : '-',
       btcDominance: btcDomTrend,
-      session, clusters: '—',
+      session, clusters: '-',
       news: latestHeadlines.length > 0 ? latestHeadlines.slice(0, 15).join('\n') : 'No recent alerts',
       rsi14, ma20, priceVsMA, volRatio, longShortRatio,
       oilPrice, bonds10y, upcomingEvents: upcoming, etfFlows,
@@ -826,32 +826,32 @@ function ArenaContent() {
       cbPremium, vwap, oiTrend, takerRatio, crossExchangeFunding,
       cascadeLine, whaleFlow,
       distribution: (() => {
-        if (!coin?.price) return '—';
+        if (!coin?.price) return '-';
         const res = computeDistributionScore(distInputsFromCoin(coin));
-        if (!res) return 'Not applicable — no 24h run-up (profit-taking needs prior strength)';
-        return `${res.score}/100 — ${res.label}${res.reasons.length ? ' · ' + res.reasons.join(', ') : ''}`;
+        if (!res) return 'Not applicable - no 24h run-up (profit-taking needs prior strength)';
+        return `${res.score}/100 - ${res.label}${res.reasons.length ? ' · ' + res.reasons.join(', ') : ''}`;
       })(),
       setupScan: (() => {
         const sq = computeSqueezeScore(coin);
-        const oiChip  = coin?.oiTrend   ? { strong_up: 'Open Int ↑↑', weak_up: 'Open Int ↑', weak_down: 'Open Int ↓', strong_down: 'Open Int ↓↓' }[coin.oiTrend] ?? 'Open Int —' : 'Open Int —';
-        const cvdChip = coin?.cvdDivergence === 'bullish' ? 'CVD ↑' : coin?.cvdDivergence === 'bearish' ? 'CVD ↓' : 'CVD —';
-        const tkr     = coin?.takerBuyRatio != null ? 'Tkr ' + (coin.takerBuyRatio * 100).toFixed(0) + '%' : 'Tkr —';
-        const rsi     = coin?.rsi14 != null ? 'RSI ' + Math.round(coin.rsi14) : 'RSI —';
+        const oiChip  = coin?.oiTrend   ? { strong_up: 'Open Int ↑↑', weak_up: 'Open Int ↑', weak_down: 'Open Int ↓', strong_down: 'Open Int ↓↓' }[coin.oiTrend] ?? 'Open Int -' : 'Open Int -';
+        const cvdChip = coin?.cvdDivergence === 'bullish' ? 'CVD ↑' : coin?.cvdDivergence === 'bearish' ? 'CVD ↓' : 'CVD -';
+        const tkr     = coin?.takerBuyRatio != null ? 'Tkr ' + (coin.takerBuyRatio * 100).toFixed(0) + '%' : 'Tkr -';
+        const rsi     = coin?.rsi14 != null ? 'RSI ' + Math.round(coin.rsi14) : 'RSI -';
         return `Score ${sq.score}/100 · ${sq.label} · ${oiChip}, ${cvdChip}, ${tkr}, ${rsi}`;
       })(),
       oi1hChange: (() => {
         const { pct, signal } = oi1hDataRef.current;
-        if (pct == null) return '—';
+        if (pct == null) return '-';
         return (pct >= 0 ? '+' : '') + pct.toFixed(2) + '% · ' + signal;
       })(),
       marketStructure: (() => {
         const ms = msDataRef.current;
-        if (!ms) return '—';
+        if (!ms) return '-';
         let s = ms.bias;
         if (ms.lastEvent) {
           const le = ms.lastEvent;
           s += ` · Last: ${le.type} ${le.dir} @ $${fmtPrice(le.price)} (${le.candlesAgo === 0 ? 'current' : le.candlesAgo + 'c ago'})`;
-          if (le.type === 'CHoCH') s += ' — STRUCTURE FLIP';
+          if (le.type === 'CHoCH') s += ' - STRUCTURE FLIP';
         }
         if (ms.lastSwingHigh != null) s += ` · SH $${fmtPrice(ms.lastSwingHigh)}`;
         if (ms.lastSwingLow  != null) s += ` · SL $${fmtPrice(ms.lastSwingLow)}`;
@@ -869,27 +869,27 @@ function ArenaContent() {
         if (ab.mtfConfirmed) s += ' · 1H CONFIRMED';
         return s;
       })(),
-      yenWatch: jpyUsd == null ? '—'
+      yenWatch: jpyUsd == null ? '-'
         : jpyUsd >= 160
-          ? `${jpyUsd.toFixed(2)} — DANGER ZONE: BOJ intervention risk high, carry trade unwind can trigger BTC liquidations`
+          ? `${jpyUsd.toFixed(2)} - DANGER ZONE: BOJ intervention risk high, carry trade unwind can trigger BTC liquidations`
           : jpyUsd >= 158
-            ? `${jpyUsd.toFixed(2)} — WARNING: Approaching 160 danger zone, watch for BOJ signals`
-            : `${jpyUsd.toFixed(2)} — Safe: below 158, carry trade stable, low JPY liquidation risk`,
+            ? `${jpyUsd.toFixed(2)} - WARNING: Approaching 160 danger zone, watch for BOJ signals`
+            : `${jpyUsd.toFixed(2)} - Safe: below 158, carry trade stable, low JPY liquidation risk`,
       emaStrategy: strategyToGrokLine(emaSignalRef.current, readTf),
       emaATR: emaSignalRef.current.atrLast != null
         ? `ATR(14) = $${emaSignalRef.current.atrLast.toFixed(2)} · 35% buf = $${(emaSignalRef.current.atrLast * 0.35).toFixed(2)} min clearance above/below EMA50`
-        : '—',
+        : '-',
       ema50Slope: (() => {
         const s = emaSignalRef.current.ema50Slope;
-        if (s == null) return '—';
+        if (s == null) return '-';
         const pct = (s * 100).toFixed(3);
-        const label = s > 0.001 ? 'RISING — bullish slope confirmed' : s < -0.001 ? 'FALLING — bearish slope confirmed' : 'FLAT — ranging market, slope filter fails';
-        return `${pct}% over 5 bars — ${label}`;
+        const label = s > 0.001 ? 'RISING - bullish slope confirmed' : s < -0.001 ? 'FALLING - bearish slope confirmed' : 'FLAT - ranging market, slope filter fails';
+        return `${pct}% over 5 bars - ${label}`;
       })(),
       waveTrend: (() => {
         const c = emaSignalRef.current.conditions.find(x => x.label === 'WaveTrend Confirming');
-        if (!c) return '—';
-        return `${c.pass === true ? 'CONFIRMING' : c.pass === false ? 'NOT CONFIRMING' : 'N/A'} — ${c.detail}`;
+        if (!c) return '-';
+        return `${c.pass === true ? 'CONFIRMING' : c.pass === false ? 'NOT CONFIRMING' : 'N/A'} - ${c.detail}`;
       })(),
     };
   };
@@ -902,9 +902,9 @@ function ArenaContent() {
       return;
     }
 
-    // ── Cache check — skip API call if result is fresh and price hasn't moved >0.5% ──
+    // ── Cache check - skip API call if result is fresh and price hasn't moved >0.5% ──
     // Quick accepts any cached result (Quick or Deep).
-    // Deep only accepts a cached Deep result — clicking Deep always re-fetches if last was Quick.
+    // Deep only accepts a cached Deep result - clicking Deep always re-fetches if last was Quick.
     if (!force) {
       const currentPrice = store.coins[selectedCoin]?.price ?? 0;
       const entry = resultsCache[selectedCoin];
@@ -914,7 +914,7 @@ function ArenaContent() {
           ? Math.abs(currentPrice - entry.priceAtAnalysis) / currentPrice * 100
           : 0;
         if (ageSecs < getCacheTTL() / 1000 && pricePct < PRICE_MOVE_PCT && entry.result.tf === readTf) {
-          return; // serve cache silently — no banner, no state change
+          return; // serve cache silently - no banner, no state change
         }
       }
     }
@@ -923,7 +923,7 @@ function ArenaContent() {
     setReadLoading(true); setReadError('');
 
     try {
-      // Step 1 — fetch candles (Binance preferred; fall back to Bybit for HYPE etc.)
+      // Step 1 - fetch candles (Binance preferred; fall back to Bybit for HYPE etc.)
       setReadStep('Reading chart…');
       let raw: (string|number)[][];
       if (binanceSym) {
@@ -938,7 +938,7 @@ function ArenaContent() {
         const data = await r.json();
         raw = [...(data?.result?.list ?? [])].reverse(); // oldest-first to match Binance
       }
-      // k[0]=time k[1]=open k[2]=high k[3]=low k[4]=close k[5]=vol — same index for both
+      // k[0]=time k[1]=open k[2]=high k[3]=low k[4]=close k[5]=vol - same index for both
       const candles = raw.map(k => ({ t: Number(k[0]), o: Number(k[1]), h: Number(k[2]), l: Number(k[3]), c: Number(k[4]), v: Number(k[5]) }));
       const closes  = candles.map(c => c.c);
       const vis     = candles.slice(-80);
@@ -958,8 +958,8 @@ function ArenaContent() {
         detectedPatterns: detectedPatterns || undefined,
       };
 
-      // Step 1.5 — fetch daily RSI (parallel, silent fail)
-      let rsiDailyStr = '—';
+      // Step 1.5 - fetch daily RSI (parallel, silent fail)
+      let rsiDailyStr = '-';
       try {
         if (binanceSym) {
           const dr = await fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=1d&limit=20`);
@@ -976,11 +976,11 @@ function ArenaContent() {
         }
       } catch { /* silent */ }
 
-      // Step 2 — gather 34 market signals
+      // Step 2 - gather 34 market signals
       setReadStep('Reading market…');
       const ctx = { ...gatherContext(), rsiDaily: rsiDailyStr };
 
-      // Step 3 — ask Grok via server proxy (key hidden, rate-limited)
+      // Step 3 - ask Grok via server proxy (key hidden, rate-limited)
       setReadStep(mode === 'quick' ? 'Quick analysis…' : 'Searching live…');
       const prompt = mode === 'quick'
         ? buildQuickPrompt(ctx, chartData)
@@ -999,7 +999,7 @@ function ArenaContent() {
             const sym  = selectedCoin.toUpperCase();
             const lines: string[] = [
               '<b>LIQUIDITY RAID DETECTED</b>',
-              `<b>${res.raidSetup} — ${sym}/USDT</b>`,
+              `<b>${res.raidSetup} - ${sym}/USDT</b>`,
               '',
             ];
             if (res.raidTarget)  lines.push(`Target: ${res.raidTarget}`);
@@ -1012,9 +1012,9 @@ function ArenaContent() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ message: lines.join('\n') }),
-            }).catch(() => { /* silent — alert failure must not block UI */ });
+            }).catch(() => { /* silent - alert failure must not block UI */ });
           }
-        } catch { /* localStorage unavailable — skip silently */ }
+        } catch { /* localStorage unavailable - skip silently */ }
       }
 
       // Cache result per coin (with price snapshot for stale-check)
@@ -1026,7 +1026,7 @@ function ArenaContent() {
       setSigDetailsOpen(false);
       const entryStr = res.entryLow && res.entryHigh
         ? `$${fmtPrice(res.entryLow)} – $${fmtPrice(res.entryHigh)}`
-        : '—';
+        : '-';
       setHistory(h => [{
         signal: res.signal, confidence: res.confidence,
         coin: ctx.coin, time: new Date().toLocaleTimeString(),
@@ -1049,7 +1049,7 @@ function ArenaContent() {
     }
   }, [selectedCoin, readTf, store, latestHeadlines, econEvents, fundingData, resultsCache]);
 
-  /* ── Squeeze scanner data — sorted by 24h volume descending (BTC → ETH → ...) ── */
+  /* ── Squeeze scanner data - sorted by 24h volume descending (BTC → ETH → ...) ── */
   const btcChange = store.coins['btc']?.change ?? null;
   const scannerRows = COINS
     .filter(c => coinCat === 'all' || (CAT_FILTER_COINS[coinCat] as readonly CoinId[]).includes(c))
@@ -1087,9 +1087,9 @@ function ArenaContent() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>LiquidityAI Arena</div>
           <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>LiquidityAI · LIVE X</span>
-          {/* JPY carry-risk and DXY/JPY "regime" badges were removed from here — both
+          {/* JPY carry-risk and DXY/JPY "regime" badges were removed from here - both
               restated Dashboard's MacroStrip (which already shows DXY/SPX/Gold/10Y/JPY
-              coherently together). Distribution score badge removed too — it duplicated
+              coherently together). Distribution score badge removed too - it duplicated
               the pullback warning banner further down this same page. jpyUsd itself is
               still fetched and feeds ConfluenceScore's macro risk overlay below. */}
           {(() => {
@@ -1120,13 +1120,13 @@ function ArenaContent() {
             );
           })()}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Chart · 35-signal engine · confluence · scanner — one page</div>
+        <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Chart · 35-signal engine · confluence · scanner - one page</div>
       </div>
 
       <PageHint
         pageKey="arena"
         title="Arena"
-        body="Select a coin, pick a timeframe, and run the AI analysis. The engine reads 35 signals — EMA crosses, squeeze, funding, OI trend, whale CVD — and gives you a directional read with a confidence score."
+        body="Select a coin, pick a timeframe, and run the AI analysis. The engine reads 35 signals - EMA crosses, squeeze, funding, OI trend, whale CVD - and gives you a directional read with a confidence score."
       />
 
       {/* ── COIN CATEGORY TABS ── */}
@@ -1143,7 +1143,7 @@ function ArenaContent() {
         ))}
       </div>
 
-      {/* ── SQUEEZE SCANNER — hover flyout (Bybit-style watchlist) ── */}
+      {/* ── SQUEEZE SCANNER - hover flyout (Bybit-style watchlist) ── */}
       <div
         ref={scannerRef}
         style={{ position: 'relative', marginBottom: 12 }}
@@ -1167,7 +1167,7 @@ function ArenaContent() {
             background: sqzCount > 0 ? '#34d399' : flushCount > 0 ? '#f87171' : '#333',
             boxShadow: sqzCount > 0 ? '0 0 6px #34d39966' : flushCount > 0 ? '0 0 6px #f8717166' : 'none',
           }} />
-          {/* Selected coin chip — left side */}
+          {/* Selected coin chip - left side */}
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 5,
             fontSize: 11, fontWeight: 700, color: '#b8aeff',
@@ -1208,7 +1208,7 @@ function ArenaContent() {
               </span>
             );
           })()}
-          {/* Notification bell — div to avoid button-in-button invalid HTML */}
+          {/* Notification bell - div to avoid button-in-button invalid HTML */}
           <div
             role="button"
             tabIndex={0}
@@ -1339,15 +1339,15 @@ function ArenaContent() {
                   </div>
                   {/* Price */}
                   <span style={{ fontSize: 11, fontWeight: 600, color: isActive ? 'var(--txt)' : '#555', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
-                    {price ? '$' + fmtPrice(price) : '—'}
+                    {price ? '$' + fmtPrice(price) : '-'}
                   </span>
                   {/* 24h % */}
                   <span style={{ fontSize: 10, fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: change == null ? '#333' : change >= 0 ? '#34d399' : '#f87171' }}>
-                    {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : '—'}
+                    {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : '-'}
                   </span>
                   {/* vs BTC */}
                   <span className="scanner-flyout-vsbtc" style={{ fontSize: 10, fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: vsBtcColor }}>
-                    {vsBtc != null ? (vsBtc >= 0 ? '+' : '') + vsBtc.toFixed(1) + '%' : c === 'btc' ? '—' : '—'}
+                    {vsBtc != null ? (vsBtc >= 0 ? '+' : '') + vsBtc.toFixed(1) + '%' : c === 'btc' ? '-' : '-'}
                   </span>
                   {/* Status */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
@@ -1382,16 +1382,16 @@ function ArenaContent() {
         )}
       </div>
 
-      {/* ── Market snapshot — VWAP / Open Interest / Funding for the selected coin ── */}
+      {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <CoinMarketSnapshot coin={selectedCoin} />
 
-      {/* ── CHART — KLineChart with auto Entry/SL/TP overlays ── */}
+      {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
       <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} />
 
       {/* ── BELOW CHART: left-aligned, max 860px on wide screens ── */}
       <div className="arena-below-chart">
 
-      {/* Data collectors — run hooks for Grok context, render nothing.
+      {/* Data collectors - run hooks for Grok context, render nothing.
           AbsorptionDetector is Pro-only: for free users it is not mounted at
           all, so its data never reaches the AI context either. */}
       <div style={{ display: 'none' }}>
@@ -1399,7 +1399,7 @@ function ArenaContent() {
         {isPro && <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />}
       </div>
 
-      {/* BTC Liquidation Heatmap — shows only when BTC selected and data available */}
+      {/* BTC Liquidation Heatmap - shows only when BTC selected and data available */}
       {selectedCoin === 'btc' && store.btcLiqLevels.length > 0 && (
         <LiqHeatmap
           levels={store.btcLiqLevels}
@@ -1454,7 +1454,7 @@ function ArenaContent() {
           <Tip
             width={260}
             iconColor="rgba(255,255,255,0.6)"
-            text="Adds a stricter confirmation step: requires the EMA9/20 ribbon to clearly separate, price to close meaningfully past EMA50, and the move to hold for several candles before a marker confirms. Fewer, calmer-looking signals — but a 3-year backtest found this filter cuts a real edge down to a coin flip (1.13 profit factor raw vs 0.98 filtered). OFF (default) shows every raw cross immediately, including some that reverse fast, but has the better track record. ON trades quieter alerts for a worse actual outcome."
+            text="Adds a stricter confirmation step: requires the EMA9/20 ribbon to clearly separate, price to close meaningfully past EMA50, and the move to hold for several candles before a marker confirms. Fewer, calmer-looking signals - but a 3-year backtest found this filter cuts a real edge down to a coin flip (1.13 profit factor raw vs 0.98 filtered). OFF (default) shows every raw cross immediately, including some that reverse fast, but has the better track record. ON trades quieter alerts for a worse actual outcome."
           >
             <span style={{ opacity: 0.8, letterSpacing: '0.01em' }}>Anti-Chop Filter</span>
           </Tip>
@@ -1462,11 +1462,11 @@ function ArenaContent() {
         <span style={{ fontSize: 11, opacity: 0.35 }}>
           {antiChopEnabled
             ? 'Rejects tangled-ribbon and marginal EMA50 crosses'
-            : 'Raw EMA9/20 cross signals — no chop filtering'}
+            : 'Raw EMA9/20 cross signals - no chop filtering'}
         </span>
       </div>
 
-      {/* ── Pullback warning — reuses the Distribution score for the selected coin.
+      {/* ── Pullback warning - reuses the Distribution score for the selected coin.
           "This pump is getting weaker" made explicit as text, not just a header chip. ── */}
       {(() => {
         const d = store.coins[selectedCoin];
@@ -1482,7 +1482,7 @@ function ArenaContent() {
             <span style={{ color: col, lineHeight: 0, flexShrink: 0, marginTop: 1 }}><Warn size={14} /></span>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: col, marginBottom: 2 }}>
-                {res.score >= 70 ? 'Potential pullback — pump is getting weaker' : 'Early weakness — watch for a pullback'}
+                {res.score >= 70 ? 'Potential pullback - pump is getting weaker' : 'Early weakness - watch for a pullback'}
                 <span style={{ fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>({res.score}/100)</span>
               </div>
               <div style={{ fontSize: 11, color: 'var(--txt2)', lineHeight: 1.4 }}>
@@ -1493,7 +1493,7 @@ function ArenaContent() {
         );
       })()}
 
-      {/* Confluence Score — EMA Ribbon + Order Flow + Multi-TF RSI combined, plus a
+      {/* Confluence Score - EMA Ribbon + Order Flow + Multi-TF RSI combined, plus a
           separate macro/event risk overlay (econ calendar + JPY carry-trade risk).
           Pro-only: free users get an in-place locked card so the layout holds. */}
       {isPro ? (
@@ -1508,7 +1508,7 @@ function ArenaContent() {
 
       <MultiTFAlignment coin={selectedCoin} />
 
-      {/* Informational only (not a filter — see component header for why): flags when
+      {/* Informational only (not a filter - see component header for why): flags when
           the 4h has already moved a lot, so a same-direction lower-TF signal doesn't
           look more trustworthy than it is. Only shows on 1m/5m/15m/30m. */}
       <HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />
@@ -1520,7 +1520,7 @@ function ArenaContent() {
       <StopLossZone coin={selectedCoin} grokSignal={result?.signal} />
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-        {/* Quick button — requires sign-in */}
+        {/* Quick button - requires sign-in */}
         <button
           className={`arena-fire-btn arena-quick-btn${!user ? ' arena-deep-locked' : ''}`}
           disabled={readLoading || !!(user && grokUsage && grokUsage.quick_used >= grokUsage.quick_limit)}
@@ -1532,7 +1532,7 @@ function ArenaContent() {
             window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
           }}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={!user ? 'Sign in to use Quick Analysis' : 'Uses local data only — no web search'}
+          title={!user ? 'Sign in to use Quick Analysis' : 'Uses local data only - no web search'}
         >
           {readLoading && readMode === 'quick' ? readStep || 'Working…' : (
             !user ? (
@@ -1544,7 +1544,7 @@ function ArenaContent() {
           )}
         </button>
 
-        {/* Deep button — requires sign-in */}
+        {/* Deep button - requires sign-in */}
         <button
           className={`arena-fire-btn${!user ? ' arena-deep-locked' : ''}`}
           disabled={readLoading || !!(user && grokUsage && grokUsage.deep_used >= grokUsage.deep_limit)}
@@ -1584,7 +1584,7 @@ function ArenaContent() {
             detail: {
               coin: selectedCoin,
               prompt: result
-                ? `I just ran a full market read on ${selectedCoin.toUpperCase()}: ${result.signal} signal at ${result.confidence}% confidence. Entry zone: ${result.entryLow && result.entryHigh ? `$${fmtPrice(result.entryLow)} – $${fmtPrice(result.entryHigh)}` : '—'}. ${result.reasoning} What should I watch out for, and are there any scenarios that would invalidate this signal?`
+                ? `I just ran a full market read on ${selectedCoin.toUpperCase()}: ${result.signal} signal at ${result.confidence}% confidence. Entry zone: ${result.entryLow && result.entryHigh ? `$${fmtPrice(result.entryLow)} – $${fmtPrice(result.entryHigh)}` : '-'}. ${result.reasoning} What should I watch out for, and are there any scenarios that would invalidate this signal?`
                 : `Give me a complete analysis of ${selectedCoin.toUpperCase()}/USDT right now. What's the trend, key levels, directional bias, best entry if any, and should I trade or wait?`,
             },
           }))}
@@ -1593,7 +1593,7 @@ function ArenaContent() {
         </button>
       </div>
 
-      {/* ── Price alert inline form — buy/sell-panel styling ── */}
+      {/* ── Price alert inline form - buy/sell-panel styling ── */}
       {alertFormOpen && user && (
         <div style={{
           margin: '8px 0', padding: 16, borderRadius: 14,
@@ -1625,7 +1625,7 @@ function ArenaContent() {
                 ))}
               </div>
 
-              {/* Target price — input box with coin suffix chip */}
+              {/* Target price - input box with coin suffix chip */}
               <div>
                 <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>
                   Target price
@@ -1678,7 +1678,7 @@ function ArenaContent() {
                   opacity: alertSaving || !alertPrice ? 0.5 : 1, transition: 'opacity .15s',
                 }}
               >
-                {alertSaving ? 'Saving…' : `Set Alert — ${selectedCoin.toUpperCase()}`}
+                {alertSaving ? 'Saving…' : `Set Alert - ${selectedCoin.toUpperCase()}`}
               </button>
               <button
                 onClick={() => setAlertFormOpen(false)}
@@ -1694,7 +1694,7 @@ function ArenaContent() {
       {/* ── Auth / upgrade notice ── */}
       {!user && !authLoading && (
         <div className="usage-auth-notice">
-          Sign in to run Quick and Deep analysis — required to control API costs.{' '}
+          Sign in to run Quick and Deep analysis - required to control API costs.{' '}
           <a href="/login" className="usage-auth-link">Sign In →</a>
         </div>
       )}
@@ -1745,7 +1745,7 @@ function ArenaContent() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
                 <span className={`arena-sig-badge badge-${result.signal.toLowerCase().replace(' ', '-')}`}>
-                  {result.signal === 'LONG' ? '▲ LONG' : result.signal === 'LEAN LONG' ? '↗ LEAN LONG' : result.signal === 'SHORT' ? '▼ SHORT' : result.signal === 'LEAN SHORT' ? '↘ LEAN SHORT' : '— FLAT'}
+                  {result.signal === 'LONG' ? '▲ LONG' : result.signal === 'LEAN LONG' ? '↗ LEAN LONG' : result.signal === 'SHORT' ? '▼ SHORT' : result.signal === 'LEAN SHORT' ? '↘ LEAN SHORT' : '- FLAT'}
                 </span>
                 {result.signal === 'FLAT' && result.bias && result.bias !== 'NEUTRAL' && (
                   <span style={{
@@ -1764,7 +1764,7 @@ function ArenaContent() {
             {/* Deep override notice */}
             {showOverride && (
               <div className="arena-override-notice">
-                Deep overrides Quick — web search found a catalyst that shifted the signal from{' '}
+                Deep overrides Quick - web search found a catalyst that shifted the signal from{' '}
                 <strong>{prevQuickSignal}</strong> to <strong>{result.signal}</strong>. See Catalysts below.
               </div>
             )}
@@ -1781,7 +1781,7 @@ function ArenaContent() {
               <div className="arena-conf-fill" style={{ width: result.confidence + '%', background: sigCol }} />
             </div>
 
-            {/* Watch For — shown when signal is FLAT, LEAN LONG, or LEAN SHORT */}
+            {/* Watch For - shown when signal is FLAT, LEAN LONG, or LEAN SHORT */}
             {(result.signal === 'FLAT' || result.signal === 'LEAN LONG' || result.signal === 'LEAN SHORT') && result.waitFor && (
               <div className="arena-wait-for">
                 <div className="arena-wait-for-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1794,7 +1794,7 @@ function ArenaContent() {
                       textTransform: 'uppercase',
                       color: result.bias === 'BEARISH' ? '#f87171' : '#34d399',
                     }}>
-                      — {result.bias === 'BEARISH' ? '↓ leaning bearish' : '↑ leaning bullish'}
+                      - {result.bias === 'BEARISH' ? '↓ leaning bearish' : '↑ leaning bullish'}
                     </span>
                   )}
                 </div>
@@ -1802,7 +1802,7 @@ function ArenaContent() {
               </div>
             )}
 
-            {/* Entry / TP / SL chips — click to copy */}
+            {/* Entry / TP / SL chips - click to copy */}
             {(result.entryLow || result.tp || result.sl) && (
               <div className="gsc-levels-row" style={{ marginTop: 10 }}>
                 {result.entryLow && result.entryHigh && (
@@ -1865,7 +1865,7 @@ function ArenaContent() {
                     fontSize: 11, fontWeight: 800, letterSpacing: '.05em',
                     color: result.raidSetup === 'SHORT SQUEEZE' ? '#34d399' : '#f87171',
                   }}>
-                    LIQUIDITY RAID — {result.raidSetup}
+                    LIQUIDITY RAID - {result.raidSetup}
                   </span>
                 </div>
                 <div style={{ padding: '7px 12px 8px', display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -1885,7 +1885,7 @@ function ArenaContent() {
               </div>
             )}
 
-            {/* Catalysts — top 3 bullets only */}
+            {/* Catalysts - top 3 bullets only */}
             {result.catalysts && result.catalysts.length > 0 && (
               <div style={{ marginTop: 10, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
                 <ul style={{ margin: 0, padding: '0 0 0 14px', listStyle: 'disc' }}>
@@ -1896,7 +1896,7 @@ function ArenaContent() {
               </div>
             )}
 
-            {/* ── Details toggle — chart / patterns / full reasoning ── */}
+            {/* ── Details toggle - chart / patterns / full reasoning ── */}
             <button
               onClick={() => setSigDetailsOpen(v => !v)}
               style={{
@@ -1967,7 +1967,7 @@ function ArenaContent() {
               >
                 <div className="arena-hist-left">
                   <span className={`arena-hist-badge tag ${h.signal === 'LONG' || h.signal === 'LEAN LONG' ? 'tg' : h.signal === 'SHORT' || h.signal === 'LEAN SHORT' ? 'tr' : 'tp'}`}>
-                    {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'LEAN LONG' ? '↗ LEAN LONG' : h.signal === 'SHORT' ? '▼ SHORT' : h.signal === 'LEAN SHORT' ? '↘ LEAN SHORT' : '— FLAT'}
+                    {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'LEAN LONG' ? '↗ LEAN LONG' : h.signal === 'SHORT' ? '▼ SHORT' : h.signal === 'LEAN SHORT' ? '↘ LEAN SHORT' : '- FLAT'}
                   </span>
                   <div>
                     <div className="arena-hist-pair">{h.coin}</div>
@@ -1984,7 +1984,7 @@ function ArenaContent() {
                 <div className={`arena-hist-detail sig-${h.signal.toLowerCase().replace(' ', '-')}`}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <span className={`arena-sig-badge badge-${h.signal.toLowerCase().replace(' ', '-')}`} style={{ fontSize: 11 }}>
-                      {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'LEAN LONG' ? '↗ LEAN LONG' : h.signal === 'SHORT' ? '▼ SHORT' : h.signal === 'LEAN SHORT' ? '↘ LEAN SHORT' : '— FLAT'}
+                      {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'LEAN LONG' ? '↗ LEAN LONG' : h.signal === 'SHORT' ? '▼ SHORT' : h.signal === 'LEAN SHORT' ? '↘ LEAN SHORT' : '- FLAT'}
                     </span>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#b8aeff' }}>{h.confidence}% confidence</div>
                   </div>
@@ -2016,7 +2016,7 @@ function ArenaContent() {
 
       </div> {/* end arena-below-chart */}
 
-      {/* Pro upgrade modal — opened by the timeframe gate and locked cards */}
+      {/* Pro upgrade modal - opened by the timeframe gate and locked cards */}
       <UpgradeGateModal
         open={upgradeGate !== null}
         onClose={() => setUpgradeGate(null)}

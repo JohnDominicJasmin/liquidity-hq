@@ -54,7 +54,7 @@ export default function BestHours() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.5rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Best Hours</div>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Best Hours</h1>
         <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 14 }}>Live PHT clock + session window detector</div>
       </div>
 
@@ -73,10 +73,10 @@ export default function BestHours() {
           {mounted && (win ? (
             <div className="window-pill" style={{ background: win.bg, color: win.color, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" /></svg>
-              {win.name} — Active now
+              {win.name} - Active now
             </div>
           ) : dead ? (
-            <div className="window-pill wp-dead" style={{ display: 'inline-block' }}>Dead zone — do not trade</div>
+            <div className="window-pill wp-dead" style={{ display: 'inline-block' }}>Dead zone - do not trade</div>
           ) : (
             <div className="window-pill wp-other" style={{ display: 'inline-block' }}>Outside prime windows</div>
           ))}
@@ -90,7 +90,7 @@ export default function BestHours() {
           <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>PHT · typical weekday</span>
         </div>
 
-        {/* Bar + needle wrapper — overflow visible so needle tip shows */}
+        {/* Bar + needle wrapper - overflow visible so needle tip shows */}
         <div style={{ position: 'relative', marginBottom: 6 }}>
           {/* Segment strips */}
           <div style={{ position: 'relative', height: 44, borderRadius: 8, background: 'var(--bg3)', overflow: 'hidden' }}>
@@ -114,7 +114,7 @@ export default function BestHours() {
             })}
           </div>
 
-          {/* "You are here" needle — outside overflow:hidden so the arrow tip shows */}
+          {/* "You are here" needle - outside overflow:hidden so the arrow tip shows */}
           {(() => {
             const pct = ((h + m / 60) / 24) * 100;
             return (

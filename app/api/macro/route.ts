@@ -54,7 +54,7 @@ export async function GET() {
     yf('DX-Y.NYB'),    // DXY (US Dollar Index)
     yf('%5EGSPC'),     // S&P 500
     yf('GC%3DF'),      // Gold futures
-    yf('JPY%3DX'),     // USD/JPY — yen carry-trade direction (day change %)
+    yf('JPY%3DX'),     // USD/JPY - yen carry-trade direction (day change %)
   ]);
 
   return NextResponse.json(

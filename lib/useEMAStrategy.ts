@@ -49,21 +49,21 @@ export interface StrategySignal {
   signalDir:         'long' | 'short' | null;
   signalLongs:  Array<{ timestamp: number; anchorPrice: number; pending: boolean }>;
   signalShorts: Array<{ timestamp: number; anchorPrice: number; pending: boolean }>;
-  atrLast:    number | null;  // last ATR(14) — for Grok context
+  atrLast:    number | null;  // last ATR(14) - for Grok context
   ema50Slope: number | null;  // EMA50 slope over last 5 bars as a fraction
-  chopIndex:  number | null;  // Choppiness Index (0-100) — high = range-bound
+  chopIndex:  number | null;  // Choppiness Index (0-100) - high = range-bound
   chopRegime: ChopRegime | null;
-  // RSI divergence — a LEADING possible-reversal warning (momentum fading while
+  // RSI divergence - a LEADING possible-reversal warning (momentum fading while
   // price still pushes to a new extreme), distinct from the ribbon's lagging
   // trend-continuation signal. 'bullish' = possible reversal up, 'bearish' = down.
   reversalWarnings: Array<{ timestamp: number; anchorPrice: number; dir: 'bullish' | 'bearish' }>;
   // Outcome of every signal detected in the loaded candle window, simulated with the
   // backtest engine's fill rules (entry after the persistence hold, SL at the EMA50
-  // buffer, 2:1 TP). Free to compute — reuses the candles already fetched.
+  // buffer, 2:1 TP). Free to compute - reuses the candles already fetched.
   recentStats: { total: number; wins: number; losses: number; open: number; netR: number } | null;
   // True when recentStats has enough closed trades to be meaningful (>=5) and the win
   // rate is clearly sub-coinflip (<40%). Surfaced so a confident-looking LONG/SHORT
-  // SETUP badge doesn't overstate a setup this coin+timeframe has recently lost on —
+  // SETUP badge doesn't overstate a setup this coin+timeframe has recently lost on -
   // no amount of entry-timing filtering fixes a track record like that (tested and
   // reverted: neither a Choppiness Index gate nor a range-position gate at the
   // confirmation candle moved the needle, because a genuine EMA50 breakout is by
@@ -122,7 +122,7 @@ export const STRATEGY_LOADING: StrategySignal = {
   weakEdge: false,
 };
 
-/* ── Module-level kline cache — survives component unmount/remount ───────── */
+/* ── Module-level kline cache - survives component unmount/remount ───────── */
 interface KlineCacheEntry { cRibbon: OHLCV[]; c1d: OHLCV[]; fetchedAt: number }
 const klineCache = new Map<string, KlineCacheEntry>();
 const KLINE_CACHE_TTL_MS = 5 * 60_000; // matches the 5-min refresh interval
@@ -150,7 +150,7 @@ export function useEMAStrategy(
   const mountedRef    = useRef(true);
 
   // Live inputs read at compute time. Funding/OI tick frequently and the anti-chop
-  // toggle swaps filter params — none of those need new candles, so they must not be
+  // toggle swaps filter params - none of those need new candles, so they must not be
   // fetch-effect dependencies (that caused a full candle refetch + LOADING flash on
   // every funding update). They live in refs; a recompute-from-cache effect below
   // re-derives the signal when they change.
@@ -196,7 +196,7 @@ export function useEMAStrategy(
         const volma20 = volMA(vol4, 20);
         const priceD  = cl1d[cl1d.length - 1];
 
-        // Strategy rules — above200D falls back to ribbon direction when SMA200 is unavailable
+        // Strategy rules - above200D falls back to ribbon direction when SMA200 is unavailable
         const ribbonBull = ema9 > ema20 && ema20 > ema50;
         const ribbonBear = ema50 > ema20 && ema20 > ema9;
         const have200D  = sma200 != null && !isNaN(sma200);
@@ -226,40 +226,40 @@ export function useEMAStrategy(
         if (above200D && ribbonBull) {
           if (inVZoneLong) {
             verdict = 'LONG_SETUP';
-            phase   = 'In Value Zone — price pulled back to 20 EMA, entry eligible';
+            phase   = 'In Value Zone - price pulled back to 20 EMA, entry eligible';
           } else if (price > ema9) {
             verdict = 'TRENDING_LONG';
-            phase   = 'Trending long — above 9 EMA, wait for pullback into value zone';
+            phase   = 'Trending long - above 9 EMA, wait for pullback into value zone';
           } else if (price < ema50) {
             verdict = 'FREEZE';
-            phase   = 'Price sliced below 50 EMA — ribbon may be breaking, wait';
+            phase   = 'Price sliced below 50 EMA - ribbon may be breaking, wait';
           } else {
             verdict = 'TRENDING_LONG';
-            phase   = 'Between 20 and 50 EMA — ribbon aligned, not yet in entry zone';
+            phase   = 'Between 20 and 50 EMA - ribbon aligned, not yet in entry zone';
           }
         } else if (!above200D && ribbonBear) {
           if (inVZoneShort) {
             verdict = 'SHORT_SETUP';
-            phase   = 'In Value Zone — dead-cat bounce to 20 EMA, entry eligible';
+            phase   = 'In Value Zone - dead-cat bounce to 20 EMA, entry eligible';
           } else if (price < ema9) {
             verdict = 'TRENDING_SHORT';
-            phase   = 'Trending short — below 9 EMA, wait for rally into value zone';
+            phase   = 'Trending short - below 9 EMA, wait for rally into value zone';
           } else if (price > ema50) {
             verdict = 'FREEZE';
-            phase   = 'Price above 50 EMA — bearish breakdown not confirmed yet';
+            phase   = 'Price above 50 EMA - bearish breakdown not confirmed yet';
           } else {
             verdict = 'TRENDING_SHORT';
-            phase   = 'Between 20 and 50 EMA — ribbon aligned bearish, not in entry zone';
+            phase   = 'Between 20 and 50 EMA - ribbon aligned bearish, not in entry zone';
           }
         } else {
           verdict = 'FREEZE';
           const tfLabel = tf.toUpperCase();
           phase   = above200D
-            ? `Daily above 200 SMA but ${tfLabel} ribbon not bullish — wait for EMA alignment`
-            : `Daily below 200 SMA but ${tfLabel} ribbon not bearish — wait for EMA alignment`;
+            ? `Daily above 200 SMA but ${tfLabel} ribbon not bullish - wait for EMA alignment`
+            : `Daily below 200 SMA but ${tfLabel} ribbon not bearish - wait for EMA alignment`;
         }
 
-        // WaveTrend (Cipher B) confirmation — cross-from-extreme or divergence agreeing
+        // WaveTrend (Cipher B) confirmation - cross-from-extreme or divergence agreeing
         // with the verdict direction. A separate, orthogonal momentum confirmation
         // layered on top of the EMA ribbon, not a replacement for it.
         const wtDir: 'long' | 'short' | null =
@@ -286,10 +286,10 @@ export function useEMAStrategy(
             label: '200 SMA Filter (Daily)',
             pass:  !have200D ? null : (above200D ? true : (ribbonBear ? true : false)),
             detail: !have200D
-              ? 'Insufficient daily history — ribbon used as trend proxy'
+              ? 'Insufficient daily history - ribbon used as trend proxy'
               : above200D
-                ? `Price $${fmt(priceD)} above Daily 200 SMA $${sma200 !== null ? fmt(sma200) : '—'} — LONG only`
-                : `Price below Daily 200 SMA — SHORT only`,
+                ? `Price $${fmt(priceD)} above Daily 200 SMA $${sma200 !== null ? fmt(sma200) : '-'} - LONG only`
+                : `Price below Daily 200 SMA - SHORT only`,
           },
           {
             label: 'Ribbon Aligned',
@@ -298,50 +298,50 @@ export function useEMAStrategy(
               ? `Bullish: EMA9 ${fmt(ema9)} > EMA20 ${fmt(ema20)} > EMA50 ${fmt(ema50)}`
               : ribbonBear
                 ? `Bearish: EMA50 ${fmt(ema50)} > EMA20 ${fmt(ema20)} > EMA9 ${fmt(ema9)}`
-                : `Not aligned — ribbon tangled`,
+                : `Not aligned - ribbon tangled`,
           },
           {
             label: 'Trend Signal (fast/slow cross)',
             pass:  above200D ? ema9 > ema20 : ema9 < ema20,
             detail: above200D
               ? (ema9 > ema20
-                ? `EMA9 ${fmt(ema9)} crossed above EMA20 ${fmt(ema20)} — bullish cross confirmed`
-                : `EMA9 ${fmt(ema9)} still below EMA20 ${fmt(ema20)} — waiting for bullish cross`)
+                ? `EMA9 ${fmt(ema9)} crossed above EMA20 ${fmt(ema20)} - bullish cross confirmed`
+                : `EMA9 ${fmt(ema9)} still below EMA20 ${fmt(ema20)} - waiting for bullish cross`)
               : (ema9 < ema20
-                ? `EMA9 ${fmt(ema9)} crossed below EMA20 ${fmt(ema20)} — bearish cross confirmed`
-                : `EMA9 ${fmt(ema9)} still above EMA20 ${fmt(ema20)} — waiting for bearish cross`),
+                ? `EMA9 ${fmt(ema9)} crossed below EMA20 ${fmt(ema20)} - bearish cross confirmed`
+                : `EMA9 ${fmt(ema9)} still above EMA20 ${fmt(ema20)} - waiting for bearish cross`),
           },
           {
             label: 'Close vs EMA 50',
             pass:  above200D ? price > ema50 : price < ema50,
             detail: above200D
               ? (price > ema50
-                ? `Close $${fmt(price)} above EMA50 $${fmt(ema50)} — long entry confirmed`
-                : `Close $${fmt(price)} below EMA50 $${fmt(ema50)} — wait for candle close above EMA 50`)
+                ? `Close $${fmt(price)} above EMA50 $${fmt(ema50)} - long entry confirmed`
+                : `Close $${fmt(price)} below EMA50 $${fmt(ema50)} - wait for candle close above EMA 50`)
               : (price < ema50
-                ? `Close $${fmt(price)} below EMA50 $${fmt(ema50)} — short entry confirmed`
-                : `Close $${fmt(price)} above EMA50 $${fmt(ema50)} — wait for candle close below EMA 50`),
+                ? `Close $${fmt(price)} below EMA50 $${fmt(ema50)} - short entry confirmed`
+                : `Close $${fmt(price)} above EMA50 $${fmt(ema50)} - wait for candle close below EMA 50`),
           },
           {
             label: 'Price in Value Zone',
             pass:  (verdict === 'LONG_SETUP' || verdict === 'SHORT_SETUP') ? inValueZone : null,
             detail: inValueZone
-              ? `Price in EMA9–EMA20 zone — entry eligible`
-              : `Not in value zone yet — wait for pullback to 20 EMA`,
+              ? `Price in EMA9–EMA20 zone - entry eligible`
+              : `Not in value zone yet - wait for pullback to 20 EMA`,
           },
           {
             label: 'Funding Rate',
             pass:  fundingOK,
             detail: fundingRate == null
               ? 'Funding unavailable'
-              : `${(fundingRate * 100).toFixed(4)}% — ${fundingOK ? 'safe, proceed' : 'excessive, skip entry (bleed/squeeze risk)'}`,
+              : `${(fundingRate * 100).toFixed(4)}% - ${fundingOK ? 'safe, proceed' : 'excessive, skip entry (bleed/squeeze risk)'}`,
           },
           {
             label: 'Open Interest Confirming',
             pass:  oiOK,
             detail: oiPct == null
               ? 'Open interest data unavailable'
-              : `Open interest ${oiPct >= 0 ? '+' : ''}${oiPct.toFixed(2)}% in 1h — ${oiOK ? 'stable or rising (healthy)' : 'sharp drop (abort — position covering cascade)'}`,
+              : `Open interest ${oiPct >= 0 ? '+' : ''}${oiPct.toFixed(2)}% in 1h - ${oiOK ? 'stable or rising (healthy)' : 'sharp drop (abort - position covering cascade)'}`,
           },
           {
             label: 'Volume Above MA',
@@ -363,7 +363,7 @@ export function useEMAStrategy(
         let signalDir: 'long' | 'short' | null = null;
 
         // Anti-chop filters applied to all signal scans:
-        //   ATR buffer:    close must clear EMA50 by ≥ 35% of ATR(14) — rejects marginal grazes
+        //   ATR buffer:    close must clear EMA50 by ≥ 35% of ATR(14) - rejects marginal grazes
         //   Slope filter:  EMA50 must be trending in signal direction over last 5 bars (≥ 0.1%)
         //                  Flat EMA50 = ranging market = skip
         //   Spread filter: EMA9 and EMA20 must be ≥ 0.3% of price apart at confirmation candle.
@@ -414,7 +414,7 @@ export function useEMAStrategy(
           }
         }
 
-        // Chart markers — delegated to the shared core (lib/strategyCore.ts) so live
+        // Chart markers - delegated to the shared core (lib/strategyCore.ts) so live
         // signals and the backtest engine run the exact same detection logic and can
         // never silently drift apart. See strategyCore.ts for the full rule writeup:
         // 2-step arm/confirm, ATR buffer, EMA50 slope, ribbon spread, whipsaw persistence,
@@ -423,7 +423,7 @@ export function useEMAStrategy(
         const signalLongs  = detected.signalLongs.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
         const signalShorts = detected.signalShorts.map(s => ({ timestamp: s.timestamp, anchorPrice: s.anchorPrice, pending: s.pending }));
 
-        // Recent record — confirmed signals only (pending have unreliable fillPrice at live edge)
+        // Recent record - confirmed signals only (pending have unreliable fillPrice at live edge)
         const confirmedSignals = [...detected.signalLongs, ...detected.signalShorts].filter(s => !s.pending);
         const simTrades = simulateTrades(confirmedSignals, cRibbon, coin);
         const rsWins    = simTrades.filter(t => t.outcome === 'win').length;
@@ -443,14 +443,14 @@ export function useEMAStrategy(
           ? (e50arr[slopeIdx] - e50arr[slopeIdx - SLOPE_BARS]) / e50arr[slopeIdx - SLOPE_BARS]
           : null;
 
-        // Choppiness Index — warns the trader the coin is range-bound right now,
+        // Choppiness Index - warns the trader the coin is range-bound right now,
         // rather than relying on the persistence filter to silently eat the signal.
         const chopArr = choppinessIndexArr(cRibbon, 14);
         const chopLast = chopArr[chopArr.length - 1];
         const chopIndex = isFinite(chopLast) ? chopLast : null;
         const chopRegime = chopIndex != null ? chopRegimeFor(chopIndex) : null;
 
-        // RSI divergence — leading reversal warning, same candle window, no extra fetch.
+        // RSI divergence - leading reversal warning, same candle window, no extra fetch.
         const reversalWarnings = detectRSIDivergence(cRibbon, 14)
           .map(e => ({ timestamp: e.timestamp, anchorPrice: e.anchorPrice, dir: e.dir }));
 
@@ -473,7 +473,7 @@ export function useEMAStrategy(
     }
   };
 
-  /* Fetch candles when coin/tf change (and every 5 min) — the only path that hits
+  /* Fetch candles when coin/tf change (and every 5 min) - the only path that hits
      the network or shows the LOADING state. If module-level cache is fresh, serve
      it immediately (no loading flash) and refresh in background. */
   useEffect(() => {
@@ -523,7 +523,7 @@ export function useEMAStrategy(
   }, [coin, tf]);
 
   /* Funding/OI ticks and anti-chop filter changes: re-derive conditions from the
-     cached candles — no refetch, no LOADING flash, chart markers stay put. */
+     cached candles - no refetch, no LOADING flash, chart markers stay put. */
   useEffect(() => {
     computeRef.current();
   }, [fundingRate, oiPct, spreadMinPct, atrMult, persistBoost]);

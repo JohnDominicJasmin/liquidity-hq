@@ -18,7 +18,7 @@ export default function SetupChecklist() {
   const { state, loaded, allDone } = useOnboarding();
   // AUTH-1 fix: this used to force-expand to the full panel on any screen
   // >=640px wide, which is how it ended up covering real content (chart
-  // price axis, form fields) on desktop — it defaulted to the biggest
+  // price axis, form fields) on desktop - it defaulted to the biggest
   // version of itself everywhere except phones. Now it always starts
   // collapsed to the small progress pill; the user opts into the full
   // panel by clicking it.

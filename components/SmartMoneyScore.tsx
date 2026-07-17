@@ -48,7 +48,7 @@ export default function SmartMoneyScore() {
     : cbPct < -0.05 ? -2 : cbPct < -0.01 ? -1 : 0;
   const cbRow: SRow = {
     name: 'CB Premium', badge: 'BTC',
-    value: cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : '—',
+    value: cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : '-',
     score: cbScore,
     note: cbPct == null    ? 'Fetching…'
       : cbScore >=  2 ? 'US institutions buying ▲'
@@ -66,13 +66,13 @@ export default function SmartMoneyScore() {
     : flow < -100 ?  2 : flow < -50 ?  1 : 0;
   const flowRow: SRow = {
     name: 'Exch. Flow', badge: 'BTC',
-    value: flow != null ? (flow >= 0 ? '+$' : '−$') + Math.abs(flow).toFixed(0) + 'M' : '—',
+    value: flow != null ? (flow >= 0 ? '+$' : '−$') + Math.abs(flow).toFixed(0) + 'M' : '-',
     score: flowScore,
     note: flow == null      ? 'LiquidityAI searches live'
-      : flowScore >=  2 ? 'Heavy outflow — accumulation ▲'
-      : flowScore ===  1 ? 'Outflow — mild accum.'
-      : flowScore <= -2 ? 'Heavy inflow — sell pressure ▼'
-      : flowScore === -1 ? 'Inflow — mild sell pressure'
+      : flowScore >=  2 ? 'Heavy outflow - accumulation ▲'
+      : flowScore ===  1 ? 'Outflow - mild accum.'
+      : flowScore <= -2 ? 'Heavy inflow - sell pressure ▼'
+      : flowScore === -1 ? 'Inflow - mild sell pressure'
       :                    'Balanced flow',
     global: true, has: flow != null,
   };
@@ -85,7 +85,7 @@ export default function SmartMoneyScore() {
     : buyPct <= 35 ? -2 : buyPct <= 45 ? -1 : 0;
   const takerRow: SRow = {
     name: 'Taker B/S', badge: ticker,
-    value: buyPct != null ? buyPct + '% buy' : '—',
+    value: buyPct != null ? buyPct + '% buy' : '-',
     score: takerScore,
     note: buyPct == null    ? 'Fetching…'
       : takerScore >=  2 ? 'Aggressive buyers ▲'
@@ -104,14 +104,14 @@ export default function SmartMoneyScore() {
     : oiTrend === 'weak_down'   ? -1
     : /* strong_down */           -2;
   const OI_NOTES: Record<string, string> = {
-    strong_up:   'Open Int ↑ Price ↑ — new longs ▲',
-    weak_up:     'Open Int ↓ Price ↑ — short covering',
-    weak_down:   'Open Int ↓ Price ↓ — long exits',
-    strong_down: 'Open Int ↑ Price ↓ — new shorts ▼',
+    strong_up:   'Open Int ↑ Price ↑ - new longs ▲',
+    weak_up:     'Open Int ↓ Price ↑ - short covering',
+    weak_down:   'Open Int ↓ Price ↓ - long exits',
+    strong_down: 'Open Int ↑ Price ↓ - new shorts ▼',
   };
   const oiRow: SRow = {
     name: 'Open Interest Trend', badge: ticker,
-    value: oiTrend ? oiTrend.replace('_', ' ') : '—',
+    value: oiTrend ? oiTrend.replace('_', ' ') : '-',
     score: oiScore,
     note: oiTrend ? OI_NOTES[oiTrend] : 'Warming up…',
     global: false, has: oiTrend != null,
@@ -126,13 +126,13 @@ export default function SmartMoneyScore() {
     : frPct <= -0.03 ?  2 : frPct <= -0.01 ?  1 : 0;
   const frRow: SRow = {
     name: 'Funding Rate', badge: ticker,
-    value: frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '—',
+    value: frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '-',
     score: frScore,
     note: frPct == null    ? 'Fetching…'
-      : frScore <= -2 ? 'Heavily positive — longs overcrowded ▼'
-      : frScore === -1 ? 'Elevated — mild long bias'
-      : frScore >=  2 ? 'Heavily negative — shorts overcrowded ▲'
-      : frScore ===  1 ? 'Negative — shorts paying'
+      : frScore <= -2 ? 'Heavily positive - longs overcrowded ▼'
+      : frScore === -1 ? 'Elevated - mild long bias'
+      : frScore >=  2 ? 'Heavily negative - shorts overcrowded ▲'
+      : frScore ===  1 ? 'Negative - shorts paying'
       :                  'Neutral funding',
     global: false, has: frPct != null,
   };
@@ -147,13 +147,13 @@ export default function SmartMoneyScore() {
     : longPct <= 35 ?  2 : longPct <= 45 ?  1 : 0;
   const lsRow: SRow = {
     name: 'L/S Ratio', badge: ticker,
-    value: longPct != null ? `${longPct}% L / ${shortPct}% S` : '—',
+    value: longPct != null ? `${longPct}% L / ${shortPct}% S` : '-',
     score: lsScore,
     note: longPct == null  ? 'Fetching…'
-      : lsScore <= -2 ? `${longPct}% longs — crowded, dump risk ▼`
-      : lsScore === -1 ? 'Long-heavy — mild caution'
-      : lsScore >=  2 ? `${shortPct}% shorts — squeeze risk ▲`
-      : lsScore ===  1 ? 'Short-heavy — mild squeeze potential'
+      : lsScore <= -2 ? `${longPct}% longs - crowded, dump risk ▼`
+      : lsScore === -1 ? 'Long-heavy - mild caution'
+      : lsScore >=  2 ? `${shortPct}% shorts - squeeze risk ▲`
+      : lsScore ===  1 ? 'Short-heavy - mild squeeze potential'
       :                  'Balanced positioning',
     global: false, has: longPct != null,
   };
@@ -180,7 +180,7 @@ export default function SmartMoneyScore() {
         </div>
         <div className="sms-row-val">{row.value}</div>
         <div className="sms-score-chip" style={{ background: bg, color: sc }}>
-          {row.has ? (row.score > 0 ? '+' : '') + row.score : '—'}
+          {row.has ? (row.score > 0 ? '+' : '') + row.score : '-'}
         </div>
         <div className="sms-row-note" style={{ color: row.has ? sc : 'var(--txt3)' }}>{row.note}</div>
       </div>
@@ -193,7 +193,7 @@ export default function SmartMoneyScore() {
       {/* ── Top row: title + verdict ── */}
       <div className="sms-header">
         <div>
-          <div className="sms-title"><Tip text="A composite score combining 6 signals — CB Premium, exchange flow, taker pressure, OI trend, funding, and L/S ratio. Positive score means sophisticated money is accumulating; negative means they are distributing.">Smart Money Score</Tip></div>
+          <div className="sms-title"><Tip text="A composite score combining 6 signals - CB Premium, exchange flow, taker pressure, OI trend, funding, and L/S ratio. Positive score means sophisticated money is accumulating; negative means they are distributing.">Smart Money Score</Tip></div>
           <div className="sms-sub">Market context + {ticker} positioning · 6 signals</div>
         </div>
         <div className="sms-verdict" style={{ color: col }}>{label}</div>

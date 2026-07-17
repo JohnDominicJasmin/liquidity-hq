@@ -1,4 +1,4 @@
-// Central table name registry — switches between lhq_ (prod) and lhq_dev_ (dev)
+// Central table name registry - switches between lhq_ (prod) and lhq_dev_ (dev)
 // based on NEXT_PUBLIC_APP_ENV. Set in Render dashboard per service.
 const p = process.env.NEXT_PUBLIC_APP_ENV === 'dev' ? 'lhq_dev_' : 'lhq_';
 

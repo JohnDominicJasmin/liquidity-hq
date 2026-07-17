@@ -30,13 +30,13 @@ interface Evidence {
 function buildAnalysisPrompt(h: Hypothesis, evidence: Evidence[]): string {
   const criteriaList = (h.acceptance_criteria ?? []).length > 0
     ? h.acceptance_criteria.map((c, i) => `  ${i + 1}. ${c}`).join('\n')
-    : '  (No specific criteria defined — use your judgment based on the hypothesis)';
+    : '  (No specific criteria defined - use your judgment based on the hypothesis)';
 
   const evidenceList = evidence.length > 0
     ? evidence.map(e => {
         const tag = e.type === 'supporting' ? '[FOR]' : e.type === 'against' ? '[AGAINST]' : '[NEUTRAL]';
         const date = new Date(e.created_at).toISOString().slice(0, 10);
-        return `  ${tag} ${date} — ${e.content}${e.source ? ` (Source: ${e.source})` : ''}`;
+        return `  ${tag} ${date} - ${e.content}${e.source ? ` (Source: ${e.source})` : ''}`;
       }).join('\n')
     : '  (No evidence logged yet)';
 
@@ -61,7 +61,7 @@ function buildAnalysisPrompt(h: Hypothesis, evidence: Evidence[]): string {
     'Evaluate each acceptance criterion against the evidence. Then output EXACTLY these headers:',
     '',
     'EVIDENCE_ASSESSMENT:',
-    '[For each criterion: "1. MET / NOT MET / UNCLEAR — one sentence." If no criteria, assess the thesis directly.]',
+    '[For each criterion: "1. MET / NOT MET / UNCLEAR - one sentence." If no criteria, assess the thesis directly.]',
     '',
     'VERDICT:',
     '[Exactly one of: CONFIRMED | DISCONFIRMED | UNCLEAR]',
@@ -70,7 +70,7 @@ function buildAnalysisPrompt(h: Hypothesis, evidence: Evidence[]): string {
     '[UNCLEAR = insufficient evidence or mixed signals]',
     '',
     'CONFIDENCE:',
-    '[e.g. "3/5 criteria met" or "Strong — all evidence aligns" or "Weak — only 1 piece of supporting evidence"]',
+    '[e.g. "3/5 criteria met" or "Strong - all evidence aligns" or "Weak - only 1 piece of supporting evidence"]',
     '',
     'KEY_INSIGHT:',
     '[The single most important thing the evidence tells you in one sentence]',

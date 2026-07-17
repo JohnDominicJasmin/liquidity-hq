@@ -6,19 +6,19 @@ import { Warn } from '@/components/icons';
 type FilterDir = 'all' | 'LONG_LIQ' | 'SHORT_SQ' | 'NEUTRAL';
 
 function fmtFR(r: number | null): string {
-  if (r == null) return '—';
+  if (r == null) return '-';
   return (r * 100).toFixed(4) + '%';
 }
 function fmtRatio(r: number | null): string {
-  if (r == null) return '—';
+  if (r == null) return '-';
   return (r * 100).toFixed(0) + '%';
 }
 function fmtVR(r: number | null): string {
-  if (r == null) return '—';
+  if (r == null) return '-';
   return r.toFixed(2) + 'x';
 }
 function fmtRSI(r: number | null): string {
-  if (r == null) return '—';
+  if (r == null) return '-';
   return r.toFixed(0);
 }
 
@@ -32,7 +32,7 @@ interface ScanRow {
 }
 
 function OiTrendBadge({ trend }: { trend: CoinData['oiTrend'] }) {
-  if (!trend) return <span className="scan-badge scan-badge-neu">Open Int —</span>;
+  if (!trend) return <span className="scan-badge scan-badge-neu">Open Int -</span>;
   const map: Record<string, { label: string; cls: string }> = {
     strong_up:   { label: 'Open Int ↑↑', cls: 'scan-badge-bull' },
     weak_up:     { label: 'Open Int ↑',  cls: 'scan-badge-neu'  },
@@ -44,13 +44,13 @@ function OiTrendBadge({ trend }: { trend: CoinData['oiTrend'] }) {
 }
 
 function CvdBadge({ cvd }: { cvd: CoinData['cvdDivergence'] }) {
-  if (!cvd) return <span className="scan-badge scan-badge-neu">CVD —</span>;
+  if (!cvd) return <span className="scan-badge scan-badge-neu">CVD -</span>;
   if (cvd === 'bullish') return <span className="scan-badge scan-badge-bull">CVD ↑</span>;
   return <span className="scan-badge scan-badge-bear">CVD ↓</span>;
 }
 
 function TakerBadge({ ratio }: { ratio: number | null }) {
-  if (ratio == null) return <span className="scan-badge scan-badge-neu">Tkr —</span>;
+  if (ratio == null) return <span className="scan-badge scan-badge-neu">Tkr -</span>;
   const pct = (ratio * 100).toFixed(0);
   if (ratio >= 0.60) return <span className="scan-badge scan-badge-bull">Tkr {pct}%</span>;
   if (ratio <= 0.40) return <span className="scan-badge scan-badge-bear">Tkr {pct}%</span>;
@@ -229,7 +229,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
               <span className="scan-alert-icon" style={{ lineHeight: 0 }}><Warn size={14} /></span>
               <span>
                 <strong style={{ color: '#f87171' }}>{highestLongLiq.id.toUpperCase()}</strong>
-                {' '}Long liquidation risk — score {highestLongLiq.score}
+                {' '}Long liquidation risk - score {highestLongLiq.score}
               </span>
             </div>
           )}
@@ -238,7 +238,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
               
               <span>
                 <strong style={{ color: '#34d399' }}>{highestShortSq.id.toUpperCase()}</strong>
-                {' '}Short squeeze setup — score {highestShortSq.score}
+                {' '}Short squeeze setup - score {highestShortSq.score}
               </span>
             </div>
           )}
@@ -273,7 +273,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
           aria-pressed={strongOnly}
           onClick={() => setStrongOnly(v => !v)}
         >
-          {strongOnly ? `Strong Setups Only — ${strongCount} coins` : 'Strong Setups Only'}
+          {strongOnly ? `Strong Setups Only - ${strongCount} coins` : 'Strong Setups Only'}
         </button>
       </div>
 
@@ -306,7 +306,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
           {search.trim()
             ? `No coins match "${search.trim()}"`
             : strongOnly
-              ? 'No strong setups right now — try again later or turn off the filter'
+              ? 'No strong setups right now - try again later or turn off the filter'
               : 'No setups match this filter right now'}
         </div>
       )}
@@ -322,15 +322,15 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
         <div className="scan-legend-title">How the score works</div>
         <div className="scan-legend-row">
           <span className="scan-legend-dot" style={{ background: '#f87171' }} />
-          <span><strong style={{ color: '#f87171' }}>Long Liq Risk ↓</strong> — too many longs. Funding +, long% high, vol spike. Whales incentivised to dump.</span>
+          <span><strong style={{ color: '#f87171' }}>Long Liq Risk ↓</strong> - too many longs. Funding +, long% high, vol spike. Whales incentivised to dump.</span>
         </div>
         <div className="scan-legend-row">
           <span className="scan-legend-dot" style={{ background: '#34d399' }} />
-          <span><strong style={{ color: '#34d399' }}>Short Squeeze ↑</strong> — too many shorts. Funding –, short% high, vol spike. Whales incentivised to pump.</span>
+          <span><strong style={{ color: '#34d399' }}>Short Squeeze ↑</strong> - too many shorts. Funding –, short% high, vol spike. Whales incentivised to pump.</span>
         </div>
         <div className="scan-legend-row">
           <span className="scan-legend-dot" style={{ background: '#606060' }} />
-          <span><strong>Balanced</strong> — no extreme positioning on either side. Sit out or trade structure.</span>
+          <span><strong>Balanced</strong> - no extreme positioning on either side. Sit out or trade structure.</span>
         </div>
         <div style={{ marginTop: 8, fontSize: 11, color: 'var(--txt3)' }}>
           Score 0–100: funding rate (0–40 pts) + long/short ratio (0–40 pts) + volume spike bonus (0–20 pts)

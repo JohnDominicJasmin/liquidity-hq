@@ -169,7 +169,7 @@ export default function OISpikeScanner() {
         <span className="ois-coin">{coin.toUpperCase()}</span>
         <span className="ois-oi-usd">{fmtOIUsd(displayOiUsd)}</span>
         <span className="ois-pct" style={{ color: pctCol }}>
-          {pct != null ? (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%' : '—'}
+          {pct != null ? (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%' : '-'}
         </span>
         <span className="ois-signal" style={{ color: sigCol }}>{sigLabel}</span>
         {isSpike && (
@@ -205,7 +205,7 @@ export default function OISpikeScanner() {
         <span className="ois-age">{loading ? 'Loading…' : agoStr}</span>
       </div>
 
-      {/* ── Search bar — visible only when expanded ── */}
+      {/* ── Search bar - visible only when expanded ── */}
       {expanded && (
         <div style={{ borderBottom: '0.5px solid var(--bdr)', padding: '0 14px', display: 'flex', alignItems: 'center', gap: 6 }}>
           <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.4 }}>

@@ -110,7 +110,7 @@ export default function LiquidationCalc() {
       {result ? (
         <>
           <div className="ps-banner ps-banner-long" style={{ background: 'var(--red-bg)', color: 'var(--red)', border: '0.5px solid var(--red-bdr)' }}>
-            {dir === 'long' ? '▲ LONG' : '▼ SHORT'} — Liquidation at {fmtP(result.liqPrice)}
+            {dir === 'long' ? '▲ LONG' : '▼ SHORT'} - Liquidation at {fmtP(result.liqPrice)}
           </div>
           <div className="ps-results">
             <div className="ps-result ps-result-danger">
@@ -135,10 +135,10 @@ export default function LiquidationCalc() {
             </div>
           </div>
           {result.distPct < 5 && (
-            <div className="ps-warn"><Warn /> Less than 5% from liquidation — dangerously close</div>
+            <div className="ps-warn"><Warn /> Less than 5% from liquidation - dangerously close</div>
           )}
           {result.distPct < 10 && result.distPct >= 5 && (
-            <div className="ps-warn"><Warn /> Less than 10% from liquidation — high risk</div>
+            <div className="ps-warn"><Warn /> Less than 10% from liquidation - high risk</div>
           )}
         </>
       ) : (

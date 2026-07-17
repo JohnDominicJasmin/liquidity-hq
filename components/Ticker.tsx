@@ -26,7 +26,7 @@ export default function Ticker() {
             const sel = selectedCoin === id;
             const health = computeCoinHealth(d);
 
-            // Priority signal — same logic as CoinSidebar
+            // Priority signal - same logic as CoinSidebar
             let sig: { text: string; col: string } | null = null;
             if (d?.fundingRate != null) {
               const fr = d.fundingRate * 100;
@@ -97,8 +97,8 @@ export default function Ticker() {
                     Funding: {d!.fundingRate! >= 0 ? '+' : ''}{(d!.fundingRate! * 100).toFixed(4)}%
                   </div>
                 )}
-                {/* Absolute OI removed — OI trend text below is more informative */}
-                {/* Absolute VOL removed — vol ratio below is more informative */}
+                {/* Absolute OI removed - OI trend text below is more informative */}
+                {/* Absolute VOL removed - vol ratio below is more informative */}
                 <VolRatioText ratio={d?.volRatio} />
                 {d?.vwap != null && d.price != null && (
                   <div className="ticker-vol" style={{ color: d.price > d.vwap ? '#34d399' : '#f87171' }}>
@@ -126,7 +126,7 @@ export default function Ticker() {
             );
           })}
 
-          {/* See all card — mobile only, sits at end of scroll */}
+          {/* See all card - mobile only, sits at end of scroll */}
           <Link href="/prices" className="ticker-card ticker-see-all">
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, pointerEvents: 'none' }}>
               <span className="ticker-see-all-count">{COINS.length}</span>

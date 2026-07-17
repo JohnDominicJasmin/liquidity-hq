@@ -18,7 +18,7 @@ export default function ProGate({ children, feature }: ProGateProps) {
         {feature ?? 'Upgrade to Pro to unlock this feature.'}
       </p>
       <a href="/upgrade" className="pro-gate-btn">
-        Upgrade to Pro — $15/mo
+        Upgrade to Pro - $15/mo
       </a>
     </div>
   );

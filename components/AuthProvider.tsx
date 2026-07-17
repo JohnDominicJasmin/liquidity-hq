@@ -34,7 +34,7 @@ function touchActivity() {
 
 function isSessionExpired(): boolean {
   const raw = localStorage.getItem(LAST_ACTIVE_KEY);
-  if (!raw) return false; // first visit or cleared — let Supabase decide
+  if (!raw) return false; // first visit or cleared - let Supabase decide
   return Date.now() - Number(raw) > INACTIVITY_MS;
 }
 

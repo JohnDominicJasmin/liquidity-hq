@@ -30,7 +30,7 @@ export default function WatchlistFeed() {
         const health = computeCoinHealth(d);
         const badgeCol = coinBadgeColor(id);
 
-        // Top signal — same priority logic as CoinSidebar
+        // Top signal - same priority logic as CoinSidebar
         let sig: { text: string; col: string } | null = null;
         if (d?.fundingRate != null) {
           const fr = d.fundingRate * 100;
@@ -86,7 +86,7 @@ export default function WatchlistFeed() {
 
             {/* Price */}
             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>
-              {d?.price ? '$' + fmtPrice(d.price, dec) : '—'}
+              {d?.price ? '$' + fmtPrice(d.price, dec) : '-'}
             </div>
 
             {/* Change + sparkline */}

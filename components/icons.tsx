@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 
 /**
- * Shared inline SVG icons — replaces emoji/glyph iconography in the UI so it
+ * Shared inline SVG icons - replaces emoji/glyph iconography in the UI so it
  * renders consistently (per-OS emoji looks vibe-coded) and follows CSS `color`
  * via currentColor. Match the tab-bar SVG style: viewBox 0 0 20 20, 1.5px stroke.
  */
@@ -11,7 +11,7 @@ interface IconProps {
   style?: CSSProperties;
 }
 
-/** Warning triangle — inherits color from parent (amber/red warning text). */
+/** Warning triangle - inherits color from parent (amber/red warning text). */
 export function Warn({ size = 13, style }: IconProps) {
   return (
     <svg
@@ -29,7 +29,7 @@ export function Warn({ size = 13, style }: IconProps) {
   );
 }
 
-/** Download / install-to-device glyph — used for "Add to Home Screen" prompts. */
+/** Download / install-to-device glyph - used for "Add to Home Screen" prompts. */
 export function Download({ size = 14, style }: IconProps) {
   return (
     <svg
@@ -47,7 +47,7 @@ export function Download({ size = 14, style }: IconProps) {
   );
 }
 
-/** Sun — light-mode indicator, used by the nav theme toggle and Settings'
+/** Sun - light-mode indicator, used by the nav theme toggle and Settings'
     theme chips (previously three separately-inlined copies). */
 export function IconSun({ size = 16, style }: IconProps) {
   return (
@@ -67,11 +67,25 @@ export function IconSun({ size = 16, style }: IconProps) {
   );
 }
 
-/** Moon — dark-mode indicator, same context as IconSun above. */
+/** Moon - dark-mode indicator, same context as IconSun above. */
 export function IconMoon({ size = 16, style }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true" style={style}>
       <path d="M16.5 12.7A7 7 0 0 1 7.3 3.5 7 7 0 1 0 16.5 12.7Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** Article/no-image placeholder - News cards without a thumbnail used to
+    render a completely empty solid-color block (read as a rendering bug,
+    "solid black card"). A muted glyph reads as an intentional placeholder. */
+export function ArticleIcon({ size = 26, style }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" aria-hidden="true" style={style}>
+      <rect x="3" y="4" width="14" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+      <line x1="6" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <line x1="6" y1="11" x2="14" y2="11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <line x1="6" y1="14" x2="11" y2="14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   );
 }

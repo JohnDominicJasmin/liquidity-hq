@@ -76,7 +76,7 @@ export default function PositionSizer() {
     }
   };
 
-  /* Seed from Settings (replaces old localStorage read) — URL params win, so a
+  /* Seed from Settings (replaces old localStorage read) - URL params win, so a
      shared link always reproduces the sender's exact setup. */
   useEffect(() => {
     if (seededRef.current) return;
@@ -86,8 +86,8 @@ export default function PositionSizer() {
     if (!urlParams.has('risk') && settings.risk_pct)      setRiskPct(String(settings.risk_pct));
   }, [settings.account_size, settings.risk_pct]);
 
-  /* Sync every input to the URL so the setup — coin, entry, stop, TP, account,
-     risk — is shareable, same pattern as Arena's coin+tf sync. */
+  /* Sync every input to the URL so the setup - coin, entry, stop, TP, account,
+     risk - is shareable, same pattern as Arena's coin+tf sync. */
   useEffect(() => {
     const url = new URL(window.location.href);
     const p = url.searchParams;
@@ -101,7 +101,7 @@ export default function PositionSizer() {
     window.history.replaceState(null, '', url.toString());
   }, [coin, account, riskPct, entry, stop, tp]);
 
-  /* Close the coin dropdown on outside click / Escape — it's a custom listbox
+  /* Close the coin dropdown on outside click / Escape - it's a custom listbox
      (not a native <select>) so it can be size- and position-constrained
      instead of the browser rendering a huge native popup that can flip
      upward and cover the screen. */
@@ -192,7 +192,7 @@ export default function PositionSizer() {
       <div className="ps-card">
         <div className="ps-card-lbl">Trade Levels</div>
         <div className="ps-coin-row">
-          <label className="ps-lbl">Coin <span className="ps-opt">(optional — auto-fills entry with the live price)</span></label>
+          <label className="ps-lbl">Coin <span className="ps-opt">(optional - auto-fills entry with the live price)</span></label>
           <div className="ps-coin-irow">
             <div className="ps-coin-combo" ref={coinMenuRef}>
               <button
@@ -267,7 +267,7 @@ export default function PositionSizer() {
         </div>
         <div className="ps-row" style={{ marginTop: 10 }}>
           <div className="ps-field">
-            <label className="ps-lbl">Take Profit <span className="ps-opt">(optional — shows R:R)</span></label>
+            <label className="ps-lbl">Take Profit <span className="ps-opt">(optional - shows R:R)</span></label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
               <input className="ps-inp ps-inp-tp" aria-label="Take Profit" type="number" placeholder="0.00" value={tp} onChange={e => setTp(e.target.value)} />
@@ -327,10 +327,10 @@ export default function PositionSizer() {
           </div>
 
           {result.leverage > 10 && (
-            <div className="ps-warn"><Warn /> Leverage over 10x — reduce size or widen stop</div>
+            <div className="ps-warn"><Warn /> Leverage over 10x - reduce size or widen stop</div>
           )}
           {result.rrRatio != null && result.rrRatio < 1.5 && (
-            <div className="ps-warn"><Warn /> R:R below 1.5 — skip or move TP further out</div>
+            <div className="ps-warn"><Warn /> R:R below 1.5 - skip or move TP further out</div>
           )}
 
           <button className="ps-log-btn" onClick={logTrade}>

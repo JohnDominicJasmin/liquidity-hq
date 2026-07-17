@@ -28,7 +28,7 @@ export default function NewsTicker() {
     return () => clearInterval(id);
   }, []);
 
-  // Filter by severity + recency — re-evaluated every tick
+  // Filter by severity + recency - re-evaluated every tick
   const items = useMemo(() => {
     const now = Date.now() / 1000;
     return alerts

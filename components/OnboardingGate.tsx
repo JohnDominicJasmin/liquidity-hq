@@ -9,7 +9,7 @@ export default function OnboardingGate({ children }: { children: React.ReactNode
   const { user } = useAuth();
   const { state, loaded, requestTour } = useOnboarding();
 
-  // Blocks every route behind onboarding, not just dashboard — a signed-in
+  // Blocks every route behind onboarding, not just dashboard - a signed-in
   // user with an unresolved or incomplete profile must never reach app
   // content, wherever they navigate. `user` is null until /auth/callback's
   // own code exchange resolves, so this can't fire prematurely there.
@@ -18,7 +18,7 @@ export default function OnboardingGate({ children }: { children: React.ReactNode
     // .mb-glow-card), so route there to start it rather than trying to run
     // it over whatever page the user happened to finish onboarding on.
     // requestTour() flips a flag in OnboardingProvider (read by Dashboard on
-    // mount) instead of a ?tour=1 query param — markDone('profileComplete')
+    // mount) instead of a ?tour=1 query param - markDone('profileComplete')
     // and this navigation both fire inside the same finish() call, and
     // there's no guarantee the pushed URL lands before Dashboard's mount
     // effect runs, so a query param the effect reads once on mount can lose

@@ -1,6 +1,6 @@
 // Lightweight in-memory per-IP rate limiter for public (unauthenticated) API
 // routes. Render runs this app as a single long-lived process, so an
-// in-memory Map is sufficient — same pattern as the cooldown Map already
+// in-memory Map is sufficient - same pattern as the cooldown Map already
 // used in app/api/telegram/alert/route.ts.
 
 const buckets = new Map<string, { count: number; resetAt: number }>();

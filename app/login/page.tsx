@@ -6,7 +6,7 @@ import { getSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 import { useAuth } from '@/components/AuthProvider';
 
-// Only allow same-origin path redirects — anything else ("//evil.com",
+// Only allow same-origin path redirects - anything else ("//evil.com",
 // "https://...") falls back to the dashboard, so ?next= can't be used as an
 // open redirect.
 function safeNext(raw: string | null): string {
@@ -26,7 +26,7 @@ function LoginInner() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError]               = useState('');
 
-  // Already signed in — the login form has nothing to offer, go where the
+  // Already signed in - the login form has nothing to offer, go where the
   // user was headed (?next=) or to the dashboard.
   useEffect(() => {
     if (!authLoading && user) router.replace(nextUrl);
@@ -50,7 +50,7 @@ function LoginInner() {
       },
     });
     if (error) { setError(error.message); setGoogleLoading(false); }
-    // On success, browser navigates away — no need to reset loading
+    // On success, browser navigates away - no need to reset loading
   };
 
   const sendMagicLink = async () => {

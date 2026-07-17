@@ -18,10 +18,10 @@ function getScoreCls(score: number) {
 }
 
 const NOTES: Record<string, string> = {
-  'Alt Season':     'Broad alt rally active — ride alts',
-  'Leaning Alts':   'Alts beating BTC — early rotation',
-  'Leaning BTC':    'Alts lagging — ride BTC strength',
-  'Bitcoin Season': 'BTC dominance rising — stay selective',
+  'Alt Season':     'Broad alt rally active - ride alts',
+  'Leaning Alts':   'Alts beating BTC - early rotation',
+  'Leaning BTC':    'Alts lagging - ride BTC strength',
+  'Bitcoin Season': 'BTC dominance rising - stay selective',
 };
 
 // ─── Storage keys for yesterday comparison ─────────────────────────────────

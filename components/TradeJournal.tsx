@@ -103,7 +103,7 @@ interface Trade {
 const SETUPS: SetupType[] = ['Squeeze', 'Breakout', 'Reversal', 'Range', 'News', 'Other'];
 
 function fmtUSD(v: number | null | undefined, showSign = true) {
-  if (v == null) return '—';
+  if (v == null) return '-';
   const sign = showSign && v >= 0 ? '+' : '';
   return sign + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -294,7 +294,7 @@ function Inner() {
   const [ruleName,     setRuleName]     = useState('');
   const [showRuleForm, setShowRuleForm] = useState(false);
 
-  /* Form state — pre-fill from URL params (from Position Sizer) */
+  /* Form state - pre-fill from URL params (from Position Sizer) */
   const [coin,      setCoin]      = useState<CoinId>((sp.get('coin') as CoinId) || 'btc');
   const [direction, setDirection] = useState<Direction>((sp.get('dir') as Direction) || 'LONG');
   const [setup,     setSetup]     = useState<SetupType>('Squeeze');
@@ -450,7 +450,7 @@ function Inner() {
         setShadowAnalysis(json.analysis ?? null);
       }
     } catch {
-      setShadowError('Network error — try again');
+      setShadowError('Network error - try again');
     } finally {
       setShadowLoading(false);
     }
@@ -483,7 +483,7 @@ function Inner() {
         setBiasAnalysis(json.analysis ?? null);
       }
     } catch {
-      setBiasError('Network error — try again');
+      setBiasError('Network error - try again');
     } finally {
       setBiasLoading(false);
     }
@@ -699,7 +699,7 @@ function Inner() {
       if (t.result === 'WIN') bySetup[s].wins++;
     });
 
-    // Streaks — sort closed by created_at ascending
+    // Streaks - sort closed by created_at ascending
     const chronological = [...closed].sort((a, b) =>
       (a.created_at ?? '') < (b.created_at ?? '') ? -1 : 1
     );
@@ -712,7 +712,7 @@ function Inner() {
       running += t.pnl_usd ?? 0;
       cumPnL.push({ idx: i, value: running });
 
-      // BE trades are neutral — skip them for streak tracking
+      // BE trades are neutral - skip them for streak tracking
       if (t.result === 'BE') continue;
       const isWin = t.result === 'WIN';
       const dir: 'W' | 'L' = isWin ? 'W' : 'L';
@@ -897,10 +897,10 @@ function Inner() {
                   <div className="tj-lev-warn" style={{ color: levColor, display: 'flex', alignItems: 'center', gap: 5 }}>
                     <Warn />
                     {leverage >= 75
-                      ? 'Liquidation risk is extreme — positions can vanish instantly'
+                      ? 'Liquidation risk is extreme - positions can vanish instantly'
                       : leverage >= 50
-                      ? 'Very high leverage — use micro position sizes only'
-                      : 'High leverage — ensure your stop loss is tight'}
+                      ? 'Very high leverage - use micro position sizes only'
+                      : 'High leverage - ensure your stop loss is tight'}
                   </div>
                 )}
               </div>
@@ -942,7 +942,7 @@ function Inner() {
               borderRadius: 8, padding: '10px 12px', marginBottom: 12,
             }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#f87171', marginBottom: 6 }}>
-                Rule violation{activeViolations.length > 1 ? 's' : ''} — review before logging
+                Rule violation{activeViolations.length > 1 ? 's' : ''} - review before logging
               </div>
               {activeViolations.map(r => (
                 <div key={r.id} style={{ fontSize: 11, color: '#f87171', opacity: 0.85, lineHeight: 1.5 }}>
@@ -1207,7 +1207,7 @@ function Inner() {
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Trading Rules</div>
             <div style={{ fontSize: 12, color: 'var(--txt3)' }}>
-              Define your rules — violations flag in real time when logging a trade and badge past trades in History.
+              Define your rules - violations flag in real time when logging a trade and badge past trades in History.
             </div>
           </div>
 
@@ -1280,7 +1280,7 @@ function Inner() {
           )}
 
           {rules.length === 0 && (
-            <div style={{ color: 'var(--txt3)', fontSize: 12, marginBottom: 16 }}>No rules yet — add a preset above or create a custom rule below.</div>
+            <div style={{ color: 'var(--txt3)', fontSize: 12, marginBottom: 16 }}>No rules yet - add a preset above or create a custom rule below.</div>
           )}
 
           {/* Custom rule form */}
@@ -1328,7 +1328,7 @@ function Inner() {
                   ))}
                 </select>
 
-                {/* Value — context-sensitive */}
+                {/* Value - context-sensitive */}
                 {ruleField === 'coin' && (
                   <select
                     value={ruleValue}
@@ -1416,7 +1416,7 @@ function Inner() {
           <div style={{ padding: '12px 0 16px' }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Shadow Account</div>
             <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 16, maxWidth: 520 }}>
-              AI analysis of your trade history — extracts your implicit trading rules, identifies your best and worst patterns, flags rule violations, and shows what your stats would look like if you only took your highest-probability setups.
+              AI analysis of your trade history - extracts your implicit trading rules, identifies your best and worst patterns, flags rule violations, and shows what your stats would look like if you only took your highest-probability setups.
             </div>
             {!shadowAnalysis && (
               <button
@@ -1460,7 +1460,7 @@ function Inner() {
           <div style={{ padding: '12px 0 16px' }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Behavioral Bias Diagnostics</div>
             <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 16, maxWidth: 520 }}>
-              Analyzes your trade history for the four most damaging trader biases — disposition effect, overtrading, momentum chasing, and anchoring — with specific examples from your actual trades and estimated P&L drag per bias.
+              Analyzes your trade history for the four most damaging trader biases - disposition effect, overtrading, momentum chasing, and anchoring - with specific examples from your actual trades and estimated P&L drag per bias.
             </div>
             {!biasAnalysis && (
               <button
@@ -1546,12 +1546,12 @@ function Inner() {
               <textarea
                 value={thesisFormText}
                 onChange={e => setThesisFormText(e.target.value)}
-                placeholder="Your trade thesis — why are you taking this position? What is the setup?"
+                placeholder="Your trade thesis - why are you taking this position? What is the setup?"
                 rows={3}
                 style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, resize: 'vertical', outline: 'none', marginBottom: 10 }}
               />
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
-                Measurable Assumptions (3-5) — these get checked by Grok
+                Measurable Assumptions (3-5) - these get checked by Grok
               </div>
               {thesisFormAssumptions.map((a, i) => (
                 <input
@@ -1562,7 +1562,7 @@ function Inner() {
                     copy[i] = e.target.value;
                     setThesisFormAssumptions(copy);
                   }}
-                  placeholder={`Assumption ${i + 1} — e.g. "BTC holds above $95k support"`}
+                  placeholder={`Assumption ${i + 1} - e.g. "BTC holds above $95k support"`}
                   style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, outline: 'none', marginBottom: 6 }}
                 />
               ))}
@@ -1601,7 +1601,7 @@ function Inner() {
 
           {/* Thesis list */}
           {theses.length === 0 && !showThesisForm && (
-            <div className="tj-empty-state" style={{ marginTop: 16 }}>No theses yet — click New Thesis to track your first position thesis.</div>
+            <div className="tj-empty-state" style={{ marginTop: 16 }}>No theses yet - click New Thesis to track your first position thesis.</div>
           )}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
@@ -1747,13 +1747,13 @@ function Inner() {
                 <div className="tj-stat">
                   <div className="tj-stat-lbl">Current Streak</div>
                   <div className="tj-stat-val" style={{ color: stats.streak.dir === 'W' ? '#34d399' : stats.streak.dir === 'L' ? '#f87171' : 'var(--txt3)' }}>
-                    {stats.streak.dir === 'W' ? `${stats.streak.current}W` : stats.streak.dir === 'L' ? `${stats.streak.current}L` : '—'}
+                    {stats.streak.dir === 'W' ? `${stats.streak.current}W` : stats.streak.dir === 'L' ? `${stats.streak.current}L` : '-'}
                   </div>
                 </div>
                 <div className="tj-stat">
                   <div className="tj-stat-lbl">Best Win Streak</div>
                   <div className="tj-stat-val" style={{ color: stats.streak.bestWin > 0 ? '#34d399' : 'var(--txt3)' }}>
-                    {stats.streak.bestWin > 0 ? `${stats.streak.bestWin}W` : '—'}
+                    {stats.streak.bestWin > 0 ? `${stats.streak.bestWin}W` : '-'}
                   </div>
                 </div>
               </div>

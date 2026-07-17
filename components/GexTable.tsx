@@ -42,7 +42,7 @@ export default function GexTable() {
           <div className="gex-net-chip" style={{ color: 'var(--txt2)', background: 'transparent' }}>Fetching…</div>
         )}
         {btcMaxPain != null && (
-          <div className="gex-meta">Max pain: ${btcMaxPain.toLocaleString()} <span style={{ fontWeight: 400, opacity: 0.6 }}>(price where most options expire worthless — acts as magnet)</span></div>
+          <div className="gex-meta">Max pain: ${btcMaxPain.toLocaleString()} <span style={{ fontWeight: 400, opacity: 0.6 }}>(price where most options expire worthless - acts as magnet)</span></div>
         )}
       </div>
 
@@ -78,16 +78,16 @@ export default function GexTable() {
           const regimeLabel = isLongGamma ? 'RANGING' : 'TRENDING';
           const regimeColor = isLongGamma ? '#34d399' : '#f87171';
           const regimeDesc  = isLongGamma
-            ? 'price bounces between levels — expect reversals, avoid chasing'
-            : 'breakouts follow through — ride momentum, do not fade moves';
+            ? 'price bounces between levels - expect reversals, avoid chasing'
+            : 'breakouts follow through - ride momentum, do not fade moves';
 
           return (
             <>
               <span style={{ color: leanColor, fontWeight: 700 }}>{leanLabel}</span>
-              {leanReason && <span style={{ color: 'var(--txt2)' }}> — {leanReason}</span>}
+              {leanReason && <span style={{ color: 'var(--txt2)' }}> - {leanReason}</span>}
               <span style={{ color: 'var(--txt3)' }}> · </span>
               <span style={{ color: regimeColor }}>{regimeLabel}</span>
-              <span style={{ color: 'var(--txt2)' }}> regime — {regimeDesc}</span>
+              <span style={{ color: 'var(--txt2)' }}> regime - {regimeDesc}</span>
             </>
           );
         })() : (
@@ -112,16 +112,16 @@ export default function GexTable() {
             if (fK && spotPrice > 0) {
               const above = spotPrice > btcGexFlip!;
               if (above && isLongGamma)
-                return `Price is above the ${fK} gamma flip — options dealers are absorbing volatility and keeping BTC in a range${lK ? ` near ${lK}` : ''}.`;
+                return `Price is above the ${fK} gamma flip - options dealers are absorbing volatility and keeping BTC in a range${lK ? ` near ${lK}` : ''}.`;
               if (!above && !isLongGamma)
-                return `Price broke below the ${fK} gamma flip — dealers are now amplifying moves${lK ? `, not absorbing them. Watch ${lK} as a key magnet` : ''}.`;
+                return `Price broke below the ${fK} gamma flip - dealers are now amplifying moves${lK ? `, not absorbing them. Watch ${lK} as a key magnet` : ''}.`;
               if (above && !isLongGamma)
-                return `Short gamma above ${fK} — options pressure is fueling volatility.${lK ? ` ${lK} is the key magnet strike to watch.` : ''}`;
-              return `Price is below the ${fK} flip but gamma is still long — expect choppy, contained moves${lK ? ` around ${lK}` : ''}.`;
+                return `Short gamma above ${fK} - options pressure is fueling volatility.${lK ? ` ${lK} is the key magnet strike to watch.` : ''}`;
+              return `Price is below the ${fK} flip but gamma is still long - expect choppy, contained moves${lK ? ` around ${lK}` : ''}.`;
             }
             return isLongGamma
-              ? `Long gamma regime — options dealers are stabilizing price${lK ? `. ${lK} is the key magnet for this week's expiry` : ''}.`
-              : `Short gamma regime — options dealers are amplifying moves${lK ? `. Watch ${lK} as the key pin level` : ''}.`;
+              ? `Long gamma regime - options dealers are stabilizing price${lK ? `. ${lK} is the key magnet for this week's expiry` : ''}.`
+              : `Short gamma regime - options dealers are amplifying moves${lK ? `. Watch ${lK} as the key pin level` : ''}.`;
           })()}
         </div>
       )}
@@ -159,7 +159,7 @@ export default function GexTable() {
           {btcGexFlip != null && (
             <div>
               Zero-gamma flip: <span>${btcGexFlip.toLocaleString()}</span>
-              <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> — break {(btcGexFlip < (spotPrice || btcGexFlip)) ? 'below' : 'above'} = options market becomes unpredictable, big moves likely</span>
+              <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> - break {(btcGexFlip < (spotPrice || btcGexFlip)) ? 'below' : 'above'} = options market becomes unpredictable, big moves likely</span>
             </div>
           )}
           {btcGexLevels.length > 0 && (() => {
@@ -167,7 +167,7 @@ export default function GexTable() {
             return (
               <div>
                 Largest GEX: <span>${top.strike.toLocaleString()}</span>
-                <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> — options pin / magnet strike</span>
+                <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> - options pin / magnet strike</span>
               </div>
             );
           })()}

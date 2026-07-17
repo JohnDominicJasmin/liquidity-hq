@@ -1,5 +1,5 @@
 'use client';
-// Searchable multi-select dropdown for picking coins — replaces a full-width wall of
+// Searchable multi-select dropdown for picking coins - replaces a full-width wall of
 // 50 chip buttons with a compact trigger + popover. Uses position:fixed with computed
 // coordinates (same technique as Tip.tsx) so the panel isn't clipped when this sits
 // inside a scrollable container like SettingsModal's body.

@@ -43,7 +43,7 @@ const TOOLS = [
   { id: 'rect',                   label: '▭ Rect'    },
 ] as const;
 
-// ── Drawing persistence — user-drawn lines survive a page refresh, per coin ──
+// ── Drawing persistence - user-drawn lines survive a page refresh, per coin ──
 const DRAWING_GROUP = 'user_drawing';
 const drawingsKey = (coin: CoinId) => `lhq_chart_drawings_${coin}`;
 
@@ -65,7 +65,7 @@ function saveDrawings(chart: KChart, coin: CoinId) {
       lock: o.lock,
     }));
     localStorage.setItem(drawingsKey(coin), JSON.stringify(persisted));
-  } catch { /* storage full/unavailable — drawings just won't persist */ }
+  } catch { /* storage full/unavailable - drawings just won't persist */ }
 }
 
 function loadDrawings(coin: CoinId): PersistedOverlay[] {
@@ -77,7 +77,7 @@ function loadDrawings(coin: CoinId): PersistedOverlay[] {
   } catch { return []; }
 }
 
-// ── Theme configs — use setStyles after init to avoid deep-type gymnastics ──
+// ── Theme configs - use setStyles after init to avoid deep-type gymnastics ──
 
 // Mobile (arena chart legend audit item #6): klinecharts' built-in OHLC
 // tooltip defaults to "always" - a permanent text block that overlaps the
@@ -305,7 +305,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const [fullscreen,   setFullscreen]  = useState(false);
   const [copiedMsg,    setCopiedMsg]   = useState<string | null>(null);
   const [chartReady,   setChartReady]  = useState(false);
-  const [countdown,    setCountdown]   = useState('—');
+  const [countdown,    setCountdown]   = useState('-');
   const [priceLabelY,  setPriceLabelY] = useState<number | null>(null);
   const lastCloseRef   = useRef<number>(0);
   const copyToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -346,7 +346,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
   useEffect(() => { onAlertMoveRef.current = onAlertMove; }, [onAlertMove]);
 
-  // ── Price-label Y position — used to anchor the countdown below the price mark ──
+  // ── Price-label Y position - used to anchor the countdown below the price mark ──
   useEffect(() => {
     if (!chartReady) return;
     const chart = chartRef.current;
@@ -379,7 +379,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     };
   }, [chartReady]);
 
-  // ── Theme sync — apply DARK/LIGHT styles when theme changes ─────────────
+  // ── Theme sync - apply DARK/LIGHT styles when theme changes ─────────────
   useEffect(() => {
     const apply = () => {
       const dark = document.documentElement.getAttribute('data-theme') !== 'light';
@@ -448,10 +448,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         ],
         styles: {
           lines: [
-            { color: '#fbbf24', size: 1   },  // EMA 9  — gold
-            { color: '#60a5fa', size: 1.5 },  // EMA 20 — blue
-            { color: '#f97316', size: 1.5 },  // EMA 50 — orange
-            { color: '#5a6aff', size: 2   },  // EMA 200 — purple
+            { color: '#fbbf24', size: 1   },  // EMA 9  - gold
+            { color: '#60a5fa', size: 1.5 },  // EMA 20 - blue
+            { color: '#f97316', size: 1.5 },  // EMA 50 - orange
+            { color: '#5a6aff', size: 2   },  // EMA 200 - purple
           ],
         },
       });
@@ -460,7 +460,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         { isStack: false, pane: { id: 'candle_pane' } }
       );
       chart.createIndicator('VOL', { pane: { height: 60, minHeight: 30 } });
-      // RSI-14 (Wilder's smoothing) — matches the period used everywhere else
+      // RSI-14 (Wilder's smoothing) - matches the period used everywhere else
       // in the app (marketStore rsi14/rsi1h/rsi4h/rsiDaily), instead of the
       // built-in indicator's default 3-line [6,12,24] preset.
       chart.createIndicator(
@@ -534,9 +534,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
       if (!reversalOverlayRegistered) {
         reversalOverlayRegistered = true;
-        // Amber diamond — deliberately NOT green/red like the confirmed buy/sell
+        // Amber diamond - deliberately NOT green/red like the confirmed buy/sell
         // markers. This is a leading exhaustion warning (RSI divergence), not an
-        // instruction — different color family so it can't be mistaken for one.
+        // instruction - different color family so it can't be mistaken for one.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (kc as any).registerOverlay({
           name: 'reversalWarning',
@@ -552,7 +552,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const cx = coord.x;
             // bearish warning sits above price (potential top); bullish sits below (potential bottom)
             const cy = dir === 'bearish' ? coord.y - 24 : coord.y + 24;
-            // N-gon approximating a circle — used to build the ring layers
+            // N-gon approximating a circle - used to build the ring layers
             const ring = (r: number, n = 16): Array<{ x: number; y: number }> => {
               const pts: Array<{ x: number; y: number }> = [];
               for (let i = 0; i < n; i++) {
@@ -630,7 +630,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               const iv = periodToBnInterval(period);
               const r  = await fetch(`https://api.binance.com/api/v3/klines?symbol=${bnSym}&interval=${iv}&limit=1500`);
               const raw = await r.json() as (string | number)[][];
-              if (stale()) return; // superseded by a newer switch — drop it
+              if (stale()) return; // superseded by a newer switch - drop it
               const bars = raw.map(k => ({
                 timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
                 low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
@@ -644,7 +644,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               const iv = periodToBybitInterval(period);
               const r  = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${iv}&limit=1000`);
               const d  = await r.json() as { result?: { list?: string[][] } };
-              if (stale()) return; // superseded by a newer switch — drop it
+              if (stale()) return; // superseded by a newer switch - drop it
               const list = [...(d?.result?.list ?? [])].reverse();
               const bars = list.map(k => ({
                 timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
@@ -756,7 +756,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
     // klinecharts' setSymbol AND setPeriod each call resetData() -> getBars().
     // Calling both on one switch fires two parallel fetches whose init callbacks
-    // race — the slower (stale) one can win and paint the wrong timeframe/coin.
+    // race - the slower (stale) one can win and paint the wrong timeframe/coin.
     // So only call the setter that actually changed, and bump loadGenRef before
     // each so any in-flight fetch from a previous switch is discarded on arrival.
     if (coinChanged) {
@@ -831,7 +831,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     if (result.tp)        draw(result.tp,        '#b8aeff');
   }, [result]);
 
-  // ── EMA signal markers — all significant crosses in the loaded data ──────────────
+  // ── EMA signal markers - all significant crosses in the loaded data ──────────────
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !chartReady) return;
@@ -851,7 +851,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     for (const sig of emaSignal.signalShorts) place('short', sig.timestamp, sig.anchorPrice, sig.pending ?? false);
   }, [emaSignal, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Reversal warnings — RSI divergence, a leading heads-up distinct from the
+  // ── Reversal warnings - RSI divergence, a leading heads-up distinct from the
   //     ribbon's confirmed buy/sell markers above ─────────────────────────────
   useEffect(() => {
     const chart = chartRef.current;
@@ -998,14 +998,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         ? `Support (${nearSR.touches}T) + Short Squeeze · Score ${sq.score}/100`
         : `Resistance (${nearSR.touches}T) + Long Flush · Score ${sq.score}/100`,
       explanation: nearSR.type === 'support'
-        ? 'Price is sitting on a tested support level while shorts are being squeezed out. High-probability long zone — watch for a confirmation candle before entering.'
-        : 'Price is pressing against tested resistance while longs are getting flushed. High-probability short zone — watch for a rejection candle before entering.',
+        ? 'Price is sitting on a tested support level while shorts are being squeezed out. High-probability long zone - watch for a confirmation candle before entering.'
+        : 'Price is pressing against tested resistance while longs are getting flushed. High-probability short zone - watch for a rejection candle before entering.',
       color: '#fbbf24', bg: 'rgba(251,191,36,0.10)', bdr: 'rgba(251,191,36,0.28)',
     };
     return {
       label: 'Setup Forming',
       detail: `Near ${nearSR.type} (${nearSR.touches} touches) · Squeeze ${sq.score}/100`,
-      explanation: `Squeeze pressure is building near a key ${nearSR.type} level, but signals aren't fully aligned yet. Watch for direction confirmation — don't jump in early.`,
+      explanation: `Squeeze pressure is building near a key ${nearSR.type} level, but signals aren't fully aligned yet. Watch for direction confirmation - don't jump in early.`,
       color: '#5a6aff', bg: 'rgba(90,106,255,0.10)', bdr: 'rgba(90,106,255,0.28)',
     };
   })();
@@ -1059,7 +1059,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 }}
                 title="Click to copy entry midpoint"
               >
-                — Entry&nbsp;
+                - Entry&nbsp;
                 {result!.entryLow && result!.entryHigh
                   ? `$${fmtPx(result!.entryLow)}–$${fmtPx(result!.entryHigh)}`
                   : `$${fmtPx(result!.entryLow ?? result!.entryHigh ?? 0)}`}
@@ -1072,7 +1072,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 onClick={() => handleCopy(result!.sl!, 'SL')}
                 title="Click to copy SL price"
               >
-                — SL&nbsp;${fmtPx(result!.sl)}
+                - SL&nbsp;${fmtPx(result!.sl)}
               </button>
             )}
             {result!.tp && (
@@ -1082,7 +1082,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 onClick={() => handleCopy(result!.tp!, 'TP')}
                 title="Click to copy TP price"
               >
-                — TP&nbsp;${fmtPx(result!.tp)}
+                - TP&nbsp;${fmtPx(result!.tp)}
               </button>
             )}
           </div>
@@ -1095,7 +1095,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 key={alert.id}
                 className="klc-price-chip"
                 style={{ color: '#f59e0b', background: 'rgba(245,158,11,0.08)', borderColor: 'rgba(245,158,11,0.2)', cursor: 'default' }}
-                title={`Alert: ${alert.direction} $${fmtPx(alert.target_price)}${alert.label ? ` · ${alert.label}` : ''} — drag the dashed line to adjust`}
+                title={`Alert: ${alert.direction} $${fmtPx(alert.target_price)}${alert.label ? ` · ${alert.label}` : ''} - drag the dashed line to adjust`}
               >
                 {alert.direction === 'above' ? '↑' : '↓'} ${fmtPx(alert.target_price)}
                 {alert.label ? <>&nbsp;·&nbsp;{alert.label}</> : null}
@@ -1189,7 +1189,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         onMouseLeave={() => setRwTooltip(null)}
       >
         <div ref={containerRef} className="klc-canvas" />
-        {/* Screenshot crossfade — holds old chart image while new data loads, then fades out */}
+        {/* Screenshot crossfade - holds old chart image while new data loads, then fades out */}
         <div ref={canvasFadeRef} style={{
           position: 'absolute', inset: 0,
           backgroundSize: '100% 100%',
@@ -1222,12 +1222,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           }}>
             <span style={{ color: '#f59e0b', marginRight: 5, lineHeight: 0 }}><Warn size={13} /></span>
             {rwTooltip.dir === 'bearish'
-              ? 'Trend reversal — RSI divergence detected'
-              : 'Potential bottom — RSI divergence detected'}
+              ? 'Trend reversal - RSI divergence detected'
+              : 'Potential bottom - RSI divergence detected'}
           </div>
         )}
 
-        {/* Candle-close countdown — anchored below the klinecharts current-price label */}
+        {/* Candle-close countdown - anchored below the klinecharts current-price label */}
         {priceLabelY !== null && (
           <div style={{
             position: 'absolute',

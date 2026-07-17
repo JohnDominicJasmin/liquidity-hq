@@ -14,7 +14,7 @@ function utc(d: Date): { day: number; mins: number } {
 
 /* ── Market holidays ──────────────────────────────────────────────────────
    Reduced/zero liquidity windows for the four sessions this app tracks.
-   Dates are the region's own local calendar date (fixed UTC offset — DST is
+   Dates are the region's own local calendar date (fixed UTC offset - DST is
    ignored, at most an hour off near a session boundary, which doesn't
    change which day a holiday falls on for these purposes).
    Sourced 2026-07 from SIFMA/NYSE (NY), gov.uk (London), Nippon.com/Japan
@@ -90,7 +90,7 @@ export function getHoliday(region: HolidayRegion, d: Date): string | null {
   return hit ? hit.name : null;
 }
 
-// All regions currently on holiday for `d` — including China, which has no
+// All regions currently on holiday for `d` - including China, which has no
 // dedicated session window in this file but is still worth surfacing.
 export function getActiveHolidays(d: Date): { region: HolidayRegion; name: string }[] {
   return (['NY', 'London', 'Asia', 'China'] as const)
@@ -98,7 +98,7 @@ export function getActiveHolidays(d: Date): { region: HolidayRegion; name: strin
     .filter((h): h is { region: HolidayRegion; name: string } => h.name !== null);
 }
 
-// Returns current time — no timezone conversion needed; UTC methods handle it.
+// Returns current time - no timezone conversion needed; UTC methods handle it.
 export function getLocalNow(): Date {
   return new Date();
 }
@@ -138,8 +138,8 @@ export function isAsia(d: Date): boolean {
   return false;
 }
 
-// Pre-NY: Tue–Fri 12:00–13:30 UTC (8PM – 9:30PM PHT; Mon excluded — Mon Evening covers it)
-// Gated on the NY holiday too — no point anticipating a session that won't open.
+// Pre-NY: Tue–Fri 12:00–13:30 UTC (8PM – 9:30PM PHT; Mon excluded - Mon Evening covers it)
+// Gated on the NY holiday too - no point anticipating a session that won't open.
 export function isPreNY(d: Date): boolean {
   if (getHoliday('NY', d)) return false;
   const { day, mins } = utc(d);
@@ -164,7 +164,7 @@ export function isDead(d: Date): boolean {
   return mins >= 240 && mins < 420;
 }
 
-// Priority order matters — first match wins
+// Priority order matters - first match wins
 export function getCurrentWindow(d: Date): Window | null {
   if (isGodTier(d))    return { name: 'God Tier',     label: 'Sun 15:00–19:00 UTC',    color: '#f0c070', bg: '#3d2e00' };
   if (isPrime(d))      return { name: 'Prime',        label: 'Daily 18:00–21:00 UTC',   color: '#7de0a4', bg: '#152b1e' };

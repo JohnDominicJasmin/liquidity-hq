@@ -61,7 +61,7 @@ async function getAuthToken(): Promise<string | undefined> {
   return data.session?.access_token;
 }
 
-/* ── Generate follow-up question chips via Grok (cheap — no search needed) ── */
+/* ── Generate follow-up question chips via Grok (cheap - no search needed) ── */
 async function generateFollowUps(response: string, coin: string, token?: string): Promise<string[]> {
   if (!response || !token) return [];
   try {
@@ -149,7 +149,7 @@ function needsLiveSearch(text: string): boolean {
   return SEARCH_TRIGGERS.some(k => t.includes(k));
 }
 
-// Educational questions don't need the full market snapshot — saves ~350 tokens
+// Educational questions don't need the full market snapshot - saves ~350 tokens
 const EDUCATIONAL_TRIGGERS = [
   'what is', 'what are', 'what does', 'explain', 'how does', 'how do',
   'define', 'meaning', 'tell me about', 'difference between', 'how to',
@@ -202,59 +202,59 @@ function buildSystemCtx(
     'The trader asks short, direct questions. Give concise, bullet-pointed, actionable answers.',
     'Flag when data is missing. Never invent numbers. Be honest about uncertainty.',
     '',
-    `=== LIVE DATA — ${coin.toUpperCase()}/USDT ===`,
-    ln('Price',         c?.price ? '$' + c.price.toLocaleString() : '—'),
-    ln('24h Change',    c?.change != null ? (c.change >= 0 ? '+' : '') + c.change.toFixed(2) + '%' : '—'),
-    ln('High/Low',      c?.high && c?.low ? '$' + c.high.toLocaleString() + ' / $' + c.low.toLocaleString() : '—'),
-    ln('RSI 15m/1h/4h/1D', [c?.rsi14, c?.rsi1h, c?.rsi4h, c?.rsiDaily].map(r => r?.toFixed(0) ?? '—').join(' / ')),
+    `=== LIVE DATA - ${coin.toUpperCase()}/USDT ===`,
+    ln('Price',         c?.price ? '$' + c.price.toLocaleString() : '-'),
+    ln('24h Change',    c?.change != null ? (c.change >= 0 ? '+' : '') + c.change.toFixed(2) + '%' : '-'),
+    ln('High/Low',      c?.high && c?.low ? '$' + c.high.toLocaleString() + ' / $' + c.low.toLocaleString() : '-'),
+    ln('RSI 15m/1h/4h/1D', [c?.rsi14, c?.rsi1h, c?.rsi4h, c?.rsiDaily].map(r => r?.toFixed(0) ?? '-').join(' / ')),
     ln('CVD Divergence',   c?.cvdDivergence
       ? c.cvdDivergence === 'bullish'
-        ? 'BULLISH — price falling but net buying rising (smart money accumulating)'
-        : 'BEARISH — price rising but net selling rising (distribution)'
+        ? 'BULLISH - price falling but net buying rising (smart money accumulating)'
+        : 'BEARISH - price rising but net selling rising (distribution)'
       : 'None'),
-    ln('MA20 (15m)',    c?.ma20 ? '$' + c.ma20.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'),
-    ln('Vol ratio',     c?.volRatio ? c.volRatio.toFixed(2) + 'x' : '—'),
-    ln('CVD (200)',     c?.cvd != null ? (c.cvd >= 0 ? '+' : '') + (c.cvd / 1000).toFixed(1) + 'K' : '—'),
-    ln('Funding',       fr?.label ?? '—'),
-    ln('Open Interest', c?.oi ? '$' + (c.oi / 1e9).toFixed(2) + 'B' : '—'),
-    ln('Long/Short %',  c?.longRatio != null ? (c.longRatio * 100).toFixed(1) + '% / ' + ((c.shortRatio ?? 0) * 100).toFixed(1) + '%' : '—'),
-    ln('Squeeze score', sq.score + '/100 — ' + sq.label),
-    ln('Basis',         c?.perpPrice && c.price ? ((c.perpPrice - c.price) / c.price * 100).toFixed(4) + '%' : '—'),
+    ln('MA20 (15m)',    c?.ma20 ? '$' + c.ma20.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-'),
+    ln('Vol ratio',     c?.volRatio ? c.volRatio.toFixed(2) + 'x' : '-'),
+    ln('CVD (200)',     c?.cvd != null ? (c.cvd >= 0 ? '+' : '') + (c.cvd / 1000).toFixed(1) + 'K' : '-'),
+    ln('Funding',       fr?.label ?? '-'),
+    ln('Open Interest', c?.oi ? '$' + (c.oi / 1e9).toFixed(2) + 'B' : '-'),
+    ln('Long/Short %',  c?.longRatio != null ? (c.longRatio * 100).toFixed(1) + '% / ' + ((c.shortRatio ?? 0) * 100).toFixed(1) + '%' : '-'),
+    ln('Squeeze score', sq.score + '/100 - ' + sq.label),
+    ln('Basis',         c?.perpPrice && c.price ? ((c.perpPrice - c.price) / c.price * 100).toFixed(4) + '%' : '-'),
     '',
     '=== EMA SIGNAL QUALITY FILTERS (apply before accepting any EMA cross signal) ===',
     'Before calling LONG or SHORT based on an EMA cross, ALL THREE of these filters must pass:',
     '1. EMA50 Slope: EMA50 must be trending in the signal direction over the last 5 bars (≥ 0.1% slope). Flat EMA50 = price is ranging = EMA cross is noise. Call FREEZE/FLAT instead.',
-    '2. ATR Buffer: Price must close beyond EMA50 by at least 35% of ATR(14). A marginal 1-tick graze of EMA50 is not a confirmation — it will reverse. Only a meaningful body close clearing the buffer is valid.',
+    '2. ATR Buffer: Price must close beyond EMA50 by at least 35% of ATR(14). A marginal 1-tick graze of EMA50 is not a confirmation - it will reverse. Only a meaningful body close clearing the buffer is valid.',
     '3. Ribbon Spread: EMA9 and EMA20 must be at least 0.3% of price apart. If the two lines are visually overlapping (tight spread), the ribbon is tangled = chop zone = the cross is noise. Call FREEZE/FLAT instead.',
     'If any filter fails → downgrade the signal: LONG → LEAN LONG, SHORT → LEAN SHORT, or FLAT if all fail.',
-    'WaveTrend Confirming (Cipher B momentum, separate confirming layer — NOT a 4th mandatory filter): checks for a bullish/bearish divergence between price and the WaveTrend oscillator, or a recent cross from oversold/overbought agreeing with the signal direction. If it confirms, mention it as added confidence. If it does not confirm, do not auto-downgrade the signal — just note the momentum oscillator has not caught up yet, since it lags slightly behind the EMA cross by design.',
-    ln('Order book',    c?.orderBidWalls ? 'Bids: ' + c.orderBidWalls.map(w => '$' + w.price.toLocaleString()).join(', ') : '—'),
+    'WaveTrend Confirming (Cipher B momentum, separate confirming layer - NOT a 4th mandatory filter): checks for a bullish/bearish divergence between price and the WaveTrend oscillator, or a recent cross from oversold/overbought agreeing with the signal direction. If it confirms, mention it as added confidence. If it does not confirm, do not auto-downgrade the signal - just note the momentum oscillator has not caught up yet, since it lags slightly behind the EMA cross by design.',
+    ln('Order book',    c?.orderBidWalls ? 'Bids: ' + c.orderBidWalls.map(w => '$' + w.price.toLocaleString()).join(', ') : '-'),
     '',
     '=== MACRO ===',
-    ln('Fear & Greed',      store.fng != null ? store.fng + ' (' + store.fngLabel + ')' : '—'),
-    ln('BTC Dominance',     store.btcDom ? store.btcDom.toFixed(2) + '%' : '—'),
-    ln('P/C Ratio',         store.btcPcRatio ? store.btcPcRatio.toFixed(2) : '—'),
-    ln('Max Pain',          store.btcMaxPain ? '$' + store.btcMaxPain.toLocaleString() : '—'),
-    ln('Stablecoin supply', store.stablecoinSupply ? '$' + store.stablecoinSupply.toFixed(1) + 'B' : '—'),
-    ln('BTC ETF flow',      store.etfNetFlow != null ? (store.etfNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.etfNetFlow).toFixed(0) + 'M' : '—'),
-    ln('ETH ETF flow',      store.ethEtfNetFlow != null ? (store.ethEtfNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.ethEtfNetFlow).toFixed(0) + 'M' : '—'),
-    ln('Exchange net flow', store.btcExchangeNetFlow != null ? (store.btcExchangeNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.btcExchangeNetFlow).toFixed(1) + 'M' : '—'),
-    ln('Google Trends',     store.googleTrendsBtc != null ? store.googleTrendsBtc + '/100' : '—'),
+    ln('Fear & Greed',      store.fng != null ? store.fng + ' (' + store.fngLabel + ')' : '-'),
+    ln('BTC Dominance',     store.btcDom ? store.btcDom.toFixed(2) + '%' : '-'),
+    ln('P/C Ratio',         store.btcPcRatio ? store.btcPcRatio.toFixed(2) : '-'),
+    ln('Max Pain',          store.btcMaxPain ? '$' + store.btcMaxPain.toLocaleString() : '-'),
+    ln('Stablecoin supply', store.stablecoinSupply ? '$' + store.stablecoinSupply.toFixed(1) + 'B' : '-'),
+    ln('BTC ETF flow',      store.etfNetFlow != null ? (store.etfNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.etfNetFlow).toFixed(0) + 'M' : '-'),
+    ln('ETH ETF flow',      store.ethEtfNetFlow != null ? (store.ethEtfNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.ethEtfNetFlow).toFixed(0) + 'M' : '-'),
+    ln('Exchange net flow', store.btcExchangeNetFlow != null ? (store.btcExchangeNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.btcExchangeNetFlow).toFixed(1) + 'M' : '-'),
+    ln('Google Trends',     store.googleTrendsBtc != null ? store.googleTrendsBtc + '/100' : '-'),
     ln('Session',           session),
     '',
     '=== LIVE NEWS FEED ===',
     latestHeadlines.length > 0
       ? latestHeadlines.slice(0, 8).map((h, i) => `${i + 1}. ${h}`).join('\n')
-      : 'No alerts yet — use live search tools.',
+      : 'No alerts yet - use live search tools.',
     '',
     '=== GEOPOLITICAL EVENTS (last 12h) ===',
     geoEvents.length > 0
       ? geoEvents.slice(0, 5).map(g => `[${g.tag}] ${g.headline} (${g.timeStr})`).join('\n')
-      : 'None detected — search X and web.',
+      : 'None detected - search X and web.',
     '',
     '=== SEARCH INSTRUCTIONS ===',
     'Use web_search and x_search proactively:',
-    '1. WHY is the market moving right now — search "bitcoin price today why"',
+    '1. WHY is the market moving right now - search "bitcoin price today why"',
     '2. Latest war/conflict/sanctions news affecting risk assets',
     '3. Fed, CPI, FOMC, Treasury statements (last 48h)',
     '4. Trump/White House crypto or tariff posts on X',
@@ -365,7 +365,7 @@ export default function GrokChat() {
     if (token) reqHeaders['Authorization'] = `Bearer ${token}`;
 
     try {
-      // Auto-detect live search first — needed before context decision
+      // Auto-detect live search first - needed before context decision
       const autoSearch = !liveSearch && needsLiveSearch(text);
       const useSearch  = liveSearch || autoSearch;
 
@@ -375,7 +375,7 @@ export default function GrokChat() {
         ? buildMinimalCtx(store, activeCoin)
         : buildSystemCtx(store, activeCoin, latestHeadlines, geoEvents);
 
-      // Cap at last 8 messages (4 pairs) — prevents token cost growing unbounded
+      // Cap at last 8 messages (4 pairs) - prevents token cost growing unbounded
       const apiMsgs  = history.slice(-8).map(m => ({ role: m.role, content: m.content }));
       const messages = [{ role: 'system', content: sysCtx }, ...apiMsgs];
 
@@ -400,11 +400,11 @@ export default function GrokChat() {
             const u = j.usage;
             if (u && usage) setUsage({ ...usage, ...u });
             setRateLimited(true);
-            setError(`No live searches left today — resets at ${nextResetLocalTime()}.`);
+            setError(`No live searches left today - resets at ${nextResetLocalTime()}.`);
             setLoading(false);
             return;
           }
-          throw new Error(`${res.status} — ${j?.error ?? res.statusText}`);
+          throw new Error(`${res.status} - ${j?.error ?? res.statusText}`);
         }
         if (j._usage && usage) setUsage({ ...usage, ...j._usage });
         reply = j.output?.find((o: { type: string }) => o.type === 'message')?.content?.[0]?.text ?? '(no response)';
@@ -427,11 +427,11 @@ export default function GrokChat() {
             const u = j.usage;
             if (u && usage) setUsage({ ...usage, ...u });
             setRateLimited(true);
-            setError(`No chat messages left today — resets at ${nextResetLocalTime()}.`);
+            setError(`No chat messages left today - resets at ${nextResetLocalTime()}.`);
             setLoading(false);
             return;
           }
-          throw new Error(`${res.status} — ${j?.error ?? res.statusText}`);
+          throw new Error(`${res.status} - ${j?.error ?? res.statusText}`);
         }
         if (j._usage && usage) setUsage({ ...usage, ...j._usage });
         reply = j.choices?.[0]?.message?.content ?? '(no response)';
@@ -584,7 +584,7 @@ export default function GrokChat() {
                   <button
                     className={`gchat-search-toggle${liveSearch ? ' on' : ''}`}
                     onClick={() => setLiveSearch(v => !v)}
-                    title={liveSearch ? 'Live web+X search ON — click to turn off' : 'Search OFF — click to enable live web+X search'}
+                    title={liveSearch ? 'Live web+X search ON - click to turn off' : 'Search OFF - click to enable live web+X search'}
                   >
                     {liveSearch ? 'Live' : 'Fast'}
                   </button>
@@ -703,7 +703,7 @@ export default function GrokChat() {
               <div className="hscroll-fade hscroll-fade-panel" />
             </div>
 
-            {/* Rate-limit / error status bar — sits between coins and messages, not in chat stream */}
+            {/* Rate-limit / error status bar - sits between coins and messages, not in chat stream */}
             {error && (
               <div style={{ padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,154,146,0.06)', lineHeight: 1.6 }}>
                 <div style={{ fontSize: 11, color: '#ff9a92', display: 'flex', alignItems: 'center', gap: 5 }}><Warn size={12} /> {error}</div>
@@ -769,7 +769,7 @@ export default function GrokChat() {
                     <div className="gchat-user-ts">{m.ts}</div>
                   )}
 
-                  {/* Follow-up question chips — appear below each assistant response */}
+                  {/* Follow-up question chips - appear below each assistant response */}
                   {m.role === 'assistant' && m.followUps && m.followUps.length > 0 && !loading && (
                     <div className="gchat-followup-row">
                       {m.followUps.map((q, qi) => (

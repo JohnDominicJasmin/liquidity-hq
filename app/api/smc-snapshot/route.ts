@@ -4,7 +4,7 @@ import { cached } from '@/lib/apiCache';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // Every visitor requesting the same asset+timeframe within this window gets
-// the same candles and the same Grok read — cache per (asset, tf).
+// the same candles and the same Grok read - cache per (asset, tf).
 const CACHE_TTL = 2 * 60_000;
 
 const SYMBOL_MAP: Record<string, string> = {
@@ -70,7 +70,7 @@ function buildSMCPrompt(asset: string, tf: string, candles: Candle[]): string {
     'LIQUIDITY_ZONES:',
     '[Where are equal highs/lows, stop clusters, and session liquidity? Which is price targeting?]',
     'BIAS:',
-    '[BULLISH / BEARISH / NEUTRAL — one sentence primary reason based on SMC principles]',
+    '[BULLISH / BEARISH / NEUTRAL - one sentence primary reason based on SMC principles]',
     'KEY_LEVELS:',
     '[2-3 specific price levels most important for the next 1-3 candles]',
   ].join('\n');
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
   try {
     const result = await cached(`smc-snapshot:${asset}:${tf}`, CACHE_TTL, async () => {
       const candles = await fetchCandles(symbol, tf, 50);
-      if (candles.length < 20) throw new Error('Not enough candle data — try a different timeframe');
+      if (candles.length < 20) throw new Error('Not enough candle data - try a different timeframe');
 
       const prompt = buildSMCPrompt(asset, tf, candles);
 

@@ -225,7 +225,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   if (!user || state.profileComplete) return null;
 
   // `loaded` is a separate, async-resolved state (Supabase fetch to
-  // user_onboarding) from `user` itself — while it's still resolving we don't
+  // user_onboarding) from `user` itself - while it's still resolving we don't
   // yet know whether to show the wizard. Returning null here let the
   // dashboard render fully underneath for that window, then this overlay
   // would snap in once the fetch finished, producing a visible flash for
@@ -368,20 +368,20 @@ export default function OnboardingFlow({ onStartTour }: Props) {
             {/* ── Step 1: Experience ── */}
             {step === 1 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                <OptionRow<Exp> value="lt6m"   selected={exp} label="Less than 6 months" sub="Just getting started — Beginner Mode enabled" onClick={setExp} />
-                <OptionRow<Exp> value="6to12m" selected={exp} label="6-12 months"        sub="Finding my footing — Beginner Mode enabled"  onClick={setExp} />
-                <OptionRow<Exp> value="1to3y"  selected={exp} label="1-3 years"          sub="Getting comfortable — full tools unlocked"   onClick={setExp} />
-                <OptionRow<Exp> value="3plus"  selected={exp} label="3+ years"           sub="I know what I am doing — full access"        onClick={setExp} />
+                <OptionRow<Exp> value="lt6m"   selected={exp} label="Less than 6 months" sub="Just getting started - Beginner Mode enabled" onClick={setExp} />
+                <OptionRow<Exp> value="6to12m" selected={exp} label="6-12 months"        sub="Finding my footing - Beginner Mode enabled"  onClick={setExp} />
+                <OptionRow<Exp> value="1to3y"  selected={exp} label="1-3 years"          sub="Getting comfortable - full tools unlocked"   onClick={setExp} />
+                <OptionRow<Exp> value="3plus"  selected={exp} label="3+ years"           sub="I know what I am doing - full access"        onClick={setExp} />
               </div>
             )}
 
             {/* ── Step 2: Style ── */}
             {step === 2 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                <OptionRow<TradeStyle> value="scalp"    selected={tradeStyle} label="Scalp"          sub="Minutes to hours — defaults to 5m chart"      onClick={setTradeStyle} />
-                <OptionRow<TradeStyle> value="swing"    selected={tradeStyle} label="Swing trade"    sub="Days to weeks — defaults to 4h chart"         onClick={setTradeStyle} />
-                <OptionRow<TradeStyle> value="both"     selected={tradeStyle} label="Both"           sub="Depends on the setup — defaults to 15m chart" onClick={setTradeStyle} />
-                <OptionRow<TradeStyle> value="learning" selected={tradeStyle} label="Still learning" sub="Not sure yet — Beginner Mode on"              onClick={setTradeStyle} />
+                <OptionRow<TradeStyle> value="scalp"    selected={tradeStyle} label="Scalp"          sub="Minutes to hours - defaults to 5m chart"      onClick={setTradeStyle} />
+                <OptionRow<TradeStyle> value="swing"    selected={tradeStyle} label="Swing trade"    sub="Days to weeks - defaults to 4h chart"         onClick={setTradeStyle} />
+                <OptionRow<TradeStyle> value="both"     selected={tradeStyle} label="Both"           sub="Depends on the setup - defaults to 15m chart" onClick={setTradeStyle} />
+                <OptionRow<TradeStyle> value="learning" selected={tradeStyle} label="Still learning" sub="Not sure yet - Beginner Mode on"              onClick={setTradeStyle} />
               </div>
             )}
 

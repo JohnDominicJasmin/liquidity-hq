@@ -105,7 +105,7 @@ export default function SettingsPage() {
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') return;
         const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-        if (!vapidKey) { alert('Push not configured — VAPID key missing.'); return; }
+        if (!vapidKey) { alert('Push not configured - VAPID key missing.'); return; }
         const reg = await navigator.serviceWorker.ready;
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
@@ -331,7 +331,7 @@ export default function SettingsPage() {
 
       {/* ── 4. Notification Thresholds ── */}
       <Section title="Notification Thresholds">
-        <div className="st-desc">Browser push — get alerts even when the tab is closed.</div>
+        <div className="st-desc">Browser push - get alerts even when the tab is closed.</div>
 
         {/* Push enable/disable toggle */}
         <div className="st-field" style={{ marginBottom: 4 }}>
@@ -355,7 +355,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Test notification button — only shown when subscribed */}
+        {/* Test notification button - only shown when subscribed */}
         {pushEnabled && (
           <button
             onClick={handleTestPush}
@@ -367,7 +367,7 @@ export default function SettingsPage() {
               fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
             }}
           >
-            {testResult === 'sent' ? 'Notification sent' : testResult === 'error' ? 'Failed — check console' : 'Send test notification'}
+            {testResult === 'sent' ? 'Notification sent' : testResult === 'error' ? 'Failed - check console' : 'Send test notification'}
           </button>
         )}
 
@@ -455,7 +455,7 @@ export default function SettingsPage() {
         </div>
 
         <div className="st-note">
-          Telegram server alerts use fixed defaults — threshold changes apply to browser push only.
+          Telegram server alerts use fixed defaults - threshold changes apply to browser push only.
         </div>
       </Section>
 

@@ -98,7 +98,7 @@ export async function DELETE(req: NextRequest) {
     .from(T.price_alerts)
     .update({ active: false })
     .eq('id', id)
-    .eq('user_id', user.id); // ownership check — prevents deleting other users' alerts
+    .eq('user_id', user.id); // ownership check - prevents deleting other users' alerts
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });

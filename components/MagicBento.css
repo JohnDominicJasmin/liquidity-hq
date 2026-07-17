@@ -1,4 +1,4 @@
-﻿/* MagicBento — hover effects for dashboard cards */
+﻿/* MagicBento - hover effects for dashboard cards */
 
 /* Particle card base */
 .mb-particle-card {
@@ -6,7 +6,7 @@
   overflow: hidden;
 }
 
-/* Border glow cards — add this class to existing card elements */
+/* Border glow cards - add this class to existing card elements */
 .mb-glow-card {
   --glow-x: 50%;
   --glow-y: 50%;

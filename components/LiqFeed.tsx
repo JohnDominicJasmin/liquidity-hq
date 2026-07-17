@@ -98,7 +98,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
     const now = Date.now();
     const cf  = coinFilterRef.current;
 
-    // 1h stats — filtered to selected coin
+    // 1h stats - filtered to selected coin
     const win = history.filter(e => now - e.ts < STATS_WIN && (cf === 'ALL' || e.coin === cf));
     setStats({
       longUsd:  win.filter(e => e.side === 'LONG').reduce((s, e)  => s + e.usd, 0),
@@ -156,7 +156,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
           .filter(e => now - e.ts < CLUSTER_WIN)
           .slice(-STORAGE_MAX);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(recent));
-      } catch { /* storage full — ignore */ }
+      } catch { /* storage full - ignore */ }
     }, 5000);
   }, []);
 
@@ -178,7 +178,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
     saveToStorage();
   }, [rebuild, saveToStorage]);
 
-  /* ── Binance forceOrder WebSocket (individual symbol streams — all-market @arr is deprecated) ── */
+  /* ── Binance forceOrder WebSocket (individual symbol streams - all-market @arr is deprecated) ── */
   const BN_SYMBOLS = Object.values(BINANCE_SYMS).map(s => s.toLowerCase());
   const connectBN = useCallback(() => {
     try { bnWsRef.current?.close(); } catch { /* */ }
@@ -211,7 +211,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
   const bbRetriesRef2 = useRef(0);
   const connectBB = useCallback(() => {
     try { bbWsRef.current?.close(); } catch { /* */ }
-    // bytick.com is Bybit's alternative domain — less likely to be blocked by extensions
+    // bytick.com is Bybit's alternative domain - less likely to be blocked by extensions
     const host = bbRetriesRef2.current % 2 === 0
       ? 'wss://stream.bybit.com/v5/public/linear'
       : 'wss://stream.bytick.com/v5/public/linear';
@@ -219,7 +219,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
     bbWsRef.current = ws;
     ws.onopen = () => {
       setBbStatus('live');
-      // v5 topic: allLiquidation.{symbol} — max 25 topics per subscribe message
+      // v5 topic: allLiquidation.{symbol} - max 25 topics per subscribe message
       const topics = BYBIT_COINS.map(s => `allLiquidation.${s}`);
       for (let i = 0; i < topics.length; i += 25) {
         ws.send(JSON.stringify({ op: 'subscribe', args: topics.slice(i, i + 25) }));
@@ -265,7 +265,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
           setFeed(valid.slice().reverse().slice(0, FEED_SIZE));
         }
       }
-    } catch { /* corrupted storage — ignore */ }
+    } catch { /* corrupted storage - ignore */ }
 
     // ── Connect to exchanges ─────────────────────────────────────────────
     connectBN();
@@ -304,7 +304,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
             .slice(-5000);
           historyRef.current = merged;
           rebuild(merged);
-          // Do NOT update setFeed here — old events should not appear in the live feed
+          // Do NOT update setFeed here - old events should not appear in the live feed
         });
 
       // ── Periodic save of new events to Supabase ──────────────────────
@@ -318,7 +318,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
         sb.from(T.liq_events).insert(rows).then(({ error }) => {
           if (error) { console.error('[liq] sb save failed:', error.message); return; }
           localStorage.setItem(SB_SAVE_TS_KEY, String(Date.now()));
-          // Occasional purge — delete events older than 7 days
+          // Occasional purge - delete events older than 7 days
           const cutoff = Date.now() - SB_RETAIN_MS;
           sb.from(T.liq_events).delete().lt('ts', cutoff).then(() => { /* fire and forget */ });
         });
@@ -406,9 +406,9 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
             <div className="liqfeed-bias-bar liqfeed-bias-short" style={{ width: `${(stats.shortUsd / totalUsd) * 100}%` }} />
           </div>
           <div className="liqfeed-bias-label">
-            {longDom  && <span style={{ color: '#f87171', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Warn /> Longs getting wrecked — price accelerating down</span>}
-            {shortDom && <span style={{ color: '#34d399' }}>Shorts getting wrecked — price accelerating up</span>}
-            {!longDom && !shortDom && <span style={{ color: 'var(--txt3)' }}>Balanced — no dominant side liquidating</span>}
+            {longDom  && <span style={{ color: '#f87171', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Warn /> Longs getting wrecked - price accelerating down</span>}
+            {shortDom && <span style={{ color: '#34d399' }}>Shorts getting wrecked - price accelerating up</span>}
+            {!longDom && !shortDom && <span style={{ color: 'var(--txt3)' }}>Balanced - no dominant side liquidating</span>}
           </div>
         </>
       )}
@@ -424,7 +424,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
           <div className="liq-clusters">
             <div className="liq-clusters-title">
               Hot price levels · 24h cluster
-              <span style={{ color: '#444', fontWeight: 400, marginLeft: 6 }}>— where liqs are concentrating</span>
+              <span style={{ color: '#444', fontWeight: 400, marginLeft: 6 }}>- where liqs are concentrating</span>
             </div>
             {filtered.map(c => (
               <div key={`${c.coin}::${c.price}`} className="liq-cluster-row">

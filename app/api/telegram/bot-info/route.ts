@@ -14,7 +14,7 @@ export async function GET() {
   const me          = await meRes.json() as { ok: boolean; result?: { username?: string; first_name?: string } };
   const webhookInfo = await webhookRes.json() as { ok: boolean; result?: { url?: string } };
 
-  // Never trust the request's Host header for the URL registered with Telegram —
+  // Never trust the request's Host header for the URL registered with Telegram -
   // this route runs unauthenticated on every /alerts page load, so a spoofed
   // Host would silently redirect all future bot updates to an attacker's server.
   const appUrl  = process.env.NEXT_PUBLIC_APP_URL ?? '';
@@ -28,7 +28,7 @@ export async function GET() {
     const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
 
     if (currentUrl !== expectedUrl) {
-      // Await registration — surface failure to the UI instead of silent drop
+      // Await registration - surface failure to the UI instead of silent drop
       try {
         const setRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
           method: 'POST',

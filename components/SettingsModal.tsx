@@ -231,7 +231,7 @@ export default function SettingsModal({ open, onClose }: Props) {
                 </div>
               </div>
             </div>
-            <div className="st-note">Telegram server alerts use fixed defaults — threshold changes apply to browser push only.</div>
+            <div className="st-note">Telegram server alerts use fixed defaults - threshold changes apply to browser push only.</div>
           </div>
 
           {/* ── Dashboard Sections ── */}

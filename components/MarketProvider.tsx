@@ -22,8 +22,8 @@ function sendCVDAlert(
   const emoji = div === 'bullish' ? '🟢' : '🔴';
   const dir   = div === 'bullish' ? 'Bullish' : 'Bearish';
   const hint  = div === 'bullish'
-    ? 'Price ↓ but CVD ↑ — hidden accumulation 👀'
-    : 'Price ↑ but CVD ↓ — distribution in progress ⚠️';
+    ? 'Price ↓ but CVD ↑ - hidden accumulation 👀'
+    : 'Price ↑ but CVD ↓ - distribution in progress ⚠️';
   const priceStr = price > 0
     ? `$${price.toLocaleString(undefined, { maximumFractionDigits: 4 })}`
     : '';
@@ -31,7 +31,7 @@ function sendCVDAlert(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      message: `${emoji} <b>CVD Divergence — ${coin.toUpperCase()}</b>\n<b>${dir}</b>\n${hint}\n\n📊 ${coin.toUpperCase()} ${priceStr}\nliquidity-hq.onrender.com`,
+      message: `${emoji} <b>CVD Divergence - ${coin.toUpperCase()}</b>\n<b>${dir}</b>\n${hint}\n\n📊 ${coin.toUpperCase()} ${priceStr}\nliquidity-hq.onrender.com`,
     }),
   }).catch(() => {});
 }
@@ -56,9 +56,9 @@ function sendCascadeAlert(
   cooldown[key] = now;
   const emoji = side === 'LONG' ? '🔴' : side === 'SHORT' ? '🟢' : '⚡';
   const who   = side === 'LONG' ? 'LONGS' : side === 'SHORT' ? 'SHORTS' : 'cascade';
-  const hint  = side === 'LONG'  ? 'Bears flushing longs — short squeeze possible ⚠️'
-              : side === 'SHORT' ? 'Bulls squeezing shorts — watch for reversal ⚠️'
-              : 'Multi-directional flush — vol spike ahead ⚠️';
+  const hint  = side === 'LONG'  ? 'Bears flushing longs - short squeeze possible ⚠️'
+              : side === 'SHORT' ? 'Bulls squeezing shorts - watch for reversal ⚠️'
+              : 'Multi-directional flush - vol spike ahead ⚠️';
   const usdStr = totalUsd >= 1e6
     ? `$${(totalUsd / 1e6).toFixed(1)}M`
     : `$${(totalUsd / 1e3).toFixed(0)}K`;
@@ -66,7 +66,7 @@ function sendCascadeAlert(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      message: `${emoji} <b>Liquidation Cascade — ${coin}</b>\n${usdStr} ${who} wiped in 60s\n\n${hint}\nliquidity-hq.onrender.com`,
+      message: `${emoji} <b>Liquidation Cascade - ${coin}</b>\n${usdStr} ${who} wiped in 60s\n\n${hint}\nliquidity-hq.onrender.com`,
     }),
   }).catch(() => {});
 }
@@ -188,7 +188,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     };
   }, [restPoll, updateCoin]);
 
-  /* ── Bybit: all coins — single bulk fetch instead of per-symbol calls ── */
+  /* ── Bybit: all coins - single bulk fetch instead of per-symbol calls ── */
   const fetchBybit = useCallback(async () => {
     try {
       const res = await fetch('https://api.bybit.com/v5/market/tickers?category=linear');
@@ -201,7 +201,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         const item = bySymbol[BYBIT_SYMS[coin]];
         if (!item) continue;
 
-        // 1000x denomination coins (e.g. 1000PEPEUSDT, 1000BONKUSDT) — divide price by 1000
+        // 1000x denomination coins (e.g. 1000PEPEUSDT, 1000BONKUSDT) - divide price by 1000
         const priceFactor = BYBIT_SYMS[coin].startsWith('1000') ? 0.001 : 1;
         const curPrice = parseFloat(item.lastPrice || '0') * priceFactor;
         // openInterestValue = USD-denominated OI; fall back to base-qty × price if missing
@@ -265,7 +265,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   /* ── Bybit + Binance LSR ── */
   const fetchLSR = useCallback(async () => {
     await Promise.allSettled([
-      // Bybit account ratio (1h) — all coins
+      // Bybit account ratio (1h) - all coins
       ...Object.entries(BYBIT_SYMS).map(async ([coin, sym]) => {
         try {
           const res = await fetch(`https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${sym}&period=1h&limit=1`);
@@ -278,7 +278,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           });
         } catch { /* */ }
       }),
-      // Binance global account ratio (5m) + top trader position ratio — Binance-listed coins only
+      // Binance global account ratio (5m) + top trader position ratio - Binance-listed coins only
       ...Object.entries(BINANCE_SYMS).map(async ([coin, sym]) => {
         try {
           const [globalRes, whaleRes] = await Promise.all([
@@ -323,7 +323,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
   const fetchKlines = useCallback(async (coin: CoinId, sym: string) => {
     try {
-      // Use futures klines (fapi) — more accurate taker buy/sell for perp traders
+      // Use futures klines (fapi) - more accurate taker buy/sell for perp traders
       // Falls back to spot if futures endpoint fails (e.g. no perp for that symbol)
       const futuresUrl = `https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=15m&limit=100`;
       const spotUrl    = `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=15m&limit=100`;
@@ -395,7 +395,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       });
       const takerBuyRatio = totalBaseVol > 0 ? totalBuyVol / totalBaseVol : null;
 
-      /* ── VWAP — use BASE volume (k[5]) for standard formula ── */
+      /* ── VWAP - use BASE volume (k[5]) for standard formula ── */
       // quoteVol (k[7]) biases the average; base vol gives true VWAP
       let sumTPV = 0, sumVol = 0;
       klines.forEach((k: string[], i: number) => {
@@ -428,7 +428,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           `https://api.bybit.com/v5/market/kline?category=linear&symbol=${sym}&interval=15&limit=100`
         );
         const d = await res.json();
-        // Bybit returns newest-first — reverse to oldest-first
+        // Bybit returns newest-first - reverse to oldest-first
         const klines: string[][] = [...(d?.result?.list ?? [])].reverse();
         if (klines.length < 15) return;
 
@@ -563,7 +563,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     );
   }, [updateCoin]);
 
-  /* ── Daily RSI (1D candles — all coins, runs every 15 min) ── */
+  /* ── Daily RSI (1D candles - all coins, runs every 15 min) ── */
   const fetchDailyRSI = useCallback(async () => {
     await Promise.allSettled([
       // Binance coins
@@ -625,7 +625,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
             // CVD
             if (t.m) sellVol += qty; else buyVol += qty;
 
-            // Whale detection — only emit for truly new trades
+            // Whale detection - only emit for truly new trades
             if (t.a > lastSeenId && usd >= WHALE_USD_THRESHOLD) {
               const side = t.m ? 'SELL' : 'BUY';
               window.dispatchEvent(new CustomEvent('whale-trade', {
@@ -651,7 +651,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
               const first = snaps[0], last = snaps[snaps.length - 1];
               const pricePct = (last.price - first.price) / first.price;
               const cvdDelta = last.cvd - first.cvd;
-              // Direction matters more than magnitude for alts — use price % as primary gate
+              // Direction matters more than magnitude for alts - use price % as primary gate
               if (pricePct > 0.003 && cvdDelta < 0) cvdDivergence = 'bearish';
               if (pricePct < -0.003 && cvdDelta > 0) cvdDivergence = 'bullish';
             }
@@ -681,7 +681,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
             { cache: 'no-store' }
           );
           const data = await res.json();
-          // Bybit linear recent-trade fields: price, size, side (NOT p/v/S — those are spot fields)
+          // Bybit linear recent-trade fields: price, size, side (NOT p/v/S - those are spot fields)
           const trades: Array<{ side: string; size: string; price: string }> = data.result?.list ?? [];
           let buyVol = 0, sellVol = 0;
           trades.forEach(t => {
@@ -722,7 +722,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         } catch { /* */ }
       })(),
     ]);
-  }, []);  // no deps — uses refs + setStore callback
+  }, []);  // no deps - uses refs + setStore callback
 
   /* ── Order Book walls (BTC + ETH only) ── */
   const fetchOrderBook = useCallback(async () => {
@@ -978,7 +978,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     } catch { /* fail silently */ }
   }, []);
 
-  /* ── OI Trend bootstrap — Bybit historical OI + klines ── */
+  /* ── OI Trend bootstrap - Bybit historical OI + klines ── */
   // Fires once on mount to populate OI trend without waiting for two 8-min Bybit polls
   const bootstrapOITrend = useCallback(async () => {
     await Promise.allSettled(
@@ -991,7 +991,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           const oiData = await oiRes.json();
           const klData = await klRes.json();
 
-          // Both are newest-first — reverse to oldest-first
+          // Both are newest-first - reverse to oldest-first
           const oiList: Array<{ openInterest: string }> = [...(oiData?.result?.list ?? [])].reverse();
           const klList: string[][] = [...(klData?.result?.list ?? [])].reverse();
 
@@ -1067,7 +1067,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     } catch { /* */ }
   }, [updateCoin]);
 
-  /* ── Oil + DXY + SPX + Gold — fetched via /api/macro (server-side, no CORS) ── */
+  /* ── Oil + DXY + SPX + Gold - fetched via /api/macro (server-side, no CORS) ── */
   const fetchMacro = useCallback(async () => {
     try {
       const res = await fetch('/api/macro', { cache: 'no-store' });
@@ -1142,7 +1142,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     } catch { /* fail silently */ }
   }, []);
 
-  /* ── BTC + ETH Dominance via CMC (accurate — excludes stablecoins from total) ── */
+  /* ── BTC + ETH Dominance via CMC (accurate - excludes stablecoins from total) ── */
   const fetchCMCGlobal = useCallback(async () => {
     try {
       const res = await fetch('/api/cmc?type=global');
@@ -1202,7 +1202,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* ── Liquidation Cascade Detector — Binance futures all-symbols stream ── */
+  /* ── Liquidation Cascade Detector - Binance futures all-symbols stream ── */
   useEffect(() => {
     const FUTURES_MAP: Record<string, string> = {
       BTCUSDT: 'BTC', ETHUSDT: 'ETH', SOLUSDT: 'SOL',
@@ -1239,7 +1239,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
     connect();
 
-    // Cascade analyzer — check every 5s
+    // Cascade analyzer - check every 5s
     const analyzer = setInterval(() => {
       const now = Date.now();
       const w = liqBufferRef.current.filter(l => l.ts > now - 60_000);
@@ -1274,7 +1274,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         }
       }
 
-      // Liquidation delta — net long vs short liquidation $ over the longer rolling
+      // Liquidation delta - net long vs short liquidation $ over the longer rolling
       // window, exposed per-coin for display and for StopLossZone's bias scoring.
       const wDelta = liqBufferRef.current.filter(l => l.ts > now - LIQ_DELTA_WINDOW_MS);
       const deltaByCoin: Record<string, { l: number; s: number }> = {};
@@ -1319,12 +1319,12 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     fetchStablecoinFlows();
     fetchCoinglassData();
     fetchGoogleTrends();
-    // CB Premium needs BTC price first — wait 3s for WS/REST to populate
+    // CB Premium needs BTC price first - wait 3s for WS/REST to populate
     setTimeout(fetchCoinbasePremium, 3000);
     // Retry server-proxied APIs that may miss on Render cold start
     setTimeout(fetchCMCGlobal, 12_000);
     setTimeout(fetchMacro, 12_000);
-    // OI bootstrap — gives immediate trend signal without waiting for two 8-min Bybit polls
+    // OI bootstrap - gives immediate trend signal without waiting for two 8-min Bybit polls
     bootstrapOITrend();
 
     const intervals = [
@@ -1334,15 +1334,15 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       setInterval(fetchBybitKlines,       3  * 60 * 1000),  // same cadence as Binance klines
       setInterval(fetchBybitMultiTFRSI,  15  * 60 * 1000),  // same as Binance multi-TF
       setInterval(fetchFNG,             24  * 60 * 60 * 1000),
-      setInterval(fetchCMCGlobal,         5  * 60 * 1000),   // BTC/ETH dom — CMC, every 5m
-      setInterval(fetchAltSeason,        15  * 60 * 1000),   // 90d score — slow-moving, every 15m
+      setInterval(fetchCMCGlobal,         5  * 60 * 1000),   // BTC/ETH dom - CMC, every 5m
+      setInterval(fetchAltSeason,        15  * 60 * 1000),   // 90d score - slow-moving, every 15m
       setInterval(fetchMacro,            10  * 60 * 1000),
       setInterval(fetchETF,              30  * 60 * 1000),
       setInterval(fetchMultiTFRSI,       15  * 60 * 1000),
-      setInterval(fetchDailyRSI,         15  * 60 * 1000),  // 1D RSI — slow-moving, every 15m
+      setInterval(fetchDailyRSI,         15  * 60 * 1000),  // 1D RSI - slow-moving, every 15m
       setInterval(fetchCVD,               5  * 60 * 1000),
       setInterval(fetchOrderBook,         2  * 60 * 1000),
-      setInterval(fetchPremiumIndex,     30  * 1000),        // every 30s — premium changes frequently
+      setInterval(fetchPremiumIndex,     30  * 1000),        // every 30s - premium changes frequently
       setInterval(fetchDeribitOptions,   15  * 60 * 1000),
       setInterval(fetchStablecoinFlows,  30  * 60 * 1000),
       setInterval(fetchCoinglassData,    15  * 60 * 1000),

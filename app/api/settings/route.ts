@@ -15,7 +15,7 @@ async function getUser(token: string) {
   return data.user ?? null;
 }
 
-// GET — return current settings row (or null if not yet saved)
+// GET - return current settings row (or null if not yet saved)
 export async function GET(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ settings: data });
 }
 
-// PATCH — upsert settings (only the fields sent)
+// PATCH - upsert settings (only the fields sent)
 export async function PATCH(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -43,7 +43,7 @@ export async function PATCH(req: NextRequest) {
 
   const body = await req.json() as Record<string, unknown>;
 
-  // Sanitize — only allow known fields through
+  // Sanitize - only allow known fields through
   const ALLOWED = [
     'account_size', 'risk_pct', 'default_coin', 'default_tf',
     'fr_threshold', 'fng_fear', 'fng_greed', 'rsi_ob', 'rsi_os',

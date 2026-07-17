@@ -7,7 +7,7 @@ import Tip from '@/components/Tip';
 /* ── Distribution Tracker ───────────────────────────────────────────────────
    The mirror of the Accumulation Tracker: detects big players EXITING into
    strength. Price is still up on the day while smart-money footprints point
-   the other way — sellers hitting bids (CVD bearish divergence), open interest
+   the other way - sellers hitting bids (CVD bearish divergence), open interest
    unwinding into the rally, top traders leaning out, retail still paying
    positive funding. High score = profit-taking / distribution phase.
    Scoring lives in lib/distribution.ts, shared with the Telegram alert. */
@@ -65,11 +65,11 @@ export default function DistributionTracker() {
           fontFamily: 'var(--font-mono), monospace', fontSize: 11, fontWeight: 600,
           color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.12em',
         }}>
-          <Tip width={270} text="Scores every coin for profit-taking by big players: price still up on the day while CVD shows sellers into strength, open interest unwinds out of the rally, top traders lean out of longs, and retail keeps paying positive funding (buying what whales sell). High score = distribution phase — caution on new longs.">
+          <Tip width={270} text="Scores every coin for profit-taking by big players: price still up on the day while CVD shows sellers into strength, open interest unwinds out of the rally, top traders lean out of longs, and retail keeps paying positive funding (buying what whales sell). High score = distribution phase - caution on new longs.">
             Distribution Tracker
           </Tip>
         </span>
-        <span style={{ fontSize: 10, color: 'var(--txt3)' }}>winners being sold into — big players taking profit</span>
+        <span style={{ fontSize: 10, color: 'var(--txt3)' }}>winners being sold into - big players taking profit</span>
       </div>
 
       {rows.length === 0 ? (

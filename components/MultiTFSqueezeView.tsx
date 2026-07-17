@@ -23,7 +23,7 @@ function computeTFSignal(
   let rsiFlush   = 0;
   let rsiSqz     = 0;
 
-  // RSI is the primary per-timeframe signal — must contribute for a cell to be active
+  // RSI is the primary per-timeframe signal - must contribute for a cell to be active
   if      (rsi >= 75) { rsiFlush = 55; }
   else if (rsi >= 70) { rsiFlush = 40; }
   else if (rsi >= 65) { rsiFlush = 22; }
@@ -36,7 +36,7 @@ function computeTFSignal(
   flushScore += rsiFlush;
   sqzScore   += rsiSqz;
 
-  // RSI must have contributed — FR and L/S only amplify an existing RSI signal
+  // RSI must have contributed - FR and L/S only amplify an existing RSI signal
   if (rsiFlush === 0 && rsiSqz === 0) return { dir: 'NEUTRAL', strength: 0, rsi };
 
   // FR amplifies in the direction RSI already points
@@ -158,7 +158,7 @@ export default function MultiTFSqueezeView() {
         <span style={{ ...hdrStyle, textAlign: 'right' }}>Squeeze</span>
       </div>
 
-      {/* Search bar — visible only when expanded */}
+      {/* Search bar - visible only when expanded */}
       {expanded && (
         <div style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)', padding: '0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
           <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.35 }}>
@@ -216,7 +216,7 @@ export default function MultiTFSqueezeView() {
             {/* TF cells */}
             {tfs.map((sig, i) => {
               const cols = cellColors(sig);
-              const icon = sig.dir === 'FLUSH' ? '↓' : sig.dir === 'SQUEEZE' ? '↑' : '—';
+              const icon = sig.dir === 'FLUSH' ? '↓' : sig.dir === 'SQUEEZE' ? '↑' : '-';
               return (
                 <div key={i} style={{ display: 'flex', justifyContent: 'center' }}>
                   <div style={{
@@ -233,7 +233,7 @@ export default function MultiTFSqueezeView() {
                       fontSize: 10, fontWeight: 600, color: sig.rsi != null ? cols.text : '#333',
                       fontVariantNumeric: 'tabular-nums',
                     }}>
-                      {sig.rsi != null ? Math.round(sig.rsi) : '—'}
+                      {sig.rsi != null ? Math.round(sig.rsi) : '-'}
                     </span>
                   </div>
                 </div>
@@ -246,7 +246,7 @@ export default function MultiTFSqueezeView() {
               color: sq.dir !== 'NEUTRAL' ? sq.color : '#333',
               fontVariantNumeric: 'tabular-nums',
             }}>
-              {sq.score > 0 ? sq.score : '—'}
+              {sq.score > 0 ? sq.score : '-'}
             </span>
           </div>
         );

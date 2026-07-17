@@ -4,7 +4,7 @@ import { cached } from '@/lib/apiCache';
 import { getUserRole } from '@/lib/entitlements';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
-// DXY/VIX/gold/oil/10Y don't meaningfully shift within a few minutes — cache
+// DXY/VIX/gold/oil/10Y don't meaningfully shift within a few minutes - cache
 // across visitors instead of hitting Yahoo Finance + Grok on every page load.
 const CACHE_TTL = 5 * 60_000;
 
@@ -65,19 +65,19 @@ function buildMacroPrompt(d: {
     '',
     '=== CLASSIFICATION TASKS ===',
     '',
-    '1. MACRO_SIGNAL — Classify the CURRENT macro backdrop as exactly one of: RISK_ON, RISK_OFF, or NEUTRAL.',
+    '1. MACRO_SIGNAL - Classify the CURRENT macro backdrop as exactly one of: RISK_ON, RISK_OFF, or NEUTRAL.',
     '   Base this on the composite picture: DXY direction, VIX level, gold vs oil behavior.',
-    '   Format: "RISK_ON" or "RISK_OFF" or "NEUTRAL" — nothing else on this line.',
+    '   Format: "RISK_ON" or "RISK_OFF" or "NEUTRAL" - nothing else on this line.',
     '',
-    '2. MACRO_ANALYSIS — In 3-4 sentences, explain WHY you classified it that way. What is each indicator telling you?',
+    '2. MACRO_ANALYSIS - In 3-4 sentences, explain WHY you classified it that way. What is each indicator telling you?',
     '   Which indicators are conflicting? What is the dominant narrative?',
     '',
-    '3. CRYPTO_IMPLICATIONS — What does this macro backdrop mean specifically for BTC and crypto?',
+    '3. CRYPTO_IMPLICATIONS - What does this macro backdrop mean specifically for BTC and crypto?',
     '   - Expected BTC behavior in this macro regime',
     '   - Key correlation to watch (DXY strength, VIX spike, etc.)',
     '   - Position sizing implication (increase, hold, reduce exposure?)',
     '',
-    '4. WATCH_LEVEL — One specific macro level or threshold that would CHANGE the regime classification if crossed.',
+    '4. WATCH_LEVEL - One specific macro level or threshold that would CHANGE the regime classification if crossed.',
     '',
     'Output using EXACTLY these headers:',
     'MACRO_SIGNAL:',
@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
   const { data: authData } = await sb(token).auth.getUser();
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Pro-only feature — checked server-side so the paid Grok call can't be
+  // Pro-only feature - checked server-side so the paid Grok call can't be
   // reached by skipping the client gate.
   const role = await getUserRole(token, authData.user.id);
   if (role !== 'pro') {

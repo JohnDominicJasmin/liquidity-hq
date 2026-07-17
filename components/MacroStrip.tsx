@@ -66,12 +66,12 @@ export default function MacroStrip() {
             <div key={label} className="macro-item">
               <div className="macro-item-label">{label}</div>
               <div className="macro-item-price">
-                {price != null ? fmt(price) : '—'}
+                {price != null ? fmt(price) : '-'}
               </div>
               <div className="macro-item-chg" style={{
                 color: chg == null ? 'var(--txt3)' : chg >= 0 ? 'var(--green)' : 'var(--red)',
               }}>
-                {chg != null ? (chg >= 0 ? '↑ +' : '↓ ') + chg.toFixed(2) + '%' : '—'}
+                {chg != null ? (chg >= 0 ? '↑ +' : '↓ ') + chg.toFixed(2) + '%' : '-'}
               </div>
               {sig && (
                 <div className="macro-item-signal" style={{ color: sig.col }}>{sig.txt}</div>
@@ -84,12 +84,12 @@ export default function MacroStrip() {
         <div className="macro-item">
           <div className="macro-item-label">JPY</div>
           <div className="macro-item-price" style={{ color: jpyCol }}>
-            {jpyUsd != null ? jpyUsd.toFixed(2) : '—'}
+            {jpyUsd != null ? jpyUsd.toFixed(2) : '-'}
           </div>
           <div className="macro-item-chg" style={{ color: jpyCol }}>
             {jpyUsd != null
               ? jpyUsd >= 160 ? 'Danger' : jpyUsd >= 158 ? 'Warning' : 'Safe'
-              : '—'}
+              : '-'}
           </div>
           {jpySig && (
             <div className="macro-item-signal" style={{ color: jpySig.col }}>{jpySig.txt}</div>

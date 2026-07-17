@@ -14,10 +14,10 @@ export default function NotFound() {
         fontSize: 28, fontWeight: 800, color: 'var(--txt1, #e8e8e8)',
         fontFamily: "'JetBrains Mono', monospace",
       }}>
-        404 — Liquidity not found
+        404 - Liquidity not found
       </div>
       <div style={{ fontSize: 13, color: 'var(--txt3, #808080)', maxWidth: 420, lineHeight: 1.6 }}>
-        This page got stop-hunted. The level you&rsquo;re looking for doesn&rsquo;t exist —
+        This page got stop-hunted. The level you&rsquo;re looking for doesn&rsquo;t exist -
         or it was swept and never came back.
       </div>
       <div style={{ display: 'flex', gap: 10, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>

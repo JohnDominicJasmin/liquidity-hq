@@ -1,4 +1,4 @@
-// WaveTrend oscillator (the core of the popular "VuManChu Cipher B" indicator) —
+// WaveTrend oscillator (the core of the popular "VuManChu Cipher B" indicator) -
 // a momentum oscillator that catches reversals at extremes, used here as a
 // confirming/confluence layer alongside the EMA ribbon strategy. Public-domain
 // formula, originally popularized by LazyBear's WaveTrend script.
@@ -15,12 +15,12 @@ const DIVERGENCE_LOOKBACK = 60; // candles to scan back for divergence pivots
 // Validated via backtest sweep (lib/backtestEngine.ts WT_VARIANTS): a 5-bar window was
 // too tight given EMA's confirmation lag (cross + ATR buffer + persistence wait means
 // EMA fires several candles after WaveTrend has already turned). 20 bars beat the
-// Anti-Chop ON baseline outright — same edge per trade, half the max drawdown, 63%
+// Anti-Chop ON baseline outright - same edge per trade, half the max drawdown, 63%
 // fewer trades for the same win rate. See app/backtest "WaveTrend Confirming-Layer
 // Tuning" table to re-validate if the underlying strategy logic changes.
 const CROSS_RECENCY_BARS  = 20; // how many candles back a cross still counts as "recent"
 
-/* EMA over an array that may start with a run of NaN — skip the NaN prefix,
+/* EMA over an array that may start with a run of NaN - skip the NaN prefix,
    compute EMA on the valid tail, then re-pad so indices still line up. */
 function emaSkipLeadingNaN(values: number[], period: number): number[] {
   const n = values.length;
@@ -117,7 +117,7 @@ export interface DivergenceResult {
 }
 
 // Regular divergence: price makes a lower low (bullish) or higher high (bearish)
-// while WaveTrend fails to confirm — a classic exhaustion / reversal tell.
+// while WaveTrend fails to confirm - a classic exhaustion / reversal tell.
 export function detectWaveTrendDivergence(
   candles: OHLCV[],
   wt1: number[],
@@ -140,7 +140,7 @@ export function detectWaveTrendDivergence(
     const [i1, i2] = priceLowPivots.slice(-2); // i1 older, i2 newer
     if (isFinite(wt1[i1]) && isFinite(wt1[i2]) && lows[i2] < lows[i1] && wt1[i2] > wt1[i1]) {
       bullish = true;
-      detailBullish = `Price lower low (${lows[i2].toFixed(4)} < ${lows[i1].toFixed(4)}) but WaveTrend higher low — bullish divergence`;
+      detailBullish = `Price lower low (${lows[i2].toFixed(4)} < ${lows[i1].toFixed(4)}) but WaveTrend higher low - bullish divergence`;
     }
   }
 
@@ -148,7 +148,7 @@ export function detectWaveTrendDivergence(
     const [i1, i2] = priceHighPivots.slice(-2);
     if (isFinite(wt1[i1]) && isFinite(wt1[i2]) && highs[i2] > highs[i1] && wt1[i2] < wt1[i1]) {
       bearish = true;
-      detailBearish = `Price higher high (${highs[i2].toFixed(4)} > ${highs[i1].toFixed(4)}) but WaveTrend lower high — bearish divergence`;
+      detailBearish = `Price higher high (${highs[i2].toFixed(4)} > ${highs[i1].toFixed(4)}) but WaveTrend lower high - bearish divergence`;
     }
   }
 
@@ -173,7 +173,7 @@ export interface WaveTrendParams {
                                  // instead of only within the last crossWindowBars before confirm
 }
 
-// Matches the original hardcoded behavior exactly — the values this file used
+// Matches the original hardcoded behavior exactly - the values this file used
 // before parameters were exposed for tuning.
 export const DEFAULT_WT_PARAMS: WaveTrendParams = {
   obLevel: OB_LEVEL, osLevel: OS_LEVEL,
@@ -206,22 +206,22 @@ export function getWaveTrendConfirmation(
   if (params.requireCross) {
     const crosses = detectWaveTrendCrosses(candles, wt1, wt2, params.obLevel, params.osLevel);
     const windowStart = (params.useArmWindow && armIndex != null) ? armIndex : last - params.crossWindowBars;
-    // Most recent cross matching direction, within the window — not just the absolute
+    // Most recent cross matching direction, within the window - not just the absolute
     // last cross regardless of direction (that was a real bug in the original version).
     const matchingCross = [...crosses].reverse().find(c => c.dir === dir && c.index >= windowStart && c.index <= last);
     if (matchingCross) {
       crossAgrees = true;
-      crossDetail = `WaveTrend crossed ${dir === 'long' ? 'bullish from oversold' : 'bearish from overbought'} ${last - matchingCross.index} candle(s) ago — momentum confirms`;
+      crossDetail = `WaveTrend crossed ${dir === 'long' ? 'bullish from oversold' : 'bearish from overbought'} ${last - matchingCross.index} candle(s) ago - momentum confirms`;
     }
   }
 
   if (dir === 'long') {
     if (div.bullish) return { pass: true, detail: div.detailBullish, wt1Last, wt2Last };
     if (crossAgrees) return { pass: true, detail: crossDetail, wt1Last, wt2Last };
-    return { pass: false, detail: `WaveTrend at ${wt1Last.toFixed(1)} — no recent bullish cross or divergence to confirm`, wt1Last, wt2Last };
+    return { pass: false, detail: `WaveTrend at ${wt1Last.toFixed(1)} - no recent bullish cross or divergence to confirm`, wt1Last, wt2Last };
   } else {
     if (div.bearish) return { pass: true, detail: div.detailBearish, wt1Last, wt2Last };
     if (crossAgrees) return { pass: true, detail: crossDetail, wt1Last, wt2Last };
-    return { pass: false, detail: `WaveTrend at ${wt1Last.toFixed(1)} — no recent bearish cross or divergence to confirm`, wt1Last, wt2Last };
+    return { pass: false, detail: `WaveTrend at ${wt1Last.toFixed(1)} - no recent bearish cross or divergence to confirm`, wt1Last, wt2Last };
   }
 }

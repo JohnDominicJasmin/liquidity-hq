@@ -18,9 +18,9 @@ const IMPACT_EMOJI: Record<string, string> = {
 };
 
 // Module-level dedup cache: key → sent timestamp
-// Survives within a single server process lifetime — acceptable for cron use.
+// Survives within a single server process lifetime - acceptable for cron use.
 const SENT: Map<string, number> = new Map();
-const SENT_TTL = 4 * 60 * 60 * 1000; // 4h — prune old entries
+const SENT_TTL = 4 * 60 * 60 * 1000; // 4h - prune old entries
 
 function dedupKey(type: string, isoDate: string): string {
   return `${type}_${isoDate}`;
@@ -87,14 +87,14 @@ export async function GET(req: Request) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN not set' }, { status: 503 });
 
-  // Telegram alerts are Pro-only — resolve Pro users before collecting
+  // Telegram alerts are Pro-only - resolve Pro users before collecting
   // recipients (same gate as app/api/telegram/alert/route.ts).
   const proUserIds = new Set<string>();
   try {
     const admin = getSupabaseAdmin();
     const { data } = await admin.from(T.user_subscriptions).select('user_id').eq('role', 'pro');
     for (const row of data ?? []) proUserIds.add(row.user_id as string);
-  } catch { /* admin not configured — chatIds falls back to the env var below */ }
+  } catch { /* admin not configured - chatIds falls back to the env var below */ }
 
   // Collect Pro users' Telegram chat IDs
   const chatIds: string[] = [];
@@ -143,7 +143,7 @@ export async function GET(req: Request) {
     if (event.estimate) msg += `Estimate: <b>${event.estimate}</b>`;
     if (event.previous) msg += `  |  Prev: ${event.previous}`;
     if (event.estimate || event.previous) msg += '\n';
-    msg += `\n⚠️ <i>High-impact event — watch for volatility</i>`;
+    msg += `\n⚠️ <i>High-impact event - watch for volatility</i>`;
 
     let anyOk = false;
     for (const chatId of chatIds) {

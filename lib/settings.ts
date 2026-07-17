@@ -24,7 +24,7 @@ export interface UserSettings {
   rsi_os:           number;   // alert when RSI 1h <= this
   // Appearance
   hidden_sections:  string[];
-  // Telegram — per-user chat ID (empty string = not connected)
+  // Telegram - per-user chat ID (empty string = not connected)
   telegram_chat_id: string;
   // View mode
   beginner_mode:    boolean;

@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Privacy Policy — LiquidityHQ' };
+export const metadata: Metadata = { title: 'Privacy Policy' };
 
 const SECTIONS = [
   {
     title: 'Information We Collect',
-    body: 'We collect information you provide directly: email address and password when creating an account, and any preferences or settings you configure within the Platform. We also collect usage data automatically — pages visited, features used, session duration — to improve the service.',
+    body: 'We collect information you provide directly: email address and password when creating an account, and any preferences or settings you configure within the Platform. We also collect usage data automatically - pages visited, features used, session duration - to improve the service.',
   },
   {
     title: 'How We Use Your Information',

@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 // GET /api/telegram/setup-webhook
 // Registers the webhook URL with Telegram. Call this once after deploy.
-// Protected by CRON_SECRET — this mutates where Telegram sends bot updates,
+// Protected by CRON_SECRET - this mutates where Telegram sends bot updates,
 // so it must not be triggerable by an arbitrary caller (or Host-header spoof).
 export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return NextResponse.json({ ok: false, error: 'No TELEGRAM_BOT_TOKEN configured' }, { status: 500 });
 
-  // Never trust the request's Host header for the URL we register with Telegram —
+  // Never trust the request's Host header for the URL we register with Telegram -
   // an attacker could spoof it and redirect all future bot updates to their own server.
   const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
   const webhookUrl = `${base.replace(/\/$/, '')}/api/telegram/webhook`;

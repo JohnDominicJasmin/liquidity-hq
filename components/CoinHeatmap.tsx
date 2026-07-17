@@ -130,7 +130,7 @@ export default function CoinHeatmap() {
                 fontSize: 13, fontWeight: 700, color: text,
                 fontVariantNumeric: 'tabular-nums', lineHeight: 1,
               }}>
-                {chg != null ? `${sign}${chg.toFixed(1)}%` : '—'}
+                {chg != null ? `${sign}${chg.toFixed(1)}%` : '-'}
               </span>
             </div>
           );

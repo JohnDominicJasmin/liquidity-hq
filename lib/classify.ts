@@ -69,7 +69,7 @@ export function tagLabel(type: NewsType): string {
   return 'Crypto';
 }
 
-// ── Geo keyword groups — drives "War & Geo" tab + impact notes ───────────────
+// ── Geo keyword groups - drives "War & Geo" tab + impact notes ───────────────
 export const GEO_KEYWORDS = [
   {
     kw: ['powell','fed chair','federal reserve chair','fed speak','yellen','waller','kashkari','daly','fed governor','fed president','fomc member'],
@@ -79,7 +79,7 @@ export const GEO_KEYWORDS = [
   {
     kw: ['trump','white house','executive order','presidential','tariff','trade war','trade deal','trade policy'],
     tag: 'TRUMP/TARIFF', style: 'geopolitical',
-    note: 'Trump/White House announcement. Tariff news causes instant crypto volatility — first move usually exaggerated.',
+    note: 'Trump/White House announcement. Tariff news causes instant crypto volatility - first move usually exaggerated.',
   },
   {
     kw: ['war','ceasefire','invasion','military','missile','attack','nato','ukraine','russia','iran','north korea','middle east','israel','gaza','sanctions','nuclear','houthi','hamas','hezbollah'],
@@ -118,11 +118,11 @@ export const GEO_KEYWORDS = [
   },
 ];
 
-// ── Econ event notes — drives Events tab ────────────────────────────────────
+// ── Econ event notes - drives Events tab ────────────────────────────────────
 export const ECON_NOTES: Record<string, string> = {
-  FOMC:    'Rate decision day. Highest volatility of the month. First reaction is always the fake — wait 15-30min for the real direction.',
+  FOMC:    'Rate decision day. Highest volatility of the month. First reaction is always the fake - wait 15-30min for the real direction.',
   CPI:     'Inflation data. Hot CPI = rate hike fears = crypto dumps. Cool CPI = relief pump. Watch the 5min candle after release.',
-  PPI:     'Producer prices — leading indicator for CPI. Market moves, but smaller than CPI reaction.',
+  PPI:     'Producer prices - leading indicator for CPI. Market moves, but smaller than CPI reaction.',
   NFP:     'Jobs data. Strong jobs = Fed stays hawkish = risk-off = crypto pressure.',
   PCE:     'Fed\'s preferred inflation gauge. Treated like CPI but slightly less volatile market reaction.',
   GDP:     'GDP print. Weak GDP = recession fears = risk-off dump. Strong GDP = mixed (good economy but keeps Fed hawkish).',

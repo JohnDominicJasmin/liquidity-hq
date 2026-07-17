@@ -40,7 +40,7 @@ async function getUsageRow(token: string, userId: string, today: string) {
   };
 }
 
-// ── GET — return today's usage without running an analysis ──────────────────
+// ── GET - return today's usage without running an analysis ──────────────────
 export async function GET(req: NextRequest) {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '') || undefined;
   if (!token) return NextResponse.json({ usage: null });
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
   });
 }
 
-// ── POST — run an analysis ──────────────────────────────────────────────────
+// ── POST - run an analysis ──────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const { prompt, tf, session, type } = await req.json() as {
     prompt: string; tf: string; session: string; type: 'quick' | 'deep';
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
 
   const token = req.headers.get('Authorization')?.replace('Bearer ', '') || undefined;
 
-  // Auth required for both Quick and Deep — prevents unauthenticated API burn
+  // Auth required for both Quick and Deep - prevents unauthenticated API burn
   let userId: string | null = null;
   if (token) {
     const { data } = await sb(token).auth.getUser();
@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
       const msg = d.output?.find((o: { type: string }) => o.type === 'message');
       text = msg?.content?.[0]?.text ?? '';
     } else {
-      // chat/completions — no search tools, cheaper
+      // chat/completions - no search tools, cheaper
       const r = await fetch('https://api.x.ai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },

@@ -1,27 +1,27 @@
-// Confluence Score — combines signals that are already computed elsewhere on the
+// Confluence Score - combines signals that are already computed elsewhere on the
 // Arena page into one weighted verdict, plus a separate macro/event risk overlay.
 //
 // Deliberately NOT one blended number: a technical score (EMA ribbon + order flow +
 // multi-TF RSI) and a macro event ("FOMC in 40 minutes") operate on completely
 // different scales and timeframes. Folding "CPI print in 2 hours" numerically into a
-// per-coin technical score would produce fake precision — the technicals themselves
+// per-coin technical score would produce fake precision - the technicals themselves
 // haven't changed, only the risk of holding through the print has. So macro/event risk
 // is surfaced as a separate caution flag that downgrades confidence in the technical
 // verdict, the same way weakEdge downgrades the EMA Ribbon badge (see useEMAStrategy.ts).
 //
 // v1 scope: no candlestick/chart-pattern factor (would need a dedicated candle fetch
 // this scorer doesn't have) and no news sentiment (headlines aren't tagged
-// bullish/bearish anywhere in the codebase yet — would need Grok scoring with caching,
+// bullish/bearish anywhere in the codebase yet - would need Grok scoring with caching,
 // a real v2 feature, not a keyword-matching stand-in).
 
 import type { Bias } from '@/components/StopLossZone';
 
-// Mirrors app/api/econ-calendar/route.ts's CalEvent — kept local rather than imported
+// Mirrors app/api/econ-calendar/route.ts's CalEvent - kept local rather than imported
 // since that file is a server route (matches the convention in app/econ-calendar/page.tsx).
 export type CalEvent = { name: string; type: string; isoDate: string; impact: string };
 
 // Directional factors vote bull/bear and add to the weighted score. Penalty factors
-// (chop, divergence) never vote a direction — they only shrink the final score toward
+// (chop, divergence) never vote a direction - they only shrink the final score toward
 // 0 when active, reducing confidence without claiming to know which way price goes.
 export interface DirectionalFactor { kind: 'directional'; label: string; dir: 'bull' | 'bear' | 'neutral'; weight: number }
 export interface PenaltyFactor     { kind: 'penalty';     label: string; active: boolean; weight: number }
@@ -63,7 +63,7 @@ export function orderFlowFactor(bias: Bias): DirectionalFactor {
 }
 
 /* ── Multi-TF RSI alignment (15m/1h/4h) → confluence factor. This is now the
-   sole home for this signal — the standalone MultiTFAlignment card on
+   sole home for this signal - the standalone MultiTFAlignment card on
    Dashboard was removed since it was a full-card duplicate of this factor. ── */
 export function multiTfRsiFactor(rsi14: number | null, rsi1h: number | null, rsi4h: number | null): DirectionalFactor {
   const dir = (r: number | null) => r == null ? 0 : r > 57 ? 1 : r < 43 ? -1 : 0;
@@ -71,7 +71,7 @@ export function multiTfRsiFactor(rsi14: number | null, rsi1h: number | null, rsi
   return { kind: 'directional', label: 'Multi-TF RSI Alignment', dir: sum > 0 ? 'bull' : sum < 0 ? 'bear' : 'neutral', weight: 20 };
 }
 
-/* ── Macro / event risk overlay — separate from the score above ── */
+/* ── Macro / event risk overlay - separate from the score above ── */
 export interface MacroRisk {
   level: 'none' | 'caution' | 'danger';
   reasons: string[];
@@ -95,20 +95,20 @@ export function computeMacroRisk(events: CalEvent[], jpyUsd: number | null, nowM
     const when = mins <= 0 ? 'releasing now' : mins < 60 ? `in ${mins}m` : `in ${(mins / 60).toFixed(1)}h`;
     if (ms <= EVENT_DANGER_MS) {
       level = 'danger';
-      reasons.push(`${e.name} ${when} — expect a volatility spike`);
+      reasons.push(`${e.name} ${when} - expect a volatility spike`);
     } else {
       level = 'caution';
-      reasons.push(`${e.name} ${when} — reduce size or wait`);
+      reasons.push(`${e.name} ${when} - reduce size or wait`);
     }
   }
 
   if (jpyUsd != null) {
     if (jpyUsd >= 160) {
       level = 'danger';
-      reasons.push(`USD/JPY ${jpyUsd.toFixed(1)} — BOJ intervention risk, carry-trade unwind can trigger BTC liquidations`);
+      reasons.push(`USD/JPY ${jpyUsd.toFixed(1)} - BOJ intervention risk, carry-trade unwind can trigger BTC liquidations`);
     } else if (jpyUsd >= 158 && level !== 'danger') {
       level = 'caution';
-      reasons.push(`USD/JPY ${jpyUsd.toFixed(1)} — approaching the 160 carry-trade danger zone`);
+      reasons.push(`USD/JPY ${jpyUsd.toFixed(1)} - approaching the 160 carry-trade danger zone`);
     }
   }
 

@@ -9,7 +9,7 @@ import Sparkline24h from '@/components/Sparkline24h';
 type SortKey = 'volume' | 'change' | 'grade' | 'signal' | 'name';
 
 function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): { text: string; col: string } {
-  if (!d) return { text: '—', col: '#333' };
+  if (!d) return { text: '-', col: '#333' };
   if (d.fundingRate != null) {
     const fr = d.fundingRate * 100;
     if (fr >= 0.04) return { text: 'Longs overcrowded', col: '#f87171' };
@@ -24,7 +24,7 @@ function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): {
   return { text: 'No signal', col: '#333' };
 }
 
-const GRADE_ORDER: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, F: 4, '—': 5 };
+const GRADE_ORDER: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, F: 4, '-': 5 };
 const PAGE_SIZE = 20;
 const ROW_COLS = '28px 1fr 40px 96px 58px 80px 1fr';
 
@@ -130,7 +130,7 @@ export default function MarketsPage() {
           <div className="mkt-mono" style={{ marginLeft: 'auto', display: 'flex', gap: 14, fontSize: 10 }}>
             <span style={{ color: '#34d399' }}>▲ {bullCount} bullish</span>
             <span style={{ color: '#f87171' }}>▼ {bearCount} bearish</span>
-            <span style={{ color: 'var(--txt3)' }}>— {COINS.length - bullCount - bearCount} neutral</span>
+            <span style={{ color: 'var(--txt3)' }}>- {COINS.length - bullCount - bearCount} neutral</span>
           </div>
         </div>
 
@@ -245,7 +245,7 @@ export default function MarketsPage() {
 
               {/* Price */}
               <div className="mkt-mono" style={{ textAlign: 'right', fontSize: 12, fontWeight: 600, color: 'var(--txt2)' }}>
-                {d?.price ? '$' + fmtPrice(d.price, dec) : '—'}
+                {d?.price ? '$' + fmtPrice(d.price, dec) : '-'}
               </div>
 
               {/* Change */}

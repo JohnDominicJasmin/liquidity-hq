@@ -29,43 +29,43 @@ export interface CoinData {
   oi: number | null;
   vol24: number | null;
   volRatio: number | null;
-  longRatio: number | null;    // Bybit account ratio — long side (1h)
-  shortRatio: number | null;   // Bybit account ratio — short side (1h)
-  bnLongRatio: number | null;       // Binance global account ratio — long side (5m)
-  bnShortRatio: number | null;      // Binance global account ratio — short side (5m)
-  bnWhaleLongRatio: number | null;  // Binance top trader POSITION ratio — long (dollar-weighted)
-  bnWhaleShortRatio: number | null; // Binance top trader POSITION ratio — short (dollar-weighted)
+  longRatio: number | null;    // Bybit account ratio - long side (1h)
+  shortRatio: number | null;   // Bybit account ratio - short side (1h)
+  bnLongRatio: number | null;       // Binance global account ratio - long side (5m)
+  bnShortRatio: number | null;      // Binance global account ratio - short side (5m)
+  bnWhaleLongRatio: number | null;  // Binance top trader POSITION ratio - long (dollar-weighted)
+  bnWhaleShortRatio: number | null; // Binance top trader POSITION ratio - short (dollar-weighted)
   rsi14: number | null;
   ma20: number | null;
   perpPrice: number | null;
   /* multi-timeframe RSI */
   rsi1h: number | null;
   rsi4h: number | null;
-  rsiDaily: number | null; // 1D RSI — long-term bias signal
+  rsiDaily: number | null; // 1D RSI - long-term bias signal
   /* cumulative volume delta */
   cvd: number | null;
   /* CVD vs price divergence signal */
   cvdDivergence: 'bullish' | 'bearish' | null;
   /* volume profile */
-  poc: number | null;   // Point of Control — price with most volume
+  poc: number | null;   // Point of Control - price with most volume
   vah: number | null;   // Value Area High (top of 70% vol range)
   val: number | null;   // Value Area Low  (bottom of 70% vol range)
   /* order book walls (BTC/ETH only) */
   orderBidWalls: LiqWall[] | null;
   orderAskWalls: LiqWall[] | null;
-  /* VWAP — volume-weighted average price from 100 candles */
+  /* VWAP - volume-weighted average price from 100 candles */
   vwap: number | null;
   /* OI Trend vs Price divergence signal */
   oiTrend: 'strong_up' | 'weak_up' | 'strong_down' | 'weak_down' | null;
-  /* Taker Buy/Sell ratio — who's being aggressive (last 20 × 15m candles ≈ 5h) */
+  /* Taker Buy/Sell ratio - who's being aggressive (last 20 × 15m candles ≈ 5h) */
   takerBuyRatio: number | null;  // 0.0–1.0 (buy vol / total vol)
   /* Detected chart patterns from 15m klines (e.g. "Bull flag", "Bearish engulfing") */
   chartPattern: string | null;
   /* Next funding rate prediction (mark–index premium spread) */
   nextFrEstimate: number | null;   // predicted next 8h FR (decimal, e.g. 0.0001)
   nextFundingTime: number | null;  // unix ms of next settlement
-  /* Liquidation delta — net long vs short liquidation $ over a rolling 15min window
-     (Binance futures forceOrder stream, majors only — BTC/ETH/SOL/XRP/BNB/NEAR/SUI) */
+  /* Liquidation delta - net long vs short liquidation $ over a rolling 15min window
+     (Binance futures forceOrder stream, majors only - BTC/ETH/SOL/XRP/BNB/NEAR/SUI) */
   liqDelta:    number | null;  // liqLongUsd - liqShortUsd (signed net)
   liqLongUsd:  number | null;  // long positions force-liquidated
   liqShortUsd: number | null;  // short positions force-liquidated
@@ -138,7 +138,7 @@ export type MarketStore = {
   dxy: number | null;        // US Dollar Index
   dxyChg: number | null;     // 24h % change
   jpy: number | null;        // USD/JPY spot
-  jpyChg: number | null;     // 24h % change — yen carry-trade direction
+  jpyChg: number | null;     // 24h % change - yen carry-trade direction
   spx: number | null;        // S&P 500
   spxChg: number | null;
   gold: number | null;       // Gold spot $/oz
@@ -146,9 +146,9 @@ export type MarketStore = {
   /* Coinbase Premium Index */
   cbPremium: number | null;    // Coinbase BTC − Binance BTC (USD)
   cbPremiumPct: number | null; // as % of Binance price
-  /* GEX — Gamma Exposure from Deribit options */
+  /* GEX - Gamma Exposure from Deribit options */
   btcNetGex: number | null;    // total net GEX in $ (positive = dealers long gamma)
-  btcGexFlip: number | null;   // zero-gamma strike — cross = regime change
+  btcGexFlip: number | null;   // zero-gamma strike - cross = regime change
   btcGexLevels: GexLevel[];    // top strikes near ATM for chart
   /* Liquidation Cascade Alert */
   cascadeAlert: {
@@ -211,9 +211,9 @@ export function useMarket() {
 // are returned as NEUTRAL to reduce noise on normal trading days.
 //
 // Three independent signal sources:
-//   1. Funding rate       — are perp traders paying a skewed rate?
-//   2. L/S ratio          — is positioning heavily one-sided?
-//   3. Taker buy/sell     — are takers aggressively selling or buying?
+//   1. Funding rate       - are perp traders paying a skewed rate?
+//   2. L/S ratio          - is positioning heavily one-sided?
+//   3. Taker buy/sell     - are takers aggressively selling or buying?
 // Vol spike boosts the score but does NOT count as a direction signal.
 export function computeSqueezeScore(coin: CoinData | undefined): {
   score: number;
@@ -249,7 +249,7 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
     else if (coin.shortRatio >= 0.52)  { shortRisk += 10; shortSignals++; }
   }
 
-  // ── Signal 3: Taker buy/sell ratio — aggressor-side pressure (max 15 pts) ─
+  // ── Signal 3: Taker buy/sell ratio - aggressor-side pressure (max 15 pts) ─
   // takerBuyRatio < 0.40 → sellers are aggressive (long-flush pressure)
   // takerBuyRatio > 0.60 → buyers are aggressive (short-squeeze pressure)
   if (coin.takerBuyRatio != null) {
@@ -259,7 +259,7 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
     else if (coin.takerBuyRatio >= 0.58) { shortRisk += 8;  shortSignals++; }
   }
 
-  // ── Vol spike bonus — amplifies score only, not a direction signal ────────
+  // ── Vol spike bonus - amplifies score only, not a direction signal ────────
   const volBonus = coin.volRatio != null
     ? (coin.volRatio >= 2 ? 20 : coin.volRatio >= 1.5 ? 12 : coin.volRatio >= 1.2 ? 5 : 0)
     : 0;
@@ -295,7 +295,7 @@ export function computeCoinHealth(coin: CoinData | undefined): {
   // Base: squeeze score scaled to 55 pts max
   let pts = Math.round(sq.score * 0.55);
 
-  // RSI extremes — 0-20 pts (direction-agnostic: extreme either way = signal)
+  // RSI extremes - 0-20 pts (direction-agnostic: extreme either way = signal)
   if (coin.rsi14 != null) {
     const r = coin.rsi14;
     if (r >= 70 || r <= 30)        pts += 20;
@@ -303,11 +303,11 @@ export function computeCoinHealth(coin: CoinData | undefined): {
     else if (r >= 60 || r <= 40)   pts += 5;
   }
 
-  // OI trend — 0-13 pts
+  // OI trend - 0-13 pts
   if (coin.oiTrend === 'strong_up' || coin.oiTrend === 'strong_down') pts += 13;
   else if (coin.oiTrend === 'weak_up' || coin.oiTrend === 'weak_down') pts += 5;
 
-  // CVD divergence confirmed — 0-12 pts
+  // CVD divergence confirmed - 0-12 pts
   if (coin.cvdDivergence) pts += 12;
 
   const score = Math.min(100, pts);

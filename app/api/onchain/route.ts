@@ -5,7 +5,7 @@ import { getUserRole } from '@/lib/entitlements';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // On-chain metrics (MVRV/SOPR/NVT/exchange flow) don't move within minutes, and
-// this is an expensive Grok web_search+x_search call — cache it across visitors.
+// this is an expensive Grok web_search+x_search call - cache it across visitors.
 const CACHE_TTL = 10 * 60_000;
 
 function sb(token: string) {
@@ -52,14 +52,14 @@ function buildOnChainPrompt(stats: BlockchainStats | null, btcPrice: number): st
     btcSent,
     btcPrice > 0 ? `BTC Price: $${btcPrice.toLocaleString()}` : '',
     '',
-    '=== STEP 1 — SEARCH FOR CURRENT VALUES ===',
+    '=== STEP 1 - SEARCH FOR CURRENT VALUES ===',
     'Search for the latest published values (from Glassnode, CryptoQuant, IntoTheBlock, X/Twitter analytics accounts, or any public source) of:',
-    '1. MVRV Ratio — if found, note the exact value and source',
-    '2. SOPR (ideally adjusted SOPR) — if found, note value and source',
-    '3. NVT Ratio (or NVT Signal) — if found, note value and source',
-    '4. Exchange Net Flow direction for BTC — are whales sending coins TO exchanges (bearish) or withdrawing (bullish)?',
+    '1. MVRV Ratio - if found, note the exact value and source',
+    '2. SOPR (ideally adjusted SOPR) - if found, note value and source',
+    '3. NVT Ratio (or NVT Signal) - if found, note value and source',
+    '4. Exchange Net Flow direction for BTC - are whales sending coins TO exchanges (bearish) or withdrawing (bullish)?',
     '',
-    '=== STEP 2 — SCORE EACH DIMENSION ===',
+    '=== STEP 2 - SCORE EACH DIMENSION ===',
     '',
     'VALUATION SCORE (uses MVRV + SOPR + NVT, weight 30%):',
     '  MVRV:  <0.8=100, 0.8-1.5=80, 1.5-2.5=55, 2.5-3.5=25, >3.5=5',
@@ -80,11 +80,11 @@ function buildOnChainPrompt(stats: BlockchainStats | null, btcPrice: number): st
     '  Bullish whale behavior (accumulation, low exchange deposits)=70-95',
     '  Neutral=50, Bearish whale behavior (distribution, high exchange deposits)=5-35',
     '',
-    '=== STEP 3 — COMPOSITE ===',
+    '=== STEP 3 - COMPOSITE ===',
     'composite_score = round(valuation_score*0.30 + activity_score*0.25 + capital_flow_score*0.25 + whale_score*0.20)',
     'verdict: composite>=65 → "BULLISH", composite<=40 → "BEARISH", else → "NEUTRAL"',
     '',
-    '=== OUTPUT — respond in EXACTLY this JSON, no markdown, no preamble ===',
+    '=== OUTPUT - respond in EXACTLY this JSON, no markdown, no preamble ===',
     '{',
     '  "mvrv": <number or null>,',
     '  "mvrv_source": "<site/account name>",',
@@ -113,7 +113,7 @@ export async function GET(req: NextRequest) {
   const { data: authData } = await sb(token).auth.getUser();
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Pro-only feature — checked server-side so the paid Grok call can't be
+  // Pro-only feature - checked server-side so the paid Grok call can't be
   // reached by skipping the client gate.
   const role = await getUserRole(token, authData.user.id);
   if (role !== 'pro') {

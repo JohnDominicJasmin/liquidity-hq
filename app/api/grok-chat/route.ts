@@ -1,14 +1,14 @@
 /**
  * Server-side proxy for the free-form Grok Chat component.
- * Requires valid Supabase session token — keeps GROK_API_KEY off the client.
+ * Requires valid Supabase session token - keeps GROK_API_KEY off the client.
  *
  * POST /api/grok-chat
  *   { mode: 'chat',   model, messages, max_tokens }  → /v1/chat/completions
  *   { mode: 'search', model, input, tools }           → /v1/responses  (live web + X search)
  *
  * Daily limits (resets midnight UTC):
- *   Free — 15 chat  + 5  search
- *   Pro  — 100 chat + 25 search
+ *   Free - 15 chat  + 5  search
+ *   Pro  - 100 chat + 25 search
  */
 
 import { NextRequest, NextResponse } from 'next/server';

@@ -6,7 +6,7 @@ import { detectEMASignals, DEFAULT_FILTER_PARAMS, OHLCV } from '@/lib/strategyCo
 
 export const dynamic = 'force-dynamic';
 
-// Live outcome tracking — majors only, 1h + 4h, using the default (raw signal) filter
+// Live outcome tracking - majors only, 1h + 4h, using the default (raw signal) filter
 // validated in the backtest. Runs on a schedule: detects newly-confirmed EMA Ribbon signals using
 // the exact same shared detectEMASignals core the Arena chart and backtest engine use,
 // logs them, then checks previously-logged open signals against current price to
@@ -69,7 +69,7 @@ async function runTracking(): Promise<{ logged: string[]; resolved: string[]; er
         const latest = [...signalLongs, ...signalShorts].sort((a, b) => b.timestamp - a.timestamp)[0];
         if (!latest) continue;
 
-        // Skip stale history — only log if the confirmation happened recently (within
+        // Skip stale history - only log if the confirmation happened recently (within
         // ~2 candles), so the first-ever run doesn't backfill the whole fetched window.
         if (Date.now() - latest.timestamp > TF_MS[tf] * 2) continue;
 
@@ -80,7 +80,7 @@ async function runTracking(): Promise<{ logged: string[]; resolved: string[]; er
           anti_chop_enabled: true,
         });
         // The (coin,tf,dir,signal_time) unique constraint rejects re-detection of the
-        // same signal on a later run — that's expected, not an error worth surfacing.
+        // same signal on a later run - that's expected, not an error worth surfacing.
         if (!error) logged.push(`${coin}/${tf}/${latest.dir}`);
       } catch (err) {
         errors.push(`${coin}/${tf}: ${String(err)}`);
@@ -94,7 +94,7 @@ async function runTracking(): Promise<{ logged: string[]; resolved: string[]; er
     .select('id, coin, tf, dir, entry_price, sl, tp, signal_time')
     .eq('outcome', 'open');
 
-  // Each signal resolves independently (different coin/tf/id) — run them
+  // Each signal resolves independently (different coin/tf/id) - run them
   // concurrently instead of one sequential DB round-trip after another.
   await Promise.all(((openSignals ?? []) as OpenRow[]).map(async sig => {
     try {
@@ -139,11 +139,11 @@ export async function GET(req: Request) {
     if (auth !== secret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Safety net — never exceed Render's 30s request limit, same pattern as the
+  // Safety net - never exceed Render's 30s request limit, same pattern as the
   // Telegram alert route.
   let timerId: ReturnType<typeof setTimeout>;
   const timeout = new Promise<NextResponse>(res => {
-    timerId = setTimeout(() => res(NextResponse.json({ ok: true, note: 'timeout — some checks skipped' })), 28_000);
+    timerId = setTimeout(() => res(NextResponse.json({ ok: true, note: 'timeout - some checks skipped' })), 28_000);
   });
   const result = await Promise.race([runTracking(), timeout]);
   clearTimeout(timerId!);

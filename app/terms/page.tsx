@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Terms of Use — LiquidityHQ' };
+export const metadata: Metadata = { title: 'Terms of Use' };
 
 const SECTIONS = [
   {
@@ -25,7 +25,7 @@ const SECTIONS = [
   },
   {
     title: 'Intellectual Property',
-    body: 'All content, features, and functionality on LiquidityHQ — including but not limited to text, graphics, signals, scoring algorithms, and software — are the exclusive property of LiquidityHQ and its licensors. You may not reproduce, distribute, or create derivative works without express written permission.',
+    body: 'All content, features, and functionality on LiquidityHQ - including but not limited to text, graphics, signals, scoring algorithms, and software - are the exclusive property of LiquidityHQ and its licensors. You may not reproduce, distribute, or create derivative works without express written permission.',
   },
   {
     title: 'Third-Party Data and Services',

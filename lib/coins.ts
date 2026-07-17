@@ -21,7 +21,7 @@ export const COINS: CoinId[] = [
   'xau', 'spx',
 ];
 
-// Binance perp futures symbols — pepe/bonk/hype/xau/spx excluded (Bybit-only)
+// Binance perp futures symbols - pepe/bonk/hype/xau/spx excluded (Bybit-only)
 export const BINANCE_SYMS: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
   xrp: 'XRPUSDT', bnb: 'BNBUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
@@ -37,11 +37,11 @@ export const BINANCE_SYMS: Record<string, string> = {
   tao: 'TAOUSDT', fet: 'FETUSDT',
   ondo: 'ONDOUSDT', pyth: 'PYTHUSDT', ena: 'ENAUSDT', dydx: 'DYDXUSDT',
   sand: 'SANDUSDT', mana: 'MANAUSDT', gmt: 'GMTUSDT',
-  // pepe/bonk: Binance uses 1000x denomination — kept Bybit-only to avoid display confusion
+  // pepe/bonk: Binance uses 1000x denomination - kept Bybit-only to avoid display confusion
   // hype/xau/spx: Bybit-only perps
 };
 
-// Bybit linear perp symbols — includes all coins + 1000x meme coins + synthetics
+// Bybit linear perp symbols - includes all coins + 1000x meme coins + synthetics
 export const BYBIT_SYMS: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
   xrp: 'XRPUSDT', bnb: 'BNBUSDT', hype: 'HYPEUSDT', near: 'NEARUSDT', sui: 'SUIUSDT',
@@ -56,7 +56,7 @@ export const BYBIT_SYMS: Record<string, string> = {
   gmx: 'GMXUSDT', crv: 'CRVUSDT',
   stx: 'STXUSDT', jup: 'JUPUSDT', wld: 'WLDUSDT', render: 'RENDERUSDT',
   tao: 'TAOUSDT',
-  // fet: Binance-only — Bybit does not list FETUSDT as a linear perp
+  // fet: Binance-only - Bybit does not list FETUSDT as a linear perp
   ondo: 'ONDOUSDT', pyth: 'PYTHUSDT', ena: 'ENAUSDT', dydx: 'DYDXUSDT',
   sand: 'SANDUSDT', mana: 'MANAUSDT', gmt: 'GMTUSDT',
   xau: 'XAUUSDT', spx: 'SPXUSDT',

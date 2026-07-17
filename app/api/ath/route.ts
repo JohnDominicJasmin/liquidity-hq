@@ -24,7 +24,7 @@ const CG_IDS: Record<string, string> = {
 export interface AthEntry {
   ath: number;
   athDate: string;
-  drawdownPct: number; // negative — how far below ATH current price is
+  drawdownPct: number; // negative - how far below ATH current price is
 }
 
 export async function GET(req: NextRequest) {

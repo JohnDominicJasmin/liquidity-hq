@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 
-/* ── Binance futures combined aggTrade stream — Binance-listed coins only (HYPE is Bybit-only) ── */
+/* ── Binance futures combined aggTrade stream - Binance-listed coins only (HYPE is Bybit-only) ── */
 const SYMBOLS = ['btcusdt','ethusdt','solusdt','xrpusdt','bnbusdt','nearusdt','suiusdt'];
 
 const COIN_MAP: Record<string, string> = {
@@ -12,9 +12,9 @@ const COIN_MAP: Record<string, string> = {
 const STREAMS  = SYMBOLS.map(s => `${s}@aggTrade`).join('/');
 const WS_URL   = `wss://fstream.binance.com/stream?streams=${STREAMS}`;
 
-const MIN_USD  = 50_000;      // $50K  — large trade threshold
-const BIG_USD  = 200_000;     // $200K — whale
-const MEGA_USD = 1_000_000;   // $1M   — mega whale
+const MIN_USD  = 50_000;      // $50K  - large trade threshold
+const BIG_USD  = 200_000;     // $200K - whale
+const MEGA_USD = 1_000_000;   // $1M   - mega whale
 const FEED_MAX = 30;
 const STATS_WIN = 60 * 60 * 1000; // 1h
 
@@ -157,9 +157,9 @@ export default function WhaleTradesFeed() {
       )}
       {totalUsd > 0 && (
         <div className="wf-bias-label">
-          {netBull && <span style={{ color: '#22d3ee' }}>Whales net buying — institutional accumulation</span>}
-          {netBear && <span style={{ color: '#f97316' }}>Whales net selling — institutional distribution</span>}
-          {!netBull && !netBear && <span style={{ color: 'var(--txt3)' }}>Balanced whale flow — watching both sides</span>}
+          {netBull && <span style={{ color: '#22d3ee' }}>Whales net buying - institutional accumulation</span>}
+          {netBear && <span style={{ color: '#f97316' }}>Whales net selling - institutional distribution</span>}
+          {!netBull && !netBear && <span style={{ color: 'var(--txt3)' }}>Balanced whale flow - watching both sides</span>}
         </div>
       )}
 

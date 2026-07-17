@@ -9,13 +9,13 @@ interface HVData {
 }
 
 const REGIME_META = {
-  low:     { label: 'Low Vol',  col: '#34d399', bg: 'rgba(52,211,153,0.10)',  bdr: 'rgba(52,211,153,0.3)',  hint: 'Build positions — volatility likely to expand' },
+  low:     { label: 'Low Vol',  col: '#34d399', bg: 'rgba(52,211,153,0.10)',  bdr: 'rgba(52,211,153,0.3)',  hint: 'Build positions - volatility likely to expand' },
   neutral: { label: 'Normal',   col: '#fbbf24', bg: 'rgba(251,191,36,0.10)',  bdr: 'rgba(251,191,36,0.3)',  hint: 'Standard position sizing' },
   high:    { label: 'High Vol', col: '#f87171', bg: 'rgba(248,113,113,0.10)', bdr: 'rgba(248,113,113,0.3)', hint: 'Reduce exposure or hedge' },
 };
 
 const CACHE_KEY = 'lhq_vol_regime';
-const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours — daily data barely changes
+const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours - daily data barely changes
 
 function calcHV(symbol: string): Promise<HVData | null> {
   return fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&limit=152`)
@@ -157,7 +157,7 @@ export default function VolatilityRegime() {
         fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
         letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 2,
       }}>
-        <Tip width={300} text="Historical Volatility (HV) measures how much price has moved over the past 30 days, annualized. The percentile shows where today's HV sits vs. the past ~120 days. Low vol historically precedes expansion — volatility mean-reverts. High vol means the market is already moving hard: size down or hedge.">
+        <Tip width={300} text="Historical Volatility (HV) measures how much price has moved over the past 30 days, annualized. The percentile shows where today's HV sits vs. the past ~120 days. Low vol historically precedes expansion - volatility mean-reverts. High vol means the market is already moving hard: size down or hedge.">
           Volatility Regime
         </Tip>
       </div>

@@ -57,7 +57,7 @@ export async function GET() {
     const raw: string[][] = json.result?.list ?? [];
     if (raw.length < 60) throw new Error('insufficient data');
 
-    // Bybit returns newest first — reverse to chronological
+    // Bybit returns newest first - reverse to chronological
     const candles = [...raw].reverse();
     const closes  = candles.map(c => parseFloat(c[4]));
 
@@ -162,7 +162,7 @@ export async function GET() {
       });
     }
 
-    // ── Signal 5: EMA alignment long (EMA9 > EMA20 > EMA50 — trend confirmation) ──
+    // ── Signal 5: EMA alignment long (EMA9 > EMA20 > EMA50 - trend confirmation) ──
     {
       let wins3 = 0, wins6 = 0, sumR3 = 0, sumR6 = 0, count = 0;
       for (let i = 51; i < closes.length - 6; i++) {

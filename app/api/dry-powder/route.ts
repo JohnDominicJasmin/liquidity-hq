@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
-// DeFi Llama's stablecoin series only updates once a day — cache generously.
+// DeFi Llama's stablecoin series only updates once a day - cache generously.
 const CACHE_TTL = 60 * 60_000;
 
 function sb(token: string) {
@@ -43,7 +43,7 @@ function buildPrompt(current: number, prev30: number, prev90: number): string {
     '',
     'Output using EXACTLY these headers:',
     'SIGNAL:',
-    '[One of: EXPANDING, CONTRACTING, or NEUTRAL — followed by a colon and a one-sentence reason on the same line]',
+    '[One of: EXPANDING, CONTRACTING, or NEUTRAL - followed by a colon and a one-sentence reason on the same line]',
     'NARRATIVE:',
     '[2-3 sentences explaining what this trend means for crypto prices over the next 2-4 weeks]',
     'KEY_LEVEL:',

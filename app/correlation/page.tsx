@@ -98,7 +98,7 @@ function altSignal(avg: number | null): AltSig {
   if (avg < 0.30)  return {
     label: 'Alt Season Conditions',
     color: '#34d399', bg: 'rgba(52,211,153,0.08)',
-    desc: `BTC-alt avg correlation is ${avg.toFixed(2)} — very low. Altcoins are moving independently from BTC. This is when alts can outperform BTC significantly. Rotate into high-conviction alt setups.`,
+    desc: `BTC-alt avg correlation is ${avg.toFixed(2)} - very low. Altcoins are moving independently from BTC. This is when alts can outperform BTC significantly. Rotate into high-conviction alt setups.`,
   };
   if (avg < 0.55)  return {
     label: 'Mixed Market',
@@ -108,12 +108,12 @@ function altSignal(avg: number | null): AltSig {
   if (avg < 0.75)  return {
     label: 'BTC Leading',
     color: '#d4b483', bg: 'rgba(212,180,131,0.06)',
-    desc: `High BTC-alt correlation (${avg.toFixed(2)}). BTC is dragging most alts. Get BTC direction right before trading alts — individual setups matter less when correlation is this high.`,
+    desc: `High BTC-alt correlation (${avg.toFixed(2)}). BTC is dragging most alts. Get BTC direction right before trading alts - individual setups matter less when correlation is this high.`,
   };
   return {
-    label: 'BTC Dominance — Alts Lockstep',
+    label: 'BTC Dominance - Alts Lockstep',
     color: '#f87171', bg: 'rgba(248,113,113,0.07)',
-    desc: `Very high BTC-alt correlation (${avg.toFixed(2)}). Everything pumps and dumps with BTC. No independent alt edge right now — trade BTC or wait for correlation to break.`,
+    desc: `Very high BTC-alt correlation (${avg.toFixed(2)}). Everything pumps and dumps with BTC. No independent alt edge right now - trade BTC or wait for correlation to break.`,
   };
 }
 
@@ -283,10 +283,10 @@ export default function CorrelationHeatmap() {
                             transition: 'opacity 0.1s',
                             cursor: diag ? 'default' : 'crosshair',
                           }}
-                          title={diag ? COIN_LABELS[a] : `${COIN_LABELS[a]} / ${COIN_LABELS[b]}: ${r?.toFixed(2) ?? '—'}`}
+                          title={diag ? COIN_LABELS[a] : `${COIN_LABELS[a]} / ${COIN_LABELS[b]}: ${r?.toFixed(2) ?? '-'}`}
                           onMouseEnter={() => setHovered([i, j])}
                         >
-                          {diag ? '—' : r !== null ? r.toFixed(2) : '—'}
+                          {diag ? '-' : r !== null ? r.toFixed(2) : '-'}
                         </div>
                       );
                     })}
@@ -330,7 +330,7 @@ export default function CorrelationHeatmap() {
             <div className="lbl">
               Least Correlated Pairs
               <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>
-                — potential diversification
+                - potential diversification
               </span>
             </div>
             {weakest.map(({ a, b, r }) => (

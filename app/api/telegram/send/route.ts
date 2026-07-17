@@ -3,7 +3,7 @@ import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
-// This route has no auth gate — the app itself calls it unauthenticated for
+// This route has no auth gate - the app itself calls it unauthenticated for
 // dashboard-triggered alerts (CVD divergence, liquidation cascades, etc.), and
 // TELEGRAM_CHAT_ID is a single global destination (the owner's own chat), not
 // per-user. Without a rate limit + length cap, anyone who finds this URL could

@@ -77,9 +77,9 @@ export default function FundingCostCalc() {
         </div>
         <div style={{ marginTop: 8, fontSize: 11, color: 'var(--txt3)' }}>
           {rate > 0
-            ? 'Positive rate — longs pay shorts. You pay if long.'
+            ? 'Positive rate - longs pay shorts. You pay if long.'
             : rate < 0
-              ? 'Negative rate — shorts pay longs. You pay if short.'
+              ? 'Negative rate - shorts pay longs. You pay if short.'
               : 'Enter a funding rate to see who pays.'}
         </div>
       </div>
@@ -111,7 +111,7 @@ export default function FundingCostCalc() {
               ? { background: 'var(--red-bg)',   color: 'var(--red)',   border: '0.5px solid var(--red-bdr)'   }
               : { background: 'var(--green-bg)', color: 'var(--green)', border: '0.5px solid var(--green-bdr)' }
           }>
-            {isPaying ? '▼ PAYING' : '▲ RECEIVING'} funding — {result.payments} payment{result.payments !== 1 ? 's' : ''}
+            {isPaying ? '▼ PAYING' : '▲ RECEIVING'} funding - {result.payments} payment{result.payments !== 1 ? 's' : ''}
           </div>
           <div className="ps-results">
             <div className={`ps-result ${isPaying ? 'ps-result-danger' : 'ps-result-profit'}`}>
@@ -140,7 +140,7 @@ export default function FundingCostCalc() {
             </div>
           </div>
           {result.annualRate > 50 && isPaying && (
-            <div className="ps-warn"><Warn /> Annualized rate over 50% — funding is eating your position fast</div>
+            <div className="ps-warn"><Warn /> Annualized rate over 50% - funding is eating your position fast</div>
           )}
         </>
       ) : (

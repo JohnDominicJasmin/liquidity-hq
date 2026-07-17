@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 const DISCLOSURES = [
   {
     label: 'Educational Use',
-    text: 'All content — signals, scores, alerts, and AI commentary — is for informational purposes only. Nothing constitutes a recommendation to buy, sell, or hold any asset.',
+    text: 'All content - signals, scores, alerts, and AI commentary - is for informational purposes only. Nothing constitutes a recommendation to buy, sell, or hold any asset.',
   },
   {
     label: 'Trading Risk',
@@ -18,7 +18,7 @@ const DISCLOSURES = [
   },
   {
     label: 'AI Analysis',
-    text: 'LiquidityAI is powered by xAI Grok. AI output can be incomplete, outdated, or wrong — never use it as your sole basis for a trade. Always verify against the raw data shown.',
+    text: 'LiquidityAI is powered by xAI Grok. AI output can be incomplete, outdated, or wrong - never use it as your sole basis for a trade. Always verify against the raw data shown.',
   },
   {
     label: 'Data Sources',
@@ -38,7 +38,7 @@ export default function PlatformFooter() {
   return (
     <footer className="pf-footer">
 
-      {/* Top row — brand + nav */}
+      {/* Top row - brand + nav */}
       <div className="pf-footer-top">
         <div className="pf-footer-brand">
           <span className="pf-footer-logo">LiquidityHQ</span>
@@ -58,8 +58,8 @@ export default function PlatformFooter() {
         <div className="pf-footer-divider-line" />
       </div>
 
-      {/* Unmissable financial disclaimer — exact required wording. Always shown,
-          never gated behind the expand toggle below — only the elaborating
+      {/* Unmissable financial disclaimer - exact required wording. Always shown,
+          never gated behind the expand toggle below - only the elaborating
           6-item grid is collapsible (audit item #8: that grid repeated on
           every single page was a big scroll footprint on mobile). */}
       <p className="pf-footer-disclaimer">

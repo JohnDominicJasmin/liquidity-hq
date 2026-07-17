@@ -1,6 +1,6 @@
 /**
  * Server-side proxy for CORS-restricted external APIs.
- * Replaces client-side corsproxy.io calls — no CORS issues server-side.
+ * Replaces client-side corsproxy.io calls - no CORS issues server-side.
  *
  * GET /api/proxy?type=coinglass-flow     → Coinglass BTC exchange net flow
  * GET /api/proxy?type=coinglass-liq      → Coinglass BTC liquidation levels
@@ -13,7 +13,7 @@ import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
 
 // Google Trends' 7-day bitcoin score barely moves hour to hour, and the
-// unofficial endpoint blocks aggressively under repeated hits — cache long.
+// unofficial endpoint blocks aggressively under repeated hits - cache long.
 const TRENDS_TTL = 60 * 60_000;
 
 export async function GET(req: NextRequest) {
@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
             signal: AbortSignal.timeout(8000),
           });
 
-          // Google blocked / rate-limited — throw so this failure isn't cached
+          // Google blocked / rate-limited - throw so this failure isn't cached
           if (!exploreRes.ok) throw new Error('trends explore blocked');
 
           const raw1 = await exploreRes.text();
@@ -98,14 +98,14 @@ export async function GET(req: NextRequest) {
         });
         return NextResponse.json(json);
       } catch {
-        // Google Trends blocked / timed out — return empty, never 500, never cached
+        // Google Trends blocked / timed out - return empty, never 500, never cached
         return NextResponse.json(EMPTY);
       }
     }
 
     /* ── SoSoValue: BTC + ETH spot ETF net flows ── */
     if (type === 'etf') {
-      /* sosovalue.xyz is dead — try sosovalue.com with browser headers.
+      /* sosovalue.xyz is dead - try sosovalue.com with browser headers.
          Server-side (Render) requests often bypass 403 blocks that hit headless clients. */
       const SSV_HEADERS = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',

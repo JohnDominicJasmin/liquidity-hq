@@ -1,6 +1,6 @@
 /**
  * Typed PostHog event helpers.
- * Import `track` anywhere — safely no-ops on SSR and before init.
+ * Import `track` anywhere - safely no-ops on SSR and before init.
  */
 import posthog from 'posthog-js';
 
@@ -34,7 +34,7 @@ export const track = {
   signOut: () =>
     capture('sign_out'),
 
-  /** Page navigation (called from PostHogProvider — don't call manually) */
+  /** Page navigation (called from PostHogProvider - don't call manually) */
   pageView: (url: string) =>
     capture('$pageview', { $current_url: url }),
 };

@@ -30,7 +30,7 @@ const PRO_FEATURES = [
   'Confluence Score, Order Flow, and Absorption Detector',
   'Full strategy backtesting',
   'On-chain and global macro AI analysis',
-  'Telegram alerts — all signal types',
+  'Telegram alerts - all signal types',
   'Unlimited price alerts',
   '50 Quick + 25 Deep AI analyses / day',
   '100 AI chat messages + 25 live searches / day',
@@ -134,7 +134,7 @@ export default function UpgradePage() {
                 onMouseEnter={e => { if (!redirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
               >
-                {redirecting ? 'Redirecting to checkout…' : 'Get Pro — $15/mo →'}
+                {redirecting ? 'Redirecting to checkout…' : 'Get Pro - $15/mo →'}
               </button>
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
                 {['Cancel anytime', 'Instant access', 'Secure checkout'].map(t => (

@@ -4,7 +4,7 @@ import { cached } from '@/lib/apiCache';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // Vesting schedules don't change hour to hour, and every visitor checking the
-// same symbol gets an identical Grok answer — cache per symbol.
+// same symbol gets an identical Grok answer - cache per symbol.
 const CACHE_TTL = 6 * 60 * 60_000;
 
 function sb(token: string) {

@@ -56,59 +56,59 @@ function frSignal(r: number): FRSignal {
   const p = r * 100;
   if (p >= 0.05)  return {
     crowd: 'Longs Overcrowded', hint: 'Short on weakness',
-    label: 'Longs Overcrowded — Dump Risk',
+    label: 'Longs Overcrowded - Dump Risk',
     color: '#f87171', bg: 'rgba(248,113,113,0.09)',
     action: 'Avoid new longs. Look to short on weakness.',
-    desc: 'The market is extremely long-heavy. Traders are paying 0.05%+ every 8h just to stay long — they are overleveraged. Whales have maximum incentive to dump price and mass-liquidate these longs. High probability of a violent raid in the next 1–3 sessions.',
+    desc: 'The market is extremely long-heavy. Traders are paying 0.05%+ every 8h just to stay long - they are overleveraged. Whales have maximum incentive to dump price and mass-liquidate these longs. High probability of a violent raid in the next 1–3 sessions.',
   };
   if (p >= 0.02)  return {
     crowd: 'Longs Heavy', hint: 'Reduce longs',
-    label: 'Longs Heavy — Elevated Dump Risk',
+    label: 'Longs Heavy - Elevated Dump Risk',
     color: '#fb923c', bg: 'rgba(251,146,60,0.08)',
     action: 'Reduce long exposure. Consider short entries.',
-    desc: 'The market is significantly long-heavy. Every 8-hour settlement, longs are bleeding fees to hold their position. This builds pressure for a flush — the crowd is positioned for a pump, which makes a dump more likely.',
+    desc: 'The market is significantly long-heavy. Every 8-hour settlement, longs are bleeding fees to hold their position. This builds pressure for a flush - the crowd is positioned for a pump, which makes a dump more likely.',
   };
   if (p >= 0.01)  return {
     crowd: 'Longs Dominant', hint: 'Trade carefully',
-    label: 'Long Bias — Watch for FR Spike',
+    label: 'Long Bias - Watch for FR Spike',
     color: '#fbbf24', bg: 'rgba(251,191,36,0.07)',
     action: 'Trade cautiously. Exit if FR keeps climbing.',
     desc: 'More longs than shorts in the market. Not dangerous yet, but trending toward overload. If funding rate keeps rising above 0.02%, exit or hedge your long exposure.',
   };
   if (p > 0.003)  return {
     crowd: 'Slight Long Bias', hint: 'No clear edge',
-    label: 'Slight Long Bias — No Clear Edge',
+    label: 'Slight Long Bias - No Clear Edge',
     color: '#d4b483', bg: 'rgba(212,180,131,0.06)',
     action: 'No derivatives edge. Trade based on price action.',
     desc: 'Mildly more longs than shorts, but not enough to create a squeeze or dump setup. Price movement here is driven by spot buying and selling, not derivatives pressure.',
   };
   if (p >= -0.003) return {
     crowd: 'Balanced', hint: 'No clear edge',
-    label: 'Neutral — No Derivatives Edge',
+    label: 'Neutral - No Derivatives Edge',
     color: '#a0a0a0', bg: 'rgba(255,255,255,0.04)',
     action: 'Wait for a clearer FR signal.',
-    desc: 'Longs and shorts are balanced. Nobody is paying a significant premium to hold their position. The derivatives market is not a driver right now — focus on chart structure and spot flow.',
+    desc: 'Longs and shorts are balanced. Nobody is paying a significant premium to hold their position. The derivatives market is not a driver right now - focus on chart structure and spot flow.',
   };
   if (p >= -0.01)  return {
     crowd: 'Shorts Dominant', hint: 'Watch for squeeze',
-    label: 'Shorts Dominant — Squeeze Pressure Building',
+    label: 'Shorts Dominant - Squeeze Pressure Building',
     color: '#86efac', bg: 'rgba(134,239,172,0.07)',
     action: 'Slight bullish lean. Small long positions on dips.',
-    desc: 'More shorts than longs in the market. Shorts are paying longs every 8h to hold their position. Mild squeeze pressure is building — not actionable yet, but watch for FR going deeper negative.',
+    desc: 'More shorts than longs in the market. Shorts are paying longs every 8h to hold their position. Mild squeeze pressure is building - not actionable yet, but watch for FR going deeper negative.',
   };
   if (p >= -0.03)  return {
     crowd: 'Shorts Crowded', hint: 'Buy dips',
-    label: 'Shorts Crowded — Squeeze Setup',
+    label: 'Shorts Crowded - Squeeze Setup',
     color: '#34d399', bg: 'rgba(52,211,153,0.09)',
     action: 'Look for long entries on dips. Do NOT short here.',
-    desc: 'The market is heavily positioned short. Shorts are paying longs every 8 hours just to hold their position — they are the fuel for the next pump. Whales can push price up to mass-liquidate these shorts and collect their money. This is a squeeze setup, not a short signal.',
+    desc: 'The market is heavily positioned short. Shorts are paying longs every 8 hours just to hold their position - they are the fuel for the next pump. Whales can push price up to mass-liquidate these shorts and collect their money. This is a squeeze setup, not a short signal.',
   };
   return {
     crowd: 'Shorts Overcrowded', hint: 'Size up longs',
-    label: 'Shorts Overcrowded — High Squeeze Risk',
+    label: 'Shorts Overcrowded - High Squeeze Risk',
     color: '#34d399', bg: 'rgba(52,211,153,0.13)',
     action: 'Strong long setup. Do NOT short. Size up on dips.',
-    desc: 'Extreme short crowding — traders are paying 0.03%+ every 8h just to stay short. This is unsustainable. Historically, this level of negative funding precedes a violent squeeze pump as whales push price up to liquidate the overleveraged shorts.',
+    desc: 'Extreme short crowding - traders are paying 0.03%+ every 8h just to stay short. This is unsustainable. Historically, this level of negative funding precedes a violent squeeze pump as whales push price up to liquidate the overleveraged shorts.',
   };
 }
 
@@ -356,7 +356,7 @@ export default function FundingHistory() {
         <div className="mb-subtitle">8-hour settlement · red above zero = longs paying · green below = shorts paying</div>
       </div>
 
-      {/* FR Regime Overview — live data from market store, no history needed */}
+      {/* FR Regime Overview - live data from market store, no history needed */}
       {(() => {
         const liveCoins = COINS.map(id => {
           const fr = store.coins[id]?.fundingRate;
@@ -429,7 +429,7 @@ export default function FundingHistory() {
 
             {arbs.length > 0 && (
               <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 8, paddingTop: 6, borderTop: '0.5px solid var(--bdr)' }}>
-                Carry Arb: annualized rate exceeds ~40% (|FR| greater than 0.03%/8h) — long spot + short perp captures the premium delta-neutral.
+                Carry Arb: annualized rate exceeds ~40% (|FR| greater than 0.03%/8h) - long spot + short perp captures the premium delta-neutral.
               </div>
             )}
           </div>
@@ -448,7 +448,7 @@ export default function FundingHistory() {
           </button>
         ))}
         <span style={{ fontSize: 10, color: 'var(--txt3)', marginLeft: 4, alignSelf: 'center', opacity: 0.6 }}>
-          — avg column · sparklines · chart
+          - avg column · sparklines · chart
         </span>
       </div>
 
@@ -542,10 +542,10 @@ export default function FundingHistory() {
                             {COIN_LABELS[id]}
                           </td>
                           <td style={{ color: current != null ? frColor(current) : 'var(--txt3)', fontWeight: 700 }}>
-                            {current != null ? frFmt(current) : '—'}
+                            {current != null ? frFmt(current) : '-'}
                           </td>
                           <td style={{ color: stats ? frColor(stats.avg) : 'var(--txt3)' }}>
-                            {stats ? frFmt(stats.avg) : '—'}
+                            {stats ? frFmt(stats.avg) : '-'}
                           </td>
                           <td>
                             {current != null
@@ -558,7 +558,7 @@ export default function FundingHistory() {
                                     </span>
                                   );
                                 })()
-                              : <span style={{ color: 'var(--txt3)', fontSize: 11 }}>—</span>
+                              : <span style={{ color: 'var(--txt3)', fontSize: 11 }}>-</span>
                             }
                           </td>
                           <td className="frh-spark-cell">

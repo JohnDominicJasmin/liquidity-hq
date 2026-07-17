@@ -100,7 +100,7 @@ export default function RiskRewardCalc() {
               ? { background: 'var(--green-bg)', color: 'var(--green)', border: '0.5px solid var(--green-bdr)' }
               : { background: 'var(--red-bg)',   color: 'var(--red)',   border: '0.5px solid var(--red-bdr)'   }
           }>
-            {result.isLong ? '▲ LONG' : '▼ SHORT'} — {result.rr.toFixed(2)}R setup
+            {result.isLong ? '▲ LONG' : '▼ SHORT'} - {result.rr.toFixed(2)}R setup
           </div>
           <div className="ps-results">
             <div className={`ps-result ${result.rr >= 2 ? 'ps-result-profit' : result.rr < 1.5 ? 'ps-result-danger' : ''}`}>
@@ -127,14 +127,14 @@ export default function RiskRewardCalc() {
             </div>
           </div>
           {result.rr < 1.5 && (
-            <div className="ps-warn"><Warn /> R:R below 1.5 — not worth taking unless win rate is very high</div>
+            <div className="ps-warn"><Warn /> R:R below 1.5 - not worth taking unless win rate is very high</div>
           )}
           {result.ev < 0 && (
-            <div className="ps-warn"><Warn /> Negative expected value at {winRate}% win rate — skip this trade</div>
+            <div className="ps-warn"><Warn /> Negative expected value at {winRate}% win rate - skip this trade</div>
           )}
           {result.rr >= 2 && result.ev > 0 && (
             <div style={{ background: 'var(--green-bg)', border: '0.5px solid var(--green-bdr)', borderRadius: 8, padding: '8px 12px', fontSize: 11, color: 'var(--green)', marginBottom: 8 }}>
-              ✓ Positive expected value with {result.rr.toFixed(2)}R — good setup
+              ✓ Positive expected value with {result.rr.toFixed(2)}R - good setup
             </div>
           )}
         </>

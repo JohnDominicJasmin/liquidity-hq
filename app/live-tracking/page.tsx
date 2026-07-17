@@ -51,7 +51,7 @@ export default function LiveTrackingPage() {
         .from(T.live_signals)
         .select('*')
         .order('signal_time', { ascending: true })
-        .limit(5000); // safety cap — this table grows continuously via the tracking cron
+        .limit(5000); // safety cap - this table grows continuously via the tracking cron
       if (cancelled) return;
       if (err) setError(err.message);
       else setRows(data as LiveSignalRow[]);
@@ -76,7 +76,7 @@ export default function LiveTrackingPage() {
       <div className="mb-header">
         <h1 className="mb-title">Live Outcome Tracking</h1>
         <div className="mb-subtitle">
-          Real EMA Ribbon signals (default filter, majors, 1h + 4h) as they actually fired — not a replay.
+          Real EMA Ribbon signals (default filter, majors, 1h + 4h) as they actually fired - not a replay.
           Complements the historical backtest by validating the strategy against current market conditions.
         </div>
       </div>
@@ -86,7 +86,7 @@ export default function LiveTrackingPage() {
 
       {!loading && !error && rows && rows.length === 0 && (
         <div style={{ fontSize: 12, opacity: 0.5, padding: '20px 0' }}>
-          No signals logged yet — this page populates as the live tracker detects and resolves real EMA Ribbon signals over time.
+          No signals logged yet - this page populates as the live tracker detects and resolves real EMA Ribbon signals over time.
         </div>
       )}
 

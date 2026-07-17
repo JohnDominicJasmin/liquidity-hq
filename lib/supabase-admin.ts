@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Server-side only — uses service role key, bypasses RLS.
+// Server-side only - uses service role key, bypasses RLS.
 // Never import this in client components.
 export function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

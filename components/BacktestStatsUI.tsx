@@ -1,5 +1,5 @@
 'use client';
-// Shared display components for strategy validation stats — used by both the
+// Shared display components for strategy validation stats - used by both the
 // historical backtest page and the live outcome tracking page so the two stay
 // visually comparable.
 

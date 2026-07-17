@@ -1,4 +1,4 @@
-// Shared server-side subscription-role lookup — extracted from what was three
+// Shared server-side subscription-role lookup - extracted from what was three
 // separate copy-pasted copies (grok, grok-chat, briefing routes). Reads through
 // a user-scoped Supabase client (RLS: "sub_select_own") so a token can only
 // ever read its own role, never someone else's.
@@ -24,7 +24,7 @@ export async function getUserRole(token: string, userId: string): Promise<Role> 
 }
 
 // Resolves the bearer token straight to a role, returning 'free' for any
-// missing/invalid/anonymous token rather than throwing — callers gate on the
+// missing/invalid/anonymous token rather than throwing - callers gate on the
 // returned role, not on whether this function succeeded.
 export async function getRoleFromRequestToken(token: string | null): Promise<Role> {
   if (!token) return 'free';

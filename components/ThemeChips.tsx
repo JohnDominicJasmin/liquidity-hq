@@ -2,7 +2,7 @@
 import { useTheme } from '@/lib/theme';
 import { IconSun, IconMoon } from './icons';
 
-/** Dark/Light chip selector — shared by the Settings page (logged-out and
+/** Dark/Light chip selector - shared by the Settings page (logged-out and
     logged-in views) and the Settings modal, which used to each hand-roll
     the same data-theme/localStorage/theme-change logic separately. */
 export default function ThemeChips() {

@@ -21,11 +21,11 @@ function calcWallProximity(
   const pct = Math.abs(nearest.price - price) / price * 100;
 
   let wallScore = 0; let wallLabel = '';
-  if      (pct <= 0.5)  { wallScore = 30; wallLabel = `Wall ${pct.toFixed(2)}% away — tight`; }
-  else if (pct <= 1.0)  { wallScore = 22; wallLabel = `Wall ${pct.toFixed(2)}% away — close`; }
+  if      (pct <= 0.5)  { wallScore = 30; wallLabel = `Wall ${pct.toFixed(2)}% away - tight`; }
+  else if (pct <= 1.0)  { wallScore = 22; wallLabel = `Wall ${pct.toFixed(2)}% away - close`; }
   else if (pct <= 1.5)  { wallScore = 15; wallLabel = `Wall ${pct.toFixed(2)}% away`; }
-  else if (pct <= 2.5)  { wallScore =  8; wallLabel = `Wall ${pct.toFixed(2)}% away — far`; }
-  else                  { wallScore =  0; wallLabel = `Wall ${pct.toFixed(1)}% — too far`; }
+  else if (pct <= 2.5)  { wallScore =  8; wallLabel = `Wall ${pct.toFixed(2)}% away - far`; }
+  else                  { wallScore =  0; wallLabel = `Wall ${pct.toFixed(1)}% - too far`; }
 
   return { wallScore, wallLabel, wallPct: pct, hasWallData: true };
 }
@@ -83,7 +83,7 @@ function calcRPM(
   const total     = Math.min(100, Math.round((rawTotal / maxTotal) * 100));
   let col = 'col-low', barCl = 'bar-low', verdict = '', sub = '';
   if (total >= 80) { col = 'col-max'; barCl = 'bar-max'; verdict = 'Extreme raid conditions'; sub = 'All signals aligned. Whales are likely positioning RIGHT NOW. Have your cluster zones ready and stay glued to the heatmap.'; }
-  else if (total >= 60) { col = 'col-high'; barCl = 'bar-high'; verdict = 'High raid probability'; sub = 'Strong conditions for a liquidity hunt. Price is within range of a significant order wall — prime entry window.'; }
+  else if (total >= 60) { col = 'col-high'; barCl = 'bar-high'; verdict = 'High raid probability'; sub = 'Strong conditions for a liquidity hunt. Price is within range of a significant order wall - prime entry window.'; }
   else if (total >= 40) { col = 'col-med'; barCl = 'bar-med'; verdict = 'Moderate conditions'; sub = 'Some signals are aligned but not ideal. Only trade if a very bright, tight cluster is within 1.5% of price.'; }
   else { col = 'col-low'; barCl = 'bar-low'; verdict = 'Low raid probability'; sub = 'Conditions are not favourable right now. High chance of choppy fake moves. Best move is to stay in cash and wait.'; }
 
@@ -111,7 +111,7 @@ export default function RaidMeter() {
     return () => clearInterval(t);
   }, [fng, rpmFunding, price, bidWalls, askWalls]);
 
-  /* ── Ambient urgency state — body data-rpm-level drives global CSS glow ── */
+  /* ── Ambient urgency state - body data-rpm-level drives global CSS glow ── */
   useEffect(() => {
     document.body.dataset.rpmLevel = rpm.total >= 80 ? 'extreme' : rpm.total >= 60 ? 'high' : '';
     return () => { delete document.body.dataset.rpmLevel; };

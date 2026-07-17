@@ -8,7 +8,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   // Short human-readable name of the thing that was locked, e.g.
-  // "5 minute timeframe" or "Absorption Detector" — shown in the headline.
+  // "5 minute timeframe" or "Absorption Detector" - shown in the headline.
   feature?: string;
 }
 
@@ -61,7 +61,7 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
   const { user } = useAuth();
 
   // While LemonSqueezy checkout is not configured, getCheckoutUrl falls back
-  // to the signup page — a dead end for someone already signed in. Send
+  // to the signup page - a dead end for someone already signed in. Send
   // signed-in users to /upgrade instead (it explains payments are launching
   // soon), and signed-out users to signup with /upgrade as the destination.
   const checkoutConfigured = !!(

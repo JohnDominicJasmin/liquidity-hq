@@ -70,7 +70,7 @@ function RsiRow({ tf, rsi, bias, last }: { tf: string; rsi: number | null; bias:
         color: rsi == null ? 'var(--txt3)' : valColor(bias),
         fontFamily: 'var(--font-mono), monospace',
       }}>
-        {rsi != null ? rsi.toFixed(0) : '—'}
+        {rsi != null ? rsi.toFixed(0) : '-'}
       </span>
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <BiasBadge bias={bias} />
@@ -112,7 +112,7 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
     : verdict === 'bearish'
     ? 'RSI aligned bearish across timeframes. Momentum favors shorts.'
     : verdict === 'conflicting'
-    ? 'Higher and lower timeframes disagree. Stay out or reduce size — no clear edge.'
+    ? 'Higher and lower timeframes disagree. Stay out or reduce size - no clear edge.'
     : 'No clear directional bias across timeframes. Wait for RSI to pick a side.';
 
   return (
@@ -126,7 +126,7 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
             </Tip>
           </div>
           <div style={{ fontSize: 11, color: 'var(--txt3)' }}>
-            {coin.toUpperCase()} RSI direction — 15m · 1h · 4h
+            {coin.toUpperCase()} RSI direction - 15m · 1h · 4h
           </div>
         </div>
         <span style={{

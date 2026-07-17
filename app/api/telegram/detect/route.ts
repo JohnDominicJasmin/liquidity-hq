@@ -21,11 +21,11 @@ export async function GET() {
     }>;
   };
 
-  // Webhook mode active — getUpdates conflicts with it
+  // Webhook mode active - getUpdates conflicts with it
   if (!data.ok && data.error_code === 409) {
     return NextResponse.json({
       ok: false,
-      error: 'Send /start to the bot — it will reply with your Chat ID directly.',
+      error: 'Send /start to the bot - it will reply with your Chat ID directly.',
     });
   }
 

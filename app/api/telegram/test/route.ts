@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     const sb = makeSb(userToken);
     const { data: { user } } = await sb.auth.getUser();
     if (user) {
-      // Telegram alerts are Pro-only — don't send a reassuring "connected!"
+      // Telegram alerts are Pro-only - don't send a reassuring "connected!"
       // message to a free user whose real alerts will never arrive.
       const role = await getUserRole(userToken, user.id);
       if (role !== 'pro') {

@@ -142,7 +142,7 @@ export default function HypothesisTracker() {
         setCfError(e.error ?? 'Failed to save hypothesis');
       }
     } catch {
-      setCfError('Network error — please try again');
+      setCfError('Network error - please try again');
     } finally { setCfSaving(false); }
   };
 
@@ -263,7 +263,7 @@ export default function HypothesisTracker() {
 
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 4, fontWeight: 600 }}>
-              Thesis — What do you believe and why?
+              Thesis - What do you believe and why?
             </div>
             <textarea
               value={cfHypothesis}
@@ -276,14 +276,14 @@ export default function HypothesisTracker() {
 
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 4, fontWeight: 600 }}>
-              Acceptance Criteria — When is this confirmed?
+              Acceptance Criteria - When is this confirmed?
             </div>
             {cfCriteria.map((c, i) => (
               <input
                 key={i}
                 value={c}
                 onChange={e => setCfCriteria(prev => prev.map((x, j) => j === i ? e.target.value : x))}
-                placeholder={`Criterion ${i + 1} — e.g. "BTC closes above $72k on weekly"`}
+                placeholder={`Criterion ${i + 1} - e.g. "BTC closes above $72k on weekly"`}
                 style={{ ...inputStyle, marginBottom: 6 }}
               />
             ))}
@@ -540,7 +540,7 @@ export default function HypothesisTracker() {
                     <input
                       value={evSource}
                       onChange={e => setEvSource(e.target.value)}
-                      placeholder="Source (optional — e.g. Glassnode, X/Twitter, price action)"
+                      placeholder="Source (optional - e.g. Glassnode, X/Twitter, price action)"
                       style={{ ...inputStyle, marginBottom: 8 }}
                     />
                     <button

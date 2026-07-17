@@ -1,4 +1,4 @@
-// RSI divergence — a possible-reversal warning, distinct from the EMA ribbon's
+// RSI divergence - a possible-reversal warning, distinct from the EMA ribbon's
 // trend-continuation signal. The ribbon signal is a LAGGING confirmation (it
 // waits for price to prove itself); divergence is a LEADING exhaustion read
 // (momentum fading while price still pushes to a new extreme). The two are
@@ -32,12 +32,12 @@ interface Swing { index: number; price: number; rsi: number }
 export interface DivergenceEvent {
   index:       number;   // candle index of the second (confirming) swing
   timestamp:   number;
-  anchorPrice: number;   // the swing extreme itself — marker placement
+  anchorPrice: number;   // the swing extreme itself - marker placement
   dir:         'bullish' | 'bearish'; // bullish = possible reversal UP, bearish = possible reversal DOWN
   priorSwingIndex: number;
 }
 
-const SWING_LOOKBACK = 3; // bars either side — matches computeSRLevels' swing-pivot convention
+const SWING_LOOKBACK = 3; // bars either side - matches computeSRLevels' swing-pivot convention
 
 /** Local swing highs and lows over the whole candle array, each tagged with its RSI reading. */
 function findSwings(candles: OHLCV[], rsi: number[]): { highs: Swing[]; lows: Swing[] } {
@@ -57,8 +57,8 @@ function findSwings(candles: OHLCV[], rsi: number[]): { highs: Swing[]; lows: Sw
 
 /**
  * Compares each swing to the PREVIOUS swing of the same type:
- * - Bearish divergence: price makes a higher high, RSI makes a lower high — upside momentum fading.
- * - Bullish divergence: price makes a lower low, RSI makes a higher low — downside momentum fading.
+ * - Bearish divergence: price makes a higher high, RSI makes a lower high - upside momentum fading.
+ * - Bullish divergence: price makes a lower low, RSI makes a higher low - downside momentum fading.
  * One event per confirmed pair, at the later (confirming) swing.
  */
 export function detectRSIDivergence(candles: OHLCV[], period = 14): DivergenceEvent[] {

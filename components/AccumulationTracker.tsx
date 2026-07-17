@@ -20,42 +20,42 @@ interface AccumRow {
 function scoreCoin(id: CoinId, d: CoinData | undefined): AccumRow | null {
   if (!d?.price) return null;
   const chg = Math.abs(d.change ?? 0);
-  // Already moving hard — the accumulation window is over
+  // Already moving hard - the accumulation window is over
   if (chg > 3.5) return null;
 
   let score = 0;
   const reasons: string[] = [];
 
-  // 1 — Quiet price (max 20): the stealth ingredient
+  // 1 - Quiet price (max 20): the stealth ingredient
   if      (chg <= 1) { score += 20; reasons.push('Price flat'); }
   else if (chg <= 2) { score += 14; reasons.push('Price quiet'); }
   else               { score += 8; }
 
-  // 2 — Smart buying (max 30): someone absorbing sells / lifting offers
+  // 2 - Smart buying (max 30): someone absorbing sells / lifting offers
   if (d.cvdDivergence === 'bullish') { score += 18; reasons.push('CVD absorption'); }
   if (d.takerBuyRatio != null) {
     if      (d.takerBuyRatio >= 0.60) { score += 12; reasons.push(`${Math.round(d.takerBuyRatio * 100)}% taker buys`); }
     else if (d.takerBuyRatio >= 0.55) { score += 8;  reasons.push(`${Math.round(d.takerBuyRatio * 100)}% taker buys`); }
   }
 
-  // 3 — Positions building (max 20): open interest rising into flat price
+  // 3 - Positions building (max 20): open interest rising into flat price
   if      (d.oiTrend === 'strong_up') { score += 20; reasons.push('OI building'); }
   else if (d.oiTrend === 'weak_up')   { score += 10; reasons.push('OI drifting up'); }
 
-  // 4 — Crowd asleep (max 15): funding neutral-to-negative = longs not crowded yet
+  // 4 - Crowd asleep (max 15): funding neutral-to-negative = longs not crowded yet
   if (d.fundingRate != null) {
     const fr = d.fundingRate * 100;
     if (fr >= -0.03 && fr <= 0.01) { score += 15; reasons.push('Funding calm'); }
     else if (fr < -0.03)           { score += 10; reasons.push('Shorts paying'); }
   }
 
-  // 5 — Whales positioned (max 15): Binance top-trader dollar-weighted longs
+  // 5 - Whales positioned (max 15): Binance top-trader dollar-weighted longs
   if (d.bnWhaleLongRatio != null) {
     if      (d.bnWhaleLongRatio >= 0.55) { score += 15; reasons.push(`Whales ${Math.round(d.bnWhaleLongRatio * 100)}% long`); }
     else if (d.bnWhaleLongRatio >= 0.52) { score += 8;  reasons.push(`Whales ${Math.round(d.bnWhaleLongRatio * 100)}% long`); }
   }
 
-  // Bonus — volume waking up without a price move yet
+  // Bonus - volume waking up without a price move yet
   if (d.volRatio != null && d.volRatio >= 1.3) { score += 5; reasons.push(`Vol ${d.volRatio.toFixed(1)}x`); }
 
   return { id, score: Math.min(100, score), price: d.price, change: d.change ?? 0, reasons };
@@ -92,7 +92,7 @@ export default function AccumulationTracker() {
             Accumulation Tracker
           </Tip>
         </span>
-        <span style={{ fontSize: 10, color: 'var(--txt3)' }}>quiet coins being loaded — before the pump</span>
+        <span style={{ fontSize: 10, color: 'var(--txt3)' }}>quiet coins being loaded - before the pump</span>
       </div>
 
       {rows.length === 0 ? (

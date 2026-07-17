@@ -47,10 +47,12 @@ export default function PWAInstallPrompt() {
 
   return (
     <div style={{
+      // NEW-3 fix: was bottom-center, overlapping page content (landing
+      // feature card, arena chart) directly behind it. Bottom-left is clear
+      // of the Grok FAB and Setup Checklist pill, which both live bottom-right.
       position: 'fixed',
       bottom: 80,
-      left: '50%',
-      transform: 'translateX(-50%)',
+      left: 16,
       zIndex: 9000,
       background: 'var(--bg2)',
       border: '0.5px solid var(--bdr)',

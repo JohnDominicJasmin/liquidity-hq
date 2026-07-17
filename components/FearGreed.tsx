@@ -3,11 +3,11 @@ import { useMarket } from '@/lib/marketStore';
 import Tip from '@/components/Tip';
 
 const FNG_NOTES: Record<string, string> = {
-  'Extreme Fear':  'Whales accumulate — bounce raids likely',
-  'Fear':          'Retail nervous — watch squeeze setups',
-  'Neutral':       'No bias — follow cluster + funding',
-  'Greed':         'Longs overleveraged — dump risk',
-  'Extreme Greed': 'Everyone long — whale hunt imminent',
+  'Extreme Fear':  'Whales accumulate - bounce raids likely',
+  'Fear':          'Retail nervous - watch squeeze setups',
+  'Neutral':       'No bias - follow cluster + funding',
+  'Greed':         'Longs overleveraged - dump risk',
+  'Extreme Greed': 'Everyone long - whale hunt imminent',
 };
 
 function getScoreCls(v: number): string {

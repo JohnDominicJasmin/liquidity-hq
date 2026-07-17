@@ -6,23 +6,23 @@ import { useAuth } from './AuthProvider';
 const STEPS = [
   {
     title: 'Welcome to LiquidityHQ',
-    body: 'Your personal crypto trading intelligence hub. Live signals, AI analysis, and real-time alerts — all in one place. Let us show you around in 30 seconds.',
+    body: 'Your personal crypto trading intelligence hub. Live signals, AI analysis, and real-time alerts - all in one place. Let us show you around in 30 seconds.',
   },
   {
-    title: 'AI Arena — Your Trading Room',
+    title: 'AI Arena - Your Trading Room',
     body: '35 live signals, a professional chart, and one-click AI analysis. Select a coin, pick your timeframe, and let LiquidityAI score the setup.',
   },
   {
     title: 'Morning Briefing',
-    body: 'Start every trading day here. Funding rates, fear & greed, top movers, and an AI market outlook — everything you need before you open a position.',
+    body: 'Start every trading day here. Funding rates, fear & greed, top movers, and an AI market outlook - everything you need before you open a position.',
   },
   {
-    title: 'News — Sorted by Impact',
+    title: 'News - Sorted by Impact',
     body: 'Breaking macro, crypto, and geopolitical events filtered by market impact. Tap "Ask LiquidityAI" on any story to get instant trade implications.',
   },
   {
     title: 'Alerts Come to You',
-    body: "Connect Telegram once and alerts fire automatically — squeeze setups, whale trades, RSI extremes, and more. No need to watch the screen.",
+    body: "Connect Telegram once and alerts fire automatically - squeeze setups, whale trades, RSI extremes, and more. No need to watch the screen.",
   },
   {
     title: "You're Ready to Trade",

@@ -40,7 +40,7 @@ function buildThesisPrompt(
     'ASSUMPTION_CHECK:',
     '[For each assumption: state "HOLDS", "WEAKENED", or "INVALIDATED" followed by a colon and one sentence explaining the current status. One assumption per line.]',
     'THESIS_HEALTH:',
-    '[Overall 1-10 score. Format: "Score: X/10 — [one sentence justification]". 8-10 = thesis intact, 5-7 = concerns emerging, 1-4 = thesis breaking down]',
+    '[Overall 1-10 score. Format: "Score: X/10 - [one sentence justification]". 8-10 = thesis intact, 5-7 = concerns emerging, 1-4 = thesis breaking down]',
     'KEY_RISK:',
     '[The single biggest threat to this thesis right now in one sentence]',
     'RECOMMENDATION:',

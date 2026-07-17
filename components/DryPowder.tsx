@@ -119,7 +119,7 @@ export default function DryPowder() {
     <div style={{ padding: '12px 14px' }}>
       {/* Header */}
       <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 2 }}>
-        <Tip width={320} text="Tracks total stablecoin market cap (USDT, USDC, DAI, etc.) via DeFi Llama. Expansion means fresh capital entering crypto — bullish dry powder. Contraction means money leaving or already deployed. Grok provides the narrative context.">
+        <Tip width={320} text="Tracks total stablecoin market cap (USDT, USDC, DAI, etc.) via DeFi Llama. Expansion means fresh capital entering crypto - bullish dry powder. Contraction means money leaving or already deployed. Grok provides the narrative context.">
           Stablecoin Dry Powder
         </Tip>
       </div>

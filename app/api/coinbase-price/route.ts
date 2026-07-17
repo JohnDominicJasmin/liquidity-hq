@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
 
-// Coinbase Exchange public ticker — no auth required, no CORS issues from server
+// Coinbase Exchange public ticker - no auth required, no CORS issues from server
 const CB_TICKER = 'https://api.exchange.coinbase.com/products/BTC-USD/ticker';
-// Short TTL — still collapses concurrent visitor fan-out into one upstream
+// Short TTL - still collapses concurrent visitor fan-out into one upstream
 // call without the price visibly lagging.
 const CACHE_TTL = 5_000;
 

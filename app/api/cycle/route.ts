@@ -72,7 +72,7 @@ async function fetchCycle2024(): Promise<CyclePoint[]> {
   const candles = (d.result?.list as string[][] | undefined);
   if (!candles || candles.length === 0) return [];
 
-  // Bybit returns newest first — reverse to chronological
+  // Bybit returns newest first - reverse to chronological
   const sorted = [...candles].reverse();
   const halvingClose = parseFloat(sorted[0][4]);
   if (!halvingClose) return [];

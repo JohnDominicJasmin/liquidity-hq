@@ -117,13 +117,13 @@ function buildBriefingContext(
   });
 
   const jpyStatus = jpyUsd == null ? 'N/A'
-    : jpyUsd >= 160 ? `${jpyUsd.toFixed(2)} — DANGER ZONE (BOJ intervention risk, carry trade unwind can trigger BTC liquidations)`
-    : jpyUsd >= 158 ? `${jpyUsd.toFixed(2)} — WARNING (approaching 160 danger zone, watch BOJ signals)`
-    : `${jpyUsd.toFixed(2)} — Safe (below 158, carry trade stable)`;
+    : jpyUsd >= 160 ? `${jpyUsd.toFixed(2)} - DANGER ZONE (BOJ intervention risk, carry trade unwind can trigger BTC liquidations)`
+    : jpyUsd >= 158 ? `${jpyUsd.toFixed(2)} - WARNING (approaching 160 danger zone, watch BOJ signals)`
+    : `${jpyUsd.toFixed(2)} - Safe (below 158, carry trade stable)`;
 
   const lines = [
     `Time: ${phtTime} PHT`,
-    `Fear & Greed: ${store.fng ?? '?'} — ${store.fngLabel ?? '?'}`,
+    `Fear & Greed: ${store.fng ?? '?'} - ${store.fngLabel ?? '?'}`,
     `BTC Dominance: ${store.btcDom?.toFixed(1) ?? '?'}%`,
     `DXY: ${store.dxy?.toFixed(2) ?? '?'} (${store.dxyChg != null ? (store.dxyChg >= 0 ? '+' : '') + store.dxyChg.toFixed(2) : '?'}% 24h)`,
     `USD/JPY (Yen Watch): ${jpyStatus}`,
@@ -134,11 +134,11 @@ function buildBriefingContext(
 
   for (const { id, c } of coinRows) {
     if (!c) continue;
-    const chg = c.change != null ? (c.change >= 0 ? '+' : '') + c.change.toFixed(2) + '%' : '—';
-    const fr  = c.fundingRate != null ? (c.fundingRate * 100).toFixed(3) + '%' : '—';
-    const rsi = c.rsi14 != null ? Math.round(c.rsi14) : '—';
+    const chg = c.change != null ? (c.change >= 0 ? '+' : '') + c.change.toFixed(2) + '%' : '-';
+    const fr  = c.fundingRate != null ? (c.fundingRate * 100).toFixed(3) + '%' : '-';
+    const rsi = c.rsi14 != null ? Math.round(c.rsi14) : '-';
     const cvd = c.cvdDivergence ?? 'none';
-    const oi  = c.oiTrend ?? '—';
+    const oi  = c.oiTrend ?? '-';
     lines.push(`${id.toUpperCase()}: ${chg} | FR ${fr} | RSI ${rsi} | CVD ${cvd} | OI ${oi}`);
   }
 
@@ -148,7 +148,7 @@ function buildBriefingContext(
       const lh = (e.dt.getTime() - Date.now()) / 3600000;
       if (lh < 0) {
         const minsAgo = Math.round(-lh * 60);
-        lines.push(`  ⚡ JUST RELEASED: ${e.type} — ${e.name} (${minsAgo}m ago — check news for actual print)`);
+        lines.push(`  ⚡ JUST RELEASED: ${e.type} - ${e.name} (${minsAgo}m ago - check news for actual print)`);
       } else {
         lines.push(`  ${e.type}: ${e.name} in ${Math.round(lh)}h (${e.impact} impact)`);
       }
@@ -175,7 +175,7 @@ export default function MorningBriefing() {
   const [jpyUsd, setJpyUsd]     = useState<number | null>(null);
   const [jpyUpdated, setJpyUpdated] = useState<Date | null>(null);
 
-  /* ── AI brief — persist across refreshes via sessionStorage (4h TTL) ── */
+  /* ── AI brief - persist across refreshes via sessionStorage (4h TTL) ── */
   const [brief, setBriefState] = useState('');
   useEffect(() => {
     try {
@@ -232,7 +232,7 @@ export default function MorningBriefing() {
     sq: computeSqueezeScore(store.coins[id]),
   }));
 
-  /* Loading state — true until at least 8 coins have price data */
+  /* Loading state - true until at least 8 coins have price data */
   const pricesLoaded = coinRows.filter(r => r.c?.price != null && r.c.price > 0).length >= 8;
 
   /* Active CVD divergences */
@@ -247,7 +247,7 @@ export default function MorningBriefing() {
     try {
       const sb    = getSupabase();
       const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined;
-      if (!token) { setBriefErr('Session expired — please sign in again.'); setGen(false); return; }
+      if (!token) { setBriefErr('Session expired - please sign in again.'); setGen(false); return; }
 
       const ctx = buildBriefingContext(store, coinRows, urgentEcon, recentGeo, jpyUsd);
       const res = await fetch('/api/briefing', {
@@ -275,13 +275,13 @@ export default function MorningBriefing() {
     setGen(false);
   }
 
-  /* Top 3 Setups — non-neutral direction only, sorted by score */
+  /* Top 3 Setups - non-neutral direction only, sorted by score */
   const top3Setups = coinRows
     .filter(r => r.sq.dir !== 'NEUTRAL' && r.c?.price != null && r.c.price > 0)
     .sort((a, b) => b.sq.score - a.sq.score)
     .slice(0, 3);
 
-  /* Events — upcoming (next 24h) + recently released (last 6h) */
+  /* Events - upcoming (next 24h) + recently released (last 6h) */
   const urgentEcon = econEvents.filter(e => { const lh = (e.dt.getTime() - Date.now()) / 3600000; return lh > -6 && lh < 24; }).slice(0, 8);
   const recentGeo  = geoEvents.slice(0, 4);
 
@@ -298,7 +298,7 @@ export default function MorningBriefing() {
   const etfColor = etfFlow == null ? 'var(--txt3)' : etfFlow > 0 ? '#34d399' : '#f87171';
 
   const dxyChg    = store.dxyChg;
-  const dxySig    = dxyChg == null    ? '—'
+  const dxySig    = dxyChg == null    ? '-'
     : dxyChg > 0.2  ? '↑ BTC headwind'
     : dxyChg < -0.2 ? '↓ BTC tailwind'
     : 'Neutral';
@@ -321,7 +321,7 @@ export default function MorningBriefing() {
   const jpyStatus = jpyUsd == null ? null
     : jpyUsd >= 160
       ? { label: 'DANGER', color: '#f87171', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.25)',
-          desc: 'BOJ intervention risk high — carry trade unwind can trigger BTC liquidations. Reduce leverage.' }
+          desc: 'BOJ intervention risk high - carry trade unwind can trigger BTC liquidations. Reduce leverage.' }
     : jpyUsd >= 158
       ? { label: 'WARNING', color: '#fbbf24', bg: 'rgba(251,191,36,0.06)', border: 'rgba(251,191,36,0.2)',
           desc: 'Approaching 160 danger zone. Watch for BOJ rhetoric or surprise rate hike signals.' }
@@ -345,7 +345,7 @@ export default function MorningBriefing() {
       <PageHint
         pageKey="briefing"
         title="Morning Briefing"
-        body="Your daily market summary — top setups, key support and resistance levels, macro signals, and AI-generated trade ideas updated each morning."
+        body="Your daily market summary - top setups, key support and resistance levels, macro signals, and AI-generated trade ideas updated each morning."
       />
 
       {/* ── Top 3 Setups Today ── */}
@@ -361,7 +361,7 @@ export default function MorningBriefing() {
           <div style={{ fontSize: 12, color: 'var(--txt3)', padding: '4px 0' }}>Loading market data…</div>
         ) : top3Setups.length === 0 ? (
           <div style={{ fontSize: 12, color: 'var(--txt3)', padding: '4px 0' }}>
-            No strong setups right now — market positioning is balanced.
+            No strong setups right now - market positioning is balanced.
           </div>
         ) : (
           top3Setups.map(({ id, c, sq }, i) => {
@@ -435,7 +435,7 @@ export default function MorningBriefing() {
 
         {!brief && !generating && !briefErr && (
           <div className="mb-brief-empty">
-            Hit Generate to get a LiquidityAI pre-session summary — market conditions, best setup, what to watch.
+            Hit Generate to get a LiquidityAI pre-session summary - market conditions, best setup, what to watch.
           </div>
         )}
 
@@ -505,27 +505,27 @@ export default function MorningBriefing() {
           <div className="mb-macro-item">
             <div className="mb-macro-label">Fear &amp; Greed</div>
             <div className="mb-macro-val" style={{ color: fngColor }}>
-              {fng != null ? fng : '—'}
+              {fng != null ? fng : '-'}
             </div>
             <div className="mb-macro-sub" style={{ color: fngColor }}>
-              {store.fngLabel || '—'}
+              {store.fngLabel || '-'}
             </div>
           </div>
 
           <div className="mb-macro-item">
             <div className="mb-macro-label">BTC Dom</div>
             <div className="mb-macro-val">
-              {store.btcDom != null ? store.btcDom.toFixed(1) + '%' : '—'}
+              {store.btcDom != null ? store.btcDom.toFixed(1) + '%' : '-'}
             </div>
             <div className="mb-macro-sub" style={{ color: domTrend?.col ?? 'var(--txt3)' }}>
-              {domTrend?.txt ?? '—'}
+              {domTrend?.txt ?? '-'}
             </div>
           </div>
 
           <div className="mb-macro-item">
             <div className="mb-macro-label">DXY</div>
             <div className="mb-macro-val">
-              {store.dxy != null ? store.dxy.toFixed(2) : '—'}
+              {store.dxy != null ? store.dxy.toFixed(2) : '-'}
             </div>
             <div className="mb-macro-sub" style={{ color: dxyColor }}>{dxySig}</div>
           </div>
@@ -657,7 +657,7 @@ export default function MorningBriefing() {
               <div style={{ fontSize: 12, color: 'var(--txt3)', padding: '4px 0' }}>Loading market data…</div>
             ) : shown.length === 0 ? (
               <div style={{ fontSize: 12, color: 'var(--txt3)', padding: '4px 0' }}>
-                All quiet — no extreme signals right now.
+                All quiet - no extreme signals right now.
               </div>
             ) : (
               <>
@@ -682,7 +682,7 @@ export default function MorningBriefing() {
                 {extra > 0 && (
                   <Link href="/scanner" style={{ textDecoration: 'none', display: 'block', paddingTop: 8, borderTop: '0.5px solid var(--bdr)', marginTop: 2 }}>
                     <div style={{ fontSize: 11, color: 'var(--txt3)', textAlign: 'center' }}>
-                      +{extra} more coins with signals — Full scanner →
+                      +{extra} more coins with signals - Full scanner →
                     </div>
                   </Link>
                 )}

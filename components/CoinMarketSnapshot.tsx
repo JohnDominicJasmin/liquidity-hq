@@ -5,18 +5,18 @@ import Tip from '@/components/Tip';
 
 /* ── Coin Market Snapshot ─────────────────────────────────────────────────
    Compact VWAP / Open Interest / Funding / OI 1h-change strip for a single
-   coin. This is the single canonical home for these per-coin metrics — the
+   coin. This is the single canonical home for these per-coin metrics - the
    Dashboard used to show a duplicate set of cards (formerly "EdgeSignals" in
    app/dashboard/page.tsx), which was removed since it was a direct restatement
-   of this component. Pure display — reads live data already in the market
+   of this component. Pure display - reads live data already in the market
    store plus the existing useOI1h hook, no new fetches beyond what useOI1h
    itself does. */
 
 const OI_TREND_META: Record<string, { txt: string; sub: string; col: string }> = {
-  strong_up:   { txt: '▲ New buyers opening', sub: 'Open interest rising with price — real trend', col: '#34d399' },
-  strong_down: { txt: '▼ New sellers opening', sub: 'Open interest rising as price falls — real dump', col: '#f87171' },
-  weak_up:     { txt: '△ Short covering',      sub: 'Open interest falling as price rises — weak pump', col: '#fbbf24' },
-  weak_down:   { txt: '▽ Long exits',           sub: 'Open interest falling with price — no panic',      col: '#94a3b8' },
+  strong_up:   { txt: '▲ New buyers opening', sub: 'Open interest rising with price - real trend', col: '#34d399' },
+  strong_down: { txt: '▼ New sellers opening', sub: 'Open interest rising as price falls - real dump', col: '#f87171' },
+  weak_up:     { txt: '△ Short covering',      sub: 'Open interest falling as price rises - weak pump', col: '#fbbf24' },
+  weak_down:   { txt: '▽ Long exits',           sub: 'Open interest falling with price - no panic',      col: '#94a3b8' },
 };
 
 export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
@@ -54,7 +54,7 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
     : 'Neutral';
 
   const { txt: oi1hTxt, col: oi1hCol } = oi1hSignal(oi1h.pct, d?.oiTrend);
-  const oi1hPctStr = oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : '—';
+  const oi1hPctStr = oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : '-';
   const oi1hBdr = oi1h.pct == null ? 'var(--bdr)'
     : oi1h.pct >= 10  ? 'var(--green-bdr)'
     : oi1h.pct <= -10 ? 'var(--red-bdr)'
@@ -63,9 +63,9 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
   return (
     <div className="edge-grid" style={{ marginBottom: 10 }}>
       <div className="edge-card" style={{ borderColor: vwapBdr }}>
-        <div className="edge-card-label"><Tip text="Volume Weighted Average Price — the average price across the day, weighted by how much was traded at each level. Price above VWAP signals buy-side control; below signals sellers are in charge.">VWAP</Tip></div>
+        <div className="edge-card-label"><Tip text="Volume Weighted Average Price - the average price across the day, weighted by how much was traded at each level. Price above VWAP signals buy-side control; below signals sellers are in charge.">VWAP</Tip></div>
         <div className="edge-card-value" style={{ color: vwapCol }}>
-          {price != null ? '$' + fmtPrice(price, COIN_DEC[coin]) : '—'}
+          {price != null ? '$' + fmtPrice(price, COIN_DEC[coin]) : '-'}
         </div>
         {vwap != null && (
           <div className="edge-card-sub">
@@ -75,7 +75,7 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
           </div>
         )}
         <div className="edge-card-signal" style={{ color: vwapCol }}>
-          {vwapAbove === null ? 'Calculating…' : vwapAbove ? '▲ Above VWAP — bullish' : '▼ Below VWAP — bearish'}
+          {vwapAbove === null ? 'Calculating…' : vwapAbove ? '▲ Above VWAP - bullish' : '▼ Below VWAP - bearish'}
         </div>
       </div>
 
@@ -90,15 +90,15 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
           </>
         ) : (
           <div className="edge-card-signal" style={{ color: 'var(--txt3)', marginTop: 4 }}>
-            {d?.oi != null ? 'Flat — no strong signal' : 'Warming up…'}
+            {d?.oi != null ? 'Flat - no strong signal' : 'Warming up…'}
           </div>
         )}
       </div>
 
       <div className="edge-card" style={{ borderColor: frBdr }}>
-        <div className="edge-card-label"><Tip text="The fee longs pay shorts every 8 hours to keep perpetual futures positions open. Strongly positive means too many people are leveraged long — whales often dump price to liquidate them and pocket the fee.">Funding Rate</Tip></div>
+        <div className="edge-card-label"><Tip text="The fee longs pay shorts every 8 hours to keep perpetual futures positions open. Strongly positive means too many people are leveraged long - whales often dump price to liquidate them and pocket the fee.">Funding Rate</Tip></div>
         <div className="edge-card-value" style={{ color: frCol }}>
-          {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '—'}
+          {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '-'}
         </div>
         <div className="edge-card-signal" style={{ color: frCol }}>{frSig}</div>
       </div>
@@ -106,7 +106,7 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
       <div className="edge-card" style={{ borderColor: oi1hBdr }}>
         <div className="edge-card-label"><Tip text="How much the total value of open futures positions changed in the last hour. A sharp rise means new money is entering aggressively; a sharp drop means mass liquidations or traders closing positions.">Open Interest (1h)</Tip></div>
         <div className="edge-card-value" style={{ color: oi1hCol }}>
-          {oi1h.loading ? '—' : oi1hPctStr}
+          {oi1h.loading ? '-' : oi1hPctStr}
         </div>
         <div className="edge-card-signal" style={{ color: oi1hCol }}>
           {oi1h.loading ? 'Loading…' : oi1hTxt}

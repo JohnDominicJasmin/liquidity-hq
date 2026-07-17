@@ -66,7 +66,7 @@ function MetricPill({ label, value, source }: { label: string; value: number | n
     <div style={{ fontSize: 11, color: 'var(--txt3)', display: 'flex', gap: 4, alignItems: 'center' }}>
       <span style={{ color: 'var(--txt)', fontWeight: 600 }}>{label}:</span>
       <span style={{ fontFamily: 'var(--font-mono)' }}>
-        {value !== null ? value.toFixed(2) : '—'}
+        {value !== null ? value.toFixed(2) : '-'}
       </span>
       {source && <span style={{ opacity: 0.5 }}>via {source}</span>}
     </div>
@@ -239,7 +239,7 @@ export default function OnChainScore() {
             <div style={{ fontSize: 11, color: 'var(--txt3)', display: 'flex', gap: 6, alignItems: 'center' }}>
               <span style={{ color: 'var(--txt)', fontWeight: 600 }}>Exchange Flow:</span>
               <span style={{ color: flowCol, fontWeight: 700 }}>{flowIcon} {data.exchange_flow}</span>
-              <span style={{ opacity: 0.6 }}>— {data.exchange_flow_note}</span>
+              <span style={{ opacity: 0.6 }}>- {data.exchange_flow_note}</span>
             </div>
             {data.active_addresses && (
               <div style={{ fontSize: 11, color: 'var(--txt3)' }}>

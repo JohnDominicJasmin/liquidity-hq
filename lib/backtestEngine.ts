@@ -12,7 +12,7 @@ import {
   simpleRSI14, lastClosedIndexBefore, computeVolumeProfile, scoreOrderFlowBias, computeOrderFlowZones,
 } from './orderFlowCore';
 
-// Tuning variants for the WaveTrend confirming-layer backtest sweep — each targets a
+// Tuning variants for the WaveTrend confirming-layer backtest sweep - each targets a
 // specific hypothesis for why the original (DEFAULT_WT_PARAMS) version underperformed:
 // EMA confirmation fires late (after the cross + ATR buffer + persistence wait), so by
 // the time it fires WaveTrend has often already cycled out of its extreme.
@@ -58,7 +58,7 @@ async function fetchBinanceFuturesKlinesRange(sym: string, interval: string, sta
     const batch = raw.map(k => ({ time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }));
     out.push(...batch);
     const lastTime = batch[batch.length - 1].time;
-    if (lastTime <= cursor) break; // no progress — bail to avoid infinite loop
+    if (lastTime <= cursor) break; // no progress - bail to avoid infinite loop
     cursor = lastTime + 1;
     if (batch.length < PAGE) break; // reached the end of available history
     await new Promise(res => setTimeout(res, 150)); // polite pacing against rate limits
@@ -174,17 +174,17 @@ export interface SimulatedTrade {
   outcome:    'win' | 'loss' | 'open'; // open = signal fired but neither SL nor TP hit before data ran out
   rMultiple:  number;                  // net of estimated fees + slippage (see ROUND_TRIP_COST_PCT below).
                                         // Gross, a loss is exactly -1R and a win is (reward distance / risk
-                                        // distance) — +2 for the EMA strategy's fixed 2:1 rule, variable for
+                                        // distance) - +2 for the EMA strategy's fixed 2:1 rule, variable for
                                         // strategies (like Order Flow) whose TP is found, not fixed. costR is
                                         // subtracted from both so the number reported is realistic, not gross.
 }
 
 // Binance/Bybit USDT-perp taker fee is ~0.05% per side; SLIPPAGE_PCT is a conservative
 // placeholder for market-order fill slippage (thinner for majors, worse for illiquid
-// alts — kept uniform here rather than per-coin to avoid a false sense of precision).
+// alts - kept uniform here rather than per-coin to avoid a false sense of precision).
 // Applied as entry + exit (round trip), then converted into R-multiple terms per trade
 // because the cost is a fixed % of notional but R is measured against each trade's own
-// (variable) stop distance — a tight stop eats proportionally more of its R to costs
+// (variable) stop distance - a tight stop eats proportionally more of its R to costs
 // than a wide one. Exported so the UI can disclose the assumption instead of silently
 // baking it in.
 export const TAKER_FEE_PCT = 0.05;
@@ -197,8 +197,8 @@ function costInR(entryPrice: number, riskDist: number): number {
 }
 
 function simulateTrade(signal: SignalEvent, candles: OHLCV[], coin: CoinId): SimulatedTrade {
-  // Enter at the FILL candle — the first candle at which the signal is actually
-  // knowable (confirmation + persistence hold) — never at the confirmation candle,
+  // Enter at the FILL candle - the first candle at which the signal is actually
+  // knowable (confirmation + persistence hold) - never at the confirmation candle,
   // whose validity depends on closes that hadn't printed yet at its own close.
   const { dir, fillIndex, fillPrice, sl, tp } = signal;
   const entryPrice = fillPrice;
@@ -220,7 +220,7 @@ function simulateTrade(signal: SignalEvent, candles: OHLCV[], coin: CoinId): Sim
       return { coin, dir, entryTime, entryPrice, sl, tp, exitTime: c.time, exitPrice: tp, outcome: 'win', rMultiple: winR - costR };
     }
   }
-  // Open trades haven't incurred an exit cost yet — leave at 0, matching the existing
+  // Open trades haven't incurred an exit cost yet - leave at 0, matching the existing
   // "unresolved, excluded from win/loss stats" treatment.
   return { coin, dir, entryTime, entryPrice, sl, tp, exitTime: null, exitPrice: null, outcome: 'open', rMultiple: 0 };
 }
@@ -230,7 +230,7 @@ export function simulateTrades(signals: SignalEvent[], candles: OHLCV[], coin: C
 }
 
 // Keeps only signals where WaveTrend (Cipher B) would have confirmed AT THE TIME the
-// signal fired. Slices the candle array to each signal's own index before checking —
+// signal fired. Slices the candle array to each signal's own index before checking -
 // WaveTrend's divergence detection needs a few forward candles to confirm a pivot, so
 // computing it on the full array would leak future data into a historical decision.
 function filterSignalsByWaveTrend(signals: SignalEvent[], candles: OHLCV[], params: WaveTrendParams): SignalEvent[] {
@@ -246,7 +246,7 @@ export interface BacktestStats {
   wins:          number;
   losses:        number;
   open:          number;
-  winRate:       number; // wins / (wins+losses) — excludes still-open trades
+  winRate:       number; // wins / (wins+losses) - excludes still-open trades
   avgR:          number; // average rMultiple across resolved trades
   profitFactor:  number; // sum(positive R) / abs(sum(negative R))
   maxDrawdownR:  number; // largest peak-to-trough drop in cumulative R
@@ -326,10 +326,10 @@ export async function runBacktest(
     try {
       const candles = await fetchHistoricalOHLCV(coin, tf, yearsBack);
       if (candles.length > 60) {
-        // Fetch + EMA detection happens once per coin — the expensive (network) part.
+        // Fetch + EMA detection happens once per coin - the expensive (network) part.
         // Only the WaveTrend filter + simulate step repeats per variant (no network).
         // "ON" = the stricter, persistence-based filter; "OFF" = raw signals (now the
-        // live default — see DEFAULT_FILTER_PARAMS in strategyCore.ts for why).
+        // live default - see DEFAULT_FILTER_PARAMS in strategyCore.ts for why).
         const onSignals  = detectEMASignals(candles, tf, STRICT_FILTER_PARAMS);
         const offSignals = detectEMASignals(candles, tf, DEFAULT_FILTER_PARAMS);
         const confirmed = <T extends { pending: boolean }>(arr: T[]) => arr.filter(s => !s.pending);
@@ -388,10 +388,10 @@ export async function runBacktest(
 
 /* ── Order Flow Setup backtest ─────────────────────────────────────────────
    Validates the 5 backtestable signals from components/StopLossZone.tsx's
-   scoreBias (RSI 15m/1h/4h, POC, VWAP, funding) — OI trend, CVD divergence,
+   scoreBias (RSI 15m/1h/4h, POC, VWAP, funding) - OI trend, CVD divergence,
    and taker buy ratio are excluded; see lib/orderFlowCore.ts header for why. */
 
-const OF_EVAL_STRIDE   = 16;  // evaluate every 16 15m-candles (~4h) — matches a realistic check cadence
+const OF_EVAL_STRIDE   = 16;  // evaluate every 16 15m-candles (~4h) - matches a realistic check cadence
 const OF_VP_WINDOW     = 100; // rolling volume-profile window, matches the live card exactly
 const OF_HI24_WINDOW   = 96;  // ~24h of 15m candles, approximates the live 24h ticker high/low
 
@@ -438,7 +438,7 @@ async function processOrderFlowCoin(coin: CoinId, yearsBack: number): Promise<Si
 
     signals.push({
       // Order-flow signals evaluate at candle i using only past data, so the signal
-      // is knowable at its own close — fill index and price equal the eval candle.
+      // is knowable at its own close - fill index and price equal the eval candle.
       timestamp: t, index: i, fillIndex: i, fillPrice: price, armIndex: i, dir: bias,
       anchorPrice: price, entryPrice: price, sl: zones.sl, tp: zones.tp, pending: false,
     });
@@ -460,7 +460,7 @@ export async function runOrderFlowBacktest(
   yearsBack:  number,
   onProgress?: (done: number, total: number, currentCoin: CoinId) => void,
 ): Promise<OrderFlowBacktestResult> {
-  const CONCURRENCY = 2; // lighter than the EMA sweep — 4 fetches/coin (15m+1h+4h+funding) instead of 1
+  const CONCURRENCY = 2; // lighter than the EMA sweep - 4 fetches/coin (15m+1h+4h+funding) instead of 1
   const allTrades: SimulatedTrade[] = [];
   const perCoin: Partial<Record<CoinId, BacktestStats>> = {};
   const failedCoins: CoinId[] = [];
