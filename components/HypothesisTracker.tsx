@@ -30,7 +30,7 @@ interface Evidence {
 }
 
 const STATUS_META: Record<string, { label: string; col: string; bg: string }> = {
-  active:        { label: 'Active',         col: '#5a6aff', bg: 'rgba(90,106,255,0.12)' },
+  active:        { label: 'Active',         col: '#1a7aff', bg: 'rgba(26,122,255,0.12)' },
   confirmed:     { label: 'Confirmed',      col: '#34d399', bg: 'rgba(52,211,153,0.12)' },
   disconfirmed:  { label: 'Disconfirmed',   col: '#f87171', bg: 'rgba(248,113,113,0.12)' },
   expired:       { label: 'Expired',        col: '#94a3b8', bg: 'rgba(148,163,184,0.10)' },
@@ -227,8 +227,8 @@ export default function HypothesisTracker() {
         <button
           onClick={() => setShowCreate(v => !v)}
           style={{
-            background: showCreate ? 'var(--bg2)' : 'rgba(90,106,255,0.2)',
-            border: '0.5px solid rgba(90,106,255,0.4)',
+            background: showCreate ? 'var(--bg2)' : 'rgba(26,122,255,0.2)',
+            border: '0.5px solid rgba(26,122,255,0.4)',
             borderRadius: 7,
             padding: '6px 12px',
             fontSize: 'var(--fs-caption)',
@@ -245,7 +245,7 @@ export default function HypothesisTracker() {
       {showCreate && (
         <div style={{
           background: 'var(--bg2)',
-          border: '0.5px solid rgba(90,106,255,0.3)',
+          border: '0.5px solid rgba(26,122,255,0.3)',
           borderRadius: 10,
           padding: '14px',
           marginBottom: 14,
@@ -447,7 +447,7 @@ export default function HypothesisTracker() {
                     style={{
                       ...ghostBtnStyle,
                       color: isAnalyzing ? 'var(--txt3)' : 'var(--accent)',
-                      borderColor: 'rgba(90,106,255,0.3)',
+                      borderColor: 'rgba(26,122,255,0.3)',
                       marginBottom: 14,
                       width: '100%',
                     }}
@@ -610,8 +610,8 @@ const ghostBtnStyle: React.CSSProperties = {
 };
 
 const primaryBtnStyle = (disabled: boolean): React.CSSProperties => ({
-  background: disabled ? 'rgba(90,106,255,0.1)' : 'rgba(90,106,255,0.2)',
-  border: '0.5px solid rgba(90,106,255,0.4)',
+  background: disabled ? 'rgba(26,122,255,0.1)' : 'rgba(26,122,255,0.2)',
+  border: '0.5px solid rgba(26,122,255,0.4)',
   borderRadius: 6,
   padding: '6px 14px',
   fontSize: 'var(--fs-caption)',

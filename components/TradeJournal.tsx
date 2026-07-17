@@ -133,7 +133,7 @@ function fmtDate(s: string) {
 const SHADOW_SECTIONS: { key: string; label: string; color?: string }[] = [
   { key: 'IMPLICIT_RULES',       label: 'Implicit Trading Rules' },
   { key: 'BEHAVIORAL_PATTERNS',  label: 'Behavioral Patterns' },
-  { key: 'SHADOW_STRATEGY',      label: 'Shadow Strategy', color: '#5a6aff' },
+  { key: 'SHADOW_STRATEGY',      label: 'Shadow Strategy', color: '#1a7aff' },
   { key: 'RULE_VIOLATIONS',      label: 'Rule Violations', color: '#f87171' },
   { key: 'RECOMMENDATIONS',      label: 'Recommendations', color: '#34d399' },
   { key: 'KEY_INSIGHT',          label: 'Key Insight', color: '#fbbf24' },
@@ -176,8 +176,8 @@ const BIAS_SECTIONS: { key: string; label: string; color?: string }[] = [
   { key: 'DISPOSITION_EFFECT', label: 'Disposition Effect',   color: '#f87171' },
   { key: 'OVERTRADING',        label: 'Overtrading',          color: '#fb923c' },
   { key: 'MOMENTUM_CHASING',   label: 'Momentum Chasing',     color: '#fbbf24' },
-  { key: 'ANCHORING_BIAS',     label: 'Anchoring Bias',       color: '#a78bfa' },
-  { key: 'PNL_IMPACT',         label: 'P&L Impact by Bias',   color: '#5a6aff' },
+  { key: 'ANCHORING_BIAS',     label: 'Anchoring Bias',       color: '#5aa3ff' },
+  { key: 'PNL_IMPACT',         label: 'P&L Impact by Bias',   color: '#1a7aff' },
   { key: 'PRIORITY_FIX',       label: 'Priority Fix',         color: '#34d399' },
 ];
 
@@ -225,7 +225,7 @@ const THESIS_KEY = 'lhq_theses';
 
 const THESIS_CHECK_SECTIONS: { key: string; label: string; color?: string }[] = [
   { key: 'ASSUMPTION_CHECK', label: 'Assumption Check'            },
-  { key: 'THESIS_HEALTH',    label: 'Thesis Health Score', color: '#5a6aff' },
+  { key: 'THESIS_HEALTH',    label: 'Thesis Health Score', color: '#1a7aff' },
   { key: 'KEY_RISK',         label: 'Key Risk',            color: '#f87171' },
   { key: 'RECOMMENDATION',   label: 'Recommendation',      color: '#34d399' },
 ];
@@ -1424,9 +1424,9 @@ function Inner() {
                 onClick={runShadowAccount}
                 disabled={shadowLoading}
                 style={{
-                  background: shadowLoading ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
-                  color: shadowLoading ? 'var(--txt3)' : '#5a6aff',
-                  border: `1px solid ${shadowLoading ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
+                  background: shadowLoading ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
+                  color: shadowLoading ? 'var(--txt3)' : '#1a7aff',
+                  border: `1px solid ${shadowLoading ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
                   borderRadius: 8, padding: '10px 20px', fontSize: 'var(--fs-label)', fontWeight: 700,
                   cursor: shadowLoading ? 'default' : 'pointer',
                 }}
@@ -1468,9 +1468,9 @@ function Inner() {
                 onClick={runBiasAnalysis}
                 disabled={biasLoading}
                 style={{
-                  background: biasLoading ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
-                  color: biasLoading ? 'var(--txt3)' : '#5a6aff',
-                  border: `1px solid ${biasLoading ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
+                  background: biasLoading ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
+                  color: biasLoading ? 'var(--txt3)' : '#1a7aff',
+                  border: `1px solid ${biasLoading ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
                   borderRadius: 8, padding: '10px 20px', fontSize: 'var(--fs-label)', fontWeight: 700,
                   cursor: biasLoading ? 'default' : 'pointer',
                 }}
@@ -1507,9 +1507,9 @@ function Inner() {
             <button
               onClick={() => setShowThesisForm(v => !v)}
               style={{
-                background: showThesisForm ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
-                color: showThesisForm ? 'var(--txt3)' : '#5a6aff',
-                border: `1px solid ${showThesisForm ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
+                background: showThesisForm ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
+                color: showThesisForm ? 'var(--txt3)' : '#1a7aff',
+                border: `1px solid ${showThesisForm ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
                 borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-caption)', fontWeight: 700, cursor: 'pointer', flexShrink: 0,
               }}
             >
@@ -1571,7 +1571,7 @@ function Inner() {
                 {thesisFormAssumptions.length < 5 && (
                   <button
                     onClick={() => setThesisFormAssumptions(a => [...a, ''])}
-                    style={{ fontSize: 'var(--fs-caption)', color: '#5a6aff', background: 'transparent', border: '0.5px solid rgba(90,106,255,0.3)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
+                    style={{ fontSize: 'var(--fs-caption)', color: '#1a7aff', background: 'transparent', border: '0.5px solid rgba(26,122,255,0.3)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
                   >
                     + Add Assumption
                   </button>
@@ -1590,8 +1590,8 @@ function Inner() {
                 disabled={!thesisFormSymbol.trim() || !thesisFormText.trim() || !thesisFormAssumptions.some(a => a.trim())}
                 style={{
                   display: 'block', marginTop: 14, width: '100%',
-                  background: 'rgba(90,106,255,0.12)', color: '#5a6aff',
-                  border: '1px solid rgba(90,106,255,0.35)', borderRadius: 8,
+                  background: 'rgba(26,122,255,0.12)', color: '#1a7aff',
+                  border: '1px solid rgba(26,122,255,0.35)', borderRadius: 8,
                   padding: '10px', fontSize: 'var(--fs-label)', fontWeight: 700, cursor: 'pointer',
                 }}
               >
@@ -1669,9 +1669,9 @@ function Inner() {
                       onClick={() => checkThesisHealth(thesis)}
                       disabled={isChecking}
                       style={{
-                        background: isChecking ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.10)',
-                        color: isChecking ? 'var(--txt3)' : '#5a6aff',
-                        border: `0.5px solid ${isChecking ? 'var(--bdr)' : 'rgba(90,106,255,0.3)'}`,
+                        background: isChecking ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.10)',
+                        color: isChecking ? 'var(--txt3)' : '#1a7aff',
+                        border: `0.5px solid ${isChecking ? 'var(--bdr)' : 'rgba(26,122,255,0.3)'}`,
                         borderRadius: 6, padding: '5px 12px', fontSize: 'var(--fs-caption)', fontWeight: 700, cursor: isChecking ? 'default' : 'pointer',
                       }}
                     >

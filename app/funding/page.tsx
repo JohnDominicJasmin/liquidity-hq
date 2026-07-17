@@ -389,7 +389,7 @@ export default function FundingHistory() {
               <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(52,211,153,0.10)', color: '#34d399', border: '0.5px solid rgba(52,211,153,0.25)', fontWeight: 700 }}>
                 {longSignals.length} Contrarian Long{longSignals.length !== 1 ? 's' : ''}
               </span>
-              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(90,106,255,0.10)', color: '#5a6aff', border: '0.5px solid rgba(90,106,255,0.25)', fontWeight: 700 }}>
+              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(26,122,255,0.10)', color: '#1a7aff', border: '0.5px solid rgba(26,122,255,0.25)', fontWeight: 700 }}>
                 {arbs.length} Carry Arb
               </span>
             </div>
@@ -419,7 +419,7 @@ export default function FundingHistory() {
                     </span>
                   )}
                   {carryArb && (
-                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 3, background: 'rgba(90,106,255,0.10)', color: '#5a6aff', fontWeight: 600, flexShrink: 0 }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 3, background: 'rgba(26,122,255,0.10)', color: '#1a7aff', fontWeight: 600, flexShrink: 0 }}>
                       Arb
                     </span>
                   )}

@@ -67,7 +67,7 @@ export default function PWAInstallPrompt() {
     }}>
       <span style={{
         flexShrink: 0, width: 34, height: 34, borderRadius: 10,
-        background: 'rgba(90,106,255,0.14)', border: '0.5px solid rgba(90,106,255,0.3)',
+        background: 'rgba(26,122,255,0.14)', border: '0.5px solid rgba(26,122,255,0.3)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)',
       }}>
         <Download size={17} style={{ verticalAlign: 'baseline' }} />

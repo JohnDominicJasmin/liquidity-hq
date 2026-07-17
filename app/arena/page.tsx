@@ -1086,7 +1086,7 @@ function ArenaContent() {
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>LiquidityAI Arena</div>
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>LiquidityAI · LIVE X</span>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#12233f', color: '#5aa3ff', border: '0.5px solid #2a4a7a', letterSpacing: '.05em' }}>LiquidityAI · LIVE X</span>
           {/* JPY carry-risk and DXY/JPY "regime" badges were removed from here - both
               restated Dashboard's MacroStrip (which already shows DXY/SPX/Gold/10Y/JPY
               coherently together). Distribution score badge removed too - it duplicated
@@ -1170,12 +1170,12 @@ function ArenaContent() {
           {/* Selected coin chip - left side */}
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 5,
-            fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#b8aeff',
-            background: 'rgba(184,174,255,0.1)', padding: '2px 9px 2px 5px',
-            borderRadius: 20, border: '0.5px solid rgba(184,174,255,0.2)',
+            fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#5aa3ff',
+            background: 'rgba(90,163,255,0.1)', padding: '2px 9px 2px 5px',
+            borderRadius: 20, border: '0.5px solid rgba(90,163,255,0.2)',
             flexShrink: 0,
           }}>
-            <CoinIcon coin={selectedCoin} size={16} color="#b8aeff" bg="rgba(184,174,255,0.15)" />
+            <CoinIcon coin={selectedCoin} size={16} color="#5aa3ff" bg="rgba(90,163,255,0.15)" />
             {selectedCoin.toUpperCase()}
           </span>
           {/* Spacer */}
@@ -1297,7 +1297,7 @@ function ArenaContent() {
                     width: '100%', display: 'grid',
                     gridTemplateColumns: '1fr 78px 44px 44px 72px 32px',
                     alignItems: 'center', padding: '7px 12px',
-                    background: isSelected ? 'rgba(184,174,255,0.08)' : 'transparent',
+                    background: isSelected ? 'rgba(90,163,255,0.08)' : 'transparent',
                     border: 'none',
                     borderBottom: '0.5px solid rgba(255,255,255,0.04)',
                     cursor: 'pointer', textAlign: 'left', transition: 'background 0.12s',
@@ -1314,7 +1314,7 @@ function ArenaContent() {
                       bg={isActive ? rowSq.color + '1a' : undefined}
                     />
                     <div>
-                      <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isSelected ? '#b8aeff' : isActive ? 'var(--txt)' : '#666', lineHeight: 1.2 }}>
+                      <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isSelected ? '#5aa3ff' : isActive ? 'var(--txt)' : '#666', lineHeight: 1.2 }}>
                         {c.toUpperCase()}
                       </div>
                       {badges.length > 0 ? (
@@ -1701,7 +1701,7 @@ function ArenaContent() {
       {user && !isPro && !authLoading && (
         <div className="usage-auth-notice" style={{ borderColor: 'rgba(155,127,212,0.2)', background: 'rgba(155,127,212,0.04)' }}>
           Free tier: 7 Quick Research + 5 Deep Research per day.{' '}
-          <a href="/upgrade" className="usage-auth-link" style={{ color: '#b8aeff' }}>Upgrade to Pro for more →</a>
+          <a href="/upgrade" className="usage-auth-link" style={{ color: '#5aa3ff' }}>Upgrade to Pro for more →</a>
         </div>
       )}
 
@@ -1736,7 +1736,7 @@ function ArenaContent() {
                     marginLeft: 6, fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
                     padding: '1px 6px', borderRadius: 4,
                     background: cacheEntry?.mode === 'quick' ? 'rgba(52,211,153,0.1)' : 'rgba(26,122,255,0.1)',
-                    color: cacheEntry?.mode === 'quick' ? '#34d399' : '#b8aeff',
+                    color: cacheEntry?.mode === 'quick' ? '#34d399' : '#5aa3ff',
                     border: `0.5px solid ${cacheEntry?.mode === 'quick' ? 'rgba(52,211,153,0.25)' : 'rgba(26,122,255,0.25)'}`,
                   }}>
                     {cacheEntry?.mode === 'quick' ? 'Quick' : 'Deep'}
@@ -1986,7 +1986,7 @@ function ArenaContent() {
                     <span className={`arena-sig-badge badge-${h.signal.toLowerCase().replace(' ', '-')}`} style={{ fontSize: 'var(--fs-caption)' }}>
                       {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'LEAN LONG' ? '↗ LEAN LONG' : h.signal === 'SHORT' ? '▼ SHORT' : h.signal === 'LEAN SHORT' ? '↘ LEAN SHORT' : '- FLAT'}
                     </span>
-                    <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#b8aeff' }}>{h.confidence}% confidence</div>
+                    <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#5aa3ff' }}>{h.confidence}% confidence</div>
                   </div>
                   {h.entry && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>

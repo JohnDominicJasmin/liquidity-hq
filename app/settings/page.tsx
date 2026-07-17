@@ -361,7 +361,7 @@ export default function SettingsPage() {
             onClick={handleTestPush}
             style={{
               width: '100%', padding: '9px 0', borderRadius: 8, marginBottom: 16,
-              background: testResult === 'sent' ? 'rgba(74,222,128,0.1)' : testResult === 'error' ? 'rgba(248,113,113,0.1)' : 'rgba(140,150,255,0.08)',
+              background: testResult === 'sent' ? 'rgba(74,222,128,0.1)' : testResult === 'error' ? 'rgba(248,113,113,0.1)' : 'rgba(26,122,255,0.08)',
               border: `0.5px solid ${testResult === 'sent' ? 'rgba(74,222,128,0.3)' : testResult === 'error' ? 'rgba(248,113,113,0.3)' : 'var(--bdr)'}`,
               color: testResult === 'sent' ? 'var(--green)' : testResult === 'error' ? 'var(--red)' : 'var(--txt2)',
               fontSize: 'var(--fs-caption)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',

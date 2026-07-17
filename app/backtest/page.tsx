@@ -30,10 +30,10 @@ const SMC_TFS = ['5m', '15m', '30m', '1h', '4h', '1d'] as const;
 type SMCTF = typeof SMC_TFS[number];
 
 const SMC_SECTIONS = [
-  { key: 'MARKET_STRUCTURE', label: 'Market Structure', color: '#5a6aff' },
+  { key: 'MARKET_STRUCTURE', label: 'Market Structure', color: '#1a7aff' },
   { key: 'FAIR_VALUE_GAPS',  label: 'Fair Value Gaps',  color: '#fbbf24' },
   { key: 'ORDER_BLOCKS',     label: 'Order Blocks',     color: '#fb923c' },
-  { key: 'LIQUIDITY_ZONES',  label: 'Liquidity Zones',  color: '#a78bfa' },
+  { key: 'LIQUIDITY_ZONES',  label: 'Liquidity Zones',  color: '#5aa3ff' },
   { key: 'BIAS',             label: 'Directional Bias'                   },
   { key: 'KEY_LEVELS',       label: 'Key Levels',       color: '#34d399' },
 ];
@@ -65,7 +65,7 @@ const STRATEGY_SECTIONS = [
   { key: 'KEY_RISKS',             label: 'Key Risks', color: '#f87171' },
   { key: 'PARAMETER_SUGGESTIONS', label: 'Parameter Suggestions', color: '#34d399' },
   { key: 'CRYPTO_NOTES',          label: 'Crypto Notes', color: '#fbbf24' },
-  { key: 'HONEST_ASSESSMENT',     label: 'Honest Assessment', color: '#5a6aff' },
+  { key: 'HONEST_ASSESSMENT',     label: 'Honest Assessment', color: '#1a7aff' },
 ];
 
 function parseSection(text: string, key: string): string {
@@ -324,8 +324,8 @@ export default function BacktestPage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
             {([
-              { dot: '#5a6aff', label: 'Strategy Backtest',       desc: 'Replay the EMA ribbon against 2-4 years of candles. Pick a timeframe and scope above, then hit Run Backtest.' },
-              { dot: '#a78bfa', label: 'Strategy Research',       desc: 'Describe any trading strategy in plain English. Grok evaluates its edge, risks, and optimal entry conditions. Scroll down.' },
+              { dot: '#1a7aff', label: 'Strategy Backtest',       desc: 'Replay the EMA ribbon against 2-4 years of candles. Pick a timeframe and scope above, then hit Run Backtest.' },
+              { dot: '#5aa3ff', label: 'Strategy Research',       desc: 'Describe any trading strategy in plain English. Grok evaluates its edge, risks, and optimal entry conditions. Scroll down.' },
               { dot: '#fbbf24', label: 'SMC Snapshot',            desc: 'Pick a coin and timeframe. Grok reads live candles and identifies Break of Structure, Fair Value Gaps, Order Blocks, and Liquidity zones.' },
               { dot: '#f87171', label: 'Token Unlock Forecaster', desc: 'Enter any token ticker. Grok assesses 30-day and 90-day sell pressure risk based on vesting schedules and unlock history.' },
             ] as const).map(t => (
@@ -520,9 +520,9 @@ export default function BacktestPage() {
           onClick={runStrategyResearch}
           disabled={srRunning || !srPrompt.trim()}
           style={{
-            background: srRunning || !srPrompt.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
-            color: srRunning || !srPrompt.trim() ? 'var(--txt3)' : '#5a6aff',
-            border: `1px solid ${srRunning || !srPrompt.trim() ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
+            background: srRunning || !srPrompt.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
+            color: srRunning || !srPrompt.trim() ? 'var(--txt3)' : '#1a7aff',
+            border: `1px solid ${srRunning || !srPrompt.trim() ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
             borderRadius: 8, padding: '10px 20px', fontSize: 'var(--fs-label)', fontWeight: 700,
             cursor: srRunning || !srPrompt.trim() ? 'default' : 'pointer',
           }}
@@ -601,9 +601,9 @@ export default function BacktestPage() {
                       });
                     }}
                     style={{
-                      background: psCopied ? 'rgba(52,211,153,0.12)' : 'rgba(90,106,255,0.10)',
-                      color: psCopied ? '#34d399' : '#5a6aff',
-                      border: `1px solid ${psCopied ? 'rgba(52,211,153,0.3)' : 'rgba(90,106,255,0.3)'}`,
+                      background: psCopied ? 'rgba(52,211,153,0.12)' : 'rgba(26,122,255,0.10)',
+                      color: psCopied ? '#34d399' : '#1a7aff',
+                      border: `1px solid ${psCopied ? 'rgba(52,211,153,0.3)' : 'rgba(26,122,255,0.3)'}`,
                       borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-caption)', fontWeight: 700, cursor: 'pointer',
                     }}
                   >
@@ -672,9 +672,9 @@ export default function BacktestPage() {
           onClick={runSMCSnapshot}
           disabled={smcRunning || !smcAsset.trim()}
           style={{
-            background: smcRunning || !smcAsset.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
-            color: smcRunning || !smcAsset.trim() ? 'var(--txt3)' : '#5a6aff',
-            border: `1px solid ${smcRunning || !smcAsset.trim() ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
+            background: smcRunning || !smcAsset.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
+            color: smcRunning || !smcAsset.trim() ? 'var(--txt3)' : '#1a7aff',
+            border: `1px solid ${smcRunning || !smcAsset.trim() ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
             borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-label)', fontWeight: 700,
             cursor: smcRunning || !smcAsset.trim() ? 'default' : 'pointer',
           }}
@@ -748,9 +748,9 @@ export default function BacktestPage() {
           onClick={runTokenUnlock}
           disabled={ulRunning || !ulSymbol.trim()}
           style={{
-            background: ulRunning || !ulSymbol.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
-            color: ulRunning || !ulSymbol.trim() ? 'var(--txt3)' : '#5a6aff',
-            border: `1px solid ${ulRunning || !ulSymbol.trim() ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
+            background: ulRunning || !ulSymbol.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
+            color: ulRunning || !ulSymbol.trim() ? 'var(--txt3)' : '#1a7aff',
+            border: `1px solid ${ulRunning || !ulSymbol.trim() ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
             borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-label)', fontWeight: 700,
             cursor: ulRunning || !ulSymbol.trim() ? 'default' : 'pointer',
           }}

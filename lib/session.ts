@@ -168,7 +168,7 @@ export function isDead(d: Date): boolean {
 export function getCurrentWindow(d: Date): Window | null {
   if (isGodTier(d))    return { name: 'God Tier',     label: 'Sun 15:00–19:00 UTC',    color: '#f0c070', bg: '#3d2e00' };
   if (isPrime(d))      return { name: 'Prime',        label: 'Daily 18:00–21:00 UTC',   color: '#7de0a4', bg: '#152b1e' };
-  if (isMonEvening(d)) return { name: 'Mon Evening',  label: 'Mon 12:00–15:00 UTC',     color: '#b8aeff', bg: '#252040' };
+  if (isMonEvening(d)) return { name: 'Mon Evening',  label: 'Mon 12:00–15:00 UTC',     color: '#5aa3ff', bg: '#12233f' };
   if (isNY(d))         return { name: 'NY Session',   label: 'Mon–Fri 13:30–18:00 UTC', color: '#60a5fa', bg: '#0a1929' };
   if (isLondon(d))     return { name: 'London Open',  label: 'Weekdays 07:00–10:00 UTC', color: '#7ab8f5', bg: '#0d1e30' };
   if (isPreNY(d))      return { name: 'Pre-NY',       label: 'Weekdays 12:00–13:30 UTC', color: '#94a3b8', bg: '#1a1f2e' };

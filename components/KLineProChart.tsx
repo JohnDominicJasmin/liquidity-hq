@@ -131,7 +131,7 @@ const DARK: Record<string, unknown> = {
     },
   },
   overlay: {
-    line: { color: '#b8aeff', size: 1 },
+    line: { color: '#5aa3ff', size: 1 },
   },
   indicator: {
     tooltip: { showRule: 'follow_cross' },
@@ -451,7 +451,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             { color: '#fbbf24', size: 1   },  // EMA 9  - gold
             { color: '#60a5fa', size: 1.5 },  // EMA 20 - blue
             { color: '#f97316', size: 1.5 },  // EMA 50 - orange
-            { color: '#5a6aff', size: 2   },  // EMA 200 - purple
+            { color: '#1a7aff', size: 2   },  // EMA 200 - blue
           ],
         },
       });
@@ -464,7 +464,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       // in the app (marketStore rsi14/rsi1h/rsi4h/rsiDaily), instead of the
       // built-in indicator's default 3-line [6,12,24] preset.
       chart.createIndicator(
-        { name: 'RSI', calcParams: [14], styles: { lines: [{ color: '#b8aeff', size: 1.5 }] } },
+        { name: 'RSI', calcParams: [14], styles: { lines: [{ color: '#5aa3ff', size: 1.5 }] } },
         { pane: { height: 70, minHeight: 30 } }
       );
 
@@ -828,7 +828,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     if (result.entryLow)  draw(result.entryLow,  '#34d399');
     if (result.entryHigh) draw(result.entryHigh, '#34d399');
     if (result.sl)        draw(result.sl,        '#f87171');
-    if (result.tp)        draw(result.tp,        '#b8aeff');
+    if (result.tp)        draw(result.tp,        '#5aa3ff');
   }, [result]);
 
   // ── EMA signal markers - all significant crosses in the loaded data ──────────────
@@ -1006,7 +1006,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       label: 'Setup Forming',
       detail: `Near ${nearSR.type} (${nearSR.touches} touches) · Squeeze ${sq.score}/100`,
       explanation: `Squeeze pressure is building near a key ${nearSR.type} level, but signals aren't fully aligned yet. Watch for direction confirmation - don't jump in early.`,
-      color: '#5a6aff', bg: 'rgba(90,106,255,0.10)', bdr: 'rgba(90,106,255,0.28)',
+      color: '#1a7aff', bg: 'rgba(26,122,255,0.10)', bdr: 'rgba(26,122,255,0.28)',
     };
   })();
 
@@ -1078,7 +1078,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             {result!.tp && (
               <button
                 className="klc-price-chip"
-                style={{ color: '#b8aeff', background: 'rgba(184,174,255,0.08)', borderColor: 'rgba(184,174,255,0.2)' }}
+                style={{ color: '#5aa3ff', background: 'rgba(90,163,255,0.08)', borderColor: 'rgba(90,163,255,0.2)' }}
                 onClick={() => handleCopy(result!.tp!, 'TP')}
                 title="Click to copy TP price"
               >

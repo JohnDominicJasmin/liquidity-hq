@@ -7,9 +7,9 @@ const C = 2 * Math.PI * R; // arc circumference
 
 const RINGS = [
   { label: 'Quick',    color: '#34d399', used: 'quick_used',    limit: 'quick_limit'    },
-  { label: 'Deep',     color: '#b8aeff', used: 'deep_used',     limit: 'deep_limit'     },
+  { label: 'Deep',     color: '#5aa3ff', used: 'deep_used',     limit: 'deep_limit'     },
   { label: 'Chat',     color: '#60a5fa', used: 'chat_used',     limit: 'chat_limit'     },
-  { label: 'Search',   color: '#5a6aff', used: 'search_used',   limit: 'search_limit'   },
+  { label: 'Search',   color: '#1a7aff', used: 'search_used',   limit: 'search_limit'   },
   { label: 'Briefing', color: '#f59e0b', used: 'briefing_used', limit: 'briefing_limit' },
 ] as const;
 

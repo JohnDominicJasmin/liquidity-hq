@@ -27,7 +27,7 @@ function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): {
 
 const GRADE_ORDER: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, F: 4, '-': 5 };
 const PAGE_SIZE = 20;
-const ROW_COLS = '28px 1fr 40px 96px 58px 80px 1fr';
+const ROW_COLS = '48px 1fr 40px 96px 58px 92px 1fr';
 
 export default function MarketsPage() {
   const { store, selectCoin } = useMarket();
@@ -183,7 +183,7 @@ export default function MarketsPage() {
           <div className="mkt-col-spark" />
           <div style={{ textAlign: 'right' }}>Price</div>
           <div style={{ textAlign: 'right' }}>24h</div>
-          <div className="mkt-col-pressure" style={{ paddingLeft: 4 }}>
+          <div className="mkt-col-pressure" style={{ paddingLeft: 16 }}>
             <Tip width={250} text="The share of recent volume that hit the ask (aggressive buying) versus the bid. Above 55% buy means buyers are lifting offers; below 45% means sellers are hitting bids.">Pressure</Tip>
           </div>
           <div style={{ paddingLeft: 12 }}>
@@ -264,7 +264,7 @@ export default function MarketsPage() {
               </div>
 
               {/* Pressure bar */}
-              <div className="mkt-col-pressure" style={{ paddingLeft: 4, paddingRight: 8 }}>
+              <div className="mkt-col-pressure" style={{ paddingLeft: 16, paddingRight: 8 }}>
                 <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2 }}>
                   <div style={{ height: '100%', width: tbp + '%', background: barCol, borderRadius: 2, transition: 'width 0.5s' }} />
                 </div>

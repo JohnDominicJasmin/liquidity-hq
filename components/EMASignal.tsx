@@ -251,18 +251,18 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
             marginTop: 10,
             width: '100%',
             padding: '7px 0',
-            background: 'rgba(184,174,255,0.06)',
-            border: '0.5px solid rgba(184,174,255,0.2)',
+            background: 'rgba(90,163,255,0.06)',
+            border: '0.5px solid rgba(90,163,255,0.2)',
             borderRadius: 7,
             fontSize: 'var(--fs-caption)',
             fontWeight: 600,
-            color: '#b8aeff',
+            color: '#5aa3ff',
             cursor: 'pointer',
             letterSpacing: '.02em',
             transition: 'background 0.15s',
           }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(184,174,255,0.12)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(184,174,255,0.06)'; }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(90,163,255,0.12)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(90,163,255,0.06)'; }}
         >
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" /></svg>

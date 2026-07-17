@@ -12,7 +12,7 @@ const BG2     = '#101324';
 const TXT1    = '#eef0fa';
 const TXT2    = '#9296b5';
 const TXT3    = '#4e5374';
-const BDR     = 'rgba(140,150,255,0.1)';
+const BDR     = 'rgba(26,122,255,0.1)';
 const MONO    = "var(--font-mono, 'IBM Plex Mono', monospace)";
 const SANS    = "var(--font-sans, 'Figtree', system-ui, sans-serif)";
 
@@ -63,7 +63,7 @@ function Step2Visual() {
         ))}
       </div>
       {/* Track */}
-      <div style={{ position: 'relative', height: 10, background: 'rgba(140,150,255,0.06)', borderRadius: 100, overflow: 'hidden' }}>
+      <div style={{ position: 'relative', height: 10, background: 'rgba(26,122,255,0.06)', borderRadius: 100, overflow: 'hidden' }}>
         {/* neutral center line */}
         <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, background: BDR }} />
         {/* fill from center leftward (negative) */}
@@ -279,7 +279,7 @@ function Step5Visual() {
         <svg width="100%" viewBox="0 0 264 96" style={{ display: 'block', overflow: 'visible' }}>
           {/* Subtle grid */}
           {[22, 44, 66].map(y => (
-            <line key={y} x1="0" y1={y} x2="264" y2={y} stroke="rgba(140,150,255,0.05)" strokeWidth="0.5" />
+            <line key={y} x1="0" y1={y} x2="264" y2={y} stroke="rgba(26,122,255,0.05)" strokeWidth="0.5" />
           ))}
 
           {/* EMA lines - phase 2 */}
@@ -461,11 +461,11 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
           background: BG1, border: `1px solid ${BDR}`,
           borderRadius: 16,
           overflow: 'hidden',
-          boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(140,150,255,0.06)',
+          boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(26,122,255,0.06)',
         }}
       >
         {/* Progress bar */}
-        <div style={{ height: 3, background: 'rgba(140,150,255,0.06)' }}>
+        <div style={{ height: 3, background: 'rgba(26,122,255,0.06)' }}>
           <div style={{
             height: '100%',
             width: `${((step + 1) / STEPS.length) * 100}%`,
@@ -528,7 +528,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
                   height: 4,
                   width: i === step ? 20 : 6,
                   borderRadius: 100,
-                  background: i === step ? ACCENT : i < step ? `${ACCENT}50` : 'rgba(140,150,255,0.12)',
+                  background: i === step ? ACCENT : i < step ? `${ACCENT}50` : 'rgba(26,122,255,0.12)',
                   transition: 'all 0.3s cubic-bezier(0.16,1,0.3,1)',
                 }} />
               ))}
