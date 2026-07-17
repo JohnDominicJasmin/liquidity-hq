@@ -46,6 +46,10 @@
   --amber-bg:  rgba(251,191,36,0.08);
   --amber-bdr: rgba(251,191,36,0.22);
 
+  --orange:     #fb923c;
+  --orange-bg:  rgba(251,146,60,0.08);
+  --orange-bdr: rgba(251,146,60,0.22);
+
   --blue:     #60a5fa;
   --blue-bg:  rgba(96,165,250,0.08);
   --blue-bdr: rgba(96,165,250,0.22);
@@ -555,7 +559,7 @@ body[data-rpm-level="high"]::before {
 .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-left: 2px; animation: pulse 2s infinite; }
 .dot-live       { background: var(--green); box-shadow: 0 0 6px var(--green); }
 .dot-connecting { background: var(--amber); box-shadow: 0 0 6px var(--amber); animation: pulse 1s infinite; }
-.dot-rest       { background: #fb923c;      box-shadow: 0 0 6px #fb923c; }
+.dot-rest       { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
 .dot-error      { background: var(--red);   box-shadow: 0 0 6px var(--red);   animation: pulse 0.8s infinite; }
 
 /* ── DESKTOP NAV ── */
@@ -1994,6 +1998,9 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --amber-dim: rgba(180,83,9,0.12);
   --amber-bg:  rgba(180,83,9,0.07);
   --amber-bdr: rgba(180,83,9,0.20);
+  --orange:     #C2410C;
+  --orange-bg:  rgba(194,65,12,0.07);
+  --orange-bdr: rgba(194,65,12,0.20);
   --blue:     #1D4ED8;
   --blue-bg:  rgba(29,78,216,0.07);
   --blue-bdr: rgba(29,78,216,0.20);

@@ -32,7 +32,7 @@ type SMCTF = typeof SMC_TFS[number];
 const SMC_SECTIONS = [
   { key: 'MARKET_STRUCTURE', label: 'Market Structure', color: 'var(--accent)' },
   { key: 'FAIR_VALUE_GAPS',  label: 'Fair Value Gaps',  color: 'var(--amber)' },
-  { key: 'ORDER_BLOCKS',     label: 'Order Blocks',     color: '#fb923c' },
+  { key: 'ORDER_BLOCKS',     label: 'Order Blocks',     color: 'var(--orange)' },
   { key: 'LIQUIDITY_ZONES',  label: 'Liquidity Zones',  color: 'var(--accent-2)' },
   { key: 'BIAS',             label: 'Directional Bias'                   },
   { key: 'KEY_LEVELS',       label: 'Key Levels',       color: 'var(--green)' },
@@ -42,7 +42,7 @@ const UNLOCK_SECTIONS = [
   { key: 'CURRENT_SUPPLY',     label: 'Current Supply'                         },
   { key: 'UNLOCK_SCHEDULE',    label: 'Unlock Schedule',    color: 'var(--amber)'   },
   { key: 'SELL_PRESSURE_30D',  label: '30-Day Sell Pressure', color: 'var(--red)' },
-  { key: 'SELL_PRESSURE_90D',  label: '90-Day Sell Pressure', color: '#fb923c' },
+  { key: 'SELL_PRESSURE_90D',  label: '90-Day Sell Pressure', color: 'var(--orange)' },
   { key: 'HISTORICAL_PATTERN', label: 'Historical Pattern'                      },
   { key: 'RECOMMENDATION',     label: 'Recommendation',     color: 'var(--green)'   },
 ];

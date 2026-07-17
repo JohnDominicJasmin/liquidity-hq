@@ -174,7 +174,7 @@ function ShadowAccountResult({ text }: { text: string }) {
 /* ── Behavioral Bias ── */
 const BIAS_SECTIONS: { key: string; label: string; color?: string }[] = [
   { key: 'DISPOSITION_EFFECT', label: 'Disposition Effect',   color: 'var(--red)' },
-  { key: 'OVERTRADING',        label: 'Overtrading',          color: '#fb923c' },
+  { key: 'OVERTRADING',        label: 'Overtrading',          color: 'var(--orange)' },
   { key: 'MOMENTUM_CHASING',   label: 'Momentum Chasing',     color: 'var(--amber)' },
   { key: 'ANCHORING_BIAS',     label: 'Anchoring Bias',       color: 'var(--accent-2)' },
   { key: 'PNL_IMPACT',         label: 'P&L Impact by Bias',   color: 'var(--accent)' },
