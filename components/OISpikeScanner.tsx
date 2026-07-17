@@ -193,7 +193,7 @@ export default function OISpikeScanner() {
           <span className="ois-title">Open Interest Spike Scanner · 1H</span>
           {!loading && spikeCount > 0 && (
             <span style={{
-              fontSize: 9, fontWeight: 700, letterSpacing: '.05em',
+              fontSize: 11, fontWeight: 700, letterSpacing: '.05em',
               color: '#34d399', background: 'rgba(52,211,153,0.1)',
               border: '0.5px solid rgba(52,211,153,0.25)',
               padding: '1px 5px', borderRadius: 4,

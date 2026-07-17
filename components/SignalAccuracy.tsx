@@ -68,9 +68,9 @@ export default function SignalAccuracy() {
           Signal Accuracy Tracker
         </span>
         {data?.candles && (
-          <span style={{ fontSize: 9, color: '#444' }}>BTC · 4H · last {data.candles} candles</span>
+          <span style={{ fontSize: 11, color: '#444' }}>BTC · 4H · last {data.candles} candles</span>
         )}
-        <span style={{ fontSize: 9, color: '#444' }}>10 min cache</span>
+        <span style={{ fontSize: 11, color: '#444' }}>10 min cache</span>
       </div>
 
       {/* Loading / error */}
@@ -95,7 +95,7 @@ export default function SignalAccuracy() {
             {[['Signal', 'left'], ['TF', 'right'], ['Win Rate 12h', 'right'], ['Win Rate 24h', 'right'], ['Count', 'right']].map(
               ([h, align]) => (
                 <span key={h} style={{
-                  fontSize: 9, fontWeight: 600, letterSpacing: '.07em',
+                  fontSize: 11, fontWeight: 600, letterSpacing: '.07em',
                   textTransform: 'uppercase', color: '#333', textAlign: align as 'left' | 'right',
                 }}>
                   {h}
@@ -124,10 +124,10 @@ export default function SignalAccuracy() {
                 {/* Signal name */}
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: dirColor }}>{dirIcon}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: dirColor }}>{dirIcon}</span>
                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--txt)' }}>{sig.label}</span>
                   </div>
-                  <span style={{ fontSize: 9, color: '#444' }}>
+                  <span style={{ fontSize: 11, color: '#444' }}>
                     avg {sig.direction === 'long' ? '+' : ''}{sig.avgReturn6.toFixed(2)}% at 24h
                   </span>
                 </div>
@@ -159,7 +159,7 @@ export default function SignalAccuracy() {
 
           {/* Footer */}
           <div style={{ padding: '6px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)' }}>
-            <span style={{ fontSize: 9, color: '#333' }}>
+            <span style={{ fontSize: 11, color: '#333' }}>
               Win Rate = % of signals where price moved in the expected direction after 12h or 24h
             </span>
           </div>

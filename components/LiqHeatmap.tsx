@@ -68,11 +68,11 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
         <div style={{ flex: 1, height: 8, borderRadius: 3, background: 'var(--bg2)', overflow: 'hidden' }}>
           <div style={{ width: `${barW}%`, height: '100%', background: color, borderRadius: 3, transition: 'width 0.3s' }} />
         </div>
-        <span style={{ fontSize: 9, color, fontWeight: 700, minWidth: 36, flexShrink: 0 }}>
+        <span style={{ fontSize: 11, color, fontWeight: 700, minWidth: 36, flexShrink: 0 }}>
           {fmtAmt(l.amount)}
         </span>
         <span style={{
-          fontSize: 9, color, background: bg, padding: '1px 5px', borderRadius: 10, flexShrink: 0,
+          fontSize: 11, color, background: bg, padding: '1px 5px', borderRadius: 10, flexShrink: 0,
         }}>
           {pct >= 0 ? '+' : ''}{pct.toFixed(1)}%
         </span>
@@ -90,7 +90,7 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
       {/* Short liq clusters — above price */}
       {above.length > 0 && (
         <>
-          <div style={{ fontSize: 9, fontWeight: 700, color: '#34d399', letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 4 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#34d399', letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 4 }}>
             Short liquidations above — bulls target here
           </div>
           {above.map((l, i) => <Row key={i} l={l} side="above" />)}
@@ -103,7 +103,7 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
         margin: '8px 0', padding: '5px 0',
         borderTop: '0.5px solid var(--bdr)', borderBottom: '0.5px solid var(--bdr)',
       }}>
-        <span style={{ fontSize: 9, color: 'var(--txt3)', letterSpacing: '.05em', textTransform: 'uppercase' }}>Current</span>
+        <span style={{ fontSize: 11, color: 'var(--txt3)', letterSpacing: '.05em', textTransform: 'uppercase' }}>Current</span>
         <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--txt)', letterSpacing: '-0.3px' }}>
           {fmtK(currentPrice)}
         </span>
@@ -113,7 +113,7 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
       {below.length > 0 && (
         <>
           {below.map((l, i) => <Row key={i} l={l} side="below" />)}
-          <div style={{ fontSize: 9, fontWeight: 700, color: '#f87171', letterSpacing: '.06em', textTransform: 'uppercase', marginTop: 4 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#f87171', letterSpacing: '.06em', textTransform: 'uppercase', marginTop: 4 }}>
             Long liquidations below — bears target here
           </div>
         </>

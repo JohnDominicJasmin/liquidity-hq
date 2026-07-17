@@ -46,7 +46,7 @@ export default function Tip({ text, children, width = 230, iconColor = 'var(--tx
       >
         {children}
         <span style={{
-          fontSize: 9,
+          fontSize: 11,
           color: iconColor,
           fontWeight: 400,
           lineHeight: 1,

@@ -191,7 +191,7 @@ export default function EconCalendarPage() {
                     <div style={{ fontSize: 12, color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
                       {fmtTime(e.isoDate)}
                       {!isPast && ct !== 'Released' && (
-                        <div style={{ fontSize: 9, color: 'var(--txt3)', marginTop: 1 }}>in {ct}</div>
+                        <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 1 }}>in {ct}</div>
                       )}
                     </div>
 

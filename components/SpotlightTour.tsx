@@ -30,13 +30,13 @@ function Step1Visual() {
           flex: 1, background: BG2, border: `1px solid ${BDR}`,
           borderRadius: 10, padding: '14px 10px', textAlign: 'center',
         }}>
-          <div style={{ fontSize: 9, color: TXT3, fontFamily: MONO, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+          <div style={{ fontSize: 11, color: TXT3, fontFamily: MONO, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 6 }}>
             {c.label}
           </div>
           <div style={{ fontSize: 18, fontWeight: 800, color: c.color, fontFamily: MONO, letterSpacing: '-.02em' }}>
             {c.value}
           </div>
-          <div style={{ fontSize: 9, color: TXT3, marginTop: 4, lineHeight: 1.4 }}>
+          <div style={{ fontSize: 11, color: TXT3, marginTop: 4, lineHeight: 1.4 }}>
             {c.sub}
           </div>
         </div>
@@ -59,7 +59,7 @@ function Step2Visual() {
       {/* Scale */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
         {ticks.map(t => (
-          <span key={t} style={{ fontSize: 8, color: TXT3, fontFamily: MONO }}>{t}</span>
+          <span key={t} style={{ fontSize: 11, color: TXT3, fontFamily: MONO }}>{t}</span>
         ))}
       </div>
       {/* Track */}
@@ -123,7 +123,7 @@ function Step3Visual() {
               transition: 'height 0.7s cubic-bezier(0.16,1,0.3,1), opacity 0.4s',
               transitionDelay: `${bars.indexOf(b) * 60}ms`,
             }} />
-            <span style={{ fontSize: 8, color: TXT3, fontFamily: MONO }}>{b.label}</span>
+            <span style={{ fontSize: 11, color: TXT3, fontFamily: MONO }}>{b.label}</span>
           </div>
         ))}
       </div>
@@ -149,14 +149,14 @@ function Step4Visual() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 15, fontWeight: 800, color: TXT1, fontFamily: MONO }}>BTC</span>
             <span style={{
-              fontSize: 9, fontWeight: 700, padding: '2px 8px',
+              fontSize: 11, fontWeight: 700, padding: '2px 8px',
               borderRadius: 100, background: `${RED}18`, color: RED, fontFamily: MONO,
               letterSpacing: '.06em',
             }}>SHORT_SQ</span>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 20, fontWeight: 900, color: RED, fontFamily: MONO, lineHeight: 1 }}>82</div>
-            <div style={{ fontSize: 8, color: TXT3, fontFamily: MONO }}>/ 100</div>
+            <div style={{ fontSize: 11, color: TXT3, fontFamily: MONO }}>/ 100</div>
           </div>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
@@ -268,10 +268,10 @@ function Step5Visual() {
       <div style={{ background: BG0, border: `1px solid ${BDR}`, borderRadius: 10, padding: '8px 8px 4px' }}>
         {/* Chart header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-          <span style={{ fontSize: 9, color: TXT3, fontFamily: MONO, letterSpacing: '.08em' }}>BTCUSDT · 4H</span>
+          <span style={{ fontSize: 11, color: TXT3, fontFamily: MONO, letterSpacing: '.08em' }}>BTCUSDT · 4H</span>
           <div style={{ display: 'flex', gap: 10 }}>
             {([['EMA9', ACCENT], ['EMA20', '#f97316'], ['EMA50', TXT3]] as const).map(([l, c]) => (
-              <span key={l} style={{ fontSize: 7.5, color: c, fontFamily: MONO }}>─ {l}</span>
+              <span key={l} style={{ fontSize: 11, color: c, fontFamily: MONO }}>─ {l}</span>
             ))}
           </div>
         </div>
@@ -345,12 +345,12 @@ function Step5Visual() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, fontWeight: 800, color: TXT1, fontFamily: MONO }}>BTC</span>
           <span style={{
-            fontSize: 8, padding: '2px 7px', borderRadius: 100,
+            fontSize: 11, padding: '2px 7px', borderRadius: 100,
             background: `${GREEN}18`, color: GREEN, fontFamily: MONO, fontWeight: 700, letterSpacing: '.05em',
           }}>LONG_SQ</span>
           {(['EMA ×', 'VOL 2.1×', 'FR+'] as const).map(chip => (
             <span key={chip} style={{
-              fontSize: 8, padding: '2px 6px', borderRadius: 4, fontFamily: MONO, fontWeight: 600,
+              fontSize: 11, padding: '2px 6px', borderRadius: 4, fontFamily: MONO, fontWeight: 600,
               background: `${ACCENT}12`, color: ACCENT, border: `1px solid ${ACCENT}22`,
             }}>{chip}</span>
           ))}
@@ -478,7 +478,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
           {/* Tag + close */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
             <span style={{
-              fontSize: 9, fontWeight: 700, fontFamily: MONO,
+              fontSize: 11, fontWeight: 700, fontFamily: MONO,
               letterSpacing: '.14em', color: ACCENT,
             }}>
               {current.tag}

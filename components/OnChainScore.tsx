@@ -200,7 +200,7 @@ export default function OnChainScore() {
               }}>
                 {data.composite_score}
               </div>
-              <div style={{ fontSize: 9, color: 'var(--txt3)', marginTop: 2, letterSpacing: '0.06em' }}>/ 100</div>
+              <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2, letterSpacing: '0.06em' }}>/ 100</div>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{

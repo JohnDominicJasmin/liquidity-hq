@@ -164,7 +164,7 @@ export default function DryPowder() {
                     {chg30} / 30d
                   </span>
                 </div>
-                <div style={{ fontSize: 9, color: 'var(--txt3)', marginTop: 2 }}>
+                <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>
                   90d ago: {fmt(d.prev90)} ({chgPct(d.current, d.prev90)})
                 </div>
               </div>
@@ -206,7 +206,7 @@ export default function DryPowder() {
               onClick={fetchData}
               style={{
                 display: 'block', marginTop: 8,
-                fontSize: 9, color: 'var(--txt3)', background: 'transparent',
+                fontSize: 11, color: 'var(--txt3)', background: 'transparent',
                 border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left',
               }}
             >

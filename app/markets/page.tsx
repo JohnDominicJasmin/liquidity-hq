@@ -123,7 +123,7 @@ export default function MarketsPage() {
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--txt)', letterSpacing: '.04em', textTransform: 'uppercase' }}>
               Markets
             </div>
-            <div style={{ fontSize: 9, color: 'var(--txt3)', marginTop: 1, letterSpacing: '.02em' }}>
+            <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 1, letterSpacing: '.02em' }}>
               {COINS.length} coins live
             </div>
           </div>
@@ -171,7 +171,7 @@ export default function MarketsPage() {
           display: 'grid',
           gridTemplateColumns: ROW_COLS,
           padding: '0 10px 6px',
-          fontSize: 9, fontWeight: 700, letterSpacing: '.1em',
+          fontSize: 11, fontWeight: 700, letterSpacing: '.1em',
           textTransform: 'uppercase', color: 'var(--txt3)',
           borderBottom: '0.5px solid var(--bdr)', marginBottom: 2,
         }}>
@@ -216,7 +216,7 @@ export default function MarketsPage() {
               <div style={{
                 width: 22, height: 22, borderRadius: 5,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 9, fontWeight: 800,
+                fontSize: 11, fontWeight: 800,
                 background: gradeStyle.bg, color: gradeStyle.col,
                 fontFamily: 'var(--font-mono), monospace',
               }}>
@@ -228,7 +228,7 @@ export default function MarketsPage() {
                 <span style={{
                   width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 8, fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
+                  fontSize: 11, fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
                   background: badgeCol + '24', color: badgeCol, border: `0.5px solid ${badgeCol}55`,
                 }}>
                   {id.slice(0, 2).toUpperCase()}
@@ -261,7 +261,7 @@ export default function MarketsPage() {
                 <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 2 }}>
                   <div style={{ height: '100%', width: tbp + '%', background: barCol, borderRadius: 2, transition: 'width 0.5s' }} />
                 </div>
-                <div className="mkt-mono" style={{ fontSize: 8, color: 'var(--txt3)', marginTop: 2 }}>
+                <div className="mkt-mono" style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>
                   {tbp}% buy
                 </div>
               </div>

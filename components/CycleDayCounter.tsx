@@ -59,7 +59,7 @@ export default function CycleDayCounter() {
           </span>
         </div>
         <span suppressHydrationWarning style={{
-          fontSize: 9, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+          fontSize: 11, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
           color: dotColor, background: dotColor + '18', border: `0.5px solid ${dotColor}44`,
           padding: '2px 7px', borderRadius: 20,
         }}>{label}</span>
@@ -94,7 +94,7 @@ export default function CycleDayCounter() {
         {/* Peak window markers */}
         <div style={{ position: 'relative', height: 12, marginTop: 2 }}>
           <span style={{
-            position: 'absolute', fontSize: 9, color: '#fbbf24',
+            position: 'absolute', fontSize: 11, color: '#fbbf24',
             left: `${(PEAK_WINDOW.start / PEAK_WINDOW.end) * 100}%`,
             transform: 'translateX(-50%)',
           }}>▲</span>

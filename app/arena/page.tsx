@@ -1272,7 +1272,7 @@ function ArenaContent() {
               background: 'rgba(255,255,255,0.02)',
             }}>
               {[['Name', 'left'], ['Price', 'right'], ['24h', 'right'], ['vs BTC', 'right'], ['Status', 'right'], ['Score', 'right']].map(([h, align]) => (
-                <span key={h} className={h === 'vs BTC' ? 'scanner-flyout-vsbtc' : undefined} style={{ fontSize: 9, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: '#333', textAlign: align as 'left' | 'right' }}>{h}</span>
+                <span key={h} className={h === 'vs BTC' ? 'scanner-flyout-vsbtc' : undefined} style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: '#333', textAlign: align as 'left' | 'right' }}>{h}</span>
               ))}
             </div>
 
@@ -1325,7 +1325,7 @@ function ArenaContent() {
                             const col = isGood ? '#34d399' : isBad ? '#f87171' : '#fbbf24';
                             return (
                               <span key={b} style={{
-                                fontSize: 8, fontWeight: 700, letterSpacing: '.04em',
+                                fontSize: 11, fontWeight: 700, letterSpacing: '.04em',
                                 padding: '1px 4px', borderRadius: 3,
                                 color: col, background: col + '18', border: `0.5px solid ${col}33`,
                               }}>{b}</span>
@@ -1333,7 +1333,7 @@ function ArenaContent() {
                           })}
                         </div>
                       ) : (
-                        <div style={{ fontSize: 9, color: '#333', lineHeight: 1 }}>USDT Perp</div>
+                        <div style={{ fontSize: 11, color: '#333', lineHeight: 1 }}>USDT Perp</div>
                       )}
                     </div>
                   </div>
@@ -1353,7 +1353,7 @@ function ArenaContent() {
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
                     {isActive ? (
                       <span style={{
-                        fontSize: 9, fontWeight: 700, letterSpacing: '.04em', padding: '1px 6px',
+                        fontSize: 11, fontWeight: 700, letterSpacing: '.04em', padding: '1px 6px',
                         borderRadius: 4, background: rowSq.color + '18',
                         border: `0.5px solid ${rowSq.color}44`,
                         color: rowSq.color,
@@ -1375,7 +1375,7 @@ function ArenaContent() {
 
             {/* Footer */}
             <div style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.01)', borderTop: '0.5px solid rgba(255,255,255,0.05)' }}>
-              <span style={{ fontSize: 9, color: '#2a2a2a' }}>Funding rate + L/S ratio · ↑ Squeeze = shorts overcrowded · ↓ Flush = longs overcrowded</span>
+              <span style={{ fontSize: 11, color: '#2a2a2a' }}>Funding rate + L/S ratio · ↑ Squeeze = shorts overcrowded · ↓ Flush = longs overcrowded</span>
             </div>
           </div>
           </div>
@@ -1790,7 +1790,7 @@ function ArenaContent() {
                   </span>
                   {result.signal === 'FLAT' && result.bias && result.bias !== 'NEUTRAL' && (
                     <span style={{
-                      fontSize: 9, fontWeight: 800, letterSpacing: '.06em',
+                      fontSize: 11, fontWeight: 800, letterSpacing: '.06em',
                       textTransform: 'uppercase',
                       color: result.bias === 'BEARISH' ? '#f87171' : '#34d399',
                     }}>

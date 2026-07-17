@@ -131,13 +131,13 @@ export default function MultiTFSqueezeView() {
         </span>
         {totalSqz > 0 && (
           <span style={{
-            fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
+            fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
             color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)',
           }}>↑ {totalSqz} squeeze</span>
         )}
         {totalFlush > 0 && (
           <span style={{
-            fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
+            fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
             color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '0.5px solid rgba(248,113,113,0.25)',
           }}>↓ {totalFlush} flush</span>
         )}
@@ -226,7 +226,7 @@ export default function MultiTFSqueezeView() {
                     border: sig.dir !== 'NEUTRAL' ? `0.5px solid ${cols.border}` : 'none',
                     minWidth: 36, justifyContent: 'center',
                   }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: cols.text, letterSpacing: '.01em' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: cols.text, letterSpacing: '.01em' }}>
                       {icon}
                     </span>
                     <span style={{
@@ -278,15 +278,15 @@ export default function MultiTFSqueezeView() {
 
       {/* Footer legend */}
       <div style={{ padding: '6px 14px', borderTop: '0.5px solid rgba(255,255,255,0.05)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 9, color: '#34d399' }}>↑ Squeeze = shorts overcrowded, bounce likely</span>
-        <span style={{ fontSize: 9, color: '#f87171' }}>↓ Flush = longs overcrowded, drop likely</span>
-        <span style={{ fontSize: 9, color: '#444' }}>RSI + Funding Rate + L/S ratio</span>
+        <span style={{ fontSize: 11, color: '#34d399' }}>↑ Squeeze = shorts overcrowded, bounce likely</span>
+        <span style={{ fontSize: 11, color: '#f87171' }}>↓ Flush = longs overcrowded, drop likely</span>
+        <span style={{ fontSize: 11, color: '#444' }}>RSI + Funding Rate + L/S ratio</span>
       </div>
     </div>
   );
 }
 
 const hdrStyle: React.CSSProperties = {
-  fontSize: 9, fontWeight: 600, letterSpacing: '.07em',
+  fontSize: 11, fontWeight: 600, letterSpacing: '.07em',
   textTransform: 'uppercase', color: '#333',
 };

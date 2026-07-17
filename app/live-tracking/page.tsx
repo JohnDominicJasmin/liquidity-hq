@@ -74,7 +74,7 @@ export default function LiveTrackingPage() {
   return (
     <div>
       <div className="mb-header">
-        <div className="mb-title">Live Outcome Tracking</div>
+        <h1 className="mb-title">Live Outcome Tracking</h1>
         <div className="mb-subtitle">
           Real EMA Ribbon signals (default filter, majors, 1h + 4h) as they actually fired — not a replay.
           Complements the historical backtest by validating the strategy against current market conditions.
@@ -96,7 +96,7 @@ export default function LiveTrackingPage() {
             <SideCard title="LIVE (ANTI-CHOP ON)" stats={stats} color="#34d399" />
           </div>
 
-          <div className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Per-Coin Breakdown</div>
+          <h2 className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Per-Coin Breakdown</h2>
           <div style={{ overflowX: 'auto', marginBottom: 24 }}>
             <table className="frh-table">
               <thead>
@@ -121,7 +121,7 @@ export default function LiveTrackingPage() {
             </table>
           </div>
 
-          <div className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Recent Signals</div>
+          <h2 className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Recent Signals</h2>
           <div style={{ overflowX: 'auto' }}>
             <table className="frh-table">
               <thead>

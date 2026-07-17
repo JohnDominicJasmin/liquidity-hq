@@ -70,11 +70,11 @@ export default function DrawdownChart() {
           Drawdown from All-Time High
         </span>
         {nearAth > 0 && (
-          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
             {nearAth} near ATH
           </span>
         )}
-        <span style={{ fontSize: 9, color: '#333' }}>via CoinGecko</span>
+        <span style={{ fontSize: 11, color: '#333' }}>via CoinGecko</span>
       </div>
 
       {/* Loading / error states */}
@@ -108,17 +108,17 @@ export default function DrawdownChart() {
                     {drawdown!.toFixed(1)}%
                   </span>
                   {curPrice != null && (
-                    <span style={{ fontSize: 9, color: '#555', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 11, color: '#555', fontVariantNumeric: 'tabular-nums' }}>
                       {fmtPrice(curPrice)}
                     </span>
                   )}
                   {athPrice != null && (
-                    <span style={{ fontSize: 9, color: '#444', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 11, color: '#444', fontVariantNumeric: 'tabular-nums' }}>
                       → ATH {fmtPrice(athPrice)}
                     </span>
                   )}
                   {athDate && (
-                    <span style={{ fontSize: 9, color: '#333', marginLeft: 'auto' }}>
+                    <span style={{ fontSize: 11, color: '#333', marginLeft: 'auto' }}>
                       {fmtDate(athDate)}
                     </span>
                   )}
@@ -147,7 +147,7 @@ export default function DrawdownChart() {
           { label: '60-80%', col: '#f87171' },
           { label: '> 80%', col: '#ef4444' },
         ].map(({ label, col }) => (
-          <span key={label} style={{ fontSize: 8, color: col, fontWeight: 600 }}>{label}</span>
+          <span key={label} style={{ fontSize: 11, color: col, fontWeight: 600 }}>{label}</span>
         ))}
       </div>
     </div>

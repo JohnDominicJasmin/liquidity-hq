@@ -31,7 +31,7 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
       <div style={{ flex: '1 1 260px', minWidth: 0 }}>
         <div style={{
           fontFamily: 'var(--font-mono, monospace)',
-          fontSize: 9, fontWeight: 600, letterSpacing: '0.14em',
+          fontSize: 11, fontWeight: 600, letterSpacing: '0.14em',
           textTransform: 'uppercase', color: 'var(--accent-2)', marginBottom: 6,
         }}>
           Pro Feature

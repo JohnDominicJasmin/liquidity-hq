@@ -175,7 +175,7 @@ export default function CorrelationHeatmap() {
 
       {/* Header */}
       <div className="mb-header">
-        <div className="mb-title">Correlation Heatmap</div>
+        <h1 className="mb-title">Correlation Heatmap</h1>
         <div className="mb-subtitle">How coins move together · based on {range.label} price returns</div>
       </div>
 

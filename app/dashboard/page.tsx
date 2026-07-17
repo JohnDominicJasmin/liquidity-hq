@@ -89,13 +89,13 @@ function MarketPulseStrip() {
     }}>
       {chips.map(chip => (
         <div key={chip.label} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase', fontFamily: 'var(--font-mono), monospace' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase', fontFamily: 'var(--font-mono), monospace' }}>
             {chip.label}
           </div>
           <div style={{ fontSize: 14, fontWeight: 800, color: chip.color, fontFamily: 'var(--font-mono), monospace', lineHeight: 1 }}>
             {chip.value}
           </div>
-          <div style={{ fontSize: 9, color: 'var(--txt3)', lineHeight: 1.2 }}>
+          <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.2 }}>
             {chip.note}
           </div>
         </div>
@@ -175,7 +175,7 @@ function CoinSidebar() {
               <span style={{
                 width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 8, fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
+                fontSize: 11, fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
                 background: badgeCol + '24', color: badgeCol, border: `0.5px solid ${badgeCol}55`,
               }}>
                 {id.slice(0, 2).toUpperCase()}
@@ -183,7 +183,7 @@ function CoinSidebar() {
               <span className="csb2-name">{id.toUpperCase()}</span>
               {d?.price && (
                 <span style={{
-                  fontSize: 9, fontWeight: 800, lineHeight: 1,
+                  fontSize: 11, fontWeight: 800, lineHeight: 1,
                   padding: '2px 4px', borderRadius: 4,
                   color: health.color,
                   background: health.color + '22',

@@ -61,7 +61,7 @@ export default function Ticker() {
                   <span className="ticker-coin" style={{ marginBottom: 0 }}>{id.toUpperCase()}</span>
                   {d?.price && (
                     <span style={{
-                      fontSize: 9, fontWeight: 800, lineHeight: 1,
+                      fontSize: 11, fontWeight: 800, lineHeight: 1,
                       padding: '2px 4px', borderRadius: 4,
                       color: health.color,
                       background: health.color + '22',

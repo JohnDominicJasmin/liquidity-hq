@@ -755,7 +755,7 @@ function Inner() {
         <button className={`tj-tab${tab === 'rules' ? ' on' : ''}`} onClick={() => setTab('rules')} style={{ position: 'relative' }}>
           Rules{rules.filter(r => r.enabled).length > 0 && (
             <span style={{
-              marginLeft: 5, fontSize: 9, fontWeight: 700,
+              marginLeft: 5, fontSize: 11, fontWeight: 700,
               background: 'var(--accent)', color: '#fff',
               borderRadius: 10, padding: '1px 5px',
             }}>{rules.filter(r => r.enabled).length}</span>
@@ -765,7 +765,7 @@ function Inner() {
         <button className={`tj-tab${tab === 'bias' ? ' on' : ''}`} onClick={() => setTab('bias')}>Bias Diagnostics</button>
         <button className={`tj-tab${tab === 'thesis' ? ' on' : ''}`} onClick={() => setTab('thesis')} style={{ position: 'relative' }}>
           Thesis Tracker{theses.length > 0 && (
-            <span style={{ marginLeft: 5, fontSize: 9, fontWeight: 700, background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '1px 5px' }}>{theses.length}</span>
+            <span style={{ marginLeft: 5, fontSize: 11, fontWeight: 700, background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '1px 5px' }}>{theses.length}</span>
           )}
         </button>
       </div>
@@ -1020,7 +1020,7 @@ function Inner() {
                   <span className={`tj-result-badge tj-rb-${trade.result.toLowerCase()}`}>{trade.result}</span>
                   {trade.id && violatingTradeIds.has(trade.id) && (
                     <span title="Violated one or more active rules" style={{
-                      fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
+                      fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
                       background: 'rgba(248,113,113,0.12)', color: '#f87171',
                       border: '0.5px solid rgba(248,113,113,0.3)',
                       borderRadius: 4, padding: '2px 5px',
@@ -1615,7 +1615,7 @@ function Inner() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--txt)', fontFamily: 'var(--font-mono), monospace' }}>{thesis.symbol}</span>
                     <span style={{
-                      fontSize: 9, padding: '2px 6px', borderRadius: 10, fontWeight: 700,
+                      fontSize: 11, padding: '2px 6px', borderRadius: 10, fontWeight: 700,
                       background: thesis.direction === 'LONG' ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)',
                       color: thesis.direction === 'LONG' ? '#34d399' : '#f87171',
                       border: `0.5px solid ${thesis.direction === 'LONG' ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
@@ -1637,7 +1637,7 @@ function Inner() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>
                     {thesis.assumptions.map((a, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-                        <span style={{ fontSize: 9, color: 'var(--txt3)', flexShrink: 0, marginTop: 1 }}>A{i + 1}</span>
+                        <span style={{ fontSize: 11, color: 'var(--txt3)', flexShrink: 0, marginTop: 1 }}>A{i + 1}</span>
                         <span style={{ fontSize: 11, color: 'var(--txt3)' }}>{a}</span>
                       </div>
                     ))}
@@ -1646,7 +1646,7 @@ function Inner() {
                   {/* Grok feedback */}
                   {thesis.lastFeedback && (
                     <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 10, marginBottom: 10 }}>
-                      <div style={{ fontSize: 9, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+                      <div style={{ fontSize: 11, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
                         Last checked: {thesis.lastScoreDate}
                       </div>
                       {THESIS_CHECK_SECTIONS.map(({ key, label, color }) => {
@@ -1654,7 +1654,7 @@ function Inner() {
                         if (!content) return null;
                         return (
                           <div key={key} style={{ marginBottom: 8 }}>
-                            <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: color ?? 'var(--txt3)', marginBottom: 3 }}>{label}</div>
+                            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: color ?? 'var(--txt3)', marginBottom: 3 }}>{label}</div>
                             <div style={{ fontSize: 11, color: 'var(--txt2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{content}</div>
                           </div>
                         );

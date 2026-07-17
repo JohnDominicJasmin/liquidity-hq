@@ -62,7 +62,7 @@ export default function DistributionTracker() {
     }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '10px 14px 2px' }}>
         <span style={{
-          fontFamily: 'var(--font-mono), monospace', fontSize: 9, fontWeight: 600,
+          fontFamily: 'var(--font-mono), monospace', fontSize: 11, fontWeight: 600,
           color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.12em',
         }}>
           <Tip width={270} text="Scores every coin for profit-taking by big players: price still up on the day while CVD shows sellers into strength, open interest unwinds out of the rally, top traders lean out of longs, and retail keeps paying positive funding (buying what whales sell). High score = distribution phase — caution on new longs.">

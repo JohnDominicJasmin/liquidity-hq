@@ -167,7 +167,7 @@ export default function VolatilityRegime() {
         {(['low', 'neutral', 'high'] as const).map(r => {
           const m = REGIME_META[r];
           return (
-            <span key={r} style={{ fontSize: 9, color: m.col, display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span key={r} style={{ fontSize: 11, color: m.col, display: 'flex', alignItems: 'center', gap: 3 }}>
               <span style={{ width: 5, height: 5, borderRadius: '50%', background: m.col, flexShrink: 0 }} />
               {r === 'low' ? '< p20' : r === 'high' ? '> p80' : 'p20–p80'}
             </span>

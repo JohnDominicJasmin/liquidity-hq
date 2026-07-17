@@ -119,7 +119,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
                 } Warns rather than filters — the persistence rule still decides which signals actually fire.`}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 4,
-                  fontSize: 9, fontWeight: 700, letterSpacing: '.04em',
+                  fontSize: 11, fontWeight: 700, letterSpacing: '.04em',
                   padding: '3px 8px', borderRadius: 20,
                   color: col, background: col + '14', border: `0.5px solid ${col}44`,
                   whiteSpace: 'nowrap', cursor: 'default',

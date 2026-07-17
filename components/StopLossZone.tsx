@@ -206,8 +206,8 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
                 <div style={{ flex: 1, background: '#f87171', opacity: 0.65, borderRadius: '0 3px 3px 0' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                <span style={{ fontSize: 8, color: 'rgba(52,211,153,0.5)', letterSpacing: '.07em', textTransform: 'uppercase' }}>Reward</span>
-                <span style={{ fontSize: 8, color: 'rgba(248,113,113,0.5)', letterSpacing: '.07em', textTransform: 'uppercase' }}>Risk</span>
+                <span style={{ fontSize: 11, color: 'rgba(52,211,153,0.5)', letterSpacing: '.07em', textTransform: 'uppercase' }}>Reward</span>
+                <span style={{ fontSize: 11, color: 'rgba(248,113,113,0.5)', letterSpacing: '.07em', textTransform: 'uppercase' }}>Risk</span>
               </div>
             </div>
           )}
@@ -230,7 +230,7 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
                   {/* Left: label above price */}
                   <div>
                     <div style={{
-                      fontSize: 9, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
+                      fontSize: 11, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase',
                       color: isEntry ? 'var(--txt3)' : col,
                       marginBottom: 5,
                     }}>

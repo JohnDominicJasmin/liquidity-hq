@@ -277,7 +277,7 @@ export default function AlertsPage() {
     <div>
       {/* Header */}
       <div className="mb-header">
-        <div className="mb-title">Telegram Alerts</div>
+        <h1 className="mb-title">Telegram Alerts</h1>
         <div className="mb-subtitle">Real-time push alerts to your phone — funding, momentum, whale flow, sentiment, and price levels</div>
       </div>
 
@@ -583,7 +583,7 @@ export default function AlertsPage() {
       <div className="card" style={{ marginBottom: 10 }}>
         <div className="lbl" style={{ marginBottom: 4 }}>Alert Conditions</div>
         <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 10 }}>
-          Toggle off to mute. <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4 }}>AI</span> = includes LiquidityAI analysis.
+          Toggle off to mute. <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4 }}>AI</span> = includes LiquidityAI analysis.
         </div>
         {muteErr && <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 8 }}>{muteErr}</div>}
         {ALERT_GROUPS.map(group => (
@@ -602,11 +602,11 @@ export default function AlertsPage() {
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)' }}>
                       {c.title}
-                      {isMuted && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.05em' }}>MUTED</span>}
+                      {isMuted && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.05em' }}>MUTED</span>}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>{c.desc}</div>
                   </div>
-                  {c.grok && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>}
+                  {c.grok && <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>}
                   <button
                     role="switch"
                     aria-checked={!isMuted}
@@ -626,13 +626,13 @@ export default function AlertsPage() {
           <span className="tg-cond-dot" style={{ background: '#818cf8' }} />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)' }}>
-              Confluence Alert <span style={{ marginLeft: 4, fontSize: 9, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.05em' }}>ALWAYS ON</span>
+              Confluence Alert <span style={{ marginLeft: 4, fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.05em' }}>ALWAYS ON</span>
             </div>
             <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>
               2+ signals on the same coin in one run → single combined ping · LiquidityAI weighs all signals together
             </div>
           </div>
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>
         </div>
         {/* ── Signal direction filter ── */}
         <div style={{ marginTop: 10, padding: '10px 0 0', borderTop: '0.5px solid var(--bdr)' }}>

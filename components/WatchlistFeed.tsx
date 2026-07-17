@@ -61,7 +61,7 @@ export default function WatchlistFeed() {
                 <span style={{
                   width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 7, fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
+                  fontSize: 11, fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
                   background: badgeCol + '24', color: badgeCol, border: `0.5px solid ${badgeCol}55`,
                 }}>
                   {id.slice(0, 2).toUpperCase()}
@@ -72,7 +72,7 @@ export default function WatchlistFeed() {
               </span>
               {d?.price && (
                 <span style={{
-                  fontSize: 9, fontWeight: 800,
+                  fontSize: 11, fontWeight: 800,
                   padding: '1px 4px', borderRadius: 4,
                   color: health.color,
                   background: health.color + '22',

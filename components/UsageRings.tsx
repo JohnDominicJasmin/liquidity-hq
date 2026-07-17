@@ -51,7 +51,7 @@ export default function UsageRings({ usage }: { usage: GrokUsageInfo }) {
                   {remaining}
                 </div>
               </div>
-              <div style={{ fontSize: 9, color: 'var(--txt3)', textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: 'var(--txt3)', textAlign: 'center' }}>
                 <div style={{ letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 600 }}>{label}</div>
               </div>
             </div>

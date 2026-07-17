@@ -145,10 +145,10 @@ export default function GlobalMacroContext() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px 8px', marginBottom: 10 }}>
               {rows.map(r => (
                 <div key={r.label} style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: 8, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>{r.label}</span>
+                  <span style={{ fontSize: 11, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>{r.label}</span>
                   <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt)', fontFamily: 'var(--font-mono), monospace' }}>{r.value}</span>
                   {r.chg !== 0 && (
-                    <span style={{ fontSize: 9, color: chgColor(r.chg, r.invertBullish), fontFamily: 'var(--font-mono), monospace' }}>{chgStr(r.chg)}</span>
+                    <span style={{ fontSize: 11, color: chgColor(r.chg, r.invertBullish), fontFamily: 'var(--font-mono), monospace' }}>{chgStr(r.chg)}</span>
                   )}
                 </div>
               ))}
@@ -164,7 +164,7 @@ export default function GlobalMacroContext() {
             {/* Crypto implications */}
             {d.implications && (
               <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 7, marginBottom: 6 }}>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--txt3)', marginBottom: 4 }}>Crypto Implications</div>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--txt3)', marginBottom: 4 }}>Crypto Implications</div>
                 <div style={{ fontSize: 11, color: 'var(--txt2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{d.implications}</div>
               </div>
             )}
@@ -177,7 +177,7 @@ export default function GlobalMacroContext() {
               </div>
             )}
 
-            <button onClick={fetchData} style={{ fontSize: 9, color: 'var(--txt3)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={fetchData} style={{ fontSize: 11, color: 'var(--txt3)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
               Refresh (2h cache)
             </button>
           </>

@@ -338,7 +338,7 @@ export default function MorningBriefing() {
 
       {/* ── Header ── */}
       <div className="mb-header">
-        <div className="mb-title">Morning Briefing</div>
+        <h1 className="mb-title">Morning Briefing</h1>
         <div className="mb-subtitle">{dateStr} · {timeStr}</div>
       </div>
 
@@ -590,16 +590,16 @@ export default function MorningBriefing() {
                 }} />
               </div>
               {/* Threshold labels */}
-              <span style={{ position: 'absolute', bottom: 0, left: 0, fontSize: 9, color: 'var(--txt3)' }}>140</span>
+              <span style={{ position: 'absolute', bottom: 0, left: 0, fontSize: 11, color: 'var(--txt3)' }}>140</span>
               <span style={{
                 position: 'absolute', bottom: 0, left: `${warn158Pct}%`, transform: 'translateX(-50%)',
-                fontSize: 9, color: '#fbbf24', fontWeight: 600,
+                fontSize: 11, color: '#fbbf24', fontWeight: 600,
               }}>158<Warn size={9} style={{ verticalAlign: '-1px', marginLeft: 1 }} /></span>
               <span style={{
                 position: 'absolute', bottom: 0, left: `${danger160Pct}%`, transform: 'translateX(-50%)',
-                fontSize: 9, color: '#f87171', fontWeight: 600,
+                fontSize: 11, color: '#f87171', fontWeight: 600,
               }}>160</span>
-              <span style={{ position: 'absolute', bottom: 0, right: 0, fontSize: 9, color: 'var(--txt3)' }}>165</span>
+              <span style={{ position: 'absolute', bottom: 0, right: 0, fontSize: 11, color: 'var(--txt3)' }}>165</span>
             </div>
 
             {/* Interpretation */}

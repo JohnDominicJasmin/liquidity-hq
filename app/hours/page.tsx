@@ -105,7 +105,7 @@ export default function BestHours() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   {width > 7 && (
-                    <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', letterSpacing: '.04em', opacity: 0.9 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', letterSpacing: '.04em', opacity: 0.9 }}>
                       {seg.label}
                     </span>
                   )}
@@ -144,7 +144,7 @@ export default function BestHours() {
         {/* Hour ticks */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           {[0, 3, 6, 9, 12, 15, 18, 21, 24].map(hr => (
-            <span key={hr} style={{ fontSize: 9, color: 'var(--txt3)', fontVariantNumeric: 'tabular-nums' }}>
+            <span key={hr} style={{ fontSize: 11, color: 'var(--txt3)', fontVariantNumeric: 'tabular-nums' }}>
               {hr === 0 || hr === 24 ? '12A' : hr === 12 ? '12P' : hr < 12 ? `${hr}A` : `${hr - 12}P`}
             </span>
           ))}

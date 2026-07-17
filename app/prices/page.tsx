@@ -30,13 +30,13 @@ export default function PricesPage() {
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--txt)', letterSpacing: '.02em' }}>
             Live Prices
           </div>
-          <div style={{ fontSize: 9, color: 'var(--txt3)', marginTop: 1, letterSpacing: '.02em' }}>
+          <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 1, letterSpacing: '.02em' }}>
             {COINS.length} coins · {wsStatus}
           </div>
         </div>
 
         <span style={{
-          fontSize: 9, fontWeight: 800, padding: '3px 8px', borderRadius: 20,
+          fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 20,
           color: 'var(--green)', background: 'rgba(52,211,153,0.1)',
           border: '0.5px solid rgba(52,211,153,0.2)',
           letterSpacing: '.08em', textTransform: 'uppercase', flexShrink: 0,
@@ -52,9 +52,9 @@ export default function PricesPage() {
         borderBottom: '0.5px solid rgba(255,255,255,0.05)',
         background: 'rgba(255,255,255,0.02)',
       }}>
-        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', opacity: 0.5 }}>Coin</span>
-        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'right', opacity: 0.5 }}>Price</span>
-        <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'center', opacity: 0.5 }}>24h</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', opacity: 0.5 }}>Coin</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'right', opacity: 0.5 }}>Price</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'center', opacity: 0.5 }}>24h</span>
       </div>
 
       {/* Coin rows */}
@@ -90,19 +90,19 @@ export default function PricesPage() {
                   {id.toUpperCase()}
                 </span>
                 {frPct != null && (
-                  <span style={{ fontSize: 9, fontWeight: 700, color: frColor, letterSpacing: '.01em' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: frColor, letterSpacing: '.01em' }}>
                     {frPct >= 0 ? '+' : ''}{frPct.toFixed(4)}%
                   </span>
                 )}
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {d?.vol24 != null && (
-                  <span style={{ fontSize: 9, color: 'var(--txt3)', opacity: 0.7 }}>
+                  <span style={{ fontSize: 11, color: 'var(--txt3)', opacity: 0.7 }}>
                     Vol {fmtVol(d.vol24)}
                   </span>
                 )}
                 {d?.oi != null && (
-                  <span style={{ fontSize: 9, color: 'var(--txt3)', opacity: 0.5 }}>
+                  <span style={{ fontSize: 11, color: 'var(--txt3)', opacity: 0.5 }}>
                     Open Interest {d.oi >= 1e9 ? '$' + (d.oi / 1e9).toFixed(2) + 'B' : '$' + (d.oi / 1e6).toFixed(1) + 'M'}
                   </span>
                 )}

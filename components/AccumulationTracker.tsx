@@ -85,7 +85,7 @@ export default function AccumulationTracker() {
     }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '10px 14px 2px' }}>
         <span style={{
-          fontFamily: 'var(--font-mono), monospace', fontSize: 9, fontWeight: 600,
+          fontFamily: 'var(--font-mono), monospace', fontSize: 11, fontWeight: 600,
           color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.12em',
         }}>
           <Tip width={270} text="Scores every coin for stealth accumulation: price still flat while CVD shows absorption, taker buys dominate, open interest builds, whale positioning leans long, and funding stays calm (crowd not in yet). High score = smart money loading before the move.">

@@ -430,7 +430,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
               <div key={`${c.coin}::${c.price}`} className="liq-cluster-row">
                 <div>
                   {coinFilter === 'ALL' && (
-                    <span style={{ fontSize: 9, fontWeight: 700, color: '#888', letterSpacing: '.06em', display: 'block', marginBottom: 1 }}>{c.coin}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '.06em', display: 'block', marginBottom: 1 }}>{c.coin}</span>
                   )}
                   <span className="liq-cluster-price">{c.label}</span>
                 </div>

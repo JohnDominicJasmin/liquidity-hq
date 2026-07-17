@@ -65,12 +65,12 @@ export default function CoinHeatmap() {
           Market Heatmap · 24 Hour
         </span>
         {positiveCount > 0 && (
-          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
             ↑ {positiveCount}
           </span>
         )}
         {negativeCount > 0 && (
-          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '0.5px solid rgba(248,113,113,0.25)' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '0.5px solid rgba(248,113,113,0.25)' }}>
             ↓ {negativeCount}
           </span>
         )}
@@ -122,7 +122,7 @@ export default function CoinHeatmap() {
                 {c.toUpperCase()}
               </span>
               {coin?.price != null && (
-                <span style={{ fontSize: 9, color: text + 'aa', fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ fontSize: 11, color: text + 'aa', fontVariantNumeric: 'tabular-nums' }}>
                   ${fmtPrice(coin.price)}
                 </span>
               )}
@@ -142,14 +142,14 @@ export default function CoinHeatmap() {
         padding: '5px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)',
         display: 'flex', alignItems: 'center', gap: 3,
       }}>
-        <span style={{ fontSize: 9, color: '#333', marginRight: 4 }}>Scale:</span>
+        <span style={{ fontSize: 11, color: '#333', marginRight: 4 }}>Scale:</span>
         {[
           { label: '>+10%', c: '#34d399' }, { label: '+5%', c: '#6ee7b7' },
           { label: '+2%', c: '#86efac' },   { label: '0', c: '#555' },
           { label: '-2%', c: '#fca5a5' },   { label: '-5%', c: '#f87171' },
           { label: '<-10%', c: '#dc2626' },
         ].map(({ label, c }) => (
-          <span key={label} style={{ fontSize: 8, color: c, fontWeight: 600 }}>{label}</span>
+          <span key={label} style={{ fontSize: 11, color: c, fontWeight: 600 }}>{label}</span>
         ))}
       </div>
     </div>

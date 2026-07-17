@@ -37,7 +37,7 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
       >
         <span className="lp-lang-full">{current.label}</span>
         <span className="lp-lang-short">{current.code.toUpperCase()}</span>
-        <span style={{ fontSize: 9, opacity: 0.6 }}>▾</span>
+        <span style={{ fontSize: 11, opacity: 0.6 }}>▾</span>
       </button>
       {open && (
         <div style={{

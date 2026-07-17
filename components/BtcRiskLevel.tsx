@@ -62,7 +62,7 @@ export default function BtcRiskLevel() {
         </span>
         {score != null && (
           <span style={{
-            fontSize: 9, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+            fontSize: 11, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
             color, background: color + '18', border: `0.5px solid ${color}44`,
             padding: '2px 7px', borderRadius: 20,
           }}>{label}</span>
@@ -89,10 +89,10 @@ export default function BtcRiskLevel() {
             <div style={{ height: '100%', borderRadius: 99, width: score + '%', background: color, transition: 'width .4s' }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-            <span style={{ fontSize: 9, color: '#34d399' }}>Low</span>
-            <span style={{ fontSize: 9, color: '#fbbf24' }}>Moderate</span>
-            <span style={{ fontSize: 9, color: '#fb923c' }}>High</span>
-            <span style={{ fontSize: 9, color: '#f87171' }}>Extreme</span>
+            <span style={{ fontSize: 11, color: '#34d399' }}>Low</span>
+            <span style={{ fontSize: 11, color: '#fbbf24' }}>Moderate</span>
+            <span style={{ fontSize: 11, color: '#fb923c' }}>High</span>
+            <span style={{ fontSize: 11, color: '#f87171' }}>Extreme</span>
           </div>
         </div>
       )}

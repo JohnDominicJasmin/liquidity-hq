@@ -320,7 +320,7 @@ export default function BacktestPage() {
   return (
     <div>
       <div className="mb-header">
-        <div className="mb-title">Strategy Backtest</div>
+        <h1 className="mb-title">Strategy Backtest</h1>
         <div className="mb-subtitle">EMA ribbon strategy replayed against historical candles — Anti-Chop ON vs OFF, side by side</div>
       </div>
 
@@ -402,7 +402,7 @@ export default function BacktestPage() {
             <SideCard title="ANTI-CHOP OFF" stats={result.antiChopOff.stats} color="#f87171" />
           </div>
 
-          <div className="mb-title" style={{ fontSize: 15, marginBottom: 4 }}>WaveTrend Confirming-Layer Tuning</div>
+          <h2 className="mb-title" style={{ fontSize: 15, marginBottom: 4 }}>WaveTrend Confirming-Layer Tuning</h2>
           <p style={{ fontSize: 11, opacity: 0.4, marginBottom: 8 }}>
             Each row requires WaveTrend to also agree before counting an Anti-Chop ON signal as a trade. Compare against the Anti-Chop ON baseline above ({fmtPct(result.antiChopOn.stats.winRate)} win rate, {result.antiChopOn.stats.totalTrades} trades, PF {isFinite(result.antiChopOn.stats.profitFactor) ? result.antiChopOn.stats.profitFactor.toFixed(2) : '∞'}).
           </p>
@@ -432,7 +432,7 @@ export default function BacktestPage() {
             </table>
           </div>
 
-          <div className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Per-Coin Breakdown (Anti-Chop ON)</div>
+          <h2 className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Per-Coin Breakdown (Anti-Chop ON)</h2>
           <div style={{ overflowX: 'auto' }}>
             <table className="frh-table">
               <thead>
@@ -462,7 +462,7 @@ export default function BacktestPage() {
       <div style={{ borderTop: '1px solid var(--bdr)', margin: '32px 0 20px' }} />
 
       <div className="mb-header">
-        <div className="mb-title">Order Flow Setup Validation</div>
+        <h2 className="mb-title">Order Flow Setup Validation</h2>
         <div className="mb-subtitle">
           Tests the Arena page&apos;s &quot;Order Flow Setup&quot; card — but only the 5 signals that can be faithfully
           replayed from history: RSI on 15m/1h/4h, price vs POC, price vs VWAP, and funding rate.
@@ -510,7 +510,7 @@ export default function BacktestPage() {
             <SideCard title="ORDER FLOW SETUP (5 SIGNALS)" stats={ofResult.side.stats} color="#fbbf24" />
           </div>
 
-          <div className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Per-Coin Breakdown</div>
+          <h2 className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Per-Coin Breakdown</h2>
           <div style={{ overflowX: 'auto' }}>
             <table className="frh-table">
               <thead>
@@ -541,7 +541,7 @@ export default function BacktestPage() {
       <div style={{ borderTop: '1px solid var(--bdr)', margin: '36px 0 20px' }} />
 
       <div className="mb-header">
-        <div className="mb-title">AI Strategy Research</div>
+        <h2 className="mb-title">AI Strategy Research</h2>
         <div className="mb-subtitle">Describe any trading strategy in plain English — get an honest analysis of its edge, risks, optimal conditions, and crypto-specific parameters.</div>
       </div>
 
@@ -687,7 +687,7 @@ export default function BacktestPage() {
       <div style={{ borderTop: '1px solid var(--bdr)', margin: '36px 0 20px' }} />
 
       <div className="mb-header">
-        <div className="mb-title">SMC Snapshot</div>
+        <h2 className="mb-title">SMC Snapshot</h2>
         <div className="mb-subtitle">Pick an asset and timeframe - Grok analyzes recent price action using Smart Money Concepts: Break of Structure, Fair Value Gaps, Order Blocks, and Liquidity zones.</div>
       </div>
 
@@ -770,7 +770,7 @@ export default function BacktestPage() {
       <div style={{ borderTop: '1px solid var(--bdr)', margin: '36px 0 20px' }} />
 
       <div className="mb-header">
-        <div className="mb-title">Token Unlock Sell Pressure</div>
+        <h2 className="mb-title">Token Unlock Sell Pressure</h2>
         <div className="mb-subtitle">Enter a token symbol - Grok analyzes upcoming vesting cliff events and classifies sell pressure impact for the next 30 and 90 days.</div>
       </div>
 

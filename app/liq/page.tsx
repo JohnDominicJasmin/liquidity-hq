@@ -190,7 +190,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
             Real Liquidation Clusters
           </span>
           <span style={{
-            fontSize: 9, fontWeight: 700, letterSpacing: '.06em',
+            fontSize: 11, fontWeight: 700, letterSpacing: '.06em',
             padding: '2px 7px', borderRadius: 10,
             background: 'rgba(52,211,153,0.12)', color: '#34d399',
             border: '0.5px solid rgba(52,211,153,0.25)',
@@ -206,7 +206,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
         gap: 8,
       }}>
         {[['Price', 'left'], ['Volume (longs red · shorts green)', 'left'], ['Total', 'right'], ['', 'right']].map(([h, a]) => (
-          <span key={h} style={{ fontSize: 9, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase', textAlign: a as 'left' | 'right' }}>{h}</span>
+          <span key={h} style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase', textAlign: a as 'left' | 'right' }}>{h}</span>
         ))}
       </div>
 
@@ -229,7 +229,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
                 <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>
                   {c.label}
                 </div>
-                <div style={{ fontSize: 9, color: 'var(--txt3)' }}>
+                <div style={{ fontSize: 11, color: 'var(--txt3)' }}>
                   {fmtP(distUsd)} {isAbove ? '↑ above' : '↓ below'}
                 </div>
               </div>
@@ -545,7 +545,7 @@ export default function LiqPage() {
                       Whale Positioning
                     </span>
                     <span style={{
-                      fontSize: 9, fontWeight: 700, letterSpacing: '.06em',
+                      fontSize: 11, fontWeight: 700, letterSpacing: '.06em',
                       padding: '2px 7px', borderRadius: 10,
                       background: `${accentW}14`, color: accentW,
                       border: `0.5px solid ${accentW}30`,

@@ -81,7 +81,7 @@ export default function CycleChart() {
             Cycle Comparison · Days Since Halving
           </span>
           {currentDay > 0 && (
-            <span style={{ fontSize: 9, color: '#555', marginLeft: 8 }}>
+            <span style={{ fontSize: 11, color: '#555', marginLeft: 8 }}>
               Day {currentDay} of 2024 cycle
             </span>
           )}
@@ -89,7 +89,7 @@ export default function CycleChart() {
         {/* Legend */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {CYCLES.map(({ key, color, label }) => (
-            <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 9, color }}>
+            <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color }}>
               <span style={{ width: 16, height: 2, background: color, display: 'inline-block', borderRadius: 1 }} />
               {label}
             </span>
@@ -184,8 +184,8 @@ export default function CycleChart() {
 
       {/* Footer */}
       <div style={{ padding: '4px 14px 8px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 9, color: '#444' }}>Y axis: price multiple from halving day (log scale)</span>
-        <span style={{ fontSize: 9, color: '#444' }}>2024 via Bybit · 1h cache</span>
+        <span style={{ fontSize: 11, color: '#444' }}>Y axis: price multiple from halving day (log scale)</span>
+        <span style={{ fontSize: 11, color: '#444' }}>2024 via Bybit · 1h cache</span>
       </div>
     </div>
   );
