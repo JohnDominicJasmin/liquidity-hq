@@ -1,6 +1,7 @@
 ﻿'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AuthGate from '@/components/AuthGate';
+import UpgradeGateModal, { LockedFeatureCard } from '@/components/UpgradeGateModal';
 import { Warn } from '@/components/icons';
 import { COINS } from '@/lib/marketStore';
 import { useSettings } from '@/lib/settings';
@@ -19,6 +20,7 @@ const ALERT_COIN_CAP = 20; // Alerts is a Pro-only feature — single cap, no fr
 export default function AlertsPage() {
   const { user, isPro } = useAuth();
   const { settings, loading: settingsLoading, update } = useSettings();
+  const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
 
   // Derived from settings — no separate API call needed
   const isConnected = !settingsLoading && !!settings.telegram_chat_id;
@@ -279,25 +281,22 @@ export default function AlertsPage() {
         <div className="mb-subtitle">Real-time push alerts to your phone — funding, momentum, whale flow, sentiment, and price levels</div>
       </div>
 
-      {/* ── Pro gate banner ── */}
-      {user && !isPro && (
-        <div className="card tier-pro-gate" style={{ marginBottom: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent)', marginBottom: 3 }}>Pro plan required for Telegram alerts</div>
-              <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.6 }}>
-                Upgrade to get push alerts for funding rate extremes, RSI signals, open interest spikes, whale moves, and price levels directly to Telegram.
-              </div>
-            </div>
-            <a href="/upgrade" className="arena-ask-grok-btn" style={{ flexShrink: 0, textDecoration: 'none', padding: '8px 16px', fontSize: 12 }}>
-              Upgrade →
-            </a>
-          </div>
-        </div>
-      )}
-
-      {/* ── Telegram Quick-Connect Wizard ──────────────────────────────── */}
-      <div className="card" style={{ marginBottom: 10, opacity: user && !isPro ? 0.4 : 1, pointerEvents: user && !isPro ? 'none' : 'auto' }}>
+      {/* ── Telegram: Pro gate ──
+          AUTH-3 fix: this used to show the upsell banner ABOVE a fully-
+          rendered Connect Telegram wizard, just dimmed to 0.4 opacity with
+          pointer-events:none — a dead, unusable form sitting right under an
+          upgrade pitch. Free users now get a single locked-feature card
+          (same component/pattern as Arena's other Pro-gated cards) instead
+          of a form they can look at but not touch. */}
+      {user && !isPro ? (
+        <LockedFeatureCard
+          title="Connect Telegram"
+          description="Push alerts for funding rate extremes, RSI signals, open interest spikes, whale moves, and price levels — sent directly to Telegram."
+          onUnlock={() => setUpgradeGate('Telegram Alerts')}
+        />
+      ) : (
+      /* ── Telegram Quick-Connect Wizard ──────────────────────────────── */
+      <div className="card" style={{ marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div className="lbl" style={{ margin: 0 }}>Connect Telegram</div>
           {settingsLoading ? (
@@ -456,6 +455,7 @@ export default function AlertsPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* ── Price Alerts ─────────────────────────────────────────────────── */}
       <AuthGate
@@ -720,6 +720,12 @@ export default function AlertsPage() {
       <div style={{ fontSize: 10, color: 'var(--txt3)', textAlign: 'center', marginBottom: 16 }}>
         Cooldown timers may occasionally reset after routine maintenance — you might see a rare duplicate alert
       </div>
+
+      <UpgradeGateModal
+        open={upgradeGate !== null}
+        onClose={() => setUpgradeGate(null)}
+        feature={upgradeGate ?? undefined}
+      />
     </div>
   );
 }

@@ -154,7 +154,7 @@ Zero `rem` in `globals.css`; inline styles px too. Text ignores browser font-siz
 
 ### Authenticated-specific (AUTH-2..7)
 - **AUTH-2 `[Med]`** Account menu: email `20-60951@g.batstate-u.edu.ph` wraps mid-domain (`…edu.p`/`h`) — no `word-break`; "Settings" item near-invisible grey vs blue "view usage" / red "Sign out".
-- **AUTH-3 `[Med]`** Alerts (free tier): a "Pro plan required" upsell sits **above a fully-rendered but greyed/disabled Telegram connect flow** — a dead form the user can't use. Price Alerts (free) work below.
+- **AUTH-3 `[Med]`** — ✅ fixed. Alerts (free tier): a "Pro plan required" upsell sat **above a fully-rendered but greyed/disabled Telegram connect flow** (`opacity: 0.4; pointerEvents: 'none'` on the whole wizard card) - a dead form the user could look at but not use. Price Alerts (free) worked below, unaffected. Replaced the banner + dimmed form with a single `LockedFeatureCard` ([app/alerts/page.tsx](app/alerts/page.tsx)) - the same shared Pro-gate pattern already used on Arena's other locked cards - wired to the shared `UpgradeGateModal`. Verified live both ways: free tier shows the locked card and its "Unlock with Pro" button opens the paywall modal correctly; Pro tier shows the full interactive wizard with no dimming, no regression.
 - **AUTH-4 `[Med]`** — ✅ fixed. `/upgrade`'s nav header ([app/upgrade/page.tsx](app/upgrade/page.tsx)) had `background: 'rgba(10,10,14,0.9)'` hardcoded, unlike every other themed surface - stayed black in light theme. `/markets` and `/prices` were checked and are already theme-aware (`var(--bg)`), so this specific fix only touched `/upgrade`. Switched to `background: 'var(--bg)'`, matching the other two pages' pattern; dropped the now-redundant `backdropFilter: blur()` since the background is opaque. Not independently re-verified live - the test account is Pro, so `/upgrade` redirects away, and reverting Pro status just to see a one-line CSS fix wasn't worth the churn; the identical `var(--bg)` pattern is already confirmed working on `/markets` and `/prices`.
 - **AUTH-5 `[Med]`** Research BTC-Risk-Level card lists factor rows (Fear & Greed / BTC RSI / Funding Rate) with **no values** — reads unfinished.
 - **AUTH-6 `[Low]`** Grok chat: input enabled + "5 left" usage counter + Fast toggle (good), but **two close buttons** (header ✕ + floating bottom ✕); "Where to set stop?" quick-prompt clips; coin chips 40×28px (below 44px tap target). Expand control appears to toggle the panel closed.
@@ -190,7 +190,7 @@ Blockers do **not** block page access — every main page was opened. They stop 
 | `/research` | ✅ | M + Part A | AUTH-5 empty factor values |
 | `/calc` | ✅ | D + form computed | Overlay on Take-Profit field |
 | `/econ-calendar` | ✅ | M + Part A | CRIT-2 (fixed local; prod clips) |
-| `/alerts` | ✅ | M + Part A | AUTH-3 dead Telegram form; Price alerts work |
+| `/alerts` | ✅ | M + Part A | AUTH-3 dead Telegram form — ✅ fixed; Price alerts work |
 | `/hours` | ✅ | D + Part A | Session map/clock; naming drift |
 | `/playbook` | ✅ | D + Part A | 55 plays; overlay on tags |
 | `/news` | ✅ | D + Part A | Image-less card = black box; chip rows no scroll affordance |
@@ -285,7 +285,7 @@ Rules: **11px floor** (retire 7/7.5/8/9/9.5/10px). Title→caption ≥ one full 
 12. `[Low]` Consolidate the 3 theme-toggle implementations into one hook — ✅ fixed. There were actually 4 copies (NavDrawer's toggle, SettingsModal's chips, and Settings page's chips duplicated across its logged-out/logged-in views), each hand-rolling `data-theme` + `localStorage` + the `theme-change` event dispatch separately. Consolidated into [lib/theme.ts](lib/theme.ts) (`useTheme()` hook) + a shared [components/ThemeChips.tsx](components/ThemeChips.tsx), and moved the sun/moon SVGs (previously inlined 3 times with slightly different sizes) into [components/icons.tsx](components/icons.tsx) alongside the existing `Warn`/`Download` icons. Verified live: toggling from the nav updates Settings' chips and vice versa, both directions, both themes.
 
 ### Interaction / functional
-13. `[Med]` **AUTH-3** — don't render a dead Telegram form under the Pro upsell.
+13. `[Med]` **AUTH-3** — ✅ fixed + verified live, see §4.
 14. `[Med]` **AUTH-5** — show BTC-Risk factor values (or hide empty rows).
 15. `[Med]` Verify Grok **Expand** control (appears to close instead of expand).
 16. `[Med]` Unify loading (one skeleton) + empty states (SYS-6).
