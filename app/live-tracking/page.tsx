@@ -5,6 +5,7 @@ import { T } from '@/lib/tables';
 import { CoinId } from '@/lib/marketStore';
 import { computeStats, SimulatedTrade, BacktestStats } from '@/lib/backtestEngine';
 import { SideCard, fmtPct, fmtR } from '@/components/BacktestStatsUI';
+import EmptyState from '@/components/EmptyState';
 
 interface LiveSignalRow {
   id: number;
@@ -85,9 +86,10 @@ export default function LiveTrackingPage() {
       {error && <div style={{ color: '#f87171', fontSize: 12 }}>Error: {error}</div>}
 
       {!loading && !error && rows && rows.length === 0 && (
-        <div style={{ fontSize: 12, opacity: 0.5, padding: '20px 0' }}>
-          No signals logged yet - this page populates as the live tracker detects and resolves real EMA Ribbon signals over time.
-        </div>
+        <EmptyState
+          title="No signals logged yet"
+          sub="This page populates as the live tracker detects and resolves real EMA Ribbon signals over time."
+        />
       )}
 
       {!loading && !error && rows && rows.length > 0 && (

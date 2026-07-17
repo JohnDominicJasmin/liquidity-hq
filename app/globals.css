@@ -79,6 +79,28 @@
   --fs-2xl:  32px;  /* hero numbers, current price */
   --fs-3xl:  48px;  /* display numbers */
 
+  /* AUDIT.md §7 role-based scale, item #24. The size-tier scale directly
+     above is used in only ~3% of the codebase's font-size declarations
+     (17 of ~580), so most of the app never adopted it - and even full
+     adoption wouldn't fix §7's real complaint: "10/11/12/13px, no
+     consistent role split" (you still can't tell if a given --fs-sm is a
+     label or a caption). These are named by ROLE instead of size, in rem
+     so they respect the browser zoom/font-size preference the px scale
+     above ignores. Defining them here is the safe, zero-risk half of #24 -
+     actually migrating the ~580 CSS + ~678 inline declarations onto these
+     (and deleting the 43 ad-hoc mobile media-query overrides they'd
+     replace) needs a per-usage judgment call on which role each site
+     actually is, which is a large, separate pass, not done here. */
+  --fs-display:    clamp(2.25rem, 6vw, 4rem); /* landing hero only */
+  --fs-page:       1.75rem;   /* page H1 */
+  --fs-section:    1.25rem;   /* section header */
+  --fs-card-title: 1rem;      /* card/widget title */
+  --fs-body:       0.875rem;  /* body text */
+  --fs-data:       0.9375rem; /* numeric/price, tabular-nums */
+  --fs-label:      0.8125rem; /* UI label */
+  --fs-caption:    0.75rem;   /* caption/subtext */
+  --fs-micro:      0.6875rem; /* uppercase eyebrow - the 11px floor; pair with letter-spacing, don't shrink further */
+
   /* Spacing scale - 4px base, 8 steps. Use app-wide for consistent rhythm. */
   --space-1: 4px;
   --space-2: 8px;

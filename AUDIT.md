@@ -262,6 +262,14 @@ Fonts (Figtree + IBM Plex Mono) are well-chosen. The **sizing system is the prob
 
 Rules: **11px floor** (retire 7/7.5/8/9/9.5/10px). Title→caption ≥ one full step (16→12, not 16→13). Micro-labels get letter-spacing, not shrinking. Migrate CSS + inline `fontSize` to `var(--fs-*)`; delete the 43 ad-hoc media overrides.
 
+### Addendum — items #24 and #25 (Structural)
+
+These two are a different kind of work from everything else fixed in this document. Items #1-23 were bugs with a single provably-correct fix (a wrong variable, a stale value, a missing CSS rule) - safe to apply and verify in one pass, several even safe to do as a mechanical sweep (the sub-11px floor, the em-dash cleanup) because the transformation was unambiguous at every site. #24 and #25 aren't that: migrating a font-size declaration onto the role-based scale requires deciding, at each of ~1,258 individual sites, *which role that particular piece of text actually plays* (is this 12px a `--fs-label` or a `--fs-caption`? a `--fs-body` or a `--fs-data`?) - a judgment call, not a substitution. Doing that as a blind sweep would silently miscategorize a large fraction of them and there'd be no way to catch it except manually reviewing every one.
+
+**#24 - what's actually done:** defined the full 9-token role-based scale from the table above as real CSS custom properties in `:root` ([globals.css](app/globals.css)), alongside the older size-tier scale (`--fs-xs` through `--fs-3xl`) that already existed there. Worth noting: that older scale is itself a preview of this problem - its own comment claims "8 tiers (was 23 distinct sizes)," but it's referenced in only 17 of ~580 CSS `font-size` declarations (~3% adoption). Verified live: all 9 new tokens resolve correctly (`--fs-page: 1.75rem`, `--fs-micro: .6875rem`, `--fs-display: clamp(2.25rem, 6vw, 4rem)`, etc). **What's not done:** migrating the ~580 CSS + ~678 inline `fontSize` declarations onto these tokens, and deleting the 43 ad-hoc mobile media-query overrides they'd replace. That's the real multi-session job the "High, structural" label was flagging - a page-by-page visual QA pass, not a find-and-replace.
+
+**#25 - what's actually done:** two shared components now exist and are adopted, not just defined. [components/LoadingState.tsx](components/LoadingState.tsx) (built for item #16) replaced three different ad-hoc loading treatments on `/funding`, `/correlation`, `/upgrade`. [components/EmptyState.tsx](components/EmptyState.tsx) (built here) wraps the `.empty-state` CSS convention that `TradeJournal.tsx`, `DistributionTracker.tsx`, and `alerts/page.tsx` had each already been using ad-hoc - applied it to `/live-tracking`'s "No signals logged yet," consolidating a fourth ad-hoc instance into the shared one. **What's not done:** a dashed-border-card empty-state variant also exists (`HypothesisTracker.tsx`, `PositionSizer.tsx`'s `.ps-empty`) that's visually distinct from `.empty-state` - deliberately left alone rather than forcing it into the plain-text pattern and changing its appearance. A full sweep would mean either standardizing on one visual treatment (a design decision, not a bug fix) or building a second shared component for the dashed-card variant and adopting it everywhere that pattern already appears.
+
 ---
 
 ## 8. Prioritized improvement list (open items — nothing here is fixed yet)
@@ -304,8 +312,8 @@ Rules: **11px floor** (retire 7/7.5/8/9/9.5/10px). Title→caption ≥ one full 
 23. `[Low]` — ✅ all fixed, see SYS-8 / AUTH-7 / NEW-2 / NEW-3 / Journal AuthGate note above.
 
 ### Structural
-24. `[High]` Adopt the §7 type-token scale (migrate CSS + inline; delete 43 media overrides).
-25. `[Med]` Shared skeleton/empty-state component set.
+24. `[High]` 🟡 Foundation laid, full adoption deliberately not attempted this pass - see §7 addendum below.
+25. `[Med]` 🟡 Shared component built and adopted where safe - see §7 addendum below.
 
 ---
 
