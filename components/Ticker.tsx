@@ -61,7 +61,7 @@ export default function Ticker() {
                   <span className="ticker-coin" style={{ marginBottom: 0 }}>{id.toUpperCase()}</span>
                   {d?.price && (
                     <span style={{
-                      fontSize: 11, fontWeight: 800, lineHeight: 1,
+                      fontSize: '0.6875rem', fontWeight: 800, lineHeight: 1,
                       padding: '2px 4px', borderRadius: 4,
                       color: health.color,
                       background: health.color + '22',
@@ -84,7 +84,7 @@ export default function Ticker() {
                   </span>
                 </div>
                 {sig && (
-                  <div style={{ fontSize: 10, fontWeight: 700, color: sig.col, marginTop: 3 }}>
+                  <div style={{ fontSize: '0.625rem', fontWeight: 700, color: sig.col, marginTop: 3 }}>
                     {sig.text}
                   </div>
                 )}

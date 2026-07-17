@@ -29,7 +29,7 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
         onClick={() => setOpen(v => !v)}
         className="lp-lang-btn"
         style={{
-          fontSize: 12, fontWeight: 600, color: 'var(--txt2)',
+          fontSize: '0.75rem', fontWeight: 600, color: 'var(--txt2)',
           background: 'var(--bg2)', border: '0.5px solid var(--bdr)',
           borderRadius: 8, padding: '6px 10px', cursor: 'pointer',
           display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -37,7 +37,7 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
       >
         <span className="lp-lang-full">{current.label}</span>
         <span className="lp-lang-short">{current.code.toUpperCase()}</span>
-        <span style={{ fontSize: 11, opacity: 0.6 }}>▾</span>
+        <span style={{ fontSize: '0.6875rem', opacity: 0.6 }}>▾</span>
       </button>
       {open && (
         <div style={{
@@ -51,7 +51,7 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
               href={o.href}
               onClick={() => setOpen(false)}
               style={{
-                display: 'block', padding: '9px 14px', fontSize: 13, textDecoration: 'none',
+                display: 'block', padding: '9px 14px', fontSize: '0.8125rem', textDecoration: 'none',
                 color: o.code === locale ? 'var(--accent-2)' : 'var(--txt2)',
                 background: o.code === locale ? 'var(--accent-bg)' : 'transparent',
               }}

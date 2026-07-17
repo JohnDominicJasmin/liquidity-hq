@@ -66,28 +66,28 @@ export default function DrawdownChart() {
         padding: '12px 14px 10px', borderBottom: '0.5px solid var(--bdr)',
         display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
       }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
+        <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
           Drawdown from All-Time High
         </span>
         {nearAth > 0 && (
-          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
+          <span style={{ fontSize: '0.6875rem', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
             {nearAth} near ATH
           </span>
         )}
-        <span style={{ fontSize: 11, color: '#333' }}>via CoinGecko</span>
+        <span style={{ fontSize: '0.6875rem', color: '#333' }}>via CoinGecko</span>
       </div>
 
       {/* Loading / error states */}
       {!ath && !err && (
-        <div style={{ padding: '20px 14px', fontSize: 12, color: '#444' }}>Loading ATH data…</div>
+        <div style={{ padding: '20px 14px', fontSize: '0.75rem', color: '#444' }}>Loading ATH data…</div>
       )}
       {err && (
-        <div style={{ padding: '16px 14px', fontSize: 12, color: '#f87171' }}>Failed to load ATH data · {err}</div>
+        <div style={{ padding: '16px 14px', fontSize: '0.75rem', color: '#f87171' }}>Failed to load ATH data · {err}</div>
       )}
 
       {/* Bar chart rows */}
       {ath && rows.length === 0 && (
-        <div style={{ padding: '20px 14px', fontSize: 12, color: '#444' }}>No drawdown data available.</div>
+        <div style={{ padding: '20px 14px', fontSize: '0.75rem', color: '#444' }}>No drawdown data available.</div>
       )}
 
       {ath && rows.length > 0 && (
@@ -101,24 +101,24 @@ export default function DrawdownChart() {
               <div key={c}>
                 {/* Coin label + values */}
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 3 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: isNear ? '#34d399' : 'var(--txt)', width: 40, flexShrink: 0 }}>
+                  <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: isNear ? '#34d399' : 'var(--txt)', width: 40, flexShrink: 0 }}>
                     {c.toUpperCase()}
                   </span>
-                  <span style={{ fontSize: 12, fontWeight: 800, color: col, fontVariantNumeric: 'tabular-nums', minWidth: 52 }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: col, fontVariantNumeric: 'tabular-nums', minWidth: 52 }}>
                     {drawdown!.toFixed(1)}%
                   </span>
                   {curPrice != null && (
-                    <span style={{ fontSize: 11, color: '#555', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: '0.6875rem', color: '#555', fontVariantNumeric: 'tabular-nums' }}>
                       {fmtPrice(curPrice)}
                     </span>
                   )}
                   {athPrice != null && (
-                    <span style={{ fontSize: 11, color: '#444', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: '0.6875rem', color: '#444', fontVariantNumeric: 'tabular-nums' }}>
                       → ATH {fmtPrice(athPrice)}
                     </span>
                   )}
                   {athDate && (
-                    <span style={{ fontSize: 11, color: '#333', marginLeft: 'auto' }}>
+                    <span style={{ fontSize: '0.6875rem', color: '#333', marginLeft: 'auto' }}>
                       {fmtDate(athDate)}
                     </span>
                   )}
@@ -147,7 +147,7 @@ export default function DrawdownChart() {
           { label: '60-80%', col: '#f87171' },
           { label: '> 80%', col: '#ef4444' },
         ].map(({ label, col }) => (
-          <span key={label} style={{ fontSize: 11, color: col, fontWeight: 600 }}>{label}</span>
+          <span key={label} style={{ fontSize: '0.6875rem', color: col, fontWeight: 600 }}>{label}</span>
         ))}
       </div>
     </div>

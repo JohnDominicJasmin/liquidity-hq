@@ -31,19 +31,19 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
       <div style={{ flex: '1 1 260px', minWidth: 0 }}>
         <div style={{
           fontFamily: 'var(--font-mono, monospace)',
-          fontSize: 11, fontWeight: 600, letterSpacing: '0.14em',
+          fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '0.14em',
           textTransform: 'uppercase', color: 'var(--accent-2)', marginBottom: 6,
         }}>
           Pro Feature
         </div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>{title}</div>
-        <div style={{ fontSize: 12, color: 'var(--txt3)', lineHeight: 1.6 }}>{description}</div>
+        <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>{title}</div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', lineHeight: 1.6 }}>{description}</div>
       </div>
       <button
         onClick={onUnlock}
         style={{
           background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer',
-          fontSize: 12.5, fontWeight: 700, padding: '9px 16px', borderRadius: 8,
+          fontSize: '0.7813rem', fontWeight: 700, padding: '9px 16px', borderRadius: 8,
           flexShrink: 0,
         }}
       >
@@ -115,17 +115,17 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
         {/* Micro-label */}
         <div style={{
           fontFamily: 'var(--font-mono, monospace)',
-          fontSize: 10, fontWeight: 600, letterSpacing: '0.14em',
+          fontSize: '0.625rem', fontWeight: 600, letterSpacing: '0.14em',
           textTransform: 'uppercase', color: 'var(--accent-2)', marginBottom: 14,
         }}>
           Pro Feature
         </div>
 
-        <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--txt)', margin: '0 0 10px', lineHeight: 1.25 }}>
+        <h2 style={{ fontSize: '1.375rem', fontWeight: 800, color: 'var(--txt)', margin: '0 0 10px', lineHeight: 1.25 }}>
           {feature ? `${feature} is part of Pro.` : 'This is part of Pro.'}
         </h2>
 
-        <p style={{ fontSize: 13.5, color: 'var(--txt2)', lineHeight: 1.7, margin: '0 0 20px' }}>
+        <p style={{ fontSize: '0.8438rem', color: 'var(--txt2)', lineHeight: 1.7, margin: '0 0 20px' }}>
           Pro unlocks the fast timeframes, the full signal stack, backtesting, and the
           deeper AI research tools. One subscription, everything included.
         </p>
@@ -138,8 +138,8 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
             'Full backtesting across every coin and timeframe',
             'On-chain and global macro AI analysis',
           ].map(line => (
-            <li key={line} style={{ display: 'flex', gap: 10, alignItems: 'baseline', fontSize: 13, color: 'var(--txt2)', lineHeight: 1.5 }}>
-              <span style={{ color: 'var(--green)', fontSize: 12, flexShrink: 0 }}>✓</span>
+            <li key={line} style={{ display: 'flex', gap: 10, alignItems: 'baseline', fontSize: '0.8125rem', color: 'var(--txt2)', lineHeight: 1.5 }}>
+              <span style={{ color: 'var(--green)', fontSize: '0.75rem', flexShrink: 0 }}>✓</span>
               {line}
             </li>
           ))}
@@ -151,7 +151,7 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
           style={{
             display: 'block', textAlign: 'center',
             background: 'var(--accent)', color: '#fff',
-            fontSize: 14, fontWeight: 700,
+            fontSize: '0.875rem', fontWeight: 700,
             padding: '12px 16px', borderRadius: 8,
             textDecoration: 'none',
           }}
@@ -160,14 +160,14 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
         </a>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
-          <Link href="/upgrade" style={{ fontSize: 12, color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+          <Link href="/upgrade" style={{ fontSize: '0.75rem', color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
             Compare Free and Pro
           </Link>
           <button
             onClick={onClose}
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              fontSize: 12, color: 'var(--txt3)', padding: '4px 2px',
+              fontSize: '0.75rem', color: 'var(--txt3)', padding: '4px 2px',
             }}
           >
             Not now

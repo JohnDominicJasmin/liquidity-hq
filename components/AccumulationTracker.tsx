@@ -85,18 +85,18 @@ export default function AccumulationTracker() {
     }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '10px 14px 2px' }}>
         <span style={{
-          fontFamily: 'var(--font-mono), monospace', fontSize: 11, fontWeight: 600,
+          fontFamily: 'var(--font-mono), monospace', fontSize: '0.6875rem', fontWeight: 600,
           color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.12em',
         }}>
           <Tip width={270} text="Scores every coin for stealth accumulation: price still flat while CVD shows absorption, taker buys dominate, open interest builds, whale positioning leans long, and funding stays calm (crowd not in yet). High score = smart money loading before the move.">
             Accumulation Tracker
           </Tip>
         </span>
-        <span style={{ fontSize: 10, color: 'var(--txt3)' }}>quiet coins being loaded - before the pump</span>
+        <span style={{ fontSize: '0.625rem', color: 'var(--txt3)' }}>quiet coins being loaded - before the pump</span>
       </div>
 
       {rows.length === 0 ? (
-        <div style={{ padding: '10px 14px 12px', fontSize: 11, color: 'var(--txt3)' }}>
+        <div style={{ padding: '10px 14px 12px', fontSize: '0.6875rem', color: 'var(--txt3)' }}>
           No stealth accumulation detected right now. Signals appear when a flat-priced coin shows CVD absorption, rising open interest, or heavy taker buying.
         </div>
       ) : (
@@ -116,13 +116,13 @@ export default function AccumulationTracker() {
               onMouseLeave={e => { if (store.selectedCoin !== r.id) e.currentTarget.style.background = 'transparent'; }}
             >
               <span style={{
-                fontFamily: 'var(--font-mono), monospace', fontSize: 12, fontWeight: 700,
+                fontFamily: 'var(--font-mono), monospace', fontSize: '0.75rem', fontWeight: 700,
                 color: 'var(--txt)', width: 52, flexShrink: 0,
               }}>
                 {r.id.toUpperCase()}
               </span>
               <span style={{
-                fontFamily: 'var(--font-mono), monospace', fontSize: 14, fontWeight: 700,
+                fontFamily: 'var(--font-mono), monospace', fontSize: '0.875rem', fontWeight: 700,
                 color: scoreCol(r.score), width: 34, flexShrink: 0, fontVariantNumeric: 'tabular-nums',
               }}>
                 {r.score}
@@ -133,7 +133,7 @@ export default function AccumulationTracker() {
               <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
                 {r.reasons.slice(0, 4).map(reason => (
                   <span key={reason} style={{
-                    fontSize: 10, fontWeight: 600, color: 'var(--txt2)',
+                    fontSize: '0.625rem', fontWeight: 600, color: 'var(--txt2)',
                     background: 'rgba(255,255,255,0.045)', border: '0.5px solid var(--bdr)',
                     borderRadius: 5, padding: '1px 6px', whiteSpace: 'nowrap',
                   }}>
@@ -142,13 +142,13 @@ export default function AccumulationTracker() {
                 ))}
               </span>
               <span className="at-price" style={{
-                fontFamily: 'var(--font-mono), monospace', fontSize: 11, color: 'var(--txt2)',
+                fontFamily: 'var(--font-mono), monospace', fontSize: '0.6875rem', color: 'var(--txt2)',
                 flexShrink: 0, fontVariantNumeric: 'tabular-nums',
               }}>
                 ${fmtPrice(r.price, COIN_DEC[r.id])}
               </span>
               <span className="at-change" style={{
-                fontSize: 10, fontWeight: 600, flexShrink: 0, width: 48, textAlign: 'right',
+                fontSize: '0.625rem', fontWeight: 600, flexShrink: 0, width: 48, textAlign: 'right',
                 color: r.change >= 0 ? '#4ade80' : '#f87171', fontVariantNumeric: 'tabular-nums',
               }}>
                 {r.change >= 0 ? '+' : ''}{r.change.toFixed(2)}%

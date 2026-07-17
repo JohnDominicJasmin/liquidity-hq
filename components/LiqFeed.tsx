@@ -348,14 +348,14 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
       {/* ── Header ── */}
       <div className="liqfeed-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 16, fontWeight: 700, color: 'var(--txt)' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '1rem', fontWeight: 700, color: 'var(--txt)' }}>
             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M11 1.5 3.5 11.5H9L8 18.5 16 8H10.5L11 1.5Z" fill="currentColor" /></svg>
             Live Liquidations
           </span>
           <span className={`liqfeed-dot liqfeed-dot-${bnStatus}`} title={`Binance: ${bnStatus}`} />
           <span className={`liqfeed-dot liqfeed-dot-${bbStatus}`} title={`Bybit: ${bbStatus}`} />
         </div>
-        <span style={{ fontSize: 11, color: 'var(--txt3)' }}>
+        <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>
           Binance + Bybit · &gt;$10K · {msgCount > 0 ? `${msgCount} events` : 'waiting…'}
         </span>
       </div>
@@ -430,7 +430,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
               <div key={`${c.coin}::${c.price}`} className="liq-cluster-row">
                 <div>
                   {coinFilter === 'ALL' && (
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '.06em', display: 'block', marginBottom: 1 }}>{c.coin}</span>
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#888', letterSpacing: '.06em', display: 'block', marginBottom: 1 }}>{c.coin}</span>
                   )}
                   <span className="liq-cluster-price">{c.label}</span>
                 </div>
@@ -459,7 +459,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
 
       {/* ── Feed ── */}
       {displayed.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '1.5rem', color: '#444', fontSize: 12 }}>
+        <div style={{ textAlign: 'center', padding: '1.5rem', color: '#444', fontSize: '0.75rem' }}>
           {anyLive ? `Watching for ${coinFilter === 'ALL' ? 'all markets' : coinFilter} liquidations > $10K…` : 'Connecting to Binance + Bybit…'}
         </div>
       )}

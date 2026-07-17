@@ -53,8 +53,8 @@ export default function FundingCostCalc() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Funding Cost</div>
-        <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Position size · funding rate · hold duration → total funding cost</div>
+        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Funding Cost</div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>Position size · funding rate · hold duration → total funding cost</div>
       </div>
 
       <div className="ps-card">
@@ -75,7 +75,7 @@ export default function FundingCostCalc() {
             </div>
           </div>
         </div>
-        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--txt3)' }}>
+        <div style={{ marginTop: 8, fontSize: '0.6875rem', color: 'var(--txt3)' }}>
           {rate > 0
             ? 'Positive rate - longs pay shorts. You pay if long.'
             : rate < 0

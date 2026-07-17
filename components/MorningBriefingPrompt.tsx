@@ -52,10 +52,10 @@ export default function MorningBriefingPrompt() {
           </svg>
         </span>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt)', lineHeight: 1.3 }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--txt)', lineHeight: 1.3 }}>
             Your morning briefing is ready
           </div>
-          <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 2, lineHeight: 1.4 }}>
+          <div style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginTop: 2, lineHeight: 1.4 }}>
             AI market recap, key levels, and today&apos;s trade bias
           </div>
         </div>
@@ -65,7 +65,7 @@ export default function MorningBriefingPrompt() {
           href="/briefing"
           onClick={dismiss}
           style={{
-            fontSize: 11, fontWeight: 700, color: 'var(--accent)',
+            fontSize: '0.6875rem', fontWeight: 700, color: 'var(--accent)',
             background: 'rgba(90,106,255,0.1)',
             border: '0.5px solid rgba(90,106,255,0.28)',
             borderRadius: 6, padding: '5px 12px',
@@ -78,7 +78,7 @@ export default function MorningBriefingPrompt() {
           onClick={dismiss}
           style={{
             background: 'none', border: 'none', cursor: 'pointer',
-            color: 'var(--txt3)', fontSize: 17, padding: '2px 4px', lineHeight: 1,
+            color: 'var(--txt3)', fontSize: '1.0625rem', padding: '2px 4px', lineHeight: 1,
           }}
           aria-label="Dismiss for today"
         >

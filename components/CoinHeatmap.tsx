@@ -61,16 +61,16 @@ export default function CoinHeatmap() {
         borderBottom: '0.5px solid var(--bdr)',
         display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
       }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
+        <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
           Market Heatmap · 24 Hour
         </span>
         {positiveCount > 0 && (
-          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
+          <span style={{ fontSize: '0.6875rem', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
             ↑ {positiveCount}
           </span>
         )}
         {negativeCount > 0 && (
-          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '0.5px solid rgba(248,113,113,0.25)' }}>
+          <span style={{ fontSize: '0.6875rem', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '0.5px solid rgba(248,113,113,0.25)' }}>
             ↓ {negativeCount}
           </span>
         )}
@@ -83,7 +83,7 @@ export default function CoinHeatmap() {
             key={c}
             onClick={() => setCat(c)}
             style={{
-              fontSize: 10, fontWeight: 600, padding: '3px 10px', borderRadius: 20, cursor: 'pointer',
+              fontSize: '0.625rem', fontWeight: 600, padding: '3px 10px', borderRadius: 20, cursor: 'pointer',
               border: `0.5px solid ${cat === c ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)'}`,
               background: cat === c ? 'rgba(255,255,255,0.1)' : 'transparent',
               color: cat === c ? 'var(--txt)' : '#444',
@@ -118,16 +118,16 @@ export default function CoinHeatmap() {
                 cursor: 'default',
               }}
             >
-              <span style={{ fontSize: 11, fontWeight: 800, color: text, letterSpacing: '.04em' }}>
+              <span style={{ fontSize: '0.6875rem', fontWeight: 800, color: text, letterSpacing: '.04em' }}>
                 {c.toUpperCase()}
               </span>
               {coin?.price != null && (
-                <span style={{ fontSize: 11, color: text + 'aa', fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ fontSize: '0.6875rem', color: text + 'aa', fontVariantNumeric: 'tabular-nums' }}>
                   ${fmtPrice(coin.price)}
                 </span>
               )}
               <span style={{
-                fontSize: 13, fontWeight: 700, color: text,
+                fontSize: '0.8125rem', fontWeight: 700, color: text,
                 fontVariantNumeric: 'tabular-nums', lineHeight: 1,
               }}>
                 {chg != null ? `${sign}${chg.toFixed(1)}%` : '-'}
@@ -142,14 +142,14 @@ export default function CoinHeatmap() {
         padding: '5px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)',
         display: 'flex', alignItems: 'center', gap: 3,
       }}>
-        <span style={{ fontSize: 11, color: '#333', marginRight: 4 }}>Scale:</span>
+        <span style={{ fontSize: '0.6875rem', color: '#333', marginRight: 4 }}>Scale:</span>
         {[
           { label: '>+10%', c: '#34d399' }, { label: '+5%', c: '#6ee7b7' },
           { label: '+2%', c: '#86efac' },   { label: '0', c: '#555' },
           { label: '-2%', c: '#fca5a5' },   { label: '-5%', c: '#f87171' },
           { label: '<-10%', c: '#dc2626' },
         ].map(({ label, c }) => (
-          <span key={label} style={{ fontSize: 11, color: c, fontWeight: 600 }}>{label}</span>
+          <span key={label} style={{ fontSize: '0.6875rem', color: c, fontWeight: 600 }}>{label}</span>
         ))}
       </div>
     </div>

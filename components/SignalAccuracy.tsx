@@ -64,21 +64,21 @@ export default function SignalAccuracy() {
         padding: '12px 14px 10px', borderBottom: '0.5px solid var(--bdr)',
         display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
       }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
+        <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
           Signal Accuracy Tracker
         </span>
         {data?.candles && (
-          <span style={{ fontSize: 11, color: '#444' }}>BTC · 4H · last {data.candles} candles</span>
+          <span style={{ fontSize: '0.6875rem', color: '#444' }}>BTC · 4H · last {data.candles} candles</span>
         )}
-        <span style={{ fontSize: 11, color: '#444' }}>10 min cache</span>
+        <span style={{ fontSize: '0.6875rem', color: '#444' }}>10 min cache</span>
       </div>
 
       {/* Loading / error */}
       {!data && !err && (
-        <div style={{ padding: '20px 14px', fontSize: 12, color: '#444' }}>Computing signal accuracy…</div>
+        <div style={{ padding: '20px 14px', fontSize: '0.75rem', color: '#444' }}>Computing signal accuracy…</div>
       )}
       {err && (
-        <div style={{ padding: '16px 14px', fontSize: 12, color: '#f87171' }}>Failed to load: {err}</div>
+        <div style={{ padding: '16px 14px', fontSize: '0.75rem', color: '#f87171' }}>Failed to load: {err}</div>
       )}
 
       {/* Column headers */}
@@ -95,7 +95,7 @@ export default function SignalAccuracy() {
             {[['Signal', 'left'], ['TF', 'right'], ['Win Rate 12h', 'right'], ['Win Rate 24h', 'right'], ['Count', 'right']].map(
               ([h, align]) => (
                 <span key={h} style={{
-                  fontSize: 11, fontWeight: 600, letterSpacing: '.07em',
+                  fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '.07em',
                   textTransform: 'uppercase', color: '#333', textAlign: align as 'left' | 'right',
                 }}>
                   {h}
@@ -124,33 +124,33 @@ export default function SignalAccuracy() {
                 {/* Signal name */}
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: dirColor }}>{dirIcon}</span>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--txt)' }}>{sig.label}</span>
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: dirColor }}>{dirIcon}</span>
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--txt)' }}>{sig.label}</span>
                   </div>
-                  <span style={{ fontSize: 11, color: '#444' }}>
+                  <span style={{ fontSize: '0.6875rem', color: '#444' }}>
                     avg {sig.direction === 'long' ? '+' : ''}{sig.avgReturn6.toFixed(2)}% at 24h
                   </span>
                 </div>
 
                 {/* Timeframe */}
-                <span style={{ fontSize: 10, fontWeight: 600, color: '#555', textAlign: 'right' }}>
+                <span style={{ fontSize: '0.625rem', fontWeight: 600, color: '#555', textAlign: 'right' }}>
                   {sig.timeframe}
                 </span>
 
                 {/* Accuracy +3 candles */}
                 <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: col3 }}>{sig.accuracy3}%</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: col3 }}>{sig.accuracy3}%</span>
                   {accBar(sig.accuracy3, col3)}
                 </div>
 
                 {/* Accuracy +6 candles */}
                 <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: col6 }}>{sig.accuracy6}%</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: col6 }}>{sig.accuracy6}%</span>
                   {accBar(sig.accuracy6, col6)}
                 </div>
 
                 {/* Signal count */}
-                <span style={{ fontSize: 10, color: '#444', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ fontSize: '0.625rem', color: '#444', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                   {sig.count}×
                 </span>
               </div>
@@ -159,7 +159,7 @@ export default function SignalAccuracy() {
 
           {/* Footer */}
           <div style={{ padding: '6px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)' }}>
-            <span style={{ fontSize: 11, color: '#333' }}>
+            <span style={{ fontSize: '0.6875rem', color: '#333' }}>
               Win Rate = % of signals where price moved in the expected direction after 12h or 24h
             </span>
           </div>

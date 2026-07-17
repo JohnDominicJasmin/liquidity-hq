@@ -377,19 +377,19 @@ export default function FundingHistory() {
 
         return (
           <div className="card" style={{ padding: '12px 14px', marginBottom: 12 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 8 }}>
+            <div style={{ fontSize: '0.625rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 8 }}>
               Regime Overview
             </div>
 
             {/* Summary chips */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-              <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 10, background: 'rgba(248,113,113,0.10)', color: '#f87171', border: '0.5px solid rgba(248,113,113,0.25)', fontWeight: 700 }}>
+              <span style={{ fontSize: '0.6875rem', padding: '2px 7px', borderRadius: 10, background: 'rgba(248,113,113,0.10)', color: '#f87171', border: '0.5px solid rgba(248,113,113,0.25)', fontWeight: 700 }}>
                 {shortSignals.length} Contrarian Short{shortSignals.length !== 1 ? 's' : ''}
               </span>
-              <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 10, background: 'rgba(52,211,153,0.10)', color: '#34d399', border: '0.5px solid rgba(52,211,153,0.25)', fontWeight: 700 }}>
+              <span style={{ fontSize: '0.6875rem', padding: '2px 7px', borderRadius: 10, background: 'rgba(52,211,153,0.10)', color: '#34d399', border: '0.5px solid rgba(52,211,153,0.25)', fontWeight: 700 }}>
                 {longSignals.length} Contrarian Long{longSignals.length !== 1 ? 's' : ''}
               </span>
-              <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 10, background: 'rgba(90,106,255,0.10)', color: '#5a6aff', border: '0.5px solid rgba(90,106,255,0.25)', fontWeight: 700 }}>
+              <span style={{ fontSize: '0.6875rem', padding: '2px 7px', borderRadius: 10, background: 'rgba(90,106,255,0.10)', color: '#5a6aff', border: '0.5px solid rgba(90,106,255,0.25)', fontWeight: 700 }}>
                 {arbs.length} Carry Arb
               </span>
             </div>
@@ -398,28 +398,28 @@ export default function FundingHistory() {
             <div style={{ maxHeight: 220, overflowY: 'auto' }}>
               {liveCoins.map(({ id, fr, sig, carryArb, contraShort, contraLong }) => (
                 <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderTop: '0.5px solid var(--bdr)' }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: coinBadgeColor(id), minWidth: 32, flexShrink: 0, fontFamily: 'var(--font-mono), monospace' }}>
+                  <span style={{ fontSize: '0.6875rem', fontWeight: 800, color: coinBadgeColor(id), minWidth: 32, flexShrink: 0, fontFamily: 'var(--font-mono), monospace' }}>
                     {id.toUpperCase()}
                   </span>
-                  <span style={{ fontSize: 11, color: frColor(fr), fontFamily: 'var(--font-mono), monospace', minWidth: 64, flexShrink: 0 }}>
+                  <span style={{ fontSize: '0.6875rem', color: frColor(fr), fontFamily: 'var(--font-mono), monospace', minWidth: 64, flexShrink: 0 }}>
                     {frFmt(fr)}
                   </span>
-                  <span style={{ fontSize: 11, padding: '1px 5px', borderRadius: 8, background: sig.bg, color: sig.color, border: `0.5px solid ${sig.color}33`, fontWeight: 600, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
+                  <span style={{ fontSize: '0.6875rem', padding: '1px 5px', borderRadius: 8, background: sig.bg, color: sig.color, border: `0.5px solid ${sig.color}33`, fontWeight: 600, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
                     {sig.crowd}
                   </span>
                   <span style={{ flex: 1 }} />
                   {contraShort && (
-                    <span style={{ fontSize: 11, padding: '1px 5px', borderRadius: 3, background: 'rgba(248,113,113,0.12)', color: '#f87171', fontWeight: 700, flexShrink: 0 }}>
+                    <span style={{ fontSize: '0.6875rem', padding: '1px 5px', borderRadius: 3, background: 'rgba(248,113,113,0.12)', color: '#f87171', fontWeight: 700, flexShrink: 0 }}>
                       Short
                     </span>
                   )}
                   {contraLong && (
-                    <span style={{ fontSize: 11, padding: '1px 5px', borderRadius: 3, background: 'rgba(52,211,153,0.12)', color: '#34d399', fontWeight: 700, flexShrink: 0 }}>
+                    <span style={{ fontSize: '0.6875rem', padding: '1px 5px', borderRadius: 3, background: 'rgba(52,211,153,0.12)', color: '#34d399', fontWeight: 700, flexShrink: 0 }}>
                       Long
                     </span>
                   )}
                   {carryArb && (
-                    <span style={{ fontSize: 11, padding: '1px 5px', borderRadius: 3, background: 'rgba(90,106,255,0.10)', color: '#5a6aff', fontWeight: 600, flexShrink: 0 }}>
+                    <span style={{ fontSize: '0.6875rem', padding: '1px 5px', borderRadius: 3, background: 'rgba(90,106,255,0.10)', color: '#5a6aff', fontWeight: 600, flexShrink: 0 }}>
                       Arb
                     </span>
                   )}
@@ -428,7 +428,7 @@ export default function FundingHistory() {
             </div>
 
             {arbs.length > 0 && (
-              <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 8, paddingTop: 6, borderTop: '0.5px solid var(--bdr)' }}>
+              <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginTop: 8, paddingTop: 6, borderTop: '0.5px solid var(--bdr)' }}>
                 Carry Arb: annualized rate exceeds ~40% (|FR| greater than 0.03%/8h) - long spot + short perp captures the premium delta-neutral.
               </div>
             )}
@@ -447,7 +447,7 @@ export default function FundingHistory() {
             {r.label}
           </button>
         ))}
-        <span style={{ fontSize: 10, color: 'var(--txt3)', marginLeft: 4, alignSelf: 'center', opacity: 0.6 }}>
+        <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginLeft: 4, alignSelf: 'center', opacity: 0.6 }}>
           - avg column · sparklines · chart
         </span>
       </div>
@@ -499,10 +499,10 @@ export default function FundingHistory() {
                   placeholder="Search coins…"
                   value={frSearch}
                   onChange={e => setFrSearch(e.target.value)}
-                  style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', fontSize: 11, color: 'var(--txt)' }}
+                  style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', fontSize: '0.6875rem', color: 'var(--txt)' }}
                 />
                 {frSearch && (
-                  <button onClick={() => setFrSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: 13, lineHeight: 1 }} aria-label="Clear search">×</button>
+                  <button onClick={() => setFrSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: '0.8125rem', lineHeight: 1 }} aria-label="Clear search">×</button>
                 )}
               </div>
               {/* Scrollable table */}
@@ -534,7 +534,7 @@ export default function FundingHistory() {
                             <span style={{
                               width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: 11, fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
+                              fontSize: '0.6875rem', fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
                               background: coinBadgeColor(id) + '24', color: coinBadgeColor(id), border: `0.5px solid ${coinBadgeColor(id)}55`,
                             }}>
                               {id.slice(0, 2).toUpperCase()}
@@ -558,7 +558,7 @@ export default function FundingHistory() {
                                     </span>
                                   );
                                 })()
-                              : <span style={{ color: 'var(--txt3)', fontSize: 11 }}>-</span>
+                              : <span style={{ color: 'var(--txt3)', fontSize: '0.6875rem' }}>-</span>
                             }
                           </td>
                           <td className="frh-spark-cell">
@@ -567,7 +567,7 @@ export default function FundingHistory() {
                                   style={{ display: 'block', width: '100%', height: '36px' }}
                                   ref={el => { sparkRefs.current[id] = el ?? undefined; }}
                                 />
-                              : <span style={{ fontSize: 11, color: 'var(--txt3)' }}>No perp</span>
+                              : <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>No perp</span>
                             }
                           </td>
                         </tr>
@@ -583,8 +583,8 @@ export default function FundingHistory() {
               <div className="card frh-chart-card" style={{ marginBottom: 0 }}>
                 <div className="frh-chart-header">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--accent)', fontFamily: "'JetBrains Mono', monospace" }}>{COIN_LABELS[selected]}</span>
-                    <span style={{ color: 'var(--txt3)', fontSize: 11 }}>· {rangeKey.toUpperCase()} CHART</span>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 800, color: 'var(--accent)', fontFamily: "'JetBrains Mono', monospace" }}>{COIN_LABELS[selected]}</span>
+                    <span style={{ color: 'var(--txt3)', fontSize: '0.6875rem' }}>· {rangeKey.toUpperCase()} CHART</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     {currentCoin?.fundingRate != null && (
@@ -595,7 +595,7 @@ export default function FundingHistory() {
                     {(() => {
                       const s = getStats(selected);
                       return s?.extremes ? (
-                        <span style={{ fontSize: 11, color: '#fbbf24', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontSize: '0.6875rem', color: '#fbbf24', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                           <Warn size={12} /> {s.extremes} extreme{s.extremes > 1 ? 's' : ''}
                         </span>
                       ) : null;
@@ -621,7 +621,7 @@ export default function FundingHistory() {
 
                 {(history[selected] ?? []).length >= 2
                   ? <canvas ref={fullChartRef} style={{ display: 'block', width: '100%', height: '190px' }} />
-                  : <div style={{ height: 190, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--txt3)', fontSize: 12 }}>
+                  : <div style={{ height: 190, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--txt3)', fontSize: '0.75rem' }}>
                       No perp data for {COIN_LABELS[selected]}
                     </div>
                 }

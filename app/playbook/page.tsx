@@ -33,8 +33,8 @@ export default function LiquidityPlaybook() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.5rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Liquidity Playbook</div>
-        <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 14 }}>{SECRETS.length} plays - the complete predator playbook</div>
+        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Liquidity Playbook</div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', marginBottom: 14 }}>{SECRETS.length} plays - the complete predator playbook</div>
       </div>
 
       <input

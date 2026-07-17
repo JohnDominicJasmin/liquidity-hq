@@ -105,22 +105,22 @@ export default function GlobalMacroContext() {
 
   return (
     <div style={{ padding: '12px 14px' }}>
-      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 4 }}>
+      <div style={{ fontSize: '0.625rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 4 }}>
         <Tip width={320} text="Live DXY, VIX, Gold, Oil, and 10Y Treasury data from Yahoo Finance. Grok classifies the composite macro backdrop and gives crypto positioning implications. Updates every 2 hours.">
           Global Macro Context
         </Tip>
       </div>
 
       {state === 'loading' && (
-        <div style={{ fontSize: 11, color: 'var(--txt3)', padding: '10px 0' }}>Fetching macro data…</div>
+        <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', padding: '10px 0' }}>Fetching macro data…</div>
       )}
       {state === 'unauth' && (
-        <div style={{ fontSize: 11, color: 'var(--txt3)', padding: '8px 0' }}>Sign in to view macro context.</div>
+        <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', padding: '8px 0' }}>Sign in to view macro context.</div>
       )}
       {state === 'error' && (
         <div style={{ padding: '8px 0' }}>
-          <div style={{ fontSize: 11, color: '#f87171', marginBottom: 6 }}>{errMsg}</div>
-          <button onClick={fetchData} style={{ fontSize: 10, color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}>Retry</button>
+          <div style={{ fontSize: '0.6875rem', color: '#f87171', marginBottom: 6 }}>{errMsg}</div>
+          <button onClick={fetchData} style={{ fontSize: '0.625rem', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}>Retry</button>
         </div>
       )}
 
@@ -138,17 +138,17 @@ export default function GlobalMacroContext() {
           <>
             {/* Signal badge */}
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, marginBottom: 8, background: sm.bg, border: `0.5px solid ${sm.bdr}` }}>
-              <span style={{ fontSize: 10, fontWeight: 800, color: sm.col, letterSpacing: '0.05em' }}>{sm.label}</span>
+              <span style={{ fontSize: '0.625rem', fontWeight: 800, color: sm.col, letterSpacing: '0.05em' }}>{sm.label}</span>
             </div>
 
             {/* Data grid */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px 8px', marginBottom: 10 }}>
               {rows.map(r => (
                 <div key={r.label} style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: 11, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>{r.label}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt)', fontFamily: 'var(--font-mono), monospace' }}>{r.value}</span>
+                  <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>{r.label}</span>
+                  <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt)', fontFamily: 'var(--font-mono), monospace' }}>{r.value}</span>
                   {r.chg !== 0 && (
-                    <span style={{ fontSize: 11, color: chgColor(r.chg, r.invertBullish), fontFamily: 'var(--font-mono), monospace' }}>{chgStr(r.chg)}</span>
+                    <span style={{ fontSize: '0.6875rem', color: chgColor(r.chg, r.invertBullish), fontFamily: 'var(--font-mono), monospace' }}>{chgStr(r.chg)}</span>
                   )}
                 </div>
               ))}
@@ -156,7 +156,7 @@ export default function GlobalMacroContext() {
 
             {/* Analysis */}
             {d.analysis && (
-              <div style={{ fontSize: 11, color: 'var(--txt2)', lineHeight: 1.55, marginBottom: 8 }}>
+              <div style={{ fontSize: '0.6875rem', color: 'var(--txt2)', lineHeight: 1.55, marginBottom: 8 }}>
                 {d.analysis}
               </div>
             )}
@@ -164,20 +164,20 @@ export default function GlobalMacroContext() {
             {/* Crypto implications */}
             {d.implications && (
               <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 7, marginBottom: 6 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--txt3)', marginBottom: 4 }}>Crypto Implications</div>
-                <div style={{ fontSize: 11, color: 'var(--txt2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{d.implications}</div>
+                <div style={{ fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--txt3)', marginBottom: 4 }}>Crypto Implications</div>
+                <div style={{ fontSize: '0.6875rem', color: 'var(--txt2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{d.implications}</div>
               </div>
             )}
 
             {/* Watch level */}
             {d.watchLevel && (
               <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 6, marginBottom: 6 }}>
-                <span style={{ fontSize: 10, color: 'var(--txt2)', fontWeight: 600 }}>Watch: </span>
-                <span style={{ fontSize: 10, color: 'var(--txt3)' }}>{d.watchLevel}</span>
+                <span style={{ fontSize: '0.625rem', color: 'var(--txt2)', fontWeight: 600 }}>Watch: </span>
+                <span style={{ fontSize: '0.625rem', color: 'var(--txt3)' }}>{d.watchLevel}</span>
               </div>
             )}
 
-            <button onClick={fetchData} style={{ fontSize: 11, color: 'var(--txt3)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={fetchData} style={{ fontSize: '0.6875rem', color: 'var(--txt3)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
               Refresh (2h cache)
             </button>
           </>

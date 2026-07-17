@@ -47,8 +47,8 @@ export default function PnLCalc() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>PnL Calculator</div>
-        <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Entry · exit · margin · leverage → PnL, PnL%, ROE%</div>
+        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>PnL Calculator</div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>Entry · exit · margin · leverage → PnL, PnL%, ROE%</div>
       </div>
 
       <div className="ps-card">

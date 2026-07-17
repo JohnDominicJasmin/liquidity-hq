@@ -56,7 +56,7 @@ function CallbackInner() {
         <div className="login-logo">Liquidity<span>HQ</span></div>
         <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
           <div className="login-spinner-lg" />
-          <div style={{ fontSize: 14, color: 'var(--txt2)' }}>Signing you in…</div>
+          <div style={{ fontSize: '0.875rem', color: 'var(--txt2)' }}>Signing you in…</div>
         </div>
       </div>
     </div>
@@ -72,7 +72,7 @@ export default function AuthCallbackPage() {
           <div className="login-logo">Liquidity<span>HQ</span></div>
           <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
             <div className="login-spinner-lg" />
-            <div style={{ fontSize: 14, color: 'var(--txt2)' }}>Loading…</div>
+            <div style={{ fontSize: '0.875rem', color: 'var(--txt2)' }}>Loading…</div>
           </div>
         </div>
       </div>

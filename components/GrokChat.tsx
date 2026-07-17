@@ -537,7 +537,7 @@ export default function GrokChat() {
             <path d="M15.6 12.6C15.8 14 16.2 14.4 17.6 14.6 16.2 14.8 15.8 15.2 15.6 16.6 15.4 15.2 15 14.8 13.6 14.6 15 14.4 15.4 14 15.6 12.6Z" fill="currentColor" opacity="0.65" />
           </svg>
         </span>
-        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', color: 'inherit' }}>Ask AI</span>
+        <span style={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.05em', color: 'inherit' }}>Ask AI</span>
       </button>
 
       {/* ── Chat panel ── */}
@@ -551,10 +551,10 @@ export default function GrokChat() {
               onClick={() => setShowLoginModal(false)}
               aria-label="Close"
             >✕</button>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)' }}>
+            <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--txt)' }}>
               Sign in to use Grok
             </div>
-            <div style={{ fontSize: 13, color: 'var(--txt3)', lineHeight: 1.65, maxWidth: 240 }}>
+            <div style={{ fontSize: '0.8125rem', color: 'var(--txt3)', lineHeight: 1.65, maxWidth: 240 }}>
               AI analysis uses API credits. Create a free account to unlock Grok chat and arena analysis.
             </div>
             <Link
@@ -571,9 +571,9 @@ export default function GrokChat() {
         <div className="gchat-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {histView ? (
-              <button className="gchat-icon-btn" onClick={() => setHistView(false)} title="Back to chat" style={{ fontSize: 16, padding: '2px 4px' }}>←</button>
+              <button className="gchat-icon-btn" onClick={() => setHistView(false)} title="Back to chat" style={{ fontSize: '1rem', padding: '2px 4px' }}>←</button>
             ) : null}
-            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--txt)' }}>
+            <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--txt)' }}>
               {histView ? 'Conversations' : 'LiquidityAI'}
             </span>
           </div>
@@ -590,7 +590,7 @@ export default function GrokChat() {
                   </button>
                   {searchRemaining !== null && (
                     <span style={{
-                      fontSize: 11,
+                      fontSize: '0.6875rem',
                       color: searchRemaining === 0 ? '#ff9a92' : searchRemaining === 1 ? '#f59e0b' : '#666',
                       opacity: liveSearch ? 1 : 0.5,
                       fontVariantNumeric: 'tabular-nums',
@@ -643,8 +643,8 @@ export default function GrokChat() {
           <div className="gchat-hist-view">
             {convos.length === 0 ? (
               <div className="gchat-hist-empty">
-                <div style={{ fontSize: 13, color: 'var(--txt3)' }}>No saved conversations yet</div>
-                <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 4 }}>Conversations are saved automatically</div>
+                <div style={{ fontSize: '0.8125rem', color: 'var(--txt3)' }}>No saved conversations yet</div>
+                <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginTop: 4 }}>Conversations are saved automatically</div>
                 <button className="gchat-new-chat-btn" style={{ marginTop: 16, padding: '8px 20px' }} onClick={newChat}>
                   + Start a new chat
                 </button>
@@ -706,9 +706,9 @@ export default function GrokChat() {
             {/* Rate-limit / error status bar - sits between coins and messages, not in chat stream */}
             {error && (
               <div style={{ padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,154,146,0.06)', lineHeight: 1.6 }}>
-                <div style={{ fontSize: 11, color: '#ff9a92', display: 'flex', alignItems: 'center', gap: 5 }}><Warn size={12} /> {error}</div>
+                <div style={{ fontSize: '0.6875rem', color: '#ff9a92', display: 'flex', alignItems: 'center', gap: 5 }}><Warn size={12} /> {error}</div>
                 {rateLimited && (
-                  <Link href="/upgrade" style={{ fontSize: 11, color: '#b8aeff', textDecoration: 'underline' }}>
+                  <Link href="/upgrade" style={{ fontSize: '0.6875rem', color: '#b8aeff', textDecoration: 'underline' }}>
                     Upgrade to Pro for higher limits →
                   </Link>
                 )}
@@ -727,19 +727,19 @@ export default function GrokChat() {
                   </div>
                   {user ? (
                     <>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#a0a0a0' }}>Ask anything about</div>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: '#b8aeff', margin: '2px 0 6px' }}>
+                      <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#a0a0a0' }}>Ask anything about</div>
+                      <div style={{ fontSize: '1rem', fontWeight: 700, color: '#b8aeff', margin: '2px 0 6px' }}>
                         {coin.toUpperCase()}/USDT
                       </div>
-                      <div style={{ fontSize: 11, color: '#444' }}>
+                      <div style={{ fontSize: '0.6875rem', color: '#444' }}>
                         {liveSearch ? 'Live search ON' : 'Fast mode · toggle Live for web search'}
                       </div>
                     </>
                   ) : (
                     <>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--txt3)' }}>Sign in to use LiquidityAI</div>
+                      <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--txt3)' }}>Sign in to use LiquidityAI</div>
                       <button
-                        style={{ marginTop: 10, fontSize: 12, color: '#b8aeff', background: 'none', border: '0.5px solid #b8aeff44', borderRadius: 8, padding: '6px 16px', cursor: 'pointer' }}
+                        style={{ marginTop: 10, fontSize: '0.75rem', color: '#b8aeff', background: 'none', border: '0.5px solid #b8aeff44', borderRadius: 8, padding: '6px 16px', cursor: 'pointer' }}
                         onClick={() => setShowLoginModal(true)}
                       >
                         Sign In →

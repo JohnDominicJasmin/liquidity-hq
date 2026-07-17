@@ -37,7 +37,7 @@ export default function NewsBanner() {
       <div className="news-scroll">
         <div className="news-row">
           {!hasItems && (
-            <div style={{ fontSize: 12, color: '#555', padding: '8px 0' }}>
+            <div style={{ fontSize: '0.75rem', color: '#555', padding: '8px 0' }}>
               {eventsLoaded ? 'No upcoming events' : 'Loading events…'}
             </div>
           )}

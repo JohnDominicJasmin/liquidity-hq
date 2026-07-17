@@ -88,7 +88,7 @@ export default function GrokSignalChart({ coin: coinProp, tf }: { coin?: string;
           style={{
             background: 'none', border: '0.5px solid var(--bdr2)', borderRadius: 6,
             color: 'var(--txt3)', cursor: 'pointer', padding: '3px 8px',
-            fontSize: 13, lineHeight: 1, transition: 'color 0.15s, border-color 0.15s',
+            fontSize: '0.8125rem', lineHeight: 1, transition: 'color 0.15s, border-color 0.15s',
           }}
           onMouseEnter={e => { (e.target as HTMLElement).style.color = 'var(--txt)'; (e.target as HTMLElement).style.borderColor = 'var(--bdr2)'; }}
           onMouseLeave={e => { (e.target as HTMLElement).style.color = 'var(--txt3)'; }}

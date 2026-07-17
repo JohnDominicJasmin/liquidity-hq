@@ -90,10 +90,10 @@ export default function EconCalendarPage() {
 
       {/* Page header */}
       <div style={{ padding: '20px 0 16px' }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--txt)', letterSpacing: '-.02em', marginBottom: 4 }}>
+        <div style={{ fontSize: '1.375rem', fontWeight: 800, color: 'var(--txt)', letterSpacing: '-.02em', marginBottom: 4 }}>
           Economic Calendar
         </div>
-        <div style={{ fontSize: 12, color: 'var(--txt3)' }}>
+        <div style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>
           High-impact US macro events - FOMC, NFP, CPI, PCE, GDP and more
           {source && <span style={{ marginLeft: 8, opacity: .5 }}>· {source}</span>}
         </div>
@@ -112,28 +112,28 @@ export default function EconCalendarPage() {
             borderRadius: 10, padding: '12px 16px', marginBottom: 20,
           }}>
             <div>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: ic.color, marginBottom: 3 }}>
+              <div style={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: ic.color, marginBottom: 3 }}>
                 {released ? 'Latest Release' : 'Next High-Impact Event'}
               </div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--txt)' }}>{next.name}</div>
-              <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>{fmtTime(next.isoDate)}</div>
+              <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--txt)' }}>{next.name}</div>
+              <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginTop: 2 }}>{fmtTime(next.isoDate)}</div>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <div style={{ fontSize: 24, fontWeight: 800, color: ic.color, lineHeight: 1, letterSpacing: '-0.5px' }}>{ct}</div>
-              {!released && <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 2 }}>away</div>}
+              <div style={{ fontSize: '1.5rem', fontWeight: 800, color: ic.color, lineHeight: 1, letterSpacing: '-0.5px' }}>{ct}</div>
+              {!released && <div style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginTop: 2 }}>away</div>}
             </div>
           </div>
         );
       })()}
 
       {loading && (
-        <div style={{ color: 'var(--txt3)', fontSize: 13, padding: '40px 0', textAlign: 'center' }}>Loading…</div>
+        <div style={{ color: 'var(--txt3)', fontSize: '0.8125rem', padding: '40px 0', textAlign: 'center' }}>Loading…</div>
       )}
       {error && (
-        <div style={{ color: '#f87171', fontSize: 13, padding: '20px 0', textAlign: 'center' }}>{error}</div>
+        <div style={{ color: '#f87171', fontSize: '0.8125rem', padding: '20px 0', textAlign: 'center' }}>{error}</div>
       )}
       {!loading && !error && sorted.length === 0 && (
-        <div style={{ color: 'var(--txt3)', fontSize: 13, padding: '40px 0', textAlign: 'center' }}>No upcoming events found.</div>
+        <div style={{ color: 'var(--txt3)', fontSize: '0.8125rem', padding: '40px 0', textAlign: 'center' }}>No upcoming events found.</div>
       )}
 
       {/* Day groups */}
@@ -141,7 +141,7 @@ export default function EconCalendarPage() {
         <div key={dateKey} style={{ marginBottom: 28 }}>
 
           {/* Date header */}
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--txt)', marginBottom: 10, letterSpacing: '-.01em' }}>
+          <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 10, letterSpacing: '-.01em' }}>
             {fmtHeaderDate(dayEvents[0].isoDate)}
           </div>
 
@@ -159,7 +159,7 @@ export default function EconCalendarPage() {
                 minWidth: 680,
               }}>
                 {['TIME','COUNTRY','EVENT','PREVIOUS','CONSENSUS','ACTUAL','DELTA','IMPACT'].map(h => (
-                  <div key={h} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', color: 'var(--txt3)' }}>
+                  <div key={h} style={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '.07em', color: 'var(--txt3)' }}>
                     {h}
                   </div>
                 ))}
@@ -188,38 +188,38 @@ export default function EconCalendarPage() {
                     }}
                   >
                     {/* TIME */}
-                    <div style={{ fontSize: 12, color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
                       {fmtTime(e.isoDate)}
                       {!isPast && ct !== 'Released' && (
-                        <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 1 }}>in {ct}</div>
+                        <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginTop: 1 }}>in {ct}</div>
                       )}
                     </div>
 
                     {/* COUNTRY */}
-                    <div style={{ fontSize: 11, color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 4 }}>
                       <span style={{ fontWeight: 600 }}>US</span>
                     </div>
 
                     {/* EVENT */}
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)', lineHeight: 1.3 }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--txt)', lineHeight: 1.3 }}>
                         {e.name}
                       </div>
                     </div>
 
                     {/* PREVIOUS */}
-                    <div style={{ fontSize: 12, color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums' }}>
                       {e.previous || '-'}
                     </div>
 
                     {/* CONSENSUS */}
-                    <div style={{ fontSize: 12, color: e.estimate ? '#fbbf24' : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', fontWeight: e.estimate ? 500 : 400 }}>
+                    <div style={{ fontSize: '0.75rem', color: e.estimate ? '#fbbf24' : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', fontWeight: e.estimate ? 500 : 400 }}>
                       {e.estimate || '-'}
                     </div>
 
                     {/* ACTUAL */}
                     <div style={{
-                      fontSize: 12, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+                      fontSize: '0.75rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums',
                       color: e.actual
                         ? (delta ? (delta.positive ? '#34d399' : '#f87171') : '#34d399')
                         : 'var(--txt3)',
@@ -229,7 +229,7 @@ export default function EconCalendarPage() {
 
                     {/* DELTA */}
                     <div style={{
-                      fontSize: 12, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
+                      fontSize: '0.75rem', fontWeight: 600, fontVariantNumeric: 'tabular-nums',
                       color: delta ? (delta.positive ? '#34d399' : '#f87171') : 'var(--txt3)',
                     }}>
                       {delta?.text || '-'}
@@ -239,7 +239,7 @@ export default function EconCalendarPage() {
                     <div>
                       <span style={{
                         display: 'inline-block',
-                        fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 4,
+                        fontSize: '0.625rem', fontWeight: 700, padding: '3px 8px', borderRadius: 4,
                         letterSpacing: '.04em',
                         color: ic.color, background: ic.bg, border: `0.5px solid ${ic.border}`,
                       }}>

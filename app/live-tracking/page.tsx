@@ -82,8 +82,8 @@ export default function LiveTrackingPage() {
         </div>
       </div>
 
-      {loading && <div style={{ fontSize: 12, opacity: 0.5 }}>Loading…</div>}
-      {error && <div style={{ color: '#f87171', fontSize: 12 }}>Error: {error}</div>}
+      {loading && <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Loading…</div>}
+      {error && <div style={{ color: '#f87171', fontSize: '0.75rem' }}>Error: {error}</div>}
 
       {!loading && !error && rows && rows.length === 0 && (
         <EmptyState
@@ -98,7 +98,7 @@ export default function LiveTrackingPage() {
             <SideCard title="LIVE (ANTI-CHOP ON)" stats={stats} color="#34d399" />
           </div>
 
-          <h2 className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Per-Coin Breakdown</h2>
+          <h2 className="mb-title" style={{ fontSize: '0.9375rem', marginBottom: 8 }}>Per-Coin Breakdown</h2>
           <div style={{ overflowX: 'auto', marginBottom: 24 }}>
             <table className="frh-table">
               <thead>
@@ -123,7 +123,7 @@ export default function LiveTrackingPage() {
             </table>
           </div>
 
-          <h2 className="mb-title" style={{ fontSize: 15, marginBottom: 8 }}>Recent Signals</h2>
+          <h2 className="mb-title" style={{ fontSize: '0.9375rem', marginBottom: 8 }}>Recent Signals</h2>
           <div style={{ overflowX: 'auto' }}>
             <table className="frh-table">
               <thead>
@@ -143,7 +143,7 @@ export default function LiveTrackingPage() {
                       <td>{r.tf.toUpperCase()}</td>
                       <td style={{ color: r.dir === 'long' ? '#34d399' : '#f87171' }}>{r.dir.toUpperCase()}</td>
                       <td>${r.entry_price.toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
-                      <td style={{ fontSize: 11, opacity: 0.6 }}>{new Date(r.signal_time).toLocaleString()}</td>
+                      <td style={{ fontSize: '0.6875rem', opacity: 0.6 }}>{new Date(r.signal_time).toLocaleString()}</td>
                       <td style={{ color: statusCol, fontWeight: 600 }}>{statusLabel}</td>
                     </tr>
                   );

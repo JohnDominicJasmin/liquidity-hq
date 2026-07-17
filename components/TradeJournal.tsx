@@ -155,12 +155,12 @@ function ShadowAccountResult({ text }: { text: string }) {
             borderRadius: 'var(--radius-card)', padding: '12px 14px',
           }}>
             <div style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+              fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
               color: color ?? 'var(--txt3)', marginBottom: 8,
             }}>
               {label}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
               {content}
             </div>
           </div>
@@ -193,10 +193,10 @@ function BiasResult({ text }: { text: string }) {
         if (!content) return null;
         return (
           <div key={key} style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 'var(--radius-card)', padding: '12px 14px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: color ?? 'var(--txt3)', marginBottom: 8 }}>
+            <div style={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: color ?? 'var(--txt3)', marginBottom: 8 }}>
               {label}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
               {content}
             </div>
           </div>
@@ -732,7 +732,7 @@ function Inner() {
 
   /* No Supabase */
   if (noDb) return (
-    <div style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--txt3)', fontSize: 13 }}>
+    <div style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--txt3)', fontSize: '0.8125rem' }}>
       
       <div style={{ fontWeight: 600, marginBottom: 6 }}>Supabase not configured</div>
       <div>Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable the trade journal.</div>
@@ -743,8 +743,8 @@ function Inner() {
     <div>
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Trade Journal</div>
-        <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Log every trade · track results · build discipline</div>
+        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Trade Journal</div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>Log every trade · track results · build discipline</div>
       </div>
 
       {/* Tabs */}
@@ -755,7 +755,7 @@ function Inner() {
         <button className={`tj-tab${tab === 'rules' ? ' on' : ''}`} onClick={() => setTab('rules')} style={{ position: 'relative' }}>
           Rules{rules.filter(r => r.enabled).length > 0 && (
             <span style={{
-              marginLeft: 5, fontSize: 11, fontWeight: 700,
+              marginLeft: 5, fontSize: '0.6875rem', fontWeight: 700,
               background: 'var(--accent)', color: '#fff',
               borderRadius: 10, padding: '1px 5px',
             }}>{rules.filter(r => r.enabled).length}</span>
@@ -765,7 +765,7 @@ function Inner() {
         <button className={`tj-tab${tab === 'bias' ? ' on' : ''}`} onClick={() => setTab('bias')}>Bias Diagnostics</button>
         <button className={`tj-tab${tab === 'thesis' ? ' on' : ''}`} onClick={() => setTab('thesis')} style={{ position: 'relative' }}>
           Thesis Tracker{theses.length > 0 && (
-            <span style={{ marginLeft: 5, fontSize: 11, fontWeight: 700, background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '1px 5px' }}>{theses.length}</span>
+            <span style={{ marginLeft: 5, fontSize: '0.6875rem', fontWeight: 700, background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '1px 5px' }}>{theses.length}</span>
           )}
         </button>
       </div>
@@ -925,11 +925,11 @@ function Inner() {
               background: 'rgba(217,119,6,0.08)', border: '0.5px solid rgba(217,119,6,0.3)',
               borderRadius: 8, padding: '10px 12px', marginBottom: 12,
             }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#f59e0b', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#f59e0b', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
                 <Warn /> Price levels don&apos;t match direction
               </div>
               {levelWarnings.map((w, i) => (
-                <div key={i} style={{ fontSize: 11, color: '#f59e0b', opacity: 0.85, lineHeight: 1.5 }}>
+                <div key={i} style={{ fontSize: '0.6875rem', color: '#f59e0b', opacity: 0.85, lineHeight: 1.5 }}>
                   · {w}
                 </div>
               ))}
@@ -941,11 +941,11 @@ function Inner() {
               background: 'rgba(248,113,113,0.08)', border: '0.5px solid rgba(248,113,113,0.3)',
               borderRadius: 8, padding: '10px 12px', marginBottom: 12,
             }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#f87171', marginBottom: 6 }}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#f87171', marginBottom: 6 }}>
                 Rule violation{activeViolations.length > 1 ? 's' : ''} - review before logging
               </div>
               {activeViolations.map(r => (
-                <div key={r.id} style={{ fontSize: 11, color: '#f87171', opacity: 0.85, lineHeight: 1.5 }}>
+                <div key={r.id} style={{ fontSize: '0.6875rem', color: '#f87171', opacity: 0.85, lineHeight: 1.5 }}>
                   · {r.name} ({ruleLabel(r)})
                 </div>
               ))}
@@ -967,15 +967,15 @@ function Inner() {
               border: '0.5px solid var(--bdr)', borderRadius: 10,
               padding: '24px 20px', margin: '8px 0', textAlign: 'center',
             }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--txt)', marginBottom: 8 }}>
+              <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 8 }}>
                 Your trade history starts here
               </div>
-              <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.65, marginBottom: 16, maxWidth: 320, margin: '0 auto 16px' }}>
+              <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', lineHeight: 1.65, marginBottom: 16, maxWidth: 320, margin: '0 auto 16px' }}>
                 Log your first trade to start tracking P&amp;L, win rate, R-factor, and behavioral patterns across your entire trading history.
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginBottom: 18, flexWrap: 'wrap' }}>
                 {(['Track P&L and R-factor', 'Win rate by setup type', 'Spot your behavioral biases'] as const).map(item => (
-                  <span key={item} style={{ fontSize: 10, color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span key={item} style={{ fontSize: '0.625rem', color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', flexShrink: 0 }} />
                     {item}
                   </span>
@@ -986,7 +986,7 @@ function Inner() {
                 style={{
                   background: 'var(--accent-bg)', border: '0.5px solid var(--accent-bdr)',
                   color: 'var(--accent)', borderRadius: 8,
-                  padding: '9px 20px', fontSize: 12, fontWeight: 700,
+                  padding: '9px 20px', fontSize: '0.75rem', fontWeight: 700,
                   cursor: 'pointer',
                 }}
               >
@@ -1020,7 +1020,7 @@ function Inner() {
                   <span className={`tj-result-badge tj-rb-${trade.result.toLowerCase()}`}>{trade.result}</span>
                   {trade.id && violatingTradeIds.has(trade.id) && (
                     <span title="Violated one or more active rules" style={{
-                      fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
+                      fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.05em',
                       background: 'rgba(248,113,113,0.12)', color: '#f87171',
                       border: '0.5px solid rgba(248,113,113,0.3)',
                       borderRadius: 4, padding: '2px 5px',
@@ -1150,7 +1150,7 @@ function Inner() {
               gap: 10, flexWrap: 'wrap', padding: '14px 2px 0', marginTop: 4,
               borderTop: '0.5px solid var(--bdr)',
             }}>
-              <span style={{ fontSize: 10, color: 'var(--txt3)', fontFamily: 'var(--font-mono), monospace' }}>
+              <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', fontFamily: 'var(--font-mono), monospace' }}>
                 {historyPageSafe * HISTORY_PAGE_SIZE + 1}–{Math.min(trades.length, historyPageSafe * HISTORY_PAGE_SIZE + HISTORY_PAGE_SIZE)} of {trades.length}
               </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1158,7 +1158,7 @@ function Inner() {
                   onClick={() => setHistoryPage(p => Math.max(0, p - 1))}
                   disabled={historyPageSafe === 0}
                   style={{
-                    padding: '5px 10px', fontSize: 11, borderRadius: 6,
+                    padding: '5px 10px', fontSize: '0.6875rem', borderRadius: 6,
                     border: '0.5px solid var(--bdr)', background: 'transparent',
                     color: historyPageSafe === 0 ? 'var(--txt3)' : 'var(--txt2)',
                     cursor: historyPageSafe === 0 ? 'default' : 'pointer', opacity: historyPageSafe === 0 ? 0.4 : 1,
@@ -1171,7 +1171,7 @@ function Inner() {
                     key={i}
                     onClick={() => setHistoryPage(i)}
                     style={{
-                      width: 26, height: 26, fontSize: 11, fontWeight: 700, borderRadius: 6,
+                      width: 26, height: 26, fontSize: '0.6875rem', fontWeight: 700, borderRadius: 6,
                       border: `0.5px solid ${i === historyPageSafe ? 'var(--accent-bdr)' : 'var(--bdr)'}`,
                       background: i === historyPageSafe ? 'var(--accent)' : 'transparent',
                       color: i === historyPageSafe ? '#fff' : 'var(--txt3)',
@@ -1185,7 +1185,7 @@ function Inner() {
                   onClick={() => setHistoryPage(p => Math.min(historyPageCount - 1, p + 1))}
                   disabled={historyPageSafe >= historyPageCount - 1}
                   style={{
-                    padding: '5px 10px', fontSize: 11, borderRadius: 6,
+                    padding: '5px 10px', fontSize: '0.6875rem', borderRadius: 6,
                     border: '0.5px solid var(--bdr)', background: 'transparent',
                     color: historyPageSafe >= historyPageCount - 1 ? 'var(--txt3)' : 'var(--txt2)',
                     cursor: historyPageSafe >= historyPageCount - 1 ? 'default' : 'pointer', opacity: historyPageSafe >= historyPageCount - 1 ? 0.4 : 1,
@@ -1205,15 +1205,15 @@ function Inner() {
 
           {/* Header */}
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Trading Rules</div>
-            <div style={{ fontSize: 12, color: 'var(--txt3)' }}>
+            <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Trading Rules</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>
               Define your rules - violations flag in real time when logging a trade and badge past trades in History.
             </div>
           </div>
 
           {/* Quick-add presets */}
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 8 }}>Quick Add</div>
+            <div style={{ fontSize: '0.625rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 8 }}>Quick Add</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {RULE_PRESETS.map(p => {
                 const exists = rules.some(r => r.name === p.name);
@@ -1223,7 +1223,7 @@ function Inner() {
                     onClick={() => addPreset(p)}
                     disabled={exists}
                     style={{
-                      fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 20,
+                      fontSize: '0.6875rem', fontWeight: 600, padding: '4px 10px', borderRadius: 20,
                       border: `0.5px solid ${exists ? 'var(--bdr)' : 'var(--accent-bdr)'}`,
                       background: exists ? 'transparent' : 'var(--accent-bg)',
                       color: exists ? 'var(--txt3)' : 'var(--accent)',
@@ -1240,7 +1240,7 @@ function Inner() {
           {/* Active rules list */}
           {rules.length > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 8 }}>
+              <div style={{ fontSize: '0.625rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 8 }}>
                 Active Rules ({rules.filter(r => r.enabled).length} of {rules.length} enabled)
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1266,12 +1266,12 @@ function Inner() {
                       }} />
                     </button>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)', marginBottom: 1 }}>{r.name}</div>
-                      <div style={{ fontSize: 10, color: 'var(--txt3)', fontFamily: 'var(--font-mono), monospace' }}>{ruleLabel(r)}</div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--txt)', marginBottom: 1 }}>{r.name}</div>
+                      <div style={{ fontSize: '0.625rem', color: 'var(--txt3)', fontFamily: 'var(--font-mono), monospace' }}>{ruleLabel(r)}</div>
                     </div>
                     <button
                       onClick={() => deleteRule(r.id)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)', fontSize: 14, padding: '2px 4px', lineHeight: 1 }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)', fontSize: '0.875rem', padding: '2px 4px', lineHeight: 1 }}
                     >✕</button>
                   </div>
                 ))}
@@ -1280,14 +1280,14 @@ function Inner() {
           )}
 
           {rules.length === 0 && (
-            <div style={{ color: 'var(--txt3)', fontSize: 12, marginBottom: 16 }}>No rules yet - add a preset above or create a custom rule below.</div>
+            <div style={{ color: 'var(--txt3)', fontSize: '0.75rem', marginBottom: 16 }}>No rules yet - add a preset above or create a custom rule below.</div>
           )}
 
           {/* Custom rule form */}
           <button
             onClick={() => setShowRuleForm(v => !v)}
             style={{
-              fontSize: 12, fontWeight: 600, padding: '7px 14px', borderRadius: 8,
+              fontSize: '0.75rem', fontWeight: 600, padding: '7px 14px', borderRadius: 8,
               border: '0.5px solid var(--bdr)', background: 'transparent',
               color: 'var(--txt2)', cursor: 'pointer', marginBottom: showRuleForm ? 12 : 0,
             }}
@@ -1300,14 +1300,14 @@ function Inner() {
               background: 'var(--bg1)', border: '0.5px solid var(--bdr)',
               borderRadius: 8, padding: '12px 14px',
             }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 10 }}>New Rule</div>
+              <div style={{ fontSize: '0.625rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 10 }}>New Rule</div>
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
                 {/* Field */}
                 <select
                   value={ruleField}
                   onChange={e => { setRuleField(e.target.value as RuleField); setRuleValue(''); }}
-                  style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, cursor: 'pointer' }}
+                  style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: '0.75rem', cursor: 'pointer' }}
                 >
                   {(Object.entries(RULE_FIELD_LABELS) as [RuleField, string][]).map(([k, v]) => (
                     <option key={k} value={k}>{v}</option>
@@ -1318,7 +1318,7 @@ function Inner() {
                 <select
                   value={ruleOp}
                   onChange={e => setRuleOp(e.target.value as RuleOperator)}
-                  style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, cursor: 'pointer' }}
+                  style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: '0.75rem', cursor: 'pointer' }}
                 >
                   {(ruleField === 'leverage'
                     ? (['lte', 'gte'] as RuleOperator[])
@@ -1333,7 +1333,7 @@ function Inner() {
                   <select
                     value={ruleValue}
                     onChange={e => setRuleValue(e.target.value)}
-                    style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, cursor: 'pointer' }}
+                    style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: '0.75rem', cursor: 'pointer' }}
                   >
                     <option value="">Select coin</option>
                     {COINS.map(c => <option key={c} value={c}>{c.toUpperCase()}</option>)}
@@ -1343,7 +1343,7 @@ function Inner() {
                   <select
                     value={ruleValue}
                     onChange={e => setRuleValue(e.target.value)}
-                    style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, cursor: 'pointer' }}
+                    style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: '0.75rem', cursor: 'pointer' }}
                   >
                     <option value="">Select direction</option>
                     <option value="LONG">LONG</option>
@@ -1354,7 +1354,7 @@ function Inner() {
                   <select
                     value={ruleValue}
                     onChange={e => setRuleValue(e.target.value)}
-                    style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, cursor: 'pointer' }}
+                    style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: '0.75rem', cursor: 'pointer' }}
                   >
                     <option value="">Select setup</option>
                     {SETUPS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -1364,7 +1364,7 @@ function Inner() {
                   <select
                     value={ruleValue}
                     onChange={e => setRuleValue(e.target.value)}
-                    style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, cursor: 'pointer' }}
+                    style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: '0.75rem', cursor: 'pointer' }}
                   >
                     <option value="">Select session</option>
                     {SESSIONS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -1376,7 +1376,7 @@ function Inner() {
                     value={ruleValue}
                     onChange={e => setRuleValue(e.target.value)}
                     placeholder="e.g. 20"
-                    style={{ width: 70, padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12 }}
+                    style={{ width: 70, padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: '0.75rem' }}
                   />
                 )}
               </div>
@@ -1386,7 +1386,7 @@ function Inner() {
                 placeholder="Rule name (e.g. No high leverage)"
                 value={ruleName}
                 onChange={e => setRuleName(e.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, marginBottom: 10, outline: 'none' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: '0.75rem', marginBottom: 10, outline: 'none' }}
               />
 
               <button
@@ -1397,7 +1397,7 @@ function Inner() {
                   setRuleName(''); setRuleValue(''); setShowRuleForm(false);
                 }}
                 style={{
-                  padding: '7px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  padding: '7px 16px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
                   background: !ruleValue || !ruleName.trim() ? 'rgba(255,255,255,0.04)' : 'var(--accent-bg)',
                   color: !ruleValue || !ruleName.trim() ? 'var(--txt3)' : 'var(--accent)',
                   border: `0.5px solid ${!ruleValue || !ruleName.trim() ? 'var(--bdr)' : 'var(--accent-bdr)'}`,
@@ -1414,8 +1414,8 @@ function Inner() {
       {tab === 'shadow' && (
         <div>
           <div style={{ padding: '12px 0 16px' }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Shadow Account</div>
-            <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 16, maxWidth: 520 }}>
+            <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Shadow Account</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', marginBottom: 16, maxWidth: 520 }}>
               AI analysis of your trade history - extracts your implicit trading rules, identifies your best and worst patterns, flags rule violations, and shows what your stats would look like if you only took your highest-probability setups.
             </div>
             {!shadowAnalysis && (
@@ -1426,7 +1426,7 @@ function Inner() {
                   background: shadowLoading ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
                   color: shadowLoading ? 'var(--txt3)' : '#5a6aff',
                   border: `1px solid ${shadowLoading ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
-                  borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 700,
+                  borderRadius: 8, padding: '10px 20px', fontSize: '0.8125rem', fontWeight: 700,
                   cursor: shadowLoading ? 'default' : 'pointer',
                 }}
               >
@@ -1439,14 +1439,14 @@ function Inner() {
                 style={{
                   background: 'transparent', color: 'var(--txt3)',
                   border: '0.5px solid var(--bdr)', borderRadius: 6,
-                  padding: '6px 12px', fontSize: 11, cursor: 'pointer', marginBottom: 16,
+                  padding: '6px 12px', fontSize: '0.6875rem', cursor: 'pointer', marginBottom: 16,
                 }}
               >
                 Re-run Analysis
               </button>
             )}
             {shadowError && (
-              <div style={{ color: '#f87171', fontSize: 12, marginTop: 8 }}>{shadowError}</div>
+              <div style={{ color: '#f87171', fontSize: '0.75rem', marginTop: 8 }}>{shadowError}</div>
             )}
           </div>
 
@@ -1458,8 +1458,8 @@ function Inner() {
       {tab === 'bias' && (
         <div>
           <div style={{ padding: '12px 0 16px' }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Behavioral Bias Diagnostics</div>
-            <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 16, maxWidth: 520 }}>
+            <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Behavioral Bias Diagnostics</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', marginBottom: 16, maxWidth: 520 }}>
               Analyzes your trade history for the four most damaging trader biases - disposition effect, overtrading, momentum chasing, and anchoring - with specific examples from your actual trades and estimated P&L drag per bias.
             </div>
             {!biasAnalysis && (
@@ -1470,7 +1470,7 @@ function Inner() {
                   background: biasLoading ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
                   color: biasLoading ? 'var(--txt3)' : '#5a6aff',
                   border: `1px solid ${biasLoading ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
-                  borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 700,
+                  borderRadius: 8, padding: '10px 20px', fontSize: '0.8125rem', fontWeight: 700,
                   cursor: biasLoading ? 'default' : 'pointer',
                 }}
               >
@@ -1480,13 +1480,13 @@ function Inner() {
             {biasAnalysis && (
               <button
                 onClick={() => { setBiasAnalysis(null); setBiasError(null); }}
-                style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '6px 12px', fontSize: 11, cursor: 'pointer', marginBottom: 16 }}
+                style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '6px 12px', fontSize: '0.6875rem', cursor: 'pointer', marginBottom: 16 }}
               >
                 Re-run Analysis
               </button>
             )}
             {biasError && (
-              <div style={{ color: '#f87171', fontSize: 12, marginTop: 8 }}>{biasError}</div>
+              <div style={{ color: '#f87171', fontSize: '0.75rem', marginTop: 8 }}>{biasError}</div>
             )}
           </div>
           {biasAnalysis && <BiasResult text={biasAnalysis} />}
@@ -1498,8 +1498,8 @@ function Inner() {
         <div>
           <div style={{ padding: '12px 0 4px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Thesis Tracker</div>
-              <div style={{ fontSize: 12, color: 'var(--txt3)', maxWidth: 480 }}>
+              <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Thesis Tracker</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', maxWidth: 480 }}>
                 Write a trade thesis with measurable assumptions. Grok checks whether your assumptions still hold and scores thesis health 1-10.
               </div>
             </div>
@@ -1509,7 +1509,7 @@ function Inner() {
                 background: showThesisForm ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
                 color: showThesisForm ? 'var(--txt3)' : '#5a6aff',
                 border: `1px solid ${showThesisForm ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
-                borderRadius: 8, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+                borderRadius: 8, padding: '8px 16px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', flexShrink: 0,
               }}
             >
               {showThesisForm ? 'Cancel' : '+ New Thesis'}
@@ -1519,19 +1519,19 @@ function Inner() {
           {/* New thesis form */}
           {showThesisForm && (
             <div style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 'var(--radius-card)', padding: '14px', marginBottom: 16, marginTop: 12 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>New Thesis</div>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>New Thesis</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
                 <input
                   value={thesisFormSymbol}
                   onChange={e => setThesisFormSymbol(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))}
                   placeholder="Ticker (e.g. BTC)"
                   maxLength={10}
-                  style={{ width: 110, padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, outline: 'none', fontFamily: 'var(--font-mono), monospace', fontWeight: 700 }}
+                  style={{ width: 110, padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: '0.75rem', outline: 'none', fontFamily: 'var(--font-mono), monospace', fontWeight: 700 }}
                 />
                 <select
                   value={thesisFormDirection}
                   onChange={e => setThesisFormDirection(e.target.value as 'LONG' | 'SHORT')}
-                  style={{ padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, cursor: 'pointer' }}
+                  style={{ padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: '0.75rem', cursor: 'pointer' }}
                 >
                   <option value="LONG">LONG</option>
                   <option value="SHORT">SHORT</option>
@@ -1540,7 +1540,7 @@ function Inner() {
                   type="date"
                   value={thesisFormDate}
                   onChange={e => setThesisFormDate(e.target.value)}
-                  style={{ padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, outline: 'none' }}
+                  style={{ padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: '0.75rem', outline: 'none' }}
                 />
               </div>
               <textarea
@@ -1548,9 +1548,9 @@ function Inner() {
                 onChange={e => setThesisFormText(e.target.value)}
                 placeholder="Your trade thesis - why are you taking this position? What is the setup?"
                 rows={3}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, resize: 'vertical', outline: 'none', marginBottom: 10 }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: '0.75rem', resize: 'vertical', outline: 'none', marginBottom: 10 }}
               />
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
+              <div style={{ fontSize: '0.625rem', fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
                 Measurable Assumptions (3-5) - these get checked by Grok
               </div>
               {thesisFormAssumptions.map((a, i) => (
@@ -1563,14 +1563,14 @@ function Inner() {
                     setThesisFormAssumptions(copy);
                   }}
                   placeholder={`Assumption ${i + 1} - e.g. "BTC holds above $95k support"`}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 12, outline: 'none', marginBottom: 6 }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: '0.75rem', outline: 'none', marginBottom: 6 }}
                 />
               ))}
               <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                 {thesisFormAssumptions.length < 5 && (
                   <button
                     onClick={() => setThesisFormAssumptions(a => [...a, ''])}
-                    style={{ fontSize: 11, color: '#5a6aff', background: 'transparent', border: '0.5px solid rgba(90,106,255,0.3)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
+                    style={{ fontSize: '0.6875rem', color: '#5a6aff', background: 'transparent', border: '0.5px solid rgba(90,106,255,0.3)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
                   >
                     + Add Assumption
                   </button>
@@ -1578,7 +1578,7 @@ function Inner() {
                 {thesisFormAssumptions.length > 1 && (
                   <button
                     onClick={() => setThesisFormAssumptions(a => a.slice(0, -1))}
-                    style={{ fontSize: 11, color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
+                    style={{ fontSize: '0.6875rem', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
                   >
                     Remove Last
                   </button>
@@ -1591,7 +1591,7 @@ function Inner() {
                   display: 'block', marginTop: 14, width: '100%',
                   background: 'rgba(90,106,255,0.12)', color: '#5a6aff',
                   border: '1px solid rgba(90,106,255,0.35)', borderRadius: 8,
-                  padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  padding: '10px', fontSize: '0.8125rem', fontWeight: 700, cursor: 'pointer',
                 }}
               >
                 Save Thesis
@@ -1613,32 +1613,32 @@ function Inner() {
                 <div key={thesis.id} style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 'var(--radius-card)', padding: '12px 14px' }}>
                   {/* Header */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--txt)', fontFamily: 'var(--font-mono), monospace' }}>{thesis.symbol}</span>
+                    <span style={{ fontSize: '0.8125rem', fontWeight: 800, color: 'var(--txt)', fontFamily: 'var(--font-mono), monospace' }}>{thesis.symbol}</span>
                     <span style={{
-                      fontSize: 11, padding: '2px 6px', borderRadius: 10, fontWeight: 700,
+                      fontSize: '0.6875rem', padding: '2px 6px', borderRadius: 10, fontWeight: 700,
                       background: thesis.direction === 'LONG' ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)',
                       color: thesis.direction === 'LONG' ? '#34d399' : '#f87171',
                       border: `0.5px solid ${thesis.direction === 'LONG' ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
                     }}>
                       {thesis.direction}
                     </span>
-                    <span style={{ fontSize: 10, color: 'var(--txt3)' }}>Entry: {thesis.entryDate}</span>
+                    <span style={{ fontSize: '0.625rem', color: 'var(--txt3)' }}>Entry: {thesis.entryDate}</span>
                     {score != null && (
-                      <span style={{ fontSize: 11, fontWeight: 800, color: scoreCol, fontFamily: 'var(--font-mono), monospace', marginLeft: 'auto' }}>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 800, color: scoreCol, fontFamily: 'var(--font-mono), monospace', marginLeft: 'auto' }}>
                         {score}/10
                       </span>
                     )}
                   </div>
 
                   {/* Thesis text */}
-                  <div style={{ fontSize: 12, color: 'var(--txt2)', lineHeight: 1.5, marginBottom: 8 }}>{thesis.thesisText}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--txt2)', lineHeight: 1.5, marginBottom: 8 }}>{thesis.thesisText}</div>
 
                   {/* Assumptions */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>
                     {thesis.assumptions.map((a, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-                        <span style={{ fontSize: 11, color: 'var(--txt3)', flexShrink: 0, marginTop: 1 }}>A{i + 1}</span>
-                        <span style={{ fontSize: 11, color: 'var(--txt3)' }}>{a}</span>
+                        <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)', flexShrink: 0, marginTop: 1 }}>A{i + 1}</span>
+                        <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>{a}</span>
                       </div>
                     ))}
                   </div>
@@ -1646,7 +1646,7 @@ function Inner() {
                   {/* Grok feedback */}
                   {thesis.lastFeedback && (
                     <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 10, marginBottom: 10 }}>
-                      <div style={{ fontSize: 11, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
+                      <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
                         Last checked: {thesis.lastScoreDate}
                       </div>
                       {THESIS_CHECK_SECTIONS.map(({ key, label, color }) => {
@@ -1654,8 +1654,8 @@ function Inner() {
                         if (!content) return null;
                         return (
                           <div key={key} style={{ marginBottom: 8 }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: color ?? 'var(--txt3)', marginBottom: 3 }}>{label}</div>
-                            <div style={{ fontSize: 11, color: 'var(--txt2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{content}</div>
+                            <div style={{ fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: color ?? 'var(--txt3)', marginBottom: 3 }}>{label}</div>
+                            <div style={{ fontSize: '0.6875rem', color: 'var(--txt2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{content}</div>
                           </div>
                         );
                       })}
@@ -1671,14 +1671,14 @@ function Inner() {
                         background: isChecking ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.10)',
                         color: isChecking ? 'var(--txt3)' : '#5a6aff',
                         border: `0.5px solid ${isChecking ? 'var(--bdr)' : 'rgba(90,106,255,0.3)'}`,
-                        borderRadius: 6, padding: '5px 12px', fontSize: 11, fontWeight: 700, cursor: isChecking ? 'default' : 'pointer',
+                        borderRadius: 6, padding: '5px 12px', fontSize: '0.6875rem', fontWeight: 700, cursor: isChecking ? 'default' : 'pointer',
                       }}
                     >
                       {isChecking ? 'Checking…' : thesis.lastFeedback ? 'Re-check Health' : 'Check Thesis Health'}
                     </button>
                     <button
                       onClick={() => deleteThesis(thesis.id)}
-                      style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '5px 10px', fontSize: 11, cursor: 'pointer' }}
+                      style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '5px 10px', fontSize: '0.6875rem', cursor: 'pointer' }}
                     >
                       Delete
                     </button>
@@ -1705,11 +1705,11 @@ function Inner() {
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
                 }}>
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 2 }}>Rule Compliance</div>
-                    <div style={{ fontSize: 11, color: 'var(--txt3)' }}>{complianceScore.clean} of {complianceScore.total} closed trades followed all rules</div>
+                    <div style={{ fontSize: '0.625rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 2 }}>Rule Compliance</div>
+                    <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>{complianceScore.clean} of {complianceScore.total} closed trades followed all rules</div>
                   </div>
                   <div style={{
-                    fontSize: 26, fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
+                    fontSize: '1.625rem', fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
                     color: complianceScore.pct >= 80 ? '#34d399' : complianceScore.pct >= 60 ? '#fbbf24' : '#f87171',
                   }}>
                     {complianceScore.pct}%
@@ -1842,7 +1842,7 @@ export default function TradeJournal() {
       title="Sign in to access your Journal"
       desc="Your trade history, P&amp;L stats, and setups are private to your account."
     >
-      <Suspense fallback={<div style={{ padding: '2rem', color: '#444', textAlign: 'center', fontSize: 13 }}>Loading…</div>}>
+      <Suspense fallback={<div style={{ padding: '2rem', color: '#444', textAlign: 'center', fontSize: '0.8125rem' }}>Loading…</div>}>
         <Inner />
       </Suspense>
     </AuthGate>

@@ -73,8 +73,8 @@ export default function PWAInstallPrompt() {
         <Download size={17} style={{ verticalAlign: 'baseline' }} />
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Add to Home Screen</div>
-        <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.4 }}>Install LiquidityHQ for instant access</div>
+        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Add to Home Screen</div>
+        <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', lineHeight: 1.4 }}>Install LiquidityHQ for instant access</div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
         <button
@@ -84,7 +84,7 @@ export default function PWAInstallPrompt() {
             border: 'none',
             borderRadius: 6,
             padding: '5px 11px',
-            fontSize: 11,
+            fontSize: '0.6875rem',
             fontWeight: 700,
             color: '#fff',
             cursor: 'pointer',
@@ -98,7 +98,7 @@ export default function PWAInstallPrompt() {
             border: 'none',
             cursor: 'pointer',
             color: 'var(--txt)',
-            fontSize: 18,
+            fontSize: '1.125rem',
             lineHeight: 1,
             padding: '0 2px',
             opacity: 0.75,

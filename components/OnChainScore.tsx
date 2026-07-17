@@ -46,12 +46,12 @@ function ScoreBar({ value, label, weight }: { value: number; label: string; weig
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--txt)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--txt)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
           {label}
         </span>
         <span style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>{weight}</span>
-          <span style={{ fontSize: 14, fontWeight: 800, color: col, fontFamily: 'var(--font-mono)' }}>{value}</span>
+          <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>{weight}</span>
+          <span style={{ fontSize: '0.875rem', fontWeight: 800, color: col, fontFamily: 'var(--font-mono)' }}>{value}</span>
         </span>
       </div>
       <div style={{ height: 4, background: 'rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
@@ -63,7 +63,7 @@ function ScoreBar({ value, label, weight }: { value: number; label: string; weig
 
 function MetricPill({ label, value, source }: { label: string; value: number | null; source?: string }) {
   return (
-    <div style={{ fontSize: 11, color: 'var(--txt3)', display: 'flex', gap: 4, alignItems: 'center' }}>
+    <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', display: 'flex', gap: 4, alignItems: 'center' }}>
       <span style={{ color: 'var(--txt)', fontWeight: 600 }}>{label}:</span>
       <span style={{ fontFamily: 'var(--font-mono)' }}>
         {value !== null ? value.toFixed(2) : '-'}
@@ -131,8 +131,8 @@ export default function OnChainScore() {
         borderBottom: '0.5px solid var(--bdr)',
       }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt)' }}>On-Chain Composite Score</div>
-          <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 1 }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--txt)' }}>On-Chain Composite Score</div>
+          <div style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginTop: 1 }}>
             {data
               ? `Updated ${new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
               : 'MVRV · SOPR · NVT · Exchange Flows · Whale Activity'}
@@ -146,7 +146,7 @@ export default function OnChainScore() {
             border: '0.5px solid rgba(90,106,255,0.4)',
             borderRadius: 6,
             padding: '5px 11px',
-            fontSize: 11,
+            fontSize: '0.6875rem',
             fontWeight: 700,
             color: 'var(--accent)',
             cursor: loading || !user ? 'default' : 'pointer',
@@ -160,19 +160,19 @@ export default function OnChainScore() {
 
       {/* Error */}
       {error && (
-        <div style={{ padding: '8px 14px', fontSize: 11, color: '#f87171', background: 'rgba(248,113,113,0.06)' }}>
+        <div style={{ padding: '8px 14px', fontSize: '0.6875rem', color: '#f87171', background: 'rgba(248,113,113,0.06)' }}>
           {error}
         </div>
       )}
 
       {!data && !loading && (
-        <div style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--txt3)', fontSize: 12 }}>
+        <div style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--txt3)', fontSize: '0.75rem' }}>
           Click Analyze to fetch live on-chain metrics via Grok web search.
         </div>
       )}
 
       {loading && (
-        <div style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--txt3)', fontSize: 12 }}>
+        <div style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--txt3)', fontSize: '0.75rem' }}>
           Searching web for MVRV, SOPR, NVT, exchange flows…
         </div>
       )}
@@ -192,7 +192,7 @@ export default function OnChainScore() {
           }}>
             <div style={{ textAlign: 'center', minWidth: 52 }}>
               <div style={{
-                fontSize: 28,
+                fontSize: '1.75rem',
                 fontWeight: 900,
                 fontFamily: 'var(--font-mono)',
                 color: compositeCol,
@@ -200,11 +200,11 @@ export default function OnChainScore() {
               }}>
                 {data.composite_score}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2, letterSpacing: '0.06em' }}>/ 100</div>
+              <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginTop: 2, letterSpacing: '0.06em' }}>/ 100</div>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
-                fontSize: 12,
+                fontSize: '0.75rem',
                 fontWeight: 800,
                 color: verdictCol,
                 marginBottom: 4,
@@ -212,7 +212,7 @@ export default function OnChainScore() {
               }}>
                 {data.verdict}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--txt3)', lineHeight: 1.5 }}>
+              <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', lineHeight: 1.5 }}>
                 {data.verdict_reasoning}
               </div>
             </div>
@@ -236,13 +236,13 @@ export default function OnChainScore() {
             <MetricPill label="MVRV" value={data.mvrv} source={data.mvrv_source} />
             <MetricPill label="SOPR" value={data.sopr} source={data.sopr_source} />
             <MetricPill label="NVT"  value={data.nvt}  source={data.nvt_source}  />
-            <div style={{ fontSize: 11, color: 'var(--txt3)', display: 'flex', gap: 6, alignItems: 'center' }}>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', display: 'flex', gap: 6, alignItems: 'center' }}>
               <span style={{ color: 'var(--txt)', fontWeight: 600 }}>Exchange Flow:</span>
               <span style={{ color: flowCol, fontWeight: 700 }}>{flowIcon} {data.exchange_flow}</span>
               <span style={{ opacity: 0.6 }}>- {data.exchange_flow_note}</span>
             </div>
             {data.active_addresses && (
-              <div style={{ fontSize: 11, color: 'var(--txt3)' }}>
+              <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>
                 <span style={{ color: 'var(--txt)', fontWeight: 600 }}>Active Addresses:</span>{' '}
                 <span style={{ fontFamily: 'var(--font-mono)' }}>{data.active_addresses.toLocaleString()}</span>
               </div>

@@ -53,12 +53,12 @@ export default function Disclaimer() {
       {/* Header */}
       <div style={{ marginBottom: 48 }}>
         <div style={{
-          fontSize: 11, fontWeight: 700, letterSpacing: '0.14em',
+          fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.14em',
           textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 14,
         }}>
           Important Information
         </div>
-        <h1 style={{ fontSize: 42, fontWeight: 800, color: 'var(--txt)', margin: 0, lineHeight: 1.1 }}>
+        <h1 style={{ fontSize: '2.625rem', fontWeight: 800, color: 'var(--txt)', margin: 0, lineHeight: 1.1 }}>
           Disclaimer.
         </h1>
       </div>
@@ -73,12 +73,12 @@ export default function Disclaimer() {
         {SECTIONS.map(s => (
           <div key={s.title}>
             <div style={{
-              fontSize: 14, fontWeight: 700, color: 'var(--txt)',
+              fontSize: '0.875rem', fontWeight: 700, color: 'var(--txt)',
               marginBottom: 10, lineHeight: 1.3,
             }}>
               {s.title}
             </div>
-            <div style={{ fontSize: 13, color: 'var(--txt2)', lineHeight: 1.75 }}>
+            <div style={{ fontSize: '0.8125rem', color: 'var(--txt2)', lineHeight: 1.75 }}>
               {s.body}
             </div>
           </div>
@@ -89,7 +89,7 @@ export default function Disclaimer() {
       <div style={{
         borderTop: '1px solid var(--bdr)',
         paddingTop: 28,
-        fontSize: 12,
+        fontSize: '0.75rem',
         color: 'var(--txt3)',
         lineHeight: 1.9,
       }}>

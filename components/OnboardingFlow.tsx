@@ -109,7 +109,7 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
         <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
           {selected ? (
             <>
-              <span style={{ fontSize: 20, flexShrink: 0, lineHeight: 1 }}>{selected.flag}</span>
+              <span style={{ fontSize: '1.25rem', flexShrink: 0, lineHeight: 1 }}>{selected.flag}</span>
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
             </>
           ) : (
@@ -134,12 +134,12 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
               onChange={e => setQuery(e.target.value)}
               placeholder="Search country…"
               className="obw-input"
-              style={{ padding: '8px 12px', fontSize: 13 }}
+              style={{ padding: '8px 12px', fontSize: '0.8125rem' }}
             />
           </div>
           <div className="obw-menu-list">
             {filtered.length === 0 ? (
-              <div style={{ padding: 16, textAlign: 'center', fontSize: 12, color: 'var(--txt3)' }}>No match</div>
+              <div style={{ padding: 16, textAlign: 'center', fontSize: '0.75rem', color: 'var(--txt3)' }}>No match</div>
             ) : filtered.map(c => {
               const isActive = value === c.name;
               return (
@@ -149,7 +149,7 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
                   className={`obw-menu-opt ${isActive ? 'is-selected' : ''}`}
                   onClick={() => { onChange(c.name); setOpen(false); }}
                 >
-                  <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>{c.flag}</span>
+                  <span style={{ fontSize: '1.125rem', lineHeight: 1, flexShrink: 0 }}>{c.flag}</span>
                   <span style={{ flex: 1 }}>{c.name}</span>
                   {isActive && (
                     <svg width="12" height="10" viewBox="0 0 12 10" fill="none" style={{ flexShrink: 0 }}>
@@ -347,7 +347,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                   />
                   <div style={{
                     marginTop: 6, textAlign: 'right', fontFamily: 'var(--font-mono), monospace',
-                    fontSize: 10, letterSpacing: '0.06em', color: 'var(--txt3)',
+                    fontSize: '0.625rem', letterSpacing: '0.06em', color: 'var(--txt3)',
                   }}>
                     {displayName.length}/32
                   </div>

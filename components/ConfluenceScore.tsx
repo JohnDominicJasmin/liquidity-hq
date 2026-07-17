@@ -90,7 +90,7 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
 
       {macroCol && (
         <div style={{
-          margin: '0 14px 10px', fontSize: 11, fontWeight: 600, lineHeight: 1.5,
+          margin: '0 14px 10px', fontSize: '0.6875rem', fontWeight: 600, lineHeight: 1.5,
           color: macroCol, padding: '8px 10px', borderRadius: 8,
           background: macroCol + '14', border: `0.5px solid ${macroCol}44`,
         }}>
@@ -99,7 +99,7 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
       )}
 
       <div style={{
-        margin: '0 14px 12px', fontSize: 12, fontWeight: 700, color: cfg.color,
+        margin: '0 14px 12px', fontSize: '0.75rem', fontWeight: 700, color: cfg.color,
         padding: '6px 10px', borderRadius: 8, textAlign: 'center',
         background: cfg.color + '10', border: `0.5px solid ${cfg.color}33`,
         letterSpacing: '.03em',
@@ -119,7 +119,7 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
           return (
             <div key={i} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              fontSize: 11, padding: '4px 8px', borderRadius: 6,
+              fontSize: '0.6875rem', padding: '4px 8px', borderRadius: 6,
               background: active ? col + '0c' : 'transparent',
             }}>
               <span style={{ color: 'var(--txt2)' }}>{f.label}</span>

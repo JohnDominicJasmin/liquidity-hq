@@ -201,15 +201,15 @@ export default function CorrelationHeatmap() {
           <div className="card" style={{ marginBottom: 10, border: `0.5px solid ${sig.color}55`, background: sig.bg }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: sig.color, marginBottom: 4 }}>
+                <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: sig.color, marginBottom: 4 }}>
                   {sig.label}
                   {avgCorr != null && (
-                    <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--txt3)', marginLeft: 8 }}>
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 400, color: 'var(--txt3)', marginLeft: 8 }}>
                       avg BTC-alt: {avgCorr.toFixed(2)}
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--txt2)', lineHeight: 1.6 }}>{sig.desc}</div>
+                <div style={{ fontSize: '0.6875rem', color: 'var(--txt2)', lineHeight: 1.6 }}>{sig.desc}</div>
               </div>
             </div>
           </div>
@@ -218,7 +218,7 @@ export default function CorrelationHeatmap() {
           <div className="card" style={{ marginBottom: 10 }}>
             <div className="lbl" style={{ marginBottom: 10 }}>
               Price Return Correlation
-              <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--txt3)', marginLeft: 8 }}>
+              <span style={{ fontSize: '0.625rem', fontWeight: 400, color: 'var(--txt3)', marginLeft: 8 }}>
                 +1.00 = perfect sync · 0.00 = no relation · −1.00 = opposite
               </span>
             </div>
@@ -329,7 +329,7 @@ export default function CorrelationHeatmap() {
           <div className="card" style={{ marginBottom: 10 }}>
             <div className="lbl">
               Least Correlated Pairs
-              <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>
+              <span style={{ fontSize: '0.625rem', fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>
                 - potential diversification
               </span>
             </div>

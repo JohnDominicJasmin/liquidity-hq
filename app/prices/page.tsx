@@ -18,7 +18,7 @@ export default function PricesPage() {
       }}>
         <Link href="/dashboard" style={{
           display: 'inline-flex', alignItems: 'center', gap: 4,
-          fontSize: 12, color: 'var(--txt3)', textDecoration: 'none',
+          fontSize: '0.75rem', color: 'var(--txt3)', textDecoration: 'none',
           fontWeight: 600, padding: '5px 10px', borderRadius: 8,
           border: '0.5px solid var(--bdr)', background: 'var(--bg1)',
           flexShrink: 0, letterSpacing: '.01em',
@@ -27,16 +27,16 @@ export default function PricesPage() {
         </Link>
 
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--txt)', letterSpacing: '.02em' }}>
+          <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--txt)', letterSpacing: '.02em' }}>
             Live Prices
           </div>
-          <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 1, letterSpacing: '.02em' }}>
+          <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginTop: 1, letterSpacing: '.02em' }}>
             {COINS.length} coins · {wsStatus}
           </div>
         </div>
 
         <span style={{
-          fontSize: 11, fontWeight: 800, padding: '3px 8px', borderRadius: 20,
+          fontSize: '0.6875rem', fontWeight: 800, padding: '3px 8px', borderRadius: 20,
           color: 'var(--green)', background: 'rgba(52,211,153,0.1)',
           border: '0.5px solid rgba(52,211,153,0.2)',
           letterSpacing: '.08em', textTransform: 'uppercase', flexShrink: 0,
@@ -52,9 +52,9 @@ export default function PricesPage() {
         borderBottom: '0.5px solid rgba(255,255,255,0.05)',
         background: 'rgba(255,255,255,0.02)',
       }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', opacity: 0.5 }}>Coin</span>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'right', opacity: 0.5 }}>Price</span>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'center', opacity: 0.5 }}>24h</span>
+        <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', opacity: 0.5 }}>Coin</span>
+        <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'right', opacity: 0.5 }}>Price</span>
+        <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'center', opacity: 0.5 }}>24h</span>
       </div>
 
       {/* Coin rows */}
@@ -86,23 +86,23 @@ export default function PricesPage() {
             {/* Left: coin name + secondary stats */}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--txt)', letterSpacing: '.03em' }}>
+                <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--txt)', letterSpacing: '.03em' }}>
                   {id.toUpperCase()}
                 </span>
                 {frPct != null && (
-                  <span style={{ fontSize: 11, fontWeight: 700, color: frColor, letterSpacing: '.01em' }}>
+                  <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: frColor, letterSpacing: '.01em' }}>
                     {frPct >= 0 ? '+' : ''}{frPct.toFixed(4)}%
                   </span>
                 )}
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {d?.vol24 != null && (
-                  <span style={{ fontSize: 11, color: 'var(--txt3)', opacity: 0.7 }}>
+                  <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)', opacity: 0.7 }}>
                     Vol {fmtVol(d.vol24)}
                   </span>
                 )}
                 {d?.oi != null && (
-                  <span style={{ fontSize: 11, color: 'var(--txt3)', opacity: 0.5 }}>
+                  <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)', opacity: 0.5 }}>
                     Open Interest {d.oi >= 1e9 ? '$' + (d.oi / 1e9).toFixed(2) + 'B' : '$' + (d.oi / 1e6).toFixed(1) + 'M'}
                   </span>
                 )}
@@ -111,7 +111,7 @@ export default function PricesPage() {
 
             {/* Price */}
             <span style={{
-              fontSize: 14, fontWeight: 600, color: 'var(--txt)',
+              fontSize: '0.875rem', fontWeight: 600, color: 'var(--txt)',
               letterSpacing: '-0.3px', fontVariantNumeric: 'tabular-nums',
               textAlign: 'right',
             }}>
@@ -121,7 +121,7 @@ export default function PricesPage() {
             {/* Change badge */}
             <div style={{ textAlign: 'center' }}>
               <span className={`ticker-chg ${d ? (up ? 'chg-up' : 'chg-dn') : ''}`}
-                style={{ fontSize: 11 }}>
+                style={{ fontSize: '0.6875rem' }}>
                 {d ? fmtChg(d.change) : '--%'}
               </span>
             </div>

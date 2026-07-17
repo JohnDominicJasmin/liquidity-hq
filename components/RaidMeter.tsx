@@ -125,7 +125,7 @@ export default function RaidMeter() {
             <div className="rpm-pulse" />
             <div>
               <div className="rpm-title">Raid Probability Meter</div>
-              <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 2 }}>Is now a good time to trade?</div>
+              <div style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginTop: 2 }}>Is now a good time to trade?</div>
             </div>
           </div>
           <div className="rpm-score-wrap">
@@ -170,7 +170,7 @@ export default function RaidMeter() {
             onClick={() => setShowOverride(v => !v)}
             style={{
               background: 'none', border: 'none', padding: 0,
-              fontSize: 11, color: manualFund ? '#fbbf24' : 'var(--txt3)',
+              fontSize: '0.6875rem', color: manualFund ? '#fbbf24' : 'var(--txt3)',
               cursor: 'pointer', letterSpacing: '0.04em',
             }}
           >

@@ -12,7 +12,7 @@ export default function WatchlistFeed() {
 
   if (watchlist.length === 0) {
     return (
-      <div style={{ padding: '12px 0', fontSize: 12, color: 'var(--txt3)' }}>
+      <div style={{ padding: '12px 0', fontSize: '0.75rem', color: 'var(--txt3)' }}>
         No coins in your watchlist.{' '}
         <a href="/settings" style={{ color: 'var(--accent-2)', textDecoration: 'none' }}>Add coins →</a>
       </div>
@@ -61,18 +61,18 @@ export default function WatchlistFeed() {
                 <span style={{
                   width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
+                  fontSize: '0.6875rem', fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
                   background: badgeCol + '24', color: badgeCol, border: `0.5px solid ${badgeCol}55`,
                 }}>
                   {id.slice(0, 2).toUpperCase()}
                 </span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--txt)', letterSpacing: '.03em' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--txt)', letterSpacing: '.03em' }}>
                   {id.toUpperCase()}
                 </span>
               </span>
               {d?.price && (
                 <span style={{
-                  fontSize: 11, fontWeight: 800,
+                  fontSize: '0.6875rem', fontWeight: 800,
                   padding: '1px 4px', borderRadius: 4,
                   color: health.color,
                   background: health.color + '22',
@@ -85,13 +85,13 @@ export default function WatchlistFeed() {
             </div>
 
             {/* Price */}
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>
+            <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>
               {d?.price ? '$' + fmtPrice(d.price, dec) : '-'}
             </div>
 
             {/* Change + sparkline */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: up ? '#34d399' : '#f87171' }}>
+              <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: up ? '#34d399' : '#f87171' }}>
                 {up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%
               </span>
               <Sparkline24h coin={id} width={40} height={14} />
@@ -99,9 +99,9 @@ export default function WatchlistFeed() {
 
             {/* Signal */}
             {sig ? (
-              <div style={{ fontSize: 10, color: sig.col, lineHeight: 1.3 }}>{sig.text}</div>
+              <div style={{ fontSize: '0.625rem', color: sig.col, lineHeight: 1.3 }}>{sig.text}</div>
             ) : (
-              <div style={{ fontSize: 10, color: 'var(--txt3)' }}>No signal</div>
+              <div style={{ fontSize: '0.625rem', color: 'var(--txt3)' }}>No signal</div>
             )}
           </div>
         );

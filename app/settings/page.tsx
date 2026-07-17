@@ -157,7 +157,7 @@ export default function SettingsPage() {
             {LOCKED.map(name => (
               <div key={name} style={{
                 padding: '9px 0', borderBottom: '0.5px solid var(--bdr)',
-                fontSize: 11, fontWeight: 700, letterSpacing: '.08em',
+                fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.08em',
                 textTransform: 'uppercase', color: 'var(--txt2)',
               }}>
                 {name}
@@ -168,14 +168,14 @@ export default function SettingsPage() {
             <a href="/login?signup=1" style={{
               flex: 1, display: 'block', padding: '9px 0', borderRadius: 'var(--radius-card)',
               background: 'var(--accent-bg)', border: '0.5px solid var(--accent-bdr)', color: 'var(--accent)',
-              fontSize: 12, fontWeight: 700, textAlign: 'center', textDecoration: 'none',
+              fontSize: '0.75rem', fontWeight: 700, textAlign: 'center', textDecoration: 'none',
             }}>
               Create free account
             </a>
             <a href="/login" style={{
               flex: 1, display: 'block', padding: '9px 0', borderRadius: 'var(--radius-card)',
               border: '0.5px solid var(--bdr)', color: 'var(--txt2)',
-              fontSize: 12, fontWeight: 600, textAlign: 'center', textDecoration: 'none',
+              fontSize: '0.75rem', fontWeight: 600, textAlign: 'center', textDecoration: 'none',
             }}>
               Sign in
             </a>
@@ -186,7 +186,7 @@ export default function SettingsPage() {
   }
 
   if (authLoading) {
-    return <div style={{ padding: '2rem', color: 'var(--txt3)', fontSize: 13 }}>Loading…</div>;
+    return <div style={{ padding: '2rem', color: 'var(--txt3)', fontSize: '0.8125rem' }}>Loading…</div>;
   }
 
   const num = (v: string | number) => {
@@ -338,7 +338,7 @@ export default function SettingsPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div>
               <div className="st-field-label" style={{ marginBottom: 2 }}>Push Notifications</div>
-              <div style={{ fontSize: 11, color: 'var(--txt3)' }}>
+              <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>
                 {pushEnabled ? 'Active on this device' : 'Not enabled on this device'}
               </div>
             </div>
@@ -364,7 +364,7 @@ export default function SettingsPage() {
               background: testResult === 'sent' ? 'rgba(74,222,128,0.1)' : testResult === 'error' ? 'rgba(248,113,113,0.1)' : 'rgba(140,150,255,0.08)',
               border: `0.5px solid ${testResult === 'sent' ? 'rgba(74,222,128,0.3)' : testResult === 'error' ? 'rgba(248,113,113,0.3)' : 'var(--bdr)'}`,
               color: testResult === 'sent' ? 'var(--green)' : testResult === 'error' ? 'var(--red)' : 'var(--txt2)',
-              fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
+              fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
             }}
           >
             {testResult === 'sent' ? 'Notification sent' : testResult === 'error' ? 'Failed - check console' : 'Send test notification'}

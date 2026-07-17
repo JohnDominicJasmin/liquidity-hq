@@ -126,18 +126,18 @@ export default function MultiTFSqueezeView() {
         borderBottom: '0.5px solid var(--bdr)',
         display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
       }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
+        <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
           Multi-Timeframe Squeeze Scanner
         </span>
         {totalSqz > 0 && (
           <span style={{
-            fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
+            fontSize: '0.6875rem', fontWeight: 700, padding: '2px 7px', borderRadius: 20,
             color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)',
           }}>↑ {totalSqz} squeeze</span>
         )}
         {totalFlush > 0 && (
           <span style={{
-            fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 20,
+            fontSize: '0.6875rem', fontWeight: 700, padding: '2px 7px', borderRadius: 20,
             color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '0.5px solid rgba(248,113,113,0.25)',
           }}>↓ {totalFlush} flush</span>
         )}
@@ -171,10 +171,10 @@ export default function MultiTFSqueezeView() {
             placeholder="Search coins…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', fontSize: 11, color: 'var(--txt)' }}
+            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', fontSize: '0.6875rem', color: 'var(--txt)' }}
           />
           {search && (
-            <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: 13, lineHeight: 1 }} aria-label="Clear search">×</button>
+            <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: '0.8125rem', lineHeight: 1 }} aria-label="Clear search">×</button>
           )}
         </div>
       )}
@@ -204,7 +204,7 @@ export default function MultiTFSqueezeView() {
           >
             {/* Coin name */}
             <span style={{
-              fontSize: 11, fontWeight: 700,
+              fontSize: '0.6875rem', fontWeight: 700,
               color: rowActive
                 ? (dominantDir === 'SQUEEZE' ? '#34d399' : '#f87171')
                 : '#555',
@@ -226,11 +226,11 @@ export default function MultiTFSqueezeView() {
                     border: sig.dir !== 'NEUTRAL' ? `0.5px solid ${cols.border}` : 'none',
                     minWidth: 36, justifyContent: 'center',
                   }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: cols.text, letterSpacing: '.01em' }}>
+                    <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: cols.text, letterSpacing: '.01em' }}>
                       {icon}
                     </span>
                     <span style={{
-                      fontSize: 10, fontWeight: 600, color: sig.rsi != null ? cols.text : '#333',
+                      fontSize: '0.625rem', fontWeight: 600, color: sig.rsi != null ? cols.text : '#333',
                       fontVariantNumeric: 'tabular-nums',
                     }}>
                       {sig.rsi != null ? Math.round(sig.rsi) : '-'}
@@ -242,7 +242,7 @@ export default function MultiTFSqueezeView() {
 
             {/* Global squeeze score */}
             <span style={{
-              fontSize: 11, fontWeight: 700, textAlign: 'right',
+              fontSize: '0.6875rem', fontWeight: 700, textAlign: 'right',
               color: sq.dir !== 'NEUTRAL' ? sq.color : '#333',
               fontVariantNumeric: 'tabular-nums',
             }}>
@@ -250,7 +250,7 @@ export default function MultiTFSqueezeView() {
             </span>
           </div>
         );
-        }) : <div style={{ padding: '10px 12px', fontSize: 11, color: '#444' }}>No coins match &ldquo;{search}&rdquo;</div>;
+        }) : <div style={{ padding: '10px 12px', fontSize: '0.6875rem', color: '#444' }}>No coins match &ldquo;{search}&rdquo;</div>;
       })()}
       </div>
 
@@ -267,7 +267,7 @@ export default function MultiTFSqueezeView() {
         style={{
           width: '100%', padding: '9px 0', background: 'none', border: 'none',
           borderTop: '0.5px solid rgba(255,255,255,0.05)', cursor: 'pointer',
-          fontSize: 11, color: '#444', fontWeight: 600, letterSpacing: '.03em',
+          fontSize: '0.6875rem', color: '#444', fontWeight: 600, letterSpacing: '.03em',
           transition: 'color 0.15s',
         }}
         onMouseEnter={e => (e.currentTarget.style.color = '#888')}
@@ -278,15 +278,15 @@ export default function MultiTFSqueezeView() {
 
       {/* Footer legend */}
       <div style={{ padding: '6px 14px', borderTop: '0.5px solid rgba(255,255,255,0.05)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 11, color: '#34d399' }}>↑ Squeeze = shorts overcrowded, bounce likely</span>
-        <span style={{ fontSize: 11, color: '#f87171' }}>↓ Flush = longs overcrowded, drop likely</span>
-        <span style={{ fontSize: 11, color: '#444' }}>RSI + Funding Rate + L/S ratio</span>
+        <span style={{ fontSize: '0.6875rem', color: '#34d399' }}>↑ Squeeze = shorts overcrowded, bounce likely</span>
+        <span style={{ fontSize: '0.6875rem', color: '#f87171' }}>↓ Flush = longs overcrowded, drop likely</span>
+        <span style={{ fontSize: '0.6875rem', color: '#444' }}>RSI + Funding Rate + L/S ratio</span>
       </div>
     </div>
   );
 }
 
 const hdrStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 600, letterSpacing: '.07em',
+  fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '.07em',
   textTransform: 'uppercase', color: '#333',
 };

@@ -49,16 +49,16 @@ export default function DcaCalc() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>DCA Average</div>
-        <div style={{ fontSize: 12, color: 'var(--txt3)' }}>Multiple entries → average price, break-even, and current PnL</div>
+        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>DCA Average</div>
+        <div style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>Multiple entries → average price, break-even, and current PnL</div>
       </div>
 
       {/* Entry rows */}
       <div className="ps-card">
         <div className="ps-card-lbl">Buy Entries</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 28px', gap: '6px 8px', alignItems: 'end', marginBottom: 8 }}>
-          <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase' }}>Entry Price</span>
-          <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase' }}>Quantity</span>
+          <span style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase' }}>Entry Price</span>
+          <span style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase' }}>Quantity</span>
           <span />
           {entries.map((e, i) => (
             <div key={i} style={{ display: 'contents' }}>
@@ -91,7 +91,7 @@ export default function DcaCalc() {
                 style={{
                   width: 26, height: 34, borderRadius: 6, border: '0.5px solid var(--bdr)',
                   background: 'transparent', color: entries.length <= 2 ? '#333' : 'var(--txt3)',
-                  cursor: entries.length <= 2 ? 'not-allowed' : 'pointer', fontSize: 16, lineHeight: 1,
+                  cursor: entries.length <= 2 ? 'not-allowed' : 'pointer', fontSize: '1rem', lineHeight: 1,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
               >×</button>
@@ -102,7 +102,7 @@ export default function DcaCalc() {
           <button
             onClick={addEntry}
             style={{
-              padding: '5px 12px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+              padding: '5px 12px', borderRadius: 6, fontSize: '0.6875rem', fontWeight: 600,
               border: '0.5px dashed var(--bdr)', background: 'transparent',
               color: 'var(--txt3)', cursor: 'pointer', marginTop: 4,
             }}
@@ -158,7 +158,7 @@ export default function DcaCalc() {
                 <div className="ps-rlbl">Unrealized PnL</div>
                 <div className="ps-rval">
                   {isProfit ? '+' : '-'}{fmtUSD(Math.abs(pnlAbs))}
-                  <span style={{ fontSize: 11, marginLeft: 6, opacity: .8 }}>{fmtPct(pnlPct)}</span>
+                  <span style={{ fontSize: '0.6875rem', marginLeft: 6, opacity: .8 }}>{fmtPct(pnlPct)}</span>
                 </div>
               </div>
             )}

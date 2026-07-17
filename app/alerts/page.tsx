@@ -270,7 +270,7 @@ export default function AlertsPage() {
   const numStyle: React.CSSProperties = {
     width: 24, height: 24, borderRadius: '50%', background: 'var(--accent)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0, marginTop: 1,
+    fontSize: '0.6875rem', fontWeight: 700, color: '#fff', flexShrink: 0, marginTop: 1,
   };
 
   return (
@@ -300,10 +300,10 @@ export default function AlertsPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div className="lbl" style={{ margin: 0 }}>Connect Telegram</div>
           {settingsLoading ? (
-            <span style={{ fontSize: 10, color: 'var(--txt3)' }}>Loading…</span>
+            <span style={{ fontSize: '0.625rem', color: 'var(--txt3)' }}>Loading…</span>
           ) : isConnected ? (
             <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 700,
+              display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.625rem', fontWeight: 700,
               padding: '3px 9px', borderRadius: 20, color: '#34d399',
               background: '#34d39914', border: '0.5px solid #34d39944',
             }}>
@@ -312,7 +312,7 @@ export default function AlertsPage() {
             </span>
           ) : (
             <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 700,
+              display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.625rem', fontWeight: 700,
               padding: '3px 9px', borderRadius: 20, color: '#f87171',
               background: 'transparent', border: '0.5px solid var(--bdr)',
             }}>
@@ -326,14 +326,14 @@ export default function AlertsPage() {
           /* ── Connected state ── */
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-              <span style={{ fontSize: 12, color: 'var(--txt2)' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--txt2)' }}>
                 Chat ID:&nbsp;
-                <code style={{ background: 'var(--bg2)', padding: '2px 7px', borderRadius: 4, fontSize: 11 }}>
+                <code style={{ background: 'var(--bg2)', padding: '2px 7px', borderRadius: 4, fontSize: '0.6875rem' }}>
                   {settings.telegram_chat_id}
                 </code>
               </span>
               <button
-                style={{ fontSize: 11, color: 'var(--txt3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                style={{ fontSize: '0.6875rem', color: 'var(--txt3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
                 onClick={() => { update({ telegram_chat_id: '' }); setChatIdInput(''); setSaveState('idle'); }}
               >
                 Change
@@ -346,18 +346,18 @@ export default function AlertsPage() {
             >
               {testState === 'sending' ? 'Sending…' : testState === 'ok' ? '✓ Message sent!' : testState === 'err' ? '✕ Failed' : 'Send Test Message'}
             </button>
-            {testState === 'err' && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 8 }}>{testErr}</div>}
+            {testState === 'err' && <div style={{ fontSize: '0.6875rem', color: 'var(--red)', marginTop: 8 }}>{testErr}</div>}
           </div>
         ) : (
           /* ── Wizard ── */
           <div>
-            <div style={{ fontSize: 12, color: 'var(--txt3)', marginBottom: 18, lineHeight: 1.6 }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', marginBottom: 18, lineHeight: 1.6 }}>
               Get trading alerts straight to your phone. Takes 30 seconds.
             </div>
 
             {!webhookOk && (
               <div style={{
-                fontSize: 11, color: '#f87171', marginBottom: 14, padding: '8px 12px',
+                fontSize: '0.6875rem', color: '#f87171', marginBottom: 14, padding: '8px 12px',
                 background: '#f8717114', borderRadius: 6, border: '0.5px solid #f8717144',
               }}>
                 <Warn /> Bot webhook registration failed - the bot may not reply to /start. Try refreshing, or enter your Chat ID manually below.
@@ -368,7 +368,7 @@ export default function AlertsPage() {
             <div style={stepStyle}>
               <div style={numStyle}>1</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)', marginBottom: 8 }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--txt)', marginBottom: 8 }}>
                   Open the bot on Telegram
                 </div>
                 {botLink ? (
@@ -378,7 +378,7 @@ export default function AlertsPage() {
                     rel="noreferrer"
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6,
-                      fontSize: 12, fontWeight: 600, color: '#fff',
+                      fontSize: '0.75rem', fontWeight: 600, color: '#fff',
                       background: 'linear-gradient(135deg, #0088cc 0%, #229ed9 100%)',
                       padding: '8px 16px', borderRadius: 8, textDecoration: 'none',
                     }}
@@ -386,7 +386,7 @@ export default function AlertsPage() {
                     Open {botLabel} →
                   </a>
                 ) : (
-                  <div style={{ fontSize: 11, color: 'var(--txt3)' }}>Search <strong>LiquidityHQ</strong> on Telegram</div>
+                  <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>Search <strong>LiquidityHQ</strong> on Telegram</div>
                 )}
               </div>
             </div>
@@ -395,14 +395,14 @@ export default function AlertsPage() {
             <div style={stepStyle}>
               <div style={numStyle}>2</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)', marginBottom: 4 }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--txt)', marginBottom: 4 }}>
                   Send&nbsp;
-                  <code style={{ background: 'var(--bg2)', padding: '2px 7px', borderRadius: 4, fontSize: 11 }}>
+                  <code style={{ background: 'var(--bg2)', padding: '2px 7px', borderRadius: 4, fontSize: '0.6875rem' }}>
                     /start
                   </code>
                   &nbsp;in the chat
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--txt3)' }}>
+                <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>
                   The bot replies with your <strong style={{ color: 'var(--txt2)' }}>Chat ID</strong> - copy that number.
                 </div>
               </div>
@@ -412,7 +412,7 @@ export default function AlertsPage() {
             <div style={{ ...stepStyle, marginBottom: 0 }}>
               <div style={numStyle}>3</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)', marginBottom: 10 }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--txt)', marginBottom: 10 }}>
                   Connect your Chat ID
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
@@ -435,12 +435,12 @@ export default function AlertsPage() {
                   </button>
                 </div>
                 {detected && (
-                  <div style={{ fontSize: 11, color: '#34d399', marginBottom: 8 }}>
+                  <div style={{ fontSize: '0.6875rem', color: '#34d399', marginBottom: 8 }}>
                     ✓ Chat ID detected and copied to clipboard
                   </div>
                 )}
                 {detectError && (
-                  <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 8 }}>{detectError}</div>
+                  <div style={{ fontSize: '0.6875rem', color: 'var(--red)', marginBottom: 8 }}>{detectError}</div>
                 )}
                 <button
                   className="tg-action-btn"
@@ -485,7 +485,7 @@ export default function AlertsPage() {
             </button>
           </div>
           {paLoading ? (
-            <div style={{ fontSize: 12, color: 'var(--txt3)', marginTop: 10 }}>Loading…</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', marginTop: 10 }}>Loading…</div>
           ) : priceAlerts.length === 0 ? (
             <div className="empty-state" style={{ marginTop: 8 }}>
               <div className="empty-state-title">No price alerts</div>
@@ -504,7 +504,7 @@ export default function AlertsPage() {
               ))}
             </div>
           )}
-          <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 10, lineHeight: 1.5 }}>
+          <div style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginTop: 10, lineHeight: 1.5 }}>
             Fires once when price crosses your target → LiquidityAI analysis included → alert deactivates automatically.
           </div>
         </div>
@@ -516,7 +516,7 @@ export default function AlertsPage() {
           <div className="lbl" style={{ margin: 0 }}>Recently Fired</div>
           {history.length > 0 && (
             <button
-              style={{ fontSize: 10, color: 'var(--txt3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              style={{ fontSize: '0.625rem', color: 'var(--txt3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
               onClick={fetchHistory}
             >
               ↻ refresh
@@ -539,16 +539,16 @@ export default function AlertsPage() {
                   padding: '6px 0', borderBottom: i < Math.min(history.length, 15) - 1 ? '0.5px solid var(--bdr)' : 'none',
                   gap: 10,
                 }}>
-                  <span style={{ fontSize: 12, color: 'var(--txt2)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--txt2)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {f.label}
                   </span>
-                  <span style={{ fontSize: 10, color: 'var(--txt3)', flexShrink: 0 }}>{ago}</span>
+                  <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', flexShrink: 0 }}>{ago}</span>
                 </div>
               );
             })}
           </div>
         )}
-        <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 8, paddingTop: 8, borderTop: '0.5px solid var(--bdr)' }}>
+        <div style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginTop: 8, paddingTop: 8, borderTop: '0.5px solid var(--bdr)' }}>
           Auto-refreshes every 60s
         </div>
       </div>
@@ -565,14 +565,14 @@ export default function AlertsPage() {
             {checkState === 'checking' ? 'Checking…' : checkState === 'err' ? '✕ Failed - retry?' : 'Check Alerts Now'}
           </button>
           {checkState === 'done' && checkResult && (
-            <div style={{ marginTop: 10, fontSize: 11, color: 'var(--txt2)', lineHeight: 1.7 }}>
+            <div style={{ marginTop: 10, fontSize: '0.6875rem', color: 'var(--txt2)', lineHeight: 1.7 }}>
               {checkResult.fired?.length === 0
                 ? `✓ No conditions active right now.${checkResult.note ? ` (${checkResult.note})` : ''}`
                 : `Fired: ${checkResult.fired.join(', ')}`}
             </div>
           )}
           {checkState === 'err' && (
-            <div style={{ marginTop: 8, fontSize: 11, color: 'var(--red)' }}>
+            <div style={{ marginTop: 8, fontSize: '0.6875rem', color: 'var(--red)' }}>
               {checkErr || 'Request timed out - server may be cold starting. Try again in 30s.'}
             </div>
           )}
@@ -582,14 +582,14 @@ export default function AlertsPage() {
       {/* ── Alert Conditions ─────────────────────────────────────────────── */}
       <div className="card" style={{ marginBottom: 10 }}>
         <div className="lbl" style={{ marginBottom: 4 }}>Alert Conditions</div>
-        <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 10 }}>
-          Toggle off to mute. <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4 }}>AI</span> = includes LiquidityAI analysis.
+        <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginBottom: 10 }}>
+          Toggle off to mute. <span style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4 }}>AI</span> = includes LiquidityAI analysis.
         </div>
-        {muteErr && <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 8 }}>{muteErr}</div>}
+        {muteErr && <div style={{ fontSize: '0.6875rem', color: 'var(--red)', marginBottom: 8 }}>{muteErr}</div>}
         {ALERT_GROUPS.map(group => (
           <div key={group.section} style={{ marginBottom: 6 }}>
             <div style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase',
+              fontSize: '0.625rem', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase',
               color: 'var(--txt3)', padding: '8px 0 4px', borderBottom: '0.5px solid var(--bdr)',
             }}>
               {group.section}
@@ -600,13 +600,13 @@ export default function AlertsPage() {
                 <div key={c.key} className="tg-condition-row" style={{ opacity: isMuted ? 0.45 : 1, transition: 'opacity .15s' }}>
                   <span className="tg-cond-dot" style={{ background: isMuted ? 'var(--txt3)' : c.dot }} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--txt)' }}>
                       {c.title}
-                      {isMuted && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.05em' }}>MUTED</span>}
+                      {isMuted && <span style={{ marginLeft: 6, fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.05em' }}>MUTED</span>}
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>{c.desc}</div>
+                    <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginTop: 2 }}>{c.desc}</div>
                   </div>
-                  {c.grok && <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>}
+                  {c.grok && <span style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>}
                   <button
                     role="switch"
                     aria-checked={!isMuted}
@@ -625,21 +625,21 @@ export default function AlertsPage() {
         <div className="tg-condition-row" style={{ borderBottom: 'none' }}>
           <span className="tg-cond-dot" style={{ background: '#818cf8' }} />
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--txt)' }}>
-              Confluence Alert <span style={{ marginLeft: 4, fontSize: 11, fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.05em' }}>ALWAYS ON</span>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--txt)' }}>
+              Confluence Alert <span style={{ marginLeft: 4, fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.05em' }}>ALWAYS ON</span>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 2 }}>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginTop: 2 }}>
               2+ signals on the same coin in one run → single combined ping · LiquidityAI weighs all signals together
             </div>
           </div>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>
+          <span style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>
         </div>
         {/* ── Signal direction filter ── */}
         <div style={{ marginTop: 10, padding: '10px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 4 }}>
+          <div style={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 4 }}>
             Signal Direction
           </div>
-          <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 8 }}>
+          <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginBottom: 8 }}>
             Silence one side of directional signals (entry setups, 200 EMA crosses, squeeze/flush warnings).
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -654,7 +654,7 @@ export default function AlertsPage() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 6,
                     padding: '6px 14px', borderRadius: 8, cursor: 'pointer',
-                    fontSize: 12, fontWeight: 600,
+                    fontSize: '0.75rem', fontWeight: 600,
                     background: off ? 'var(--bg2)' : `${col}14`,
                     border: `0.5px solid ${off ? 'var(--bdr)' : col + '55'}`,
                     color: off ? 'var(--txt3)' : col,
@@ -671,7 +671,7 @@ export default function AlertsPage() {
 
         {/* ── Alert coin selection ── */}
         <div style={{ marginTop: 12, padding: '10px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 4 }}>
+          <div style={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 4 }}>
             {(() => {
               const onCount = COINS.filter(c => !muted.has(`coin:${c}`)).length;
               return onCount > ALERT_COIN_CAP
@@ -679,11 +679,11 @@ export default function AlertsPage() {
                 : `Alert Coins - ${onCount}/${ALERT_COIN_CAP} on`;
             })()}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--txt3)', marginBottom: 8 }}>
+          <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginBottom: 8 }}>
             Tap a coin to stop all alerts for it, including which coins the EMA Ribbon Setup entry signals scan. Your saved price alerts are not affected.
           </div>
           {coinCapMsg && (
-            <div style={{ fontSize: 11, color: '#f87171', marginBottom: 8 }}>
+            <div style={{ fontSize: '0.6875rem', color: '#f87171', marginBottom: 8 }}>
               {coinCapMsg}
             </div>
           )}
@@ -699,7 +699,7 @@ export default function AlertsPage() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 5,
                     padding: '4px 10px', borderRadius: 7, cursor: 'pointer',
-                    fontSize: 11, fontWeight: 700, letterSpacing: '.03em',
+                    fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.03em',
                     fontFamily: 'var(--font-mono), monospace',
                     background: off ? 'transparent' : 'var(--accent-bg)',
                     border: `0.5px solid ${off ? 'var(--bdr)' : 'var(--accent-bdr)'}`,
@@ -717,7 +717,7 @@ export default function AlertsPage() {
         </div>
       </div>
 
-      <div style={{ fontSize: 10, color: 'var(--txt3)', textAlign: 'center', marginBottom: 16 }}>
+      <div style={{ fontSize: '0.625rem', color: 'var(--txt3)', textAlign: 'center', marginBottom: 16 }}>
         Cooldown timers may occasionally reset after routine maintenance - you might see a rare duplicate alert
       </div>
 

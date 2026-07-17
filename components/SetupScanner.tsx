@@ -201,7 +201,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
   // ── Single-coin mode (used by Arena) ──────────────────────────────────────
   if (coinProp) {
     const row = rows.find(r => r.id === coinProp);
-    if (!row) return <div style={{ padding: '1rem 0', fontSize: 12, color: 'var(--txt3)' }}>No data for {coinProp.toUpperCase()}</div>;
+    if (!row) return <div style={{ padding: '1rem 0', fontSize: '0.75rem', color: 'var(--txt3)' }}>No data for {coinProp.toUpperCase()}</div>;
     return (
       <div style={{ paddingTop: 8 }}>
         <CoinCard row={row} rank={sorted.indexOf(row) + 1} />
@@ -213,10 +213,10 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
     <div>
       {/* Page header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>
+        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>
           Setup Scanner
         </div>
-        <div style={{ fontSize: 12, color: 'var(--txt3)' }}>
+        <div style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>
           All {COINS.length} coins ranked by squeeze risk · updates with live data
         </div>
       </div>
@@ -294,7 +294,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
             border: '0.5px solid var(--bdr)',
             background: 'var(--bg1)',
             color: 'var(--txt)',
-            fontSize: 13,
+            fontSize: '0.8125rem',
             outline: 'none',
           }}
         />
@@ -302,7 +302,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
 
       {/* Cards */}
       {searchDisplayed.length === 0 && (
-        <div style={{ textAlign: 'center', color: 'var(--txt3)', padding: '3rem 0', fontSize: 13 }}>
+        <div style={{ textAlign: 'center', color: 'var(--txt3)', padding: '3rem 0', fontSize: '0.8125rem' }}>
           {search.trim()
             ? `No coins match "${search.trim()}"`
             : strongOnly
@@ -332,7 +332,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
           <span className="scan-legend-dot" style={{ background: '#606060' }} />
           <span><strong>Balanced</strong> - no extreme positioning on either side. Sit out or trade structure.</span>
         </div>
-        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--txt3)' }}>
+        <div style={{ marginTop: 8, fontSize: '0.6875rem', color: 'var(--txt3)' }}>
           Score 0–100: funding rate (0–40 pts) + long/short ratio (0–40 pts) + volume spike bonus (0–20 pts)
         </div>
       </div>

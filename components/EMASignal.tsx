@@ -97,10 +97,10 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 10 }}>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 3 }}>
+          <div style={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 3 }}>
             EMA Ribbon Strategy
           </div>
-          <div style={{ fontSize: 10, color: '#444' }}>
+          <div style={{ fontSize: '0.625rem', color: '#444' }}>
             3 moving averages (fast/mid/slow) · {tf.toUpperCase()} chart · daily trend filter
           </div>
         </div>
@@ -119,7 +119,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
                 } Warns rather than filters - the persistence rule still decides which signals actually fire.`}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 4,
-                  fontSize: 11, fontWeight: 700, letterSpacing: '.04em',
+                  fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.04em',
                   padding: '3px 8px', borderRadius: 20,
                   color: col, background: col + '14', border: `0.5px solid ${col}44`,
                   whiteSpace: 'nowrap', cursor: 'default',
@@ -131,7 +131,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
             );
           })()}
           <span style={{
-            fontSize: 11, fontWeight: 700, letterSpacing: '.04em',
+            fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.04em',
             padding: '4px 12px', borderRadius: 20,
             color: cfg.color, background: cfg.bg, border: `0.5px solid ${cfg.border}`,
             whiteSpace: 'nowrap',
@@ -143,7 +143,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
 
       {/* Phase */}
       {!signal.loading && signal.verdict !== 'LOADING' && (
-        <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 10, lineHeight: 1.4 }}>
+        <div style={{ fontSize: '0.75rem', color: 'var(--txt2)', marginBottom: 10, lineHeight: 1.4 }}>
           {signal.phase}
         </div>
       )}
@@ -176,8 +176,8 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
                 onMouseEnter={e => { if (canExplain) (e.currentTarget as HTMLDivElement).style.opacity = '0.75'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.opacity = '1'; }}
               >
-                <span style={{ fontSize: 11, fontWeight: 700, color: col, flexShrink: 0 }}>{icon}</span>
-                <span style={{ fontSize: 11, color: pass === null ? '#444' : 'var(--txt2)', lineHeight: 1.2 }}>
+                <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: col, flexShrink: 0 }}>{icon}</span>
+                <span style={{ fontSize: '0.6875rem', color: pass === null ? '#444' : 'var(--txt2)', lineHeight: 1.2 }}>
                   {c.label}
                 </span>
               </div>
@@ -195,16 +195,16 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
           border: '0.5px solid var(--bdr)',
           borderRadius: 7,
         }}>
-          <span style={{ fontSize: 11, color: 'var(--txt3)', marginRight: 4 }}>Levels:</span>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#f87171' }}>
+          <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginRight: 4 }}>Levels:</span>
+          <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#f87171' }}>
             SL ${fmt(signal.sl)}
           </span>
-          <span style={{ fontSize: 11, color: '#333' }}>·</span>
-          <span style={{ fontSize: 11, color: 'var(--txt2)' }}>
+          <span style={{ fontSize: '0.6875rem', color: '#333' }}>·</span>
+          <span style={{ fontSize: '0.6875rem', color: 'var(--txt2)' }}>
             Entry ~${fmt(signal.ema20_4h)} (20 EMA)
           </span>
-          <span style={{ fontSize: 11, color: '#333' }}>·</span>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#34d399' }}>
+          <span style={{ fontSize: '0.6875rem', color: '#333' }}>·</span>
+          <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#34d399' }}>
             TP ${fmt(signal.tp)} (2:1)
           </span>
         </div>
@@ -218,10 +218,10 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
           paddingTop: 8,
           borderTop: '0.5px solid var(--bdr)',
         }}>
-          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Fast avg <b style={{ color: '#fbbf24' }}>${fmt(signal.ema9_4h)}</b></span>
-          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Mid avg <b style={{ color: '#60a5fa' }}>${fmt(signal.ema20_4h ?? null)}</b></span>
-          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Slow avg <b style={{ color: '#f97316' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
-          <span style={{ fontSize: 11, color: 'var(--txt3)' }}>Daily trend <b style={{ color: 'var(--accent)' }}>${fmt(signal.sma200_1d ?? null)}</b></span>
+          <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>Fast avg <b style={{ color: '#fbbf24' }}>${fmt(signal.ema9_4h)}</b></span>
+          <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>Mid avg <b style={{ color: '#60a5fa' }}>${fmt(signal.ema20_4h ?? null)}</b></span>
+          <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>Slow avg <b style={{ color: '#f97316' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
+          <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>Daily trend <b style={{ color: 'var(--accent)' }}>${fmt(signal.sma200_1d ?? null)}</b></span>
         </div>
       )}
 
@@ -229,7 +229,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
       {!signal.loading && signal.recentStats && (
         <div
           title={`Outcome of every signal this strategy fired in the loaded candle history for this coin and timeframe, simulated with the backtest fill rules: entry once the whipsaw hold confirms, stop at the 50 EMA buffer, take profit at 2 to 1. Net of an estimated ${ROUND_TRIP_COST_PCT.toFixed(2)}% round-trip cost (${TAKER_FEE_PCT}% taker fee + ${SLIPPAGE_PCT}% slippage, each side) - not gross.`}
-          style={{ fontSize: 11, color: 'var(--txt3)', marginTop: 8, cursor: 'default' }}
+          style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginTop: 8, cursor: 'default' }}
         >
           Recent record ({tf.toUpperCase()}):{' '}
           <b style={{ color: 'var(--txt2)' }}>
@@ -254,7 +254,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
             background: 'rgba(184,174,255,0.06)',
             border: '0.5px solid rgba(184,174,255,0.2)',
             borderRadius: 7,
-            fontSize: 12,
+            fontSize: '0.75rem',
             fontWeight: 600,
             color: '#b8aeff',
             cursor: 'pointer',
@@ -272,7 +272,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
       )}
 
       {signal.error && (
-        <div style={{ fontSize: 11, color: '#f87171', marginTop: 6 }}>{signal.error}</div>
+        <div style={{ fontSize: '0.6875rem', color: '#f87171', marginTop: 6 }}>{signal.error}</div>
       )}
     </div>
   );

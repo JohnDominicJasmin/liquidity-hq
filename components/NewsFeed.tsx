@@ -46,7 +46,7 @@ export default function NewsFeed() {
             <span className="nf-ny-badge">NY Session</span>
           )}
         </div>
-        <div style={{ fontSize: 10, color: '#444' }}>
+        <div style={{ fontSize: '0.625rem', color: '#444' }}>
           {alerts.length} alerts · {nySession ? '5m refresh' : '15m refresh'}
         </div>
       </div>
@@ -64,7 +64,7 @@ export default function NewsFeed() {
       </div>
 
       {filtered.length === 0 ? (
-        <div style={{ fontSize: 12, color: '#444', textAlign: 'center', padding: '1.5rem 0' }}>
+        <div style={{ fontSize: '0.75rem', color: '#444', textAlign: 'center', padding: '1.5rem 0' }}>
           {alerts.length === 0 ? 'Waiting for news...' : 'No alerts match this filter.'}
         </div>
       ) : (
@@ -82,7 +82,7 @@ export default function NewsFeed() {
         </div>
       )}
 
-      <div style={{ fontSize: 10, color: 'var(--txt3)', marginTop: 10, paddingTop: 8, borderTop: '0.5px solid var(--bdr)' }}>
+      <div style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginTop: 10, paddingTop: 8, borderTop: '0.5px solid var(--bdr)' }}>
         Sources: Finnhub REST + RSS (Reuters/AP/CoinDesk) · Finnhub Calendar &amp; Geo news - classified by keyword. Not Grok API.
       </div>
     </div>

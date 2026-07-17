@@ -56,7 +56,7 @@ export default function FearGreed() {
             <div className={`fng-delta-pill ${delta > 3 ? 'fng-delta-up' : delta < -3 ? 'fng-delta-down' : 'fng-delta-flat'}`}>
               {delta > 3 ? '▲' : delta < -3 ? '▼' : '◆'} {delta > 0 ? '+' : ''}{delta} pts vs yesterday
             </div>
-            <div style={{ fontSize: 10, color: 'var(--txt3)' }}>
+            <div style={{ fontSize: '0.625rem', color: 'var(--txt3)' }}>
               Yesterday: <span style={{ fontWeight: 600, color: 'var(--txt2)' }}>{fngPrev}</span>
             </div>
           </div>
