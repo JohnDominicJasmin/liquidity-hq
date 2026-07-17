@@ -213,7 +213,7 @@ Blockers do **not** block page access — every main page was opened. They stop 
 | `/auth/callback` | ✅ | live (Chrome) | Redirects to `/arena` when no auth code — pure transient redirect, no standalone UI |
 | PWA install prompt | ✅ | live (Chrome) | Fired naturally; bottom-center fixed toast **overlaps content** (feature card / chart) on desktop |
 | `/[locale]` (`/ko`,`/zh`,`/ar`) | ✅ | live (Chrome) `/ko` | Localized landing renders; dark-only; still "17개 코인" on prod (fix not deployed) |
-| `/global-error` | 🟡 | code | Full-page "Something went wrong / Try again"; **off-brand** — stale purple `#7c3aed` + system sans-serif vs app blue/Figtree. Can't force a crash to render live |
+| `/global-error` | ✅ | code | Full-page "Something went wrong / Try again"; was off-brand (stale purple `#7c3aed` + system sans-serif) - fixed under NEW-2, see below. Can't force a crash to render live, code-reviewed only |
 | Settings **modal** (`SettingsModal.tsx`) | ✅ | live (Chrome) | Account-menu → Settings opens a centered scrollable dialog = `/settings` content (Account/usage rings/Watchlist/Trading Profile). Redundant 2nd settings surface; correctly fires `theme-change` |
 | Onboarding tour (`OnboardingTour.tsx`) | ✅ | live (Chrome, 6 steps) | Captured after resetting mikocabal27's `tour_seen`; clean 6-step overlay (Welcome→Arena→Briefing→News→Alerts→Ready), Skip/dots/Back/Next; state restored after |
 | Welcome modal (`WelcomeModal.tsx`) | ✅ | code | **DEAD CODE — imported/mounted nowhere** (see NEW-4). Real first-run entry is `OnboardingFlow` (rendered by `OnboardingGate` when `profile_complete=false`) |
