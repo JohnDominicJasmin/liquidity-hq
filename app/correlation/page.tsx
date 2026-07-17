@@ -2,6 +2,7 @@
 import { Fragment, useState, useEffect } from 'react';
 import MacroStrip from '@/components/MacroStrip';
 import LoadingState from '@/components/LoadingState';
+import Tip from '@/components/Tip';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId } from '@/lib/marketStore';
 
 /* ── constants ── */
@@ -217,7 +218,7 @@ export default function CorrelationHeatmap() {
           {/* Heatmap grid */}
           <div className="card" style={{ marginBottom: 10 }}>
             <div className="lbl" style={{ marginBottom: 10 }}>
-              Price Return Correlation
+              <Tip width={260} text="Measures how tightly two coins' price returns move together over the window, from +1 (identical moves) to -1 (opposite). High correlation means holding both gives little diversification - you are effectively doubling the same bet.">Price Return Correlation</Tip>
               <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--txt3)', marginLeft: 8 }}>
                 +1.00 = perfect sync · 0.00 = no relation · −1.00 = opposite
               </span>

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { getLocalNow, getCurrentWindow, isDead, getUpcomingWindows } from '@/lib/session';
 import SessionCountdown from '@/components/SessionCountdown';
+import Tip from '@/components/Tip';
 
 /* Typical-weekday session blocks on a 24h PHT axis */
 const TIMELINE_SEGS = [
@@ -86,7 +87,7 @@ export default function BestHours() {
       {/* 24h timeline */}
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="lbl" style={{ marginBottom: 10 }}>
-          24h Session Map
+          <Tip width={260} text="Highlights the hours when major markets (Asia, London, New York) are open and overlapping. Volume and volatility concentrate in these windows - the best liquidity to trade into, and where most large moves start.">24h Session Map</Tip>
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>PHT · typical weekday</span>
         </div>
 

@@ -5,6 +5,7 @@ import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, computeSqueeze
 import type { CoinId } from '@/lib/marketStore';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import Sparkline24h from '@/components/Sparkline24h';
+import Tip from '@/components/Tip';
 
 type SortKey = 'volume' | 'change' | 'grade' | 'signal' | 'name';
 
@@ -175,13 +176,19 @@ export default function MarketsPage() {
           textTransform: 'uppercase', color: 'var(--txt3)',
           borderBottom: '0.5px solid var(--bdr)', marginBottom: 2,
         }}>
-          <div />
+          <div>
+            <Tip width={250} text="An A-F health grade blending the squeeze setup score with RSI extremes, open-interest trend, and CVD divergence. A means the strongest confluence of positioning signals; F means little or conflicting signal.">Grade</Tip>
+          </div>
           <div style={{ paddingLeft: 10 }}>Coin</div>
           <div className="mkt-col-spark" />
           <div style={{ textAlign: 'right' }}>Price</div>
           <div style={{ textAlign: 'right' }}>24h</div>
-          <div className="mkt-col-pressure" style={{ paddingLeft: 4 }}>Pressure</div>
-          <div style={{ paddingLeft: 12 }}>Signal</div>
+          <div className="mkt-col-pressure" style={{ paddingLeft: 4 }}>
+            <Tip width={250} text="The share of recent volume that hit the ask (aggressive buying) versus the bid. Above 55% buy means buyers are lifting offers; below 45% means sellers are hitting bids.">Pressure</Tip>
+          </div>
+          <div style={{ paddingLeft: 12 }}>
+            <Tip width={250} text="The single most notable derivatives signal for this coin right now - crowded funding, a CVD divergence, or an open-interest shift - color-coded green for bullish or red for bearish.">Signal</Tip>
+          </div>
         </div>
 
         {/* Rows */}

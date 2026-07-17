@@ -5,6 +5,7 @@ import { COINS, CoinId } from '@/lib/marketStore';
 import { getLocalNow, getSessionName } from '@/lib/session';
 import { getSupabase } from '@/lib/supabase';
 import AuthGate from './AuthGate';
+import Tip from './Tip';
 import { Warn } from './icons';
 import { track } from '@/lib/analytics';
 import { T } from '@/lib/tables';
@@ -1719,7 +1720,7 @@ function Inner() {
 
               <div className="tj-stats-grid">
                 <div className="tj-stat">
-                  <div className="tj-stat-lbl">Win Rate</div>
+                  <div className="tj-stat-lbl"><Tip width={230} text="The share of your closed trades that finished in profit. On its own it can mislead - a low win rate is still profitable if your wins are bigger than your losses (see Avg R).">Win Rate</Tip></div>
                   <div className="tj-stat-val" style={{ color: stats.winRate >= 50 ? '#34d399' : '#f87171' }}>
                     {stats.winRate.toFixed(0)}%
                   </div>
@@ -1731,7 +1732,7 @@ function Inner() {
                   </div>
                 </div>
                 <div className="tj-stat">
-                  <div className="tj-stat-lbl">Avg R/Trade</div>
+                  <div className="tj-stat-lbl"><Tip width={230} text="Your average result per trade in R - multiples of what you risked. +0.20R means each trade netted a fifth of your risk on average. Positive over many trades is the real proof of an edge.">Avg R/Trade</Tip></div>
                   <div className="tj-stat-val" style={{ color: stats.avgR >= 0 ? '#34d399' : '#f87171' }}>
                     {stats.avgR >= 0 ? '+' : ''}{stats.avgR.toFixed(2)}R
                   </div>

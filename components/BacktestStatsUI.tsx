@@ -2,6 +2,7 @@
 // Shared display components for strategy validation stats - used by both the
 // historical backtest page and the live outcome tracking page so the two stay
 // visually comparable.
+import Tip from '@/components/Tip';
 
 export interface DisplayStats {
   totalTrades:  number;
@@ -44,14 +45,25 @@ export function EquityCurve({ data, color }: { data: number[]; color: string }) 
   );
 }
 
-export function StatRow({ label, value, color }: { label: string; value: string; color?: string }) {
+export function StatRow({ label, value, color, tip }: { label: string; value: string; color?: string; tip?: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 'var(--fs-caption)' }}>
-      <span style={{ opacity: 0.55 }}>{label}</span>
+      <span style={{ opacity: 0.55 }}>
+        {tip ? <Tip text={tip}>{label}</Tip> : label}
+      </span>
       <span style={{ fontWeight: 600, color: color ?? 'var(--txt)' }}>{value}</span>
     </div>
   );
 }
+
+/* Shared explanations for the four core strategy-validation stats, so the
+   backtest page and live-tracking page describe them identically. */
+export const STAT_TIPS = {
+  winRate:      'The share of signals that hit take-profit before stop-loss. On its own it can mislead - a strategy can win under half its trades and still profit if the wins are larger than the losses.',
+  profitFactor: 'Gross profit divided by gross loss. Above 1.0 means the strategy made money overall, and 1.5+ is strong; below 1.0 means it lost money across all trades.',
+  avgR:         'Average result per trade in R - multiples of the amount risked. +0.20R means each trade netted a fifth of what was risked on average, which is the clearest single measure of a real edge.',
+  maxDrawdown:  'The largest peak-to-trough drop in cumulative R before the strategy recovered. It shows the worst losing streak you would have had to sit through - how painful the strategy is to actually hold.',
+} as const;
 
 export function SideCard({ title, stats, color }: { title: string; stats: DisplayStats; color: string }) {
   return (
@@ -59,11 +71,11 @@ export function SideCard({ title, stats, color }: { title: string; stats: Displa
       <div style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color, marginBottom: 10, letterSpacing: '0.02em' }}>{title}</div>
       <EquityCurve data={stats.equityCurve} color={color} />
       <div style={{ marginTop: 10 }}>
-        <StatRow label="Win Rate" value={fmtPct(stats.winRate)} color={stats.winRate >= 0.5 ? '#34d399' : '#f87171'} />
+        <StatRow label="Win Rate" tip={STAT_TIPS.winRate} value={fmtPct(stats.winRate)} color={stats.winRate >= 0.5 ? '#34d399' : '#f87171'} />
         <StatRow label="Trades" value={`${stats.totalTrades} (${stats.wins}W / ${stats.losses}L / ${stats.open} open)`} />
-        <StatRow label="Profit Factor" value={isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2) : '∞'} />
-        <StatRow label="Avg R / Trade" value={fmtR(stats.avgR)} color={stats.avgR >= 0 ? '#34d399' : '#f87171'} />
-        <StatRow label="Max Drawdown" value={`-${stats.maxDrawdownR.toFixed(2)}R`} color="#f87171" />
+        <StatRow label="Profit Factor" tip={STAT_TIPS.profitFactor} value={isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2) : '∞'} />
+        <StatRow label="Avg R / Trade" tip={STAT_TIPS.avgR} value={fmtR(stats.avgR)} color={stats.avgR >= 0 ? '#34d399' : '#f87171'} />
+        <StatRow label="Max Drawdown" tip={STAT_TIPS.maxDrawdown} value={`-${stats.maxDrawdownR.toFixed(2)}R`} color="#f87171" />
       </div>
     </div>
   );
