@@ -9,8 +9,7 @@ Senior UI/UX + QA audit of the production trading platform. Multi-viewport (Desk
 - **3 data-correctness / QA bugs** found (§3) — the highest-severity class on a trading tool.
 - **1 dominant authenticated issue:** the "QUICK SETUP" onboarding overlay + "Ask AI" FAB cover primary CTAs on every signed-in page (§4, AUTH-1).
 - **Typography:** ~26 discrete font sizes, no token scale (§7).
-- **Account note:** to audit the Pro backtest tool, the user's DB `role` was set `free→pro` (`lhq_dev_user_subscriptions`, their authorization) and **left as pro** by request, for `user_id=1a05ac61-9336-42c8-976b-ef7343148b20`. A second pass (this fix-verification round) found the currently-logged-in session uses a *different* auth user_id for the same email (`d4ccd40f-70a6-4f07-9665-81ad822814c1` - likely a re-linked Google identity), so that one was also set to `pro`, with the same authorization, to verify QA-3 live. Revert both:
-  `DELETE FROM public.lhq_dev_user_subscriptions WHERE user_id IN ('1a05ac61-9336-42c8-976b-ef7343148b20','d4ccd40f-70a6-4f07-9665-81ad822814c1');`
+- **Account note:** to audit the Pro backtest tool, the user's DB `role` was set `free→pro` (`lhq_dev_user_subscriptions`, their authorization) for `user_id=1a05ac61-9336-42c8-976b-ef7343148b20`, and a second auth user_id for the same email (`d4ccd40f-70a6-4f07-9665-81ad822814c1` - likely a re-linked Google identity) was also set to `pro` to verify QA-3 live. **Reverted 2026-07-17** - both rows deleted from `public.lhq_dev_user_subscriptions` (confirmed correct project/table is `wdtjhrilakoitfcezxpx`, not the newer empty `qdpwhnvmhqgzijuwopso` project this doc's table name would suggest), both accounts back to free.
 
 ### Severity index
 | Sev | Items |
@@ -366,6 +365,6 @@ Also closed the two loading-transient loose ends noted in SYS-6: added `app/fund
 | UI-only safety rule | Self-imposed | Post-submit result/loading/error states of credit/account actions unaudited (Fire, Generate, Grok send, Save, Telegram connect, log/edit/delete trade, checkout) |
 | First-run modals + `/auth/callback` + `/global-error` | State | Can't trigger without a fresh account / crash / mid-login code |
 
-**DB change made (authorized, left in place per request):** `INSERT … lhq_dev_user_subscriptions (user_id, role='pro')` for `1a05ac61-9336-42c8-976b-ef7343148b20`. Revert anytime with `DELETE FROM public.lhq_dev_user_subscriptions WHERE user_id='1a05ac61-9336-42c8-976b-ef7343148b20';`
+**DB change made (authorized) — reverted 2026-07-17:** both test accounts (`1a05ac61-9336-42c8-976b-ef7343148b20`, `d4ccd40f-70a6-4f07-9665-81ad822814c1`) were set `role='pro'` in `public.lhq_dev_user_subscriptions` for audit purposes, then deleted back to free once the audit closed out.
 
 *This is an audit document — findings and recommendations only. The §2 fixes are the only code changes made; everything in §8 is open, pending review.*
