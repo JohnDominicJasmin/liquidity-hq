@@ -156,7 +156,7 @@ Zero `rem` in `globals.css`; inline styles px too. Text ignores browser font-siz
 - **AUTH-2 `[Med]`** Account menu: email `20-60951@g.batstate-u.edu.ph` wraps mid-domain (`…edu.p`/`h`) — no `word-break`; "Settings" item near-invisible grey vs blue "view usage" / red "Sign out".
 - **AUTH-3 `[Med]`** — ✅ fixed. Alerts (free tier): a "Pro plan required" upsell sat **above a fully-rendered but greyed/disabled Telegram connect flow** (`opacity: 0.4; pointerEvents: 'none'` on the whole wizard card) - a dead form the user could look at but not use. Price Alerts (free) worked below, unaffected. Replaced the banner + dimmed form with a single `LockedFeatureCard` ([app/alerts/page.tsx](app/alerts/page.tsx)) - the same shared Pro-gate pattern already used on Arena's other locked cards - wired to the shared `UpgradeGateModal`. Verified live both ways: free tier shows the locked card and its "Unlock with Pro" button opens the paywall modal correctly; Pro tier shows the full interactive wizard with no dimming, no regression.
 - **AUTH-4 `[Med]`** — ✅ fixed. `/upgrade`'s nav header ([app/upgrade/page.tsx](app/upgrade/page.tsx)) had `background: 'rgba(10,10,14,0.9)'` hardcoded, unlike every other themed surface - stayed black in light theme. `/markets` and `/prices` were checked and are already theme-aware (`var(--bg)`), so this specific fix only touched `/upgrade`. Switched to `background: 'var(--bg)'`, matching the other two pages' pattern; dropped the now-redundant `backdropFilter: blur()` since the background is opaque. Not independently re-verified live - the test account is Pro, so `/upgrade` redirects away, and reverting Pro status just to see a one-line CSS fix wasn't worth the churn; the identical `var(--bg)` pattern is already confirmed working on `/markets` and `/prices`.
-- **AUTH-5 `[Med]`** Research BTC-Risk-Level card lists factor rows (Fear & Greed / BTC RSI / Funding Rate) with **no values** — reads unfinished.
+- **AUTH-5 `[Med]`** — ✅ already fixed (found working, not new work this pass). Research BTC-Risk-Level card was reported listing factor rows (Fear & Greed / BTC RSI / Funding Rate) with **no values**. [BtcRiskLevel.tsx](components/BtcRiskLevel.tsx) already guards this correctly - a row is only pushed to the list when its underlying value is non-null, and always carries a real value string when it is (`if (fng != null) signals.push({..., value: String(fng)})`), with an explicit "Waiting for market data…" fallback when nothing has loaded yet. Structurally can't render a labeled row with a blank value. Verified live on `/research`: card shows real numbers - Fear & Greed 27, BTC RSI (Daily) 54.0, Funding Rate +0.0000%. Likely a stale loading-state screenshot in the original pass, or fixed in an earlier session alongside similar work. (Unrelated, spotted in passing: the same page's Stablecoin Dry Powder and Global Macro Context cards show "AI service not configured / Retry" - a distinct, real issue, not part of this finding - flagging for a future pass, not fixed here.)
 - **AUTH-6 `[Low]`** Grok chat: input enabled + "5 left" usage counter + Fast toggle (good), but **two close buttons** (header ✕ + floating bottom ✕); "Where to set stop?" quick-prompt clips; coin chips 40×28px (below 44px tap target). Expand control appears to toggle the panel closed.
 - **AUTH-7 `[Low]`** Settings "Resets at 8:00 AM" states no timezone (user is PHT); News desktop renders an image-less article as a solid black card.
 
@@ -187,7 +187,7 @@ Blockers do **not** block page access — every main page was opened. They stop 
 | `/backtest` | ✅ | D, tool run | **Pro** (unlocked via DB role); QA-3; overlay hides OFF stats |
 | `/live-tracking` | ✅ | M + Part A | Clean empty state |
 | `/journal` | ✅ | D·M + all 7 sub-tabs | QA-1, QA-2; FAB covers SHORT; AI runs not fired (credit) |
-| `/research` | ✅ | M + Part A | AUTH-5 empty factor values |
+| `/research` | ✅ | M + Part A | AUTH-5 empty factor values — ✅ already fixed, verified live |
 | `/calc` | ✅ | D + form computed | Overlay on Take-Profit field |
 | `/econ-calendar` | ✅ | M + Part A | CRIT-2 (fixed local; prod clips) |
 | `/alerts` | ✅ | M + Part A | AUTH-3 dead Telegram form — ✅ fixed; Price alerts work |
@@ -286,7 +286,7 @@ Rules: **11px floor** (retire 7/7.5/8/9/9.5/10px). Title→caption ≥ one full 
 
 ### Interaction / functional
 13. `[Med]` **AUTH-3** — ✅ fixed + verified live, see §4.
-14. `[Med]` **AUTH-5** — show BTC-Risk factor values (or hide empty rows).
+14. `[Med]` **AUTH-5** — ✅ already fixed, see §4.
 15. `[Med]` Verify Grok **Expand** control (appears to close instead of expand).
 16. `[Med]` Unify loading (one skeleton) + empty states (SYS-6).
 17. `[Low]` **AUTH-2** — fix account-menu email wrap + Settings-item contrast.
