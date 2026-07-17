@@ -34,7 +34,7 @@ function BiasBadge({ bias }: { bias: Bias }) {
       display: 'inline-flex', alignItems: 'center', gap: 4,
       padding: '2px 8px', borderRadius: 6,
       border: `1px solid ${border}`, background: bg,
-      fontSize: '0.6875rem', fontWeight: 600, color, whiteSpace: 'nowrap',
+      fontSize: 'var(--fs-caption)', fontWeight: 600, color, whiteSpace: 'nowrap',
     }}>
       {icon} {label}
     </span>
@@ -52,7 +52,7 @@ function RsiRow({ tf, rsi, bias, last }: { tf: string; rsi: number | null; bias:
       padding: '9px 0',
       borderBottom: last ? 'none' : '1px solid rgba(255,255,255,0.05)',
     }}>
-      <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt2)' }}>{tf}</span>
+      <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt2)' }}>{tf}</span>
       <div style={{ position: 'relative', height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.08)' }}>
         <div style={{
           position: 'absolute', left: 0, top: 0, bottom: 0,
@@ -66,7 +66,7 @@ function RsiRow({ tf, rsi, bias, last }: { tf: string; rsi: number | null; bias:
         }} />
       </div>
       <span style={{
-        fontSize: '0.8125rem', fontWeight: 700, textAlign: 'right',
+        fontSize: 'var(--fs-label)', fontWeight: 700, textAlign: 'right',
         color: rsi == null ? 'var(--txt3)' : valColor(bias),
         fontFamily: 'var(--font-mono), monospace',
       }}>
@@ -125,7 +125,7 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
               Multi-Timeframe Alignment
             </Tip>
           </div>
-          <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
             {coin.toUpperCase()} RSI direction - 15m · 1h · 4h
           </div>
         </div>
@@ -133,7 +133,7 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
           display: 'inline-flex', alignItems: 'center',
           padding: '3px 10px', borderRadius: 6,
           border: `1px solid ${verdictBorder}`, background: verdictBg,
-          fontSize: '0.6875rem', fontWeight: 700, color: verdictColor,
+          fontSize: 'var(--fs-caption)', fontWeight: 700, color: verdictColor,
           whiteSpace: 'nowrap', flexShrink: 0, marginTop: 1,
         }}>
           {verdictLabel}
@@ -145,10 +145,10 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
         display: 'grid', gridTemplateColumns: '28px 1fr 34px 84px', gap: 8,
         marginTop: 12, marginBottom: 0,
       }}>
-        <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>TF</span>
-        <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>RSI(14)</span>
-        <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>VAL</span>
-        <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>BIAS</span>
+        <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>TF</span>
+        <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>RSI(14)</span>
+        <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>VAL</span>
+        <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>BIAS</span>
       </div>
 
       <RsiRow tf="15m" rsi={rsi14} bias={bias14} />
@@ -159,7 +159,7 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
       <div style={{
         marginTop: 10, padding: '8px 10px', borderRadius: 8,
         background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
-        fontSize: '0.6875rem', color: 'var(--txt2)',
+        fontSize: 'var(--fs-caption)', color: 'var(--txt2)',
       }}>
         {footerText}
       </div>

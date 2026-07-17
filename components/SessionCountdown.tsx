@@ -122,7 +122,7 @@ export default function SessionCountdown() {
       {mounted && holidays.length > 0 && (
         <div className="sc-row-next" style={{ marginTop: 4 }}>
           <span className="sc-next-label" style={{ color: '#fbbf24' }}>Holiday</span>
-          <span suppressHydrationWarning style={{ fontSize: '0.6875rem', color: 'var(--txt2)' }}>
+          <span suppressHydrationWarning style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
             {holidays.map(h => `${h.region} closed - ${h.name}`).join(' · ')}
           </span>
         </div>

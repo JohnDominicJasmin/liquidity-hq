@@ -89,13 +89,13 @@ function MarketPulseStrip() {
     }}>
       {chips.map(chip => (
         <div key={chip.label} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase', fontFamily: 'var(--font-mono), monospace' }}>
+          <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase', fontFamily: 'var(--font-mono), monospace' }}>
             {chip.label}
           </div>
-          <div style={{ fontSize: '0.875rem', fontWeight: 800, color: chip.color, fontFamily: 'var(--font-mono), monospace', lineHeight: 1 }}>
+          <div style={{ fontSize: 'var(--fs-data)', fontWeight: 800, color: chip.color, fontFamily: 'var(--font-mono), monospace', lineHeight: 1 }}>
             {chip.value}
           </div>
-          <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', lineHeight: 1.2 }}>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.2 }}>
             {chip.note}
           </div>
         </div>
@@ -175,7 +175,7 @@ function CoinSidebar() {
               <span style={{
                 width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '0.6875rem', fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
+                fontSize: 'var(--fs-caption)', fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
                 background: badgeCol + '24', color: badgeCol, border: `0.5px solid ${badgeCol}55`,
               }}>
                 {id.slice(0, 2).toUpperCase()}
@@ -183,7 +183,7 @@ function CoinSidebar() {
               <span className="csb2-name">{id.toUpperCase()}</span>
               {d?.price && (
                 <span style={{
-                  fontSize: '0.6875rem', fontWeight: 800, lineHeight: 1,
+                  fontSize: 'var(--fs-caption)', fontWeight: 800, lineHeight: 1,
                   padding: '2px 4px', borderRadius: 4,
                   color: health.color,
                   background: health.color + '22',
@@ -225,7 +225,7 @@ function CoinSidebar() {
         style={{
           display: 'block', width: '100%', background: 'none', border: 'none',
           borderTop: '1px solid #1a1a1a', padding: '7px 0',
-          fontSize: '0.6875rem', color: 'var(--txt3)', cursor: 'pointer',
+          fontSize: 'var(--fs-caption)', color: 'var(--txt3)', cursor: 'pointer',
           letterSpacing: '0.04em', textAlign: 'center', textDecoration: 'none',
         }}
       >
@@ -351,7 +351,7 @@ function EdgeSignals() {
           <div className="edge-card-label">
             <Tip text="Coinbase price minus Binance price, as a %. Positive = US retail buyers are paying a premium (bullish signal). Negative = US retail selling at a discount (bearish signal).">CB Premium</Tip>
           </div>
-          <div className="edge-card-value" style={{ color: cbCol, fontSize: '0.9375rem' }}>
+          <div className="edge-card-value" style={{ color: cbCol, fontSize: 'var(--fs-data)' }}>
             {cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : '-'}
           </div>
           <div className="edge-card-signal" style={{ color: cbCol }}>{cbSig}</div>
@@ -361,7 +361,7 @@ function EdgeSignals() {
           <div className="edge-card-label">
             <Tip text="Volume Weighted Average Price - the average price across the day, weighted by how much was traded at each level. Price above VWAP signals buy-side control; below signals sellers are in charge.">VWAP - {coin.toUpperCase()}</Tip>
           </div>
-          <div className="edge-card-value" style={{ color: vwapCol, fontSize: '0.9375rem' }}>
+          <div className="edge-card-value" style={{ color: vwapCol, fontSize: 'var(--fs-data)' }}>
             {price != null ? '$' + fmtPrice(price, COIN_DEC[coin]) : '-'}
           </div>
           {vwap != null && (
@@ -382,7 +382,7 @@ function EdgeSignals() {
           </div>
           {oiMeta ? (
             <>
-              <div className="edge-card-value" style={{ color: oiMeta.col, fontSize: '0.9375rem' }}>{oiMeta.txt}</div>
+              <div className="edge-card-value" style={{ color: oiMeta.col, fontSize: 'var(--fs-data)' }}>{oiMeta.txt}</div>
               <div className="edge-card-signal" style={{ color: oiMeta.col }}>{oiMeta.sub}</div>
             </>
           ) : (
@@ -423,9 +423,9 @@ function EdgeSignals() {
           <div className="edge-card-label">
             <Tip width={260} text="Squeeze setup score: funding rate (0–40 pts) + long/short ratio positioning (0–40 pts) + volume spike bonus (0–20 pts). LONG_LIQ = longs overcrowded, ripe for a dump. SHORT_SQ = shorts overcrowded, ripe for a pump.">Setup Scanner - {coin.toUpperCase()}</Tip>
           </div>
-          <div className="edge-card-value" style={{ color: sqCol, fontSize: '0.9375rem' }}>
+          <div className="edge-card-value" style={{ color: sqCol, fontSize: 'var(--fs-data)' }}>
             {sq.score}
-            <span style={{ fontSize: '0.6875rem', fontWeight: 600, marginLeft: 6 }}>{sq.label}</span>
+            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, marginLeft: 6 }}>{sq.label}</span>
           </div>
           <div className="edge-card-signal" style={{ color: sqCol }}>
             {sq.dir === 'SHORT_SQ' ? '▲ Short squeeze setup'

@@ -57,12 +57,12 @@ export default function BtcRiskLevel() {
     }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase' }}>
+        <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase' }}>
           BTC Risk Level
         </span>
         {score != null && (
           <span style={{
-            fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+            fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
             color, background: color + '18', border: `0.5px solid ${color}44`,
             padding: '2px 7px', borderRadius: 20,
           }}>{label}</span>
@@ -74,9 +74,9 @@ export default function BtcRiskLevel() {
         <span style={{ fontSize: '2.25rem', fontWeight: 800, color: score != null ? color : 'var(--txt3)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
           {score ?? '-'}
         </span>
-        <span style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>/ 100</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>/ 100</span>
         {btcDom != null && (
-          <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginLeft: 'auto' }}>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 'auto' }}>
             BTC Dom {btcDom.toFixed(1)}%
           </span>
         )}
@@ -89,10 +89,10 @@ export default function BtcRiskLevel() {
             <div style={{ height: '100%', borderRadius: 99, width: score + '%', background: color, transition: 'width .4s' }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-            <span style={{ fontSize: '0.6875rem', color: '#34d399' }}>Low</span>
-            <span style={{ fontSize: '0.6875rem', color: '#fbbf24' }}>Moderate</span>
-            <span style={{ fontSize: '0.6875rem', color: '#fb923c' }}>High</span>
-            <span style={{ fontSize: '0.6875rem', color: '#f87171' }}>Extreme</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: '#34d399' }}>Low</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: '#fbbf24' }}>Moderate</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: '#fb923c' }}>High</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>Extreme</span>
           </div>
         </div>
       )}
@@ -102,18 +102,18 @@ export default function BtcRiskLevel() {
         <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 7 }}>
           {signals.map(sig => (
             <div key={sig.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', width: 120, flexShrink: 0 }}>{sig.label}</span>
+              <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', width: 120, flexShrink: 0 }}>{sig.label}</span>
               <div style={{ flex: 1, height: 3, borderRadius: 99, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
                 <div style={{ height: '100%', borderRadius: 99, width: `${(sig.score / sig.max) * 100}%`, background: sig.color }} />
               </div>
-              <span style={{ fontSize: '0.625rem', color: sig.color, width: 72, textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+              <span style={{ fontSize: 'var(--fs-caption)', color: sig.color, width: 72, textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
                 {sig.value}
               </span>
             </div>
           ))}
         </div>
       ) : (
-        <div style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>Waiting for market data…</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Waiting for market data…</div>
       )}
     </div>
   );

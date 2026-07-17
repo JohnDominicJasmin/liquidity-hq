@@ -118,26 +118,26 @@ export default function DryPowder() {
   return (
     <div style={{ padding: '12px 14px' }}>
       {/* Header */}
-      <div style={{ fontSize: '0.625rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 2 }}>
+      <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 2 }}>
         <Tip width={320} text="Tracks total stablecoin market cap (USDT, USDC, DAI, etc.) via DeFi Llama. Expansion means fresh capital entering crypto - bullish dry powder. Contraction means money leaving or already deployed. Grok provides the narrative context.">
           Stablecoin Dry Powder
         </Tip>
       </div>
 
       {state === 'loading' && (
-        <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', padding: '12px 0' }}>Loading stablecoin data…</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '12px 0' }}>Loading stablecoin data…</div>
       )}
 
       {state === 'unauth' && (
-        <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', padding: '8px 0' }}>Sign in to view dry powder analysis.</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '8px 0' }}>Sign in to view dry powder analysis.</div>
       )}
 
       {state === 'error' && (
         <div style={{ padding: '8px 0' }}>
-          <div style={{ fontSize: '0.6875rem', color: '#f87171', marginBottom: 6 }}>{errMsg}</div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 6 }}>{errMsg}</div>
           <button
             onClick={fetchData}
-            style={{ fontSize: '0.625rem', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}
+            style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}
           >
             Retry
           </button>
@@ -154,17 +154,17 @@ export default function DryPowder() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, marginTop: 4 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '1.125rem', fontWeight: 800, color: 'var(--txt)', fontFamily: 'var(--font-mono), monospace', lineHeight: 1 }}>
+                  <span style={{ fontSize: 'var(--fs-data)', fontWeight: 800, color: 'var(--txt)', fontFamily: 'var(--font-mono), monospace', lineHeight: 1 }}>
                     {fmt(d.current)}
                   </span>
                   <span style={{
-                    fontSize: '0.6875rem', fontWeight: 700, fontFamily: 'var(--font-mono), monospace',
+                    fontSize: 'var(--fs-caption)', fontWeight: 700, fontFamily: 'var(--font-mono), monospace',
                     color: chg30Up ? '#34d399' : '#f87171',
                   }}>
                     {chg30} / 30d
                   </span>
                 </div>
-                <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginTop: 2 }}>
+                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>
                   90d ago: {fmt(d.prev90)} ({chgPct(d.current, d.prev90)})
                 </div>
               </div>
@@ -177,15 +177,15 @@ export default function DryPowder() {
               padding: '3px 9px', borderRadius: 20, marginBottom: 8,
               background: sm.bg, border: `0.5px solid ${sm.bdr}`,
             }}>
-              <span style={{ fontSize: '0.6875rem', color: sm.col }}>{sm.icon}</span>
-              <span style={{ fontSize: '0.625rem', fontWeight: 700, color: sm.col, letterSpacing: '0.04em' }}>
+              <span style={{ fontSize: 'var(--fs-caption)', color: sm.col }}>{sm.icon}</span>
+              <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: sm.col, letterSpacing: '0.04em' }}>
                 {signalKey}
               </span>
             </div>
 
             {/* Narrative */}
             {d.narrative && (
-              <div style={{ fontSize: '0.6875rem', color: 'var(--txt2)', lineHeight: 1.55, marginBottom: d.keyLevel ? 8 : 0 }}>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.55, marginBottom: d.keyLevel ? 8 : 0 }}>
                 {d.narrative}
               </div>
             )}
@@ -193,7 +193,7 @@ export default function DryPowder() {
             {/* Key level */}
             {d.keyLevel && (
               <div style={{
-                fontSize: '0.625rem', color: 'var(--txt3)', marginTop: 2,
+                fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2,
                 paddingTop: 6, borderTop: '0.5px solid var(--bdr)',
               }}>
                 <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>Watch: </span>
@@ -206,7 +206,7 @@ export default function DryPowder() {
               onClick={fetchData}
               style={{
                 display: 'block', marginTop: 8,
-                fontSize: '0.6875rem', color: 'var(--txt3)', background: 'transparent',
+                fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent',
                 border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left',
               }}
             >

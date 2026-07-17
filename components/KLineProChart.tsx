@@ -1108,7 +1108,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         {setupQuality && (
           <div className="sq-badge">
             <span style={{
-              fontSize: '0.625rem', fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+              fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 8px', borderRadius: 6,
               color: setupQuality.color, background: setupQuality.bg,
               border: `0.5px solid ${setupQuality.bdr}`,
               letterSpacing: '0.04em', whiteSpace: 'nowrap', cursor: 'default',
@@ -1126,13 +1126,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                     boxShadow: '0 8px 32px rgba(0,0,0,0.65)',
                     whiteSpace: 'normal',
                   }}>
-                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginBottom: 6 }}>
+                    <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'rgba(255,255,255,0.9)', marginBottom: 6 }}>
                       {setupQuality.label}
                     </div>
-                    <div style={{ fontSize: '0.625rem', color: 'rgba(255,255,255,0.38)', lineHeight: 1.55, marginBottom: 8 }}>
+                    <div style={{ fontSize: 'var(--fs-caption)', color: 'rgba(255,255,255,0.38)', lineHeight: 1.55, marginBottom: 8 }}>
                       {setupQuality.detail}
                     </div>
-                    <div style={{ fontSize: '0.6563rem', color: 'rgba(255,255,255,0.72)', lineHeight: 1.7 }}>
+                    <div style={{ fontSize: 'var(--fs-caption)', color: 'rgba(255,255,255,0.72)', lineHeight: 1.7 }}>
                       {setupQuality.explanation}
                     </div>
                   </div>
@@ -1209,7 +1209,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             border: '0.5px solid rgba(245,158,11,0.35)',
             borderRadius: 8,
             padding: '7px 12px',
-            fontSize: '0.7188rem',
+            fontSize: 'var(--fs-caption)',
             lineHeight: 1.5,
             color: 'rgba(255,255,255,0.78)',
             fontFamily: 'system-ui, -apple-system, sans-serif',
@@ -1239,7 +1239,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             borderTop: 'none',
             borderRadius: '0 0 3px 3px',
             padding: '1px 6px 2px',
-            fontSize: '0.625rem',
+            fontSize: 'var(--fs-caption)',
             fontFamily: 'monospace',
             color: 'rgba(255,255,255,0.70)',
             letterSpacing: '0.04em',

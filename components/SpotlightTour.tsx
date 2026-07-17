@@ -30,13 +30,13 @@ function Step1Visual() {
           flex: 1, background: BG2, border: `1px solid ${BDR}`,
           borderRadius: 10, padding: '14px 10px', textAlign: 'center',
         }}>
-          <div style={{ fontSize: '0.6875rem', color: TXT3, fontFamily: MONO, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 6 }}>
+          <div style={{ fontSize: 'var(--fs-micro)', color: TXT3, fontFamily: MONO, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 6 }}>
             {c.label}
           </div>
-          <div style={{ fontSize: '1.125rem', fontWeight: 800, color: c.color, fontFamily: MONO, letterSpacing: '-.02em' }}>
+          <div style={{ fontSize: 'var(--fs-data)', fontWeight: 800, color: c.color, fontFamily: MONO, letterSpacing: '-.02em' }}>
             {c.value}
           </div>
-          <div style={{ fontSize: '0.6875rem', color: TXT3, marginTop: 4, lineHeight: 1.4 }}>
+          <div style={{ fontSize: 'var(--fs-caption)', color: TXT3, marginTop: 4, lineHeight: 1.4 }}>
             {c.sub}
           </div>
         </div>
@@ -53,13 +53,13 @@ function Step2Visual() {
   return (
     <div style={{ width: '100%', background: BG2, border: `1px solid ${BDR}`, borderRadius: 12, padding: '20px 18px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <span style={{ fontSize: '0.625rem', color: TXT2, fontFamily: MONO, letterSpacing: '.08em', textTransform: 'uppercase' }}>Funding Rate - BTC</span>
-        <span style={{ fontSize: '1rem', fontWeight: 800, color: RED, fontFamily: MONO }}>-0.07%</span>
+        <span style={{ fontSize: 'var(--fs-micro)', color: TXT2, fontFamily: MONO, letterSpacing: '.08em', textTransform: 'uppercase' }}>Funding Rate - BTC</span>
+        <span style={{ fontSize: 'var(--fs-data)', fontWeight: 800, color: RED, fontFamily: MONO }}>-0.07%</span>
       </div>
       {/* Scale */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
         {ticks.map(t => (
-          <span key={t} style={{ fontSize: '0.6875rem', color: TXT3, fontFamily: MONO }}>{t}</span>
+          <span key={t} style={{ fontSize: 'var(--fs-caption)', color: TXT3, fontFamily: MONO }}>{t}</span>
         ))}
       </div>
       {/* Track */}
@@ -82,7 +82,7 @@ function Step2Visual() {
           { label: 'Squeeze fuel building', col: ACCENT },
         ].map(chip => (
           <span key={chip.label} style={{
-            fontSize: '0.625rem', fontWeight: 600, padding: '3px 10px',
+            fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px',
             borderRadius: 100, border: `1px solid ${chip.col}30`,
             background: `${chip.col}10`, color: chip.col, fontFamily: MONO,
           }}>
@@ -109,8 +109,8 @@ function Step3Visual() {
   return (
     <div style={{ width: '100%', background: BG2, border: `1px solid ${BDR}`, borderRadius: 12, padding: '20px 18px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <span style={{ fontSize: '0.625rem', color: TXT2, fontFamily: MONO, letterSpacing: '.08em', textTransform: 'uppercase' }}>Open Interest Change - BTC</span>
-        <span style={{ fontSize: '1rem', fontWeight: 800, color: RED, fontFamily: MONO }}>+$38.4M</span>
+        <span style={{ fontSize: 'var(--fs-micro)', color: TXT2, fontFamily: MONO, letterSpacing: '.08em', textTransform: 'uppercase' }}>Open Interest Change - BTC</span>
+        <span style={{ fontSize: 'var(--fs-data)', fontWeight: 800, color: RED, fontFamily: MONO }}>+$38.4M</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 64 }}>
         {bars.map(b => (
@@ -123,11 +123,11 @@ function Step3Visual() {
               transition: 'height 0.7s cubic-bezier(0.16,1,0.3,1), opacity 0.4s',
               transitionDelay: `${bars.indexOf(b) * 60}ms`,
             }} />
-            <span style={{ fontSize: '0.6875rem', color: TXT3, fontFamily: MONO }}>{b.label}</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: TXT3, fontFamily: MONO }}>{b.label}</span>
           </div>
         ))}
       </div>
-      <div style={{ marginTop: 12, fontSize: '0.6875rem', color: TXT3, lineHeight: 1.5 }}>
+      <div style={{ marginTop: 12, fontSize: 'var(--fs-caption)', color: TXT3, lineHeight: 1.5 }}>
         Each red bar = more shorts entering. The last 3 bars (red) accelerated - a squeeze is loading.
       </div>
     </div>
@@ -147,16 +147,16 @@ function Step4Visual() {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: '0.9375rem', fontWeight: 800, color: TXT1, fontFamily: MONO }}>BTC</span>
+            <span style={{ fontSize: 'var(--fs-data)', fontWeight: 800, color: TXT1, fontFamily: MONO }}>BTC</span>
             <span style={{
-              fontSize: '0.6875rem', fontWeight: 700, padding: '2px 8px',
+              fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 8px',
               borderRadius: 100, background: `${RED}18`, color: RED, fontFamily: MONO,
               letterSpacing: '.06em',
             }}>SHORT_SQ</span>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '1.25rem', fontWeight: 900, color: RED, fontFamily: MONO, lineHeight: 1 }}>82</div>
-            <div style={{ fontSize: '0.6875rem', color: TXT3, fontFamily: MONO }}>/ 100</div>
+            <div style={{ fontSize: 'var(--fs-caption)', color: TXT3, fontFamily: MONO }}>/ 100</div>
           </div>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
@@ -168,7 +168,7 @@ function Step4Visual() {
             { label: 'VWAP below', col: TXT2 },
           ].map(chip => (
             <span key={chip.label} style={{
-              fontSize: '0.625rem', padding: '3px 8px', borderRadius: 6,
+              fontSize: 'var(--fs-caption)', padding: '3px 8px', borderRadius: 6,
               background: `${chip.col}12`, color: chip.col,
               border: `1px solid ${chip.col}25`, fontFamily: MONO, fontWeight: 600,
             }}>
@@ -188,8 +188,8 @@ function Step4Visual() {
       }}>
         <span style={{ fontSize: '1.125rem', flexShrink: 0 }}>✈</span>
         <div>
-          <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: GREEN, fontFamily: MONO }}>Telegram alert sent</div>
-          <div style={{ fontSize: '0.625rem', color: TXT3, marginTop: 1 }}>BTC SHORT_SQ 82/100 - squeeze forming</div>
+          <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: GREEN, fontFamily: MONO }}>Telegram alert sent</div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: TXT3, marginTop: 1 }}>BTC SHORT_SQ 82/100 - squeeze forming</div>
         </div>
       </div>
     </div>
@@ -268,10 +268,10 @@ function Step5Visual() {
       <div style={{ background: BG0, border: `1px solid ${BDR}`, borderRadius: 10, padding: '8px 8px 4px' }}>
         {/* Chart header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-          <span style={{ fontSize: '0.6875rem', color: TXT3, fontFamily: MONO, letterSpacing: '.08em' }}>BTCUSDT · 4H</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: TXT3, fontFamily: MONO, letterSpacing: '.08em' }}>BTCUSDT · 4H</span>
           <div style={{ display: 'flex', gap: 10 }}>
             {([['EMA9', ACCENT], ['EMA20', '#f97316'], ['EMA50', TXT3]] as const).map(([l, c]) => (
-              <span key={l} style={{ fontSize: '0.6875rem', color: c, fontFamily: MONO }}>─ {l}</span>
+              <span key={l} style={{ fontSize: 'var(--fs-caption)', color: c, fontFamily: MONO }}>─ {l}</span>
             ))}
           </div>
         </div>
@@ -343,14 +343,14 @@ function Step5Visual() {
         transition: 'opacity 0.3s, transform 0.3s',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.75rem', fontWeight: 800, color: TXT1, fontFamily: MONO }}>BTC</span>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: TXT1, fontFamily: MONO }}>BTC</span>
           <span style={{
-            fontSize: '0.6875rem', padding: '2px 7px', borderRadius: 100,
+            fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 100,
             background: `${GREEN}18`, color: GREEN, fontFamily: MONO, fontWeight: 700, letterSpacing: '.05em',
           }}>LONG_SQ</span>
           {(['EMA ×', 'VOL 2.1×', 'FR+'] as const).map(chip => (
             <span key={chip} style={{
-              fontSize: '0.6875rem', padding: '2px 6px', borderRadius: 4, fontFamily: MONO, fontWeight: 600,
+              fontSize: 'var(--fs-caption)', padding: '2px 6px', borderRadius: 4, fontFamily: MONO, fontWeight: 600,
               background: `${ACCENT}12`, color: ACCENT, border: `1px solid ${ACCENT}22`,
             }}>{chip}</span>
           ))}
@@ -368,7 +368,7 @@ function Step5Visual() {
         transition: 'opacity 0.3s, transform 0.3s',
       }}>
         <span style={{ fontSize: '0.875rem', flexShrink: 0 }}>✈</span>
-        <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#4db8e8', fontFamily: MONO }}>
+        <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#4db8e8', fontFamily: MONO }}>
           Alert fired - BTC LONG_SQ 87/100
         </span>
       </div>
@@ -478,7 +478,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
           {/* Tag + close */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
             <span style={{
-              fontSize: '0.6875rem', fontWeight: 700, fontFamily: MONO,
+              fontSize: 'var(--fs-caption)', fontWeight: 700, fontFamily: MONO,
               letterSpacing: '.14em', color: ACCENT,
             }}>
               {current.tag}
@@ -506,13 +506,13 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
           {/* Text */}
           <div key={`t-${animKey}`} style={{ animation: 'ob-fade-up 0.35s 0.05s cubic-bezier(0.16,1,0.3,1) both' }}>
             <h2 style={{
-              fontSize: '1.25rem', fontWeight: 800, color: TXT1,
+              fontSize: 'var(--fs-section)', fontWeight: 800, color: TXT1,
               margin: '0 0 8px', lineHeight: 1.2, letterSpacing: '-.02em',
             }}>
               {current.title}
             </h2>
             <p style={{
-              fontSize: '0.8125rem', color: TXT2, lineHeight: 1.65,
+              fontSize: 'var(--fs-label)', color: TXT2, lineHeight: 1.65,
               margin: 0,
             }}>
               {current.body}
@@ -540,7 +540,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
                 style={{
                   padding: '10px 16px', borderRadius: 8, cursor: 'pointer',
                   background: 'transparent', border: `1px solid ${BDR}`,
-                  color: TXT3, fontSize: '0.75rem', fontWeight: 700, fontFamily: MONO,
+                  color: TXT3, fontSize: 'var(--fs-caption)', fontWeight: 700, fontFamily: MONO,
                   letterSpacing: '.04em',
                 }}
               >
@@ -552,7 +552,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
               style={{
                 padding: '10px 22px', borderRadius: 8, cursor: 'pointer',
                 background: ACCENT, border: 'none',
-                color: '#fff', fontSize: '0.75rem', fontWeight: 700, fontFamily: MONO,
+                color: '#fff', fontSize: 'var(--fs-caption)', fontWeight: 700, fontFamily: MONO,
                 letterSpacing: '.05em',
                 boxShadow: `0 4px 20px ${ACCENT}40`,
               }}

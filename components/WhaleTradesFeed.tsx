@@ -119,10 +119,10 @@ export default function WhaleTradesFeed() {
       {/* Header */}
       <div className="wf-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--txt)' }}>Whale Trades</span>
+          <span style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--txt)' }}>Whale Trades</span>
           <span className={`wf-dot wf-dot-${status}`} title={status} />
         </div>
-        <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>All markets · &gt;$50K · {msgCount > 0 ? `${msgCount} msgs` : 'waiting…'}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>All markets · &gt;$50K · {msgCount > 0 ? `${msgCount} msgs` : 'waiting…'}</span>
       </div>
 
       {/* Stats bar */}
@@ -136,7 +136,7 @@ export default function WhaleTradesFeed() {
           <span className="wf-stat-lbl">Net Flow</span>
           <span className="wf-stat-val" style={{ color: netFlow >= 0 ? '#22d3ee' : '#f97316' }}>
             {netFlow >= 0 ? '+' : ''}{fmtUSD(Math.abs(netFlow))}
-            <span style={{ fontSize: '0.625rem', color: '#444', marginLeft: 3 }}>
+            <span style={{ fontSize: 'var(--fs-caption)', color: '#444', marginLeft: 3 }}>
               {netFlow >= 0 ? '↑' : '↓'}
             </span>
           </span>
@@ -165,12 +165,12 @@ export default function WhaleTradesFeed() {
 
       {/* Feed states */}
       {feed.length === 0 && status === 'connecting' && (
-        <div style={{ textAlign: 'center', padding: '1.5rem', color: '#444', fontSize: '0.75rem' }}>
+        <div style={{ textAlign: 'center', padding: '1.5rem', color: '#444', fontSize: 'var(--fs-caption)' }}>
           Connecting to live trade feed…
         </div>
       )}
       {feed.length === 0 && status === 'live' && (
-        <div style={{ textAlign: 'center', padding: '1.5rem', color: '#444', fontSize: '0.75rem' }}>
+        <div style={{ textAlign: 'center', padding: '1.5rem', color: '#444', fontSize: 'var(--fs-caption)' }}>
           Watching for trades &gt; $50K…
         </div>
       )}

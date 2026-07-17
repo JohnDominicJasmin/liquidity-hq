@@ -74,12 +74,12 @@ export default function JournalMiniStats() {
             borderRight: i < stats.length - 1 ? '0.5px solid var(--bdr)' : undefined,
           }}>
             <div style={{
-              fontSize: '0.9375rem', fontWeight: 800, color: s.col,
+              fontSize: 'var(--fs-data)', fontWeight: 800, color: s.col,
               fontFamily: 'var(--font-mono), monospace', lineHeight: 1.2,
             }}>
               {s.value}
             </div>
-            <div style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginTop: 2 }}>{s.label}</div>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
       </div>

@@ -61,7 +61,7 @@ export default function HigherTfMoveBadge({ coin, tf, signalDir }: Props) {
 
   return (
     <div style={{
-      margin: '0 0 10px', fontSize: '0.6875rem', fontWeight: 600, lineHeight: 1.5,
+      margin: '0 0 10px', fontSize: 'var(--fs-caption)', fontWeight: 600, lineHeight: 1.5,
       color: col, padding: '8px 10px', borderRadius: 8,
       background: col + '14', border: `0.5px solid ${col}44`,
     }}>

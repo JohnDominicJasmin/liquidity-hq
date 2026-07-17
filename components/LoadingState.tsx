@@ -8,14 +8,14 @@ export default function LoadingState({ message, fullPage }: { message: string; f
     return (
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        minHeight: '60vh', color: 'var(--txt3)', fontSize: '0.8125rem',
+        minHeight: '60vh', color: 'var(--txt3)', fontSize: 'var(--fs-label)',
       }}>
         {message}
       </div>
     );
   }
   return (
-    <div className="card" style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--txt3)', fontSize: '0.8125rem' }}>
+    <div className="card" style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--txt3)', fontSize: 'var(--fs-label)' }}>
       {message}
     </div>
   );

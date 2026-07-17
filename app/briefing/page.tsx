@@ -352,15 +352,15 @@ export default function MorningBriefing() {
       <div className="card" style={{ marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div className="lbl" style={{ margin: 0 }}>Top 3 Setups Today</div>
-          <Link href="/arena" style={{ fontSize: '0.6875rem', color: 'var(--txt3)', textDecoration: 'none' }}>
+          <Link href="/arena" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'none' }}>
             See all in Arena →
           </Link>
         </div>
 
         {!pricesLoaded ? (
-          <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', padding: '4px 0' }}>Loading market data…</div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 0' }}>Loading market data…</div>
         ) : top3Setups.length === 0 ? (
-          <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', padding: '4px 0' }}>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 0' }}>
             No strong setups right now - market positioning is balanced.
           </div>
         ) : (
@@ -378,14 +378,14 @@ export default function MorningBriefing() {
                   borderBottom: isLast ? 'none' : '0.5px solid var(--bdr)',
                 }}>
                   <div style={{
-                    fontSize: '0.875rem', fontWeight: 800, color: 'var(--txt)',
+                    fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)',
                     minWidth: 46, letterSpacing: '-0.3px',
                   }}>
                     {COIN_LABELS[id]}
                   </div>
 
                   <span style={{
-                    fontSize: '0.6875rem', fontWeight: 700, padding: '3px 9px', borderRadius: 20,
+                    fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 9px', borderRadius: 20,
                     letterSpacing: '.03em', flexShrink: 0,
                     color: dirColor,
                     background: isLong ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)',
@@ -397,7 +397,7 @@ export default function MorningBriefing() {
                   <div style={{ display: 'flex', gap: 5, flex: 1, flexWrap: 'wrap' }}>
                     {tags.map(tag => (
                       <span key={tag} style={{
-                        fontSize: '0.625rem', fontWeight: 600, color: 'var(--txt3)',
+                        fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt3)',
                         background: 'var(--bg2)', borderRadius: 4,
                         padding: '2px 6px', letterSpacing: '.02em',
                       }}>
@@ -407,10 +407,10 @@ export default function MorningBriefing() {
                   </div>
 
                   <div style={{ flexShrink: 0, display: 'flex', alignItems: 'baseline', gap: 1 }}>
-                    <span style={{ fontSize: '0.9375rem', fontWeight: 800, color: sq.color, letterSpacing: '-0.5px' }}>
+                    <span style={{ fontSize: 'var(--fs-data)', fontWeight: 800, color: sq.color, letterSpacing: '-0.5px' }}>
                       {sq.score}
                     </span>
-                    <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', fontWeight: 500 }}>/100</span>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontWeight: 500 }}>/100</span>
                   </div>
                   <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>→</span>
                 </div>
@@ -448,7 +448,7 @@ export default function MorningBriefing() {
         )}
 
         {briefErr && (
-          <div style={{ fontSize: '0.75rem', color: '#f87171', marginTop: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Warn /> {briefErr}</div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginTop: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Warn /> {briefErr}</div>
         )}
 
         {brief && !generating && (
@@ -554,19 +554,19 @@ export default function MorningBriefing() {
           <div className="lbl" style={{ margin: 0 }}>Yen Watch</div>
           {jpyStatus && (
             <span style={{
-              fontSize: '0.625rem', fontWeight: 700, padding: '2px 9px', borderRadius: 20, letterSpacing: '.06em',
+              fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 9px', borderRadius: 20, letterSpacing: '.06em',
               color: jpyStatus.color, background: jpyStatus.bg, border: `0.5px solid ${jpyStatus.border}`,
             }}>{jpyStatus.label}</span>
           )}
         </div>
 
         {jpyUsd == null ? (
-          <div style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>Fetching rate…</div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fetching rate…</div>
         ) : (
           <>
             {/* Rate */}
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)', letterSpacing: '.05em' }}>USD/JPY</span>
+              <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', letterSpacing: '.05em' }}>USD/JPY</span>
               <span style={{ fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.5px', color: jpyStatus!.color }}>
                 {jpyUsd.toFixed(2)}
               </span>
@@ -590,24 +590,24 @@ export default function MorningBriefing() {
                 }} />
               </div>
               {/* Threshold labels */}
-              <span style={{ position: 'absolute', bottom: 0, left: 0, fontSize: '0.6875rem', color: 'var(--txt3)' }}>140</span>
+              <span style={{ position: 'absolute', bottom: 0, left: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>140</span>
               <span style={{
                 position: 'absolute', bottom: 0, left: `${warn158Pct}%`, transform: 'translateX(-50%)',
-                fontSize: '0.6875rem', color: '#fbbf24', fontWeight: 600,
+                fontSize: 'var(--fs-caption)', color: '#fbbf24', fontWeight: 600,
               }}>158<Warn size={9} style={{ verticalAlign: '-1px', marginLeft: 1 }} /></span>
               <span style={{
                 position: 'absolute', bottom: 0, left: `${danger160Pct}%`, transform: 'translateX(-50%)',
-                fontSize: '0.6875rem', color: '#f87171', fontWeight: 600,
+                fontSize: 'var(--fs-caption)', color: '#f87171', fontWeight: 600,
               }}>160</span>
-              <span style={{ position: 'absolute', bottom: 0, right: 0, fontSize: '0.6875rem', color: 'var(--txt3)' }}>165</span>
+              <span style={{ position: 'absolute', bottom: 0, right: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>165</span>
             </div>
 
             {/* Interpretation */}
-            <div style={{ fontSize: '0.6875rem', color: 'var(--txt2)', lineHeight: 1.55, marginTop: 4 }}>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.55, marginTop: 4 }}>
               {jpyStatus!.desc}
             </div>
             {jpyMinutesAgo !== null && (
-              <div style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginTop: 5 }}>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 5 }}>
                 Updated {jpyMinutesAgo < 1 ? 'just now' : `${jpyMinutesAgo}m ago`}
               </div>
             )}
@@ -649,14 +649,14 @@ export default function MorningBriefing() {
           <div className="card" style={{ marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: shown.length > 0 ? 10 : 0 }}>
               <div className="lbl" style={{ margin: 0 }}>Notable Signals</div>
-              <Link href="/scanner" style={{ fontSize: '0.6875rem', color: 'var(--txt3)', textDecoration: 'none' }}>
+              <Link href="/scanner" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'none' }}>
                 Full scanner →
               </Link>
             </div>
             {!pricesLoaded ? (
-              <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', padding: '4px 0' }}>Loading market data…</div>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 0' }}>Loading market data…</div>
             ) : shown.length === 0 ? (
-              <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', padding: '4px 0' }}>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 0' }}>
                 All quiet - no extreme signals right now.
               </div>
             ) : (
@@ -664,13 +664,13 @@ export default function MorningBriefing() {
                 {shown.map(({ id, label, chips }, i) => (
                   <Link key={id} href="/arena" style={{ textDecoration: 'none', display: 'block', borderBottom: i < shown.length - 1 ? '0.5px solid var(--bdr)' : 'none' }}>
                     <div className="nbs-row">
-                      <div style={{ fontSize: '0.8125rem', fontWeight: 800, color: 'var(--txt)', minWidth: 48, letterSpacing: '-0.3px' }}>
+                      <div style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)', minWidth: 48, letterSpacing: '-0.3px' }}>
                         {label}
                       </div>
                       <div style={{ display: 'flex', gap: 5, flex: 1, flexWrap: 'wrap' }}>
                         {chips.map(chip => (
                           <span key={chip.text} style={{
-                            fontSize: '0.625rem', fontWeight: 700, padding: '2px 7px', borderRadius: 20, flexShrink: 0,
+                            fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, flexShrink: 0,
                             color: chip.color, background: chip.color + '18', border: `0.5px solid ${chip.color}50`,
                           }}>{chip.text}</span>
                         ))}
@@ -681,7 +681,7 @@ export default function MorningBriefing() {
                 ))}
                 {extra > 0 && (
                   <Link href="/scanner" style={{ textDecoration: 'none', display: 'block', paddingTop: 8, borderTop: '0.5px solid var(--bdr)', marginTop: 2 }}>
-                    <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', textAlign: 'center' }}>
+                    <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>
                       +{extra} more coins with signals - Full scanner →
                     </div>
                   </Link>
@@ -698,7 +698,7 @@ export default function MorningBriefing() {
         <div className="lbl">Events &amp; News</div>
 
         {noEvents && (
-          <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', padding: '4px 0' }}>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 0' }}>
             No active events in the next 24h. Clean macro backdrop.
           </div>
         )}

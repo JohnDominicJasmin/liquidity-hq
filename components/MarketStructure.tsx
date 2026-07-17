@@ -186,7 +186,7 @@ export default function MarketStructure({ coin, onData }: Props) {
       <div className="ms-card">
         <div className="ms-header">
           <span className="ms-title">Market Structure · 4H</span>
-          <span style={{ fontSize: '0.6875rem', color: '#444' }}>Loading…</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>Loading…</span>
         </div>
       </div>
     );
@@ -198,7 +198,7 @@ export default function MarketStructure({ coin, onData }: Props) {
       <div className="ms-card">
         <div className="ms-header">
           <span className="ms-title">Market Structure · 4H</span>
-          <span style={{ fontSize: '0.6875rem', color: '#f87171' }}>Failed</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>Failed</span>
         </div>
       </div>
     );
@@ -226,7 +226,7 @@ export default function MarketStructure({ coin, onData }: Props) {
           <span className="ms-ev-price">${fmtP(le.price)}</span>
           <span className="ms-ev-ago">{fmtAge(le.candlesAgo)}</span>
           {le.type === 'CHoCH' && (
-            <span style={{ fontSize: '0.625rem', color: evCol(le), fontWeight: 700, marginLeft: 4 }}>FLIP</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: evCol(le), fontWeight: 700, marginLeft: 4 }}>FLIP</span>
           )}
         </div>
       )}

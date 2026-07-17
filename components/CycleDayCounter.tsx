@@ -54,12 +54,12 @@ export default function CycleDayCounter() {
             width: 7, height: 7, borderRadius: '50%', background: dotColor,
             boxShadow: `0 0 6px ${dotColor}88`, flexShrink: 0,
           }} />
-          <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase' }}>
+          <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase' }}>
             Cycle Day
           </span>
         </div>
         <span suppressHydrationWarning style={{
-          fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+          fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
           color: dotColor, background: dotColor + '18', border: `0.5px solid ${dotColor}44`,
           padding: '2px 7px', borderRadius: 20,
         }}>{label}</span>
@@ -70,14 +70,14 @@ export default function CycleDayCounter() {
         <span suppressHydrationWarning style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--txt)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
           {day.toLocaleString()}
         </span>
-        <span style={{ fontSize: '0.8125rem', color: 'var(--txt3)' }}>days since 4th halving</span>
+        <span style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>days since 4th halving</span>
       </div>
 
       {/* Progress bar toward peak window */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-          <span style={{ fontSize: '0.625rem', color: 'var(--txt3)' }}>Halving · Apr 20, 2024</span>
-          <span style={{ fontSize: '0.625rem', color: 'var(--txt3)' }}>Est. peak zone: Day {PEAK_WINDOW.start}-{PEAK_WINDOW.end}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Halving · Apr 20, 2024</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Est. peak zone: Day {PEAK_WINDOW.start}-{PEAK_WINDOW.end}</span>
         </div>
         <div style={{ height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
           <div style={{
@@ -105,29 +105,29 @@ export default function CycleDayCounter() {
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', paddingTop: 6, borderTop: '0.5px solid var(--bdr)' }}>
         {prePeak && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Days to peak zone</span>
-            <span suppressHydrationWarning style={{ fontSize: '0.875rem', fontWeight: 700, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>{PEAK_WINDOW.start - day}</span>
+            <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Days to peak zone</span>
+            <span suppressHydrationWarning style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>{PEAK_WINDOW.start - day}</span>
           </div>
         )}
         {inPeakWindow && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Days in peak zone</span>
-            <span suppressHydrationWarning style={{ fontSize: '0.875rem', fontWeight: 700, color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>{day - PEAK_WINDOW.start}</span>
+            <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Days in peak zone</span>
+            <span suppressHydrationWarning style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>{day - PEAK_WINDOW.start}</span>
           </div>
         )}
         {pastPeak && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Days past peak zone</span>
-            <span suppressHydrationWarning style={{ fontSize: '0.875rem', fontWeight: 700, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>{day - PEAK_WINDOW.end}</span>
+            <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Days past peak zone</span>
+            <span suppressHydrationWarning style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>{day - PEAK_WINDOW.end}</span>
           </div>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Est. next halving</span>
-          <span suppressHydrationWarning style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums' }}>~{daysToNext}d (Mar 2028)</span>
+          <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Est. next halving</span>
+          <span suppressHydrationWarning style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums' }}>~{daysToNext}d (Mar 2028)</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Historical context</span>
-          <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>2020: peaked Day 546 · 2016: Day 526</span>
+          <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Historical context</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>2020: peaked Day 546 · 2016: Day 526</span>
         </div>
       </div>
     </div>

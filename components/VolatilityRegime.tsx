@@ -65,15 +65,15 @@ type LoadState = HVData | null | 'loading';
 function HVRow({ label, data }: { label: string; data: LoadState }) {
   if (data === 'loading') return (
     <div style={{ padding: '9px 0', borderTop: '0.5px solid var(--bdr)', display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', minWidth: 28 }}>{label}</span>
-      <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>Loading…</span>
+      <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt3)', minWidth: 28 }}>{label}</span>
+      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Loading…</span>
     </div>
   );
 
   if (!data) return (
     <div style={{ padding: '9px 0', borderTop: '0.5px solid var(--bdr)', display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', minWidth: 28 }}>{label}</span>
-      <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>Unavailable</span>
+      <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt3)', minWidth: 28 }}>{label}</span>
+      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Unavailable</span>
     </div>
   );
 
@@ -83,19 +83,19 @@ function HVRow({ label, data }: { label: string; data: LoadState }) {
     <div style={{ padding: '9px 0', borderTop: '0.5px solid var(--bdr)' }}>
       {/* Top row: coin + regime badge + HV% + percentile */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 7 }}>
-        <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt2)', minWidth: 28, flexShrink: 0 }}>{label}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt2)', minWidth: 28, flexShrink: 0 }}>{label}</span>
         <span style={{
-          fontSize: '0.625rem', fontWeight: 700, padding: '2px 7px', borderRadius: 20,
+          fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20,
           background: m.bg, color: m.col, border: `0.5px solid ${m.bdr}`,
           letterSpacing: '0.03em',
         }}>
           {m.label}
         </span>
         <span style={{ flex: 1 }} />
-        <span style={{ fontSize: '0.8125rem', fontWeight: 800, color: m.col, fontFamily: 'var(--font-mono), monospace' }}>
+        <span style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: m.col, fontFamily: 'var(--font-mono), monospace' }}>
           {data.hv30}%
         </span>
-        <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', fontFamily: 'var(--font-mono), monospace' }}>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontFamily: 'var(--font-mono), monospace' }}>
           p{data.percentile}
         </span>
       </div>
@@ -117,7 +117,7 @@ function HVRow({ label, data }: { label: string; data: LoadState }) {
       </div>
 
       {/* Hint */}
-      <div style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginTop: 5 }}>{m.hint}</div>
+      <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 5 }}>{m.hint}</div>
     </div>
   );
 }
@@ -154,7 +154,7 @@ export default function VolatilityRegime() {
     <div style={{ padding: '12px 14px' }}>
       {/* Header */}
       <div style={{
-        fontSize: '0.625rem', fontWeight: 700, textTransform: 'uppercase',
+        fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase',
         letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 2,
       }}>
         <Tip width={300} text="Historical Volatility (HV) measures how much price has moved over the past 30 days, annualized. The percentile shows where today's HV sits vs. the past ~120 days. Low vol historically precedes expansion - volatility mean-reverts. High vol means the market is already moving hard: size down or hedge.">
@@ -167,7 +167,7 @@ export default function VolatilityRegime() {
         {(['low', 'neutral', 'high'] as const).map(r => {
           const m = REGIME_META[r];
           return (
-            <span key={r} style={{ fontSize: '0.6875rem', color: m.col, display: 'flex', alignItems: 'center', gap: 3 }}>
+            <span key={r} style={{ fontSize: 'var(--fs-caption)', color: m.col, display: 'flex', alignItems: 'center', gap: 3 }}>
               <span style={{ width: 5, height: 5, borderRadius: '50%', background: m.col, flexShrink: 0 }} />
               {r === 'low' ? '< p20' : r === 'high' ? '> p80' : 'p20–p80'}
             </span>

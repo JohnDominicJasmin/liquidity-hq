@@ -155,7 +155,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
           width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
           background: '#fbbf24', boxShadow: '0 0 6px #fbbf2466',
         }} />
-        <span style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
           Real cluster data building from live Binance + Bybit feeds - takes a few minutes on first load.
         </span>
       </div>
@@ -186,17 +186,17 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
             width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
             background: '#34d399', boxShadow: '0 0 6px #34d39966',
           }} />
-          <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--txt)' }}>
+          <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)' }}>
             Real Liquidation Clusters
           </span>
           <span style={{
-            fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.06em',
+            fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.06em',
             padding: '2px 7px', borderRadius: 10,
             background: 'rgba(52,211,153,0.12)', color: '#34d399',
             border: '0.5px solid rgba(52,211,153,0.25)',
           }}>LIVE DATA</span>
         </div>
-        <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>24h window · Binance + Bybit</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>24h window · Binance + Bybit</span>
       </div>
 
       {/* Column headers */}
@@ -206,7 +206,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
         gap: 8,
       }}>
         {[['Price', 'left'], ['Volume (longs red · shorts green)', 'left'], ['Total', 'right'], ['', 'right']].map(([h, a]) => (
-          <span key={h} style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase', textAlign: a as 'left' | 'right' }}>{h}</span>
+          <span key={h} style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase', textAlign: a as 'left' | 'right' }}>{h}</span>
         ))}
       </div>
 
@@ -226,10 +226,10 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
               borderBottom: '0.5px solid rgba(255,255,255,0.04)',
             }}>
               <div>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>
+                <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>
                   {c.label}
                 </div>
-                <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>
+                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
                   {fmtP(distUsd)} {isAbove ? '↑ above' : '↓ below'}
                 </div>
               </div>
@@ -238,10 +238,10 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
                 <div style={{ width: `${longPct}%`,  height: '100%', background: 'rgba(248,113,113,0.65)', transition: 'width 0.4s' }} />
                 <div style={{ width: `${shortPct}%`, height: '100%', background: 'rgba(52,211,153,0.65)',  transition: 'width 0.4s' }} />
               </div>
-              <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: domCol, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+              <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: domCol, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                 {fmtUsd(c.total)}
               </div>
-              <div style={{ fontSize: '0.625rem', fontWeight: 800, color: domCol, textAlign: 'right' }}>
+              <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: domCol, textAlign: 'right' }}>
                 {c.longUsd > c.shortUsd ? 'L' : 'S'}
               </div>
             </div>
@@ -249,7 +249,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
         })}
       </div>
 
-      <div style={{ padding: '6px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)', fontSize: '0.625rem', color: '#444' }}>
+      <div style={{ padding: '6px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)', fontSize: 'var(--fs-caption)', color: '#444' }}>
         Red bars = long liquidations at that price · Green bars = short liquidations · L/S = dominant side
       </div>
     </div>
@@ -342,10 +342,10 @@ export default function LiqPage() {
     <div>
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>
+        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>
           Liquidation Map
         </h1>
-        <div style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
           Estimated liquidation zones · nearest dense cluster = price magnet
         </div>
       </div>
@@ -360,7 +360,7 @@ export default function LiqPage() {
               background: 'var(--bg2)',
               border: '0.5px solid rgba(60,72,200,0.45)',
               color: 'var(--txt)',
-              fontSize: '0.8125rem',
+              fontSize: 'var(--fs-label)',
               fontWeight: 700,
               padding: '7px 30px 7px 12px',
               borderRadius: 8,
@@ -383,7 +383,7 @@ export default function LiqPage() {
             pointerEvents: 'none', color: 'var(--txt3)', fontSize: '0.625rem',
           }}>▼</span>
         </div>
-        <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
           {COINS.length} coins
         </span>
       </div>
@@ -440,14 +440,14 @@ export default function LiqPage() {
                   <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>
                     {((bybitPos?.longRatio ?? cd.longRatio ?? 0.5) * 100).toFixed(0)}%
                   </span>
-                  <span style={{ fontSize: '0.625rem', color: 'var(--txt3)' }}>Bybit · {bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h'}</span>
+                  <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Bybit · {bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h'}</span>
                 </div>
                 {(retailPos?.longRatio ?? cd.bnLongRatio) != null && (
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                    <span style={{ fontSize: '1rem', fontWeight: 700, color: 'rgba(248,113,113,0.65)', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'rgba(248,113,113,0.65)', fontVariantNumeric: 'tabular-nums' }}>
                       {((retailPos?.longRatio ?? cd.bnLongRatio!) * 100).toFixed(0)}%
                     </span>
-                    <span style={{ fontSize: '0.625rem', color: 'var(--txt3)' }}>Binance · {retailPos ? RANGE_TO_PERIOD[range] : '5m'}</span>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Binance · {retailPos ? RANGE_TO_PERIOD[range] : '5m'}</span>
                   </div>
                 )}
               </div>
@@ -471,15 +471,15 @@ export default function LiqPage() {
               <div className="liq-stat-label">Short accounts</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', marginTop: 2 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                  <span style={{ fontSize: '0.625rem', color: 'var(--txt3)' }}>Bybit · {bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h'}</span>
+                  <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Bybit · {bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h'}</span>
                   <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>
                     {((bybitPos?.shortRatio ?? cd.shortRatio ?? 0.5) * 100).toFixed(0)}%
                   </span>
                 </div>
                 {(retailPos?.shortRatio ?? cd.bnShortRatio) != null && (
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                    <span style={{ fontSize: '0.625rem', color: 'var(--txt3)' }}>Binance · {retailPos ? RANGE_TO_PERIOD[range] : '5m'}</span>
-                    <span style={{ fontSize: '1rem', fontWeight: 700, color: 'rgba(52,211,153,0.65)', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Binance · {retailPos ? RANGE_TO_PERIOD[range] : '5m'}</span>
+                    <span style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'rgba(52,211,153,0.65)', fontVariantNumeric: 'tabular-nums' }}>
                       {((retailPos?.shortRatio ?? cd.bnShortRatio!) * 100).toFixed(0)}%
                     </span>
                   </div>
@@ -507,7 +507,7 @@ export default function LiqPage() {
               </div>
             );
           })() : (
-            <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', padding: '4px 2px 0' }}>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 2px 0' }}>
               {LIQ_DELTA_COINS.includes(coin)
                 ? 'Warming up - waiting for enough liquidation volume in the last 15m.'
                 : `Liquidation delta unavailable for ${coin.toUpperCase()} - tracked for ${LIQ_DELTA_COINS.map(c => c.toUpperCase()).join(', ')} only.`}
@@ -541,11 +541,11 @@ export default function LiqPage() {
                   display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 8px',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                    <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--txt)' }}>
+                    <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)' }}>
                       Whale Positioning
                     </span>
                     <span style={{
-                      fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.06em',
+                      fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.06em',
                       padding: '2px 7px', borderRadius: 10,
                       background: `${accentW}14`, color: accentW,
                       border: `0.5px solid ${accentW}30`,
@@ -554,7 +554,7 @@ export default function LiqPage() {
                       {whaleSide === 'long' ? 'Whale Long' : 'Whale Short'}
                     </span>
                   </div>
-                  <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
                     Binance top traders · position-weighted · {whalePos != null ? RANGE_TO_PERIOD[range] : '5m'}
                   </span>
                 </div>
@@ -570,10 +570,10 @@ export default function LiqPage() {
                       <span style={{ fontSize: '1.125rem', fontWeight: 800, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>
                         {(whaleLong * 100).toFixed(0)}%
                       </span>
-                      <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginLeft: 5 }}>whale long</span>
+                      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 5 }}>whale long</span>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginRight: 5 }}>whale short</span>
+                      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginRight: 5 }}>whale short</span>
                       <span style={{ fontSize: '1.125rem', fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>
                         {(whaleShort * 100).toFixed(0)}%
                       </span>
@@ -591,7 +591,7 @@ export default function LiqPage() {
                     display: 'flex', gap: 8, alignItems: 'flex-start',
                   }}>
                     <span style={{ color: '#f59e0b', flexShrink: 0, lineHeight: 0 }}><Warn size={13} /></span>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', lineHeight: 1.6 }}>
+                    <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.6 }}>
                       {longSqueezeRisk ? (
                         <>
                           <span style={{ color: '#f59e0b', fontWeight: 700 }}>Long squeeze setup.</span>

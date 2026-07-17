@@ -55,8 +55,8 @@ export default function LiquidationCalc() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Liquidation Price</div>
-        <div style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>Entry · margin · leverage · maintenance margin → liq price and distance</div>
+        <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Liquidation Price</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Entry · margin · leverage · maintenance margin → liq price and distance</div>
       </div>
 
       <div className="ps-card">

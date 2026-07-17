@@ -255,7 +255,7 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
       <div className="abs-card">
         <div className="abs-header">
           <span className="abs-title">Absorption Detector · 15M</span>
-          <span style={{ fontSize: '0.6875rem', color: '#444' }}>Loading…</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>Loading…</span>
         </div>
       </div>
     );
@@ -267,7 +267,7 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
       <div className="abs-card">
         <div className="abs-header">
           <span className="abs-title">Absorption Detector · 15M</span>
-          <span style={{ fontSize: '0.6875rem', color: '#f87171' }}>Failed</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>Failed</span>
         </div>
       </div>
     );
@@ -295,7 +295,7 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
             {d.type === 'accumulation' ? '▲ ACCUMULATION' : '▼ DISTRIBUTION'}
           </span>
         ) : (
-          <span style={{ fontSize: '0.6875rem', color: '#4b5563', fontWeight: 600 }}>No Signal</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: '#4b5563', fontWeight: 600 }}>No Signal</span>
         )}
       </div>
 

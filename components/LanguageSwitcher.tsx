@@ -29,7 +29,7 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
         onClick={() => setOpen(v => !v)}
         className="lp-lang-btn"
         style={{
-          fontSize: '0.75rem', fontWeight: 600, color: 'var(--txt2)',
+          fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt2)',
           background: 'var(--bg2)', border: '0.5px solid var(--bdr)',
           borderRadius: 8, padding: '6px 10px', cursor: 'pointer',
           display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -51,7 +51,7 @@ export default function LanguageSwitcher({ locale }: { locale: Locale }) {
               href={o.href}
               onClick={() => setOpen(false)}
               style={{
-                display: 'block', padding: '9px 14px', fontSize: '0.8125rem', textDecoration: 'none',
+                display: 'block', padding: '9px 14px', fontSize: 'var(--fs-label)', textDecoration: 'none',
                 color: o.code === locale ? 'var(--accent-2)' : 'var(--txt2)',
                 background: o.code === locale ? 'var(--accent-bg)' : 'transparent',
               }}

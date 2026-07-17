@@ -106,7 +106,7 @@ function SentimentBadge({ headline }: { headline: string }) {
       display: 'inline-flex', alignItems: 'center',
       padding: '2px 7px', borderRadius: 20,
       background: cfg.bg, border: `0.5px solid ${cfg.border}`,
-      fontSize: '0.625rem', color: cfg.color, fontWeight: 700,
+      fontSize: 'var(--fs-caption)', color: cfg.color, fontWeight: 700,
       letterSpacing: '.02em', lineHeight: 1.6, whiteSpace: 'nowrap',
     }}>
       {cfg.label}
@@ -124,7 +124,7 @@ function CoinBuzzBar({ mentions }: { mentions: { symbol: string; total: number; 
       padding: '8px 0 10px', overflowX: 'auto', scrollbarWidth: 'none',
     }}>
       <span style={{
-        fontSize: '0.625rem', color: 'var(--txt3)', fontWeight: 600,
+        fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600,
         letterSpacing: '.05em', textTransform: 'uppercase', flexShrink: 0,
       }}>
         Coin buzz
@@ -140,12 +140,12 @@ function CoinBuzzBar({ mentions }: { mentions: { symbol: string; total: number; 
             display: 'inline-flex', alignItems: 'center', gap: 3,
             padding: '3px 8px', borderRadius: 20,
             background: `${col}14`, border: `0.5px solid ${col}44`,
-            fontSize: '0.6875rem', color: col, fontWeight: 700,
+            fontSize: 'var(--fs-caption)', color: col, fontWeight: 700,
             letterSpacing: '.03em', whiteSpace: 'nowrap', flexShrink: 0,
           }}>
             {m.symbol}
             <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, fontSize: '0.625rem' }}>·</span>
-            <span style={{ fontWeight: 500, fontSize: '0.625rem' }}>{m.total}{arrow}</span>
+            <span style={{ fontWeight: 500, fontSize: 'var(--fs-caption)' }}>{m.total}{arrow}</span>
           </span>
         );
       })}
@@ -189,7 +189,7 @@ function ImpactChip({ note, color }: { note: string; color: string }) {
       display: 'inline-flex', alignItems: 'center', gap: 4,
       padding: '2px 7px', borderRadius: 20,
       background: `${color}18`, border: `0.5px solid ${color}44`,
-      fontSize: '0.625rem', color, fontWeight: 600, letterSpacing: '.02em',
+      fontSize: 'var(--fs-caption)', color, fontWeight: 600, letterSpacing: '.02em',
       lineHeight: 1.6, whiteSpace: 'nowrap',
       maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis',
     }}>
@@ -203,7 +203,7 @@ function SourcePill({ source }: { source: string }) {
   const col = SOURCE_COLORS[source] ?? 'var(--txt3)';
   return (
     <span style={{
-      fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.04em',
+      fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.04em',
       color: col, textTransform: 'uppercase', opacity: 0.9,
     }}>{source}</span>
   );
@@ -248,12 +248,12 @@ function HeroCard({ a }: { a: AlertItem }) {
         </div>
         <div className="ncard-grid-headline">{decodeEntities(a.headline)}</div>
         <div className="ncard-grid-actions" onClick={e => e.stopPropagation()}>
-          <button className="ncard-ask-btn" style={{ margin: 0, fontSize: '0.75rem' }} onClick={() => askGrok(a.headline)}>
+          <button className="ncard-ask-btn" style={{ margin: 0, fontSize: 'var(--fs-caption)' }} onClick={() => askGrok(a.headline)}>
             Ask LiquidityAI →
           </button>
           {a.link && (
             <a href={a.link} target="_blank" rel="noopener noreferrer" className="ncard-read-btn"
-              style={{ fontSize: '0.75rem' }} onClick={e => e.stopPropagation()}>
+              style={{ fontSize: 'var(--fs-caption)' }} onClick={e => e.stopPropagation()}>
               Read more ↗
             </a>
           )}
@@ -303,12 +303,12 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
         </div>
         <div className="ncard-grid-headline">{decodeEntities(a.headline)}</div>
         <div className="ncard-grid-actions" onClick={e => e.stopPropagation()}>
-          <button className="ncard-ask-btn" style={{ margin: 0, fontSize: '0.6875rem' }} onClick={() => askGrok(a.headline)}>
+          <button className="ncard-ask-btn" style={{ margin: 0, fontSize: 'var(--fs-caption)' }} onClick={() => askGrok(a.headline)}>
             Ask LiquidityAI →
           </button>
           {a.link && (
             <a href={a.link} target="_blank" rel="noopener noreferrer" className="ncard-read-btn"
-              style={{ fontSize: '0.6875rem' }} onClick={e => e.stopPropagation()}>
+              style={{ fontSize: 'var(--fs-caption)' }} onClick={e => e.stopPropagation()}>
               Read more ↗
             </a>
           )}
@@ -395,10 +395,10 @@ export default function NewsPage() {
     <div>
       {/* ── Header ── */}
       <div style={{ padding: '1rem 0 0.5rem' }}>
-        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 2, letterSpacing: '-0.3px' }}>
+        <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2, letterSpacing: '-0.3px' }}>
           News
         </div>
-        <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', marginBottom: 12 }}>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 12 }}>
           Reuters · AP · BBC · CoinDesk · CoinTelegraph · Decrypt · The Block · Finnhub
           <span style={{ marginLeft: 8, fontWeight: 700, color: alerts.length > 0 ? 'var(--green)' : 'var(--txt3)' }}>
             · {alerts.length} alert{alerts.length !== 1 ? 's' : ''}
@@ -436,8 +436,8 @@ export default function NewsPage() {
           {breaking.length === 0 ? (
             <div className="nfeed-empty">
               
-              <div style={{ fontSize: '0.875rem', color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>No breaking news</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>War · blockades · sanctions · crashes will appear here</div>
+              <div style={{ fontSize: 'var(--fs-body)', color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>No breaking news</div>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>War · blockades · sanctions · crashes will appear here</div>
             </div>
           ) : (
             breaking.map((a, i) => <NewsCard key={a.id} a={a} hero={i === 0} />)
@@ -452,7 +452,7 @@ export default function NewsPage() {
             <div style={{
               padding: '8px 12px', borderRadius: 10, marginBottom: 8,
               background: 'var(--bg2)', border: '0.5px solid var(--bdr)',
-              fontSize: '0.6875rem', color: 'var(--txt3)', lineHeight: 1.5,
+              fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.5,
             }}>
               No breaking catalysts right now - showing latest crypto news
             </div>
@@ -465,17 +465,17 @@ export default function NewsPage() {
                   <span key={i} style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: 'var(--txt3)', animation: `pulse 1.4s ${i * 0.2}s infinite` }} />
                 ))}
               </div>
-              <div style={{ fontSize: '0.8125rem', color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>Loading feeds…</div>
-              <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>Reuters · AP · BBC · CoinDesk · CoinTelegraph · Decrypt · The Block</div>
+              <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>Loading feeds…</div>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Reuters · AP · BBC · CoinDesk · CoinTelegraph · Decrypt · The Block</div>
             </div>
           )}
 
           {foryouEmpty && alertsLoaded && (
             <div className="nfeed-empty">
               
-              <div style={{ fontSize: '0.875rem', color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>Scanning for catalysts…</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>High-impact news + whale trades will appear here</div>
-              <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginTop: 12, opacity: 0.7 }}>
+              <div style={{ fontSize: 'var(--fs-body)', color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>Scanning for catalysts…</div>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>High-impact news + whale trades will appear here</div>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 12, opacity: 0.7 }}>
                 Reuters · AP · BBC · CoinDesk · CoinTelegraph · Decrypt · The Block · Finnhub
               </div>
             </div>
@@ -502,7 +502,7 @@ export default function NewsPage() {
                   </div>
                   <div className="ncard-grid-headline" style={{ color: col }}>
                     {fmtUSD(w.usdValue)} {isBuy ? 'bought' : 'sold'} at ${w.price.toLocaleString()}
-                    <span style={{ color: 'var(--txt3)', fontSize: '0.6875rem', fontWeight: 400, marginLeft: 6 }}>
+                    <span style={{ color: 'var(--txt3)', fontSize: 'var(--fs-caption)', fontWeight: 400, marginLeft: 6 }}>
                       ({w.qty.toFixed(3)} {w.symbol})
                     </span>
                   </div>
@@ -556,7 +556,7 @@ export default function NewsPage() {
           {isEmpty && (
             <div className="nfeed-empty">
               
-              <div style={{ fontSize: '0.8125rem', color: 'var(--txt3)' }}>
+              <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>
                 {tab === 'geo'     ? 'No war/conflict alerts yet'
                 : tab === 'crypto' ? 'No crypto news yet'
                 : 'Fetching news - feeds loading…'}
@@ -574,7 +574,7 @@ export default function NewsPage() {
         <div style={{ paddingBottom: 24 }}>
           {econEvents.length === 0 && (
             <div className="nfeed-empty">
-              <div style={{ fontSize: '0.8125rem', color: 'var(--txt3)' }}>No upcoming high-impact US events found</div>
+              <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>No upcoming high-impact US events found</div>
             </div>
           )}
           {(() => {
@@ -594,14 +594,14 @@ export default function NewsPage() {
                   display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0 8px',
                   borderBottom: '1px solid var(--border)',
                 }}>
-                  <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: g.isToday ? 'var(--amber)' : 'var(--txt)' }}>
+                  <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: g.isToday ? 'var(--amber)' : 'var(--txt)' }}>
                     {g.isToday ? `Today - ${g.dateLabel}` : g.dateLabel}
                   </span>
-                  {g.isToday && <span style={{ fontSize: '0.625rem', padding: '1px 6px', borderRadius: 8, background: 'rgba(251,191,36,0.12)', color: 'var(--amber)', fontWeight: 600 }}>LIVE</span>}
+                  {g.isToday && <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 6px', borderRadius: 8, background: 'rgba(251,191,36,0.12)', color: 'var(--amber)', fontWeight: 600 }}>LIVE</span>}
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                 {/* Column headers */}
-                <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr 72px 72px 72px 52px', gap: 4, padding: '4px 8px', fontSize: '0.625rem', color: 'var(--txt3)', fontWeight: 600, letterSpacing: '0.04em', minWidth: 370 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr 72px 72px 72px 52px', gap: 4, padding: '4px 8px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontWeight: 600, letterSpacing: '0.04em', minWidth: 370 }}>
                   <span>TIME (PHT)</span><span>EVENT</span><span style={{ textAlign: 'right' }}>PREV</span><span style={{ textAlign: 'right' }}>EST</span><span style={{ textAlign: 'right' }}>ACTUAL</span><span style={{ textAlign: 'center' }}>IMPACT</span>
                 </div>
                 {/* Rows */}
@@ -621,18 +621,18 @@ export default function NewsPage() {
                       opacity: past && !urgent ? 0.55 : 1,
                       alignItems: 'start',
                     }}>
-                      <span style={{ fontSize: '0.75rem', color: urgent ? '#f87171' : soon ? '#fbbf24' : 'var(--txt2)', fontWeight: 600, paddingTop: 1 }}>
+                      <span style={{ fontSize: 'var(--fs-caption)', color: urgent ? '#f87171' : soon ? '#fbbf24' : 'var(--txt2)', fontWeight: 600, paddingTop: 1 }}>
                         {urgent ? 'NOW' : timePHT}
                       </span>
                       <div>
-                        <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--txt)', marginBottom: note ? 4 : 0 }}>{decodeEntities(e.name)}</div>
-                        {note && <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', lineHeight: 1.4 }}>{note.split('.')[0]}.</div>}
+                        <div style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--txt)', marginBottom: note ? 4 : 0 }}>{decodeEntities(e.name)}</div>
+                        {note && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.4 }}>{note.split('.')[0]}.</div>}
                       </div>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.previous ?? '-'}</span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.estimate ?? '-'}</span>
-                      <span style={{ fontSize: '0.75rem', fontWeight: e.actual ? 700 : 400, color: e.actual ? 'var(--green)' : 'var(--txt3)', textAlign: 'right', paddingTop: 1 }}>{e.actual ?? '-'}</span>
+                      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.previous ?? '-'}</span>
+                      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.estimate ?? '-'}</span>
+                      <span style={{ fontSize: 'var(--fs-caption)', fontWeight: e.actual ? 700 : 400, color: e.actual ? 'var(--green)' : 'var(--txt3)', textAlign: 'right', paddingTop: 1 }}>{e.actual ?? '-'}</span>
                       <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 1 }}>
-                        <span style={{ fontSize: '0.625rem', padding: '2px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.15)', color: '#f87171', fontWeight: 700, letterSpacing: '0.03em' }}>HIGH</span>
+                        <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.15)', color: '#f87171', fontWeight: 700, letterSpacing: '0.03em' }}>HIGH</span>
                       </div>
                     </div>
                   );
@@ -641,7 +641,7 @@ export default function NewsPage() {
               </div>
             ));
           })()}
-          <div style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginTop: 4, textAlign: 'center' }}>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 4, textAlign: 'center' }}>
             High-impact US events · Finnhub when available · Fed calendar + computed schedule as fallback · Times in PHT
           </div>
         </div>

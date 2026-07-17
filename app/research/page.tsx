@@ -29,7 +29,7 @@ export default function ResearchPage() {
       <div style={{ marginBottom: 10 }}><CycleChart /></div>
 
       <div style={{ marginTop: 24 }}>
-        <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 10, padding: '0 2px' }}>
+        <div style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)', marginBottom: 10, padding: '0 2px' }}>
           Hypothesis Tracker
         </div>
         <HypothesisTracker />

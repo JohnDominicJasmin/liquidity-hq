@@ -49,8 +49,8 @@ export default function RiskRewardCalc() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Risk / Reward</div>
-        <div style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>Entry · SL · TP · win rate → R:R, expected value, breakeven</div>
+        <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Risk / Reward</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Entry · SL · TP · win rate → R:R, expected value, breakeven</div>
       </div>
 
       <div className="ps-card">
@@ -134,7 +134,7 @@ export default function RiskRewardCalc() {
             <div className="ps-warn"><Warn /> Negative expected value at {winRate}% win rate - skip this trade</div>
           )}
           {result.rr >= 2 && result.ev > 0 && (
-            <div style={{ background: 'var(--green-bg)', border: '0.5px solid var(--green-bdr)', borderRadius: 8, padding: '8px 12px', fontSize: '0.6875rem', color: 'var(--green)', marginBottom: 8 }}>
+            <div style={{ background: 'var(--green-bg)', border: '0.5px solid var(--green-bdr)', borderRadius: 8, padding: '8px 12px', fontSize: 'var(--fs-caption)', color: 'var(--green)', marginBottom: 8 }}>
               ✓ Positive expected value with {result.rr.toFixed(2)}R - good setup
             </div>
           )}

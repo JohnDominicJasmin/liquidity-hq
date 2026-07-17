@@ -1085,8 +1085,8 @@ function ArenaContent() {
       {/* ── PAGE HEADER ── */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>LiquidityAI Arena</div>
-          <span style={{ fontSize: '0.625rem', fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>LiquidityAI · LIVE X</span>
+          <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>LiquidityAI Arena</div>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#252040', color: '#b8aeff', border: '0.5px solid #4a3f80', letterSpacing: '.05em' }}>LiquidityAI · LIVE X</span>
           {/* JPY carry-risk and DXY/JPY "regime" badges were removed from here - both
               restated Dashboard's MacroStrip (which already shows DXY/SPX/Gold/10Y/JPY
               coherently together). Distribution score badge removed too - it duplicated
@@ -1108,7 +1108,7 @@ function ArenaContent() {
             return (
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5,
-                fontSize: '0.625rem', fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+                fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 20,
                 color: col, background: col + '14', border: `0.5px solid ${col}44`,
                 letterSpacing: '.04em',
               }}>
@@ -1120,7 +1120,7 @@ function ArenaContent() {
             );
           })()}
         </div>
-        <div style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>Chart · 35-signal engine · confluence · scanner - one page</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Chart · 35-signal engine · confluence · scanner - one page</div>
       </div>
 
       <PageHint
@@ -1135,7 +1135,7 @@ function ArenaContent() {
           <button
             key={c}
             className={`gsc-tf-btn${coinCat === c ? ' on' : ''}`}
-            style={{ padding: '3px 9px', fontSize: '0.625rem', textTransform: 'capitalize' }}
+            style={{ padding: '3px 9px', fontSize: 'var(--fs-caption)', textTransform: 'capitalize' }}
             onClick={() => setCoinCat(c)}
           >
             {c === 'all' ? 'All' : c === 'majors' ? 'Majors' : c === 'alts' ? 'Alts' : c === 'defi' ? 'DeFi/AI' : 'Meme'}
@@ -1170,7 +1170,7 @@ function ArenaContent() {
           {/* Selected coin chip - left side */}
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 5,
-            fontSize: '0.6875rem', fontWeight: 700, color: '#b8aeff',
+            fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#b8aeff',
             background: 'rgba(184,174,255,0.1)', padding: '2px 9px 2px 5px',
             borderRadius: 20, border: '0.5px solid rgba(184,174,255,0.2)',
             flexShrink: 0,
@@ -1182,24 +1182,24 @@ function ArenaContent() {
           <span style={{ flex: 1 }} />
           {/* Active signal chips */}
           {sqzCount > 0 && (
-            <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid rgba(52,211,153,0.2)' }}>
+            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid rgba(52,211,153,0.2)' }}>
               ↑ {sqzCount}
             </span>
           )}
           {flushCount > 0 && (
-            <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#f87171', background: 'rgba(248,113,113,0.1)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid rgba(248,113,113,0.2)' }}>
+            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#f87171', background: 'rgba(248,113,113,0.1)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid rgba(248,113,113,0.2)' }}>
               ↓ {flushCount}
             </span>
           )}
           {sqzCount === 0 && flushCount === 0 && (
-            <span style={{ fontSize: '0.625rem', color: '#333' }}>All neutral</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: '#333' }}>All neutral</span>
           )}
           {/* Coin Health grade badge */}
           {(() => {
             const h = computeCoinHealth(store.coins[selectedCoin]);
             return (
               <span title={h.label} style={{
-                fontSize: '0.625rem', fontWeight: 800, lineHeight: 1,
+                fontSize: 'var(--fs-caption)', fontWeight: 800, lineHeight: 1,
                 padding: '2px 6px', borderRadius: 6, flexShrink: 0,
                 color: h.color, background: h.color + '22',
                 border: `0.5px solid ${h.color}55`, letterSpacing: '.04em',
@@ -1220,7 +1220,7 @@ function ArenaContent() {
               background: notifEnabled ? '#152b1e' : 'transparent',
               borderColor: notifEnabled ? '#266038' : 'rgba(255,255,255,0.08)',
               color: notifEnabled ? '#7de0a4' : '#444',
-              fontSize: '0.75rem', cursor: 'pointer', flexShrink: 0, lineHeight: 1,
+              fontSize: 'var(--fs-caption)', cursor: 'pointer', flexShrink: 0, lineHeight: 1,
             }}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
@@ -1229,7 +1229,7 @@ function ArenaContent() {
               {!notifEnabled && <line x1="2" y1="2" x2="22" y2="22" />}
             </svg>
           </div>
-          <span style={{ fontSize: '0.625rem', color: '#333', flexShrink: 0 }}>{scannerOpen ? '▲' : '▼'}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: '#333', flexShrink: 0 }}>{scannerOpen ? '▲' : '▼'}</span>
         </button>
 
         {/* ── Flyout panel (appears on hover / click) ── */}
@@ -1257,7 +1257,7 @@ function ArenaContent() {
                 placeholder="Search coins…"
                 value={scannerSearch}
                 onChange={e => setScannerSearch(e.target.value)}
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '7px 0', fontSize: '0.6875rem', color: 'var(--txt)' }}
+                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '7px 0', fontSize: 'var(--fs-caption)', color: 'var(--txt)' }}
               />
               {scannerSearch && (
                 <button onClick={() => setScannerSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#444', fontSize: '0.8125rem', lineHeight: 1 }} aria-label="Clear search">×</button>
@@ -1272,14 +1272,14 @@ function ArenaContent() {
               background: 'rgba(255,255,255,0.02)',
             }}>
               {[['Name', 'left'], ['Price', 'right'], ['24h', 'right'], ['vs BTC', 'right'], ['Status', 'right'], ['Score', 'right']].map(([h, align]) => (
-                <span key={h} className={h === 'vs BTC' ? 'scanner-flyout-vsbtc' : undefined} style={{ fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: '#333', textAlign: align as 'left' | 'right' }}>{h}</span>
+                <span key={h} className={h === 'vs BTC' ? 'scanner-flyout-vsbtc' : undefined} style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: '#333', textAlign: align as 'left' | 'right' }}>{h}</span>
               ))}
             </div>
 
             {/* Coin rows */}
             <div style={{ maxHeight: 380, overflowY: 'auto' }}>
             {visibleScannerRows.length === 0 ? (
-              <div style={{ padding: '12px', fontSize: '0.6875rem', color: '#444', textAlign: 'center' }}>No coins match &ldquo;{scannerSearch}&rdquo;</div>
+              <div style={{ padding: '12px', fontSize: 'var(--fs-caption)', color: '#444', textAlign: 'center' }}>No coins match &ldquo;{scannerSearch}&rdquo;</div>
             ) : visibleScannerRows.map(({ c, sq: rowSq, price, change, vsBtc, badges }) => {
               const isSelected  = c === selectedCoin;
               const isActive    = rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
@@ -1314,7 +1314,7 @@ function ArenaContent() {
                       bg={isActive ? rowSq.color + '1a' : undefined}
                     />
                     <div>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: isSelected ? '#b8aeff' : isActive ? 'var(--txt)' : '#666', lineHeight: 1.2 }}>
+                      <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isSelected ? '#b8aeff' : isActive ? 'var(--txt)' : '#666', lineHeight: 1.2 }}>
                         {c.toUpperCase()}
                       </div>
                       {badges.length > 0 ? (
@@ -1325,7 +1325,7 @@ function ArenaContent() {
                             const col = isGood ? '#34d399' : isBad ? '#f87171' : '#fbbf24';
                             return (
                               <span key={b} style={{
-                                fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.04em',
+                                fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
                                 padding: '1px 4px', borderRadius: 3,
                                 color: col, background: col + '18', border: `0.5px solid ${col}33`,
                               }}>{b}</span>
@@ -1333,27 +1333,27 @@ function ArenaContent() {
                           })}
                         </div>
                       ) : (
-                        <div style={{ fontSize: '0.6875rem', color: '#333', lineHeight: 1 }}>USDT Perp</div>
+                        <div style={{ fontSize: 'var(--fs-caption)', color: '#333', lineHeight: 1 }}>USDT Perp</div>
                       )}
                     </div>
                   </div>
                   {/* Price */}
-                  <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: isActive ? 'var(--txt)' : '#555', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
+                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: isActive ? 'var(--txt)' : '#555', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
                     {price ? '$' + fmtPrice(price) : '-'}
                   </span>
                   {/* 24h % */}
-                  <span style={{ fontSize: '0.625rem', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: change == null ? '#333' : change >= 0 ? '#34d399' : '#f87171' }}>
+                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: change == null ? '#333' : change >= 0 ? '#34d399' : '#f87171' }}>
                     {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : '-'}
                   </span>
                   {/* vs BTC */}
-                  <span className="scanner-flyout-vsbtc" style={{ fontSize: '0.625rem', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: vsBtcColor }}>
+                  <span className="scanner-flyout-vsbtc" style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: vsBtcColor }}>
                     {vsBtc != null ? (vsBtc >= 0 ? '+' : '') + vsBtc.toFixed(1) + '%' : c === 'btc' ? '-' : '-'}
                   </span>
                   {/* Status */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
                     {isActive ? (
                       <span style={{
-                        fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.04em', padding: '1px 6px',
+                        fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em', padding: '1px 6px',
                         borderRadius: 4, background: rowSq.color + '18',
                         border: `0.5px solid ${rowSq.color}44`,
                         color: rowSq.color,
@@ -1361,11 +1361,11 @@ function ArenaContent() {
                         {icon} {statusLabel}
                       </span>
                     ) : (
-                      <span style={{ fontSize: '0.625rem', color: '#2e2e2e' }}>· Neutral</span>
+                      <span style={{ fontSize: 'var(--fs-caption)', color: '#2e2e2e' }}>· Neutral</span>
                     )}
                   </div>
                   {/* Score */}
-                  <span style={{ fontSize: '0.625rem', fontWeight: 700, color: isActive ? rowSq.color : '#2e2e2e', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
+                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isActive ? rowSq.color : '#2e2e2e', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
                     {rowSq.score}
                   </span>
                 </button>
@@ -1375,7 +1375,7 @@ function ArenaContent() {
 
             {/* Footer */}
             <div style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.01)', borderTop: '0.5px solid rgba(255,255,255,0.05)' }}>
-              <span style={{ fontSize: '0.6875rem', color: '#2a2a2a' }}>Funding rate + L/S ratio · ↑ Squeeze = shorts overcrowded · ↓ Flush = longs overcrowded</span>
+              <span style={{ fontSize: 'var(--fs-caption)', color: '#2a2a2a' }}>Funding rate + L/S ratio · ↑ Squeeze = shorts overcrowded · ↓ Flush = longs overcrowded</span>
             </div>
           </div>
           </div>
@@ -1420,7 +1420,7 @@ function ArenaContent() {
             borderRadius: 999,
             padding: '6px 13px 6px 6px',
             cursor: 'pointer',
-            fontSize: '0.75rem',
+            fontSize: 'var(--fs-caption)',
             color: 'var(--txt)',
             transition: 'border-color 0.15s, background 0.15s',
           }}
@@ -1459,7 +1459,7 @@ function ArenaContent() {
             <span style={{ opacity: 0.8, letterSpacing: '0.01em' }}>Anti-Chop Filter</span>
           </Tip>
         </button>
-        <span style={{ fontSize: '0.6875rem', opacity: 0.35 }}>
+        <span style={{ fontSize: 'var(--fs-caption)', opacity: 0.35 }}>
           {antiChopEnabled
             ? 'Rejects tangled-ribbon and marginal EMA50 crosses'
             : 'Raw EMA9/20 cross signals - no chop filtering'}
@@ -1481,11 +1481,11 @@ function ArenaContent() {
           }}>
             <span style={{ color: col, lineHeight: 0, flexShrink: 0, marginTop: 1 }}><Warn size={14} /></span>
             <div>
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: col, marginBottom: 2 }}>
+              <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: col, marginBottom: 2 }}>
                 {res.score >= 70 ? 'Potential pullback - pump is getting weaker' : 'Early weakness - watch for a pullback'}
                 <span style={{ fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>({res.score}/100)</span>
               </div>
-              <div style={{ fontSize: '0.6875rem', color: 'var(--txt2)', lineHeight: 1.4 }}>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.4 }}>
                 {res.reasons.join(' · ')}
               </div>
             </div>
@@ -1538,7 +1538,7 @@ function ArenaContent() {
             !user ? (
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1.2 }}>
                 <span>Quick Research</span>
-                <span style={{ fontSize: '0.625rem', fontWeight: 600, letterSpacing: '.04em', color: '#a37a2a' }}>sign in →</span>
+                <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, letterSpacing: '.04em', color: '#a37a2a' }}>sign in →</span>
               </span>
             ) : 'Quick Research'
           )}
@@ -1561,7 +1561,7 @@ function ArenaContent() {
           {readLoading && readMode === 'deep' ? readStep || 'Working…' : (
             <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1.2 }}>
               <span>Deep Research</span>
-              {!user && <span style={{ fontSize: '0.625rem', fontWeight: 600, letterSpacing: '.04em', color: '#a37a2a' }}>sign in →</span>}
+              {!user && <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, letterSpacing: '.04em', color: '#a37a2a' }}>sign in →</span>}
             </span>
           )}
         </button>
@@ -1601,9 +1601,9 @@ function ArenaContent() {
           display: 'flex', flexDirection: 'column', gap: 12,
         }}>
           {alertSuccess ? (
-            <div style={{ fontSize: '0.8125rem', fontWeight: 600, textAlign: 'center', padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+            <div style={{ fontSize: 'var(--fs-label)', fontWeight: 600, textAlign: 'center', padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
               <span style={{ color: 'var(--accent-2)' }}>✓ Alert set for {selectedCoin.toUpperCase()}</span>
-              <a href="/alerts" style={{ fontSize: '0.75rem', color: 'var(--txt3)', textDecoration: 'underline' }}>View all alerts →</a>
+              <a href="/alerts" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline' }}>View all alerts →</a>
             </div>
           ) : (
             <>
@@ -1614,7 +1614,7 @@ function ArenaContent() {
                     key={d}
                     onClick={() => setAlertDir(d)}
                     style={{
-                      flex: 1, padding: '7px 12px', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '.02em',
+                      flex: 1, padding: '7px 12px', fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.02em',
                       border: 'none', borderRadius: 8, cursor: 'pointer', transition: 'background .15s, color .15s',
                       background: alertDir === d ? (d === 'above' ? 'var(--green-bg)' : 'var(--red-bg)') : 'transparent',
                       color: alertDir === d ? (d === 'above' ? '#4ade80' : '#f87171') : 'var(--txt3)',
@@ -1627,7 +1627,7 @@ function ArenaContent() {
 
               {/* Target price - input box with coin suffix chip */}
               <div>
-                <div style={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>
+                <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>
                   Target price
                 </div>
                 <div style={{
@@ -1635,16 +1635,16 @@ function ArenaContent() {
                   background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 10,
                   padding: '4px 6px 4px 12px',
                 }}>
-                  <span style={{ fontSize: '0.8125rem', color: 'var(--txt3)', flexShrink: 0 }}>$</span>
+                  <span style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', flexShrink: 0 }}>$</span>
                   <input
                     type="number"
                     value={alertPrice}
                     onChange={e => setAlertPrice(e.target.value)}
                     placeholder="0.00"
-                    style={{ flex: 1, minWidth: 0, padding: '7px 0', fontSize: '0.875rem', fontFamily: 'var(--font-mono), monospace', border: 'none', background: 'transparent', color: 'var(--txt)', outline: 'none' }}
+                    style={{ flex: 1, minWidth: 0, padding: '7px 0', fontSize: 'var(--fs-body)', fontFamily: 'var(--font-mono), monospace', border: 'none', background: 'transparent', color: 'var(--txt)', outline: 'none' }}
                   />
                   <span style={{
-                    flexShrink: 0, fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.03em',
+                    flexShrink: 0, fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.03em',
                     color: 'var(--accent-2)', background: 'var(--accent-bg)', border: '0.5px solid var(--accent-bdr)',
                     borderRadius: 7, padding: '4px 9px',
                   }}>
@@ -1655,7 +1655,7 @@ function ArenaContent() {
 
               {/* Optional label */}
               <div>
-                <div style={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>
+                <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>
                   Label <span style={{ textTransform: 'none', fontWeight: 400, color: 'var(--txt3)' }}>(optional)</span>
                 </div>
                 <input
@@ -1663,7 +1663,7 @@ function ArenaContent() {
                   value={alertLabel}
                   onChange={e => setAlertLabel(e.target.value)}
                   placeholder="e.g. breakout level"
-                  style={{ width: '100%', padding: '9px 12px', fontSize: '0.8125rem', borderRadius: 10, border: '0.5px solid var(--bdr)', background: 'var(--bg1)', color: 'var(--txt)', outline: 'none' }}
+                  style={{ width: '100%', padding: '9px 12px', fontSize: 'var(--fs-label)', borderRadius: 10, border: '0.5px solid var(--bdr)', background: 'var(--bg1)', color: 'var(--txt)', outline: 'none' }}
                 />
               </div>
 
@@ -1672,7 +1672,7 @@ function ArenaContent() {
                 onClick={saveArenaAlert}
                 disabled={alertSaving || !alertPrice}
                 style={{
-                  width: '100%', fontSize: '0.875rem', fontWeight: 700, color: '#fff',
+                  width: '100%', fontSize: 'var(--fs-body)', fontWeight: 700, color: '#fff',
                   background: 'var(--accent)', border: 'none', borderRadius: 10, padding: '12px 18px',
                   cursor: alertSaving || !alertPrice ? 'default' : 'pointer',
                   opacity: alertSaving || !alertPrice ? 0.5 : 1, transition: 'opacity .15s',
@@ -1682,7 +1682,7 @@ function ArenaContent() {
               </button>
               <button
                 onClick={() => setAlertFormOpen(false)}
-                style={{ fontSize: '0.75rem', color: 'var(--txt3)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0' }}
+                style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0' }}
               >
                 Cancel
               </button>
@@ -1733,7 +1733,7 @@ function ArenaContent() {
                 <div className="arena-sig-time">
                   Analysed {freshness} · {result.tf}
                   <span style={{
-                    marginLeft: 6, fontSize: '0.625rem', fontWeight: 700, letterSpacing: '.04em',
+                    marginLeft: 6, fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
                     padding: '1px 6px', borderRadius: 4,
                     background: cacheEntry?.mode === 'quick' ? 'rgba(52,211,153,0.1)' : 'rgba(26,122,255,0.1)',
                     color: cacheEntry?.mode === 'quick' ? '#34d399' : '#b8aeff',
@@ -1749,7 +1749,7 @@ function ArenaContent() {
                 </span>
                 {result.signal === 'FLAT' && result.bias && result.bias !== 'NEUTRAL' && (
                   <span style={{
-                    fontSize: '0.625rem', fontWeight: 700, letterSpacing: '.04em',
+                    fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
                     color: result.bias === 'BEARISH' ? '#f87171' : '#34d399',
                     padding: '2px 8px', borderRadius: 6,
                     background: result.bias === 'BEARISH' ? 'rgba(248,113,113,0.1)' : 'rgba(52,211,153,0.1)',
@@ -1773,9 +1773,9 @@ function ArenaContent() {
             <div className="arena-sig-stats">
               <div className="arena-stat"><div className="arena-stat-label">Confidence</div><div className="arena-stat-val">{result.confidence}%</div></div>
               {result.entryLow && result.entryHigh && (
-                <div className="arena-stat"><div className="arena-stat-label">Entry Zone</div><div className="arena-stat-val" style={{ fontSize: '0.75rem' }}>${fmtPrice(result.entryLow)} – ${fmtPrice(result.entryHigh)}</div></div>
+                <div className="arena-stat"><div className="arena-stat-label">Entry Zone</div><div className="arena-stat-val" style={{ fontSize: 'var(--fs-data)' }}>${fmtPrice(result.entryLow)} – ${fmtPrice(result.entryHigh)}</div></div>
               )}
-              <div className="arena-stat"><div className="arena-stat-label">Session</div><div className="arena-stat-val" style={{ fontSize: '0.75rem' }}>{result.session}</div></div>
+              <div className="arena-stat"><div className="arena-stat-label">Session</div><div className="arena-stat-val" style={{ fontSize: 'var(--fs-data)' }}>{result.session}</div></div>
             </div>
             <div className="arena-conf-bar">
               <div className="arena-conf-fill" style={{ width: result.confidence + '%', background: sigCol }} />
@@ -1790,7 +1790,7 @@ function ArenaContent() {
                   </span>
                   {result.signal === 'FLAT' && result.bias && result.bias !== 'NEUTRAL' && (
                     <span style={{
-                      fontSize: '0.6875rem', fontWeight: 800, letterSpacing: '.06em',
+                      fontSize: 'var(--fs-micro)', fontWeight: 800, letterSpacing: '.06em',
                       textTransform: 'uppercase',
                       color: result.bias === 'BEARISH' ? '#f87171' : '#34d399',
                     }}>
@@ -1840,7 +1840,7 @@ function ArenaContent() {
             {result.levels.length > 0 && (
               <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                 {result.levels.map((lv, i) => (
-                  <span key={i} style={{ fontSize: '0.625rem', padding: '2px 7px', borderRadius: 5, fontWeight: 600,
+                  <span key={i} style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 5, fontWeight: 600,
                     background: lv.type === 'support' ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)',
                     color: lv.type === 'support' ? '#34d399' : '#f87171',
                     border: `0.5px solid ${lv.type === 'support' ? 'rgba(52,211,153,0.25)' : 'rgba(248,113,113,0.25)'}`,
@@ -1862,7 +1862,7 @@ function ArenaContent() {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 12px 6px', borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
                   <span style={{
-                    fontSize: '0.6875rem', fontWeight: 800, letterSpacing: '.05em',
+                    fontSize: 'var(--fs-caption)', fontWeight: 800, letterSpacing: '.05em',
                     color: result.raidSetup === 'SHORT SQUEEZE' ? '#34d399' : '#f87171',
                   }}>
                     LIQUIDITY RAID - {result.raidSetup}
@@ -1871,14 +1871,14 @@ function ArenaContent() {
                 <div style={{ padding: '7px 12px 8px', display: 'flex', flexDirection: 'column', gap: 5 }}>
                   {result.raidTarget && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
-                      <span style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.05em', minWidth: 52, flexShrink: 0 }}>Target</span>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>{result.raidTarget}</span>
+                      <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.05em', minWidth: 52, flexShrink: 0 }}>Target</span>
+                      <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>{result.raidTarget}</span>
                     </div>
                   )}
                   {result.raidTrigger && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
-                      <span style={{ fontSize: '0.625rem', fontWeight: 600, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.05em', minWidth: 52, flexShrink: 0 }}>Trigger</span>
-                      <span style={{ fontSize: '0.6875rem', color: 'var(--txt2)', lineHeight: 1.5 }}>{result.raidTrigger}</span>
+                      <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.05em', minWidth: 52, flexShrink: 0 }}>Trigger</span>
+                      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.5 }}>{result.raidTrigger}</span>
                     </div>
                   )}
                 </div>
@@ -1890,7 +1890,7 @@ function ArenaContent() {
               <div style={{ marginTop: 10, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
                 <ul style={{ margin: 0, padding: '0 0 0 14px', listStyle: 'disc' }}>
                   {result.catalysts.slice(0, 3).map((c, i) => (
-                    <li key={i} style={{ fontSize: '0.75rem', color: 'var(--txt2)', lineHeight: 1.7 }}>{c}</li>
+                    <li key={i} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.7 }}>{c}</li>
                   ))}
                 </ul>
               </div>
@@ -1904,7 +1904,7 @@ function ArenaContent() {
                 background: 'transparent', border: 'none',
                 borderTop: '0.5px solid rgba(255,255,255,0.06)',
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                color: '#3a3a3a', fontSize: '0.6875rem',
+                color: '#3a3a3a', fontSize: 'var(--fs-caption)',
               }}
             >
               <span>{sigDetailsOpen ? '▲ hide details' : '▼ full reasoning + chart + patterns'}</span>
@@ -1929,7 +1929,7 @@ function ArenaContent() {
                         const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
                         const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
                         return (
-                          <span key={i} style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
+                          <span key={i} style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
                         );
                       })}
                     </div>
@@ -1951,10 +1951,10 @@ function ArenaContent() {
       {history.length > 0 && (
         <div style={{ marginTop: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <div style={{ fontSize: '0.625rem', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: '#444' }}>Session History</div>
+            <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: '#444' }}>Session History</div>
             <button
               onClick={() => { setHistory([]); setDetailIdx(null); try { sessionStorage.removeItem(ARENA_HIST_KEY); } catch {} }}
-              style={{ fontSize: '0.625rem', color: '#444', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+              style={{ fontSize: 'var(--fs-caption)', color: '#444', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
             >Clear</button>
           </div>
 
@@ -1976,22 +1976,22 @@ function ArenaContent() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div className="arena-hist-conf">{h.confidence}%</div>
-                  <span style={{ fontSize: '0.6875rem', color: '#444' }}>{detailIdx === i ? '▲' : '▼'}</span>
+                  <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>{detailIdx === i ? '▲' : '▼'}</span>
                 </div>
               </div>
 
               {detailIdx === i && (
                 <div className={`arena-hist-detail sig-${h.signal.toLowerCase().replace(' ', '-')}`}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <span className={`arena-sig-badge badge-${h.signal.toLowerCase().replace(' ', '-')}`} style={{ fontSize: '0.6875rem' }}>
+                    <span className={`arena-sig-badge badge-${h.signal.toLowerCase().replace(' ', '-')}`} style={{ fontSize: 'var(--fs-caption)' }}>
                       {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'LEAN LONG' ? '↗ LEAN LONG' : h.signal === 'SHORT' ? '▼ SHORT' : h.signal === 'LEAN SHORT' ? '↘ LEAN SHORT' : '- FLAT'}
                     </span>
-                    <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#b8aeff' }}>{h.confidence}% confidence</div>
+                    <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#b8aeff' }}>{h.confidence}% confidence</div>
                   </div>
                   {h.entry && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                      <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Entry Zone</span>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--txt)', fontFamily: 'monospace' }}>{h.entry}</span>
+                      <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Entry Zone</span>
+                      <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', fontFamily: 'monospace' }}>{h.entry}</span>
                     </div>
                   )}
                   <div className="arena-conf-bar" style={{ marginBottom: 10 }}>

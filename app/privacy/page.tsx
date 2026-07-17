@@ -59,7 +59,7 @@ export default function PrivacyPolicy() {
 
       <div style={{ marginBottom: 48 }}>
         <div style={{
-          fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.14em',
+          fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '0.14em',
           textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 14,
         }}>
           Legal
@@ -67,7 +67,7 @@ export default function PrivacyPolicy() {
         <h1 style={{ fontSize: '2.625rem', fontWeight: 800, color: 'var(--txt)', margin: 0, lineHeight: 1.1 }}>
           Privacy Policy.
         </h1>
-        <p style={{ fontSize: '0.8125rem', color: 'var(--txt3)', marginTop: 16, lineHeight: 1.7 }}>
+        <p style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', marginTop: 16, lineHeight: 1.7 }}>
           Last updated: July 2026
         </p>
       </div>
@@ -80,10 +80,10 @@ export default function PrivacyPolicy() {
       }}>
         {SECTIONS.map(s => (
           <div key={s.title}>
-            <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 10, lineHeight: 1.3 }}>
+            <div style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--txt)', marginBottom: 10, lineHeight: 1.3 }}>
               {s.title}
             </div>
-            <div style={{ fontSize: '0.8125rem', color: 'var(--txt2)', lineHeight: 1.75 }}>
+            <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.75 }}>
               {s.body}
             </div>
           </div>
@@ -93,7 +93,7 @@ export default function PrivacyPolicy() {
       <div style={{
         borderTop: '1px solid var(--bdr)',
         paddingTop: 28,
-        fontSize: '0.75rem',
+        fontSize: 'var(--fs-caption)',
         color: 'var(--txt3)',
         lineHeight: 1.9,
       }}>

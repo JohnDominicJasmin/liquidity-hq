@@ -46,7 +46,7 @@ export default function Tip({ text, children, width = 230, iconColor = 'var(--tx
       >
         {children}
         <span style={{
-          fontSize: '0.6875rem',
+          fontSize: 'var(--fs-caption)',
           color: iconColor,
           fontWeight: 400,
           lineHeight: 1,
@@ -74,7 +74,7 @@ export default function Tip({ text, children, width = 230, iconColor = 'var(--tx
             borderRadius: 10,
             padding: '9px 11px',
             boxShadow: '0 8px 28px rgba(0,0,0,0.75)',
-            fontSize: '0.7188rem',
+            fontSize: 'var(--fs-caption)',
             lineHeight: 1.55,
             color: 'rgba(255,255,255,0.72)',
             fontFamily: 'system-ui, -apple-system, sans-serif',

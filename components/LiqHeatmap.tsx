@@ -62,17 +62,17 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
 
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
-        <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', minWidth: 44, textAlign: 'right', flexShrink: 0 }}>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', minWidth: 44, textAlign: 'right', flexShrink: 0 }}>
           {fmtK(l.price)}
         </span>
         <div style={{ flex: 1, height: 8, borderRadius: 3, background: 'var(--bg2)', overflow: 'hidden' }}>
           <div style={{ width: `${barW}%`, height: '100%', background: color, borderRadius: 3, transition: 'width 0.3s' }} />
         </div>
-        <span style={{ fontSize: '0.6875rem', color, fontWeight: 700, minWidth: 36, flexShrink: 0 }}>
+        <span style={{ fontSize: 'var(--fs-caption)', color, fontWeight: 700, minWidth: 36, flexShrink: 0 }}>
           {fmtAmt(l.amount)}
         </span>
         <span style={{
-          fontSize: '0.6875rem', color, background: bg, padding: '1px 5px', borderRadius: 10, flexShrink: 0,
+          fontSize: 'var(--fs-caption)', color, background: bg, padding: '1px 5px', borderRadius: 10, flexShrink: 0,
         }}>
           {pct >= 0 ? '+' : ''}{pct.toFixed(1)}%
         </span>
@@ -84,13 +84,13 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
     <div className="card" style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <div className="lbl" style={{ margin: 0 }}>BTC Liquidation Clusters</div>
-        <span style={{ fontSize: '0.625rem', color: 'var(--txt3)' }}>BTC only · Coinglass</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>BTC only · Coinglass</span>
       </div>
 
       {/* Short liq clusters - above price */}
       {above.length > 0 && (
         <>
-          <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#34d399', letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 4 }}>
+          <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: '#34d399', letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 4 }}>
             Short liquidations above - bulls target here
           </div>
           {above.map((l, i) => <Row key={i} l={l} side="above" />)}
@@ -103,8 +103,8 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
         margin: '8px 0', padding: '5px 0',
         borderTop: '0.5px solid var(--bdr)', borderBottom: '0.5px solid var(--bdr)',
       }}>
-        <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)', letterSpacing: '.05em', textTransform: 'uppercase' }}>Current</span>
-        <span style={{ fontSize: '0.8125rem', fontWeight: 800, color: 'var(--txt)', letterSpacing: '-0.3px' }}>
+        <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', letterSpacing: '.05em', textTransform: 'uppercase' }}>Current</span>
+        <span style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)', letterSpacing: '-0.3px' }}>
           {fmtK(currentPrice)}
         </span>
       </div>
@@ -113,7 +113,7 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
       {below.length > 0 && (
         <>
           {below.map((l, i) => <Row key={i} l={l} side="below" />)}
-          <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#f87171', letterSpacing: '.06em', textTransform: 'uppercase', marginTop: 4 }}>
+          <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: '#f87171', letterSpacing: '.06em', textTransform: 'uppercase', marginTop: 4 }}>
             Long liquidations below - bears target here
           </div>
         </>
@@ -124,7 +124,7 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
         <div style={{
           marginTop: 10, padding: '8px 10px', borderRadius: 8,
           background: 'var(--bg2)', border: '0.5px solid var(--bdr)',
-          fontSize: '0.6875rem', color: 'var(--txt2)', lineHeight: 1.55,
+          fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.55,
         }}>
           {insight}
         </div>

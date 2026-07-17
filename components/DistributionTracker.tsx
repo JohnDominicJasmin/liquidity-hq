@@ -62,14 +62,14 @@ export default function DistributionTracker() {
     }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '10px 14px 2px' }}>
         <span style={{
-          fontFamily: 'var(--font-mono), monospace', fontSize: '0.6875rem', fontWeight: 600,
+          fontFamily: 'var(--font-mono), monospace', fontSize: 'var(--fs-micro)', fontWeight: 600,
           color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.12em',
         }}>
           <Tip width={270} text="Scores every coin for profit-taking by big players: price still up on the day while CVD shows sellers into strength, open interest unwinds out of the rally, top traders lean out of longs, and retail keeps paying positive funding (buying what whales sell). High score = distribution phase - caution on new longs.">
             Distribution Tracker
           </Tip>
         </span>
-        <span style={{ fontSize: '0.625rem', color: 'var(--txt3)' }}>winners being sold into - big players taking profit</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>winners being sold into - big players taking profit</span>
       </div>
 
       {rows.length === 0 ? (
@@ -94,13 +94,13 @@ export default function DistributionTracker() {
               onMouseLeave={e => { if (store.selectedCoin !== r.id) e.currentTarget.style.background = 'transparent'; }}
             >
               <span style={{
-                fontFamily: 'var(--font-mono), monospace', fontSize: '0.75rem', fontWeight: 700,
+                fontFamily: 'var(--font-mono), monospace', fontSize: 'var(--fs-caption)', fontWeight: 700,
                 color: 'var(--txt)', width: 52, flexShrink: 0,
               }}>
                 {r.id.toUpperCase()}
               </span>
               <span style={{
-                fontFamily: 'var(--font-mono), monospace', fontSize: '0.875rem', fontWeight: 700,
+                fontFamily: 'var(--font-mono), monospace', fontSize: 'var(--fs-data)', fontWeight: 700,
                 color: distributionColor(r.score), width: 34, flexShrink: 0, fontVariantNumeric: 'tabular-nums',
               }}>
                 {r.score}
@@ -111,7 +111,7 @@ export default function DistributionTracker() {
               <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
                 {r.reasons.slice(0, 4).map(reason => (
                   <span key={reason} style={{
-                    fontSize: '0.625rem', fontWeight: 600, color: 'var(--txt2)',
+                    fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt2)',
                     background: 'rgba(255,255,255,0.045)', border: '0.5px solid var(--bdr)',
                     borderRadius: 5, padding: '1px 6px', whiteSpace: 'nowrap',
                   }}>
@@ -120,13 +120,13 @@ export default function DistributionTracker() {
                 ))}
               </span>
               <span style={{
-                fontFamily: 'var(--font-mono), monospace', fontSize: '0.6875rem', color: 'var(--txt2)',
+                fontFamily: 'var(--font-mono), monospace', fontSize: 'var(--fs-caption)', color: 'var(--txt2)',
                 flexShrink: 0, fontVariantNumeric: 'tabular-nums',
               }}>
                 ${fmtPrice(r.price, COIN_DEC[r.id])}
               </span>
               <span style={{
-                fontSize: '0.625rem', fontWeight: 600, flexShrink: 0, width: 48, textAlign: 'right',
+                fontSize: 'var(--fs-caption)', fontWeight: 600, flexShrink: 0, width: 48, textAlign: 'right',
                 color: r.change >= 0 ? '#4ade80' : '#f87171', fontVariantNumeric: 'tabular-nums',
               }}>
                 {r.change >= 0 ? '+' : ''}{r.change.toFixed(2)}%

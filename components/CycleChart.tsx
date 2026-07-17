@@ -77,11 +77,11 @@ export default function CycleChart() {
         display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
       }}>
         <div style={{ flex: 1 }}>
-          <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase' }}>
+          <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase' }}>
             Cycle Comparison · Days Since Halving
           </span>
           {currentDay > 0 && (
-            <span style={{ fontSize: '0.6875rem', color: '#555', marginLeft: 8 }}>
+            <span style={{ fontSize: 'var(--fs-caption)', color: '#555', marginLeft: 8 }}>
               Day {currentDay} of 2024 cycle
             </span>
           )}
@@ -89,7 +89,7 @@ export default function CycleChart() {
         {/* Legend */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {CYCLES.map(({ key, color, label }) => (
-            <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.6875rem', color }}>
+            <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--fs-caption)', color }}>
               <span style={{ width: 16, height: 2, background: color, display: 'inline-block', borderRadius: 1 }} />
               {label}
             </span>
@@ -99,10 +99,10 @@ export default function CycleChart() {
 
       {/* Loading / error */}
       {!data && !err && (
-        <div style={{ padding: '28px 14px', fontSize: '0.75rem', color: '#444' }}>Loading cycle data…</div>
+        <div style={{ padding: '28px 14px', fontSize: 'var(--fs-caption)', color: '#444' }}>Loading cycle data…</div>
       )}
       {err && (
-        <div style={{ padding: '20px 14px', fontSize: '0.75rem', color: '#f87171' }}>Failed to load: {err}</div>
+        <div style={{ padding: '20px 14px', fontSize: 'var(--fs-caption)', color: '#f87171' }}>Failed to load: {err}</div>
       )}
 
       {/* SVG chart */}
@@ -184,8 +184,8 @@ export default function CycleChart() {
 
       {/* Footer */}
       <div style={{ padding: '4px 14px 8px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '0.6875rem', color: '#444' }}>Y axis: price multiple from halving day (log scale)</span>
-        <span style={{ fontSize: '0.6875rem', color: '#444' }}>2024 via Bybit · 1h cache</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>Y axis: price multiple from halving day (log scale)</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>2024 via Bybit · 1h cache</span>
       </div>
     </div>
   );

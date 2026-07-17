@@ -282,15 +282,15 @@ export default function BacktestPage() {
         }}>
           <div style={{
             fontFamily: 'var(--font-mono, monospace)',
-            fontSize: '0.625rem', fontWeight: 600, letterSpacing: '0.14em',
+            fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '0.14em',
             textTransform: 'uppercase', color: 'var(--accent-2)', marginBottom: 14,
           }}>
             Pro Feature
           </div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--txt)', margin: '0 0 10px', lineHeight: 1.25 }}>
+          <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 800, color: 'var(--txt)', margin: '0 0 10px', lineHeight: 1.25 }}>
             Backtesting is part of Pro.
           </h1>
-          <p style={{ fontSize: '0.8438rem', color: 'var(--txt2)', lineHeight: 1.7, margin: '0 0 22px' }}>
+          <p style={{ fontSize: 'var(--fs-body)', color: 'var(--txt2)', lineHeight: 1.7, margin: '0 0 22px' }}>
             Replay the full signal engine against years of historical candles - every coin,
             every timeframe, Anti-Chop on and off side by side - plus the order flow backtest
             and the AI strategy research tools.
@@ -300,7 +300,7 @@ export default function BacktestPage() {
             style={{
               display: 'block', textAlign: 'center',
               background: 'var(--accent)', color: '#fff',
-              fontSize: '0.875rem', fontWeight: 700,
+              fontSize: 'var(--fs-body)', fontWeight: 700,
               padding: '12px 16px', borderRadius: 8,
               textDecoration: 'none',
             }}
@@ -308,7 +308,7 @@ export default function BacktestPage() {
             Upgrade to Pro
           </a>
           <div style={{ textAlign: 'center', marginTop: 14 }}>
-            <Link href="/upgrade" style={{ fontSize: '0.75rem', color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+            <Link href="/upgrade" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
               Compare Free and Pro
             </Link>
           </div>
@@ -341,7 +341,7 @@ export default function BacktestPage() {
         </button>
       </div>
 
-      <p style={{ fontSize: '0.6875rem', opacity: 0.4, marginBottom: 14 }}>
+      <p style={{ fontSize: 'var(--fs-caption)', opacity: 0.4, marginBottom: 14 }}>
         Lookback: {YEARS_BACK_BY_TF[tf]} years · Pooled across {coins.length} coin{coins.length !== 1 ? 's' : ''} · Fixed 2:1 R:R per signal (matches live strategy SL/TP rule) · Net of an estimated {ROUND_TRIP_COST_PCT.toFixed(2)}% round-trip cost ({TAKER_FEE_PCT}% taker fee + {SLIPPAGE_PCT}% slippage, each side) - not gross
       </p>
 
@@ -352,7 +352,7 @@ export default function BacktestPage() {
           background: running ? 'rgba(255,255,255,0.06)' : 'var(--purple-bg)',
           color: running ? 'rgba(255,255,255,0.4)' : 'var(--purple)',
           border: `1px solid ${running ? 'var(--bdr)' : 'var(--purple-bdr)'}`,
-          borderRadius: 8, padding: '10px 20px', fontSize: '0.8125rem', fontWeight: 700,
+          borderRadius: 8, padding: '10px 20px', fontSize: 'var(--fs-label)', fontWeight: 700,
           cursor: running ? 'default' : 'pointer', marginBottom: 18,
         }}
       >
@@ -362,12 +362,12 @@ export default function BacktestPage() {
       </button>
 
       {error && (
-        <div style={{ color: '#f87171', fontSize: '0.75rem', marginBottom: 14 }}>Error: {error}</div>
+        <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>Error: {error}</div>
       )}
 
       {!result && !srResult && !smcResult && !ulResult && !running && !srRunning && !smcRunning && !ulRunning && (
         <div style={{ border: '0.5px solid var(--bdr)', borderRadius: 10, padding: '16px 18px', marginBottom: 20 }}>
-          <div style={{ fontSize: '0.625rem', fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+          <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
             4 tools on this page - pick one to get started
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
@@ -380,9 +380,9 @@ export default function BacktestPage() {
               <div key={t.label} style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.02)', border: '0.5px solid var(--bdr)', borderRadius: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: t.dot, flexShrink: 0 }} />
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--txt)' }}>{t.label}</span>
+                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)' }}>{t.label}</span>
                 </div>
-                <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', lineHeight: 1.55 }}>{t.desc}</div>
+                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.55 }}>{t.desc}</div>
               </div>
             ))}
           </div>
@@ -392,7 +392,7 @@ export default function BacktestPage() {
       {result && (
         <>
           {result.failedCoins.length > 0 && (
-            <div style={{ fontSize: '0.6875rem', opacity: 0.4, marginBottom: 12 }}>
+            <div style={{ fontSize: 'var(--fs-caption)', opacity: 0.4, marginBottom: 12 }}>
               Skipped {result.failedCoins.length} coin{result.failedCoins.length !== 1 ? 's' : ''} (no data or fetch error): {result.failedCoins.map(c => c.toUpperCase()).join(', ')}
             </div>
           )}
@@ -402,8 +402,8 @@ export default function BacktestPage() {
             <SideCard title="ANTI-CHOP OFF" stats={result.antiChopOff.stats} color="#f87171" />
           </div>
 
-          <h2 className="mb-title" style={{ fontSize: '0.9375rem', marginBottom: 4 }}>WaveTrend Confirming-Layer Tuning</h2>
-          <p style={{ fontSize: '0.6875rem', opacity: 0.4, marginBottom: 8 }}>
+          <h2 className="mb-title" style={{ fontSize: 'var(--fs-card-title)', marginBottom: 4 }}>WaveTrend Confirming-Layer Tuning</h2>
+          <p style={{ fontSize: 'var(--fs-caption)', opacity: 0.4, marginBottom: 8 }}>
             Each row requires WaveTrend to also agree before counting an Anti-Chop ON signal as a trade. Compare against the Anti-Chop ON baseline above ({fmtPct(result.antiChopOn.stats.winRate)} win rate, {result.antiChopOn.stats.totalTrades} trades, PF {isFinite(result.antiChopOn.stats.profitFactor) ? result.antiChopOn.stats.profitFactor.toFixed(2) : '∞'}).
           </p>
           <div style={{ overflowX: 'auto', marginBottom: 24 }}>
@@ -432,7 +432,7 @@ export default function BacktestPage() {
             </table>
           </div>
 
-          <h2 className="mb-title" style={{ fontSize: '0.9375rem', marginBottom: 8 }}>Per-Coin Breakdown (Anti-Chop ON)</h2>
+          <h2 className="mb-title" style={{ fontSize: 'var(--fs-card-title)', marginBottom: 8 }}>Per-Coin Breakdown (Anti-Chop ON)</h2>
           <div style={{ overflowX: 'auto' }}>
             <table className="frh-table">
               <thead>
@@ -469,7 +469,7 @@ export default function BacktestPage() {
         </div>
       </div>
 
-      <p style={{ fontSize: '0.6875rem', opacity: 0.4, marginBottom: 14, maxWidth: 640 }}>
+      <p style={{ fontSize: 'var(--fs-caption)', opacity: 0.4, marginBottom: 14, maxWidth: 640 }}>
         Open Interest trend, CVD divergence, and taker buy ratio (3 of the live card&apos;s 8 signals) are
         intentionally excluded - those need trade-level/positioning data exchanges don&apos;t retain far enough
         back to backtest meaningfully (Binance&apos;s OI history, for example, only goes back ~30 days). Lookback
@@ -485,7 +485,7 @@ export default function BacktestPage() {
           background: ofRunning ? 'rgba(255,255,255,0.06)' : 'rgba(251,191,36,0.1)',
           color: ofRunning ? 'rgba(255,255,255,0.4)' : '#fbbf24',
           border: `1px solid ${ofRunning ? 'var(--bdr)' : 'rgba(251,191,36,0.3)'}`,
-          borderRadius: 8, padding: '10px 20px', fontSize: '0.8125rem', fontWeight: 700,
+          borderRadius: 8, padding: '10px 20px', fontSize: 'var(--fs-label)', fontWeight: 700,
           cursor: ofRunning ? 'default' : 'pointer', marginBottom: 18,
         }}
       >
@@ -495,13 +495,13 @@ export default function BacktestPage() {
       </button>
 
       {ofError && (
-        <div style={{ color: '#f87171', fontSize: '0.75rem', marginBottom: 14 }}>Error: {ofError}</div>
+        <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>Error: {ofError}</div>
       )}
 
       {ofResult && (
         <>
           {ofResult.failedCoins.length > 0 && (
-            <div style={{ fontSize: '0.6875rem', opacity: 0.4, marginBottom: 12 }}>
+            <div style={{ fontSize: 'var(--fs-caption)', opacity: 0.4, marginBottom: 12 }}>
               Skipped {ofResult.failedCoins.length} coin{ofResult.failedCoins.length !== 1 ? 's' : ''} (no data or fetch error): {ofResult.failedCoins.map(c => c.toUpperCase()).join(', ')}
             </div>
           )}
@@ -510,7 +510,7 @@ export default function BacktestPage() {
             <SideCard title="ORDER FLOW SETUP (5 SIGNALS)" stats={ofResult.side.stats} color="#fbbf24" />
           </div>
 
-          <h2 className="mb-title" style={{ fontSize: '0.9375rem', marginBottom: 8 }}>Per-Coin Breakdown</h2>
+          <h2 className="mb-title" style={{ fontSize: 'var(--fs-card-title)', marginBottom: 8 }}>Per-Coin Breakdown</h2>
           <div style={{ overflowX: 'auto' }}>
             <table className="frh-table">
               <thead>
@@ -545,7 +545,7 @@ export default function BacktestPage() {
         <div className="mb-subtitle">Describe any trading strategy in plain English - get an honest analysis of its edge, risks, optimal conditions, and crypto-specific parameters.</div>
       </div>
 
-      <p style={{ fontSize: '0.6875rem', opacity: 0.4, marginBottom: 14, maxWidth: 560 }}>
+      <p style={{ fontSize: 'var(--fs-caption)', opacity: 0.4, marginBottom: 14, maxWidth: 560 }}>
         Examples: &quot;EMA 9/20 crossover with RSI confirmation on 1h BTC&quot; · &quot;Buy the open interest spike with funding rate reversal&quot; · &quot;Mean reversion after 3 consecutive red 4h candles&quot;
       </p>
 
@@ -558,7 +558,7 @@ export default function BacktestPage() {
           width: '100%', boxSizing: 'border-box',
           padding: '10px 12px', borderRadius: 8,
           border: '0.5px solid var(--bdr)', background: 'var(--bg1)',
-          color: 'var(--txt)', fontSize: '0.8125rem', resize: 'vertical',
+          color: 'var(--txt)', fontSize: 'var(--fs-label)', resize: 'vertical',
           outline: 'none', marginBottom: 10,
         }}
       />
@@ -571,7 +571,7 @@ export default function BacktestPage() {
             background: srRunning || !srPrompt.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
             color: srRunning || !srPrompt.trim() ? 'var(--txt3)' : '#5a6aff',
             border: `1px solid ${srRunning || !srPrompt.trim() ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
-            borderRadius: 8, padding: '10px 20px', fontSize: '0.8125rem', fontWeight: 700,
+            borderRadius: 8, padding: '10px 20px', fontSize: 'var(--fs-label)', fontWeight: 700,
             cursor: srRunning || !srPrompt.trim() ? 'default' : 'pointer',
           }}
         >
@@ -583,7 +583,7 @@ export default function BacktestPage() {
             style={{
               background: 'transparent', color: 'var(--txt3)',
               border: '0.5px solid var(--bdr)', borderRadius: 6,
-              padding: '6px 12px', fontSize: '0.6875rem', cursor: 'pointer',
+              padding: '6px 12px', fontSize: 'var(--fs-caption)', cursor: 'pointer',
             }}
           >
             Clear
@@ -591,7 +591,7 @@ export default function BacktestPage() {
         )}
       </div>
 
-      {srError && <div style={{ color: '#f87171', fontSize: '0.75rem', marginBottom: 14 }}>{srError}</div>}
+      {srError && <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>{srError}</div>}
 
       {srResult && (
         <>
@@ -605,12 +605,12 @@ export default function BacktestPage() {
                   borderRadius: 'var(--radius-card)', padding: '12px 14px',
                 }}>
                   <div style={{
-                    fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                    fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
                     color: color ?? 'var(--txt3)', marginBottom: 8,
                   }}>
                     {label}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                     {content}
                   </div>
                 </div>
@@ -620,7 +620,7 @@ export default function BacktestPage() {
 
           {/* Pine Script Export */}
           <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 14 }}>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginBottom: 8 }}>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 8 }}>
               Export this strategy to TradingView
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: psResult ? 12 : 0 }}>
@@ -632,7 +632,7 @@ export default function BacktestPage() {
                     background: psRunning ? 'rgba(255,255,255,0.06)' : 'rgba(52,211,153,0.10)',
                     color: psRunning ? 'var(--txt3)' : '#34d399',
                     border: `1px solid ${psRunning ? 'var(--bdr)' : 'rgba(52,211,153,0.3)'}`,
-                    borderRadius: 8, padding: '8px 16px', fontSize: '0.75rem', fontWeight: 700,
+                    borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-caption)', fontWeight: 700,
                     cursor: psRunning ? 'default' : 'pointer',
                   }}
                 >
@@ -652,28 +652,28 @@ export default function BacktestPage() {
                       background: psCopied ? 'rgba(52,211,153,0.12)' : 'rgba(90,106,255,0.10)',
                       color: psCopied ? '#34d399' : '#5a6aff',
                       border: `1px solid ${psCopied ? 'rgba(52,211,153,0.3)' : 'rgba(90,106,255,0.3)'}`,
-                      borderRadius: 8, padding: '8px 16px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
+                      borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-caption)', fontWeight: 700, cursor: 'pointer',
                     }}
                   >
                     {psCopied ? 'Copied!' : 'Copy Pine Script'}
                   </button>
                   <button
                     onClick={() => { setPsResult(null); setPsError(null); }}
-                    style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '6px 10px', fontSize: '0.6875rem', cursor: 'pointer' }}
+                    style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '6px 10px', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
                   >
                     Regenerate
                   </button>
                 </>
               )}
             </div>
-            {psError && <div style={{ color: '#f87171', fontSize: '0.75rem', marginBottom: 10 }}>{psError}</div>}
+            {psError && <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginBottom: 10 }}>{psError}</div>}
             {psResult && (
               <div style={{
                 background: 'rgba(0,0,0,0.3)', border: '0.5px solid var(--bdr)',
                 borderRadius: 8, padding: '12px 14px', overflowX: 'auto',
               }}>
                 <pre style={{
-                  margin: 0, fontSize: '0.6875rem', color: '#34d399',
+                  margin: 0, fontSize: 'var(--fs-caption)', color: '#34d399',
                   fontFamily: 'var(--font-mono), monospace', lineHeight: 1.5,
                   whiteSpace: 'pre', overflowX: 'auto',
                 }}>{psResult}</pre>
@@ -700,7 +700,7 @@ export default function BacktestPage() {
           style={{
             width: 80, padding: '8px 10px', borderRadius: 6,
             border: '0.5px solid var(--bdr)', background: 'var(--bg1)',
-            color: 'var(--txt)', fontSize: '0.8125rem', outline: 'none',
+            color: 'var(--txt)', fontSize: 'var(--fs-label)', outline: 'none',
             fontFamily: 'var(--font-mono), monospace', fontWeight: 700,
           }}
         />
@@ -723,7 +723,7 @@ export default function BacktestPage() {
             background: smcRunning || !smcAsset.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
             color: smcRunning || !smcAsset.trim() ? 'var(--txt3)' : '#5a6aff',
             border: `1px solid ${smcRunning || !smcAsset.trim() ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
-            borderRadius: 8, padding: '8px 16px', fontSize: '0.8125rem', fontWeight: 700,
+            borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-label)', fontWeight: 700,
             cursor: smcRunning || !smcAsset.trim() ? 'default' : 'pointer',
           }}
         >
@@ -732,14 +732,14 @@ export default function BacktestPage() {
         {smcResult && (
           <button
             onClick={() => { setSmcResult(null); setSmcError(null); }}
-            style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '5px 10px', fontSize: '0.6875rem', cursor: 'pointer' }}
+            style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '5px 10px', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
           >
             Clear
           </button>
         )}
       </div>
 
-      {smcError && <div style={{ color: '#f87171', fontSize: '0.75rem', marginBottom: 14 }}>{smcError}</div>}
+      {smcError && <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>{smcError}</div>}
 
       {smcResult && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 8 }}>
@@ -752,12 +752,12 @@ export default function BacktestPage() {
                 borderRadius: 'var(--radius-card)', padding: '12px 14px',
               }}>
                 <div style={{
-                  fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                  fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
                   color: color ?? 'var(--txt3)', marginBottom: 8,
                 }}>
                   {label}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                   {content}
                 </div>
               </div>
@@ -774,7 +774,7 @@ export default function BacktestPage() {
         <div className="mb-subtitle">Enter a token symbol - Grok analyzes upcoming vesting cliff events and classifies sell pressure impact for the next 30 and 90 days.</div>
       </div>
 
-      <p style={{ fontSize: '0.6875rem', opacity: 0.4, marginBottom: 14, maxWidth: 560 }}>
+      <p style={{ fontSize: 'var(--fs-caption)', opacity: 0.4, marginBottom: 14, maxWidth: 560 }}>
         Examples: ARB · OP · PYTH · JUP · STRK · SUI · W · ZK · EIGEN
       </p>
 
@@ -788,7 +788,7 @@ export default function BacktestPage() {
           style={{
             width: 110, padding: '8px 10px', borderRadius: 6,
             border: '0.5px solid var(--bdr)', background: 'var(--bg1)',
-            color: 'var(--txt)', fontSize: '0.8125rem', outline: 'none',
+            color: 'var(--txt)', fontSize: 'var(--fs-label)', outline: 'none',
             fontFamily: 'var(--font-mono), monospace', fontWeight: 700,
           }}
         />
@@ -799,7 +799,7 @@ export default function BacktestPage() {
             background: ulRunning || !ulSymbol.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(90,106,255,0.12)',
             color: ulRunning || !ulSymbol.trim() ? 'var(--txt3)' : '#5a6aff',
             border: `1px solid ${ulRunning || !ulSymbol.trim() ? 'var(--bdr)' : 'rgba(90,106,255,0.35)'}`,
-            borderRadius: 8, padding: '8px 16px', fontSize: '0.8125rem', fontWeight: 700,
+            borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-label)', fontWeight: 700,
             cursor: ulRunning || !ulSymbol.trim() ? 'default' : 'pointer',
           }}
         >
@@ -808,14 +808,14 @@ export default function BacktestPage() {
         {ulResult && (
           <button
             onClick={() => { setUlResult(null); setUlError(null); }}
-            style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '5px 10px', fontSize: '0.6875rem', cursor: 'pointer' }}
+            style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '5px 10px', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
           >
             Clear
           </button>
         )}
       </div>
 
-      {ulError && <div style={{ color: '#f87171', fontSize: '0.75rem', marginBottom: 14 }}>{ulError}</div>}
+      {ulError && <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>{ulError}</div>}
 
       {ulResult && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -828,12 +828,12 @@ export default function BacktestPage() {
                 borderRadius: 'var(--radius-card)', padding: '12px 14px',
               }}>
                 <div style={{
-                  fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                  fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
                   color: color ?? 'var(--txt3)', marginBottom: 8,
                 }}>
                   {label}
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                   {content}
                 </div>
               </div>

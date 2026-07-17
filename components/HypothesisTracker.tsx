@@ -206,7 +206,7 @@ export default function HypothesisTracker() {
 
   if (!user) {
     return (
-      <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--txt3)', fontSize: '0.8125rem' }}>
+      <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--txt3)', fontSize: 'var(--fs-label)' }}>
         Sign in to use the Research Hypothesis Tracker.
       </div>
     );
@@ -217,10 +217,10 @@ export default function HypothesisTracker() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div>
-          <div style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.2px' }}>
+          <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.2px' }}>
             Research Hypotheses
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', marginTop: 2 }}>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>
             Track structured market theses with measurable criteria and evidence
           </div>
         </div>
@@ -231,7 +231,7 @@ export default function HypothesisTracker() {
             border: '0.5px solid rgba(90,106,255,0.4)',
             borderRadius: 7,
             padding: '6px 12px',
-            fontSize: '0.75rem',
+            fontSize: 'var(--fs-caption)',
             fontWeight: 700,
             color: 'var(--accent)',
             cursor: 'pointer',
@@ -250,10 +250,10 @@ export default function HypothesisTracker() {
           padding: '14px',
           marginBottom: 14,
         }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)', marginBottom: 12 }}>New Hypothesis</div>
+          <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--accent)', marginBottom: 12 }}>New Hypothesis</div>
 
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginBottom: 4, fontWeight: 600 }}>Title</div>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 4, fontWeight: 600 }}>Title</div>
             <input
               value={cfTitle}
               onChange={e => setCfTitle(e.target.value)}
@@ -263,7 +263,7 @@ export default function HypothesisTracker() {
           </div>
 
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginBottom: 4, fontWeight: 600 }}>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 4, fontWeight: 600 }}>
               Thesis - What do you believe and why?
             </div>
             <textarea
@@ -276,7 +276,7 @@ export default function HypothesisTracker() {
           </div>
 
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginBottom: 4, fontWeight: 600 }}>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 4, fontWeight: 600 }}>
               Acceptance Criteria - When is this confirmed?
             </div>
             {cfCriteria.map((c, i) => (
@@ -297,7 +297,7 @@ export default function HypothesisTracker() {
           </div>
 
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', marginBottom: 4, fontWeight: 600 }}>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 4, fontWeight: 600 }}>
               Target Date (optional)
             </div>
             <input
@@ -309,7 +309,7 @@ export default function HypothesisTracker() {
           </div>
 
           {cfError && (
-            <div style={{ fontSize: '0.6875rem', color: '#f87171', marginBottom: 8 }}>{cfError}</div>
+            <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 8 }}>{cfError}</div>
           )}
           <button
             onClick={createHypothesis}
@@ -323,7 +323,7 @@ export default function HypothesisTracker() {
 
       {/* List */}
       {loading ? (
-        <div style={{ color: 'var(--txt3)', fontSize: '0.75rem', padding: '16px 0' }}>Loading…</div>
+        <div style={{ color: 'var(--txt3)', fontSize: 'var(--fs-caption)', padding: '16px 0' }}>Loading…</div>
       ) : hypotheses.length === 0 ? (
         <EmptyState dashed title="No hypotheses yet. Click &ldquo;New Hypothesis&rdquo; to track your first market thesis." />
       ) : (
@@ -358,27 +358,27 @@ export default function HypothesisTracker() {
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 3 }}>
-                    <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--txt)' }}>{h.title}</span>
+                    <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)' }}>{h.title}</span>
                     <span style={{
-                      fontSize: '0.625rem', fontWeight: 700, padding: '2px 7px', borderRadius: 20,
+                      fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20,
                       background: sm.bg, color: sm.col,
                     }}>{sm.label}</span>
                     {vm && (
-                      <span style={{ fontSize: '0.625rem', fontWeight: 700, color: vm.col }}>
+                      <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: vm.col }}>
                         ● {h.grok_verdict}
                       </span>
                     )}
                   </div>
-                  <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', lineHeight: 1.4 }}>
+                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.4 }}>
                     {h.hypothesis.length > 120 ? h.hypothesis.slice(0, 120) + '…' : h.hypothesis}
                   </div>
-                  <div style={{ display: 'flex', gap: 10, marginTop: 5, fontSize: '0.625rem', color: 'var(--txt3)' }}>
+                  <div style={{ display: 'flex', gap: 10, marginTop: 5, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
                     <span>{fmtDate(h.created_at)}</span>
                     {h.target_date && <span>Target: {h.target_date}</span>}
                     {h.grok_last_run && <span>Last analysis: {fmtDate(h.grok_last_run)}</span>}
                   </div>
                 </div>
-                <span style={{ color: 'var(--txt3)', fontSize: '0.75rem', flexShrink: 0, marginTop: 2 }}>
+                <span style={{ color: 'var(--txt3)', fontSize: 'var(--fs-caption)', flexShrink: 0, marginTop: 2 }}>
                   {isExpanded ? '▲' : '▼'}
                 </span>
               </div>
@@ -387,20 +387,20 @@ export default function HypothesisTracker() {
               {isExpanded && (
                 <div style={{ borderTop: '0.5px solid var(--bdr)', padding: '14px' }}>
                   {/* Full hypothesis */}
-                  <div style={{ fontSize: '0.75rem', color: 'var(--txt)', lineHeight: 1.6, marginBottom: 12 }}>
+                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt)', lineHeight: 1.6, marginBottom: 12 }}>
                     {h.hypothesis}
                   </div>
 
                   {/* Acceptance criteria */}
                   {h.acceptance_criteria?.length > 0 && (
                     <div style={{ marginBottom: 14 }}>
-                      <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                         Acceptance Criteria
                       </div>
                       {h.acceptance_criteria.map((c, i) => (
                         <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
-                          <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)', flexShrink: 0 }}>{i + 1}.</span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--txt)', lineHeight: 1.5 }}>{c}</span>
+                          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', flexShrink: 0 }}>{i + 1}.</span>
+                          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt)', lineHeight: 1.5 }}>{c}</span>
                         </div>
                       ))}
                     </div>
@@ -417,23 +417,23 @@ export default function HypothesisTracker() {
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                         <span style={{
-                          fontSize: '0.6875rem', fontWeight: 800,
+                          fontSize: 'var(--fs-caption)', fontWeight: 800,
                           color: VERDICT_META[h.grok_verdict]?.col ?? 'var(--txt)',
                           letterSpacing: '0.05em',
                         }}>
                           GROK: {h.grok_verdict}
                         </span>
                         {h.grok_confidence && (
-                          <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>· {h.grok_confidence}</span>
+                          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>· {h.grok_confidence}</span>
                         )}
                       </div>
                       {h.grok_reasoning && (
-                        <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', lineHeight: 1.55, marginBottom: 6 }}>
+                        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.55, marginBottom: 6 }}>
                           {h.grok_reasoning}
                         </div>
                       )}
                       {h.grok_next_check && (
-                        <div style={{ fontSize: '0.6875rem', color: 'var(--accent)', borderTop: '0.5px solid var(--bdr)', paddingTop: 6, marginTop: 4 }}>
+                        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--accent)', borderTop: '0.5px solid var(--bdr)', paddingTop: 6, marginTop: 4 }}>
                           <span style={{ fontWeight: 700 }}>Next check: </span>{h.grok_next_check}
                         </div>
                       )}
@@ -457,11 +457,11 @@ export default function HypothesisTracker() {
 
                   {/* Evidence log */}
                   <div style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       Evidence ({evList.length})
                     </div>
                     {evList.length === 0 ? (
-                      <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', fontStyle: 'italic' }}>
+                      <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontStyle: 'italic' }}>
                         No evidence logged yet. Add observations below.
                       </div>
                     ) : (
@@ -478,10 +478,10 @@ export default function HypothesisTracker() {
                             borderRadius: 6,
                             border: '0.5px solid var(--bdr)',
                           }}>
-                            <span style={{ fontSize: '0.8125rem', color: em.col, flexShrink: 0, fontWeight: 700 }}>{em.icon}</span>
+                            <span style={{ fontSize: 'var(--fs-label)', color: em.col, flexShrink: 0, fontWeight: 700 }}>{em.icon}</span>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: '0.75rem', color: 'var(--txt)', lineHeight: 1.5 }}>{ev.content}</div>
-                              <div style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginTop: 2 }}>
+                              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt)', lineHeight: 1.5 }}>{ev.content}</div>
+                              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>
                                 {fmtDate(ev.created_at)}{ev.source ? ` · ${ev.source}` : ''}
                               </div>
                             </div>
@@ -504,7 +504,7 @@ export default function HypothesisTracker() {
                     padding: '10px 12px',
                     marginBottom: 12,
                   }}>
-                    <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--txt3)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       Add Evidence
                     </div>
                     <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
@@ -517,7 +517,7 @@ export default function HypothesisTracker() {
                             border: `0.5px solid ${evType === t ? EV_META[t].col : 'var(--bdr)'}`,
                             borderRadius: 5,
                             padding: '4px 10px',
-                            fontSize: '0.6875rem',
+                            fontSize: 'var(--fs-caption)',
                             fontWeight: evType === t ? 700 : 400,
                             color: evType === t ? EV_META[t].col : 'var(--txt3)',
                             cursor: 'pointer',
@@ -550,7 +550,7 @@ export default function HypothesisTracker() {
 
                   {/* Status controls + delete */}
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>Status:</span>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Status:</span>
                     {(['active','confirmed','disconfirmed','expired'] as const).map(s => (
                       <button
                         key={s}
@@ -560,7 +560,7 @@ export default function HypothesisTracker() {
                           border: `0.5px solid ${h.status === s ? STATUS_META[s].col : 'var(--bdr)'}`,
                           borderRadius: 5,
                           padding: '3px 8px',
-                          fontSize: '0.625rem',
+                          fontSize: 'var(--fs-caption)',
                           fontWeight: h.status === s ? 700 : 400,
                           color: h.status === s ? STATUS_META[s].col : 'var(--txt3)',
                           cursor: 'pointer',
@@ -570,7 +570,7 @@ export default function HypothesisTracker() {
                     ))}
                     <button
                       onClick={() => deleteHypothesis(h.id)}
-                      style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', fontSize: '0.6875rem', opacity: 0.6, padding: '3px 0' }}
+                      style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', fontSize: 'var(--fs-caption)', opacity: 0.6, padding: '3px 0' }}
                     >
                       Delete
                     </button>
@@ -592,7 +592,7 @@ const inputStyle: React.CSSProperties = {
   border: '0.5px solid var(--bdr)',
   borderRadius: 6,
   padding: '7px 10px',
-  fontSize: '0.75rem',
+  fontSize: 'var(--fs-caption)',
   color: 'var(--txt)',
   outline: 'none',
   boxSizing: 'border-box',
@@ -603,7 +603,7 @@ const ghostBtnStyle: React.CSSProperties = {
   border: '0.5px solid var(--bdr)',
   borderRadius: 6,
   padding: '6px 12px',
-  fontSize: '0.6875rem',
+  fontSize: 'var(--fs-caption)',
   color: 'var(--txt3)',
   cursor: 'pointer',
   display: 'block',
@@ -614,7 +614,7 @@ const primaryBtnStyle = (disabled: boolean): React.CSSProperties => ({
   border: '0.5px solid rgba(90,106,255,0.4)',
   borderRadius: 6,
   padding: '6px 14px',
-  fontSize: '0.75rem',
+  fontSize: 'var(--fs-caption)',
   fontWeight: 700,
   color: disabled ? 'var(--txt3)' : 'var(--accent)',
   cursor: disabled ? 'default' : 'pointer',

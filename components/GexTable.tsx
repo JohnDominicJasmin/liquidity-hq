@@ -30,7 +30,7 @@ export default function GexTable() {
     <div className="gex-table">
       {/* Title + net GEX chip */}
       <div className="gex-title-row">
-        <div className="gex-title">BTC Options Market Pressure <span style={{ fontSize: '0.625rem', fontWeight: 400, opacity: 0.5 }}>(GEX)</span></div>
+        <div className="gex-title">BTC Options Market Pressure <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, opacity: 0.5 }}>(GEX)</span></div>
         {gexLoaded ? (
           <div
             className="gex-net-chip"
@@ -141,7 +141,7 @@ export default function GexTable() {
               <div key={strike} className={`gex-row${isAtm ? ' gex-row-atm' : ''}`}>
                 <div className="gex-strike" style={isAtm ? { color: 'var(--txt)' } : {}}>
                   ${strike >= 1000 ? (strike / 1000).toFixed(0) + 'K' : strike}
-                  {isAtm && <span style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginLeft: 4 }}>← current price</span>}
+                  {isAtm && <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 4 }}>← current price</span>}
                 </div>
                 <div className="gex-bar-wrap">
                   <div className="gex-bar-fill" style={{ width: `${pct}%`, background: col }} />

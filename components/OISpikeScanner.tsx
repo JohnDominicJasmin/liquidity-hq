@@ -193,7 +193,7 @@ export default function OISpikeScanner() {
           <span className="ois-title">Open Interest Spike Scanner · 1H</span>
           {!loading && spikeCount > 0 && (
             <span style={{
-              fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '.05em',
+              fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.05em',
               color: '#34d399', background: 'rgba(52,211,153,0.1)',
               border: '0.5px solid rgba(52,211,153,0.25)',
               padding: '1px 5px', borderRadius: 4,
@@ -224,7 +224,7 @@ export default function OISpikeScanner() {
               border: 'none',
               outline: 'none',
               padding: '8px 0',
-              fontSize: '0.6875rem',
+              fontSize: 'var(--fs-caption)',
               color: 'var(--txt)',
             }}
           />
@@ -244,7 +244,7 @@ export default function OISpikeScanner() {
       <div style={expanded ? { maxHeight: 300, overflowY: 'auto' } : {}}>
         {displayRows.length > 0
           ? displayRows.map(renderRow)
-          : <div style={{ padding: '12px 14px', fontSize: '0.6875rem', color: 'var(--txt3)' }}>No coins match &ldquo;{search}&rdquo;</div>
+          : <div style={{ padding: '12px 14px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>No coins match &ldquo;{search}&rdquo;</div>
         }
       </div>
 
@@ -260,7 +260,7 @@ export default function OISpikeScanner() {
             border: 'none',
             borderTop: '0.5px solid var(--bdr)',
             cursor: 'pointer',
-            fontSize: '0.625rem',
+            fontSize: 'var(--fs-caption)',
             color: 'var(--txt3)',
             letterSpacing: '.03em',
             display: 'flex',

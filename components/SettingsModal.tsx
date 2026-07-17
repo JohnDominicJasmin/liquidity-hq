@@ -18,7 +18,7 @@ function SaveIndicator({ status }: { status: 'idle' | 'saving' | 'saved' | 'erro
   if (status === 'idle') return null;
   const map = { saving: ['Saving…', 'var(--txt3)'], saved: ['Saved ✓', 'var(--green)'], error: ['Failed', 'var(--red)'] } as const;
   const [txt, col] = map[status];
-  return <span style={{ fontSize: '0.6875rem', color: col, fontWeight: 600 }}>{txt}</span>;
+  return <span style={{ fontSize: 'var(--fs-caption)', color: col, fontWeight: 600 }}>{txt}</span>;
 }
 
 interface Props { open: boolean; onClose: () => void; }

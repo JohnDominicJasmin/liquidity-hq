@@ -16,7 +16,7 @@ const RINGS = [
 export default function UsageRings({ usage }: { usage: GrokUsageInfo }) {
   return (
     <div>
-      <div style={{ fontSize: '0.625rem', color: 'var(--txt3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12, fontWeight: 500 }}>
+      <div style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12, fontWeight: 500 }}>
         AI calls remaining today
       </div>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -51,14 +51,14 @@ export default function UsageRings({ usage }: { usage: GrokUsageInfo }) {
                   {remaining}
                 </div>
               </div>
-              <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', textAlign: 'center' }}>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>
                 <div style={{ letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 600 }}>{label}</div>
               </div>
             </div>
           );
         })}
       </div>
-      <div style={{ fontSize: '0.625rem', color: 'var(--txt3)', marginTop: 10 }}>Resets at {nextResetLocalTime()}</div>
+      <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 10 }}>Resets at {nextResetLocalTime()}</div>
     </div>
   );
 }

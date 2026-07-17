@@ -134,12 +134,12 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
               onChange={e => setQuery(e.target.value)}
               placeholder="Search country…"
               className="obw-input"
-              style={{ padding: '8px 12px', fontSize: '0.8125rem' }}
+              style={{ padding: '8px 12px', fontSize: 'var(--fs-label)' }}
             />
           </div>
           <div className="obw-menu-list">
             {filtered.length === 0 ? (
-              <div style={{ padding: 16, textAlign: 'center', fontSize: '0.75rem', color: 'var(--txt3)' }}>No match</div>
+              <div style={{ padding: 16, textAlign: 'center', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>No match</div>
             ) : filtered.map(c => {
               const isActive = value === c.name;
               return (
@@ -347,7 +347,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                   />
                   <div style={{
                     marginTop: 6, textAlign: 'right', fontFamily: 'var(--font-mono), monospace',
-                    fontSize: '0.625rem', letterSpacing: '0.06em', color: 'var(--txt3)',
+                    fontSize: 'var(--fs-caption)', letterSpacing: '0.06em', color: 'var(--txt3)',
                   }}>
                     {displayName.length}/32
                   </div>

@@ -54,8 +54,8 @@ export default function BestHours() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.5rem' }}>
-        <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Best Hours</h1>
-        <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', marginBottom: 14 }}>Live PHT clock + session window detector</div>
+        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Best Hours</h1>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>Live PHT clock + session window detector</div>
       </div>
 
       <SessionCountdown />
@@ -63,9 +63,9 @@ export default function BestHours() {
       <div className="card" style={{ textAlign: 'center', marginBottom: 14 }}>
         <div suppressHydrationWarning style={{ fontSize: '2.25rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--txt)', letterSpacing: -1 }}>
           {pad(h12)}:{pad(m)}:{pad(s)}
-          <span style={{ fontSize: '0.875rem', color: 'var(--txt3)', marginLeft: 8 }}>{ampm} PHT</span>
+          <span style={{ fontSize: 'var(--fs-body)', color: 'var(--txt3)', marginLeft: 8 }}>{ampm} PHT</span>
         </div>
-        <div suppressHydrationWarning style={{ fontSize: '0.8125rem', color: 'var(--txt3)', marginTop: 4 }}>
+        <div suppressHydrationWarning style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', marginTop: 4 }}>
           {days[pht.getDay()]}, {months[pht.getMonth()]} {pht.getDate()} {pht.getFullYear()}
         </div>
 
@@ -87,7 +87,7 @@ export default function BestHours() {
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="lbl" style={{ marginBottom: 10 }}>
           24h Session Map
-          <span style={{ fontSize: '0.625rem', fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>PHT · typical weekday</span>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>PHT · typical weekday</span>
         </div>
 
         {/* Bar + needle wrapper - overflow visible so needle tip shows */}
@@ -105,7 +105,7 @@ export default function BestHours() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   {width > 7 && (
-                    <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#fff', letterSpacing: '.04em', opacity: 0.9 }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#fff', letterSpacing: '.04em', opacity: 0.9 }}>
                       {seg.label}
                     </span>
                   )}
@@ -144,14 +144,14 @@ export default function BestHours() {
         {/* Hour ticks */}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           {[0, 3, 6, 9, 12, 15, 18, 21, 24].map(hr => (
-            <span key={hr} style={{ fontSize: '0.6875rem', color: 'var(--txt3)', fontVariantNumeric: 'tabular-nums' }}>
+            <span key={hr} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontVariantNumeric: 'tabular-nums' }}>
               {hr === 0 || hr === 24 ? '12A' : hr === 12 ? '12P' : hr < 12 ? `${hr}A` : `${hr - 12}P`}
             </span>
           ))}
         </div>
 
         {/* Current position label */}
-        <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)', textAlign: 'center' }}>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>
           ▲ now: <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>{pad(h12)}:{pad(m)} {ampm} PHT</span>
           {mounted && win && <span style={{ marginLeft: 8, color: win.color, fontWeight: 600 }}>· {win.name}</span>}
           {mounted && dead && <span style={{ marginLeft: 8, color: '#f87171', fontWeight: 600 }}>· Dead Zone</span>}
@@ -185,7 +185,7 @@ export default function BestHours() {
             ))}
           </div>
         ) : (
-          <div style={{ fontSize: '0.75rem', color: 'var(--txt3)' }}>No windows detected in next 7 days</div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>No windows detected in next 7 days</div>
         ))}
       </div>
 
@@ -195,9 +195,9 @@ export default function BestHours() {
         <div key={i} className="card" style={{ marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
             <div className={`window-pill ${w.cls}`}>{w.badge}</div>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--txt3)' }}>{w.time}</div>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{w.time}</div>
           </div>
-          <div style={{ fontSize: '0.8125rem', color: 'var(--txt2)', lineHeight: 1.6 }}>{w.desc}</div>
+          <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.6 }}>{w.desc}</div>
         </div>
       ))}
     </div>

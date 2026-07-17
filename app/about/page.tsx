@@ -5,13 +5,13 @@ export default function About() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.5rem' }}>
-        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>About</div>
-        <div style={{ fontSize: '0.75rem', color: 'var(--txt3)', marginBottom: 14 }}>Liquidity Hunter HQ - private trading intelligence tool</div>
+        <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>About</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>Liquidity Hunter HQ - private trading intelligence tool</div>
       </div>
 
       <div className="card">
         <div className="lbl">What this is</div>
-        <div style={{ fontSize: '0.8125rem', color: 'var(--txt2)', lineHeight: 1.7 }}>
+        <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.7 }}>
           A personal crypto trading intelligence tool built around one core belief: the market is a machine for hunting stop losses.
           This app helps you read the liquidation map, identify the highest-probability raid setups, and time your entries around institutional windows.
         </div>
@@ -31,7 +31,7 @@ export default function About() {
           ['Econ Calendar', 'Finnhub Calendar API'],
           ['AI Signal', 'LiquidityAI (xAI)'],
         ].map(([k, v]) => (
-          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '0.5px solid var(--bdr)', fontSize: '0.75rem' }}>
+          <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '0.5px solid var(--bdr)', fontSize: 'var(--fs-caption)' }}>
             <span style={{ color: 'var(--txt3)' }}>{k}</span>
             <span style={{ color: 'var(--txt2)', textAlign: 'right', maxWidth: '60%' }}>{v}</span>
           </div>
@@ -40,7 +40,7 @@ export default function About() {
 
       <div className="card">
         <div className="lbl">How to use</div>
-        <div style={{ fontSize: '0.8125rem', color: 'var(--txt2)', lineHeight: 1.8 }}>
+        <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.8 }}>
           1. <strong style={{ color: 'var(--txt)' }}>Open the Liquidation Map</strong> - 24h window. Find the brightest, tightest cluster.<br />
           2. <strong style={{ color: 'var(--txt)' }}>Check the Raid Meter</strong> - needs at least 60/100 to be worth trading.<br />
           3. <strong style={{ color: 'var(--txt)' }}>Run the Scanner</strong> - 7-question system. If it says NO, stay flat.<br />

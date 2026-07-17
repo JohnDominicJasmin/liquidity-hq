@@ -21,7 +21,7 @@ export function fmtR(n: number) { return (n >= 0 ? '+' : '') + n.toFixed(2) + 'R
 export function EquityCurve({ data, color }: { data: number[]; color: string }) {
   if (data.length < 2) {
     return (
-      <div style={{ fontSize: '0.6875rem', opacity: 0.4, padding: '32px 0', textAlign: 'center' }}>
+      <div style={{ fontSize: 'var(--fs-caption)', opacity: 0.4, padding: '32px 0', textAlign: 'center' }}>
         Not enough resolved trades to chart
       </div>
     );
@@ -46,7 +46,7 @@ export function EquityCurve({ data, color }: { data: number[]; color: string }) 
 
 export function StatRow({ label, value, color }: { label: string; value: string; color?: string }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: '0.75rem' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', fontSize: 'var(--fs-caption)' }}>
       <span style={{ opacity: 0.55 }}>{label}</span>
       <span style={{ fontWeight: 600, color: color ?? 'var(--txt)' }}>{value}</span>
     </div>
@@ -56,7 +56,7 @@ export function StatRow({ label, value, color }: { label: string; value: string;
 export function SideCard({ title, stats, color }: { title: string; stats: DisplayStats; color: string }) {
   return (
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--bdr)', borderRadius: 12, padding: 16, flex: 1, minWidth: 260 }}>
-      <div style={{ fontSize: '0.8125rem', fontWeight: 700, color, marginBottom: 10, letterSpacing: '0.02em' }}>{title}</div>
+      <div style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color, marginBottom: 10, letterSpacing: '0.02em' }}>{title}</div>
       <EquityCurve data={stats.equityCurve} color={color} />
       <div style={{ marginTop: 10 }}>
         <StatRow label="Win Rate" value={fmtPct(stats.winRate)} color={stats.winRate >= 0.5 ? '#34d399' : '#f87171'} />
