@@ -1,12 +1,11 @@
 'use client';
 import { useState } from 'react';
-import Link from 'next/link';
 import { CoinId, COINS } from '@/lib/marketStore';
 import { runBacktest, BacktestRunResult, runOrderFlowBacktest, OrderFlowBacktestResult, ROUND_TRIP_COST_PCT, TAKER_FEE_PCT, SLIPPAGE_PCT } from '@/lib/backtestEngine';
 import { SideCard, fmtPct, fmtR } from '@/components/BacktestStatsUI';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
-import { getCheckoutUrl } from '@/lib/checkout';
+import { FullPageUpgradeGate } from '@/components/UpgradeGateModal';
 
 const OF_YEARS_BACK = 1; // shorter than EMA's lookback - 15m+1h+4h+funding fetch per coin is much heavier
 
@@ -76,7 +75,7 @@ function parseSection(text: string, key: string): string {
 }
 
 export default function BacktestPage() {
-  const { isPro, loading: authLoading, user } = useAuth();
+  const { isPro, loading: authLoading } = useAuth();
   const [tf, setTf]               = useState<TF>('1h');
   const [coinScope, setCoinScope] = useState<'majors' | 'all'>('majors');
   const [running, setRunning]     = useState(false);
@@ -262,58 +261,11 @@ export default function BacktestPage() {
   // never sees a paywall flash, then replace the entire page for free users.
   if (authLoading) return <div style={{ minHeight: '60vh' }} />;
   if (!isPro) {
-    // Same fallback logic as UpgradeGateModal: while checkout is not
-    // configured, signed-in users go to /upgrade, signed-out to signup.
-    const checkoutConfigured = !!(
-      process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL &&
-      process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL !== '#'
-    );
-    const ctaHref = checkoutConfigured
-      ? getCheckoutUrl(user)
-      : user ? '/upgrade' : '/login?signup=1&next=/upgrade';
     return (
-      <div style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <div style={{
-          width: '100%', maxWidth: 480,
-          background: 'linear-gradient(180deg, var(--bg2), var(--bg1))',
-          border: '0.5px solid var(--bdr2)',
-          borderRadius: 'var(--radius-card, 12px)',
-          padding: '34px 34px 30px',
-        }}>
-          <div style={{
-            fontFamily: 'var(--font-mono, monospace)',
-            fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '0.14em',
-            textTransform: 'uppercase', color: 'var(--accent-2)', marginBottom: 14,
-          }}>
-            Pro Feature
-          </div>
-          <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 800, color: 'var(--txt)', margin: '0 0 10px', lineHeight: 1.25 }}>
-            Backtesting is part of Pro.
-          </h1>
-          <p style={{ fontSize: 'var(--fs-body)', color: 'var(--txt2)', lineHeight: 1.7, margin: '0 0 22px' }}>
-            Replay the full signal engine against years of historical candles - every coin,
-            every timeframe, Anti-Chop on and off side by side - plus the order flow backtest
-            and the AI strategy research tools.
-          </p>
-          <a
-            href={ctaHref}
-            style={{
-              display: 'block', textAlign: 'center',
-              background: 'var(--accent)', color: '#fff',
-              fontSize: 'var(--fs-body)', fontWeight: 700,
-              padding: '12px 16px', borderRadius: 8,
-              textDecoration: 'none',
-            }}
-          >
-            Upgrade to Pro
-          </a>
-          <div style={{ textAlign: 'center', marginTop: 14 }}>
-            <Link href="/upgrade" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
-              Compare Free and Pro
-            </Link>
-          </div>
-        </div>
-      </div>
+      <FullPageUpgradeGate
+        title="Backtesting is part of Pro."
+        description="Replay the full signal engine against years of historical candles - every coin, every timeframe, Anti-Chop on and off side by side - plus the order flow backtest and the AI strategy research tools."
+      />
     );
   }
 

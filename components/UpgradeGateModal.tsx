@@ -53,24 +53,78 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
   );
 }
 
+// Shared by the modal below and FullPageUpgradeGate - while LemonSqueezy
+// checkout is not configured, getCheckoutUrl falls back to the signup page,
+// a dead end for someone already signed in. Send signed-in users to /upgrade
+// instead (it explains payments are launching soon), signed-out users to
+// signup with /upgrade as the destination.
+function useCheckoutHref() {
+  const { user } = useAuth();
+  const checkoutConfigured = !!(
+    process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL &&
+    process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL !== '#'
+  );
+  return checkoutConfigured
+    ? getCheckoutUrl(user)
+    : user ? '/upgrade' : '/login?signup=1&next=/upgrade';
+}
+
+// Full-page stand-in for when an entire route is Pro-only (e.g. /backtest),
+// as opposed to a single card (LockedFeatureCard) or an interrupting paywall
+// (UpgradeGateModal). Same copy conventions as both - one "Pro Feature"
+// eyebrow + CTA pattern instead of three hand-rolled versions drifting apart.
+export function FullPageUpgradeGate({ title, description }: { title: string; description: string }) {
+  const ctaHref = useCheckoutHref();
+  return (
+    <div style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{
+        width: '100%', maxWidth: 480,
+        background: 'linear-gradient(180deg, var(--bg2), var(--bg1))',
+        border: '0.5px solid var(--bdr2)',
+        borderRadius: 'var(--radius-card, 12px)',
+        padding: '34px 34px 30px',
+      }}>
+        <div style={{
+          fontFamily: 'var(--font-mono, monospace)',
+          fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '0.14em',
+          textTransform: 'uppercase', color: 'var(--accent-2)', marginBottom: 14,
+        }}>
+          Pro Feature
+        </div>
+        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 800, color: 'var(--txt)', margin: '0 0 10px', lineHeight: 1.25 }}>
+          {title}
+        </h1>
+        <p style={{ fontSize: 'var(--fs-body)', color: 'var(--txt2)', lineHeight: 1.7, margin: '0 0 22px' }}>
+          {description}
+        </p>
+        <a
+          href={ctaHref}
+          style={{
+            display: 'block', textAlign: 'center',
+            background: 'var(--accent)', color: '#fff',
+            fontSize: 'var(--fs-body)', fontWeight: 700,
+            padding: '12px 16px', borderRadius: 8,
+            textDecoration: 'none',
+          }}
+        >
+          Upgrade to Pro
+        </a>
+        <div style={{ textAlign: 'center', marginTop: 14 }}>
+          <Link href="/upgrade" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+            Compare Free and Pro
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Paywall modal shown when a free user taps a Pro-only feature. The CTA goes
 // through getCheckoutUrl, which pre-fills the LemonSqueezy checkout with the
 // user's email + id (or falls back to /login?signup=1 while checkout is not
 // configured yet).
 export default function UpgradeGateModal({ open, onClose, feature }: Props) {
-  const { user } = useAuth();
-
-  // While LemonSqueezy checkout is not configured, getCheckoutUrl falls back
-  // to the signup page - a dead end for someone already signed in. Send
-  // signed-in users to /upgrade instead (it explains payments are launching
-  // soon), and signed-out users to signup with /upgrade as the destination.
-  const checkoutConfigured = !!(
-    process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL &&
-    process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL !== '#'
-  );
-  const ctaHref = checkoutConfigured
-    ? getCheckoutUrl(user)
-    : user ? '/upgrade' : '/login?signup=1&next=/upgrade';
+  const ctaHref = useCheckoutHref();
 
   // Escape closes; body scroll locks while open
   useEffect(() => {

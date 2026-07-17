@@ -4147,25 +4147,6 @@ html[lang="ar"] .lp-h1-accent {
 [dir="rtl"] .lp-step h3 { text-align: right; }
 
 /* ══════════════════════════════════════════════
-   PRO GATE
-   ══════════════════════════════════════════════ */
-.pro-gate {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 10px; padding: 40px 24px; text-align: center;
-  border: 1px dashed rgba(26,122,255,0.25); border-radius: var(--radius-card);
-  background: rgba(26,122,255,0.04);
-}
-.pro-gate-lock { font-size: 2rem; }
-.pro-gate-title { font-size: var(--fs-card-title); font-weight: 700; color: #e8e8e8; }
-.pro-gate-desc { font-size: var(--fs-caption); color: #888; line-height: 1.55; max-width: 280px; }
-.pro-gate-btn {
-  margin-top: 6px; padding: 10px 22px; border-radius: 10px;
-  background: #3d47c9; color: #fff; font-size: var(--fs-label); font-weight: 600;
-  text-decoration: none; transition: background .15s;
-}
-.pro-gate-btn:hover { background: #6d28d9; }
-
-/* ══════════════════════════════════════════════
    ONBOARDING TOUR & SETUP CHECKLIST
    ══════════════════════════════════════════════ */
 
