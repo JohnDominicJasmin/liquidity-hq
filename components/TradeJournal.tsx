@@ -133,10 +133,10 @@ function fmtDate(s: string) {
 const SHADOW_SECTIONS: { key: string; label: string; color?: string }[] = [
   { key: 'IMPLICIT_RULES',       label: 'Implicit Trading Rules' },
   { key: 'BEHAVIORAL_PATTERNS',  label: 'Behavioral Patterns' },
-  { key: 'SHADOW_STRATEGY',      label: 'Shadow Strategy', color: '#1a7aff' },
-  { key: 'RULE_VIOLATIONS',      label: 'Rule Violations', color: '#f87171' },
-  { key: 'RECOMMENDATIONS',      label: 'Recommendations', color: '#34d399' },
-  { key: 'KEY_INSIGHT',          label: 'Key Insight', color: '#fbbf24' },
+  { key: 'SHADOW_STRATEGY',      label: 'Shadow Strategy', color: 'var(--accent)' },
+  { key: 'RULE_VIOLATIONS',      label: 'Rule Violations', color: 'var(--red)' },
+  { key: 'RECOMMENDATIONS',      label: 'Recommendations', color: 'var(--green)' },
+  { key: 'KEY_INSIGHT',          label: 'Key Insight', color: 'var(--amber)' },
 ];
 
 function parseShadowSection(text: string, key: string): string {
@@ -173,12 +173,12 @@ function ShadowAccountResult({ text }: { text: string }) {
 
 /* ── Behavioral Bias ── */
 const BIAS_SECTIONS: { key: string; label: string; color?: string }[] = [
-  { key: 'DISPOSITION_EFFECT', label: 'Disposition Effect',   color: '#f87171' },
+  { key: 'DISPOSITION_EFFECT', label: 'Disposition Effect',   color: 'var(--red)' },
   { key: 'OVERTRADING',        label: 'Overtrading',          color: '#fb923c' },
-  { key: 'MOMENTUM_CHASING',   label: 'Momentum Chasing',     color: '#fbbf24' },
-  { key: 'ANCHORING_BIAS',     label: 'Anchoring Bias',       color: '#5aa3ff' },
-  { key: 'PNL_IMPACT',         label: 'P&L Impact by Bias',   color: '#1a7aff' },
-  { key: 'PRIORITY_FIX',       label: 'Priority Fix',         color: '#34d399' },
+  { key: 'MOMENTUM_CHASING',   label: 'Momentum Chasing',     color: 'var(--amber)' },
+  { key: 'ANCHORING_BIAS',     label: 'Anchoring Bias',       color: 'var(--accent-2)' },
+  { key: 'PNL_IMPACT',         label: 'P&L Impact by Bias',   color: 'var(--accent)' },
+  { key: 'PRIORITY_FIX',       label: 'Priority Fix',         color: 'var(--green)' },
 ];
 
 function parseBiasSection(text: string, key: string): string {
@@ -225,9 +225,9 @@ const THESIS_KEY = 'lhq_theses';
 
 const THESIS_CHECK_SECTIONS: { key: string; label: string; color?: string }[] = [
   { key: 'ASSUMPTION_CHECK', label: 'Assumption Check'            },
-  { key: 'THESIS_HEALTH',    label: 'Thesis Health Score', color: '#1a7aff' },
-  { key: 'KEY_RISK',         label: 'Key Risk',            color: '#f87171' },
-  { key: 'RECOMMENDATION',   label: 'Recommendation',      color: '#34d399' },
+  { key: 'THESIS_HEALTH',    label: 'Thesis Health Score', color: 'var(--accent)' },
+  { key: 'KEY_RISK',         label: 'Key Risk',            color: 'var(--red)' },
+  { key: 'RECOMMENDATION',   label: 'Recommendation',      color: 'var(--green)' },
 ];
 
 function parseThesisSection(text: string, key: string): string {

@@ -30,21 +30,21 @@ const SMC_TFS = ['5m', '15m', '30m', '1h', '4h', '1d'] as const;
 type SMCTF = typeof SMC_TFS[number];
 
 const SMC_SECTIONS = [
-  { key: 'MARKET_STRUCTURE', label: 'Market Structure', color: '#1a7aff' },
-  { key: 'FAIR_VALUE_GAPS',  label: 'Fair Value Gaps',  color: '#fbbf24' },
+  { key: 'MARKET_STRUCTURE', label: 'Market Structure', color: 'var(--accent)' },
+  { key: 'FAIR_VALUE_GAPS',  label: 'Fair Value Gaps',  color: 'var(--amber)' },
   { key: 'ORDER_BLOCKS',     label: 'Order Blocks',     color: '#fb923c' },
-  { key: 'LIQUIDITY_ZONES',  label: 'Liquidity Zones',  color: '#5aa3ff' },
+  { key: 'LIQUIDITY_ZONES',  label: 'Liquidity Zones',  color: 'var(--accent-2)' },
   { key: 'BIAS',             label: 'Directional Bias'                   },
-  { key: 'KEY_LEVELS',       label: 'Key Levels',       color: '#34d399' },
+  { key: 'KEY_LEVELS',       label: 'Key Levels',       color: 'var(--green)' },
 ];
 
 const UNLOCK_SECTIONS = [
   { key: 'CURRENT_SUPPLY',     label: 'Current Supply'                         },
-  { key: 'UNLOCK_SCHEDULE',    label: 'Unlock Schedule',    color: '#fbbf24'   },
-  { key: 'SELL_PRESSURE_30D',  label: '30-Day Sell Pressure', color: '#f87171' },
+  { key: 'UNLOCK_SCHEDULE',    label: 'Unlock Schedule',    color: 'var(--amber)'   },
+  { key: 'SELL_PRESSURE_30D',  label: '30-Day Sell Pressure', color: 'var(--red)' },
   { key: 'SELL_PRESSURE_90D',  label: '90-Day Sell Pressure', color: '#fb923c' },
   { key: 'HISTORICAL_PATTERN', label: 'Historical Pattern'                      },
-  { key: 'RECOMMENDATION',     label: 'Recommendation',     color: '#34d399'   },
+  { key: 'RECOMMENDATION',     label: 'Recommendation',     color: 'var(--green)'   },
 ];
 
 function parseSMCSection(text: string, key: string): string {
@@ -62,10 +62,10 @@ function parseUnlockSection(text: string, key: string): string {
 const STRATEGY_SECTIONS = [
   { key: 'THEORETICAL_EDGE',      label: 'Theoretical Edge' },
   { key: 'OPTIMAL_CONDITIONS',    label: 'Optimal Conditions' },
-  { key: 'KEY_RISKS',             label: 'Key Risks', color: '#f87171' },
-  { key: 'PARAMETER_SUGGESTIONS', label: 'Parameter Suggestions', color: '#34d399' },
-  { key: 'CRYPTO_NOTES',          label: 'Crypto Notes', color: '#fbbf24' },
-  { key: 'HONEST_ASSESSMENT',     label: 'Honest Assessment', color: '#1a7aff' },
+  { key: 'KEY_RISKS',             label: 'Key Risks', color: 'var(--red)' },
+  { key: 'PARAMETER_SUGGESTIONS', label: 'Parameter Suggestions', color: 'var(--green)' },
+  { key: 'CRYPTO_NOTES',          label: 'Crypto Notes', color: 'var(--amber)' },
+  { key: 'HONEST_ASSESSMENT',     label: 'Honest Assessment', color: 'var(--accent)' },
 ];
 
 function parseSection(text: string, key: string): string {
