@@ -743,7 +743,7 @@ function Inner() {
     <div>
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Trade Journal</div>
+        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Trade Journal</h1>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Log every trade · track results · build discipline</div>
       </div>
 

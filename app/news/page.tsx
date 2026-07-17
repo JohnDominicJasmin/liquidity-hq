@@ -395,9 +395,9 @@ export default function NewsPage() {
     <div>
       {/* ── Header ── */}
       <div style={{ padding: '1rem 0 0.5rem' }}>
-        <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2, letterSpacing: '-0.3px' }}>
+        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2, letterSpacing: '-0.3px' }}>
           News
-        </div>
+        </h1>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 12 }}>
           Reuters · AP · BBC · CoinDesk · CoinTelegraph · Decrypt · The Block · Finnhub
           <span style={{ marginLeft: 8, fontWeight: 700, color: alerts.length > 0 ? 'var(--green)' : 'var(--txt3)' }}>

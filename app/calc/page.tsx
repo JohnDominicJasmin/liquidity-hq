@@ -22,7 +22,7 @@ function CalcPageContent() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Calculators</div>
+        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Calculators</h1>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Position sizing, liquidation, PnL, risk/reward, funding cost, and DCA average</div>
       </div>
       <div className="ps-presets" style={{ marginBottom: 16, flexWrap: 'wrap' }}>

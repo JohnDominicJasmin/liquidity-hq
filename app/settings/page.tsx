@@ -40,7 +40,7 @@ function SaveToast({ status }: { status: 'idle' | 'saving' | 'saved' | 'error' }
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="st-section">
-      <div className="st-section-title">{title}</div>
+      <h2 className="st-section-title">{title}</h2>
       {children}
     </div>
   );
@@ -142,7 +142,7 @@ export default function SettingsPage() {
     const LOCKED = ['Account', 'My Watchlist', 'Trading Profile', 'AI Arena Defaults', 'Notification Thresholds', 'Dashboard Sections', 'Telegram Alerts'];
     return (
       <div className="st-page">
-        <div className="st-header"><div className="st-header-title">Settings</div></div>
+        <div className="st-header"><h1 className="st-header-title">Settings</h1></div>
 
         <Section title="Appearance">
           <div className="st-field">
@@ -201,7 +201,7 @@ export default function SettingsPage() {
 
       {/* ── Header ── */}
       <div className="st-header">
-        <div className="st-header-title">Settings</div>
+        <h1 className="st-header-title">Settings</h1>
       </div>
 
       {/* ── 1. Account ── */}
