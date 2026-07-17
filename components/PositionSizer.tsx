@@ -2,10 +2,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSettings } from '@/lib/settings';
-import { useMarket, COINS, COIN_LABELS, COIN_DEC, fmtPrice, type CoinId } from '@/lib/marketStore';
+import { useMarket, COIN_LABELS, COIN_DEC, fmtPrice, type CoinId } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
-import CoinIcon from '@/components/CoinIcon';
 
 interface CalcResult {
   riskUSD:      number;
@@ -44,38 +43,32 @@ function fmtUSD(v: number) {
   return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default function PositionSizer() {
+export default function PositionSizer({ coin }: { coin: CoinId | '' }) {
   const router = useRouter();
   const { store } = useMarket();
   const { settings, update: updateSettings } = useSettings();
   const searchParams = useSearchParams();
   const [account, setAccount] = useState(() => searchParams.get('acc') ?? '');
   const [riskPct, setRiskPct] = useState(() => searchParams.get('risk') ?? '1');
-  const [coin,    setCoin]    = useState<CoinId | ''>(() => {
-    const c = searchParams.get('coin')?.toLowerCase() ?? '';
-    return (COINS as string[]).includes(c) ? c as CoinId : '';
-  });
   const [entry,   setEntry]   = useState(() => searchParams.get('entry') ?? '');
   const [stop,    setStop]    = useState(() => searchParams.get('stop') ?? '');
   const [tp,      setTp]      = useState(() => searchParams.get('tp') ?? '');
   const seededRef = useRef(false);
-  const [coinMenuOpen, setCoinMenuOpen] = useState(false);
-  const coinMenuRef = useRef<HTMLDivElement>(null);
 
   const livePrice = coin ? (store.coins[coin]?.price ?? null) : null;
   const coinLabel = coin ? COIN_LABELS[coin] : '';
 
-  // Pick a coin → auto-fill Entry with its current live price (one-shot, so
-  // later price ticks don't overwrite what the user is editing; the "live"
-  // button re-syncs on demand).
-  const pickCoin = (c: CoinId | '') => {
-    setCoin(c);
-    setCoinMenuOpen(false);
-    if (c) {
-      const p = store.coins[c]?.price;
-      if (p != null) setEntry(String(p));
-    }
-  };
+  // Coin is picked one level up (shared across all calculator tabs) - when
+  // it changes (including on mount, e.g. switching back to this tab), fill
+  // Entry with its current live price. One-shot per coin change, so later
+  // price ticks don't overwrite what the user is editing; the "live" button
+  // re-syncs on demand.
+  useEffect(() => {
+    if (!coin) return;
+    const p = store.coins[coin]?.price;
+    if (p != null) setEntry(String(p));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coin]);
 
   /* Seed from Settings (replaces old localStorage read) - URL params win, so a
      shared link always reproduces the sender's exact setup. */
@@ -87,38 +80,20 @@ export default function PositionSizer() {
     if (!urlParams.has('risk') && settings.risk_pct)      setRiskPct(String(settings.risk_pct));
   }, [settings.account_size, settings.risk_pct]);
 
-  /* Sync every input to the URL so the setup - coin, entry, stop, TP, account,
-     risk - is shareable, same pattern as Arena's coin+tf sync. */
+  /* Sync every input to the URL so the setup - entry, stop, TP, account,
+     risk - is shareable, same pattern as Arena's coin+tf sync. Coin itself
+     is synced one level up in app/calc/page.tsx, which owns that state. */
   useEffect(() => {
     const url = new URL(window.location.href);
     const p = url.searchParams;
     const set = (k: string, v: string) => { v ? p.set(k, v) : p.delete(k); };
-    set('coin',  coin);
     set('acc',   account);
     set('risk',  riskPct);
     set('entry', entry);
     set('stop',  stop);
     set('tp',    tp);
     window.history.replaceState(null, '', url.toString());
-  }, [coin, account, riskPct, entry, stop, tp]);
-
-  /* Close the coin dropdown on outside click / Escape - it's a custom listbox
-     (not a native <select>) so it can be size- and position-constrained
-     instead of the browser rendering a huge native popup that can flip
-     upward and cover the screen. */
-  useEffect(() => {
-    if (!coinMenuOpen) return;
-    const onClick = (e: MouseEvent) => {
-      if (coinMenuRef.current && !coinMenuRef.current.contains(e.target as Node)) setCoinMenuOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCoinMenuOpen(false); };
-    document.addEventListener('mousedown', onClick);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onClick);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [coinMenuOpen]);
+  }, [account, riskPct, entry, stop, tp]);
 
   const saveAccount = (v: string) => {
     setAccount(v);
@@ -192,64 +167,19 @@ export default function PositionSizer() {
       {/* Trade Levels */}
       <div className="ps-card">
         <div className="ps-card-lbl">Trade Levels</div>
-        <div className="ps-coin-row">
-          <label className="ps-lbl">Coin <span className="ps-opt">(optional - auto-fills entry with the live price)</span></label>
-          <div className="ps-coin-irow">
-            <div className="ps-coin-combo" ref={coinMenuRef}>
-              <button
-                type="button"
-                className="ps-coin-trigger"
-                aria-haspopup="listbox"
-                aria-expanded={coinMenuOpen}
-                onClick={() => setCoinMenuOpen(o => !o)}
-              >
-                {coin
-                  ? <CoinIcon coin={coin} size={18} />
-                  : <span className="ps-coin-trigger-dot" />}
-                <span className="ps-coin-trigger-label">{coin ? COIN_LABELS[coin] : 'Any coin (enter prices manually)'}</span>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" className="ps-coin-chevron">
-                  <path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-              {coinMenuOpen && (
-                <div className="ps-coin-menu" role="listbox">
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={coin === ''}
-                    className={`ps-coin-opt${coin === '' ? ' on' : ''}`}
-                    onClick={() => pickCoin('')}
-                  >
-                    <span className="ps-coin-opt-dot" />
-                    <span>Any coin (enter prices manually)</span>
-                  </button>
-                  {COINS.map(c => (
-                    <button
-                      key={c}
-                      type="button"
-                      role="option"
-                      aria-selected={coin === c}
-                      className={`ps-coin-opt${coin === c ? ' on' : ''}`}
-                      onClick={() => pickCoin(c)}
-                    >
-                      <CoinIcon coin={c} size={18} />
-                      <span>{COIN_LABELS[c]}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            {coin && (
-              livePrice != null ? (
+        {coin && (
+          <div className="ps-coin-row">
+            <div className="ps-coin-irow">
+              {livePrice != null ? (
                 <button type="button" className="ps-live-btn" onClick={() => setEntry(String(livePrice))} title="Set entry to the current live price">
-                  <span className="ps-live-dot" /> {fmtPrice(livePrice, COIN_DEC[coin])}
+                  <span className="ps-live-dot" /> {COIN_LABELS[coin]} {fmtPrice(livePrice, COIN_DEC[coin])}
                 </button>
               ) : (
-                <span className="ps-live-wait">price loading…</span>
-              )
-            )}
+                <span className="ps-live-wait">{COIN_LABELS[coin]} price loading…</span>
+              )}
+            </div>
           </div>
-        </div>
+        )}
         <div className="ps-row">
           <div className="ps-field">
             <label className="ps-lbl">Entry Price</label>

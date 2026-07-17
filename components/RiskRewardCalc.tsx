@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useMarket, COIN_LABELS, COIN_DEC, fmtPrice, type CoinId } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 
@@ -33,11 +34,24 @@ function fmtUSD(v: number) {
   return '$' + v.toFixed(4);
 }
 
-export default function RiskRewardCalc() {
+export default function RiskRewardCalc({ coin }: { coin: CoinId | '' }) {
+  const { store } = useMarket();
   const [entry,  setEntry]  = useState('');
   const [sl,     setSl]     = useState('');
   const [tp,     setTp]     = useState('');
   const [winRate, setWinRate] = useState('50');
+
+  const livePrice = coin ? (store.coins[coin]?.price ?? null) : null;
+
+  // Coin is picked one level up (shared across all calculator tabs) - fill
+  // Entry with its live price whenever the shared pick changes, including
+  // on mount (e.g. switching back to this tab).
+  useEffect(() => {
+    if (!coin) return;
+    const p = store.coins[coin]?.price;
+    if (p != null) setEntry(String(p));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coin]);
 
   const result = calc(
     parseFloat(entry)   || 0,
@@ -55,6 +69,19 @@ export default function RiskRewardCalc() {
 
       <div className="ps-card">
         <div className="ps-card-lbl">Trade Levels</div>
+        {coin && (
+          <div className="ps-coin-row">
+            <div className="ps-coin-irow">
+              {livePrice != null ? (
+                <button type="button" className="ps-live-btn" onClick={() => setEntry(String(livePrice))} title="Set entry to the current live price">
+                  <span className="ps-live-dot" /> {COIN_LABELS[coin]} {fmtPrice(livePrice, COIN_DEC[coin])}
+                </button>
+              ) : (
+                <span className="ps-live-wait">{COIN_LABELS[coin]} price loading…</span>
+              )}
+            </div>
+          </div>
+        )}
         <div className="ps-row">
           <div className="ps-field">
             <label className="ps-lbl">Entry Price</label>

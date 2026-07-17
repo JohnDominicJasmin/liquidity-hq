@@ -1,5 +1,8 @@
 'use client';
-import { useState, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { COINS, COIN_LABELS, type CoinId } from '@/lib/marketStore';
+import CoinIcon from '@/components/CoinIcon';
 import PositionSizer    from '@/components/PositionSizer';
 import LiquidationCalc  from '@/components/LiquidationCalc';
 import PnLCalc          from '@/components/PnLCalc';
@@ -17,7 +20,38 @@ const TABS = [
 ];
 
 function CalcPageContent() {
+  const searchParams = useSearchParams();
   const [tab, setTab] = useState('sizer');
+
+  // Coin selection lives here, one level above the tabs, so it survives
+  // switching between Position Sizer / Liquidation / PnL / etc instead of
+  // each calculator owning (and losing) its own pick on unmount.
+  const [coin, setCoin] = useState<CoinId | ''>(() => {
+    const c = searchParams.get('coin')?.toLowerCase() ?? '';
+    return (COINS as string[]).includes(c) ? c as CoinId : '';
+  });
+  const [coinMenuOpen, setCoinMenuOpen] = useState(false);
+  const coinMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (coin) url.searchParams.set('coin', coin); else url.searchParams.delete('coin');
+    window.history.replaceState(null, '', url.toString());
+  }, [coin]);
+
+  useEffect(() => {
+    if (!coinMenuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (coinMenuRef.current && !coinMenuRef.current.contains(e.target as Node)) setCoinMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCoinMenuOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [coinMenuOpen]);
 
   return (
     <div>
@@ -25,19 +59,74 @@ function CalcPageContent() {
         <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Calculators</h1>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Position sizing, liquidation, PnL, risk/reward, funding cost, and DCA average</div>
       </div>
-      <div className="ps-presets" style={{ marginBottom: 16, flexWrap: 'wrap' }}>
+
+      <div className="ps-presets" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
         {TABS.map(t => (
           <button key={t.id} className={`ps-preset${tab === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>
             {t.label}
           </button>
         ))}
       </div>
-      {tab === 'sizer'       && <PositionSizer />}
-      {tab === 'liquidation' && <LiquidationCalc />}
-      {tab === 'pnl'         && <PnLCalc />}
-      {tab === 'rr'          && <RiskRewardCalc />}
+
+      {/* Shared coin picker - persists across tabs; each calculator below
+          auto-fills its own relevant price field from whatever's picked
+          here, so switching tools doesn't mean re-selecting the coin. */}
+      <div className="ps-coin-row" style={{ marginBottom: 16 }}>
+        <label className="ps-lbl">Coin <span className="ps-opt">(optional - auto-fills price fields below)</span></label>
+        <div className="ps-coin-irow">
+          <div className="ps-coin-combo" ref={coinMenuRef}>
+            <button
+              type="button"
+              className="ps-coin-trigger"
+              aria-haspopup="listbox"
+              aria-expanded={coinMenuOpen}
+              onClick={() => setCoinMenuOpen(o => !o)}
+            >
+              {coin
+                ? <CoinIcon coin={coin} size={18} />
+                : <span className="ps-coin-trigger-dot" />}
+              <span className="ps-coin-trigger-label">{coin ? COIN_LABELS[coin] : 'Any coin (enter prices manually)'}</span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" className="ps-coin-chevron">
+                <path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            {coinMenuOpen && (
+              <div className="ps-coin-menu" role="listbox">
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={coin === ''}
+                  className={`ps-coin-opt${coin === '' ? ' on' : ''}`}
+                  onClick={() => { setCoin(''); setCoinMenuOpen(false); }}
+                >
+                  <span className="ps-coin-opt-dot" />
+                  <span>Any coin (enter prices manually)</span>
+                </button>
+                {COINS.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    role="option"
+                    aria-selected={coin === c}
+                    className={`ps-coin-opt${coin === c ? ' on' : ''}`}
+                    onClick={() => { setCoin(c); setCoinMenuOpen(false); }}
+                  >
+                    <CoinIcon coin={c} size={18} />
+                    <span>{COIN_LABELS[c]}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {tab === 'sizer'       && <PositionSizer coin={coin} />}
+      {tab === 'liquidation' && <LiquidationCalc coin={coin} />}
+      {tab === 'pnl'         && <PnLCalc coin={coin} />}
+      {tab === 'rr'          && <RiskRewardCalc coin={coin} />}
       {tab === 'funding'     && <FundingCostCalc />}
-      {tab === 'dca'         && <DcaCalc />}
+      {tab === 'dca'         && <DcaCalc coin={coin} />}
     </div>
   );
 }

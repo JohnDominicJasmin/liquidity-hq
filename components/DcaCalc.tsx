@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useMarket, COIN_LABELS, COIN_DEC, fmtPrice, type CoinId } from '@/lib/marketStore';
 import EmptyState from '@/components/EmptyState';
 
 interface Entry { price: string; qty: string; }
@@ -14,11 +15,25 @@ function fmtPct(v: number) {
   return (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
 }
 
-export default function DcaCalc() {
+export default function DcaCalc({ coin }: { coin: CoinId | '' }) {
+  const { store } = useMarket();
   const [entries, setEntries] = useState<Entry[]>([
     { ...EMPTY_ENTRY }, { ...EMPTY_ENTRY },
   ]);
   const [currentPrice, setCurrentPrice] = useState('');
+
+  const livePrice = coin ? (store.coins[coin]?.price ?? null) : null;
+
+  // Coin is picked one level up (shared across all calculator tabs) - fill
+  // Current (Market) Price with its live price whenever the shared pick
+  // changes, including on mount. The historical buy-entry rows are left
+  // alone - those are the user's own past purchase prices, not live data.
+  useEffect(() => {
+    if (!coin) return;
+    const p = store.coins[coin]?.price;
+    if (p != null) setCurrentPrice(String(p));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coin]);
 
   const valid = entries
     .map(e => ({ price: parseFloat(e.price), qty: parseFloat(e.qty) }))
@@ -114,6 +129,19 @@ export default function DcaCalc() {
       {/* Current price */}
       <div className="ps-card">
         <div className="ps-card-lbl">Current Price (optional)</div>
+        {coin && (
+          <div className="ps-coin-row">
+            <div className="ps-coin-irow">
+              {livePrice != null ? (
+                <button type="button" className="ps-live-btn" onClick={() => setCurrentPrice(String(livePrice))} title="Set current price to the live price">
+                  <span className="ps-live-dot" /> {COIN_LABELS[coin]} {fmtPrice(livePrice, COIN_DEC[coin])}
+                </button>
+              ) : (
+                <span className="ps-live-wait">{COIN_LABELS[coin]} price loading…</span>
+              )}
+            </div>
+          </div>
+        )}
         <div className="ps-row">
           <div className="ps-field">
             <label className="ps-lbl">Market Price</label>
