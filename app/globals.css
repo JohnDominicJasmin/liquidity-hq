@@ -1437,6 +1437,10 @@ body.ticker-on .breaking-alert { top: 90px; }
 .tg-condition-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 0.5px solid var(--bdr); }
 .tg-cond-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 3px; flex-shrink: 0; }
 
+.acoin-search { width: 100%; padding: 7px 10px; border-radius: 8px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt); font-size: var(--fs-caption); margin-bottom: 8px; outline: none; }
+.acoin-search::placeholder { color: var(--txt3); }
+.acoin-search:focus { border-color: var(--accent); }
+
 /* ── PRICE ALERTS ── */
 .pa-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 4px; }
 .pa-select { font-size: var(--fs-caption); padding: 6px 10px; border-radius: 8px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt); cursor: pointer; }

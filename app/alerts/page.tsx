@@ -44,6 +44,7 @@ export default function AlertsPage() {
   const [muted, setMuted]   = useState<Set<string>>(new Set());
   const [muteErr, setMuteErr] = useState('');
   const [coinCapMsg, setCoinCapMsg] = useState('');
+  const [coinSearch, setCoinSearch] = useState('');
 
   // Alert history
   const [history, setHistory] = useState<{ label: string; ts: number }[]>([]);
@@ -687,8 +688,15 @@ export default function AlertsPage() {
               {coinCapMsg}
             </div>
           )}
+          <input
+            className="acoin-search"
+            placeholder="Search coins..."
+            value={coinSearch}
+            onChange={e => setCoinSearch(e.target.value)}
+            aria-label="Search alert coins"
+          />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {COINS.map(c => {
+            {COINS.filter(c => c.includes(coinSearch.trim().toLowerCase())).map(c => {
               const off = muted.has(`coin:${c}`);
               const badgeCol = coinBadgeColor(c);
               return (
@@ -713,6 +721,9 @@ export default function AlertsPage() {
                 </button>
               );
             })}
+            {coinSearch.trim() && !COINS.some(c => c.includes(coinSearch.trim().toLowerCase())) && (
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>No coins match &quot;{coinSearch}&quot;</div>
+            )}
           </div>
         </div>
       </div>
