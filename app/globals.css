@@ -4558,12 +4558,16 @@ html[lang="ar"] .lp-h1-accent {
 .ob-cl-row.done .ob-cl-lbl { text-decoration: line-through; }
 .ob-cl-arrow { font-size: 0.6875rem; color: var(--txt3); flex-shrink: 0; }
 
-/* Mini / collapsed */
+/* Mini / collapsed - sits in the same bottom row as the Ask AI FAB (just to
+   its left) instead of floating higher up where it overlapped the footer's
+   legal text. The FAB is 64px wide at right:20 (desktop) / right:16 (mobile),
+   so offset the pill by 64 + a gap to clear it. */
 .ob-checklist-mini {
   width: auto !important; cursor: pointer;
   padding: 8px 14px !important;
   display: flex; align-items: center; gap: 10px;
 }
+.ob-checklist.ob-checklist-mini { bottom: 24px; right: 94px; }
 .ob-cl-mini-text { font-size: var(--fs-caption); font-weight: 600; color: var(--txt2); white-space: nowrap; }
 .ob-cl-mini-track {
   width: 56px; height: 3px; border-radius: 2px;
@@ -4715,6 +4719,10 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   .mobile-tab-label { font-size: 0.625rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
   .gchat-fab { bottom: 76px !important; }
   .gchat-panel { bottom: 140px !important; }
+  /* Collapsed Setup pill rides in the same row as the FAB (bottom:76), just to
+     its left (FAB is 64px wide at right:16), so it clears the footer instead of
+     overlapping it. */
+  .ob-checklist.ob-checklist-mini { bottom: 76px !important; right: 90px !important; }
   /* Reserve space for tab bar (56px) + the FAB above it (bottom:76 + 64 tall = 140).
      Prevents the fixed "Ask AI" FAB from overlapping the last content on every page. */
   .app-content { padding-bottom: 148px; }
