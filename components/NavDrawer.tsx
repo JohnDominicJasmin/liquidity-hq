@@ -9,7 +9,14 @@ import SettingsModal from './SettingsModal';
 import { getCurrentWindow } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { withAlpha } from '@/lib/color';
-import { IconSun, IconMoon } from './icons';
+import {
+  IconSun, IconMoon,
+  NavDashboard, NavBriefing, NavArena, NavMarkets, NavPrices, NavScanner,
+  NavLiqMap, NavFunding, NavCorrelation, NavBacktest, NavTracking, NavResearch,
+  NavNews, NavCalendar, NavJournal, NavCalc, NavAlerts, NavHours, NavPlaybook,
+  NavSettings, NavAbout,
+} from './icons';
+import type { ComponentType } from 'react';
 
 /* ── Mobile tab bar icons - plain SVGs, not emoji. Emoji glyphs like ⚡ render
    as native color emoji on most platforms (a hardcoded yellow bolt) and
@@ -140,42 +147,45 @@ const TAIL = [
   { path: '/news', label: 'News' },
 ];
 
-type NavEntry =
-  | { path: string; label: string; modal?: boolean }
-  | { header: string }
-  | null;
+type NavIcon = ComponentType<{ size?: number }>;
+type NavDest = { path: string; label: string; Icon: NavIcon; modal?: boolean };
+type NavSection = { header: string; items: NavDest[] };
 
-const MOBILE_NAV: NavEntry[] = [
-  { path: '/dashboard', label: 'Dashboard' },
-  { path: '/briefing',  label: 'Briefing'  },
-
-  { header: 'Analysis' },
-  { path: '/arena',       label: 'Arena'              },
-  { path: '/markets',     label: 'Markets'            },
-  { path: '/prices',      label: 'Live Prices'        },
-  { path: '/scanner',     label: 'Setup Scanner'     },
-  { path: '/liq',         label: 'Liquidation Map'   },
-  { path: '/funding',     label: 'FR History'        },
-  { path: '/correlation', label: 'Correlation'       },
-  { path: '/backtest',    label: 'Backtest'          },
-  { path: '/live-tracking', label: 'Live Tracking'   },
-
-  { header: 'Research' },
-  { path: '/research',      label: 'Research Hypotheses' },
-  { path: '/news',          label: 'News'              },
-  { path: '/econ-calendar', label: 'Economic Calendar' },
-
-  { header: 'My Tools' },
-  { path: '/journal',  label: 'Journal'         },
-  { path: '/calc',     label: 'Position Sizer'  },
-  { path: '/alerts',   label: 'Alerts'          },
-  { path: '/hours',    label: 'Best Hours'      },
-  { path: '/playbook', label: 'Playbook'        },
-
-  { header: 'Account' },
-  { path: '/settings', label: 'Settings', modal: true },
-  { path: '/about',    label: 'About'           },
+const NAV_SECTIONS: NavSection[] = [
+  { header: 'Main', items: [
+    { path: '/dashboard', label: 'Dashboard', Icon: NavDashboard },
+    { path: '/briefing',  label: 'Briefing',  Icon: NavBriefing },
+  ] },
+  { header: 'Analysis', items: [
+    { path: '/arena',         label: 'Arena',           Icon: NavArena },
+    { path: '/markets',       label: 'Markets',         Icon: NavMarkets },
+    { path: '/prices',        label: 'Live Prices',     Icon: NavPrices },
+    { path: '/scanner',       label: 'Setup Scanner',   Icon: NavScanner },
+    { path: '/liq',           label: 'Liquidation Map', Icon: NavLiqMap },
+    { path: '/funding',       label: 'FR History',      Icon: NavFunding },
+    { path: '/correlation',   label: 'Correlation',     Icon: NavCorrelation },
+    { path: '/backtest',      label: 'Backtest',        Icon: NavBacktest },
+    { path: '/live-tracking', label: 'Live Tracking',   Icon: NavTracking },
+  ] },
+  { header: 'Research', items: [
+    { path: '/research',      label: 'Research',          Icon: NavResearch },
+    { path: '/news',          label: 'News',              Icon: NavNews },
+    { path: '/econ-calendar', label: 'Economic Calendar', Icon: NavCalendar },
+  ] },
+  { header: 'My Tools', items: [
+    { path: '/journal',  label: 'Journal',        Icon: NavJournal },
+    { path: '/calc',     label: 'Position Sizer', Icon: NavCalc },
+    { path: '/alerts',   label: 'Alerts',         Icon: NavAlerts },
+    { path: '/hours',    label: 'Best Hours',     Icon: NavHours },
+    { path: '/playbook', label: 'Playbook',       Icon: NavPlaybook },
+  ] },
+  { header: 'Account', items: [
+    { path: '/settings', label: 'Settings', Icon: NavSettings, modal: true },
+    { path: '/about',    label: 'About',    Icon: NavAbout },
+  ] },
 ];
+
+const ALL_DESTS: NavDest[] = NAV_SECTIONS.flatMap(s => s.items);
 
 /* ── Status dot ────────────────────────────────────────────────────────────── */
 function useStatusDot() {
@@ -228,6 +238,7 @@ function NavDropdown({ label, items, open, onToggle, onClose, pathname }: {
 /* ── NavDrawer ─────────────────────────────────────────────────────────────── */
 export default function NavDrawer() {
   const [drawerOpen, setDrawerOpen]     = useState(false);
+  const [navQuery, setNavQuery]         = useState('');
   const [openDrop, setOpenDrop]         = useState<DropKey | null>(null);
   const [authOpen, setAuthOpen]         = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -249,6 +260,7 @@ export default function NavDrawer() {
   // it otherwise sits on top of the bottom nav links and eats their taps.
   useEffect(() => {
     document.body.classList.toggle('nav-drawer-open', drawerOpen);
+    if (!drawerOpen) setNavQuery(''); // reopen clean
     return () => { document.body.classList.remove('nav-drawer-open'); };
   }, [drawerOpen]);
 
@@ -436,31 +448,79 @@ export default function NavDrawer() {
       <div id="nav-drawer" className={`nav-drawer${drawerOpen ? ' open' : ''}`}>
         <div className="nav-overlay" onClick={() => setDrawerOpen(false)} />
         <div className="nav-menu">
-          {MOBILE_NAV.map((item, i) =>
-            item === null ? (
-              <div key={i} className="nav-divider" />
-            ) : 'header' in item ? (
-              <div key={i} className="nav-group-label">{item.header}</div>
-            ) : item.modal ? (
-              <button
-                key={item.path}
-                className="nav-item"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%' }}
-                onClick={() => { setDrawerOpen(false); setSettingsOpen(true); }}
-              >
-                {item.label}
+          <div className="nav-search-wrap">
+            <svg className="nav-search-icon" width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.6" />
+              <line x1="13.5" y1="13.5" x2="17.5" y2="17.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+            <input
+              className="nav-search"
+              type="text"
+              value={navQuery}
+              onChange={e => setNavQuery(e.target.value)}
+              placeholder="Search pages"
+              aria-label="Search pages"
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+            />
+            {navQuery && (
+              <button className="nav-search-clear" onClick={() => setNavQuery('')} aria-label="Clear search" type="button">
+                <svg width="13" height="13" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <line x1="5" y1="5" x2="15" y2="15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                  <line x1="15" y1="5" x2="5" y2="15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                </svg>
               </button>
-            ) : (
-              <Link
-                key={item.path}
-                href={item.path}
-                className={`nav-item${pathname === item.path ? ' on' : ''}`}
-                onClick={() => setDrawerOpen(false)}
-              >
-                {item.label}
-              </Link>
-            )
-          )}
+            )}
+          </div>
+
+          {(() => {
+            const renderTile = (d: NavDest) => {
+              const on = pathname === d.path;
+              const inner = (
+                <>
+                  <span className="nav-tile-icon"><d.Icon size={20} /></span>
+                  <span className="nav-tile-label">{d.label}</span>
+                </>
+              );
+              return d.modal ? (
+                <button
+                  key={d.path}
+                  type="button"
+                  className={`nav-tile${on ? ' on' : ''}`}
+                  onClick={() => { setDrawerOpen(false); setSettingsOpen(true); }}
+                >
+                  {inner}
+                </button>
+              ) : (
+                <Link
+                  key={d.path}
+                  href={d.path}
+                  className={`nav-tile${on ? ' on' : ''}`}
+                  aria-current={on ? 'page' : undefined}
+                  onClick={() => setDrawerOpen(false)}
+                >
+                  {inner}
+                </Link>
+              );
+            };
+
+            const q = navQuery.trim().toLowerCase();
+            if (q) {
+              const matches = ALL_DESTS.filter(d => d.label.toLowerCase().includes(q));
+              return matches.length ? (
+                <div className="nav-grid">{matches.map(renderTile)}</div>
+              ) : (
+                <div className="nav-empty">No pages match “{navQuery.trim()}”</div>
+              );
+            }
+            return NAV_SECTIONS.map(sec => (
+              <div key={sec.header} className="nav-section">
+                <div className="nav-section-label">{sec.header}</div>
+                <div className="nav-grid">{sec.items.map(renderTile)}</div>
+              </div>
+            ));
+          })()}
 
           <div className="nav-divider" />
           {!authLoading && (
