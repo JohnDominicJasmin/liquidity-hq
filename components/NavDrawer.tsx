@@ -448,30 +448,32 @@ export default function NavDrawer() {
       <div id="nav-drawer" className={`nav-drawer${drawerOpen ? ' open' : ''}`}>
         <div className="nav-overlay" onClick={() => setDrawerOpen(false)} />
         <div className="nav-menu">
-          <div className="nav-search-wrap">
-            <svg className="nav-search-icon" width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.6" />
-              <line x1="13.5" y1="13.5" x2="17.5" y2="17.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
-            <input
-              className="nav-search"
-              type="text"
-              value={navQuery}
-              onChange={e => setNavQuery(e.target.value)}
-              placeholder="Search pages"
-              aria-label="Search pages"
-              autoComplete="off"
-              autoCapitalize="off"
-              spellCheck={false}
-            />
-            {navQuery && (
-              <button className="nav-search-clear" onClick={() => setNavQuery('')} aria-label="Clear search" type="button">
-                <svg width="13" height="13" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                  <line x1="5" y1="5" x2="15" y2="15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-                  <line x1="15" y1="5" x2="5" y2="15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-                </svg>
-              </button>
-            )}
+          <div className="nav-search-bar">
+            <div className="nav-search-wrap">
+              <svg className="nav-search-icon" width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.6" />
+                <line x1="13.5" y1="13.5" x2="17.5" y2="17.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+              <input
+                className="nav-search"
+                type="text"
+                value={navQuery}
+                onChange={e => setNavQuery(e.target.value)}
+                placeholder="Search pages"
+                aria-label="Search pages"
+                autoComplete="off"
+                autoCapitalize="off"
+                spellCheck={false}
+              />
+              {navQuery && (
+                <button className="nav-search-clear" onClick={() => setNavQuery('')} aria-label="Clear search" type="button">
+                  <svg width="13" height="13" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <line x1="5" y1="5" x2="15" y2="15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                    <line x1="15" y1="5" x2="5" y2="15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
           {(() => {

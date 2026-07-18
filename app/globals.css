@@ -360,7 +360,7 @@ body::after {
   position: absolute; top: 0; right: 0; width: min(90vw, 360px); height: 100%;
   background: #050505; border-left: 0.5px solid rgba(255,255,255,0.07);
   transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
-  display: flex; flex-direction: column; padding: 8px 0 20px;
+  display: flex; flex-direction: column; padding: 0 0 20px;
   box-shadow: -8px 0 32px rgba(0,0,0,0.8);
   overflow-y: auto;
 }
@@ -384,10 +384,15 @@ body::after {
 }
 
 /* ── Nav drawer: search + icon grid ── */
+/* Full-width opaque sticky header so tiles scroll *behind* the search, not
+   through it. The pill (.nav-search-wrap) sits inside this bar. */
+.nav-search-bar {
+  position: sticky; top: 0; z-index: 2;
+  padding: 8px 12px; background: #050505;
+}
 .nav-search-wrap {
-  position: sticky; top: 0; z-index: 1;
   display: flex; align-items: center; gap: 8px;
-  margin: 2px 12px 8px; padding: 8px 11px;
+  padding: 8px 11px;
   background: #141418; border: 0.5px solid rgba(255,255,255,0.08);
   border-radius: 9px;
 }
@@ -437,7 +442,8 @@ body::after {
   padding: 28px 20px; text-align: center;
   color: var(--txt3); font-size: var(--fs-label);
 }
-[data-theme="light"] .nav-search-wrap { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.09); }
+[data-theme="light"] .nav-search-bar { background: #FFFFFF; }
+[data-theme="light"] .nav-search-wrap { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); }
 [data-theme="light"] .nav-tile { background: rgba(0,0,0,0.05); }
 [data-theme="light"] .nav-tile:hover { background: rgba(0,0,0,0.07); color: var(--txt); }
 
