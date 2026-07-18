@@ -1837,12 +1837,15 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 }
 
 /* ── Edge Signals (CB Premium · VWAP · OI Trend) ── */
+/* Compact per-coin metric tiles. Flat frames (no per-signal colored borders) -
+   color lives on the values, Bloomberg/Coinglass convention. Tight 3-row cells
+   (label / value / one-line context) at an equal, small height. */
 .edge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin-bottom: 8px; }
-.edge-card { background: linear-gradient(180deg, var(--bg2) 0%, var(--bg1) 100%); border: 0.5px solid var(--bdr); border-radius: var(--radius-card); padding: 9px 11px; box-shadow: var(--nm-raise-sm); transition: border-color 0.2s; }
-.edge-card-label { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.edge-card-value { font-family: var(--font-mono), monospace; font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; letter-spacing: -0.3px; }
+.edge-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 10px; padding: 7px 10px; }
+.edge-card-label { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.edge-card-value { font-family: var(--font-mono), monospace; font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .edge-card-sub   { font-size: var(--fs-caption); color: var(--txt3); margin-top: 2px; line-height: 1.4; }
-.edge-card-signal { font-size: var(--fs-caption); font-weight: 600; margin-top: 4px; line-height: 1.35; }
+.edge-card-signal { font-size: var(--fs-caption); font-weight: 600; margin-top: 2px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .oi-trend-table { background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: var(--radius-card); overflow: hidden; margin-bottom: 8px; }
 .oi-trend-title { font-size: var(--fs-micro); font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.08em; padding: 10px 14px 6px; display: flex; align-items: center; gap: 6px; }
