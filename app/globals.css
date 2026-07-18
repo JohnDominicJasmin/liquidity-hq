@@ -759,6 +759,28 @@ body[data-rpm-level="high"]::before {
 .ticker-amber  .ticker-content span { color: rgba(253,211,77,0.85); }
 .ticker-purple .ticker-content span { color: rgba(90,163,255,0.82); }
 
+/* Dismiss control - hides the current batch until a newer alert arrives. */
+.ticker-close {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  height: 28px; width: 34px; padding: 0; margin-left: 4px;
+  background: none; border: none; cursor: pointer;
+  color: var(--txt3); transition: color 0.15s;
+}
+.ticker-close:hover { color: var(--txt); }
+
+/* WCAG 2.2.2 - a mechanism to pause the auto-scroll (hover or keyboard focus),
+   alongside the dismiss (hide) control above. */
+.news-ticker:hover .ticker-content,
+.news-ticker:focus-within .ticker-content { animation-play-state: paused; }
+
+/* Respect reduced-motion: stop the marquee entirely and let the row be
+   scrolled by hand instead (scrollbars are globally hidden). */
+@media (prefers-reduced-motion: reduce) {
+  .ticker-content { animation: none; }
+  .ticker-track { overflow-x: auto; }
+  .ticker-content > span:nth-child(2) { display: none; }
+}
+
 @keyframes ticker-scroll {
   0%   { transform: translateX(0); }
   100% { transform: translateX(-50%); }

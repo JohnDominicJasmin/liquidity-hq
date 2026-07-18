@@ -20,12 +20,22 @@ export default function NewsTicker() {
   const { alerts } = useNews();
   const spanRef = useRef<HTMLSpanElement>(null);
   const [duration, setDuration] = useState(60);
+  const [dismissedTs, setDismissedTs] = useState(0);
 
   // Tick every 60s so aged-out items drop from the ticker without waiting for new alerts
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 60_000);
     return () => clearInterval(id);
+  }, []);
+
+  // Restore the last dismissal so a dismissed batch stays hidden across reloads -
+  // the ticker only comes back when a newer alert arrives (ts beyond this mark).
+  useEffect(() => {
+    try {
+      const v = Number(localStorage.getItem('lhq_ticker_dismissed_ts') || 0);
+      if (v) setDismissedTs(v);
+    } catch {}
   }, []);
 
   // Filter by severity + recency - re-evaluated every tick
@@ -78,13 +88,23 @@ export default function NewsTicker() {
     return () => cancelAnimationFrame(raf);
   }, [text]);
 
+  // Newest timestamp in the current batch; the ticker is hidden once dismissed
+  // and only reappears when something newer than the dismissal arrives.
+  const newestTs = useMemo(() => items.reduce((m, a) => Math.max(m, a.ts), 0), [items]);
+  const visible = items.length > 0 && newestTs > dismissedTs;
+
   // Toggle body class so app-content top-padding can adjust
   useEffect(() => {
-    document.body.classList.toggle('ticker-on', items.length > 0);
+    document.body.classList.toggle('ticker-on', visible);
     return () => document.body.classList.remove('ticker-on');
-  }, [items.length]);
+  }, [visible]);
 
-  if (items.length === 0) return null;
+  if (!visible) return null;
+
+  const dismiss = () => {
+    setDismissedTs(newestTs);
+    try { localStorage.setItem('lhq_ticker_dismissed_ts', String(newestTs)); } catch {}
+  };
 
   return (
     <div className={`news-ticker ticker-${topType}`}>
@@ -99,6 +119,18 @@ export default function NewsTicker() {
           <span aria-hidden="true">{text}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
         </div>
       </div>
+      <button
+        className="ticker-close"
+        onClick={dismiss}
+        aria-label="Hide news until a newer alert"
+        title="Hide until a newer alert"
+        type="button"
+      >
+        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <line x1="5" y1="5" x2="15" y2="15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <line x1="15" y1="5" x2="5" y2="15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      </button>
     </div>
   );
 }
