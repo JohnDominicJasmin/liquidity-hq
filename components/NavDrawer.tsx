@@ -116,6 +116,8 @@ const PRIMARY = [
 ];
 
 const SCANNERS = [
+  { path: '/markets',     label: 'Markets'           },
+  { path: '/prices',      label: 'Live Prices'       },
   { path: '/scanner',     label: 'Setup Scanner'     },
   { path: '/liq',         label: 'Liquidation Map'   },
   { path: '/funding',     label: 'FR History'        },
@@ -149,6 +151,8 @@ const MOBILE_NAV: NavEntry[] = [
 
   { header: 'Analysis' },
   { path: '/arena',       label: 'Arena'              },
+  { path: '/markets',     label: 'Markets'            },
+  { path: '/prices',      label: 'Live Prices'        },
   { path: '/scanner',     label: 'Setup Scanner'     },
   { path: '/liq',         label: 'Liquidation Map'   },
   { path: '/funding',     label: 'FR History'        },
