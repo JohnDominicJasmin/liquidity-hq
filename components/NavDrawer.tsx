@@ -8,6 +8,7 @@ import { track } from '@/lib/analytics';
 import SettingsModal from './SettingsModal';
 import { getCurrentWindow } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
+import { withAlpha } from '@/lib/color';
 import { IconSun, IconMoon } from './icons';
 
 /* ── Mobile tab bar icons - plain SVGs, not emoji. Emoji glyphs like ⚡ render
@@ -58,6 +59,15 @@ function IconNews() {
     </svg>
   );
 }
+function IconMore() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <circle cx="4" cy="10" r="1.8" fill="currentColor" />
+      <circle cx="10" cy="10" r="1.8" fill="currentColor" />
+      <circle cx="16" cy="10" r="1.8" fill="currentColor" />
+    </svg>
+  );
+}
 
 /* ── Session pill ──────────────────────────────────────────────────────────── */
 function pad2(n: number) { return String(n).padStart(2, '0'); }
@@ -91,7 +101,7 @@ function SessionPill() {
   const m = Math.floor((endsMs % 3_600_000) / 60_000);
   const timeStr = h > 0 ? `${h}h ${pad2(m)}m` : `${m}m left`;
   return (
-    <div suppressHydrationWarning className="session-pill" style={{ color: win.color, background: win.bg, borderColor: win.color + '44' }}>
+    <div suppressHydrationWarning className="session-pill" style={{ color: win.color, background: win.bg, borderColor: withAlpha(win.color, '44') }}>
       <span className="session-pill-dot" style={{ background: win.color }} />
       {win.name.toUpperCase()} · {timeStr}
     </div>
@@ -224,6 +234,12 @@ export default function NavDrawer() {
   const { user, loading: authLoading, signOut } = useAuth();
   const authRef  = useRef<HTMLDivElement>(null);
   const initials = user?.email?.[0]?.toUpperCase() ?? '?';
+
+  // "More" tab is active whenever we're not on one of the 4 direct bottom-nav
+  // destinations - so the bottom bar always shows where you are (the tab, or
+  // "More" for the ~21 drawer-only screens).
+  const PRIMARY_TAB_PATHS = ['/dashboard', '/arena', '/briefing', '/news'];
+  const moreActive = !PRIMARY_TAB_PATHS.includes(pathname);
 
   // Hide the floating Ask AI button while the mobile nav drawer is open -
   // it otherwise sits on top of the bottom nav links and eats their taps.
@@ -368,9 +384,13 @@ export default function NavDrawer() {
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      {/* Mobile bottom tab bar - 1-tap switching between key pages. The
-          active tab expands into a labeled pill; inactive tabs collapse to
-          just their icon, so all four fit without crowding. */}
+      {/* Mobile bottom tab bar - 4 direct one-tap destinations plus a "More"
+          tab that opens the full drawer. The app has ~25 screens but only 4
+          fit here, so every other screen used to leave the whole bar inactive
+          (no "you are here", no way back to a section from the thumb zone).
+          "More" lights up whenever the current route isn't one of the 4 direct
+          tabs, so the bar always reflects location and the long tail is always
+          one tap away. On phones this replaces the top hamburger entirely. */}
       <nav className="mobile-tab-bar" aria-label="Main navigation">
         {[
           { path: '/dashboard', label: 'Dashboard', Icon: IconDashboard },
@@ -393,9 +413,23 @@ export default function NavDrawer() {
             </Link>
           );
         })}
+        <button
+          type="button"
+          className={`mobile-tab-item${moreActive ? ' on' : ''}`}
+          onClick={() => setDrawerOpen(true)}
+          aria-haspopup="menu"
+          aria-expanded={drawerOpen}
+          aria-controls="nav-drawer"
+          aria-label="More"
+        >
+          <span className="mobile-tab-icon-wrap">
+            <IconMore />
+          </span>
+          <span className="mobile-tab-label">More</span>
+        </button>
       </nav>
 
-      <div className={`nav-drawer${drawerOpen ? ' open' : ''}`}>
+      <div id="nav-drawer" className={`nav-drawer${drawerOpen ? ' open' : ''}`}>
         <div className="nav-overlay" onClick={() => setDrawerOpen(false)} />
         <div className="nav-menu">
           {MOBILE_NAV.map((item, i) =>

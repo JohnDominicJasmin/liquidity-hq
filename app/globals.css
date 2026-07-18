@@ -4716,10 +4716,14 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 @media (max-width: 640px) {
   .mobile-tab-bar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 997; height: 56px; background: rgba(10,10,14,0.96); border-top: 0.5px solid var(--bdr); backdrop-filter: blur(16px); }
   [data-theme="light"] .mobile-tab-bar { background: rgba(255,255,255,0.96); border-top-color: rgba(0,0,0,0.10); }
-  .mobile-tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: var(--txt3); font-size: 0.625rem; font-weight: 700; letter-spacing: 0.04em; transition: color 0.15s; padding: 6px 0; }
+  /* On phones the bottom bar owns navigation; the top hamburger would just be
+     a redundant second opener for the same drawer, so hide it here. Tablet
+     (641-767px, no bottom bar) keeps it; desktop hides it via min-width:768. */
+  .hamburger { display: none; }
+  .mobile-tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-decoration: none; color: var(--txt3); font-size: 0.625rem; font-weight: 700; letter-spacing: 0.04em; transition: color 0.15s; padding: 6px 0; background: none; border: none; cursor: pointer; font-family: inherit; }
   .mobile-tab-item.on { color: var(--accent); }
   .mobile-tab-icon-wrap { display: flex; align-items: center; justify-content: center; line-height: 1; }
-  .mobile-tab-label { font-size: 0.625rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+  .mobile-tab-label { font-size: 0.625rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
   .gchat-fab { bottom: 76px !important; }
   .gchat-panel { bottom: 140px !important; }
   /* Collapsed Setup pill rides in the same row as the FAB (bottom:76), just to
