@@ -438,7 +438,7 @@ body::after {
   color: var(--txt3); font-size: var(--fs-label);
 }
 [data-theme="light"] .nav-search-wrap { background: rgba(0,0,0,0.03); border-color: rgba(0,0,0,0.09); }
-[data-theme="light"] .nav-tile { background: rgba(0,0,0,0.035); }
+[data-theme="light"] .nav-tile { background: rgba(0,0,0,0.05); }
 [data-theme="light"] .nav-tile:hover { background: rgba(0,0,0,0.07); color: var(--txt); }
 
 /* ── CARDS ── */
