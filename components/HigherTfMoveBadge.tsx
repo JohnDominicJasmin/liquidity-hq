@@ -4,6 +4,7 @@ import type { CoinId } from '@/lib/marketStore';
 import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import Tip from './Tip';
 import { Warn } from './icons';
+import { withAlpha } from '@/lib/color';
 
 // Informational only - NOT a signal filter. Backtested three separate hard-suppression
 // approaches this session (same-TF range position, same-TF choppiness, higher-TF RSI/
@@ -63,11 +64,11 @@ export default function HigherTfMoveBadge({ coin, tf, signalDir }: Props) {
     <div style={{
       margin: '0 0 10px', fontSize: 'var(--fs-caption)', fontWeight: 600, lineHeight: 1.5,
       color: col, padding: '8px 10px', borderRadius: 8,
-      background: col + '14', border: `0.5px solid ${col}44`,
+      background: withAlpha(col, '14'), border: `0.5px solid ${withAlpha(col, '44')}`,
     }}>
       <Tip
         width={280}
-        iconColor={col + '99'}
+        iconColor={withAlpha(col, '99')}
         text="Informational only, not a filter - no signal is hidden based on this. 4h price moves this size sometimes precede sideways chop, sometimes continue trending; a fixed rule can't reliably tell which in advance, so this just surfaces the context for you to judge."
       >
         <Warn /> 4H {pumped ? 'pumped' : 'dumped'} {Math.abs(changePct).toFixed(1)}% in ~24h

@@ -2,6 +2,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useMarket, COINS, CoinId, CoinData, computeSqueezeScore, classifyFunding } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
+import { withAlpha } from '@/lib/color';
 
 type FilterDir = 'all' | 'LONG_LIQ' | 'SHORT_SQ' | 'NEUTRAL';
 
@@ -70,7 +71,7 @@ function ScoreBar({ score, color }: { score: number; color: string }) {
     <div className="scan-score-track">
       <div
         className="scan-score-fill"
-        style={{ width: `${score}%`, background: color, boxShadow: score > 50 ? `0 0 8px ${color}66` : 'none' }}
+        style={{ width: `${score}%`, background: color, boxShadow: score > 50 ? `0 0 8px ${withAlpha(color, '66')}` : 'none' }}
       />
     </div>
   );

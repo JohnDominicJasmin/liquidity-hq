@@ -1,6 +1,7 @@
 'use client';
 import { useMarket } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
+import { withAlpha } from '@/lib/color';
 
 /* ── Thresholds ────────────────────────────────────────────────────────────
    Bearish (longs overcrowded):
@@ -93,7 +94,7 @@ export default function SentimentExtremesAlert() {
               className="sent-dot"
               style={{
                 background: i < count ? col : 'rgba(255,255,255,0.08)',
-                boxShadow:  i < count ? `0 0 6px ${col}88` : 'none',
+                boxShadow:  i < count ? `0 0 6px ${withAlpha(col, '88')}` : 'none',
               }}
             />
           ))}

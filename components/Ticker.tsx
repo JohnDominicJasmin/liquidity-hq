@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useMarket, COINS, CoinId, COIN_DEC, fmtPrice, fmtChg, classifyFunding, computeCoinHealth } from '@/lib/marketStore';
+import { withAlpha } from '@/lib/color';
 
 function VolRatioText({ ratio }: { ratio: number | null | undefined }) {
   if (ratio == null) return <div className="ticker-vol">Vol: loading...</div>;
@@ -64,8 +65,8 @@ export default function Ticker() {
                       fontSize: 'var(--fs-caption)', fontWeight: 800, lineHeight: 1,
                       padding: '2px 4px', borderRadius: 4,
                       color: health.color,
-                      background: health.color + '22',
-                      border: `0.5px solid ${health.color}55`,
+                      background: withAlpha(health.color, '22'),
+                      border: `0.5px solid ${withAlpha(health.color, '55')}`,
                       letterSpacing: '.04em', flexShrink: 0,
                     }}>
                       {health.grade}

@@ -5,6 +5,7 @@ import LiqFeed, { Bucket } from '@/components/LiqFeed';
 import WhaleTradesFeed from '@/components/WhaleTradesFeed';
 import GexTable from '@/components/GexTable';
 import { Warn } from '@/components/icons';
+import { withAlpha } from '@/lib/color';
 
 
 /* ─── All leverage tiers - every real level Binance/Bybit offers ──────────── */
@@ -134,7 +135,7 @@ function BandRow({ b }: { b: Band }) {
         <div className="liq-row-bar" style={{
           width: Math.max(b.barPct, 2) + '%',
           background: `linear-gradient(90deg, ${isLong ? 'rgba(248,113,113,0.10)' : 'rgba(52,211,153,0.10)'}, ${isLong ? 'rgba(248,113,113,0.60)' : 'rgba(52,211,153,0.60)'})`,
-          boxShadow: b.isMagnet ? `0 0 10px ${accent}44` : 'none',
+          boxShadow: b.isMagnet ? `0 0 10px ${withAlpha(accent, '44')}` : 'none',
         }} />
       </div>
       <span className="liq-row-usd" style={{ color: accent }}>{fmtM(b.usdM)}</span>
@@ -420,8 +421,8 @@ export default function LiqPage() {
         <>
           {/* Bias - most actionable signal, show first */}
           {bias && (
-            <div className="liq-bias-card" style={{ borderColor: `${bias.col}33` }}>
-              <span className="liq-bias-badge" style={{ color: bias.col, background: `${bias.col}16` }}>{bias.txt}</span>
+            <div className="liq-bias-card" style={{ borderColor: withAlpha(bias.col, '33') }}>
+              <span className="liq-bias-badge" style={{ color: bias.col, background: withAlpha(bias.col, '16') }}>{bias.txt}</span>
               <span className="liq-bias-sub">{bias.sub}</span>
             </div>
           )}
@@ -497,8 +498,8 @@ export default function LiqPage() {
               ? 'Net shorts liquidated'
               : 'Balanced';
             return (
-              <div className="liq-bias-card" style={{ borderColor: `${netCol}33`, marginTop: 10 }}>
-                <span className="liq-bias-badge" style={{ color: netCol, background: `${netCol}16` }}>
+              <div className="liq-bias-card" style={{ borderColor: withAlpha(netCol, '33'), marginTop: 10 }}>
+                <span className="liq-bias-badge" style={{ color: netCol, background: withAlpha(netCol, '16') }}>
                   {cd.liqDelta! >= 0 ? '+' : '−'}{fmtM(Math.abs(cd.liqDelta!) / 1e6)}
                 </span>
                 <span className="liq-bias-sub">
@@ -547,8 +548,8 @@ export default function LiqPage() {
                     <span style={{
                       fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.06em',
                       padding: '2px 7px', borderRadius: 10,
-                      background: `${accentW}14`, color: accentW,
-                      border: `0.5px solid ${accentW}30`,
+                      background: withAlpha(accentW, '14'), color: accentW,
+                      border: `0.5px solid ${withAlpha(accentW, '30')}`,
                       textTransform: 'uppercase',
                     }}>
                       {whaleSide === 'long' ? 'Whale Long' : 'Whale Short'}

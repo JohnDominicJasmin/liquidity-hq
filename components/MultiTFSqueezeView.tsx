@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef } from 'react';
 import { useMarket, COINS, CoinId, computeSqueezeScore } from '@/lib/marketStore';
+import { withAlpha } from '@/lib/color';
 
 type TFDir = 'FLUSH' | 'SQUEEZE' | 'NEUTRAL';
 
@@ -73,9 +74,9 @@ function cellColors(sig: TFSignal): { bg: string; text: string; border: string }
   const base    = isFlush ? '#f87171' : '#34d399';
   const alpha   = sig.strength >= 70 ? '28' : sig.strength >= 40 ? '16' : '0c';
   return {
-    bg:     base + alpha,
+    bg:     withAlpha(base, alpha),
     text:   base,
-    border: base + '33',
+    border: withAlpha(base, '33'),
   };
 }
 

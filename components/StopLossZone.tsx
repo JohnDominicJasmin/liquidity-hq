@@ -2,6 +2,7 @@
 import { useMarket, COIN_DEC, fmtPrice, computeFibLevels } from '@/lib/marketStore';
 import type { CoinData, CoinId } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
+import { withAlpha } from '@/lib/color';
 
 export type Bias = 'long' | 'short' | 'neutral';
 
@@ -186,7 +187,7 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 14px 10px' }}>
             <span style={{
               fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 10px', borderRadius: 5,
-              color: biasCol, background: biasCol + '18', border: `0.5px solid ${biasCol}40`,
+              color: biasCol, background: withAlpha(biasCol, '18'), border: `0.5px solid ${withAlpha(biasCol, '40')}`,
               letterSpacing: '.03em',
             }}>
               {bias === 'long' ? '▲ Bullish' : '▼ Bearish'}

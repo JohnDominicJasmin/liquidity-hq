@@ -11,6 +11,7 @@ import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { Warn } from '@/components/icons';
 import { getSupabase } from '@/lib/supabase';
 import { nextResetLocalTime } from '@/lib/resetTime';
+import { withAlpha } from '@/lib/color';
 
 interface Msg {
   role: 'user' | 'assistant';
@@ -659,7 +660,7 @@ export default function GrokChat() {
                   >
                     <span
                       className="gchat-hist-coin"
-                      style={{ background: COIN_COLORS[c.coin] + '22', color: COIN_COLORS[c.coin], borderColor: COIN_COLORS[c.coin] + '44' }}
+                      style={{ background: withAlpha(COIN_COLORS[c.coin], '22'), color: COIN_COLORS[c.coin], borderColor: withAlpha(COIN_COLORS[c.coin], '44') }}
                     >
                       {c.coin.toUpperCase()}
                     </span>

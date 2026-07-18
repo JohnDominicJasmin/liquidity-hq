@@ -8,6 +8,7 @@ import AuthGate from './AuthGate';
 import Tip from './Tip';
 import { Warn } from './icons';
 import { track } from '@/lib/analytics';
+import { withAlpha } from '@/lib/color';
 import { T } from '@/lib/tables';
 import { coinBadgeColor } from '@/lib/coinBadge';
 
@@ -876,7 +877,7 @@ function Inner() {
                       <button
                         key={v}
                         className={`tj-lev-preset${leverage === v ? ' on' : ''}`}
-                        style={leverage === v ? { background: levColor + '18', color: levColor, borderColor: levColor + '44' } : {}}
+                        style={leverage === v ? { background: withAlpha(levColor, '18'), color: levColor, borderColor: withAlpha(levColor, '44') } : {}}
                         onClick={() => setLeverage(v)}
                       >
                         {v}×
@@ -1009,8 +1010,8 @@ function Inner() {
                   {trade.leverage != null && trade.leverage > 1 && (
                     <span className="tj-lev-tag" style={{
                       color:       trade.leverage >= 25 ? '#f87171' : trade.leverage >= 10 ? '#fbbf24' : '#34d399',
-                      background:  (trade.leverage >= 25 ? '#f87171' : trade.leverage >= 10 ? '#fbbf24' : '#34d399') + '14',
-                      borderColor: (trade.leverage >= 25 ? '#f87171' : trade.leverage >= 10 ? '#fbbf24' : '#34d399') + '40',
+                      background:  withAlpha(trade.leverage >= 25 ? '#f87171' : trade.leverage >= 10 ? '#fbbf24' : '#34d399', '14'),
+                      borderColor: withAlpha(trade.leverage >= 25 ? '#f87171' : trade.leverage >= 10 ? '#fbbf24' : '#34d399', '40'),
                     }}>
                       {trade.leverage}×
                     </span>
@@ -1786,7 +1787,7 @@ function Inner() {
                       {/* Curve fill */}
                       <polyline
                         points={`${x(0)},${zeroY} ${polyline} ${x(pts.length - 1)},${zeroY}`}
-                        fill={lineCol + '18'} stroke="none"
+                        fill={withAlpha(lineCol, '18')} stroke="none"
                       />
                       {/* Curve line */}
                       <polyline points={polyline} fill="none" stroke={lineCol} strokeWidth="1.5" strokeLinejoin="round" />

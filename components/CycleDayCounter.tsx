@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { withAlpha } from '@/lib/color';
 
 // Bitcoin halving dates (block timestamps)
 const HALVINGS = [
@@ -52,7 +53,7 @@ export default function CycleDayCounter() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
           <span style={{
             width: 7, height: 7, borderRadius: '50%', background: dotColor,
-            boxShadow: `0 0 6px ${dotColor}88`, flexShrink: 0,
+            boxShadow: `0 0 6px ${withAlpha(dotColor, '88')}`, flexShrink: 0,
           }} />
           <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase' }}>
             Cycle Day
@@ -60,7 +61,7 @@ export default function CycleDayCounter() {
         </div>
         <span suppressHydrationWarning style={{
           fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
-          color: dotColor, background: dotColor + '18', border: `0.5px solid ${dotColor}44`,
+          color: dotColor, background: withAlpha(dotColor, '18'), border: `0.5px solid ${withAlpha(dotColor, '44')}`,
           padding: '2px 7px', borderRadius: 20,
         }}>{label}</span>
       </div>

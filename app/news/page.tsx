@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNews } from '@/components/NewsProvider';
 import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline } from '@/lib/classify';
 import { ArticleIcon } from '@/components/icons';
+import { withAlpha } from '@/lib/color';
 
 type Tab = 'foryou' | 'breaking' | 'all' | 'geo' | 'crypto' | 'events';
 
@@ -139,7 +140,7 @@ function CoinBuzzBar({ mentions }: { mentions: { symbol: string; total: number; 
           <span key={m.symbol} style={{
             display: 'inline-flex', alignItems: 'center', gap: 3,
             padding: '3px 8px', borderRadius: 20,
-            background: `${col}14`, border: `0.5px solid ${col}44`,
+            background: withAlpha(col, '14'), border: `0.5px solid ${withAlpha(col, '44')}`,
             fontSize: 'var(--fs-caption)', color: col, fontWeight: 700,
             letterSpacing: '.03em', whiteSpace: 'nowrap', flexShrink: 0,
           }}>
@@ -188,7 +189,7 @@ function ImpactChip({ note, color }: { note: string; color: string }) {
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,
       padding: '2px 7px', borderRadius: 20,
-      background: `${color}18`, border: `0.5px solid ${color}44`,
+      background: withAlpha(color, '18'), border: `0.5px solid ${withAlpha(color, '44')}`,
       fontSize: 'var(--fs-caption)', color, fontWeight: 600, letterSpacing: '.02em',
       lineHeight: 1.6, whiteSpace: 'nowrap',
       maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis',

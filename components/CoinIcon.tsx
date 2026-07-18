@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import type { CoinId } from '@/lib/marketStore';
+import { withAlpha } from '@/lib/color';
 
 /** Crypto coin icon - CDN with letter-avatar fallback. */
 export default function CoinIcon({ coin, size = 22, color, bg }: { coin: CoinId; size?: number; color?: string; bg?: string }) {
@@ -13,7 +14,7 @@ export default function CoinIcon({ coin, size = 22, color, bg }: { coin: CoinId;
       <span style={{
         width: size, height: size, borderRadius: '50%', flexShrink: 0,
         background: bg ?? 'rgba(255,255,255,0.07)',
-        border: `0.5px solid ${color ? color + '44' : 'rgba(255,255,255,0.1)'}`,
+        border: `0.5px solid ${color ? withAlpha(color, '44') : 'rgba(255,255,255,0.1)'}`,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         fontSize: Math.round(size * 0.38), fontWeight: 800,
         color: color ?? '#555',

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useMarket, COINS, CoinId } from '@/lib/marketStore';
+import { withAlpha } from '@/lib/color';
 
 type Cat = 'all' | 'majors' | 'alts' | 'defi' | 'meme';
 
@@ -113,7 +114,7 @@ export default function CoinHeatmap() {
                 borderRadius: 8,
                 padding: '10px 8px',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-                border: `0.5px solid ${text}22`,
+                border: `0.5px solid ${withAlpha(text, '22')}`,
                 transition: 'background .2s',
                 cursor: 'default',
               }}
@@ -122,7 +123,7 @@ export default function CoinHeatmap() {
                 {c.toUpperCase()}
               </span>
               {coin?.price != null && (
-                <span style={{ fontSize: 'var(--fs-caption)', color: text + 'aa', fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ fontSize: 'var(--fs-caption)', color: withAlpha(text, 'aa'), fontVariantNumeric: 'tabular-nums' }}>
                   ${fmtPrice(coin.price)}
                 </span>
               )}

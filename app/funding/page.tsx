@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId, useMarket } from '@/lib/marketStore';
 import { coinBadgeColor } from '@/lib/coinBadge';
+import { withAlpha } from '@/lib/color';
 import { Warn } from '@/components/icons';
 import LoadingState from '@/components/LoadingState';
 
@@ -404,7 +405,7 @@ export default function FundingHistory() {
                   <span style={{ fontSize: 'var(--fs-caption)', color: frColor(fr), fontFamily: 'var(--font-mono), monospace', minWidth: 64, flexShrink: 0 }}>
                     {frFmt(fr)}
                   </span>
-                  <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 8, background: sig.bg, color: sig.color, border: `0.5px solid ${sig.color}33`, fontWeight: 600, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
+                  <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 8, background: sig.bg, color: sig.color, border: `0.5px solid ${withAlpha(sig.color, '33')}`, fontWeight: 600, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
                     {sig.crowd}
                   </span>
                   <span style={{ flex: 1 }} />
@@ -528,14 +529,14 @@ export default function FundingHistory() {
                           key={id}
                           className={`frh-row${selected === id ? ' on' : ''}`}
                           onClick={() => { if (!noData) setSelected(id); }}
-                          style={selected !== id && current != null ? { boxShadow: `inset 3px 0 0 ${frSignal(current).color}44` } : undefined}
+                          style={selected !== id && current != null ? { boxShadow: `inset 3px 0 0 ${withAlpha(frSignal(current).color, '44')}` } : undefined}
                         >
                           <td className="frh-coin" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{
                               width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
                               fontSize: 'var(--fs-caption)', fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
-                              background: coinBadgeColor(id) + '24', color: coinBadgeColor(id), border: `0.5px solid ${coinBadgeColor(id)}55`,
+                              background: withAlpha(coinBadgeColor(id), '24'), color: coinBadgeColor(id), border: `0.5px solid ${withAlpha(coinBadgeColor(id), '55')}`,
                             }}>
                               {id.slice(0, 2).toUpperCase()}
                             </span>
@@ -552,7 +553,7 @@ export default function FundingHistory() {
                               ? (() => {
                                   const sig = frSignal(current);
                                   return (
-                                    <span className="frh-sig-chip" style={{ borderColor: sig.color + '44', background: sig.bg }}>
+                                    <span className="frh-sig-chip" style={{ borderColor: withAlpha(sig.color, '44'), background: sig.bg }}>
                                       <span className="frh-sig-crowd" style={{ color: sig.color }}>{sig.crowd}</span>
                                       <span className="frh-sig-hint">→ {sig.hint}</span>
                                     </span>
@@ -607,7 +608,7 @@ export default function FundingHistory() {
                 {currentCoin?.fundingRate != null && (() => {
                   const sig = frSignal(currentCoin.fundingRate);
                   return (
-                    <div className="frh-signal" style={{ background: sig.bg, borderColor: sig.color + '55' }}>
+                    <div className="frh-signal" style={{ background: sig.bg, borderColor: withAlpha(sig.color, '55') }}>
                       <div style={{ flex: 1 }}>
                         <div className="frh-signal-top">
                           <span className="frh-signal-label" style={{ color: sig.color }}>{sig.label}</span>

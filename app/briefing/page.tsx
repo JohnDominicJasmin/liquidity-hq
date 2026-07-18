@@ -10,6 +10,7 @@ import { Warn } from '@/components/icons';
 import SessionCountdown from '@/components/SessionCountdown';
 import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
+import { withAlpha } from '@/lib/color';
 import { getSupabase } from '@/lib/supabase';
 import { nextResetLocalTime } from '@/lib/resetTime';
 import PageHint from '@/components/PageHint';
@@ -586,7 +587,7 @@ export default function MorningBriefing() {
                   position: 'absolute', top: 0, left: `${jpyPct}%`, transform: 'translate(-50%, 0)',
                   width: 12, height: 12, borderRadius: '50%', marginTop: -3,
                   background: jpyStatus!.color, border: '2px solid #111',
-                  boxShadow: `0 0 8px ${jpyStatus!.color}88`,
+                  boxShadow: `0 0 8px ${withAlpha(jpyStatus!.color, '88')}`,
                 }} />
               </div>
               {/* Threshold labels */}
@@ -671,7 +672,7 @@ export default function MorningBriefing() {
                         {chips.map(chip => (
                           <span key={chip.text} style={{
                             fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, flexShrink: 0,
-                            color: chip.color, background: chip.color + '18', border: `0.5px solid ${chip.color}50`,
+                            color: chip.color, background: withAlpha(chip.color, '18'), border: `0.5px solid ${withAlpha(chip.color, '50')}`,
                           }}>{chip.text}</span>
                         ))}
                       </div>

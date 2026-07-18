@@ -1,5 +1,6 @@
 'use client';
 import { useMarket } from '@/lib/marketStore';
+import { withAlpha } from '@/lib/color';
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
@@ -63,7 +64,7 @@ export default function BtcRiskLevel() {
         {score != null && (
           <span style={{
             fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
-            color, background: color + '18', border: `0.5px solid ${color}44`,
+            color, background: withAlpha(color, '18'), border: `0.5px solid ${withAlpha(color, '44')}`,
             padding: '2px 7px', borderRadius: 20,
           }}>{label}</span>
         )}

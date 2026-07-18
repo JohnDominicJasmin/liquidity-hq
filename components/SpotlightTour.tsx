@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOnboarding } from './OnboardingProvider';
+import { withAlpha } from '@/lib/color';
 
 const ACCENT  = '#1a7aff';
 const GREEN   = '#4ade80';
@@ -83,8 +84,8 @@ function Step2Visual() {
         ].map(chip => (
           <span key={chip.label} style={{
             fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px',
-            borderRadius: 100, border: `1px solid ${chip.col}30`,
-            background: `${chip.col}10`, color: chip.col, fontFamily: MONO,
+            borderRadius: 100, border: `1px solid ${withAlpha(chip.col, '30')}`,
+            background: withAlpha(chip.col, '10'), color: chip.col, fontFamily: MONO,
           }}>
             {chip.label}
           </span>
@@ -150,7 +151,7 @@ function Step4Visual() {
             <span style={{ fontSize: 'var(--fs-data)', fontWeight: 800, color: TXT1, fontFamily: MONO }}>BTC</span>
             <span style={{
               fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 8px',
-              borderRadius: 100, background: `${RED}18`, color: RED, fontFamily: MONO,
+              borderRadius: 100, background: withAlpha(RED, '18'), color: RED, fontFamily: MONO,
               letterSpacing: '.06em',
             }}>SHORT_SQ</span>
           </div>
@@ -169,8 +170,8 @@ function Step4Visual() {
           ].map(chip => (
             <span key={chip.label} style={{
               fontSize: 'var(--fs-caption)', padding: '3px 8px', borderRadius: 6,
-              background: `${chip.col}12`, color: chip.col,
-              border: `1px solid ${chip.col}25`, fontFamily: MONO, fontWeight: 600,
+              background: withAlpha(chip.col, '12'), color: chip.col,
+              border: `1px solid ${withAlpha(chip.col, '25')}`, fontFamily: MONO, fontWeight: 600,
             }}>
               {chip.label}
             </span>
@@ -179,7 +180,7 @@ function Step4Visual() {
       </div>
       {/* Telegram alert toast */}
       <div style={{
-        background: `${GREEN}08`, border: `1px solid ${GREEN}30`,
+        background: withAlpha(GREEN, '08'), border: `1px solid ${withAlpha(GREEN, '30')}`,
         borderRadius: 10, padding: '10px 14px',
         display: 'flex', alignItems: 'center', gap: 10,
         opacity: alertShown ? 1 : 0,
@@ -322,7 +323,7 @@ function Step5Visual() {
               <circle r="13" fill="none" stroke={GREEN} strokeWidth="1"
                 style={{ opacity: pulse ? 0.55 : 0.08, transition: 'opacity 0.85s ease' }} />
               {/* Inner glow disc */}
-              <circle r="7" fill={`${GREEN}1a`} />
+              <circle r="7" fill={withAlpha(GREEN, '1a')} />
               {/* Upward triangle */}
               <polygon points="0,-6.5 -5.5,3.5 5.5,3.5" fill={GREEN} />
               {/* BUY label */}
@@ -346,12 +347,12 @@ function Step5Visual() {
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: TXT1, fontFamily: MONO }}>BTC</span>
           <span style={{
             fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 100,
-            background: `${GREEN}18`, color: GREEN, fontFamily: MONO, fontWeight: 700, letterSpacing: '.05em',
+            background: withAlpha(GREEN, '18'), color: GREEN, fontFamily: MONO, fontWeight: 700, letterSpacing: '.05em',
           }}>LONG_SQ</span>
           {(['EMA ×', 'VOL 2.1×', 'FR+'] as const).map(chip => (
             <span key={chip} style={{
               fontSize: 'var(--fs-caption)', padding: '2px 6px', borderRadius: 4, fontFamily: MONO, fontWeight: 600,
-              background: `${ACCENT}12`, color: ACCENT, border: `1px solid ${ACCENT}22`,
+              background: withAlpha(ACCENT, '12'), color: ACCENT, border: `1px solid ${withAlpha(ACCENT, '22')}`,
             }}>{chip}</span>
           ))}
         </div>
@@ -528,7 +529,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
                   height: 4,
                   width: i === step ? 20 : 6,
                   borderRadius: 100,
-                  background: i === step ? ACCENT : i < step ? `${ACCENT}50` : 'rgba(26,122,255,0.12)',
+                  background: i === step ? ACCENT : i < step ? withAlpha(ACCENT, '50') : 'rgba(26,122,255,0.12)',
                   transition: 'all 0.3s cubic-bezier(0.16,1,0.3,1)',
                 }} />
               ))}
@@ -554,7 +555,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
                 background: ACCENT, border: 'none',
                 color: '#fff', fontSize: 'var(--fs-caption)', fontWeight: 700, fontFamily: MONO,
                 letterSpacing: '.05em',
-                boxShadow: `0 4px 20px ${ACCENT}40`,
+                boxShadow: `0 4px 20px ${withAlpha(ACCENT, '40')}`,
               }}
             >
               {isLast ? 'Open Arena →' : 'Next →'}

@@ -2,6 +2,7 @@
 import { StrategySignal, StrategyVerdict } from '@/lib/useEMAStrategy';
 import { CoinId } from '@/lib/marketStore';
 import { ROUND_TRIP_COST_PCT, TAKER_FEE_PCT, SLIPPAGE_PCT } from '@/lib/backtestEngine';
+import { withAlpha } from '@/lib/color';
 
 const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; color: string; bg: string; border: string }> = {
   LONG_SETUP:     { label: '▲ LONG SETUP',     color: '#34d399', bg: 'rgba(52,211,153,0.08)',  border: 'rgba(52,211,153,0.25)'  },
@@ -121,7 +122,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
                   display: 'inline-flex', alignItems: 'center', gap: 4,
                   fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
                   padding: '3px 8px', borderRadius: 20,
-                  color: col, background: col + '14', border: `0.5px solid ${col}44`,
+                  color: col, background: withAlpha(col, '14'), border: `0.5px solid ${withAlpha(col, '44')}`,
                   whiteSpace: 'nowrap', cursor: 'default',
                 }}
               >
@@ -169,7 +170,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '5px 8px', borderRadius: 6,
-                  background: bg, border: `0.5px solid ${col}22`,
+                  background: bg, border: `0.5px solid ${withAlpha(col, '22')}`,
                   cursor: canExplain ? 'pointer' : 'default',
                   transition: 'opacity 0.15s',
                 }}

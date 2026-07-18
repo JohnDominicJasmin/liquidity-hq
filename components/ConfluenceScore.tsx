@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useMarket } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
+import { withAlpha } from '@/lib/color';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { scoreBias } from './StopLossZone';
 import {
@@ -83,7 +84,7 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
           </div>
           <div className="sms-sub">{coin.toUpperCase()} · technical signals combined</div>
         </div>
-        <div className="sms-verdict" style={{ color: cfg.color, background: cfg.color + '14' }}>
+        <div className="sms-verdict" style={{ color: cfg.color, background: withAlpha(cfg.color, '14') }}>
           {result.score >= 0 ? '+' : ''}{result.score}
         </div>
       </div>
@@ -92,7 +93,7 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
         <div style={{
           margin: '0 14px 10px', fontSize: 'var(--fs-caption)', fontWeight: 600, lineHeight: 1.5,
           color: macroCol, padding: '8px 10px', borderRadius: 8,
-          background: macroCol + '14', border: `0.5px solid ${macroCol}44`,
+          background: withAlpha(macroCol, '14'), border: `0.5px solid ${withAlpha(macroCol, '44')}`,
         }}>
           {macro.reasons.map((r, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Warn /> {r}</div>)}
         </div>
@@ -101,7 +102,7 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
       <div style={{
         margin: '0 14px 12px', fontSize: 'var(--fs-caption)', fontWeight: 700, color: cfg.color,
         padding: '6px 10px', borderRadius: 8, textAlign: 'center',
-        background: cfg.color + '10', border: `0.5px solid ${cfg.color}33`,
+        background: withAlpha(cfg.color, '10'), border: `0.5px solid ${withAlpha(cfg.color, '33')}`,
         letterSpacing: '.03em',
       }}>
         {cfg.label}
@@ -120,7 +121,7 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
             <div key={i} style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               fontSize: 'var(--fs-caption)', padding: '4px 8px', borderRadius: 6,
-              background: active ? col + '0c' : 'transparent',
+              background: active ? withAlpha(col, '0c') : 'transparent',
             }}>
               <span style={{ color: 'var(--txt2)' }}>{f.label}</span>
               <span style={{ color: col, fontWeight: 700 }}>{valueText}</span>

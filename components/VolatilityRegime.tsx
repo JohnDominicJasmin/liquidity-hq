@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Tip from './Tip';
+import { withAlpha } from '@/lib/color';
 
 interface HVData {
   hv30:       number;   // current 30-day annualized HV %
@@ -112,7 +113,7 @@ function HVRow({ label, data }: { label: string; data: LoadState }) {
           width: 9, height: 9, borderRadius: '50%',
           background: m.col, border: '1.5px solid var(--bg2)',
           left: `${data.percentile}%`,
-          boxShadow: `0 0 6px ${m.col}66`,
+          boxShadow: `0 0 6px ${withAlpha(m.col, '66')}`,
         }} />
       </div>
 

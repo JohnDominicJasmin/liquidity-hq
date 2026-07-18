@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthProvider';
 import { getSupabase } from '@/lib/supabase';
 import EmptyState from '@/components/EmptyState';
+import { withAlpha } from '@/lib/color';
 
 interface Hypothesis {
   id: string;
@@ -413,7 +414,7 @@ export default function HypothesisTracker() {
                       padding: '10px 12px',
                       background: 'rgba(255,255,255,0.03)',
                       borderRadius: 8,
-                      border: `0.5px solid ${VERDICT_META[h.grok_verdict]?.col ?? 'var(--bdr)'}30`,
+                      border: `0.5px solid ${withAlpha(VERDICT_META[h.grok_verdict]?.col ?? 'var(--bdr)', '30')}`,
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                         <span style={{
@@ -513,7 +514,7 @@ export default function HypothesisTracker() {
                           key={t}
                           onClick={() => setEvType(t)}
                           style={{
-                            background: evType === t ? `${EV_META[t].col}22` : 'transparent',
+                            background: evType === t ? withAlpha(EV_META[t].col, '22') : 'transparent',
                             border: `0.5px solid ${evType === t ? EV_META[t].col : 'var(--bdr)'}`,
                             borderRadius: 5,
                             padding: '4px 10px',
@@ -556,7 +557,7 @@ export default function HypothesisTracker() {
                         key={s}
                         onClick={() => updateStatus(h.id, s)}
                         style={{
-                          background: h.status === s ? `${STATUS_META[s].col}22` : 'transparent',
+                          background: h.status === s ? withAlpha(STATUS_META[s].col, '22') : 'transparent',
                           border: `0.5px solid ${h.status === s ? STATUS_META[s].col : 'var(--bdr)'}`,
                           borderRadius: 5,
                           padding: '3px 8px',

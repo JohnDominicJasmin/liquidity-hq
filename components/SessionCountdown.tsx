@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { getCurrentWindow, isDead, getActiveHolidays, type Window as SessionWindow } from '@/lib/session';
+import { withAlpha } from '@/lib/color';
 
 /* ── helpers ── */
 function pad(n: number) { return String(n).padStart(2, '0'); }
@@ -82,7 +83,7 @@ export default function SessionCountdown() {
 
       {/* Row 1 - active session or status */}
       <div className="sc-row-main">
-        <div suppressHydrationWarning className="sc-badge" style={{ color: statusCol, background: statusBg, borderColor: statusCol + '44' }}>
+        <div suppressHydrationWarning className="sc-badge" style={{ color: statusCol, background: statusBg, borderColor: withAlpha(statusCol, '44') }}>
           {current
             ? current.name.toUpperCase()
             : dead ? 'DEAD ZONE' : 'OFF-PEAK'}

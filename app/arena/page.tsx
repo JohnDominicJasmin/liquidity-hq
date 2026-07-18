@@ -26,6 +26,7 @@ import Tip from '@/components/Tip';
 import LiqHeatmap from '@/components/LiqHeatmap';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
+import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import MultiTFAlignment from '@/components/MultiTFAlignment';
@@ -1109,11 +1110,11 @@ function ArenaContent() {
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 5,
                 fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 20,
-                color: col, background: col + '14', border: `0.5px solid ${col}44`,
+                color: col, background: withAlpha(col, '14'), border: `0.5px solid ${withAlpha(col, '44')}`,
                 letterSpacing: '.04em',
               }}>
                 <span style={{ width: 5, height: 5, borderRadius: '50%', background: col, boxShadow: `0 0 5px ${col}`, flexShrink: 0 }} />
-                <Tip width={260} iconColor={col + '99'} text={`Coinbase BTC price vs Bybit: ${sign}$${magUsd} (${sign}${magPct}%). ${readOut} Positive = Coinbase above Bybit, negative = below. Threshold: ±0.05%.`}>
+                <Tip width={260} iconColor={withAlpha(col, '99')} text={`Coinbase BTC price vs Bybit: ${sign}$${magUsd} (${sign}${magPct}%). ${readOut} Positive = Coinbase above Bybit, negative = below. Threshold: ±0.05%.`}>
                   CB {sign}{Math.abs(cbPremiumPct).toFixed(2)}%
                 </Tip>
               </span>
@@ -1201,8 +1202,8 @@ function ArenaContent() {
               <span title={h.label} style={{
                 fontSize: 'var(--fs-caption)', fontWeight: 800, lineHeight: 1,
                 padding: '2px 6px', borderRadius: 6, flexShrink: 0,
-                color: h.color, background: h.color + '22',
-                border: `0.5px solid ${h.color}55`, letterSpacing: '.04em',
+                color: h.color, background: withAlpha(h.color, '22'),
+                border: `0.5px solid ${withAlpha(h.color, '55')}`, letterSpacing: '.04em',
               }}>
                 {h.grade}
               </span>
@@ -1311,7 +1312,7 @@ function ArenaContent() {
                       coin={c}
                       size={22}
                       color={isActive ? rowSq.color : undefined}
-                      bg={isActive ? rowSq.color + '1a' : undefined}
+                      bg={isActive ? withAlpha(rowSq.color, '1a') : undefined}
                     />
                     <div>
                       <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isSelected ? '#5aa3ff' : isActive ? 'var(--txt)' : '#666', lineHeight: 1.2 }}>
@@ -1327,7 +1328,7 @@ function ArenaContent() {
                               <span key={b} style={{
                                 fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
                                 padding: '1px 4px', borderRadius: 3,
-                                color: col, background: col + '18', border: `0.5px solid ${col}33`,
+                                color: col, background: withAlpha(col, '18'), border: `0.5px solid ${withAlpha(col, '33')}`,
                               }}>{b}</span>
                             );
                           })}
@@ -1354,8 +1355,8 @@ function ArenaContent() {
                     {isActive ? (
                       <span style={{
                         fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em', padding: '1px 6px',
-                        borderRadius: 4, background: rowSq.color + '18',
-                        border: `0.5px solid ${rowSq.color}44`,
+                        borderRadius: 4, background: withAlpha(rowSq.color, '18'),
+                        border: `0.5px solid ${withAlpha(rowSq.color, '44')}`,
                         color: rowSq.color,
                       }}>
                         {icon} {statusLabel}
@@ -1476,7 +1477,7 @@ function ArenaContent() {
         return (
           <div style={{
             marginBottom: 10, padding: '10px 12px', borderRadius: 10,
-            background: col + '0f', border: `0.5px solid ${col}44`,
+            background: withAlpha(col, '0f'), border: `0.5px solid ${withAlpha(col, '44')}`,
             display: 'flex', alignItems: 'flex-start', gap: 8,
           }}>
             <span style={{ color: col, lineHeight: 0, flexShrink: 0, marginTop: 1 }}><Warn size={14} /></span>

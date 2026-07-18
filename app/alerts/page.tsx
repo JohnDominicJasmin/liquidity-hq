@@ -9,6 +9,7 @@ import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { utcHourToLocalTime } from '@/lib/resetTime';
 import { coinBadgeColor } from '@/lib/coinBadge';
+import { withAlpha } from '@/lib/color';
 
 interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; created_at: string }
 
@@ -668,8 +669,8 @@ export default function AlertsPage() {
                     display: 'flex', alignItems: 'center', gap: 6,
                     padding: '6px 14px', borderRadius: 8, cursor: 'pointer',
                     fontSize: 'var(--fs-caption)', fontWeight: 600,
-                    background: off ? 'var(--bg2)' : `${col}14`,
-                    border: `0.5px solid ${off ? 'var(--bdr)' : col + '55'}`,
+                    background: off ? 'var(--bg2)' : withAlpha(col, '14'),
+                    border: `0.5px solid ${off ? 'var(--bdr)' : withAlpha(col, '55')}`,
                     color: off ? 'var(--txt3)' : col,
                     transition: 'all .15s',
                   }}

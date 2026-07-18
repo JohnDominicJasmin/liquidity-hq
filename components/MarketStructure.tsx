@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
+import { withAlpha } from '@/lib/color';
 
 /* ── Types ── */
 interface Candle { t: number; o: number; h: number; l: number; c: number; v: number }
@@ -219,8 +220,8 @@ export default function MarketStructure({ coin, onData }: Props) {
 
       {/* ── Last event ── */}
       {le && (
-        <div className="ms-last-event" style={{ borderColor: evCol(le) + '33', background: evBg(le) }}>
-          <span className="ms-ev-badge" style={{ background: evBg(le), color: evCol(le), border: `0.5px solid ${evCol(le)}44` }}>
+        <div className="ms-last-event" style={{ borderColor: withAlpha(evCol(le), '33'), background: evBg(le) }}>
+          <span className="ms-ev-badge" style={{ background: evBg(le), color: evCol(le), border: `0.5px solid ${withAlpha(evCol(le), '44')}` }}>
             {le.type} {le.dir === 'bullish' ? '▲' : '▼'}
           </span>
           <span className="ms-ev-price">${fmtP(le.price)}</span>

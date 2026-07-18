@@ -4,6 +4,7 @@ import MacroStrip from '@/components/MacroStrip';
 import LoadingState from '@/components/LoadingState';
 import Tip from '@/components/Tip';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId } from '@/lib/marketStore';
+import { withAlpha } from '@/lib/color';
 
 /* ── constants ── */
 
@@ -199,7 +200,7 @@ export default function CorrelationHeatmap() {
         <>
 
           {/* Alt season signal */}
-          <div className="card" style={{ marginBottom: 10, border: `0.5px solid ${sig.color}55`, background: sig.bg }}>
+          <div className="card" style={{ marginBottom: 10, border: `0.5px solid ${withAlpha(sig.color, '55')}`, background: sig.bg }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <div>
                 <div style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: sig.color, marginBottom: 4 }}>

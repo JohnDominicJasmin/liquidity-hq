@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS, computeFibLevels, useMarket } from '@/lib/marketStore';
+import { withAlpha } from '@/lib/color';
 
 /* ── Types ── */
 interface Candle { t: number; o: number; h: number; l: number; c: number; v: number; takerBuy: number }
@@ -291,7 +292,7 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
       <div className="abs-header">
         <span className="abs-title">Absorption Detector · 15M</span>
         {d.type ? (
-          <span className="abs-type-badge" style={{ color: typeCol, background: typeBg, border: `0.5px solid ${typeCol}44` }}>
+          <span className="abs-type-badge" style={{ color: typeCol, background: typeBg, border: `0.5px solid ${withAlpha(typeCol, '44')}` }}>
             {d.type === 'accumulation' ? '▲ ACCUMULATION' : '▼ DISTRIBUTION'}
           </span>
         ) : (

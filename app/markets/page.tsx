@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, computeSqueezeScore } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
 import { coinBadgeColor } from '@/lib/coinBadge';
+import { withAlpha } from '@/lib/color';
 import Sparkline24h from '@/components/Sparkline24h';
 import Tip from '@/components/Tip';
 
@@ -236,7 +237,7 @@ export default function MarketsPage() {
                   width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 'var(--fs-caption)', fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
-                  background: badgeCol + '24', color: badgeCol, border: `0.5px solid ${badgeCol}55`,
+                  background: withAlpha(badgeCol, '24'), color: badgeCol, border: `0.5px solid ${withAlpha(badgeCol, '55')}`,
                 }}>
                   {id.slice(0, 2).toUpperCase()}
                 </span>

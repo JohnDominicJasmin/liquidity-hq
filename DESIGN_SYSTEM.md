@@ -31,7 +31,9 @@ Body background: indigo radial glow top + vertical gradient `#12142e → #07090f
 - Cards: `linear-gradient(180deg, var(--bg2), var(--bg1))`, 0.5px `--bdr`, 12px
   radius, soft lit-top shadow (`--nm-raise-sm`).
 - Active nav / primary CTA: solid `--accent` fill, white text, 8px radius.
-- Chips/badges: tiny pills, `{color}14` bg + `{color}44` border + colored text.
+- Chips/badges: tiny pills, `withAlpha(color, '14')` bg + `withAlpha(color, '44')`
+  border + colored text (`lib/color.ts`) — never `color + '44'` string concat, which
+  silently breaks (invalid CSS) the moment `color` is a `var()` instead of a hex literal.
 - Change values: green/red with ▲▼ or +/− prefix, tabular-nums mono.
 - Tables: airy rows, mono uppercase sortable headers, hover row tint
   `rgba(140,150,255,0.05)`.
