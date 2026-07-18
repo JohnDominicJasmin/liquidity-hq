@@ -3055,6 +3055,7 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
   position: fixed; inset: 0; z-index: 900;
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   animation: smod-fade-in 0.15s ease;
 }
 .smod-panel {
@@ -3319,6 +3320,7 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
   position: absolute; inset: 0; z-index: 20;
   background: rgba(10, 10, 14, 0.94);
   backdrop-filter: blur(6px) saturate(0.5);
+  -webkit-backdrop-filter: blur(6px) saturate(0.5);
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: 12px; text-align: center; padding: 28px;
@@ -3937,7 +3939,7 @@ body.landing {
 }
 
 /* ── LP NAV ─────────────────────────────────────────────────────────── */
-.lp-nav        { position: sticky; top: 0; z-index: 100; background: rgba(10,10,14,0.85); backdrop-filter: blur(16px); border-bottom: 0.5px solid var(--bdr); }
+.lp-nav        { position: sticky; top: 0; z-index: 100; background: rgba(10,10,14,0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 0.5px solid var(--bdr); }
 .lp-nav-inner  { max-width: 1100px; margin: 0 auto; padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
 .lp-logo       { font-size: var(--fs-card-title); font-weight: 800; letter-spacing: -.02em; color: var(--txt); }
 .lp-logo span  { color: var(--accent); }
@@ -4190,6 +4192,7 @@ html[lang="ar"] .lp-h1-accent {
   background: rgba(0,0,0,0.72);
   display: flex; align-items: center; justify-content: center;
   backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   animation: ob-fade-in 0.2s ease;
 }
 
@@ -4714,7 +4717,7 @@ html:has(body.terminal-page) {
 .mobile-tab-bar { display: none; }
 body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 @media (max-width: 640px) {
-  .mobile-tab-bar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 997; height: 56px; background: rgba(10,10,14,0.96); border-top: 0.5px solid var(--bdr); backdrop-filter: blur(16px); }
+  .mobile-tab-bar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 997; height: 56px; background: rgba(10,10,14,0.96); border-top: 0.5px solid var(--bdr); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
   [data-theme="light"] .mobile-tab-bar { background: rgba(255,255,255,0.96); border-top-color: rgba(0,0,0,0.10); }
   /* On phones the bottom bar owns navigation; the top hamburger would just be
      a redundant second opener for the same drawer, so hide it here. Tablet
