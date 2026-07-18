@@ -11,7 +11,7 @@ interface CycleData {
 }
 
 const CYCLES: { key: '2016' | '2020' | '2024'; color: string; label: string }[] = [
-  { key: '2016', color: '#fb923c', label: '2016 Cycle' },
+  { key: '2016', color: 'var(--orange)', label: '2016 Cycle' },
   { key: '2020', color: '#fbbf24', label: '2020 Cycle' },
   { key: '2024', color: '#34d399', label: '2024 Cycle (current)' },
 ];

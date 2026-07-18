@@ -91,7 +91,7 @@ export default function BtcRiskLevel() {
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
             <span style={{ fontSize: 'var(--fs-caption)', color: '#34d399' }}>Low</span>
             <span style={{ fontSize: 'var(--fs-caption)', color: '#fbbf24' }}>Moderate</span>
-            <span style={{ fontSize: 'var(--fs-caption)', color: '#fb923c' }}>High</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--orange)' }}>High</span>
             <span style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>Extreme</span>
           </div>
         </div>

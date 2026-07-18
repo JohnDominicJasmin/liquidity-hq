@@ -731,7 +731,7 @@ body.ticker-on .breaking-alert { top: 90px; }
 .fng-note  { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.4; margin-top: 4px; }
 .fng-meta  { font-size: var(--fs-caption); color: var(--txt3); margin-top: 2px; }
 .fng-zones { display: flex; justify-content: space-between; font-size: var(--fs-caption); color: var(--txt3); margin-top: 1px; }
-.score-fear          { color: #fb923c; }
+.score-fear          { color: var(--orange); }
 .score-greed         { color: var(--green); }
 .score-neutral       { color: var(--amber); }
 .score-extreme-fear  { color: var(--red);   text-shadow: 0 0 10px rgba(248,113,113,0.4); }
