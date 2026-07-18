@@ -1525,18 +1525,38 @@ body.ticker-on .breaking-alert { top: 90px; }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 .klc-canvas {
-  width: 100%; height: 720px; overflow: hidden; border-radius: 0 0 13px 13px;
+  width: 100%; height: 720px; overflow: hidden; border-radius: 0;
 }
 @media (max-width: 520px) {
-  .klc-canvas { height: 540px; }
+  .klc-canvas { height: 560px; }
 }
 @media (max-width: 420px) {
-  .klc-canvas { height: 380px; }
+  /* Portrait by design - clearly taller than wide (~366px wide at 390px
+     viewport), was 380px which read as square. User can drag-resize from here. */
+  .klc-canvas { height: 520px; }
   /* Hide drawing tools on mobile - touch devices can't use them precisely */
   .klc-tool-btn:not(.klc-tf-btn):not(.klc-clear):not(.klc-fullscreen-btn) { display: none !important; }
   .klc-sep { display: none !important; }
   .klc-legend { flex-wrap: wrap; gap: 4px; max-width: calc(100% - 80px); }
 }
+
+/* Drag-to-resize handle below the canvas (Bybit-style adjustable height) */
+.klc-resize-handle {
+  height: 16px; width: 100%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: ns-resize; touch-action: none;
+  border-top: 0.5px solid var(--bdr);
+  border-radius: 0 0 13px 13px;
+  background: var(--bg2);
+  transition: background 0.12s;
+}
+.klc-resize-handle:hover { background: var(--bg1); }
+.klc-resize-grip {
+  width: 34px; height: 4px; border-radius: 3px;
+  background: var(--txt3); opacity: 0.5;
+}
+.klc-resize-handle:hover .klc-resize-grip { opacity: 0.85; }
+
 /* Fullscreen - canvas expands to fill the screen minus the toolbar */
 .klc-wrap:fullscreen,
 .klc-wrap:-webkit-full-screen {

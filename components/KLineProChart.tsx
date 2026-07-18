@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
 import { BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, CoinId, useMarket, computeSqueezeScore } from '@/lib/marketStore';
 import type { CombinedResult } from '@/lib/grok';
@@ -314,6 +314,57 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const srSetRef                  = useRef(setSrLevels);
   const [sqHover, setSqHover]     = useState(false);
   const [rwTooltip, setRwTooltip] = useState<{ x: number; y: number; dir: 'bullish' | 'bearish' } | null>(null);
+
+  // User-adjustable chart height (drag handle below the canvas), persisted.
+  // null = follow the responsive CSS default (taller-than-wide on mobile);
+  // a number = explicit px override the user dragged to. The existing
+  // ResizeObserver on containerRef re-fits klinecharts when this changes.
+  const CHART_H_MIN = 260;
+  const CHART_H_MAX = 1000;
+  const [chartHeight, setChartHeight] = useState<number | null>(null);
+  const dragRef = useRef<{ startY: number; startH: number } | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('lhq_chart_height');
+      if (saved) {
+        const n = parseInt(saved, 10);
+        if (Number.isFinite(n) && n >= CHART_H_MIN && n <= CHART_H_MAX) setChartHeight(n);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const onResizeStart = (clientY: number) => {
+    const h = containerRef.current?.getBoundingClientRect().height ?? 380;
+    dragRef.current = { startY: clientY, startH: h };
+  };
+  const onResizeMove = useCallback((clientY: number) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const next = Math.max(CHART_H_MIN, Math.min(CHART_H_MAX, Math.round(d.startH + (clientY - d.startY))));
+    setChartHeight(next);
+  }, []);
+  const onResizeEnd = useCallback(() => {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    setChartHeight(h => {
+      if (h != null) { try { localStorage.setItem('lhq_chart_height', String(h)); } catch { /* ignore */ } }
+      return h;
+    });
+  }, []);
+
+  useEffect(() => {
+    const move = (e: PointerEvent) => { if (dragRef.current) { e.preventDefault(); onResizeMove(e.clientY); } };
+    const up   = () => onResizeEnd();
+    window.addEventListener('pointermove', move, { passive: false });
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+  }, [onResizeMove, onResizeEnd]);
   const { store } = useMarket();
   const coinData = store.coins[coin];
   const srOverlayIds              = useRef<string[]>([]);
@@ -1188,7 +1239,11 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         }}
         onMouseLeave={() => setRwTooltip(null)}
       >
-        <div ref={containerRef} className="klc-canvas" />
+        <div
+          ref={containerRef}
+          className="klc-canvas"
+          style={chartHeight != null && !fullscreen ? { height: chartHeight } : undefined}
+        />
         {/* Screenshot crossfade - holds old chart image while new data loads, then fades out */}
         <div ref={canvasFadeRef} style={{
           position: 'absolute', inset: 0,
@@ -1197,6 +1252,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           opacity: 0,
           pointerEvents: 'none',
         }} />
+        {/* Drag-to-resize handle - grab and drag to set chart height (Bybit-style),
+            persisted. Hidden in fullscreen (height is fixed to the viewport there). */}
+        {!fullscreen && (
+          <div
+            className="klc-resize-handle"
+            onPointerDown={(e) => { e.preventDefault(); onResizeStart(e.clientY); }}
+            role="separator"
+            aria-label="Drag to resize chart height"
+            title="Drag to resize chart height"
+          >
+            <span className="klc-resize-grip" />
+          </div>
+        )}
         {/* Reversal warning hover tooltip */}
         {rwTooltip && (
           <div style={{
