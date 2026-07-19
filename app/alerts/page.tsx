@@ -24,6 +24,15 @@ export default function AlertsPage() {
   const { settings, loading: settingsLoading, update } = useSettings();
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
 
+  // utcHourToLocalTime() uses the runtime's own timezone (toLocaleTimeString with
+  // no explicit zone), so it renders different text on the server (container's
+  // UTC clock) than the client's first hydration pass (viewer's local timezone) -
+  // a text-mismatch hydration error (React #418). Seed with a fixed UTC label
+  // (identical on server and the client's first paint), then swap to the real
+  // localized time once mounted - no flash, no mismatch.
+  const [dailySummaryLocalTime, setDailySummaryLocalTime] = useState('07:00 UTC');
+  useEffect(() => { setDailySummaryLocalTime(utcHourToLocalTime(7)); }, []);
+
   // Derived from settings - no separate API call needed
   const isConnected = !settingsLoading && !!settings.telegram_chat_id;
 
@@ -246,7 +255,6 @@ export default function AlertsPage() {
 
   const botLink = botUsername ? `https://t.me/${botUsername}` : null;
   const botLabel = botUsername ? `@${botUsername}` : 'LiquidityHQ Bot';
-  const dailySummaryLocalTime = utcHourToLocalTime(7); // scheduled cron fires at 07:00 UTC
 
   const ALERT_GROUPS: { section: string; items: { key: string; dot: string; title: string; desc: string; grok: boolean }[] }[] = [
     { section: 'Trading Signals', items: [
