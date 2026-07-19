@@ -13,6 +13,7 @@ import SmartMoneyScore from '@/components/SmartMoneyScore';
 import SentimentExtremesAlert from '@/components/SentimentExtremesAlert';
 import SpotlightTour from '@/components/SpotlightTour';
 import SetupChecklist from '@/components/SetupChecklist';
+import RaidMeter from '@/components/RaidMeter';
 import Tip from '@/components/Tip';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
@@ -497,11 +498,14 @@ export default function Dashboard() {
           <MarketPulseStrip />
         </div>
 
-        {/* 0. Session strip */}
+        {/* 0. Raid Probability Meter - is now a good time to trade? */}
+        {!hide('raid_meter') && <RaidMeter />}
+
+        {/* 1. Session strip */}
         <SessionCountdown />
         <SessionContext />
 
-        {/* 1. Best Setup Today - promoted, first thing above the fold */}
+        {/* 2. Best Setup Today - promoted, first thing above the fold */}
         {!hide('best_setup') && (
           <div id="tour-best-setup" className="mb-glow-card" style={{ borderRadius: 10 }}>
             <div className="dash-section dash-section-hot">Best Setup Today</div>
@@ -512,7 +516,7 @@ export default function Dashboard() {
         {/* ── Separator ── */}
         <div className="dash-ctx-sep" />
 
-        {/* 2. Coin signals - selected coin deep dive (desktop only; mobile renders above) */}
+        {/* 3. Coin signals - selected coin deep dive (desktop only; mobile renders above) */}
         {!hide('coin_signals') && (
           <div id="tour-coin-signals" className="desktop-only mb-glow-card" style={{ borderRadius: 10 }}>
             <CoinSignalsHeader />
@@ -521,7 +525,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* 3. Contextual alert banners */}
+        {/* 4. Contextual alert banners */}
         {!hide('cascade') && <CascadeAlertBanner />}
         <SentimentExtremesAlert />
 
