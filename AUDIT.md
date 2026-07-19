@@ -383,13 +383,16 @@ Second pass, focused on the recently-shipped items (RaidMeter now wired to `/das
 ## Severity index (Pass 2)
 | Sev | Items |
 |-----|-------|
-| **High** | P2-1 (dark-mode micro-label contrast 1.98:1, app-wide incl. RaidMeter), P2-2 (tablet renders the mobile layout — no tablet breakpoint) |
+| **High** | ✅ P2-1 (dark-mode micro-label contrast 1.98:1, app-wide incl. RaidMeter) — **FIXED, live on prod**, ✅ P2-2 (tablet renders the mobile layout — no tablet breakpoint) — **FIXED, live on prod** |
+
+**Both High-severity findings are fixed and deployed to production as of 2026-07-19** (commits `d4a38fa` P2-1, `1bf7299` P2-2; both on `main`, Render prod service live). Verification for each is end-to-end: served prod CSS re-checked (P2-1 token `--txt3:#767d92` present 2×, old `#3e4258` gone; P2-2 `:has(.dashboard-grid)` tablet rule present in the current chunk), and the identical CSS was rendered-and-measured across phone/tablet/desktop widths on the dev build. Remaining Pass 2 items (P2-3..P2-7) are still open.
 | **Medium** | P2-3 (`/learn` reading hierarchy: h2==h3==16px + 12px body), P2-5 (12×12px news-dismiss tap target), P2-6 (mobile dashboard ~58–69px horizontal overflow) |
 | **Low** | P2-4 (10px sub-legible text persists, below own 11px floor), P2-7 (RaidMeter 5-factor grid orphan cell) |
 
 ## A. Accessibility / contrast
 
-### P2-1 — Dark-mode uppercase micro-labels fail WCAG hard `[High]` — ✅ FIXED + verified live 2026-07-19
+### P2-1 — Dark-mode uppercase micro-labels fail WCAG hard `[High]` — ✅ FIXED, LIVE ON PROD 2026-07-19 (commit `d4a38fa`)
+**Prod verification:** re-checked the served prod CSS after both deploys — `--txt3:#767d92` present 2× (dark `:root` + landing re-pin), old failing `#3e4258` = 0 occurrences, light-mode `#63656f` intact. Survived the P2-2 rebuild.
 **Fix applied:** raised the dark `--txt3` token `#3e4258` → `#767d92` in both definitions ([globals.css](app/globals.css) `:root` + the `[data-theme="light"] body.landing` dark re-pin). Verified live in-page (dev build, HMR picked it up): `.rpm-factor-label` **4.77:1**, `.edge-card-label` **4.91:1**, `.dash-section` **4.91:1** — all now ≥ AA 4.5:1 (were 1.98–2.04:1). Light mode untouched (its `--txt3` is a separate `[data-theme="light"]` override from Pass 1 CRIT-3). Documented tradeoff in the CSS comment: on a near-black bg an AA-passing muted tier necessarily sits close to `--txt2` (#7a7e94) — differentiate those two tiers by weight/size/tracking, not the ~0.1-ratio color gap. Original finding below for record.
 
 Measured in-page (WCAG 2.1 relative-luminance): `.rpm-factor-label`, `.dash-section`, and `.edge-card-label` all render `color: #3E4258` (rgb 62,66,88) on the near-black card/canvas bg → **contrast ratio 1.98–2.04:1**. AA needs 4.5:1 for normal text, 3:1 even for large; these are 11px (normal), so 1.98:1 is failing by a wide margin. This drives the eyebrow labels across the dashboard AND the newly-wired RaidMeter's factor labels (SESSION / DAY / FEAR & GREED / FUNDING / ORDER WALL). **Note this contradicts Pass 1's assumption that "dark mode was fine" for `--txt3`** — Pass 1 fixed the *light*-mode `--txt3` (CRIT-3) but these specific dark labels at `#3E4258` were never measured and do not pass. Not necessarily `--txt3` itself — could be a darker dedicated label token; needs a source trace to confirm which variable. Affects every screen using the eyebrow-label pattern, not just RaidMeter.
@@ -399,7 +402,8 @@ Dashboard (mobile) still renders **10px** text on leaf nodes, below the app's ow
 
 ## B. Responsive / layout
 
-### P2-2 — Tablet gets the mobile layout, not a tablet layout `[High]` — ✅ FIXED + verified live 2026-07-19
+### P2-2 — Tablet gets the mobile layout, not a tablet layout `[High]` — ✅ FIXED, LIVE ON PROD 2026-07-19 (commit `1bf7299`)
+**Prod verification:** served prod CSS confirmed to contain the `:has(.dashboard-grid)` tablet rule in the current chunk. Rendering verified at 850/1000/1160px on the dev build against byte-identical CSS.
 **Fix applied ([globals.css](app/globals.css)):** the `1100px` boundary was left **untouched** (it's load-bearing — see below — and moving it would restyle every page's nav + reading column). Instead added a **dashboard-scoped tablet block** at `@media (min-width:900px) and (max-width:1099px)`: it widens only `.app-content:has(.dashboard-grid)` (so no other page's 700px column is touched — `:has()` can't match a page without a `.dashboard-grid`), restores the two-column grid with a trimmed **220px** sidebar (vs desktop 252px) for main-column room, re-shows `.dash-sidebar`/`.desktop-only`, hides the stacked `.mobile-only` block, and re-applies the `min-width:0` overflow guard. The phone-stacking block was narrowed `max-width:1099 → 899`. Nav stays in its compact/hamburger mode at tablet (a normal tablet pattern) — deliberately not brought down.
 
 **Verified live at 3 widths** (the preview pane reached 1000/1160 via explicit width — only the "desktop" *preset* was capped at 800, which is what blocked the first pass): **850px** phone → sidebar hidden, grid stacked, 0 overflow; **1000px** tablet → sidebar 220px sticky, grid `220+716`, container widened, `.mobile-only` hidden, 0 overflow; **1160px** desktop → untouched (252px sidebar, 1340 container, 0 overflow). Cross-checked `/learn` at 1000px: `hasDashboardGrid:false`, so the `:has()` rule correctly did NOT apply — scope is tight, no regression to other pages. iPad-portrait (768) still stacks by design (252/220px sidebar in 768 would cramp the dense grid; stacked reads fine there). Original finding below.
