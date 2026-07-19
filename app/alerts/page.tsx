@@ -10,6 +10,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { utcHourToLocalTime } from '@/lib/resetTime';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
+import AlertOutcomes from '@/components/AlertOutcomes';
 
 interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; created_at: string }
 
@@ -293,6 +294,8 @@ export default function AlertsPage() {
         <h1 className="mb-title">Telegram Alerts</h1>
         <div className="mb-subtitle">Real-time push alerts to your phone - funding, momentum, whale flow, sentiment, and price levels</div>
       </div>
+
+      <AlertOutcomes />
 
       {/* ── Telegram: Pro gate ──
           AUTH-3 fix: this used to show the upsell banner ABOVE a fully-

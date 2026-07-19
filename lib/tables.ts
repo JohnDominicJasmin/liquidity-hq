@@ -18,4 +18,5 @@ export const T = {
   hypotheses:          `${p}hypotheses`,
   hypothesis_evidence: `${p}hypothesis_evidence`,
   push_subscriptions:  `${p}push_subscriptions`,
+  alert_fires:         `${p}alert_fires`,
 } as const;

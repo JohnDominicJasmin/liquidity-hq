@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { detectPatterns } from '@/lib/patterns';
 import { T } from '@/lib/tables';
 import { recordFires } from '@/lib/alertHistory';
+import { isOutcomeTracked, persistAlertFires } from '@/lib/alertOutcomes';
 import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS } from '@/lib/coins';
 import { getWaveTrendConfirmation } from '@/lib/waveTrend';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
@@ -79,7 +80,7 @@ function fmtGrok(raw: string): string {
 // ruleKey matches the mute-toggle key used on /alerts (e.g. 'rsi', 'squeeze',
 // 'ema_setup_1h') - used at send time to filter recipients who muted this
 // specific rule, independent of the coin:/dir: keys also checked per entry.
-interface SignalEntry { coin: string; title: string; body: string; name: string; dir?: 'long' | 'short'; ruleKey: string }
+interface SignalEntry { coin: string; title: string; body: string; name: string; dir?: 'long' | 'short'; ruleKey: string; price?: number }
 
 /* ── Per-recipient mute-aware delivery ── */
 interface Recipient { userId: string; chatId: string }
@@ -367,9 +368,10 @@ async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> 
       const rsi    = computeRSI(closes);
       const r      = rsi.toFixed(1);
       const label  = LABELS[coin];
+      const price  = closes[closes.length - 1];
       if (rsi > 78 && !onCooldown(`rsi_ob_${coin}`, CD.rsi)) {
         queue.push({
-          coin, ruleKey: 'rsi', name: `${label} RSI overbought (${r})`,
+          coin, dir: 'short', ruleKey: 'rsi', name: `${label} RSI overbought (${r})`, price,
           title: `RSI Overbought ${r} (1H)`,
           body: `⚡ <b>${label} RSI Overbought (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Exhaustion - Potential Reversal\nAction: Avoid chasing longs. Watch for rejection / reversal candle.\n\n<i>${stamp}</i>`,
         });
@@ -377,7 +379,7 @@ async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> 
       }
       if (rsi < 22 && !onCooldown(`rsi_os_${coin}`, CD.rsi)) {
         queue.push({
-          coin, ruleKey: 'rsi', name: `${label} RSI oversold (${r})`,
+          coin, dir: 'long', ruleKey: 'rsi', name: `${label} RSI oversold (${r})`, price,
           title: `RSI Oversold ${r} (1H)`,
           body: `⚡ <b>${label} RSI Oversold (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Oversold - Bounce Setup\nAction: Watch for bounce from key support. Long bias on confirmation.\n\n<i>${stamp}</i>`,
         });
@@ -430,7 +432,7 @@ async function checkEMACross(stamp: string, queue: SignalEntry[]): Promise<strin
           `In 2-3 sentences: valid bullish reclaim or false breakout? What confluence confirms? Direct, no hedging. ` +
           `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
         queue.push({
-          coin, dir: 'long', ruleKey: 'ema_cross', name: `${label} crossed above 200 EMA`,
+          coin, dir: 'long', ruleKey: 'ema_cross', name: `${label} crossed above 200 EMA`, price,
           title: `200 EMA Cross ↑ (1H)`,
           body: `📈 <b>${label} Crossed Above 200 EMA (1H)</b>\n\n` +
             `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
@@ -447,7 +449,7 @@ async function checkEMACross(stamp: string, queue: SignalEntry[]): Promise<strin
           `In 2-3 sentences: genuine bearish breakdown or fake-out? What to watch for? Direct, no hedging. ` +
           `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
         queue.push({
-          coin, dir: 'short', ruleKey: 'ema_cross', name: `${label} crossed below 200 EMA`,
+          coin, dir: 'short', ruleKey: 'ema_cross', name: `${label} crossed below 200 EMA`, price,
           title: `200 EMA Cross ↓ (1H)`,
           body: `📉 <b>${label} Crossed Below 200 EMA (1H)</b>\n\n` +
             `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
@@ -561,13 +563,14 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
           const key  = `whale_${coin}_${side}`;
           if (onCooldown(key, CD.whale)) continue;
           const usdFmt   = usd >= 1_000_000 ? `$${(usd / 1_000_000).toFixed(2)}M` : `$${(usd / 1000).toFixed(0)}K`;
-          const priceStr = parseFloat(t.p).toLocaleString();
+          const price    = parseFloat(t.p);
+          const priceStr = price.toLocaleString();
           const grokTake = await grokAnalyze(
             `Elite crypto trader. A whale just ${side === 'BUY' ? 'bought' : 'sold'} ${usdFmt} of ${label} at $${priceStr}. ` +
             `In 2-3 sentences: short-term (1-4h) market impact? Worth acting on now or wait for confirmation? Direct, no hedging. ` +
             `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
           queue.push({
-            coin, ruleKey: 'whales', name: `${label} whale ${side} ${usdFmt}`,
+            coin, dir: side === 'BUY' ? 'long' : 'short', ruleKey: 'whales', name: `${label} whale ${side} ${usdFmt}`, price,
             title: `Whale ${side} ${usdFmt}`,
             body: side === 'BUY'
               ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy - institutional accumulation${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`
@@ -597,13 +600,14 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
           const key  = `whale_${coin}_${side}`;
           if (onCooldown(key, CD.whale)) continue;
           const usdFmt   = usd >= 1_000_000 ? `$${(usd / 1_000_000).toFixed(2)}M` : `$${(usd / 1000).toFixed(0)}K`;
-          const priceStr = parseFloat(t.p).toLocaleString();
+          const price    = parseFloat(t.p);
+          const priceStr = price.toLocaleString();
           const grokTake = await grokAnalyze(
             `Elite crypto trader. A whale just ${side === 'BUY' ? 'bought' : 'sold'} ${usdFmt} of ${label} at $${priceStr}. ` +
             `In 2-3 sentences: short-term (1-4h) market impact? Worth acting on now or wait for confirmation? Direct, no hedging. ` +
             `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
           queue.push({
-            coin, ruleKey: 'whales', name: `${label} whale ${side} ${usdFmt}`,
+            coin, dir: side === 'BUY' ? 'long' : 'short', ruleKey: 'whales', name: `${label} whale ${side} ${usdFmt}`, price,
             title: `Whale ${side} ${usdFmt}`,
             body: side === 'BUY'
               ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy - institutional accumulation${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`
@@ -1161,12 +1165,14 @@ async function checkSqueezeAlerts(
   stamp: string,
   frMap: Record<string, number | null>,
   lsMap: Record<string, number | null>,
+  prices: Record<string, number>,
   queue: SignalEntry[]
 ): Promise<string[]> {
   const fired: string[] = [];
   for (const coin of COINS) {
     const fr       = frMap[coin];
     const longRat  = lsMap[coin];
+    const price    = prices[coin];
     const { score, dir } = calcSqueezeScore(fr, longRat);
     if (score < 70 || dir === 'NEUTRAL') continue;
 
@@ -1181,7 +1187,7 @@ async function checkSqueezeAlerts(
     if (dir === 'SHORT_SQ') {
       // Shorts overcrowded - expect pump to flush them
       queue.push({
-        coin, dir: 'long', ruleKey: 'squeeze', name: `${label} short squeeze building (${score}/100)`,
+        coin, dir: 'long', ruleKey: 'squeeze', name: `${label} short squeeze building (${score}/100)`, price,
         title: `Short Squeeze Building - Score ${score}/100`,
         body:
           `⚡ <b>SHORT SQUEEZE BUILDING - ${label}/USDT</b>\n` +
@@ -1197,7 +1203,7 @@ async function checkSqueezeAlerts(
     } else {
       // Longs overcrowded - expect dump to flush them
       queue.push({
-        coin, dir: 'short', ruleKey: 'squeeze', name: `${label} long flush building (${score}/100)`,
+        coin, dir: 'short', ruleKey: 'squeeze', name: `${label} long flush building (${score}/100)`, price,
         title: `Long Flush Building - Score ${score}/100`,
         body:
           `🔥 <b>LONG FLUSH BUILDING - ${label}/USDT</b>\n` +
@@ -1326,7 +1332,7 @@ async function checkDistribution(
         );
 
         queue.push({
-          coin, dir: 'short', ruleKey: 'distribution', name: `${label} distribution (${res.score}/100)`,
+          coin, dir: 'short', ruleKey: 'distribution', name: `${label} distribution (${res.score}/100)`, price,
           title: `Distribution Detected - Score ${res.score}/100`,
           body:
             `💰 <b>DISTRIBUTION DETECTED - ${label}/USDT</b>\n` +
@@ -1688,7 +1694,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     checkCVD(stamp, signalQueue),
     checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds),       // already per-user (own table)
     checkSentimentExtremes(token, recipients, mutedByUser, stamp, frMap), // global - sends directly
-    checkSqueezeAlerts(stamp, frMap, lsMap, signalQueue),
+    checkSqueezeAlerts(stamp, frMap, lsMap, prices, signalQueue),
     checkDistribution(stamp, frMap, signalQueue, fullyMutedCoins),
     checkEMASetup(stamp, frMap, signalQueue, fullyMutedCoins, '4h'),
     checkEMASetup(stamp, frMap, signalQueue, fullyMutedCoins, '1h'),
@@ -1705,6 +1711,15 @@ async function runAlerts(token: string): Promise<NextResponse> {
 
   const fired = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
   if (fired.length > 0) recordFires(fired);
+
+  // Persist outcome-trackable fires (squeeze/ema_cross/distribution/rsi/whales -
+  // the rule_keys with an unambiguous implied direction) so /alerts can later
+  // show honest win-rate + avg move, misses included. Best-effort - never
+  // blocks or throws (see persistAlertFires).
+  const outcomeFires = signalQueue
+    .filter(e => isOutcomeTracked(e.ruleKey, e.dir, e.price))
+    .map(e => ({ ruleKey: e.ruleKey, coin: e.coin, dir: e.dir as 'long' | 'short', label: e.name, price: e.price! }));
+  await persistAlertFires(outcomeFires);
 
   return NextResponse.json({
     ok: true, fired,
