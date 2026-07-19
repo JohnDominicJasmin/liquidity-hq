@@ -3,13 +3,18 @@ import { useCallback, useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 
 // Attaches the signed-in user's bearer token to an admin API call. The server
-// route re-checks the token + allowlist (the real gate); this just supplies it.
-export async function adminFetch(path: string): Promise<Response | null> {
+// route re-checks the token + role (the real gate); this just supplies it.
+// Accepts an optional RequestInit for writes (POST/PATCH/DELETE + body).
+export async function adminFetch(path: string, init?: RequestInit): Promise<Response | null> {
   const sb = getSupabase();
   if (!sb) return null;
   const token = (await sb.auth.getSession()).data.session?.access_token;
   if (!token) return null;
-  return fetch(path, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+  return fetch(path, {
+    ...init,
+    cache: 'no-store',
+    headers: { ...(init?.headers ?? {}), Authorization: `Bearer ${token}` },
+  });
 }
 
 export function useAdminResource<T>(path: string) {

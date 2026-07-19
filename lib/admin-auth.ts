@@ -1,15 +1,21 @@
 // Server-side admin gate. This is the REAL security boundary for /api/ops/*
 // (the /api/admin/* path is a honeypot, not this guard's concern).
-// The app has no server session/cookie and no middleware, so every admin route
-// must call requireAdmin() itself: validate the bearer token via Supabase Auth,
-// then check the email against the ADMIN_EMAILS allowlist BEFORE any service-role
-// query runs. Never import the service-role client from a client component - it
-// only ever runs inside these guarded route handlers.
+//
+// Membership + roles live in the admin_users table (managed from the /ops Team
+// page), NOT in an env var. ADMIN_EMAILS remains only as an emergency bootstrap
+// owner, so you can never lock yourself out even if the table is empty/unreadable.
+//
+// The app has no server session/cookie and no proxy(middleware), so every admin
+// route validates the bearer token via Supabase Auth, then resolves the user's
+// role BEFORE any privileged work. Passwords live in Supabase Auth, never here.
 import { NextResponse } from 'next/server';
 import { createClient, type User } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { T } from '@/lib/tables';
+
+export type AdminRole = 'owner' | 'staff';
 
 // A user-scoped anon client, used only to resolve the bearer token to a user.
-// Never touches RLS-protected data with elevated rights - that's the admin client.
 function anon(token: string) {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,27 +24,52 @@ function anon(token: string) {
   );
 }
 
-// ADMIN_EMAILS is a server-only, comma-separated allowlist (NOT NEXT_PUBLIC_).
-function adminEmails(): string[] {
+// Emergency-bootstrap owners: server-only, comma-separated (NOT NEXT_PUBLIC_).
+function bootstrapOwnerEmails(): string[] {
   return (process.env.ADMIN_EMAILS ?? '')
     .split(',')
     .map(e => e.trim().toLowerCase())
     .filter(Boolean);
 }
 
-export function isAdminEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  return adminEmails().includes(email.toLowerCase());
+// Resolve a validated auth user to their admin role, or null if not an admin.
+//  1. ADMIN_EMAILS is always treated as owner, and self-seeded into admin_users
+//     (only writing when the row is missing/stale) so the table stays the source
+//     of truth and the owner is never locked out.
+//  2. Everyone else: looked up in admin_users. active row -> its role; else deny.
+async function resolveRole(user: User): Promise<AdminRole | null> {
+  const email = user.email?.toLowerCase() ?? null;
+
+  if (email && bootstrapOwnerEmails().includes(email)) {
+    // Best-effort self-seed; getSupabaseAdmin() is inside the try so a missing
+    // service-role key (or table hiccup) never blocks the bootstrap owner.
+    try {
+      const admin = getSupabaseAdmin();
+      const { data } = await admin.from(T.admin_users)
+        .select('role, active').eq('user_id', user.id).maybeSingle();
+      if (!data || !data.active || data.role !== 'owner') {
+        await admin.from(T.admin_users).upsert(
+          { user_id: user.id, email, role: 'owner', active: true },
+          { onConflict: 'user_id' },
+        );
+      }
+    } catch { /* ignore - bootstrap owner is allowed regardless */ }
+    return 'owner';
+  }
+
+  try {
+    const admin = getSupabaseAdmin();
+    const { data } = await admin.from(T.admin_users)
+      .select('role, active').eq('user_id', user.id).maybeSingle();
+    if (data && data.active) return data.role === 'owner' ? 'owner' : 'staff';
+  } catch { /* missing key / table / transient -> deny (fail closed) */ }
+  return null;
 }
 
-export type AdminOk = { ok: true; user: User; token: string };
+export type AdminCtx = { user: User; token: string; role: AdminRole };
+export type AdminOk = { ok: true } & AdminCtx;
 
-// Returns the authenticated admin user, or a NextResponse (401/403) to return
-// immediately. Usage in a route handler:
-//
-//   const gate = await requireAdmin(req);
-//   if (gate instanceof NextResponse) return gate;
-//   const { user } = gate; // guaranteed admin from here on
+// Returns the authenticated admin (with role), or a NextResponse (401/403).
 export async function requireAdmin(req: Request): Promise<AdminOk | NextResponse> {
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -47,33 +78,34 @@ export async function requireAdmin(req: Request): Promise<AdminOk | NextResponse
   const user = data?.user;
   if (error || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  if (!isAdminEmail(user.email)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-  return { ok: true, user, token };
+  const role = await resolveRole(user);
+  if (!role) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  return { ok: true, user, token, role };
 }
 
-type AdminCtx = { user: User; token: string };
 type AdminHandler<Rest extends unknown[]> =
   (req: Request, ctx: AdminCtx, ...rest: Rest) => Response | Promise<Response>;
 
-// Wrap an admin route handler so the guard is applied BY CONSTRUCTION - there is
-// no code path that reaches `handler` without passing requireAdmin first. Prefer
-// this over calling requireAdmin by hand in each route, so a newly-added
-// /api/ops/* route physically cannot forget the check:
+// Wrap a route so the admin guard is applied BY CONSTRUCTION - no code path
+// reaches `handler` without passing requireAdmin first. `Rest` forwards Next's
+// route context (e.g. { params } on a [id] segment).
 //
-//   export const GET = withAdmin(async (req, { user }) => { ... });
-//
-// `Rest` forwards whatever Next.js passes after `req` (e.g. the { params }
-// route context on a dynamic segment like [id]/route.ts) straight through:
-//
-//   export const GET = withAdmin(async (req, { user }, { params }) => {
-//     const { id } = await params;
-//   });
+//   export const GET = withAdmin(async (req, { user, role }) => { ... });
 export function withAdmin<Rest extends unknown[] = []>(handler: AdminHandler<Rest>) {
   return async (req: Request, ...rest: Rest): Promise<Response> => {
     const gate = await requireAdmin(req);
     if (gate instanceof NextResponse) return gate;
-    return handler(req, { user: gate.user, token: gate.token }, ...rest);
+    return handler(req, { user: gate.user, token: gate.token, role: gate.role }, ...rest);
+  };
+}
+
+// Same as withAdmin, but additionally requires role === 'owner'. Use for
+// privileged actions staff must not perform (managing the admin team).
+export function withOwner<Rest extends unknown[] = []>(handler: AdminHandler<Rest>) {
+  return async (req: Request, ...rest: Rest): Promise<Response> => {
+    const gate = await requireAdmin(req);
+    if (gate instanceof NextResponse) return gate;
+    if (gate.role !== 'owner') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    return handler(req, { user: gate.user, token: gate.token, role: gate.role }, ...rest);
   };
 }

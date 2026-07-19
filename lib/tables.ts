@@ -20,4 +20,5 @@ export const T = {
   push_subscriptions:  `${p}push_subscriptions`,
   alert_fires:         `${p}alert_fires`,
   admin_audit_log:     `${p}admin_audit_log`,
+  admin_users:         `${p}admin_users`,
 } as const;
