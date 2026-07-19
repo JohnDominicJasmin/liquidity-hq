@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useMarket, COIN_LABELS, COIN_DEC, fmtPrice, type CoinId } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
+import Tip from '@/components/Tip';
 
 type Dir = 'long' | 'short';
 
@@ -122,7 +123,7 @@ export default function LiquidationCalc({ coin }: { coin: CoinId | '' }) {
             </div>
           </div>
           <div className="ps-field ps-field-sm">
-            <label className="ps-lbl">Maintenance Margin</label>
+            <label className="ps-lbl"><Tip text="The minimum % of your position's notional value your exchange requires you to keep as margin at all times. Set by the exchange per coin/tier - check your exchange's contract specs; 0.5% is a common default for majors.">Maintenance Margin</Tip></label>
             <div className="ps-irow">
               <input className="ps-inp" aria-label="Maintenance Margin" type="number" placeholder="0.5" step="0.01" value={mmr} onChange={e => setMmr(e.target.value)} />
               <span className="ps-affix ps-suffix">%</span>
@@ -151,7 +152,7 @@ export default function LiquidationCalc({ coin }: { coin: CoinId | '' }) {
               <div className="ps-rval">{fmtUSD(result.distUSD)} · {result.distPct.toFixed(2)}%</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">Notional Value</div>
+              <div className="ps-rlbl"><Tip text="The full size of your position (margin × leverage), before accounting for what you actually put up as collateral. This is the amount your P&L is calculated against.">Notional Value</Tip></div>
               <div className="ps-rval">{fmtUSD(result.notional)}</div>
             </div>
             <div className="ps-result">

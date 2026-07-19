@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useMarket, COIN_LABELS, COIN_DEC, fmtPrice, type CoinId } from '@/lib/marketStore';
 import EmptyState from '@/components/EmptyState';
+import Tip from '@/components/Tip';
 
 type Dir = 'long' | 'short';
 
@@ -147,11 +148,11 @@ export default function PnLCalc({ coin }: { coin: CoinId | '' }) {
               <div className="ps-rval">{result.pnlPct >= 0 ? '+' : ''}{result.pnlPct.toFixed(2)}%</div>
             </div>
             <div className={`ps-result ${isProfit ? 'ps-result-profit' : 'ps-result-risk'}`}>
-              <div className="ps-rlbl">ROE%</div>
+              <div className="ps-rlbl"><Tip text="Return on Equity - your profit as a % of the margin (collateral) you actually put up, same number as PnL% here since both are measured against your margin.">ROE%</Tip></div>
               <div className="ps-rval">{result.roe >= 0 ? '+' : ''}{result.roe.toFixed(2)}%</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">Notional Value</div>
+              <div className="ps-rlbl"><Tip text="The full size of your position (margin × leverage), before accounting for what you actually put up as collateral. This is the amount your P&L is calculated against.">Notional Value</Tip></div>
               <div className="ps-rval">{fmtUSD(result.notional)}</div>
             </div>
             <div className="ps-result">

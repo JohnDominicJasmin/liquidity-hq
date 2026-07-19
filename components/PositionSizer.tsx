@@ -5,6 +5,7 @@ import { useSettings } from '@/lib/settings';
 import { useMarket, COIN_LABELS, COIN_DEC, fmtPrice, type CoinId } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
+import Tip from '@/components/Tip';
 
 interface CalcResult {
   riskUSD:      number;
@@ -234,7 +235,7 @@ export default function PositionSizer({ coin }: { coin: CoinId | '' }) {
               </div>
             </div>
             <div className={`ps-result${result.leverage > 10 ? ' ps-result-danger' : result.leverage > 5 ? ' ps-result-warn' : ''}`}>
-              <div className="ps-rlbl">Leverage</div>
+              <div className="ps-rlbl"><Tip text="The multiplier needed on your position size to risk exactly your target %, given how close your stop is. A tight stop needs high leverage to still hit your $ risk - it's a derived number, not a setting you choose separately.">Leverage</Tip></div>
               <div className="ps-rval">{result.leverage.toFixed(1)}x{result.leverage > 10 ? <Warn style={{ marginLeft: 3 }} /> : null}</div>
             </div>
             <div className="ps-result">
@@ -243,7 +244,7 @@ export default function PositionSizer({ coin }: { coin: CoinId | '' }) {
             </div>
             {result.rrRatio != null && (
               <div className={`ps-result${result.rrRatio >= 2 ? ' ps-result-good' : result.rrRatio < 1.5 ? ' ps-result-danger' : ''}`}>
-                <div className="ps-rlbl">R:R Ratio</div>
+                <div className="ps-rlbl"><Tip text="Risk:Reward - how many dollars you stand to make for every dollar risked. 2R means a win pays double the loss. Below 1.5R, you need too high a win rate to be profitable long-term - the math doesn't work in your favor.">R:R Ratio</Tip></div>
                 <div className="ps-rval">
                   {result.rrRatio.toFixed(2)}R&nbsp;{result.rrRatio >= 2 ? '✓' : result.rrRatio < 1.5 ? '✗' : ''}
                 </div>

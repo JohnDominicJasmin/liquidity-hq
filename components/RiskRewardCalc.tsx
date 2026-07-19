@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useMarket, COIN_LABELS, COIN_DEC, fmtPrice, type CoinId } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
+import Tip from '@/components/Tip';
 
 interface RRResult {
   isLong:       boolean;
@@ -132,17 +133,17 @@ export default function RiskRewardCalc({ coin }: { coin: CoinId | '' }) {
           </div>
           <div className="ps-results">
             <div className={`ps-result ${result.rr >= 2 ? 'ps-result-profit' : result.rr < 1.5 ? 'ps-result-danger' : ''}`}>
-              <div className="ps-rlbl">R:R Ratio</div>
+              <div className="ps-rlbl"><Tip text="Risk:Reward - how many dollars you stand to make for every dollar risked. 2R means a win pays double the loss. Below 1.5R, you need too high a win rate to be profitable long-term - the math doesn't work in your favor.">R:R Ratio</Tip></div>
               <div className="ps-rval">
                 {result.rr.toFixed(2)}R&nbsp;{result.rr >= 2 ? '✓' : result.rr < 1.5 ? '✗' : ''}
               </div>
             </div>
             <div className={`ps-result ${result.ev > 0 ? 'ps-result-profit' : 'ps-result-danger'}`}>
-              <div className="ps-rlbl">Expected Value (per unit)</div>
+              <div className="ps-rlbl"><Tip text="The average $ outcome per unit if you took this exact setup many times at the win rate you entered: (win% × TP distance) - (loss% × SL distance). Positive means the math favors taking the trade; negative means it doesn't, even if it 'feels' right.">Expected Value (per unit)</Tip></div>
               <div className="ps-rval">{result.ev >= 0 ? '+' : ''}{fmtUSD(result.ev)}</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">Breakeven Win Rate</div>
+              <div className="ps-rlbl"><Tip text="The minimum win rate this exact R:R needs just to break even long-term. Win below this rate and you lose money overall; win above it and the setup is profitable.">Breakeven Win Rate</Tip></div>
               <div className="ps-rval">{result.breakevenWR.toFixed(1)}%</div>
             </div>
             <div className="ps-result">

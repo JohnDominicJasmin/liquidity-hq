@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Warn } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
+import Tip from '@/components/Tip';
 
 interface FundResult {
   totalCost:    number;
@@ -128,7 +129,7 @@ export default function FundingCostCalc() {
               <div className="ps-rval">{fmtUSD(result.costPerWeek)}</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">Annualized Rate</div>
+              <div className="ps-rlbl"><Tip text="What this funding rate would cost (or pay) over a full year if it stayed constant - a way to compare a small 8h % against something intuitive. Real funding rates swing constantly, so treat this as a snapshot, not a forecast.">Annualized Rate</Tip></div>
               <div className="ps-rval">{result.annualRate.toFixed(2)}%</div>
             </div>
             <div className="ps-result">
@@ -136,7 +137,7 @@ export default function FundingCostCalc() {
               <div className="ps-rval">{result.payments}</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">Breakeven PnL Needed</div>
+              <div className="ps-rlbl"><Tip text="The minimum price move you need in your favor just to cover what you'll pay in funding over this hold - before you're actually in profit.">Breakeven PnL Needed</Tip></div>
               <div className="ps-rval">{fmtUSD(result.breakeven)}</div>
             </div>
           </div>
