@@ -1,4 +1,5 @@
-// Server-side admin gate. This is the REAL security boundary for /api/admin/*.
+// Server-side admin gate. This is the REAL security boundary for /api/ops/*
+// (the /api/admin/* path is a honeypot, not this guard's concern).
 // The app has no server session/cookie and no middleware, so every admin route
 // must call requireAdmin() itself: validate the bearer token via Supabase Auth,
 // then check the email against the ADMIN_EMAILS allowlist BEFORE any service-role
@@ -53,18 +54,26 @@ export async function requireAdmin(req: Request): Promise<AdminOk | NextResponse
 }
 
 type AdminCtx = { user: User; token: string };
-type AdminHandler = (req: Request, ctx: AdminCtx) => Response | Promise<Response>;
+type AdminHandler<Rest extends unknown[]> =
+  (req: Request, ctx: AdminCtx, ...rest: Rest) => Response | Promise<Response>;
 
 // Wrap an admin route handler so the guard is applied BY CONSTRUCTION - there is
 // no code path that reaches `handler` without passing requireAdmin first. Prefer
 // this over calling requireAdmin by hand in each route, so a newly-added
-// /api/admin/* route physically cannot forget the check:
+// /api/ops/* route physically cannot forget the check:
 //
 //   export const GET = withAdmin(async (req, { user }) => { ... });
-export function withAdmin(handler: AdminHandler) {
-  return async (req: Request): Promise<Response> => {
+//
+// `Rest` forwards whatever Next.js passes after `req` (e.g. the { params }
+// route context on a dynamic segment like [id]/route.ts) straight through:
+//
+//   export const GET = withAdmin(async (req, { user }, { params }) => {
+//     const { id } = await params;
+//   });
+export function withAdmin<Rest extends unknown[] = []>(handler: AdminHandler<Rest>) {
+  return async (req: Request, ...rest: Rest): Promise<Response> => {
     const gate = await requireAdmin(req);
     if (gate instanceof NextResponse) return gate;
-    return handler(req, { user: gate.user, token: gate.token });
+    return handler(req, { user: gate.user, token: gate.token }, ...rest);
   };
 }

@@ -1,6 +1,6 @@
 'use client';
 import { useAdminResource, fmtInt, fmtPct, fmtAgo } from './_client';
-import styles from './admin.module.css';
+import styles from './ops.module.css';
 
 // Shared stat tile.
 export function Stat({ label, val, sub, cls }: { label: string; val: string; sub?: string; cls?: string }) {
@@ -42,7 +42,7 @@ interface Overview {
 }
 
 export function OverviewCard() {
-  const { data, error, loading, reload } = useAdminResource<Overview>('/api/admin/overview');
+  const { data, error, loading, reload } = useAdminResource<Overview>('/api/ops/overview');
   const proRate = data && data.totalUsers ? Math.round((data.proUsers / data.totalUsers) * 100) : null;
   return (
     <CardShell title="Users & revenue" onReload={reload} loading={loading} error={error} hasData={!!data} span2>
@@ -73,7 +73,7 @@ const dotFor = (s: Cron['status']) =>
   s === 'ok' ? styles.dotGood : s === 'warn' ? styles.dotWarn : styles.dotBad;
 
 export function CronsCard() {
-  const { data, error, loading, reload } = useAdminResource<CronsData>('/api/admin/crons');
+  const { data, error, loading, reload } = useAdminResource<CronsData>('/api/ops/crons');
   return (
     <CardShell title="Cron health" onReload={reload} loading={loading} error={error} hasData={!!data}>
       {data && (
@@ -113,7 +113,7 @@ interface AiCost {
 }
 
 export function AiCostCard() {
-  const { data, error, loading, reload } = useAdminResource<AiCost>('/api/admin/ai-cost');
+  const { data, error, loading, reload } = useAdminResource<AiCost>('/api/ops/ai-cost');
   const max = data ? Math.max(1, ...data.system.perDay.map(d => d.count)) : 1;
   return (
     <CardShell title="AI cost · Grok" onReload={reload} loading={loading} error={error} hasData={!!data}>
@@ -162,7 +162,7 @@ const winCls = (rate: number | null): string | undefined =>
   rate == null ? undefined : rate >= 50 ? styles.good : styles.bad;
 
 export function AccuracyCard() {
-  const { data, error, loading, reload } = useAdminResource<Accuracy>('/api/admin/accuracy');
+  const { data, error, loading, reload } = useAdminResource<Accuracy>('/api/ops/accuracy');
   const avgR = data?.liveSignals.avgR ?? null;
   return (
     <CardShell title="Signal accuracy" onReload={reload} loading={loading} error={error} hasData={!!data}>
