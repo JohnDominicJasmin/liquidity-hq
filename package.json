@@ -13,8 +13,7 @@
     "klinecharts": "^10.0.0-beta3",
     "motion": "^12.42.2",
     "next": "16.2.6",
-    "next-pwa": "^5.6.0",
-    "posthog-js": "^1.378.1",
+    "posthog-js": "^1.404.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "web-push": "^3.6.7"
