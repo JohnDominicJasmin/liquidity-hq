@@ -4221,7 +4221,11 @@ body.landing {
   margin: 0 0 6px;
 }
 .learn-entry-def {
-  font-size: var(--fs-label); color: var(--txt2); line-height: 1.7; margin: 0;
+  /* --fs-body (14px) not --fs-label (13px): /learn is long-form educational
+     copy for cold SEO traffic, reads better a touch larger (audit P2-3). The
+     eyebrow(11px accent) -> term(16px bold) -> def hierarchy was already
+     well-differentiated; only the body size was bumped. */
+  font-size: var(--fs-body); color: var(--txt2); line-height: 1.7; margin: 0;
 }
 
 .learn-cta {
