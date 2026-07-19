@@ -17,6 +17,7 @@ import Tip from '@/components/Tip';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
 import Sparkline24h from '@/components/Sparkline24h';
+import CoinIcon from '@/components/CoinIcon';
 import { ParticleCard, GlobalSpotlight, useMobile } from '@/components/MagicBento';
 
 const OI_TREND_META: Record<string, { txt: string; sub: string; col: string }> = {
@@ -173,14 +174,7 @@ function CoinSidebar() {
             clickEffect={true}
           >
             <div className="csb2-top">
-              <span style={{
-                width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 'var(--fs-caption)', fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
-                background: withAlpha(badgeCol, '24'), color: badgeCol, border: `0.5px solid ${withAlpha(badgeCol, '55')}`,
-              }}>
-                {id.slice(0, 2).toUpperCase()}
-              </span>
+              <CoinIcon coin={id} size={18} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
               <span className="csb2-name">{id.toUpperCase()}</span>
               {d?.price && (
                 <span style={{
