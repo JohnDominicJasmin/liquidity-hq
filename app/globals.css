@@ -80,7 +80,7 @@
   --radius-sharp: 2px;  /* terminal-sharp: onboarding inputs, rows, CTAs */
 
   /* Type scale - 8 tiers (was 23 distinct sizes) */
-  --fs-xs:   0.625rem;  /* micro labels, tickers, chart annotations */
+  --fs-xs:   0.6875rem;  /* was 0.625rem (10px) - below the 11px floor Pass 1 (§7) set (audit P2-4) */
   --fs-sm:   0.6875rem;  /* secondary metadata, hint text */
   --fs-md:   0.75rem;  /* standard content, table cells */
   --fs-base: 0.8125rem;  /* primary content, nav, buttons */
@@ -647,7 +647,7 @@ body::after {
   }
   .ticker-see-all:active { background: rgba(26,122,255,0.18); box-shadow: 0 0 28px rgba(26,122,255,0.22); }
   .ticker-see-all-count { display: block; font-size: 2rem; font-weight: 700; color: var(--txt); letter-spacing: -1.5px; line-height: 1; text-align: center; }
-  .ticker-see-all-label { display: block; font-size: 0.625rem; font-weight: 800; color: var(--txt3); letter-spacing: .14em; text-transform: uppercase; text-align: center; margin-top: 3px; }
+  .ticker-see-all-label { display: block; font-size: var(--fs-xs); font-weight: 800; color: var(--txt3); letter-spacing: .14em; text-transform: uppercase; text-align: center; margin-top: 3px; }
   .ticker-see-all-arrow { display: block; font-size: 0.6875rem; font-weight: 700; color: var(--purple); margin-top: 10px; letter-spacing: .01em; text-align: center; }
 }
 
@@ -966,6 +966,11 @@ body.ticker-on .breaking-alert { top: 90px; }
 .rpm-bar-fill  { height: 100%; border-radius: 3px; transition: width 1s ease, background 0.5s; }
 .rpm-factors { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 .rpm-factor  { background: var(--bg2); border-radius: 8px; padding: 5px 8px; border: 0.5px solid var(--bdr); }
+/* 4 factors are always rendered; Order Wall is a conditional 5th (only when
+   hasWallData) - in the 2-col grid that leaves it alone in row 3 with an
+   empty cell beside it (audit P2-7). Span it full-width when it's the 5th
+   child; no-op when only 4 factors render. */
+.rpm-factor:nth-child(5):last-child { grid-column: 1 / -1; }
 .rpm-factor-label { font-size: var(--fs-micro); color: var(--txt3); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
 .rpm-factor-row   { display: flex; align-items: center; justify-content: space-between; }
 .rpm-factor-val   { font-size: var(--fs-data); font-weight: 700; }
