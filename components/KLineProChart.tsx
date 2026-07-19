@@ -1295,12 +1295,16 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           </div>
         )}
 
-        {/* Candle-close countdown - anchored below the klinecharts current-price label */}
+        {/* Candle-close countdown - anchored below the klinecharts current-price label.
+            Clamped away from the bottom-right corner because the global "Ask AI" FAB
+            (components/GrokChat.tsx, fixed to the viewport's bottom-right) lives there
+            too - whenever price trades in the lower part of the visible range, the
+            unclamped badge would drift into and overlap the FAB. */}
         {priceLabelY !== null && (
           <div style={{
             position: 'absolute',
             right: 0,
-            top: priceLabelY + 11,   // 11px below price-mark centre = just under the label
+            top: Math.min(priceLabelY + 11, (containerRef.current?.clientHeight ?? 400) - 90),
             pointerEvents: 'none',
             background: 'rgba(30,30,30,0.88)',
             border: '1px solid rgba(255,255,255,0.10)',
