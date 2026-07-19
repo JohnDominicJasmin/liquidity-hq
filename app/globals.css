@@ -135,7 +135,18 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 *:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 
-html { background: #06070a }
+/* overflow-x:hidden here is load-bearing (audit P2-6), not cosmetic. The
+   closed NavDrawer's .nav-menu sits translateX(100%) off-canvas - that
+   transformed box still inflated document.scrollWidth ~93px on mobile,
+   confirmed via getBoundingClientRect (closed .nav-menu's right edge landed
+   ~351px past the true viewport edge = its own width, exactly matching the
+   measured overflow). This is a known position:fixed + transform edge case:
+   giving the fixed .nav-drawer ancestor overflow:hidden did NOT stop it
+   (verified - overflow was unchanged after that alone), so it's clipped here
+   at the root instead, which is also the standard fix for this bug class.
+   This app has no legitimate horizontal-scroll surface, so blocking it
+   globally is safe. */
+html { background: #06070a; overflow-x: hidden; }
 
 body {
   font-family: var(--font-sans), 'Segoe UI', system-ui, sans-serif;
@@ -405,7 +416,14 @@ body::after {
 .hamburger.open .ham-line:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
 
 /* ── DRAWER ── */
-.nav-drawer { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 999; pointer-events: none; }
+/* overflow:hidden here does NOT by itself stop the closed .nav-menu (below,
+   translateX(100%)) from inflating document.scrollWidth - position:fixed +
+   transform descendants are a known browser edge case where an intermediate
+   overflow:hidden ancestor doesn't clip that contribution to the root's
+   scrollable overflow. The actual fix is overflow-x:hidden on <html> (audit
+   P2-6). Kept here anyway as correct hygiene for a fixed container with an
+   off-canvas child - harmless, changes nothing visually. */
+.nav-drawer { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 999; pointer-events: none; overflow: hidden; }
 .nav-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); opacity: 0; transition: opacity 0.25s; pointer-events: none; }
 .nav-menu {
   position: absolute; top: 0; right: 0; width: min(90vw, 360px); height: 100%;
