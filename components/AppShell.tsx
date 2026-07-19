@@ -1,5 +1,6 @@
 'use client';
 import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import MarketProvider from './MarketProvider';
 import NewsProvider from './NewsProvider';
 import NavDrawer from './NavDrawer';
@@ -16,7 +17,18 @@ import GrokUsageProvider from './GrokUsageProvider';
 import PlatformFooter from './PlatformFooter';
 import PWAInstallPrompt from './PWAInstallPrompt';
 
+// The admin console (/ops) has its own layout/shell and must NOT inherit any of
+// the consumer chrome - nav drawer, news ticker, risk-disclosure footer, the
+// Ask-AI floating button, onboarding tour/checklist, PWA prompt - nor the
+// market/news polling providers it never uses. It renders inside a bare shell
+// with only the providers it genuinely needs: auth (the gate reads the session)
+// and analytics. Scoped to /ops only, so the /admin honeypot's 404 stays visually
+// identical to any other 404.
+const isChromeless = (pathname: string) => pathname === '/ops' || pathname.startsWith('/ops/');
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
   useEffect(() => {
     try {
       const t = localStorage.getItem('theme') || 'dark';
@@ -26,6 +38,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
   }, []);
+
+  if (isChromeless(pathname)) {
+    return (
+      <PostHogProvider>
+        <AuthProvider>{children}</AuthProvider>
+      </PostHogProvider>
+    );
+  }
 
   return (
     <PostHogProvider>
