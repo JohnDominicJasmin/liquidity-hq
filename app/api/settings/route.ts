@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest) {
   // Sanitize - only allow known fields through
   const ALLOWED = [
     'account_size', 'risk_pct', 'default_coin', 'default_tf',
-    'fr_threshold', 'fng_fear', 'fng_greed', 'rsi_ob', 'rsi_os',
+    'fr_threshold', 'fng_fear', 'fng_greed', 'rsi_ob', 'rsi_os', 'squeeze_threshold',
     'hidden_sections', 'telegram_chat_id',
     'beginner_mode', 'trading_experience', 'trading_style', 'how_heard', 'watchlist',
     'display_name', 'country', 'trading_challenge',

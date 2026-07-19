@@ -22,6 +22,7 @@ export interface UserSettings {
   fng_greed:        number;   // alert when F&G >= this
   rsi_ob:           number;   // alert when RSI 1h >= this
   rsi_os:           number;   // alert when RSI 1h <= this
+  squeeze_threshold: number;  // alert when squeeze/flush score >= this
   // Appearance
   hidden_sections:  string[];
   // Telegram - per-user chat ID (empty string = not connected)
@@ -48,6 +49,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   fng_greed:          85,
   rsi_ob:             70,
   rsi_os:             30,
+  squeeze_threshold:  70,
   hidden_sections:    [],
   telegram_chat_id:   '',
   beginner_mode:      true,
@@ -135,6 +137,7 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
     fng_greed:          +(row.fng_greed       ?? DEFAULT_SETTINGS.fng_greed),
     rsi_ob:             +(row.rsi_ob          ?? DEFAULT_SETTINGS.rsi_ob),
     rsi_os:             +(row.rsi_os          ?? DEFAULT_SETTINGS.rsi_os),
+    squeeze_threshold:  +(row.squeeze_threshold ?? DEFAULT_SETTINGS.squeeze_threshold),
     hidden_sections:    (row.hidden_sections  as string[]) ?? DEFAULT_SETTINGS.hidden_sections,
     telegram_chat_id:   String(row.telegram_chat_id ?? ''),
     beginner_mode:      !!(row.beginner_mode ?? false),

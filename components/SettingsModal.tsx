@@ -183,7 +183,7 @@ export default function SettingsModal({ open, onClose }: Props) {
           {/* ── Notification Thresholds ── */}
           <div className="smod-section">
             <div className="smod-section-title">Notification Thresholds</div>
-            <div className="st-desc">Controls browser push alerts in AI Arena.</div>
+            <div className="st-desc">Controls browser push alerts in AI Arena. RSI and Squeeze/Flush also apply to Telegram.</div>
             <div className="st-row">
               <div className="st-field st-field-half">
                 <label className="st-field-label">Funding Rate trigger</label>
@@ -231,7 +231,17 @@ export default function SettingsModal({ open, onClose }: Props) {
                 </div>
               </div>
             </div>
-            <div className="st-note">Telegram server alerts use fixed defaults - threshold changes apply to browser push only.</div>
+            <div className="st-row">
+              <div className="st-field st-field-half">
+                <label className="st-field-label">Squeeze/Flush alert score</label>
+                <div className="st-input-wrap">
+                  <input className="st-input" type="number" min="40" max="95"
+                    value={settings.squeeze_threshold}
+                    onChange={e => update({ squeeze_threshold: num(e.target.value) })} />
+                </div>
+              </div>
+            </div>
+            <div className="st-note">Other thresholds (funding rate, Fear &amp; Greed) are browser push only for now.</div>
           </div>
 
           {/* ── Dashboard Sections ── */}

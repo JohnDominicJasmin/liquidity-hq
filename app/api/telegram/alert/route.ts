@@ -80,7 +80,23 @@ function fmtGrok(raw: string): string {
 // ruleKey matches the mute-toggle key used on /alerts (e.g. 'rsi', 'squeeze',
 // 'ema_setup_1h') - used at send time to filter recipients who muted this
 // specific rule, independent of the coin:/dir: keys also checked per entry.
-interface SignalEntry { coin: string; title: string; body: string; name: string; dir?: 'long' | 'short'; ruleKey: string; price?: number }
+//
+// metricValue/thresholdKind/canonicalHit exist only for rule_keys that have a
+// user-adjustable threshold (currently rsi, squeeze - see Settings). The
+// checker pushes ONE entry per coin/direction using the loosest threshold
+// among current recipients (so it fires whenever anyone would want it), and
+// flushSignals decides per-recipient delivery against their own setting.
+// canonicalHit marks whether the value also crosses the app-wide canonical
+// default (RSI 70/30, squeeze 70) - outcome-tracking (#10) only ever logs
+// canonical hits, so a user's personal threshold can never change what the
+// shared Alert Track Record means. Entry types with no per-user threshold
+// (ema_cross, distribution, whales) leave these fields unset, which reads as
+// "always passes" / "always canonical" everywhere they're checked.
+interface SignalEntry {
+  coin: string; title: string; body: string; name: string;
+  dir?: 'long' | 'short'; ruleKey: string; price?: number;
+  metricValue?: number; thresholdKind?: 'rsi_ob' | 'rsi_os' | 'squeeze'; canonicalHit?: boolean;
+}
 
 /* ── Per-recipient mute-aware delivery ── */
 interface Recipient { userId: string; chatId: string }
@@ -101,6 +117,48 @@ function entryMuteKeys(e: Pick<SignalEntry, 'coin' | 'dir' | 'ruleKey'>): string
 // just the recipients who haven't muted this one rule key.
 function recipientChatIds(recipients: Recipient[], mutedByUser: Map<string, Set<string>>, ruleKey: string): string[] {
   return recipients.filter(r => !isMutedFor(mutedByUser, r.userId, ruleKey)).map(r => r.chatId);
+}
+
+/* ── Per-recipient adjustable thresholds (Settings > Notification thresholds) ──
+   Canonical/default values - unify with lib/settings.ts DEFAULT_SETTINGS and
+   the Telegram cron's own prior hardcoded gates (previously 78/22, now 70/30
+   to match what Arena's browser-push channel has used all along). */
+interface UserThresholds { rsiOb: number; rsiOs: number; squeezeThreshold: number }
+const DEFAULT_THRESHOLDS: UserThresholds = { rsiOb: 70, rsiOs: 30, squeezeThreshold: 70 };
+
+// Fail-open: if Supabase is unreachable, every recipient falls back to
+// DEFAULT_THRESHOLDS - identical to what an unconfigured user already gets,
+// so a fetch failure never changes delivery behavior.
+async function fetchThresholdsByUser(): Promise<Map<string, UserThresholds>> {
+  const fallback = new Map<string, UserThresholds>();
+  const query = (async () => {
+    try {
+      const db = getSupabaseAdmin();
+      const { data, error } = await db.from(T.user_settings).select('user_id, rsi_ob, rsi_os, squeeze_threshold');
+      if (error || !data) return fallback;
+      const map = new Map<string, UserThresholds>();
+      for (const row of data) {
+        map.set(String(row.user_id), {
+          rsiOb: typeof row.rsi_ob === 'number' ? row.rsi_ob : DEFAULT_THRESHOLDS.rsiOb,
+          rsiOs: typeof row.rsi_os === 'number' ? row.rsi_os : DEFAULT_THRESHOLDS.rsiOs,
+          squeezeThreshold: typeof row.squeeze_threshold === 'number' ? row.squeeze_threshold : DEFAULT_THRESHOLDS.squeezeThreshold,
+        });
+      }
+      return map;
+    } catch { return fallback; }
+  })();
+  // 5s cap - if Supabase is slow, fail-open (canonical defaults for everyone)
+  const cap = new Promise<Map<string, UserThresholds>>(res => setTimeout(() => res(fallback), 5_000));
+  return Promise.race([query, cap]);
+}
+
+function passesThreshold(e: SignalEntry, t: UserThresholds | undefined): boolean {
+  if (!e.thresholdKind || e.metricValue == null) return true; // not a threshold-gated rule_key
+  const th = t ?? DEFAULT_THRESHOLDS;
+  if (e.thresholdKind === 'rsi_ob') return e.metricValue >= th.rsiOb;
+  if (e.thresholdKind === 'rsi_os') return e.metricValue <= th.rsiOs;
+  if (e.thresholdKind === 'squeeze') return e.metricValue >= th.squeezeThreshold;
+  return true;
 }
 
 /* ── Coin maps (sourced from shared lib/coins.ts) ── */
@@ -206,6 +264,7 @@ async function flushSignals(
   token: string,
   recipients: Recipient[],
   mutedByUser: Map<string, Set<string>>,
+  thresholdsByUser: Map<string, UserThresholds>,
   stamp: string,
   queue: SignalEntry[],
 ): Promise<void> {
@@ -221,10 +280,12 @@ async function flushSignals(
 
   await Promise.all([...byCoin.entries()].map(async ([coin, entries]) => {
     // Group recipients by the exact subset of this coin's entries they're
-    // eligible for (identical mute config -> identical subset -> one send).
+    // eligible for (identical mute config + threshold -> identical subset ->
+    // one send).
     const groups = new Map<string, { entries: SignalEntry[]; chatIds: string[] }>();
     for (const r of recipients) {
-      const eligible = entries.filter(e => !isMutedFor(mutedByUser, r.userId, ...entryMuteKeys(e)));
+      const eligible = entries.filter(e =>
+        !isMutedFor(mutedByUser, r.userId, ...entryMuteKeys(e)) && passesThreshold(e, thresholdsByUser.get(r.userId)));
       if (eligible.length === 0) continue;
       const sig = eligible.map(e => e.ruleKey + '_' + (e.dir ?? '')).join('|');
       if (!groups.has(sig)) groups.set(sig, { entries: eligible, chatIds: [] });
@@ -345,8 +406,16 @@ function computeEMA(closes: number[], period: number): number {
   return ema;
 }
 
-async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> {
+async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipient[], thresholdsByUser: Map<string, UserThresholds>): Promise<string[]> {
   const fired: string[] = [];
+  // Loosest (most sensitive) threshold across current recipients - a push
+  // happens whenever ANYONE would want it; exact per-recipient delivery is
+  // decided later in flushSignals via passesThreshold.
+  const obValues = recipients.map(r => (thresholdsByUser.get(r.userId) ?? DEFAULT_THRESHOLDS).rsiOb);
+  const osValues = recipients.map(r => (thresholdsByUser.get(r.userId) ?? DEFAULT_THRESHOLDS).rsiOs);
+  const loosestOb = obValues.length ? Math.min(...obValues) : DEFAULT_THRESHOLDS.rsiOb;
+  const loosestOs = osValues.length ? Math.max(...osValues) : DEFAULT_THRESHOLDS.rsiOs;
+
   await runBatched(COINS.map(coin => async () => {
     try {
       let closes: number[];
@@ -369,19 +438,21 @@ async function checkRSI(stamp: string, queue: SignalEntry[]): Promise<string[]> 
       const r      = rsi.toFixed(1);
       const label  = LABELS[coin];
       const price  = closes[closes.length - 1];
-      if (rsi > 78 && !onCooldown(`rsi_ob_${coin}`, CD.rsi)) {
+      if (rsi >= loosestOb && !onCooldown(`rsi_ob_${coin}`, CD.rsi)) {
         queue.push({
           coin, dir: 'short', ruleKey: 'rsi', name: `${label} RSI overbought (${r})`, price,
           title: `RSI Overbought ${r} (1H)`,
           body: `⚡ <b>${label} RSI Overbought (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Exhaustion - Potential Reversal\nAction: Avoid chasing longs. Watch for rejection / reversal candle.\n\n<i>${stamp}</i>`,
+          metricValue: rsi, thresholdKind: 'rsi_ob', canonicalHit: rsi >= DEFAULT_THRESHOLDS.rsiOb,
         });
         markSent(`rsi_ob_${coin}`); fired.push(`${label} RSI overbought (${r})`);
       }
-      if (rsi < 22 && !onCooldown(`rsi_os_${coin}`, CD.rsi)) {
+      if (rsi <= loosestOs && !onCooldown(`rsi_os_${coin}`, CD.rsi)) {
         queue.push({
           coin, dir: 'long', ruleKey: 'rsi', name: `${label} RSI oversold (${r})`, price,
           title: `RSI Oversold ${r} (1H)`,
           body: `⚡ <b>${label} RSI Oversold (1H)</b>\n\nRSI: <b>${r}</b>\nSignal: Oversold - Bounce Setup\nAction: Watch for bounce from key support. Long bias on confirmation.\n\n<i>${stamp}</i>`,
+          metricValue: rsi, thresholdKind: 'rsi_os', canonicalHit: rsi <= DEFAULT_THRESHOLDS.rsiOs,
         });
         markSent(`rsi_os_${coin}`); fired.push(`${label} RSI oversold (${r})`);
       }
@@ -1166,15 +1237,23 @@ async function checkSqueezeAlerts(
   frMap: Record<string, number | null>,
   lsMap: Record<string, number | null>,
   prices: Record<string, number>,
-  queue: SignalEntry[]
+  queue: SignalEntry[],
+  recipients: Recipient[],
+  thresholdsByUser: Map<string, UserThresholds>,
 ): Promise<string[]> {
   const fired: string[] = [];
+  // Loosest (most sensitive) squeeze threshold across current recipients -
+  // mirrors checkRSI's approach; exact per-recipient delivery is decided
+  // later in flushSignals via passesThreshold.
+  const thValues = recipients.map(r => (thresholdsByUser.get(r.userId) ?? DEFAULT_THRESHOLDS).squeezeThreshold);
+  const loosestTh = thValues.length ? Math.min(...thValues) : DEFAULT_THRESHOLDS.squeezeThreshold;
+
   for (const coin of COINS) {
     const fr       = frMap[coin];
     const longRat  = lsMap[coin];
     const price    = prices[coin];
     const { score, dir } = calcSqueezeScore(fr, longRat);
-    if (score < 70 || dir === 'NEUTRAL') continue;
+    if (score < loosestTh || dir === 'NEUTRAL') continue;
 
     const key = `squeeze_${dir}_${coin}`;
     if (onCooldown(key, CD.squeeze)) continue;
@@ -1183,6 +1262,7 @@ async function checkSqueezeAlerts(
     const frPct    = fr != null ? (fr >= 0 ? '+' : '') + (fr * 100).toFixed(4) + '%' : '-';
     const longPct  = longRat != null ? (longRat * 100).toFixed(1) + '%' : '-';
     const shortPct = longRat != null ? ((1 - longRat) * 100).toFixed(1) + '%' : '-';
+    const canonicalHit = score >= DEFAULT_THRESHOLDS.squeezeThreshold;
 
     if (dir === 'SHORT_SQ') {
       // Shorts overcrowded - expect pump to flush them
@@ -1197,6 +1277,7 @@ async function checkSqueezeAlerts(
           `Shorts overcrowded - price likely pumps to flush them.\n` +
           `Watch for break above key resistance with volume spike.\n\n` +
           `<i>${stamp}</i>`,
+        metricValue: score, thresholdKind: 'squeeze', canonicalHit,
       });
       markSent(key);
       fired.push(`${label} short squeeze building (${score}/100)`);
@@ -1213,6 +1294,7 @@ async function checkSqueezeAlerts(
           `Longs overcrowded - price likely dumps to flush them.\n` +
           `Watch for break below key support with volume spike.\n\n` +
           `<i>${stamp}</i>`,
+        metricValue: score, thresholdKind: 'squeeze', canonicalHit,
       });
       markSent(key);
       fired.push(`${label} long flush building (${score}/100)`);
@@ -1507,7 +1589,7 @@ async function checkEMASetup(
 /* ════════════════════════════════════════
    WEB PUSH DISPATCH
    ════════════════════════════════════════ */
-async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<string>>): Promise<void> {
+async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<string>>, thresholdsByUser: Map<string, UserThresholds>): Promise<void> {
   const pubKey  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const privKey = process.env.VAPID_PRIVATE_KEY;
   const email   = process.env.VAPID_EMAIL;
@@ -1534,7 +1616,8 @@ async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<s
 
     await Promise.allSettled(
       (subs as Array<{ endpoint: string; p256dh: string; auth: string; user_id: string }>).map(async sub => {
-        const eligible = entries.filter(e => !isMutedFor(mutedByUser, sub.user_id, ...entryMuteKeys(e)));
+        const eligible = entries.filter(e =>
+          !isMutedFor(mutedByUser, sub.user_id, ...entryMuteKeys(e)) && passesThreshold(e, thresholdsByUser.get(sub.user_id)));
         if (eligible.length === 0) return;
         const body = eligible.length === 1
           ? `${label}: ${eligible[0].title}`
@@ -1663,8 +1746,10 @@ async function runAlerts(token: string): Promise<NextResponse> {
   const now   = new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit' });
   const stamp = `⏰ ${now} PHT · ${getSession()}`;
 
-  // Fetch shared data once (+ per-user muted alert groups)
-  const [frMap, prices, lsMap, mutedByUser] = await Promise.all([fetchAllFR(), fetchSpotPrices(), fetchAllLSR(), fetchMutedKeysByUser()]);
+  // Fetch shared data once (+ per-user muted alert groups + threshold settings)
+  const [frMap, prices, lsMap, mutedByUser, thresholdsByUser] = await Promise.all([
+    fetchAllFR(), fetchSpotPrices(), fetchAllLSR(), fetchMutedKeysByUser(), fetchThresholdsByUser(),
+  ]);
 
   // Coins muted by every single recipient - the only case it's safe to skip
   // fetching entirely (checkDistribution/checkEMASetup's cost-control
@@ -1683,7 +1768,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   const signalQueue: SignalEntry[] = [];
 
   const results = await Promise.allSettled([
-    checkRSI(stamp, signalQueue),
+    checkRSI(stamp, signalQueue, recipients, thresholdsByUser),
     checkEMACross(stamp, signalQueue),
     checkRapidMove(stamp, signalQueue),
     checkWhales(stamp, signalQueue),
@@ -1694,7 +1779,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     checkCVD(stamp, signalQueue),
     checkPriceAlerts(token, stamp, prices, allChatIds, proUserIds),       // already per-user (own table)
     checkSentimentExtremes(token, recipients, mutedByUser, stamp, frMap), // global - sends directly
-    checkSqueezeAlerts(stamp, frMap, lsMap, prices, signalQueue),
+    checkSqueezeAlerts(stamp, frMap, lsMap, prices, signalQueue, recipients, thresholdsByUser),
     checkDistribution(stamp, frMap, signalQueue, fullyMutedCoins),
     checkEMASetup(stamp, frMap, signalQueue, fullyMutedCoins, '4h'),
     checkEMASetup(stamp, frMap, signalQueue, fullyMutedCoins, '1h'),
@@ -1704,10 +1789,10 @@ async function runAlerts(token: string): Promise<NextResponse> {
 
   // Flush: single signals → send as-is, 2+ same coin → confluence alert.
   // Per-recipient coin:/dir:/ruleKey eligibility is decided inside.
-  await flushSignals(token, recipients, mutedByUser, stamp, signalQueue);
+  await flushSignals(token, recipients, mutedByUser, thresholdsByUser, stamp, signalQueue);
 
   // Web Push - fire-and-forget, never let it block or throw
-  void dispatchPush(signalQueue, mutedByUser).catch(() => {});
+  void dispatchPush(signalQueue, mutedByUser, thresholdsByUser).catch(() => {});
 
   const fired = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
   if (fired.length > 0) recordFires(fired);
@@ -1716,8 +1801,15 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // the rule_keys with an unambiguous implied direction) so /alerts can later
   // show honest win-rate + avg move, misses included. Best-effort - never
   // blocks or throws (see persistAlertFires).
+  //
+  // canonicalHit !== false excludes rsi/squeeze entries that only crossed a
+  // recipient's personal (looser-than-default) threshold - the shared Alert
+  // Track Record stays anchored to ONE definition (RSI 70/30, squeeze 70)
+  // regardless of what any individual user has tuned their own alerts to.
+  // Entry types with no per-user threshold (ema_cross, distribution, whales)
+  // never set canonicalHit, so it's undefined there and always passes.
   const outcomeFires = signalQueue
-    .filter(e => isOutcomeTracked(e.ruleKey, e.dir, e.price))
+    .filter(e => isOutcomeTracked(e.ruleKey, e.dir, e.price) && e.canonicalHit !== false)
     .map(e => ({ ruleKey: e.ruleKey, coin: e.coin, dir: e.dir as 'long' | 'short', label: e.name, price: e.price! }));
   await persistAlertFires(outcomeFires);
 

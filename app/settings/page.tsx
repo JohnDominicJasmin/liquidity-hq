@@ -454,8 +454,25 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        <div className="st-row">
+          <div className="st-field st-field-half">
+            <label className="st-field-label">Squeeze/Flush alert score</label>
+            <div className="st-input-wrap">
+              <input
+                className="st-input"
+                aria-label="Squeeze/Flush alert score"
+                type="number"
+                min="40"
+                max="95"
+                value={settings.squeeze_threshold}
+                onChange={e => update({ squeeze_threshold: num(e.target.value) })}
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="st-note">
-          Telegram server alerts use fixed defaults - threshold changes apply to browser push only.
+          RSI and Squeeze/Flush thresholds apply to both browser push and Telegram alerts. Other thresholds (funding rate, Fear &amp; Greed) are browser push only for now.
         </div>
       </Section>
 
