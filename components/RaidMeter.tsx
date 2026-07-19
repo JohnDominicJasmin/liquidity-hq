@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useMarket, classifyFunding, type LiqWall } from '@/lib/marketStore';
 import { getLocalNow } from '@/lib/session';
+import Tip from '@/components/Tip';
 
 function calcWallProximity(
   price: number,
@@ -124,7 +125,9 @@ export default function RaidMeter() {
           <div className="rpm-title-row">
             <div className="rpm-pulse" />
             <div>
-              <div className="rpm-title">Raid Probability Meter</div>
+              <div className="rpm-title">
+                <Tip width={260} text="A 'raid' is when whales push price into a cluster of stop-losses or liquidations to grab that liquidity. This score blends session timing, day of week, Fear &amp; Greed, funding rate, and order wall proximity to gauge how likely a raid is right now.">Raid Probability Meter</Tip>
+              </div>
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>Is now a good time to trade?</div>
             </div>
           </div>

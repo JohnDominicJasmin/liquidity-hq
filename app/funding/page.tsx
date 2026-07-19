@@ -5,6 +5,7 @@ import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
 import { Warn } from '@/components/icons';
 import LoadingState from '@/components/LoadingState';
+import Tip from '@/components/Tip';
 
 /* ── types ── */
 interface FRPoint { rate: number; ts: number; }
@@ -379,19 +380,25 @@ export default function FundingHistory() {
         return (
           <div className="card" style={{ padding: '12px 14px', marginBottom: 12 }}>
             <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 8 }}>
-              Regime Overview
+              <Tip width={250} text="A snapshot of every coin's current funding regime: crowded-short setups (squeeze candidates), crowded-long setups (dump risk), and coins whose funding rate is extreme enough to arbitrage.">Regime Overview</Tip>
             </div>
 
             {/* Summary chips */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
               <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(248,113,113,0.10)', color: '#f87171', border: '0.5px solid rgba(248,113,113,0.25)', fontWeight: 700 }}>
-                {shortSignals.length} Contrarian Short{shortSignals.length !== 1 ? 's' : ''}
+                <Tip iconColor="#f87171" text="Coins where longs are overcrowded and overpaying to hold - contrarian read: the crowd is positioned to get flushed, so a short setup on weakness has an edge.">
+                  {shortSignals.length} Contrarian Short{shortSignals.length !== 1 ? 's' : ''}
+                </Tip>
               </span>
               <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(52,211,153,0.10)', color: '#34d399', border: '0.5px solid rgba(52,211,153,0.25)', fontWeight: 700 }}>
-                {longSignals.length} Contrarian Long{longSignals.length !== 1 ? 's' : ''}
+                <Tip iconColor="#34d399" text="Coins where shorts are overcrowded and overpaying to hold - contrarian read: the crowd is positioned to get squeezed, so a long setup on dips has an edge.">
+                  {longSignals.length} Contrarian Long{longSignals.length !== 1 ? 's' : ''}
+                </Tip>
               </span>
               <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(26,122,255,0.10)', color: '#1a7aff', border: '0.5px solid rgba(26,122,255,0.25)', fontWeight: 700 }}>
-                {arbs.length} Carry Arb
+                <Tip iconColor="#1a7aff" text="Funding rate is extreme enough (over ~0.03%/8h) that a delta-neutral trade - long spot, short perp, or vice versa - can collect the funding payment with no directional price risk.">
+                  {arbs.length} Carry Arb
+                </Tip>
               </span>
             </div>
 

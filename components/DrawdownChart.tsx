@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useMarket, COINS, CoinId } from '@/lib/marketStore';
+import Tip from '@/components/Tip';
 
 interface AthEntry {
   ath: number;
@@ -67,7 +68,7 @@ export default function DrawdownChart() {
         display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
       }}>
         <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
-          Drawdown from All-Time High
+          <Tip text="How far each coin sits below its all-time high price, worst first. A deep drawdown means a coin needs a huge rally just to recover - useful context before sizing a long.">Drawdown from All-Time High</Tip>
         </span>
         {nearAth > 0 && (
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>

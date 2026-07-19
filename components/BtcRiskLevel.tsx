@@ -1,6 +1,7 @@
 'use client';
 import { useMarket } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
+import Tip from '@/components/Tip';
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
@@ -59,7 +60,7 @@ export default function BtcRiskLevel() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase' }}>
-          BTC Risk Level
+          <Tip width={250} text="Blends Fear & Greed, BTC's daily RSI, and funding rate into one score for downside/dump risk specifically - not general volatility. Extreme Risk means longs are overheated and a pullback is more likely.">BTC Risk Level</Tip>
         </span>
         {score != null && (
           <span style={{

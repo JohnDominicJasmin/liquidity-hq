@@ -6,6 +6,7 @@ import { CoinId } from '@/lib/marketStore';
 import { computeStats, SimulatedTrade, BacktestStats } from '@/lib/backtestEngine';
 import { SideCard, fmtPct, fmtR } from '@/components/BacktestStatsUI';
 import EmptyState from '@/components/EmptyState';
+import Tip from '@/components/Tip';
 
 interface LiveSignalRow {
   id: number;
@@ -103,7 +104,9 @@ export default function LiveTrackingPage() {
             <table className="frh-table">
               <thead>
                 <tr>
-                  <th>Coin</th><th>Trades</th><th>Win Rate</th><th>Avg R</th><th>Profit Factor</th>
+                  <th>Coin</th><th>Trades</th><th>Win Rate</th>
+                  <th><Tip width={220} text="R = risk multiple. +1R means the trade won exactly what was risked (distance to stop-loss); +2R means it won double. Avg R across all trades tells you if wins are outsized enough to cover the losses.">Avg R</Tip></th>
+                  <th><Tip width={220} text="Total profit from winning trades divided by total loss from losing trades. Above 1.0 means the strategy is net profitable over this sample; below 1.0 means it's losing money even if the win rate looks decent.">Profit Factor</Tip></th>
                 </tr>
               </thead>
               <tbody>

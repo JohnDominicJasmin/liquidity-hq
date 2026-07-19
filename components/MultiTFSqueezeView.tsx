@@ -2,6 +2,7 @@
 import { useState, useRef } from 'react';
 import { useMarket, COINS, CoinId, computeSqueezeScore } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
+import Tip from '@/components/Tip';
 
 type TFDir = 'FLUSH' | 'SQUEEZE' | 'NEUTRAL';
 
@@ -128,7 +129,7 @@ export default function MultiTFSqueezeView() {
         display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
       }}>
         <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
-          Multi-Timeframe Squeeze Scanner
+          <Tip width={260} text="Checks RSI (amplified by funding rate and long/short ratio) on each timeframe for every coin. When multiple timeframes agree - all showing squeeze or all showing flush - that confluence is a stronger signal than any single timeframe alone.">Multi-Timeframe Squeeze Scanner</Tip>
         </span>
         {totalSqz > 0 && (
           <span style={{

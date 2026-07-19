@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Tip from '@/components/Tip';
 
 interface SignalStat {
   name:       string;
@@ -65,7 +66,7 @@ export default function SignalAccuracy() {
         display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
       }}>
         <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
-          Signal Accuracy Tracker
+          <Tip width={260} text="Backtests each signal against real BTC 4H history: every time it fired in the past, did price move favorably within 12h and 24h? Win rate is the honest hit-rate, misses included - not a guarantee, a track record.">Signal Accuracy Tracker</Tip>
         </span>
         {data?.candles && (
           <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>BTC · 4H · last {data.candles} candles</span>
@@ -92,13 +93,19 @@ export default function SignalAccuracy() {
             borderBottom: '0.5px solid rgba(255,255,255,0.05)',
             background: 'rgba(255,255,255,0.02)',
           }}>
-            {[['Signal', 'left'], ['TF', 'right'], ['Win Rate 12h', 'right'], ['Win Rate 24h', 'right'], ['Count', 'right']].map(
-              ([h, align]) => (
-                <span key={h} style={{
+            {[
+              ['Signal', 'left', null],
+              ['TF', 'right', null],
+              ['Win Rate 12h', 'right', '% of past firings where price moved favorably within 12 hours.'],
+              ['Win Rate 24h', 'right', '% of past firings where price moved favorably within 24 hours.'],
+              ['Count', 'right', 'How many times this signal fired in the backtested window - low counts mean less statistical confidence.'],
+            ].map(
+              ([h, align, tip]) => (
+                <span key={h as string} style={{
                   fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '.07em',
                   textTransform: 'uppercase', color: '#333', textAlign: align as 'left' | 'right',
                 }}>
-                  {h}
+                  {tip ? <Tip width={200} text={tip as string}>{h}</Tip> : h}
                 </span>
               )
             )}

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useMarket, COINS, CoinId } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
+import Tip from '@/components/Tip';
 
 type Cat = 'all' | 'majors' | 'alts' | 'defi' | 'meme';
 
@@ -63,7 +64,7 @@ export default function CoinHeatmap() {
         display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
       }}>
         <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
-          Market Heatmap · 24 Hour
+          <Tip text="Every tracked coin's 24h price change, sized and colored by move. Green = up, red = down - a quick scan to spot which coins are leading or lagging the market right now.">Market Heatmap · 24 Hour</Tip>
         </span>
         {positiveCount > 0 && (
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
