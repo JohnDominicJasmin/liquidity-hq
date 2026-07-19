@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import Tip from '@/components/Tip';
 
 /* ── Binance futures combined aggTrade stream - Binance-listed coins only (HYPE is Bybit-only) ── */
 const SYMBOLS = ['btcusdt','ethusdt','solusdt','xrpusdt','bnbusdt','nearusdt','suiusdt'];
@@ -119,7 +120,9 @@ export default function WhaleTradesFeed() {
       {/* Header */}
       <div className="wf-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--txt)' }}>Whale Trades</span>
+          <span style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--txt)' }}>
+            <Tip text="Live single trades over $50K on Binance futures. Large clusters of buys or sells often signal institutional positioning before smaller traders react.">Whale Trades</Tip>
+          </span>
           <span className={`wf-dot wf-dot-${status}`} title={status} />
         </div>
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>All markets · &gt;$50K · {msgCount > 0 ? `${msgCount} msgs` : 'waiting…'}</span>

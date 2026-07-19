@@ -4,6 +4,7 @@ import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { getSupabase } from '@/lib/supabase';
 import { Warn } from '@/components/icons';
 import { T } from '@/lib/tables';
+import Tip from '@/components/Tip';
 
 /* ── Types ── */
 interface LiqEvent {
@@ -350,7 +351,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--txt)' }}>
             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M11 1.5 3.5 11.5H9L8 18.5 16 8H10.5L11 1.5Z" fill="currentColor" /></svg>
-            Live Liquidations
+            <Tip text="Every leveraged position force-closed for >$10K on Binance or Bybit, in real time. A burst of same-side liquidations in a short window ('cascade') can accelerate a move as forced selling/buying feeds on itself.">Live Liquidations</Tip>
           </span>
           <span className={`liqfeed-dot liqfeed-dot-${bnStatus}`} title={`Binance: ${bnStatus}`} />
           <span className={`liqfeed-dot liqfeed-dot-${bbStatus}`} title={`Bybit: ${bbStatus}`} />
