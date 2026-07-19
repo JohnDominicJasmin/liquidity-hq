@@ -14,6 +14,7 @@ import { withAlpha } from '@/lib/color';
 import { getSupabase } from '@/lib/supabase';
 import { nextResetLocalTime } from '@/lib/resetTime';
 import PageHint from '@/components/PageHint';
+import Tip from '@/components/Tip';
 
 /* ── helpers ── */
 
@@ -504,7 +505,9 @@ export default function MorningBriefing() {
         <div className="mb-macro-row">
 
           <div className="mb-macro-item">
-            <div className="mb-macro-label">Fear &amp; Greed</div>
+            <div className="mb-macro-label">
+              <Tip text="A 0-100 gauge of overall crypto sentiment built from volatility, momentum, and volume. Extreme fear (low) often marks bottoms, while extreme greed (high) often precedes a pullback.">Fear &amp; Greed</Tip>
+            </div>
             <div className="mb-macro-val" style={{ color: fngColor }}>
               {fng != null ? fng : '-'}
             </div>
@@ -514,7 +517,9 @@ export default function MorningBriefing() {
           </div>
 
           <div className="mb-macro-item">
-            <div className="mb-macro-label">BTC Dom</div>
+            <div className="mb-macro-label">
+              <Tip text="Bitcoin's share of the total crypto market cap. Rising dominance means money is rotating into BTC and altcoins are bleeding; falling dominance means alts are outperforming (alt season).">BTC Dom</Tip>
+            </div>
             <div className="mb-macro-val">
               {store.btcDom != null ? store.btcDom.toFixed(1) + '%' : '-'}
             </div>
@@ -524,7 +529,9 @@ export default function MorningBriefing() {
           </div>
 
           <div className="mb-macro-item">
-            <div className="mb-macro-label">DXY</div>
+            <div className="mb-macro-label">
+              <Tip width={260} text="The US dollar's strength against a basket of major currencies. A rising dollar usually pulls liquidity out of risk assets like crypto (headwind); a falling dollar is typically a tailwind.">DXY</Tip>
+            </div>
             <div className="mb-macro-val">
               {store.dxy != null ? store.dxy.toFixed(2) : '-'}
             </div>
@@ -533,7 +540,9 @@ export default function MorningBriefing() {
 
           {etfFlow != null && (
             <div className="mb-macro-item">
-              <div className="mb-macro-label">BTC ETF Flow</div>
+              <div className="mb-macro-label">
+                <Tip width={260} text="Net daily money flowing into or out of US spot Bitcoin ETFs. Sustained inflows signal institutional buying demand; sustained outflows signal institutions cutting exposure.">BTC ETF Flow</Tip>
+              </div>
               <div className="mb-macro-val" style={{ color: etfColor }}>
                 {(etfFlow >= 0 ? '+' : '') + '$' + Math.abs(etfFlow).toFixed(0) + 'M'}
               </div>
