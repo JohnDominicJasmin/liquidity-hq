@@ -263,13 +263,58 @@ body::after {
   .mobile-only { display: none !important; }
 }
 
-/* Hide sidebar on mobile, stack everything */
-@media (max-width: 1099px) {
+/* Hide sidebar + stack everything on PHONES only (<900px).
+   The 900-1099 tablet range is handled by the dashboard-scoped block below,
+   which restores the two-column grid. Previously this was max-width:1099, so
+   every tablet fell through to the phone layout (audit P2-2). */
+@media (max-width: 899px) {
   .dashboard-grid { display: block; }
   .dash-sidebar   { display: none; }
   .dash-right     { display: none; }
   /* Coin Signals rendered inside mobile-only block instead */
   .desktop-only   { display: none !important; }
+}
+
+/* ── TABLET DASHBOARD (900-1099px) — audit P2-2 ──
+   The global desktop chrome (wide app-bar, desktop nav, session pill, 1340px
+   content) intentionally stays gated at >=1100 — the nav needs that width and
+   moving it would restyle every page. This block ONLY widens the dashboard's
+   own container (scoped with :has so no other page's 700px reading column is
+   touched) and brings its two-column grid + sidebar down to tablet widths.
+   Nav stays in its compact/hamburger mode here, which is a normal tablet
+   pattern. Sidebar trimmed 252->220px for more main-column room at 900px.
+   NOT visually verified at 900-1099 this session (tooling caps at ~800px) -
+   needs a real-tablet eyeball. */
+@media (min-width: 900px) and (max-width: 1099px) {
+  .app-content:has(.dashboard-grid) {
+    max-width: none;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 14px;
+    align-items: start;
+  }
+  /* min-width:0 stops the 1fr track expanding to its widest child (news
+     banner) and overflowing - same guard the >=1100 block uses. */
+  .dash-main { min-width: 0; overflow-x: hidden; }
+  .dash-sidebar,
+  .dash-right {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: sticky;
+    top: 68px;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.05) transparent;
+  }
+  /* Don't render both the sidebar AND the mobile stacked coin block */
+  .mobile-only  { display: none !important; }
+  .desktop-only { display: revert; }
 }
 
 /* ── COIN SIDEBAR (desktop) ── */
