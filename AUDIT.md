@@ -368,3 +368,63 @@ Also closed the two loading-transient loose ends noted in SYS-6: added `app/fund
 **DB change made (authorized) — reverted 2026-07-17:** both test accounts (`1a05ac61-9336-42c8-976b-ef7343148b20`, `d4ccd40f-70a6-4f07-9665-81ad822814c1`) were set `role='pro'` in `public.lhq_dev_user_subscriptions` for audit purposes, then deleted back to free once the audit closed out.
 
 *This is an audit document — findings and recommendations only. The §2 fixes are the only code changes made; everything in §8 is open, pending review.*
+
+---
+
+# Audit Pass 2 — 2026-07-19 — Design/UX sweep, multi-viewport (findings only, NO fixes applied)
+
+Second pass, focused on the recently-shipped items (RaidMeter now wired to `/dashboard`, `/learn` glossary #14, alert outcomes #10, threshold sliders #13, arena countdown fix) plus general responsive behaviour. Lenses: design-critique + mobile/tablet responsive. **Nothing in this section is fixed — it is a list only, per request.**
+
+**Method + honesty caveats (read before trusting any number below):**
+- **Both browser tools were half-broken this session**, so this pass is **JS/DOM-measurement based, not screenshot-based** for mobile/tablet. `claude-in-chrome` screenshots fine but its window `resize` silently no-ops (viewport stuck at ~1869px). The in-app preview pane (`Claude_Browser`) resizes correctly but its **screenshot tool wedges/times out** (the known failure from the `feedback_browser_verification` memory). So responsive findings were measured via `getBoundingClientRect`, `getComputedStyle`, and the WCAG luminance formula in-page — the same quantitative method §1/§7 of Pass 1 used — run against the live **localhost dev** build (`51a99e8`, identical code to prod). Desktop visuals rely on screenshots captured earlier in the session (prod dashboard at ~1400px, RaidMeter rendering correctly with sidebar).
+- **Logged out** the whole pass (both prod and localhost dropped the session; can't self-login — Google password entry prohibited). So **auth-gated surfaces were NOT visually audited**: #10 AlertOutcomes full panel, #13 threshold sliders (they live in Settings / SettingsModal / Arena, all gated), Journal, authed Settings. Those need an authenticated re-pass — flagged in §D below, not evaluated here.
+- The preview pane's width fluctuated (reported innerWidth 375/433/444 for the "mobile" preset, ~800 max for "desktop") — it can't reach true desktop width (≥1024), so the desktop *layout* (sidebar shown) couldn't be re-measured live, only confirmed from earlier screenshots. Mobile breakpoint findings are solid (all measured widths sit below the app's 480/640 breakpoints).
+
+## Severity index (Pass 2)
+| Sev | Items |
+|-----|-------|
+| **High** | P2-1 (dark-mode micro-label contrast 1.98:1, app-wide incl. RaidMeter), P2-2 (tablet renders the mobile layout — no tablet breakpoint) |
+| **Medium** | P2-3 (`/learn` reading hierarchy: h2==h3==16px + 12px body), P2-5 (12×12px news-dismiss tap target), P2-6 (mobile dashboard ~58–69px horizontal overflow) |
+| **Low** | P2-4 (10px sub-legible text persists, below own 11px floor), P2-7 (RaidMeter 5-factor grid orphan cell) |
+
+## A. Accessibility / contrast
+
+### P2-1 — Dark-mode uppercase micro-labels fail WCAG hard `[High]` — ✅ FIXED + verified live 2026-07-19
+**Fix applied:** raised the dark `--txt3` token `#3e4258` → `#767d92` in both definitions ([globals.css](app/globals.css) `:root` + the `[data-theme="light"] body.landing` dark re-pin). Verified live in-page (dev build, HMR picked it up): `.rpm-factor-label` **4.77:1**, `.edge-card-label` **4.91:1**, `.dash-section` **4.91:1** — all now ≥ AA 4.5:1 (were 1.98–2.04:1). Light mode untouched (its `--txt3` is a separate `[data-theme="light"]` override from Pass 1 CRIT-3). Documented tradeoff in the CSS comment: on a near-black bg an AA-passing muted tier necessarily sits close to `--txt2` (#7a7e94) — differentiate those two tiers by weight/size/tracking, not the ~0.1-ratio color gap. Original finding below for record.
+
+Measured in-page (WCAG 2.1 relative-luminance): `.rpm-factor-label`, `.dash-section`, and `.edge-card-label` all render `color: #3E4258` (rgb 62,66,88) on the near-black card/canvas bg → **contrast ratio 1.98–2.04:1**. AA needs 4.5:1 for normal text, 3:1 even for large; these are 11px (normal), so 1.98:1 is failing by a wide margin. This drives the eyebrow labels across the dashboard AND the newly-wired RaidMeter's factor labels (SESSION / DAY / FEAR & GREED / FUNDING / ORDER WALL). **Note this contradicts Pass 1's assumption that "dark mode was fine" for `--txt3`** — Pass 1 fixed the *light*-mode `--txt3` (CRIT-3) but these specific dark labels at `#3E4258` were never measured and do not pass. Not necessarily `--txt3` itself — could be a darker dedicated label token; needs a source trace to confirm which variable. Affects every screen using the eyebrow-label pattern, not just RaidMeter.
+
+### P2-4 — Sub-11px text still present `[Low, a11y]`
+Dashboard (mobile) still renders **10px** text on leaf nodes, below the app's own stated **11px floor** from Pass 1's §7 typography goal. 11px also present (that's the floor, acceptable). The 10px instances are the offenders. (Pass 1 did a `px→rem` conversion but explicitly did NOT enforce the 11px floor as a visual consolidation — so this is expected residue, re-flagged for whenever that consolidation happens.)
+
+## B. Responsive / layout
+
+### P2-2 — Tablet gets the mobile layout, not a tablet layout `[High]` — ⏸ HELD (not fixed, needs visual QA at tablet widths)
+**Why not fixed this pass:** the `1100px` boundary is **load-bearing**, not just the dashboard grid. At `@media (min-width: 1100px)` the app simultaneously switches: app-bar-inner width (capped ~700px below 1100, forcing the compact hamburger nav — see [globals.css](app/globals.css) line ~626 "nav doesn't fit below 1100"), the desktop nav + session pill, `.app-content` max-width/padding, the `.dashboard-grid` two-column grid, AND `.dash-tile-pair`. Lowering it to ~900 to cover tablets means the top chrome and layout all shift together, and this session's browser tooling **cannot render 900–1099px** to visually confirm nothing breaks (claude-in-chrome resize no-ops; the preview pane caps ~800px). Blind-shipping a load-bearing responsive change to a live product is exactly the trust risk this audit flags elsewhere, so it's held for a pass where tablet widths can actually be eyeballed (real device, or working browser tooling). Original finding below.
+
+At **768px** (iPad portrait) *and* **800px**, measured: `.dash-sidebar` is `display:none`, the `.mobile-only` block is visible, `.desktop-only` is hidden. So the desktop breakpoint only engages at some width **above 800px** — every tablet (768 portrait, and borderline landscape) renders the **single-column phone layout**. Consequences: the persistent left coin-list sidebar (CoinSidebar + MarketPulseStrip) that desktop users get **disappears entirely** on tablet; cards like RaidMeter stretch full-width (RaidMeter factor grid measured `314.5px × 314.5px` 2-col across the full 768) with a lot of unused horizontal space and phone-oriented density on a large screen. No dedicated tablet breakpoint exists. This is the biggest untested-viewport gap.
+
+### P2-6 — Mobile dashboard scrolls horizontally ~58–69px `[Medium]`
+`document.scrollWidth − clientWidth` measured **58px at 433w, 69px at 444w** on `/dashboard` (mobile) — the page has a horizontal-scroll jiggle. Culprit is NOT a single uncontained element near the viewport edge (the only uncontained overflower is the off-canvas `.nav-menu` drawer, positioned way past the edge by design). So the overflow comes from a *contained*-but-bleeding element — likely the breaking-news marquee (`.ticker-content`, measured ~4976px wide) or a transform/negative-margin leak. **Needs a source-level trace to pin** — do not assume the marquee is the cause without checking its clip container. `/alerts` and `/learn` measured **0** overflow, so it's dashboard-specific.
+
+### P2-7 — RaidMeter 5-factor grid leaves an orphan cell `[Low]`
+RaidMeter has **5** factor tiles (Session, Day, Fear & Greed, Funding, Order Wall) laid out in a **2-column** grid at mobile/tablet → 2+2+1, so the 5th tile (Order Wall) sits alone in the last row with an empty cell beside it. Minor visual imbalance; consider a full-width 5th row or a 5th synthetic tile.
+
+## C. Content / hierarchy — `/learn` glossary (#14)
+
+### P2-3 — `/learn` reading hierarchy is flat for a long-form content page `[Medium]`
+Measured heading sizes: **h1 32px, h2 16px, h3 16px** — h2 (category headers) and h3 (term names) are the **same size**, so the page's two sub-levels don't visually differentiate. Body copy is **12px** with 19.8px line-height. For a page whose entire purpose is SEO + educating cold organic traffic (Pass 1 / #14 rationale), 12px long-form body is small and the collapsed h2/h3 hierarchy makes the 30-term list read as one flat wall. Otherwise `/learn` is clean: **0 horizontal overflow** at all measured widths, correct SEO `<title>` + `<h1>`, auth-aware CTAs present. Recommendation direction (not applied): bump body to ~14px, open a clear step between h2 and h3.
+
+## D. Positives worth keeping
+- **RaidMeter is genuinely well-behaved on mobile** — 343px card fits the 375 viewport with no overflow, factor grid collapses to a clean 2-col (152px each), score stays 48px and legible, verdict/subtext intact. The newly-wired component itself is solid; its only issue is the shared label-contrast token (P2-1), not its own layout.
+- `/alerts` and `/learn` both measured **zero horizontal overflow** across mobile widths — responsive containers are correct there.
+- `/learn` SEO scaffolding (title, H1, auth-aware CTA) is correct and renders logged-out as intended.
+
+## E. NOT audited this pass (need an authenticated + true-desktop re-pass)
+- **#10 AlertOutcomes full panel** (win-rate / avg-% / miss display) — gated, only its text was detectable logged-out; layout/empty-state/number-formatting unaudited.
+- **#13 threshold sliders** — live in Settings / SettingsModal / Arena, all auth-gated; `input[type=range]` count was 0 on the logged-out `/alerts` page (expected, they're not there). Slider touch-target size, label association, and mobile thumb ergonomics unaudited.
+- **Arena candle-close countdown badge** (the `6690883` FAB-collision fix) — verified visually on **prod desktop** earlier this session (clamp holds, no FAB overlap); the mobile clamp was **not** re-measured this pass (arena's heavy chart risks wedging the pane).
+- **True desktop layout (≥1024)** — sidebar-shown state confirmed only from earlier screenshots, not re-measured this pass (preview pane caps ~800px).
+- **Journal, authed Settings, light-mode** — not revisited.
+
+*Findings only. No code changed in this pass. Same priority order as Pass 1: data-trust > usability > accessibility > aesthetics — so P2-1 (contrast) and P2-2 (tablet layout) lead.*

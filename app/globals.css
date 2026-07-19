@@ -13,7 +13,13 @@
   /* Typography */
   --txt:  #e8eaf0;
   --txt2: #7a7e94;
-  --txt3: #3e4258;
+  /* --txt3 was #3e4258 = 1.98:1 on the dark cards - fails WCAG AA hard (audit
+     P2-1). Raised to #767d92 = ~4.78:1 on --bg1/--bg2, the surfaces the
+     uppercase micro-labels (.rpm-factor-label / .dash-section / .edge-card-label
+     / .csb-header-row) actually sit on. Sits close to --txt2 by necessity - on a
+     near-black bg, AA-passing muted text can't stay much dimmer than secondary
+     text; differentiate those two tiers by weight/size/tracking, not color. */
+  --txt3: #767d92;
 
   /* Borders - neutral white hairline, no indigo tint */
   --bdr:  rgba(255,255,255,0.08);
@@ -3903,7 +3909,7 @@ body.landing {
 
   --txt:  #e8eaf0;
   --txt2: #7a7e94;
-  --txt3: #3e4258;
+  --txt3: #767d92; /* AA fix, mirrors :root - see note there (audit P2-1) */
 
   --bdr:  rgba(255,255,255,0.08);
   --bdr2: rgba(255,255,255,0.14);
