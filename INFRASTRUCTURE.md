@@ -63,12 +63,21 @@ A local Claude Code **scheduled-tasks** entry (`mcp__scheduled-tasks`, `lhq-aler
 
 **The organization has 4 Supabase projects. Only one is used by this app.**
 
+> **Corrected 2026-07-20 (was inverted before).** The app was migrated to the
+> `LiquidityHq` project on/around 2026-07-16. The earlier 2026-07-17 audit that
+> called `LiquidityHq` an "empty decoy" and `Automations` "the real one" is now
+> stale - the reverse is true. Verified 2026-07-20: `.env.local` points at
+> `LiquidityHq`, that project holds all 18 `lhq_*` tables with live data (last
+> alert fire same day), and the production alert cron writes there. `Automations`
+> now holds an older 15-table snapshot missing tables added since (e.g.
+> `lhq_alert_fires`, 2026-07-19). Do not run admin SQL against `Automations`.
+
 | Project name | Ref | Region | Status | Used by LHQ? |
 |---|---|---|---|---|
-| **`Automations`** | `wdtjhrilakoitfcezxpx` | ap-northeast-1 | Active | **Yes — this is the real one.** All `lhq_*` (prod) and `lhq_dev_*` (dev) tables live here. |
-| `LiquidityHq` | `qdpwhnvmhqgzijuwopso` | ap-northeast-2 | Active | **No.** Confirmed empty during the 2026-07-17 audit despite the name being an exact match for this project. A decoy — do not assume this is the right one just because the name matches. |
-| `MotoTracker` | `bseewwodijmuvpbqdgcc` | ap-northeast-2 | Inactive | No — unrelated project. |
-| `Solar ROI tracker` | `trpubozqrgjllwyukfol` | ap-northeast-2 | Inactive | No — unrelated project. |
+| **`LiquidityHq`** | `qdpwhnvmhqgzijuwopso` | ap-northeast-2 | Active | **Yes - this is the real one (current, since ~2026-07-16).** All `lhq_*` (prod) and the `lhq_dev_*` (dev) tables live here. `.env.local` + prod both point here. |
+| `Automations` | `wdtjhrilakoitfcezxpx` | ap-northeast-1 | Active | **No - superseded.** Was the app DB until the 2026-07-16 migration; now a stale 15-table snapshot missing newer tables. Do not use. |
+| `MotoTracker` | `bseewwodijmuvpbqdgcc` | ap-northeast-2 | Inactive | No - unrelated project. |
+| `Solar ROI tracker` | `trpubozqrgjllwyukfol` | ap-northeast-2 | Inactive | No - unrelated project. |
 
 Table naming convention (enforced in code, see `ARCHITECTURE.md` §8): always reference tables via `T.xxx` from `lib/tables.ts`, never a literal string — this is what keeps `dev` (`lhq_dev_*`) and `prod` (`lhq_*`) data separated in the same physical database.
 

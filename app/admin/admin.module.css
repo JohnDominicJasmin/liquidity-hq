@@ -1,0 +1,120 @@
+/* Admin panel - scoped styles. Uses global design tokens (--bg*, --txt*, --bdr,
+   --green/--red, --radius-card, --fs-*) so it stays theme-aware (light + dark)
+   without touching globals.css. Flat dark cards, hairline borders, color only on
+   data values - matches the app's Bloomberg/Coinglass aesthetic. */
+
+.gate {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--txt2);
+  font-size: var(--fs-body);
+}
+
+.shell { max-width: 1100px; margin: 0 auto; padding: 0 16px 48px; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 4px 16px;
+  border-bottom: 1px solid var(--bdr);
+  margin-bottom: 20px;
+}
+.brand { font-size: var(--fs-section); color: var(--txt2); letter-spacing: .01em; }
+.brand b { color: var(--txt); font-weight: 600; }
+.nav { display: flex; gap: 16px; }
+.nav a { color: var(--txt2); font-size: var(--fs-label); text-decoration: none; }
+.nav a:hover { color: var(--txt); }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+@media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--bdr);
+  border-radius: var(--radius-card);
+  padding: 16px 16px 18px;
+}
+.cardSpan2 { grid-column: 1 / -1; }
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.cardTitle {
+  font-size: var(--fs-micro);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--txt3);
+}
+.cardMeta { font-size: var(--fs-micro); color: var(--txt3); }
+.reload {
+  background: none; border: none; color: var(--txt3); cursor: pointer;
+  font-size: var(--fs-micro); padding: 0;
+}
+.reload:hover { color: var(--txt); }
+
+/* Stat tiles */
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 8px; }
+.stat { display: flex; flex-direction: column; gap: 3px; }
+.statVal {
+  font-size: var(--fs-2xl);
+  line-height: 1.05;
+  color: var(--txt);
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, "IBM Plex Mono", "SFMono-Regular", Menlo, monospace;
+}
+.statLabel {
+  font-size: var(--fs-micro);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--txt3);
+}
+.statSub { font-size: var(--fs-caption); color: var(--txt2); font-variant-numeric: tabular-nums; }
+
+.accent { color: var(--accent-2); }
+.good { color: var(--green); }
+.bad { color: var(--red); }
+.dim { color: var(--txt3); }
+
+/* Rows (cron health, top users, accuracy breakdown) */
+.rows { display: flex; flex-direction: column; }
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--bdr);
+  font-size: var(--fs-body);
+}
+.row:first-child { border-top: none; }
+.rowLabel { color: var(--txt2); display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rowName { color: var(--txt); }
+.rowVal { color: var(--txt); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.rowSub { font-size: var(--fs-caption); color: var(--txt3); }
+
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.dotGood { background: var(--green); }
+.dotWarn { background: #f5b544; }
+.dotBad  { background: var(--red); }
+
+.note {
+  margin-top: 12px;
+  font-size: var(--fs-caption);
+  color: var(--txt3);
+  line-height: 1.4;
+}
+.err { color: var(--red); font-size: var(--fs-caption); }
+.loadingText { color: var(--txt3); font-size: var(--fs-body); }
+
+.miniBars { display: flex; align-items: flex-end; gap: 3px; height: 46px; margin-top: 6px; }
+.bar { flex: 1; background: var(--accent-bg); border: 1px solid var(--accent-bdr); border-radius: 2px 2px 0 0; min-height: 2px; }
