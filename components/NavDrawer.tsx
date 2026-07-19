@@ -171,6 +171,7 @@ const NAV_SECTIONS: NavSection[] = [
     { path: '/research',      label: 'Research',          Icon: NavResearch },
     { path: '/news',          label: 'News',              Icon: NavNews },
     { path: '/econ-calendar', label: 'Economic Calendar', Icon: NavCalendar },
+    { path: '/learn',         label: 'Glossary',          Icon: NavPlaybook },
   ] },
   { header: 'My Tools', items: [
     { path: '/journal',  label: 'Journal',        Icon: NavJournal },

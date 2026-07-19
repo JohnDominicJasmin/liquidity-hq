@@ -4139,6 +4139,46 @@ body.landing {
 .lp-final-cta h2 { font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 800; letter-spacing: -.03em; margin: 0; }
 .lp-final-cta p  { font-size: var(--fs-card-title); color: var(--txt2); margin: 0; }
 
+/* ── LEARN / GLOSSARY (Tier 2 #14) ───────────────────────────────────── */
+.learn-header {
+  max-width: 720px; margin: 0 auto; padding: 48px 24px 24px;
+  display: flex; flex-direction: column; gap: 14px; text-align: left;
+}
+.learn-search-wrap { margin-top: 6px; }
+.learn-search {
+  width: 100%; max-width: 420px; padding: 11px 14px;
+  background: rgba(255,255,255,0.04); border: 0.5px solid var(--bdr);
+  border-radius: 10px; color: var(--txt); font-size: var(--fs-label);
+  outline: none; transition: border-color 0.15s;
+}
+.learn-search:focus { border-color: var(--accent); }
+.learn-search::placeholder { color: var(--txt3); }
+
+.learn-body { max-width: 720px; margin: 0 auto; padding: 12px 24px 40px; }
+.learn-empty { color: var(--txt3); font-size: var(--fs-label); padding: 20px 0; }
+
+.learn-category { margin-bottom: 36px; }
+.learn-category-title {
+  font-size: var(--fs-micro); font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--accent-2); margin: 0 0 16px;
+  padding-bottom: 8px; border-bottom: 0.5px solid var(--bdr);
+}
+.learn-entries { display: flex; flex-direction: column; gap: 20px; }
+.learn-entry { scroll-margin-top: 24px; }
+.learn-entry-term {
+  font-size: var(--fs-card-title); font-weight: 700; color: var(--txt);
+  margin: 0 0 6px;
+}
+.learn-entry-def {
+  font-size: var(--fs-label); color: var(--txt2); line-height: 1.7; margin: 0;
+}
+
+.learn-cta {
+  max-width: 640px; margin: 0 auto; padding: 56px 24px 80px;
+  text-align: center; border-top: 1px solid var(--bdr);
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+
 /* ── PLATFORM FOOTER ──────────────────────────────────────────────────── */
 .pf-footer {
   margin-top: 48px;
