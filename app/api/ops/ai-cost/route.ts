@@ -17,11 +17,12 @@ export const GET = withAdmin(async () => {
   const since14 = new Date(now - 14 * DAY).toISOString();
 
   // System calls, last 14 days.
-  const { data: logs } = await admin.from(T.alert_grok_log)
+  const { data: logs, error: logsErr } = await admin.from(T.alert_grok_log)
     .select('called_at, signal_type')
     .gte('called_at', since14)
     .order('called_at', { ascending: false })
     .limit(5000);
+  if (logsErr) return NextResponse.json({ error: logsErr.message }, { status: 500 });
 
   const perDayMap = new Map<string, number>();
   const byTypeMap = new Map<string, number>();
@@ -48,9 +49,10 @@ export const GET = withAdmin(async () => {
 
   // Per-user usage, last 7 days.
   const since7Date = new Date(now - 7 * DAY).toISOString().slice(0, 10);
-  const { data: usage } = await admin.from(T.grok_usage)
+  const { data: usage, error: usageErr } = await admin.from(T.grok_usage)
     .select('*')
     .gte('date', since7Date);
+  if (usageErr) return NextResponse.json({ error: usageErr.message }, { status: 500 });
 
   const userTotals = new Map<string, number>();
   for (const row of usage ?? []) {

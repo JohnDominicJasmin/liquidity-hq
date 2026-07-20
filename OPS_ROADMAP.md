@@ -2,7 +2,7 @@
 
 Living status doc for the owner/staff admin console at `/ops`. What's shipped, what's deferred, and the key facts you need to work on it.
 
-Last updated: 2026-07-20.
+Last updated: 2026-07-20 (Phase 3 + Sentry added).
 
 ---
 
@@ -33,6 +33,18 @@ A web console for the app's owner + hired staff to monitor the app, manage users
 ### Phase 2 — Account actions — LIVE on prod (2026-07-20)
 On the user detail page, any admin can: **Grant/Revoke Pro**, **Ban/Unban**, **Reset today's AI limit**. Grant/Revoke only touches `role` (never clobbers real Lemon Squeezy billing fields). Ban uses Supabase's native `ban_duration`; self-ban blocked. Reset deletes today's `grok_usage` row. All audited.
 
+### Phase 3 — App-wide control — on `dev`, not yet on prod (2026-07-20)
+New `app_config` table (key/value jsonb, service-role write only). Owner-only `/ops/config` page controls:
+- **Maintenance mode** — one flag closes the whole consumer app (everything except `/ops`) behind a "down for maintenance" screen. Read via public `GET /api/config`, 15s in-memory cache, fails open (never blocks the app on a broken read).
+- **Announcement banner** — text + optional link, dismissible per-visitor, shown above the nav on every consumer page.
+
+Both are polled client-side every 60s (see `lib/useAppConfig.ts`) — this app has no middleware/server session, so a client poll is the only way to pick up an admin change without a hard refresh. Verified end-to-end locally AND on the deployed dev Render service, including the owner-only `/ops/config` UI itself (status card, history, duration expiry) - live-tested by the owner directly.
+
+Seeded with only these two flags on purpose — no per-feature kill-switches (Grok, Telegram, etc.) yet; add them to `app_config` + a real check in code as they're actually needed, not speculatively.
+
+### Sentry error tracking — on `dev`, not yet on prod
+`@sentry/nextjs` wired via the Next 16 `instrumentation.ts` / `instrumentation-client.ts` convention (Turbopack-safe). Captures server request errors, client runtime errors, and router-transition breadcrumbs. No session replay (PostHog already covers that — see Known limitations). **Inert until `NEXT_PUBLIC_SENTRY_DSN` is set** — needs a Sentry account + project (owner's to create, not something I can do).
+
 ---
 
 ## Deferred / backlog (not built)
@@ -40,18 +52,21 @@ On the user detail page, any admin can: **Grant/Revoke Pro**, **Ban/Unban**, **R
 | Item | Notes |
 |---|---|
 | **Welcome email** on signup | Same Brevo path; deferred by owner — needs a domain to be reliable at user-facing scale (see below). On owner's personal list. |
-| **Sentry error tracking** | No error tracker exists anywhere in the app today. Prod bugs (failed Grok calls, cron failures, blank-screen errors) ship silently. Recommended next reliability add. |
 | **PostHog session-replay masking** | `components/PostHogProvider.tsx` has `maskAllInputs: false` — every typed field except passwords is visible in replays, tied to the real user. On a financial app, worth setting to `true` or scoping. |
 | **Custom ban reason / message** | Supabase shows a bare "user is banned" on login. A "suspended, contact support" message would need custom handling. |
 | **Instant session kill on ban** | A banned user's already-issued token still authenticates for up to ~1h until expiry. Force-expiry would need extra work. |
-| **Phase 3 — App-wide control** | Global feature flags / kill-switches (would give the 7 dead dashboard toggles a real home), maintenance mode, announcement banner. Needs a new `app_config` table. Not started. |
+| **7 dead per-user dashboard toggles** | `lib/settings.ts`'s `DASHBOARD_SECTIONS` lists 11 widgets; `/dashboard` only actually gates 4 of them. Different bug from Phase 3 (this is `user_settings`, not `app_config`) — a small standalone fix, not done yet by choice. |
+| **Feature-flag kill-switches** | `app_config` + the `/ops/config` pattern exist now (Phase 3); no specific flags (Grok, Telegram, etc.) seeded yet — add on demand. |
 
 ---
 
 ## Key facts (don't relearn these the hard way)
 
-- **Two separate Supabase projects, one per tier:** `LiquidityHq` (ref `qdpwhnvmhqgzijuwopso`) = **prod + local dev**; `Automations` (ref `wdtjhrilakoitfcezxpx`) = the deployed **`liquidity-hq-dev`** Render service. A "table not found in schema cache" on dev is usually the env pointing at the wrong project, not a cache lag. (See `INFRASTRUCTURE.md` §4.)
+- **Two separate Supabase projects, one per tier:** `LiquidityHq` (ref `qdpwhnvmhqgzijuwopso`) = **prod only**; `Automations` (ref `wdtjhrilakoitfcezxpx`) = **local dev AND the deployed `liquidity-hq-dev`** Render service (same project, both dev contexts). CORRECTED 2026-07-20 - earlier docs in this file said LiquidityHq covered local dev too; that was wrong and caused a real debugging detour (local `.env.local` pointed at LiquidityHq, which only has `lhq_dev_admin_users`/`admin_audit_log`/`app_config` - none of the app's other `lhq_dev_*` tables exist there). `.env.local` now correctly points at Automations. A "table not found in schema cache" locally is usually this exact mistake, not a cache lag. (See `INFRASTRUCTURE.md` §4, which may still say the old thing.)
 - **Email needs a domain to be reliable.** Brevo single-sender from a Gmail gets deferred/spam-foldered by Gmail/Yahoo/Outlook (2024+ bulk-sender rules). Fine for occasional admin invites, not for user-facing welcome emails. Real fix = a verified domain (SPF/DKIM/DMARC).
 - **OAuth uses the implicit flow, deliberately.** PKCE (`flowType: 'pkce'`) was tried and reverted 2026-07-20 — it broke real mobile Google logins ("PKCE code verifier not found in storage"). Any PKCE re-attempt needs real multi-browser mobile testing before prod. (See the comment in `lib/supabase.ts`.)
 - **Git workflow:** commits land on `dev`; ship to prod by cherry-picking / merging to `main` then triggering the prod Render deploy. Both Render web services are `autoDeploy: no` (manual trigger).
 - **Render services:** prod `srv-d8aluf6l51nc73e1ijp0` (`liquidity-hq.onrender.com`, branch `main`), dev `srv-d8prs6po3t8c739aepdg` (`liquidity-hq-dev.onrender.com`, branch `dev`).
+- **Local admin routes now work.** `.env.local` has `SUPABASE_SERVICE_ROLE_KEY` filled in (Automations project's key) as of 2026-07-20 - every `/api/ops/*` route and `/ops/config` itself are fully testable on `localhost:3000`, no dev-service hours needed. Get a fresh key from Automations -> Settings -> API -> Legacy API keys -> `service_role`, never LiquidityHq's.
+- **Dev Render service has a monthly build-hour cap prod doesn't** (~500 hrs/mo) - default to local testing (`tsc --noEmit` + `next build` + `localhost:3000` with the service-role key above); only trigger a `liquidity-hq-dev` deploy on explicit go-ahead. Commits/pushes to the `dev` branch are always fine, no need to ask.
+- **PostHog already does session replay** (`components/PostHogProvider.tsx`). Sentry is deliberately configured with no replay/breadcrumb DOM capture of its own - two replay recorders would double the privacy surface (see the `maskAllInputs` backlog item above), not add value.

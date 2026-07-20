@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 // Supabase host for connect-src (NEXT_PUBLIC_ vars are available at config eval time)
@@ -8,6 +9,10 @@ const supabaseHost = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '')
 // PostHog host (defaults to US cloud if not overridden)
 const posthogHost = (process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com')
   .replace(/\/$/, '');
+
+// Sentry ingest host, parsed from the DSN (https://<key>@o<org>.ingest.<region>.sentry.io/<project>)
+// so connect-src doesn't need updating by hand when the DSN is set.
+const sentryHost = (process.env.NEXT_PUBLIC_SENTRY_DSN ?? '').match(/@([^/]+)/)?.[1] ?? '';
 
 // Content Security Policy
 // - script-src 'unsafe-inline': required for Next.js hydration inline scripts
@@ -43,6 +48,7 @@ const csp = [
     // PostHog analytics
     posthogHost,
     "https://us-assets.i.posthog.com https://us.posthog.com",
+    sentryHost ? `https://${sentryHost}` : "",
   ].filter(Boolean).join(" "),
   "frame-src 'none'",
   "object-src 'none'",
@@ -81,4 +87,12 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// No org/project/authToken set - source-map upload stays off until that's
+// configured; this just wires the Turbopack-safe request/error instrumentation
+// (see instrumentation.ts, instrumentation-client.ts). Sentry SDK docs note
+// build-time (webpack-plugin) instrumentation no-ops under Turbopack anyway,
+// which is what `npm run build` uses on Next 16 (Turbopack default) - the
+// instrumentation files are the real integration point, not this wrapper.
+export default withSentryConfig(nextConfig, {
+  silent: true,
+});

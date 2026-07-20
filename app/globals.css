@@ -2,6 +2,12 @@
 
 /* ── DESIGN TOKENS - deep navy + electric blue accent ── */
 :root {
+  /* Set by components/AnnouncementBanner.tsx (measured, not hardcoded - the
+     banner can wrap to 2 lines on narrow screens) so the fixed .app-bar /
+     .news-ticker / .app-content stack shifts down to make room instead of
+     the banner rendering underneath them. 0px when no banner is showing. */
+  --banner-h: 0px;
+
   /* Terminal charcoal-black - no blue tint */
   --bg0: #030405;
   --bg:  #000000;
@@ -135,6 +141,18 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 *:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 
+/* Mobile Safari (and most mobile browsers) auto-zoom the page on focusing any
+   text input/select/textarea whose font-size is under 16px - and because this
+   is an SPA, that zoomed-in scale doesn't reset on the client-side navigation
+   that follows (e.g. login -> /dashboard), so the whole app stays "stuck"
+   zoomed in. Most of this app's inputs use --fs-body/--fs-label (14px/13px)
+   for visual consistency with the rest of the UI, which is fine on desktop
+   (no focus-zoom there) - this just overrides the effective size on mobile,
+   without changing any input's declared font-size or desktop appearance. */
+@media (max-width: 640px) {
+  input, select, textarea { font-size: 16px !important; }
+}
+
 /* overflow-x:hidden here is load-bearing (audit P2-6), not cosmetic. The
    closed NavDrawer's .nav-menu sits translateX(100%) off-canvas - that
    transformed box still inflated document.scrollWidth ~93px on mobile,
@@ -193,7 +211,7 @@ body::after {
 
 /* ── APP LAYOUT ── */
 .app-bar {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  position: fixed; top: var(--banner-h); left: 0; right: 0; z-index: 1000;
   background: rgba(9,11,22,0.88);
   border-bottom: 0.5px solid rgba(90,150,255,0.1);
   backdrop-filter: saturate(180%) blur(20px);
@@ -210,8 +228,9 @@ body::after {
 }
 .app-logo { font-size: var(--fs-card-title); font-weight: 700; color: var(--txt); white-space: nowrap; flex-shrink: 0; letter-spacing: -0.3px; }
 .app-logo span { color: var(--accent-2); }
-.app-content { max-width: 700px; margin: 0 auto; padding: 90px 1rem 2rem; }
-/* 90px = navbar(52) + ticker(28) + 10px gap - safe at all times */
+.app-content { max-width: 700px; margin: 0 auto; padding: calc(90px + var(--banner-h)) 1rem 2rem; }
+/* 90px = navbar(52) + ticker(28) + 10px gap - safe at all times, plus --banner-h
+   on top when the announcement banner is showing (see components/AnnouncementBanner.tsx) */
 
 /* Smooth entry instead of a hard cut - most noticeable right after the
    auth-redirect from "/" lands here, but applies on any fresh page load. */
@@ -423,7 +442,7 @@ body::after {
    scrollable overflow. The actual fix is overflow-x:hidden on <html> (audit
    P2-6). Kept here anyway as correct hygiene for a fixed container with an
    off-canvas child - harmless, changes nothing visually. */
-.nav-drawer { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 999; pointer-events: none; overflow: hidden; }
+.nav-drawer { position: fixed; top: calc(52px + var(--banner-h)); left: 0; right: 0; bottom: 0; z-index: 999; pointer-events: none; overflow: hidden; }
 .nav-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); opacity: 0; transition: opacity 0.25s; pointer-events: none; }
 .nav-menu {
   position: absolute; top: 0; right: 0; width: min(90vw, 360px); height: 100%;
@@ -757,7 +776,7 @@ body[data-rpm-level="high"]::before {
 .nf-headline { font-size: var(--fs-caption); font-weight: 500; color: var(--txt); line-height: 1.5; }
 
 /* ── BREAKING ALERT ── */
-.breaking-alert { position: fixed; top: 62px; right: 12px; width: min(340px, calc(100vw - 24px)); z-index: 9000; pointer-events: none; }
+.breaking-alert { position: fixed; top: calc(62px + var(--banner-h)); right: 12px; width: min(340px, calc(100vw - 24px)); z-index: 9000; pointer-events: none; }
 .ba-card {
   background: var(--bg2); border-radius: var(--radius-card); padding: 12px 14px; margin-bottom: 8px;
   pointer-events: all; box-shadow: 0 4px 32px rgba(0,0,0,0.8); border-left: 3px solid #333;
@@ -785,9 +804,35 @@ body[data-rpm-level="high"]::before {
 .type-amber  .ba-bar-fill { background: var(--amber); }
 .type-purple .ba-bar-fill { background: var(--purple); }
 
+/* ── ANNOUNCEMENT BANNER ──
+   Fixed at the very top, above .app-bar (z-index 1000) - its real rendered
+   height is measured in JS (components/AnnouncementBanner.tsx) and written to
+   --banner-h, which every other fixed/sticky top-of-viewport element (app-bar,
+   news-ticker, nav-drawer, breaking-alert, lp-nav) offsets by, so this never
+   renders underneath them the way an unaccounted-for flow element would. */
+.announcement-banner {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1001;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 8px 40px 8px 16px;
+  background: rgba(9,11,22,0.94);
+  border-bottom: 0.5px solid var(--accent-bdr);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  animation: ticker-slide-in 0.28s ease-out;
+}
+.announcement-banner-text { color: var(--txt); font-size: var(--fs-label); text-align: center; }
+.announcement-banner-text a { color: var(--accent-2); text-decoration: underline; }
+.announcement-banner-dismiss {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; color: var(--txt2); cursor: pointer;
+  font-size: 1.1rem; line-height: 1; padding: 6px;
+}
+.announcement-banner-dismiss:hover { color: var(--txt); }
+[data-theme="light"] .announcement-banner { background: rgba(255,255,255,0.94); }
+
 /* ── NEWS TICKER ── */
 .news-ticker {
-  position: fixed; top: 52px; left: 0; right: 0; z-index: 999;
+  position: fixed; top: calc(52px + var(--banner-h)); left: 0; right: 0; z-index: 999;
   height: 28px; display: flex; align-items: center; gap: 0;
   background: #0a090e;                   /* fully opaque - no bleed-through */
   border-bottom: 0.5px solid rgba(255,255,255,0.06);
@@ -862,7 +907,7 @@ body[data-rpm-level="high"]::before {
 
 /* body.ticker-on no longer needed for app-content - base padding covers both states */
 /* Keep for breaking alerts positioning */
-body.ticker-on .breaking-alert { top: 90px; }
+body.ticker-on .breaking-alert { top: calc(90px + var(--banner-h)); }
 
 /* ── INDICATORS ── */
 .ind-row  { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
@@ -3954,7 +3999,7 @@ body.landing .app-content {
   max-width: 100% !important;
   width: 100% !important;
   margin: 0 !important;
-  padding: 0 !important;
+  padding: var(--banner-h) 0 0 !important;
 }
 body.landing {
   overflow-x: hidden;
@@ -4099,7 +4144,7 @@ body.landing {
 }
 
 /* ── LP NAV ─────────────────────────────────────────────────────────── */
-.lp-nav        { position: sticky; top: 0; z-index: 100; background: rgba(10,10,14,0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 0.5px solid var(--bdr); }
+.lp-nav        { position: sticky; top: var(--banner-h); z-index: 100; background: rgba(10,10,14,0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-bottom: 0.5px solid var(--bdr); }
 .lp-nav-inner  { max-width: 1100px; margin: 0 auto; padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
 .lp-logo       { font-size: var(--fs-card-title); font-weight: 800; letter-spacing: -.02em; color: var(--txt); }
 .lp-logo span  { color: var(--accent); }
@@ -4940,8 +4985,15 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   /* Reserve space for tab bar (56px) + the FAB above it (bottom:76 + 64 tall = 140).
      Prevents the fixed "Ask AI" FAB from overlapping the last content on every page. */
   .app-content { padding-bottom: 148px; }
-  /* Edge signal cards - equal height in 2-col mobile grid */
-  .edge-grid { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; align-items: stretch; }
+  /* Edge signal cards - equal height in 2-col mobile grid. minmax(0, 1fr), not
+     bare 1fr - a bare 1fr track's minimum size is its content's min-content
+     width, and .edge-card-label/-value/-signal are white-space:nowrap (so
+     their own text-overflow:ellipsis can work), so their min-content IS their
+     full unwrapped width. That forced whichever card had the longest label
+     (e.g. "Open Interest (1h)") to blow its track past its fair share,
+     overflowing the whole grid/page horizontally - the actual cause of the
+     "everything is zoomed in" mobile bug report, not browser/viewport zoom. */
+  .edge-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows: 1fr; align-items: stretch; }
   .edge-card { display: flex; flex-direction: column; }
   .edge-card-label { min-width: 0; }
 }
