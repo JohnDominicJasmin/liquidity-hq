@@ -57,3 +57,15 @@ export function fmtAgo(iso: string | null | undefined): string {
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
 }
+
+// Forward-looking counterpart to fmtAgo - "expires in 3h", not "3h ago".
+export function fmtIn(iso: string | null | undefined): string {
+  if (!iso) return '-';
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return 'past';
+  const m = Math.ceil(ms / 60000);
+  if (m < 60) return `in ${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `in ${h}h`;
+  return `in ${Math.floor(h / 24)}d`;
+}
