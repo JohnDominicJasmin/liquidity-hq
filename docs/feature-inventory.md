@@ -2,6 +2,8 @@
 
 Prepared for pricing-tier architecture review. Every feature currently live in the codebase, with the files/routes that implement it and its resource-cost classification.
 
+> Updated 2026-07-20: added §16 (the `/ops` admin console) and its cost note. Sections 1-15 are the user-facing product; §16 is internal-only staff tooling, not a pricing-tier feature.
+
 **Cost legend:**
 - 🔴 **Heavy API** — hits a paid or rate-limited third-party API (Grok/xAI, CoinGlass, CMC) per request
 - 🟡 **Light API** — hits a free/public exchange REST endpoint, now cached server-side
@@ -330,6 +332,37 @@ Tracks per-user Grok API call count against tier limits, surfaced as a usage rin
 Offline fallback page, install-to-homescreen manifest, and a service worker handling both cache-first offline navigation and push notification display/click routing.
 **Files:** `public/sw.js`, `app/offline/page.tsx`, `components/AppShell.tsx`
 **Cost:** 🟢 Pure compute (browser-native, zero backend cost)
+
+---
+
+## 16. Admin / Ops Console (internal — not a user tier)
+
+Owner/staff-only operations console at `/ops` (login at `/ops/login`; old `/admin` path is a honeypot that logs the probe and 404s). Not part of any pricing tier — internal tooling. Full status + backlog in `OPS_ROADMAP.md`.
+
+### Access control & auth
+DB-backed membership + roles (`owner` | `staff`) in `lhq_admin_users`, managed from the Team page, with `ADMIN_EMAILS` as an emergency-bootstrap owner. Server-side guard (`withAdmin` / `withOwner`) on every `/api/ops/*` route validates the Supabase bearer token then the role before any service-role query. `/ops/login` does email+password + Google; signed-in non-admins get an "Access denied" screen.
+**Files:** `lib/admin-auth.ts`, `app/ops/layout.tsx`, `app/ops/login/page.tsx`, `app/api/ops/me/route.ts`
+**Cost:** 🔵 DB (service-role reads/writes, RLS-bypassing, server-only)
+
+### Monitor dashboards (read-only)
+Users & revenue, cron health (last-activity + overdue-outcome signals), Grok AI cost/usage, and signal-accuracy win-rates — all aggregated server-side from existing tables via the service-role client.
+**Files:** `app/ops/page.tsx`, `app/ops/_cards.tsx`, `app/api/ops/{overview,crons,ai-cost,accuracy}/route.ts`
+**Cost:** 🔵 DB (cross-user aggregate reads)
+
+### User list & detail
+Paginated, email-searchable user list; per-user detail shows subscription, onboarding, push count, 14d AI usage, and activity COUNTS only (never raw journal/hypothesis content).
+**Files:** `app/ops/users/page.tsx`, `app/ops/users/[id]/page.tsx`, `app/api/ops/users/**`
+**Cost:** 🔵 DB + auth admin (`listUsers` / `getUserById`)
+
+### Account actions
+Grant/Revoke Pro (writes only `user_subscriptions.role`, never touches Lemon Squeezy billing fields), Ban/Unban (Supabase native `ban_duration`; self-ban blocked), Reset today's AI limit (deletes the day's `lhq_grok_usage` row). Every action written to `lhq_admin_audit_log`.
+**Files:** `app/api/ops/users/[id]/route.ts` (PATCH)
+**Cost:** 🔵 DB + auth admin
+
+### Team management (owner-only)
+Add an admin (creates a pre-confirmed Supabase user or grants an existing account access), change role, disable/remove. Best-effort "you've been added" email via Brevo (`lib/email.ts`) — unreliable without a verified domain, see `OPS_ROADMAP.md`.
+**Files:** `app/ops/team/page.tsx`, `app/api/ops/team/**`, `lib/email.ts`
+**Cost:** 🔵 DB + auth admin + external Brevo (best-effort)
 
 ---
 
