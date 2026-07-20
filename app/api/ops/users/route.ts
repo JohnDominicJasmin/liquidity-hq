@@ -50,9 +50,13 @@ export const GET = withAdmin(async (req) => {
   const ids = pageUsers.map(u => u.id);
   const subsById = new Map<string, { role: string; ls_status: string | null }>();
   if (ids.length) {
-    const { data: subs } = await admin.from(T.user_subscriptions)
+    const { data: subs, error: subsErr } = await admin.from(T.user_subscriptions)
       .select('user_id, role, ls_status')
       .in('user_id', ids);
+    // A failed lookup here must never silently read as "role: free" for every
+    // user on the page - that's a real subscription value, not a safe default
+    // to fall back to on error.
+    if (subsErr) return NextResponse.json({ error: subsErr.message }, { status: 500 });
     for (const s of subs ?? []) subsById.set(s.user_id, { role: s.role, ls_status: s.ls_status });
   }
 

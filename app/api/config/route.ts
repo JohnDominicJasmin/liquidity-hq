@@ -27,8 +27,12 @@ export async function GET() {
   let data = SAFE_DEFAULT;
   try {
     const admin = getSupabaseAdmin();
-    const { data: rows } = await admin.from(T.app_config)
+    const { data: rows, error: qErr } = await admin.from(T.app_config)
       .select('key, value').in('key', ['maintenance_mode', 'announcement_banner']);
+    // supabase-js resolves {data, error} on failure rather than throwing - log
+    // it (server-side only, response still fails open below) so a bad key/RLS/
+    // schema issue shows up somewhere instead of silently looking like "no rows".
+    if (qErr) console.error('/api/config query error:', qErr.message);
     const maintenance = rows?.find(r => r.key === 'maintenance_mode')?.value as { enabled?: boolean } | undefined;
     const banner = rows?.find(r => r.key === 'announcement_banner')?.value as { text?: string; link?: string | null; expiresAt?: string | null } | undefined;
     // expiresAt is checked at read time, not cleared in the row - simplest way
