@@ -180,7 +180,6 @@ function ArenaContent() {
   const scannerSearchRef = useRef<HTMLInputElement>(null);
   const [coinCat, setCoinCat]           = useState<'all' | 'majors' | 'alts' | 'defi' | 'meme'>('all');
   const [sigDetailsOpen, setSigDetailsOpen] = useState(false);
-  const [advancedOpen, setAdvancedOpen]     = useState(false);
   const [copiedKey, setCopiedKey]           = useState<string | null>(null);
   const [jpyUsd, setJpyUsd]                 = useState<number | null>(null);
   const scannerRef      = useRef<HTMLDivElement>(null);
@@ -1809,24 +1808,7 @@ function ArenaContent() {
 
       {/* ── Evidence + advanced (full width, below the workspace) ── */}
       <div className="arena-below-chart">
-      {/* Advanced settings - collapsed by default. Holds the anti-chop filter,
-          whose own 3-year backtest shows OFF outperforms ON, so it does not
-          belong in the default view. */}
-      <button
-        onClick={() => setAdvancedOpen(v => !v)}
-        style={{
-          marginBottom: advancedOpen ? 8 : 12, width: '100%', padding: '7px 0',
-          background: 'transparent', border: 'none',
-          borderTop: '0.5px solid rgba(255,255,255,0.06)',
-          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-          color: 'var(--txt3)', fontSize: 'var(--fs-caption)',
-        }}
-      >
-        <span>{advancedOpen ? '▲ Hide advanced' : '▼ Advanced - signal filter'}</span>
-      </button>
-
-      {advancedOpen && (
-      /* Anti-chop filter toggle */
+      {/* Anti-chop filter toggle */}
       <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <button
           onClick={() => setAntiChopEnabled(v => !v)}
@@ -1884,7 +1866,6 @@ function ArenaContent() {
             : 'Raw EMA9/20 cross signals - no chop filtering'}
         </span>
       </div>
-      )}
       {/* BTC Liquidation Heatmap - shows only when BTC selected and data available */}
       {selectedCoin === 'btc' && store.btcLiqLevels.length > 0 && (
         <LiqHeatmap
