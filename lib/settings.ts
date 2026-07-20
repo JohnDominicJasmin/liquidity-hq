@@ -23,8 +23,6 @@ export interface UserSettings {
   rsi_ob:           number;   // alert when RSI 1h >= this
   rsi_os:           number;   // alert when RSI 1h <= this
   squeeze_threshold: number;  // alert when squeeze/flush score >= this
-  // Appearance
-  hidden_sections:  string[];
   // Telegram - per-user chat ID (empty string = not connected)
   telegram_chat_id: string;
   // View mode
@@ -50,25 +48,10 @@ export const DEFAULT_SETTINGS: UserSettings = {
   rsi_ob:             70,
   rsi_os:             30,
   squeeze_threshold:  70,
-  hidden_sections:    [],
   telegram_chat_id:   '',
   beginner_mode:      true,
   watchlist:          ['btc', 'eth', 'sol'],
 };
-
-// Hideable dashboard section ids → display labels
-// Only lists sections actually rendered (and gated) on /dashboard - a toggle
-// here that doesn't correspond to a real, hidden-on-uncheck widget is a lie to
-// the user. accumulation/distribution/gex/macro live on other pages (scanner/
-// liq/correlation/research), never the dashboard; catalysts/commandments were
-// never built. Removed 2026-07-21 rather than left as dead checkboxes.
-export const DASHBOARD_SECTIONS: { id: string; label: string }[] = [
-  { id: 'raid_meter',   label: 'RaidMeter'       },
-  { id: 'best_setup',   label: 'Best Setup Now'   },
-  { id: 'cascade',      label: 'Cascade Alert'    },
-  { id: 'coin_signals', label: 'Coin Signals'     },
-  { id: 'session',      label: 'Session Context'  },
-];
 
 // ── Context ────────────────────────────────────────────────────────────────
 
@@ -137,7 +120,6 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
     rsi_ob:             +(row.rsi_ob          ?? DEFAULT_SETTINGS.rsi_ob),
     rsi_os:             +(row.rsi_os          ?? DEFAULT_SETTINGS.rsi_os),
     squeeze_threshold:  +(row.squeeze_threshold ?? DEFAULT_SETTINGS.squeeze_threshold),
-    hidden_sections:    (row.hidden_sections  as string[]) ?? DEFAULT_SETTINGS.hidden_sections,
     telegram_chat_id:   String(row.telegram_chat_id ?? ''),
     beginner_mode:      !!(row.beginner_mode ?? false),
     watchlist:          Array.isArray(row.watchlist) ? row.watchlist as string[] : DEFAULT_SETTINGS.watchlist,

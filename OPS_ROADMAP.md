@@ -59,7 +59,7 @@ Seeded with only these two flags on purpose — no per-feature kill-switches (Gr
 | **Instant session kill on ban** | A banned user's already-issued token still authenticates for up to ~1h until expiry. Force-expiry would need extra work. |
 | **Feature-flag kill-switches** | `app_config` + the `/ops/config` pattern exist now (Phase 3); no specific flags (Grok, Telegram, etc.) seeded yet — add on demand. |
 
-**Resolved 2026-07-21 (removed from this table):** the "7 dead dashboard toggles" - turned out to be 1 real bug (`session` was unconditional, now gated) + 6 checkboxes that never applied to the dashboard at all (`accumulation`/`distribution`/`gex`/`macro` live on other pages; `catalysts`/`commandments` were never built). The 6 were removed from `DASHBOARD_SECTIONS` rather than built out, since nobody had asked for those widgets on the dashboard specifically - a checkbox that does nothing is worse than no checkbox.
+**Resolved 2026-07-21 (removed from this table):** the "7 dead dashboard toggles" - turned out to be 1 real bug (`session` was unconditional, gated it) + 6 checkboxes that never applied to the dashboard at all (`accumulation`/`distribution`/`gex`/`macro` live on other pages; `catalysts`/`commandments` were never built). First fix pass trimmed `DASHBOARD_SECTIONS` down to the 5 real ones - but hiding ALL 5 left an ugly blank dashboard (no empty-state fallback), and the user decided the whole toggle feature wasn't worth keeping for that risk. **Final state: the entire "Dashboard Sections" feature is removed** - `DASHBOARD_SECTIONS`, `UserSettings.hidden_sections`, and the Settings UI for it no longer exist anywhere in the codebase. `/dashboard` always renders every section unconditionally now.
 
 ---
 

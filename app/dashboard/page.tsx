@@ -450,9 +450,6 @@ export default function Dashboard() {
   const mainRef = useRef<HTMLDivElement>(null);
   const isMobile = useMobile();
 
-  const { settings } = useSettings();
-  const hide = (id: string) => settings.hidden_sections.includes(id);
-
   const { tourPending, clearTourPending } = useOnboarding();
 
   // OnboardingGate flips tourPending right after a user finishes onboarding
@@ -489,44 +486,38 @@ export default function Dashboard() {
         <div className="mobile-only">
           <div className="dash-section">Live prices</div>
           <Ticker />
-          {!hide('coin_signals') && <>
-            <CoinSignalsHeader />
-            <EdgeSignals />
-            <SmartMoneyScore />
-          </>}
+          <CoinSignalsHeader />
+          <EdgeSignals />
+          <SmartMoneyScore />
           <div className="dash-section" style={{ marginTop: 8 }}>Market pulse</div>
           <MarketPulseStrip />
         </div>
 
         {/* 0. Raid Probability Meter - is now a good time to trade? */}
-        {!hide('raid_meter') && <RaidMeter />}
+        <RaidMeter />
 
         {/* 1. Session strip */}
         <SessionCountdown />
-        {!hide('session') && <SessionContext />}
+        <SessionContext />
 
         {/* 2. Best Setup Today - promoted, first thing above the fold */}
-        {!hide('best_setup') && (
-          <div id="tour-best-setup" className="mb-glow-card" style={{ borderRadius: 10 }}>
-            <div className="dash-section dash-section-hot">Best Setup Today</div>
-            <SOTD />
-          </div>
-        )}
+        <div id="tour-best-setup" className="mb-glow-card" style={{ borderRadius: 10 }}>
+          <div className="dash-section dash-section-hot">Best Setup Today</div>
+          <SOTD />
+        </div>
 
         {/* ── Separator ── */}
         <div className="dash-ctx-sep" />
 
         {/* 3. Coin signals - selected coin deep dive (desktop only; mobile renders above) */}
-        {!hide('coin_signals') && (
-          <div id="tour-coin-signals" className="desktop-only mb-glow-card" style={{ borderRadius: 10 }}>
-            <CoinSignalsHeader />
-            <EdgeSignals />
-            <SmartMoneyScore />
-          </div>
-        )}
+        <div id="tour-coin-signals" className="desktop-only mb-glow-card" style={{ borderRadius: 10 }}>
+          <CoinSignalsHeader />
+          <EdgeSignals />
+          <SmartMoneyScore />
+        </div>
 
         {/* 4. Contextual alert banners */}
-        {!hide('cascade') && <CascadeAlertBanner />}
+        <CascadeAlertBanner />
         <SentimentExtremesAlert />
 
       </div>
