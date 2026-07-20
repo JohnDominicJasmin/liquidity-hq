@@ -1676,21 +1676,6 @@ function ArenaContent() {
               </div>
             )}
 
-            {/* Key levels */}
-            {result.levels.length > 0 && (
-              <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {result.levels.map((lv, i) => (
-                  <span key={i} style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 5, fontWeight: 600,
-                    background: lv.type === 'support' ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)',
-                    color: lv.type === 'support' ? '#34d399' : '#f87171',
-                    border: `0.5px solid ${lv.type === 'support' ? 'rgba(52,211,153,0.25)' : 'rgba(248,113,113,0.25)'}`,
-                  }}>
-                    ${fmtPrice(lv.price)} {lv.label}
-                  </span>
-                ))}
-              </div>
-            )}
-
             {/* ── Liquidity Raid Setup ── */}
             {result.raidSetup && (
               <div className="arena-raid-block" style={{
