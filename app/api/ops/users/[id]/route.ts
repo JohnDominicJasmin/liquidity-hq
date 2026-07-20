@@ -71,3 +71,66 @@ export const GET = withAdmin<[{ params: Promise<{ id: string }> }]>(async (_req,
     aiUsage14d,
   });
 });
+
+type UserAction = 'grant_pro' | 'revoke_pro' | 'ban' | 'unban' | 'reset_ai_limit';
+const VALID_ACTIONS: UserAction[] = ['grant_pro', 'revoke_pro', 'ban', 'unban', 'reset_ai_limit'];
+
+// A near-permanent ban (Supabase requires a finite duration string, not "forever").
+const BAN_DURATION = '876000h'; // 100 years
+
+// PATCH /api/ops/users/[id] - account actions. Any admin (owner or staff) may
+// act - Team management is the owner-only surface, not this. Every action is
+// audited. Self-ban is blocked so an admin can never lock themselves out.
+export const PATCH = withAdmin<[{ params: Promise<{ id: string }> }]>(async (req, { user }, { params }) => {
+  const { id } = await params;
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const action = body.action as UserAction;
+  if (!VALID_ACTIONS.includes(action)) {
+    return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });
+  }
+  if (action === 'ban' && id === user.id) {
+    return NextResponse.json({ error: 'You cannot ban your own account.' }, { status: 400 });
+  }
+
+  const admin = getSupabaseAdmin();
+
+  switch (action) {
+    case 'grant_pro':
+    case 'revoke_pro': {
+      // Only the role column is written - upsert with a partial payload leaves
+      // any existing Lemon Squeezy fields (ls_status, ls_subscription_id, etc.)
+      // untouched, so comping a free user never clobbers a real subscription's
+      // billing state, and revoking a comp doesn't touch billing either.
+      const role = action === 'grant_pro' ? 'pro' : 'free';
+      const { error } = await admin.from(T.user_subscriptions).upsert(
+        { user_id: id, role, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' },
+      );
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      break;
+    }
+    case 'ban':
+    case 'unban': {
+      const { error } = await admin.auth.admin.updateUserById(id, {
+        ban_duration: action === 'ban' ? BAN_DURATION : 'none',
+      });
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      break;
+    }
+    case 'reset_ai_limit': {
+      const today = new Date().toISOString().slice(0, 10);
+      const { error } = await admin.from(T.grok_usage).delete().eq('user_id', id).eq('date', today);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      break;
+    }
+  }
+
+  await admin.from(T.admin_audit_log).insert({
+    actor_email: user.email,
+    action: `user_${action}`,
+    target_user_id: id,
+    detail: {},
+  });
+
+  return NextResponse.json({ ok: true });
+});
