@@ -1551,6 +1551,8 @@ function ArenaContent() {
 
       {result && Date.now() - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
         const sigCol = result.signal === 'LONG' ? '#34d399' : result.signal === 'LEAN LONG' ? '#86efac' : result.signal === 'SHORT' ? '#f87171' : result.signal === 'LEAN SHORT' ? '#fca5a5' : '#9ca3af';
+        const verdictWord = result.signal === 'LONG' ? 'Long' : result.signal === 'LEAN LONG' ? 'Lean long' : result.signal === 'SHORT' ? 'Short' : result.signal === 'LEAN SHORT' ? 'Lean short' : 'Wait';
+        const whyLine = (result.reasoning || '').split(/(?<=[.!?])\s+/)[0] || '';
         const prevQuickSignal = quickSignals[selectedCoin];
         const showOverride = !!(
           cacheEntry?.mode === 'deep' &&
@@ -1561,38 +1563,33 @@ function ArenaContent() {
         const freshness = secsDiff < 60 ? 'just now' : secsDiff < 3600 ? `${Math.floor(secsDiff/60)}m ago` : `${Math.floor(secsDiff/3600)}h ago`;
         return (
           <div className={`arena-signal-card sig-${result.signal.toLowerCase().replace(' ', '-')}`}>
-            {/* Header row */}
-            <div className="arena-sig-top">
-              <div>
-                <div className="arena-sig-pair">{selectedCoin.toUpperCase()}/USDT</div>
-                <div className="arena-sig-time">
-                  Analysed {freshness} · {result.tf}
-                  <span style={{
-                    marginLeft: 6, fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
-                    padding: '1px 6px', borderRadius: 4,
-                    background: cacheEntry?.mode === 'quick' ? 'rgba(52,211,153,0.1)' : 'rgba(26,122,255,0.1)',
-                    color: cacheEntry?.mode === 'quick' ? '#34d399' : '#5aa3ff',
-                    border: `0.5px solid ${cacheEntry?.mode === 'quick' ? 'rgba(52,211,153,0.25)' : 'rgba(26,122,255,0.25)'}`,
-                  }}>
-                    {cacheEntry?.mode === 'quick' ? 'Quick' : 'Deep'}
-                  </span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
-                <span className={`arena-sig-badge badge-${result.signal.toLowerCase().replace(' ', '-')}`}>
-                  {result.signal === 'LONG' ? '▲ LONG' : result.signal === 'LEAN LONG' ? '↗ LEAN LONG' : result.signal === 'SHORT' ? '▼ SHORT' : result.signal === 'LEAN SHORT' ? '↘ LEAN SHORT' : '- FLAT'}
+            {/* Answer-first header: big verdict word + confidence */}
+            <div className="av-head">
+              <div className="av-head-eyebrow">
+                AI Read · {selectedCoin.toUpperCase()}/USDT · {result.tf}
+                <span style={{
+                  fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.04em',
+                  padding: '1px 6px', borderRadius: 4,
+                  background: cacheEntry?.mode === 'quick' ? 'rgba(52,211,153,0.1)' : 'rgba(26,122,255,0.1)',
+                  color: cacheEntry?.mode === 'quick' ? '#34d399' : '#5aa3ff',
+                  border: `0.5px solid ${cacheEntry?.mode === 'quick' ? 'rgba(52,211,153,0.25)' : 'rgba(26,122,255,0.25)'}`,
+                }}>
+                  {cacheEntry?.mode === 'quick' ? 'Quick' : 'Deep'}
                 </span>
-                {result.signal === 'FLAT' && result.bias && result.bias !== 'NEUTRAL' && (
-                  <span style={{
-                    fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
-                    color: result.bias === 'BEARISH' ? '#f87171' : '#34d399',
-                    padding: '2px 8px', borderRadius: 6,
-                    background: result.bias === 'BEARISH' ? 'rgba(248,113,113,0.1)' : 'rgba(52,211,153,0.1)',
-                    border: `0.5px solid ${result.bias === 'BEARISH' ? 'rgba(248,113,113,0.3)' : 'rgba(52,211,153,0.3)'}`,
-                  }}>
-                    {result.bias === 'BEARISH' ? '↓ bearish lean' : '↑ bullish lean'}
-                  </span>
-                )}
+                <span style={{ fontWeight: 500, color: 'var(--txt3)', textTransform: 'none', letterSpacing: 0 }}>· {freshness}</span>
+              </div>
+              <div className="av-head-row">
+                <div className="av-verdict" style={{ color: sigCol }}>
+                  {verdictWord}
+                  <small>{result.signal === 'FLAT' && result.bias && result.bias !== 'NEUTRAL'
+                    ? (result.bias === 'BEARISH' ? 'Leaning bearish' : 'Leaning bullish')
+                    : 'Directional read'}</small>
+                </div>
+                <div className="av-conf">
+                  <div className="av-conf-num">{result.confidence}<span>%</span></div>
+                  <div className="av-conf-lbl">Confidence</div>
+                  <div className="av-conf-bar"><div style={{ width: result.confidence + '%', background: sigCol }} /></div>
+                </div>
               </div>
             </div>
 
@@ -1604,16 +1601,14 @@ function ArenaContent() {
               </div>
             )}
 
-            {/* Confidence bar */}
+            {whyLine && <p className="av-why">{whyLine}</p>}
+
+            {/* Entry zone + session (confidence now lives in the header) */}
             <div className="arena-sig-stats">
-              <div className="arena-stat"><div className="arena-stat-label">Confidence</div><div className="arena-stat-val">{result.confidence}%</div></div>
               {result.entryLow && result.entryHigh && (
                 <div className="arena-stat"><div className="arena-stat-label">Entry Zone</div><div className="arena-stat-val" style={{ fontSize: 'var(--fs-data)' }}>${fmtPrice(result.entryLow)} – ${fmtPrice(result.entryHigh)}</div></div>
               )}
               <div className="arena-stat"><div className="arena-stat-label">Session</div><div className="arena-stat-val" style={{ fontSize: 'var(--fs-data)' }}>{result.session}</div></div>
-            </div>
-            <div className="arena-conf-bar">
-              <div className="arena-conf-fill" style={{ width: result.confidence + '%', background: sigCol }} />
             </div>
 
             {/* Watch For - shown when signal is FLAT, LEAN LONG, or LEAN SHORT */}

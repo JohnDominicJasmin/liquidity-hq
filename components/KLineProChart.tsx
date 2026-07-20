@@ -301,6 +301,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     setTimeout(() => { if (canvasFadeRef.current) canvasFadeRef.current.style.backgroundImage = 'none'; }, 400);
   };
   const [activeTool,   setActiveTool]  = useState<string | null>(null);
+  const [drawMenuOpen, setDrawMenuOpen] = useState(false);
   const [wsStatus,     setWsStatus]    = useState<'connecting' | 'live' | 'error'>('connecting');
   const [fullscreen,   setFullscreen]  = useState(false);
   const [copiedMsg,    setCopiedMsg]   = useState<string | null>(null);
@@ -1077,17 +1078,32 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         ))}
         <div className="klc-sep" />
 
-        {TOOLS.map(({ id, label }) => (
+        {/* Drawing tools collapsed into a Draw menu so the toolbar stays clean */}
+        <div className="klc-draw-wrap">
           <button
-            key={id}
-            className={`klc-tool-btn${activeTool === id ? ' on' : ''}`}
-            onClick={() => handleTool(id)}
+            className={`klc-tool-btn klc-draw-btn${activeTool ? ' on' : ''}`}
+            onClick={() => setDrawMenuOpen(v => !v)}
+            aria-expanded={drawMenuOpen}
+            title="Drawing tools"
           >
-            {label}
+            {activeTool ? (TOOLS.find(t => t.id === activeTool)?.label ?? 'Draw') : 'Draw'} {drawMenuOpen ? '▴' : '▾'}
           </button>
-        ))}
+          {drawMenuOpen && (
+            <div className="klc-draw-menu">
+              {TOOLS.map(({ id, label }) => (
+                <button
+                  key={id}
+                  className={`klc-draw-item${activeTool === id ? ' on' : ''}`}
+                  onClick={() => { handleTool(id); setDrawMenuOpen(false); }}
+                >
+                  {label}
+                </button>
+              ))}
+              <button className="klc-draw-item klc-draw-clear" onClick={() => { handleClear(); setDrawMenuOpen(false); }}>✕ Clear all</button>
+            </div>
+          )}
+        </div>
         <div className="klc-sep" />
-        <button className="klc-tool-btn klc-clear" onClick={handleClear}>Clear</button>
         <button
           className={`klc-tool-btn${showSR ? ' on' : ''}`}
           onClick={() => setShowSR(v => !v)}

@@ -1384,6 +1384,21 @@ body.ticker-on .breaking-alert { top: calc(90px + var(--banner-h)); }
 .arena-stat-val   { font-size: var(--fs-data); font-weight: 700; font-family: var(--font-mono), monospace; }
 .arena-conf-bar  { height: 3px; background: rgba(255,255,255,0.05); border-radius: 2px; margin-bottom: 14px; overflow: hidden; }
 .arena-conf-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+
+/* ── Answer-first verdict header (big directional word + confidence) ── */
+.av-head { margin-bottom: 12px; }
+.av-head-eyebrow { font-size: var(--fs-micro); letter-spacing: .1em; text-transform: uppercase; color: var(--txt3); font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.av-head-row { display: flex; align-items: center; gap: 16px; }
+.av-verdict { font-size: 34px; font-weight: 800; letter-spacing: -0.5px; line-height: 1; }
+.av-verdict small { display: block; font-size: var(--fs-caption); font-weight: 600; color: var(--txt2); letter-spacing: .01em; margin-top: 5px; }
+.av-conf { margin-left: auto; text-align: right; min-width: 108px; }
+.av-conf-num { font-family: var(--font-mono), monospace; font-size: 28px; font-weight: 700; color: var(--txt); line-height: 1; }
+.av-conf-num span { font-size: 14px; color: var(--txt3); }
+.av-conf-lbl { font-size: var(--fs-micro); color: var(--txt3); letter-spacing: .06em; text-transform: uppercase; margin-top: 3px; }
+.av-conf-bar { height: 4px; border-radius: 3px; background: rgba(255,255,255,0.08); margin-top: 7px; overflow: hidden; }
+.av-conf-bar > div { height: 100%; border-radius: 3px; transition: width .6s ease; }
+.av-why { font-size: var(--fs-label); color: var(--txt2); line-height: 1.5; margin: 0 0 12px; }
+[data-theme="light"] .av-conf-bar { background: rgba(0,0,0,0.07); }
 .arena-reasoning       { background: rgba(26,122,255,0.05); border: 0.5px solid var(--purple-bdr); border-radius: 12px; padding: 12px 14px; }
 .arena-reasoning-title { font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--purple); margin-bottom: 8px; }
 .arena-reasoning-text  { font-size: var(--fs-label); color: var(--txt2); line-height: 1.65; white-space: pre-wrap; }
@@ -1743,6 +1758,23 @@ body.ticker-on .breaking-alert { top: calc(90px + var(--banner-h)); }
 .klc-fullscreen-btn { color: var(--txt3) !important; margin-left: 4px; }
 .klc-fullscreen-btn:hover { color: var(--txt2) !important; border-color: var(--purple) !important; }
 .klc-sep { width: 0.5px; height: 16px; background: var(--bdr); margin: 0 2px; flex-shrink: 0; }
+/* Draw-tools dropdown (collapses the drawing buttons off the toolbar) */
+.klc-draw-wrap { position: relative; }
+.klc-draw-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 40;
+  display: flex; flex-direction: column; gap: 2px; min-width: 130px;
+  padding: 5px; border-radius: 8px;
+  background: var(--bg2); border: 0.5px solid var(--bdr);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.klc-draw-item {
+  padding: 6px 10px; border-radius: 5px; font-size: var(--fs-caption); font-weight: 600;
+  background: transparent; border: none; color: var(--txt2); cursor: pointer;
+  text-align: left; white-space: nowrap; transition: background 0.12s, color 0.12s;
+}
+.klc-draw-item:hover { background: rgba(255,255,255,0.06); color: var(--txt); }
+.klc-draw-item.on { color: var(--accent-2); background: rgba(90,163,255,0.1); }
+.klc-draw-clear { color: var(--red); margin-top: 2px; border-top: 0.5px solid var(--bdr); border-radius: 0 0 5px 5px; }
 .klc-legend { display: flex; gap: 8px; align-items: center; }
 .klc-leg    { font-size: var(--fs-caption); font-weight: 600; letter-spacing: .03em; white-space: nowrap; }
 .klc-ws-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--txt3); flex-shrink: 0; }
