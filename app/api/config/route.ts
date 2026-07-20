@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 interface AppConfigPayload {
   maintenanceMode: boolean;
-  announcementBanner: { text: string; link: string | null } | null;
+  announcementBanner: { text: string; link: string | null; expiresAt: string | null } | null;
 }
 
 const SAFE_DEFAULT: AppConfigPayload = { maintenanceMode: false, announcementBanner: null };
@@ -30,10 +30,15 @@ export async function GET() {
     const { data: rows } = await admin.from(T.app_config)
       .select('key, value').in('key', ['maintenance_mode', 'announcement_banner']);
     const maintenance = rows?.find(r => r.key === 'maintenance_mode')?.value as { enabled?: boolean } | undefined;
-    const banner = rows?.find(r => r.key === 'announcement_banner')?.value as { text?: string; link?: string | null } | undefined;
+    const banner = rows?.find(r => r.key === 'announcement_banner')?.value as { text?: string; link?: string | null; expiresAt?: string | null } | undefined;
+    // expiresAt is checked at read time, not cleared in the row - simplest way
+    // to auto-hide without a cron. Worst case it lingers up to TTL_MS past expiry.
+    const expired = !!banner?.expiresAt && new Date(banner.expiresAt).getTime() <= Date.now();
     data = {
       maintenanceMode: !!maintenance?.enabled,
-      announcementBanner: banner?.text ? { text: banner.text, link: banner.link ?? null } : null,
+      announcementBanner: banner?.text && !expired
+        ? { text: banner.text, link: banner.link ?? null, expiresAt: banner.expiresAt ?? null }
+        : null,
     };
   } catch { /* fail open to SAFE_DEFAULT */ }
 

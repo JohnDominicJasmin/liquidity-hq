@@ -5,8 +5,18 @@ import styles from '../ops.module.css';
 
 interface ConfigData {
   maintenance_mode: { enabled: boolean };
-  announcement_banner: { text: string; link: string | null };
+  announcement_banner: { text: string; link: string | null; expiresAt: string | null };
 }
+
+// value in hours, '' = no expiry
+const DURATION_OPTIONS: { value: string; label: string }[] = [
+  { value: '',   label: 'No expiry' },
+  { value: '1',  label: '1 hour' },
+  { value: '6',  label: '6 hours' },
+  { value: '24', label: '24 hours' },
+  { value: '72', label: '3 days' },
+  { value: '168', label: '7 days' },
+];
 
 export default function ConfigPage() {
   const { data, error, loading, reload } = useAdminResource<ConfigData>('/api/ops/config');
@@ -15,6 +25,7 @@ export default function ConfigPage() {
 
   const [bannerText, setBannerText] = useState('');
   const [bannerLink, setBannerLink] = useState('');
+  const [durationHrs, setDurationHrs] = useState('');
 
   useEffect(() => {
     if (!data) return;
@@ -73,17 +84,29 @@ export default function ConfigPage() {
             <div className={styles.cardHead}><span className={styles.cardTitle}>Announcement banner</span></div>
             <p className={styles.note}>
               Shown above the app on every page (dismissible per-visitor). Empty text = hidden.
+              {data.announcement_banner.text && (
+                data.announcement_banner.expiresAt
+                  ? ` Currently live, auto-hides ${new Date(data.announcement_banner.expiresAt).toLocaleString()}.`
+                  : ' Currently live, no expiry set.'
+              )}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <input className={styles.searchInput} type="text" placeholder="Banner text (empty = hidden)"
                 value={bannerText} onChange={e => setBannerText(e.target.value)} />
               <input className={styles.searchInput} type="text" placeholder="Link (optional, e.g. /about)"
                 value={bannerLink} onChange={e => setBannerLink(e.target.value)} />
+              <select className={styles.searchInput} value={durationHrs} onChange={e => setDurationHrs(e.target.value)}>
+                {DURATION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
               <button
                 className={styles.loginBtn}
                 style={{ marginTop: 0, alignSelf: 'flex-start' }}
                 disabled={busy}
-                onClick={() => save('announcement_banner', { text: bannerText.trim(), link: bannerLink.trim() || null })}
+                onClick={() => save('announcement_banner', {
+                  text: bannerText.trim(),
+                  link: bannerLink.trim() || null,
+                  expiresAt: durationHrs ? new Date(Date.now() + Number(durationHrs) * 3_600_000).toISOString() : null,
+                })}
               >
                 {busy ? 'Saving…' : 'Save banner'}
               </button>

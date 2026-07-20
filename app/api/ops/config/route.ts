@@ -19,7 +19,7 @@ export const GET = withOwner(async () => {
   const byKey = Object.fromEntries((data ?? []).map(r => [r.key, r.value]));
   return NextResponse.json({
     maintenance_mode: byKey.maintenance_mode ?? { enabled: false },
-    announcement_banner: byKey.announcement_banner ?? { text: '', link: null },
+    announcement_banner: byKey.announcement_banner ?? { text: '', link: null, expiresAt: null },
   });
 });
 
