@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { withOwner } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import { sendAdminAddedEmail } from '@/lib/email';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
@@ -71,12 +72,16 @@ export const POST = withOwner(async (req, { user }) => {
   );
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
+  // Best-effort heads-up email to the added admin. Never blocks the add: if the
+  // provider is unconfigured or fails, emailSent is just false.
+  const emailSent = await sendAdminAddedEmail({ to: email, role, invitedBy: user.email });
+
   await admin.from(T.admin_audit_log).insert({
     actor_email: user.email,
     action: 'admin_add',
     target_user_id: userId,
-    detail: { email, role, passwordSet },
+    detail: { email, role, passwordSet, emailSent },
   });
 
-  return NextResponse.json({ ok: true, user_id: userId, email, role, passwordSet });
+  return NextResponse.json({ ok: true, user_id: userId, email, role, passwordSet, emailSent });
 });

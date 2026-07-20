@@ -43,9 +43,13 @@ export default function TeamPage() {
     setBusy(false);
     const j = res ? await res.json().catch(() => ({})) : {};
     if (!res || !res.ok) { setFormMsg(j.error ?? 'Failed to add.'); return; }
-    setFormMsg(j.passwordSet
+    const base = j.passwordSet
       ? `Added ${j.email}. They can sign in now with the password you set.`
-      : `${j.email} already had an account - granted admin access (their existing password is unchanged).`);
+      : `${j.email} already had an account - granted admin access (their existing password is unchanged).`;
+    const emailNote = j.emailSent
+      ? ' Emailed them a heads-up.'
+      : ' (No email sent - notifications not configured.)';
+    setFormMsg(base + emailNote);
     setEmail(''); setPassword(''); setRole('staff');
     load();
   }
