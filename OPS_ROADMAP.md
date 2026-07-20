@@ -57,8 +57,9 @@ Seeded with only these two flags on purpose — no per-feature kill-switches (Gr
 | **PostHog session-replay masking** | `components/PostHogProvider.tsx` has `maskAllInputs: false` — every typed field except passwords is visible in replays, tied to the real user. On a financial app, worth setting to `true` or scoping. |
 | **Custom ban reason / message** | Supabase shows a bare "user is banned" on login. A "suspended, contact support" message would need custom handling. |
 | **Instant session kill on ban** | A banned user's already-issued token still authenticates for up to ~1h until expiry. Force-expiry would need extra work. |
-| **7 dead per-user dashboard toggles** | `lib/settings.ts`'s `DASHBOARD_SECTIONS` lists 11 widgets; `/dashboard` only actually gates 4 of them. Different bug from Phase 3 (this is `user_settings`, not `app_config`) — a small standalone fix, not done yet by choice. |
 | **Feature-flag kill-switches** | `app_config` + the `/ops/config` pattern exist now (Phase 3); no specific flags (Grok, Telegram, etc.) seeded yet — add on demand. |
+
+**Resolved 2026-07-21 (removed from this table):** the "7 dead dashboard toggles" - turned out to be 1 real bug (`session` was unconditional, gated it) + 6 checkboxes that never applied to the dashboard at all (`accumulation`/`distribution`/`gex`/`macro` live on other pages; `catalysts`/`commandments` were never built). First fix pass trimmed `DASHBOARD_SECTIONS` down to the 5 real ones - but hiding ALL 5 left an ugly blank dashboard (no empty-state fallback), and the user decided the whole toggle feature wasn't worth keeping for that risk. **Final state: the entire "Dashboard Sections" feature is removed** - `DASHBOARD_SECTIONS`, `UserSettings.hidden_sections`, and the Settings UI for it no longer exist anywhere in the codebase. `/dashboard` always renders every section unconditionally now.
 
 ---
 

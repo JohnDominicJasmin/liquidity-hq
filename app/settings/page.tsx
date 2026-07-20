@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
-import { DASHBOARD_SECTIONS } from '@/lib/settings';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import UsageRings from '@/components/UsageRings';
 import CoinMultiSelect from '@/components/CoinMultiSelect';
@@ -473,34 +472,6 @@ export default function SettingsPage() {
 
         <div className="st-note">
           RSI and Squeeze/Flush thresholds apply to both browser push and Telegram alerts. Other thresholds (funding rate, Fear &amp; Greed) are browser push only for now.
-        </div>
-      </Section>
-
-      {/* ── 5. Dashboard Sections ── */}
-      <Section title="Dashboard Sections">
-        <div className="st-desc">Toggle off to hide a section from the dashboard.</div>
-        <div className="st-checkbox-grid">
-          {DASHBOARD_SECTIONS.map(({ id, label }) => {
-            const visible = !settings.hidden_sections.includes(id);
-            return (
-              <label key={id} className="st-checkbox-item">
-                <span className="st-toggle-label">{label}</span>
-                <button
-                  role="switch"
-                  aria-checked={visible}
-                  className={`st-toggle${visible ? ' on' : ''}`}
-                  onClick={() => {
-                    const next = visible
-                      ? [...settings.hidden_sections, id]
-                      : settings.hidden_sections.filter(s => s !== id);
-                    update({ hidden_sections: next });
-                  }}
-                >
-                  <span className="st-toggle-thumb" />
-                </button>
-              </label>
-            );
-          })}
         </div>
       </Section>
 

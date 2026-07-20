@@ -5,15 +5,12 @@ import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, classifyFundin
 import type { CoinId } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { useSettings } from '@/lib/settings';
-import Ticker from '@/components/Ticker';
 import SOTD from '@/components/SOTD';
-import SessionCountdown from '@/components/SessionCountdown';
 import SessionContext from '@/components/SessionContext';
-import SmartMoneyScore from '@/components/SmartMoneyScore';
-import SentimentExtremesAlert from '@/components/SentimentExtremesAlert';
+import MarketRead from '@/components/MarketRead';
+import GlobalMacroContext from '@/components/GlobalMacroContext';
 import SpotlightTour from '@/components/SpotlightTour';
 import SetupChecklist from '@/components/SetupChecklist';
-import RaidMeter from '@/components/RaidMeter';
 import Tip from '@/components/Tip';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
@@ -46,17 +43,10 @@ function MarketPulseStrip() {
     } catch {}
   }, []);
 
-  const fng = store.fng;
-  const fngLabel = store.fngLabel ?? '';
+  // Fear & Greed intentionally lives in the Market Read hero now (deduped) - the
+  // strip carries the dominance/altseason/volatility context that isn't there.
   const dom = store.btcDom;
   const alt = store.altSeasonScore;
-
-  const fngColor = fng == null ? 'var(--txt3)'
-    : fng <= 25 ? '#f87171'
-    : fng <= 45 ? '#fca5a5'
-    : fng <= 55 ? '#fbbf24'
-    : fng <= 75 ? '#86efac'
-    : '#34d399';
 
   const altColor = alt == null ? 'var(--txt3)'
     : alt >= 75 ? '#34d399'
@@ -68,13 +58,11 @@ function MarketPulseStrip() {
     : volLabel === 'High Vol' ? '#f87171'
     : 'var(--txt2)';
 
-  const shortFngLabel = fngLabel.replace('Extreme ', 'Extr. ');
   const domNote = dom == null ? '' : dom >= 60 ? 'BTC leads' : dom >= 55 ? 'Elevated' : dom >= 48 ? 'Normal' : 'Alt season';
   const altNote = alt == null ? '' : alt >= 75 ? 'Alt season' : alt >= 50 ? 'Lean alts' : alt >= 25 ? 'BTC leads' : 'BTC season';
 
   type Chip = { label: string; value: string; note: string; color: string };
   const chips: Chip[] = [
-    { label: 'F&G', value: fng != null ? String(fng) : '-', note: shortFngLabel, color: fngColor },
     { label: 'BTC.D', value: dom != null ? dom.toFixed(1) + '%' : '-', note: domNote, color: 'var(--txt)' },
     { label: 'ALT', value: alt != null ? String(alt) : '-', note: altNote, color: altColor },
     ...(volLabel ? [{ label: 'VOL', value: volLabel.replace(' Vol', ''), note: 'BTC regime', color: volColor }] : []),
@@ -296,6 +284,7 @@ function EdgeSignals() {
   const coin = store.selectedCoin;
   const d    = store.coins[coin];
   const oi1h = useOI1h(coin);
+  const [showMore, setShowMore] = useState(false);
 
   // ── CB Premium ──
   const cbPct = store.cbPremiumPct;
@@ -339,97 +328,117 @@ function EdgeSignals() {
   const sq = computeSqueezeScore(d);
   const sqCol = sq.dir === 'SHORT_SQ' ? '#34d399' : sq.dir === 'LONG_LIQ' ? '#f87171' : '#606060';
 
+  const vwapCard = (
+    <div className="edge-card">
+      <div className="edge-card-label">
+        <Tip text="Volume Weighted Average Price - the average price across the day, weighted by how much was traded at each level. Price above VWAP signals buy-side control; below signals sellers are in charge.">VWAP - {coin.toUpperCase()}</Tip>
+      </div>
+      <div className="edge-card-value" style={{ color: vwapCol, fontSize: 'var(--fs-data)' }}>
+        {price != null ? '$' + fmtPrice(price, COIN_DEC[coin]) : '-'}
+      </div>
+      {vwap != null && (
+        <div className="edge-card-sub">
+          <span style={{ color: 'var(--txt3)' }}>VWAP </span>
+          <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>${vwap.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+          {vwapPct != null && <span style={{ color: vwapCol }}> ({vwapPct >= 0 ? '+' : ''}{vwapPct.toFixed(2)}%)</span>}
+        </div>
+      )}
+      <div className="edge-card-signal" style={{ color: vwapCol }}>
+        {vwapAbove === null ? 'Calculating…' : vwapAbove ? '▲ Above VWAP - bullish' : '▼ Below VWAP - bearish'}
+      </div>
+    </div>
+  );
+
+  const oiCard = (
+    <div className="edge-card">
+      <div className="edge-card-label">
+        <Tip width={260} text="Open Interest is the total number of live futures contracts. Rising OI + rising price = new longs entering (real conviction). Falling OI + rising price = shorts covering (weaker signal).">Open Interest - {coin.toUpperCase()}</Tip>
+      </div>
+      {oiMeta ? (
+        <>
+          <div className="edge-card-value" style={{ color: oiMeta.col, fontSize: 'var(--fs-data)' }}>{oiMeta.txt}</div>
+          <div className="edge-card-signal" style={{ color: oiMeta.col }}>{oiMeta.sub}</div>
+        </>
+      ) : (
+        <div className="edge-card-signal" style={{ color: 'var(--txt3)', marginTop: 4 }}>
+          {d?.oi != null ? 'Flat - no strong signal' : 'Warming up…'}
+        </div>
+      )}
+    </div>
+  );
+
+  const fundingCard = (
+    <div className="edge-card">
+      <div className="edge-card-label">
+        <Tip text="The fee longs pay shorts every 8 hours to keep perpetual futures positions open. Strongly positive means too many people are leveraged long - whales often dump price to liquidate them and pocket the fee.">Funding Rate - {coin.toUpperCase()}</Tip>
+      </div>
+      <div className="edge-card-value" style={{ color: frCol }}>
+        {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '-'}
+      </div>
+      <div className="edge-card-signal" style={{ color: frCol }}>
+        {frInfo ? frInfo.label : 'Loading…'}
+      </div>
+    </div>
+  );
+
+  const setupCard = (
+    <div className="edge-card">
+      <div className="edge-card-label">
+        <Tip width={260} text="Squeeze setup score: funding rate (0–40 pts) + long/short ratio positioning (0–40 pts) + volume spike bonus (0–20 pts). LONG_LIQ = longs overcrowded, ripe for a dump. SHORT_SQ = shorts overcrowded, ripe for a pump.">Setup Scanner - {coin.toUpperCase()}</Tip>
+      </div>
+      <div className="edge-card-value" style={{ color: sqCol, fontSize: 'var(--fs-data)' }}>
+        {sq.score}
+        <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, marginLeft: 6 }}>{sq.label}</span>
+      </div>
+      <div className="edge-card-signal" style={{ color: sqCol }}>
+        {sq.dir === 'SHORT_SQ' ? '▲ Short squeeze setup'
+         : sq.dir === 'LONG_LIQ' ? '▼ Long liquidation risk'
+         : 'Balanced positioning'}
+      </div>
+    </div>
+  );
+
+  const cbCard = (
+    <div className="edge-card">
+      <div className="edge-card-label">
+        <Tip text="Coinbase price minus Binance price, as a %. Positive = US retail buyers are paying a premium (bullish signal). Negative = US retail selling at a discount (bearish signal).">CB Premium</Tip>
+      </div>
+      <div className="edge-card-value" style={{ color: cbCol, fontSize: 'var(--fs-data)' }}>
+        {cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : '-'}
+      </div>
+      <div className="edge-card-signal" style={{ color: cbCol }}>{cbSig}</div>
+    </div>
+  );
+
+  const oi1hCard = (
+    <div className="edge-card">
+      <div className="edge-card-label">
+        <Tip text="How much the total value of open futures positions changed in the last hour. A sharp rise means new money is entering aggressively; a sharp drop means mass liquidations or traders closing positions.">Open Interest 1h - {coin.toUpperCase()}</Tip>
+      </div>
+      <div className="edge-card-value" style={{ color: oi1hCol }}>
+        {oi1h.loading ? '-' : oi1hPctStr}
+      </div>
+      <div className="edge-card-signal" style={{ color: oi1hCol }}>
+        {oi1h.loading ? 'Loading…' : oi1hTxt}
+      </div>
+    </div>
+  );
+
+  // 4 highest-signal cards by default; the two supporting reads (CB Premium,
+  // OI 1h) are one tap away rather than always on screen.
   return (
     <>
-      {/* Row 1: CB Premium, VWAP, OI Trend, Funding Rate */}
       <div className="edge-grid">
-        <div className="edge-card">
-          <div className="edge-card-label">
-            <Tip text="Coinbase price minus Binance price, as a %. Positive = US retail buyers are paying a premium (bullish signal). Negative = US retail selling at a discount (bearish signal).">CB Premium</Tip>
-          </div>
-          <div className="edge-card-value" style={{ color: cbCol, fontSize: 'var(--fs-data)' }}>
-            {cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : '-'}
-          </div>
-          <div className="edge-card-signal" style={{ color: cbCol }}>{cbSig}</div>
-        </div>
-
-        <div className="edge-card">
-          <div className="edge-card-label">
-            <Tip text="Volume Weighted Average Price - the average price across the day, weighted by how much was traded at each level. Price above VWAP signals buy-side control; below signals sellers are in charge.">VWAP - {coin.toUpperCase()}</Tip>
-          </div>
-          <div className="edge-card-value" style={{ color: vwapCol, fontSize: 'var(--fs-data)' }}>
-            {price != null ? '$' + fmtPrice(price, COIN_DEC[coin]) : '-'}
-          </div>
-          {vwap != null && (
-            <div className="edge-card-sub">
-              <span style={{ color: 'var(--txt3)' }}>VWAP </span>
-              <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>${vwap.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-              {vwapPct != null && <span style={{ color: vwapCol }}> ({vwapPct >= 0 ? '+' : ''}{vwapPct.toFixed(2)}%)</span>}
-            </div>
-          )}
-          <div className="edge-card-signal" style={{ color: vwapCol }}>
-            {vwapAbove === null ? 'Calculating…' : vwapAbove ? '▲ Above VWAP - bullish' : '▼ Below VWAP - bearish'}
-          </div>
-        </div>
-
-        <div className="edge-card">
-          <div className="edge-card-label">
-            <Tip width={260} text="Open Interest is the total number of live futures contracts. Rising OI + rising price = new longs entering (real conviction). Falling OI + rising price = shorts covering (weaker signal).">Open Interest - {coin.toUpperCase()}</Tip>
-          </div>
-          {oiMeta ? (
-            <>
-              <div className="edge-card-value" style={{ color: oiMeta.col, fontSize: 'var(--fs-data)' }}>{oiMeta.txt}</div>
-              <div className="edge-card-signal" style={{ color: oiMeta.col }}>{oiMeta.sub}</div>
-            </>
-          ) : (
-            <div className="edge-card-signal" style={{ color: 'var(--txt3)', marginTop: 4 }}>
-              {d?.oi != null ? 'Flat - no strong signal' : 'Warming up…'}
-            </div>
-          )}
-        </div>
-
-        <div className="edge-card">
-          <div className="edge-card-label">
-            <Tip text="The fee longs pay shorts every 8 hours to keep perpetual futures positions open. Strongly positive means too many people are leveraged long - whales often dump price to liquidate them and pocket the fee.">Funding Rate - {coin.toUpperCase()}</Tip>
-          </div>
-          <div className="edge-card-value" style={{ color: frCol }}>
-            {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '-'}
-          </div>
-          <div className="edge-card-signal" style={{ color: frCol }}>
-            {frInfo ? frInfo.label : 'Loading…'}
-          </div>
-        </div>
+        {vwapCard}{oiCard}{fundingCard}{setupCard}
       </div>
-
-      {/* Row 2: OI 1h Change + Setup Scanner */}
-      <div className="edge-grid" style={{ marginBottom: 8 }}>
-        <div className="edge-card">
-          <div className="edge-card-label">
-            <Tip text="How much the total value of open futures positions changed in the last hour. A sharp rise means new money is entering aggressively; a sharp drop means mass liquidations or traders closing positions.">Open Interest 1h - {coin.toUpperCase()}</Tip>
-          </div>
-          <div className="edge-card-value" style={{ color: oi1hCol }}>
-            {oi1h.loading ? '-' : oi1hPctStr}
-          </div>
-          <div className="edge-card-signal" style={{ color: oi1hCol }}>
-            {oi1h.loading ? 'Loading…' : oi1hTxt}
-          </div>
+      <button className="collapse-toggle" onClick={() => setShowMore(v => !v)}>
+        {showMore ? '▲ fewer signals' : '▼ 2 more · CB Premium, OI 1h'}
+      </button>
+      {showMore && (
+        <div className="edge-grid" style={{ marginTop: 8 }}>
+          {cbCard}{oi1hCard}
         </div>
-
-        <div className="edge-card">
-          <div className="edge-card-label">
-            <Tip width={260} text="Squeeze setup score: funding rate (0–40 pts) + long/short ratio positioning (0–40 pts) + volume spike bonus (0–20 pts). LONG_LIQ = longs overcrowded, ripe for a dump. SHORT_SQ = shorts overcrowded, ripe for a pump.">Setup Scanner - {coin.toUpperCase()}</Tip>
-          </div>
-          <div className="edge-card-value" style={{ color: sqCol, fontSize: 'var(--fs-data)' }}>
-            {sq.score}
-            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, marginLeft: 6 }}>{sq.label}</span>
-          </div>
-          <div className="edge-card-signal" style={{ color: sqCol }}>
-            {sq.dir === 'SHORT_SQ' ? '▲ Short squeeze setup'
-             : sq.dir === 'LONG_LIQ' ? '▼ Long liquidation risk'
-             : 'Balanced positioning'}
-          </div>
-        </div>
-      </div>
+      )}
     </>
   );
 }
@@ -444,23 +453,47 @@ function CoinSignalsHeader() {
   );
 }
 
+/* ── Selected-coin glance card - price + change + one signal (no triplicated
+   funding/vol/vwap; those live in Coin Signals below) ── */
+function SelectedCoinCard() {
+  const { store } = useMarket();
+  const id  = store.selectedCoin;
+  const d   = store.coins[id];
+  const dec = COIN_DEC[id];
+  const chg = d?.change ?? 0;
+  const up  = chg >= 0;
+  const badgeCol = coinBadgeColor(id);
+  const oi = d?.oiTrend ? OI_TREND_META[d.oiTrend] : null;
+  const pattern = d?.chartPattern?.split(';')[0].split('(')[0].trim();
+  const sigText = oi?.txt ?? (pattern || 'Warming up…');
+  const sigCol  = oi?.col ?? 'var(--txt3)';
+
+  return (
+    <div className="scc-card">
+      <CoinIcon coin={id} size={30} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
+      <div className="scc-id">
+        <span className="scc-ticker">{id.toUpperCase()}</span>
+        <span className="scc-price">{d?.price ? '$' + fmtPrice(d.price, dec) : '-'}</span>
+      </div>
+      <div className="scc-meta">
+        <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}>{up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%</span>
+        <span className="scc-sig" style={{ color: sigCol }}>{sigText}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [showTour, setShowTour] = useState(false);
-  const sidebarRef = useRef<HTMLElement>(null);
-  const mainRef = useRef<HTMLDivElement>(null);
+  const rightRef = useRef<HTMLElement>(null);
+  const mainRef  = useRef<HTMLDivElement>(null);
   const isMobile = useMobile();
-
-  const { settings } = useSettings();
-  const hide = (id: string) => settings.hidden_sections.includes(id);
 
   const { tourPending, clearTourPending } = useOnboarding();
 
   // OnboardingGate flips tourPending right after a user finishes onboarding
   // (from whatever page they were on) and routes here, since the spotlight
-  // tour targets dashboard-only DOM (data-spotlight-section, .mb-glow-card)
-  // that doesn't exist elsewhere. Read from context, not a ?tour=1 query
-  // param - the flag and this mount both land from the same finish() call,
-  // so it's guaranteed visible on Dashboard's first render.
+  // tour targets dashboard-only DOM (data-spotlight-section, .mb-glow-card).
   useEffect(() => {
     if (tourPending) {
       setShowTour(true);
@@ -472,65 +505,45 @@ export default function Dashboard() {
     <div className="dashboard-grid" data-spotlight-section>
       {showTour && <SpotlightTour onDone={() => setShowTour(false)} />}
       <SetupChecklist />
+      {/* Floating cascade toast - fixed-positioned, render once */}
+      <CascadeAlertBanner />
 
-      <GlobalSpotlight gridRef={sidebarRef} cardSelector=".mb-glow-card" radius={260} disableAnimations={isMobile} />
+      <GlobalSpotlight gridRef={rightRef} cardSelector=".mb-glow-card" radius={260} disableAnimations={isMobile} />
       <GlobalSpotlight gridRef={mainRef} cardSelector=".mb-glow-card" radius={320} disableAnimations={isMobile} />
 
-      {/* ── Left sticky sidebar (desktop only) ── */}
-      <aside className="dash-sidebar" ref={sidebarRef}>
-        <CoinSidebar />
-        <MarketPulseStrip />
-      </aside>
-
-      {/* ── Main content ── */}
+      {/* ── LEFT · the answers (answer-first order) ── */}
       <div className="dash-main" ref={mainRef}>
+        {/* 1. Market Read - the verdict */}
+        <MarketRead />
 
-        {/* Mobile-only: live prices + coin signals + market pulse strip */}
-        <div className="mobile-only">
-          <div className="dash-section">Live prices</div>
-          <Ticker />
-          {!hide('coin_signals') && <>
-            <CoinSignalsHeader />
-            <EdgeSignals />
-            <SmartMoneyScore />
-          </>}
-          <div className="dash-section" style={{ marginTop: 8 }}>Market pulse</div>
-          <MarketPulseStrip />
+        {/* 2. Best Setup Today */}
+        <div id="tour-best-setup" className="mb-glow-card" style={{ borderRadius: 10 }}>
+          <div className="dash-section dash-section-hot" style={{ marginTop: 0 }}>Best Setup Today</div>
+          <SOTD />
         </div>
 
-        {/* 0. Raid Probability Meter - is now a good time to trade? */}
-        {!hide('raid_meter') && <RaidMeter />}
+        {/* 3. Your coin - glance */}
+        <SelectedCoinCard />
 
-        {/* 1. Session strip */}
-        <SessionCountdown />
-        <SessionContext />
-
-        {/* 2. Best Setup Today - promoted, first thing above the fold */}
-        {!hide('best_setup') && (
-          <div id="tour-best-setup" className="mb-glow-card" style={{ borderRadius: 10 }}>
-            <div className="dash-section dash-section-hot">Best Setup Today</div>
-            <SOTD />
-          </div>
-        )}
-
-        {/* ── Separator ── */}
-        <div className="dash-ctx-sep" />
-
-        {/* 3. Coin signals - selected coin deep dive (desktop only; mobile renders above) */}
-        {!hide('coin_signals') && (
-          <div id="tour-coin-signals" className="desktop-only mb-glow-card" style={{ borderRadius: 10 }}>
-            <CoinSignalsHeader />
-            <EdgeSignals />
-            <SmartMoneyScore />
-          </div>
-        )}
-
-        {/* 4. Contextual alert banners */}
-        {!hide('cascade') && <CascadeAlertBanner />}
-        <SentimentExtremesAlert />
-
+        {/* 4. Coin signals - selected coin detail */}
+        <div id="tour-coin-signals" className="mb-glow-card" style={{ borderRadius: 10 }}>
+          <CoinSignalsHeader />
+          <EdgeSignals />
+        </div>
       </div>
 
+      {/* ── RIGHT · context (sticky rail on desktop, stacks below on mobile) ── */}
+      <aside className="dash-right" ref={rightRef}>
+        <CoinSidebar />
+        <MarketPulseStrip />
+        <SessionContext />
+        {/* Macro backdrop - answers "what's the broad market doing", which nothing
+            else on the dashboard covers. Last in the rail so it never pushes the
+            per-coin essentials down on mobile. */}
+        <div className="macro-rail-card">
+          <GlobalMacroContext />
+        </div>
+      </aside>
     </div>
   );
 }
