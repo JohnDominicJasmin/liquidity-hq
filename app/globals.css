@@ -141,6 +141,18 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 *:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 
+/* Mobile Safari (and most mobile browsers) auto-zoom the page on focusing any
+   text input/select/textarea whose font-size is under 16px - and because this
+   is an SPA, that zoomed-in scale doesn't reset on the client-side navigation
+   that follows (e.g. login -> /dashboard), so the whole app stays "stuck"
+   zoomed in. Most of this app's inputs use --fs-body/--fs-label (14px/13px)
+   for visual consistency with the rest of the UI, which is fine on desktop
+   (no focus-zoom there) - this just overrides the effective size on mobile,
+   without changing any input's declared font-size or desktop appearance. */
+@media (max-width: 640px) {
+  input, select, textarea { font-size: 16px !important; }
+}
+
 /* overflow-x:hidden here is load-bearing (audit P2-6), not cosmetic. The
    closed NavDrawer's .nav-menu sits translateX(100%) off-canvas - that
    transformed box still inflated document.scrollWidth ~93px on mobile,
