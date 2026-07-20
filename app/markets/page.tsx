@@ -7,6 +7,7 @@ import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
 import Sparkline24h from '@/components/Sparkline24h';
 import Tip from '@/components/Tip';
+import CoinIcon from '@/components/CoinIcon';
 
 type SortKey = 'volume' | 'change' | 'grade' | 'signal' | 'name';
 
@@ -233,14 +234,7 @@ export default function MarketsPage() {
 
               {/* Coin badge + name */}
               <div style={{ paddingLeft: 10, display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                <span style={{
-                  width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 'var(--fs-caption)', fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
-                  background: withAlpha(badgeCol, '24'), color: badgeCol, border: `0.5px solid ${withAlpha(badgeCol, '55')}`,
-                }}>
-                  {id.slice(0, 2).toUpperCase()}
-                </span>
+                <CoinIcon coin={id} size={18} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
                 <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '.02em' }}>
                   {id.toUpperCase()}
                 </span>
