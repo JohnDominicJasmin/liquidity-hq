@@ -57,18 +57,17 @@ export const DEFAULT_SETTINGS: UserSettings = {
 };
 
 // Hideable dashboard section ids → display labels
+// Only lists sections actually rendered (and gated) on /dashboard - a toggle
+// here that doesn't correspond to a real, hidden-on-uncheck widget is a lie to
+// the user. accumulation/distribution/gex/macro live on other pages (scanner/
+// liq/correlation/research), never the dashboard; catalysts/commandments were
+// never built. Removed 2026-07-21 rather than left as dead checkboxes.
 export const DASHBOARD_SECTIONS: { id: string; label: string }[] = [
-  { id: 'raid_meter',   label: 'RaidMeter'          },
-  { id: 'best_setup',   label: 'Best Setup Now'      },
-  { id: 'cascade',      label: 'Cascade Alert'       },
-  { id: 'coin_signals', label: 'Coin Signals'        },
-  { id: 'accumulation', label: 'Accumulation Tracker' },
-  { id: 'distribution', label: 'Distribution Tracker' },
-  { id: 'session',      label: 'Session Context'     },
-  { id: 'catalysts',    label: 'Catalysts & Events'  },
-  { id: 'gex',          label: 'GEX (mobile)'        },
-  { id: 'macro',        label: 'Macro (mobile)'      },
-  { id: 'commandments', label: '8 Commandments'      },
+  { id: 'raid_meter',   label: 'RaidMeter'       },
+  { id: 'best_setup',   label: 'Best Setup Now'   },
+  { id: 'cascade',      label: 'Cascade Alert'    },
+  { id: 'coin_signals', label: 'Coin Signals'     },
+  { id: 'session',      label: 'Session Context'  },
 ];
 
 // ── Context ────────────────────────────────────────────────────────────────

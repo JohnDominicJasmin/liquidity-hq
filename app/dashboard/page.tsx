@@ -503,7 +503,7 @@ export default function Dashboard() {
 
         {/* 1. Session strip */}
         <SessionCountdown />
-        <SessionContext />
+        {!hide('session') && <SessionContext />}
 
         {/* 2. Best Setup Today - promoted, first thing above the fold */}
         {!hide('best_setup') && (
