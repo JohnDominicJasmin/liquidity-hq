@@ -21,7 +21,7 @@
   --txt2: #7a7e94;
   /* --txt3 was #3e4258 = 1.98:1 on the dark cards - fails WCAG AA hard (audit
      P2-1). Raised to #767d92 = ~4.78:1 on --bg1/--bg2, the surfaces the
-     uppercase micro-labels (.rpm-factor-label / .dash-section / .edge-card-label
+     uppercase micro-labels (.mr-factor-k / .dash-section / .edge-card-label
      / .csb-header-row) actually sit on. Sits close to --txt2 by necessity - on a
      near-black bg, AA-passing muted text can't stay much dimmer than secondary
      text; differentiate those two tiers by weight/size/tracking, not color. */
@@ -1082,45 +1082,6 @@ body.ticker-on .breaking-alert { top: calc(90px + var(--banner-h)); }
 .nbs-arrow        { font-size: 1.25rem; color: var(--txt2); flex-shrink: 0; line-height: 1; transition: color 0.12s, transform 0.12s; }
 .nbs-row:hover .nbs-arrow { color: #fff; transform: translateX(2px); }
 
-/* ── RPM ── */
-.rpm-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: var(--radius-card); padding: 14px 16px; box-shadow: var(--nm-raise); }
-.rpm-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.rpm-title-row { display: flex; align-items: center; gap: 10px; }
-.rpm-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; flex-shrink: 0; }
-.rpm-title { font-size: var(--fs-micro); font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--txt3); }
-.rpm-score-wrap { display: flex; align-items: baseline; gap: 6px; }
-.rpm-score { font-size: 3rem; font-weight: 700; letter-spacing: -2px; line-height: 1; transition: color 0.5s; font-variant-numeric: tabular-nums; }
-.rpm-max     { font-size: var(--fs-label); color: var(--txt3); font-weight: 400; }
-.rpm-verdict { font-size: var(--fs-card-title); font-weight: 700; margin-bottom: 4px; }
-.rpm-sub     { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.5; margin-bottom: 10px; }
-.rpm-bar-track { height: 6px; border-radius: 3px; background: #050505; box-shadow: var(--nm-inset); margin-bottom: 8px; overflow: hidden; }
-.rpm-bar-fill  { height: 100%; border-radius: 3px; transition: width 1s ease, background 0.5s; }
-.rpm-factors { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-.rpm-factor  { background: var(--bg2); border-radius: 8px; padding: 5px 8px; border: 0.5px solid var(--bdr); }
-/* 4 factors are always rendered; Order Wall is a conditional 5th (only when
-   hasWallData) - in the 2-col grid that leaves it alone in row 3 with an
-   empty cell beside it (audit P2-7). Span it full-width when it's the 5th
-   child; no-op when only 4 factors render. */
-.rpm-factor:nth-child(5):last-child { grid-column: 1 / -1; }
-.rpm-factor-label { font-size: var(--fs-micro); color: var(--txt3); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
-.rpm-factor-row   { display: flex; align-items: center; justify-content: space-between; }
-.rpm-factor-val   { font-size: var(--fs-data); font-weight: 700; }
-.rpm-factor-pts   { font-size: var(--fs-caption); color: var(--txt3); }
-.rpm-funding-row  { margin-top: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.rpm-funding-label { font-size: var(--fs-label); color: var(--txt2); }
-.rpm-funding-opts  { display: flex; gap: 5px; flex-wrap: wrap; }
-.rpm-fopt { font-size: var(--fs-caption); padding: 3px 10px; border-radius: 12px; cursor: pointer; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt2); transition: all 0.12s; }
-.rpm-fopt.active-pos { background: var(--red-bg);    color: var(--red);    border-color: var(--red-bdr); }
-.rpm-fopt.active-neg { background: var(--green-bg);  color: var(--green);  border-color: var(--green-bdr); }
-.rpm-fopt.active-neu { background: var(--bg3); color: var(--txt); border-color: var(--bdr2); }
-.col-low  { color: var(--blue); }
-.col-med  { color: var(--amber); }
-.col-high { color: var(--red); }
-.col-max  { color: var(--red); text-shadow: 0 0 8px rgba(248,113,113,0.5); }
-.bar-low  { background: var(--blue); }
-.bar-med  { background: var(--amber); }
-.bar-high { background: var(--red); }
-.bar-max  { background: var(--red); box-shadow: 0 0 8px rgba(248,113,113,0.4); }
 
 /* ── SOTD - reference/educational content, deliberately styled distinct from
    live-data cards (dashed neutral accent instead of the purple→green gradient
@@ -2378,7 +2339,6 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 [data-theme="light"] .taker-mid-line { background: rgba(0,0,0,0.14); }
 [data-theme="light"] .gex-bar-wrap   { background: rgba(0,0,0,0.07); }
 [data-theme="light"] .liq-row-bar-wrap { background: rgba(0,0,0,0.07); }
-[data-theme="light"] .rpm-bar-track  { background: rgba(0,0,0,0.08); }
 [data-theme="light"] .arena-conf-bar { background: rgba(0,0,0,0.07); }
 [data-theme="light"] .fng-bar-bg {
   background: linear-gradient(to right, #3b82f6, #059669, #d97706, #dc2626);
@@ -4055,22 +4015,6 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
   .ois-oi-usd { display: none; }
 }
 
-/* ── SENTIMENT EXTREMES ALERT ────────────────────────────────────────── */
-.sent-banner         { border: 0.5px solid; border-radius: var(--radius-card); margin-bottom: 10px; overflow: hidden; }
-.sent-banner-header  { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 14px 10px; border-bottom: 0.5px solid rgba(255,255,255,0.06); gap: 10px; }
-.sent-banner-left    { display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0; }
-.sent-icon           { font-size: 1.25rem; line-height: 1; flex-shrink: 0; margin-top: 1px; }
-.sent-banner-title   { font-size: var(--fs-card-title); font-weight: 800; letter-spacing: .02em; }
-.sent-banner-sub     { font-size: var(--fs-caption); color: var(--txt3); margin-top: 2px; }
-.sent-score-dots     { display: flex; align-items: center; gap: 5px; padding-top: 3px; flex-shrink: 0; }
-.sent-dot            { width: 8px; height: 8px; border-radius: 50%; transition: background 0.3s, box-shadow 0.3s; }
-.sent-signals        { padding: 8px 14px; display: flex; flex-direction: column; gap: 6px; border-bottom: 0.5px solid rgba(255,255,255,0.06); }
-.sent-signal-row     { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.sent-signal-icon    { font-size: 0.75rem; flex-shrink: 0; width: 14px; text-align: center; }
-.sent-signal-label   { font-size: var(--fs-label); font-weight: 600; color: var(--txt3); min-width: 82px; }
-.sent-signal-value   { font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; min-width: 84px; }
-.sent-signal-hint    { font-size: var(--fs-caption); color: var(--txt3); flex: 1; }
-.sent-desc           { padding: 8px 14px 10px; font-size: var(--fs-caption); color: var(--txt2); line-height: 1.6; }
 
 /* ── LANDING PAGE - hide app shell ──────────────────────────────────── */
 body.landing .app-bar,
