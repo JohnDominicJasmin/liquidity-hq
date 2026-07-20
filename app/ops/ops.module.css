@@ -295,3 +295,14 @@
   cursor: pointer;
 }
 .loginGoogle:hover { border-color: var(--bdr2); }
+
+.spinner {
+  width: 26px;
+  height: 26px;
+  margin: 6px auto;
+  border: 2px solid var(--bdr2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: opsspin 0.7s linear infinite;
+}
+@keyframes opsspin { to { transform: rotate(360deg); } }
