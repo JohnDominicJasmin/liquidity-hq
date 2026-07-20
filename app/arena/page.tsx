@@ -1096,7 +1096,7 @@ function ArenaContent() {
       <PageHint
         pageKey="arena"
         title="Arena"
-        body="Select a coin, pick a timeframe, and run the AI analysis. The engine reads 35 signals - EMA crosses, squeeze, funding, OI trend, whale CVD - and gives you a directional read with a confidence score."
+        body="Pick a coin and timeframe, then run the analysis. You get a plain directional read - long, short, or wait - with a confidence score and entry, stop, and target levels."
       />
 
       {/* ── COIN CATEGORY TABS ── */}
