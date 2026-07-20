@@ -1551,7 +1551,21 @@ function ArenaContent() {
       {result && Date.now() - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
         const sigCol = result.signal === 'LONG' ? '#34d399' : result.signal === 'LEAN LONG' ? '#86efac' : result.signal === 'SHORT' ? '#f87171' : result.signal === 'LEAN SHORT' ? '#fca5a5' : '#9ca3af';
         const verdictWord = result.signal === 'LONG' ? 'Long' : result.signal === 'LEAN LONG' ? 'Lean long' : result.signal === 'SHORT' ? 'Short' : result.signal === 'LEAN SHORT' ? 'Lean short' : 'Wait';
+        const sigGrad = result.signal.includes('LONG') ? 'linear-gradient(160deg,#6ee7b7,#34d399)'
+          : result.signal.includes('SHORT') ? 'linear-gradient(160deg,#fca5a5,#f87171)'
+          : 'linear-gradient(160deg,#cbd5e1,#9ca3af)';
         const whyLine = (result.reasoning || '').split(/(?<=[.!?])\s+/)[0] || '';
+        const entryMid = result.entryLow && result.entryHigh ? (result.entryLow + result.entryHigh) / 2 : null;
+        const rr = entryMid && result.sl && result.tp ? Math.abs((result.tp - entryMid) / (entryMid - result.sl)) : null;
+        const coinD = store.coins[selectedCoin];
+        const frPct = coinD?.fundingRate != null ? coinD.fundingRate * 100 : null;
+        const GC = '#34d399', RC = '#f87171', NC = 'var(--txt3)';
+        const factors = [
+          { k: 'Trend',     v: emaSignal.signalDir === 'long' ? 'up' : emaSignal.signalDir === 'short' ? 'down' : 'mixed', c: emaSignal.signalDir === 'long' ? GC : emaSignal.signalDir === 'short' ? RC : NC, a: emaSignal.signalDir === 'long' ? '↑' : emaSignal.signalDir === 'short' ? '↓' : '•' },
+          { k: 'Squeeze',   v: sqzCount > 0 ? 'building' : flushCount > 0 ? 'flush risk' : 'quiet', c: sqzCount > 0 ? GC : flushCount > 0 ? RC : NC, a: sqzCount > 0 ? '↑' : flushCount > 0 ? '↓' : '•' },
+          { k: 'Funding',   v: frPct == null ? 'n/a' : frPct >= 0.03 ? 'long-heavy' : frPct <= -0.02 ? 'short-heavy' : 'neutral', c: frPct == null ? NC : frPct >= 0.03 ? RC : frPct <= -0.02 ? GC : NC, a: '•' },
+          { k: 'Whale CVD', v: coinD?.cvdDivergence === 'bullish' ? 'bullish' : coinD?.cvdDivergence === 'bearish' ? 'bearish' : 'flat', c: coinD?.cvdDivergence === 'bullish' ? GC : coinD?.cvdDivergence === 'bearish' ? RC : NC, a: coinD?.cvdDivergence === 'bullish' ? '↑' : coinD?.cvdDivergence === 'bearish' ? '↓' : '•' },
+        ];
         const prevQuickSignal = quickSignals[selectedCoin];
         const showOverride = !!(
           cacheEntry?.mode === 'deep' &&
@@ -1578,8 +1592,8 @@ function ArenaContent() {
                 <span style={{ fontWeight: 500, color: 'var(--txt3)', textTransform: 'none', letterSpacing: 0 }}>· {freshness}</span>
               </div>
               <div className="av-head-row">
-                <div className="av-verdict" style={{ color: sigCol }}>
-                  {verdictWord}
+                <div className="av-verdict">
+                  <span className="av-verdict-word" style={{ backgroundImage: sigGrad }}>{verdictWord}</span>
                   <small>{result.signal === 'FLAT' && result.bias && result.bias !== 'NEUTRAL'
                     ? (result.bias === 'BEARISH' ? 'Leaning bearish' : 'Leaning bullish')
                     : 'Directional read'}</small>
@@ -1602,12 +1616,43 @@ function ArenaContent() {
 
             {whyLine && <p className="av-why">{whyLine}</p>}
 
-            {/* Entry zone + session (confidence now lives in the header) */}
-            <div className="arena-sig-stats">
-              {result.entryLow && result.entryHigh && (
-                <div className="arena-stat"><div className="arena-stat-label">Entry Zone</div><div className="arena-stat-val" style={{ fontSize: 'var(--fs-data)' }}>${fmtPrice(result.entryLow)} – ${fmtPrice(result.entryHigh)}</div></div>
-              )}
-              <div className="arena-stat"><div className="arena-stat-label">Session</div><div className="arena-stat-val" style={{ fontSize: 'var(--fs-data)' }}>{result.session}</div></div>
+            {/* Factor chips - live signals behind the read */}
+            <div className="av-factors">
+              {factors.map(f => (
+                <span key={f.k} className="av-fchip"><span style={{ color: f.c }}>{f.a}</span> {f.k} <b>{f.v}</b></span>
+              ))}
+            </div>
+
+            {/* Entry / Stop / Targets / R:R grid (click any cell to copy) */}
+            <div className="av-levels">
+              <button className="av-lv" title="Copy entry zone" onClick={() => {
+                if (!(result.entryLow && result.entryHigh)) return;
+                navigator.clipboard.writeText(`${fmtPrice(result.entryLow)}–${fmtPrice(result.entryHigh)}`).catch(() => {});
+                setCopiedKey('entry'); setTimeout(() => setCopiedKey(null), 1500);
+              }}>
+                <div className="av-lv-k">Entry zone</div>
+                <div className="av-lv-v">{copiedKey === 'entry' ? '✓ Copied' : (result.entryLow && result.entryHigh ? `${fmtPrice(result.entryLow)}–${fmtPrice(result.entryHigh)}` : '-')}</div>
+              </button>
+              <button className="av-lv" title="Copy stop" onClick={() => {
+                if (!result.sl) return;
+                navigator.clipboard.writeText(fmtPrice(result.sl)).catch(() => {});
+                setCopiedKey('sl'); setTimeout(() => setCopiedKey(null), 1500);
+              }}>
+                <div className="av-lv-k">Stop</div>
+                <div className="av-lv-v rd">{copiedKey === 'sl' ? '✓' : (result.sl ? fmtPrice(result.sl) : '-')}</div>
+              </button>
+              <button className="av-lv" title="Copy target" onClick={() => {
+                if (!result.tp) return;
+                navigator.clipboard.writeText(fmtPrice(result.tp)).catch(() => {});
+                setCopiedKey('tp'); setTimeout(() => setCopiedKey(null), 1500);
+              }}>
+                <div className="av-lv-k">Targets</div>
+                <div className="av-lv-v gr">{copiedKey === 'tp' ? '✓' : (result.tp ? fmtPrice(result.tp) : '-')}</div>
+              </button>
+              <div className="av-lv" style={{ cursor: 'default' }}>
+                <div className="av-lv-k">R : R</div>
+                <div className="av-lv-v">{rr ? rr.toFixed(1) : '-'}</div>
+              </div>
             </div>
 
             {/* Watch For - shown when signal is FLAT, LEAN LONG, or LEAN SHORT */}
@@ -1628,40 +1673,6 @@ function ArenaContent() {
                   )}
                 </div>
                 <div className="arena-wait-for-body">{result.waitFor}</div>
-              </div>
-            )}
-
-            {/* Entry / TP / SL chips - click to copy */}
-            {(result.entryLow || result.tp || result.sl) && (
-              <div className="gsc-levels-row" style={{ marginTop: 10 }}>
-                {result.entryLow && result.entryHigh && (
-                  <button className="gsc-chip gsc-chip-entry" title="Copy entry zone" onClick={() => {
-                    const v = `${fmtPrice(result.entryLow!)}–${fmtPrice(result.entryHigh!)}`;
-                    navigator.clipboard.writeText(v).catch(() => {});
-                    setCopiedKey('entry'); setTimeout(() => setCopiedKey(null), 1500);
-                  }}>
-                    <span>Entry</span>
-                    <span>{copiedKey === 'entry' ? '✓ Copied' : `$${fmtPrice(result.entryLow)} – $${fmtPrice(result.entryHigh)}`}</span>
-                  </button>
-                )}
-                {result.tp && (
-                  <button className="gsc-chip gsc-chip-tp" title="Copy TP" onClick={() => {
-                    navigator.clipboard.writeText(fmtPrice(result.tp!)).catch(() => {});
-                    setCopiedKey('tp'); setTimeout(() => setCopiedKey(null), 1500);
-                  }}>
-                    <span>TP</span>
-                    <span>{copiedKey === 'tp' ? '✓ Copied' : `$${fmtPrice(result.tp)}`}</span>
-                  </button>
-                )}
-                {result.sl && (
-                  <button className="gsc-chip gsc-chip-sl" title="Copy SL" onClick={() => {
-                    navigator.clipboard.writeText(fmtPrice(result.sl!)).catch(() => {});
-                    setCopiedKey('sl'); setTimeout(() => setCopiedKey(null), 1500);
-                  }}>
-                    <span>SL</span>
-                    <span>{copiedKey === 'sl' ? '✓ Copied' : `$${fmtPrice(result.sl)}`}</span>
-                  </button>
-                )}
               </div>
             )}
 
