@@ -27,6 +27,38 @@
 .nav { display: flex; gap: 16px; }
 .nav a { color: var(--txt2); font-size: var(--fs-label); text-decoration: none; }
 .nav a:hover { color: var(--txt); }
+.navBtn {
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--txt2); font-size: var(--fs-label);
+}
+.navBtn:hover { color: var(--txt); }
+
+/* Access-denied screen (signed in, not an admin) */
+.denyWrap {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+.denyCard {
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg2);
+  border: 1px solid var(--red-bdr);
+  border-radius: var(--radius-card);
+  padding: 24px;
+  text-align: center;
+}
+.denyTitle {
+  color: var(--red);
+  font-size: var(--fs-section);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.denyText { color: var(--txt2); font-size: var(--fs-body); line-height: 1.5; margin-bottom: 18px; }
+.denyText b { color: var(--txt); }
+.denyActions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 
 .grid {
   display: grid;
