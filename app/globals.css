@@ -2829,6 +2829,17 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   .arena-below-chart { margin-left: -20px; margin-right: -20px; padding-left: 20px; padding-right: 20px; }
 }
 
+/* ── Arena workspace: chart (left) + evidence rail (right) ── */
+.arena-ws { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start; margin-bottom: 12px; }
+.arena-ws-chart { min-width: 0; }
+.arena-ws-rail { display: flex; flex-direction: column; gap: 10px; min-width: 0; position: sticky; top: 12px; }
+.arena-ws-rail > * { min-width: 0; max-width: 100%; margin-bottom: 0 !important; }
+.arena-ws-rail .edge-grid { grid-template-columns: 1fr; margin-bottom: 0; }
+@media (max-width: 980px) {
+  .arena-ws { grid-template-columns: 1fr; }
+  .arena-ws-rail { position: static; }
+}
+
 /* ── TRADE JOURNAL ──────────────────────────────────────────────────────── */
 .tj-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
 .tj-tab  { flex: 1; padding: 9px 0; border-radius: 10px; border: 0.5px solid var(--bdr2); background: var(--bg2); color: var(--txt2); font-size: var(--fs-caption); font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }

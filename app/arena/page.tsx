@@ -1781,15 +1781,11 @@ function ArenaContent() {
       })()}
       </div>
 
-      {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
-      <CoinMarketSnapshot coin={selectedCoin} />
-
+      {/* ── Workspace: chart (left) + evidence rail (right) ── */}
+      <div className="arena-ws">
+        <div className="arena-ws-chart">
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
       <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} />
-
-      {/* ── BELOW CHART: left-aligned, max 860px on wide screens ── */}
-      <div className="arena-below-chart">
-
       {/* Data collectors - run hooks for Grok context, render nothing.
           AbsorptionDetector is Pro-only: for free users it is not mounted at
           all, so its data never reaches the AI context either. */}
@@ -1797,15 +1793,27 @@ function ArenaContent() {
         <MarketStructure coin={selectedCoin} onData={handleMsData} />
         {isPro && <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />}
       </div>
-
-      {/* BTC Liquidation Heatmap - shows only when BTC selected and data available */}
-      {selectedCoin === 'btc' && store.btcLiqLevels.length > 0 && (
-        <LiqHeatmap
-          levels={store.btcLiqLevels}
-          currentPrice={store.coins['btc']?.price ?? 0}
+        </div>
+        <aside className="arena-ws-rail">
+      {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
+      <CoinMarketSnapshot coin={selectedCoin} />
+      {/* Confluence Score - EMA Ribbon + Order Flow + Multi-TF RSI combined, plus a
+          separate macro/event risk overlay (econ calendar + JPY carry-trade risk).
+          Pro-only: free users get an in-place locked card so the layout holds. */}
+      {isPro ? (
+        <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} />
+      ) : (
+        <LockedFeatureCard
+          title="Confluence Score"
+          description="Order flow bias, absorption detection, and the combined confluence verdict are part of Pro."
+          onUnlock={() => setUpgradeGate('The Confluence Score')}
         />
       )}
+        </aside>
+      </div>
 
+      {/* ── Evidence + advanced (full width, below the workspace) ── */}
+      <div className="arena-below-chart">
       {/* Advanced settings - collapsed by default. Holds the anti-chop filter,
           whose own 3-year backtest shows OFF outperforms ON, so it does not
           belong in the default view. */}
@@ -1882,7 +1890,13 @@ function ArenaContent() {
         </span>
       </div>
       )}
-
+      {/* BTC Liquidation Heatmap - shows only when BTC selected and data available */}
+      {selectedCoin === 'btc' && store.btcLiqLevels.length > 0 && (
+        <LiqHeatmap
+          levels={store.btcLiqLevels}
+          currentPrice={store.coins['btc']?.price ?? 0}
+        />
+      )}
       {/* ── Pullback warning - reuses the Distribution score for the selected coin.
           "This pump is getting weaker" made explicit as text, not just a header chip. ── */}
       {(() => {
@@ -1909,36 +1923,15 @@ function ArenaContent() {
           </div>
         );
       })()}
-
-      {/* Confluence Score - EMA Ribbon + Order Flow + Multi-TF RSI combined, plus a
-          separate macro/event risk overlay (econ calendar + JPY carry-trade risk).
-          Pro-only: free users get an in-place locked card so the layout holds. */}
-      {isPro ? (
-        <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} />
-      ) : (
-        <LockedFeatureCard
-          title="Confluence Score"
-          description="Order flow bias, absorption detection, and the combined confluence verdict are part of Pro."
-          onUnlock={() => setUpgradeGate('The Confluence Score')}
-        />
-      )}
-
       <MultiTFAlignment coin={selectedCoin} />
-
       {/* Informational only (not a filter - see component header for why): flags when
           the 4h has already moved a lot, so a same-direction lower-TF signal doesn't
           look more trustworthy than it is. Only shows on 1m/5m/15m/30m. */}
       <HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />
-
       {/* EMA Ribbon Strategy card */}
       <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
-
       {/* Stop Loss Zone - S/R anchored stop suggestion */}
       <StopLossZone coin={selectedCoin} grokSignal={result?.signal} />
-
-
-
-
       {/* ── SESSION HISTORY ── */}
       {history.length > 0 && (
         <div style={{ marginTop: 20 }}>
@@ -2004,7 +1997,6 @@ function ArenaContent() {
           ))}
         </div>
       )}
-
 
       </div> {/* end arena-below-chart */}
 
