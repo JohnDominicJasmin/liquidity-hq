@@ -61,25 +61,29 @@ A local Claude Code **scheduled-tasks** entry (`mcp__scheduled-tasks`, `lhq-aler
 
 ## 4. Database — Supabase
 
-**The organization has 4 Supabase projects. Only one is used by this app.**
+**The organization has 4 Supabase projects. LHQ deliberately uses TWO of them — one per deploy tier, not one real / one stale.**
 
-> **Corrected 2026-07-20 (was inverted before).** The app was migrated to the
-> `LiquidityHq` project on/around 2026-07-16. The earlier 2026-07-17 audit that
-> called `LiquidityHq` an "empty decoy" and `Automations` "the real one" is now
-> stale - the reverse is true. Verified 2026-07-20: `.env.local` points at
-> `LiquidityHq`, that project holds all 18 `lhq_*` tables with live data (last
-> alert fire same day), and the production alert cron writes there. `Automations`
-> now holds an older 15-table snapshot missing tables added since (e.g.
-> `lhq_alert_fires`, 2026-07-19). Do not run admin SQL against `Automations`.
+> **Corrected 2026-07-20 (twice — see history below).** Confirmed directly by
+> the app owner: `LiquidityHq` is the **production** database (used by
+> `liquidity-hq-prod` and local `.env.local`), and `Automations` is the
+> **deployed-dev** database (used by the `liquidity-hq-dev` Render service). Both
+> are live and actively used — this is intentional isolation (dev testing can
+> never touch prod data, since it's a separate physical project, not just a
+> different table prefix), not a stale/decoy situation.
+>
+> History: a 2026-07-17 audit had this backwards (called Automations "the real
+> one", LiquidityHq an "empty decoy"). A same-day 2026-07-20 fix over-corrected
+> it, calling Automations "stale/superseded" — also wrong. This version is the
+> owner-confirmed final state.
 
 | Project name | Ref | Region | Status | Used by LHQ? |
 |---|---|---|---|---|
-| **`LiquidityHq`** | `qdpwhnvmhqgzijuwopso` | ap-northeast-2 | Active | **Yes - this is the real one (current, since ~2026-07-16).** All `lhq_*` (prod) and the `lhq_dev_*` (dev) tables live here. `.env.local` + prod both point here. |
-| `Automations` | `wdtjhrilakoitfcezxpx` | ap-northeast-1 | Active | **No - superseded.** Was the app DB until the 2026-07-16 migration; now a stale 15-table snapshot missing newer tables. Do not use. |
+| **`LiquidityHq`** | `qdpwhnvmhqgzijuwopso` | ap-northeast-2 | Active | **Yes — production.** `liquidity-hq-prod` and local `.env.local` point here. Holds `lhq_*` (prod) tables. |
+| **`Automations`** | `wdtjhrilakoitfcezxpx` | ap-northeast-1 | Active | **Yes — deployed dev.** `liquidity-hq-dev` (Render) points here. Holds its own parallel `lhq_dev_*` table set. |
 | `MotoTracker` | `bseewwodijmuvpbqdgcc` | ap-northeast-2 | Inactive | No - unrelated project. |
 | `Solar ROI tracker` | `trpubozqrgjllwyukfol` | ap-northeast-2 | Inactive | No - unrelated project. |
 
-Table naming convention (enforced in code, see `ARCHITECTURE.md` §8): always reference tables via `T.xxx` from `lib/tables.ts`, never a literal string — this is what keeps `dev` (`lhq_dev_*`) and `prod` (`lhq_*`) data separated in the same physical database.
+Table naming convention (enforced in code, see `ARCHITECTURE.md` §8): always reference tables via `T.xxx` from `lib/tables.ts`, never a literal string. Note this only controls the `lhq_` vs `lhq_dev_` prefix *within* a project — it does NOT make dev and prod share one database; they are two separate Supabase projects entirely. Any new table needed by the deployed dev service must be created in `Automations`, not `LiquidityHq` — a "table not found in schema cache" error on `liquidity-hq-dev` after creating a table is often this, not a PostgREST cache lag.
 
 ---
 
