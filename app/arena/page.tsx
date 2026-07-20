@@ -180,6 +180,7 @@ function ArenaContent() {
   const scannerSearchRef = useRef<HTMLInputElement>(null);
   const [coinCat, setCoinCat]           = useState<'all' | 'majors' | 'alts' | 'defi' | 'meme'>('all');
   const [sigDetailsOpen, setSigDetailsOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen]     = useState(false);
   const [copiedKey, setCopiedKey]           = useState<string | null>(null);
   const [jpyUsd, setJpyUsd]                 = useState<number | null>(null);
   const scannerRef      = useRef<HTMLDivElement>(null);
@@ -1088,40 +1089,8 @@ function ArenaContent() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>LiquidityAI Arena</div>
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#12233f', color: '#5aa3ff', border: '0.5px solid #2a4a7a', letterSpacing: '.05em' }}>LiquidityAI · LIVE X</span>
-          {/* JPY carry-risk and DXY/JPY "regime" badges were removed from here - both
-              restated Dashboard's MacroStrip (which already shows DXY/SPX/Gold/10Y/JPY
-              coherently together). Distribution score badge removed too - it duplicated
-              the pullback warning banner further down this same page. jpyUsd itself is
-              still fetched and feeds ConfluenceScore's macro risk overlay below. */}
-          {(() => {
-            const { cbPremium, cbPremiumPct } = store;
-            if (cbPremium == null || cbPremiumPct == null) return null;
-            const bullish = cbPremiumPct > 0.05, bearish = cbPremiumPct < -0.05;
-            const col = bullish ? '#34d399' : bearish ? '#f87171' : '#8e8e93';
-            const sign = cbPremiumPct >= 0 ? '+' : '-';
-            const magUsd = Math.abs(cbPremium).toFixed(1);
-            const magPct = Math.abs(cbPremiumPct).toFixed(3);
-            const readOut = bullish
-              ? 'US spot demand outpacing the rest of the world (bullish tell).'
-              : bearish
-              ? 'US selling into global bids (bearish tell).'
-              : 'No meaningful US/global spot imbalance right now.';
-            return (
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 20,
-                color: col, background: withAlpha(col, '14'), border: `0.5px solid ${withAlpha(col, '44')}`,
-                letterSpacing: '.04em',
-              }}>
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: col, boxShadow: `0 0 5px ${col}`, flexShrink: 0 }} />
-                <Tip width={260} iconColor={withAlpha(col, '99')} text={`Coinbase BTC price vs Bybit: ${sign}$${magUsd} (${sign}${magPct}%). ${readOut} Positive = Coinbase above Bybit, negative = below. Threshold: ±0.05%.`}>
-                  CB {sign}{Math.abs(cbPremiumPct).toFixed(2)}%
-                </Tip>
-              </span>
-            );
-          })()}
         </div>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Chart · 35-signal engine · confluence · scanner - one page</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Run the AI read on any coin - direction, confidence, and levels.</div>
       </div>
 
       <PageHint
@@ -1383,143 +1352,8 @@ function ArenaContent() {
         )}
       </div>
 
-      {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
-      <CoinMarketSnapshot coin={selectedCoin} />
-
-      {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} />
-
-      {/* ── BELOW CHART: left-aligned, max 860px on wide screens ── */}
+      {/* ── AI READ · answer-first hero ── */}
       <div className="arena-below-chart">
-
-      {/* Data collectors - run hooks for Grok context, render nothing.
-          AbsorptionDetector is Pro-only: for free users it is not mounted at
-          all, so its data never reaches the AI context either. */}
-      <div style={{ display: 'none' }}>
-        <MarketStructure coin={selectedCoin} onData={handleMsData} />
-        {isPro && <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />}
-      </div>
-
-      {/* BTC Liquidation Heatmap - shows only when BTC selected and data available */}
-      {selectedCoin === 'btc' && store.btcLiqLevels.length > 0 && (
-        <LiqHeatmap
-          levels={store.btcLiqLevels}
-          currentPrice={store.coins['btc']?.price ?? 0}
-        />
-      )}
-
-      {/* Anti-chop filter toggle */}
-      <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <button
-          onClick={() => setAntiChopEnabled(v => !v)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 9,
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.09)',
-            borderRadius: 999,
-            padding: '6px 13px 6px 6px',
-            cursor: 'pointer',
-            fontSize: 'var(--fs-caption)',
-            color: 'var(--txt)',
-            transition: 'border-color 0.15s, background 0.15s',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.2)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.09)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.03)'; }}
-        >
-          <span style={{
-            width: 32,
-            height: 18,
-            borderRadius: 9,
-            background: antiChopEnabled ? '#34d399' : 'rgba(255,255,255,0.14)',
-            boxShadow: antiChopEnabled
-              ? '0 0 0 1px rgba(52,211,153,0.35), 0 0 8px rgba(52,211,153,0.45)'
-              : 'inset 0 1px 3px rgba(0,0,0,0.45)',
-            position: 'relative',
-            flexShrink: 0,
-            transition: 'background 0.25s ease, box-shadow 0.25s ease',
-          }}>
-            <span style={{
-              position: 'absolute',
-              top: 2,
-              left: antiChopEnabled ? 16 : 2,
-              width: 14,
-              height: 14,
-              borderRadius: '50%',
-              background: '#fff',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
-              transition: 'left 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            }} />
-          </span>
-          <Tip
-            width={260}
-            iconColor="rgba(255,255,255,0.6)"
-            text="Adds a stricter confirmation step: requires the EMA9/20 ribbon to clearly separate, price to close meaningfully past EMA50, and the move to hold for several candles before a marker confirms. Fewer, calmer-looking signals - but a 3-year backtest found this filter cuts a real edge down to a coin flip (1.13 profit factor raw vs 0.98 filtered). OFF (default) shows every raw cross immediately, including some that reverse fast, but has the better track record. ON trades quieter alerts for a worse actual outcome."
-          >
-            <span style={{ opacity: 0.8, letterSpacing: '0.01em' }}>Anti-Chop Filter</span>
-          </Tip>
-        </button>
-        <span style={{ fontSize: 'var(--fs-caption)', opacity: 0.35 }}>
-          {antiChopEnabled
-            ? 'Rejects tangled-ribbon and marginal EMA50 crosses'
-            : 'Raw EMA9/20 cross signals - no chop filtering'}
-        </span>
-      </div>
-
-      {/* ── Pullback warning - reuses the Distribution score for the selected coin.
-          "This pump is getting weaker" made explicit as text, not just a header chip. ── */}
-      {(() => {
-        const d = store.coins[selectedCoin];
-        const res = d?.price ? computeDistributionScore(distInputsFromCoin(d)) : null;
-        if (!res || res.score < 45) return null;
-        const col = distributionColor(res.score);
-        return (
-          <div style={{
-            marginBottom: 10, padding: '10px 12px', borderRadius: 10,
-            background: withAlpha(col, '0f'), border: `0.5px solid ${withAlpha(col, '44')}`,
-            display: 'flex', alignItems: 'flex-start', gap: 8,
-          }}>
-            <span style={{ color: col, lineHeight: 0, flexShrink: 0, marginTop: 1 }}><Warn size={14} /></span>
-            <div>
-              <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: col, marginBottom: 2 }}>
-                {res.score >= 70 ? 'Potential pullback - pump is getting weaker' : 'Early weakness - watch for a pullback'}
-                <span style={{ fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>({res.score}/100)</span>
-              </div>
-              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.4 }}>
-                {res.reasons.join(' · ')}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Confluence Score - EMA Ribbon + Order Flow + Multi-TF RSI combined, plus a
-          separate macro/event risk overlay (econ calendar + JPY carry-trade risk).
-          Pro-only: free users get an in-place locked card so the layout holds. */}
-      {isPro ? (
-        <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} />
-      ) : (
-        <LockedFeatureCard
-          title="Confluence Score"
-          description="Order flow bias, absorption detection, and the combined confluence verdict are part of Pro."
-          onUnlock={() => setUpgradeGate('The Confluence Score')}
-        />
-      )}
-
-      <MultiTFAlignment coin={selectedCoin} />
-
-      {/* Informational only (not a filter - see component header for why): flags when
-          the 4h has already moved a lot, so a same-direction lower-TF signal doesn't
-          look more trustworthy than it is. Only shows on 1m/5m/15m/30m. */}
-      <HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />
-
-      {/* EMA Ribbon Strategy card */}
-      <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
-
-      {/* Stop Loss Zone - S/R anchored stop suggestion */}
-      <StopLossZone coin={selectedCoin} grokSignal={result?.signal} />
-
       <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         {/* Quick button - requires sign-in */}
         <button
@@ -1945,6 +1779,163 @@ function ArenaContent() {
           </div>
         );
       })()}
+      </div>
+
+      {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
+      <CoinMarketSnapshot coin={selectedCoin} />
+
+      {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
+      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} />
+
+      {/* ── BELOW CHART: left-aligned, max 860px on wide screens ── */}
+      <div className="arena-below-chart">
+
+      {/* Data collectors - run hooks for Grok context, render nothing.
+          AbsorptionDetector is Pro-only: for free users it is not mounted at
+          all, so its data never reaches the AI context either. */}
+      <div style={{ display: 'none' }}>
+        <MarketStructure coin={selectedCoin} onData={handleMsData} />
+        {isPro && <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />}
+      </div>
+
+      {/* BTC Liquidation Heatmap - shows only when BTC selected and data available */}
+      {selectedCoin === 'btc' && store.btcLiqLevels.length > 0 && (
+        <LiqHeatmap
+          levels={store.btcLiqLevels}
+          currentPrice={store.coins['btc']?.price ?? 0}
+        />
+      )}
+
+      {/* Advanced settings - collapsed by default. Holds the anti-chop filter,
+          whose own 3-year backtest shows OFF outperforms ON, so it does not
+          belong in the default view. */}
+      <button
+        onClick={() => setAdvancedOpen(v => !v)}
+        style={{
+          marginBottom: advancedOpen ? 8 : 12, width: '100%', padding: '7px 0',
+          background: 'transparent', border: 'none',
+          borderTop: '0.5px solid rgba(255,255,255,0.06)',
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          color: 'var(--txt3)', fontSize: 'var(--fs-caption)',
+        }}
+      >
+        <span>{advancedOpen ? '▲ Hide advanced' : '▼ Advanced - signal filter'}</span>
+      </button>
+
+      {advancedOpen && (
+      /* Anti-chop filter toggle */
+      <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <button
+          onClick={() => setAntiChopEnabled(v => !v)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 9,
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.09)',
+            borderRadius: 999,
+            padding: '6px 13px 6px 6px',
+            cursor: 'pointer',
+            fontSize: 'var(--fs-caption)',
+            color: 'var(--txt)',
+            transition: 'border-color 0.15s, background 0.15s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.2)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.09)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.03)'; }}
+        >
+          <span style={{
+            width: 32,
+            height: 18,
+            borderRadius: 9,
+            background: antiChopEnabled ? '#34d399' : 'rgba(255,255,255,0.14)',
+            boxShadow: antiChopEnabled
+              ? '0 0 0 1px rgba(52,211,153,0.35), 0 0 8px rgba(52,211,153,0.45)'
+              : 'inset 0 1px 3px rgba(0,0,0,0.45)',
+            position: 'relative',
+            flexShrink: 0,
+            transition: 'background 0.25s ease, box-shadow 0.25s ease',
+          }}>
+            <span style={{
+              position: 'absolute',
+              top: 2,
+              left: antiChopEnabled ? 16 : 2,
+              width: 14,
+              height: 14,
+              borderRadius: '50%',
+              background: '#fff',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+              transition: 'left 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            }} />
+          </span>
+          <Tip
+            width={260}
+            iconColor="rgba(255,255,255,0.6)"
+            text="Adds a stricter confirmation step: requires the EMA9/20 ribbon to clearly separate, price to close meaningfully past EMA50, and the move to hold for several candles before a marker confirms. Fewer, calmer-looking signals - but a 3-year backtest found this filter cuts a real edge down to a coin flip (1.13 profit factor raw vs 0.98 filtered). OFF (default) shows every raw cross immediately, including some that reverse fast, but has the better track record. ON trades quieter alerts for a worse actual outcome."
+          >
+            <span style={{ opacity: 0.8, letterSpacing: '0.01em' }}>Anti-Chop Filter</span>
+          </Tip>
+        </button>
+        <span style={{ fontSize: 'var(--fs-caption)', opacity: 0.35 }}>
+          {antiChopEnabled
+            ? 'Rejects tangled-ribbon and marginal EMA50 crosses'
+            : 'Raw EMA9/20 cross signals - no chop filtering'}
+        </span>
+      </div>
+      )}
+
+      {/* ── Pullback warning - reuses the Distribution score for the selected coin.
+          "This pump is getting weaker" made explicit as text, not just a header chip. ── */}
+      {(() => {
+        const d = store.coins[selectedCoin];
+        const res = d?.price ? computeDistributionScore(distInputsFromCoin(d)) : null;
+        if (!res || res.score < 45) return null;
+        const col = distributionColor(res.score);
+        return (
+          <div style={{
+            marginBottom: 10, padding: '10px 12px', borderRadius: 10,
+            background: withAlpha(col, '0f'), border: `0.5px solid ${withAlpha(col, '44')}`,
+            display: 'flex', alignItems: 'flex-start', gap: 8,
+          }}>
+            <span style={{ color: col, lineHeight: 0, flexShrink: 0, marginTop: 1 }}><Warn size={14} /></span>
+            <div>
+              <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: col, marginBottom: 2 }}>
+                {res.score >= 70 ? 'Potential pullback - pump is getting weaker' : 'Early weakness - watch for a pullback'}
+                <span style={{ fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>({res.score}/100)</span>
+              </div>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.4 }}>
+                {res.reasons.join(' · ')}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Confluence Score - EMA Ribbon + Order Flow + Multi-TF RSI combined, plus a
+          separate macro/event risk overlay (econ calendar + JPY carry-trade risk).
+          Pro-only: free users get an in-place locked card so the layout holds. */}
+      {isPro ? (
+        <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} />
+      ) : (
+        <LockedFeatureCard
+          title="Confluence Score"
+          description="Order flow bias, absorption detection, and the combined confluence verdict are part of Pro."
+          onUnlock={() => setUpgradeGate('The Confluence Score')}
+        />
+      )}
+
+      <MultiTFAlignment coin={selectedCoin} />
+
+      {/* Informational only (not a filter - see component header for why): flags when
+          the 4h has already moved a lot, so a same-direction lower-TF signal doesn't
+          look more trustworthy than it is. Only shows on 1m/5m/15m/30m. */}
+      <HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />
+
+      {/* EMA Ribbon Strategy card */}
+      <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
+
+      {/* Stop Loss Zone - S/R anchored stop suggestion */}
+      <StopLossZone coin={selectedCoin} grokSignal={result?.signal} />
+
 
 
 
