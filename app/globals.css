@@ -243,7 +243,7 @@ body::after {
 
   .dashboard-grid {
     display: grid;
-    grid-template-columns: 252px 1fr;
+    grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr);
     gap: 16px;
     align-items: start;
   }
@@ -300,8 +300,9 @@ body::after {
 @media (max-width: 899px) {
   .dashboard-grid { display: block; }
   .dash-sidebar   { display: none; }
-  .dash-right     { display: none; }
-  /* Coin Signals rendered inside mobile-only block instead */
+  /* Context rail stacks below the answers on phones (was hidden + duplicated
+     via a mobile-only block; now one consistent structure across widths). */
+  .dash-right     { margin-top: 14px; }
   .desktop-only   { display: none !important; }
 }
 
@@ -323,7 +324,7 @@ body::after {
   }
   .dashboard-grid {
     display: grid;
-    grid-template-columns: 220px 1fr;
+    grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr);
     gap: 14px;
     align-items: start;
   }
@@ -606,6 +607,87 @@ body::after {
   height: 0.5px; margin: 10px 0 6px;
   background: linear-gradient(90deg, transparent 0%, var(--bdr) 25%, var(--bdr) 75%, transparent 100%);
 }
+
+/* ── MARKET READ hero (answer-first verdict) ──
+   Banded accent: good >=70 / mid 45-69 / weak <45. Flat card - colour lives on
+   the score + verdict + fill only, never the frame (house rule). */
+.mr { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 12px;
+  padding: 16px 18px 14px; --mr: var(--txt2); }
+.mr[data-band="good"] { --mr: var(--green); }
+.mr[data-band="mid"]  { --mr: var(--amber); }
+.mr[data-band="weak"] { --mr: var(--red); }
+.mr-eyebrow { font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
+  font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--txt3);
+  margin-bottom: 10px; }
+.mr-eyebrow-q { color: var(--txt3); }
+.mr-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.mr-lead { min-width: 0; }
+.mr-verdict { font-size: 1.2rem; font-weight: 800; letter-spacing: -.01em; color: var(--mr);
+  text-wrap: balance; }
+.mr-sub { font-size: var(--fs-caption); color: var(--txt2); margin-top: 5px; max-width: 52ch;
+  line-height: 1.5; }
+.mr-score-block { text-align: right; flex-shrink: 0; }
+.mr-score-label { font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
+  font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--txt3);
+  margin-bottom: 2px; }
+.mr-score { font-family: var(--font-mono), monospace; font-weight: 800; font-size: 3.2rem;
+  line-height: .9; letter-spacing: -.03em; color: var(--mr); font-variant-numeric: tabular-nums; }
+.mr-score small { font-size: 1rem; color: var(--txt3); font-weight: 600; margin-left: 2px; }
+.mr-track { height: 5px; border-radius: 3px; background: var(--bg2); margin: 14px 0 12px;
+  overflow: hidden; border: 0.5px solid var(--bdr); }
+.mr-fill { height: 100%; background: var(--mr); border-radius: 3px; transition: width .35s ease; }
+.mr-factors { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.mr-factor { border: 0.5px solid var(--bdr); border-radius: 8px; padding: 8px 9px; background: var(--bg2);
+  min-width: 0; }
+.mr-factor-k { font-family: var(--font-mono), monospace; font-size: 9.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--txt3); }
+.mr-factor-v { font-size: var(--fs-caption); font-weight: 700; margin-top: 3px; letter-spacing: -.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mr-factor-s { font-family: var(--font-mono), monospace; font-size: 10.5px; color: var(--txt3);
+  margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mr-flag { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 9px 11px;
+  border-radius: 8px; font-size: var(--fs-caption); line-height: 1.45; }
+.mr-flag-bull { color: var(--green); background: rgba(52,211,153,.07); border: 0.5px solid rgba(52,211,153,.25); }
+.mr-flag-bear { color: var(--red);   background: rgba(248,113,113,.07); border: 0.5px solid rgba(248,113,113,.25); }
+.mr-flag-tag { font-family: var(--font-mono), monospace; font-size: 9.5px; font-weight: 800;
+  letter-spacing: .08em; text-transform: uppercase; padding: 2px 7px; border-radius: 5px;
+  background: rgba(255,255,255,.06); flex-shrink: 0; }
+.mr-flag-body { color: var(--txt2); }
+.mr-flag-body b { color: inherit; }
+.mr-override { margin-top: 11px; }
+.mr-override-btn { background: none; border: none; padding: 0; cursor: pointer;
+  font-size: var(--fs-caption); letter-spacing: .03em; }
+.mr-override-opts { display: flex; gap: 6px; margin-top: 7px; }
+.mr-fopt { font-size: var(--fs-caption); color: var(--txt2); background: var(--bg2);
+  border: 0.5px solid var(--bdr); border-radius: 6px; padding: 5px 9px; cursor: pointer; }
+.mr-fopt.on { color: var(--amber); border-color: rgba(251,191,36,.4); }
+@media (prefers-reduced-motion: reduce) { .mr-fill { transition: none; } }
+@media (max-width: 640px) {
+  .mr-factors { grid-template-columns: repeat(2, 1fr); }
+  .mr-score { font-size: 2.7rem; }
+  .mr-verdict { font-size: 1.05rem; }
+}
+
+/* ── Dashboard columns: answers (left) + context rail (right) ──
+   Base = flex columns so both stack with even spacing at every width; the
+   desktop media blocks above add the grid + sticky behaviour. */
+.dash-main  { display: flex; flex-direction: column; gap: 14px; }
+.dash-right { display: flex; flex-direction: column; gap: 12px; }
+
+/* ── Selected-coin glance card ── */
+.scc-card { display: flex; align-items: center; gap: 12px; background: var(--bg1);
+  border: 0.5px solid var(--bdr); border-radius: 10px; padding: 11px 14px; }
+.scc-id { display: flex; flex-direction: column; min-width: 0; }
+.scc-ticker { font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
+  font-weight: 700; letter-spacing: .08em; color: var(--txt3); }
+.scc-price { font-family: var(--font-mono), monospace; font-size: 1.25rem; font-weight: 800;
+  letter-spacing: -.02em; color: var(--txt); line-height: 1.15; }
+.scc-meta { margin-left: auto; text-align: right; display: flex; flex-direction: column;
+  gap: 1px; min-width: 0; }
+.scc-chg { font-family: var(--font-mono), monospace; font-size: var(--fs-data); font-weight: 700; }
+.scc-up { color: var(--green); } .scc-dn { color: var(--red); }
+.scc-sig { font-size: var(--fs-caption); font-weight: 600; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; max-width: 190px; }
 
 /* ── COLLAPSE TOGGLE - shared style for breakdown/show-more buttons ── */
 .collapse-toggle {
