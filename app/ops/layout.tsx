@@ -87,6 +87,7 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
           <Link href="/ops">Overview</Link>
           <Link href="/ops/users">Users</Link>
           {role === 'owner' && <Link href="/ops/team">Team</Link>}
+          {role === 'owner' && <Link href="/ops/config">Config</Link>}
           <button className={styles.navBtn} onClick={signOutAndSwitch}>Sign out</button>
           <Link href="/">← Back to app</Link>
         </nav>

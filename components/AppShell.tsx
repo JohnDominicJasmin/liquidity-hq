@@ -16,6 +16,9 @@ import SetupChecklist from './SetupChecklist';
 import GrokUsageProvider from './GrokUsageProvider';
 import PlatformFooter from './PlatformFooter';
 import PWAInstallPrompt from './PWAInstallPrompt';
+import MaintenanceScreen from './MaintenanceScreen';
+import AnnouncementBanner from './AnnouncementBanner';
+import { useAppConfig } from '@/lib/useAppConfig';
 
 // The admin console (/ops) has its own layout/shell and must NOT inherit any of
 // the consumer chrome - nav drawer, news ticker, risk-disclosure footer, the
@@ -28,6 +31,7 @@ const isChromeless = (pathname: string) => pathname === '/ops' || pathname.start
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const config = useAppConfig();
 
   useEffect(() => {
     try {
@@ -47,6 +51,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // App-wide kill switch (see /ops/config). /ops itself is exempt (handled by
+  // the branch above) so an owner can always reach the toggle to turn it back off.
+  if (config?.maintenanceMode) {
+    return (
+      <PostHogProvider>
+        <MaintenanceScreen />
+      </PostHogProvider>
+    );
+  }
+
   return (
     <PostHogProvider>
       <AuthProvider>
@@ -55,6 +69,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <NewsProvider>
               <OnboardingProvider>
                 <GrokUsageProvider>
+                  <AnnouncementBanner banner={config?.announcementBanner ?? null} />
                   <NavDrawer />
                   <NewsTicker />
                   <main className="app-content">
