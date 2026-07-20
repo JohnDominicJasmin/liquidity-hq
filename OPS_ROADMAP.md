@@ -2,7 +2,7 @@
 
 Living status doc for the owner/staff admin console at `/ops`. What's shipped, what's deferred, and the key facts you need to work on it.
 
-Last updated: 2026-07-21 (Phase 3 + error tracking shipped to prod).
+Last updated: 2026-07-21 (GlitchTip error tracking confirmed live end-to-end on dev + prod).
 
 ---
 
@@ -42,8 +42,10 @@ Both are polled client-side every 60s (see `lib/useAppConfig.ts`) — this app h
 
 Seeded with only these two flags on purpose — no per-feature kill-switches (Grok, Telegram, etc.) yet; add them to `app_config` + a real check in code as they're actually needed, not speculatively.
 
-### Error tracking — LIVE on prod (code), inert until DSN is set
-`@sentry/nextjs` wired via the Next 16 `instrumentation.ts` / `instrumentation-client.ts` convention (Turbopack-safe), pointed at **GlitchTip** (glitchtip.com) rather than sentry.io - open-source, same wire protocol, sentry.io's free tier is gone. Captures server request errors, client runtime errors, and router-transition breadcrumbs. No session replay (PostHog already covers that — see Known limitations). **Inert until `NEXT_PUBLIC_SENTRY_DSN` is set** (owner creating a GlitchTip project + DSN is in progress).
+### Error tracking — LIVE on prod AND dev, fully confirmed (2026-07-21)
+`@sentry/nextjs` wired via the Next 16 `instrumentation.ts` / `instrumentation-client.ts` convention (Turbopack-safe), pointed at **GlitchTip** (glitchtip.com) rather than sentry.io - open-source, same wire protocol, sentry.io's free tier is gone. Captures server request errors, client runtime errors, and router-transition breadcrumbs. No session replay (PostHog already covers that — see Known limitations).
+
+`NEXT_PUBLIC_SENTRY_DSN` is set on both Render services (dev + prod), both redeployed to pick it up. GlitchTip org/project: `liquidityhq` (project id `25983`), dashboard at `app.glitchtip.com/liquidityhq/issues`. Verified end-to-end on both sites - CSP allows `app.glitchtip.com`, DSN confirmed baked into each site's client bundle, and a real triggered error on each (prod and deployed dev) showed up in GlitchTip within seconds. DSN isn't a secret (meant to be public), so it's also in `.env.local` for local testing.
 
 ---
 
