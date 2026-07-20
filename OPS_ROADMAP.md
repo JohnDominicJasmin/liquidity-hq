@@ -2,7 +2,7 @@
 
 Living status doc for the owner/staff admin console at `/ops`. What's shipped, what's deferred, and the key facts you need to work on it.
 
-Last updated: 2026-07-20 (Phase 3 + Sentry added).
+Last updated: 2026-07-21 (Phase 3 + error tracking shipped to prod).
 
 ---
 
@@ -33,7 +33,7 @@ A web console for the app's owner + hired staff to monitor the app, manage users
 ### Phase 2 — Account actions — LIVE on prod (2026-07-20)
 On the user detail page, any admin can: **Grant/Revoke Pro**, **Ban/Unban**, **Reset today's AI limit**. Grant/Revoke only touches `role` (never clobbers real Lemon Squeezy billing fields). Ban uses Supabase's native `ban_duration`; self-ban blocked. Reset deletes today's `grok_usage` row. All audited.
 
-### Phase 3 — App-wide control — on `dev`, not yet on prod (2026-07-20)
+### Phase 3 — App-wide control — LIVE on prod (2026-07-20)
 New `app_config` table (key/value jsonb, service-role write only). Owner-only `/ops/config` page controls:
 - **Maintenance mode** — one flag closes the whole consumer app (everything except `/ops`) behind a "down for maintenance" screen. Read via public `GET /api/config`, 15s in-memory cache, fails open (never blocks the app on a broken read).
 - **Announcement banner** — text + optional link, dismissible per-visitor, shown above the nav on every consumer page.
@@ -42,8 +42,8 @@ Both are polled client-side every 60s (see `lib/useAppConfig.ts`) — this app h
 
 Seeded with only these two flags on purpose — no per-feature kill-switches (Grok, Telegram, etc.) yet; add them to `app_config` + a real check in code as they're actually needed, not speculatively.
 
-### Sentry error tracking — on `dev`, not yet on prod
-`@sentry/nextjs` wired via the Next 16 `instrumentation.ts` / `instrumentation-client.ts` convention (Turbopack-safe). Captures server request errors, client runtime errors, and router-transition breadcrumbs. No session replay (PostHog already covers that — see Known limitations). **Inert until `NEXT_PUBLIC_SENTRY_DSN` is set** — needs a Sentry account + project (owner's to create, not something I can do).
+### Error tracking — LIVE on prod (code), inert until DSN is set
+`@sentry/nextjs` wired via the Next 16 `instrumentation.ts` / `instrumentation-client.ts` convention (Turbopack-safe), pointed at **GlitchTip** (glitchtip.com) rather than sentry.io - open-source, same wire protocol, sentry.io's free tier is gone. Captures server request errors, client runtime errors, and router-transition breadcrumbs. No session replay (PostHog already covers that — see Known limitations). **Inert until `NEXT_PUBLIC_SENTRY_DSN` is set** (owner creating a GlitchTip project + DSN is in progress).
 
 ---
 
