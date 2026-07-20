@@ -4985,8 +4985,15 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   /* Reserve space for tab bar (56px) + the FAB above it (bottom:76 + 64 tall = 140).
      Prevents the fixed "Ask AI" FAB from overlapping the last content on every page. */
   .app-content { padding-bottom: 148px; }
-  /* Edge signal cards - equal height in 2-col mobile grid */
-  .edge-grid { grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; align-items: stretch; }
+  /* Edge signal cards - equal height in 2-col mobile grid. minmax(0, 1fr), not
+     bare 1fr - a bare 1fr track's minimum size is its content's min-content
+     width, and .edge-card-label/-value/-signal are white-space:nowrap (so
+     their own text-overflow:ellipsis can work), so their min-content IS their
+     full unwrapped width. That forced whichever card had the longest label
+     (e.g. "Open Interest (1h)") to blow its track past its fair share,
+     overflowing the whole grid/page horizontally - the actual cause of the
+     "everything is zoomed in" mobile bug report, not browser/viewport zoom. */
+  .edge-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows: 1fr; align-items: stretch; }
   .edge-card { display: flex; flex-direction: column; }
   .edge-card-label { min-width: 0; }
 }
