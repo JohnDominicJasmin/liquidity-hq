@@ -8,6 +8,7 @@ import { useSettings } from '@/lib/settings';
 import SOTD from '@/components/SOTD';
 import SessionContext from '@/components/SessionContext';
 import MarketRead from '@/components/MarketRead';
+import GlobalMacroContext from '@/components/GlobalMacroContext';
 import SpotlightTour from '@/components/SpotlightTour';
 import SetupChecklist from '@/components/SetupChecklist';
 import Tip from '@/components/Tip';
@@ -536,6 +537,12 @@ export default function Dashboard() {
         <CoinSidebar />
         <MarketPulseStrip />
         <SessionContext />
+        {/* Macro backdrop - answers "what's the broad market doing", which nothing
+            else on the dashboard covers. Last in the rail so it never pushes the
+            per-coin essentials down on mobile. */}
+        <div className="macro-rail-card">
+          <GlobalMacroContext />
+        </div>
       </aside>
     </div>
   );

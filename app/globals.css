@@ -689,6 +689,10 @@ body::after {
 .scc-sig { font-size: var(--fs-caption); font-weight: 600; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; max-width: 190px; }
 
+/* Macro Context rail wrapper - GlobalMacroContext has its own inner padding,
+   this just gives it the flat-card frame the other rail items carry. */
+.macro-rail-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 10px; }
+
 /* ── COLLAPSE TOGGLE - shared style for breakdown/show-more buttons ── */
 .collapse-toggle {
   width: 100%; background: none; border: none;
