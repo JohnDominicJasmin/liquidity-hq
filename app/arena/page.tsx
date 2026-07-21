@@ -1210,12 +1210,12 @@ function ArenaContent() {
             }}
           >
           <div style={{
-            background: '#111', border: '0.5px solid rgba(255,255,255,0.1)',
+            background: 'var(--bg2)', border: '0.5px solid var(--bdr)',
             borderRadius: 10, overflow: 'hidden',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
           }}>
             {/* Search bar */}
-            <div style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)', padding: '0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ borderBottom: '0.5px solid var(--bdr)', padding: '0 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
               <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.3 }}>
                 <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.3"/>
                 <line x1="8" y1="8" x2="11" y2="11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
@@ -1229,7 +1229,7 @@ function ArenaContent() {
                 style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '7px 0', fontSize: 'var(--fs-caption)', color: 'var(--txt)' }}
               />
               {scannerSearch && (
-                <button onClick={() => setScannerSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#444', fontSize: '0.8125rem', lineHeight: 1 }} aria-label="Clear search">×</button>
+                <button onClick={() => setScannerSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: '0.8125rem', lineHeight: 1 }} aria-label="Clear search">×</button>
               )}
             </div>
 
@@ -1237,24 +1237,24 @@ function ArenaContent() {
             <div className="scanner-flyout-grid" style={{
               display: 'grid', gridTemplateColumns: '1fr 78px 44px 44px 72px 32px',
               padding: '6px 12px',
-              borderBottom: '0.5px solid rgba(255,255,255,0.06)',
-              background: 'rgba(255,255,255,0.02)',
+              borderBottom: '0.5px solid var(--bdr)',
+              background: 'var(--bg1)',
             }}>
               {[['Name', 'left'], ['Price', 'right'], ['24h', 'right'], ['vs BTC', 'right'], ['Status', 'right'], ['Score', 'right']].map(([h, align]) => (
-                <span key={h} className={h === 'vs BTC' ? 'scanner-flyout-vsbtc' : undefined} style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: '#333', textAlign: align as 'left' | 'right' }}>{h}</span>
+                <span key={h} className={h === 'vs BTC' ? 'scanner-flyout-vsbtc' : undefined} style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', textAlign: align as 'left' | 'right' }}>{h}</span>
               ))}
             </div>
 
             {/* Coin rows */}
             <div style={{ maxHeight: 380, overflowY: 'auto' }}>
             {visibleScannerRows.length === 0 ? (
-              <div style={{ padding: '12px', fontSize: 'var(--fs-caption)', color: '#444', textAlign: 'center' }}>No coins match &ldquo;{scannerSearch}&rdquo;</div>
+              <div style={{ padding: '12px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>No coins match &ldquo;{scannerSearch}&rdquo;</div>
             ) : visibleScannerRows.map(({ c, sq: rowSq, price, change, vsBtc, badges }) => {
               const isSelected  = c === selectedCoin;
               const isActive    = rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
               const icon        = rowSq.dir === 'SHORT_SQ' ? '↑' : rowSq.dir === 'LONG_LIQ' ? '↓' : '';
               const statusLabel = rowSq.dir === 'SHORT_SQ' ? 'Squeeze' : rowSq.dir === 'LONG_LIQ' ? 'Flush' : 'Neutral';
-              const vsBtcColor  = vsBtc == null ? '#333' : vsBtc >= 2 ? '#34d399' : vsBtc <= -2 ? '#f87171' : '#555';
+              const vsBtcColor  = vsBtc == null ? 'var(--txt3)' : vsBtc >= 2 ? '#34d399' : vsBtc <= -2 ? '#f87171' : 'var(--txt3)';
               return (
                 <button
                   key={c}
@@ -1268,10 +1268,10 @@ function ArenaContent() {
                     alignItems: 'center', padding: '7px 12px',
                     background: isSelected ? 'rgba(90,163,255,0.08)' : 'transparent',
                     border: 'none',
-                    borderBottom: '0.5px solid rgba(255,255,255,0.04)',
+                    borderBottom: '0.5px solid var(--bdr)',
                     cursor: 'pointer', textAlign: 'left', transition: 'background 0.12s',
                   }}
-                  onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)'; }}
+                  onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg3)'; }}
                   onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
                 >
                   {/* Coin icon + name + tech badges */}
@@ -1283,7 +1283,7 @@ function ArenaContent() {
                       bg={isActive ? withAlpha(rowSq.color, '1a') : undefined}
                     />
                     <div>
-                      <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isSelected ? '#5aa3ff' : isActive ? 'var(--txt)' : '#666', lineHeight: 1.2 }}>
+                      <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isSelected ? '#5aa3ff' : isActive ? 'var(--txt)' : 'var(--txt3)', lineHeight: 1.2 }}>
                         {c.toUpperCase()}
                       </div>
                       {badges.length > 0 ? (
@@ -1302,16 +1302,16 @@ function ArenaContent() {
                           })}
                         </div>
                       ) : (
-                        <div style={{ fontSize: 'var(--fs-caption)', color: '#333', lineHeight: 1 }}>USDT Perp</div>
+                        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1 }}>USDT Perp</div>
                       )}
                     </div>
                   </div>
                   {/* Price */}
-                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: isActive ? 'var(--txt)' : '#555', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
+                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: isActive ? 'var(--txt)' : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
                     {price ? '$' + fmtPrice(price) : '-'}
                   </span>
                   {/* 24h % */}
-                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: change == null ? '#333' : change >= 0 ? '#34d399' : '#f87171' }}>
+                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: change == null ? 'var(--txt3)' : change >= 0 ? '#34d399' : '#f87171' }}>
                     {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : '-'}
                   </span>
                   {/* vs BTC */}
@@ -1330,11 +1330,11 @@ function ArenaContent() {
                         {icon} {statusLabel}
                       </span>
                     ) : (
-                      <span style={{ fontSize: 'var(--fs-caption)', color: '#2e2e2e' }}>· Neutral</span>
+                      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>· Neutral</span>
                     )}
                   </div>
                   {/* Score */}
-                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isActive ? rowSq.color : '#2e2e2e', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
+                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isActive ? rowSq.color : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
                     {rowSq.score}
                   </span>
                 </button>
@@ -1343,8 +1343,8 @@ function ArenaContent() {
             </div>
 
             {/* Footer */}
-            <div style={{ padding: '5px 12px', background: 'rgba(255,255,255,0.01)', borderTop: '0.5px solid rgba(255,255,255,0.05)' }}>
-              <span style={{ fontSize: 'var(--fs-caption)', color: '#2a2a2a' }}>Funding rate + L/S ratio · ↑ Squeeze = shorts overcrowded · ↓ Flush = longs overcrowded</span>
+            <div style={{ padding: '5px 12px', background: 'var(--bg1)', borderTop: '0.5px solid var(--bdr)' }}>
+              <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Funding rate + L/S ratio · ↑ Squeeze = shorts overcrowded · ↓ Flush = longs overcrowded</span>
             </div>
           </div>
           </div>
@@ -1551,19 +1551,24 @@ function ArenaContent() {
       {result && Date.now() - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
         const sigCol = result.signal === 'LONG' ? '#34d399' : result.signal === 'LEAN LONG' ? '#86efac' : result.signal === 'SHORT' ? '#f87171' : result.signal === 'LEAN SHORT' ? '#fca5a5' : '#9ca3af';
         const verdictWord = result.signal === 'LONG' ? 'Long' : result.signal === 'LEAN LONG' ? 'Lean long' : result.signal === 'SHORT' ? 'Short' : result.signal === 'LEAN SHORT' ? 'Lean short' : 'Wait';
-        const sigGrad = result.signal.includes('LONG') ? 'linear-gradient(160deg,#6ee7b7,#34d399)'
-          : result.signal.includes('SHORT') ? 'linear-gradient(160deg,#fca5a5,#f87171)'
-          : 'linear-gradient(160deg,#cbd5e1,#9ca3af)';
-        const whyLine = (result.reasoning || '').split(/(?<=[.!?])\s+/)[0] || '';
+        const sigGrad = result.signal.includes('LONG') ? 'linear-gradient(160deg,#5ff0b0,#34d399)'
+          : result.signal.includes('SHORT') ? 'linear-gradient(160deg,#ff9d9d,#f87171)'
+          : 'linear-gradient(160deg,#d8dee9,#9ca3af)';
+        const whyLine = (result.reasoning || '').split(/(?<=[.!?])\s+/).slice(0, 2).join(' ');
         const entryMid = result.entryLow && result.entryHigh ? (result.entryLow + result.entryHigh) / 2 : null;
         const rr = entryMid && result.sl && result.tp ? Math.abs((result.tp - entryMid) / (entryMid - result.sl)) : null;
         const coinD = store.coins[selectedCoin];
         const frPct = coinD?.fundingRate != null ? coinD.fundingRate * 100 : null;
         const GC = '#34d399', RC = '#f87171', NC = 'var(--txt3)';
+        // Multi-TF: RSI bias across 15m/1h/4h (same math as the MultiTFAlignment card)
+        const tfBias = (r: number | null | undefined) => r == null ? 0 : r > 57 ? 1 : r < 43 ? -1 : 0;
+        const tfArr = [coinD?.rsi14, coinD?.rsi1h, coinD?.rsi4h].map(tfBias);
+        const tfBull = tfArr.filter(x => x > 0).length, tfBear = tfArr.filter(x => x < 0).length;
         const factors = [
           { k: 'Trend',     v: emaSignal.signalDir === 'long' ? 'up' : emaSignal.signalDir === 'short' ? 'down' : 'mixed', c: emaSignal.signalDir === 'long' ? GC : emaSignal.signalDir === 'short' ? RC : NC, a: emaSignal.signalDir === 'long' ? '↑' : emaSignal.signalDir === 'short' ? '↓' : '•' },
           { k: 'Squeeze',   v: sqzCount > 0 ? 'building' : flushCount > 0 ? 'flush risk' : 'quiet', c: sqzCount > 0 ? GC : flushCount > 0 ? RC : NC, a: sqzCount > 0 ? '↑' : flushCount > 0 ? '↓' : '•' },
           { k: 'Funding',   v: frPct == null ? 'n/a' : frPct >= 0.03 ? 'long-heavy' : frPct <= -0.02 ? 'short-heavy' : 'neutral', c: frPct == null ? NC : frPct >= 0.03 ? RC : frPct <= -0.02 ? GC : NC, a: '•' },
+          { k: 'Multi-TF',  v: tfBull >= 2 ? `${tfBull}/3 up` : tfBear >= 2 ? `${tfBear}/3 down` : (tfBull > 0 && tfBear > 0) ? 'conflicting' : 'mixed', c: tfBull >= 2 ? GC : tfBear >= 2 ? RC : NC, a: tfBull >= 2 ? '↑' : tfBear >= 2 ? '↓' : '•' },
           { k: 'Whale CVD', v: coinD?.cvdDivergence === 'bullish' ? 'bullish' : coinD?.cvdDivergence === 'bearish' ? 'bearish' : 'flat', c: coinD?.cvdDivergence === 'bullish' ? GC : coinD?.cvdDivergence === 'bearish' ? RC : NC, a: coinD?.cvdDivergence === 'bullish' ? '↑' : coinD?.cvdDivergence === 'bearish' ? '↓' : '•' },
         ];
         const prevQuickSignal = quickSignals[selectedCoin];
@@ -1580,16 +1585,7 @@ function ArenaContent() {
             <div className="av-head">
               <div className="av-head-eyebrow">
                 AI Read · {selectedCoin.toUpperCase()}/USDT · {result.tf}
-                <span style={{
-                  fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.04em',
-                  padding: '1px 6px', borderRadius: 4,
-                  background: cacheEntry?.mode === 'quick' ? 'rgba(52,211,153,0.1)' : 'rgba(26,122,255,0.1)',
-                  color: cacheEntry?.mode === 'quick' ? '#34d399' : '#5aa3ff',
-                  border: `0.5px solid ${cacheEntry?.mode === 'quick' ? 'rgba(52,211,153,0.25)' : 'rgba(26,122,255,0.25)'}`,
-                }}>
-                  {cacheEntry?.mode === 'quick' ? 'Quick' : 'Deep'}
-                </span>
-                <span style={{ fontWeight: 500, color: 'var(--txt3)', textTransform: 'none', letterSpacing: 0 }}>· {freshness}</span>
+                <span className="av-updated">▲ Updated {freshness}</span>
               </div>
               <div className="av-head-row">
                 <div className="av-verdict">
@@ -1655,24 +1651,23 @@ function ArenaContent() {
               </div>
             </div>
 
-            {/* Watch For - shown when signal is FLAT, LEAN LONG, or LEAN SHORT */}
-            {(result.signal === 'FLAT' || result.signal === 'LEAN LONG' || result.signal === 'LEAN SHORT') && result.waitFor && (
-              <div className="arena-wait-for">
-                <div className="arena-wait-for-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span>
-                    {result.signal === 'LEAN SHORT' ? '→ Confirms to SHORT' : result.signal === 'LEAN LONG' ? '→ Confirms to LONG' : 'Watch For'}
-                  </span>
+            {/* Wait-for - single inline row matching the mockup's .waitfor style */}
+            {result.waitFor && (
+              <div className="av-waitfor">
+                <span>⏳</span>
+                <div>
+                  <b>{result.signal === 'LEAN SHORT' ? 'Confirms to SHORT:' : result.signal === 'LEAN LONG' ? 'Confirms to LONG:' : 'Wait for:'}</b>{' '}
+                  {result.waitFor}
                   {result.signal === 'FLAT' && result.bias && result.bias !== 'NEUTRAL' && (
                     <span style={{
-                      fontSize: 'var(--fs-micro)', fontWeight: 800, letterSpacing: '.06em',
+                      marginLeft: 6, fontSize: 'var(--fs-micro)', fontWeight: 800, letterSpacing: '.06em',
                       textTransform: 'uppercase',
                       color: result.bias === 'BEARISH' ? '#f87171' : '#34d399',
                     }}>
-                      - {result.bias === 'BEARISH' ? '↓ leaning bearish' : '↑ leaning bullish'}
+                      · {result.bias === 'BEARISH' ? '↓ leaning bearish' : '↑ leaning bullish'}
                     </span>
                   )}
                 </div>
-                <div className="arena-wait-for-body">{result.waitFor}</div>
               </div>
             )}
 
@@ -1721,51 +1716,6 @@ function ArenaContent() {
               </div>
             )}
 
-            {/* ── Details toggle - chart / patterns / full reasoning ── */}
-            <button
-              onClick={() => setSigDetailsOpen(v => !v)}
-              style={{
-                marginTop: 12, width: '100%', padding: '6px 0',
-                background: 'transparent', border: 'none',
-                borderTop: '0.5px solid rgba(255,255,255,0.06)',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                color: '#3a3a3a', fontSize: 'var(--fs-caption)',
-              }}
-            >
-              <span>{sigDetailsOpen ? '▲ hide details' : '▼ full reasoning + chart + patterns'}</span>
-            </button>
-
-            {sigDetailsOpen && (
-              <>
-                {result.chartAnalysis && (
-                  <div className="arena-reasoning" style={{ marginTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
-                    <div className="arena-reasoning-title">Chart</div>
-                    <div className="arena-reasoning-text"><ReasoningText text={result.chartAnalysis} /></div>
-                  </div>
-                )}
-                {result.patterns && result.patterns.length > 0 && (
-                  <div style={{ marginTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
-                    <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>Patterns</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {result.patterns.map((p, i) => {
-                        const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
-                        const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
-                        const col = isBull ? '#34d399' : isBear ? '#f87171' : '#1a7aff';
-                        const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
-                        const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
-                        return (
-                          <span key={i} style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                <div className="arena-reasoning" style={{ marginTop: 8 }}>
-                  <div className="arena-reasoning-title">Reasoning</div>
-                  <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
-                </div>
-              </>
-            )}
           </div>
         );
       })()}
@@ -1786,7 +1736,10 @@ function ArenaContent() {
         </div>
         <aside className="arena-ws-rail">
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
-      <CoinMarketSnapshot coin={selectedCoin} />
+      <div className="av-rail-panel">
+        <div className="av-rail-panel-h">Market snapshot</div>
+        <CoinMarketSnapshot coin={selectedCoin} />
+      </div>
       {/* Confluence Score - EMA Ribbon + Order Flow + Multi-TF RSI combined, plus a
           separate macro/event risk overlay (econ calendar + JPY carry-trade risk).
           Pro-only: free users get an in-place locked card so the layout holds. */}
@@ -1799,11 +1752,55 @@ function ArenaContent() {
           onUnlock={() => setUpgradeGate('The Confluence Score')}
         />
       )}
+      {/* Details toggle - reveals chart analysis / patterns / full reasoning
+          full-width below the workspace (rail is too narrow for prose). */}
+      {result && (
+        <div className="av-rail-panel">
+          <button className="av-rail-collapse" onClick={() => setSigDetailsOpen(v => !v)}>
+            <span>{sigDetailsOpen ? 'Hide details' : 'Details — patterns, multi-TF, reasoning'}</span>
+            <span className="chev">{sigDetailsOpen ? '▴' : '▾'}</span>
+          </button>
+        </div>
+      )}
         </aside>
       </div>
 
       {/* ── Evidence + advanced (full width, below the workspace) ── */}
       <div className="arena-below-chart">
+      {/* Full reasoning / chart analysis / patterns - toggled from the rail's
+          Details button above (kept full-width here since the rail is too
+          narrow for prose). */}
+      {result && sigDetailsOpen && (
+        <>
+          {result.chartAnalysis && (
+            <div className="arena-reasoning" style={{ marginBottom: 10 }}>
+              <div className="arena-reasoning-title">Chart</div>
+              <div className="arena-reasoning-text"><ReasoningText text={result.chartAnalysis} /></div>
+            </div>
+          )}
+          {result.patterns && result.patterns.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>Patterns</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {result.patterns.map((p, i) => {
+                  const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
+                  const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
+                  const col = isBull ? '#34d399' : isBear ? '#f87171' : '#1a7aff';
+                  const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
+                  const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
+                  return (
+                    <span key={i} style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <div className="arena-reasoning" style={{ marginBottom: 10 }}>
+            <div className="arena-reasoning-title">Reasoning</div>
+            <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
+          </div>
+        </>
+      )}
       {/* Anti-chop filter toggle */}
       <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <button
