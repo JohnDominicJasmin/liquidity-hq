@@ -1564,8 +1564,15 @@ function ArenaContent() {
         const tfBias = (r: number | null | undefined) => r == null ? 0 : r > 57 ? 1 : r < 43 ? -1 : 0;
         const tfArr = [coinD?.rsi14, coinD?.rsi1h, coinD?.rsi4h].map(tfBias);
         const tfBull = tfArr.filter(x => x > 0).length, tfBear = tfArr.filter(x => x < 0).length;
+        // Ribbon chip reads relative to the verdict (agrees/opposes/neutral), not as its
+        // own absolute up/down claim - "Trend down" next to a LONG verdict read like the
+        // page was contradicting itself, when really it's one input the AI weighed against
+        // the others and still called LONG anyway.
+        const verdictDir = result.signal.includes('LONG') ? 'long' : result.signal.includes('SHORT') ? 'short' : null;
+        const ribbonRel = !verdictDir || !emaSignal.signalDir ? 'neutral'
+          : emaSignal.signalDir === verdictDir ? 'agrees' : 'opposes';
         const factors = [
-          { k: 'Trend',     v: emaSignal.signalDir === 'long' ? 'up' : emaSignal.signalDir === 'short' ? 'down' : 'mixed', c: emaSignal.signalDir === 'long' ? GC : emaSignal.signalDir === 'short' ? RC : NC, a: emaSignal.signalDir === 'long' ? '↑' : emaSignal.signalDir === 'short' ? '↓' : '•' },
+          { k: 'Ribbon',    v: ribbonRel === 'agrees' ? 'agrees' : ribbonRel === 'opposes' ? 'opposes' : 'neutral', c: ribbonRel === 'agrees' ? GC : ribbonRel === 'opposes' ? RC : NC, a: ribbonRel === 'agrees' ? '↑' : ribbonRel === 'opposes' ? '↓' : '•' },
           { k: 'Squeeze',   v: sqzCount > 0 ? 'building' : flushCount > 0 ? 'flush risk' : 'quiet', c: sqzCount > 0 ? GC : flushCount > 0 ? RC : NC, a: sqzCount > 0 ? '↑' : flushCount > 0 ? '↓' : '•' },
           { k: 'Funding',   v: frPct == null ? 'n/a' : frPct >= 0.03 ? 'long-heavy' : frPct <= -0.02 ? 'short-heavy' : 'neutral', c: frPct == null ? NC : frPct >= 0.03 ? RC : frPct <= -0.02 ? GC : NC, a: '•' },
           { k: 'Multi-TF',  v: tfBull >= 2 ? `${tfBull}/3 up` : tfBear >= 2 ? `${tfBear}/3 down` : (tfBull > 0 && tfBear > 0) ? 'conflicting' : 'mixed', c: tfBull >= 2 ? GC : tfBear >= 2 ? RC : NC, a: tfBull >= 2 ? '↑' : tfBear >= 2 ? '↓' : '•' },
