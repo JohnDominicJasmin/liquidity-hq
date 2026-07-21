@@ -1726,6 +1726,65 @@ function ArenaContent() {
         <div className="arena-ws-chart">
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
       <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} />
+
+      {/* Anti-chop filter toggle */}
+      <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <button
+          onClick={() => setAntiChopEnabled(v => !v)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 9,
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.09)',
+            borderRadius: 999,
+            padding: '6px 13px 6px 6px',
+            cursor: 'pointer',
+            fontSize: 'var(--fs-caption)',
+            color: 'var(--txt)',
+            transition: 'border-color 0.15s, background 0.15s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.2)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.09)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.03)'; }}
+        >
+          <span style={{
+            width: 32,
+            height: 18,
+            borderRadius: 9,
+            background: antiChopEnabled ? '#34d399' : 'rgba(255,255,255,0.14)',
+            boxShadow: antiChopEnabled
+              ? '0 0 0 1px rgba(52,211,153,0.35), 0 0 8px rgba(52,211,153,0.45)'
+              : 'inset 0 1px 3px rgba(0,0,0,0.45)',
+            position: 'relative',
+            flexShrink: 0,
+            transition: 'background 0.25s ease, box-shadow 0.25s ease',
+          }}>
+            <span style={{
+              position: 'absolute',
+              top: 2,
+              left: antiChopEnabled ? 16 : 2,
+              width: 14,
+              height: 14,
+              borderRadius: '50%',
+              background: '#fff',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+              transition: 'left 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            }} />
+          </span>
+          <Tip
+            width={260}
+            iconColor="rgba(255,255,255,0.6)"
+            text="Adds a stricter confirmation step: requires the EMA9/20 ribbon to clearly separate, price to close meaningfully past EMA50, and the move to hold for several candles before a marker confirms. Fewer, calmer-looking signals - but a 3-year backtest found this filter cuts a real edge down to a coin flip (1.13 profit factor raw vs 0.98 filtered). OFF (default) shows every raw cross immediately, including some that reverse fast, but has the better track record. ON trades quieter alerts for a worse actual outcome."
+          >
+            <span style={{ opacity: 0.8, letterSpacing: '0.01em' }}>Anti-Chop Filter</span>
+          </Tip>
+        </button>
+        <span style={{ fontSize: 'var(--fs-caption)', opacity: 0.35 }}>
+          {antiChopEnabled
+            ? 'Rejects tangled-ribbon and marginal EMA50 crosses'
+            : 'Raw EMA9/20 cross signals - no chop filtering'}
+        </span>
+      </div>
       {/* Data collectors - run hooks for Grok context, render nothing.
           AbsorptionDetector is Pro-only: for free users it is not mounted at
           all, so its data never reaches the AI context either. */}
@@ -1801,64 +1860,6 @@ function ArenaContent() {
           </div>
         </>
       )}
-      {/* Anti-chop filter toggle */}
-      <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <button
-          onClick={() => setAntiChopEnabled(v => !v)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 9,
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.09)',
-            borderRadius: 999,
-            padding: '6px 13px 6px 6px',
-            cursor: 'pointer',
-            fontSize: 'var(--fs-caption)',
-            color: 'var(--txt)',
-            transition: 'border-color 0.15s, background 0.15s',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.2)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.05)'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.09)'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.03)'; }}
-        >
-          <span style={{
-            width: 32,
-            height: 18,
-            borderRadius: 9,
-            background: antiChopEnabled ? '#34d399' : 'rgba(255,255,255,0.14)',
-            boxShadow: antiChopEnabled
-              ? '0 0 0 1px rgba(52,211,153,0.35), 0 0 8px rgba(52,211,153,0.45)'
-              : 'inset 0 1px 3px rgba(0,0,0,0.45)',
-            position: 'relative',
-            flexShrink: 0,
-            transition: 'background 0.25s ease, box-shadow 0.25s ease',
-          }}>
-            <span style={{
-              position: 'absolute',
-              top: 2,
-              left: antiChopEnabled ? 16 : 2,
-              width: 14,
-              height: 14,
-              borderRadius: '50%',
-              background: '#fff',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
-              transition: 'left 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
-            }} />
-          </span>
-          <Tip
-            width={260}
-            iconColor="rgba(255,255,255,0.6)"
-            text="Adds a stricter confirmation step: requires the EMA9/20 ribbon to clearly separate, price to close meaningfully past EMA50, and the move to hold for several candles before a marker confirms. Fewer, calmer-looking signals - but a 3-year backtest found this filter cuts a real edge down to a coin flip (1.13 profit factor raw vs 0.98 filtered). OFF (default) shows every raw cross immediately, including some that reverse fast, but has the better track record. ON trades quieter alerts for a worse actual outcome."
-          >
-            <span style={{ opacity: 0.8, letterSpacing: '0.01em' }}>Anti-Chop Filter</span>
-          </Tip>
-        </button>
-        <span style={{ fontSize: 'var(--fs-caption)', opacity: 0.35 }}>
-          {antiChopEnabled
-            ? 'Rejects tangled-ribbon and marginal EMA50 crosses'
-            : 'Raw EMA9/20 cross signals - no chop filtering'}
-        </span>
-      </div>
       {/* BTC Liquidation Heatmap - shows only when BTC selected and data available */}
       {selectedCoin === 'btc' && store.btcLiqLevels.length > 0 && (
         <LiqHeatmap
