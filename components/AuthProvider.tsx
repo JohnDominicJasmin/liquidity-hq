@@ -77,6 +77,31 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     return () => subscription.unsubscribe();
   }, []);
 
+  // Push-based ban enforcement - no polling. lhq_user_status mirrors
+  // auth.users.banned_until via a DB trigger (Realtime can't watch the auth
+  // schema directly); subscribing here means a ban takes effect the moment
+  // an admin flips it, instead of waiting up to ~1h for the JWT to naturally
+  // refresh and fail its own ban check.
+  useEffect(() => {
+    if (!user) return;
+    const sb = getSupabase();
+    if (!sb) return;
+    const channel = sb
+      .channel(`user-status-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: T.user_status, filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          if ((payload.new as { banned?: boolean } | null)?.banned) {
+            localStorage.removeItem(LAST_ACTIVE_KEY);
+            sb.auth.signOut();
+          }
+        },
+      )
+      .subscribe();
+    return () => { sb.removeChannel(channel); };
+  }, [user]);
+
   // Fetch subscription role whenever user changes
   useEffect(() => {
     if (!user) { setRole('free'); return; }

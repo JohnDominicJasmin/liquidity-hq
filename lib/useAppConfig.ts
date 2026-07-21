@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 export interface AppConfig {
   maintenanceMode: boolean;
   announcementBanner: { text: string; link: string | null } | null;
+  featureFlags: { grok: boolean; telegram: boolean };
 }
 
 // Polls the public /api/config so maintenance mode + the announcement banner

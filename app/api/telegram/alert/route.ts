@@ -9,6 +9,7 @@ import { isOutcomeTracked, persistAlertFires } from '@/lib/alertOutcomes';
 import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS } from '@/lib/coins';
 import { getWaveTrendConfirmation } from '@/lib/waveTrend';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
+import { isFeatureEnabled } from '@/lib/featureFlags';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,7 @@ function inferSignalType(prompt: string): string {
 
 async function grokAnalyze(prompt: string): Promise<string> {
   if (!GROK_KEY) return '';
+  if (!(await isFeatureEnabled('grok'))) return ''; // kill switch - alerts still send, just no AI commentary
   if (grokInFlight >= GROK_CONCURRENCY) return ''; // shed load
   grokInFlight++;
   try {
@@ -1682,6 +1684,9 @@ export async function GET(req: NextRequest) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token)
     return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN not set' }, { status: 503 });
+
+  if (!(await isFeatureEnabled('telegram')))
+    return NextResponse.json({ ok: true, fired: [], note: 'Telegram alerts disabled via kill switch' });
 
   // Safety net - never exceed Render's 30s limit
   let timerId: ReturnType<typeof setTimeout>;

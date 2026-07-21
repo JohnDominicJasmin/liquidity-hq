@@ -2,6 +2,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
+import { friendlyAuthError } from '@/lib/authErrors';
 
 function CallbackInner() {
   const router = useRouter();
@@ -17,7 +18,7 @@ function CallbackInner() {
     const rawNext = params.get('next');
     const dest = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/arena';
 
-    if (error) { setErrMsg(error); return; }
+    if (error) { setErrMsg(friendlyAuthError(error)); return; }
 
     const sb = getSupabase();
     if (!sb) { router.push('/'); return; }
@@ -25,7 +26,7 @@ function CallbackInner() {
     if (code) {
       // PKCE flow: exchange auth code for session
       sb.auth.exchangeCodeForSession(code).then(({ error }) => {
-        if (error) setErrMsg(error.message);
+        if (error) setErrMsg(friendlyAuthError(error.message));
         else router.push(dest);
       });
     } else {

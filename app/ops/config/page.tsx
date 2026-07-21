@@ -6,11 +6,19 @@ import styles from '../ops.module.css';
 interface BannerValue { text: string; link: string | null; expiresAt: string | null }
 interface BannerHistoryItem { value: BannerValue; actor_email: string; created_at: string }
 
+interface FeatureFlags { grok: boolean; telegram: boolean }
+
 interface ConfigData {
   maintenance_mode: { enabled: boolean };
   announcement_banner: BannerValue;
+  feature_flags: FeatureFlags;
   banner_history: BannerHistoryItem[];
 }
+
+const FEATURE_LABELS: Record<keyof FeatureFlags, string> = {
+  grok: 'Grok / LiquidityAI',
+  telegram: 'Telegram alerts',
+};
 
 // value in hours, '' = no expiry
 const DURATION_OPTIONS: { value: string; label: string }[] = [
@@ -62,7 +70,7 @@ export default function ConfigPage() {
     setBannerLink(data.announcement_banner.link ?? '');
   }, [data]);
 
-  async function save(key: 'maintenance_mode' | 'announcement_banner', value: unknown) {
+  async function save(key: 'maintenance_mode' | 'announcement_banner' | 'feature_flags', value: unknown) {
     setBusy(true);
     setMsg(null);
     const res = await adminFetch('/api/ops/config', {
@@ -117,6 +125,35 @@ export default function ConfigPage() {
             >
               {busy ? 'Working…' : data.maintenance_mode.enabled ? 'Turn off maintenance mode' : 'Turn on maintenance mode'}
             </button>
+          </section>
+
+          <section className={styles.card} style={{ marginBottom: 16 }}>
+            <div className={styles.cardHead}><span className={styles.cardTitle}>Feature kill switches</span></div>
+            <p className={styles.note}>
+              Turns off one feature for everyone without a full maintenance-mode outage. Live app
+              picks it up within ~15s. Grok off also silences the AI commentary line in Telegram
+              alerts (the alerts themselves still send).
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+              {(Object.keys(FEATURE_LABELS) as (keyof FeatureFlags)[]).map(key => {
+                const on = data.feature_flags[key];
+                return (
+                  <div className={styles.row} key={key}>
+                    <span className={styles.rowLabel}>
+                      {!on && <span className={`${styles.badge} ${styles.badgeBad}`}>OFF</span>}
+                      <span className={styles.rowName} style={{ marginLeft: on ? 0 : 8 }}>{FEATURE_LABELS[key]}</span>
+                    </span>
+                    <button
+                      className={styles.pagerBtn}
+                      disabled={busy}
+                      onClick={() => save('feature_flags', { ...data.feature_flags, [key]: !on })}
+                    >
+                      {busy ? 'Working…' : on ? 'Turn off' : 'Turn on'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </section>
 
           <section className={styles.card} style={{ marginBottom: 16 }}>

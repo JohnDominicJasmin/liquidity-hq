@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { parseCombinedResponse } from '@/lib/grok';
 import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
+import { isFeatureEnabled } from '@/lib/featureFlags';
 
 // Keys / limits
 const GROK_KEY          = process.env.GROK_API_KEY ?? '';
@@ -73,6 +74,10 @@ export async function GET(req: NextRequest) {
 
 // ── POST - run an analysis ──────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  if (!(await isFeatureEnabled('grok'))) {
+    return NextResponse.json({ error: 'AI Arena is temporarily unavailable.', code: 'FEATURE_DISABLED' }, { status: 503 });
+  }
+
   const { prompt, tf, session, type } = await req.json() as {
     prompt: string; tf: string; session: string; type: 'quick' | 'deep';
   };

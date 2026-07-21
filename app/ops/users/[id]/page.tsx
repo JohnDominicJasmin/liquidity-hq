@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/components/AuthProvider';
 import { useAdminResource, adminFetch, fmtInt, fmtAgo } from '../../_client';
 import { Stat, CardShell } from '../../_cards';
 import styles from '../../ops.module.css';
@@ -20,7 +21,9 @@ type UserAction = 'grant_pro' | 'revoke_pro' | 'ban' | 'unban' | 'reset_ai_limit
 
 export default function UserDetailPage() {
   const params = useParams<{ id: string }>();
+  const { user: me } = useAuth();
   const { data, error, loading, reload } = useAdminResource<Detail>(`/api/ops/users/${params.id}`);
+  const isSelf = !!me && data?.id === me.id;
   const aiTotal14d = data?.aiUsage14d.reduce((s, d) => s + d.total, 0) ?? 0;
   const max = data ? Math.max(1, ...data.aiUsage14d.map(d => d.total)) : 1;
 
@@ -114,6 +117,10 @@ export default function UserDetailPage() {
                 {data.banned ? (
                   <button className={styles.pagerBtn} disabled={!!busy} onClick={() => doAction('unban')}>
                     {busy === 'unban' ? 'Working…' : 'Unban'}
+                  </button>
+                ) : isSelf ? (
+                  <button className={styles.pagerBtn} disabled title="You can't ban the account you're signed in as.">
+                    Ban account (not your own)
                   </button>
                 ) : (
                   <button className={styles.pagerBtn} disabled={!!busy} onClick={() => doAction('ban')}>

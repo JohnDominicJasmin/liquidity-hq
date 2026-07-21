@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 import { useAuth } from '@/components/AuthProvider';
+import { friendlyAuthError } from '@/lib/authErrors';
 
 // Only allow same-origin path redirects - anything else ("//evil.com",
 // "https://...") falls back to the dashboard, so ?next= can't be used as an
@@ -49,7 +50,7 @@ function LoginInner() {
         redirectTo: callbackUrl(),
       },
     });
-    if (error) { setError(error.message); setGoogleLoading(false); }
+    if (error) { setError(friendlyAuthError(error.message)); setGoogleLoading(false); }
     // On success, browser navigates away - no need to reset loading
   };
 
@@ -66,7 +67,7 @@ function LoginInner() {
       options: { emailRedirectTo: callbackUrl() },
     });
     setEmailLoading(false);
-    if (error) setError(error.message);
+    if (error) setError(friendlyAuthError(error.message));
     else setEmailSent(true);
   };
 

@@ -1000,6 +1000,13 @@ body[data-rpm-level="high"]::before {
   .ticker-content > span:nth-child(2) { display: none; }
 }
 
+@media (max-width: 760px) {
+  .news-ticker { height: 22px; }
+  .ticker-badge { font-size: 0.625rem; padding: 1px 6px; line-height: 13px; }
+  .ticker-content span { font-size: var(--fs-micro); line-height: 22px; }
+  .ticker-close { height: 22px; width: 28px; }
+}
+
 @keyframes ticker-scroll {
   0%   { transform: translateX(0); }
   100% { transform: translateX(-50%); }

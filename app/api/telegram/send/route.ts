@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
+import { isFeatureEnabled } from '@/lib/featureFlags';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,9 @@ export async function POST(req: NextRequest) {
       { error: 'TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set in environment' },
       { status: 503 },
     );
+  }
+  if (!(await isFeatureEnabled('telegram'))) {
+    return NextResponse.json({ error: 'Telegram alerts are temporarily unavailable.', code: 'FEATURE_DISABLED' }, { status: 503 });
   }
 
   let body: { message: string };
