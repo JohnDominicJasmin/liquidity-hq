@@ -1836,12 +1836,14 @@ body.ticker-on .breaking-alert { top: calc(90px + var(--banner-h)); }
   width: 100%; height: 720px; overflow: hidden; border-radius: 0;
 }
 @media (max-width: 520px) {
-  .klc-canvas { height: 560px; }
+  .klc-canvas { height: 420px; }
 }
 @media (max-width: 420px) {
-  /* Portrait by design - clearly taller than wide (~366px wide at 390px
-     viewport), was 380px which read as square. User can drag-resize from here. */
-  .klc-canvas { height: 520px; }
+  /* Compact on phones - was 520px (64% of an iPhone viewport, read as "too
+     long"). 380px keeps it clearly taller than wide without dominating the
+     screen. User can still drag-resize from here (clamped to viewport, see
+     the height-restore effect in KLineProChart.tsx). */
+  .klc-canvas { height: 380px; }
   /* Hide drawing tools on mobile - touch devices can't use them precisely */
   .klc-tool-btn:not(.klc-tf-btn):not(.klc-clear):not(.klc-fullscreen-btn) { display: none !important; }
   .klc-sep { display: none !important; }

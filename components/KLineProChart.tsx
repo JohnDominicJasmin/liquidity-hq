@@ -330,7 +330,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       const saved = localStorage.getItem('lhq_chart_height');
       if (saved) {
         const n = parseInt(saved, 10);
-        if (Number.isFinite(n) && n >= CHART_H_MIN && n <= CHART_H_MAX) setChartHeight(n);
+        // Clamp to the CURRENT viewport, not just the absolute min/max - a height
+        // dragged tall on a desktop window shouldn't carry over verbatim to a
+        // phone (it was swallowing the whole mobile screen: 872px saved on a
+        // 812px-tall viewport).
+        const viewportCap = Math.round(window.innerHeight * 0.65);
+        const clamped = Math.min(n, viewportCap);
+        if (Number.isFinite(n) && n >= CHART_H_MIN && n <= CHART_H_MAX && clamped >= CHART_H_MIN) setChartHeight(clamped);
       }
     } catch { /* ignore */ }
   }, []);
