@@ -284,7 +284,6 @@ function EdgeSignals() {
   const coin = store.selectedCoin;
   const d    = store.coins[coin];
   const oi1h = useOI1h(coin);
-  const [showMore, setShowMore] = useState(false);
 
   // ── CB Premium ──
   const cbPct = store.cbPremiumPct;
@@ -424,21 +423,16 @@ function EdgeSignals() {
     </div>
   );
 
-  // 4 highest-signal cards by default; the two supporting reads (CB Premium,
-  // OI 1h) are one tap away rather than always on screen.
+  // Same two-row layout as before; the "2 more" collapse toggle is gone so
+  // CB Premium / OI 1h are always visible instead of gated behind a click.
   return (
     <>
       <div className="edge-grid">
         {vwapCard}{oiCard}{fundingCard}{setupCard}
       </div>
-      <button className="collapse-toggle" onClick={() => setShowMore(v => !v)}>
-        {showMore ? '▲ fewer signals' : '▼ 2 more · CB Premium, OI 1h'}
-      </button>
-      {showMore && (
-        <div className="edge-grid" style={{ marginTop: 8 }}>
-          {cbCard}{oi1hCard}
-        </div>
-      )}
+      <div className="edge-grid" style={{ marginTop: 8 }}>
+        {cbCard}{oi1hCard}
+      </div>
     </>
   );
 }

@@ -240,10 +240,18 @@ body::after {
 @media (min-width: 1100px) {
   .app-bar-inner { max-width: 1340px; }
   .app-content   { max-width: 1340px; padding-left: 20px; padding-right: 20px; }
+  /* Dashboard is the one dense, multi-column page - let it use more of a wide
+     monitor so it doesn't sit as a narrow island with big empty side margins.
+     Scoped via :has so every other page keeps the 1340 reading width. */
+  .app-content:has(.dashboard-grid) { max-width: 1500px; }
 
   .dashboard-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr);
+    /* Fixed 360px rail (was a fluid ~1fr that stretched to 500px+ on wide
+       screens, leaving the coin rows gappy with the price floating far right).
+       Fixing it keeps the rail tight and hands the freed width to the dense
+       left column. */
+    grid-template-columns: minmax(0, 1fr) 360px;
     gap: 16px;
     align-items: start;
   }
