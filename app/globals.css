@@ -212,10 +212,8 @@ body::after {
 /* ── APP LAYOUT ── */
 .app-bar {
   position: fixed; top: var(--banner-h); left: 0; right: 0; z-index: 1000;
-  background: rgba(9,11,22,0.88);
+  background: #090b16;
   border-bottom: 0.5px solid rgba(90,150,255,0.1);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
   padding: 0 1rem;
 }
 .app-bar-inner {
@@ -362,7 +360,7 @@ body::after {
 .csb-row        { padding: 8px 12px; cursor: pointer; border-bottom: 0.5px solid rgba(255,255,255,0.02); transition: background 0.12s; }
 .csb-row:last-child { border-bottom: none; }
 .csb-row:hover  { background: rgba(255,255,255,0.025); }
-.csb-row.csb-sel { background: rgba(26,122,255,0.06); border-left: 2px solid var(--purple); padding-left: 10px; }
+.csb-row.csb-sel { background: var(--bg3); }
 .csb-top        { display: flex; align-items: baseline; justify-content: space-between; }
 .csb-name       { font-size: var(--fs-caption); font-weight: 800; color: var(--txt); letter-spacing: 0.04em; }
 .csb-price      { font-size: var(--fs-data); font-weight: 700; color: var(--txt); font-variant-numeric: tabular-nums; }
@@ -377,7 +375,7 @@ body::after {
 .csb2-container { display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; }
 .csb2-card      { padding: 8px 10px 0; border-radius: var(--radius-card); border: 0.5px solid transparent; border-left-width: 2px; cursor: pointer; transition: border-color 0.15s, background 0.15s; background: var(--bg2); overflow: hidden; }
 .csb2-card:hover { border-color: var(--bdr2); background: var(--bg3); }
-.csb2-card.csb2-sel { border-color: var(--purple-bdr); border-left-color: var(--purple); background: var(--purple-bg); box-shadow: var(--nm-raise); }
+.csb2-card.csb2-sel { border-color: var(--bdr2); background: var(--bg3); box-shadow: var(--nm-raise); }
 .csb2-top       { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
 .csb2-top .csb2-price { margin-left: auto; }
 .csb2-name      { font-family: var(--font-mono), monospace; font-size: var(--fs-caption); font-weight: 700; color: var(--txt); letter-spacing: 0.02em; }
@@ -682,6 +680,19 @@ body::after {
 .dash-main  { display: flex; flex-direction: column; gap: 14px; }
 .dash-right { display: flex; flex-direction: column; gap: 12px; }
 
+/* Economic calendar + Market conditions - side by side on desktop, stacked
+   on mobile (was cramped in the narrow rail; full dash-main width instead).
+   70:30 - calendar carries more content (5 rows) than the gauge card. */
+.dash-conditions-row { display: grid; grid-template-columns: 7fr 3fr; gap: 14px; align-items: start; }
+@media (max-width: 760px) {
+  .dash-conditions-row { grid-template-columns: 1fr; }
+}
+/* These reuse .av-rail-panel (bg4 - a subtle gray elevation step meant for a
+   narrow rail against a dark page). Full-width here, next to the white
+   .edge-card "Coin Signals" cards right above them, bg4 read as flat gray
+   instead of matching those. Match bg1 (white in light theme) instead. */
+.dash-conditions-row .av-rail-panel { background: var(--bg1); }
+
 /* ── Selected-coin glance card ── */
 .scc-card { display: flex; align-items: center; gap: 12px; background: var(--bg1);
   border: 0.5px solid var(--bdr); border-radius: 10px; padding: 11px 14px; }
@@ -723,11 +734,11 @@ body::after {
   box-shadow: var(--nm-raise);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.ticker-card:hover { border-color: var(--bdr2); box-shadow: 0 2px 12px rgba(0,0,0,0.8); }
+.ticker-card:hover { border-color: var(--bdr2); box-shadow: var(--nm-raise); }
 .ticker-card.selected {
-  border: 1px solid var(--purple-bdr);
-  background: var(--purple-bg);
-  box-shadow: var(--glow-purple);
+  border: 1px solid var(--bdr2);
+  background: var(--bg3);
+  box-shadow: var(--nm-raise);
 }
 .ticker-coin { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 600; color: var(--txt3); letter-spacing: .1em; text-transform: uppercase; margin-bottom: 2px; }
 .ticker-price { font-family: var(--font-mono), monospace; font-size: var(--fs-data); font-weight: 600; color: var(--txt); letter-spacing: -0.5px; margin-bottom: 3px; font-variant-numeric: tabular-nums; }
@@ -873,14 +884,14 @@ body[data-rpm-level="high"]::before {
 .breaking-alert { position: fixed; top: calc(62px + var(--banner-h)); right: 12px; width: min(340px, calc(100vw - 24px)); z-index: 9000; pointer-events: none; }
 .ba-card {
   background: var(--bg2); border-radius: var(--radius-card); padding: 12px 14px; margin-bottom: 8px;
-  pointer-events: all; box-shadow: 0 4px 32px rgba(0,0,0,0.8); border-left: 3px solid #333;
+  pointer-events: all; box-shadow: 0 8px 24px rgba(0,0,0,0.35); border-left: 3px solid #333;
   transform: translateX(120%); opacity: 0;
   transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s;
 }
 .ba-card.show { transform: translateX(0); opacity: 1; }
-.ba-card.type-red    { background: rgba(248,113,113,0.06); border-left-color: var(--red);    box-shadow: 0 4px 32px rgba(0,0,0,0.8), var(--glow-red); }
-.ba-card.type-amber  { background: rgba(251,191,36,0.06);  border-left-color: var(--amber);  box-shadow: 0 4px 32px rgba(0,0,0,0.8), var(--glow-amber); }
-.ba-card.type-purple { background: var(--purple-bg);       border-left-color: var(--purple); box-shadow: 0 4px 32px rgba(0,0,0,0.8), var(--glow-purple); }
+.ba-card.type-red    { background: rgba(248,113,113,0.06); border-left-color: var(--red);    box-shadow: 0 8px 24px rgba(0,0,0,0.35), var(--glow-red); }
+.ba-card.type-amber  { background: rgba(251,191,36,0.06);  border-left-color: var(--amber);  box-shadow: 0 8px 24px rgba(0,0,0,0.35), var(--glow-amber); }
+.ba-card.type-purple { background: var(--purple-bg);       border-left-color: var(--purple); box-shadow: 0 8px 24px rgba(0,0,0,0.35), var(--glow-purple); }
 .ba-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
 .ba-tag { font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; flex-shrink: 0; margin-top: 1px; }
 .type-red    .ba-tag { background: var(--red-bg);    color: var(--red); }
@@ -1542,7 +1553,11 @@ body.ticker-on .breaking-alert { top: calc(90px + var(--banner-h)); }
 }
 .ntab-btn:hover { color: var(--txt2); border-color: var(--bdr2); }
 .ntab-btn.on { background: var(--purple-bg); color: var(--purple); border-color: var(--purple-bdr); }
-.ntab-count { font-size: var(--fs-data); font-weight: 700; padding: 1px 5px; border-radius: 10px; background: var(--red); color: #000; line-height: 1.4; }
+/* Muted red, not the raw --red danger token - that's tuned for alert/error
+   states and reads as an aggressive, saturated dot on a count badge
+   (especially light theme's #B91C1C + black text). Same softened tone in
+   both themes instead of swinging harsh-light/soft-dark. */
+.ntab-count { font-size: var(--fs-data); font-weight: 700; padding: 1px 5px; border-radius: 10px; background: #e2685f; color: #fff; line-height: 1.4; }
 
 /* ── NEWS FEED ── */
 .nfeed { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: start; }
@@ -1550,66 +1565,96 @@ body.ticker-on .breaking-alert { top: calc(90px + var(--banner-h)); }
 
 /* ── GRID CARD ── */
 .ncard-grid {
+  position: relative;
   background: var(--bg1);
   border: 0.5px solid rgba(255,255,255,0.08);
   border-radius: 12px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.35), inset 0 0.5px 0 rgba(255,255,255,0.07);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.18), inset 0 0.5px 0 rgba(255,255,255,0.07);
   transition: background 0.2s, border-color 0.2s, transform 0.14s, box-shadow 0.2s;
 }
 .ncard-grid:hover {
   background: var(--bg2);
   border-color: rgba(255,255,255,0.13);
   transform: translateY(-2px);
-  box-shadow: 0 8px 28px rgba(0,0,0,0.4), inset 0 0.5px 0 rgba(255,255,255,0.1);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.22), inset 0 0.5px 0 rgba(255,255,255,0.1);
 }
+.ncard-grid:focus-within { border-color: var(--accent-bdr); }
 .ncard-grid-hero  { grid-column: 1 / -1; }
 
+/* Image cards - crisp, no brightness dulling (headline sits below the photo,
+   not over it, so there was nothing to darken for legibility). */
 .ncard-grid-img-wrap {
-  position: relative; width: 100%; height: 185px;
+  position: relative; width: 100%; height: 172px;
   overflow: hidden; background: var(--bg2); flex-shrink: 0;
 }
-.ncard-grid-hero .ncard-grid-img-wrap { height: 280px; }
-.ncard-grid-img  { width: 100%; height: 100%; object-fit: cover; display: block; filter: brightness(0.82); }
-.ncard-grid-img-fade {
-  position: absolute; bottom: 0; left: 0; right: 0; height: 70px;
-  background: linear-gradient(transparent, var(--bg1));
-}
-.ncard-grid-placeholder {
-  height: 185px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--bg2);
-}
-.ncard-grid-hero .ncard-grid-placeholder { height: 280px; }
+.ncard-grid-hero .ncard-grid-img-wrap { height: 300px; }
+.ncard-grid-img  { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .ncard-grid-body     { flex: 1; padding: 12px 14px 12px; display: flex; flex-direction: column; }
-.ncard-grid-top      { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+/* Text-first (no image) cards - the headline leads, no empty image block */
+.ncard-grid--text .ncard-grid-body { padding-top: 14px; }
+.ncard-grid-top      { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 8px; }
+.ncard-tags          { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; min-width: 0; }
 .ncard-grid-headline {
   font-size: var(--fs-label); font-weight: 600; color: var(--txt); line-height: 1.5;
-  letter-spacing: -0.1px; margin-bottom: 10px; flex: 1;
+  letter-spacing: -0.1px; margin: 0 0 10px; flex: 1;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
-.ncard-grid-hero .ncard-grid-headline { font-size: var(--fs-card-title); font-weight: 700; -webkit-line-clamp: 2; }
-.ncard-grid-actions  { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 2px; }
+.ncard-grid--text .ncard-grid-headline { font-size: var(--fs-body); -webkit-line-clamp: 4; }
+.ncard-grid-hero .ncard-grid-headline  { font-size: var(--fs-card-title); font-weight: 700; -webkit-line-clamp: 2; }
+.ncard-grid--text.ncard-grid-hero .ncard-grid-headline { -webkit-line-clamp: 3; }
+
+/* Stretched link - the whole card is a real anchor to the article (keyboard
+   focusable, cmd-clickable, screen-reader friendly) while the Ask-AI button
+   layers above it via z-index. */
+.ncard-headline-link { color: inherit; text-decoration: none; }
+.ncard-headline-link::after { content: ''; position: absolute; inset: 0; z-index: 0; }
+.ncard-headline-link:focus-visible { outline: none; }
+
+/* Actions sit above the stretched headline link; make the row itself
+   click-through so only the button is interactive and the empty space beside
+   it still opens the article. */
+.ncard-grid-actions  { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 2px; position: relative; z-index: 1; pointer-events: none; }
+.ncard-grid-actions .ncard-ask-btn,
+.ncard-grid-actions .ncard-open-btn { pointer-events: auto; }
 
 @media (max-width: 920px) {
   .nfeed { grid-template-columns: repeat(2, 1fr); }
-  .ncard-grid-hero .ncard-grid-img-wrap { height: 220px; }
+  .ncard-grid-hero .ncard-grid-img-wrap { height: 240px; }
 }
 @media (max-width: 540px) {
   .nfeed { grid-template-columns: 1fr; }
-  .ncard-grid-img-wrap { height: 155px; }
+  .ncard-grid-img-wrap { height: 180px; }
 }
 
 /* shared badge / meta / btn tokens */
-.ncard-type-badge { font-size: var(--fs-micro); font-weight: 700; padding: 0; border-radius: 0; background: none !important; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; flex-shrink: 0; }
-.ncard-meta       { font-size: var(--fs-caption); color: var(--txt3); white-space: nowrap; }
-.ncard-ask-btn    { background: none; border: none; color: var(--purple); font-size: var(--fs-caption); font-weight: 600; cursor: pointer; padding: 8px 0; min-height: 36px; display: inline-flex; align-items: center; transition: opacity 0.12s; letter-spacing: 0; }
-.ncard-ask-btn:hover { opacity: 0.65; box-shadow: none; }
-.ncard-read-btn   { font-size: var(--fs-caption); font-weight: 600; color: var(--txt3); text-decoration: none; padding: 8px 0; min-height: 36px; display: inline-flex; align-items: center; transition: color 0.12s; }
-.ncard-read-btn:hover { color: var(--txt2); }
+.ncard-type-badge { font-size: var(--fs-micro); font-weight: 700; padding: 0; letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; flex-shrink: 0; }
+.ncard-meta       { font-size: var(--fs-caption); color: var(--txt3); white-space: nowrap; flex-shrink: 0; }
+.ncard-ask-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--accent-bg); border: 0.5px solid var(--accent-bdr);
+  color: var(--accent); font-size: var(--fs-caption); font-weight: 700;
+  padding: 5px 11px; border-radius: 20px; cursor: pointer;
+  min-height: 30px; letter-spacing: 0; white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.ncard-ask-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: none; }
+.ncard-ask-spark { font-size: 0.8em; line-height: 1; }
+/* Secondary action - neutral, not accent-colored, so it doesn't compete with
+   Ask LiquidityAI for attention as the primary CTA. */
+.ncard-open-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: transparent; border: 0.5px solid var(--bdr2);
+  color: var(--txt2); font-size: var(--fs-micro); font-weight: 600;
+  padding: 5px 11px; border-radius: 20px; cursor: pointer;
+  min-height: 30px; letter-spacing: 0; white-space: nowrap;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.ncard-open-btn:hover { background: var(--bg3); border-color: var(--bdr2); color: var(--txt); }
 .ncard-ask-sm     { display: inline-flex; align-items: center; margin-left: auto; background: none; border: none; color: var(--purple); font-size: var(--fs-caption); font-weight: 600; cursor: pointer; padding: 8px 0; min-height: 36px; transition: opacity 0.12s; }
 .ncard-ask-sm:hover  { opacity: 0.65; box-shadow: none; }
 
@@ -2054,7 +2099,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gchat-hist-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; border-bottom: 0.5px solid var(--bdr); transition: background 0.1s; }
 .gchat-hist-item:hover { background: var(--bg2); }
 .gchat-hist-item:last-child { border-bottom: none; }
-.gchat-hist-item-active { background: var(--purple-bg); border-left: 2px solid var(--purple); }
+.gchat-hist-item-active { background: var(--bg3); }
 
 .gchat-hist-coin  { font-size: var(--fs-caption); font-weight: 800; padding: 2px 7px; border-radius: 8px; border: 0.5px solid; letter-spacing: .04em; flex-shrink: 0; }
 .gchat-hist-body  { flex: 1; min-width: 0; }
@@ -2361,7 +2406,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 
 /* Nav & App Bar */
 [data-theme="light"] .app-bar {
-  background: rgba(255,255,255,0.92);
+  background: #ffffff;
   border-bottom-color: rgba(0,0,0,0.09);
 }
 [data-theme="light"] .nav-menu {
@@ -2414,7 +2459,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 /* Coin sidebar */
 [data-theme="light"] .csb-container { background: var(--bg1); }
 [data-theme="light"] .csb-status { color: var(--txt3); }
-[data-theme="light"] .csb-row.csb-sel { background: var(--purple-bg); border-left-color: var(--purple); }
+[data-theme="light"] .csb-row.csb-sel { background: var(--bg3); }
 
 /* Arena */
 [data-theme="light"] .arena-stat { background: rgba(0,0,0,0.04); }
@@ -4879,7 +4924,7 @@ html[lang="ar"] .lp-h1-accent {
   border: 0.5px solid var(--accent-bdr);
   border-radius: var(--radius-card);
   width: 244px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.25);
   overflow: hidden;
   animation: ob-slide-up 0.2s ease;
 }
@@ -5028,7 +5073,7 @@ html:has(body.terminal-page) {
 .dash-terminal .csb2-card:hover      { background: rgba(255,255,255,0.02); border-color: transparent; }
 .dash-terminal .csb2-card.csb2-sel  {
   background: rgba(255,255,255,0.035) !important;
-  border-left: 2px solid var(--accent) !important;
+  border-left: 2px solid rgba(255,255,255,0.14) !important;
   box-shadow: none !important;
 }
 
@@ -5073,8 +5118,8 @@ html:has(body.terminal-page) {
 .mobile-tab-bar { display: none; }
 body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 @media (max-width: 640px) {
-  .mobile-tab-bar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 997; height: 56px; background: rgba(10,10,14,0.96); border-top: 0.5px solid var(--bdr); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
-  [data-theme="light"] .mobile-tab-bar { background: rgba(255,255,255,0.96); border-top-color: rgba(0,0,0,0.10); }
+  .mobile-tab-bar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 997; height: 56px; background: #0a0a0e; border-top: 0.5px solid var(--bdr); }
+  [data-theme="light"] .mobile-tab-bar { background: #ffffff; border-top-color: rgba(0,0,0,0.10); }
   /* On phones the bottom bar owns navigation; the top hamburger would just be
      a redundant second opener for the same drawer, so hide it here. Tablet
      (641-767px, no bottom bar) keeps it; desktop hides it via min-width:768. */
