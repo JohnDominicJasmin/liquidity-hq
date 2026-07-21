@@ -28,6 +28,15 @@ export default function PWAInstallPrompt() {
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
+  // Mobile: the "Ask AI" FAB sits bottom-right and this toast is bottom-left
+  // wide enough to reach under it (measured overlap). Hiding the FAB for as
+  // long as the toast is up is simpler than shrinking the toast to squeeze
+  // beside it - same body-class pattern as body.nav-drawer-open.
+  useEffect(() => {
+    document.body.classList.toggle('pwa-prompt-open', show);
+    return () => { document.body.classList.remove('pwa-prompt-open'); };
+  }, [show]);
+
   if (!show || !prompt) return null;
 
   function dismiss() {
@@ -46,13 +55,15 @@ export default function PWAInstallPrompt() {
   }
 
   return (
-    <div style={{
-      // NEW-3 fix: was bottom-center, overlapping page content (landing
-      // feature card, arena chart) directly behind it. Bottom-left is clear
-      // of the Grok FAB and Setup Checklist pill, which both live bottom-right.
+    <div className="pwa-install-prompt" style={{
+      // Bottom-center on every screen size. On mobile the "Ask AI" FAB is
+      // hidden for as long as this is shown (body.pwa-prompt-open in
+      // globals.css) so there's nothing to overlap; the mobile media query
+      // there also lifts bottom above the tab bar.
       position: 'fixed',
       bottom: 80,
-      left: 16,
+      left: '50%',
+      transform: 'translateX(-50%)',
       zIndex: 9000,
       background: 'var(--bg2)',
       border: '0.5px solid var(--bdr)',

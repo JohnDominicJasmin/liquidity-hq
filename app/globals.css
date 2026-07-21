@@ -5085,6 +5085,13 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   .mobile-tab-label { font-size: 0.625rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
   .gchat-fab { bottom: 76px !important; }
   .gchat-panel { bottom: 140px !important; }
+  /* PWA install toast is bottom-center on every screen (see component). On
+     mobile it would otherwise sit inside the same footer band as the "Ask AI"
+     FAB and the 56px tab bar - hide the FAB for as long as the toast is up
+     (body.pwa-prompt-open, same pattern as body.nav-drawer-open) and lift the
+     toast above the tab bar instead of behind it. */
+  body.pwa-prompt-open .gchat-fab { opacity: 0; pointer-events: none; }
+  .pwa-install-prompt { bottom: 70px !important; }
   /* Collapsed Setup pill rides in the same row as the FAB (bottom:76), just to
      its left (FAB is 64px wide at right:16), so it clears the footer instead of
      overlapping it. */
