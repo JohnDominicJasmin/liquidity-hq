@@ -9,6 +9,8 @@ import SOTD from '@/components/SOTD';
 import SessionContext from '@/components/SessionContext';
 import MarketRead from '@/components/MarketRead';
 import GlobalMacroContext from '@/components/GlobalMacroContext';
+import EconCalendarWidget from '@/components/EconCalendarWidget';
+import MarketConditionsWidget from '@/components/MarketConditionsWidget';
 import SpotlightTour from '@/components/SpotlightTour';
 import SetupChecklist from '@/components/SetupChecklist';
 import Tip from '@/components/Tip';
@@ -16,7 +18,7 @@ import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
 import Sparkline24h from '@/components/Sparkline24h';
 import CoinIcon from '@/components/CoinIcon';
-import { ParticleCard, GlobalSpotlight, useMobile } from '@/components/MagicBento';
+import { GlobalSpotlight, useMobile } from '@/components/MagicBento';
 
 const OI_TREND_META: Record<string, { txt: string; sub: string; col: string }> = {
   strong_up:   { txt: '▲ New buyers opening', sub: 'Open interest rising with price - real trend', col: '#34d399' },
@@ -101,7 +103,6 @@ const SIDEBAR_DEFAULT = 7;
 
 function CoinSidebar() {
   const { store, selectCoin } = useMarket();
-  const isMobile = useMobile();
   const { settings } = useSettings();
   const watchlist = settings.watchlist ?? [];
   const pinned = watchlist.filter((id): id is CoinId => (COINS as string[]).includes(id));
@@ -153,14 +154,15 @@ function CoinSidebar() {
         const barCol = tbp >= 60 ? '#34d399' : tbp <= 40 ? '#f87171' : '#404040';
 
         return (
-          <ParticleCard
+          // Plain flat card - was ParticleCard/mb-glow-card, which drew a
+          // cursor-following blue border glow (GLOW_COLOR = accent blue)
+          // across this whole dense scrolling list. Fine for a single hero
+          // feature card, awful on 7 stacked rows - violates the flat-card
+          // rule (color on data values only, never the card frame/border).
+          <div
             key={id}
-            className={`csb2-card mb-glow-card${sel ? ' csb2-sel' : ''}`}
+            className={`csb2-card${sel ? ' csb2-sel' : ''}`}
             onClick={() => selectCoin(id)}
-            disableAnimations={isMobile}
-            particleCount={5}
-            enableMagnetism={false}
-            clickEffect={true}
           >
             <div className="csb2-top">
               <CoinIcon coin={id} size={18} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
@@ -200,7 +202,7 @@ function CoinSidebar() {
                 style={{ width: tbp + '%', background: barCol }}
               />
             </div>
-          </ParticleCard>
+          </div>
         );
       })}
 
@@ -284,7 +286,6 @@ function EdgeSignals() {
   const coin = store.selectedCoin;
   const d    = store.coins[coin];
   const oi1h = useOI1h(coin);
-  const [showMore, setShowMore] = useState(false);
 
   // ── CB Premium ──
   const cbPct = store.cbPremiumPct;
@@ -424,21 +425,16 @@ function EdgeSignals() {
     </div>
   );
 
-  // 4 highest-signal cards by default; the two supporting reads (CB Premium,
-  // OI 1h) are one tap away rather than always on screen.
+  // Same two-row layout as before; the "2 more" collapse toggle is gone so
+  // CB Premium / OI 1h are always visible instead of gated behind a click.
   return (
     <>
       <div className="edge-grid">
         {vwapCard}{oiCard}{fundingCard}{setupCard}
       </div>
-      <button className="collapse-toggle" onClick={() => setShowMore(v => !v)}>
-        {showMore ? '▲ fewer signals' : '▼ 2 more · CB Premium, OI 1h'}
-      </button>
-      {showMore && (
-        <div className="edge-grid" style={{ marginTop: 8 }}>
-          {cbCard}{oi1hCard}
-        </div>
-      )}
+      <div className="edge-grid" style={{ marginTop: 8 }}>
+        {cbCard}{oi1hCard}
+      </div>
     </>
   );
 }
@@ -529,6 +525,13 @@ export default function Dashboard() {
         <div id="tour-coin-signals" className="mb-glow-card" style={{ borderRadius: 10 }}>
           <CoinSignalsHeader />
           <EdgeSignals />
+        </div>
+
+        {/* 5. Economic calendar preview + Market conditions gauge - full width
+            here instead of the narrow rail, side by side on desktop. */}
+        <div className="dash-conditions-row">
+          <EconCalendarWidget />
+          <MarketConditionsWidget />
         </div>
       </div>
 

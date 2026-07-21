@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 interface TipProps {
   text: string;
@@ -59,7 +60,15 @@ export default function Tip({ text, children, width = 230, iconColor = 'var(--tx
         >ⓘ</span>
       </span>
 
-      {open && (
+      {open && typeof document !== 'undefined' && createPortal(
+        // Portalled to document.body - NOT rendered inline. `position: fixed`
+        // is only viewport-relative if every ancestor is untransformed; any
+        // ancestor with a transform/filter/perspective (e.g. MagicBento's
+        // .mb-glow-card, which sets `transform` for its hover tilt) creates a
+        // new containing block and silently repositions a nested fixed
+        // element relative to THAT box instead - the tooltip would render far
+        // off-screen. Portalling out to body-level sidesteps the whole class
+        // of bug regardless of what card this Tip ends up inside.
         <span
           onMouseEnter={cancelHide}
           onMouseLeave={scheduleHide}
@@ -87,7 +96,8 @@ export default function Tip({ text, children, width = 230, iconColor = 'var(--tx
           }}
         >
           {text}
-        </span>
+        </span>,
+        document.body,
       )}
     </>
   );

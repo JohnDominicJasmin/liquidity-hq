@@ -2,7 +2,6 @@
 import { useState } from 'react';
 import { useNews } from '@/components/NewsProvider';
 import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline } from '@/lib/classify';
-import { ArticleIcon } from '@/components/icons';
 import { withAlpha } from '@/lib/color';
 
 type Tab = 'foryou' | 'breaking' | 'all' | 'geo' | 'crypto' | 'events';
@@ -95,13 +94,15 @@ function getBtcSentiment(headline: string): BtcSentiment {
 
 function SentimentBadge({ headline }: { headline: string }) {
   const s = getBtcSentiment(headline);
+  // Neutral is the default for most non-crypto headlines - rendering a grey
+  // "Neutral" pill on the majority of cards is pure noise, so only surface a
+  // sentiment badge when there's an actual directional read.
+  if (s === 'neutral') return null;
   const coins = getCoinsInHeadline(headline);
   const prefix = coins.length === 1 ? `${coins[0]}: ` : '';
   const cfg = s === 'bullish'
     ? { bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)',   color: '#34d399', label: `${prefix}Bullish ↗` }
-    : s === 'bearish'
-    ? { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)',  color: '#f87171', label: `${prefix}Bearish ↘` }
-    : { bg: 'rgba(148,163,184,0.08)', border: 'rgba(148,163,184,0.2)',  color: '#64748b', label: prefix ? `${prefix}Neutral` : 'Neutral' };
+    : { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)',  color: '#f87171', label: `${prefix}Bearish ↘` };
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center',
@@ -219,48 +220,43 @@ function HeroCard({ a }: { a: AlertItem }) {
   const cfg   = TYPE_CFG[a.type];
   const geo   = getGeoMeta(a.headline);
   const label = geo ? geo.tag : cfg.label;
+  const title = decodeEntities(a.headline);
 
   return (
-    <div
-      className="ncard-grid ncard-grid-hero"
-      style={{ cursor: a.link ? 'pointer' : 'default' }}
-      onClick={() => a.link && window.open(a.link, '_blank', 'noopener')}
-    >
-      {a.image ? (
+    <article className={`ncard-grid ncard-grid-hero${a.image ? '' : ' ncard-grid--text'}`}>
+      {a.image && (
         <div className="ncard-grid-img-wrap">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={a.image} alt="" className="ncard-grid-img"
-            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).parentElement!.style.display = 'none'; }} />
-          <div className="ncard-grid-img-fade" />
-        </div>
-      ) : (
-        <div className="ncard-grid-placeholder">
-          <ArticleIcon size={26} style={{ color: 'var(--txt3)', opacity: 0.35 }} />
+            onError={e => { (e.target as HTMLImageElement).closest('.ncard-grid-img-wrap')?.remove(); }} />
         </div>
       )}
       <div className="ncard-grid-body">
         <div className="ncard-grid-top">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div className="ncard-tags">
             <span className="ncard-type-badge" style={{ color: cfg.dot }}>{label}</span>
             <SourcePill source={a.source} />
             <SentimentBadge headline={a.headline} />
           </div>
           <span className="ncard-meta">{timeAgo(a.ts)}</span>
         </div>
-        <div className="ncard-grid-headline">{decodeEntities(a.headline)}</div>
-        <div className="ncard-grid-actions" onClick={e => e.stopPropagation()}>
-          <button className="ncard-ask-btn" style={{ margin: 0, fontSize: 'var(--fs-caption)' }} onClick={() => askGrok(a.headline)}>
-            Ask LiquidityAI →
+        <h2 className="ncard-grid-headline">
+          {a.link
+            ? <a className="ncard-headline-link" href={a.link} target="_blank" rel="noopener noreferrer">{title}</a>
+            : title}
+        </h2>
+        <div className="ncard-grid-actions">
+          <button className="ncard-ask-btn" onClick={() => askGrok(a.headline)}>
+            <span className="ncard-ask-spark" aria-hidden>✦</span> Ask LiquidityAI
           </button>
           {a.link && (
-            <a href={a.link} target="_blank" rel="noopener noreferrer" className="ncard-read-btn"
-              style={{ fontSize: 'var(--fs-caption)' }} onClick={e => e.stopPropagation()}>
-              Read more ↗
+            <a className="ncard-open-btn" href={a.link} target="_blank" rel="noopener noreferrer">
+              Read article ↗
             </a>
           )}
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -274,48 +270,43 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
   const geo    = getGeoMeta(a.headline);
   const label  = geo ? geo.tag : cfg.label;
   const hasImg = !!a.image;
+  const title  = decodeEntities(a.headline);
 
   return (
-    <div
-      className="ncard-grid"
-      style={{ cursor: a.link ? 'pointer' : 'default' }}
-      onClick={() => a.link && window.open(a.link, '_blank', 'noopener')}
-    >
-      {hasImg ? (
+    <article className={`ncard-grid${hasImg ? '' : ' ncard-grid--text'}`}>
+      {hasImg && (
         <div className="ncard-grid-img-wrap">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={a.image} alt="" className="ncard-grid-img"
             onError={e => { (e.target as HTMLImageElement).closest('.ncard-grid-img-wrap')?.remove(); }} />
-          <div className="ncard-grid-img-fade" />
-        </div>
-      ) : (
-        <div className="ncard-grid-placeholder">
-          <ArticleIcon size={26} style={{ color: 'var(--txt3)', opacity: 0.35 }} />
         </div>
       )}
       <div className="ncard-grid-body">
         <div className="ncard-grid-top">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <div className="ncard-tags">
             <span className="ncard-type-badge" style={{ color: cfg.dot }}>{label}</span>
             <SourcePill source={a.source} />
             <SentimentBadge headline={a.headline} />
           </div>
           <span className="ncard-meta">{timeAgo(a.ts)}</span>
         </div>
-        <div className="ncard-grid-headline">{decodeEntities(a.headline)}</div>
-        <div className="ncard-grid-actions" onClick={e => e.stopPropagation()}>
-          <button className="ncard-ask-btn" style={{ margin: 0, fontSize: 'var(--fs-caption)' }} onClick={() => askGrok(a.headline)}>
-            Ask LiquidityAI →
+        <h3 className="ncard-grid-headline">
+          {a.link
+            ? <a className="ncard-headline-link" href={a.link} target="_blank" rel="noopener noreferrer">{title}</a>
+            : title}
+        </h3>
+        <div className="ncard-grid-actions">
+          <button className="ncard-ask-btn" onClick={() => askGrok(a.headline)}>
+            <span className="ncard-ask-spark" aria-hidden>✦</span> Ask LiquidityAI
           </button>
           {a.link && (
-            <a href={a.link} target="_blank" rel="noopener noreferrer" className="ncard-read-btn"
-              style={{ fontSize: 'var(--fs-caption)' }} onClick={e => e.stopPropagation()}>
-              Read more ↗
+            <a className="ncard-open-btn" href={a.link} target="_blank" rel="noopener noreferrer">
+              Read article ↗
             </a>
           )}
         </div>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -367,7 +358,10 @@ export default function NewsPage() {
   const tabContent: Record<Exclude<Tab, 'events' | 'breaking'>, typeof alerts> = {
     foryou:  hasHighImpact ? catalysts : cryptoNews.slice(0, 15),
     all:     [...alerts].sort((a, b) => b.ts - a.ts),
-    geo:     alerts.filter(a => a.type === 'red').sort((a, b) => b.ts - a.ts),
+    // War & Geo: actually geo-classified headlines (war/conflict/sanctions/etc)
+    // via getGeoMeta - previously this was `type === 'red'`, identical to the
+    // Breaking tab, so the two tabs showed the exact same list.
+    geo:     alerts.filter(a => getGeoMeta(a.headline) !== null).sort((a, b) => b.ts - a.ts),
     crypto:  cryptoNews,
   };
 
@@ -487,39 +481,33 @@ export default function NewsPage() {
             const isBuy = w.side === 'BUY';
             const col   = isBuy ? 'var(--green)' : 'var(--red)';
             return (
-              <div key={w.id} className="ncard-grid">
-                <div className="ncard-grid-placeholder" style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '1.875rem', color: col, fontWeight: 800, opacity: 0.8,
-                }}>
-                  {isBuy ? '↑' : '↓'}
-                </div>
+              <article key={w.id} className="ncard-grid ncard-grid--text">
                 <div className="ncard-grid-body">
                   <div className="ncard-grid-top">
                     <span className="ncard-type-badge" style={{ color: col }}>
-                      {w.symbol} Whale {isBuy ? 'BUY' : 'SELL'}
+                      {isBuy ? '↑' : '↓'} {w.symbol} Whale {isBuy ? 'BUY' : 'SELL'}
                     </span>
                     <span className="ncard-meta">{timeAgo(w.ts)}</span>
                   </div>
-                  <div className="ncard-grid-headline" style={{ color: col }}>
+                  <h3 className="ncard-grid-headline" style={{ color: col }}>
                     {fmtUSD(w.usdValue)} {isBuy ? 'bought' : 'sold'} at ${w.price.toLocaleString()}
                     <span style={{ color: 'var(--txt3)', fontSize: 'var(--fs-caption)', fontWeight: 400, marginLeft: 6 }}>
                       ({w.qty.toFixed(3)} {w.symbol})
                     </span>
-                  </div>
+                  </h3>
                   <div className="ncard-grid-actions">
                     <ImpactChip
                       note={isBuy ? 'Institutional accumulation - watch follow-through' : 'Distribution signal - sell pressure incoming'}
                       color={col}
                     />
-                    <button className="ncard-ask-btn" style={{ margin: 0 }} onClick={() =>
+                    <button className="ncard-ask-btn" onClick={() =>
                       window.dispatchEvent(new CustomEvent('grok-chat', {
                         detail: { coin: w.symbol.toLowerCase() as 'btc' | 'eth', prompt: `A whale just ${isBuy ? 'bought' : 'sold'} ${fmtUSD(w.usdValue)} of ${w.symbol} at $${w.price.toLocaleString()}. What does this mean for the next 1-4 hours?` },
                       }))
-                    }>Ask LiquidityAI →</button>
+                    }><span className="ncard-ask-spark" aria-hidden>✦</span> Ask LiquidityAI</button>
                   </div>
                 </div>
-              </div>
+              </article>
             );
           })}
 
@@ -528,25 +516,22 @@ export default function NewsPage() {
 
           {/* Extra geo events */}
           {extraGeo.map((g, i) => (
-            <div key={i} className="ncard-grid">
-              <div className="ncard-grid-placeholder">
-                <ArticleIcon size={26} style={{ color: 'var(--txt3)', opacity: 0.35 }} />
-              </div>
+            <article key={i} className="ncard-grid ncard-grid--text">
               <div className="ncard-grid-body">
                 <div className="ncard-grid-top">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div className="ncard-tags">
                     <span className="ncard-type-badge" style={{ color: 'var(--accent)' }}>{g.tag}</span>
                     <SourcePill source={g.source} />
                   </div>
                   <span className="ncard-meta">{g.timeStr}</span>
                 </div>
-                <div className="ncard-grid-headline">{decodeEntities(g.headline)}</div>
+                <h3 className="ncard-grid-headline">{decodeEntities(g.headline)}</h3>
                 <div className="ncard-grid-actions">
                   <ImpactChip note={g.note} color="var(--accent)" />
-                  <button className="ncard-ask-btn" style={{ margin: 0 }} onClick={() => askGrok(g.headline)}>Ask LiquidityAI →</button>
+                  <button className="ncard-ask-btn" onClick={() => askGrok(g.headline)}><span className="ncard-ask-spark" aria-hidden>✦</span> Ask LiquidityAI</button>
                 </div>
               </div>
-            </div>
+            </article>
           ))}
         </div>
       )}

@@ -410,10 +410,10 @@ export default function NavDrawer() {
           one tap away. On phones this replaces the top hamburger entirely. */}
       <nav className="mobile-tab-bar" aria-label="Main navigation">
         {[
-          { path: '/dashboard', label: 'Dashboard', Icon: IconDashboard },
-          { path: '/arena',     label: 'Arena',      Icon: IconArena },
-          { path: '/briefing',  label: 'Briefing',   Icon: IconBriefing },
-          { path: '/news',      label: 'News',       Icon: IconNews },
+          { path: '/dashboard', label: 'Home',     Icon: IconDashboard },
+          { path: '/briefing',  label: 'Briefing', Icon: IconBriefing },
+          { path: '/arena',     label: 'Arena',     Icon: IconArena },
+          { path: '/news',      label: 'News',      Icon: IconNews },
         ].map(item => {
           const active = pathname === item.path;
           return (
