@@ -5,8 +5,8 @@ import { T } from '@/lib/tables';
 
 export const dynamic = 'force-dynamic';
 
-type ConfigKey = 'maintenance_mode' | 'announcement_banner';
-const VALID_KEYS: ConfigKey[] = ['maintenance_mode', 'announcement_banner'];
+type ConfigKey = 'maintenance_mode' | 'announcement_banner' | 'feature_flags';
+const VALID_KEYS: ConfigKey[] = ['maintenance_mode', 'announcement_banner', 'feature_flags'];
 
 // GET /api/ops/config - current values for the /ops/config form, plus the last
 // 10 banner saves (from admin_audit_log) so the page can show which banner is
@@ -28,6 +28,7 @@ export const GET = withOwner(async () => {
   return NextResponse.json({
     maintenance_mode: byKey.maintenance_mode ?? { enabled: false },
     announcement_banner: byKey.announcement_banner ?? { text: '', link: null, expiresAt: null },
+    feature_flags: byKey.feature_flags ?? { grok: true, telegram: true },
     banner_history: (historyRes.data ?? []).map(r => ({
       value: r.detail?.value ?? {},
       actor_email: r.actor_email,

@@ -7,9 +7,14 @@ export const dynamic = 'force-dynamic';
 interface AppConfigPayload {
   maintenanceMode: boolean;
   announcementBanner: { text: string; link: string | null; expiresAt: string | null } | null;
+  featureFlags: { grok: boolean; telegram: boolean };
 }
 
-const SAFE_DEFAULT: AppConfigPayload = { maintenanceMode: false, announcementBanner: null };
+const SAFE_DEFAULT: AppConfigPayload = {
+  maintenanceMode: false,
+  announcementBanner: null,
+  featureFlags: { grok: true, telegram: true },
+};
 
 // Public, allowlisted read of app_config - only these two keys are ever
 // exposed; the table may hold other keys later that stay server-only.
@@ -28,13 +33,14 @@ export async function GET() {
   try {
     const admin = getSupabaseAdmin();
     const { data: rows, error: qErr } = await admin.from(T.app_config)
-      .select('key, value').in('key', ['maintenance_mode', 'announcement_banner']);
+      .select('key, value').in('key', ['maintenance_mode', 'announcement_banner', 'feature_flags']);
     // supabase-js resolves {data, error} on failure rather than throwing - log
     // it (server-side only, response still fails open below) so a bad key/RLS/
     // schema issue shows up somewhere instead of silently looking like "no rows".
     if (qErr) console.error('/api/config query error:', qErr.message);
     const maintenance = rows?.find(r => r.key === 'maintenance_mode')?.value as { enabled?: boolean } | undefined;
     const banner = rows?.find(r => r.key === 'announcement_banner')?.value as { text?: string; link?: string | null; expiresAt?: string | null } | undefined;
+    const flags = rows?.find(r => r.key === 'feature_flags')?.value as { grok?: boolean; telegram?: boolean } | undefined;
     // expiresAt is checked at read time, not cleared in the row - simplest way
     // to auto-hide without a cron. Worst case it lingers up to TTL_MS past expiry.
     const expired = !!banner?.expiresAt && new Date(banner.expiresAt).getTime() <= Date.now();
@@ -43,6 +49,7 @@ export async function GET() {
       announcementBanner: banner?.text && !expired
         ? { text: banner.text, link: banner.link ?? null, expiresAt: banner.expiresAt ?? null }
         : null,
+      featureFlags: { grok: flags?.grok ?? true, telegram: flags?.telegram ?? true },
     };
   } catch { /* fail open to SAFE_DEFAULT */ }
 

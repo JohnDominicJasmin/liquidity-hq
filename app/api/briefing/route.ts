@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
+import { isFeatureEnabled } from '@/lib/featureFlags';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +44,9 @@ async function getUsageRow(token: string, userId: string, today: string) {
 export async function POST(req: NextRequest) {
   if (!GROK_KEY) {
     return NextResponse.json({ error: 'Grok API key not configured' }, { status: 503 });
+  }
+  if (!(await isFeatureEnabled('grok'))) {
+    return NextResponse.json({ error: 'Briefing is temporarily unavailable.', code: 'FEATURE_DISABLED' }, { status: 503 });
   }
 
   /* ── Auth check ── */

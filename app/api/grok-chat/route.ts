@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
+import { isFeatureEnabled } from '@/lib/featureFlags';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -42,6 +43,7 @@ async function getUsageRow(token: string, userId: string, today: string) {
 
 export async function GET(req: NextRequest) {
   if (!GROK_KEY) return NextResponse.json({ error: 'Not configured' }, { status: 503 });
+  if (!(await isFeatureEnabled('grok'))) return NextResponse.json({ error: 'LiquidityAI is temporarily unavailable.', code: 'FEATURE_DISABLED' }, { status: 503 });
   const token = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!token) return NextResponse.json({ error: 'Auth required' }, { status: 401 });
   const { data: userData } = await sb(token).auth.getUser();
@@ -60,6 +62,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   if (!GROK_KEY) {
     return NextResponse.json({ error: 'Grok API not configured' }, { status: 503 });
+  }
+  if (!(await isFeatureEnabled('grok'))) {
+    return NextResponse.json({ error: 'LiquidityAI is temporarily unavailable.', code: 'FEATURE_DISABLED' }, { status: 503 });
   }
 
   /* ── Auth check ── */
