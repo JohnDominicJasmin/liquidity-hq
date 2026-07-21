@@ -11,7 +11,6 @@ import PostHogProvider from './PostHogProvider';
 import SettingsProvider from './SettingsProvider';
 import OnboardingProvider from './OnboardingProvider';
 import OnboardingGate from './OnboardingGate';
-import OnboardingTour from './OnboardingTour';
 import SetupChecklist from './SetupChecklist';
 import GrokUsageProvider from './GrokUsageProvider';
 import PlatformFooter from './PlatformFooter';
@@ -77,7 +76,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     <PlatformFooter />
                   </main>
                   <GrokChat />
-                  <OnboardingTour />
                   <SetupChecklist />
                   <PWAInstallPrompt />
                 </GrokUsageProvider>
