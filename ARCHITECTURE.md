@@ -39,7 +39,7 @@ app/layout.tsx
                             └── GrokUsageProvider    per-user AI usage rings
                                 ├── NavDrawer / NewsTicker
                                 ├── <main> {page} + PlatformFooter </main>
-                                ├── GrokChat / OnboardingTour
+                                ├── GrokChat
                                 └── SetupChecklist / PWAInstallPrompt
 ```
 
