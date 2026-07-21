@@ -29,8 +29,7 @@ export default function PostHogProvider({ children }: { children: React.ReactNod
       capture_pageleave:  true,
       persistence:        'localStorage+cookie',
       session_recording: {
-        maskAllInputs:    false,
-        maskInputOptions: { password: true },
+        maskAllInputs: true,
       },
     });
   }, []);

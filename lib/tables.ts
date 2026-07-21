@@ -22,4 +22,5 @@ export const T = {
   admin_audit_log:     `${p}admin_audit_log`,
   admin_users:         `${p}admin_users`,
   app_config:          `${p}app_config`,
+  user_status:         `${p}user_status`,
 } as const;
