@@ -1785,6 +1785,10 @@ function ArenaContent() {
             : 'Raw EMA9/20 cross signals - no chop filtering'}
         </span>
       </div>
+      {/* EMA Ribbon Strategy card - sits directly under the chart so it reads as
+          the explanation of the chart's own Buy/Sell markers, not a stray card
+          four sections down. */}
+      <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
       {/* Data collectors - run hooks for Grok context, render nothing.
           AbsorptionDetector is Pro-only: for free users it is not mounted at
           all, so its data never reaches the AI context either. */}
@@ -1811,55 +1815,11 @@ function ArenaContent() {
           onUnlock={() => setUpgradeGate('The Confluence Score')}
         />
       )}
-      {/* Details toggle - reveals chart analysis / patterns / full reasoning
-          full-width below the workspace (rail is too narrow for prose). */}
-      {result && (
-        <div className="av-rail-panel">
-          <button className="av-rail-collapse" onClick={() => setSigDetailsOpen(v => !v)}>
-            <span>{sigDetailsOpen ? 'Hide details' : 'Details — patterns, multi-TF, reasoning'}</span>
-            <span className="chev">{sigDetailsOpen ? '▴' : '▾'}</span>
-          </button>
-        </div>
-      )}
         </aside>
       </div>
 
       {/* ── Evidence + advanced (full width, below the workspace) ── */}
       <div className="arena-below-chart">
-      {/* Full reasoning / chart analysis / patterns - toggled from the rail's
-          Details button above (kept full-width here since the rail is too
-          narrow for prose). */}
-      {result && sigDetailsOpen && (
-        <>
-          {result.chartAnalysis && (
-            <div className="arena-reasoning" style={{ marginBottom: 10 }}>
-              <div className="arena-reasoning-title">Chart</div>
-              <div className="arena-reasoning-text"><ReasoningText text={result.chartAnalysis} /></div>
-            </div>
-          )}
-          {result.patterns && result.patterns.length > 0 && (
-            <div style={{ marginBottom: 10 }}>
-              <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>Patterns</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {result.patterns.map((p, i) => {
-                  const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
-                  const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
-                  const col = isBull ? '#34d399' : isBear ? '#f87171' : '#1a7aff';
-                  const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
-                  const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
-                  return (
-                    <span key={i} style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          <div className="arena-reasoning" style={{ marginBottom: 10 }}>
-            <div className="arena-reasoning-title">Reasoning</div>
-            <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
-          </div>
-        </>
-      )}
       {/* BTC Liquidation Heatmap - shows only when BTC selected and data available */}
       {selectedCoin === 'btc' && store.btcLiqLevels.length > 0 && (
         <LiqHeatmap
@@ -1893,15 +1853,60 @@ function ArenaContent() {
           </div>
         );
       })()}
-      <MultiTFAlignment coin={selectedCoin} />
-      {/* Informational only (not a filter - see component header for why): flags when
-          the 4h has already moved a lot, so a same-direction lower-TF signal doesn't
-          look more trustworthy than it is. Only shows on 1m/5m/15m/30m. */}
-      <HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />
-      {/* EMA Ribbon Strategy card */}
-      <EMASignal signal={emaSignal} tf={readTf} coin={selectedCoin} />
-      {/* Stop Loss Zone - S/R anchored stop suggestion */}
-      <StopLossZone coin={selectedCoin} grokSignal={result?.signal} />
+      {/* ── Full breakdown - collapsible. The granular technical cards (multi-
+          timeframe alignment, higher-timeframe context, order-flow / stop zone)
+          and the AI's long-form reasoning live here so the default page stays
+          answer-first. The always-visible Confluence panel in the rail is the
+          at-a-glance summary of these same signals - open this only to drill in. ── */}
+      <div className="av-rail-panel" style={{ marginBottom: 10 }}>
+        <button className="av-rail-collapse" onClick={() => setSigDetailsOpen(v => !v)}>
+          <span>{sigDetailsOpen ? 'Hide full breakdown' : 'Full breakdown — multi-timeframe, order flow, patterns, reasoning'}</span>
+          <span className="chev">{sigDetailsOpen ? '▴' : '▾'}</span>
+        </button>
+      </div>
+      {sigDetailsOpen && (
+        <>
+          <MultiTFAlignment coin={selectedCoin} />
+          {/* Informational only (not a filter - see component header for why): flags when
+              the 4h has already moved a lot, so a same-direction lower-TF signal doesn't
+              look more trustworthy than it is. Only shows on 1m/5m/15m/30m. */}
+          <HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />
+          {/* Stop Loss Zone - S/R anchored stop suggestion */}
+          <StopLossZone coin={selectedCoin} grokSignal={result?.signal} />
+          {/* AI long-form reasoning / chart read / patterns - only when a read has run */}
+          {result && (
+            <>
+              {result.chartAnalysis && (
+                <div className="arena-reasoning" style={{ margin: '10px 0' }}>
+                  <div className="arena-reasoning-title">Chart</div>
+                  <div className="arena-reasoning-text"><ReasoningText text={result.chartAnalysis} /></div>
+                </div>
+              )}
+              {result.patterns && result.patterns.length > 0 && (
+                <div style={{ margin: '10px 0' }}>
+                  <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>Patterns</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {result.patterns.map((p, i) => {
+                      const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
+                      const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
+                      const col = isBull ? '#34d399' : isBear ? '#f87171' : '#1a7aff';
+                      const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
+                      const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
+                      return (
+                        <span key={i} style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              <div className="arena-reasoning">
+                <div className="arena-reasoning-title">Reasoning</div>
+                <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
+              </div>
+            </>
+          )}
+        </>
+      )}
       {/* ── SESSION HISTORY ── */}
       {history.length > 0 && (
         <div style={{ marginTop: 20 }}>
