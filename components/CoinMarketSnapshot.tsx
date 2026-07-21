@@ -72,20 +72,22 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
 
       <div className="edge-card">
         <div className="edge-card-label">
-          <Tip width={260} text="Open Interest is the total number of live futures contracts. Rising OI + rising price = new longs entering (real conviction). Falling OI + rising price = shorts covering (weaker signal).">Open Interest</Tip>
+          <Tip width={260} text="Open Interest is the total number of live futures contracts, with its 1-hour change. Rising OI + rising price = new longs entering (real conviction). Falling OI + rising price = shorts covering (weaker signal). The 1h change shows how fast money is entering or leaving right now.">Open Interest</Tip>
         </div>
         {oiMeta ? (
           <>
             <div className="edge-card-value" style={{ color: oiMeta.col, fontSize: 'var(--fs-label)' }}>{oiMeta.txt}</div>
-            <div className="edge-card-signal" style={{ color: 'var(--txt3)' }}>{oiMeta.sub}</div>
+            <div className="edge-card-signal" style={{ color: 'var(--txt3)' }}>
+              {oiMeta.sub}{!oi1h.loading && oi1h.pct != null ? ` · ${oi1hPctStr} 1h` : ''}
+            </div>
           </>
         ) : (
           <>
-            <div className="edge-card-value" style={{ color: 'var(--txt3)', fontSize: 'var(--fs-label)' }}>
-              {d?.oi != null ? 'Flat' : '-'}
+            <div className="edge-card-value" style={{ color: oi1hCol, fontSize: 'var(--fs-label)' }}>
+              {!oi1h.loading && oi1h.pct != null ? oi1hPctStr : (d?.oi != null ? 'Flat' : '-')}
             </div>
             <div className="edge-card-signal" style={{ color: 'var(--txt3)' }}>
-              {d?.oi != null ? 'No strong signal' : 'Warming up…'}
+              {!oi1h.loading && oi1h.pct != null ? `${oi1hTxt} · 1h` : (d?.oi != null ? 'No strong signal' : 'Warming up…')}
             </div>
           </>
         )}
@@ -97,16 +99,6 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
           {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '-'}
         </div>
         <div className="edge-card-signal" style={{ color: frCol }}>{frSig}</div>
-      </div>
-
-      <div className="edge-card">
-        <div className="edge-card-label"><Tip text="How much the total value of open futures positions changed in the last hour. A sharp rise means new money is entering aggressively; a sharp drop means mass liquidations or traders closing positions.">Open Interest (1h)</Tip></div>
-        <div className="edge-card-value" style={{ color: oi1hCol }}>
-          {oi1h.loading ? '-' : oi1hPctStr}
-        </div>
-        <div className="edge-card-signal" style={{ color: oi1hCol }}>
-          {oi1h.loading ? 'Loading…' : oi1hTxt}
-        </div>
       </div>
     </div>
   );

@@ -301,6 +301,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     setTimeout(() => { if (canvasFadeRef.current) canvasFadeRef.current.style.backgroundImage = 'none'; }, 400);
   };
   const [activeTool,   setActiveTool]  = useState<string | null>(null);
+  const [drawMenuOpen, setDrawMenuOpen] = useState(false);
   const [wsStatus,     setWsStatus]    = useState<'connecting' | 'live' | 'error'>('connecting');
   const [fullscreen,   setFullscreen]  = useState(false);
   const [copiedMsg,    setCopiedMsg]   = useState<string | null>(null);
@@ -329,7 +330,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       const saved = localStorage.getItem('lhq_chart_height');
       if (saved) {
         const n = parseInt(saved, 10);
-        if (Number.isFinite(n) && n >= CHART_H_MIN && n <= CHART_H_MAX) setChartHeight(n);
+        // Clamp to the CURRENT viewport, not just the absolute min/max - a height
+        // dragged tall on a desktop window shouldn't carry over verbatim to a
+        // phone (it was swallowing the whole mobile screen: 872px saved on a
+        // 812px-tall viewport).
+        const viewportCap = Math.round(window.innerHeight * 0.65);
+        const clamped = Math.min(n, viewportCap);
+        if (Number.isFinite(n) && n >= CHART_H_MIN && n <= CHART_H_MAX && clamped >= CHART_H_MIN) setChartHeight(clamped);
       }
     } catch { /* ignore */ }
   }, []);
@@ -904,11 +911,19 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
   // ── Reversal warnings - RSI divergence, a leading heads-up distinct from the
   //     ribbon's confirmed buy/sell markers above ─────────────────────────────
+  // OFF by default: these amber RSI-divergence markers fire mid-trend and often
+  // contradict both the ribbon's own Buy/Sell markers and the AI read, making
+  // the chart look like it's shouting several directions at once. The divergence
+  // signal still feeds the Confluence "RSI Divergence Warning" penalty, so the
+  // information isn't lost - it just no longer clutters the chart. Flip to true
+  // to draw them again.
+  const SHOW_REVERSAL_WARNINGS = false;
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !chartReady) return;
 
     chart.removeOverlay({ name: 'reversalWarning' });
+    if (!SHOW_REVERSAL_WARNINGS) return;
     if (!emaSignal || emaSignal.loading) return;
 
     for (const w of emaSignal.reversalWarnings) {
@@ -1077,17 +1092,32 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         ))}
         <div className="klc-sep" />
 
-        {TOOLS.map(({ id, label }) => (
+        {/* Drawing tools collapsed into a Draw menu so the toolbar stays clean */}
+        <div className="klc-draw-wrap">
           <button
-            key={id}
-            className={`klc-tool-btn${activeTool === id ? ' on' : ''}`}
-            onClick={() => handleTool(id)}
+            className={`klc-tool-btn klc-draw-btn${activeTool ? ' on' : ''}`}
+            onClick={() => setDrawMenuOpen(v => !v)}
+            aria-expanded={drawMenuOpen}
+            title="Drawing tools"
           >
-            {label}
+            {activeTool ? (TOOLS.find(t => t.id === activeTool)?.label ?? 'Draw') : 'Draw'} {drawMenuOpen ? '▴' : '▾'}
           </button>
-        ))}
+          {drawMenuOpen && (
+            <div className="klc-draw-menu">
+              {TOOLS.map(({ id, label }) => (
+                <button
+                  key={id}
+                  className={`klc-draw-item${activeTool === id ? ' on' : ''}`}
+                  onClick={() => { handleTool(id); setDrawMenuOpen(false); }}
+                >
+                  {label}
+                </button>
+              ))}
+              <button className="klc-draw-item klc-draw-clear" onClick={() => { handleClear(); setDrawMenuOpen(false); }}>✕ Clear all</button>
+            </div>
+          )}
+        </div>
         <div className="klc-sep" />
-        <button className="klc-tool-btn klc-clear" onClick={handleClear}>Clear</button>
         <button
           className={`klc-tool-btn${showSR ? ' on' : ''}`}
           onClick={() => setShowSR(v => !v)}

@@ -6,6 +6,7 @@ import { withAlpha } from '@/lib/color';
 import { Warn } from '@/components/icons';
 import LoadingState from '@/components/LoadingState';
 import Tip from '@/components/Tip';
+import CoinIcon from '@/components/CoinIcon';
 
 /* ── types ── */
 interface FRPoint { rate: number; ts: number; }
@@ -539,14 +540,7 @@ export default function FundingHistory() {
                           style={selected !== id && current != null ? { boxShadow: `inset 3px 0 0 ${withAlpha(frSignal(current).color, '44')}` } : undefined}
                         >
                           <td className="frh-coin" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{
-                              width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              fontSize: 'var(--fs-caption)', fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
-                              background: withAlpha(coinBadgeColor(id), '24'), color: coinBadgeColor(id), border: `0.5px solid ${withAlpha(coinBadgeColor(id), '55')}`,
-                            }}>
-                              {id.slice(0, 2).toUpperCase()}
-                            </span>
+                            <CoinIcon coin={id} size={16} color={coinBadgeColor(id)} bg={withAlpha(coinBadgeColor(id), '24')} />
                             {COIN_LABELS[id]}
                           </td>
                           <td style={{ color: current != null ? frColor(current) : 'var(--txt3)', fontWeight: 700 }}>
