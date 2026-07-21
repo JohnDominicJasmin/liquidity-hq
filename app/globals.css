@@ -1836,14 +1836,14 @@ body.ticker-on .breaking-alert { top: calc(90px + var(--banner-h)); }
   width: 100%; height: 720px; overflow: hidden; border-radius: 0;
 }
 @media (max-width: 520px) {
-  .klc-canvas { height: 420px; }
+  .klc-canvas { height: 480px; }
 }
 @media (max-width: 420px) {
-  /* Compact on phones - was 520px (64% of an iPhone viewport, read as "too
-     long"). 380px keeps it clearly taller than wide without dominating the
-     screen. User can still drag-resize from here (clamped to viewport, see
-     the height-restore effect in KLineProChart.tsx). */
-  .klc-canvas { height: 380px; }
+  /* Was 520px (64% of an iPhone viewport, read as "too long"), then cut to
+     380px (47%, read as "too short") - 460px (~57%) splits the difference.
+     User can still drag-resize from here (clamped to viewport, see the
+     height-restore effect in KLineProChart.tsx). */
+  .klc-canvas { height: 460px; }
   /* Hide drawing tools on mobile - touch devices can't use them precisely */
   .klc-tool-btn:not(.klc-tf-btn):not(.klc-clear):not(.klc-fullscreen-btn) { display: none !important; }
   .klc-sep { display: none !important; }
