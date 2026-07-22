@@ -81,7 +81,12 @@ export default function MarketsPage() {
 
   function goToArena(id: CoinId) {
     selectCoin(id);
-    router.push('/arena');
+    // Arena reads its initial coin from the ?coin= URL param at mount, not from
+    // the shared store (see app/arena/page.tsx's selectedCoin useState) - the
+    // selectCoin() call above alone was a no-op for this navigation, so every
+    // row click landed on Arena's default (BTC) regardless of which coin was
+    // clicked. Pass it in the URL, same pattern the rest of the app uses.
+    router.push(`/arena?coin=${id}`);
   }
 
   const GRADE_STYLE: Record<string, { bg: string; col: string }> = {
