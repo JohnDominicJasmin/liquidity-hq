@@ -24,6 +24,8 @@ import HigherTfMoveBadge from '@/components/HigherTfMoveBadge';
 import StopLossZone from '@/components/StopLossZone';
 import Tip from '@/components/Tip';
 import LiqHeatmap from '@/components/LiqHeatmap';
+import GexTable from '@/components/GexTable';
+import UsageMeter from '@/components/UsageMeter';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
@@ -129,7 +131,7 @@ const TF_FEATURE_LABEL: Record<string, string> = {
 function ArenaContent() {
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
-  const { user, loading: authLoading, isPro } = useAuth();
+  const { user, loading: authLoading, entitled } = useAuth();
   const { settings } = useSettings();
   const searchParams = useSearchParams();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
@@ -333,7 +335,7 @@ function ArenaContent() {
      here via onTfChange). Free users tapping 1m/5m/15m get the upgrade modal
      instead of a switch. */
   const handleTfChange = (tf: ChartTf) => {
-    if (!isPro && GATED_TFS.includes(tf)) {
+    if (!entitled && GATED_TFS.includes(tf)) {
       setUpgradeGate(TF_FEATURE_LABEL[tf] ?? 'This timeframe');
       return;
     }
@@ -345,9 +347,9 @@ function ArenaContent() {
      when the timeframe was chosen. Once the role is known, bump them to the
      free fallback rather than serving gated signals. */
   useEffect(() => {
-    if (authLoading || isPro) return;
+    if (authLoading || entitled) return;
     if (GATED_TFS.includes(readTf)) setReadTf(FREE_FALLBACK_TF);
-  }, [authLoading, isPro, readTf]);
+  }, [authLoading, entitled, readTf]);
 
   /* ── Sync OI 1h hook data → ref (used by Grok context builder) ── */
   useEffect(() => {
@@ -1427,6 +1429,10 @@ function ArenaContent() {
         </button>
       </div>
 
+      {/* Live daily-usage meter - remaining Quick/Deep + reset countdown. Visible
+          scarcity (freemium plan move #3) instead of a silently-disabled button. */}
+      <UsageMeter />
+
       {/* ── Price alert inline form - buy/sell-panel styling ── */}
       {alertFormOpen && user && (
         <div style={{
@@ -1532,12 +1538,9 @@ function ArenaContent() {
           <a href="/login" className="usage-auth-link">Sign In →</a>
         </div>
       )}
-      {user && !isPro && !authLoading && (
-        <div className="usage-auth-notice" style={{ borderColor: 'rgba(155,127,212,0.2)', background: 'rgba(155,127,212,0.04)' }}>
-          Free tier: 7 Quick Research + 5 Deep Research per day.{' '}
-          <a href="/upgrade" className="usage-auth-link" style={{ color: '#5aa3ff' }}>Upgrade to Pro for more →</a>
-        </div>
-      )}
+      {/* Free-tier usage now shown live by the UsageMeter under the buttons
+          (remaining Quick/Deep + reset + Upgrade), so the old static "7 Quick +
+          5 Deep / day" notice was a redundant second Upgrade prompt - removed. */}
 
       {readLoading && (
         <div className="arena-loading">
@@ -1732,7 +1735,7 @@ function ArenaContent() {
       <div className="arena-ws">
         <div className="arena-ws-chart">
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} />
+      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} />
 
       {/* Anti-chop filter toggle */}
       <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -1801,7 +1804,7 @@ function ArenaContent() {
           all, so its data never reaches the AI context either. */}
       <div style={{ display: 'none' }}>
         <MarketStructure coin={selectedCoin} onData={handleMsData} />
-        {isPro && <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />}
+        {entitled && <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />}
       </div>
         </div>
         <aside className="arena-ws-rail">
@@ -1813,7 +1816,7 @@ function ArenaContent() {
       {/* Confluence Score - EMA Ribbon + Order Flow + Multi-TF RSI combined, plus a
           separate macro/event risk overlay (econ calendar + JPY carry-trade risk).
           Pro-only: free users get an in-place locked card so the layout holds. */}
-      {isPro ? (
+      {entitled ? (
         <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} />
       ) : (
         <LockedFeatureCard
@@ -1833,6 +1836,16 @@ function ArenaContent() {
           levels={store.btcLiqLevels}
           currentPrice={store.coins['btc']?.price ?? 0}
         />
+      )}
+      {/* BTC Options Market Pressure (GEX) - BTC-only, same widget as the
+          Liquidation Map page. Ungated: near-zero cost (already in the market
+          store) and it also feeds the AI read above, so showing the raw table
+          lets users see what the AI is reading. GexTable renders its own
+          "Fetching…" state, so gate on coin only. */}
+      {selectedCoin === 'btc' && (
+        <div style={{ marginBottom: 10 }}>
+          <GexTable />
+        </div>
       )}
       {/* ── Pullback warning - reuses the Distribution score for the selected coin.
           "This pump is getting weaker" made explicit as text, not just a header chip. ── */}

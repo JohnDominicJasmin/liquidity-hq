@@ -16,13 +16,9 @@ import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
+import { AI_LIMITS } from '@/lib/limits';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
-
-const CHAT_LIMIT_FREE   = 15;
-const SEARCH_LIMIT_FREE = 5;
-const CHAT_LIMIT_PRO    = 100;
-const SEARCH_LIMIT_PRO  = 25;
 
 function sb(token: string) {
   return createClient(
@@ -54,8 +50,8 @@ export async function GET(req: NextRequest) {
     getUsageRow(token, userId, today),
     getUserRole(token, userId),
   ]);
-  const chatLimit   = role === 'pro' ? CHAT_LIMIT_PRO   : CHAT_LIMIT_FREE;
-  const searchLimit = role === 'pro' ? SEARCH_LIMIT_PRO : SEARCH_LIMIT_FREE;
+  const chatLimit   = AI_LIMITS[role].chat;
+  const searchLimit = AI_LIMITS[role].search;
   return NextResponse.json({ chat_used: chatUsed, chat_limit: chatLimit, search_used: searchUsed, search_limit: searchLimit });
 }
 
@@ -96,8 +92,8 @@ export async function POST(req: NextRequest) {
     getUserRole(token, userId),
   ]);
 
-  const chatLimit   = role === 'pro' ? CHAT_LIMIT_PRO   : CHAT_LIMIT_FREE;
-  const searchLimit = role === 'pro' ? SEARCH_LIMIT_PRO : SEARCH_LIMIT_FREE;
+  const chatLimit   = AI_LIMITS[role].chat;
+  const searchLimit = AI_LIMITS[role].search;
 
   if (isSearch && searchUsed >= searchLimit) {
     return NextResponse.json(

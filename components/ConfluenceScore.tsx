@@ -7,7 +7,7 @@ import { withAlpha } from '@/lib/color';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { scoreBias } from './StopLossZone';
 import {
-  computeConfluence, orderFlowFactor, multiTfRsiFactor, computeMacroRisk,
+  computeConfluence, orderFlowFactor, multiTfRsiFactor, gexRegimeFactor, computeMacroRisk,
   type ConfluenceFactorInput, type CalEvent,
 } from '@/lib/confluence';
 import Tip from './Tip';
@@ -56,6 +56,10 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
     },
     orderFlowFactor(of.bias),
     multiTfRsiFactor(d.rsi14, d.rsi1h, d.rsi4h),
+    // GEX is BTC-only (options data) and a REGIME MODIFIER, not a directional
+    // vote: long gamma = ranging → dampens confidence in the trend signals;
+    // short gamma = trending → no penalty. Included only for BTC.
+    ...(coin === 'btc' ? [gexRegimeFactor(store.btcNetGex)] : []),
     {
       kind: 'penalty',
       label: 'Choppiness Index',
@@ -78,7 +82,7 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
       <div className="sms-header">
         <div>
           <div className="sms-title">
-            <Tip text="Weighted blend of the EMA Ribbon verdict, the 9-signal Order Flow bias, and 15m/1h/4h RSI alignment. Choppiness and an active RSI-divergence warning reduce confidence without flipping direction. Macro/event risk is shown separately below - it's not blended into this number since an FOMC print doesn't change the technicals, only the risk of holding through it.">
+            <Tip text="Weighted blend of the EMA Ribbon verdict, the 9-signal Order Flow bias, and 15m/1h/4h RSI alignment. For BTC, options gamma (GEX) acts as a regime modifier - in a long-gamma (ranging) market it dampens confidence since these trend signals are less reliable, and stays clear in a short-gamma (trending) market. Choppiness and an active RSI-divergence warning likewise reduce confidence without flipping direction. Macro/event risk is shown separately below - it's not blended into this number since an FOMC print doesn't change the technicals, only the risk of holding through it.">
               Confluence Score
             </Tip>
           </div>

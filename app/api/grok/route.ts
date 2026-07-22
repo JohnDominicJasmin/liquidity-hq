@@ -4,19 +4,10 @@ import { parseCombinedResponse } from '@/lib/grok';
 import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
+import { AI_LIMITS } from '@/lib/limits';
 
-// Keys / limits
-const GROK_KEY          = process.env.GROK_API_KEY ?? '';
-const DEEP_LIMIT_FREE   = 5;
-const QUICK_LIMIT_FREE  = 7;
-const DEEP_LIMIT_PRO    = 25;
-const QUICK_LIMIT_PRO   = 50;
-const CHAT_LIMIT_FREE     = 15;
-const SEARCH_LIMIT_FREE   = 5;
-const BRIEFING_LIMIT_FREE = 3;
-const CHAT_LIMIT_PRO      = 100;
-const SEARCH_LIMIT_PRO    = 25;
-const BRIEFING_LIMIT_PRO  = 10;
+// Keys / limits (limits: single source of truth in lib/limits.ts)
+const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
 function sb(token?: string) {
   return createClient(
@@ -55,11 +46,11 @@ export async function GET(req: NextRequest) {
     getUsageRow(token, userId, today),
     getUserRole(token, userId),
   ]);
-  const deepLimit     = role === 'pro' ? DEEP_LIMIT_PRO     : DEEP_LIMIT_FREE;
-  const quickLimit    = role === 'pro' ? QUICK_LIMIT_PRO    : QUICK_LIMIT_FREE;
-  const chatLimit     = role === 'pro' ? CHAT_LIMIT_PRO     : CHAT_LIMIT_FREE;
-  const searchLimit   = role === 'pro' ? SEARCH_LIMIT_PRO   : SEARCH_LIMIT_FREE;
-  const briefingLimit = role === 'pro' ? BRIEFING_LIMIT_PRO : BRIEFING_LIMIT_FREE;
+  const deepLimit     = AI_LIMITS[role].deep;
+  const quickLimit    = AI_LIMITS[role].quick;
+  const chatLimit     = AI_LIMITS[role].chat;
+  const searchLimit   = AI_LIMITS[role].search;
+  const briefingLimit = AI_LIMITS[role].briefing;
 
   return NextResponse.json({
     usage: {
@@ -104,11 +95,11 @@ export async function POST(req: NextRequest) {
     getUsageRow(token!, userId, today),
     getUserRole(token!, userId),
   ]);
-  const deepLimit     = role === 'pro' ? DEEP_LIMIT_PRO     : DEEP_LIMIT_FREE;
-  const quickLimit    = role === 'pro' ? QUICK_LIMIT_PRO    : QUICK_LIMIT_FREE;
-  const chatLimit     = role === 'pro' ? CHAT_LIMIT_PRO     : CHAT_LIMIT_FREE;
-  const searchLimit   = role === 'pro' ? SEARCH_LIMIT_PRO   : SEARCH_LIMIT_FREE;
-  const briefingLimit = role === 'pro' ? BRIEFING_LIMIT_PRO : BRIEFING_LIMIT_FREE;
+  const deepLimit     = AI_LIMITS[role].deep;
+  const quickLimit    = AI_LIMITS[role].quick;
+  const chatLimit     = AI_LIMITS[role].chat;
+  const searchLimit   = AI_LIMITS[role].search;
+  const briefingLimit = AI_LIMITS[role].briefing;
 
   const allUsage = () => ({
     deep_used:     deepUsed,     deep_limit:     deepLimit,

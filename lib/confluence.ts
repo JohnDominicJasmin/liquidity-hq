@@ -33,16 +33,19 @@ export interface ConfluenceResult {
   factors: ConfluenceFactorInput[];
 }
 
-const BULL_BEAR_WEIGHT_TOTAL = 30 + 25 + 20; // EMA ribbon + order flow + multi-TF RSI
-
 export function computeConfluence(factors: ConfluenceFactorInput[]): ConfluenceResult {
-  let bullW = 0, bearW = 0, penaltyW = 0;
+  let bullW = 0, bearW = 0, penaltyW = 0, directionalTotal = 0;
   for (const f of factors) {
     if (f.kind === 'penalty') { if (f.active) penaltyW += f.weight; continue; }
+    directionalTotal += f.weight;
     if (f.dir === 'bull') bullW += f.weight;
     else if (f.dir === 'bear') bearW += f.weight;
   }
-  let raw = ((bullW - bearW) / BULL_BEAR_WEIGHT_TOTAL) * 100;
+  // Denominator is the sum of the directional factors actually present rather
+  // than a hardcoded constant - robust if the set of directional factors ever
+  // changes. Today it's always EMA(30)+OrderFlow(25)+RSI(20)=75. Note GEX is a
+  // PENALTY (regime modifier), not a directional vote, so it never enters here.
+  let raw = directionalTotal > 0 ? ((bullW - bearW) / directionalTotal) * 100 : 0;
   // Penalties pull the score toward 0 (reduce confidence) without flipping direction.
   const shrink = Math.max(0, 1 - penaltyW / 100);
   raw *= shrink;
@@ -60,6 +63,20 @@ export function computeConfluence(factors: ConfluenceFactorInput[]): ConfluenceR
 /* ── Order Flow bias → confluence factor ── */
 export function orderFlowFactor(bias: Bias): DirectionalFactor {
   return { kind: 'directional', label: 'Order Flow Setup', dir: bias === 'long' ? 'bull' : bias === 'short' ? 'bear' : 'neutral', weight: 25 };
+}
+
+/* ── Options gamma (GEX) → confluence REGIME MODIFIER (BTC-only) ──
+   GEX tells you the ENVIRONMENT, not the direction - so it's a penalty (shrinks
+   confidence), not a directional vote. In a LONG-gamma regime (net GEX ≥ 0)
+   dealers hedge AGAINST moves and pin price: the market ranges/mean-reverts, so
+   the trend-biased confluence signals (EMA ribbon, order flow) are less reliable
+   → active penalty, dampen confidence. In SHORT-gamma (net GEX < 0) dealers
+   AMPLIFY moves = trending, the signals run at full strength → inactive.
+   (Deliberately NOT a max-pain directional vote: max-pain pull only bites near
+   expiry and isn't reliable enough to move a trade bias.) */
+export function gexRegimeFactor(netGex: number | null): PenaltyFactor {
+  const longGamma = netGex != null && netGex >= 0;
+  return { kind: 'penalty', label: 'Options Gamma (GEX)', weight: 12, active: longGamma };
 }
 
 /* ── Multi-TF RSI alignment (15m/1h/4h) → confluence factor. This is now the

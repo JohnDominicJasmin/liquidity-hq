@@ -5,11 +5,14 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { getCheckoutUrl } from '@/lib/checkout';
 import LoadingState from '@/components/LoadingState';
+import { AI_LIMITS } from '@/lib/limits';
 
 const CHECKOUT_CONFIGURED = !!(
   process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL &&
   process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL !== '#'
 );
+
+const F = AI_LIMITS.free, P = AI_LIMITS.pro; // limit numbers derived, not hand-typed
 
 const FREE_FEATURES = [
   'Dashboard + market overview',
@@ -17,13 +20,14 @@ const FREE_FEATURES = [
   'News feed',
   'Squeeze scanner on every tracked coin',
   'Charts + signals on 30 minute and higher timeframes',
-  '7 Quick + 5 Deep AI analyses / day',
-  '15 AI chat messages / day',
+  `${F.quick} Quick + ${F.deep} Deep AI analyses / day`,
+  `${F.chat} AI chat messages / day`,
 ];
 
 // Keep this list in sync with the actual gates: the timeframe clamp and
 // locked cards in app/arena/page.tsx, the /backtest paywall, and the
 // PRO_REQUIRED checks in /api/onchain and /api/macro-context.
+// (AI limit numbers come from lib/limits.ts - they can't drift from the API.)
 const PRO_FEATURES = [
   'Everything in Free',
   'Signals on the 1 minute, 5 minute, and 15 minute charts',
@@ -32,8 +36,8 @@ const PRO_FEATURES = [
   'On-chain and global macro AI analysis',
   'Telegram alerts - all signal types',
   'Unlimited price alerts',
-  '50 Quick + 25 Deep AI analyses / day',
-  '100 AI chat messages + 25 live searches / day',
+  `${P.quick} Quick + ${P.deep} Deep AI analyses / day`,
+  `${P.chat} AI chat messages + ${P.search} live searches / day`,
   'Priority support',
 ];
 

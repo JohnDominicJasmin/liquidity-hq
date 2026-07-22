@@ -211,12 +211,15 @@ interface Props {
   emaSignal?:    StrategySignal | null;
   chartAlerts?:  ChartAlert[];
   onAlertMove?:  (id: string, newPrice: number) => void;
+  // BTC options context lines (null for non-BTC or before data loads).
+  gexLevels?:    { flip: number | null; maxPain: number | null } | null;
 }
 
 const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d'];
 
 let emaSignalOverlayRegistered = false;
 let srLevelLineRegistered = false;
+let gexLevelLineRegistered = false;
 let reversalOverlayRegistered = false;
 
 interface SRLevel { price: number; type: 'support' | 'resistance'; touches: number; }
@@ -269,13 +272,14 @@ function computeSRLevels(
   return [...resistances, ...supports];
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels }: Props) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
   const chartRef       = useRef<KChart | null>(null);
   const wsRef          = useRef<{ close: () => void } | null>(null);
   const analysisIds    = useRef<string[]>([]);
+  const gexLevelIds    = useRef<string[]>([]);
   const alertOverlayMap  = useRef<Map<string, string>>(new Map()); // alert.id → overlay id
   const onAlertMoveRef = useRef(onAlertMove);
   const coinRef        = useRef<CoinId>(coin);
@@ -672,6 +676,43 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         });
       }
 
+      if (!gexLevelLineRegistered) {
+        gexLevelLineRegistered = true;
+        // GEX context lines (BTC options): the max-pain magnet and the zero-gamma
+        // flip level. Deliberately OFF the green/red/amber palette used by S/R,
+        // buy/sell markers and warnings - violet = magnet, cyan = regime boundary -
+        // so they can never be mistaken for a directional signal. Context only.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kc as any).registerOverlay({
+          name: 'gexLevelLine',
+          totalStep: 1,
+          needDefaultPointFigure: false,
+          needDefaultXAxisFigure: false,
+          needDefaultYAxisFigure: false,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
+            const { gexType, price } = overlay.extendData as { gexType: 'maxpain' | 'flip'; price: number };
+            const y = coordinates[0]?.y;
+            if (y == null || !isFinite(y) || y < 0) return [];
+            const color = gexType === 'maxpain' ? '#a78bfa' : '#22d3ee';
+            const label = gexType === 'maxpain' ? 'MAX PAIN' : 'γ FLIP';
+            const rightX = (bounding?.width ?? 9999);
+            return [
+              {
+                type: 'line',
+                attrs: { coordinates: [{ x: 0, y }, { x: rightX, y }] },
+                styles: { style: 'dashed', color, size: 1, dashedValue: [2, 4] },
+              },
+              {
+                type: 'text',
+                attrs: { x: 6, y: y - 3, text: `${label} $${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
+                styles: { color, size: 9, weight: '700' },
+              },
+            ];
+          },
+        });
+      }
+
       // DataLoader
       const loader: DataLoader = {
         getBars: async ({ symbol, period, callback }) => {
@@ -983,6 +1024,28 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       if (typeof id === 'string') srOverlayIds.current.push(id);
     }
   }, [srLevels, showSR, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── GEX context lines (BTC only): max-pain magnet + zero-gamma flip ──────────
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    gexLevelIds.current.forEach(id => chart.removeOverlay({ id }));
+    gexLevelIds.current = [];
+    if (!gexLevels) return;
+    const lines: Array<{ gexType: 'maxpain' | 'flip'; price: number }> = [];
+    if (gexLevels.maxPain != null && isFinite(gexLevels.maxPain)) lines.push({ gexType: 'maxpain', price: gexLevels.maxPain });
+    if (gexLevels.flip    != null && isFinite(gexLevels.flip))    lines.push({ gexType: 'flip',    price: gexLevels.flip });
+    for (const l of lines) {
+      const id = chart.createOverlay({
+        name: 'gexLevelLine',
+        groupId: 'gex_levels',
+        lock: true,
+        extendData: l,
+        points: [{ value: l.price }],
+      } as OverlayCreate);
+      if (typeof id === 'string') gexLevelIds.current.push(id);
+    }
+  }, [gexLevels, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Restore user-drawn lines for this coin, and swap them out on coin change ──
   useEffect(() => {

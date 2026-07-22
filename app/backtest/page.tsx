@@ -75,7 +75,7 @@ function parseSection(text: string, key: string): string {
 }
 
 export default function BacktestPage() {
-  const { isPro, loading: authLoading } = useAuth();
+  const { entitled, loading: authLoading } = useAuth();
   const [tf, setTf]               = useState<TF>('1h');
   const [coinScope, setCoinScope] = useState<'majors' | 'all'>('majors');
   const [running, setRunning]     = useState(false);
@@ -257,10 +257,11 @@ export default function BacktestPage() {
     }
   }
 
-  // Backtesting is Pro-only. Wait for the auth role to resolve so a Pro user
-  // never sees a paywall flash, then replace the entire page for free users.
+  // Backtesting is Pro-only (trial users included). Wait for the auth role to
+  // resolve so an entitled user never sees a paywall flash, then replace the
+  // entire page for free users.
   if (authLoading) return <div style={{ minHeight: '60vh' }} />;
-  if (!isPro) {
+  if (!entitled) {
     return (
       <FullPageUpgradeGate
         title="Backtesting is part of Pro."

@@ -879,14 +879,20 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         }
       }
 
-      // Top strikes near ATM for chart (±35% from spot, sorted descending, top 8)
+      // The 8 strikes that MATTER - i.e. the biggest gamma walls (largest |GEX|),
+      // not the 8 highest strikes. Bug fix: this used to sort by strike descending
+      // and slice(8), which just grabbed the top of the ±35% band (e.g. $82-89K
+      // when spot is $66K) and hid the real near-spot magnets. Sort by |GEX| to
+      // pick the actual pins - they naturally cluster near the money - then order
+      // by strike for a readable high→low ladder.
       const btcGexLevels: GexLevel[] = Object.entries(gexByStrike)
         .map(([k, v]) => ({ strike: Number(k), gex: v }))
         .filter(e => isFinite(e.gex) && (spotForGex > 0
           ? Math.abs(e.strike - spotForGex) / spotForGex <= 0.35
           : true))
-        .sort((a, b) => b.strike - a.strike)
-        .slice(0, 8);
+        .sort((a, b) => Math.abs(b.gex) - Math.abs(a.gex))
+        .slice(0, 8)
+        .sort((a, b) => b.strike - a.strike);
 
       setStore(s => ({
         ...s,

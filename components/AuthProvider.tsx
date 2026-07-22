@@ -9,7 +9,10 @@ interface AuthCtx {
   user: User | null;
   loading: boolean;
   role: 'free' | 'pro';
-  isPro: boolean;
+  isPro: boolean;          // PAID Pro only - use for "should we sell them Pro" (e.g. /upgrade)
+  isTrial: boolean;        // inside the 14-day signup trial (Pro features, Free AI caps)
+  entitled: boolean;       // isPro || isTrial - the gate for Pro FEATURES
+  trialEndsAt: number | null; // ms epoch the trial ends, for the countdown banner
   signOut: () => Promise<void>;
 }
 
@@ -18,6 +21,9 @@ const AuthContext = createContext<AuthCtx>({
   loading: true,
   role: 'free',
   isPro: false,
+  isTrial: false,
+  entitled: false,
+  trialEndsAt: null,
   signOut: async () => {},
 });
 
@@ -42,6 +48,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<'free' | 'pro'>('free');
+  const [trialEndsAt, setTrialEndsAt] = useState<number | null>(null);
 
   useEffect(() => {
     const sb = getSupabase();
@@ -102,16 +109,20 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     return () => { sb.removeChannel(channel); };
   }, [user]);
 
-  // Fetch subscription role whenever user changes
+  // Fetch subscription role + trial window whenever user changes
   useEffect(() => {
-    if (!user) { setRole('free'); return; }
+    if (!user) { setRole('free'); setTrialEndsAt(null); return; }
     const sb = getSupabase();
     if (!sb) return;
     sb.from(T.user_subscriptions)
-      .select('role')
+      .select('role, trial_ends_at')
       .eq('user_id', user.id)
       .maybeSingle()
-      .then(({ data }) => setRole(data?.role === 'pro' ? 'pro' : 'free'));
+      .then(({ data }) => {
+        setRole(data?.role === 'pro' ? 'pro' : 'free');
+        const t = data?.trial_ends_at ? new Date(data.trial_ends_at as string).getTime() : null;
+        setTrialEndsAt(t);
+      });
   }, [user]);
 
   const signOut = async () => {
@@ -120,8 +131,17 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     await sb?.auth.signOut();
   };
 
+  const isPro   = role === 'pro';
+  // Trial is active only for non-paid users still inside the window. Paid Pro
+  // ignores the trial flag entirely (isPro already grants everything).
+  const isTrial = !isPro && trialEndsAt !== null && trialEndsAt > Date.now();
+
   return (
-    <AuthContext.Provider value={{ user, loading, role, isPro: role === 'pro', signOut }}>
+    <AuthContext.Provider value={{
+      user, loading, role,
+      isPro, isTrial, entitled: isPro || isTrial, trialEndsAt,
+      signOut,
+    }}>
       {children}
     </AuthContext.Provider>
   );

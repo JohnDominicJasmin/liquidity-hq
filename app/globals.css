@@ -85,28 +85,14 @@
   --radius-pill: 20px;  /* pill buttons and filter chips */
   --radius-sharp: 2px;  /* terminal-sharp: onboarding inputs, rows, CTAs */
 
-  /* Type scale - 8 tiers (was 23 distinct sizes) */
-  --fs-xs:   0.6875rem;  /* was 0.625rem (10px) - below the 11px floor Pass 1 (§7) set (audit P2-4) */
-  --fs-sm:   0.6875rem;  /* secondary metadata, hint text */
-  --fs-md:   0.75rem;  /* standard content, table cells */
-  --fs-base: 0.8125rem;  /* primary content, nav, buttons */
-  --fs-lg:   1rem;  /* section headers, prominent labels */
-  --fs-xl:   1.25rem;  /* key card values, medium metrics */
-  --fs-2xl:  2rem;  /* hero numbers, current price */
-  --fs-3xl:  3rem;  /* display numbers */
-
-  /* AUDIT.md §7 role-based scale, item #24. The size-tier scale directly
-     above is used in only ~3% of the codebase's font-size declarations
-     (17 of ~580), so most of the app never adopted it - and even full
-     adoption wouldn't fix §7's real complaint: "10/11/12/13px, no
-     consistent role split" (you still can't tell if a given --fs-sm is a
-     label or a caption). These are named by ROLE instead of size, in rem
-     so they respect the browser zoom/font-size preference the px scale
-     above ignores. Defining them here is the safe, zero-risk half of #24 -
-     actually migrating the ~580 CSS + ~678 inline declarations onto these
-     (and deleting the 43 ad-hoc mobile media-query overrides they'd
-     replace) needs a per-usage judgment call on which role each site
-     actually is, which is a large, separate pass, not done here. */
+  /* Type scale - ONE scale, named by ROLE (not size). The old size-tier scale
+     (--fs-xs…3xl) was a parallel second scale used in only ~3% of declarations
+     (18 sites, all CSS; 5 of its 8 tokens were dead) - it's been removed and its
+     handful of usages remapped to the same-value role token here (fs-xs/sm →
+     micro, fs-base → label), so there's now a single source of truth for type.
+     Named by role and in rem so they respect the browser's zoom/font-size
+     preference. Pair --fs-micro with letter-spacing; it's the 11px floor - don't
+     shrink further. */
   --fs-display:    clamp(2.25rem, 6vw, 4rem); /* landing hero only */
   --fs-page:       1.75rem;   /* page H1 */
   --fs-section:    1.25rem;   /* section header */
@@ -771,7 +757,7 @@ body::after {
   }
   .ticker-see-all:active { background: rgba(26,122,255,0.18); box-shadow: 0 0 28px rgba(26,122,255,0.22); }
   .ticker-see-all-count { display: block; font-size: 2rem; font-weight: 700; color: var(--txt); letter-spacing: -1.5px; line-height: 1; text-align: center; }
-  .ticker-see-all-label { display: block; font-size: var(--fs-xs); font-weight: 800; color: var(--txt3); letter-spacing: .14em; text-transform: uppercase; text-align: center; margin-top: 3px; }
+  .ticker-see-all-label { display: block; font-size: var(--fs-micro); font-weight: 800; color: var(--txt3); letter-spacing: .14em; text-transform: uppercase; text-align: center; margin-top: 3px; }
   .ticker-see-all-arrow { display: block; font-size: 0.6875rem; font-weight: 700; color: var(--purple); margin-top: 10px; letter-spacing: .01em; text-align: center; }
 }
 
@@ -4713,7 +4699,7 @@ html[lang="ar"] .lp-h1-accent {
 .obw-seg.is-active .obw-seg-fill { width: 100%; opacity: 1; }
 .obw-seg-label {
   font-family: var(--font-mono), monospace;
-  font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.1em;
+  font-size: var(--fs-micro); font-weight: 600; letter-spacing: 0.1em;
   text-transform: uppercase; text-align: center; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; color: var(--txt3);
   transition: color 0.3s;
@@ -4733,7 +4719,7 @@ html[lang="ar"] .lp-h1-accent {
 .obw-eyebrow {
   display: flex; align-items: center; gap: 5px; margin-bottom: var(--space-4);
   font-family: var(--font-mono), monospace;
-  font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.14em;
+  font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.14em;
 }
 .obw-eyebrow .k { color: var(--accent); }
 .obw-eyebrow .d { color: var(--txt3); }
@@ -4745,14 +4731,14 @@ html[lang="ar"] .lp-h1-accent {
 }
 .obw-headline .accent { color: var(--accent); }
 .obw-desc {
-  font-size: var(--fs-base); color: var(--txt2); line-height: 1.6;
+  font-size: var(--fs-label); color: var(--txt2); line-height: 1.6;
   margin: var(--space-3) 0 var(--space-6);
 }
 
 /* Field label (mono) */
 .obw-label {
   display: block; font-family: var(--font-mono), monospace;
-  font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.12em;
+  font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.12em;
   text-transform: uppercase; color: var(--txt2); margin-bottom: var(--space-2);
 }
 .obw-label .opt { color: var(--txt3); font-weight: 400; }
@@ -4761,7 +4747,7 @@ html[lang="ar"] .lp-h1-accent {
 .obw-input {
   width: 100%; box-sizing: border-box; padding: 12px 14px;
   background: var(--bg2); border: 1px solid var(--bdr); border-radius: var(--radius-sharp);
-  color: var(--txt); font-size: var(--fs-base); font-family: var(--font-mono), monospace;
+  color: var(--txt); font-size: var(--fs-label); font-family: var(--font-mono), monospace;
   outline: none; transition: border-color 0.15s;
 }
 .obw-input::placeholder { color: var(--txt3); }
@@ -4777,9 +4763,9 @@ html[lang="ar"] .lp-h1-accent {
 .obw-row:hover { border-color: var(--bdr2); }
 .obw-row.is-selected { border-color: var(--accent); background: var(--accent-bg); }
 .obw-row-main { flex: 1; min-width: 0; }
-.obw-row-label { font-size: var(--fs-base); font-weight: 600; color: var(--txt); line-height: 1.3; }
+.obw-row-label { font-size: var(--fs-label); font-weight: 600; color: var(--txt); line-height: 1.3; }
 .obw-row.is-selected .obw-row-label { color: var(--accent); }
-.obw-row-sub { font-size: var(--fs-sm); color: var(--txt3); margin-top: 3px; line-height: 1.4; }
+.obw-row-sub { font-size: var(--fs-micro); color: var(--txt3); margin-top: 3px; line-height: 1.4; }
 .obw-row.is-selected .obw-row-sub { color: var(--accent); opacity: 0.75; }
 
 /* Square selection indicator */
@@ -4797,7 +4783,7 @@ html[lang="ar"] .lp-h1-accent {
   padding: 15px 12px; text-align: center; cursor: pointer;
   background: var(--bg2); border: 1px solid var(--bdr); border-radius: var(--radius-sharp);
   color: var(--txt2); font-family: var(--font-mono), monospace;
-  font-size: var(--fs-base); font-weight: 700; letter-spacing: 0.02em;
+  font-size: var(--fs-label); font-weight: 700; letter-spacing: 0.02em;
   transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
 .obw-tile:hover { border-color: var(--bdr2); }
@@ -4808,7 +4794,7 @@ html[lang="ar"] .lp-h1-accent {
   padding: 9px 16px; cursor: pointer;
   background: var(--bg2); border: 1px solid var(--bdr); border-radius: var(--radius-sharp);
   color: var(--txt2); font-family: var(--font-mono), monospace;
-  font-size: var(--fs-sm); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  font-size: var(--fs-micro); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
   transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
 .obw-chip:hover { border-color: var(--bdr2); }
@@ -4820,7 +4806,7 @@ html[lang="ar"] .lp-h1-accent {
   justify-content: space-between; gap: var(--space-2); padding: 12px 14px;
   cursor: pointer; text-align: left;
   background: var(--bg2); border: 1px solid var(--bdr); border-radius: var(--radius-sharp);
-  color: var(--txt); font-size: var(--fs-base); transition: border-color 0.15s;
+  color: var(--txt); font-size: var(--fs-label); transition: border-color 0.15s;
 }
 .obw-select.is-empty { color: var(--txt3); }
 .obw-select.is-selected { border-color: var(--accent-bdr); }
@@ -4835,7 +4821,7 @@ html[lang="ar"] .lp-h1-accent {
 .obw-menu-opt {
   width: 100%; display: flex; align-items: center; gap: var(--space-3);
   padding: 10px 14px; border: none; cursor: pointer; text-align: left;
-  background: transparent; color: var(--txt2); font-size: var(--fs-base);
+  background: transparent; color: var(--txt2); font-size: var(--fs-label);
   transition: background 0.1s, color 0.1s;
 }
 .obw-menu-opt:hover { background: var(--bg3); color: var(--txt); }
@@ -4847,13 +4833,13 @@ html[lang="ar"] .lp-h1-accent {
   border-radius: var(--radius-sharp); padding: 16px 18px;
 }
 .obw-note-title {
-  font-family: var(--font-mono), monospace; font-size: var(--fs-sm); font-weight: 700;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 700;
   letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin-bottom: var(--space-3);
 }
 .obw-cta {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   width: 100%; box-sizing: border-box; padding: 14px; text-align: center;
-  border-radius: var(--radius-sharp); font-size: var(--fs-base); font-weight: 700;
+  border-radius: var(--radius-sharp); font-size: var(--fs-label); font-weight: 700;
   letter-spacing: 0.02em; text-decoration: none; cursor: pointer; transition: all 0.15s;
 }
 .obw-cta-primary { background: var(--accent-bg); border: 1px solid var(--accent-bdr); color: var(--accent); }
@@ -4867,7 +4853,7 @@ html[lang="ar"] .lp-h1-accent {
 /* Navigation */
 .obw-nav { display: flex; gap: var(--space-3); align-items: center; margin-top: var(--space-6); }
 .obw-btn {
-  font-family: var(--font-mono), monospace; font-size: var(--fs-sm); font-weight: 700;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 700;
   letter-spacing: 0.1em; text-transform: uppercase; border-radius: var(--radius-sharp);
   cursor: pointer; transition: all 0.15s; padding: 14px 20px;
 }
@@ -4878,7 +4864,7 @@ html[lang="ar"] .lp-h1-accent {
 .obw-btn-next:disabled { background: var(--bg2); border-color: var(--bdr); color: var(--txt3); cursor: not-allowed; }
 .obw-skip {
   width: 100%; margin-top: var(--space-3); padding: 4px 0; background: none; border: none;
-  cursor: pointer; font-family: var(--font-mono), monospace; font-size: var(--fs-xs);
+  cursor: pointer; font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   letter-spacing: 0.08em; text-transform: uppercase; color: var(--txt3); transition: color 0.15s;
 }
 .obw-skip:hover { color: var(--txt2); }
@@ -4891,11 +4877,11 @@ html[lang="ar"] .lp-h1-accent {
 }
 .obw-footer-disc {
   max-width: 560px; margin: 0 auto var(--space-3); text-align: center;
-  font-size: var(--fs-xs); line-height: 1.6; color: var(--txt3);
+  font-size: var(--fs-micro); line-height: 1.6; color: var(--txt3);
 }
 .obw-footer-links { display: flex; flex-wrap: wrap; gap: var(--space-4); justify-content: center; }
 .obw-footer-link {
-  font-family: var(--font-mono), monospace; font-size: var(--fs-xs);
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   letter-spacing: 0.08em; text-transform: uppercase; color: var(--txt2); text-decoration: none;
   transition: color 0.15s;
 }

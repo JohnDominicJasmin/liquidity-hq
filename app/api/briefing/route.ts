@@ -3,13 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
+import { AI_LIMITS } from '@/lib/limits';
 
 export const dynamic = 'force-dynamic';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
-
-const BRIEFING_LIMIT_FREE = 3;
-const BRIEFING_LIMIT_PRO  = 10;
 
 const SYSTEM = `You are a concise pre-session market briefing assistant for a solo retail crypto futures trader.
 
@@ -74,7 +72,7 @@ export async function POST(req: NextRequest) {
     getUsageRow(token, userId, today),
     getUserRole(token, userId),
   ]);
-  const briefingLimit = role === 'pro' ? BRIEFING_LIMIT_PRO : BRIEFING_LIMIT_FREE;
+  const briefingLimit = AI_LIMITS[role].briefing;
 
   if (briefingUsed >= briefingLimit) {
     return NextResponse.json(

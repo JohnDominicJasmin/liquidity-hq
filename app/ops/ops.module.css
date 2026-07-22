@@ -98,7 +98,7 @@
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 8px; }
 .stat { display: flex; flex-direction: column; gap: 3px; }
 .statVal {
-  font-size: var(--fs-2xl);
+  font-size: 2rem; /* one-off admin stat number; role scale tops at --fs-page (1.75rem) */
   line-height: 1.05;
   color: var(--txt);
   font-variant-numeric: tabular-nums;
