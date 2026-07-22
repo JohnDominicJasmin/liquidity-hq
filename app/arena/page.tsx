@@ -131,7 +131,7 @@ const TF_FEATURE_LABEL: Record<string, string> = {
 function ArenaContent() {
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
-  const { user, loading: authLoading, isPro, isTrial, entitled } = useAuth();
+  const { user, loading: authLoading, entitled } = useAuth();
   const { settings } = useSettings();
   const searchParams = useSearchParams();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
@@ -1538,12 +1538,9 @@ function ArenaContent() {
           <a href="/login" className="usage-auth-link">Sign In →</a>
         </div>
       )}
-      {user && !isPro && !authLoading && (
-        <div className="usage-auth-notice" style={{ borderColor: 'rgba(155,127,212,0.2)', background: 'rgba(155,127,212,0.04)' }}>
-          Free tier: 7 Quick Research + 5 Deep Research per day.{' '}
-          <a href="/upgrade" className="usage-auth-link" style={{ color: '#5aa3ff' }}>Upgrade to Pro for more →</a>
-        </div>
-      )}
+      {/* Free-tier usage now shown live by the UsageMeter under the buttons
+          (remaining Quick/Deep + reset + Upgrade), so the old static "7 Quick +
+          5 Deep / day" notice was a redundant second Upgrade prompt - removed. */}
 
       {readLoading && (
         <div className="arena-loading">
