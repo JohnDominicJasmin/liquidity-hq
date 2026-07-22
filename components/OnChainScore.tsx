@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react';
 import { useAuth } from './AuthProvider';
 import { useMarket } from '@/lib/marketStore';
 import { getSupabase } from '@/lib/supabase';
+import { SkeletonBar } from '@/components/Skeleton';
 
 interface OnChainData {
   mvrv: number | null;
@@ -172,8 +173,22 @@ export default function OnChainScore() {
       )}
 
       {loading && (
-        <div style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>
-          Searching web for MVRV, SOPR, NVT, exchange flows…
+        <div style={{ padding: '12px 14px' }} role="status" aria-live="polite">
+          <span className="sr-only">Searching web for MVRV, SOPR, NVT, exchange flows…</span>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14,
+            padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8,
+            border: '0.5px solid var(--bdr)',
+          }}>
+            <SkeletonBar width={52} height={32} radius={6} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <SkeletonBar width="35%" height={11} radius={4} style={{ marginBottom: 6 }} />
+              <SkeletonBar width="85%" height={10} radius={4} />
+            </div>
+          </div>
+          {[0, 1, 2, 3].map(i => (
+            <SkeletonBar key={i} height={10} radius={4} style={{ marginBottom: 10, opacity: 1 - i * 0.1 }} />
+          ))}
         </div>
       )}
 

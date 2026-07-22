@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
+import { SkeletonBar } from '@/components/Skeleton';
 
 /* ── Types ── */
 interface Candle { t: number; o: number; h: number; l: number; c: number; v: number }
@@ -184,10 +185,19 @@ export default function MarketStructure({ coin, onData }: Props) {
   /* ── Loading skeleton ── */
   if (loading && !data) {
     return (
-      <div className="ms-card">
+      <div className="ms-card" role="status" aria-live="polite">
+        <span className="sr-only">Loading…</span>
         <div className="ms-header">
           <span className="ms-title">Market Structure · 4H</span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>Loading…</span>
+          <SkeletonBar width={50} height={11} radius={4} />
+        </div>
+        <div className="ms-last-event">
+          <SkeletonBar width={72} height={18} radius={5} />
+          <SkeletonBar width={60} height={14} radius={3} />
+        </div>
+        <div className="ms-levels">
+          <SkeletonBar width={70} height={14} radius={3} />
+          <SkeletonBar width={70} height={14} radius={3} />
         </div>
       </div>
     );

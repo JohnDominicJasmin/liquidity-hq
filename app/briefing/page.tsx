@@ -15,6 +15,7 @@ import { getSupabase } from '@/lib/supabase';
 import { nextResetLocalTime } from '@/lib/resetTime';
 import PageHint from '@/components/PageHint';
 import Tip from '@/components/Tip';
+import { SkeletonBar } from '@/components/Skeleton';
 
 /* ── helpers ── */
 
@@ -360,7 +361,11 @@ export default function MorningBriefing() {
         </div>
 
         {!pricesLoaded ? (
-          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 0' }}>Loading market data…</div>
+          <div style={{ padding: '4px 0' }}>
+            <SkeletonBar width="55%" height={13} style={{ marginBottom: 8 }} />
+            <SkeletonBar width="38%" height={13} />
+            <span className="sr-only">Loading market data…</span>
+          </div>
         ) : top3Setups.length === 0 ? (
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 0' }}>
             No strong setups right now - market positioning is balanced.
@@ -571,7 +576,11 @@ export default function MorningBriefing() {
         </div>
 
         {jpyUsd == null ? (
-          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fetching rate…</div>
+          <div>
+            <SkeletonBar width="34%" height={16} style={{ marginBottom: 12 }} />
+            <SkeletonBar width="100%" height={6} radius={3} />
+            <span className="sr-only">Fetching rate…</span>
+          </div>
         ) : (
           <>
             {/* Rate */}
@@ -664,7 +673,11 @@ export default function MorningBriefing() {
               </Link>
             </div>
             {!pricesLoaded ? (
-              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 0' }}>Loading market data…</div>
+              <div style={{ padding: '4px 0' }}>
+                <SkeletonBar width="55%" height={13} style={{ marginBottom: 8 }} />
+                <SkeletonBar width="38%" height={13} />
+                <span className="sr-only">Loading market data…</span>
+              </div>
             ) : shown.length === 0 ? (
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 0' }}>
                 All quiet - no extreme signals right now.

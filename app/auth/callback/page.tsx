@@ -3,6 +3,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
+import LoadingState from '@/components/LoadingState';
 
 function CallbackInner() {
   const router = useRouter();
@@ -51,33 +52,13 @@ function CallbackInner() {
     );
   }
 
-  return (
-    <div className="login-wrap">
-      <div className="login-card" style={{ alignItems: 'center' }}>
-        <div className="login-logo">Liquidity<span>HQ</span></div>
-        <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-          <div className="login-spinner-lg" />
-          <div style={{ fontSize: 'var(--fs-body)', color: 'var(--txt2)' }}>Signing you in…</div>
-        </div>
-      </div>
-    </div>
-  );
+  return <LoadingState message="Signing you in…" fullPage />;
 }
 
 // useSearchParams requires a Suspense boundary in Next.js App Router
 export default function AuthCallbackPage() {
   return (
-    <Suspense fallback={
-      <div className="login-wrap">
-        <div className="login-card" style={{ alignItems: 'center' }}>
-          <div className="login-logo">Liquidity<span>HQ</span></div>
-          <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-            <div className="login-spinner-lg" />
-            <div style={{ fontSize: 'var(--fs-body)', color: 'var(--txt2)' }}>Loading…</div>
-          </div>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<LoadingState message="Loading…" fullPage />}>
       <CallbackInner />
     </Suspense>
   );

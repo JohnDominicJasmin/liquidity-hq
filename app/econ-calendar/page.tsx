@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import LoadingState from '@/components/LoadingState';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
@@ -126,9 +127,7 @@ export default function EconCalendarPage() {
         );
       })()}
 
-      {loading && (
-        <div style={{ color: 'var(--txt3)', fontSize: 'var(--fs-label)', padding: '40px 0', textAlign: 'center' }}>Loading…</div>
-      )}
+      {loading && <LoadingState message="Loading…" />}
       {error && (
         <div style={{ color: '#f87171', fontSize: 'var(--fs-label)', padding: '20px 0', textAlign: 'center' }}>{error}</div>
       )}

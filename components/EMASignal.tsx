@@ -3,6 +3,7 @@ import { StrategySignal, StrategyVerdict } from '@/lib/useEMAStrategy';
 import { CoinId } from '@/lib/marketStore';
 import { ROUND_TRIP_COST_PCT, TAKER_FEE_PCT, SLIPPAGE_PCT } from '@/lib/backtestEngine';
 import { withAlpha } from '@/lib/color';
+import { SkeletonBar } from '@/components/Skeleton';
 
 const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; color: string; bg: string; border: string }> = {
   LONG_SETUP:     { label: '▲ LONG SETUP',     color: '#34d399', bg: 'rgba(52,211,153,0.08)',  border: 'rgba(52,211,153,0.25)'  },
@@ -136,8 +137,14 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
             padding: '4px 12px', borderRadius: 20,
             color: cfg.color, background: cfg.bg, border: `0.5px solid ${cfg.border}`,
             whiteSpace: 'nowrap',
+            display: 'inline-flex', alignItems: 'center',
           }}>
-            {signal.loading ? '…' : cfg.label}
+            {signal.loading ? (
+              <>
+                <SkeletonBar width={44} height={12} radius={6} />
+                <span className="sr-only">Loading…</span>
+              </>
+            ) : cfg.label}
           </span>
         </div>
       </div>

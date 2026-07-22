@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import Tip from './Tip';
+import { SkeletonBar } from '@/components/Skeleton';
 
 interface DPData {
   current:   number;
@@ -125,7 +126,16 @@ export default function DryPowder() {
       </div>
 
       {state === 'loading' && (
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '12px 0' }}>Loading stablecoin data…</div>
+        <div style={{ padding: '4px 0' }} role="status" aria-live="polite">
+          <span className="sr-only">Loading stablecoin data…</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, marginTop: 4 }}>
+            <SkeletonBar width={90} height={20} radius={5} />
+            <SkeletonBar width={120} height={20} radius={4} />
+          </div>
+          <SkeletonBar width={80} height={18} radius={20} style={{ marginBottom: 8 }} />
+          <SkeletonBar height={11} radius={4} style={{ marginBottom: 6 }} />
+          <SkeletonBar width="70%" height={11} radius={4} />
+        </div>
       )}
 
       {state === 'unauth' && (

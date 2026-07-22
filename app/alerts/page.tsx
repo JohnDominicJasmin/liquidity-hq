@@ -11,6 +11,7 @@ import { utcHourToLocalTime } from '@/lib/resetTime';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
 import AlertOutcomes from '@/components/AlertOutcomes';
+import { SkeletonBar } from '@/components/Skeleton';
 
 interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; created_at: string }
 
@@ -324,7 +325,7 @@ export default function AlertsPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div className="lbl" style={{ margin: 0 }}>Connect Telegram</div>
           {settingsLoading ? (
-            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Loading…</span>
+            <SkeletonBar width={70} height={12} />
           ) : isConnected ? (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 'var(--fs-caption)', fontWeight: 700,

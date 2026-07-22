@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS, computeFibLevels, useMarket } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
+import { SkeletonBar } from '@/components/Skeleton';
 
 /* ── Types ── */
 interface Candle { t: number; o: number; h: number; l: number; c: number; v: number; takerBuy: number }
@@ -253,10 +254,16 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
   /* ── Loading skeleton ── */
   if (loading && !data) {
     return (
-      <div className="abs-card">
+      <div className="abs-card" role="status" aria-live="polite">
+        <span className="sr-only">Loading…</span>
         <div className="abs-header">
           <span className="abs-title">Absorption Detector · 15M</span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>Loading…</span>
+          <SkeletonBar width={60} height={11} radius={4} />
+        </div>
+        <div className="abs-score-row">
+          <SkeletonBar height={5} radius={3} style={{ flex: 1 }} />
+          <SkeletonBar width={38} height={14} radius={3} />
+          <SkeletonBar width={60} height={14} radius={3} />
         </div>
       </div>
     );

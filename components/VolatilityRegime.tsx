@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import Tip from './Tip';
 import { withAlpha } from '@/lib/color';
+import { SkeletonBar } from '@/components/Skeleton';
 
 interface HVData {
   hv30:       number;   // current 30-day annualized HV %
@@ -67,7 +68,7 @@ function HVRow({ label, data }: { label: string; data: LoadState }) {
   if (data === 'loading') return (
     <div style={{ padding: '9px 0', borderTop: '0.5px solid var(--bdr)', display: 'flex', alignItems: 'center', gap: 8 }}>
       <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt3)', minWidth: 28 }}>{label}</span>
-      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Loading…</span>
+      <SkeletonBar width={90} height={11} radius={4} />
     </div>
   );
 

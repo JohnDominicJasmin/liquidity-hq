@@ -6,6 +6,7 @@ import { getSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 import { useAuth } from '@/components/AuthProvider';
 import { friendlyAuthError } from '@/lib/authErrors';
+import LoadingState from '@/components/LoadingState';
 
 // Only allow same-origin path redirects - anything else ("//evil.com",
 // "https://...") falls back to the dashboard, so ?next= can't be used as an
@@ -153,16 +154,7 @@ function LoginInner() {
   );
 }
 
-const LoginFallback = () => (
-  <div className="login-wrap">
-    <div className="login-card" style={{ alignItems: 'center' }}>
-      <div className="login-logo">Liquidity<span>HQ</span></div>
-      <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-        <div className="login-spinner-lg" />
-      </div>
-    </div>
-  </div>
-);
+const LoginFallback = () => <LoadingState message="Loading…" fullPage />;
 
 export default function LoginPage() {
   return (

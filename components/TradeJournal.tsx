@@ -11,6 +11,7 @@ import { track } from '@/lib/analytics';
 import { withAlpha } from '@/lib/color';
 import { T } from '@/lib/tables';
 import { coinBadgeColor } from '@/lib/coinBadge';
+import LoadingState from '@/components/LoadingState';
 
 type Direction = 'LONG' | 'SHORT';
 type TradeResult = 'OPEN' | 'WIN' | 'LOSS' | 'BE';
@@ -963,7 +964,7 @@ function Inner() {
       {/* ──────── HISTORY TAB ──────── */}
       {tab === 'history' && (
         <div>
-          {loading && <div className="tj-loading">Loading trades…</div>}
+          {loading && <LoadingState message="Loading trades…" />}
           {!loading && trades.length === 0 && (
             <div style={{
               border: '0.5px solid var(--bdr)', borderRadius: 10,
@@ -1844,7 +1845,7 @@ export default function TradeJournal() {
       title="Sign in to access your Journal"
       desc="Your trade history, P&amp;L stats, and setups are private to your account."
     >
-      <Suspense fallback={<div style={{ padding: '2rem', color: '#444', textAlign: 'center', fontSize: 'var(--fs-label)' }}>Loading…</div>}>
+      <Suspense fallback={<LoadingState message="Loading…" fullPage />}>
         <Inner />
       </Suspense>
     </AuthGate>

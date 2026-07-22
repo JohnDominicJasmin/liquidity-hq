@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import Tip from './Tip';
+import { SkeletonBar } from '@/components/Skeleton';
 
 interface MacroData {
   dxy: number;  dxyChg: number;
@@ -112,7 +113,17 @@ export default function GlobalMacroContext() {
       </div>
 
       {state === 'loading' && (
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '10px 0' }}>Fetching macro data…</div>
+        <div style={{ padding: '4px 0' }} role="status" aria-live="polite">
+          <span className="sr-only">Fetching macro data…</span>
+          <SkeletonBar width={90} height={20} radius={20} style={{ marginBottom: 10 }} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px 8px', marginBottom: 10 }}>
+            {[0, 1, 2, 3, 4, 5].map(i => (
+              <SkeletonBar key={i} height={28} radius={4} />
+            ))}
+          </div>
+          <SkeletonBar height={11} radius={4} style={{ marginBottom: 6 }} />
+          <SkeletonBar width="80%" height={11} radius={4} />
+        </div>
       )}
       {state === 'unauth' && (
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '8px 0' }}>Sign in to view macro context.</div>

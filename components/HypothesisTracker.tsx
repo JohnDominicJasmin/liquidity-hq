@@ -4,6 +4,7 @@ import { useAuth } from './AuthProvider';
 import { getSupabase } from '@/lib/supabase';
 import EmptyState from '@/components/EmptyState';
 import { withAlpha } from '@/lib/color';
+import LoadingState from '@/components/LoadingState';
 
 interface Hypothesis {
   id: string;
@@ -324,7 +325,7 @@ export default function HypothesisTracker() {
 
       {/* List */}
       {loading ? (
-        <div style={{ color: 'var(--txt3)', fontSize: 'var(--fs-caption)', padding: '16px 0' }}>Loading…</div>
+        <LoadingState message="Loading…" />
       ) : hypotheses.length === 0 ? (
         <EmptyState dashed title="No hypotheses yet. Click &ldquo;New Hypothesis&rdquo; to track your first market thesis." />
       ) : (

@@ -1,5 +1,6 @@
 'use client';
 import { useMarket } from '@/lib/marketStore';
+import { SkeletonBar } from '@/components/Skeleton';
 
 function fmtGex(v: number): string {
   const abs = Math.abs(v);
@@ -39,7 +40,10 @@ export default function GexTable() {
             {fmtGex(btcNetGex!)} net
           </div>
         ) : (
-          <div className="gex-net-chip" style={{ color: 'var(--txt2)', background: 'transparent' }}>Fetching…</div>
+          <div className="gex-net-chip" style={{ background: 'transparent' }}>
+            <SkeletonBar width={56} height={11} radius={4} />
+            <span className="sr-only">Fetching…</span>
+          </div>
         )}
         {btcMaxPain != null && (
           <div className="gex-meta">Max pain: ${btcMaxPain.toLocaleString()} <span style={{ fontWeight: 400, opacity: 0.6 }}>(the price where the most option bets lose - BTC often drifts toward it as expiry nears)</span></div>
@@ -96,7 +100,10 @@ export default function GexTable() {
             </>
           );
         })() : (
-          <span style={{ color: 'var(--txt3)' }}>Calculating from Deribit options chain…</span>
+          <>
+            <SkeletonBar width="60%" height={12} radius={4} />
+            <span className="sr-only">Calculating from Deribit options chain…</span>
+          </>
         )}
       </div>
 

@@ -5,6 +5,7 @@ import { useAuth } from './AuthProvider';
 import { useSettings } from '@/lib/settings';
 import { getSupabase } from '@/lib/supabase';
 import { T } from '@/lib/tables';
+import LoadingState from '@/components/LoadingState';
 
 
 interface Props { onStartTour: () => void; }
@@ -232,15 +233,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   // brand-new signups. Block with the same full-screen backdrop instead so
   // nothing shows through.
   if (!loaded) {
-    return (
-      <div style={{
-        position: 'fixed', inset: 0, zIndex: 10000,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'var(--bg)',
-      }}>
-        <div className="login-spinner-lg" />
-      </div>
-    );
+    return <LoadingState message="Loading…" fullPage />;
   }
 
   const meta   = STEP_META[step];

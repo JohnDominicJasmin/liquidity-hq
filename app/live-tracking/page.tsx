@@ -7,6 +7,7 @@ import { computeStats, SimulatedTrade, BacktestStats } from '@/lib/backtestEngin
 import { SideCard, fmtPct, fmtR } from '@/components/BacktestStatsUI';
 import EmptyState from '@/components/EmptyState';
 import Tip from '@/components/Tip';
+import LoadingState from '@/components/LoadingState';
 
 interface LiveSignalRow {
   id: number;
@@ -83,7 +84,7 @@ export default function LiveTrackingPage() {
         </div>
       </div>
 
-      {loading && <div style={{ fontSize: 'var(--fs-caption)', opacity: 0.5 }}>Loading…</div>}
+      {loading && <LoadingState message="Loading…" />}
       {error && <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)' }}>Error: {error}</div>}
 
       {!loading && !error && rows && rows.length === 0 && (

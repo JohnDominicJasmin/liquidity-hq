@@ -10,6 +10,8 @@ import CoinMultiSelect from '@/components/CoinMultiSelect';
 import ThemeChips from '@/components/ThemeChips';
 import { track } from '@/lib/analytics';
 import { COINS } from '@/lib/marketStore';
+import LoadingState from '@/components/LoadingState';
+import { SkeletonBar } from '@/components/Skeleton';
 
 
 
@@ -185,7 +187,7 @@ export default function SettingsPage() {
   }
 
   if (authLoading) {
-    return <div style={{ padding: '2rem', color: 'var(--txt3)', fontSize: 'var(--fs-label)' }}>Loading…</div>;
+    return <LoadingState message="Loading…" fullPage />;
   }
 
   const num = (v: string | number) => {
@@ -493,7 +495,7 @@ export default function SettingsPage() {
               style={{ background: tgStatus === 'configured' ? 'var(--green)' : 'var(--txt3)' }}
             />
             {tgStatus === 'loading'
-              ? 'Checking…'
+              ? <SkeletonBar width={70} height={12} />
               : tgStatus === 'configured'
               ? 'Configured'
               : 'Not configured'}

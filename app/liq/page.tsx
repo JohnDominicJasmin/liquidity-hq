@@ -6,6 +6,7 @@ import WhaleTradesFeed from '@/components/WhaleTradesFeed';
 import GexTable from '@/components/GexTable';
 import { Warn } from '@/components/icons';
 import { withAlpha } from '@/lib/color';
+import { SkeletonBar } from '@/components/Skeleton';
 
 
 /* ─── All leverage tiers - every real level Binance/Bybit offers ──────────── */
@@ -407,8 +408,9 @@ export default function LiqPage() {
       </div>
 
       {!cd?.price && (
-        <div className="card" style={{ textAlign: 'center', color: '#444', padding: '2rem' }}>
-          Loading {coin.toUpperCase()}…
+        <div className="card" style={{ textAlign: 'center', padding: '2rem' }} role="status" aria-live="polite">
+          <span className="sr-only">Loading {coin.toUpperCase()}…</span>
+          <SkeletonBar width={140} height={14} radius={4} style={{ margin: '0 auto' }} />
         </div>
       )}
       {cd?.price && !cd?.oi && (
