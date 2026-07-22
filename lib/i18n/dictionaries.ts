@@ -90,6 +90,10 @@ export const en: LandingDict = {
       { title: 'Run AI analysis', desc: 'Open AI Arena, select a coin, hit Analyze. Grok reads 35 live signals and gives you a direct, actionable trade bias.' },
     ],
   },
+  // AI limit numbers below (7 Quick / 5 Deep / 15 chat, and 50/25/100/25 for Pro)
+  // must match lib/limits.ts, the enforced source of truth. These are embedded in
+  // localized prose across en/ko/zh/ar so they can't be templated - update by hand
+  // (all four locales) if a limit changes. The /upgrade page IS derived from limits.ts.
   pricing: {
     label: 'Pricing',
     h2: 'Start free. Upgrade when ready.',
