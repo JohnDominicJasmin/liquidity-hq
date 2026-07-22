@@ -19,6 +19,7 @@ import { withAlpha } from '@/lib/color';
 import Sparkline24h from '@/components/Sparkline24h';
 import CoinIcon from '@/components/CoinIcon';
 import { GlobalSpotlight, useMobile } from '@/components/MagicBento';
+import { SkeletonBar } from '@/components/Skeleton';
 
 const OI_TREND_META: Record<string, { txt: string; sub: string; col: string }> = {
   strong_up:   { txt: '▲ New buyers opening', sub: 'Open interest rising with price - real trend', col: '#34d399' },
@@ -345,7 +346,7 @@ function EdgeSignals() {
         </div>
       )}
       <div className="edge-card-signal" style={{ color: vwapCol }}>
-        {vwapAbove === null ? 'Calculating…' : vwapAbove ? '▲ Above VWAP - bullish' : '▼ Below VWAP - bearish'}
+        {vwapAbove === null ? <SkeletonBar width={100} height={11} radius={4} /> : vwapAbove ? '▲ Above VWAP - bullish' : '▼ Below VWAP - bearish'}
       </div>
     </div>
   );
@@ -362,7 +363,7 @@ function EdgeSignals() {
         </>
       ) : (
         <div className="edge-card-signal" style={{ color: 'var(--txt3)', marginTop: 4 }}>
-          {d?.oi != null ? 'Flat - no strong signal' : 'Warming up…'}
+          {d?.oi != null ? 'Flat - no strong signal' : <SkeletonBar width={90} height={11} radius={4} />}
         </div>
       )}
     </div>
@@ -377,7 +378,7 @@ function EdgeSignals() {
         {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '-'}
       </div>
       <div className="edge-card-signal" style={{ color: frCol }}>
-        {frInfo ? frInfo.label : 'Loading…'}
+        {frInfo ? frInfo.label : <SkeletonBar width={70} height={11} radius={4} />}
       </div>
     </div>
   );
@@ -407,7 +408,9 @@ function EdgeSignals() {
       <div className="edge-card-value" style={{ color: cbCol, fontSize: 'var(--fs-data)' }}>
         {cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : '-'}
       </div>
-      <div className="edge-card-signal" style={{ color: cbCol }}>{cbSig}</div>
+      <div className="edge-card-signal" style={{ color: cbCol }}>
+        {cbPct == null ? <SkeletonBar width={90} height={11} radius={4} /> : cbSig}
+      </div>
     </div>
   );
 
@@ -420,7 +423,7 @@ function EdgeSignals() {
         {oi1h.loading ? '-' : oi1hPctStr}
       </div>
       <div className="edge-card-signal" style={{ color: oi1hCol }}>
-        {oi1h.loading ? 'Loading…' : oi1hTxt}
+        {oi1h.loading ? <SkeletonBar width={70} height={11} radius={4} /> : oi1hTxt}
       </div>
     </div>
   );
@@ -461,7 +464,7 @@ function SelectedCoinCard() {
   const badgeCol = coinBadgeColor(id);
   const oi = d?.oiTrend ? OI_TREND_META[d.oiTrend] : null;
   const pattern = d?.chartPattern?.split(';')[0].split('(')[0].trim();
-  const sigText = oi?.txt ?? (pattern || 'Warming up…');
+  const sigText = oi?.txt ?? (pattern || null);
   const sigCol  = oi?.col ?? 'var(--txt3)';
 
   return (
@@ -473,7 +476,7 @@ function SelectedCoinCard() {
       </div>
       <div className="scc-meta">
         <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}>{up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%</span>
-        <span className="scc-sig" style={{ color: sigCol }}>{sigText}</span>
+        <span className="scc-sig" style={{ color: sigCol }}>{sigText || <SkeletonBar width={80} height={11} radius={4} />}</span>
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import { withAlpha } from '@/lib/color';
 import Sparkline24h from '@/components/Sparkline24h';
 import Tip from '@/components/Tip';
 import CoinIcon from '@/components/CoinIcon';
+import { SkeletonBar } from '@/components/Skeleton';
 
 type SortKey = 'volume' | 'change' | 'grade' | 'signal' | 'name';
 
@@ -34,6 +35,12 @@ const ROW_COLS = '48px 1fr 40px 96px 58px 92px 1fr';
 export default function MarketsPage() {
   const { store, selectCoin } = useMarket();
   const router = useRouter();
+  // MarketProvider starts every coin at its zeroed defaultStore shape and fills
+  // in over the WS connection - store.wsStatus flips 'Connecting...' -> 'Live'
+  // once real data has arrived. This page never checked it, so it rendered the
+  // full table instantly with blank/zero placeholder values and no loading
+  // indicator at all.
+  const wsReady = store.wsStatus !== 'Connecting...';
   const [query, setQuery]   = useState('');
   const [sort, setSort]     = useState<SortKey>('volume');
   const [sortAsc, setSortAsc] = useState(false);
@@ -81,7 +88,12 @@ export default function MarketsPage() {
 
   function goToArena(id: CoinId) {
     selectCoin(id);
-    router.push('/arena');
+    // Arena reads its initial coin from the ?coin= URL param at mount, not from
+    // the shared store (see app/arena/page.tsx's selectedCoin useState) - the
+    // selectCoin() call above alone was a no-op for this navigation, so every
+    // row click landed on Arena's default (BTC) regardless of which coin was
+    // clicked. Pass it in the URL, same pattern the rest of the app uses.
+    router.push(`/arena?coin=${id}`);
   }
 
   const GRADE_STYLE: Record<string, { bg: string; col: string }> = {
@@ -194,7 +206,14 @@ export default function MarketsPage() {
         </div>
 
         {/* Rows */}
-        {pageRows.map(id => {
+        {!wsReady ? (
+          <div role="status" aria-live="polite" style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 10px' }}>
+            <span className="sr-only">Loading market data…</span>
+            {Array.from({ length: 10 }).map((_, i) => (
+              <SkeletonBar key={i} height={40} radius={8} style={{ opacity: 1 - i * 0.06 }} />
+            ))}
+          </div>
+        ) : pageRows.map(id => {
           const d      = store.coins[id];
           const dec    = COIN_DEC[id] ?? 2;
           const chg    = d?.change ?? 0;

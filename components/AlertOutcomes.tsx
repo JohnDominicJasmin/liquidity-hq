@@ -9,6 +9,7 @@ import { COIN_LABELS, type CoinId } from '@/lib/marketStore';
 import { StatRow } from '@/components/BacktestStatsUI';
 import Tip from '@/components/Tip';
 import EmptyState from '@/components/EmptyState';
+import { SkeletonBar } from '@/components/Skeleton';
 
 interface FireRow {
   rule_key: string;
@@ -63,7 +64,11 @@ export default function AlertOutcomes() {
     return (
       <div className="card" style={{ marginBottom: 10 }}>
         <div className="lbl">Alert Track Record</div>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 0' }}>Loading…</div>
+        <div style={{ padding: '4px 0' }}>
+          <SkeletonBar width="60%" height={13} style={{ marginBottom: 8 }} />
+          <SkeletonBar width="40%" height={13} />
+          <span className="sr-only">Loading…</span>
+        </div>
       </div>
     );
   }

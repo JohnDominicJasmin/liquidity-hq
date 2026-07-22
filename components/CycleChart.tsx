@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { SkeletonBar } from '@/components/Skeleton';
 
 interface CyclePoint { day: number; ratio: number; }
 interface CycleData {
@@ -99,7 +100,10 @@ export default function CycleChart() {
 
       {/* Loading / error */}
       {!data && !err && (
-        <div style={{ padding: '28px 14px', fontSize: 'var(--fs-caption)', color: '#444' }}>Loading cycle data…</div>
+        <div style={{ padding: '8px 14px 4px' }} role="status" aria-live="polite">
+          <span className="sr-only">Loading cycle data…</span>
+          <SkeletonBar width="100%" height={150} radius={8} />
+        </div>
       )}
       {err && (
         <div style={{ padding: '20px 14px', fontSize: 'var(--fs-caption)', color: '#f87171' }}>Failed to load: {err}</div>

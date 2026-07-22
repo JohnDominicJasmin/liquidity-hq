@@ -6,6 +6,7 @@ import { SideCard, fmtPct, fmtR } from '@/components/BacktestStatsUI';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { FullPageUpgradeGate } from '@/components/UpgradeGateModal';
+import LoadingState from '@/components/LoadingState';
 
 const OF_YEARS_BACK = 1; // shorter than EMA's lookback - 15m+1h+4h+funding fetch per coin is much heavier
 
@@ -260,7 +261,7 @@ export default function BacktestPage() {
   // Backtesting is Pro-only (trial users included). Wait for the auth role to
   // resolve so an entitled user never sees a paywall flash, then replace the
   // entire page for free users.
-  if (authLoading) return <div style={{ minHeight: '60vh' }} />;
+  if (authLoading) return <LoadingState message="Loading…" fullPage />;
   if (!entitled) {
     return (
       <FullPageUpgradeGate

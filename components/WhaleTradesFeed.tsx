@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import Tip from '@/components/Tip';
+import { SkeletonBar } from '@/components/Skeleton';
 
 /* ── Binance futures combined aggTrade stream - Binance-listed coins only (HYPE is Bybit-only) ── */
 const SYMBOLS = ['btcusdt','ethusdt','solusdt','xrpusdt','bnbusdt','nearusdt','suiusdt'];
@@ -168,13 +169,23 @@ export default function WhaleTradesFeed() {
 
       {/* Feed states */}
       {feed.length === 0 && status === 'connecting' && (
-        <div style={{ textAlign: 'center', padding: '1.5rem', color: '#444', fontSize: 'var(--fs-caption)' }}>
-          Connecting to live trade feed…
+        <div style={{ padding: '10px 14px' }} role="status" aria-live="polite">
+          <span className="sr-only">Connecting to live trade feed…</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[0, 1, 2].map(i => (
+              <SkeletonBar key={i} height={30} radius={8} style={{ opacity: 1 - i * 0.18 }} />
+            ))}
+          </div>
         </div>
       )}
       {feed.length === 0 && status === 'live' && (
-        <div style={{ textAlign: 'center', padding: '1.5rem', color: '#444', fontSize: 'var(--fs-caption)' }}>
-          Watching for trades &gt; $50K…
+        <div style={{ padding: '10px 14px' }} role="status" aria-live="polite">
+          <span className="sr-only">Watching for trades &gt; $50K…</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[0, 1, 2].map(i => (
+              <SkeletonBar key={i} height={30} radius={8} style={{ opacity: 1 - i * 0.18 }} />
+            ))}
+          </div>
         </div>
       )}
 

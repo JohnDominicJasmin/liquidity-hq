@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useMarket, COINS, CoinId } from '@/lib/marketStore';
 import Tip from '@/components/Tip';
+import { SkeletonBar } from '@/components/Skeleton';
 
 interface AthEntry {
   ath: number;
@@ -80,7 +81,12 @@ export default function DrawdownChart() {
 
       {/* Loading / error states */}
       {!ath && !err && (
-        <div style={{ padding: '20px 14px', fontSize: 'var(--fs-caption)', color: '#444' }}>Loading ATH data…</div>
+        <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 10 }} role="status" aria-live="polite">
+          <span className="sr-only">Loading ATH data…</span>
+          {[0, 1, 2, 3, 4].map(i => (
+            <SkeletonBar key={i} height={12} radius={4} style={{ opacity: 1 - i * 0.12 }} />
+          ))}
+        </div>
       )}
       {err && (
         <div style={{ padding: '16px 14px', fontSize: 'var(--fs-caption)', color: '#f87171' }}>Failed to load ATH data · {err}</div>

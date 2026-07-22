@@ -1,10 +1,12 @@
 'use client';
 import Link from 'next/link';
 import { useMarket, COINS, COIN_DEC, fmtPrice, fmtChg, fmtVol, classifyFunding } from '@/lib/marketStore';
+import { SkeletonBar } from '@/components/Skeleton';
 
 export default function PricesPage() {
   const { store, selectCoin } = useMarket();
   const { coins, wsStatus } = store;
+  const wsReady = wsStatus !== 'Connecting...';
 
   return (
     <div style={{ maxWidth: 700, margin: '0 auto', paddingBottom: 80 }}>
@@ -58,7 +60,14 @@ export default function PricesPage() {
       </div>
 
       {/* Coin rows */}
-      {COINS.map(id => {
+      {!wsReady ? (
+        <div role="status" aria-live="polite" style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 16px' }}>
+          <span className="sr-only">Loading live prices…</span>
+          {Array.from({ length: 12 }).map((_, i) => (
+            <SkeletonBar key={i} height={46} radius={8} style={{ opacity: 1 - i * 0.05 }} />
+          ))}
+        </div>
+      ) : COINS.map(id => {
         const d = coins[id];
         const dec = COIN_DEC[id];
         const up = (d?.change ?? 0) >= 0;

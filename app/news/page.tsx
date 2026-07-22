@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { useNews } from '@/components/NewsProvider';
 import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline } from '@/lib/classify';
 import { withAlpha } from '@/lib/color';
+import LoadingState from '@/components/LoadingState';
+import { SkeletonBar } from '@/components/Skeleton';
 
 type Tab = 'foryou' | 'breaking' | 'all' | 'geo' | 'crypto' | 'events';
 
@@ -454,15 +456,7 @@ export default function NewsPage() {
           )}
 
           {!alertsLoaded && alerts.length === 0 && (
-            <div className="nfeed-empty">
-              <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 12 }}>
-                {[0,1,2].map(i => (
-                  <span key={i} style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: 'var(--txt3)', animation: `pulse 1.4s ${i * 0.2}s infinite` }} />
-                ))}
-              </div>
-              <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>Loading feeds…</div>
-              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Reuters · AP · BBC · CoinDesk · CoinTelegraph · Decrypt · The Block</div>
-            </div>
+            <LoadingState message="Loading feeds…" />
           )}
 
           {foryouEmpty && alertsLoaded && (
@@ -541,12 +535,16 @@ export default function NewsPage() {
         <div className="nfeed">
           {isEmpty && (
             <div className="nfeed-empty">
-              
-              <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>
-                {tab === 'geo'     ? 'No war/conflict alerts yet'
-                : tab === 'crypto' ? 'No crypto news yet'
-                : 'Fetching news - feeds loading…'}
-              </div>
+              {tab === 'geo' ? (
+                <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>No war/conflict alerts yet</div>
+              ) : tab === 'crypto' ? (
+                <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>No crypto news yet</div>
+              ) : (
+                <>
+                  <SkeletonBar width={210} height={15} style={{ margin: '0 auto' }} />
+                  <span className="sr-only">Fetching news - feeds loading…</span>
+                </>
+              )}
             </div>
           )}
           {tabContent[tab as Exclude<Tab,'events'|'breaking'>].map((a, i) => (

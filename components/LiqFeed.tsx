@@ -5,6 +5,7 @@ import { getSupabase } from '@/lib/supabase';
 import { Warn } from '@/components/icons';
 import { T } from '@/lib/tables';
 import Tip from '@/components/Tip';
+import { SkeletonBar } from '@/components/Skeleton';
 
 /* ── Types ── */
 interface LiqEvent {
@@ -460,8 +461,15 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
 
       {/* ── Feed ── */}
       {displayed.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '1.5rem', color: '#444', fontSize: 'var(--fs-caption)' }}>
-          {anyLive ? `Watching for ${coinFilter === 'ALL' ? 'all markets' : coinFilter} liquidations > $10K…` : 'Connecting to Binance + Bybit…'}
+        <div style={{ padding: '10px 14px' }} role="status" aria-live="polite">
+          <span className="sr-only">
+            {anyLive ? `Watching for ${coinFilter === 'ALL' ? 'all markets' : coinFilter} liquidations > $10K…` : 'Connecting to Binance + Bybit…'}
+          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[0, 1, 2].map(i => (
+              <SkeletonBar key={i} height={30} radius={8} style={{ opacity: 1 - i * 0.18 }} />
+            ))}
+          </div>
         </div>
       )}
 

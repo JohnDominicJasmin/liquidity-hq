@@ -2,6 +2,7 @@
 import { useMarket, CoinId, fmtPrice, COIN_DEC } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import Tip from '@/components/Tip';
+import { SkeletonBar } from '@/components/Skeleton';
 
 /* ── Coin Market Snapshot ─────────────────────────────────────────────────
    Compact VWAP / Open Interest / Funding / OI 1h-change strip for a single
@@ -65,7 +66,7 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
         </div>
         <div className="edge-card-signal" style={{ color: vwapCol }}>
           {vwapAbove === null
-            ? 'Calculating…'
+            ? <SkeletonBar width={100} height={11} radius={4} />
             : `${vwapAbove ? '▲' : '▼'} ${vwapPct != null ? (vwapPct >= 0 ? '+' : '') + vwapPct.toFixed(2) + '%' : ''} vs VWAP`}
         </div>
       </div>
@@ -87,7 +88,7 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
               {!oi1h.loading && oi1h.pct != null ? oi1hPctStr : (d?.oi != null ? 'Flat' : '-')}
             </div>
             <div className="edge-card-signal" style={{ color: 'var(--txt3)' }}>
-              {!oi1h.loading && oi1h.pct != null ? `${oi1hTxt} · 1h` : (d?.oi != null ? 'No strong signal' : 'Warming up…')}
+              {!oi1h.loading && oi1h.pct != null ? `${oi1hTxt} · 1h` : (d?.oi != null ? 'No strong signal' : <SkeletonBar width={90} height={11} radius={4} />)}
             </div>
           </>
         )}
@@ -98,7 +99,9 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
         <div className="edge-card-value" style={{ color: frCol }}>
           {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '-'}
         </div>
-        <div className="edge-card-signal" style={{ color: frCol }}>{frSig}</div>
+        <div className="edge-card-signal" style={{ color: frCol }}>
+          {frPct == null ? <SkeletonBar width={70} height={11} radius={4} /> : frSig}
+        </div>
       </div>
     </div>
   );

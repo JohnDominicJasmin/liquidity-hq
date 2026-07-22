@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useMarket, BINANCE_SYMS } from '@/lib/marketStore';
 import Sparkline from './Sparkline';
+import { SkeletonBar } from '@/components/Skeleton';
 
 /* ── Fear & Greed label → CSS class (existing .score-* tokens, previously
    unused - this widget is the first to actually wire them up). Derived from
@@ -195,7 +196,11 @@ export default function MarketConditionsWidget() {
             </>
           );
         })() : (
-          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Loading…</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }} role="status" aria-live="polite">
+            <span className="sr-only">Loading…</span>
+            <SkeletonBar height={5} radius={3} />
+            <SkeletonBar width="60%" height={11} radius={4} />
+          </div>
         )}
         <div style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', marginTop: 6, textAlign: 'right' }}>Data by Binance</div>
       </div>

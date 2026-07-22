@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { SkeletonBar } from '@/components/Skeleton';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
@@ -60,7 +61,12 @@ export default function EconCalendarWidget() {
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '6px 0' }}>Failed to load calendar</div>
       )}
       {!error && events === null && (
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '6px 0' }}>Loading…</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '4px 0' }} role="status" aria-live="polite">
+          <span className="sr-only">Loading…</span>
+          {[0, 1, 2, 3].map(i => (
+            <SkeletonBar key={i} height={22} radius={6} style={{ opacity: 1 - i * 0.15 }} />
+          ))}
+        </div>
       )}
       {!error && events !== null && upcoming.length === 0 && (
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '6px 0' }}>No upcoming high-impact events</div>
