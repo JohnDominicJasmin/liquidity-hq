@@ -33,16 +33,18 @@ export interface ConfluenceResult {
   factors: ConfluenceFactorInput[];
 }
 
-const BULL_BEAR_WEIGHT_TOTAL = 30 + 25 + 20; // EMA ribbon + order flow + multi-TF RSI
-
 export function computeConfluence(factors: ConfluenceFactorInput[]): ConfluenceResult {
-  let bullW = 0, bearW = 0, penaltyW = 0;
+  let bullW = 0, bearW = 0, penaltyW = 0, directionalTotal = 0;
   for (const f of factors) {
     if (f.kind === 'penalty') { if (f.active) penaltyW += f.weight; continue; }
+    directionalTotal += f.weight;
     if (f.dir === 'bull') bullW += f.weight;
     else if (f.dir === 'bear') bearW += f.weight;
   }
-  let raw = ((bullW - bearW) / BULL_BEAR_WEIGHT_TOTAL) * 100;
+  // Denominator is the sum of the directional factors actually present, not a
+  // hardcoded constant - so an optional BTC-only factor (GEX) auto-adjusts the
+  // scale instead of diluting scores on coins that don't have it.
+  let raw = directionalTotal > 0 ? ((bullW - bearW) / directionalTotal) * 100 : 0;
   // Penalties pull the score toward 0 (reduce confidence) without flipping direction.
   const shrink = Math.max(0, 1 - penaltyW / 100);
   raw *= shrink;
@@ -60,6 +62,26 @@ export function computeConfluence(factors: ConfluenceFactorInput[]): ConfluenceR
 /* ── Order Flow bias → confluence factor ── */
 export function orderFlowFactor(bias: Bias): DirectionalFactor {
   return { kind: 'directional', label: 'Order Flow Setup', dir: bias === 'long' ? 'bull' : bias === 'short' ? 'bear' : 'neutral', weight: 25 };
+}
+
+/* ── Options gamma (GEX) → confluence factor (BTC-only) ──
+   GEX gives a directional read only in a LONG-gamma regime (net GEX ≥ 0), where
+   dealer hedging pins price toward max pain: below max pain = upward pull (bull),
+   above = downward pull (bear). In a SHORT-gamma regime (net GEX < 0) dealers
+   AMPLIFY moves rather than pin them, so GEX adds no independent direction - it
+   votes neutral and just lets the other factors run. A small dead-band around max
+   pain avoids a coin-flip vote when price is already sitting on the magnet. */
+export function gexFactor(netGex: number | null, maxPain: number | null, spot: number | null): DirectionalFactor {
+  const label = 'Options Gamma (GEX)';
+  const weight = 12;
+  if (netGex == null || maxPain == null || !spot || maxPain <= 0) {
+    return { kind: 'directional', label, dir: 'neutral', weight };
+  }
+  if (netGex < 0) return { kind: 'directional', label, dir: 'neutral', weight }; // short gamma = amplifier, no direction
+  const band = 0.005; // 0.5% dead-band around max pain
+  const dir = spot < maxPain * (1 - band) ? 'bull'
+            : spot > maxPain * (1 + band) ? 'bear' : 'neutral';
+  return { kind: 'directional', label, dir, weight };
 }
 
 /* ── Multi-TF RSI alignment (15m/1h/4h) → confluence factor. This is now the

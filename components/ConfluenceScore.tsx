@@ -7,7 +7,7 @@ import { withAlpha } from '@/lib/color';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { scoreBias } from './StopLossZone';
 import {
-  computeConfluence, orderFlowFactor, multiTfRsiFactor, computeMacroRisk,
+  computeConfluence, orderFlowFactor, multiTfRsiFactor, gexFactor, computeMacroRisk,
   type ConfluenceFactorInput, type CalEvent,
 } from '@/lib/confluence';
 import Tip from './Tip';
@@ -56,6 +56,9 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
     },
     orderFlowFactor(of.bias),
     multiTfRsiFactor(d.rsi14, d.rsi1h, d.rsi4h),
+    // GEX is BTC-only (options data). Include it only for BTC so it never
+    // dilutes the score on coins that have no options market.
+    ...(coin === 'btc' ? [gexFactor(store.btcNetGex, store.btcMaxPain, d.price)] : []),
     {
       kind: 'penalty',
       label: 'Choppiness Index',
@@ -78,7 +81,7 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
       <div className="sms-header">
         <div>
           <div className="sms-title">
-            <Tip text="Weighted blend of the EMA Ribbon verdict, the 9-signal Order Flow bias, and 15m/1h/4h RSI alignment. Choppiness and an active RSI-divergence warning reduce confidence without flipping direction. Macro/event risk is shown separately below - it's not blended into this number since an FOMC print doesn't change the technicals, only the risk of holding through it.">
+            <Tip text="Weighted blend of the EMA Ribbon verdict, the 9-signal Order Flow bias, and 15m/1h/4h RSI alignment. For BTC, options gamma (GEX) adds a directional vote when dealers are pinning price toward max pain. Choppiness and an active RSI-divergence warning reduce confidence without flipping direction. Macro/event risk is shown separately below - it's not blended into this number since an FOMC print doesn't change the technicals, only the risk of holding through it.">
               Confluence Score
             </Tip>
           </div>
