@@ -48,7 +48,11 @@ begin
 end;
 $$;
 
-revoke execute on function lhq_grant_signup_trial() from anon, authenticated;
+-- Revoke from PUBLIC, not just anon/authenticated: Postgres grants EXECUTE to
+-- PUBLIC by default, so revoking only anon/authenticated still leaves the
+-- function reachable as a PostgREST RPC (Supabase advisor 0028/0029). It's only
+-- ever invoked by its trigger, never by RPC, so drop the PUBLIC grant entirely.
+revoke execute on function lhq_grant_signup_trial() from public;
 
 drop trigger if exists lhq_signup_trial on auth.users;
 create trigger lhq_signup_trial
