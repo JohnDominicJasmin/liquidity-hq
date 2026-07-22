@@ -1,5 +1,5 @@
 'use client';
-import { Fragment, useEffect } from 'react';
+import { Fragment, useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
@@ -12,6 +12,36 @@ interface Props {
   locale: Locale;
   dir: 'ltr' | 'rtl';
 }
+
+/* One icon + link target per features.cards[i] - structural, not translated,
+   since the app itself stays English-only past the landing page (see
+   dictionaries.ts header comment). */
+const FEATURE_META: Array<{ href: string; accent: string; icon: ReactNode }> = [
+  { // AI Arena
+    href: '/arena', accent: 'purple',
+    icon: <path d="M3 12h3l2-7 4 14 2-7h7" />,
+  },
+  { // Telegram Alerts
+    href: '/settings', accent: 'blue',
+    icon: <path d="M12 4a5 5 0 0 0-5 5v3.2c0 .5-.2 1-.5 1.4L5 16h14l-1.5-2.4c-.3-.4-.5-.9-.5-1.4V9a5 5 0 0 0-5-5Zm-2.5 14a2.5 2.5 0 0 0 5 0" />,
+  },
+  { // Morning Briefing
+    href: '/briefing', accent: 'amber',
+    icon: <><path d="M12 3v4M4.9 8.9l1.4 1.4M19.1 8.9l-1.4 1.4M3 15h18" /><path d="M6 15a6 6 0 0 1 12 0" /></>,
+  },
+  { // News Feed
+    href: '/news', accent: 'green',
+    icon: <><path d="M5 4h11a2 2 0 0 1 2 2v13a1 1 0 0 1-1.7.7L15 18H6a2 2 0 0 1-2-2V4Z" /><path d="M8 8h6M8 11.5h6M8 15h3" /></>,
+  },
+  { // Whale Tracker
+    href: '/dashboard', accent: 'red',
+    icon: <path d="M3 13c3-4 6-5 9-5s6 3 9 5c-3 4-6 5-9 5s-6-1-9-5Zm5 0h.01M15 9c1 1.5 1 3 0 4" />,
+  },
+  { // Squeeze Scanner
+    href: '/scanner', accent: 'purple',
+    icon: <><circle cx="12" cy="12" r="7" /><circle cx="12" cy="12" r="2.5" /><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21" /></>,
+  },
+];
 
 export default function LandingContent({ dict, locale, dir }: Props) {
   const { user, loading } = useAuth();
@@ -102,17 +132,24 @@ export default function LandingContent({ dict, locale, dir }: Props) {
         <div className="lp-section-inner">
           <div className="lp-section-label">{dict.features.label}</div>
           <h2 className="lp-h2">{dict.features.h2}</h2>
+          <p className="lp-section-sub">{dict.features.sub}</p>
           <div className="lp-features">
             {dict.features.cards.map((card, i) => {
-              const colors = ['lp-feat-purple', 'lp-feat-green', 'lp-feat-amber', 'lp-feat-blue', 'lp-feat-red', 'lp-feat-purple'];
+              const meta = FEATURE_META[i];
               return (
-                <div key={i} className={`lp-feature-card ${colors[i]}`}>
+                <Link key={i} href={meta.href} className="lp-feature-card">
+                  <div className={`lp-feat-icon lp-feat-icon-${meta.accent}`} aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                      {meta.icon}
+                    </svg>
+                  </div>
                   <h3>{card.title}</h3>
                   <p>{card.desc}</p>
                   <div className="lp-feat-pills">
                     {card.pills.map((p, j) => <span key={j}>{p}</span>)}
                   </div>
-                </div>
+                  <span className="lp-feat-link">{dict.features.openLabel} {stepArrow}</span>
+                </Link>
               );
             })}
           </div>
