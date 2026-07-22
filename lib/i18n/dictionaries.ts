@@ -26,6 +26,8 @@ export interface LandingDict {
   features: {
     label: string;
     h2: string;
+    sub: string;
+    openLabel: string;
     cards: Array<{ title: string; desc: string; pills: string[] }>;
   };
   howItWorks: {
@@ -68,6 +70,8 @@ export const en: LandingDict = {
   features: {
     label: 'What you get',
     h2: 'Everything a serious trader needs',
+    sub: 'Live signals, alerts, and analysis - each tool built to answer one specific question, better than any alternative. All included free.',
+    openLabel: 'Open',
     cards: [
       { title: 'AI Arena', desc: '35-signal confluence engine with live chart and Grok AI analysis. Funding rate, CVD, open interest trend, squeeze score, whale flow, GEX - all in one view.', pills: ['Grok 4.3', '35 signals', '50 coins'] },
       { title: 'Telegram Alerts', desc: 'Auto-fire alerts for squeeze setups, whale trades, RSI extremes, EMA crosses, rapid price moves, open interest spikes, and breaking news - before the crowd.', pills: ['Squeeze alerts', 'Whale trades', 'Breaking news'] },
@@ -129,6 +133,8 @@ export const ko: LandingDict = {
   features: {
     label: '제공 기능',
     h2: '진지한 트레이더에게 필요한 모든 것',
+    sub: '실시간 신호, 알림, 분석까지 - 각 도구는 하나의 질문에 가장 정확하게 답하도록 만들어졌습니다. 모두 무료로 제공됩니다.',
+    openLabel: '열기',
     cards: [
       { title: 'AI 아레나', desc: '35개 신호가 합류하는 엔진에 실시간 차트와 Grok AI 분석까지. 펀딩비, CVD, 미결제약정 추세, 스퀴즈 점수, 고래 흐름, GEX를 한 화면에서 확인하세요.', pills: ['Grok 4.3', '35개 신호', '50개 코인'] },
       { title: '텔레그램 알림', desc: '스퀴즈 셋업, 고래 거래, RSI 과열/과매도, EMA 교차, 급격한 가격 변동, 미결제약정 급등, 속보까지 - 남들보다 먼저 자동으로 알려드립니다.', pills: ['스퀴즈 알림', '고래 거래', '속보'] },
@@ -190,6 +196,8 @@ export const zh: LandingDict = {
   features: {
     label: '您将获得',
     h2: '专业交易者所需的一切',
+    sub: '实时信号、提醒与分析--每个工具只为回答一个问题而生,做得比任何替代方案都好。全部免费提供。',
+    openLabel: '打开',
     cards: [
       { title: 'AI Arena', desc: '35信号共振引擎,搭载实时图表与Grok AI分析。资金费率、CVD、未平仓合约趋势、挤压评分、巨鲸流向、GEX--尽在一屏。', pills: ['Grok 4.3', '35个信号', '50种币'] },
       { title: 'Telegram提醒', desc: '挤压形态、巨鲸交易、RSI极值、EMA交叉、价格快速波动、未平仓合约激增、突发新闻--自动提醒,抢先一步。', pills: ['挤压提醒', '巨鲸交易', '突发新闻'] },
@@ -251,6 +259,8 @@ export const ar: LandingDict = {
   features: {
     label: 'ما ستحصل عليه',
     h2: 'كل ما يحتاجه المتداول الجاد',
+    sub: 'إشارات وتنبيهات وتحليلات مباشرة - كل أداة مصمّمة للإجابة عن سؤال محدد بدقة تفوق أي بديل آخر. كل ذلك متاح مجانًا.',
+    openLabel: 'افتح',
     cards: [
       { title: 'AI Arena', desc: 'محرك تقارب من 35 إشارة مع مخطط مباشر وتحليل Grok للذكاء الاصطناعي. معدل التمويل، CVD، اتجاه الفائدة المفتوحة، درجة الانضغاط، تدفق الحيتان، GEX - كل ذلك في شاشة واحدة.', pills: ['Grok 4.3', '35 إشارة', '50 عملة'] },
       { title: 'تنبيهات تيليجرام', desc: 'تنبيهات تلقائية لإعدادات الانضغاط، صفقات الحيتان، تطرف RSI، تقاطعات EMA، تحركات الأسعار السريعة، ارتفاعات الفائدة المفتوحة، والأخبار العاجلة - قبل الجميع.', pills: ['تنبيهات الانضغاط', 'صفقات الحيتان', 'أخبار عاجلة'] },
