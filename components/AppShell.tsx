@@ -17,6 +17,7 @@ import PlatformFooter from './PlatformFooter';
 import PWAInstallPrompt from './PWAInstallPrompt';
 import MaintenanceScreen from './MaintenanceScreen';
 import AnnouncementBanner from './AnnouncementBanner';
+import TrialBanner from './TrialBanner';
 import { useAppConfig } from '@/lib/useAppConfig';
 
 // The admin console (/ops) has its own layout/shell and must NOT inherit any of
@@ -72,6 +73,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   <NavDrawer />
                   <NewsTicker />
                   <main className="app-content">
+                    <TrialBanner />
                     <OnboardingGate>{children}</OnboardingGate>
                     <PlatformFooter />
                   </main>

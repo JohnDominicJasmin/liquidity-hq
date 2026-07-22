@@ -20,7 +20,7 @@ const COIN_LABELS: Record<string, string> = Object.fromEntries(COINS.map(c => [c
 const ALERT_COIN_CAP = 20; // Alerts is a Pro-only feature - single cap, no free/pro split needed here
 
 export default function AlertsPage() {
-  const { user, isPro } = useAuth();
+  const { user, entitled } = useAuth();
   const { settings, loading: settingsLoading, update } = useSettings();
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
 
@@ -312,7 +312,7 @@ export default function AlertsPage() {
           upgrade pitch. Free users now get a single locked-feature card
           (same component/pattern as Arena's other Pro-gated cards) instead
           of a form they can look at but not touch. */}
-      {user && !isPro ? (
+      {user && !entitled ? (
         <LockedFeatureCard
           title="Connect Telegram"
           description="Push alerts for funding rate extremes, RSI signals, open interest spikes, whale moves, and price levels - sent directly to Telegram."

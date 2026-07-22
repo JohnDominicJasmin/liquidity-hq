@@ -129,7 +129,7 @@ const TF_FEATURE_LABEL: Record<string, string> = {
 function ArenaContent() {
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
-  const { user, loading: authLoading, isPro } = useAuth();
+  const { user, loading: authLoading, isPro, isTrial, entitled } = useAuth();
   const { settings } = useSettings();
   const searchParams = useSearchParams();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
@@ -333,7 +333,7 @@ function ArenaContent() {
      here via onTfChange). Free users tapping 1m/5m/15m get the upgrade modal
      instead of a switch. */
   const handleTfChange = (tf: ChartTf) => {
-    if (!isPro && GATED_TFS.includes(tf)) {
+    if (!entitled && GATED_TFS.includes(tf)) {
       setUpgradeGate(TF_FEATURE_LABEL[tf] ?? 'This timeframe');
       return;
     }
@@ -345,9 +345,9 @@ function ArenaContent() {
      when the timeframe was chosen. Once the role is known, bump them to the
      free fallback rather than serving gated signals. */
   useEffect(() => {
-    if (authLoading || isPro) return;
+    if (authLoading || entitled) return;
     if (GATED_TFS.includes(readTf)) setReadTf(FREE_FALLBACK_TF);
-  }, [authLoading, isPro, readTf]);
+  }, [authLoading, entitled, readTf]);
 
   /* ── Sync OI 1h hook data → ref (used by Grok context builder) ── */
   useEffect(() => {
@@ -1801,7 +1801,7 @@ function ArenaContent() {
           all, so its data never reaches the AI context either. */}
       <div style={{ display: 'none' }}>
         <MarketStructure coin={selectedCoin} onData={handleMsData} />
-        {isPro && <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />}
+        {entitled && <AbsorptionDetector coin={selectedCoin} onData={handleAbsData} />}
       </div>
         </div>
         <aside className="arena-ws-rail">
@@ -1813,7 +1813,7 @@ function ArenaContent() {
       {/* Confluence Score - EMA Ribbon + Order Flow + Multi-TF RSI combined, plus a
           separate macro/event risk overlay (econ calendar + JPY carry-trade risk).
           Pro-only: free users get an in-place locked card so the layout holds. */}
-      {isPro ? (
+      {entitled ? (
         <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} />
       ) : (
         <LockedFeatureCard

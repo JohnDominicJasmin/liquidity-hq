@@ -23,6 +23,35 @@ export async function getUserRole(token: string, userId: string): Promise<Role> 
   return data?.role === 'pro' ? 'pro' : 'free';
 }
 
+export interface Entitlement {
+  role:        Role;    // the PAID role ('pro' only after a real subscription)
+  trialActive: boolean; // inside the 14-day signup trial window
+  // Whether Pro FEATURES are unlocked (paid Pro OR active trial). This is the
+  // gate for feature access - fast timeframes, backtest, on-chain/macro, etc.
+  // The daily AI usage caps are deliberately NOT included: they key on `role`
+  // (via getUserRole), so a trial user keeps Free-tier AI limits - Pro tools,
+  // Free AI spend. See lib/tables.ts / the add_signup_trial migration.
+  proFeatures: boolean;
+}
+
+// Single source of truth for "does this token get Pro features". Reads role +
+// trial_ends_at in one RLS-scoped query (a token can only read its own row).
+export async function getEntitlement(token: string, userId: string): Promise<Entitlement> {
+  const { data } = await sb(token).from(T.user_subscriptions)
+    .select('role, trial_ends_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+  const role: Role = data?.role === 'pro' ? 'pro' : 'free';
+  const trialEnds = data?.trial_ends_at ? new Date(data.trial_ends_at as string).getTime() : 0;
+  const trialActive = role !== 'pro' && trialEnds > Date.now();
+  return { role, trialActive, proFeatures: role === 'pro' || trialActive };
+}
+
+// Convenience for feature-gate routes: true if paid Pro or in an active trial.
+export async function hasProFeatures(token: string, userId: string): Promise<boolean> {
+  return (await getEntitlement(token, userId)).proFeatures;
+}
+
 // Resolves the bearer token straight to a role, returning 'free' for any
 // missing/invalid/anonymous token rather than throwing - callers gate on the
 // returned role, not on whether this function succeeded.
