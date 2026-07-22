@@ -25,6 +25,7 @@ import StopLossZone from '@/components/StopLossZone';
 import Tip from '@/components/Tip';
 import LiqHeatmap from '@/components/LiqHeatmap';
 import GexTable from '@/components/GexTable';
+import UsageMeter from '@/components/UsageMeter';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
@@ -1427,6 +1428,10 @@ function ArenaContent() {
           Ask LiquidityAI
         </button>
       </div>
+
+      {/* Live daily-usage meter - remaining Quick/Deep + reset countdown. Visible
+          scarcity (freemium plan move #3) instead of a silently-disabled button. */}
+      <UsageMeter />
 
       {/* ── Price alert inline form - buy/sell-panel styling ── */}
       {alertFormOpen && user && (
