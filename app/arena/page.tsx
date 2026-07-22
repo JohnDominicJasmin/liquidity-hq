@@ -24,6 +24,7 @@ import HigherTfMoveBadge from '@/components/HigherTfMoveBadge';
 import StopLossZone from '@/components/StopLossZone';
 import Tip from '@/components/Tip';
 import LiqHeatmap from '@/components/LiqHeatmap';
+import GexTable from '@/components/GexTable';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
@@ -1833,6 +1834,16 @@ function ArenaContent() {
           levels={store.btcLiqLevels}
           currentPrice={store.coins['btc']?.price ?? 0}
         />
+      )}
+      {/* BTC Options Market Pressure (GEX) - BTC-only, same widget as the
+          Liquidation Map page. Ungated: near-zero cost (already in the market
+          store) and it also feeds the AI read above, so showing the raw table
+          lets users see what the AI is reading. GexTable renders its own
+          "Fetching…" state, so gate on coin only. */}
+      {selectedCoin === 'btc' && (
+        <div style={{ marginBottom: 10 }}>
+          <GexTable />
+        </div>
       )}
       {/* ── Pullback warning - reuses the Distribution score for the selected coin.
           "This pump is getting weaker" made explicit as text, not just a header chip. ── */}
