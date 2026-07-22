@@ -41,9 +41,10 @@ export function computeConfluence(factors: ConfluenceFactorInput[]): ConfluenceR
     if (f.dir === 'bull') bullW += f.weight;
     else if (f.dir === 'bear') bearW += f.weight;
   }
-  // Denominator is the sum of the directional factors actually present, not a
-  // hardcoded constant - so an optional BTC-only factor (GEX) auto-adjusts the
-  // scale instead of diluting scores on coins that don't have it.
+  // Denominator is the sum of the directional factors actually present rather
+  // than a hardcoded constant - robust if the set of directional factors ever
+  // changes. Today it's always EMA(30)+OrderFlow(25)+RSI(20)=75. Note GEX is a
+  // PENALTY (regime modifier), not a directional vote, so it never enters here.
   let raw = directionalTotal > 0 ? ((bullW - bearW) / directionalTotal) * 100 : 0;
   // Penalties pull the score toward 0 (reduce confidence) without flipping direction.
   const shrink = Math.max(0, 1 - penaltyW / 100);
@@ -64,24 +65,18 @@ export function orderFlowFactor(bias: Bias): DirectionalFactor {
   return { kind: 'directional', label: 'Order Flow Setup', dir: bias === 'long' ? 'bull' : bias === 'short' ? 'bear' : 'neutral', weight: 25 };
 }
 
-/* ── Options gamma (GEX) → confluence factor (BTC-only) ──
-   GEX gives a directional read only in a LONG-gamma regime (net GEX ≥ 0), where
-   dealer hedging pins price toward max pain: below max pain = upward pull (bull),
-   above = downward pull (bear). In a SHORT-gamma regime (net GEX < 0) dealers
-   AMPLIFY moves rather than pin them, so GEX adds no independent direction - it
-   votes neutral and just lets the other factors run. A small dead-band around max
-   pain avoids a coin-flip vote when price is already sitting on the magnet. */
-export function gexFactor(netGex: number | null, maxPain: number | null, spot: number | null): DirectionalFactor {
-  const label = 'Options Gamma (GEX)';
-  const weight = 12;
-  if (netGex == null || maxPain == null || !spot || maxPain <= 0) {
-    return { kind: 'directional', label, dir: 'neutral', weight };
-  }
-  if (netGex < 0) return { kind: 'directional', label, dir: 'neutral', weight }; // short gamma = amplifier, no direction
-  const band = 0.005; // 0.5% dead-band around max pain
-  const dir = spot < maxPain * (1 - band) ? 'bull'
-            : spot > maxPain * (1 + band) ? 'bear' : 'neutral';
-  return { kind: 'directional', label, dir, weight };
+/* ── Options gamma (GEX) → confluence REGIME MODIFIER (BTC-only) ──
+   GEX tells you the ENVIRONMENT, not the direction - so it's a penalty (shrinks
+   confidence), not a directional vote. In a LONG-gamma regime (net GEX ≥ 0)
+   dealers hedge AGAINST moves and pin price: the market ranges/mean-reverts, so
+   the trend-biased confluence signals (EMA ribbon, order flow) are less reliable
+   → active penalty, dampen confidence. In SHORT-gamma (net GEX < 0) dealers
+   AMPLIFY moves = trending, the signals run at full strength → inactive.
+   (Deliberately NOT a max-pain directional vote: max-pain pull only bites near
+   expiry and isn't reliable enough to move a trade bias.) */
+export function gexRegimeFactor(netGex: number | null): PenaltyFactor {
+  const longGamma = netGex != null && netGex >= 0;
+  return { kind: 'penalty', label: 'Options Gamma (GEX)', weight: 12, active: longGamma };
 }
 
 /* ── Multi-TF RSI alignment (15m/1h/4h) → confluence factor. This is now the

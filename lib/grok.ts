@@ -221,7 +221,7 @@ export function buildPrompt(ctx: GrokContext): string {
     '(Max pain = price where max option value is destroyed at expiry - acts as magnet)',
     `BTC Gamma Exposure (GEX):  ${ctx.btcGex}`,
     '(Positive GEX = dealers LONG gamma = buy dips/sell rips = price pins near large strikes. Negative GEX = dealers SHORT gamma = moves amplified = trending conditions. Zero-gamma flip level is key - crossing it changes dealer hedging direction.)',
-    'WEIGHT GEX HEAVILY for BTC - it sets the regime the rest of the signals live in: in LONG gamma, treat price as magnetically pulled toward max pain (below max pain = upward pin bias, above = downward pin bias) and FADE breakouts / distrust momentum signals; in SHORT gamma, treat breakouts as real and let trend + order-flow signals run with size. If GEX regime conflicts with an oscillator (e.g. RSI says buy but long-gamma pin sits below), the GEX regime wins on conviction.',
+    'WEIGHT GEX HEAVILY for BTC - it sets the REGIME the rest of the signals live in, which matters more than any direction it implies: in LONG gamma, dealers suppress volatility so the market ranges/mean-reverts - FADE breakouts and distrust momentum signals (the max-pain magnet adds a mild pull toward that strike, but only bites as expiry approaches, so treat it as a tiebreaker, not a primary bias); in SHORT gamma, dealers amplify moves = trending, so treat breakouts as real and let trend + order-flow signals run with size. When the GEX regime conflicts with an oscillator, the regime wins on conviction.',
     '',
     '=== COINBASE PREMIUM INDEX ===',
     `CB Premium (Coinbase BTC − Binance BTC):  ${ctx.cbPremium}`,
