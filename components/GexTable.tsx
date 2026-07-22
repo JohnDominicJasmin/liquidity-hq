@@ -42,8 +42,13 @@ export default function GexTable() {
           <div className="gex-net-chip" style={{ color: 'var(--txt2)', background: 'transparent' }}>Fetching…</div>
         )}
         {btcMaxPain != null && (
-          <div className="gex-meta">Max pain: ${btcMaxPain.toLocaleString()} <span style={{ fontWeight: 400, opacity: 0.6 }}>(price where most options expire worthless - acts as magnet)</span></div>
+          <div className="gex-meta">Max pain: ${btcMaxPain.toLocaleString()} <span style={{ fontWeight: 400, opacity: 0.6 }}>(the price where the most option bets lose - BTC often drifts toward it as expiry nears)</span></div>
         )}
+      </div>
+
+      {/* Plain one-liner: what this whole panel is, for someone new to options */}
+      <div className="gex-subtitle" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.5, margin: '2px 0 8px' }}>
+        Where the big Bitcoin options bets sit - and whether they&apos;re calming price down (range) or fueling it (trend). Use it to decide: fade the moves, or follow them.
       </div>
 
       {/* Signal interpretation */}
@@ -58,18 +63,18 @@ export default function GexTable() {
           if (btcGexFlip != null && spotPrice > 0) {
             if (spotPrice > btcGexFlip) {
               lean = 'bull';
-              leanReason = `price above gamma flip ($${btcGexFlip.toLocaleString()})`;
+              leanReason = `price is holding above the $${btcGexFlip.toLocaleString()} flip line (the calmer side)`;
             } else {
               lean = 'bear';
-              leanReason = `price below gamma flip ($${btcGexFlip.toLocaleString()})`;
+              leanReason = `price has slipped below the $${btcGexFlip.toLocaleString()} flip line (the jumpier side)`;
             }
           } else if (largestGexLevel && spotPrice > 0) {
             if (largestGexLevel.strike > spotPrice) {
               lean = 'bull';
-              leanReason = `magnet at $${(largestGexLevel.strike / 1000).toFixed(0)}K is above`;
+              leanReason = `the strongest magnet ($${(largestGexLevel.strike / 1000).toFixed(0)}K) sits above price, pulling up`;
             } else {
               lean = 'bear';
-              leanReason = `magnet at $${(largestGexLevel.strike / 1000).toFixed(0)}K is below`;
+              leanReason = `the strongest magnet ($${(largestGexLevel.strike / 1000).toFixed(0)}K) sits below price, pulling down`;
             }
           }
 
@@ -78,8 +83,8 @@ export default function GexTable() {
           const regimeLabel = isLongGamma ? 'RANGING' : 'TRENDING';
           const regimeColor = isLongGamma ? '#34d399' : '#f87171';
           const regimeDesc  = isLongGamma
-            ? 'price bounces between levels - expect reversals, avoid chasing'
-            : 'breakouts follow through - ride momentum, do not fade moves';
+            ? 'the market likes to chop and bounce right now - fade the extremes, don’t chase breakouts'
+            : 'moves tend to keep running right now - follow the momentum, don’t try to catch the top or bottom';
 
           return (
             <>
@@ -112,16 +117,16 @@ export default function GexTable() {
             if (fK && spotPrice > 0) {
               const above = spotPrice > btcGexFlip!;
               if (above && isLongGamma)
-                return `Price is above the ${fK} gamma flip - options dealers are absorbing volatility and keeping BTC in a range${lK ? ` near ${lK}` : ''}.`;
+                return `BTC is above the ${fK} flip line, so the big options players are cushioning price - expect it to chop and stay boxed in${lK ? ` near ${lK}` : ''} instead of trending. Good for buying dips / selling rips inside the range; risky to chase a breakout.`;
               if (!above && !isLongGamma)
-                return `Price broke below the ${fK} gamma flip - dealers are now amplifying moves${lK ? `, not absorbing them. Watch ${lK} as a key magnet` : ''}.`;
+                return `BTC dropped below the ${fK} flip line, so those same players now push moves harder instead of cushioning them - expect bigger, faster swings${lK ? `. ${lK} is the level price is drawn to` : ''}. Momentum trades work better here than fading.`;
               if (above && !isLongGamma)
-                return `Short gamma above ${fK} - options pressure is fueling volatility.${lK ? ` ${lK} is the key magnet strike to watch.` : ''}`;
-              return `Price is below the ${fK} flip but gamma is still long - expect choppy, contained moves${lK ? ` around ${lK}` : ''}.`;
+                return `Options positioning is amplifying moves right now, so swings can run - trade with the trend, not against it.${lK ? ` ${lK} is the level to watch as a magnet.` : ''}`;
+              return `Options players are still cushioning price, so expect choppy, contained moves${lK ? ` around ${lK}` : ''} rather than a clean trend.`;
             }
             return isLongGamma
-              ? `Long gamma regime - options dealers are stabilizing price${lK ? `. ${lK} is the key magnet for this week's expiry` : ''}.`
-              : `Short gamma regime - options dealers are amplifying moves${lK ? `. Watch ${lK} as the key pin level` : ''}.`;
+              ? `Big options players are steadying the price right now, so expect range-bound chop${lK ? `. ${lK} is the level it keeps getting pulled toward this week` : ''}.`
+              : `Options positioning is amplifying moves right now, so expect bigger swings${lK ? `. ${lK} is the level to watch as a magnet` : ''}.`;
           })()}
         </div>
       )}
@@ -130,7 +135,7 @@ export default function GexTable() {
       {gexLoaded && btcGexLevels.length > 0 && (
         <>
           <div className="gex-hdr">
-            <div>Strike</div><div>Gamma exposure</div><div>Options pressure</div>
+            <div>Price level</div><div>Wall strength (bigger = stronger magnet)</div><div>$ size</div>
           </div>
           {btcGexLevels.map(({ strike, gex }) => {
             const pct   = maxAbsGex > 0 ? Math.abs(gex) / maxAbsGex * 100 : 0;
@@ -158,16 +163,16 @@ export default function GexTable() {
         <div className="gex-flip-row">
           {btcGexFlip != null && (
             <div>
-              Zero-gamma flip: <span>${btcGexFlip.toLocaleString()}</span>
-              <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> - break {(btcGexFlip < (spotPrice || btcGexFlip)) ? 'below' : 'above'} = options market becomes unpredictable, big moves likely</span>
+              Flip line: <span>${btcGexFlip.toLocaleString()}</span>
+              <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> - if BTC breaks {(btcGexFlip < (spotPrice || btcGexFlip)) ? 'below' : 'above'} this, the calming effect switches off and big, fast moves get more likely</span>
             </div>
           )}
           {btcGexLevels.length > 0 && (() => {
             const top = btcGexLevels.reduce((a, b) => Math.abs(a.gex) > Math.abs(b.gex) ? a : b);
             return (
               <div>
-                Largest GEX: <span>${top.strike.toLocaleString()}</span>
-                <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> - options pin / magnet strike</span>
+                Strongest magnet: <span>${top.strike.toLocaleString()}</span>
+                <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> - the price level BTC tends to get pulled toward</span>
               </div>
             );
           })()}
