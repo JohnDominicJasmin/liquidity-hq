@@ -2,11 +2,13 @@
 import Link from 'next/link';
 import { useMarket, COINS, COIN_DEC, fmtPrice, fmtChg, fmtVol, classifyFunding } from '@/lib/marketStore';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
 
 export default function PricesPage() {
   const { store, selectCoin } = useMarket();
   const { coins, wsStatus } = store;
   const wsReady = wsStatus !== 'Connecting...';
+  const { t } = useLabels();
 
   return (
     <div style={{ maxWidth: 700, margin: '0 auto', paddingBottom: 80 }}>
@@ -25,15 +27,15 @@ export default function PricesPage() {
           border: '0.5px solid var(--bdr)', background: 'var(--bg1)',
           flexShrink: 0, letterSpacing: '.01em',
         }}>
-          ← Back
+          {t('PRICES_BACK_LABEL')}
         </Link>
 
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '.02em' }}>
-            Live Prices
+            {t('PRICES_PAGE_TITLE')}
           </div>
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 1, letterSpacing: '.02em' }}>
-            {COINS.length} coins · {wsStatus}
+            {t('PRICES_SUBTITLE', { count: COINS.length, status: wsStatus })}
           </div>
         </div>
 
@@ -43,7 +45,7 @@ export default function PricesPage() {
           border: '0.5px solid rgba(52,211,153,0.2)',
           letterSpacing: '.08em', textTransform: 'uppercase', flexShrink: 0,
         }}>
-          Live
+          {t('PRICES_LIVE_BADGE')}
         </span>
       </div>
 
@@ -54,15 +56,15 @@ export default function PricesPage() {
         borderBottom: '0.5px solid rgba(255,255,255,0.05)',
         background: 'rgba(255,255,255,0.02)',
       }}>
-        <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', opacity: 0.5 }}>Coin</span>
-        <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'right', opacity: 0.5 }}>Price</span>
-        <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'center', opacity: 0.5 }}>24h</span>
+        <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', opacity: 0.5 }}>{t('PRICES_COL_COIN')}</span>
+        <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'right', opacity: 0.5 }}>{t('PRICES_COL_PRICE')}</span>
+        <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.08em', textTransform: 'uppercase', textAlign: 'center', opacity: 0.5 }}>{t('PRICES_COL_CHANGE')}</span>
       </div>
 
       {/* Coin rows */}
       {!wsReady ? (
         <div role="status" aria-live="polite" style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 16px' }}>
-          <span className="sr-only">Loading live prices…</span>
+          <span className="sr-only">{t('PRICES_LOADING_SR')}</span>
           {Array.from({ length: 12 }).map((_, i) => (
             <SkeletonBar key={i} height={46} radius={8} style={{ opacity: 1 - i * 0.05 }} />
           ))}
@@ -107,12 +109,12 @@ export default function PricesPage() {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {d?.vol24 != null && (
                   <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', opacity: 0.7 }}>
-                    Vol {fmtVol(d.vol24)}
+                    {t('PRICES_VOL_PREFIX')} {fmtVol(d.vol24)}
                   </span>
                 )}
                 {d?.oi != null && (
                   <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', opacity: 0.5 }}>
-                    Open Interest {d.oi >= 1e9 ? '$' + (d.oi / 1e9).toFixed(2) + 'B' : '$' + (d.oi / 1e6).toFixed(1) + 'M'}
+                    {t('PRICES_OI_PREFIX')} {d.oi >= 1e9 ? '$' + (d.oi / 1e9).toFixed(2) + 'B' : '$' + (d.oi / 1e6).toFixed(1) + 'M'}
                   </span>
                 )}
               </div>
