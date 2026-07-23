@@ -12,6 +12,7 @@ import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
 import AlertOutcomes from '@/components/AlertOutcomes';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
 
 interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; created_at: string }
 
@@ -21,6 +22,7 @@ const COIN_LABELS: Record<string, string> = Object.fromEntries(COINS.map(c => [c
 const ALERT_COIN_CAP = 20; // Alerts is a Pro-only feature - single cap, no free/pro split needed here
 
 export default function AlertsPage() {
+  const { t } = useLabels();
   const { user, entitled } = useAuth();
   const { settings, loading: settingsLoading, update } = useSettings();
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
@@ -118,10 +120,10 @@ export default function AlertsPage() {
         body: JSON.stringify({ key, muted: willMute }),
       });
       const d = await res.json();
-      if (!d.ok) throw new Error(d.error ?? 'Save failed');
+      if (!d.ok) throw new Error(d.error ?? t('ALERTS_SAVE_FAILED'));
     } catch (e) {
       setMuted(prev => { const n = new Set(prev); willMute ? n.delete(key) : n.add(key); return n; });
-      setMuteErr(e instanceof Error ? e.message : 'Save failed');
+      setMuteErr(e instanceof Error ? e.message : t('ALERTS_SAVE_FAILED'));
     }
   };
 
@@ -133,8 +135,8 @@ export default function AlertsPage() {
       if (onCount >= ALERT_COIN_CAP) {
         setCoinCapMsg(
           onCount > ALERT_COIN_CAP
-            ? `You have ${onCount} coins on, above the ${ALERT_COIN_CAP}-coin limit - turn some off before adding another.`
-            : `Limit reached (${ALERT_COIN_CAP}/${ALERT_COIN_CAP} coins) - turn one off to add another.`
+            ? t('ALERTS_COIN_CAP_OVER_MSG', { onCount, cap: ALERT_COIN_CAP })
+            : t('ALERTS_COIN_CAP_REACHED_MSG', { cap: ALERT_COIN_CAP })
         );
         return;
       }
@@ -172,12 +174,12 @@ export default function AlertsPage() {
         body: JSON.stringify({ coin: paCoin, target_price: parseFloat(paPrice), direction: paDir, label: paLabel }),
       });
       const d = await res.json();
-      if (!res.ok) throw new Error(d.error ?? 'Failed to add alert');
+      if (!res.ok) throw new Error(d.error ?? t('ALERTS_ADD_ALERT_FAILED'));
       setPaPrice(''); setPaLabel('');
       window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'priceAlert' }));
       await loadPriceAlerts();
     } catch (e) {
-      setPaError(e instanceof Error ? e.message : 'Failed to add alert');
+      setPaError(e instanceof Error ? e.message : t('ALERTS_ADD_ALERT_FAILED'));
     }
     setPaAdding(false);
   };
@@ -191,10 +193,10 @@ export default function AlertsPage() {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const d = await res.json();
-      if (!res.ok) throw new Error(d.error ?? 'Failed to remove alert');
+      if (!res.ok) throw new Error(d.error ?? t('ALERTS_REMOVE_ALERT_FAILED'));
       setPriceAlerts(prev => prev.filter(a => a.id !== id));
     } catch (e) {
-      setPaError(e instanceof Error ? e.message : 'Failed to remove alert');
+      setPaError(e instanceof Error ? e.message : t('ALERTS_REMOVE_ALERT_FAILED'));
     }
   };
 
@@ -211,9 +213,9 @@ export default function AlertsPage() {
         setTimeout(() => setTestState('idle'), 3000);
         window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'telegram' }));
       } else {
-        setTestState('err'); setTestErr(d.error ?? 'Unknown error');
+        setTestState('err'); setTestErr(d.error ?? t('ALERTS_UNKNOWN_ERROR'));
       }
-    } catch { setTestState('err'); setTestErr('Network error'); }
+    } catch { setTestState('err'); setTestErr(t('ALERTS_NETWORK_ERROR')); }
   };
 
   const detectChatId = async () => {
@@ -226,9 +228,9 @@ export default function AlertsPage() {
         setDetected(true);
         try { await navigator.clipboard.writeText(d.chat_id); } catch { /* no clipboard access */ }
       } else {
-        setDetectError(d.error ?? 'Could not detect. Send /start to the bot first.');
+        setDetectError(d.error ?? t('ALERTS_DETECT_FAILED'));
       }
-    } catch { setDetectError('Network error'); }
+    } catch { setDetectError(t('ALERTS_NETWORK_ERROR')); }
     setDetecting(false);
   };
 
@@ -244,48 +246,48 @@ export default function AlertsPage() {
     setCheckState('checking'); setCheckResult(null); setCheckErr('');
     try {
       const res = await fetch('/api/telegram/alert', { signal: AbortSignal.timeout(30_000) });
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      if (!res.ok) throw new Error(t('ALERTS_SERVER_ERROR', { status: res.status }));
       const d = await res.json();
       setCheckResult(d);
       setCheckState('done');
     } catch (e) {
-      setCheckErr(e instanceof Error ? e.message : 'Request failed');
+      setCheckErr(e instanceof Error ? e.message : t('ALERTS_CHECK_REQUEST_FAILED'));
       setCheckState('err');
     }
   };
 
   const botLink = botUsername ? `https://t.me/${botUsername}` : null;
-  const botLabel = botUsername ? `@${botUsername}` : 'LiquidityHQ Bot';
+  const botLabel = botUsername ? `@${botUsername}` : t('ALERTS_BOT_FALLBACK_NAME');
 
   const ALERT_GROUPS: { section: string; items: { key: string; dot: string; title: string; desc: string; grok: boolean }[] }[] = [
-    { section: 'Trading Signals', items: [
-      { key: 'ema_setup', dot: '#4ade80', title: 'Entry Signal - EMA Ribbon Setup (4H)', desc: 'Potential LONG or SHORT entry: price pulls into the EMA 9–20 value zone with trend, ribbon spread, and funding aligned · includes stop loss and take profit levels · 6h cooldown', grok: true },
-      { key: 'ema_setup_1h', dot: '#4ade80', title: 'Entry Signal - EMA Ribbon Setup (1H)', desc: 'Same EMA ribbon value-zone setup, checked on the 1H chart · includes stop loss and take profit levels · 2h cooldown', grok: true },
-      { key: 'ema_setup_30m', dot: '#4ade80', title: 'Entry Signal - EMA Ribbon Setup (30M)', desc: 'Same EMA ribbon value-zone setup, checked on the 30M chart for faster-moving entries · includes stop loss and take profit levels · 1h cooldown', grok: true },
-      { key: 'ema_setup_15m', dot: '#4ade80', title: 'Entry Signal - EMA Ribbon Setup (15M)', desc: 'Same EMA ribbon value-zone setup, checked on the 15M chart for the fastest entries · includes stop loss and take profit levels · 30min cooldown', grok: true },
+    { section: t('ALERTS_SECTION_TRADING_SIGNALS'), items: [
+      { key: 'ema_setup', dot: '#4ade80', title: t('ALERTS_EMA_SETUP_4H_TITLE'), desc: t('ALERTS_EMA_SETUP_4H_DESC'), grok: true },
+      { key: 'ema_setup_1h', dot: '#4ade80', title: t('ALERTS_EMA_SETUP_1H_TITLE'), desc: t('ALERTS_EMA_SETUP_1H_DESC'), grok: true },
+      { key: 'ema_setup_30m', dot: '#4ade80', title: t('ALERTS_EMA_SETUP_30M_TITLE'), desc: t('ALERTS_EMA_SETUP_30M_DESC'), grok: true },
+      { key: 'ema_setup_15m', dot: '#4ade80', title: t('ALERTS_EMA_SETUP_15M_TITLE'), desc: t('ALERTS_EMA_SETUP_15M_DESC'), grok: true },
     ]},
-    { section: 'Momentum', items: [
-      { key: 'rsi',        dot: '#fbbf24', title: 'RSI (1H)', desc: '> 78 overbought · < 22 oversold · 4h cooldown', grok: false },
-      { key: 'rapid_move', dot: '#fb923c', title: 'Rapid Moves',     desc: '±5% 1H candle · ±10% 4H candle · flash ±4% in 5 min · 30min–4h cooldowns', grok: true },
+    { section: t('ALERTS_SECTION_MOMENTUM'), items: [
+      { key: 'rsi',        dot: '#fbbf24', title: t('ALERTS_RSI_TITLE'), desc: t('ALERTS_RSI_DESC'), grok: false },
+      { key: 'rapid_move', dot: '#fb923c', title: t('ALERTS_RAPID_MOVES_TITLE'),     desc: t('ALERTS_RAPID_MOVES_DESC'), grok: true },
     ]},
-    { section: 'Trend', items: [
-      { key: 'ema_cross', dot: '#34d399', title: '200 EMA Cross (1H)', desc: 'Price reclaims (bullish) or loses (bearish) the major moving average · 12h cooldown', grok: true },
+    { section: t('ALERTS_SECTION_TREND'), items: [
+      { key: 'ema_cross', dot: '#34d399', title: t('ALERTS_EMA_CROSS_TITLE'), desc: t('ALERTS_EMA_CROSS_DESC'), grok: true },
     ]},
-    { section: 'Flow', items: [
-      { key: 'whales',   dot: '#1a7aff', title: 'Whale Trades',        desc: 'BTC >$5M · ETH >$2M · SOL >$1M · XRP/BNB >$750K · others >$500K · 30min cooldown', grok: true },
-      { key: 'oi_spike', dot: '#fbbf24', title: 'Open Interest Spike ±15% / 1h', desc: 'New money entering - big move building · 2h cooldown', grok: true },
-      { key: 'cvd',      dot: '#34d399', title: 'CVD Divergence',      desc: 'Bullish: price down but buyers absorbing · Bearish: price up but sellers dominate · 1h cooldown', grok: false },
-      { key: 'squeeze',  dot: '#f43f5e', title: 'Squeeze / Flush ≥ 70', desc: 'Crowd positioning extreme - squeeze score threshold hit · 4h cooldown', grok: true },
-      { key: 'distribution', dot: '#f97316', title: 'Distribution - Big Players Taking Profit', desc: 'Coin still up on the day but sellers hit into strength, open interest unwinds, whales lean out, retail keeps paying funding · fires at score ≥ 70 · 4h cooldown', grok: true },
+    { section: t('ALERTS_SECTION_FLOW'), items: [
+      { key: 'whales',   dot: '#1a7aff', title: t('ALERTS_WHALES_TITLE'),        desc: t('ALERTS_WHALES_DESC'), grok: true },
+      { key: 'oi_spike', dot: '#fbbf24', title: t('ALERTS_OI_SPIKE_TITLE'), desc: t('ALERTS_OI_SPIKE_DESC'), grok: true },
+      { key: 'cvd',      dot: '#34d399', title: t('ALERTS_CVD_TITLE'),      desc: t('ALERTS_CVD_DESC'), grok: false },
+      { key: 'squeeze',  dot: '#f43f5e', title: t('ALERTS_SQUEEZE_TITLE'), desc: t('ALERTS_SQUEEZE_DESC'), grok: true },
+      { key: 'distribution', dot: '#f97316', title: t('ALERTS_DISTRIBUTION_TITLE'), desc: t('ALERTS_DISTRIBUTION_DESC'), grok: true },
     ]},
-    { section: 'News & Sentiment', items: [
-      { key: 'news',               dot: '#f87171', title: 'Breaking News',         desc: 'Geopolitical / macro Finnhub headlines · 15min cooldown', grok: true },
-      { key: 'fear_greed',         dot: '#f97316', title: 'Fear & Greed Extremes', desc: '≤ 15 extreme fear · ≥ 85 extreme greed · 23h cooldown', grok: false },
-      { key: 'sentiment_extremes', dot: '#f43f5e', title: 'Sentiment Extremes',    desc: 'F&G + BTC funding + BTC L/S ratio all at extremes simultaneously · 4h cooldown', grok: true },
+    { section: t('ALERTS_SECTION_NEWS_SENTIMENT'), items: [
+      { key: 'news',               dot: '#f87171', title: t('ALERTS_NEWS_TITLE'),         desc: t('ALERTS_NEWS_DESC'), grok: true },
+      { key: 'fear_greed',         dot: '#f97316', title: t('ALERTS_FEAR_GREED_TITLE'), desc: t('ALERTS_FEAR_GREED_DESC'), grok: false },
+      { key: 'sentiment_extremes', dot: '#f43f5e', title: t('ALERTS_SENTIMENT_EXTREMES_TITLE'),    desc: t('ALERTS_SENTIMENT_EXTREMES_DESC'), grok: true },
     ]},
-    { section: 'Price & Summary', items: [
-      { key: 'price_alerts',  dot: '#9ba4ff', title: 'Price Level Alerts', desc: 'Your saved price targets · fires once then deactivates', grok: true },
-      { key: 'daily_summary', dot: '#fbbf24', title: `Daily ${dailySummaryLocalTime} Summary`, desc: `FR snapshot + F&G + active price alerts + LiquidityAI outlook · once daily at ${dailySummaryLocalTime}`, grok: true },
+    { section: t('ALERTS_SECTION_PRICE_SUMMARY'), items: [
+      { key: 'price_alerts',  dot: '#9ba4ff', title: t('ALERTS_PRICE_LEVEL_TITLE'), desc: t('ALERTS_PRICE_LEVEL_DESC'), grok: true },
+      { key: 'daily_summary', dot: '#fbbf24', title: t('ALERTS_DAILY_SUMMARY_TITLE', { time: dailySummaryLocalTime }), desc: t('ALERTS_DAILY_SUMMARY_DESC', { time: dailySummaryLocalTime }), grok: true },
     ]},
   ];
 
@@ -300,8 +302,8 @@ export default function AlertsPage() {
     <div>
       {/* Header */}
       <div className="mb-header">
-        <h1 className="mb-title">Telegram Alerts</h1>
-        <div className="mb-subtitle">Real-time push alerts to your phone - funding, momentum, whale flow, sentiment, and price levels</div>
+        <h1 className="mb-title">{t('ALERTS_PAGE_TITLE')}</h1>
+        <div className="mb-subtitle">{t('ALERTS_PAGE_SUBTITLE')}</div>
       </div>
 
       <AlertOutcomes />
@@ -315,15 +317,15 @@ export default function AlertsPage() {
           of a form they can look at but not touch. */}
       {user && !entitled ? (
         <LockedFeatureCard
-          title="Connect Telegram"
-          description="Push alerts for funding rate extremes, RSI signals, open interest spikes, whale moves, and price levels - sent directly to Telegram."
-          onUnlock={() => setUpgradeGate('Telegram Alerts')}
+          title={t('ALERTS_CONNECT_TELEGRAM_TITLE')}
+          description={t('ALERTS_LOCKED_FEATURE_DESC')}
+          onUnlock={() => setUpgradeGate(t('ALERTS_UPGRADE_GATE_FEATURE_LABEL'))}
         />
       ) : (
       /* ── Telegram Quick-Connect Wizard ──────────────────────────────── */
       <div className="card" style={{ marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <div className="lbl" style={{ margin: 0 }}>Connect Telegram</div>
+          <div className="lbl" style={{ margin: 0 }}>{t('ALERTS_CONNECT_TELEGRAM_TITLE')}</div>
           {settingsLoading ? (
             <SkeletonBar width={70} height={12} />
           ) : isConnected ? (
@@ -333,7 +335,7 @@ export default function AlertsPage() {
               background: '#34d39914', border: '0.5px solid #34d39944',
             }}>
               <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#34d399', boxShadow: '0 0 5px #34d399' }} />
-              Connected
+              {t('ALERTS_STATUS_CONNECTED')}
             </span>
           ) : (
             <span style={{
@@ -342,7 +344,7 @@ export default function AlertsPage() {
               background: 'transparent', border: '0.5px solid var(--bdr)',
             }}>
               <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#f87171' }} />
-              Not connected
+              {t('ALERTS_STATUS_NOT_CONNECTED')}
             </span>
           )}
         </div>
@@ -352,7 +354,7 @@ export default function AlertsPage() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
               <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
-                Chat ID:&nbsp;
+                {t('ALERTS_CHAT_ID_LABEL')}&nbsp;
                 <code style={{ background: 'var(--bg2)', padding: '2px 7px', borderRadius: 4, fontSize: 'var(--fs-caption)' }}>
                   {settings.telegram_chat_id}
                 </code>
@@ -361,7 +363,7 @@ export default function AlertsPage() {
                 style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
                 onClick={() => { update({ telegram_chat_id: '' }); setChatIdInput(''); setSaveState('idle'); }}
               >
-                Change
+                {t('ALERTS_CHANGE_BUTTON')}
               </button>
             </div>
             <button
@@ -369,7 +371,7 @@ export default function AlertsPage() {
               onClick={sendTest}
               disabled={testState === 'sending'}
             >
-              {testState === 'sending' ? 'Sending…' : testState === 'ok' ? '✓ Message sent!' : testState === 'err' ? '✕ Failed' : 'Send Test Message'}
+              {testState === 'sending' ? t('ALERTS_TEST_SENDING') : testState === 'ok' ? t('ALERTS_TEST_SENT_OK') : testState === 'err' ? t('ALERTS_TEST_FAILED') : t('ALERTS_SEND_TEST_BUTTON')}
             </button>
             {testState === 'err' && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 8 }}>{testErr}</div>}
           </div>
@@ -377,7 +379,7 @@ export default function AlertsPage() {
           /* ── Wizard ── */
           <div>
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 18, lineHeight: 1.6 }}>
-              Get trading alerts straight to your phone. Takes 30 seconds.
+              {t('ALERTS_WIZARD_INTRO')}
             </div>
 
             {!webhookOk && (
@@ -385,7 +387,7 @@ export default function AlertsPage() {
                 fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 14, padding: '8px 12px',
                 background: '#f8717114', borderRadius: 6, border: '0.5px solid #f8717144',
               }}>
-                <Warn /> Bot webhook registration failed - the bot may not reply to /start. Try refreshing, or enter your Chat ID manually below.
+                <Warn /> {t('ALERTS_WEBHOOK_FAILED_WARNING')}
               </div>
             )}
 
@@ -394,7 +396,7 @@ export default function AlertsPage() {
               <div style={numStyle}>1</div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)', marginBottom: 8 }}>
-                  Open the bot on Telegram
+                  {t('ALERTS_STEP1_TITLE')}
                 </div>
                 {botLink ? (
                   <a
@@ -408,10 +410,10 @@ export default function AlertsPage() {
                       padding: '8px 16px', borderRadius: 8, textDecoration: 'none',
                     }}
                   >
-                    Open {botLabel} →
+                    {t('ALERTS_OPEN_BOT_BUTTON', { bot: botLabel })}
                   </a>
                 ) : (
-                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Search <strong>LiquidityHQ</strong> on Telegram</div>
+                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ALERTS_SEARCH_BOT_PRE')} <strong>{t('ALERTS_SEARCH_BOT_BOLD')}</strong> {t('ALERTS_SEARCH_BOT_POST')}</div>
                 )}
               </div>
             </div>
@@ -421,14 +423,14 @@ export default function AlertsPage() {
               <div style={numStyle}>2</div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)', marginBottom: 4 }}>
-                  Send&nbsp;
+                  {t('ALERTS_STEP2_SEND_PRE')}&nbsp;
                   <code style={{ background: 'var(--bg2)', padding: '2px 7px', borderRadius: 4, fontSize: 'var(--fs-caption)' }}>
                     /start
                   </code>
-                  &nbsp;in the chat
+                  &nbsp;{t('ALERTS_STEP2_SEND_POST')}
                 </div>
                 <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-                  The bot replies with your <strong style={{ color: 'var(--txt2)' }}>Chat ID</strong> - copy that number.
+                  {t('ALERTS_STEP2_HINT_PRE')} <strong style={{ color: 'var(--txt2)' }}>{t('ALERTS_STEP2_HINT_BOLD')}</strong> {t('ALERTS_STEP2_HINT_POST')}
                 </div>
               </div>
             </div>
@@ -438,14 +440,14 @@ export default function AlertsPage() {
               <div style={numStyle}>3</div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)', marginBottom: 10 }}>
-                  Connect your Chat ID
+                  {t('ALERTS_STEP3_TITLE')}
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
                   <input
                     type="text"
                     className="pa-input"
-                    aria-label="Telegram Chat ID"
-                    placeholder="e.g. 123456789"
+                    aria-label={t('ALERTS_CHAT_ID_ARIA')}
+                    placeholder={t('ALERTS_CHAT_ID_PLACEHOLDER')}
                     value={chatIdInput}
                     onChange={e => { setChatIdInput(e.target.value); setDetected(false); setDetectError(''); }}
                     style={{ flex: 1, minWidth: 110 }}
@@ -456,12 +458,12 @@ export default function AlertsPage() {
                     disabled={detecting}
                     style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
                   >
-                    {detecting ? '↺ Detecting…' : detected ? '✓ Detected' : '↺ Auto-detect'}
+                    {detecting ? t('ALERTS_DETECT_DETECTING') : detected ? t('ALERTS_DETECT_DETECTED') : t('ALERTS_DETECT_AUTO')}
                   </button>
                 </div>
                 {detected && (
                   <div style={{ fontSize: 'var(--fs-caption)', color: '#34d399', marginBottom: 8 }}>
-                    ✓ Chat ID detected and copied to clipboard
+                    {t('ALERTS_DETECT_SUCCESS_MSG')}
                   </div>
                 )}
                 {detectError && (
@@ -473,7 +475,7 @@ export default function AlertsPage() {
                   disabled={!chatIdInput.trim() || saveState === 'saving'}
                   style={{ width: '100%' }}
                 >
-                  {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? '✓ Connected!' : 'Save & Connect'}
+                  {saveState === 'saving' ? t('ALERTS_SAVE_SAVING') : saveState === 'saved' ? t('ALERTS_SAVE_CONNECTED') : t('ALERTS_SAVE_CONNECT_BUTTON')}
                 </button>
               </div>
             </div>
@@ -484,38 +486,38 @@ export default function AlertsPage() {
 
       {/* ── Price Alerts ─────────────────────────────────────────────────── */}
       <AuthGate
-        title="Sign in to use Price Alerts"
-        desc="Save price targets and get Telegram pings when they're hit. Free account required."
+        title={t('ALERTS_AUTHGATE_TITLE')}
+        desc={t('ALERTS_AUTHGATE_DESC')}
       >
         <div className="card" style={{ marginBottom: 10 }}>
-          <div className="lbl" style={{ marginBottom: 12 }}>Price Alerts</div>
+          <div className="lbl" style={{ marginBottom: 12 }}>{t('ALERTS_PRICE_ALERTS_LABEL')}</div>
           <div className="pa-form">
-            <select className="pa-select" aria-label="Coin" value={paCoin} onChange={e => setPaCoin(e.target.value)}>
+            <select className="pa-select" aria-label={t('ALERTS_COIN_ARIA')} value={paCoin} onChange={e => setPaCoin(e.target.value)}>
               {COIN_OPTIONS.map(c => <option key={c} value={c}>{COIN_LABELS[c]}</option>)}
             </select>
-            <select className="pa-select" aria-label="Alert direction" value={paDir} onChange={e => setPaDir(e.target.value as 'above' | 'below')}>
-              <option value="above">↑ Above</option>
-              <option value="below">↓ Below</option>
+            <select className="pa-select" aria-label={t('ALERTS_DIRECTION_ARIA')} value={paDir} onChange={e => setPaDir(e.target.value as 'above' | 'below')}>
+              <option value="above">{t('ALERTS_DIR_ABOVE_OPTION')}</option>
+              <option value="below">{t('ALERTS_DIR_BELOW_OPTION')}</option>
             </select>
             <input
-              className="pa-input" aria-label="Alert price" type="number" placeholder="Price (e.g. 95000)"
+              className="pa-input" aria-label={t('ALERTS_PRICE_ARIA')} type="number" placeholder={t('ALERTS_PRICE_PLACEHOLDER')}
               value={paPrice} onChange={e => setPaPrice(e.target.value)}
             />
             <input
-              className="pa-input pa-input-label" aria-label="Alert note" type="text" placeholder="Note (optional)"
+              className="pa-input pa-input-label" aria-label={t('ALERTS_NOTE_ARIA')} type="text" placeholder={t('ALERTS_NOTE_PLACEHOLDER')}
               value={paLabel} onChange={e => setPaLabel(e.target.value)}
             />
             <button className="tg-action-btn" onClick={addPriceAlert} disabled={paAdding || !paPrice}>
-              {paAdding ? 'Adding…' : '+ Add Alert'}
+              {paAdding ? t('ALERTS_ADDING') : t('ALERTS_ADD_ALERT_BUTTON')}
             </button>
           </div>
           {paError && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 8 }}>{paError}</div>}
           {paLoading ? (
-            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 10 }}>Loading…</div>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 10 }}>{t('ALERTS_LOADING')}</div>
           ) : priceAlerts.length === 0 ? (
             <div className="empty-state" style={{ marginTop: 8 }}>
-              <div className="empty-state-title">No price alerts</div>
-              <div className="empty-state-sub">Add a coin, direction, and target above to get started.</div>
+              <div className="empty-state-title">{t('ALERTS_NO_PRICE_ALERTS_TITLE')}</div>
+              <div className="empty-state-sub">{t('ALERTS_NO_PRICE_ALERTS_SUB')}</div>
             </div>
           ) : (
             <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -531,7 +533,7 @@ export default function AlertsPage() {
             </div>
           )}
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 10, lineHeight: 1.5 }}>
-            Fires once when price crosses your target → LiquidityAI analysis included → alert deactivates automatically.
+            {t('ALERTS_PRICE_ALERT_FOOTER')}
           </div>
         </div>
       </AuthGate>
@@ -539,26 +541,26 @@ export default function AlertsPage() {
       {/* ── Recently Fired ───────────────────────────────────────────────── */}
       <div className="card" style={{ marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div className="lbl" style={{ margin: 0 }}>Recently Fired</div>
+          <div className="lbl" style={{ margin: 0 }}>{t('ALERTS_RECENTLY_FIRED_LABEL')}</div>
           {history.length > 0 && (
             <button
               style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
               onClick={fetchHistory}
             >
-              ↻ refresh
+              {t('ALERTS_REFRESH_BUTTON')}
             </button>
           )}
         </div>
         {history.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-state-title">No alerts fired yet</div>
-            <div className="empty-state-sub">Alerts fire once when price crosses your target - history appears here.</div>
+            <div className="empty-state-title">{t('ALERTS_NO_HISTORY_TITLE')}</div>
+            <div className="empty-state-sub">{t('ALERTS_NO_HISTORY_SUB')}</div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
             {history.slice(0, 15).map((f, i) => {
               const age = (Date.now() - f.ts) / 1000;
-              const ago = age < 60 ? 'just now' : age < 3600 ? `${Math.floor(age / 60)}m ago` : age < 86400 ? `${Math.floor(age / 3600)}h ago` : `${Math.floor(age / 86400)}d ago`;
+              const ago = age < 60 ? t('ALERTS_AGO_JUST_NOW') : age < 3600 ? t('ALERTS_AGO_MINUTES', { n: Math.floor(age / 60) }) : age < 86400 ? t('ALERTS_AGO_HOURS', { n: Math.floor(age / 3600) }) : t('ALERTS_AGO_DAYS', { n: Math.floor(age / 86400) });
               return (
                 <div key={i} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -575,31 +577,31 @@ export default function AlertsPage() {
           </div>
         )}
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 8, paddingTop: 8, borderTop: '0.5px solid var(--bdr)' }}>
-          Auto-refreshes every 60s
+          {t('ALERTS_AUTO_REFRESH_NOTE')}
         </div>
       </div>
 
       {/* ── Manual Check ─────────────────────────────────────────────────── */}
       {isConnected && (
         <div className="card" style={{ marginBottom: 10 }}>
-          <div className="lbl" style={{ marginBottom: 12 }}>Manual Check</div>
+          <div className="lbl" style={{ marginBottom: 12 }}>{t('ALERTS_MANUAL_CHECK_LABEL')}</div>
           <button
             className={`tg-action-btn tg-btn-secondary${checkState === 'err' ? ' tg-btn-err' : ''}`}
             onClick={checkNow}
             disabled={checkState === 'checking'}
           >
-            {checkState === 'checking' ? 'Checking…' : checkState === 'err' ? '✕ Failed - retry?' : 'Check Alerts Now'}
+            {checkState === 'checking' ? t('ALERTS_CHECKING') : checkState === 'err' ? t('ALERTS_CHECK_FAILED_RETRY') : t('ALERTS_CHECK_NOW_BUTTON')}
           </button>
           {checkState === 'done' && checkResult && (
             <div style={{ marginTop: 10, fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.7 }}>
               {checkResult.fired?.length === 0
-                ? `✓ No conditions active right now.${checkResult.note ? ` (${checkResult.note})` : ''}`
-                : `Fired: ${checkResult.fired.join(', ')}`}
+                ? `${t('ALERTS_NO_CONDITIONS_ACTIVE')}${checkResult.note ? ` (${checkResult.note})` : ''}`
+                : t('ALERTS_FIRED_LIST', { list: checkResult.fired.join(', ') })}
             </div>
           )}
           {checkState === 'err' && (
             <div style={{ marginTop: 8, fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>
-              {checkErr || 'Request timed out - server may be cold starting. Try again in 30s.'}
+              {checkErr || t('ALERTS_CHECK_TIMEOUT_FALLBACK')}
             </div>
           )}
         </div>
@@ -607,9 +609,9 @@ export default function AlertsPage() {
 
       {/* ── Alert Conditions ─────────────────────────────────────────────── */}
       <div className="card" style={{ marginBottom: 10 }}>
-        <div className="lbl" style={{ marginBottom: 4 }}>Alert Conditions</div>
+        <div className="lbl" style={{ marginBottom: 4 }}>{t('ALERTS_CONDITIONS_LABEL')}</div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 10 }}>
-          Toggle off to mute. <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4 }}>AI</span> = includes LiquidityAI analysis.
+          {t('ALERTS_MUTE_HINT_PREFIX')} <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4 }}>{t('ALERTS_AI_BADGE_LABEL')}</span> {t('ALERTS_MUTE_HINT_SUFFIX')}
         </div>
         {muteErr && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 8 }}>{muteErr}</div>}
         {ALERT_GROUPS.map(group => (
@@ -628,15 +630,15 @@ export default function AlertsPage() {
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)' }}>
                       {c.title}
-                      {isMuted && <span style={{ marginLeft: 6, fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.05em' }}>MUTED</span>}
+                      {isMuted && <span style={{ marginLeft: 6, fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.05em' }}>{t('ALERTS_MUTED_BADGE')}</span>}
                     </div>
                     <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>{c.desc}</div>
                   </div>
-                  {c.grok && <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>}
+                  {c.grok && <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>{t('ALERTS_AI_BADGE_LABEL')}</span>}
                   <button
                     role="switch"
                     aria-checked={!isMuted}
-                    aria-label={`${isMuted ? 'Unmute' : 'Mute'} ${c.title}`}
+                    aria-label={`${isMuted ? t('ALERTS_UNMUTE_VERB') : t('ALERTS_MUTE_VERB')} ${c.title}`}
                     className={`st-toggle${!isMuted ? ' on' : ''}`}
                     style={{ flexShrink: 0 }}
                     onClick={() => toggleMute(c.key)}
@@ -652,24 +654,24 @@ export default function AlertsPage() {
           <span className="tg-cond-dot" style={{ background: '#818cf8' }} />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)' }}>
-              Confluence Alert <span style={{ marginLeft: 4, fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.05em' }}>ALWAYS ON</span>
+              {t('ALERTS_CONFLUENCE_ALERT_TITLE')} <span style={{ marginLeft: 4, fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.05em' }}>{t('ALERTS_ALWAYS_ON_BADGE')}</span>
             </div>
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>
-              2+ signals on the same coin in one run → single combined ping · LiquidityAI weighs all signals together
+              {t('ALERTS_CONFLUENCE_ALERT_DESC')}
             </div>
           </div>
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>AI</span>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>{t('ALERTS_AI_BADGE_LABEL')}</span>
         </div>
         {/* ── Signal direction filter ── */}
         <div style={{ marginTop: 10, padding: '10px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
           <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 4 }}>
-            Signal Direction
+            {t('ALERTS_SIGNAL_DIRECTION_LABEL')}
           </div>
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 8 }}>
-            Silence one side of directional signals (entry setups, 200 EMA crosses, squeeze/flush warnings).
+            {t('ALERTS_SIGNAL_DIRECTION_DESC')}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {([['dir:long', 'Long signals', '#4ade80'], ['dir:short', 'Short signals', '#f87171']] as const).map(([key, label, col]) => {
+            {([['dir:long', t('ALERTS_DIR_LONG_LABEL'), '#4ade80'], ['dir:short', t('ALERTS_DIR_SHORT_LABEL'), '#f87171']] as const).map(([key, label, col]) => {
               const off = muted.has(key);
               return (
                 <button
@@ -688,7 +690,7 @@ export default function AlertsPage() {
                   }}
                 >
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: off ? 'var(--txt3)' : col }} />
-                  {label}{off ? ' - muted' : ''}
+                  {label}{off ? ` ${t('ALERTS_MUTED_SUFFIX')}` : ''}
                 </button>
               );
             })}
@@ -701,12 +703,12 @@ export default function AlertsPage() {
             {(() => {
               const onCount = COINS.filter(c => !muted.has(`coin:${c}`)).length;
               return onCount > ALERT_COIN_CAP
-                ? `Alert Coins - ${onCount} on (limit ${ALERT_COIN_CAP} - turn some off)`
-                : `Alert Coins - ${onCount}/${ALERT_COIN_CAP} on`;
+                ? t('ALERTS_COINS_OVER_LIMIT', { onCount, cap: ALERT_COIN_CAP })
+                : t('ALERTS_COINS_COUNT', { onCount, cap: ALERT_COIN_CAP });
             })()}
           </div>
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 8 }}>
-            Tap a coin to stop all alerts for it, including which coins the EMA Ribbon Setup entry signals scan. Your saved price alerts are not affected.
+            {t('ALERTS_COIN_SELECTION_DESC')}
           </div>
           {coinCapMsg && (
             <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 8 }}>
@@ -715,10 +717,10 @@ export default function AlertsPage() {
           )}
           <input
             className="acoin-search"
-            placeholder="Search coins..."
+            placeholder={t('ALERTS_COIN_SEARCH_PLACEHOLDER')}
             value={coinSearch}
             onChange={e => setCoinSearch(e.target.value)}
-            aria-label="Search alert coins"
+            aria-label={t('ALERTS_COIN_SEARCH_ARIA')}
           />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {COINS.filter(c => c.includes(coinSearch.trim().toLowerCase())).map(c => {
@@ -747,14 +749,14 @@ export default function AlertsPage() {
               );
             })}
             {coinSearch.trim() && !COINS.some(c => c.includes(coinSearch.trim().toLowerCase())) && (
-              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>No coins match &quot;{coinSearch}&quot;</div>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ALERTS_NO_COINS_MATCH', { search: coinSearch })}</div>
             )}
           </div>
         </div>
       </div>
 
       <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center', marginBottom: 16 }}>
-        Cooldown timers may occasionally reset after routine maintenance - you might see a rare duplicate alert
+        {t('ALERTS_COOLDOWN_FOOTER_NOTE')}
       </div>
 
       <UpgradeGateModal

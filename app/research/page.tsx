@@ -8,14 +8,16 @@ import VolatilityRegime from '@/components/VolatilityRegime';
 import DryPowder from '@/components/DryPowder';
 import GlobalMacroContext from '@/components/GlobalMacroContext';
 import OnChainScore from '@/components/OnChainScore';
+import { useLabels } from '@/lib/labels';
 
 export default function ResearchPage() {
+  const { t } = useLabels();
   return (
     <>
       <PageHint
         pageKey="research"
-        title="Market Research"
-        body="Big-picture context: cycle positioning, BTC risk level, volatility regime, on-chain score, macro environment, and dry powder. Use this for daily orientation before trading."
+        title={t('RESEARCH_HINT_TITLE')}
+        body={t('RESEARCH_HINT_BODY')}
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
@@ -30,7 +32,7 @@ export default function ResearchPage() {
 
       <div style={{ marginTop: 24 }}>
         <div style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)', marginBottom: 10, padding: '0 2px' }}>
-          Hypothesis Tracker
+          {t('RESEARCH_HYPOTHESIS_TRACKER_TITLE')}
         </div>
         <HypothesisTracker />
       </div>

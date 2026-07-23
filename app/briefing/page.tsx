@@ -16,6 +16,8 @@ import { nextResetLocalTime } from '@/lib/resetTime';
 import PageHint from '@/components/PageHint';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 /* ── helpers ── */
 
@@ -72,37 +74,41 @@ function phtNow() {
 }
 
 /* ── Which signals fired for a given setup direction ── */
-function getSignalTags(coin: CoinData, dir: 'LONG_LIQ' | 'SHORT_SQ'): string[] {
+function getSignalTags(
+  coin: CoinData,
+  dir: 'LONG_LIQ' | 'SHORT_SQ',
+  t: (key: LabelKey, vars?: Record<string, string | number>) => string,
+): string[] {
   const tags: string[] = [];
   if (coin.fundingRate != null) {
     const fr = coin.fundingRate * 100;
     if (dir === 'LONG_LIQ') {
-      if (fr >= 0.05)        tags.push(`FR +${fr.toFixed(2)}%`);
-      else if (fr >= 0.01)   tags.push('FR Elevated');
+      if (fr >= 0.05)        tags.push(t('BRIEFING_TAG_FR_POS', { value: fr.toFixed(2) }));
+      else if (fr >= 0.01)   tags.push(t('BRIEFING_TAG_FR_ELEVATED'));
     } else {
-      if (fr <= -0.03)       tags.push(`FR ${fr.toFixed(2)}%`);
-      else if (fr <= -0.005) tags.push('FR Neg');
+      if (fr <= -0.03)       tags.push(t('BRIEFING_TAG_FR_NEG_VALUE', { value: fr.toFixed(2) }));
+      else if (fr <= -0.005) tags.push(t('BRIEFING_TAG_FR_NEG'));
     }
   }
   if (coin.longRatio != null && coin.shortRatio != null) {
     if (dir === 'LONG_LIQ' && coin.longRatio >= 0.58)
-      tags.push(`Longs ${(coin.longRatio * 100).toFixed(0)}%`);
+      tags.push(t('BRIEFING_TAG_LONGS_PCT', { pct: (coin.longRatio * 100).toFixed(0) }));
     if (dir === 'SHORT_SQ' && coin.shortRatio >= 0.58)
-      tags.push(`Shorts ${(coin.shortRatio * 100).toFixed(0)}%`);
+      tags.push(t('BRIEFING_TAG_SHORTS_PCT', { pct: (coin.shortRatio * 100).toFixed(0) }));
   }
   if (coin.takerBuyRatio != null) {
-    if (dir === 'LONG_LIQ' && coin.takerBuyRatio <= 0.42) tags.push('Taker Sell');
-    if (dir === 'SHORT_SQ' && coin.takerBuyRatio >= 0.58) tags.push('Taker Buy');
+    if (dir === 'LONG_LIQ' && coin.takerBuyRatio <= 0.42) tags.push(t('BRIEFING_TAG_TAKER_SELL'));
+    if (dir === 'SHORT_SQ' && coin.takerBuyRatio >= 0.58) tags.push(t('BRIEFING_TAG_TAKER_BUY'));
   }
   if (coin.volRatio != null && coin.volRatio >= 1.5)
-    tags.push(`Vol ${coin.volRatio.toFixed(1)}x`);
+    tags.push(t('BRIEFING_TAG_VOL', { x: coin.volRatio.toFixed(1) }));
   if (coin.rsi14 != null) {
-    if (dir === 'LONG_LIQ' && coin.rsi14 >= 65) tags.push(`RSI ${Math.round(coin.rsi14)}`);
-    if (dir === 'SHORT_SQ' && coin.rsi14 <= 35)  tags.push(`RSI ${Math.round(coin.rsi14)}`);
+    if (dir === 'LONG_LIQ' && coin.rsi14 >= 65) tags.push(t('BRIEFING_TAG_RSI', { value: Math.round(coin.rsi14) }));
+    if (dir === 'SHORT_SQ' && coin.rsi14 <= 35)  tags.push(t('BRIEFING_TAG_RSI', { value: Math.round(coin.rsi14) }));
   }
   if (coin.oiTrend) {
-    if (dir === 'LONG_LIQ' && coin.oiTrend.includes('down')) tags.push('Open Int ↓');
-    if (dir === 'SHORT_SQ' && coin.oiTrend.includes('up'))   tags.push('Open Int ↑');
+    if (dir === 'LONG_LIQ' && coin.oiTrend.includes('down')) tags.push(t('BRIEFING_TAG_OI_DOWN'));
+    if (dir === 'SHORT_SQ' && coin.oiTrend.includes('up'))   tags.push(t('BRIEFING_TAG_OI_UP'));
   }
   return tags;
 }
@@ -172,6 +178,7 @@ export default function MorningBriefing() {
   const { econEvents, geoEvents, whaleAlerts } = useNews();
   const { user }                               = useAuth();
   const { usage, setUsage }                    = useGrokUsage();
+  const { t }                                   = useLabels();
   const [now, setNow]           = useState<Date>(phtNow);
   const [generating, setGen]    = useState(false);
   const [briefErr, setBriefErr] = useState('');
@@ -204,8 +211,8 @@ export default function MorningBriefing() {
 
   /* Tick once per minute so header time stays fresh */
   useEffect(() => {
-    const t = setInterval(() => setNow(phtNow()), 60_000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setNow(phtNow()), 60_000);
+    return () => clearInterval(timer);
   }, []);
 
   /* Fetch USD/JPY via server proxy (avoids CORS), refreshes every 5 min */
@@ -218,8 +225,8 @@ export default function MorningBriefing() {
         })
         .catch(() => {});
     load();
-    const t = setInterval(load, 5 * 60_000);
-    return () => clearInterval(t);
+    const timer = setInterval(load, 5 * 60_000);
+    return () => clearInterval(timer);
   }, []);
 
   const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -245,12 +252,12 @@ export default function MorningBriefing() {
 
   /* Generate AI briefing */
   async function generateBriefing() {
-    if (!user) { setBriefErr('Sign in to generate a briefing.'); return; }
+    if (!user) { setBriefErr(t('BRIEFING_SIGN_IN_REQUIRED')); return; }
     setGen(true); setBrief(''); setBriefErr('');
     try {
       const sb    = getSupabase();
       const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined;
-      if (!token) { setBriefErr('Session expired - please sign in again.'); setGen(false); return; }
+      if (!token) { setBriefErr(t('BRIEFING_SESSION_EXPIRED')); setGen(false); return; }
 
       const ctx = buildBriefingContext(store, coinRows, urgentEcon, recentGeo, jpyUsd);
       const res = await fetch('/api/briefing', {
@@ -265,8 +272,8 @@ export default function MorningBriefing() {
       if (!res.ok || data.error) {
         setBriefErr(
           data.code === 'RATE_LIMIT'
-            ? `${data.error ?? 'Rate limit reached.'} Resets at ${nextResetLocalTime()}.`
-            : data.error ?? 'Unknown error'
+            ? t('BRIEFING_RATE_LIMIT_MSG', { error: data.error ?? t('BRIEFING_RATE_LIMIT_DEFAULT'), resetTime: nextResetLocalTime() })
+            : data.error ?? t('BRIEFING_UNKNOWN_ERROR')
         );
       } else {
         setBrief(data.briefing ?? '');
@@ -302,9 +309,9 @@ export default function MorningBriefing() {
 
   const dxyChg    = store.dxyChg;
   const dxySig    = dxyChg == null    ? '-'
-    : dxyChg > 0.2  ? '↑ BTC headwind'
-    : dxyChg < -0.2 ? '↓ BTC tailwind'
-    : 'Neutral';
+    : dxyChg > 0.2  ? t('BRIEFING_DXY_HEADWIND')
+    : dxyChg < -0.2 ? t('BRIEFING_DXY_TAILWIND')
+    : t('BRIEFING_DXY_NEUTRAL');
   const dxyColor  = dxyChg == null    ? 'var(--txt3)'
     : dxyChg > 0.2  ? '#f87171'
     : dxyChg < -0.2 ? '#34d399'
@@ -313,8 +320,8 @@ export default function MorningBriefing() {
   const btcDomHistory = store.btcDomHistory;
   const domTrend = btcDomHistory.length >= 2
     ? btcDomHistory[btcDomHistory.length - 1] > btcDomHistory[0]
-      ? { txt: '↑ Alts weak', col: '#fbbf24' }
-      : { txt: '↓ Alts active', col: '#34d399' }
+      ? { txt: t('BRIEFING_DOM_ALTS_WEAK'), col: '#fbbf24' }
+      : { txt: t('BRIEFING_DOM_ALTS_ACTIVE'), col: '#34d399' }
     : null;
 
   const futureEcon = urgentEcon.filter(e => e.dt.getTime() > Date.now());
@@ -323,13 +330,13 @@ export default function MorningBriefing() {
   /* Yen Watch */
   const jpyStatus = jpyUsd == null ? null
     : jpyUsd >= 160
-      ? { label: 'DANGER', color: '#f87171', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.25)',
-          desc: 'BOJ intervention risk high - carry trade unwind can trigger BTC liquidations. Reduce leverage.' }
+      ? { label: t('BRIEFING_YEN_DANGER'), color: '#f87171', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.25)',
+          desc: t('BRIEFING_YEN_DANGER_DESC') }
     : jpyUsd >= 158
-      ? { label: 'WARNING', color: '#fbbf24', bg: 'rgba(251,191,36,0.06)', border: 'rgba(251,191,36,0.2)',
-          desc: 'Approaching 160 danger zone. Watch for BOJ rhetoric or surprise rate hike signals.' }
-      : { label: 'SAFE', color: '#34d399', bg: 'rgba(52,211,153,0.06)', border: 'rgba(52,211,153,0.2)',
-          desc: 'Yen carry trade stable. Reduced crypto liquidation risk from JPY side.' };
+      ? { label: t('BRIEFING_YEN_WARNING'), color: '#fbbf24', bg: 'rgba(251,191,36,0.06)', border: 'rgba(251,191,36,0.2)',
+          desc: t('BRIEFING_YEN_WARNING_DESC') }
+      : { label: t('BRIEFING_YEN_SAFE'), color: '#34d399', bg: 'rgba(52,211,153,0.06)', border: 'rgba(52,211,153,0.2)',
+          desc: t('BRIEFING_YEN_SAFE_DESC') };
   // progress bar: 140 = left edge, 165 = right edge
   const jpyPct        = jpyUsd != null ? Math.max(0, Math.min(100, ((jpyUsd - 140) / 25) * 100)) : 0;
   const warn158Pct    = ((158 - 140) / 25) * 100;  // 72%
@@ -341,22 +348,22 @@ export default function MorningBriefing() {
 
       {/* ── Header ── */}
       <div className="mb-header">
-        <h1 className="mb-title">Morning Briefing</h1>
+        <h1 className="mb-title">{t('BRIEFING_PAGE_TITLE')}</h1>
         <div className="mb-subtitle">{dateStr} · {timeStr}</div>
       </div>
 
       <PageHint
         pageKey="briefing"
-        title="Morning Briefing"
-        body="Your daily market summary - top setups, key support and resistance levels, macro signals, and AI-generated trade ideas updated each morning."
+        title={t('BRIEFING_HINT_TITLE')}
+        body={t('BRIEFING_HINT_BODY')}
       />
 
       {/* ── Top 3 Setups Today ── */}
       <div className="card" style={{ marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div className="lbl" style={{ margin: 0 }}>Top 3 Setups Today</div>
+          <div className="lbl" style={{ margin: 0 }}>{t('BRIEFING_TOP3_TITLE')}</div>
           <Link href="/arena" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'none' }}>
-            See all in Arena →
+            {t('BRIEFING_SEE_ALL_ARENA')}
           </Link>
         </div>
 
@@ -364,18 +371,18 @@ export default function MorningBriefing() {
           <div style={{ padding: '4px 0' }}>
             <SkeletonBar width="55%" height={13} style={{ marginBottom: 8 }} />
             <SkeletonBar width="38%" height={13} />
-            <span className="sr-only">Loading market data…</span>
+            <span className="sr-only">{t('BRIEFING_LOADING_MARKET_SR')}</span>
           </div>
         ) : top3Setups.length === 0 ? (
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 0' }}>
-            No strong setups right now - market positioning is balanced.
+            {t('BRIEFING_NO_SETUPS')}
           </div>
         ) : (
           top3Setups.map(({ id, c, sq }, i) => {
             const isLong    = sq.dir === 'SHORT_SQ';
             const dirColor  = isLong ? '#34d399' : '#f87171';
-            const dirLabel  = isLong ? 'Long ↑' : 'Short ↓';
-            const tags      = c ? getSignalTags(c, sq.dir as 'LONG_LIQ' | 'SHORT_SQ') : [];
+            const dirLabel  = isLong ? t('BRIEFING_DIR_LONG') : t('BRIEFING_DIR_SHORT');
+            const tags      = c ? getSignalTags(c, sq.dir as 'LONG_LIQ' | 'SHORT_SQ', t) : [];
             const isLast    = i === top3Setups.length - 1;
             return (
               <Link key={id} href="/arena" style={{ textDecoration: 'none', display: 'block' }}>
@@ -430,19 +437,19 @@ export default function MorningBriefing() {
       {/* ── AI Briefing ── */}
       <div className="card mb-brief-card">
         <div className="mb-brief-header">
-          <span className="lbl" style={{ margin: 0 }}>AI Pre-Session Briefing</span>
+          <span className="lbl" style={{ margin: 0 }}>{t('BRIEFING_AI_TITLE')}</span>
           <button
             className={`mb-brief-btn${generating ? ' loading' : ''}`}
             onClick={generateBriefing}
             disabled={generating}
           >
-            {generating ? 'Generating…' : brief ? '↻ Regenerate' : 'Generate Briefing'}
+            {generating ? t('BRIEFING_BTN_GENERATING') : brief ? t('BRIEFING_BTN_REGENERATE') : t('BRIEFING_BTN_GENERATE')}
           </button>
         </div>
 
         {!brief && !generating && !briefErr && (
           <div className="mb-brief-empty">
-            Hit Generate to get a LiquidityAI pre-session summary - market conditions, best setup, what to watch.
+            {t('BRIEFING_EMPTY_STATE')}
           </div>
         )}
 
@@ -469,7 +476,7 @@ export default function MorningBriefing() {
                 if (!ts) return null;
                 const mins = Math.round((Date.now() - parseInt(ts)) / 60_000);
                 const label = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`;
-                return <div className="mb-brief-cached">Generated {label} · expires in {Math.max(0, 240 - mins)}m</div>;
+                return <div className="mb-brief-cached">{t('BRIEFING_BRIEF_CACHED', { label, mins: Math.max(0, 240 - mins) })}</div>;
               } catch { return null; }
             })()}
           </div>
@@ -481,7 +488,7 @@ export default function MorningBriefing() {
         <div className="card mb-cvd-card">
           <div className="lbl" style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
             <svg width="13" height="13" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M11 1.5 3.5 11.5H9L8 18.5 16 8H10.5L11 1.5Z" fill="currentColor" /></svg>
-            Active CVD Divergences
+            {t('BRIEFING_CVD_TITLE')}
           </div>
           <div className="mb-cvd-row">
             {cvdAlerts.map(({ id, div }) => (
@@ -494,7 +501,7 @@ export default function MorningBriefing() {
                   background:  div === 'bullish' ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.08)',
                 }}
               >
-                {id.toUpperCase()} {div === 'bullish' ? '▲ Bull' : '▼ Bear'}
+                {id.toUpperCase()} {div === 'bullish' ? t('BRIEFING_CVD_BULL') : t('BRIEFING_CVD_BEAR')}
               </div>
             ))}
           </div>
@@ -506,12 +513,12 @@ export default function MorningBriefing() {
 
       {/* ── Macro Pulse ── */}
       <div className="card" style={{ marginBottom: 10 }}>
-        <div className="lbl">Macro Pulse</div>
+        <div className="lbl">{t('BRIEFING_MACRO_PULSE_TITLE')}</div>
         <div className="mb-macro-row">
 
           <div className="mb-macro-item">
             <div className="mb-macro-label">
-              <Tip text="A 0-100 gauge of overall crypto sentiment built from volatility, momentum, and volume. Extreme fear (low) often marks bottoms, while extreme greed (high) often precedes a pullback.">Fear &amp; Greed</Tip>
+              <Tip text={t('BRIEFING_FNG_TIP')}>{t('BRIEFING_FNG_LABEL')}</Tip>
             </div>
             <div className="mb-macro-val" style={{ color: fngColor }}>
               {fng != null ? fng : '-'}
@@ -523,7 +530,7 @@ export default function MorningBriefing() {
 
           <div className="mb-macro-item">
             <div className="mb-macro-label">
-              <Tip text="Bitcoin's share of the total crypto market cap. Rising dominance means money is rotating into BTC and altcoins are bleeding; falling dominance means alts are outperforming (alt season).">BTC Dom</Tip>
+              <Tip text={t('BRIEFING_BTCDOM_TIP')}>{t('BRIEFING_BTCDOM_LABEL')}</Tip>
             </div>
             <div className="mb-macro-val">
               {store.btcDom != null ? store.btcDom.toFixed(1) + '%' : '-'}
@@ -535,7 +542,7 @@ export default function MorningBriefing() {
 
           <div className="mb-macro-item">
             <div className="mb-macro-label">
-              <Tip width={260} text="The US dollar's strength against a basket of major currencies. A rising dollar usually pulls liquidity out of risk assets like crypto (headwind); a falling dollar is typically a tailwind.">DXY</Tip>
+              <Tip width={260} text={t('BRIEFING_DXY_TIP')}>{t('BRIEFING_DXY_LABEL')}</Tip>
             </div>
             <div className="mb-macro-val">
               {store.dxy != null ? store.dxy.toFixed(2) : '-'}
@@ -546,16 +553,16 @@ export default function MorningBriefing() {
           {etfFlow != null && (
             <div className="mb-macro-item">
               <div className="mb-macro-label">
-                <Tip width={260} text="Net daily money flowing into or out of US spot Bitcoin ETFs. Sustained inflows signal institutional buying demand; sustained outflows signal institutions cutting exposure.">BTC ETF Flow</Tip>
+                <Tip width={260} text={t('BRIEFING_ETF_TIP')}>{t('BRIEFING_ETF_LABEL')}</Tip>
               </div>
               <div className="mb-macro-val" style={{ color: etfColor }}>
                 {(etfFlow >= 0 ? '+' : '') + '$' + Math.abs(etfFlow).toFixed(0) + 'M'}
               </div>
               <div className="mb-macro-sub" style={{ color: etfColor }}>
-                {etfFlow > 100  ? 'Strong inflow'
-                : etfFlow > 0   ? 'Mild inflow'
-                : etfFlow < -100 ? 'Strong outflow'
-                :                  'Mild outflow'}
+                {etfFlow > 100  ? t('BRIEFING_ETF_STRONG_IN')
+                : etfFlow > 0   ? t('BRIEFING_ETF_MILD_IN')
+                : etfFlow < -100 ? t('BRIEFING_ETF_STRONG_OUT')
+                :                  t('BRIEFING_ETF_MILD_OUT')}
               </div>
             </div>
           )}
@@ -566,7 +573,7 @@ export default function MorningBriefing() {
       {/* ── Yen Watch ── */}
       <div className="card" style={{ marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div className="lbl" style={{ margin: 0 }}>Yen Watch</div>
+          <div className="lbl" style={{ margin: 0 }}>{t('BRIEFING_YEN_WATCH_TITLE')}</div>
           {jpyStatus && (
             <span style={{
               fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 9px', borderRadius: 20, letterSpacing: '.06em',
@@ -579,13 +586,13 @@ export default function MorningBriefing() {
           <div>
             <SkeletonBar width="34%" height={16} style={{ marginBottom: 12 }} />
             <SkeletonBar width="100%" height={6} radius={3} />
-            <span className="sr-only">Fetching rate…</span>
+            <span className="sr-only">{t('BRIEFING_FETCHING_RATE_SR')}</span>
           </div>
         ) : (
           <>
             {/* Rate */}
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
-              <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', letterSpacing: '.05em' }}>USD/JPY</span>
+              <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', letterSpacing: '.05em' }}>{t('BRIEFING_YEN_PAIR_LABEL')}</span>
               <span style={{ fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.5px', color: jpyStatus!.color }}>
                 {jpyUsd.toFixed(2)}
               </span>
@@ -627,7 +634,7 @@ export default function MorningBriefing() {
             </div>
             {jpyMinutesAgo !== null && (
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 5 }}>
-                Updated {jpyMinutesAgo < 1 ? 'just now' : `${jpyMinutesAgo}m ago`}
+                {t('BRIEFING_YEN_UPDATED', { time: jpyMinutesAgo < 1 ? 'just now' : `${jpyMinutesAgo}m ago` })}
               </div>
             )}
           </>
@@ -643,20 +650,20 @@ export default function MorningBriefing() {
           if (!c?.price) continue;
           const chips: Chip[] = [];
           if (c.rsi14 != null) {
-            if (c.rsi14 >= 70)      chips.push({ text: `RSI ${Math.round(c.rsi14)}`, color: '#f87171' });
-            else if (c.rsi14 <= 30) chips.push({ text: `RSI ${Math.round(c.rsi14)}`, color: '#34d399' });
+            if (c.rsi14 >= 70)      chips.push({ text: t('BRIEFING_TAG_RSI', { value: Math.round(c.rsi14) }), color: '#f87171' });
+            else if (c.rsi14 <= 30) chips.push({ text: t('BRIEFING_TAG_RSI', { value: Math.round(c.rsi14) }), color: '#34d399' });
           }
           if (c.fundingRate != null) {
             const fr = c.fundingRate * 100;
-            if (fr >= 0.05)       chips.push({ text: `FR +${fr.toFixed(3)}%`, color: '#f87171' });
-            else if (fr <= -0.03) chips.push({ text: `FR ${fr.toFixed(3)}%`,  color: '#34d399' });
+            if (fr >= 0.05)       chips.push({ text: t('BRIEFING_TAG_FR_POS', { value: fr.toFixed(3) }), color: '#f87171' });
+            else if (fr <= -0.03) chips.push({ text: t('BRIEFING_TAG_FR_NEG_VALUE', { value: fr.toFixed(3) }),  color: '#34d399' });
           }
           if (c.volRatio != null && c.volRatio >= 1.5)
-            chips.push({ text: `Vol ${c.volRatio.toFixed(1)}x`, color: 'var(--accent)' });
-          if (c.oiTrend === 'strong_up')        chips.push({ text: 'OI ↑↑',    color: '#34d399' });
-          else if (c.oiTrend === 'strong_down') chips.push({ text: 'OI ↓↓',    color: '#f87171' });
-          if (c.cvdDivergence === 'bullish')    chips.push({ text: 'CVD Bull', color: '#34d399' });
-          else if (c.cvdDivergence === 'bearish') chips.push({ text: 'CVD Bear', color: '#f87171' });
+            chips.push({ text: t('BRIEFING_TAG_VOL', { x: c.volRatio.toFixed(1) }), color: 'var(--accent)' });
+          if (c.oiTrend === 'strong_up')        chips.push({ text: t('BRIEFING_TAG_OI_STRONG_UP'),    color: '#34d399' });
+          else if (c.oiTrend === 'strong_down') chips.push({ text: t('BRIEFING_TAG_OI_STRONG_DOWN'),    color: '#f87171' });
+          if (c.cvdDivergence === 'bullish')    chips.push({ text: t('BRIEFING_TAG_CVD_BULL'), color: '#34d399' });
+          else if (c.cvdDivergence === 'bearish') chips.push({ text: t('BRIEFING_TAG_CVD_BEAR'), color: '#f87171' });
           if (chips.length > 0) byCoins.push({ id, label: COIN_LABELS[id], chips });
         }
 
@@ -667,20 +674,20 @@ export default function MorningBriefing() {
         return (
           <div className="card" style={{ marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: shown.length > 0 ? 10 : 0 }}>
-              <div className="lbl" style={{ margin: 0 }}>Notable Signals</div>
+              <div className="lbl" style={{ margin: 0 }}>{t('BRIEFING_NOTABLE_SIGNALS_TITLE')}</div>
               <Link href="/scanner" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'none' }}>
-                Full scanner →
+                {t('BRIEFING_FULL_SCANNER_LINK')}
               </Link>
             </div>
             {!pricesLoaded ? (
               <div style={{ padding: '4px 0' }}>
                 <SkeletonBar width="55%" height={13} style={{ marginBottom: 8 }} />
                 <SkeletonBar width="38%" height={13} />
-                <span className="sr-only">Loading market data…</span>
+                <span className="sr-only">{t('BRIEFING_LOADING_MARKET_SR')}</span>
               </div>
             ) : shown.length === 0 ? (
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 0' }}>
-                All quiet - no extreme signals right now.
+                {t('BRIEFING_NO_SIGNALS')}
               </div>
             ) : (
               <>
@@ -705,7 +712,7 @@ export default function MorningBriefing() {
                 {extra > 0 && (
                   <Link href="/scanner" style={{ textDecoration: 'none', display: 'block', paddingTop: 8, borderTop: '0.5px solid var(--bdr)', marginTop: 2 }}>
                     <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>
-                      +{extra} more coins with signals - Full scanner →
+                      {t('BRIEFING_MORE_SIGNALS', { count: extra })}
                     </div>
                   </Link>
                 )}
@@ -718,11 +725,11 @@ export default function MorningBriefing() {
 
       {/* ── Events & News ── */}
       <div className="card" style={{ marginBottom: 10 }}>
-        <div className="lbl">Events &amp; News</div>
+        <div className="lbl">{t('BRIEFING_EVENTS_NEWS_TITLE')}</div>
 
         {noEvents && (
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 0' }}>
-            No active events in the next 24h. Clean macro backdrop.
+            {t('BRIEFING_NO_EVENTS')}
           </div>
         )}
 
@@ -770,7 +777,7 @@ export default function MorningBriefing() {
               background: w.side === 'BUY' ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)',
               color: w.side === 'BUY' ? '#34d399' : '#f87171',
             }}>
-              WHALE {w.side}
+              {t('BRIEFING_WHALE_PREFIX', { side: w.side })}
             </div>
             <div className="mb-event-name">
               {w.symbol} · ${(w.usdValue / 1_000_000).toFixed(1)}M @ ${w.price.toLocaleString()}

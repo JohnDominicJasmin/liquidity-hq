@@ -1,36 +1,50 @@
 'use client';
 import { useState, useEffect } from 'react';
 import LoadingState from '@/components/LoadingState';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
   previous?: string; estimate?: string; actual?: string;
 };
 
+type TFn = (key: LabelKey, vars?: Record<string, string | number>) => string;
+
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-function fmtHeaderDate(iso: string): string {
+function fmtHeaderDate(iso: string, t: TFn): string {
   const d = new Date(iso);
   const today = new Date();
   const isToday = d.toDateString() === today.toDateString();
   const label = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-  return isToday ? `Today - ${label}` : label;
+  return isToday ? t('ECON_CALENDAR_TODAY_PREFIX', { date: label }) : label;
 }
 
 function fmtDateKey(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit' });
 }
 
-function countdown(iso: string): string {
+// Stable, non-translated result shape - `released` is the comparison key
+// used at call sites (never the translated string), so formatting the
+// countdown for display can never break the released/pending check.
+type Countdown = { released: true } | { released: false; totalHours: number; hRem: number; m: number };
+
+function countdown(iso: string): Countdown {
   const diff = new Date(iso).getTime() - Date.now();
-  if (diff < 0) return 'Released';
+  if (diff < 0) return { released: true };
   const h = Math.floor(diff / 3_600_000);
   const m = Math.floor((diff % 3_600_000) / 60_000);
-  if (h >= 48) return `${Math.floor(h / 24)}d ${h % 24}h`;
-  if (h >= 1)  return `${h}h ${m}m`;
-  return `${m}m`;
+  return { released: false, totalHours: h, hRem: h % 24, m };
+}
+
+function formatCountdown(c: Countdown, t: TFn): string {
+  if (c.released) return t('ECON_CALENDAR_RELEASED');
+  if (c.totalHours >= 48) return t('ECON_CALENDAR_COUNTDOWN_DAYS_HOURS', { d: Math.floor(c.totalHours / 24), h: c.hRem });
+  if (c.totalHours >= 1)  return t('ECON_CALENDAR_COUNTDOWN_HOURS_MINUTES', { h: c.totalHours, m: c.m });
+  return t('ECON_CALENDAR_COUNTDOWN_MINUTES', { m: c.m });
 }
 
 function calcDelta(actual?: string, estimate?: string): { text: string; positive: boolean } | null {
@@ -61,7 +75,13 @@ const IMPACT_CFG = {
 
 const COLS = '68px 72px 1fr 90px 95px 82px 72px 70px';
 
+const COL_LABEL_KEYS: LabelKey[] = [
+  'ECON_CALENDAR_COL_TIME', 'ECON_CALENDAR_COL_COUNTRY', 'ECON_CALENDAR_COL_EVENT', 'ECON_CALENDAR_COL_PREVIOUS',
+  'ECON_CALENDAR_COL_CONSENSUS', 'ECON_CALENDAR_COL_ACTUAL', 'ECON_CALENDAR_COL_DELTA', 'ECON_CALENDAR_COL_IMPACT',
+];
+
 export default function EconCalendarPage() {
+  const { t } = useLabels();
   const [events, setEvents]   = useState<CalEvent[]>([]);
   const [source, setSource]   = useState('');
   const [loading, setLoading] = useState(true);
@@ -72,7 +92,7 @@ export default function EconCalendarPage() {
     fetch('/api/econ-calendar')
       .then(r => r.json())
       .then(d => { setEvents(d.events ?? []); setSource(d.source ?? ''); })
-      .catch(() => setError('Failed to load calendar'))
+      .catch(() => setError(t('ECON_CALENDAR_LOAD_ERROR')))
       .finally(() => setLoading(false));
   }, []);
 
@@ -92,10 +112,10 @@ export default function EconCalendarPage() {
       {/* Page header */}
       <div style={{ padding: '20px 0 16px' }}>
         <div style={{ fontSize: 'var(--fs-section)', fontWeight: 800, color: 'var(--txt)', letterSpacing: '-.02em', marginBottom: 4 }}>
-          Economic Calendar
+          {t('ECON_CALENDAR_TITLE')}
         </div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-          High-impact US macro events - FOMC, NFP, CPI, PCE, GDP and more
+          {t('ECON_CALENDAR_SUBTITLE')}
           {source && <span style={{ marginLeft: 8, opacity: .5 }}>· {source}</span>}
         </div>
       </div>
@@ -103,8 +123,9 @@ export default function EconCalendarPage() {
       {/* Next event banner */}
       {next && (() => {
         const ic  = IMPACT_CFG[next.impact as keyof typeof IMPACT_CFG] ?? IMPACT_CFG.LOW;
-        const ct  = countdown(next.isoDate);
-        const released = ct === 'Released';
+        const ctObj = countdown(next.isoDate);
+        const ct  = formatCountdown(ctObj, t);
+        const released = ctObj.released;
         return (
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
@@ -114,25 +135,25 @@ export default function EconCalendarPage() {
           }}>
             <div>
               <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: ic.color, marginBottom: 3 }}>
-                {released ? 'Latest Release' : 'Next High-Impact Event'}
+                {released ? t('ECON_CALENDAR_LATEST_RELEASE') : t('ECON_CALENDAR_NEXT_EVENT')}
               </div>
               <div style={{ fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--txt)' }}>{next.name}</div>
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>{fmtTime(next.isoDate)}</div>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
               <div style={{ fontSize: '1.5rem', fontWeight: 800, color: ic.color, lineHeight: 1, letterSpacing: '-0.5px' }}>{ct}</div>
-              {!released && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>away</div>}
+              {!released && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>{t('ECON_CALENDAR_COUNTDOWN_AWAY')}</div>}
             </div>
           </div>
         );
       })()}
 
-      {loading && <LoadingState message="Loading…" />}
+      {loading && <LoadingState message={t('ECON_CALENDAR_LOADING')} />}
       {error && (
         <div style={{ color: '#f87171', fontSize: 'var(--fs-label)', padding: '20px 0', textAlign: 'center' }}>{error}</div>
       )}
       {!loading && !error && sorted.length === 0 && (
-        <div style={{ color: 'var(--txt3)', fontSize: 'var(--fs-label)', padding: '40px 0', textAlign: 'center' }}>No upcoming events found.</div>
+        <div style={{ color: 'var(--txt3)', fontSize: 'var(--fs-label)', padding: '40px 0', textAlign: 'center' }}>{t('ECON_CALENDAR_NO_EVENTS')}</div>
       )}
 
       {/* Day groups */}
@@ -141,7 +162,7 @@ export default function EconCalendarPage() {
 
           {/* Date header */}
           <div style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)', marginBottom: 10, letterSpacing: '-.01em' }}>
-            {fmtHeaderDate(dayEvents[0].isoDate)}
+            {fmtHeaderDate(dayEvents[0].isoDate, t)}
           </div>
 
           {/* Table */}
@@ -157,9 +178,9 @@ export default function EconCalendarPage() {
                 borderBottom: '0.5px solid var(--bdr)',
                 minWidth: 680,
               }}>
-                {['TIME','COUNTRY','EVENT','PREVIOUS','CONSENSUS','ACTUAL','DELTA','IMPACT'].map(h => (
+                {COL_LABEL_KEYS.map(h => (
                   <div key={h} style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.07em', color: 'var(--txt3)' }}>
-                    {h}
+                    {t(h)}
                   </div>
                 ))}
               </div>
@@ -170,7 +191,8 @@ export default function EconCalendarPage() {
                 const isPast  = new Date(e.isoDate).getTime() < now;
                 const isNext  = next?.isoDate === e.isoDate && next?.name === e.name;
                 const delta   = calcDelta(e.actual, e.estimate);
-                const ct      = countdown(e.isoDate);
+                const ctObj   = countdown(e.isoDate);
+                const ct      = formatCountdown(ctObj, t);
 
                 return (
                   <div
@@ -189,14 +211,14 @@ export default function EconCalendarPage() {
                     {/* TIME */}
                     <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
                       {fmtTime(e.isoDate)}
-                      {!isPast && ct !== 'Released' && (
-                        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 1 }}>in {ct}</div>
+                      {!isPast && !ctObj.released && (
+                        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 1 }}>{t('ECON_CALENDAR_IN_COUNTDOWN', { countdown: ct })}</div>
                       )}
                     </div>
 
                     {/* COUNTRY */}
                     <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontWeight: 600 }}>US</span>
+                      <span style={{ fontWeight: 600 }}>{t('ECON_CALENDAR_COUNTRY_US')}</span>
                     </div>
 
                     {/* EVENT */}
