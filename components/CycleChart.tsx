@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 interface CyclePoint { day: number; ratio: number; }
 interface CycleData {
@@ -11,11 +13,17 @@ interface CycleData {
   error?: string;
 }
 
-const CYCLES: { key: '2016' | '2020' | '2024'; color: string; label: string }[] = [
-  { key: '2016', color: 'var(--orange)', label: '2016 Cycle' },
-  { key: '2020', color: '#fbbf24', label: '2020 Cycle' },
-  { key: '2024', color: '#34d399', label: '2024 Cycle (current)' },
+const CYCLES: { key: '2016' | '2020' | '2024'; color: string }[] = [
+  { key: '2016', color: 'var(--orange)' },
+  { key: '2020', color: '#fbbf24' },
+  { key: '2024', color: '#34d399' },
 ];
+
+const CYCLE_LEGEND_KEY: Record<'2016' | '2020' | '2024', LabelKey> = {
+  '2016': 'CYCLE_CHART_LEGEND_2016',
+  '2020': 'CYCLE_CHART_LEGEND_2020',
+  '2024': 'CYCLE_CHART_LEGEND_2024',
+};
 
 const W = 560, H = 180, PAD = { t: 8, r: 12, b: 28, l: 44 };
 const CW = W - PAD.l - PAD.r;
@@ -52,6 +60,7 @@ const Y_TICKS = [
 const X_TICKS = [0, 200, 400, 600, 800, 1000];
 
 export default function CycleChart() {
+  const { t } = useLabels();
   const [data, setData] = useState<CycleData | null>(null);
   const [err, setErr]   = useState<string | null>(null);
 
@@ -79,20 +88,20 @@ export default function CycleChart() {
       }}>
         <div style={{ flex: 1 }}>
           <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase' }}>
-            Cycle Comparison · Days Since Halving
+            {t('CYCLE_CHART_TITLE')}
           </span>
           {currentDay > 0 && (
             <span style={{ fontSize: 'var(--fs-caption)', color: '#555', marginLeft: 8 }}>
-              Day {currentDay} of 2024 cycle
+              {t('CYCLE_CHART_CURRENT_DAY', { day: currentDay })}
             </span>
           )}
         </div>
         {/* Legend */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {CYCLES.map(({ key, color, label }) => (
+          {CYCLES.map(({ key, color }) => (
             <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--fs-caption)', color }}>
               <span style={{ width: 16, height: 2, background: color, display: 'inline-block', borderRadius: 1 }} />
-              {label}
+              {t(CYCLE_LEGEND_KEY[key])}
             </span>
           ))}
         </div>
@@ -101,12 +110,12 @@ export default function CycleChart() {
       {/* Loading / error */}
       {!data && !err && (
         <div style={{ padding: '8px 14px 4px' }} role="status" aria-live="polite">
-          <span className="sr-only">Loading cycle data…</span>
+          <span className="sr-only">{t('CYCLE_CHART_LOADING_SR')}</span>
           <SkeletonBar width="100%" height={150} radius={8} />
         </div>
       )}
       {err && (
-        <div style={{ padding: '20px 14px', fontSize: 'var(--fs-caption)', color: '#f87171' }}>Failed to load: {err}</div>
+        <div style={{ padding: '20px 14px', fontSize: 'var(--fs-caption)', color: '#f87171' }}>{t('CYCLE_CHART_LOAD_ERROR', { err })}</div>
       )}
 
       {/* SVG chart */}
@@ -188,8 +197,8 @@ export default function CycleChart() {
 
       {/* Footer */}
       <div style={{ padding: '4px 14px 8px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>Y axis: price multiple from halving day (log scale)</span>
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>2024 via Bybit · 1h cache</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>{t('CYCLE_CHART_FOOTER_YAXIS')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>{t('CYCLE_CHART_FOOTER_SOURCE')}</span>
       </div>
     </div>
   );

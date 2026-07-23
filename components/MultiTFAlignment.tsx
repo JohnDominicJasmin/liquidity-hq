@@ -1,6 +1,7 @@
 'use client';
 import { useMarket } from '@/lib/marketStore';
 import Tip from '@/components/Tip';
+import { useLabels } from '@/lib/labels';
 
 type Bias = 'bullish' | 'bearish' | 'neutral';
 
@@ -24,8 +25,9 @@ function valColor(bias: Bias): string {
 }
 
 function BiasBadge({ bias }: { bias: Bias }) {
+  const { t } = useLabels();
   const icon = bias === 'bullish' ? '▲' : bias === 'bearish' ? '▼' : '→';
-  const label = bias === 'bullish' ? 'Bullish' : bias === 'bearish' ? 'Bearish' : 'Neutral';
+  const label = bias === 'bullish' ? t('MULTI_TF_ALIGNMENT_BIAS_BULLISH') : bias === 'bearish' ? t('MULTI_TF_ALIGNMENT_BIAS_BEARISH') : t('MULTI_TF_ALIGNMENT_BIAS_NEUTRAL');
   const color = bias === 'bullish' ? '#34d399' : bias === 'bearish' ? '#f87171' : 'var(--txt3)';
   const border = bias === 'bullish' ? 'rgba(52,211,153,0.4)' : bias === 'bearish' ? 'rgba(248,113,113,0.4)' : 'rgba(255,255,255,0.15)';
   const bg = bias === 'bullish' ? 'rgba(52,211,153,0.12)' : bias === 'bearish' ? 'rgba(248,113,113,0.12)' : 'transparent';
@@ -80,6 +82,7 @@ function RsiRow({ tf, rsi, bias, last }: { tf: string; rsi: number | null; bias:
 }
 
 export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) {
+  const { t } = useLabels();
   const { store } = useMarket();
   const coin = (coinProp ?? store.selectedCoin) as ReturnType<typeof useMarket>['store']['selectedCoin'];
   const d = store.coins[coin];
@@ -102,18 +105,18 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
     : (bullCount > 0 && bearCount > 0) ? 'conflicting'
     : 'mixed';
 
-  const verdictLabel = verdict === 'bullish' ? '▲ Bullish' : verdict === 'bearish' ? '▼ Bearish' : verdict === 'conflicting' ? 'Conflicting' : 'Mixed Signals';
+  const verdictLabel = verdict === 'bullish' ? t('MULTI_TF_ALIGNMENT_VERDICT_BULLISH') : verdict === 'bearish' ? t('MULTI_TF_ALIGNMENT_VERDICT_BEARISH') : verdict === 'conflicting' ? t('MULTI_TF_ALIGNMENT_VERDICT_CONFLICTING') : t('MULTI_TF_ALIGNMENT_VERDICT_MIXED');
   const verdictColor = verdict === 'bullish' ? '#34d399' : verdict === 'bearish' ? '#f87171' : verdict === 'conflicting' ? '#fbbf24' : 'var(--txt3)';
   const verdictBorder = verdict === 'bullish' ? 'rgba(52,211,153,0.4)' : verdict === 'bearish' ? 'rgba(248,113,113,0.4)' : verdict === 'conflicting' ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.18)';
   const verdictBg = verdict === 'bullish' ? 'rgba(52,211,153,0.1)' : verdict === 'bearish' ? 'rgba(248,113,113,0.1)' : verdict === 'conflicting' ? 'rgba(251,191,36,0.1)' : 'transparent';
 
   const footerText = verdict === 'bullish'
-    ? 'RSI aligned bullish across timeframes. Momentum favors longs.'
+    ? t('MULTI_TF_ALIGNMENT_FOOTER_BULLISH')
     : verdict === 'bearish'
-    ? 'RSI aligned bearish across timeframes. Momentum favors shorts.'
+    ? t('MULTI_TF_ALIGNMENT_FOOTER_BEARISH')
     : verdict === 'conflicting'
-    ? 'Higher and lower timeframes disagree. Stay out or reduce size - no clear edge.'
-    : 'No clear directional bias across timeframes. Wait for RSI to pick a side.';
+    ? t('MULTI_TF_ALIGNMENT_FOOTER_CONFLICTING')
+    : t('MULTI_TF_ALIGNMENT_FOOTER_MIXED');
 
   return (
     <div className="edge-card" style={{ marginBottom: 10 }}>
@@ -121,12 +124,12 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
         <div>
           <div className="edge-card-label" style={{ marginBottom: 2 }}>
-            <Tip width={240} text="Checks RSI(14) across three timeframes (15m = short-term momentum, 1h = medium, 4h = trend). When 2+ timeframes agree, the bias is meaningful. RSI above 57 = bullish zone, below 43 = bearish zone.">
-              Multi-Timeframe Alignment
+            <Tip width={240} text={t('MULTI_TF_ALIGNMENT_TOOLTIP')}>
+              {t('MULTI_TF_ALIGNMENT_TITLE')}
             </Tip>
           </div>
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-            {coin.toUpperCase()} RSI direction - 15m · 1h · 4h
+            {t('MULTI_TF_ALIGNMENT_SUBTITLE', { coin: coin.toUpperCase() })}
           </div>
         </div>
         <span style={{
@@ -145,10 +148,10 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
         display: 'grid', gridTemplateColumns: '28px 1fr 34px 84px', gap: 8,
         marginTop: 12, marginBottom: 0,
       }}>
-        <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>TF</span>
-        <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>RSI(14)</span>
-        <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>VAL</span>
-        <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>BIAS</span>
+        <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('MULTI_TF_ALIGNMENT_COL_TF')}</span>
+        <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('MULTI_TF_ALIGNMENT_COL_RSI')}</span>
+        <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>{t('MULTI_TF_ALIGNMENT_COL_VAL')}</span>
+        <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>{t('MULTI_TF_ALIGNMENT_COL_BIAS')}</span>
       </div>
 
       <RsiRow tf="15m" rsi={rsi14} bias={bias14} />

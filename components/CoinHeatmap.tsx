@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useMarket, COINS, CoinId } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
 import Tip from '@/components/Tip';
+import { useLabels } from '@/lib/labels';
 
 type Cat = 'all' | 'majors' | 'alts' | 'defi' | 'meme';
 
@@ -12,10 +13,6 @@ const CAT: Record<Cat, readonly CoinId[]> = {
   alts:   ['near', 'sui', 'avax', 'link', 'dot', 'atom', 'arb', 'op', 'apt', 'sei', 'inj', 'tia', 'trx', 'xlm', 'etc', 'fil', 'stx'],
   defi:   ['hype', 'aave', 'uni', 'ldo', 'rune', 'gmx', 'crv', 'jup', 'wld', 'render', 'tao', 'fet', 'ondo', 'pyth', 'ena', 'dydx', 'xau', 'spx'],
   meme:   ['doge', 'pepe', 'wif', 'bonk', 'gmt', 'sand', 'mana'],
-};
-
-const CAT_LABELS: Record<Cat, string> = {
-  all: 'All', majors: 'Majors', alts: 'Alts', defi: 'DeFi/AI', meme: 'Meme',
 };
 
 function changeColor(chg: number | null): { bg: string; text: string } {
@@ -38,8 +35,17 @@ function fmtPrice(p: number): string {
 }
 
 export default function CoinHeatmap() {
+  const { t } = useLabels();
   const { store } = useMarket();
   const [cat, setCat] = useState<Cat>('all');
+
+  const CAT_LABELS: Record<Cat, string> = {
+    all: t('COIN_HEATMAP_CAT_ALL'),
+    majors: t('COIN_HEATMAP_CAT_MAJORS'),
+    alts: t('COIN_HEATMAP_CAT_ALTS'),
+    defi: t('COIN_HEATMAP_CAT_DEFI'),
+    meme: t('COIN_HEATMAP_CAT_MEME'),
+  };
 
   const coins = [...(CAT[cat] as CoinId[])]
     .map(c => ({ c, coin: store.coins[c] }))
@@ -64,7 +70,7 @@ export default function CoinHeatmap() {
         display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
       }}>
         <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
-          <Tip text="Every tracked coin's 24h price change, sized and colored by move. Green = up, red = down - a quick scan to spot which coins are leading or lagging the market right now.">Market Heatmap · 24 Hour</Tip>
+          <Tip text={t('COIN_HEATMAP_TOOLTIP')}>{t('COIN_HEATMAP_TITLE')}</Tip>
         </span>
         {positiveCount > 0 && (
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
@@ -144,7 +150,7 @@ export default function CoinHeatmap() {
         padding: '5px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)',
         display: 'flex', alignItems: 'center', gap: 3,
       }}>
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#333', marginRight: 4 }}>Scale:</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: '#333', marginRight: 4 }}>{t('COIN_HEATMAP_SCALE_LABEL')}</span>
         {[
           { label: '>+10%', c: '#34d399' }, { label: '+5%', c: '#6ee7b7' },
           { label: '+2%', c: '#86efac' },   { label: '0', c: '#555' },

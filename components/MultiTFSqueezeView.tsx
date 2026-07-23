@@ -3,6 +3,7 @@ import { useState, useRef } from 'react';
 import { useMarket, COINS, CoinId, computeSqueezeScore } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
 import Tip from '@/components/Tip';
+import { useLabels } from '@/lib/labels';
 
 type TFDir = 'FLUSH' | 'SQUEEZE' | 'NEUTRAL';
 
@@ -81,9 +82,15 @@ function cellColors(sig: TFSignal): { bg: string; text: string; border: string }
   };
 }
 
-const TF_LABELS = ['15 Min', '1 Hour', '4 Hour', '1 Day'] as const;
+const TF_LABEL_KEYS = [
+  'MULTI_TF_SQUEEZE_VIEW_TF_15M',
+  'MULTI_TF_SQUEEZE_VIEW_TF_1H',
+  'MULTI_TF_SQUEEZE_VIEW_TF_4H',
+  'MULTI_TF_SQUEEZE_VIEW_TF_1D',
+] as const;
 
 export default function MultiTFSqueezeView() {
+  const { t } = useLabels();
   const { store } = useMarket();
   const [expanded, setExpanded] = useState(false);
   const [search, setSearch]     = useState('');
@@ -103,8 +110,8 @@ export default function MultiTFSqueezeView() {
     ];
 
     const sq         = computeSqueezeScore(coin);
-    const flushCount = tfs.filter(t => t.dir === 'FLUSH').length;
-    const sqzCount   = tfs.filter(t => t.dir === 'SQUEEZE').length;
+    const flushCount = tfs.filter(sig => sig.dir === 'FLUSH').length;
+    const sqzCount   = tfs.filter(sig => sig.dir === 'SQUEEZE').length;
     const confluence = Math.max(flushCount, sqzCount); // 0-4 aligned TFs
 
     return { c, coin, tfs, sq, confluence, flushCount, sqzCount };
@@ -129,19 +136,19 @@ export default function MultiTFSqueezeView() {
         display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
       }}>
         <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
-          <Tip width={260} text="Checks RSI (amplified by funding rate and long/short ratio) on each timeframe for every coin. When multiple timeframes agree - all showing squeeze or all showing flush - that confluence is a stronger signal than any single timeframe alone.">Multi-Timeframe Squeeze Scanner</Tip>
+          <Tip width={260} text={t('MULTI_TF_SQUEEZE_VIEW_TOOLTIP')}>{t('MULTI_TF_SQUEEZE_VIEW_TITLE')}</Tip>
         </span>
         {totalSqz > 0 && (
           <span style={{
             fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20,
             color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)',
-          }}>↑ {totalSqz} squeeze</span>
+          }}>{t('MULTI_TF_SQUEEZE_VIEW_SQUEEZE_BADGE', { count: totalSqz })}</span>
         )}
         {totalFlush > 0 && (
           <span style={{
             fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20,
             color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '0.5px solid rgba(248,113,113,0.25)',
-          }}>↓ {totalFlush} flush</span>
+          }}>{t('MULTI_TF_SQUEEZE_VIEW_FLUSH_BADGE', { count: totalFlush })}</span>
         )}
       </div>
 
@@ -153,11 +160,11 @@ export default function MultiTFSqueezeView() {
         borderBottom: '0.5px solid rgba(255,255,255,0.05)',
         background: 'rgba(255,255,255,0.02)',
       }}>
-        <span style={hdrStyle}>Coin</span>
-        {TF_LABELS.map(tf => (
-          <span key={tf} style={{ ...hdrStyle, textAlign: 'center' }}>{tf}</span>
+        <span style={hdrStyle}>{t('MULTI_TF_SQUEEZE_VIEW_COL_COIN')}</span>
+        {TF_LABEL_KEYS.map(key => (
+          <span key={key} style={{ ...hdrStyle, textAlign: 'center' }}>{t(key)}</span>
         ))}
-        <span style={{ ...hdrStyle, textAlign: 'right' }}>Squeeze</span>
+        <span style={{ ...hdrStyle, textAlign: 'right' }}>{t('MULTI_TF_SQUEEZE_VIEW_COL_SQUEEZE')}</span>
       </div>
 
       {/* Search bar - visible only when expanded */}
@@ -170,13 +177,13 @@ export default function MultiTFSqueezeView() {
           <input
             ref={searchRef}
             type="text"
-            placeholder="Search coins…"
+            placeholder={t('MULTI_TF_SQUEEZE_VIEW_SEARCH_PLACEHOLDER')}
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', fontSize: 'var(--fs-caption)', color: 'var(--txt)' }}
           />
           {search && (
-            <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: '0.8125rem', lineHeight: 1 }} aria-label="Clear search">×</button>
+            <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: '0.8125rem', lineHeight: 1 }} aria-label={t('MULTI_TF_SQUEEZE_VIEW_CLEAR_SEARCH_ARIA')}>×</button>
           )}
         </div>
       )}
@@ -252,7 +259,7 @@ export default function MultiTFSqueezeView() {
             </span>
           </div>
         );
-        }) : <div style={{ padding: '10px 12px', fontSize: 'var(--fs-caption)', color: '#444' }}>No coins match &ldquo;{search}&rdquo;</div>;
+        }) : <div style={{ padding: '10px 12px', fontSize: 'var(--fs-caption)', color: '#444' }}>{t('MULTI_TF_SQUEEZE_VIEW_NO_MATCH', { search })}</div>;
       })()}
       </div>
 
@@ -275,14 +282,14 @@ export default function MultiTFSqueezeView() {
         onMouseEnter={e => (e.currentTarget.style.color = '#888')}
         onMouseLeave={e => (e.currentTarget.style.color = '#444')}
       >
-        {expanded ? 'Show less ▲' : `Show all ${rows.length} coins ▼`}
+        {expanded ? t('MULTI_TF_SQUEEZE_VIEW_SHOW_LESS') : t('MULTI_TF_SQUEEZE_VIEW_SHOW_ALL', { count: rows.length })}
       </button>
 
       {/* Footer legend */}
       <div style={{ padding: '6px 14px', borderTop: '0.5px solid rgba(255,255,255,0.05)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#34d399' }}>↑ Squeeze = shorts overcrowded, bounce likely</span>
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>↓ Flush = longs overcrowded, drop likely</span>
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>RSI + Funding Rate + L/S ratio</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: '#34d399' }}>{t('MULTI_TF_SQUEEZE_VIEW_LEGEND_SQUEEZE')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>{t('MULTI_TF_SQUEEZE_VIEW_LEGEND_FLUSH')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>{t('MULTI_TF_SQUEEZE_VIEW_LEGEND_FORMULA')}</span>
       </div>
     </div>
   );

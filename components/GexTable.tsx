@@ -1,6 +1,7 @@
 'use client';
 import { useMarket } from '@/lib/marketStore';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
 
 function fmtGex(v: number): string {
   const abs = Math.abs(v);
@@ -11,6 +12,7 @@ function fmtGex(v: number): string {
 }
 
 export default function GexTable() {
+  const { t } = useLabels();
   const { store } = useMarket();
   const { btcNetGex, btcGexFlip, btcGexLevels, btcMaxPain } = store;
 
@@ -31,28 +33,28 @@ export default function GexTable() {
     <div className="gex-table">
       {/* Title + net GEX chip */}
       <div className="gex-title-row">
-        <div className="gex-title">BTC Options Market Pressure <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, opacity: 0.5 }}>(GEX)</span></div>
+        <div className="gex-title">{t('GEX_TABLE_TITLE')} <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, opacity: 0.5 }}>{t('GEX_TABLE_TITLE_SUFFIX')}</span></div>
         {gexLoaded ? (
           <div
             className="gex-net-chip"
             style={{ color: gexCol, background: gexBg, border: `0.5px solid ${gexBorder}` }}
           >
-            {fmtGex(btcNetGex!)} net
+            {t('GEX_TABLE_NET_LABEL', { value: fmtGex(btcNetGex!) })}
           </div>
         ) : (
           <div className="gex-net-chip" style={{ background: 'transparent' }}>
             <SkeletonBar width={56} height={11} radius={4} />
-            <span className="sr-only">Fetching…</span>
+            <span className="sr-only">{t('GEX_TABLE_FETCHING_SR')}</span>
           </div>
         )}
         {btcMaxPain != null && (
-          <div className="gex-meta">Max pain: ${btcMaxPain.toLocaleString()} <span style={{ fontWeight: 400, opacity: 0.6 }}>(the price where the most option bets lose - BTC often drifts toward it as expiry nears)</span></div>
+          <div className="gex-meta">{t('GEX_TABLE_MAX_PAIN_LABEL', { price: btcMaxPain.toLocaleString() })} <span style={{ fontWeight: 400, opacity: 0.6 }}>{t('GEX_TABLE_MAX_PAIN_DESC')}</span></div>
         )}
       </div>
 
       {/* Plain one-liner: what this whole panel is, for someone new to options */}
       <div className="gex-subtitle" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.5, margin: '2px 0 8px' }}>
-        Where the big Bitcoin options bets sit - and whether they&apos;re calming price down (range) or fueling it (trend). Use it to decide: fade the moves, or follow them.
+        {t('GEX_TABLE_SUBTITLE')}
       </div>
 
       {/* Signal interpretation */}
@@ -67,28 +69,28 @@ export default function GexTable() {
           if (btcGexFlip != null && spotPrice > 0) {
             if (spotPrice > btcGexFlip) {
               lean = 'bull';
-              leanReason = `price is holding above the $${btcGexFlip.toLocaleString()} flip line (the calmer side)`;
+              leanReason = t('GEX_TABLE_LEAN_ABOVE_FLIP', { flip: btcGexFlip.toLocaleString() });
             } else {
               lean = 'bear';
-              leanReason = `price has slipped below the $${btcGexFlip.toLocaleString()} flip line (the jumpier side)`;
+              leanReason = t('GEX_TABLE_LEAN_BELOW_FLIP', { flip: btcGexFlip.toLocaleString() });
             }
           } else if (largestGexLevel && spotPrice > 0) {
             if (largestGexLevel.strike > spotPrice) {
               lean = 'bull';
-              leanReason = `the strongest magnet ($${(largestGexLevel.strike / 1000).toFixed(0)}K) sits above price, pulling up`;
+              leanReason = t('GEX_TABLE_LEAN_MAGNET_ABOVE', { strike: (largestGexLevel.strike / 1000).toFixed(0) });
             } else {
               lean = 'bear';
-              leanReason = `the strongest magnet ($${(largestGexLevel.strike / 1000).toFixed(0)}K) sits below price, pulling down`;
+              leanReason = t('GEX_TABLE_LEAN_MAGNET_BELOW', { strike: (largestGexLevel.strike / 1000).toFixed(0) });
             }
           }
 
           const leanColor = lean === 'bull' ? '#34d399' : lean === 'bear' ? '#f87171' : '#9ca3af';
-          const leanLabel = lean === 'bull' ? '↑ BULLISH LEAN' : lean === 'bear' ? '↓ BEARISH LEAN' : '→ NEUTRAL';
-          const regimeLabel = isLongGamma ? 'RANGING' : 'TRENDING';
+          const leanLabel = lean === 'bull' ? t('GEX_TABLE_LEAN_BULLISH') : lean === 'bear' ? t('GEX_TABLE_LEAN_BEARISH') : t('GEX_TABLE_LEAN_NEUTRAL');
+          const regimeLabel = isLongGamma ? t('GEX_TABLE_REGIME_RANGING') : t('GEX_TABLE_REGIME_TRENDING');
           const regimeColor = isLongGamma ? '#34d399' : '#f87171';
           const regimeDesc  = isLongGamma
-            ? 'the market likes to chop and bounce right now - fade the extremes, don’t chase breakouts'
-            : 'moves tend to keep running right now - follow the momentum, don’t try to catch the top or bottom';
+            ? t('GEX_TABLE_REGIME_DESC_RANGING')
+            : t('GEX_TABLE_REGIME_DESC_TRENDING');
 
           return (
             <>
@@ -102,7 +104,7 @@ export default function GexTable() {
         })() : (
           <>
             <SkeletonBar width="60%" height={12} radius={4} />
-            <span className="sr-only">Calculating from Deribit options chain…</span>
+            <span className="sr-only">{t('GEX_TABLE_CALCULATING_SR')}</span>
           </>
         )}
       </div>
@@ -142,7 +144,7 @@ export default function GexTable() {
       {gexLoaded && btcGexLevels.length > 0 && (
         <>
           <div className="gex-hdr">
-            <div>Price level</div><div>Wall strength (bigger = stronger magnet)</div><div>$ size</div>
+            <div>{t('GEX_TABLE_COL_PRICE_LEVEL')}</div><div>{t('GEX_TABLE_COL_WALL_STRENGTH')}</div><div>{t('GEX_TABLE_COL_SIZE')}</div>
           </div>
           {btcGexLevels.map(({ strike, gex }) => {
             const pct   = maxAbsGex > 0 ? Math.abs(gex) / maxAbsGex * 100 : 0;
@@ -153,7 +155,7 @@ export default function GexTable() {
               <div key={strike} className={`gex-row${isAtm ? ' gex-row-atm' : ''}`}>
                 <div className="gex-strike" style={isAtm ? { color: 'var(--txt)' } : {}}>
                   ${strike >= 1000 ? (strike / 1000).toFixed(0) + 'K' : strike}
-                  {isAtm && <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 4 }}>← current price</span>}
+                  {isAtm && <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 4 }}>{t('GEX_TABLE_CURRENT_PRICE_MARKER')}</span>}
                 </div>
                 <div className="gex-bar-wrap">
                   <div className="gex-bar-fill" style={{ width: `${pct}%`, background: col }} />
@@ -170,16 +172,16 @@ export default function GexTable() {
         <div className="gex-flip-row">
           {btcGexFlip != null && (
             <div>
-              Flip line: <span>${btcGexFlip.toLocaleString()}</span>
-              <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> - if BTC breaks {(btcGexFlip < (spotPrice || btcGexFlip)) ? 'below' : 'above'} this, the calming effect switches off and big, fast moves get more likely</span>
+              {t('GEX_TABLE_FLIP_LINE_LABEL')} <span>${btcGexFlip.toLocaleString()}</span>
+              <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> {t('GEX_TABLE_FLIP_LINE_DESC', { dir: (btcGexFlip < (spotPrice || btcGexFlip)) ? t('GEX_TABLE_DIR_BELOW') : t('GEX_TABLE_DIR_ABOVE') })}</span>
             </div>
           )}
           {btcGexLevels.length > 0 && (() => {
             const top = btcGexLevels.reduce((a, b) => Math.abs(a.gex) > Math.abs(b.gex) ? a : b);
             return (
               <div>
-                Strongest magnet: <span>${top.strike.toLocaleString()}</span>
-                <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> - the price level BTC tends to get pulled toward</span>
+                {t('GEX_TABLE_STRONGEST_MAGNET_LABEL')} <span>${top.strike.toLocaleString()}</span>
+                <span style={{ color: 'var(--txt3)', fontWeight: 400 }}> {t('GEX_TABLE_STRONGEST_MAGNET_DESC')}</span>
               </div>
             );
           })()}
