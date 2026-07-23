@@ -33,12 +33,15 @@ Two Supabase projects, both need every seed file run:
 | 1 | Client plumbing, Prices page pilot, language switching, NavDrawer | 87 (10 Prices + 40 Settings + 37 Nav) | `afc96f9` `0d86e5e` `ce518f8` `b8cf12d` |
 | 2 | Static pages (terms/privacy/disclaimer/about/login/not-found/upgrade), calc page + 6 calculator components, 9 shared components | 371 | `62003ae` |
 | 3 | Dashboard | 70 | `b1816ed` |
+| 4a | Arena (Markets still pending) | 156 | `757ab7a` |
 
-**Current total: 532 label rows**, identical in both `lhq_labels` (prod) and `lhq_dev_labels` (dev). 29 files fully migrated: 11 pages (about, calc, dashboard, disclaimer, login, not-found, prices, privacy, settings, terms, upgrade) + 18 components (AuthGate, CoinMultiSelect, DcaCalc, FundingCostCalc, LabelsProvider, LanguageSelect, LanguageSync, LiquidationCalc, NavDrawer, PageHint, PnLCalc, PositionSizer, RiskRewardCalc, SettingsModal, ThemeChips, UpgradeGateModal, UsageMeter, UsageRings).
+**Current total: 688 label rows**, identical in both `lhq_labels` (prod) and `lhq_dev_labels` (dev). 30 files fully migrated: 12 pages (about, arena, calc, dashboard, disclaimer, login, not-found, prices, privacy, settings, terms, upgrade) + 18 components (AuthGate, CoinMultiSelect, DcaCalc, FundingCostCalc, LabelsProvider, LanguageSelect, LanguageSync, LiquidationCalc, NavDrawer, PageHint, PnLCalc, PositionSizer, RiskRewardCalc, SettingsModal, ThemeChips, UpgradeGateModal, UsageMeter, UsageRings).
 
-## Remaining plan (not started)
+Two i18n-breaks-logic bugs caught and fixed during Arena (see commit `757ab7a`): badge/column strings that were being compared by value (`b === 'Beats BTC'`) instead of by a stable id/key. Check for this pattern in every remaining file — any place a label string doubles as a comparison key needs restructuring to `{key, ...}` before translating it.
 
-- **Wave 4** — Arena + Markets. Doing these manually (not delegated to agents) — highest-traffic pages, and exactly where 3 real bugs surfaced earlier this session. Text only — **do not touch `KLineProChart.tsx` internals.**
+## Remaining plan
+
+- **Wave 4b** — Markets (~374 lines, smaller than Arena). Same rules: manual, text only, do not touch `KLineProChart.tsx` internals.
 - **Wave 5** — Funding, Correlation, Backtest, Live-tracking, Scanner, Liq
 - **Wave 6** — Journal, Research, Econ-calendar, Alerts, Hours, Playbook, News, Briefing
 - **Wave 7** — Trackers/detectors batch 1: AbsorptionDetector, AccumulationTracker, DistributionTracker, WhaleTradesFeed, SetupScanner, HypothesisTracker, AlertOutcomes, SignalAccuracy
