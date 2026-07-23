@@ -12,6 +12,8 @@ import { track } from '@/lib/analytics';
 import { COINS } from '@/lib/marketStore';
 import LoadingState from '@/components/LoadingState';
 import { SkeletonBar } from '@/components/Skeleton';
+import LanguageSelect from '@/components/LanguageSelect';
+import { useLabels } from '@/lib/labels';
 
 
 
@@ -20,19 +22,20 @@ const RISK_PRESETS = ['0.25', '0.5', '1', '1.5', '2'];
 
 /* ── Auto-save toast ── */
 function SaveToast({ status }: { status: 'idle' | 'saving' | 'saved' | 'error' }) {
+  const { t } = useLabels();
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     if (status === 'saved' || status === 'error') {
       setVisible(true);
-      const t = setTimeout(() => setVisible(false), 2000);
-      return () => clearTimeout(t);
+      const timer = setTimeout(() => setVisible(false), 2000);
+      return () => clearTimeout(timer);
     }
     if (status === 'saving') setVisible(true);
   }, [status]);
   if (!visible) return null;
   return (
     <div className={`st-save-toast${status === 'error' ? ' error' : status === 'saving' ? ' saving' : ''}`}>
-      {status === 'saving' ? 'Saving…' : status === 'saved' ? '✓ Saved' : '✕ Save failed'}
+      {status === 'saving' ? t('SETTINGS_STATUS_SAVING') : status === 'saved' ? t('SETTINGS_STATUS_SAVED') : t('SETTINGS_STATUS_FAILED')}
     </div>
   );
 }
@@ -50,6 +53,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { t } = useLabels();
   const { user, loading: authLoading, signOut } = useAuth();
   const { settings, saveStatus, update } = useSettings();
   const { usage }                                                    = useGrokUsage();
@@ -140,14 +144,18 @@ export default function SettingsPage() {
 
   // Show limited page (Appearance only) when not signed in
   if (!authLoading && !user) {
-    const LOCKED = ['Account', 'My Watchlist', 'Trading Profile', 'AI Arena Defaults', 'Notification Thresholds', 'Dashboard Sections', 'Telegram Alerts'];
+    const LOCKED = [
+      t('SETTINGS_SECTION_ACCOUNT'), t('SETTINGS_SECTION_WATCHLIST'), t('SETTINGS_SECTION_TRADING_PROFILE'),
+      t('SETTINGS_SECTION_ARENA_DEFAULTS'), t('SETTINGS_SECTION_NOTIFICATIONS'), 'Dashboard Sections',
+      t('SETTINGS_SECTION_TELEGRAM'),
+    ];
     return (
       <div className="st-page">
-        <div className="st-header"><h1 className="st-header-title">Settings</h1></div>
+        <div className="st-header"><h1 className="st-header-title">{t('SETTINGS_PAGE_TITLE')}</h1></div>
 
-        <Section title="Appearance">
+        <Section title={t('SETTINGS_SECTION_APPEARANCE')}>
           <div className="st-field">
-            <label className="st-field-label">Theme</label>
+            <label className="st-field-label">{t('SETTINGS_FIELD_THEME')}</label>
             <ThemeChips />
           </div>
         </Section>
@@ -202,13 +210,13 @@ export default function SettingsPage() {
 
       {/* ── Header ── */}
       <div className="st-header">
-        <h1 className="st-header-title">Settings</h1>
+        <h1 className="st-header-title">{t('SETTINGS_PAGE_TITLE')}</h1>
       </div>
 
       {/* ── 1. Account ── */}
-      <Section title="Account">
+      <Section title={t('SETTINGS_SECTION_ACCOUNT')}>
         <div className="st-field">
-          <div className="st-field-label">Signed in as</div>
+          <div className="st-field-label">{t('SETTINGS_SIGNED_IN_AS')}</div>
           <div className="st-field-value">{user?.email}</div>
         </div>
 
@@ -226,13 +234,13 @@ export default function SettingsPage() {
             router.push('/login');
           }}
         >
-          Sign Out
+          {t('SETTINGS_SIGN_OUT_BUTTON')}
         </button>
       </Section>
 
       {/* ── 2. Watchlist ── */}
-      <Section title="My Watchlist">
-        <div className="st-desc">Select coins to track in your watchlist feed on the dashboard.</div>
+      <Section title={t('SETTINGS_SECTION_WATCHLIST')}>
+        <div className="st-desc">{t('SETTINGS_WATCHLIST_DESC')}</div>
         <CoinMultiSelect
           value={settings.watchlist ?? []}
           onChange={next => update({ watchlist: next })}
@@ -240,15 +248,15 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 3. Trading Profile ── */}
-      <Section title="Trading Profile">
+      <Section title={t('SETTINGS_SECTION_TRADING_PROFILE')}>
         <div className="st-row">
           <div className="st-field st-field-half">
-            <label className="st-field-label">Account Size</label>
+            <label className="st-field-label">{t('SETTINGS_FIELD_ACCOUNT_SIZE')}</label>
             <div className="st-input-wrap">
               <span className="st-affix">$</span>
               <input
                 className="st-input"
-                aria-label="Account Size"
+                aria-label={t('SETTINGS_FIELD_ACCOUNT_SIZE')}
                 type="number"
                 min="0"
                 placeholder="1000"
@@ -258,11 +266,11 @@ export default function SettingsPage() {
             </div>
           </div>
           <div className="st-field st-field-half">
-            <label className="st-field-label">Risk Per Trade</label>
+            <label className="st-field-label">{t('SETTINGS_FIELD_RISK_PER_TRADE')}</label>
             <div className="st-input-wrap">
               <input
                 className="st-input"
-                aria-label="Risk Per Trade"
+                aria-label={t('SETTINGS_FIELD_RISK_PER_TRADE')}
                 type="number"
                 min="0.1"
                 max="10"
@@ -291,7 +299,7 @@ export default function SettingsPage() {
 
         {settings.account_size > 0 && settings.risk_pct > 0 && (
           <div className="st-at-risk">
-            At risk per trade:{' '}
+            {t('SETTINGS_AT_RISK_PREFIX')}{' '}
             <strong style={{ color: '#f87171' }}>
               ${(settings.account_size * settings.risk_pct / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </strong>
@@ -300,12 +308,12 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 3. AI Arena Defaults ── */}
-      <Section title="AI Arena Defaults">
+      <Section title={t('SETTINGS_SECTION_ARENA_DEFAULTS')}>
         <div className="st-field">
-          <label className="st-field-label">Default Coin</label>
+          <label className="st-field-label">{t('SETTINGS_FIELD_DEFAULT_COIN')}</label>
           <select
             className="st-input"
-            aria-label="Default Coin"
+            aria-label={t('SETTINGS_FIELD_DEFAULT_COIN')}
             value={settings.default_coin}
             onChange={e => update({ default_coin: e.target.value as typeof settings.default_coin })}
           >
@@ -315,7 +323,7 @@ export default function SettingsPage() {
           </select>
         </div>
         <div className="st-field">
-          <label className="st-field-label">Default Timeframe</label>
+          <label className="st-field-label">{t('SETTINGS_FIELD_DEFAULT_TF')}</label>
           <div className="st-chip-row">
             {TFS.map(t => (
               <button
@@ -331,16 +339,16 @@ export default function SettingsPage() {
       </Section>
 
       {/* ── 4. Notification Thresholds ── */}
-      <Section title="Notification Thresholds">
-        <div className="st-desc">Browser push - get alerts even when the tab is closed.</div>
+      <Section title={t('SETTINGS_SECTION_NOTIFICATIONS')}>
+        <div className="st-desc">{t('SETTINGS_NOTIF_DESC')}</div>
 
         {/* Push enable/disable toggle */}
         <div className="st-field" style={{ marginBottom: 4 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div>
-              <div className="st-field-label" style={{ marginBottom: 2 }}>Push Notifications</div>
+              <div className="st-field-label" style={{ marginBottom: 2 }}>{t('SETTINGS_FIELD_PUSH_NOTIFICATIONS')}</div>
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-                {pushEnabled ? 'Active on this device' : 'Not enabled on this device'}
+                {pushEnabled ? t('SETTINGS_PUSH_ACTIVE') : t('SETTINGS_PUSH_INACTIVE')}
               </div>
             </div>
             <button
@@ -368,7 +376,7 @@ export default function SettingsPage() {
               fontSize: 'var(--fs-caption)', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s',
             }}
           >
-            {testResult === 'sent' ? 'Notification sent' : testResult === 'error' ? 'Failed - check console' : 'Send test notification'}
+            {testResult === 'sent' ? t('SETTINGS_TEST_PUSH_SENT') : testResult === 'error' ? t('SETTINGS_TEST_PUSH_FAILED') : t('SETTINGS_TEST_PUSH_BUTTON')}
           </button>
         )}
 
@@ -376,11 +384,11 @@ export default function SettingsPage() {
 
         <div className="st-row">
           <div className="st-field st-field-half">
-            <label className="st-field-label">Funding Rate trigger</label>
+            <label className="st-field-label">{t('SETTINGS_FIELD_FUNDING_TRIGGER')}</label>
             <div className="st-input-wrap">
               <input
                 className="st-input"
-                aria-label="Funding Rate trigger"
+                aria-label={t('SETTINGS_FIELD_FUNDING_TRIGGER')}
                 type="number"
                 min="0.01"
                 max="0.5"
@@ -395,11 +403,11 @@ export default function SettingsPage() {
 
         <div className="st-row">
           <div className="st-field st-field-half">
-            <label className="st-field-label">Extreme Fear below</label>
+            <label className="st-field-label">{t('SETTINGS_FIELD_FEAR_BELOW')}</label>
             <div className="st-input-wrap">
               <input
                 className="st-input"
-                aria-label="Extreme Fear below"
+                aria-label={t('SETTINGS_FIELD_FEAR_BELOW')}
                 type="number"
                 min="1"
                 max="40"
@@ -409,11 +417,11 @@ export default function SettingsPage() {
             </div>
           </div>
           <div className="st-field st-field-half">
-            <label className="st-field-label">Extreme Greed above</label>
+            <label className="st-field-label">{t('SETTINGS_FIELD_GREED_ABOVE')}</label>
             <div className="st-input-wrap">
               <input
                 className="st-input"
-                aria-label="Extreme Greed above"
+                aria-label={t('SETTINGS_FIELD_GREED_ABOVE')}
                 type="number"
                 min="60"
                 max="99"
@@ -426,11 +434,11 @@ export default function SettingsPage() {
 
         <div className="st-row">
           <div className="st-field st-field-half">
-            <label className="st-field-label">RSI 1h overbought</label>
+            <label className="st-field-label">{t('SETTINGS_FIELD_RSI_OB')}</label>
             <div className="st-input-wrap">
               <input
                 className="st-input"
-                aria-label="RSI 1h overbought"
+                aria-label={t('SETTINGS_FIELD_RSI_OB')}
                 type="number"
                 min="60"
                 max="90"
@@ -440,11 +448,11 @@ export default function SettingsPage() {
             </div>
           </div>
           <div className="st-field st-field-half">
-            <label className="st-field-label">RSI 1h oversold</label>
+            <label className="st-field-label">{t('SETTINGS_FIELD_RSI_OS')}</label>
             <div className="st-input-wrap">
               <input
                 className="st-input"
-                aria-label="RSI 1h oversold"
+                aria-label={t('SETTINGS_FIELD_RSI_OS')}
                 type="number"
                 min="10"
                 max="40"
@@ -457,11 +465,11 @@ export default function SettingsPage() {
 
         <div className="st-row">
           <div className="st-field st-field-half">
-            <label className="st-field-label">Squeeze/Flush alert score</label>
+            <label className="st-field-label">{t('SETTINGS_FIELD_SQUEEZE_SCORE')}</label>
             <div className="st-input-wrap">
               <input
                 className="st-input"
-                aria-label="Squeeze/Flush alert score"
+                aria-label={t('SETTINGS_FIELD_SQUEEZE_SCORE')}
                 type="number"
                 min="40"
                 max="95"
@@ -473,22 +481,26 @@ export default function SettingsPage() {
         </div>
 
         <div className="st-note">
-          RSI and Squeeze/Flush thresholds apply to both browser push and Telegram alerts. Other thresholds (funding rate, Fear &amp; Greed) are browser push only for now.
+          {t('SETTINGS_NOTIF_NOTE')}
         </div>
       </Section>
 
       {/* ── 6. Appearance ── */}
-      <Section title="Appearance">
+      <Section title={t('SETTINGS_SECTION_APPEARANCE')}>
         <div className="st-field">
-          <label className="st-field-label">Theme</label>
+          <label className="st-field-label">{t('SETTINGS_FIELD_THEME')}</label>
           <ThemeChips />
+        </div>
+        <div className="st-field" style={{ marginBottom: 0 }}>
+          <label className="st-field-label">{t('SETTINGS_SECTION_LANGUAGE')}</label>
+          <LanguageSelect />
         </div>
       </Section>
 
       {/* ── 7. Telegram Alerts ── */}
-      <Section title="Telegram Alerts">
+      <Section title={t('SETTINGS_SECTION_TELEGRAM')}>
         <div className="st-field">
-          <div className="st-field-label">Status</div>
+          <div className="st-field-label">{t('SETTINGS_FIELD_STATUS')}</div>
           <div className="st-tg-status">
             <span
               className="st-tg-dot"
@@ -497,12 +509,12 @@ export default function SettingsPage() {
             {tgStatus === 'loading'
               ? <SkeletonBar width={70} height={12} />
               : tgStatus === 'configured'
-              ? 'Configured'
-              : 'Not configured'}
+              ? t('SETTINGS_TG_CONFIGURED')
+              : t('SETTINGS_TG_NOT_CONFIGURED')}
           </div>
         </div>
         <Link href="/alerts" className="st-link-btn">
-          {tgStatus === 'configured' ? 'Manage alerts →' : 'Set up Telegram →'}
+          {tgStatus === 'configured' ? t('SETTINGS_TG_MANAGE_LINK') : t('SETTINGS_TG_SETUP_LINK')}
         </Link>
       </Section>
 
