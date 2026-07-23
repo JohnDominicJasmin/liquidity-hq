@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { withAlpha } from '@/lib/color';
+import { useLabels } from '@/lib/labels';
 
 // Bitcoin halving dates (block timestamps)
 const HALVINGS = [
@@ -24,6 +25,7 @@ function daysUntil(date: Date): number {
 }
 
 export default function CycleDayCounter() {
+  const { t } = useLabels();
   const latest = HALVINGS[HALVINGS.length - 1];
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -38,7 +40,7 @@ export default function CycleDayCounter() {
   const prePeak      = day < PEAK_WINDOW.start;
 
   const dotColor = inPeakWindow ? '#fbbf24' : pastPeak ? '#f87171' : '#34d399';
-  const label    = inPeakWindow ? 'In peak zone' : pastPeak ? 'Post-peak zone' : 'Pre-peak zone';
+  const label    = inPeakWindow ? t('CYCLE_DAY_COUNTER_ZONE_IN_PEAK') : pastPeak ? t('CYCLE_DAY_COUNTER_ZONE_POST_PEAK') : t('CYCLE_DAY_COUNTER_ZONE_PRE_PEAK');
   const phasePct = Math.min(Math.max((day / PEAK_WINDOW.end) * 100, 0), 100);
 
   return (
@@ -56,7 +58,7 @@ export default function CycleDayCounter() {
             boxShadow: `0 0 6px ${withAlpha(dotColor, '88')}`, flexShrink: 0,
           }} />
           <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase' }}>
-            Cycle Day
+            {t('CYCLE_DAY_COUNTER_HEADER')}
           </span>
         </div>
         <span suppressHydrationWarning style={{
@@ -71,14 +73,14 @@ export default function CycleDayCounter() {
         <span suppressHydrationWarning style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--txt)', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
           {day.toLocaleString()}
         </span>
-        <span style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>days since 4th halving</span>
+        <span style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('CYCLE_DAY_COUNTER_DAYS_SINCE_LABEL')}</span>
       </div>
 
       {/* Progress bar toward peak window */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Halving · Apr 20, 2024</span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Est. peak zone: Day {PEAK_WINDOW.start}-{PEAK_WINDOW.end}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('CYCLE_DAY_COUNTER_HALVING_DATE_LABEL')}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('CYCLE_DAY_COUNTER_PEAK_ZONE_RANGE', { start: PEAK_WINDOW.start, end: PEAK_WINDOW.end })}</span>
         </div>
         <div style={{ height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
           <div style={{
@@ -106,29 +108,29 @@ export default function CycleDayCounter() {
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', paddingTop: 6, borderTop: '0.5px solid var(--bdr)' }}>
         {prePeak && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Days to peak zone</span>
+            <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>{t('CYCLE_DAY_COUNTER_DAYS_TO_PEAK_LABEL')}</span>
             <span suppressHydrationWarning style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>{PEAK_WINDOW.start - day}</span>
           </div>
         )}
         {inPeakWindow && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Days in peak zone</span>
+            <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>{t('CYCLE_DAY_COUNTER_DAYS_IN_PEAK_LABEL')}</span>
             <span suppressHydrationWarning style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>{day - PEAK_WINDOW.start}</span>
           </div>
         )}
         {pastPeak && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Days past peak zone</span>
+            <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>{t('CYCLE_DAY_COUNTER_DAYS_PAST_PEAK_LABEL')}</span>
             <span suppressHydrationWarning style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>{day - PEAK_WINDOW.end}</span>
           </div>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Est. next halving</span>
-          <span suppressHydrationWarning style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums' }}>~{daysToNext}d (Mar 2028)</span>
+          <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>{t('CYCLE_DAY_COUNTER_NEXT_HALVING_LABEL')}</span>
+          <span suppressHydrationWarning style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums' }}>{t('CYCLE_DAY_COUNTER_NEXT_HALVING_VALUE', { days: daysToNext })}</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Historical context</span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>2020: peaked Day 546 · 2016: Day 526</span>
+          <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>{t('CYCLE_DAY_COUNTER_HISTORICAL_CONTEXT_LABEL')}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('CYCLE_DAY_COUNTER_HISTORICAL_CONTEXT_DESC')}</span>
         </div>
       </div>
     </div>

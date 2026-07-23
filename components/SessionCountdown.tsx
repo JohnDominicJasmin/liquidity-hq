@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { getCurrentWindow, isDead, getActiveHolidays, type Window as SessionWindow } from '@/lib/session';
 import { withAlpha } from '@/lib/color';
+import { useLabels } from '@/lib/labels';
 
 /* ── helpers ── */
 function pad(n: number) { return String(n).padStart(2, '0'); }
@@ -22,28 +23,29 @@ function fmtMs(ms: number): string {
 function findNextSession(nowMs: number, currentName?: string): { win: SessionWindow; startsInMs: number } | null {
   const limit = nowMs + 8 * 24 * 3600_000;
   let leftCurrent = !currentName;
-  for (let t = nowMs + 60_000; t < limit; t += 60_000) {
-    const w = getCurrentWindow(new Date(t));
+  for (let cursor = nowMs + 60_000; cursor < limit; cursor += 60_000) {
+    const w = getCurrentWindow(new Date(cursor));
     if (!leftCurrent) {
-      if (w && w.name !== currentName) return { win: w, startsInMs: t - nowMs };
+      if (w && w.name !== currentName) return { win: w, startsInMs: cursor - nowMs };
       if (!w) leftCurrent = true;
       continue;
     }
-    if (w) return { win: w, startsInMs: t - nowMs };
+    if (w) return { win: w, startsInMs: cursor - nowMs };
   }
   return null;
 }
 
 function findSessionEndMs(nowMs: number, name: string): number {
-  for (let t = nowMs + 60_000; t < nowMs + 6 * 3600_000; t += 60_000) {
-    const w = getCurrentWindow(new Date(t));
-    if (!w || w.name !== name) return t - nowMs;
+  for (let cursor = nowMs + 60_000; cursor < nowMs + 6 * 3600_000; cursor += 60_000) {
+    const w = getCurrentWindow(new Date(cursor));
+    if (!w || w.name !== name) return cursor - nowMs;
   }
   return 6 * 3600_000;
 }
 
 /* ── component ── */
 export default function SessionCountdown() {
+  const { t } = useLabels();
   // This page is statically prerendered, so "which session is active" in the
   // server HTML reflects whenever the last build ran, not the real current
   // time - sessions change several times a day, so that snapshot is stale
@@ -86,12 +88,12 @@ export default function SessionCountdown() {
         <div suppressHydrationWarning className="sc-badge" style={{ color: statusCol, background: statusBg, borderColor: withAlpha(statusCol, '44') }}>
           {current
             ? current.name.toUpperCase()
-            : dead ? 'DEAD ZONE' : 'OFF-PEAK'}
+            : dead ? t('SESSION_COUNTDOWN_DEAD_ZONE') : t('SESSION_COUNTDOWN_OFF_PEAK')}
         </div>
 
         {mounted && current && (
           <div className="sc-timer-block">
-            <span className="sc-timer-label">currently open - closes in</span>
+            <span className="sc-timer-label">{t('SESSION_COUNTDOWN_CLOSES_IN')}</span>
             <span suppressHydrationWarning className="sc-timer" style={{ color: current.color }}>
               {fmtMs(endsInMs)}
             </span>
@@ -99,22 +101,22 @@ export default function SessionCountdown() {
         )}
 
         {mounted && !current && dead && (
-          <span className="sc-note">Stay out - no follow-through</span>
+          <span className="sc-note">{t('SESSION_COUNTDOWN_STAY_OUT')}</span>
         )}
 
         {mounted && !current && !dead && (
-          <span className="sc-note">No high-probability window active</span>
+          <span className="sc-note">{t('SESSION_COUNTDOWN_NO_WINDOW')}</span>
         )}
       </div>
 
       {/* Row 2 - next session countdown */}
       {mounted && next && (
         <div className="sc-row-next">
-          <span className="sc-next-label">Next</span>
+          <span className="sc-next-label">{t('SESSION_COUNTDOWN_NEXT')}</span>
           <span suppressHydrationWarning className="sc-next-name" style={{ color: next.win.color }}>
             {next.win.name}
           </span>
-          <span className="sc-next-sep">opens in</span>
+          <span className="sc-next-sep">{t('SESSION_COUNTDOWN_OPENS_IN')}</span>
           <span suppressHydrationWarning className="sc-next-timer">{fmtMs(nextInMs)}</span>
         </div>
       )}
@@ -122,9 +124,9 @@ export default function SessionCountdown() {
       {/* Row 3 - active market holidays (NY/London/Asia/China) - reduced liquidity heads-up */}
       {mounted && holidays.length > 0 && (
         <div className="sc-row-next" style={{ marginTop: 4 }}>
-          <span className="sc-next-label" style={{ color: '#fbbf24' }}>Holiday</span>
+          <span className="sc-next-label" style={{ color: '#fbbf24' }}>{t('SESSION_COUNTDOWN_HOLIDAY')}</span>
           <span suppressHydrationWarning style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
-            {holidays.map(h => `${h.region} closed - ${h.name}`).join(' · ')}
+            {holidays.map(h => t('SESSION_COUNTDOWN_HOLIDAY_ITEM', { region: h.region, name: h.name })).join(' · ')}
           </span>
         </div>
       )}

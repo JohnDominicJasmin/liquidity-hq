@@ -2,11 +2,15 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
   previous?: string; estimate?: string; actual?: string;
 };
+
+type TFn = (key: LabelKey, vars?: Record<string, string | number>) => string;
 
 const IMPACT_COLOR: Record<string, string> = {
   HIGH: '#f87171', MEDIUM: '#fbbf24', LOW: '#6b7280',
@@ -18,17 +22,18 @@ function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-function fmtDateHeader(iso: string): string {
+function fmtDateHeader(iso: string, t: TFn): string {
   const d = new Date(iso);
   const today = new Date();
   const isToday = d.toDateString() === today.toDateString();
-  return isToday ? 'Today' : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  return isToday ? t('ECON_CALENDAR_WIDGET_TODAY') : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 /* ── Econ Calendar preview - dashboard rail widget, links out to the full
    /econ-calendar page. Reuses the same /api/econ-calendar feed - no new
    data source, just a compact preview of the next few high-impact events. ── */
 export default function EconCalendarWidget() {
+  const { t } = useLabels();
   const [events, setEvents]   = useState<CalEvent[] | null>(null);
   const [error, setError]     = useState(false);
 
@@ -51,29 +56,29 @@ export default function EconCalendarWidget() {
   return (
     <div className="av-rail-panel">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div className="av-rail-panel-h" style={{ marginBottom: 0 }}>Economic calendar</div>
+        <div className="av-rail-panel-h" style={{ marginBottom: 0 }}>{t('ECON_CALENDAR_WIDGET_TITLE')}</div>
         <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, letterSpacing: '.04em' }}>
-          Upcoming
+          {t('ECON_CALENDAR_WIDGET_UPCOMING')}
         </span>
       </div>
 
       {error && (
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '6px 0' }}>Failed to load calendar</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '6px 0' }}>{t('ECON_CALENDAR_WIDGET_LOAD_ERROR')}</div>
       )}
       {!error && events === null && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '4px 0' }} role="status" aria-live="polite">
-          <span className="sr-only">Loading…</span>
+          <span className="sr-only">{t('ECON_CALENDAR_WIDGET_LOADING')}</span>
           {[0, 1, 2, 3].map(i => (
             <SkeletonBar key={i} height={22} radius={6} style={{ opacity: 1 - i * 0.15 }} />
           ))}
         </div>
       )}
       {!error && events !== null && upcoming.length === 0 && (
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '6px 0' }}>No upcoming high-impact events</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '6px 0' }}>{t('ECON_CALENDAR_WIDGET_NO_EVENTS')}</div>
       )}
 
       {upcoming.map((e, i) => {
-        const dateKey = fmtDateHeader(e.isoDate);
+        const dateKey = fmtDateHeader(e.isoDate, t);
         const showDateHeader = dateKey !== lastDateKey;
         lastDateKey = dateKey;
         const col = IMPACT_COLOR[e.impact] ?? IMPACT_COLOR.LOW;
@@ -110,7 +115,7 @@ export default function EconCalendarWidget() {
       })}
 
       <Link href="/econ-calendar" className="av-rail-collapse" style={{ marginTop: 10, textDecoration: 'none' }}>
-        <span>See full calendar</span>
+        <span>{t('ECON_CALENDAR_WIDGET_SEE_FULL')}</span>
         <span className="chev">→</span>
       </Link>
     </div>

@@ -11,18 +11,21 @@ import {
   type ConfluenceFactorInput, type CalEvent,
 } from '@/lib/confluence';
 import Tip from './Tip';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
-const VERDICT_CONFIG: Record<string, { label: string; color: string }> = {
-  STRONG_BULL:  { label: 'STRONG BULL CONFLUENCE',  color: '#34d399' },
-  LEANING_BULL: { label: 'LEANING BULL',              color: '#86efac' },
-  MIXED:        { label: 'MIXED / NO EDGE',            color: '#6b7280' },
-  LEANING_BEAR: { label: 'LEANING BEAR',              color: '#fca5a5' },
-  STRONG_BEAR:  { label: 'STRONG BEAR CONFLUENCE',  color: '#f87171' },
+const VERDICT_CONFIG: Record<string, { labelKey: LabelKey; color: string }> = {
+  STRONG_BULL:  { labelKey: 'CONFLUENCE_SCORE_VERDICT_STRONG_BULL',  color: '#34d399' },
+  LEANING_BULL: { labelKey: 'CONFLUENCE_SCORE_VERDICT_LEANING_BULL', color: '#86efac' },
+  MIXED:        { labelKey: 'CONFLUENCE_SCORE_VERDICT_MIXED',        color: '#6b7280' },
+  LEANING_BEAR: { labelKey: 'CONFLUENCE_SCORE_VERDICT_LEANING_BEAR', color: '#fca5a5' },
+  STRONG_BEAR:  { labelKey: 'CONFLUENCE_SCORE_VERDICT_STRONG_BEAR',  color: '#f87171' },
 };
 
 const ECON_REFRESH_MS = 5 * 60_000;
 
 export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: CoinId; emaSignal: StrategySignal; jpyUsd: number | null }) {
+  const { t } = useLabels();
   const { store } = useMarket();
   const d = store.coins[coin];
   const [econEvents, setEconEvents] = useState<CalEvent[]>([]);
@@ -49,7 +52,7 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
   const factors: ConfluenceFactorInput[] = [
     {
       kind: 'directional',
-      label: 'EMA Ribbon Strategy',
+      label: t('CONFLUENCE_SCORE_FACTOR_EMA_RIBBON'),
       dir: (emaSignal.verdict === 'LONG_SETUP' || emaSignal.verdict === 'TRENDING_LONG') ? 'bull'
          : (emaSignal.verdict === 'SHORT_SETUP' || emaSignal.verdict === 'TRENDING_SHORT') ? 'bear' : 'neutral',
       weight: 30,
@@ -62,12 +65,12 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
     ...(coin === 'btc' ? [gexRegimeFactor(store.btcNetGex)] : []),
     {
       kind: 'penalty',
-      label: 'Choppiness Index',
+      label: t('CONFLUENCE_SCORE_FACTOR_CHOPPINESS'),
       weight: 15, active: emaSignal.chopRegime === 'choppy',
     },
     {
       kind: 'penalty',
-      label: 'RSI Divergence Warning',
+      label: t('CONFLUENCE_SCORE_FACTOR_RSI_DIVERGENCE'),
       weight: 15, active: emaSignal.reversalWarnings.length > 0,
     },
   ];
@@ -82,11 +85,11 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
       <div className="sms-header">
         <div>
           <div className="sms-title">
-            <Tip text="Weighted blend of the EMA Ribbon verdict, the 9-signal Order Flow bias, and 15m/1h/4h RSI alignment. For BTC, options gamma (GEX) acts as a regime modifier - in a long-gamma (ranging) market it dampens confidence since these trend signals are less reliable, and stays clear in a short-gamma (trending) market. Choppiness and an active RSI-divergence warning likewise reduce confidence without flipping direction. Macro/event risk is shown separately below - it's not blended into this number since an FOMC print doesn't change the technicals, only the risk of holding through it.">
-              Confluence Score
+            <Tip text={t('CONFLUENCE_SCORE_TOOLTIP')}>
+              {t('CONFLUENCE_SCORE_TITLE')}
             </Tip>
           </div>
-          <div className="sms-sub">{coin.toUpperCase()} · technical signals combined</div>
+          <div className="sms-sub">{t('CONFLUENCE_SCORE_SUBTITLE', { coin: coin.toUpperCase() })}</div>
         </div>
         <div className="sms-verdict" style={{ color: cfg.color, background: withAlpha(cfg.color, '14') }}>
           {result.score >= 0 ? '+' : ''}{result.score}
@@ -109,7 +112,7 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
         background: withAlpha(cfg.color, '10'), border: `0.5px solid ${withAlpha(cfg.color, '33')}`,
         letterSpacing: '.03em',
       }}>
-        {cfg.label}
+        {t(cfg.labelKey)}
       </div>
 
       <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -119,7 +122,7 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
           const col = isPenalty ? (f.active ? '#fbbf24' : 'var(--txt3)')
             : f.dir === 'bull' ? '#34d399' : f.dir === 'bear' ? '#f87171' : 'var(--txt3)';
           const valueText = isPenalty
-            ? (f.active ? `−${f.weight} confidence` : 'clear')
+            ? (f.active ? t('CONFLUENCE_SCORE_PENALTY_ACTIVE', { weight: f.weight }) : t('CONFLUENCE_SCORE_PENALTY_CLEAR'))
             : (f.dir === 'neutral' ? '-' : `${f.dir === 'bull' ? '▲' : '▼'} ${f.weight}`);
           return (
             <div key={i} style={{
