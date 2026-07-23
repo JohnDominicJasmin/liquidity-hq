@@ -1,8 +1,10 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactElement } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOnboarding } from './OnboardingProvider';
 import { withAlpha } from '@/lib/color';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 const ACCENT  = '#1a7aff';
 const GREEN   = '#4ade80';
@@ -19,26 +21,27 @@ const SANS    = "var(--font-sans, 'Figtree', system-ui, sans-serif)";
 
 /* ── Step 1 visual: three metric cards ── */
 function Step1Visual() {
+  const { t } = useLabels();
   const cards = [
-    { label: 'Funding Rate', value: '-0.07%', sub: '3× more shorts', color: RED },
-    { label: 'OI Change 4h',  value: '+$38M',  sub: 'New shorts piling in', color: RED },
-    { label: 'Squeeze Score', value: '82/100', sub: 'SHORT_SQ forming', color: ACCENT },
-  ];
+    { id: 'card1', labelKey: 'SPOTLIGHT_TOUR_CARD1_LABEL', value: '-0.07%', subKey: 'SPOTLIGHT_TOUR_CARD1_SUB', color: RED },
+    { id: 'card2', labelKey: 'SPOTLIGHT_TOUR_CARD2_LABEL', value: '+$38M',  subKey: 'SPOTLIGHT_TOUR_CARD2_SUB', color: RED },
+    { id: 'card3', labelKey: 'SPOTLIGHT_TOUR_CARD3_LABEL', value: '82/100', subKey: 'SPOTLIGHT_TOUR_CARD3_SUB', color: ACCENT },
+  ] as const;
   return (
     <div style={{ display: 'flex', gap: 8, width: '100%' }}>
       {cards.map(c => (
-        <div key={c.label} style={{
+        <div key={c.id} style={{
           flex: 1, background: BG2, border: `1px solid ${BDR}`,
           borderRadius: 10, padding: '14px 10px', textAlign: 'center',
         }}>
           <div style={{ fontSize: 'var(--fs-micro)', color: TXT3, fontFamily: MONO, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 6 }}>
-            {c.label}
+            {t(c.labelKey)}
           </div>
           <div style={{ fontSize: 'var(--fs-data)', fontWeight: 800, color: c.color, fontFamily: MONO, letterSpacing: '-.02em' }}>
             {c.value}
           </div>
           <div style={{ fontSize: 'var(--fs-caption)', color: TXT3, marginTop: 4, lineHeight: 1.4 }}>
-            {c.sub}
+            {t(c.subKey)}
           </div>
         </div>
       ))}
@@ -48,19 +51,20 @@ function Step1Visual() {
 
 /* ── Step 2 visual: funding rate bar ── */
 function Step2Visual() {
+  const { t } = useLabels();
   const [width, setWidth] = useState(0);
-  useEffect(() => { const t = setTimeout(() => setWidth(78), 120); return () => clearTimeout(t); }, []);
+  useEffect(() => { const tid = setTimeout(() => setWidth(78), 120); return () => clearTimeout(tid); }, []);
   const ticks = ['+0.10%', '+0.05%', '0%', '-0.05%', '-0.10%'];
   return (
     <div style={{ width: '100%', background: BG2, border: `1px solid ${BDR}`, borderRadius: 12, padding: '20px 18px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <span style={{ fontSize: 'var(--fs-micro)', color: TXT2, fontFamily: MONO, letterSpacing: '.08em', textTransform: 'uppercase' }}>Funding Rate - BTC</span>
+        <span style={{ fontSize: 'var(--fs-micro)', color: TXT2, fontFamily: MONO, letterSpacing: '.08em', textTransform: 'uppercase' }}>{t('SPOTLIGHT_TOUR_FUNDING_HEADER')}</span>
         <span style={{ fontSize: 'var(--fs-data)', fontWeight: 800, color: RED, fontFamily: MONO }}>-0.07%</span>
       </div>
       {/* Scale */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-        {ticks.map(t => (
-          <span key={t} style={{ fontSize: 'var(--fs-caption)', color: TXT3, fontFamily: MONO }}>{t}</span>
+        {ticks.map(tick => (
+          <span key={tick} style={{ fontSize: 'var(--fs-caption)', color: TXT3, fontFamily: MONO }}>{tick}</span>
         ))}
       </div>
       {/* Track */}
@@ -77,17 +81,17 @@ function Step2Visual() {
         }} />
       </div>
       <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {[
-          { label: 'Shorts paying longs', col: RED },
-          { label: 'Overcrowded short side', col: RED },
-          { label: 'Squeeze fuel building', col: ACCENT },
-        ].map(chip => (
-          <span key={chip.label} style={{
+        {([
+          { id: 'shortsPaying', labelKey: 'SPOTLIGHT_TOUR_CHIP_SHORTS_PAYING', col: RED },
+          { id: 'overcrowded', labelKey: 'SPOTLIGHT_TOUR_CHIP_OVERCROWDED', col: RED },
+          { id: 'squeezeFuel', labelKey: 'SPOTLIGHT_TOUR_CHIP_SQUEEZE_FUEL', col: ACCENT },
+        ] as const).map(chip => (
+          <span key={chip.id} style={{
             fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px',
             borderRadius: 100, border: `1px solid ${withAlpha(chip.col, '30')}`,
             background: withAlpha(chip.col, '10'), color: chip.col, fontFamily: MONO,
           }}>
-            {chip.label}
+            {t(chip.labelKey)}
           </span>
         ))}
       </div>
@@ -97,6 +101,7 @@ function Step2Visual() {
 
 /* ── Step 3 visual: OI change bars ── */
 function Step3Visual() {
+  const { t } = useLabels();
   const bars = [
     { label: '20h', val: 18, color: TXT3 },
     { label: '16h', val: 24, color: TXT3 },
@@ -106,11 +111,11 @@ function Step3Visual() {
     { label: 'Now', val: 72, color: RED  },
   ];
   const [animated, setAnimated] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setAnimated(true), 100); return () => clearTimeout(t); }, []);
+  useEffect(() => { const tid = setTimeout(() => setAnimated(true), 100); return () => clearTimeout(tid); }, []);
   return (
     <div style={{ width: '100%', background: BG2, border: `1px solid ${BDR}`, borderRadius: 12, padding: '20px 18px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <span style={{ fontSize: 'var(--fs-micro)', color: TXT2, fontFamily: MONO, letterSpacing: '.08em', textTransform: 'uppercase' }}>Open Interest Change - BTC</span>
+        <span style={{ fontSize: 'var(--fs-micro)', color: TXT2, fontFamily: MONO, letterSpacing: '.08em', textTransform: 'uppercase' }}>{t('SPOTLIGHT_TOUR_OI_HEADER')}</span>
         <span style={{ fontSize: 'var(--fs-data)', fontWeight: 800, color: RED, fontFamily: MONO }}>+$38.4M</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 64 }}>
@@ -129,7 +134,7 @@ function Step3Visual() {
         ))}
       </div>
       <div style={{ marginTop: 12, fontSize: 'var(--fs-caption)', color: TXT3, lineHeight: 1.5 }}>
-        Each red bar = more shorts entering. The last 3 bars (red) accelerated - a squeeze is loading.
+        {t('SPOTLIGHT_TOUR_OI_CAPTION')}
       </div>
     </div>
   );
@@ -137,8 +142,9 @@ function Step3Visual() {
 
 /* ── Step 4 visual: fake signal card ── */
 function Step4Visual() {
+  const { t } = useLabels();
   const [alertShown, setAlertShown] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setAlertShown(true), 600); return () => clearTimeout(t); }, []);
+  useEffect(() => { const tid = setTimeout(() => setAlertShown(true), 600); return () => clearTimeout(tid); }, []);
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
       {/* Signal card */}
@@ -189,8 +195,8 @@ function Step4Visual() {
       }}>
         <span style={{ fontSize: '1.125rem', flexShrink: 0 }}>✈</span>
         <div>
-          <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: GREEN, fontFamily: MONO }}>Telegram alert sent</div>
-          <div style={{ fontSize: 'var(--fs-caption)', color: TXT3, marginTop: 1 }}>BTC SHORT_SQ 82/100 - squeeze forming</div>
+          <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: GREEN, fontFamily: MONO }}>{t('SPOTLIGHT_TOUR_TELEGRAM_SENT')}</div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: TXT3, marginTop: 1 }}>{t('SPOTLIGHT_TOUR_TELEGRAM_BODY')}</div>
         </div>
       </div>
     </div>
@@ -199,6 +205,7 @@ function Step4Visual() {
 
 /* ── Step 5 visual: animated arena chart mockup ── */
 function Step5Visual() {
+  const { t } = useLabels();
   const [phase,       setPhase]       = useState(0);
   const [markerScale, setMarkerScale] = useState(0);
   const [pulse,       setPulse]       = useState(false);
@@ -370,47 +377,53 @@ function Step5Visual() {
       }}>
         <span style={{ fontSize: '0.875rem', flexShrink: 0 }}>✈</span>
         <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#4db8e8', fontFamily: MONO }}>
-          Alert fired - BTC LONG_SQ 87/100
+          {t('SPOTLIGHT_TOUR_ALERT_FIRED')}
         </span>
       </div>
     </div>
   );
 }
 
-const STEPS = [
+const STEPS: {
+  tagKey:   LabelKey;
+  titleKey: LabelKey;
+  bodyKey:  LabelKey;
+  Visual:   () => ReactElement;
+}[] = [
   {
-    tag:     'THE SETUP',
-    title:   'This is a squeeze setup.',
-    body:    'When shorts overcrowd a market and price reverses, they all close at once - that spike is the squeeze. LiquidityHQ detects it before it fires.',
-    Visual:  Step1Visual,
+    tagKey:   'SPOTLIGHT_TOUR_STEP1_TAG',
+    titleKey: 'SPOTLIGHT_TOUR_STEP1_TITLE',
+    bodyKey:  'SPOTLIGHT_TOUR_STEP1_BODY',
+    Visual:   Step1Visual,
   },
   {
-    tag:     'SIGNAL 1 OF 3',
-    title:   'Funding rate goes negative.',
-    body:    "When funding is negative, shorts pay longs to hold their position. It means the market is overcrowded on the short side - and that's exactly the fuel a squeeze needs.",
-    Visual:  Step2Visual,
+    tagKey:   'SPOTLIGHT_TOUR_STEP2_TAG',
+    titleKey: 'SPOTLIGHT_TOUR_STEP2_TITLE',
+    bodyKey:  'SPOTLIGHT_TOUR_STEP2_BODY',
+    Visual:   Step2Visual,
   },
   {
-    tag:     'SIGNAL 2 OF 3',
-    title:   'Open interest climbs.',
-    body:    'More shorts are opening. Every new short is potential energy. When price reverses even slightly, margin calls cascade - that acceleration is the squeeze.',
-    Visual:  Step3Visual,
+    tagKey:   'SPOTLIGHT_TOUR_STEP3_TAG',
+    titleKey: 'SPOTLIGHT_TOUR_STEP3_TITLE',
+    bodyKey:  'SPOTLIGHT_TOUR_STEP3_BODY',
+    Visual:   Step3Visual,
   },
   {
-    tag:     'SIGNAL 3 OF 3',
-    title:   'LiquidityHQ scores it and alerts you.',
-    body:    'Funding rate, OI change, volume, and RSI are combined into a single score. When it hits 70+, a Telegram alert fires before the crowd sees the move.',
-    Visual:  Step4Visual,
+    tagKey:   'SPOTLIGHT_TOUR_STEP4_TAG',
+    titleKey: 'SPOTLIGHT_TOUR_STEP4_TITLE',
+    bodyKey:  'SPOTLIGHT_TOUR_STEP4_BODY',
+    Visual:   Step4Visual,
   },
   {
-    tag:     "YOU'RE READY",
-    title:   'Your scanner is live right now.',
-    body:    'LiquidityHQ is scanning every major coin in real time. Open Arena to see live scores, pick a coin, and let LiquidityAI analyze the setup for you.',
-    Visual:  Step5Visual,
+    tagKey:   'SPOTLIGHT_TOUR_STEP5_TAG',
+    titleKey: 'SPOTLIGHT_TOUR_STEP5_TITLE',
+    bodyKey:  'SPOTLIGHT_TOUR_STEP5_BODY',
+    Visual:   Step5Visual,
   },
 ];
 
 export default function SpotlightTour({ onDone }: { onDone: () => void }) {
+  const { t } = useLabels();
   const { markDone } = useOnboarding();
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -482,7 +495,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
               fontSize: 'var(--fs-caption)', fontWeight: 700, fontFamily: MONO,
               letterSpacing: '.14em', color: ACCENT,
             }}>
-              {current.tag}
+              {t(current.tagKey)}
             </span>
             <button
               onClick={close}
@@ -490,7 +503,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
                 background: 'none', border: 'none', cursor: 'pointer',
                 color: TXT3, fontSize: '1rem', padding: '2px 4px', lineHeight: 1,
               }}
-              aria-label="Skip tour"
+              aria-label={t('SPOTLIGHT_TOUR_SKIP_ARIA')}
             >
               ✕
             </button>
@@ -510,13 +523,13 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
               fontSize: 'var(--fs-section)', fontWeight: 800, color: TXT1,
               margin: '0 0 8px', lineHeight: 1.2, letterSpacing: '-.02em',
             }}>
-              {current.title}
+              {t(current.titleKey)}
             </h2>
             <p style={{
               fontSize: 'var(--fs-label)', color: TXT2, lineHeight: 1.65,
               margin: 0,
             }}>
-              {current.body}
+              {t(current.bodyKey)}
             </p>
           </div>
 
@@ -545,7 +558,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
                   letterSpacing: '.04em',
                 }}
               >
-                ← Back
+                {t('SPOTLIGHT_TOUR_BACK_BTN')}
               </button>
             )}
             <button
@@ -558,7 +571,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
                 boxShadow: `0 4px 20px ${withAlpha(ACCENT, '40')}`,
               }}
             >
-              {isLast ? 'Open Arena →' : 'Next →'}
+              {isLast ? t('SPOTLIGHT_TOUR_OPEN_ARENA_BTN') : t('SPOTLIGHT_TOUR_NEXT_BTN')}
             </button>
           </div>
         </div>

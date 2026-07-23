@@ -1,8 +1,10 @@
 'use client';
 import { useState } from 'react';
 import { SECRETS, getDailySecret, Secret } from '@/lib/secrets';
+import { useLabels } from '@/lib/labels';
 
 export default function SOTD() {
+  const { t } = useLabels();
   const [secret, setSecret] = useState<Secret>(getDailySecret);
 
   const newSecret = () => {
@@ -14,16 +16,16 @@ export default function SOTD() {
     <div className="sotd-wrap">
       <div className="sotd-label">
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <span className="sotd-static-badge" title="Reference content - a fixed library of trading concepts, not computed from current market data">
-            📖 Playbook
+          <span className="sotd-static-badge" title={t('SOTD_STATIC_BADGE_TOOLTIP')}>
+            📖 {t('SOTD_BADGE_LABEL')}
           </span>
-          <span suppressHydrationWarning className="sotd-num-inline">#{secret.n} of {SECRETS.length}</span>
+          <span suppressHydrationWarning className="sotd-num-inline">{t('SOTD_NUM_LABEL', { n: String(secret.n), total: String(SECRETS.length) })}</span>
         </span>
-        <button className="sotd-refresh" onClick={newSecret}>new play</button>
+        <button className="sotd-refresh" onClick={newSecret}>{t('SOTD_NEW_PLAY_BUTTON')}</button>
       </div>
       <div suppressHydrationWarning className="sotd-name">{secret.name}</div>
       <div suppressHydrationWarning className="sotd-text">{secret.text}</div>
-      <div className="sotd-footer">Educational reference, not a live signal. Tap &ldquo;new play&rdquo; for another - a different one also loads automatically each day.</div>
+      <div className="sotd-footer">{t('SOTD_FOOTER')}</div>
     </div>
   );
 }

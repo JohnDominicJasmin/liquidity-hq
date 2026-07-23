@@ -3,6 +3,8 @@ import { useMarket, CoinId, fmtPrice, COIN_DEC } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 /* ── Coin Market Snapshot ─────────────────────────────────────────────────
    Compact VWAP / Open Interest / Funding / OI 1h-change strip for a single
@@ -19,14 +21,15 @@ import { SkeletonBar } from '@/components/Skeleton';
    context) so the four align at a compact equal height instead of the old
    tall cards whose wrapping context lines left big empty gaps. */
 
-const OI_TREND_META: Record<string, { txt: string; sub: string; col: string }> = {
-  strong_up:   { txt: '▲ New buyers',    sub: 'OI + price up · real trend',   col: '#34d399' },
-  strong_down: { txt: '▼ New sellers',   sub: 'OI up, price down · real dump', col: '#f87171' },
-  weak_up:     { txt: '△ Short covering', sub: 'OI down, price up · weak',      col: '#fbbf24' },
-  weak_down:   { txt: '▽ Long exits',     sub: 'OI + price down · no panic',    col: '#94a3b8' },
+const OI_TREND_META: Record<string, { txtKey: LabelKey; subKey: LabelKey; col: string }> = {
+  strong_up:   { txtKey: 'COIN_MARKET_SNAPSHOT_OI_STRONG_UP_TXT',   subKey: 'COIN_MARKET_SNAPSHOT_OI_STRONG_UP_SUB',   col: '#34d399' },
+  strong_down: { txtKey: 'COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_TXT', subKey: 'COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB', col: '#f87171' },
+  weak_up:     { txtKey: 'COIN_MARKET_SNAPSHOT_OI_WEAK_UP_TXT',     subKey: 'COIN_MARKET_SNAPSHOT_OI_WEAK_UP_SUB',     col: '#fbbf24' },
+  weak_down:   { txtKey: 'COIN_MARKET_SNAPSHOT_OI_WEAK_DOWN_TXT',   subKey: 'COIN_MARKET_SNAPSHOT_OI_WEAK_DOWN_SUB',   col: '#94a3b8' },
 };
 
 export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
+  const { t } = useLabels();
   const { store } = useMarket();
   const d    = store.coins[coin];
   const oi1h = useOI1h(coin);
@@ -47,12 +50,12 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
     : frPct <= -0.03 ? '#34d399'
     : frPct <= -0.005? '#86efac'
     : 'var(--txt2)';
-  const frSig = frPct == null ? 'Loading…'
-    : frPct >= 0.05  ? 'Longs overcrowded ↓'
-    : frPct >= 0.01  ? 'Mild long bias'
-    : frPct <= -0.03 ? 'Shorts overcrowded ↑'
-    : frPct <= -0.005? 'Mild short bias'
-    : 'Neutral';
+  const frSigKey: LabelKey = frPct == null ? 'COIN_MARKET_SNAPSHOT_FR_LOADING'
+    : frPct >= 0.05  ? 'COIN_MARKET_SNAPSHOT_FR_LONGS_OVERCROWDED'
+    : frPct >= 0.01  ? 'COIN_MARKET_SNAPSHOT_FR_MILD_LONG_BIAS'
+    : frPct <= -0.03 ? 'COIN_MARKET_SNAPSHOT_FR_SHORTS_OVERCROWDED'
+    : frPct <= -0.005? 'COIN_MARKET_SNAPSHOT_FR_MILD_SHORT_BIAS'
+    : 'COIN_MARKET_SNAPSHOT_FR_NEUTRAL';
 
   const { txt: oi1hTxt, col: oi1hCol } = oi1hSignal(oi1h.pct, d?.oiTrend);
   const oi1hPctStr = oi1h.pct != null ? (oi1h.pct >= 0 ? '+' : '') + oi1h.pct.toFixed(2) + '%' : '-';
@@ -60,47 +63,47 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
   return (
     <div className="edge-grid" style={{ marginBottom: 10 }}>
       <div className="edge-card">
-        <div className="edge-card-label"><Tip text="Volume Weighted Average Price - the average price across the day, weighted by how much was traded at each level. Price above VWAP signals buy-side control; below signals sellers are in charge.">VWAP</Tip></div>
+        <div className="edge-card-label"><Tip text={t('COIN_MARKET_SNAPSHOT_VWAP_TOOLTIP')}>{t('COIN_MARKET_SNAPSHOT_VWAP_LABEL')}</Tip></div>
         <div className="edge-card-value" style={{ color: vwapCol }}>
           {price != null ? '$' + fmtPrice(price, COIN_DEC[coin]) : '-'}
         </div>
         <div className="edge-card-signal" style={{ color: vwapCol }}>
           {vwapAbove === null
             ? <SkeletonBar width={100} height={11} radius={4} />
-            : `${vwapAbove ? '▲' : '▼'} ${vwapPct != null ? (vwapPct >= 0 ? '+' : '') + vwapPct.toFixed(2) + '%' : ''} vs VWAP`}
+            : t('COIN_MARKET_SNAPSHOT_VWAP_SIGNAL', { arrow: vwapAbove ? '▲' : '▼', pct: vwapPct != null ? (vwapPct >= 0 ? '+' : '') + vwapPct.toFixed(2) + '%' : '' })}
         </div>
       </div>
 
       <div className="edge-card">
         <div className="edge-card-label">
-          <Tip width={260} text="Open Interest is the total number of live futures contracts, with its 1-hour change. Rising OI + rising price = new longs entering (real conviction). Falling OI + rising price = shorts covering (weaker signal). The 1h change shows how fast money is entering or leaving right now.">Open Interest</Tip>
+          <Tip width={260} text={t('COIN_MARKET_SNAPSHOT_OI_TOOLTIP')}>{t('COIN_MARKET_SNAPSHOT_OI_LABEL')}</Tip>
         </div>
         {oiMeta ? (
           <>
-            <div className="edge-card-value" style={{ color: oiMeta.col, fontSize: 'var(--fs-label)' }}>{oiMeta.txt}</div>
+            <div className="edge-card-value" style={{ color: oiMeta.col, fontSize: 'var(--fs-label)' }}>{t(oiMeta.txtKey)}</div>
             <div className="edge-card-signal" style={{ color: 'var(--txt3)' }}>
-              {oiMeta.sub}{!oi1h.loading && oi1h.pct != null ? ` · ${oi1hPctStr} 1h` : ''}
+              {t(oiMeta.subKey)}{!oi1h.loading && oi1h.pct != null ? t('COIN_MARKET_SNAPSHOT_OI_1H_PCT_SUFFIX', { pct: oi1hPctStr }) : ''}
             </div>
           </>
         ) : (
           <>
             <div className="edge-card-value" style={{ color: oi1hCol, fontSize: 'var(--fs-label)' }}>
-              {!oi1h.loading && oi1h.pct != null ? oi1hPctStr : (d?.oi != null ? 'Flat' : '-')}
+              {!oi1h.loading && oi1h.pct != null ? oi1hPctStr : (d?.oi != null ? t('COIN_MARKET_SNAPSHOT_OI_FLAT') : '-')}
             </div>
             <div className="edge-card-signal" style={{ color: 'var(--txt3)' }}>
-              {!oi1h.loading && oi1h.pct != null ? `${oi1hTxt} · 1h` : (d?.oi != null ? 'No strong signal' : <SkeletonBar width={90} height={11} radius={4} />)}
+              {!oi1h.loading && oi1h.pct != null ? t('COIN_MARKET_SNAPSHOT_OI_1H_TREND_SUFFIX', { txt: oi1hTxt }) : (d?.oi != null ? t('COIN_MARKET_SNAPSHOT_OI_NO_SIGNAL') : <SkeletonBar width={90} height={11} radius={4} />)}
             </div>
           </>
         )}
       </div>
 
       <div className="edge-card">
-        <div className="edge-card-label"><Tip text="The fee longs pay shorts every 8 hours to keep perpetual futures positions open. Strongly positive means too many people are leveraged long - whales often dump price to liquidate them and pocket the fee.">Funding Rate</Tip></div>
+        <div className="edge-card-label"><Tip text={t('COIN_MARKET_SNAPSHOT_FUNDING_TOOLTIP')}>{t('COIN_MARKET_SNAPSHOT_FUNDING_LABEL')}</Tip></div>
         <div className="edge-card-value" style={{ color: frCol }}>
           {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '-'}
         </div>
         <div className="edge-card-signal" style={{ color: frCol }}>
-          {frPct == null ? <SkeletonBar width={70} height={11} radius={4} /> : frSig}
+          {frPct == null ? <SkeletonBar width={70} height={11} radius={4} /> : t(frSigKey)}
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ import { Warn } from '@/components/icons';
 import { T } from '@/lib/tables';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
 
 /* ── Types ── */
 interface LiqEvent {
@@ -78,6 +79,7 @@ function fmtEventPrice(price: number): string {
 }
 
 export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clusters: Bucket[]) => void; coinFilter: string }) {
+  const { t } = useLabels();
   const [feed,     setFeed]     = useState<LiqEvent[]>([]);
   const [stats,    setStats]    = useState<Stats>({ longUsd: 0, shortUsd: 0, count: 0 });
   const [cascade,  setCascade]  = useState<Cascade | null>(null);
@@ -352,13 +354,13 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--txt)' }}>
             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M11 1.5 3.5 11.5H9L8 18.5 16 8H10.5L11 1.5Z" fill="currentColor" /></svg>
-            <Tip text="Every leveraged position force-closed for >$10K on Binance or Bybit, in real time. A burst of same-side liquidations in a short window ('cascade') can accelerate a move as forced selling/buying feeds on itself.">Live Liquidations</Tip>
+            <Tip text={t('LIQ_FEED_TOOLTIP')}>{t('LIQ_FEED_TITLE')}</Tip>
           </span>
-          <span className={`liqfeed-dot liqfeed-dot-${bnStatus}`} title={`Binance: ${bnStatus}`} />
-          <span className={`liqfeed-dot liqfeed-dot-${bbStatus}`} title={`Bybit: ${bbStatus}`} />
+          <span className={`liqfeed-dot liqfeed-dot-${bnStatus}`} title={t('LIQ_FEED_BINANCE_STATUS_TITLE', { status: bnStatus })} />
+          <span className={`liqfeed-dot liqfeed-dot-${bbStatus}`} title={t('LIQ_FEED_BYBIT_STATUS_TITLE', { status: bbStatus })} />
         </div>
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-          Binance + Bybit · &gt;$10K · {msgCount > 0 ? `${msgCount} events` : 'waiting…'}
+          {t('LIQ_FEED_SOURCES_LINE', { status: msgCount > 0 ? t('LIQ_FEED_EVENTS_COUNT', { count: msgCount }) : t('LIQ_FEED_WAITING') })}
         </span>
       </div>
 
@@ -370,10 +372,10 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
           </span>
           <div className="liq-cascade-body">
             <span className="liq-cascade-label">
-              {cascade.side === 'LONG' ? 'LONG CASCADE' : cascade.side === 'SHORT' ? 'SHORT CASCADE' : 'CASCADE'}
+              {cascade.side === 'LONG' ? t('LIQ_FEED_CASCADE_LONG') : cascade.side === 'SHORT' ? t('LIQ_FEED_CASCADE_SHORT') : t('LIQ_FEED_CASCADE_MIXED')}
             </span>
             <span className="liq-cascade-amt">
-              {' '}{fmtUSD(cascade.totalUsd)} wiped in 30s
+              {' '}{t('LIQ_FEED_CASCADE_WIPED', { amount: fmtUSD(cascade.totalUsd) })}
             </span>
             {cascade.coins.length > 0 && (
               <span className="liq-cascade-coins"> · {cascade.coins.join(', ')}</span>
@@ -385,17 +387,17 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
       {/* ── Stats ── */}
       <div className="liqfeed-stats">
         <div className="liqfeed-stat">
-          <span className="liqfeed-stat-lbl">Longs liq'd (1h)</span>
+          <span className="liqfeed-stat-lbl">{t('LIQ_FEED_STAT_LONGS')}</span>
           <span className="liqfeed-stat-val" style={{ color: '#f87171' }}>{fmtUSD(stats.longUsd)}</span>
         </div>
         <div className="liqfeed-stat-sep" />
         <div className="liqfeed-stat" style={{ textAlign: 'center' }}>
-          <span className="liqfeed-stat-lbl">Events</span>
+          <span className="liqfeed-stat-lbl">{t('LIQ_FEED_STAT_EVENTS')}</span>
           <span className="liqfeed-stat-val" style={{ color: 'var(--accent)' }}>{stats.count}</span>
         </div>
         <div className="liqfeed-stat-sep" />
         <div className="liqfeed-stat" style={{ textAlign: 'right' }}>
-          <span className="liqfeed-stat-lbl">Shorts liq'd (1h)</span>
+          <span className="liqfeed-stat-lbl">{t('LIQ_FEED_STAT_SHORTS')}</span>
           <span className="liqfeed-stat-val" style={{ color: '#34d399' }}>{fmtUSD(stats.shortUsd)}</span>
         </div>
       </div>
@@ -408,9 +410,9 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
             <div className="liqfeed-bias-bar liqfeed-bias-short" style={{ width: `${(stats.shortUsd / totalUsd) * 100}%` }} />
           </div>
           <div className="liqfeed-bias-label">
-            {longDom  && <span style={{ color: '#f87171', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Warn /> Longs getting wrecked - price accelerating down</span>}
-            {shortDom && <span style={{ color: '#34d399' }}>Shorts getting wrecked - price accelerating up</span>}
-            {!longDom && !shortDom && <span style={{ color: 'var(--txt3)' }}>Balanced - no dominant side liquidating</span>}
+            {longDom  && <span style={{ color: '#f87171', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Warn /> {t('LIQ_FEED_BIAS_LONG_DOM')}</span>}
+            {shortDom && <span style={{ color: '#34d399' }}>{t('LIQ_FEED_BIAS_SHORT_DOM')}</span>}
+            {!longDom && !shortDom && <span style={{ color: 'var(--txt3)' }}>{t('LIQ_FEED_BIAS_BALANCED')}</span>}
           </div>
         </>
       )}
@@ -425,8 +427,8 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
         return (
           <div className="liq-clusters">
             <div className="liq-clusters-title">
-              Hot price levels · 24h cluster
-              <span style={{ color: '#444', fontWeight: 400, marginLeft: 6 }}>- where liqs are concentrating</span>
+              {t('LIQ_FEED_CLUSTERS_TITLE')}
+              <span style={{ color: '#444', fontWeight: 400, marginLeft: 6 }}>{t('LIQ_FEED_CLUSTERS_SUBTITLE')}</span>
             </div>
             {filtered.map(c => (
               <div key={`${c.coin}::${c.price}`} className="liq-cluster-row">
@@ -451,7 +453,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
                   className="liq-cluster-dom"
                   style={{ color: c.longUsd > c.shortUsd ? '#f87171' : '#34d399' }}
                 >
-                  {c.longUsd > c.shortUsd ? 'L' : 'S'}
+                  {c.longUsd > c.shortUsd ? t('LIQ_FEED_DOM_LONG_ABBR') : t('LIQ_FEED_DOM_SHORT_ABBR')}
                 </span>
               </div>
             ))}
@@ -463,7 +465,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
       {displayed.length === 0 && (
         <div style={{ padding: '10px 14px' }} role="status" aria-live="polite">
           <span className="sr-only">
-            {anyLive ? `Watching for ${coinFilter === 'ALL' ? 'all markets' : coinFilter} liquidations > $10K…` : 'Connecting to Binance + Bybit…'}
+            {anyLive ? t('LIQ_FEED_SR_WATCHING', { coin: coinFilter === 'ALL' ? t('LIQ_FEED_ALL_MARKETS') : coinFilter }) : t('LIQ_FEED_SR_CONNECTING')}
           </span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {[0, 1, 2].map(i => (
@@ -486,7 +488,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
             >
               <span className="liqfeed-row-coin" style={{ color: accent }}>{ev.coin}</span>
               <span className={`liqfeed-row-side liqfeed-row-side-${isLong ? 'long' : 'short'}`}>
-                {isLong ? 'LONG LIQ' : 'SHORT LIQ'}
+                {isLong ? t('LIQ_FEED_ROW_LONG') : t('LIQ_FEED_ROW_SHORT')}
               </span>
               <span className="liqfeed-row-usd" style={{ color: isBig ? accent : '#8e8e93' }}>
                 {fmtUSD(ev.usd)}
