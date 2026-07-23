@@ -1,6 +1,6 @@
 # i18n Migration — Progress & Reference
 
-**String-extraction is COMPLETE as of wave 12 (2026-07-30).** All 12 waves done, 2370 label rows seeded, every page/component (customer-facing and the staff-only `/ops` console) routes through `t('KEY')`. What remains is a *separate* piece of work: translating the `en` rows into the other 9 supported locales — not started, explicitly deferred by the user until extraction finished. Don't re-scope or re-plan extraction waves; read this doc for what's left (just translation) rather than assuming more extraction work exists.
+**String-extraction is COMPLETE as of wave 12 (2026-07-30).** All 12 waves done, 2370 label rows seeded, every page/component (customer-facing and the staff-only `/ops` console) routes through `t('KEY')`. Translation into the other 9 supported locales is now underway, one locale at a time — see "Translation progress" below.
 
 Read this before resuming i18n work in a new session. It exists so wave numbering, language status, and process rules don't drift or get re-litigated.
 
@@ -22,9 +22,9 @@ Two Supabase projects, both need every seed file run:
 
 **Supported** (locale codes wired into the switcher/type system, `lib/labels.ts`): 10 — `en, ko, zh, ar, vi, pt-BR, tr, es, id, ru`.
 
-**Implemented app-wide** (has actual DB rows, not just the code path): **1 — `en` only.** Verified via `select distinct locale from lhq_labels` — every row is `en`.
+**Implemented app-wide** (has actual DB rows, not just the code path): **2 — `en`, `ko`.** Verified via `select count(*) from lhq_labels where locale = 'ko'` = 2370, matching the full key count, in both prod and dev projects.
 
-**Not yet implemented app-wide**: 9 — `ko, zh, ar, vi, pt-BR, tr, es, id, ru`. Switcher lets a user pick them; `t()` silently falls back to English (or the raw key) since no translated row exists yet.
+**Not yet implemented app-wide**: 8 — `zh, ar, vi, pt-BR, tr, es, id, ru`. Switcher lets a user pick them; `t()` silently falls back to English (or the raw key) since no translated row exists yet.
 
 **Separate system, don't confuse the two**: the landing page (`lib/i18n/dictionaries.ts`) has real, fully-written `en`/`ko`/`zh`/`ar` translations already — but it's a different, static build-time dictionary, not DB-backed, and isn't touched by these waves. Landing-page language count has no bearing on app-wide status.
 
@@ -75,7 +75,27 @@ Check for both patterns in every remaining file. Where a field only ever feeds a
 
 ## Remaining plan
 
-**None — all 12 waves are done.** The only outstanding i18n work is translating the seeded `en` values into the other 9 supported locales; that is a distinct project (not a "wave" in this table) and is explicitly deferred until requested. If asked "what's left", the answer is: nothing on the extraction side, only translation.
+**Extraction: none — all 12 waves are done.** Translation into the remaining 8 locales (`zh, ar, vi, pt-BR, tr, es, id, ru`) is the only outstanding i18n work — see "Translation progress" below for status and process.
+
+## Translation progress
+
+Translating the 2370 seeded `en` rows into each of the other 9 supported locales, one locale at a time. Not "waves" in the extraction sense — no code changes, no new keys, just new DB rows.
+
+| Locale | Status | Rows | Notes |
+|---|---|---|---|
+| `ko` | DONE (2026-07-24) | 2370/2370 both projects | First locale. See process below. |
+| `zh, ar, vi, pt-BR, tr, es, id, ru` | Not started | 0 | Same process, repeat per locale. |
+
+**Process (established on `ko`, repeat per locale):**
+1. Parse all `supabase/migrations/*_labels_seed_*.sql` files (the `en` source of truth) into `(key, value)` pairs — a small Node script, not by hand (2370 keys).
+2. **Dedupe by value, not by key.** Many keys share identical English text (e.g. `'Loading…'` appears dozens of times). Translating unique values only cut the actual translation workload from 2370 to 2043 for `ko` — modest gain here since this app has relatively little repeated boilerplate, but still correct and it guarantees the same English phrase always gets the same translation everywhere it appears.
+3. Chunk the unique-value list and delegate translation to parallel agents, each **writing its translated JSON straight to a scratchpad file via the Write tool** — never relayed back through agent-report text. This sidesteps the HTML-entity-style corruption already seen with `&`/`>` in relayed reports (process rule 9 above); the risk is worse for non-Latin scripts, so don't relay translated text through a report, ever.
+4. **Chunk size: 40 items, not more.** 150-item chunks failed the 8000-output-token cap on every single agent, with zero partial output — not a fluke, a hard wall for this task shape (translation + JSON authoring costs more output per item than plain code edits, unlike prior extraction-wave agents which handled 150-500 *lines* fine). Also tell agents explicitly not to narrate/draft the translations in their response text before writing the file — that narration alone was enough to blow the budget even at moderate sizes.
+5. **Translate at the sentence/thought level, not word-for-word.** Told explicitly to agents: restructure grammar so it reads like a native speaker wrote it, not machine-translated. Spot-checked short nav labels and long legal-disclaimer paragraphs on `ko` — both came back idiomatic (proper Korean legal register on the disclaimer text, natural transliteration on nav labels like 아레나/브리핑), not literal string-substitution.
+6. Reassemble: a small Node script maps every one of the 2370 keys back through its value-id to the translated string, generates the full seed SQL (repo record) plus small ~50-row execute-ready chunks per Supabase project (`lhq_labels` for prod, `lhq_dev_labels` for dev — table name differs, content identical).
+7. **Seed via delegated agents, not direct execute_sql calls from the main thread.** Pasting 50-200 rows of translated text directly into an `execute_sql` tool call from the main conversation risked the same output-cap wall as step 4. Delegating "read this chunk file, call execute_sql with its exact content, for both projects" to a subagent per chunk avoided that entirely — the SQL text lives in the subagent's own budget, not the main thread's.
+8. Reconcile row counts (`select count(*) from lhq_labels where locale = 'ko'`) against 2370 for both projects before calling it done.
+9. Live spot-check via `claude-in-chrome`: set `localStorage.lhq_lang_v1 = '<locale>'` and reload (no URL param support — it's a `LabelsProvider` localStorage setting, key `lhq_lang_v1`, see `lib/labels.ts`). **Wait ~3s after reload before reading the page** — same async-fetch load race as extraction (process rule 10), confirmed again here: immediately after reload every key showed raw, fully resolved to native-language text on the second read.
 
 ## Process rules (lessons learned this session — follow these)
 
