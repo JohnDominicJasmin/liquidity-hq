@@ -29,6 +29,9 @@ export interface UserSettings {
   beginner_mode:    boolean;
   // Personalized watchlist
   watchlist:        string[];
+  // UI language - null means no explicit choice saved server-side yet, so
+  // the client falls back to whatever it has in localStorage (see lib/labels.ts)
+  language:         string | null;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -51,6 +54,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   telegram_chat_id:   '',
   beginner_mode:      true,
   watchlist:          ['btc', 'eth', 'sol'],
+  language:           null,
 };
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -123,5 +127,6 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
     telegram_chat_id:   String(row.telegram_chat_id ?? ''),
     beginner_mode:      !!(row.beginner_mode ?? false),
     watchlist:          Array.isArray(row.watchlist) ? row.watchlist as string[] : DEFAULT_SETTINGS.watchlist,
+    language:           (row.language as string | null) ?? null,
   };
 }

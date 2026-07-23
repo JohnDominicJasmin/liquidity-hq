@@ -54,6 +54,7 @@ export const LABEL_KEYS = [
   'SETTINGS_STATUS_SAVING',
   'SETTINGS_STATUS_SAVED',
   'SETTINGS_STATUS_FAILED',
+  'SETTINGS_SECTION_LANGUAGE',
 ] as const;
 
 export type LabelKey = (typeof LABEL_KEYS)[number];

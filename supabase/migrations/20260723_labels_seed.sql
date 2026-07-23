@@ -57,5 +57,6 @@ insert into lhq_labels (key, locale, value) values
 ('SETTINGS_TG_SETUP_LINK','en','Set up Telegram →'),
 ('SETTINGS_STATUS_SAVING','en','Saving…'),
 ('SETTINGS_STATUS_SAVED','en','Saved ✓'),
-('SETTINGS_STATUS_FAILED','en','Failed')
+('SETTINGS_STATUS_FAILED','en','Failed'),
+('SETTINGS_SECTION_LANGUAGE','en','Language')
 on conflict (key, locale) do update set value = excluded.value, updated_at = now();
