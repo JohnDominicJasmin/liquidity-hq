@@ -34,15 +34,22 @@ Two Supabase projects, both need every seed file run:
 | 2 | Static pages (terms/privacy/disclaimer/about/login/not-found/upgrade), calc page + 6 calculator components, 9 shared components | 371 | `62003ae` |
 | 3 | Dashboard | 70 | `b1816ed` |
 | 4 | Arena + Markets | 191 (156 + 35) | `757ab7a` `fb8ea8f` |
+| 5 | Funding, Correlation, Backtest, Live-tracking, Scanner, Liq | 311 | `d86cc28` |
 
-**Current total: 723 label rows**, identical in both `lhq_labels` (prod) and `lhq_dev_labels` (dev). 31 files fully migrated: 13 pages (about, arena, calc, dashboard, disclaimer, login, markets, not-found, prices, privacy, settings, terms, upgrade) + 18 components (AuthGate, CoinMultiSelect, DcaCalc, FundingCostCalc, LabelsProvider, LanguageSelect, LanguageSync, LiquidationCalc, NavDrawer, PageHint, PnLCalc, PositionSizer, RiskRewardCalc, SettingsModal, ThemeChips, UpgradeGateModal, UsageMeter, UsageRings).
+**Current total: 1034 label rows**, identical in both `lhq_labels` (prod) and `lhq_dev_labels` (dev). 37 files fully migrated: 19 pages (about, arena, backtest, calc, correlation, dashboard, disclaimer, funding, liq, live-tracking, login, markets, not-found, prices, privacy, scanner, settings, terms, upgrade) + 18 components (AuthGate, CoinMultiSelect, DcaCalc, FundingCostCalc, LabelsProvider, LanguageSelect, LanguageSync, LiquidationCalc, NavDrawer, PageHint, PnLCalc, PositionSizer, RiskRewardCalc, SettingsModal, ThemeChips, UpgradeGateModal, UsageMeter, UsageRings).
 
-Two i18n-breaks-logic bugs caught and fixed during wave 4 (see commits `757ab7a`, `fb8ea8f`): a label string that was also being used as a comparison key (`b === 'Beats BTC'`, `h === 'vs BTC'`) instead of a stable id. Check for this pattern in every remaining file — any place a label's literal value doubles as comparison/lookup logic needs restructuring to `{key, ...}` (or a separate stable id) before translating it. Where a field only ever feeds a *derived* comparison value (Markets' `topSignal().col`), no restructuring is needed — only the rendered text changes.
+Wave 5 was the first wave delegated to parallel agents (3 agents, 2 files each, balanced by line count) rather than done solo — the pattern worked: brief each agent with the same architecture doc + the comparison-key warning below, let them edit + self-report a compact key/value list, then close out centrally (append `labelKeys.ts`, one seed file per pair, single combined `tsc` pass, DB row-count reconciliation). Cross-checked one batch's diff line-by-line as a spot check rather than trusting every agent report at face value.
 
-Also confirmed during wave 4: `/api/labels` has a 60s fail-open cache (`app/api/labels/route.ts`) that serves `{}` on any Supabase fetch error — a transient network blip anywhere (even unrelated third-party APIs failing at the same time) can make every page show raw keys for up to 60s. Not a bug in the migration; if a live-verify screenshot ever shows raw keys across a whole page including the nav bar, check `preview_logs` for a `fetch failed` before assuming the migration broke something — wait past the TTL and reload.
+Three i18n-breaks-logic bugs caught and fixed so far, one per wave since wave 4 — always the same class, always worth explicitly warning delegated agents about:
+- Arena/Markets (wave 4, `757ab7a` `fb8ea8f`): a label string also used as a comparison key (`b === 'Beats BTC'`, `h === 'vs BTC'`) instead of a stable id.
+- funding/page.tsx (wave 5, `d86cc28`): same pattern — `frSignal()`'s `crowd` string was compared by value to compute contrarian-short/long counts. Restructured to a stable `id` union.
+- backtest/page.tsx (wave 5, `d86cc28`): a different bug in the same neighborhood — local `.map()` callback variables literally named `t`, shadowing the new `useLabels()` `t()` within those callback scopes.
+
+Check for both patterns in every remaining file. Where a field only ever feeds a *derived* comparison value (Markets' `topSignal().col`), no restructuring is needed — only the rendered text changes.
+
+**`/api/labels` fail-open cache — seen twice now, budget time for it.** `app/api/labels/route.ts` has a 60s in-memory cache that serves `{}` on any Supabase fetch error. Wave 4 saw a ~90s blip; wave 5 saw a *much* longer sustained outage (multiple minutes, `fetch failed` + 10-40s response times) that made raw keys show everywhere — including Dashboard's wave-3 keys, confirmed working earlier the same session, which is exactly how you tell this apart from a real regression: if a key that was previously verified is now raw too, it's the cache/connectivity, not your edit. DB content + `tsc --noEmit` are the two checks that stay reliable regardless of this — lean on those and don't burn excessive turns re-waiting if the live check won't clear.
 
 ## Remaining plan
-- **Wave 5** — Funding, Correlation, Backtest, Live-tracking, Scanner, Liq
 - **Wave 6** — Journal, Research, Econ-calendar, Alerts, Hours, Playbook, News, Briefing
 - **Wave 7** — Trackers/detectors batch 1: AbsorptionDetector, AccumulationTracker, DistributionTracker, WhaleTradesFeed, SetupScanner, HypothesisTracker, AlertOutcomes, SignalAccuracy
 - **Wave 8** — Trackers/detectors batch 2 + chart widgets batch 1: MultiTFAlignment, MultiTFSqueezeView, GexTable, CycleChart, DrawdownChart, Sparkline, Sparkline24h, CoinHeatmap
