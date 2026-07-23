@@ -22,9 +22,11 @@ Two Supabase projects, both need every seed file run:
 
 **Supported** (locale codes wired into the switcher/type system, `lib/labels.ts`): 10 — `en, ko, zh, ar, vi, pt-BR, tr, es, id, ru`.
 
-**Implemented app-wide** (has actual DB rows, not just the code path): **3 — `en`, `ko`, `zh`.** Verified via `select count(*) from lhq_labels where locale = '<code>'` = 2370, matching the full key count, in both prod and dev projects.
+**Implemented app-wide** (has actual DB rows, not just the code path): **4 — `en`, `ko`, `zh`, `ar`.** Verified via `select count(*) from lhq_labels where locale = '<code>'` = 2370, matching the full key count, in both prod and dev projects.
 
-**Not yet implemented app-wide**: 7 — `ar, vi, pt-BR, tr, es, id, ru`. Switcher lets a user pick them; `t()` silently falls back to English (or the raw key) since no translated row exists yet.
+**Not yet implemented app-wide**: 6 — `vi, pt-BR, tr, es, id, ru`. Switcher lets a user pick them; `t()` silently falls back to English (or the raw key) since no translated row exists yet.
+
+**Arabic is RTL and the app has no RTL layout support** (no `dir="rtl"`, no mirrored layout/icons). The `ar` rows translate the text correctly, but the UI will render Arabic text left-to-right in a left-to-right layout — readable but visually wrong. That's a separate frontend task, out of scope for this translation-content wave, not a bug in the seeded data.
 
 **Separate system, don't confuse the two**: the landing page (`lib/i18n/dictionaries.ts`) has real, fully-written `en`/`ko`/`zh`/`ar` translations already — but it's a different, static build-time dictionary, not DB-backed, and isn't touched by these waves. Landing-page language count has no bearing on app-wide status.
 
@@ -75,7 +77,7 @@ Check for both patterns in every remaining file. Where a field only ever feeds a
 
 ## Remaining plan
 
-**Extraction: none — all 12 waves are done.** Translation into the remaining 7 locales (`ar, vi, pt-BR, tr, es, id, ru`) is the only outstanding i18n work — see "Translation progress" below for status and process.
+**Extraction: none — all 12 waves are done.** Translation into the remaining 6 locales (`vi, pt-BR, tr, es, id, ru`) is the only outstanding i18n work — see "Translation progress" below for status and process.
 
 ## Translation progress
 
@@ -85,7 +87,8 @@ Translating the 2370 seeded `en` rows into each of the other 9 supported locales
 |---|---|---|---|
 | `ko` | DONE (2026-07-24) | 2370/2370 both projects | First locale. See process below. |
 | `zh` | DONE (2026-07-24) | 2370/2370 both projects | Simplified Chinese. Same process, reused the `ko` wave's `chunks/*.json` English source files unchanged. |
-| `ar, vi, pt-BR, tr, es, id, ru` | Not started | 0 | Same process, repeat per locale. |
+| `ar` | DONE (2026-07-24) | 2370/2370 both projects | Modern Standard Arabic. **Seed chunk size had to drop from 150→50 rows** — see note below. DB-count verified only, no live browser check (explicit token-budget tradeoff this wave). |
+| `vi, pt-BR, tr, es, id, ru` | Not started | 0 | Same process, repeat per locale. |
 
 **Process (established on `ko`, repeat per locale):**
 1. Parse all `supabase/migrations/*_labels_seed_*.sql` files (the `en` source of truth) into `(key, value)` pairs — a small Node script, not by hand (2370 keys).
@@ -95,6 +98,7 @@ Translating the 2370 seeded `en` rows into each of the other 9 supported locales
 5. **Translate at the sentence/thought level, not word-for-word.** Told explicitly to agents: restructure grammar so it reads like a native speaker wrote it, not machine-translated. Spot-checked short nav labels and long legal-disclaimer paragraphs on `ko` — both came back idiomatic (proper Korean legal register on the disclaimer text, natural transliteration on nav labels like 아레나/브리핑), not literal string-substitution.
 6. Reassemble: a small Node script maps every one of the 2370 keys back through its value-id to the translated string, generates the full seed SQL (repo record) plus small ~50-row execute-ready chunks per Supabase project (`lhq_labels` for prod, `lhq_dev_labels` for dev — table name differs, content identical).
 7. **Seed via delegated agents, not direct execute_sql calls from the main thread.** Pasting 50-200 rows of translated text directly into an `execute_sql` tool call from the main conversation risked the same output-cap wall as step 4. Delegating "read this chunk file, call execute_sql with its exact content, for both projects" to a subagent per chunk avoided that entirely — the SQL text lives in the subagent's own budget, not the main thread's.
+   - **Seed chunk size is script-encoding-dependent, not a fixed constant.** 150 rows/chunk worked cleanly for `ko` and `zh` (16 seed agents). The exact same 150-row size failed 7 of 16 chunks for `ar` with the identical "exceeded 8000 output token maximum" error — Arabic script apparently costs more output tokens per row for a subagent that has to read, hold, and re-emit the text in a tool call than Hangul or Han characters do. Fix: regenerate at 50 rows/chunk for `ar` (48 agents) and re-run — since every insert is `on conflict do update`, re-sending already-successful rows is harmless, so a blanket re-run beats trying to identify and patch just the failures. **When starting a new script (Arabic, and untested scripts generally — Cyrillic, Thai, etc. may behave differently again), start at 50 rows/chunk rather than assuming the 150 that worked for CJK will hold.**
 8. Reconcile row counts (`select count(*) from lhq_labels where locale = 'ko'`) against 2370 for both projects before calling it done.
 9. Live spot-check via `claude-in-chrome`: set `localStorage.lhq_lang_v1 = '<locale>'` and reload (no URL param support — it's a `LabelsProvider` localStorage setting, key `lhq_lang_v1`, see `lib/labels.ts`). **Wait ~3s after reload before reading the page** — same async-fetch load race as extraction (process rule 10), confirmed again here: immediately after reload every key showed raw, fully resolved to native-language text on the second read. On `zh`, a 3s (and even a 65s) wait still showed every key raw — turned out the dev server itself was just slow to answer `/api/labels` (still `pending` in `read_network_requests`) because dozens of concurrent seeding subagents were hammering the same local Next.js process; it resolved fine ~8s later with no code or data problem. If a locale check still shows all-raw after the usual short wait, check `read_network_requests` for the labels call's actual status before assuming a real bug — a `pending` request means keep waiting, not investigate.
 
