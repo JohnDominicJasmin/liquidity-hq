@@ -1371,12 +1371,15 @@ function ArenaContent() {
           title={!user ? 'Sign in to use Quick Analysis' : 'Uses local data only - no web search'}
         >
           {readLoading && readMode === 'quick' ? readStep || 'Working…' : (
-            !user ? (
-              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1.2 }}>
-                <span>Quick Research</span>
-                <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, letterSpacing: '.04em', color: '#a37a2a' }}>sign in →</span>
-              </span>
-            ) : 'Quick Research'
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              {!user && (
+                <svg width="10" height="10" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+                  <rect x="4" y="9" width="12" height="9" rx="2" stroke="currentColor" strokeWidth="1.8" />
+                  <path d="M7 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              )}
+              Quick Research
+            </span>
           )}
         </button>
 
@@ -1395,9 +1398,14 @@ function ArenaContent() {
           title={!user ? 'Sign in to use Deep Analysis' : 'Searches live web + X for catalysts'}
         >
           {readLoading && readMode === 'deep' ? readStep || 'Working…' : (
-            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1.2 }}>
-              <span>Deep Research</span>
-              {!user && <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, letterSpacing: '.04em', color: '#a37a2a' }}>sign in →</span>}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              {!user && (
+                <svg width="10" height="10" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+                  <rect x="4" y="9" width="12" height="9" rx="2" stroke="currentColor" strokeWidth="1.8" />
+                  <path d="M7 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              )}
+              Deep Research
             </span>
           )}
         </button>

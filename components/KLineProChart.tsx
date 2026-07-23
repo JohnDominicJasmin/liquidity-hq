@@ -224,6 +224,44 @@ let reversalOverlayRegistered = false;
 
 interface SRLevel { price: number; type: 'support' | 'resistance'; touches: number; }
 
+// Deterministic label spacing for S/R / GEX price tags: derived once from the
+// level prices themselves, not from live pixel positions. Pixel y only exists
+// inside createPointFigures, which klinecharts calls on every repaint - every
+// live price tick, crosshair move, or pan - so any "is this close to a
+// sibling label" check done there via shared mutable state could answer
+// differently between repaints, which is what made the labels visibly
+// jitter. Computing it here, once per actual data change, and baking the
+// result into each overlay's own extendData keeps every repaint painting the
+// same offset until the underlying levels actually change.
+function computeLabelOffsets(levels: Array<{ price: number }>): Map<number, number> {
+  const offsets = new Map<number, number>();
+  if (levels.length < 2) return offsets;
+  const sorted = [...levels].sort((a, b) => b.price - a.price);
+  const spread = sorted[0].price - sorted[sorted.length - 1].price;
+  const CLOSE = Math.max(spread * 0.025, 1e-9);
+  let stack = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i - 1].price - sorted[i].price < CLOSE) stack += 1;
+    else stack = 0;
+    offsets.set(sorted[i].price, stack * 13);
+  }
+  return offsets;
+}
+
+// VOL/RSI sub-pane heights were a fixed 60px/70px regardless of total chart
+// height. Fine at the ~500px mobile default, but the chart is user-resizable
+// up to 1000px (see CHART_H_MIN/CHART_H_MAX below) and the price pane soaked
+// up every extra pixel while these two stayed pinned - on a tall chart they
+// shrank to a barely-readable sliver relative to the candles. Scale them with
+// the container instead, clamped so they don't get silly at either extreme.
+function applyProportionalPaneHeights(chart: KChart, containerHeight: number) {
+  if (!containerHeight) return;
+  const volH = Math.round(Math.min(140, Math.max(30, containerHeight * 0.09)));
+  const rsiH = Math.round(Math.min(170, Math.max(30, containerHeight * 0.11)));
+  chart.setPaneOptions({ id: 'vol_pane', height: volH });
+  chart.setPaneOptions({ id: 'rsi_pane', height: rsiH });
+}
+
 function computeSRLevels(
   bars: { high: number; low: number; close: number }[],
   currentPrice: number,
@@ -521,14 +559,48 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         { name: 'EMARibbon' },
         { isStack: false, pane: { id: 'candle_pane' } }
       );
-      chart.createIndicator('VOL', { pane: { height: 60, minHeight: 30 } });
+      chart.createIndicator('VOL', { pane: { id: 'vol_pane', height: 90, minHeight: 30 } });
       // RSI-14 (Wilder's smoothing) - matches the period used everywhere else
       // in the app (marketStore rsi14/rsi1h/rsi4h/rsiDaily), instead of the
       // built-in indicator's default 3-line [6,12,24] preset.
       chart.createIndicator(
         { name: 'RSI', calcParams: [14], styles: { lines: [{ color: '#5aa3ff', size: 1.5 }] } },
-        { pane: { height: 70, minHeight: 30 } }
+        { pane: { id: 'rsi_pane', height: 110, minHeight: 30 } }
       );
+
+      // klinecharts folds every indicator line's value (at each visible bar)
+      // into the candle pane's auto Y-range by default, unconditionally - not
+      // just candle high/low. EMARibbon's 200-period line is a real, correct
+      // value (a genuine trailing average), but when it sits far from the
+      // current price cluster it drags the whole price axis down to include
+      // it, crushing the actual candles into a fraction of the pane. Override
+      // this one pane's range to come from visible candle high/low only, so
+      // the price scale tracks price action - lines that stray outside it
+      // just extend past the edge, same as any other charting platform.
+      chart.overrideYAxis({
+        paneId: 'candle_pane',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        createRange: ({ chart: c, defaultRange }: any) => {
+          try {
+            const vis = c.getVisibleRange();
+            const bars = c.getDataList();
+            const from = Math.max(0, Math.floor(vis.realFrom));
+            const to = Math.min(bars.length - 1, Math.ceil(vis.realTo));
+            let lo = Infinity, hi = -Infinity;
+            for (let i = from; i <= to; i++) {
+              const b = bars[i];
+              if (!b) continue;
+              if (b.low  < lo) lo = b.low;
+              if (b.high > hi) hi = b.high;
+            }
+            if (!isFinite(lo) || !isFinite(hi)) return defaultRange;
+            return { ...defaultRange, realFrom: lo, realTo: hi, realRange: hi - lo };
+          } catch {
+            return defaultRange;
+          }
+        },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
 
       if (!emaSignalOverlayRegistered) {
         emaSignalOverlayRegistered = true;
@@ -655,11 +727,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           needDefaultYAxisFigure: false,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
-            const { srType, price } = overlay.extendData as { srType: 'support' | 'resistance'; price: number };
+            const { srType, price, labelYOffset } = overlay.extendData as { srType: 'support' | 'resistance'; price: number; labelYOffset?: number };
             const y = coordinates[0]?.y;
             if (y == null || !isFinite(y) || y < 0) return [];
             const color = srType === 'resistance' ? '#f87171' : '#34d399';
             const rightX = (bounding?.width ?? 9999);
+            const labelY = y - 3 - (labelYOffset ?? 0);
             return [
               {
                 type: 'line',
@@ -668,7 +741,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               },
               {
                 type: 'text',
-                attrs: { x: rightX - 6, y: y - 3, text: `${srType === 'resistance' ? 'R' : 'S'} $${fmtPx(price)}`, align: 'right', baseline: 'bottom' },
+                attrs: { x: rightX - 6, y: labelY, text: `${srType === 'resistance' ? 'R' : 'S'} $${fmtPx(price)}`, align: 'right', baseline: 'bottom' },
                 styles: { color, size: 9, weight: '700' },
               },
             ];
@@ -691,12 +764,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           needDefaultYAxisFigure: false,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
-            const { gexType, price } = overlay.extendData as { gexType: 'maxpain' | 'flip'; price: number };
+            const { gexType, price, labelYOffset } = overlay.extendData as { gexType: 'maxpain' | 'flip'; price: number; labelYOffset?: number };
             const y = coordinates[0]?.y;
             if (y == null || !isFinite(y) || y < 0) return [];
             const color = gexType === 'maxpain' ? '#a78bfa' : '#22d3ee';
             const label = gexType === 'maxpain' ? 'MAX PAIN' : 'γ FLIP';
             const rightX = (bounding?.width ?? 9999);
+            const labelY = y - 3 - (labelYOffset ?? 0);
             return [
               {
                 type: 'line',
@@ -705,7 +779,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               },
               {
                 type: 'text',
-                attrs: { x: 6, y: y - 3, text: `${label} $${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
+                attrs: { x: 6, y: labelY, text: `${label} $${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
                 styles: { color, size: 9, weight: '700' },
               },
             ];
@@ -811,13 +885,24 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       setChartSymbolPeriod(chart, coin, tf);
 
       if (!disposed) {
-        setTimeout(() => chartRef.current?.resize(), 100);
+        setTimeout(() => {
+          chartRef.current?.resize();
+          if (chartRef.current && containerRef.current) {
+            applyProportionalPaneHeights(chartRef.current, containerRef.current.getBoundingClientRect().height);
+          }
+        }, 100);
         setChartReady(true);
       }
     })();
 
-    // Resize chart whenever the container changes dimensions (handles mobile viewport changes)
-    const ro = new ResizeObserver(() => { chartRef.current?.resize(); });
+    // Resize chart whenever the container changes dimensions (handles mobile
+    // viewport changes, and the drag-resize handle further down this file) -
+    // also re-applies VOL/RSI pane proportions so they track the new height.
+    const ro = new ResizeObserver(entries => {
+      chartRef.current?.resize();
+      const h = entries[0]?.contentRect?.height;
+      if (chartRef.current && h) applyProportionalPaneHeights(chartRef.current, h);
+    });
     if (containerRef.current) ro.observe(containerRef.current);
 
     return () => {
@@ -1013,12 +1098,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     srOverlayIds.current.forEach(id => chart.removeOverlay({ id }));
     srOverlayIds.current = [];
     if (!showSR || !srLevels.length) return;
+    const labelOffsets = computeLabelOffsets(srLevels);
     for (const level of srLevels) {
       const id = chart.createOverlay({
         name: 'srLevelLine',
         groupId: 'sr_levels',
         lock: true,
-        extendData: { srType: level.type, price: level.price },
+        extendData: { srType: level.type, price: level.price, labelYOffset: labelOffsets.get(level.price) ?? 0 },
         points: [{ value: level.price }],
       } as OverlayCreate);
       if (typeof id === 'string') srOverlayIds.current.push(id);
@@ -1035,12 +1121,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     const lines: Array<{ gexType: 'maxpain' | 'flip'; price: number }> = [];
     if (gexLevels.maxPain != null && isFinite(gexLevels.maxPain)) lines.push({ gexType: 'maxpain', price: gexLevels.maxPain });
     if (gexLevels.flip    != null && isFinite(gexLevels.flip))    lines.push({ gexType: 'flip',    price: gexLevels.flip });
+    const labelOffsets = computeLabelOffsets(lines);
     for (const l of lines) {
       const id = chart.createOverlay({
         name: 'gexLevelLine',
         groupId: 'gex_levels',
         lock: true,
-        extendData: l,
+        extendData: { ...l, labelYOffset: labelOffsets.get(l.price) ?? 0 },
         points: [{ value: l.price }],
       } as OverlayCreate);
       if (typeof id === 'string') gexLevelIds.current.push(id);
