@@ -219,6 +219,10 @@ const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d'];
 
 let emaSignalOverlayRegistered = false;
 let srLevelLineRegistered = false;
+let labelBandL: number[] = [];
+let labelBandR: number[] = [];
+let labelBandTs = 0;
+let claimLabelY: (y: number, side: 'left' | 'right') => number = y => y;
 let gexLevelLineRegistered = false;
 let reversalOverlayRegistered = false;
 
@@ -646,6 +650,24 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
       if (!srLevelLineRegistered) {
         srLevelLineRegistered = true;
+        // Nudge S/R and GEX price-tag labels apart when their levels sit close
+        // together (e.g. two resistance lines a few px apart). klinecharts calls
+        // every overlay's createPointFigures synchronously within one draw pass,
+        // so bucketing calls into a tight time window stands in for the "start
+        // of this draw pass" hook the library doesn't expose.
+        claimLabelY = (y: number, side: 'left' | 'right') => {
+          const now = performance.now();
+          if (now - labelBandTs > 32) { labelBandL = []; labelBandR = []; }
+          labelBandTs = now;
+          const band = side === 'left' ? labelBandL : labelBandR;
+          const MIN_GAP = 13;
+          let adjusted = y;
+          for (const claimedY of band) {
+            if (Math.abs(adjusted - claimedY) < MIN_GAP) adjusted = claimedY - MIN_GAP;
+          }
+          band.push(adjusted);
+          return adjusted;
+        };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (kc as any).registerOverlay({
           name: 'srLevelLine',
@@ -660,6 +682,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             if (y == null || !isFinite(y) || y < 0) return [];
             const color = srType === 'resistance' ? '#f87171' : '#34d399';
             const rightX = (bounding?.width ?? 9999);
+            const labelY = claimLabelY(y - 3, 'right');
             return [
               {
                 type: 'line',
@@ -668,7 +691,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               },
               {
                 type: 'text',
-                attrs: { x: rightX - 6, y: y - 3, text: `${srType === 'resistance' ? 'R' : 'S'} $${fmtPx(price)}`, align: 'right', baseline: 'bottom' },
+                attrs: { x: rightX - 6, y: labelY, text: `${srType === 'resistance' ? 'R' : 'S'} $${fmtPx(price)}`, align: 'right', baseline: 'bottom' },
                 styles: { color, size: 9, weight: '700' },
               },
             ];
@@ -697,6 +720,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const color = gexType === 'maxpain' ? '#a78bfa' : '#22d3ee';
             const label = gexType === 'maxpain' ? 'MAX PAIN' : 'γ FLIP';
             const rightX = (bounding?.width ?? 9999);
+            const labelY = claimLabelY(y - 3, 'left');
             return [
               {
                 type: 'line',
@@ -705,7 +729,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               },
               {
                 type: 'text',
-                attrs: { x: 6, y: y - 3, text: `${label} $${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
+                attrs: { x: 6, y: labelY, text: `${label} $${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
                 styles: { color, size: 9, weight: '700' },
               },
             ];

@@ -212,8 +212,8 @@ body::after {
 }
 .app-logo { font-size: var(--fs-card-title); font-weight: 700; color: var(--txt); white-space: nowrap; flex-shrink: 0; letter-spacing: -0.3px; }
 .app-logo span { color: var(--accent-2); }
-.app-content { max-width: 700px; margin: 0 auto; padding: calc(90px + var(--banner-h)) 1rem 2rem; }
-/* 90px = navbar(52) + ticker(28) + 10px gap - safe at all times, plus --banner-h
+.app-content { max-width: 700px; margin: 0 auto; padding: calc(84px + var(--banner-h)) 1rem 2rem; }
+/* 84px = navbar(52) + ticker(22) + 10px gap - safe at all times, plus --banner-h
    on top when the announcement banner is showing (see components/AnnouncementBanner.tsx) */
 
 /* Smooth entry instead of a hard cut - most noticeable right after the
@@ -924,26 +924,28 @@ body[data-rpm-level="high"]::before {
 /* ── NEWS TICKER ── */
 .news-ticker {
   position: fixed; top: calc(52px + var(--banner-h)); left: 0; right: 0; z-index: 999;
-  height: 28px; display: flex; align-items: center; gap: 0;
+  height: 22px; display: flex; align-items: center; gap: 0;
   background: #0a090e;                   /* fully opaque - no bleed-through */
   border-bottom: 0.5px solid rgba(255,255,255,0.06);
   overflow: hidden;
   animation: ticker-slide-in 0.28s ease-out;
 }
-/* Color identity via badge + accent border only - no transparent backgrounds */
-.ticker-red    { border-bottom-color: rgba(248,113,113,0.4); }
-.ticker-amber  { border-bottom-color: rgba(251,191,36,0.35); }
-.ticker-purple { border-bottom-color: rgba(26,122,255,0.35); }
+/* Color identity via badge + accent border only - no transparent backgrounds.
+   Muted (tinted, not solid-filled) on purpose - this rides above the actual
+   product on every page, so it should read as present, not compete with it. */
+.ticker-red    { border-bottom-color: rgba(248,113,113,0.25); }
+.ticker-amber  { border-bottom-color: rgba(251,191,36,0.22); }
+.ticker-purple { border-bottom-color: rgba(90,163,255,0.22); }
 
 .ticker-badge {
   flex-shrink: 0;
-  font-size: var(--fs-micro); font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
-  padding: 2px 7px; margin-left: 10px; border-radius: 3px;
-  white-space: nowrap; line-height: 16px;
+  font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  padding: 1px 6px; margin-left: 10px; border-radius: 3px;
+  white-space: nowrap; line-height: 14px;
 }
-.ticker-red    .ticker-badge { background: var(--red);    color: #000; }
-.ticker-amber  .ticker-badge { background: var(--amber);  color: #000; }
-.ticker-purple .ticker-badge { background: var(--purple); color: #000; }
+.ticker-red    .ticker-badge { background: rgba(248,113,113,0.14); color: rgba(252,165,165,0.9); }
+.ticker-amber  .ticker-badge { background: rgba(251,191,36,0.14); color: rgba(253,211,77,0.9); }
+.ticker-purple .ticker-badge { background: rgba(90,163,255,0.14); color: rgba(90,163,255,0.9); }
 
 .ticker-sep {
   flex-shrink: 0; width: 0.5px; height: 14px; background: rgba(255,255,255,0.1);
@@ -957,7 +959,7 @@ body[data-rpm-level="high"]::before {
   animation-duration: 60s; /* overridden inline */
 }
 .ticker-content span {
-  font-size: var(--fs-caption); font-weight: 500; line-height: 28px;
+  font-size: var(--fs-caption); font-weight: 500; line-height: 22px;
   white-space: nowrap; color: var(--txt2);
 }
 .ticker-red    .ticker-content span { color: rgba(252,165,165,0.88); }
@@ -967,7 +969,7 @@ body[data-rpm-level="high"]::before {
 /* Dismiss control - hides the current batch until a newer alert arrives. */
 .ticker-close {
   flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-  height: 28px; width: 34px; padding: 0; margin-left: 4px;
+  height: 22px; width: 30px; padding: 0; margin-left: 4px;
   background: none; border: none; cursor: pointer;
   color: var(--txt3); transition: color 0.15s;
 }
@@ -987,10 +989,10 @@ body[data-rpm-level="high"]::before {
 }
 
 @media (max-width: 760px) {
-  .news-ticker { height: 22px; }
-  .ticker-badge { font-size: 0.625rem; padding: 1px 6px; line-height: 13px; }
-  .ticker-content span { font-size: var(--fs-micro); line-height: 22px; }
-  .ticker-close { height: 22px; width: 28px; }
+  .news-ticker { height: 19px; }
+  .ticker-badge { font-size: 0.625rem; padding: 1px 5px; line-height: 12px; }
+  .ticker-content span { font-size: var(--fs-micro); line-height: 19px; }
+  .ticker-close { height: 19px; width: 26px; }
 }
 
 @keyframes ticker-scroll {
@@ -1005,7 +1007,7 @@ body[data-rpm-level="high"]::before {
 
 /* body.ticker-on no longer needed for app-content - base padding covers both states */
 /* Keep for breaking alerts positioning */
-body.ticker-on .breaking-alert { top: calc(90px + var(--banner-h)); }
+body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
 
 /* ── INDICATORS ── */
 .ind-row  { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
