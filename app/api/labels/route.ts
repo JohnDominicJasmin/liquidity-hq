@@ -24,20 +24,34 @@ export async function GET(req: NextRequest) {
   try {
     const admin = getSupabaseAdmin();
     const locales = locale === 'en' ? ['en'] : ['en', locale];
-    const { data: rows, error } = await admin
-      .from(T.labels)
-      .select('key, locale, value')
-      .in('locale', locales);
-    if (error) console.error('/api/labels query error:', error.message);
+    // PostgREST enforces a server-side db-max-rows cap (1000 on this project)
+    // that a client-requested .range() cannot override - it silently clamps
+    // to that many rows regardless of what's asked for. This bit us for real
+    // once the i18n migration crossed 1000 total label rows. Page through in
+    // batches under the cap instead of relying on a single request.
+    const PAGE_SIZE = 1000;
+    const rows: { key: string; locale: string; value: string }[] = [];
+    for (let page = 0; ; page++) {
+      const from = page * PAGE_SIZE;
+      const { data: batch, error } = await admin
+        .from(T.labels)
+        .select('key, locale, value')
+        .in('locale', locales)
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) { console.error('/api/labels query error:', error.message); break; }
+      if (!batch || batch.length === 0) break;
+      rows.push(...batch);
+      if (batch.length < PAGE_SIZE) break;
+    }
 
     // English first, then the requested locale layered on top per key - a
     // key not yet translated in the target locale still resolves to
     // English instead of coming back missing.
     const merged = new Map<string, string>();
-    for (const row of rows ?? []) {
+    for (const row of rows) {
       if (row.locale === 'en') merged.set(row.key, row.value);
     }
-    for (const row of rows ?? []) {
+    for (const row of rows) {
       if (row.locale === locale) merged.set(row.key, row.value);
     }
     data = Object.fromEntries(merged);
