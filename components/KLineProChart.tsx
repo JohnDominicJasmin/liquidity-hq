@@ -568,6 +568,40 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         { pane: { id: 'rsi_pane', height: 110, minHeight: 30 } }
       );
 
+      // klinecharts folds every indicator line's value (at each visible bar)
+      // into the candle pane's auto Y-range by default, unconditionally - not
+      // just candle high/low. EMARibbon's 200-period line is a real, correct
+      // value (a genuine trailing average), but when it sits far from the
+      // current price cluster it drags the whole price axis down to include
+      // it, crushing the actual candles into a fraction of the pane. Override
+      // this one pane's range to come from visible candle high/low only, so
+      // the price scale tracks price action - lines that stray outside it
+      // just extend past the edge, same as any other charting platform.
+      chart.overrideYAxis({
+        paneId: 'candle_pane',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        createRange: ({ chart: c, defaultRange }: any) => {
+          try {
+            const vis = c.getVisibleRange();
+            const bars = c.getDataList();
+            const from = Math.max(0, Math.floor(vis.realFrom));
+            const to = Math.min(bars.length - 1, Math.ceil(vis.realTo));
+            let lo = Infinity, hi = -Infinity;
+            for (let i = from; i <= to; i++) {
+              const b = bars[i];
+              if (!b) continue;
+              if (b.low  < lo) lo = b.low;
+              if (b.high > hi) hi = b.high;
+            }
+            if (!isFinite(lo) || !isFinite(hi)) return defaultRange;
+            return { ...defaultRange, realFrom: lo, realTo: hi, realRange: hi - lo };
+          } catch {
+            return defaultRange;
+          }
+        },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
+
       if (!emaSignalOverlayRegistered) {
         emaSignalOverlayRegistered = true;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
