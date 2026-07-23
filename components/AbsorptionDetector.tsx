@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS, computeFibLevels, useMarket } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
 
 /* ── Types ── */
 interface Candle { t: number; o: number; h: number; l: number; c: number; v: number; takerBuy: number }
@@ -183,6 +184,7 @@ function analyze(
 interface Props { coin: CoinId; onData?: (d: AbsorptionData | null) => void }
 
 export default function AbsorptionDetector({ coin, onData }: Props) {
+  const { t } = useLabels();
   const { store }                 = useMarket();
   const [data, setData]           = useState<AbsorptionData | null>(null);
   const [loading, setLoading]     = useState(true);
@@ -255,9 +257,9 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
   if (loading && !data) {
     return (
       <div className="abs-card" role="status" aria-live="polite">
-        <span className="sr-only">Loading…</span>
+        <span className="sr-only">{t('ABSORPTION_DETECTOR_LOADING_SR')}</span>
         <div className="abs-header">
-          <span className="abs-title">Absorption Detector · 15M</span>
+          <span className="abs-title">{t('ABSORPTION_DETECTOR_TITLE')}</span>
           <SkeletonBar width={60} height={11} radius={4} />
         </div>
         <div className="abs-score-row">
@@ -274,8 +276,8 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
     return (
       <div className="abs-card">
         <div className="abs-header">
-          <span className="abs-title">Absorption Detector · 15M</span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>Failed</span>
+          <span className="abs-title">{t('ABSORPTION_DETECTOR_TITLE')}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>{t('ABSORPTION_DETECTOR_FAILED')}</span>
         </div>
       </div>
     );
@@ -297,13 +299,13 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
 
       {/* ── Header ── */}
       <div className="abs-header">
-        <span className="abs-title">Absorption Detector · 15M</span>
+        <span className="abs-title">{t('ABSORPTION_DETECTOR_TITLE')}</span>
         {d.type ? (
           <span className="abs-type-badge" style={{ color: typeCol, background: typeBg, border: `0.5px solid ${withAlpha(typeCol, '44')}` }}>
-            {d.type === 'accumulation' ? '▲ ACCUMULATION' : '▼ DISTRIBUTION'}
+            {d.type === 'accumulation' ? t('ABSORPTION_DETECTOR_ACCUMULATION_BADGE') : t('ABSORPTION_DETECTOR_DISTRIBUTION_BADGE')}
           </span>
         ) : (
-          <span style={{ fontSize: 'var(--fs-caption)', color: '#4b5563', fontWeight: 600 }}>No Signal</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: '#4b5563', fontWeight: 600 }}>{t('ABSORPTION_DETECTOR_NO_SIGNAL')}</span>
         )}
       </div>
 
@@ -326,7 +328,7 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
       {/* ── Near level ── */}
       {d.nearLevel && (
         <div className="abs-level-row">
-          <span className="abs-level-lbl">Level</span>
+          <span className="abs-level-lbl">{t('ABSORPTION_DETECTOR_LEVEL_LABEL')}</span>
           <span className="abs-level-val">{d.nearLevel}</span>
         </div>
       )}
@@ -334,14 +336,14 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
       {/* ── MTF badge ── */}
       {d.mtfConfirmed && (
         <div className="abs-mtf">
-          <span className="abs-mtf-badge">1H ✓</span>
-          <span>Multi-timeframe confirmed - institutional activity</span>
+          <span className="abs-mtf-badge">{t('ABSORPTION_DETECTOR_MTF_BADGE')}</span>
+          <span>{t('ABSORPTION_DETECTOR_MTF_TEXT')}</span>
         </div>
       )}
 
       {/* ── Footer ── */}
       <div className="abs-footer">
-        Accum = buyers absorbing sells (price should fall but holds) · Distrib = sellers absorbing buys · 15M + 1H
+        {t('ABSORPTION_DETECTOR_FOOTER')}
       </div>
     </div>
   );

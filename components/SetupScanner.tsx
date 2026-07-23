@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useMarket, COINS, CoinId, CoinData, computeSqueezeScore, classifyFunding } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
 import { withAlpha } from '@/lib/color';
+import { useLabels } from '@/lib/labels';
 
 type FilterDir = 'all' | 'LONG_LIQ' | 'SHORT_SQ' | 'NEUTRAL';
 
@@ -33,37 +34,41 @@ interface ScanRow {
 }
 
 function OiTrendBadge({ trend }: { trend: CoinData['oiTrend'] }) {
-  if (!trend) return <span className="scan-badge scan-badge-neu">Open Int -</span>;
+  const { t } = useLabels();
+  if (!trend) return <span className="scan-badge scan-badge-neu">{t('SETUP_SCANNER_OI_NONE')}</span>;
   const map: Record<string, { label: string; cls: string }> = {
-    strong_up:   { label: 'Open Int ↑↑', cls: 'scan-badge-bull' },
-    weak_up:     { label: 'Open Int ↑',  cls: 'scan-badge-neu'  },
-    weak_down:   { label: 'Open Int ↓',  cls: 'scan-badge-neu'  },
-    strong_down: { label: 'Open Int ↓↓', cls: 'scan-badge-bear' },
+    strong_up:   { label: t('SETUP_SCANNER_OI_STRONG_UP'), cls: 'scan-badge-bull' },
+    weak_up:     { label: t('SETUP_SCANNER_OI_WEAK_UP'),   cls: 'scan-badge-neu'  },
+    weak_down:   { label: t('SETUP_SCANNER_OI_WEAK_DOWN'), cls: 'scan-badge-neu'  },
+    strong_down: { label: t('SETUP_SCANNER_OI_STRONG_DOWN'), cls: 'scan-badge-bear' },
   };
   const m = map[trend];
   return <span className={`scan-badge ${m.cls}`}>{m.label}</span>;
 }
 
 function CvdBadge({ cvd }: { cvd: CoinData['cvdDivergence'] }) {
-  if (!cvd) return <span className="scan-badge scan-badge-neu">CVD -</span>;
-  if (cvd === 'bullish') return <span className="scan-badge scan-badge-bull">CVD ↑</span>;
-  return <span className="scan-badge scan-badge-bear">CVD ↓</span>;
+  const { t } = useLabels();
+  if (!cvd) return <span className="scan-badge scan-badge-neu">{t('SETUP_SCANNER_CVD_NONE')}</span>;
+  if (cvd === 'bullish') return <span className="scan-badge scan-badge-bull">{t('SETUP_SCANNER_CVD_BULL')}</span>;
+  return <span className="scan-badge scan-badge-bear">{t('SETUP_SCANNER_CVD_BEAR')}</span>;
 }
 
 function TakerBadge({ ratio }: { ratio: number | null }) {
-  if (ratio == null) return <span className="scan-badge scan-badge-neu">Tkr -</span>;
+  const { t } = useLabels();
+  if (ratio == null) return <span className="scan-badge scan-badge-neu">{t('SETUP_SCANNER_TAKER_NONE')}</span>;
   const pct = (ratio * 100).toFixed(0);
-  if (ratio >= 0.60) return <span className="scan-badge scan-badge-bull">Tkr {pct}%</span>;
-  if (ratio <= 0.40) return <span className="scan-badge scan-badge-bear">Tkr {pct}%</span>;
-  return <span className="scan-badge scan-badge-neu">Tkr {pct}%</span>;
+  if (ratio >= 0.60) return <span className="scan-badge scan-badge-bull">{t('SETUP_SCANNER_TAKER_VAL', { pct })}</span>;
+  if (ratio <= 0.40) return <span className="scan-badge scan-badge-bear">{t('SETUP_SCANNER_TAKER_VAL', { pct })}</span>;
+  return <span className="scan-badge scan-badge-neu">{t('SETUP_SCANNER_TAKER_VAL', { pct })}</span>;
 }
 
 function RsiBadge({ rsi }: { rsi: number | null }) {
+  const { t } = useLabels();
   if (rsi == null) return null;
   const v = Math.round(rsi);
-  if (v >= 70) return <span className="scan-badge scan-badge-bear">RSI {v}</span>;
-  if (v <= 30) return <span className="scan-badge scan-badge-bull">RSI {v}</span>;
-  return <span className="scan-badge scan-badge-neu">RSI {v}</span>;
+  if (v >= 70) return <span className="scan-badge scan-badge-bear">{t('SETUP_SCANNER_RSI_VAL', { v })}</span>;
+  if (v <= 30) return <span className="scan-badge scan-badge-bull">{t('SETUP_SCANNER_RSI_VAL', { v })}</span>;
+  return <span className="scan-badge scan-badge-neu">{t('SETUP_SCANNER_RSI_VAL', { v })}</span>;
 }
 
 function ScoreBar({ score, color }: { score: number; color: string }) {
@@ -78,6 +83,7 @@ function ScoreBar({ score, color }: { score: number; color: string }) {
 }
 
 function CoinCard({ row, rank }: { row: ScanRow; rank: number }) {
+  const { t } = useLabels();
   const cd = row.coin;
   const fr = classifyFunding(cd.fundingRate ?? 0);
   const frColor = fr.rpm === 'pos' ? '#f87171' : fr.rpm === 'neg' ? '#34d399' : '#606060';
@@ -112,33 +118,33 @@ function CoinCard({ row, rank }: { row: ScanRow; rank: number }) {
       {/* Stats row */}
       <div className="scan-stats">
         <div className="scan-stat">
-          <span className="scan-stat-lbl">Funding</span>
+          <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_FUNDING')}</span>
           <span className="scan-stat-val" style={{ color: frColor }}>{fmtFR(cd.fundingRate)}</span>
         </div>
         <div className="scan-stat">
-          <span className="scan-stat-lbl">Long %</span>
+          <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_LONG_PCT')}</span>
           <span className="scan-stat-val" style={{ color: (cd.longRatio ?? 0) >= 0.6 ? '#f87171' : '#8e8e93' }}>
             {fmtRatio(cd.longRatio)}
           </span>
         </div>
         <div className="scan-stat">
-          <span className="scan-stat-lbl">Short %</span>
+          <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_SHORT_PCT')}</span>
           <span className="scan-stat-val" style={{ color: (cd.shortRatio ?? 0) >= 0.6 ? '#34d399' : '#8e8e93' }}>
             {fmtRatio(cd.shortRatio)}
           </span>
         </div>
         <div className="scan-stat">
-          <span className="scan-stat-lbl">Vol ratio</span>
+          <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_VOL_RATIO')}</span>
           <span className="scan-stat-val" style={{ color: (cd.volRatio ?? 0) >= 1.5 ? 'var(--accent)' : 'var(--txt3)' }}>
             {fmtVR(cd.volRatio)}
           </span>
         </div>
         <div className="scan-stat">
-          <span className="scan-stat-lbl">RSI 1h</span>
+          <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_RSI_1H')}</span>
           <span className="scan-stat-val">{fmtRSI(cd.rsi1h)}</span>
         </div>
         <div className="scan-stat">
-          <span className="scan-stat-lbl">RSI 4h</span>
+          <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_RSI_4H')}</span>
           <span className="scan-stat-val">{fmtRSI(cd.rsi4h)}</span>
         </div>
       </div>
@@ -147,6 +153,7 @@ function CoinCard({ row, rank }: { row: ScanRow; rank: number }) {
 }
 
 export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
+  const { t } = useLabels();
   const { store } = useMarket();
   const [filter, setFilter] = useState<FilterDir>('all');
   const [strongOnly, setStrongOnly] = useState(false);
@@ -202,7 +209,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
   // ── Single-coin mode (used by Arena) ──────────────────────────────────────
   if (coinProp) {
     const row = rows.find(r => r.id === coinProp);
-    if (!row) return <div style={{ padding: '1rem 0', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>No data for {coinProp.toUpperCase()}</div>;
+    if (!row) return <div style={{ padding: '1rem 0', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('SETUP_SCANNER_NO_DATA', { coin: coinProp.toUpperCase() })}</div>;
     return (
       <div style={{ paddingTop: 8 }}>
         <CoinCard row={row} rank={sorted.indexOf(row) + 1} />
@@ -215,10 +222,10 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
       {/* Page header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>
-          Setup Scanner
+          {t('SETUP_SCANNER_TITLE')}
         </div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-          All {COINS.length} coins ranked by squeeze risk · updates with live data
+          {t('SETUP_SCANNER_SUBTITLE', { count: COINS.length })}
         </div>
       </div>
 
@@ -230,7 +237,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
               <span className="scan-alert-icon" style={{ lineHeight: 0 }}><Warn size={14} /></span>
               <span>
                 <strong style={{ color: '#f87171' }}>{highestLongLiq.id.toUpperCase()}</strong>
-                {' '}Long liquidation risk - score {highestLongLiq.score}
+                {' '}{t('SETUP_SCANNER_ALERT_LONG_LIQ', { score: highestLongLiq.score })}
               </span>
             </div>
           )}
@@ -239,7 +246,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
               
               <span>
                 <strong style={{ color: '#34d399' }}>{highestShortSq.id.toUpperCase()}</strong>
-                {' '}Short squeeze setup - score {highestShortSq.score}
+                {' '}{t('SETUP_SCANNER_ALERT_SHORT_SQ', { score: highestShortSq.score })}
               </span>
             </div>
           )}
@@ -250,10 +257,10 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
       <div className="scan-filter-row">
         <div className="scan-filter-dirs">
           {([
-            { key: 'all',      label: `All (${rows.length})`              },
-            { key: 'LONG_LIQ', label: `Long Liq (${counts.LONG_LIQ})`     },
-            { key: 'SHORT_SQ', label: `Short Squeeze (${counts.SHORT_SQ})` },
-            { key: 'NEUTRAL',  label: `Neutral (${counts.NEUTRAL})`        },
+            { key: 'all',      label: t('SETUP_SCANNER_FILTER_ALL', { count: rows.length }) },
+            { key: 'LONG_LIQ', label: t('SETUP_SCANNER_FILTER_LONG_LIQ', { count: counts.LONG_LIQ }) },
+            { key: 'SHORT_SQ', label: t('SETUP_SCANNER_FILTER_SHORT_SQ', { count: counts.SHORT_SQ }) },
+            { key: 'NEUTRAL',  label: t('SETUP_SCANNER_FILTER_NEUTRAL', { count: counts.NEUTRAL }) },
           ] as { key: FilterDir; label: string }[]).map(f => (
             <button
               key={f.key}
@@ -274,7 +281,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
           aria-pressed={strongOnly}
           onClick={() => setStrongOnly(v => !v)}
         >
-          {strongOnly ? `Strong Setups Only - ${strongCount} coins` : 'Strong Setups Only'}
+          {strongOnly ? t('SETUP_SCANNER_STRONG_ONLY_ACTIVE', { count: strongCount }) : t('SETUP_SCANNER_STRONG_ONLY')}
         </button>
       </div>
 
@@ -283,10 +290,10 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
         <input
           ref={searchRef}
           type="search"
-          placeholder="Search coins…"
+          placeholder={t('SETUP_SCANNER_SEARCH_PLACEHOLDER')}
           value={search}
           onChange={e => setSearch(e.target.value)}
-          aria-label="Search coins"
+          aria-label={t('SETUP_SCANNER_SEARCH_ARIA')}
           style={{
             width: '100%',
             boxSizing: 'border-box',
@@ -305,10 +312,10 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
       {searchDisplayed.length === 0 && (
         <div style={{ textAlign: 'center', color: 'var(--txt3)', padding: '3rem 0', fontSize: 'var(--fs-label)' }}>
           {search.trim()
-            ? `No coins match "${search.trim()}"`
+            ? t('SETUP_SCANNER_NO_MATCH_SEARCH', { search: search.trim() })
             : strongOnly
-              ? 'No strong setups right now - try again later or turn off the filter'
-              : 'No setups match this filter right now'}
+              ? t('SETUP_SCANNER_NO_MATCH_STRONG')
+              : t('SETUP_SCANNER_NO_MATCH_FILTER')}
         </div>
       )}
 
@@ -320,21 +327,21 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
 
       {/* Legend */}
       <div className="scan-legend">
-        <div className="scan-legend-title">How the score works</div>
+        <div className="scan-legend-title">{t('SETUP_SCANNER_LEGEND_TITLE')}</div>
         <div className="scan-legend-row">
           <span className="scan-legend-dot" style={{ background: '#f87171' }} />
-          <span><strong style={{ color: '#f87171' }}>Long Liq Risk ↓</strong> - too many longs. Funding +, long% high, vol spike. Whales incentivised to dump.</span>
+          <span><strong style={{ color: '#f87171' }}>{t('SETUP_SCANNER_LEGEND_LONG_LABEL')}</strong> - {t('SETUP_SCANNER_LEGEND_LONG_DESC')}</span>
         </div>
         <div className="scan-legend-row">
           <span className="scan-legend-dot" style={{ background: '#34d399' }} />
-          <span><strong style={{ color: '#34d399' }}>Short Squeeze ↑</strong> - too many shorts. Funding –, short% high, vol spike. Whales incentivised to pump.</span>
+          <span><strong style={{ color: '#34d399' }}>{t('SETUP_SCANNER_LEGEND_SHORT_LABEL')}</strong> - {t('SETUP_SCANNER_LEGEND_SHORT_DESC')}</span>
         </div>
         <div className="scan-legend-row">
           <span className="scan-legend-dot" style={{ background: '#606060' }} />
-          <span><strong>Balanced</strong> - no extreme positioning on either side. Sit out or trade structure.</span>
+          <span><strong>{t('SETUP_SCANNER_LEGEND_BALANCED_LABEL')}</strong> - {t('SETUP_SCANNER_LEGEND_BALANCED_DESC')}</span>
         </div>
         <div style={{ marginTop: 8, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-          Score 0–100: funding rate (0–40 pts) + long/short ratio (0–40 pts) + volume spike bonus (0–20 pts)
+          {t('SETUP_SCANNER_LEGEND_FOOTER')}
         </div>
       </div>
     </div>
