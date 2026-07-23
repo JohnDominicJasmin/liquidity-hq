@@ -4,6 +4,7 @@ import { useAuth } from './AuthProvider';
 import { useMarket } from '@/lib/marketStore';
 import { getSupabase } from '@/lib/supabase';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
 
 interface OnChainData {
   mvrv: number | null;
@@ -63,18 +64,20 @@ function ScoreBar({ value, label, weight }: { value: number; label: string; weig
 }
 
 function MetricPill({ label, value, source }: { label: string; value: number | null; source?: string }) {
+  const { t } = useLabels();
   return (
     <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', display: 'flex', gap: 4, alignItems: 'center' }}>
       <span style={{ color: 'var(--txt)', fontWeight: 600 }}>{label}:</span>
       <span style={{ fontFamily: 'var(--font-mono)' }}>
         {value !== null ? value.toFixed(2) : '-'}
       </span>
-      {source && <span style={{ opacity: 0.5 }}>via {source}</span>}
+      {source && <span style={{ opacity: 0.5 }}>{t('ON_CHAIN_SCORE_METRIC_VIA', { source })}</span>}
     </div>
   );
 }
 
 export default function OnChainScore() {
+  const { t } = useLabels();
   const { user } = useAuth();
   const { store } = useMarket();
   const btcPrice = store.coins['btc']?.price ?? 0;
@@ -97,13 +100,13 @@ export default function OnChainScore() {
       });
       if (!res.ok) {
         const e = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(e.error ?? 'Request failed');
+        throw new Error(e.error ?? t('ON_CHAIN_SCORE_REQUEST_FAILED'));
       }
       const result = await res.json() as OnChainData;
       setData(result);
       saveCache(result);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to fetch on-chain data');
+      setError(e instanceof Error ? e.message : t('ON_CHAIN_SCORE_FETCH_ERROR'));
     } finally {
       setLoading(false);
     }
@@ -132,11 +135,11 @@ export default function OnChainScore() {
         borderBottom: '0.5px solid var(--bdr)',
       }}>
         <div>
-          <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)' }}>On-Chain Composite Score</div>
+          <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)' }}>{t('ON_CHAIN_SCORE_TITLE')}</div>
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 1 }}>
             {data
-              ? `Updated ${new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-              : 'MVRV · SOPR · NVT · Exchange Flows · Whale Activity'}
+              ? t('ON_CHAIN_SCORE_UPDATED', { time: new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })
+              : t('ON_CHAIN_SCORE_SUBTITLE')}
           </div>
         </div>
         <button
@@ -155,7 +158,7 @@ export default function OnChainScore() {
             whiteSpace: 'nowrap',
           }}
         >
-          {loading ? 'Analyzing…' : data ? 'Re-analyze' : 'Analyze'}
+          {loading ? t('ON_CHAIN_SCORE_ANALYZING') : data ? t('ON_CHAIN_SCORE_REANALYZE') : t('ON_CHAIN_SCORE_ANALYZE')}
         </button>
       </div>
 
@@ -168,13 +171,13 @@ export default function OnChainScore() {
 
       {!data && !loading && (
         <div style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>
-          Click Analyze to fetch live on-chain metrics via Grok web search.
+          {t('ON_CHAIN_SCORE_EMPTY_STATE')}
         </div>
       )}
 
       {loading && (
         <div style={{ padding: '12px 14px' }} role="status" aria-live="polite">
-          <span className="sr-only">Searching web for MVRV, SOPR, NVT, exchange flows…</span>
+          <span className="sr-only">{t('ON_CHAIN_SCORE_LOADING_SR')}</span>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14,
             padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8,
@@ -234,10 +237,10 @@ export default function OnChainScore() {
           </div>
 
           {/* Sub-scores */}
-          <ScoreBar value={data.valuation_score}    label="Valuation"     weight="30%" />
-          <ScoreBar value={data.activity_score}     label="Activity"      weight="25%" />
-          <ScoreBar value={data.capital_flow_score} label="Capital Flow"  weight="25%" />
-          <ScoreBar value={data.whale_score}        label="Whale"         weight="20%" />
+          <ScoreBar value={data.valuation_score}    label={t('ON_CHAIN_SCORE_VALUATION')}     weight="30%" />
+          <ScoreBar value={data.activity_score}     label={t('ON_CHAIN_SCORE_ACTIVITY')}      weight="25%" />
+          <ScoreBar value={data.capital_flow_score} label={t('ON_CHAIN_SCORE_CAPITAL_FLOW')}  weight="25%" />
+          <ScoreBar value={data.whale_score}        label={t('ON_CHAIN_SCORE_WHALE')}         weight="20%" />
 
           {/* Raw metrics */}
           <div style={{
@@ -248,17 +251,17 @@ export default function OnChainScore() {
             flexDirection: 'column',
             gap: 4,
           }}>
-            <MetricPill label="MVRV" value={data.mvrv} source={data.mvrv_source} />
-            <MetricPill label="SOPR" value={data.sopr} source={data.sopr_source} />
-            <MetricPill label="NVT"  value={data.nvt}  source={data.nvt_source}  />
+            <MetricPill label={t('ON_CHAIN_SCORE_MVRV')} value={data.mvrv} source={data.mvrv_source} />
+            <MetricPill label={t('ON_CHAIN_SCORE_SOPR')} value={data.sopr} source={data.sopr_source} />
+            <MetricPill label={t('ON_CHAIN_SCORE_NVT')}  value={data.nvt}  source={data.nvt_source}  />
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span style={{ color: 'var(--txt)', fontWeight: 600 }}>Exchange Flow:</span>
+              <span style={{ color: 'var(--txt)', fontWeight: 600 }}>{t('ON_CHAIN_SCORE_EXCHANGE_FLOW_LABEL')}:</span>
               <span style={{ color: flowCol, fontWeight: 700 }}>{flowIcon} {data.exchange_flow}</span>
               <span style={{ opacity: 0.6 }}>- {data.exchange_flow_note}</span>
             </div>
             {data.active_addresses && (
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-                <span style={{ color: 'var(--txt)', fontWeight: 600 }}>Active Addresses:</span>{' '}
+                <span style={{ color: 'var(--txt)', fontWeight: 600 }}>{t('ON_CHAIN_SCORE_ACTIVE_ADDRESSES_LABEL')}:</span>{' '}
                 <span style={{ fontFamily: 'var(--font-mono)' }}>{data.active_addresses.toLocaleString()}</span>
               </div>
             )}

@@ -3,6 +3,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import Tip from './Tip';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 interface MacroData {
   dxy: number;  dxyChg: number;
@@ -22,10 +24,10 @@ const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
 
 type LoadState = MacroData | null | 'loading' | 'error' | 'unauth';
 
-const SIGNAL_META: Record<string, { col: string; bg: string; bdr: string; label: string }> = {
-  RISK_ON:  { col: '#34d399', bg: 'rgba(52,211,153,0.10)',  bdr: 'rgba(52,211,153,0.3)',  label: 'Risk On'  },
-  RISK_OFF: { col: '#f87171', bg: 'rgba(248,113,113,0.10)', bdr: 'rgba(248,113,113,0.3)', label: 'Risk Off' },
-  NEUTRAL:  { col: '#fbbf24', bg: 'rgba(251,191,36,0.10)',  bdr: 'rgba(251,191,36,0.3)',  label: 'Neutral'  },
+const SIGNAL_META: Record<string, { col: string; bg: string; bdr: string; labelKey: LabelKey }> = {
+  RISK_ON:  { col: '#34d399', bg: 'rgba(52,211,153,0.10)',  bdr: 'rgba(52,211,153,0.3)',  labelKey: 'GLOBAL_MACRO_CONTEXT_SIGNAL_RISK_ON'  },
+  RISK_OFF: { col: '#f87171', bg: 'rgba(248,113,113,0.10)', bdr: 'rgba(248,113,113,0.3)', labelKey: 'GLOBAL_MACRO_CONTEXT_SIGNAL_RISK_OFF' },
+  NEUTRAL:  { col: '#fbbf24', bg: 'rgba(251,191,36,0.10)',  bdr: 'rgba(251,191,36,0.3)',  labelKey: 'GLOBAL_MACRO_CONTEXT_SIGNAL_NEUTRAL'  },
 };
 
 function parseMacroSection(text: string, key: string): string {
@@ -45,6 +47,7 @@ function chgStr(chg: number) {
 }
 
 export default function GlobalMacroContext() {
+  const { t } = useLabels();
   const [state,  setState]  = useState<LoadState>('loading');
   const [errMsg, setErrMsg] = useState('');
 
@@ -63,7 +66,7 @@ export default function GlobalMacroContext() {
         analysis?: string; error?: string;
       };
 
-      if (!res.ok) { setErrMsg(json.error ?? 'Failed'); setState('error'); return; }
+      if (!res.ok) { setErrMsg(json.error ?? t('GLOBAL_MACRO_CONTEXT_FETCH_FAILED')); setState('error'); return; }
 
       const text = json.analysis ?? '';
       const signal      = parseMacroSection(text, 'MACRO_SIGNAL').replace(/[^A-Z_]/g, '');
@@ -107,14 +110,14 @@ export default function GlobalMacroContext() {
   return (
     <div style={{ padding: '12px 14px' }}>
       <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 4 }}>
-        <Tip width={320} text="Live DXY, VIX, Gold, Oil, and 10Y Treasury data from Yahoo Finance. Grok classifies the composite macro backdrop and gives crypto positioning implications. Updates every 2 hours.">
-          Global Macro Context
+        <Tip width={320} text={t('GLOBAL_MACRO_CONTEXT_TOOLTIP')}>
+          {t('GLOBAL_MACRO_CONTEXT_TITLE')}
         </Tip>
       </div>
 
       {state === 'loading' && (
         <div style={{ padding: '4px 0' }} role="status" aria-live="polite">
-          <span className="sr-only">Fetching macro data…</span>
+          <span className="sr-only">{t('GLOBAL_MACRO_CONTEXT_FETCHING_SR')}</span>
           <SkeletonBar width={90} height={20} radius={20} style={{ marginBottom: 10 }} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px 8px', marginBottom: 10 }}>
             {[0, 1, 2, 3, 4, 5].map(i => (
@@ -126,36 +129,36 @@ export default function GlobalMacroContext() {
         </div>
       )}
       {state === 'unauth' && (
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '8px 0' }}>Sign in to view macro context.</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '8px 0' }}>{t('GLOBAL_MACRO_CONTEXT_SIGNIN_PROMPT')}</div>
       )}
       {state === 'error' && (
         <div style={{ padding: '8px 0' }}>
           <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 6 }}>{errMsg}</div>
-          <button onClick={fetchData} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}>Retry</button>
+          <button onClick={fetchData} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}>{t('GLOBAL_MACRO_CONTEXT_RETRY')}</button>
         </div>
       )}
 
       {typeof state === 'object' && state !== null && (() => {
         const d = state;
-        const rows: { label: string; value: string; chg: number; invertBullish?: boolean }[] = [
-          { label: 'DXY',       value: d.dxy.toFixed(2),  chg: d.dxyChg,  invertBullish: true },
-          { label: 'VIX',       value: d.vix.toFixed(1),  chg: d.vixChg,  invertBullish: true },
-          { label: 'Gold',      value: '$' + d.gold.toLocaleString('en-US', { maximumFractionDigits: 0 }), chg: d.goldChg },
-          { label: 'Oil (WTI)', value: '$' + d.oil.toFixed(1),  chg: d.oilChg  },
-          { label: '10Y Yield', value: d.tnx.toFixed(2) + '%',  chg: d.tnxChg, invertBullish: true },
-          { label: 'Gold/Oil',  value: d.goldOilRatio.toFixed(1) + 'x', chg: 0 },
+        const rows: { id: string; label: string; value: string; chg: number; invertBullish?: boolean }[] = [
+          { id: 'dxy',    label: t('GLOBAL_MACRO_CONTEXT_ROW_DXY'),      value: d.dxy.toFixed(2),  chg: d.dxyChg,  invertBullish: true },
+          { id: 'vix',    label: t('GLOBAL_MACRO_CONTEXT_ROW_VIX'),      value: d.vix.toFixed(1),  chg: d.vixChg,  invertBullish: true },
+          { id: 'gold',   label: t('GLOBAL_MACRO_CONTEXT_ROW_GOLD'),     value: '$' + d.gold.toLocaleString('en-US', { maximumFractionDigits: 0 }), chg: d.goldChg },
+          { id: 'oil',    label: t('GLOBAL_MACRO_CONTEXT_ROW_OIL'),      value: '$' + d.oil.toFixed(1),  chg: d.oilChg  },
+          { id: 'tnx',    label: t('GLOBAL_MACRO_CONTEXT_ROW_10Y_YIELD'), value: d.tnx.toFixed(2) + '%',  chg: d.tnxChg, invertBullish: true },
+          { id: 'goldoil', label: t('GLOBAL_MACRO_CONTEXT_ROW_GOLD_OIL'), value: d.goldOilRatio.toFixed(1) + 'x', chg: 0 },
         ];
         return (
           <>
             {/* Signal badge */}
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 20, marginBottom: 8, background: sm.bg, border: `0.5px solid ${sm.bdr}` }}>
-              <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: sm.col, letterSpacing: '0.05em' }}>{sm.label}</span>
+              <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: sm.col, letterSpacing: '0.05em' }}>{t(sm.labelKey)}</span>
             </div>
 
             {/* Data grid */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px 8px', marginBottom: 10 }}>
               {rows.map(r => (
-                <div key={r.label} style={{ display: 'flex', flexDirection: 'column' }}>
+                <div key={r.id} style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 1 }}>{r.label}</span>
                   <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', fontFamily: 'var(--font-mono), monospace' }}>{r.value}</span>
                   {r.chg !== 0 && (
@@ -175,7 +178,7 @@ export default function GlobalMacroContext() {
             {/* Crypto implications */}
             {d.implications && (
               <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 7, marginBottom: 6 }}>
-                <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--txt3)', marginBottom: 4 }}>Crypto Implications</div>
+                <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--txt3)', marginBottom: 4 }}>{t('GLOBAL_MACRO_CONTEXT_IMPLICATIONS_TITLE')}</div>
                 <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{d.implications}</div>
               </div>
             )}
@@ -183,13 +186,13 @@ export default function GlobalMacroContext() {
             {/* Watch level */}
             {d.watchLevel && (
               <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 6, marginBottom: 6 }}>
-                <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', fontWeight: 600 }}>Watch: </span>
+                <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', fontWeight: 600 }}>{t('GLOBAL_MACRO_CONTEXT_WATCH_LABEL')}</span>
                 <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{d.watchLevel}</span>
               </div>
             )}
 
             <button onClick={fetchData} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
-              Refresh (2h cache)
+              {t('GLOBAL_MACRO_CONTEXT_REFRESH_BUTTON')}
             </button>
           </>
         );

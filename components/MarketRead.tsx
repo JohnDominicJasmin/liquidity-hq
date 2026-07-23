@@ -3,11 +3,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { useMarket } from '@/lib/marketStore';
 import { computeMarketRead, type FundingSide } from '@/lib/marketRead';
 import Tip from '@/components/Tip';
+import { useLabels } from '@/lib/labels';
 
 // The dashboard's answer-first hero. Replaces the RaidMeter + Smart Money Score
 // + Sentiment Extremes stack with one plain-language verdict (see lib/marketRead
 // for the merged math). Score bands drive colour: good >=70 / mid 45-69 / weak.
 export default function MarketRead() {
+  const { t } = useLabels();
   const { store } = useMarket();
   const [manualFund, setManualFund] = useState<FundingSide | null>(null);
   const [showOverride, setShowOverride] = useState(false);
@@ -15,8 +17,8 @@ export default function MarketRead() {
 
   // Re-derive every 60s so the time-of-day factor stays current without a reload.
   useEffect(() => {
-    const t = setInterval(() => setTick(n => n + 1), 60_000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setTick(n => n + 1), 60_000);
+    return () => clearInterval(timer);
   }, []);
 
   const read = useMemo(
@@ -38,10 +40,10 @@ export default function MarketRead() {
   return (
     <section className="mr" data-band={read.band}>
       <div className="mr-eyebrow">
-        <Tip width={280} text="A plain read on whether now is a good time to trade this coin. Blends session timing, day of week, Fear &amp; Greed, funding, order-wall proximity and a 6-signal smart-money composite into one 0-100 score.">
-          Market Read
+        <Tip width={280} text={t('MARKET_READ_TIP')}>
+          {t('MARKET_READ_TITLE')}
         </Tip>
-        <span className="mr-eyebrow-q"> · is now a good time to trade?</span>
+        <span className="mr-eyebrow-q">{t('MARKET_READ_EYEBROW_Q')}</span>
       </div>
 
       <div className="mr-top">
@@ -50,7 +52,7 @@ export default function MarketRead() {
           <p suppressHydrationWarning className="mr-sub">{read.sub}</p>
         </div>
         <div className="mr-score-block">
-          <div className="mr-score-label">Conditions</div>
+          <div className="mr-score-label">{t('MARKET_READ_CONDITIONS_LABEL')}</div>
           <div suppressHydrationWarning className="mr-score">{read.score}<small>/100</small></div>
         </div>
       </div>
@@ -69,7 +71,7 @@ export default function MarketRead() {
 
       {c && (
         <div suppressHydrationWarning className={`mr-flag mr-flag-${c.dir}`}>
-          <span className="mr-flag-tag">{c.dir === 'bull' ? 'Contrarian bullish' : 'Caution'}</span>
+          <span className="mr-flag-tag">{c.dir === 'bull' ? t('MARKET_READ_FLAG_BULLISH') : t('MARKET_READ_FLAG_CAUTION')}</span>
           <span className="mr-flag-body"><b>{c.label}</b> · {c.count}/3 · {c.desc}</span>
         </div>
       )}
@@ -77,7 +79,9 @@ export default function MarketRead() {
       <div className="mr-override">
         <button className="mr-override-btn" onClick={() => setShowOverride(v => !v)}
           style={{ color: manualFund ? 'var(--amber)' : 'var(--txt3)' }}>
-          {manualFund ? `funding overridden: ${manualFund === 'pos' ? 'long-heavy' : manualFund === 'neg' ? 'short-heavy' : 'neutral'}` : 'override funding'}
+          {manualFund
+            ? t('MARKET_READ_OVERRIDE_ACTIVE', { value: manualFund === 'pos' ? t('MARKET_READ_FUND_LONG_LC') : manualFund === 'neg' ? t('MARKET_READ_FUND_SHORT_LC') : t('MARKET_READ_FUND_NEUTRAL_LC') })
+            : t('MARKET_READ_OVERRIDE_DEFAULT')}
           {showOverride ? ' ▲' : ' ▼'}
         </button>
         {showOverride && (
@@ -86,7 +90,7 @@ export default function MarketRead() {
               <button key={opt}
                 className={`mr-fopt${read.fundingSide === opt ? ' on' : ''}`}
                 onClick={() => setManualFund(f => (f === opt ? null : opt))}>
-                {opt === 'pos' ? 'Long-heavy' : opt === 'neg' ? 'Short-heavy' : 'Neutral'}
+                {opt === 'pos' ? t('MARKET_READ_FUND_LONG') : opt === 'neg' ? t('MARKET_READ_FUND_SHORT') : t('MARKET_READ_FUND_NEUTRAL')}
               </button>
             ))}
           </div>
