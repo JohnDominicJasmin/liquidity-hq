@@ -1,0 +1,35 @@
+-- CALC_SIZER_* rows (components/PositionSizer.tsx). Run once against BOTH
+-- lhq_labels (prod) and lhq_dev_labels (dev).
+
+insert into lhq_labels (key, locale, value) values
+('CALC_SIZER_TITLE','en','Position Sizer'),
+('CALC_SIZER_SUBTITLE','en','Account · risk % · entry · stop → size, leverage & R:R'),
+('CALC_SIZER_ACCOUNT_RISK_LABEL','en','Account & Risk'),
+('CALC_SIZER_ACCOUNT_SIZE_LABEL','en','Account Size'),
+('CALC_SIZER_RISK_PCT_LABEL','en','Risk %'),
+('CALC_SIZER_RISK_PCT_ARIA','en','Risk Percentage'),
+('CALC_SIZER_AT_RISK_PREFIX','en','At risk:'),
+('CALC_SIZER_TRADE_LEVELS_LABEL','en','Trade Levels'),
+('CALC_SIZER_LIVE_PRICE_TITLE','en','Set entry to the current live price'),
+('CALC_SIZER_PRICE_LOADING','en','{coin} price loading…'),
+('CALC_SIZER_ENTRY_PRICE_LABEL','en','Entry Price'),
+('CALC_SIZER_STOP_LOSS_LABEL','en','Stop Loss'),
+('CALC_SIZER_TP_LABEL','en','Take Profit'),
+('CALC_SIZER_TP_OPTIONAL_HINT','en','(optional - shows R:R)'),
+('CALC_SIZER_RESULT_DIRECTION','en','Direction'),
+('CALC_SIZER_LONG_PILL','en','▲ LONG'),
+('CALC_SIZER_SHORT_PILL','en','▼ SHORT'),
+('CALC_SIZER_RESULT_RISK_USD','en','$ at Risk'),
+('CALC_SIZER_RESULT_POS_SIZE','en','Position Size'),
+('CALC_SIZER_RESULT_UNITS','en','Units'),
+('CALC_SIZER_LEVERAGE_TIP','en','The multiplier needed on your position size to risk exactly your target %, given how close your stop is. A tight stop needs high leverage to still hit your $ risk - it''s a derived number, not a setting you choose separately.'),
+('CALC_SIZER_LEVERAGE_LABEL','en','Leverage'),
+('CALC_SIZER_RESULT_STOP_DISTANCE','en','Stop Distance'),
+('CALC_SIZER_RR_TIP','en','Risk:Reward - how many dollars you stand to make for every dollar risked. 2R means a win pays double the loss. Below 1.5R, you need too high a win rate to be profitable long-term - the math doesn''t work in your favor.'),
+('CALC_SIZER_RR_LABEL','en','R:R Ratio'),
+('CALC_SIZER_RESULT_POTENTIAL_PROFIT','en','Potential Profit'),
+('CALC_SIZER_WARN_HIGH_LEVERAGE','en','Leverage over 10x - reduce size or widen stop'),
+('CALC_SIZER_WARN_LOW_RR','en','R:R below 1.5 - skip or move TP further out'),
+('CALC_SIZER_LOG_TRADE_BUTTON','en','Log This Trade in Journal →'),
+('CALC_SIZER_EMPTY_TITLE','en','Fill in account size, entry and stop loss to calculate')
+on conflict (key, locale) do update set value = excluded.value, updated_at = now();

@@ -4,6 +4,7 @@ import { useMarket, COIN_LABELS, COIN_DEC, fmtPrice, type CoinId } from '@/lib/m
 import { Warn } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import Tip from '@/components/Tip';
+import { useLabels } from '@/lib/labels';
 
 type Dir = 'long' | 'short';
 
@@ -41,6 +42,7 @@ function fmtUSD(v: number) {
 
 export default function LiquidationCalc({ coin }: { coin: CoinId | '' }) {
   const { store } = useMarket();
+  const { t } = useLabels();
   const [dir,      setDir]      = useState<Dir>('long');
   const [entry,    setEntry]    = useState('');
   const [margin,   setMargin]   = useState('');
@@ -71,61 +73,61 @@ export default function LiquidationCalc({ coin }: { coin: CoinId | '' }) {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <h2 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Liquidation Price</h2>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Entry · margin · leverage · maintenance margin → liq price and distance</div>
+        <h2 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('CALC_LIQ_TITLE')}</h2>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('CALC_LIQ_SUBTITLE')}</div>
       </div>
 
       <div className="ps-card">
-        <div className="ps-card-lbl">Direction</div>
+        <div className="ps-card-lbl">{t('CALC_LIQ_DIRECTION_LABEL')}</div>
         <div className="ps-presets">
-          <button className={`ps-preset${dir === 'long'  ? ' on' : ''}`} onClick={() => setDir('long')}>Long</button>
-          <button className={`ps-preset${dir === 'short' ? ' on' : ''}`} onClick={() => setDir('short')}>Short</button>
+          <button className={`ps-preset${dir === 'long'  ? ' on' : ''}`} onClick={() => setDir('long')}>{t('CALC_LIQ_LONG_BUTTON')}</button>
+          <button className={`ps-preset${dir === 'short' ? ' on' : ''}`} onClick={() => setDir('short')}>{t('CALC_LIQ_SHORT_BUTTON')}</button>
         </div>
       </div>
 
       <div className="ps-card">
-        <div className="ps-card-lbl">Position</div>
+        <div className="ps-card-lbl">{t('CALC_LIQ_POSITION_LABEL')}</div>
         {coin && (
           <div className="ps-coin-row">
             <div className="ps-coin-irow">
               {livePrice != null ? (
-                <button type="button" className="ps-live-btn" onClick={() => setEntry(String(livePrice))} title="Set entry to the current live price">
+                <button type="button" className="ps-live-btn" onClick={() => setEntry(String(livePrice))} title={t('CALC_LIQ_LIVE_PRICE_TITLE')}>
                   <span className="ps-live-dot" /> {COIN_LABELS[coin]} {fmtPrice(livePrice, COIN_DEC[coin])}
                 </button>
               ) : (
-                <span className="ps-live-wait">{COIN_LABELS[coin]} price loading…</span>
+                <span className="ps-live-wait">{t('CALC_LIQ_PRICE_LOADING', { coin: COIN_LABELS[coin] })}</span>
               )}
             </div>
           </div>
         )}
         <div className="ps-row">
           <div className="ps-field">
-            <label className="ps-lbl">Entry Price</label>
+            <label className="ps-lbl">{t('CALC_LIQ_ENTRY_PRICE_LABEL')}</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp" aria-label="Entry Price" type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
+              <input className="ps-inp" aria-label={t('CALC_LIQ_ENTRY_PRICE_LABEL')} type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
             </div>
           </div>
           <div className="ps-field">
-            <label className="ps-lbl">Margin (Collateral)</label>
+            <label className="ps-lbl">{t('CALC_LIQ_MARGIN_LABEL')}</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp" aria-label="Margin" type="number" placeholder="1000" value={margin} onChange={e => setMargin(e.target.value)} />
+              <input className="ps-inp" aria-label={t('CALC_LIQ_MARGIN_ARIA')} type="number" placeholder="1000" value={margin} onChange={e => setMargin(e.target.value)} />
             </div>
           </div>
         </div>
         <div className="ps-row" style={{ marginTop: 10 }}>
           <div className="ps-field ps-field-sm">
-            <label className="ps-lbl">Leverage</label>
+            <label className="ps-lbl">{t('CALC_LIQ_LEVERAGE_LABEL')}</label>
             <div className="ps-irow">
-              <input className="ps-inp" aria-label="Leverage" type="number" placeholder="10" min="1" max="125" value={leverage} onChange={e => setLeverage(e.target.value)} />
+              <input className="ps-inp" aria-label={t('CALC_LIQ_LEVERAGE_LABEL')} type="number" placeholder="10" min="1" max="125" value={leverage} onChange={e => setLeverage(e.target.value)} />
               <span className="ps-affix ps-suffix">x</span>
             </div>
           </div>
           <div className="ps-field ps-field-sm">
-            <label className="ps-lbl"><Tip text="The minimum % of your position's notional value your exchange requires you to keep as margin at all times. Set by the exchange per coin/tier - check your exchange's contract specs; 0.5% is a common default for majors.">Maintenance Margin</Tip></label>
+            <label className="ps-lbl"><Tip text={t('CALC_LIQ_MAINT_MARGIN_TIP')}>{t('CALC_LIQ_MAINT_MARGIN_LABEL')}</Tip></label>
             <div className="ps-irow">
-              <input className="ps-inp" aria-label="Maintenance Margin" type="number" placeholder="0.5" step="0.01" value={mmr} onChange={e => setMmr(e.target.value)} />
+              <input className="ps-inp" aria-label={t('CALC_LIQ_MAINT_MARGIN_LABEL')} type="number" placeholder="0.5" step="0.01" value={mmr} onChange={e => setMmr(e.target.value)} />
               <span className="ps-affix ps-suffix">%</span>
             </div>
           </div>
@@ -140,39 +142,41 @@ export default function LiquidationCalc({ coin }: { coin: CoinId | '' }) {
       {result ? (
         <>
           <div className="ps-banner ps-banner-long" style={{ background: 'var(--red-bg)', color: 'var(--red)', border: '0.5px solid var(--red-bdr)' }}>
-            {dir === 'long' ? '▲ LONG' : '▼ SHORT'} - Liquidation at {fmtP(result.liqPrice)}
+            {dir === 'long'
+              ? t('CALC_LIQ_BANNER_LONG', { price: fmtP(result.liqPrice) })
+              : t('CALC_LIQ_BANNER_SHORT', { price: fmtP(result.liqPrice) })}
           </div>
           <div className="ps-results">
             <div className="ps-result ps-result-danger">
-              <div className="ps-rlbl">Liquidation Price</div>
+              <div className="ps-rlbl">{t('CALC_LIQ_RESULT_LIQ_PRICE')}</div>
               <div className="ps-rval" style={{ color: 'var(--red)' }}>{fmtP(result.liqPrice)}</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">Distance to Liquidation</div>
+              <div className="ps-rlbl">{t('CALC_LIQ_RESULT_DISTANCE')}</div>
               <div className="ps-rval">{fmtUSD(result.distUSD)} · {result.distPct.toFixed(2)}%</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl"><Tip text="The full size of your position (margin × leverage), before accounting for what you actually put up as collateral. This is the amount your P&L is calculated against.">Notional Value</Tip></div>
+              <div className="ps-rlbl"><Tip text={t('CALC_LIQ_NOTIONAL_TIP')}>{t('CALC_LIQ_NOTIONAL_LABEL')}</Tip></div>
               <div className="ps-rval">{fmtUSD(result.notional)}</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">Initial Margin</div>
+              <div className="ps-rlbl">{t('CALC_LIQ_RESULT_INIT_MARGIN')}</div>
               <div className="ps-rval">{fmtUSD(result.initMargin)}</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">Maintenance Margin</div>
+              <div className="ps-rlbl">{t('CALC_LIQ_RESULT_MAINT_MARGIN')}</div>
               <div className="ps-rval">{fmtUSD(result.maintMargin)}</div>
             </div>
           </div>
           {result.distPct < 5 && (
-            <div className="ps-warn"><Warn /> Less than 5% from liquidation - dangerously close</div>
+            <div className="ps-warn"><Warn /> {t('CALC_LIQ_WARN_5PCT')}</div>
           )}
           {result.distPct < 10 && result.distPct >= 5 && (
-            <div className="ps-warn"><Warn /> Less than 10% from liquidation - high risk</div>
+            <div className="ps-warn"><Warn /> {t('CALC_LIQ_WARN_10PCT')}</div>
           )}
         </>
       ) : (
-        <EmptyState dashed title="Fill in entry price, margin and leverage to calculate" />
+        <EmptyState dashed title={t('CALC_LIQ_EMPTY_TITLE')} />
       )}
     </div>
   );

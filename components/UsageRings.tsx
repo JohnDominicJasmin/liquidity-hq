@@ -1,26 +1,28 @@
 'use client';
 import type { GrokUsageInfo } from '@/lib/grok';
 import { nextResetLocalTime } from '@/lib/resetTime';
+import { useLabels } from '@/lib/labels';
 
 const R = 21; // ring radius
 const C = 2 * Math.PI * R; // arc circumference
 
 const RINGS = [
-  { label: 'Quick',    color: '#34d399', used: 'quick_used',    limit: 'quick_limit'    },
-  { label: 'Deep',     color: '#5aa3ff', used: 'deep_used',     limit: 'deep_limit'     },
-  { label: 'Chat',     color: '#60a5fa', used: 'chat_used',     limit: 'chat_limit'     },
-  { label: 'Search',   color: '#1a7aff', used: 'search_used',   limit: 'search_limit'   },
-  { label: 'Briefing', color: '#f59e0b', used: 'briefing_used', limit: 'briefing_limit' },
+  { id: 'quick',    labelKey: 'USAGE_RINGS_QUICK',    color: '#34d399', used: 'quick_used',    limit: 'quick_limit'    },
+  { id: 'deep',     labelKey: 'USAGE_RINGS_DEEP',     color: '#5aa3ff', used: 'deep_used',     limit: 'deep_limit'     },
+  { id: 'chat',     labelKey: 'USAGE_RINGS_CHAT',     color: '#60a5fa', used: 'chat_used',     limit: 'chat_limit'     },
+  { id: 'search',   labelKey: 'USAGE_RINGS_SEARCH',   color: '#1a7aff', used: 'search_used',   limit: 'search_limit'   },
+  { id: 'briefing', labelKey: 'USAGE_RINGS_BRIEFING', color: '#f59e0b', used: 'briefing_used', limit: 'briefing_limit' },
 ] as const;
 
 export default function UsageRings({ usage }: { usage: GrokUsageInfo }) {
+  const { t } = useLabels();
   return (
     <div>
       <div style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12, fontWeight: 500 }}>
-        AI calls remaining today
+        {t('USAGE_RINGS_HEADER')}
       </div>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        {RINGS.map(({ label, color, used: usedKey, limit: limitKey }) => {
+        {RINGS.map(({ id, labelKey, color, used: usedKey, limit: limitKey }) => {
           const used      = usage[usedKey];
           const limit     = usage[limitKey];
           const remaining = limit - used;
@@ -28,7 +30,7 @@ export default function UsageRings({ usage }: { usage: GrokUsageInfo }) {
           const col       = pct >= 0.9 ? '#f87171' : pct >= 0.7 ? '#fbbf24' : color;
           const offset    = C * (1 - pct);
           return (
-            <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+            <div key={id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
               <div style={{ position: 'relative', width: 56, height: 56 }}>
                 <svg width="56" height="56" viewBox="0 0 56 56" style={{ display: 'block' }}>
                   <circle cx="28" cy="28" r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="4" />
@@ -52,13 +54,13 @@ export default function UsageRings({ usage }: { usage: GrokUsageInfo }) {
                 </div>
               </div>
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>
-                <div style={{ letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 600 }}>{label}</div>
+                <div style={{ letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 600 }}>{t(labelKey)}</div>
               </div>
             </div>
           );
         })}
       </div>
-      <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 10 }}>Resets at {nextResetLocalTime()}</div>
+      <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 10 }}>{t('USAGE_RINGS_RESETS_AT', { time: nextResetLocalTime() })}</div>
     </div>
   );
 }

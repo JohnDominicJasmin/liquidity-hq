@@ -5,6 +5,7 @@
 // inside a scrollable container like SettingsModal's body.
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { CoinId, COINS } from '@/lib/marketStore';
+import { useLabels } from '@/lib/labels';
 
 interface Props {
   value: string[];
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function CoinMultiSelect({ value, onChange }: Props) {
+  const { t } = useLabels();
   const [open, setOpen]     = useState(false);
   const [search, setSearch] = useState('');
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
@@ -61,7 +63,7 @@ export default function CoinMultiSelect({ value, onChange }: Props) {
   const filtered = COINS.filter(c => c.toUpperCase().includes(search.toUpperCase()));
 
   const summary = value.length === 0
-    ? 'Select coins…'
+    ? t('COIN_SELECT_PLACEHOLDER')
     : value.length <= 3
     ? value.map(c => c.toUpperCase()).join(', ')
     : `${value.slice(0, 3).map(c => c.toUpperCase()).join(', ')} +${value.length - 3} more`;
@@ -90,13 +92,13 @@ export default function CoinMultiSelect({ value, onChange }: Props) {
           <input
             ref={searchRef}
             className="cms-search"
-            placeholder="Search coins…"
+            placeholder={t('COIN_SELECT_SEARCH_PLACEHOLDER')}
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
           <div className="cms-list">
             {filtered.length === 0 ? (
-              <div className="cms-empty">No coins match &ldquo;{search}&rdquo;</div>
+              <div className="cms-empty">{t('COIN_SELECT_NO_MATCH', { search })}</div>
             ) : filtered.map(c => {
               const checked = value.includes(c);
               return (
@@ -110,7 +112,7 @@ export default function CoinMultiSelect({ value, onChange }: Props) {
           </div>
           {value.length > 0 && (
             <button type="button" className="cms-clear" onClick={() => onChange([])}>
-              Clear all ({value.length})
+              {t('COIN_SELECT_CLEAR_ALL', { count: value.length })}
             </button>
           )}
         </div>

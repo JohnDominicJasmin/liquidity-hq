@@ -4,6 +4,7 @@ import { useMarket, COIN_LABELS, COIN_DEC, fmtPrice, type CoinId } from '@/lib/m
 import { Warn } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import Tip from '@/components/Tip';
+import { useLabels } from '@/lib/labels';
 
 interface RRResult {
   isLong:       boolean;
@@ -37,6 +38,7 @@ function fmtUSD(v: number) {
 
 export default function RiskRewardCalc({ coin }: { coin: CoinId | '' }) {
   const { store } = useMarket();
+  const { t } = useLabels();
   const [entry,  setEntry]  = useState('');
   const [sl,     setSl]     = useState('');
   const [tp,     setTp]     = useState('');
@@ -64,53 +66,53 @@ export default function RiskRewardCalc({ coin }: { coin: CoinId | '' }) {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <h2 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Risk / Reward</h2>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Entry · SL · TP · win rate → R:R, expected value, breakeven</div>
+        <h2 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('CALC_RR_TITLE')}</h2>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('CALC_RR_SUBTITLE')}</div>
       </div>
 
       <div className="ps-card">
-        <div className="ps-card-lbl">Trade Levels</div>
+        <div className="ps-card-lbl">{t('CALC_RR_TRADE_LEVELS_LABEL')}</div>
         {coin && (
           <div className="ps-coin-row">
             <div className="ps-coin-irow">
               {livePrice != null ? (
-                <button type="button" className="ps-live-btn" onClick={() => setEntry(String(livePrice))} title="Set entry to the current live price">
+                <button type="button" className="ps-live-btn" onClick={() => setEntry(String(livePrice))} title={t('CALC_RR_LIVE_PRICE_TITLE')}>
                   <span className="ps-live-dot" /> {COIN_LABELS[coin]} {fmtPrice(livePrice, COIN_DEC[coin])}
                 </button>
               ) : (
-                <span className="ps-live-wait">{COIN_LABELS[coin]} price loading…</span>
+                <span className="ps-live-wait">{t('CALC_RR_PRICE_LOADING', { coin: COIN_LABELS[coin] })}</span>
               )}
             </div>
           </div>
         )}
         <div className="ps-row">
           <div className="ps-field">
-            <label className="ps-lbl">Entry Price</label>
+            <label className="ps-lbl">{t('CALC_RR_ENTRY_PRICE_LABEL')}</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp" aria-label="Entry Price" type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
+              <input className="ps-inp" aria-label={t('CALC_RR_ENTRY_PRICE_LABEL')} type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
             </div>
           </div>
           <div className="ps-field">
-            <label className="ps-lbl">Stop Loss</label>
+            <label className="ps-lbl">{t('CALC_RR_STOP_LOSS_LABEL')}</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp ps-inp-stop" aria-label="Stop Loss" type="number" placeholder="0.00" value={sl} onChange={e => setSl(e.target.value)} />
+              <input className="ps-inp ps-inp-stop" aria-label={t('CALC_RR_STOP_LOSS_LABEL')} type="number" placeholder="0.00" value={sl} onChange={e => setSl(e.target.value)} />
             </div>
           </div>
         </div>
         <div className="ps-row" style={{ marginTop: 10 }}>
           <div className="ps-field">
-            <label className="ps-lbl">Take Profit</label>
+            <label className="ps-lbl">{t('CALC_RR_TP_LABEL')}</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp ps-inp-tp" aria-label="Take Profit" type="number" placeholder="0.00" value={tp} onChange={e => setTp(e.target.value)} />
+              <input className="ps-inp ps-inp-tp" aria-label={t('CALC_RR_TP_LABEL')} type="number" placeholder="0.00" value={tp} onChange={e => setTp(e.target.value)} />
             </div>
           </div>
           <div className="ps-field ps-field-sm">
-            <label className="ps-lbl">Win Rate</label>
+            <label className="ps-lbl">{t('CALC_RR_WIN_RATE_LABEL')}</label>
             <div className="ps-irow">
-              <input className="ps-inp" aria-label="Win Rate" type="number" placeholder="50" min="1" max="99" value={winRate} onChange={e => setWinRate(e.target.value)} />
+              <input className="ps-inp" aria-label={t('CALC_RR_WIN_RATE_LABEL')} type="number" placeholder="50" min="1" max="99" value={winRate} onChange={e => setWinRate(e.target.value)} />
               <span className="ps-affix ps-suffix">%</span>
             </div>
           </div>
@@ -129,46 +131,48 @@ export default function RiskRewardCalc({ coin }: { coin: CoinId | '' }) {
               ? { background: 'var(--green-bg)', color: 'var(--green)', border: '0.5px solid var(--green-bdr)' }
               : { background: 'var(--red-bg)',   color: 'var(--red)',   border: '0.5px solid var(--red-bdr)'   }
           }>
-            {result.isLong ? '▲ LONG' : '▼ SHORT'} - {result.rr.toFixed(2)}R setup
+            {result.isLong
+              ? t('CALC_RR_BANNER_LONG', { rr: result.rr.toFixed(2) })
+              : t('CALC_RR_BANNER_SHORT', { rr: result.rr.toFixed(2) })}
           </div>
           <div className="ps-results">
             <div className={`ps-result ${result.rr >= 2 ? 'ps-result-profit' : result.rr < 1.5 ? 'ps-result-danger' : ''}`}>
-              <div className="ps-rlbl"><Tip text="Risk:Reward - how many dollars you stand to make for every dollar risked. 2R means a win pays double the loss. Below 1.5R, you need too high a win rate to be profitable long-term - the math doesn't work in your favor.">R:R Ratio</Tip></div>
+              <div className="ps-rlbl"><Tip text={t('CALC_RR_RATIO_TIP')}>{t('CALC_RR_RATIO_LABEL')}</Tip></div>
               <div className="ps-rval">
                 {result.rr.toFixed(2)}R&nbsp;{result.rr >= 2 ? '✓' : result.rr < 1.5 ? '✗' : ''}
               </div>
             </div>
             <div className={`ps-result ${result.ev > 0 ? 'ps-result-profit' : 'ps-result-danger'}`}>
-              <div className="ps-rlbl"><Tip text="The average $ outcome per unit if you took this exact setup many times at the win rate you entered: (win% × TP distance) - (loss% × SL distance). Positive means the math favors taking the trade; negative means it doesn't, even if it 'feels' right.">Expected Value (per unit)</Tip></div>
+              <div className="ps-rlbl"><Tip text={t('CALC_RR_EV_TIP')}>{t('CALC_RR_EV_LABEL')}</Tip></div>
               <div className="ps-rval">{result.ev >= 0 ? '+' : ''}{fmtUSD(result.ev)}</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl"><Tip text="The minimum win rate this exact R:R needs just to break even long-term. Win below this rate and you lose money overall; win above it and the setup is profitable.">Breakeven Win Rate</Tip></div>
+              <div className="ps-rlbl"><Tip text={t('CALC_RR_BREAKEVEN_TIP')}>{t('CALC_RR_BREAKEVEN_LABEL')}</Tip></div>
               <div className="ps-rval">{result.breakevenWR.toFixed(1)}%</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">SL Distance</div>
+              <div className="ps-rlbl">{t('CALC_RR_RESULT_SL_DISTANCE')}</div>
               <div className="ps-rval">{fmtUSD(result.slDist)} · {result.slPct.toFixed(2)}%</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">TP Distance</div>
+              <div className="ps-rlbl">{t('CALC_RR_RESULT_TP_DISTANCE')}</div>
               <div className="ps-rval">{fmtUSD(result.tpDist)} · {result.tpPct.toFixed(2)}%</div>
             </div>
           </div>
           {result.rr < 1.5 && (
-            <div className="ps-warn"><Warn /> R:R below 1.5 - not worth taking unless win rate is very high</div>
+            <div className="ps-warn"><Warn /> {t('CALC_RR_WARN_LOW_RR')}</div>
           )}
           {result.ev < 0 && (
-            <div className="ps-warn"><Warn /> Negative expected value at {winRate}% win rate - skip this trade</div>
+            <div className="ps-warn"><Warn /> {t('CALC_RR_WARN_NEGATIVE_EV', { winRate })}</div>
           )}
           {result.rr >= 2 && result.ev > 0 && (
             <div style={{ background: 'var(--green-bg)', border: '0.5px solid var(--green-bdr)', borderRadius: 8, padding: '8px 12px', fontSize: 'var(--fs-caption)', color: 'var(--green)', marginBottom: 8 }}>
-              ✓ Positive expected value with {result.rr.toFixed(2)}R - good setup
+              {t('CALC_RR_POSITIVE_EV_BANNER', { rr: result.rr.toFixed(2) })}
             </div>
           )}
         </>
       ) : (
-        <EmptyState dashed title="Fill in entry, stop loss and take profit to calculate" />
+        <EmptyState dashed title={t('CALC_RR_EMPTY_TITLE')} />
       )}
     </div>
   );

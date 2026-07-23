@@ -7,6 +7,7 @@ import { track } from '@/lib/analytics';
 import { useAuth } from '@/components/AuthProvider';
 import { friendlyAuthError } from '@/lib/authErrors';
 import LoadingState from '@/components/LoadingState';
+import { useLabels } from '@/lib/labels';
 
 // Only allow same-origin path redirects - anything else ("//evil.com",
 // "https://...") falls back to the dashboard, so ?next= can't be used as an
@@ -27,6 +28,7 @@ function LoginInner() {
   const [emailLoading, setEmailLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError]               = useState('');
+  const { t } = useLabels();
 
   // Already signed in - the login form has nothing to offer, go where the
   // user was headed (?next=) or to the dashboard.
@@ -41,7 +43,7 @@ function LoginInner() {
 
   const signInWithGoogle = async () => {
     const sb = getSupabase();
-    if (!sb) { setError('Supabase not configured'); return; }
+    if (!sb) { setError(t('LOGIN_ERROR_SUPABASE_NOT_CONFIGURED')); return; }
     setGoogleLoading(true);
     setError('');
     track.signIn('google');
@@ -59,7 +61,7 @@ function LoginInner() {
     const trimmed = email.trim();
     if (!trimmed) return;
     const sb = getSupabase();
-    if (!sb) { setError('Supabase not configured'); return; }
+    if (!sb) { setError(t('LOGIN_ERROR_SUPABASE_NOT_CONFIGURED')); return; }
     setEmailLoading(true);
     setError('');
     track.signIn('magic_link');
@@ -82,19 +84,19 @@ function LoginInner() {
 
         {/* Logo */}
         <div className="login-logo">Liquidity<span>HQ</span></div>
-        <p className="login-sub">{isSignup ? 'Create your account' : 'Sign in to your account'}</p>
+        <p className="login-sub">{isSignup ? t('LOGIN_SUBTITLE_SIGNUP') : t('LOGIN_SUBTITLE_SIGNIN')}</p>
 
         {emailSent ? (
           /* ── Magic link sent ── */
           <div className="login-success">
             <div className="login-success-icon">✉️</div>
-            <div className="login-success-title">Check your inbox</div>
+            <div className="login-success-title">{t('LOGIN_SUCCESS_TITLE')}</div>
             <div className="login-success-desc">
-              Magic link sent to <strong>{email}</strong>.<br />
-              Click the link in your email to sign in.
+              {t('LOGIN_SUCCESS_DESC_PRE')} <strong>{email}</strong>.<br />
+              {t('LOGIN_SUCCESS_DESC_POST')}
             </div>
             <button className="login-back-btn" onClick={() => { setEmailSent(false); setEmail(''); }}>
-              Use a different email
+              {t('LOGIN_USE_DIFFERENT_EMAIL_BUTTON')}
             </button>
           </div>
         ) : (
@@ -116,18 +118,18 @@ function LoginInner() {
                   </svg>
                 )
               }
-              {googleLoading ? 'Signing in…' : 'Continue with Google'}
+              {googleLoading ? t('LOGIN_GOOGLE_SIGNING_IN') : t('LOGIN_GOOGLE_CONTINUE_BUTTON')}
             </button>
 
             {/* ── Divider ── */}
-            <div className="login-divider"><span>or</span></div>
+            <div className="login-divider"><span>{t('LOGIN_DIVIDER_OR')}</span></div>
 
             {/* ── Email magic link ── */}
             <div className="login-email-wrap">
               <input
                 type="email"
                 className="login-email-input"
-                placeholder="your@email.com"
+                placeholder={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && sendMagicLink()}
@@ -137,7 +139,7 @@ function LoginInner() {
                 onClick={sendMagicLink}
                 disabled={emailLoading || !email.trim()}
               >
-                {emailLoading ? <span className="login-spinner" /> : 'Send Magic Link'}
+                {emailLoading ? <span className="login-spinner" /> : t('LOGIN_SEND_MAGIC_LINK_BUTTON')}
               </button>
             </div>
 
@@ -148,13 +150,16 @@ function LoginInner() {
 
       {/* Skip link */}
       <div className="login-footer">
-        <Link href="/" className="login-skip">Continue without signing in →</Link>
+        <Link href="/" className="login-skip">{t('LOGIN_SKIP_LINK')}</Link>
       </div>
     </div>
   );
 }
 
-const LoginFallback = () => <LoadingState message="Loading…" fullPage />;
+function LoginFallback() {
+  const { t } = useLabels();
+  return <LoadingState message={t('LOGIN_LOADING')} fullPage />;
+}
 
 export default function LoginPage() {
   return (

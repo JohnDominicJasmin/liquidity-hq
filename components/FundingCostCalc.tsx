@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Warn } from '@/components/icons';
 import EmptyState from '@/components/EmptyState';
 import Tip from '@/components/Tip';
+import { useLabels } from '@/lib/labels';
 
 interface FundResult {
   totalCost:    number;
@@ -38,6 +39,7 @@ const DURATION_PRESETS = [
 ];
 
 export default function FundingCostCalc() {
+  const { t } = useLabels();
   const [posSize,     setPosSize]     = useState('');
   const [fundingRate, setFundingRate] = useState('0.01');
   const [hours,       setHours]       = useState('24');
@@ -55,44 +57,44 @@ export default function FundingCostCalc() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <h2 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Funding Cost</h2>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Position size · funding rate · hold duration → total funding cost</div>
+        <h2 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('CALC_FUNDING_TITLE')}</h2>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('CALC_FUNDING_SUBTITLE')}</div>
       </div>
 
       <div className="ps-card">
-        <div className="ps-card-lbl">Position</div>
+        <div className="ps-card-lbl">{t('CALC_FUNDING_POSITION_LABEL')}</div>
         <div className="ps-row">
           <div className="ps-field">
-            <label className="ps-lbl">Position Size (Notional)</label>
+            <label className="ps-lbl">{t('CALC_FUNDING_POS_SIZE_LABEL')}</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp" aria-label="Position Size" type="number" placeholder="10000" value={posSize} onChange={e => setPosSize(e.target.value)} />
+              <input className="ps-inp" aria-label={t('CALC_FUNDING_POS_SIZE_LABEL')} type="number" placeholder="10000" value={posSize} onChange={e => setPosSize(e.target.value)} />
             </div>
           </div>
           <div className="ps-field ps-field-sm">
-            <label className="ps-lbl">Funding Rate (8h)</label>
+            <label className="ps-lbl">{t('CALC_FUNDING_RATE_LABEL')}</label>
             <div className="ps-irow">
-              <input className="ps-inp" aria-label="Funding Rate (8h)" type="number" placeholder="0.01" step="0.001" value={fundingRate} onChange={e => setFundingRate(e.target.value)} />
+              <input className="ps-inp" aria-label={t('CALC_FUNDING_RATE_LABEL')} type="number" placeholder="0.01" step="0.001" value={fundingRate} onChange={e => setFundingRate(e.target.value)} />
               <span className="ps-affix ps-suffix">%</span>
             </div>
           </div>
         </div>
         <div style={{ marginTop: 8, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
           {rate > 0
-            ? 'Positive rate - longs pay shorts. You pay if long.'
+            ? t('CALC_FUNDING_RATE_HINT_POSITIVE')
             : rate < 0
-              ? 'Negative rate - shorts pay longs. You pay if short.'
-              : 'Enter a funding rate to see who pays.'}
+              ? t('CALC_FUNDING_RATE_HINT_NEGATIVE')
+              : t('CALC_FUNDING_RATE_HINT_NEUTRAL')}
         </div>
       </div>
 
       <div className="ps-card">
-        <div className="ps-card-lbl">Hold Duration</div>
+        <div className="ps-card-lbl">{t('CALC_FUNDING_DURATION_LABEL')}</div>
         <div className="ps-row">
           <div className="ps-field">
-            <label className="ps-lbl">Duration (hours)</label>
+            <label className="ps-lbl">{t('CALC_FUNDING_DURATION_HOURS_LABEL')}</label>
             <div className="ps-irow">
-              <input className="ps-inp" aria-label="Duration (hours)" type="number" placeholder="24" min="1" value={hours} onChange={e => setHours(e.target.value)} />
+              <input className="ps-inp" aria-label={t('CALC_FUNDING_DURATION_HOURS_LABEL')} type="number" placeholder="24" min="1" value={hours} onChange={e => setHours(e.target.value)} />
               <span className="ps-affix ps-suffix">h</span>
             </div>
           </div>
@@ -113,40 +115,40 @@ export default function FundingCostCalc() {
               ? { background: 'var(--red-bg)',   color: 'var(--red)',   border: '0.5px solid var(--red-bdr)'   }
               : { background: 'var(--green-bg)', color: 'var(--green)', border: '0.5px solid var(--green-bdr)' }
           }>
-            {isPaying ? '▼ PAYING' : '▲ RECEIVING'} funding - {result.payments} payment{result.payments !== 1 ? 's' : ''}
+            {isPaying ? t('CALC_FUNDING_BANNER_PAYING', { count: result.payments }) : t('CALC_FUNDING_BANNER_RECEIVING', { count: result.payments })}
           </div>
           <div className="ps-results">
             <div className={`ps-result ${isPaying ? 'ps-result-danger' : 'ps-result-profit'}`}>
-              <div className="ps-rlbl">Total Funding Cost</div>
+              <div className="ps-rlbl">{t('CALC_FUNDING_RESULT_TOTAL_COST')}</div>
               <div className="ps-rval">{isPaying ? '-' : '+'}{fmtUSD(result.totalCost)}</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">Cost Per Day</div>
+              <div className="ps-rlbl">{t('CALC_FUNDING_RESULT_COST_PER_DAY')}</div>
               <div className="ps-rval">{fmtUSD(result.costPerDay)}</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">Cost Per Week</div>
+              <div className="ps-rlbl">{t('CALC_FUNDING_RESULT_COST_PER_WEEK')}</div>
               <div className="ps-rval">{fmtUSD(result.costPerWeek)}</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl"><Tip text="What this funding rate would cost (or pay) over a full year if it stayed constant - a way to compare a small 8h % against something intuitive. Real funding rates swing constantly, so treat this as a snapshot, not a forecast.">Annualized Rate</Tip></div>
+              <div className="ps-rlbl"><Tip text={t('CALC_FUNDING_ANNUALIZED_TIP')}>{t('CALC_FUNDING_ANNUALIZED_LABEL')}</Tip></div>
               <div className="ps-rval">{result.annualRate.toFixed(2)}%</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">Number of Payments</div>
+              <div className="ps-rlbl">{t('CALC_FUNDING_RESULT_NUM_PAYMENTS')}</div>
               <div className="ps-rval">{result.payments}</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl"><Tip text="The minimum price move you need in your favor just to cover what you'll pay in funding over this hold - before you're actually in profit.">Breakeven PnL Needed</Tip></div>
+              <div className="ps-rlbl"><Tip text={t('CALC_FUNDING_BREAKEVEN_TIP')}>{t('CALC_FUNDING_BREAKEVEN_LABEL')}</Tip></div>
               <div className="ps-rval">{fmtUSD(result.breakeven)}</div>
             </div>
           </div>
           {result.annualRate > 50 && isPaying && (
-            <div className="ps-warn"><Warn /> Annualized rate over 50% - funding is eating your position fast</div>
+            <div className="ps-warn"><Warn /> {t('CALC_FUNDING_WARN_HIGH_RATE')}</div>
           )}
         </>
       ) : (
-        <EmptyState dashed title="Fill in position size and funding rate to calculate" />
+        <EmptyState dashed title={t('CALC_FUNDING_EMPTY_TITLE')} />
       )}
     </div>
   );

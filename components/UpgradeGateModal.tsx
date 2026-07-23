@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { getCheckoutUrl } from '@/lib/checkout';
+import { useLabels } from '@/lib/labels';
 
 interface Props {
   open: boolean;
@@ -20,6 +21,7 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
   description: string;
   onUnlock: () => void;
 }) {
+  const { t } = useLabels();
   return (
     <div style={{
       background: 'linear-gradient(180deg, var(--bg2), var(--bg1))',
@@ -34,7 +36,7 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
           fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '0.14em',
           textTransform: 'uppercase', color: 'var(--accent-2)', marginBottom: 6,
         }}>
-          Pro Feature
+          {t('UPGRADE_GATE_PRO_FEATURE_LABEL')}
         </div>
         <div style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>{title}</div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.6 }}>{description}</div>
@@ -47,7 +49,7 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
           flexShrink: 0,
         }}
       >
-        Unlock with Pro
+        {t('UPGRADE_GATE_UNLOCK_BUTTON')}
       </button>
     </div>
   );
@@ -75,6 +77,7 @@ function useCheckoutHref() {
 // eyebrow + CTA pattern instead of three hand-rolled versions drifting apart.
 export function FullPageUpgradeGate({ title, description }: { title: string; description: string }) {
   const ctaHref = useCheckoutHref();
+  const { t } = useLabels();
   return (
     <div style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{
@@ -89,7 +92,7 @@ export function FullPageUpgradeGate({ title, description }: { title: string; des
           fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '0.14em',
           textTransform: 'uppercase', color: 'var(--accent-2)', marginBottom: 14,
         }}>
-          Pro Feature
+          {t('UPGRADE_GATE_PRO_FEATURE_LABEL')}
         </div>
         <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 800, color: 'var(--txt)', margin: '0 0 10px', lineHeight: 1.25 }}>
           {title}
@@ -107,11 +110,11 @@ export function FullPageUpgradeGate({ title, description }: { title: string; des
             textDecoration: 'none',
           }}
         >
-          Upgrade to Pro
+          {t('UPGRADE_GATE_CTA')}
         </a>
         <div style={{ textAlign: 'center', marginTop: 14 }}>
           <Link href="/upgrade" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
-            Compare Free and Pro
+            {t('UPGRADE_GATE_COMPARE_LINK')}
           </Link>
         </div>
       </div>
@@ -125,6 +128,7 @@ export function FullPageUpgradeGate({ title, description }: { title: string; des
 // configured yet).
 export default function UpgradeGateModal({ open, onClose, feature }: Props) {
   const ctaHref = useCheckoutHref();
+  const { t } = useLabels();
 
   // Escape closes; body scroll locks while open
   useEffect(() => {
@@ -146,7 +150,7 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="Upgrade to Pro"
+      aria-label={t('UPGRADE_GATE_CTA')}
       style={{
         position: 'fixed', inset: 0, zIndex: 10000,
         background: 'rgba(4, 6, 12, 0.72)',
@@ -172,29 +176,28 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
           fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '0.14em',
           textTransform: 'uppercase', color: 'var(--accent-2)', marginBottom: 14,
         }}>
-          Pro Feature
+          {t('UPGRADE_GATE_PRO_FEATURE_LABEL')}
         </div>
 
         <h2 style={{ fontSize: 'var(--fs-section)', fontWeight: 800, color: 'var(--txt)', margin: '0 0 10px', lineHeight: 1.25 }}>
-          {feature ? `${feature} is part of Pro.` : 'This is part of Pro.'}
+          {feature ? t('UPGRADE_GATE_HEADLINE_FEATURE', { feature }) : t('UPGRADE_GATE_HEADLINE_DEFAULT')}
         </h2>
 
         <p style={{ fontSize: 'var(--fs-body)', color: 'var(--txt2)', lineHeight: 1.7, margin: '0 0 20px' }}>
-          Pro unlocks the fast timeframes, the full signal stack, backtesting, and the
-          deeper AI research tools. One subscription, everything included.
+          {t('UPGRADE_GATE_BODY')}
         </p>
 
         {/* Value bullets */}
         <ul style={{ listStyle: 'none', margin: '0 0 24px', padding: 0, display: 'grid', gap: 9 }}>
-          {[
-            'Signals on the 1 minute, 5 minute, and 15 minute charts',
-            'Absorption Detector, Order Flow, and Confluence Score',
-            'Full backtesting across every coin and timeframe',
-            'On-chain and global macro AI analysis',
-          ].map(line => (
-            <li key={line} style={{ display: 'flex', gap: 10, alignItems: 'baseline', fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.5 }}>
+          {([
+            'UPGRADE_GATE_BULLET_1',
+            'UPGRADE_GATE_BULLET_2',
+            'UPGRADE_GATE_BULLET_3',
+            'UPGRADE_GATE_BULLET_4',
+          ] as const).map(k => (
+            <li key={k} style={{ display: 'flex', gap: 10, alignItems: 'baseline', fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.5 }}>
               <span style={{ color: 'var(--green)', fontSize: '0.75rem', flexShrink: 0 }}>✓</span>
-              {line}
+              {t(k)}
             </li>
           ))}
         </ul>
@@ -210,12 +213,12 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
             textDecoration: 'none',
           }}
         >
-          Upgrade to Pro
+          {t('UPGRADE_GATE_CTA')}
         </a>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
           <Link href="/upgrade" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
-            Compare Free and Pro
+            {t('UPGRADE_GATE_COMPARE_LINK')}
           </Link>
           <button
             onClick={onClose}
@@ -224,7 +227,7 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
               fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 2px',
             }}
           >
-            Not now
+            {t('UPGRADE_GATE_NOT_NOW')}
           </button>
         </div>
       </div>

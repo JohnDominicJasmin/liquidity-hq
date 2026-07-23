@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useMarket, COIN_LABELS, COIN_DEC, fmtPrice, type CoinId } from '@/lib/marketStore';
 import EmptyState from '@/components/EmptyState';
+import { useLabels } from '@/lib/labels';
 
 interface Entry { price: string; qty: string; }
 
@@ -17,6 +18,7 @@ function fmtPct(v: number) {
 
 export default function DcaCalc({ coin }: { coin: CoinId | '' }) {
   const { store } = useMarket();
+  const { t } = useLabels();
   const [entries, setEntries] = useState<Entry[]>([
     { ...EMPTY_ENTRY }, { ...EMPTY_ENTRY },
   ]);
@@ -65,16 +67,16 @@ export default function DcaCalc({ coin }: { coin: CoinId | '' }) {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <h2 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>DCA Average</h2>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Multiple entries → average price, break-even, and current PnL</div>
+        <h2 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('CALC_DCA_TITLE')}</h2>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('CALC_DCA_SUBTITLE')}</div>
       </div>
 
       {/* Entry rows */}
       <div className="ps-card">
-        <div className="ps-card-lbl">Buy Entries</div>
+        <div className="ps-card-lbl">{t('CALC_DCA_ENTRIES_LABEL')}</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 28px', gap: '6px 8px', alignItems: 'end', marginBottom: 8 }}>
-          <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase' }}>Entry Price</span>
-          <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase' }}>Quantity</span>
+          <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase' }}>{t('CALC_DCA_ENTRY_PRICE_COL')}</span>
+          <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase' }}>{t('CALC_DCA_QTY_COL')}</span>
           <span />
           {entries.map((e, i) => (
             <div key={i} style={{ display: 'contents' }}>
@@ -82,7 +84,7 @@ export default function DcaCalc({ coin }: { coin: CoinId | '' }) {
                 <span className="ps-affix">$</span>
                 <input
                   className="ps-inp"
-                  aria-label={`Entry Price ${i + 1}`}
+                  aria-label={t('CALC_DCA_ENTRY_PRICE_ARIA', { n: i + 1 })}
                   type="number"
                   min="0"
                   placeholder="0.00"
@@ -93,7 +95,7 @@ export default function DcaCalc({ coin }: { coin: CoinId | '' }) {
               <div className="ps-irow">
                 <input
                   className="ps-inp"
-                  aria-label={`Quantity ${i + 1}`}
+                  aria-label={t('CALC_DCA_QTY_ARIA', { n: i + 1 })}
                   type="number"
                   min="0"
                   placeholder="0.00"
@@ -122,36 +124,36 @@ export default function DcaCalc({ coin }: { coin: CoinId | '' }) {
               border: '0.5px dashed var(--bdr)', background: 'transparent',
               color: 'var(--txt3)', cursor: 'pointer', marginTop: 4,
             }}
-          >+ Add entry</button>
+          >{t('CALC_DCA_ADD_ENTRY_BUTTON')}</button>
         )}
       </div>
 
       {/* Current price */}
       <div className="ps-card">
-        <div className="ps-card-lbl">Current Price (optional)</div>
+        <div className="ps-card-lbl">{t('CALC_DCA_CURRENT_PRICE_LABEL')}</div>
         {coin && (
           <div className="ps-coin-row">
             <div className="ps-coin-irow">
               {livePrice != null ? (
-                <button type="button" className="ps-live-btn" onClick={() => setCurrentPrice(String(livePrice))} title="Set current price to the live price">
+                <button type="button" className="ps-live-btn" onClick={() => setCurrentPrice(String(livePrice))} title={t('CALC_DCA_LIVE_PRICE_TITLE')}>
                   <span className="ps-live-dot" /> {COIN_LABELS[coin]} {fmtPrice(livePrice, COIN_DEC[coin])}
                 </button>
               ) : (
-                <span className="ps-live-wait">{COIN_LABELS[coin]} price loading…</span>
+                <span className="ps-live-wait">{t('CALC_DCA_PRICE_LOADING', { coin: COIN_LABELS[coin] })}</span>
               )}
             </div>
           </div>
         )}
         <div className="ps-row">
           <div className="ps-field">
-            <label className="ps-lbl">Market Price</label>
+            <label className="ps-lbl">{t('CALC_DCA_MARKET_PRICE_LABEL')}</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
               <input
                 className="ps-inp"
-                aria-label="Market Price"
+                aria-label={t('CALC_DCA_MARKET_PRICE_LABEL')}
                 type="number"
-                placeholder="Enter current price to calculate PnL"
+                placeholder={t('CALC_DCA_MARKET_PRICE_PLACEHOLDER')}
                 value={currentPrice}
                 onChange={e => setCurrentPrice(e.target.value)}
               />
@@ -165,26 +167,26 @@ export default function DcaCalc({ coin }: { coin: CoinId | '' }) {
         <>
           <div className="ps-results">
             <div className="ps-result">
-              <div className="ps-rlbl">Average Entry</div>
+              <div className="ps-rlbl">{t('CALC_DCA_RESULT_AVG_ENTRY')}</div>
               <div className="ps-rval">{avgEntry != null ? fmtUSD(avgEntry) : '-'}</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">Total Quantity</div>
+              <div className="ps-rlbl">{t('CALC_DCA_RESULT_TOTAL_QTY')}</div>
               <div className="ps-rval">{totalQty > 0 ? totalQty.toLocaleString('en-US', { maximumFractionDigits: 6 }) : '-'}</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">Total Cost</div>
+              <div className="ps-rlbl">{t('CALC_DCA_RESULT_TOTAL_COST')}</div>
               <div className="ps-rval">{totalCost > 0 ? fmtUSD(totalCost) : '-'}</div>
             </div>
             {curValue != null && (
               <div className="ps-result">
-                <div className="ps-rlbl">Current Value</div>
+                <div className="ps-rlbl">{t('CALC_DCA_RESULT_CURRENT_VALUE')}</div>
                 <div className="ps-rval">{fmtUSD(curValue)}</div>
               </div>
             )}
             {pnlAbs != null && pnlPct != null && (
               <div className={`ps-result ${isProfit ? 'ps-result-profit' : 'ps-result-danger'}`}>
-                <div className="ps-rlbl">Unrealized PnL</div>
+                <div className="ps-rlbl">{t('CALC_DCA_RESULT_UNREALIZED_PNL')}</div>
                 <div className="ps-rval">
                   {isProfit ? '+' : '-'}{fmtUSD(Math.abs(pnlAbs))}
                   <span style={{ fontSize: 'var(--fs-caption)', marginLeft: 6, opacity: .8 }}>{fmtPct(pnlPct)}</span>
@@ -200,13 +202,13 @@ export default function DcaCalc({ coin }: { coin: CoinId | '' }) {
                 : { background: 'var(--red-bg)',   color: 'var(--red)',   border: '0.5px solid var(--red-bdr)'   }
             }>
               {cur >= avgEntry
-                ? `▲ Price is ${fmtPct(((cur - avgEntry) / avgEntry) * 100)} above average entry`
-                : `▼ Price is ${fmtPct(((cur - avgEntry) / avgEntry) * 100)} below average entry`}
+                ? t('CALC_DCA_BANNER_ABOVE', { pct: fmtPct(((cur - avgEntry) / avgEntry) * 100) })
+                : t('CALC_DCA_BANNER_BELOW', { pct: fmtPct(((cur - avgEntry) / avgEntry) * 100) })}
             </div>
           )}
         </>
       ) : (
-        <EmptyState dashed title="Add at least one entry with a price and quantity" />
+        <EmptyState dashed title={t('CALC_DCA_EMPTY_TITLE')} />
       )}
     </div>
   );
