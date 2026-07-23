@@ -33,6 +33,8 @@ import PageHint from '@/components/PageHint';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import MultiTFAlignment from '@/components/MultiTFAlignment';
 import CoinIcon from '@/components/CoinIcon';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 /* ── Pattern detection - delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -63,6 +65,7 @@ function fmtPrice(n: number): string {
 
 /* ── Reasoning markdown renderer ─────────────────────────────────────────── */
 function ReasoningText({ text }: { text: string }) {
+  const { t } = useLabels();
   // Split on **bold**, [text](url), [[n]](url), or newlines
   const parts = text.split(/(\*\*[\s\S]*?\*\*|\[\[?[^\]]*\]?\]\([^)]+\)|\n)/g);
   return (
@@ -74,7 +77,7 @@ function ReasoningText({ text }: { text: string }) {
           return <strong key={i}>{seg.slice(2, -2)}</strong>;
         const link = seg.match(/^\[(\[?[^\]]*\]?)\]\(([^)]+)\)$/);
         if (link) {
-          const label = link[1].replace(/^\[/, '').replace(/\]$/, '') || 'link';
+          const label = link[1].replace(/^\[/, '').replace(/\]$/, '') || t('ARENA_REASONING_LINK_FALLBACK');
           return (
             <a key={i} href={link[2]} target="_blank" rel="noopener noreferrer" className="reasoning-link">
               {label}
@@ -124,11 +127,12 @@ const ARENA_HIST_KEY = 'arena-session-history-v1';
 // a gated timeframe opens the upgrade modal instead of switching.
 const GATED_TFS: readonly ChartTf[] = ['1m', '5m', '15m'];
 const FREE_FALLBACK_TF: ChartTf = '1h';
-const TF_FEATURE_LABEL: Record<string, string> = {
-  '1m': 'The 1 minute timeframe', '5m': 'The 5 minute timeframe', '15m': 'The 15 minute timeframe',
+const TF_FEATURE_LABEL_KEYS: Record<string, LabelKey> = {
+  '1m': 'ARENA_TF_LABEL_1M', '5m': 'ARENA_TF_LABEL_5M', '15m': 'ARENA_TF_LABEL_15M',
 };
 
 function ArenaContent() {
+  const { t } = useLabels();
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
   const { user, loading: authLoading, entitled } = useAuth();
@@ -336,7 +340,7 @@ function ArenaContent() {
      instead of a switch. */
   const handleTfChange = (tf: ChartTf) => {
     if (!entitled && GATED_TFS.includes(tf)) {
-      setUpgradeGate(TF_FEATURE_LABEL[tf] ?? 'This timeframe');
+      setUpgradeGate(t(TF_FEATURE_LABEL_KEYS[tf] ?? 'ARENA_TF_LABEL_FALLBACK'));
       return;
     }
     setReadTf(tf);
@@ -445,11 +449,11 @@ function ArenaContent() {
   }, []);
 
   const enableNotifications = async () => {
-    if (!('Notification' in window)) { alert('Notifications not supported in this browser.'); return; }
+    if (!('Notification' in window)) { alert(t('ARENA_ALERT_NOTIFS_UNSUPPORTED')); return; }
     if (Notification.permission === 'granted') { setNotifEnabled(true); return; }
     const perm = await Notification.requestPermission();
     if (perm === 'granted') setNotifEnabled(true);
-    else alert('Notification permission denied. Enable in browser settings.');
+    else alert(t('ARENA_ALERT_NOTIFS_DENIED'));
   };
 
   const fireNotif = useCallback(async (title: string, body: string) => {
@@ -482,36 +486,42 @@ function ArenaContent() {
       const fr = coin.fundingRate * 100;
       if (Math.abs(fr) >= settings.fr_threshold)
         fire(`fund-${selectedCoin}-${b30}`,
-          `${sym} Extreme Funding`,
-          `${fr >= 0 ? '+' : ''}${fr.toFixed(4)}% - ${fr > 0 ? 'Longs at risk ↓' : 'Shorts being squeezed ↑'}`);
+          t('ARENA_NOTIF_FUNDING_TITLE', { coin: sym }),
+          t('ARENA_NOTIF_FUNDING_BODY', {
+            pct: `${fr >= 0 ? '+' : ''}${fr.toFixed(4)}`,
+            suffix: fr > 0 ? t('ARENA_NOTIF_FUNDING_SUFFIX_LONG_RISK') : t('ARENA_NOTIF_FUNDING_SUFFIX_SHORT_SQUEEZE'),
+          }));
     }
 
     /* 2 - Fear & Greed extreme (4 hour cooldown) */
     if (store.fng != null && (store.fng <= settings.fng_fear || store.fng >= settings.fng_greed))
       fire(`fng-${store.fng <= settings.fng_fear ? 'fear' : 'greed'}-${b4h}`,
-        store.fng <= settings.fng_fear ? 'Extreme Fear' : 'Extreme Greed',
-        `Fear & Greed: ${store.fng} (${store.fngLabel}) - ${store.fng <= settings.fng_fear ? 'Potential bottom signal' : 'Markets overextended'}`);
+        store.fng <= settings.fng_fear ? t('ARENA_NOTIF_FNG_TITLE_FEAR') : t('ARENA_NOTIF_FNG_TITLE_GREED'),
+        t('ARENA_NOTIF_FNG_BODY', {
+          fng: store.fng, label: store.fngLabel,
+          suffix: store.fng <= settings.fng_fear ? t('ARENA_NOTIF_FNG_SUFFIX_BOTTOM') : t('ARENA_NOTIF_FNG_SUFFIX_OVEREXTENDED'),
+        }));
 
     /* 3 - CVD Divergence (1 hour cooldown) */
     if (coin?.cvdDivergence)
       fire(`cvd-${selectedCoin}-${coin.cvdDivergence}-${b1h}`,
         coin.cvdDivergence === 'bullish'
-          ? `${sym} Bullish CVD Divergence`
-          : `${sym} Bearish CVD Divergence`,
+          ? t('ARENA_NOTIF_CVD_TITLE_BULL', { coin: sym })
+          : t('ARENA_NOTIF_CVD_TITLE_BEAR', { coin: sym }),
         coin.cvdDivergence === 'bullish'
-          ? 'Price falling but buyers absorbing - smart money accumulating. Watch for reversal ↑'
-          : 'Price rising but sellers increasing - distribution detected. Watch for reversal ↓');
+          ? t('ARENA_NOTIF_CVD_BODY_BULL')
+          : t('ARENA_NOTIF_CVD_BODY_BEAR'));
 
     /* 4 - RSI 1h extreme (2 hour cooldown) */
     if (coin?.rsi1h != null) {
       if (coin.rsi1h >= settings.rsi_ob)
         fire(`rsi-ob-${selectedCoin}-${b2h}`,
-          `${sym} Momentum too high (1H)`,
-          `Momentum (RSI): ${coin.rsi1h.toFixed(0)} - Exhaustion zone. Avoid chasing longs, watch for reversal candle.`);
+          t('ARENA_NOTIF_RSI_OB_TITLE', { coin: sym }),
+          t('ARENA_NOTIF_RSI_OB_BODY', { rsi: coin.rsi1h.toFixed(0) }));
       else if (coin.rsi1h <= settings.rsi_os)
         fire(`rsi-os-${selectedCoin}-${b2h}`,
-          `${sym} Momentum too low (1H)`,
-          `Momentum (RSI): ${coin.rsi1h.toFixed(0)} - Bounce setup forming. Watch for volume spike + rejection candle.`);
+          t('ARENA_NOTIF_RSI_OS_TITLE', { coin: sym }),
+          t('ARENA_NOTIF_RSI_OS_BODY', { rsi: coin.rsi1h.toFixed(0) }));
     }
 
     /* 5 - Chart pattern detected (30 min cooldown) */
@@ -520,23 +530,23 @@ function ArenaContent() {
       const isBear = /bear|lower high|engulf.*bear|shooting|hanging|double top/i.test(coin.chartPattern);
       if (isBull)
         fire(`pat-bull-${selectedCoin}-${b30}`,
-          `${sym} Bullish Pattern`,
-          `${coin.chartPattern.split(';')[0].trim()} - Check for entry confirmation.`);
+          t('ARENA_NOTIF_PATTERN_BULL_TITLE', { coin: sym }),
+          t('ARENA_NOTIF_PATTERN_BULL_BODY', { pattern: coin.chartPattern.split(';')[0].trim() }));
       else if (isBear)
         fire(`pat-bear-${selectedCoin}-${b30}`,
-          `${sym} Bearish Pattern`,
-          `${coin.chartPattern.split(';')[0].trim()} - Watch for breakdown confirmation.`);
+          t('ARENA_NOTIF_PATTERN_BEAR_TITLE', { coin: sym }),
+          t('ARENA_NOTIF_PATTERN_BEAR_BODY', { pattern: coin.chartPattern.split(';')[0].trim() }));
     }
 
     /* 6 - OI trend signal (1 hour cooldown) */
     if (coin?.oiTrend === 'strong_up')
       fire(`oi-sup-${selectedCoin}-${b1h}`,
-        `${sym} Open Interest Spike - New Longs`,
-        'Open interest rising with price - real trend, new money entering. Bullish continuation likely.');
+        t('ARENA_NOTIF_OI_UP_TITLE', { coin: sym }),
+        t('ARENA_NOTIF_OI_UP_BODY'));
     else if (coin?.oiTrend === 'strong_down')
       fire(`oi-sdn-${selectedCoin}-${b1h}`,
-        `${sym} Open Interest Spike - New Shorts`,
-        'Open interest rising with price falling - new shorts entering. Bearish continuation likely.');
+        t('ARENA_NOTIF_OI_DOWN_TITLE', { coin: sym }),
+        t('ARENA_NOTIF_OI_DOWN_BODY'));
 
     /* 7 - Sentiment Extremes: F&G + FR + L/S all aligned (#20) */
     if (store.fng != null && coin?.fundingRate != null && coin?.longRatio != null) {
@@ -547,13 +557,13 @@ function ArenaContent() {
       // Bearish: all 3 screaming "longs overcrowded"
       if (fng >= 75 && fr >= 0.04 && longRat >= 60)
         fire(`sent-bear-${b4h}`,
-          'Sentiment Extremes - Bearish',
-          `F&G ${fng} (Extreme Greed) · FR +${fr.toFixed(3)}% · ${longRat.toFixed(0)}% Long - all 3 at extremes. Long flush risk elevated. Tighten stops.`);
+          t('ARENA_NOTIF_SENTIMENT_BEAR_TITLE'),
+          t('ARENA_NOTIF_SENTIMENT_BEAR_BODY', { fng, fr: fr.toFixed(3), longPct: longRat.toFixed(0) }));
       // Contrarian bullish: all 3 screaming "shorts overcrowded"
       if (fng <= 25 && fr <= -0.02 && longRat <= 40)
         fire(`sent-bull-${b4h}`,
-          'Sentiment Extremes - Contrarian Bullish',
-          `F&G ${fng} (Extreme Fear) · FR ${fr.toFixed(3)}% · ${shortRat.toFixed(0)}% Short - all 3 at extremes. Potential reversal zone. Wait for confirmation.`);
+          t('ARENA_NOTIF_SENTIMENT_BULL_TITLE'),
+          t('ARENA_NOTIF_SENTIMENT_BULL_BODY', { fng, fr: fr.toFixed(3), shortPct: shortRat.toFixed(0) }));
     }
 
   }, [store, selectedCoin, notifEnabled, fireNotif, settings]);
@@ -901,7 +911,7 @@ function ArenaContent() {
     const binanceSym = BINANCE_SYMS[selectedCoin] as string | undefined;
     const bybitSym   = BYBIT_SYMS[selectedCoin]   as string | undefined;
     if (!binanceSym && !bybitSym) {
-      setReadError('No market data source for ' + selectedCoin.toUpperCase());
+      setReadError(t('ARENA_ERROR_NO_DATA_SOURCE', { coin: selectedCoin.toUpperCase() }));
       return;
     }
 
@@ -931,13 +941,13 @@ function ArenaContent() {
       let raw: (string|number)[][];
       if (binanceSym) {
         const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=${readTf}&limit=300`);
-        if (!r.ok) throw new Error('Binance API error');
+        if (!r.ok) throw new Error(t('ARENA_ERROR_BINANCE_API'));
         raw = await r.json();
       } else {
         // Bybit klines: interval uses numbers (1, 5, 15, 30, 60, 240) or 'D'; response is newest-first
         const bybitInterval = readTf === '1m' ? '1' : readTf === '5m' ? '5' : readTf === '30m' ? '30' : readTf === '15m' ? '15' : readTf === '1h' ? '60' : readTf === '2h' ? '120' : readTf === '4h' ? '240' : 'D';
         const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${bybitInterval}&limit=300`);
-        if (!r.ok) throw new Error('Bybit API error');
+        if (!r.ok) throw new Error(t('ARENA_ERROR_BYBIT_API'));
         const data = await r.json();
         raw = [...(data?.result?.list ?? [])].reverse(); // oldest-first to match Binance
       }
@@ -1042,7 +1052,7 @@ function ArenaContent() {
         }).then(() => {});
       }
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Unknown error';
+      const msg = e instanceof Error ? e.message : t('ARENA_ERROR_UNKNOWN');
       setReadError(msg);
       // If rate limit error, update usage display so the chip reflects the limit
       const usageFromErr = (e as { usage?: GrokUsageInfo }).usage;
@@ -1062,12 +1072,12 @@ function ArenaContent() {
       const vsBtc  = change != null && btcChange != null && c !== 'btc' ? change - btcChange : null;
       const rsi    = coin?.rsi14 ?? null;
       const fr     = coin?.fundingRate ?? null;
-      const badges: string[] = [];
-      if (rsi != null && rsi >= 70)      badges.push('Overbought');
-      if (rsi != null && rsi <= 30)      badges.push('Oversold');
-      if (fr  != null && fr  < -0.0001) badges.push('Neg. Funding');
-      if (vsBtc != null && vsBtc >= 2)  badges.push('Beats BTC');
-      if (vsBtc != null && vsBtc <= -2) badges.push('Lags BTC');
+      const badges: Array<{ key: LabelKey; tone: 'good' | 'bad' }> = [];
+      if (rsi != null && rsi >= 70)      badges.push({ key: 'ARENA_SCANNER_BADGE_OVERBOUGHT', tone: 'bad' });
+      if (rsi != null && rsi <= 30)      badges.push({ key: 'ARENA_SCANNER_BADGE_OVERSOLD', tone: 'good' });
+      if (fr  != null && fr  < -0.0001) badges.push({ key: 'ARENA_SCANNER_BADGE_NEG_FUNDING', tone: 'bad' });
+      if (vsBtc != null && vsBtc >= 2)  badges.push({ key: 'ARENA_SCANNER_BADGE_BEATS_BTC', tone: 'good' });
+      if (vsBtc != null && vsBtc <= -2) badges.push({ key: 'ARENA_SCANNER_BADGE_LAGS_BTC', tone: 'bad' });
       return {
         c, badges, vsBtc,
         sq:     computeSqueezeScore(coin),
@@ -1088,16 +1098,16 @@ function ArenaContent() {
       {/* ── PAGE HEADER ── */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>LiquidityAI Arena</div>
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#12233f', color: '#5aa3ff', border: '0.5px solid #2a4a7a', letterSpacing: '.05em' }}>LiquidityAI · LIVE X</span>
+          <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>{t('ARENA_PAGE_TITLE')}</div>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#12233f', color: '#5aa3ff', border: '0.5px solid #2a4a7a', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
         </div>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Run the AI read on any coin - direction, confidence, and levels.</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
       </div>
 
       <PageHint
         pageKey="arena"
-        title="Arena"
-        body="Pick a coin and timeframe, then run the analysis. You get a plain directional read - long, short, or wait - with a confidence score and entry, stop, and target levels."
+        title={t('ARENA_HINT_TITLE')}
+        body={t('ARENA_HINT_BODY')}
       />
 
       {/* ── COIN CATEGORY TABS ── */}
@@ -1109,7 +1119,7 @@ function ArenaContent() {
             style={{ padding: '3px 9px', fontSize: 'var(--fs-caption)', textTransform: 'capitalize' }}
             onClick={() => setCoinCat(c)}
           >
-            {c === 'all' ? 'All' : c === 'majors' ? 'Majors' : c === 'alts' ? 'Alts' : c === 'defi' ? 'DeFi/AI' : 'Meme'}
+            {c === 'all' ? t('ARENA_CAT_ALL') : c === 'majors' ? t('ARENA_CAT_MAJORS') : c === 'alts' ? t('ARENA_CAT_ALTS') : c === 'defi' ? t('ARENA_CAT_DEFI') : t('ARENA_CAT_MEME')}
           </button>
         ))}
       </div>
@@ -1185,7 +1195,7 @@ function ArenaContent() {
             tabIndex={0}
             onClick={e => { e.stopPropagation(); enableNotifications(); }}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); enableNotifications(); } }}
-            title={notifEnabled ? 'Alerts ON' : 'Enable browser alerts'}
+            title={notifEnabled ? t('ARENA_ALERTS_ON_TITLE') : t('ARENA_ALERTS_ENABLE_TITLE')}
             style={{
               padding: '3px 7px', borderRadius: 7, border: '0.5px solid',
               background: notifEnabled ? '#152b1e' : 'transparent',
@@ -1225,13 +1235,13 @@ function ArenaContent() {
               <input
                 ref={scannerSearchRef}
                 type="text"
-                placeholder="Search coins…"
+                placeholder={t('ARENA_SCANNER_SEARCH_PLACEHOLDER')}
                 value={scannerSearch}
                 onChange={e => setScannerSearch(e.target.value)}
                 style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '7px 0', fontSize: 'var(--fs-caption)', color: 'var(--txt)' }}
               />
               {scannerSearch && (
-                <button onClick={() => setScannerSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: '0.8125rem', lineHeight: 1 }} aria-label="Clear search">×</button>
+                <button onClick={() => setScannerSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: '0.8125rem', lineHeight: 1 }} aria-label={t('ARENA_SCANNER_CLEAR_SEARCH_ARIA')}>×</button>
               )}
             </div>
 
@@ -1242,20 +1252,27 @@ function ArenaContent() {
               borderBottom: '0.5px solid var(--bdr)',
               background: 'var(--bg1)',
             }}>
-              {[['Name', 'left'], ['Price', 'right'], ['24h', 'right'], ['vs BTC', 'right'], ['Status', 'right'], ['Score', 'right']].map(([h, align]) => (
-                <span key={h} className={h === 'vs BTC' ? 'scanner-flyout-vsbtc' : undefined} style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', textAlign: align as 'left' | 'right' }}>{h}</span>
+              {([
+                { id: 'name', key: 'ARENA_SCANNER_COL_NAME', align: 'left' },
+                { id: 'price', key: 'ARENA_SCANNER_COL_PRICE', align: 'right' },
+                { id: '24h', key: 'ARENA_SCANNER_COL_24H', align: 'right' },
+                { id: 'vsbtc', key: 'ARENA_SCANNER_COL_VS_BTC', align: 'right' },
+                { id: 'status', key: 'ARENA_SCANNER_COL_STATUS', align: 'right' },
+                { id: 'score', key: 'ARENA_SCANNER_COL_SCORE', align: 'right' },
+              ] as const).map(col => (
+                <span key={col.id} className={col.id === 'vsbtc' ? 'scanner-flyout-vsbtc' : undefined} style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', textAlign: col.align }}>{t(col.key)}</span>
               ))}
             </div>
 
             {/* Coin rows */}
             <div style={{ maxHeight: 380, overflowY: 'auto' }}>
             {visibleScannerRows.length === 0 ? (
-              <div style={{ padding: '12px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>No coins match &ldquo;{scannerSearch}&rdquo;</div>
+              <div style={{ padding: '12px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>{t('ARENA_SCANNER_NO_MATCH', { search: scannerSearch })}</div>
             ) : visibleScannerRows.map(({ c, sq: rowSq, price, change, vsBtc, badges }) => {
               const isSelected  = c === selectedCoin;
               const isActive    = rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
               const icon        = rowSq.dir === 'SHORT_SQ' ? '↑' : rowSq.dir === 'LONG_LIQ' ? '↓' : '';
-              const statusLabel = rowSq.dir === 'SHORT_SQ' ? 'Squeeze' : rowSq.dir === 'LONG_LIQ' ? 'Flush' : 'Neutral';
+              const statusLabel = rowSq.dir === 'SHORT_SQ' ? t('ARENA_SCANNER_STATUS_SQUEEZE') : rowSq.dir === 'LONG_LIQ' ? t('ARENA_SCANNER_STATUS_FLUSH') : t('ARENA_SCANNER_STATUS_NEUTRAL');
               const vsBtcColor  = vsBtc == null ? 'var(--txt3)' : vsBtc >= 2 ? '#34d399' : vsBtc <= -2 ? '#f87171' : 'var(--txt3)';
               return (
                 <button
@@ -1291,20 +1308,18 @@ function ArenaContent() {
                       {badges.length > 0 ? (
                         <div style={{ display: 'flex', gap: 3, marginTop: 2, flexWrap: 'wrap' }}>
                           {badges.map(b => {
-                            const isGood = b === 'Beats BTC' || b === 'Oversold';
-                            const isBad  = b === 'Lags BTC'  || b === 'Overbought' || b === 'Neg. Funding';
-                            const col = isGood ? '#34d399' : isBad ? '#f87171' : '#fbbf24';
+                            const col = b.tone === 'good' ? '#34d399' : '#f87171';
                             return (
-                              <span key={b} style={{
+                              <span key={b.key} style={{
                                 fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
                                 padding: '1px 4px', borderRadius: 3,
                                 color: col, background: withAlpha(col, '18'), border: `0.5px solid ${withAlpha(col, '33')}`,
-                              }}>{b}</span>
+                              }}>{t(b.key)}</span>
                             );
                           })}
                         </div>
                       ) : (
-                        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1 }}>USDT Perp</div>
+                        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1 }}>{t('ARENA_SCANNER_USDT_PERP')}</div>
                       )}
                     </div>
                   </div>
@@ -1332,7 +1347,7 @@ function ArenaContent() {
                         {icon} {statusLabel}
                       </span>
                     ) : (
-                      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>· Neutral</span>
+                      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_SCANNER_NEUTRAL_DOT')}</span>
                     )}
                   </div>
                   {/* Score */}
@@ -1346,7 +1361,7 @@ function ArenaContent() {
 
             {/* Footer */}
             <div style={{ padding: '5px 12px', background: 'var(--bg1)', borderTop: '0.5px solid var(--bdr)' }}>
-              <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Funding rate + L/S ratio · ↑ Squeeze = shorts overcrowded · ↓ Flush = longs overcrowded</span>
+              <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_SCANNER_FOOTER_EXPLAINER')}</span>
             </div>
           </div>
           </div>
@@ -1368,9 +1383,9 @@ function ArenaContent() {
             window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
           }}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={!user ? 'Sign in to use Quick Analysis' : 'Uses local data only - no web search'}
+          title={!user ? t('ARENA_QUICK_SIGNIN_TITLE') : t('ARENA_QUICK_LOCAL_ONLY_TITLE')}
         >
-          {readLoading && readMode === 'quick' ? readStep || 'Working…' : (
+          {readLoading && readMode === 'quick' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               {!user && (
                 <svg width="10" height="10" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
@@ -1378,7 +1393,7 @@ function ArenaContent() {
                   <path d="M7 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
                 </svg>
               )}
-              Quick Research
+              {t('ARENA_QUICK_RESEARCH_BUTTON')}
             </span>
           )}
         </button>
@@ -1395,9 +1410,9 @@ function ArenaContent() {
             window.dispatchEvent(new CustomEvent('onboarding:done', { detail: 'grok' }));
           }}
           style={{ width: 'auto', marginBottom: 0 }}
-          title={!user ? 'Sign in to use Deep Analysis' : 'Searches live web + X for catalysts'}
+          title={!user ? t('ARENA_DEEP_SIGNIN_TITLE') : t('ARENA_DEEP_WEB_SEARCH_TITLE')}
         >
-          {readLoading && readMode === 'deep' ? readStep || 'Working…' : (
+          {readLoading && readMode === 'deep' ? readStep || t('ARENA_WORKING') : (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               {!user && (
                 <svg width="10" height="10" viewBox="0 0 20 20" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
@@ -1405,7 +1420,7 @@ function ArenaContent() {
                   <path d="M7 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
                 </svg>
               )}
-              Deep Research
+              {t('ARENA_DEEP_RESEARCH_BUTTON')}
             </span>
           )}
         </button>
@@ -1415,9 +1430,9 @@ function ArenaContent() {
             className="arena-ask-grok-btn"
             style={{ width: 'auto', marginBottom: 0, background: alertFormOpen ? 'rgba(26,122,255,0.15)' : undefined }}
             onClick={() => alertFormOpen ? setAlertFormOpen(false) : openAlertForm()}
-            title="Set a price alert for this coin"
+            title={t('ARENA_SET_ALERT_TITLE')}
           >
-            Set Alert
+            {t('ARENA_SET_ALERT_BUTTON')}
           </button>
         )}
 
@@ -1428,12 +1443,16 @@ function ArenaContent() {
             detail: {
               coin: selectedCoin,
               prompt: result
-                ? `I just ran a full market read on ${selectedCoin.toUpperCase()}: ${result.signal} signal at ${result.confidence}% confidence. Entry zone: ${result.entryLow && result.entryHigh ? `$${fmtPrice(result.entryLow)} – $${fmtPrice(result.entryHigh)}` : '-'}. ${result.reasoning} What should I watch out for, and are there any scenarios that would invalidate this signal?`
-                : `Give me a complete analysis of ${selectedCoin.toUpperCase()}/USDT right now. What's the trend, key levels, directional bias, best entry if any, and should I trade or wait?`,
+                ? t('ARENA_CHAT_PROMPT_WITH_RESULT', {
+                    coin: selectedCoin.toUpperCase(), signal: result.signal, confidence: result.confidence,
+                    entryZone: result.entryLow && result.entryHigh ? `$${fmtPrice(result.entryLow)} – $${fmtPrice(result.entryHigh)}` : '-',
+                    reasoning: result.reasoning,
+                  })
+                : t('ARENA_CHAT_PROMPT_NO_RESULT', { coin: selectedCoin.toUpperCase() }),
             },
           }))}
         >
-          Ask LiquidityAI
+          {t('ARENA_ASK_LIQUIDITYAI_BUTTON')}
         </button>
       </div>
 
@@ -1450,8 +1469,8 @@ function ArenaContent() {
         }}>
           {alertSuccess ? (
             <div style={{ fontSize: 'var(--fs-label)', fontWeight: 600, textAlign: 'center', padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
-              <span style={{ color: 'var(--accent-2)' }}>✓ Alert set for {selectedCoin.toUpperCase()}</span>
-              <a href="/alerts" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline' }}>View all alerts →</a>
+              <span style={{ color: 'var(--accent-2)' }}>{t('ARENA_ALERT_SET_SUCCESS', { coin: selectedCoin.toUpperCase() })}</span>
+              <a href="/alerts" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline' }}>{t('ARENA_VIEW_ALL_ALERTS_LINK')}</a>
             </div>
           ) : (
             <>
@@ -1468,7 +1487,7 @@ function ArenaContent() {
                       color: alertDir === d ? (d === 'above' ? '#4ade80' : '#f87171') : 'var(--txt3)',
                     }}
                   >
-                    {d === 'above' ? '▲ Above' : '▼ Below'}
+                    {d === 'above' ? t('ARENA_ALERT_DIR_ABOVE') : t('ARENA_ALERT_DIR_BELOW')}
                   </button>
                 ))}
               </div>
@@ -1476,7 +1495,7 @@ function ArenaContent() {
               {/* Target price - input box with coin suffix chip */}
               <div>
                 <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>
-                  Target price
+                  {t('ARENA_ALERT_TARGET_PRICE_LABEL')}
                 </div>
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 8,
@@ -1488,7 +1507,7 @@ function ArenaContent() {
                     type="number"
                     value={alertPrice}
                     onChange={e => setAlertPrice(e.target.value)}
-                    placeholder="0.00"
+                    placeholder={t('ARENA_ALERT_PRICE_PLACEHOLDER')}
                     style={{ flex: 1, minWidth: 0, padding: '7px 0', fontSize: 'var(--fs-body)', fontFamily: 'var(--font-mono), monospace', border: 'none', background: 'transparent', color: 'var(--txt)', outline: 'none' }}
                   />
                   <span style={{
@@ -1504,13 +1523,13 @@ function ArenaContent() {
               {/* Optional label */}
               <div>
                 <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>
-                  Label <span style={{ textTransform: 'none', fontWeight: 400, color: 'var(--txt3)' }}>(optional)</span>
+                  {t('ARENA_ALERT_LABEL_FIELD')} <span style={{ textTransform: 'none', fontWeight: 400, color: 'var(--txt3)' }}>{t('ARENA_ALERT_LABEL_OPTIONAL_HINT')}</span>
                 </div>
                 <input
                   type="text"
                   value={alertLabel}
                   onChange={e => setAlertLabel(e.target.value)}
-                  placeholder="e.g. breakout level"
+                  placeholder={t('ARENA_ALERT_LABEL_PLACEHOLDER')}
                   style={{ width: '100%', padding: '9px 12px', fontSize: 'var(--fs-label)', borderRadius: 10, border: '0.5px solid var(--bdr)', background: 'var(--bg1)', color: 'var(--txt)', outline: 'none' }}
                 />
               </div>
@@ -1526,13 +1545,13 @@ function ArenaContent() {
                   opacity: alertSaving || !alertPrice ? 0.5 : 1, transition: 'opacity .15s',
                 }}
               >
-                {alertSaving ? 'Saving…' : `Set Alert - ${selectedCoin.toUpperCase()}`}
+                {alertSaving ? t('ARENA_ALERT_SAVING') : t('ARENA_ALERT_SET_CTA', { coin: selectedCoin.toUpperCase() })}
               </button>
               <button
                 onClick={() => setAlertFormOpen(false)}
                 style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0' }}
               >
-                Cancel
+                {t('ARENA_ALERT_CANCEL_BUTTON')}
               </button>
             </>
           )}
@@ -1542,8 +1561,8 @@ function ArenaContent() {
       {/* ── Auth / upgrade notice ── */}
       {!user && !authLoading && (
         <div className="usage-auth-notice">
-          Sign in to run Quick and Deep analysis - required to control API costs.{' '}
-          <a href="/login" className="usage-auth-link">Sign In →</a>
+          {t('ARENA_AUTH_NOTICE')}{' '}
+          <a href="/login" className="usage-auth-link">{t('ARENA_AUTH_SIGN_IN_LINK')}</a>
         </div>
       )}
       {/* Free-tier usage now shown live by the UsageMeter under the buttons
@@ -1561,7 +1580,7 @@ function ArenaContent() {
 
       {result && Date.now() - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
         const sigCol = result.signal === 'LONG' ? '#34d399' : result.signal === 'LEAN LONG' ? '#86efac' : result.signal === 'SHORT' ? '#f87171' : result.signal === 'LEAN SHORT' ? '#fca5a5' : '#9ca3af';
-        const verdictWord = result.signal === 'LONG' ? 'Long' : result.signal === 'LEAN LONG' ? 'Lean long' : result.signal === 'SHORT' ? 'Short' : result.signal === 'LEAN SHORT' ? 'Lean short' : 'Wait';
+        const verdictWord = result.signal === 'LONG' ? t('ARENA_VERDICT_LONG') : result.signal === 'LEAN LONG' ? t('ARENA_VERDICT_LEAN_LONG') : result.signal === 'SHORT' ? t('ARENA_VERDICT_SHORT') : result.signal === 'LEAN SHORT' ? t('ARENA_VERDICT_LEAN_SHORT') : t('ARENA_VERDICT_WAIT');
         const sigGrad = result.signal.includes('LONG') ? 'linear-gradient(160deg,#5ff0b0,#34d399)'
           : result.signal.includes('SHORT') ? 'linear-gradient(160deg,#ff9d9d,#f87171)'
           : 'linear-gradient(160deg,#d8dee9,#9ca3af)';
@@ -1596,25 +1615,25 @@ function ArenaContent() {
           prevQuickSignal !== result.signal
         );
         const secsDiff = Math.floor((Date.now() - result.analyzedAt) / 1000);
-        const freshness = secsDiff < 60 ? 'just now' : secsDiff < 3600 ? `${Math.floor(secsDiff/60)}m ago` : `${Math.floor(secsDiff/3600)}h ago`;
+        const freshness = secsDiff < 60 ? t('ARENA_FRESHNESS_JUST_NOW') : secsDiff < 3600 ? t('ARENA_FRESHNESS_MINUTES_AGO', { n: Math.floor(secsDiff/60) }) : t('ARENA_FRESHNESS_HOURS_AGO', { n: Math.floor(secsDiff/3600) });
         return (
           <div className={`arena-signal-card sig-${result.signal.toLowerCase().replace(' ', '-')}`}>
             {/* Answer-first header: big verdict word + confidence */}
             <div className="av-head">
               <div className="av-head-eyebrow">
-                AI Read · {selectedCoin.toUpperCase()}/USDT · {result.tf}
-                <span className="av-updated">▲ Updated {freshness}</span>
+                {t('ARENA_AI_READ_EYEBROW', { coin: selectedCoin.toUpperCase(), tf: result.tf })}
+                <span className="av-updated">{t('ARENA_UPDATED_FRESHNESS', { freshness })}</span>
               </div>
               <div className="av-head-row">
                 <div className="av-verdict">
                   <span className="av-verdict-word" style={{ backgroundImage: sigGrad }}>{verdictWord}</span>
                   <small>{result.signal === 'FLAT' && result.bias && result.bias !== 'NEUTRAL'
-                    ? (result.bias === 'BEARISH' ? 'Leaning bearish' : 'Leaning bullish')
-                    : 'Directional read'}</small>
+                    ? (result.bias === 'BEARISH' ? t('ARENA_LEANING_BEARISH') : t('ARENA_LEANING_BULLISH'))
+                    : t('ARENA_DIRECTIONAL_READ')}</small>
                 </div>
                 <div className="av-conf">
                   <div className="av-conf-num">{result.confidence}<span>%</span></div>
-                  <div className="av-conf-lbl">Confidence</div>
+                  <div className="av-conf-lbl">{t('ARENA_CONFIDENCE_LABEL')}</div>
                   <div className="av-conf-bar"><div style={{ width: result.confidence + '%', background: sigCol }} /></div>
                 </div>
               </div>
@@ -1623,8 +1642,8 @@ function ArenaContent() {
             {/* Deep override notice */}
             {showOverride && (
               <div className="arena-override-notice">
-                Deep overrides Quick - web search found a catalyst that shifted the signal from{' '}
-                <strong>{prevQuickSignal}</strong> to <strong>{result.signal}</strong>. See Catalysts below.
+                {t('ARENA_OVERRIDE_NOTICE_PRE')}{' '}
+                <strong>{prevQuickSignal}</strong> {t('ARENA_OVERRIDE_NOTICE_TO')} <strong>{result.signal}</strong>{t('ARENA_OVERRIDE_NOTICE_POST')}
               </div>
             )}
 
@@ -1639,32 +1658,32 @@ function ArenaContent() {
 
             {/* Entry / Stop / Targets / R:R grid (click any cell to copy) */}
             <div className="av-levels">
-              <button className="av-lv" title="Copy entry zone" onClick={() => {
+              <button className="av-lv" title={t('ARENA_COPY_ENTRY_TITLE')} onClick={() => {
                 if (!(result.entryLow && result.entryHigh)) return;
                 navigator.clipboard.writeText(`${fmtPrice(result.entryLow)}–${fmtPrice(result.entryHigh)}`).catch(() => {});
                 setCopiedKey('entry'); setTimeout(() => setCopiedKey(null), 1500);
               }}>
-                <div className="av-lv-k">Entry zone</div>
-                <div className="av-lv-v">{copiedKey === 'entry' ? '✓ Copied' : (result.entryLow && result.entryHigh ? `${fmtPrice(result.entryLow)}–${fmtPrice(result.entryHigh)}` : '-')}</div>
+                <div className="av-lv-k">{t('ARENA_ENTRY_ZONE_LABEL')}</div>
+                <div className="av-lv-v">{copiedKey === 'entry' ? t('ARENA_COPIED_LONG') : (result.entryLow && result.entryHigh ? `${fmtPrice(result.entryLow)}–${fmtPrice(result.entryHigh)}` : '-')}</div>
               </button>
-              <button className="av-lv" title="Copy stop" onClick={() => {
+              <button className="av-lv" title={t('ARENA_COPY_STOP_TITLE')} onClick={() => {
                 if (!result.sl) return;
                 navigator.clipboard.writeText(fmtPrice(result.sl)).catch(() => {});
                 setCopiedKey('sl'); setTimeout(() => setCopiedKey(null), 1500);
               }}>
-                <div className="av-lv-k">Stop</div>
-                <div className="av-lv-v rd">{copiedKey === 'sl' ? '✓' : (result.sl ? fmtPrice(result.sl) : '-')}</div>
+                <div className="av-lv-k">{t('ARENA_STOP_LABEL')}</div>
+                <div className="av-lv-v rd">{copiedKey === 'sl' ? t('ARENA_COPIED_SHORT') : (result.sl ? fmtPrice(result.sl) : '-')}</div>
               </button>
-              <button className="av-lv" title="Copy target" onClick={() => {
+              <button className="av-lv" title={t('ARENA_COPY_TARGET_TITLE')} onClick={() => {
                 if (!result.tp) return;
                 navigator.clipboard.writeText(fmtPrice(result.tp)).catch(() => {});
                 setCopiedKey('tp'); setTimeout(() => setCopiedKey(null), 1500);
               }}>
-                <div className="av-lv-k">Targets</div>
-                <div className="av-lv-v gr">{copiedKey === 'tp' ? '✓' : (result.tp ? fmtPrice(result.tp) : '-')}</div>
+                <div className="av-lv-k">{t('ARENA_TARGETS_LABEL')}</div>
+                <div className="av-lv-v gr">{copiedKey === 'tp' ? t('ARENA_COPIED_SHORT') : (result.tp ? fmtPrice(result.tp) : '-')}</div>
               </button>
               <div className="av-lv" style={{ cursor: 'default' }}>
-                <div className="av-lv-k">R : R</div>
+                <div className="av-lv-k">{t('ARENA_RR_LABEL')}</div>
                 <div className="av-lv-v">{rr ? rr.toFixed(1) : '-'}</div>
               </div>
             </div>
@@ -1674,7 +1693,7 @@ function ArenaContent() {
               <div className="av-waitfor">
                 <span>⏳</span>
                 <div>
-                  <b>{result.signal === 'LEAN SHORT' ? 'Confirms to SHORT:' : result.signal === 'LEAN LONG' ? 'Confirms to LONG:' : 'Wait for:'}</b>{' '}
+                  <b>{result.signal === 'LEAN SHORT' ? t('ARENA_CONFIRMS_TO_SHORT') : result.signal === 'LEAN LONG' ? t('ARENA_CONFIRMS_TO_LONG') : t('ARENA_WAIT_FOR')}</b>{' '}
                   {result.waitFor}
                   {result.signal === 'FLAT' && result.bias && result.bias !== 'NEUTRAL' && (
                     <span style={{
@@ -1682,7 +1701,7 @@ function ArenaContent() {
                       textTransform: 'uppercase',
                       color: result.bias === 'BEARISH' ? '#f87171' : '#34d399',
                     }}>
-                      · {result.bias === 'BEARISH' ? '↓ leaning bearish' : '↑ leaning bullish'}
+                      · {result.bias === 'BEARISH' ? t('ARENA_LEANING_BEARISH_ARROW') : t('ARENA_LEANING_BULLISH_ARROW')}
                     </span>
                   )}
                 </div>
@@ -1703,19 +1722,19 @@ function ArenaContent() {
                     fontSize: 'var(--fs-caption)', fontWeight: 800, letterSpacing: '.05em',
                     color: result.raidSetup === 'SHORT SQUEEZE' ? '#34d399' : '#f87171',
                   }}>
-                    LIQUIDITY RAID - {result.raidSetup}
+                    {t('ARENA_RAID_HEADER', { setup: result.raidSetup })}
                   </span>
                 </div>
                 <div style={{ padding: '7px 12px 8px', display: 'flex', flexDirection: 'column', gap: 5 }}>
                   {result.raidTarget && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
-                      <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.05em', minWidth: 52, flexShrink: 0 }}>Target</span>
+                      <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.05em', minWidth: 52, flexShrink: 0 }}>{t('ARENA_RAID_TARGET_LABEL')}</span>
                       <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>{result.raidTarget}</span>
                     </div>
                   )}
                   {result.raidTrigger && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
-                      <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.05em', minWidth: 52, flexShrink: 0 }}>Trigger</span>
+                      <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.05em', minWidth: 52, flexShrink: 0 }}>{t('ARENA_RAID_TRIGGER_LABEL')}</span>
                       <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.5 }}>{result.raidTrigger}</span>
                     </div>
                   )}
@@ -1792,15 +1811,15 @@ function ArenaContent() {
           <Tip
             width={260}
             iconColor="rgba(255,255,255,0.6)"
-            text="Adds a stricter confirmation step: requires the EMA9/20 ribbon to clearly separate, price to close meaningfully past EMA50, and the move to hold for several candles before a marker confirms. Fewer, calmer-looking signals - but a 3-year backtest found this filter cuts a real edge down to a coin flip (1.13 profit factor raw vs 0.98 filtered). OFF (default) shows every raw cross immediately, including some that reverse fast, but has the better track record. ON trades quieter alerts for a worse actual outcome."
+            text={t('ARENA_ANTICHOP_TIP')}
           >
-            <span style={{ opacity: 0.8, letterSpacing: '0.01em' }}>Anti-Chop Filter</span>
+            <span style={{ opacity: 0.8, letterSpacing: '0.01em' }}>{t('ARENA_ANTICHOP_LABEL')}</span>
           </Tip>
         </button>
         <span style={{ fontSize: 'var(--fs-caption)', opacity: 0.35 }}>
           {antiChopEnabled
-            ? 'Rejects tangled-ribbon and marginal EMA50 crosses'
-            : 'Raw EMA9/20 cross signals - no chop filtering'}
+            ? t('ARENA_ANTICHOP_ON_HINT')
+            : t('ARENA_ANTICHOP_OFF_HINT')}
         </span>
       </div>
       {/* EMA Ribbon Strategy card - sits directly under the chart so it reads as
@@ -1818,7 +1837,7 @@ function ArenaContent() {
         <aside className="arena-ws-rail">
       {/* ── Market snapshot - VWAP / Open Interest / Funding for the selected coin ── */}
       <div className="av-rail-panel">
-        <div className="av-rail-panel-h">Market snapshot</div>
+        <div className="av-rail-panel-h">{t('ARENA_MARKET_SNAPSHOT_HEADER')}</div>
         <CoinMarketSnapshot coin={selectedCoin} />
       </div>
       {/* Confluence Score - EMA Ribbon + Order Flow + Multi-TF RSI combined, plus a
@@ -1828,9 +1847,9 @@ function ArenaContent() {
         <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} />
       ) : (
         <LockedFeatureCard
-          title="Confluence Score"
-          description="Order flow bias, absorption detection, and the combined confluence verdict are part of Pro."
-          onUnlock={() => setUpgradeGate('The Confluence Score')}
+          title={t('ARENA_CONFLUENCE_GATE_TITLE')}
+          description={t('ARENA_CONFLUENCE_GATE_DESC')}
+          onUnlock={() => setUpgradeGate(t('ARENA_CONFLUENCE_GATE_FEATURE_LABEL'))}
         />
       )}
         </aside>
@@ -1871,7 +1890,7 @@ function ArenaContent() {
             <span style={{ color: col, lineHeight: 0, flexShrink: 0, marginTop: 1 }}><Warn size={14} /></span>
             <div>
               <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: col, marginBottom: 2 }}>
-                {res.score >= 70 ? 'Potential pullback - pump is getting weaker' : 'Early weakness - watch for a pullback'}
+                {res.score >= 70 ? t('ARENA_DIST_WARN_PULLBACK') : t('ARENA_DIST_WARN_EARLY_WEAKNESS')}
                 <span style={{ fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>({res.score}/100)</span>
               </div>
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.4 }}>
@@ -1888,7 +1907,7 @@ function ArenaContent() {
           at-a-glance summary of these same signals - open this only to drill in. ── */}
       <div className="av-rail-panel" style={{ marginBottom: 10 }}>
         <button className="av-rail-collapse" onClick={() => setSigDetailsOpen(v => !v)}>
-          <span>{sigDetailsOpen ? 'Hide full breakdown' : 'Full breakdown — multi-timeframe, order flow, patterns, reasoning'}</span>
+          <span>{sigDetailsOpen ? t('ARENA_BREAKDOWN_HIDE') : t('ARENA_BREAKDOWN_SHOW')}</span>
           <span className="chev">{sigDetailsOpen ? '▴' : '▾'}</span>
         </button>
       </div>
@@ -1906,13 +1925,13 @@ function ArenaContent() {
             <>
               {result.chartAnalysis && (
                 <div className="arena-reasoning" style={{ margin: '10px 0' }}>
-                  <div className="arena-reasoning-title">Chart</div>
+                  <div className="arena-reasoning-title">{t('ARENA_REASONING_CHART_TITLE')}</div>
                   <div className="arena-reasoning-text"><ReasoningText text={result.chartAnalysis} /></div>
                 </div>
               )}
               {result.patterns && result.patterns.length > 0 && (
                 <div style={{ margin: '10px 0' }}>
-                  <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>Patterns</div>
+                  <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>{t('ARENA_REASONING_PATTERNS_TITLE')}</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {result.patterns.map((p, i) => {
                       const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
@@ -1928,7 +1947,7 @@ function ArenaContent() {
                 </div>
               )}
               <div className="arena-reasoning">
-                <div className="arena-reasoning-title">Reasoning</div>
+                <div className="arena-reasoning-title">{t('ARENA_REASONING_TITLE')}</div>
                 <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
               </div>
             </>
@@ -1939,11 +1958,11 @@ function ArenaContent() {
       {history.length > 0 && (
         <div style={{ marginTop: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: '#444' }}>Session History</div>
+            <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: '#444' }}>{t('ARENA_SESSION_HISTORY_HEADER')}</div>
             <button
               onClick={() => { setHistory([]); setDetailIdx(null); try { sessionStorage.removeItem(ARENA_HIST_KEY); } catch {} }}
               style={{ fontSize: 'var(--fs-caption)', color: '#444', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
-            >Clear</button>
+            >{t('ARENA_SESSION_HISTORY_CLEAR_BUTTON')}</button>
           </div>
 
           {history.map((h, i) => (
@@ -1955,7 +1974,7 @@ function ArenaContent() {
               >
                 <div className="arena-hist-left">
                   <span className={`arena-hist-badge tag ${h.signal === 'LONG' || h.signal === 'LEAN LONG' ? 'tg' : h.signal === 'SHORT' || h.signal === 'LEAN SHORT' ? 'tr' : 'tp'}`}>
-                    {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'LEAN LONG' ? '↗ LEAN LONG' : h.signal === 'SHORT' ? '▼ SHORT' : h.signal === 'LEAN SHORT' ? '↘ LEAN SHORT' : '- FLAT'}
+                    {h.signal === 'LONG' ? t('ARENA_HIST_BADGE_LONG') : h.signal === 'LEAN LONG' ? t('ARENA_HIST_BADGE_LEAN_LONG') : h.signal === 'SHORT' ? t('ARENA_HIST_BADGE_SHORT') : h.signal === 'LEAN SHORT' ? t('ARENA_HIST_BADGE_LEAN_SHORT') : t('ARENA_HIST_BADGE_FLAT')}
                   </span>
                   <div>
                     <div className="arena-hist-pair">{h.coin}</div>
@@ -1972,13 +1991,13 @@ function ArenaContent() {
                 <div className={`arena-hist-detail sig-${h.signal.toLowerCase().replace(' ', '-')}`}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <span className={`arena-sig-badge badge-${h.signal.toLowerCase().replace(' ', '-')}`} style={{ fontSize: 'var(--fs-caption)' }}>
-                      {h.signal === 'LONG' ? '▲ LONG' : h.signal === 'LEAN LONG' ? '↗ LEAN LONG' : h.signal === 'SHORT' ? '▼ SHORT' : h.signal === 'LEAN SHORT' ? '↘ LEAN SHORT' : '- FLAT'}
+                      {h.signal === 'LONG' ? t('ARENA_HIST_BADGE_LONG') : h.signal === 'LEAN LONG' ? t('ARENA_HIST_BADGE_LEAN_LONG') : h.signal === 'SHORT' ? t('ARENA_HIST_BADGE_SHORT') : h.signal === 'LEAN SHORT' ? t('ARENA_HIST_BADGE_LEAN_SHORT') : t('ARENA_HIST_BADGE_FLAT')}
                     </span>
-                    <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#5aa3ff' }}>{h.confidence}% confidence</div>
+                    <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#5aa3ff' }}>{t('ARENA_HIST_CONFIDENCE_PCT', { pct: h.confidence })}</div>
                   </div>
                   {h.entry && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-                      <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>Entry Zone</span>
+                      <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>{t('ARENA_HIST_ENTRY_ZONE_LABEL')}</span>
                       <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)', fontFamily: 'monospace' }}>{h.entry}</span>
                     </div>
                   )}
@@ -1990,7 +2009,7 @@ function ArenaContent() {
                   </div>
                   {h.reasoning && (
                     <div className="arena-reasoning">
-                      <div className="arena-reasoning-title">Reasoning</div>
+                      <div className="arena-reasoning-title">{t('ARENA_REASONING_TITLE')}</div>
                       <div className="arena-reasoning-text"><ReasoningText text={h.reasoning} /></div>
                     </div>
                   )}
