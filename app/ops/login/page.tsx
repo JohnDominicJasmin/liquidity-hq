@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { getSupabase } from '@/lib/supabase';
+import { useLabels } from '@/lib/labels';
 import styles from '../ops.module.css';
 
 // Admin login. Uses Supabase Auth email+password (signInWithPassword) - the
@@ -16,6 +17,7 @@ import styles from '../ops.module.css';
 // console.
 export default function OpsLoginPage() {
   const router = useRouter();
+  const { t } = useLabels();
   const { user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,7 +44,7 @@ export default function OpsLoginPage() {
     setErr(null);
     setBusy(true);
     const sb = getSupabase();
-    if (!sb) { setErr('Auth is not configured.'); setBusy(false); return; }
+    if (!sb) { setErr(t('OPS_LOGIN_ERROR_NOT_CONFIGURED')); setBusy(false); return; }
     const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password });
     setBusy(false);
     if (error) { setErr(error.message); return; }
@@ -51,7 +53,7 @@ export default function OpsLoginPage() {
 
   async function onGoogle() {
     const sb = getSupabase();
-    if (!sb) { setErr('Auth is not configured.'); return; }
+    if (!sb) { setErr(t('OPS_LOGIN_ERROR_NOT_CONFIGURED')); return; }
     setReturning(true);
     await sb.auth.signInWithOAuth({
       provider: 'google',
@@ -65,7 +67,7 @@ export default function OpsLoginPage() {
         <div className={styles.loginCard} style={{ alignItems: 'center', textAlign: 'center' }}>
           <div className={styles.loginTitle}>LiquidityHQ <b>Ops</b></div>
           <div className={styles.spinner} aria-hidden />
-          <div className={styles.loginSub}>Signing you in…</div>
+          <div className={styles.loginSub}>{t('OPS_LOGIN_SIGNING_IN')}</div>
         </div>
       </div>
     );
@@ -75,10 +77,10 @@ export default function OpsLoginPage() {
     <div className={styles.loginWrap}>
       <form className={styles.loginCard} onSubmit={onSubmit}>
         <div className={styles.loginTitle}>LiquidityHQ <b>Ops</b></div>
-        <div className={styles.loginSub}>Staff sign in</div>
+        <div className={styles.loginSub}>{t('OPS_LOGIN_SUBTITLE')}</div>
 
         <label className={styles.loginLabel}>
-          Email
+          {t('OPS_LOGIN_EMAIL_LABEL')}
           <input
             className={styles.loginInput}
             type="email"
@@ -90,7 +92,7 @@ export default function OpsLoginPage() {
         </label>
 
         <label className={styles.loginLabel}>
-          Password
+          {t('OPS_LOGIN_PASSWORD_LABEL')}
           <input
             className={styles.loginInput}
             type="password"
@@ -104,13 +106,13 @@ export default function OpsLoginPage() {
         {err && <div className={styles.err}>{err}</div>}
 
         <button className={styles.loginBtn} type="submit" disabled={busy}>
-          {busy ? 'Signing in…' : 'Sign in'}
+          {busy ? t('OPS_LOGIN_SUBMIT_BUSY') : t('OPS_LOGIN_SUBMIT_BUTTON')}
         </button>
 
-        <div className={styles.loginDivider}>or</div>
+        <div className={styles.loginDivider}>{t('OPS_LOGIN_DIVIDER_OR')}</div>
 
         <button className={styles.loginGoogle} type="button" onClick={onGoogle}>
-          Sign in with Google
+          {t('OPS_LOGIN_GOOGLE_BUTTON')}
         </button>
       </form>
     </div>

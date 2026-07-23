@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { getSupabase } from '@/lib/supabase';
+import { useLabels } from '@/lib/labels';
 import { adminFetch } from './_client';
 import styles from './ops.module.css';
 
@@ -21,6 +22,7 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
   const isLoginRoute = pathname === '/ops/login';
   const { user, loading } = useAuth();
   const router = useRouter();
+  const { t } = useLabels();
   const [state, setState] = useState<'checking' | 'ok' | 'denied'>('checking');
   const [role, setRole] = useState<'owner' | 'staff' | null>(null);
 
@@ -59,37 +61,37 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
     return (
       <div className={styles.denyWrap}>
         <div className={styles.denyCard}>
-          <div className={styles.denyTitle}>Access denied</div>
+          <div className={styles.denyTitle}>{t('OPS_LAYOUT_DENY_TITLE')}</div>
           <p className={styles.denyText}>
             {user?.email
-              ? <>You are signed in as <b>{user.email}</b>, which is not an admin account.</>
-              : <>This account does not have admin access.</>}
-            {' '}Ask an owner to grant you access from the Team page.
+              ? <>{t('OPS_LAYOUT_DENY_EMAIL_PREFIX')} <b>{user.email}</b>{t('OPS_LAYOUT_DENY_EMAIL_SUFFIX')}</>
+              : <>{t('OPS_LAYOUT_DENY_NO_EMAIL')}</>}
+            {' '}{t('OPS_LAYOUT_DENY_HINT')}
           </p>
           <div className={styles.denyActions}>
             <button className={styles.pagerBtn} onClick={signOutAndSwitch}>
-              Sign out &amp; switch account
+              {t('OPS_LAYOUT_SIGN_OUT_SWITCH')}
             </button>
-            <Link href="/" className={styles.pagerBtn}>← Back to app</Link>
+            <Link href="/" className={styles.pagerBtn}>{t('OPS_LAYOUT_BACK_TO_APP')}</Link>
           </div>
         </div>
       </div>
     );
   }
 
-  if (state !== 'ok') return <div className={styles.gate}>Checking access…</div>;
+  if (state !== 'ok') return <div className={styles.gate}>{t('OPS_LAYOUT_CHECKING_ACCESS')}</div>;
 
   return (
     <div className={styles.shell}>
       <header className={styles.topbar}>
         <span className={styles.brand}>LiquidityHQ <b>Ops</b></span>
         <nav className={styles.nav}>
-          <Link href="/ops">Overview</Link>
-          <Link href="/ops/users">Users</Link>
-          {role === 'owner' && <Link href="/ops/team">Team</Link>}
-          {role === 'owner' && <Link href="/ops/config">Config</Link>}
-          <button className={styles.navBtn} onClick={signOutAndSwitch}>Sign out</button>
-          <Link href="/">← Back to app</Link>
+          <Link href="/ops">{t('OPS_LAYOUT_NAV_OVERVIEW')}</Link>
+          <Link href="/ops/users">{t('OPS_LAYOUT_NAV_USERS')}</Link>
+          {role === 'owner' && <Link href="/ops/team">{t('OPS_LAYOUT_NAV_TEAM')}</Link>}
+          {role === 'owner' && <Link href="/ops/config">{t('OPS_LAYOUT_NAV_CONFIG')}</Link>}
+          <button className={styles.navBtn} onClick={signOutAndSwitch}>{t('OPS_LAYOUT_NAV_SIGN_OUT')}</button>
+          <Link href="/">{t('OPS_LAYOUT_BACK_TO_APP')}</Link>
         </nav>
       </header>
       <main>{children}</main>
