@@ -22,9 +22,9 @@ Two Supabase projects, both need every seed file run:
 
 **Supported** (locale codes wired into the switcher/type system, `lib/labels.ts`): 10 — `en, ko, zh, ar, vi, pt-BR, tr, es, id, ru`.
 
-**Implemented app-wide** (has actual DB rows, not just the code path): **2 — `en`, `ko`.** Verified via `select count(*) from lhq_labels where locale = 'ko'` = 2370, matching the full key count, in both prod and dev projects.
+**Implemented app-wide** (has actual DB rows, not just the code path): **3 — `en`, `ko`, `zh`.** Verified via `select count(*) from lhq_labels where locale = '<code>'` = 2370, matching the full key count, in both prod and dev projects.
 
-**Not yet implemented app-wide**: 8 — `zh, ar, vi, pt-BR, tr, es, id, ru`. Switcher lets a user pick them; `t()` silently falls back to English (or the raw key) since no translated row exists yet.
+**Not yet implemented app-wide**: 7 — `ar, vi, pt-BR, tr, es, id, ru`. Switcher lets a user pick them; `t()` silently falls back to English (or the raw key) since no translated row exists yet.
 
 **Separate system, don't confuse the two**: the landing page (`lib/i18n/dictionaries.ts`) has real, fully-written `en`/`ko`/`zh`/`ar` translations already — but it's a different, static build-time dictionary, not DB-backed, and isn't touched by these waves. Landing-page language count has no bearing on app-wide status.
 
@@ -75,7 +75,7 @@ Check for both patterns in every remaining file. Where a field only ever feeds a
 
 ## Remaining plan
 
-**Extraction: none — all 12 waves are done.** Translation into the remaining 8 locales (`zh, ar, vi, pt-BR, tr, es, id, ru`) is the only outstanding i18n work — see "Translation progress" below for status and process.
+**Extraction: none — all 12 waves are done.** Translation into the remaining 7 locales (`ar, vi, pt-BR, tr, es, id, ru`) is the only outstanding i18n work — see "Translation progress" below for status and process.
 
 ## Translation progress
 
@@ -84,7 +84,8 @@ Translating the 2370 seeded `en` rows into each of the other 9 supported locales
 | Locale | Status | Rows | Notes |
 |---|---|---|---|
 | `ko` | DONE (2026-07-24) | 2370/2370 both projects | First locale. See process below. |
-| `zh, ar, vi, pt-BR, tr, es, id, ru` | Not started | 0 | Same process, repeat per locale. |
+| `zh` | DONE (2026-07-24) | 2370/2370 both projects | Simplified Chinese. Same process, reused the `ko` wave's `chunks/*.json` English source files unchanged. |
+| `ar, vi, pt-BR, tr, es, id, ru` | Not started | 0 | Same process, repeat per locale. |
 
 **Process (established on `ko`, repeat per locale):**
 1. Parse all `supabase/migrations/*_labels_seed_*.sql` files (the `en` source of truth) into `(key, value)` pairs — a small Node script, not by hand (2370 keys).
@@ -95,7 +96,7 @@ Translating the 2370 seeded `en` rows into each of the other 9 supported locales
 6. Reassemble: a small Node script maps every one of the 2370 keys back through its value-id to the translated string, generates the full seed SQL (repo record) plus small ~50-row execute-ready chunks per Supabase project (`lhq_labels` for prod, `lhq_dev_labels` for dev — table name differs, content identical).
 7. **Seed via delegated agents, not direct execute_sql calls from the main thread.** Pasting 50-200 rows of translated text directly into an `execute_sql` tool call from the main conversation risked the same output-cap wall as step 4. Delegating "read this chunk file, call execute_sql with its exact content, for both projects" to a subagent per chunk avoided that entirely — the SQL text lives in the subagent's own budget, not the main thread's.
 8. Reconcile row counts (`select count(*) from lhq_labels where locale = 'ko'`) against 2370 for both projects before calling it done.
-9. Live spot-check via `claude-in-chrome`: set `localStorage.lhq_lang_v1 = '<locale>'` and reload (no URL param support — it's a `LabelsProvider` localStorage setting, key `lhq_lang_v1`, see `lib/labels.ts`). **Wait ~3s after reload before reading the page** — same async-fetch load race as extraction (process rule 10), confirmed again here: immediately after reload every key showed raw, fully resolved to native-language text on the second read.
+9. Live spot-check via `claude-in-chrome`: set `localStorage.lhq_lang_v1 = '<locale>'` and reload (no URL param support — it's a `LabelsProvider` localStorage setting, key `lhq_lang_v1`, see `lib/labels.ts`). **Wait ~3s after reload before reading the page** — same async-fetch load race as extraction (process rule 10), confirmed again here: immediately after reload every key showed raw, fully resolved to native-language text on the second read. On `zh`, a 3s (and even a 65s) wait still showed every key raw — turned out the dev server itself was just slow to answer `/api/labels` (still `pending` in `read_network_requests`) because dozens of concurrent seeding subagents were hammering the same local Next.js process; it resolved fine ~8s later with no code or data problem. If a locale check still shows all-raw after the usual short wait, check `read_network_requests` for the labels call's actual status before assuming a real bug — a `pending` request means keep waiting, not investigate.
 
 ## Process rules (lessons learned this session — follow these)
 
