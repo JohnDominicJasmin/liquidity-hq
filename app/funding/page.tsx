@@ -7,6 +7,8 @@ import { Warn } from '@/components/icons';
 import LoadingState from '@/components/LoadingState';
 import Tip from '@/components/Tip';
 import CoinIcon from '@/components/CoinIcon';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 /* ── types ── */
 interface FRPoint { rate: number; ts: number; }
@@ -20,6 +22,12 @@ const RANGES = [
   { key: '14d', label: '14d', count: 42 },
 ] as const;
 type RangeKey = typeof RANGES[number]['key'];
+const RANGE_LABEL_KEYS: Record<RangeKey, LabelKey> = {
+  '24h': 'FUNDING_RANGE_24H',
+  '3d':  'FUNDING_RANGE_3D',
+  '7d':  'FUNDING_RANGE_7D',
+  '14d': 'FUNDING_RANGE_14D',
+};
 
 /* ── data fetching ── */
 async function fetchBinanceFR(sym: string): Promise<FRPoint[]> {
@@ -54,64 +62,79 @@ function frFmt(r: number): string {
   return (r >= 0 ? '+' : '') + (r * 100).toFixed(4) + '%';
 }
 
-interface FRSignal { label: string; crowd: string; hint: string; desc: string; action: string; color: string; bg: string; }
+type FRSignalId =
+  | 'longs_overcrowded' | 'longs_heavy' | 'longs_dominant' | 'slight_long'
+  | 'balanced' | 'shorts_dominant' | 'shorts_crowded' | 'shorts_overcrowded';
+interface FRSignal {
+  id: FRSignalId;
+  crowdKey: LabelKey; hintKey: LabelKey; labelKey: LabelKey; actionKey: LabelKey; descKey: LabelKey;
+  color: string; bg: string;
+}
 function frSignal(r: number): FRSignal {
   const p = r * 100;
   if (p >= 0.05)  return {
-    crowd: 'Longs Overcrowded', hint: 'Short on weakness',
-    label: 'Longs Overcrowded - Dump Risk',
+    id: 'longs_overcrowded',
+    crowdKey: 'FUNDING_SIG_LONGS_OVERCROWDED_CROWD', hintKey: 'FUNDING_SIG_LONGS_OVERCROWDED_HINT',
+    labelKey: 'FUNDING_SIG_LONGS_OVERCROWDED_LABEL',
     color: '#f87171', bg: 'rgba(248,113,113,0.09)',
-    action: 'Avoid new longs. Look to short on weakness.',
-    desc: 'The market is extremely long-heavy. Traders are paying 0.05%+ every 8h just to stay long - they are overleveraged. Whales have maximum incentive to dump price and mass-liquidate these longs. High probability of a violent raid in the next 1–3 sessions.',
+    actionKey: 'FUNDING_SIG_LONGS_OVERCROWDED_ACTION',
+    descKey: 'FUNDING_SIG_LONGS_OVERCROWDED_DESC',
   };
   if (p >= 0.02)  return {
-    crowd: 'Longs Heavy', hint: 'Reduce longs',
-    label: 'Longs Heavy - Elevated Dump Risk',
+    id: 'longs_heavy',
+    crowdKey: 'FUNDING_SIG_LONGS_HEAVY_CROWD', hintKey: 'FUNDING_SIG_LONGS_HEAVY_HINT',
+    labelKey: 'FUNDING_SIG_LONGS_HEAVY_LABEL',
     color: '#fb923c', bg: 'rgba(251,146,60,0.08)',
-    action: 'Reduce long exposure. Consider short entries.',
-    desc: 'The market is significantly long-heavy. Every 8-hour settlement, longs are bleeding fees to hold their position. This builds pressure for a flush - the crowd is positioned for a pump, which makes a dump more likely.',
+    actionKey: 'FUNDING_SIG_LONGS_HEAVY_ACTION',
+    descKey: 'FUNDING_SIG_LONGS_HEAVY_DESC',
   };
   if (p >= 0.01)  return {
-    crowd: 'Longs Dominant', hint: 'Trade carefully',
-    label: 'Long Bias - Watch for FR Spike',
+    id: 'longs_dominant',
+    crowdKey: 'FUNDING_SIG_LONGS_DOMINANT_CROWD', hintKey: 'FUNDING_SIG_LONGS_DOMINANT_HINT',
+    labelKey: 'FUNDING_SIG_LONGS_DOMINANT_LABEL',
     color: '#fbbf24', bg: 'rgba(251,191,36,0.07)',
-    action: 'Trade cautiously. Exit if FR keeps climbing.',
-    desc: 'More longs than shorts in the market. Not dangerous yet, but trending toward overload. If funding rate keeps rising above 0.02%, exit or hedge your long exposure.',
+    actionKey: 'FUNDING_SIG_LONGS_DOMINANT_ACTION',
+    descKey: 'FUNDING_SIG_LONGS_DOMINANT_DESC',
   };
   if (p > 0.003)  return {
-    crowd: 'Slight Long Bias', hint: 'No clear edge',
-    label: 'Slight Long Bias - No Clear Edge',
+    id: 'slight_long',
+    crowdKey: 'FUNDING_SIG_SLIGHT_LONG_CROWD', hintKey: 'FUNDING_SIG_SLIGHT_LONG_HINT',
+    labelKey: 'FUNDING_SIG_SLIGHT_LONG_LABEL',
     color: '#d4b483', bg: 'rgba(212,180,131,0.06)',
-    action: 'No derivatives edge. Trade based on price action.',
-    desc: 'Mildly more longs than shorts, but not enough to create a squeeze or dump setup. Price movement here is driven by spot buying and selling, not derivatives pressure.',
+    actionKey: 'FUNDING_SIG_SLIGHT_LONG_ACTION',
+    descKey: 'FUNDING_SIG_SLIGHT_LONG_DESC',
   };
   if (p >= -0.003) return {
-    crowd: 'Balanced', hint: 'No clear edge',
-    label: 'Neutral - No Derivatives Edge',
+    id: 'balanced',
+    crowdKey: 'FUNDING_SIG_BALANCED_CROWD', hintKey: 'FUNDING_SIG_BALANCED_HINT',
+    labelKey: 'FUNDING_SIG_BALANCED_LABEL',
     color: '#a0a0a0', bg: 'rgba(255,255,255,0.04)',
-    action: 'Wait for a clearer FR signal.',
-    desc: 'Longs and shorts are balanced. Nobody is paying a significant premium to hold their position. The derivatives market is not a driver right now - focus on chart structure and spot flow.',
+    actionKey: 'FUNDING_SIG_BALANCED_ACTION',
+    descKey: 'FUNDING_SIG_BALANCED_DESC',
   };
   if (p >= -0.01)  return {
-    crowd: 'Shorts Dominant', hint: 'Watch for squeeze',
-    label: 'Shorts Dominant - Squeeze Pressure Building',
+    id: 'shorts_dominant',
+    crowdKey: 'FUNDING_SIG_SHORTS_DOMINANT_CROWD', hintKey: 'FUNDING_SIG_SHORTS_DOMINANT_HINT',
+    labelKey: 'FUNDING_SIG_SHORTS_DOMINANT_LABEL',
     color: '#86efac', bg: 'rgba(134,239,172,0.07)',
-    action: 'Slight bullish lean. Small long positions on dips.',
-    desc: 'More shorts than longs in the market. Shorts are paying longs every 8h to hold their position. Mild squeeze pressure is building - not actionable yet, but watch for FR going deeper negative.',
+    actionKey: 'FUNDING_SIG_SHORTS_DOMINANT_ACTION',
+    descKey: 'FUNDING_SIG_SHORTS_DOMINANT_DESC',
   };
   if (p >= -0.03)  return {
-    crowd: 'Shorts Crowded', hint: 'Buy dips',
-    label: 'Shorts Crowded - Squeeze Setup',
+    id: 'shorts_crowded',
+    crowdKey: 'FUNDING_SIG_SHORTS_CROWDED_CROWD', hintKey: 'FUNDING_SIG_SHORTS_CROWDED_HINT',
+    labelKey: 'FUNDING_SIG_SHORTS_CROWDED_LABEL',
     color: '#34d399', bg: 'rgba(52,211,153,0.09)',
-    action: 'Look for long entries on dips. Do NOT short here.',
-    desc: 'The market is heavily positioned short. Shorts are paying longs every 8 hours just to hold their position - they are the fuel for the next pump. Whales can push price up to mass-liquidate these shorts and collect their money. This is a squeeze setup, not a short signal.',
+    actionKey: 'FUNDING_SIG_SHORTS_CROWDED_ACTION',
+    descKey: 'FUNDING_SIG_SHORTS_CROWDED_DESC',
   };
   return {
-    crowd: 'Shorts Overcrowded', hint: 'Size up longs',
-    label: 'Shorts Overcrowded - High Squeeze Risk',
+    id: 'shorts_overcrowded',
+    crowdKey: 'FUNDING_SIG_SHORTS_OVERCROWDED_CROWD', hintKey: 'FUNDING_SIG_SHORTS_OVERCROWDED_HINT',
+    labelKey: 'FUNDING_SIG_SHORTS_OVERCROWDED_LABEL',
     color: '#34d399', bg: 'rgba(52,211,153,0.13)',
-    action: 'Strong long setup. Do NOT short. Size up on dips.',
-    desc: 'Extreme short crowding - traders are paying 0.03%+ every 8h just to stay short. This is unsustainable. Historically, this level of negative funding precedes a violent squeeze pump as whales push price up to liquidate the overleveraged shorts.',
+    actionKey: 'FUNDING_SIG_SHORTS_OVERCROWDED_ACTION',
+    descKey: 'FUNDING_SIG_SHORTS_OVERCROWDED_DESC',
   };
 }
 
@@ -285,6 +308,7 @@ function drawFullChart(canvas: HTMLCanvasElement, pts: FRPoint[]) {
 
 /* ── component ── */
 export default function FundingHistory() {
+  const { t }                 = useLabels();
   const { store }             = useMarket();
   const [history, setHistory] = useState<FRHistory>({});
   const [selected, setSelected] = useState<CoinId>('btc');
@@ -355,8 +379,8 @@ export default function FundingHistory() {
 
       {/* Header */}
       <div className="mb-header">
-        <h1 className="mb-title">Funding Rate History</h1>
-        <div className="mb-subtitle">8-hour settlement · red above zero = longs paying · green below = shorts paying</div>
+        <h1 className="mb-title">{t('FUNDING_PAGE_TITLE')}</h1>
+        <div className="mb-subtitle">{t('FUNDING_PAGE_SUBTITLE')}</div>
       </div>
 
       {/* FR Regime Overview - live data from market store, no history needed */}
@@ -367,8 +391,8 @@ export default function FundingHistory() {
           const sig        = frSignal(fr);
           const p          = fr * 100;
           const carryArb   = Math.abs(p) > 0.03;
-          const contraShort = sig.crowd === 'Longs Overcrowded' || sig.crowd === 'Longs Heavy';
-          const contraLong  = sig.crowd === 'Shorts Overcrowded' || sig.crowd === 'Shorts Crowded';
+          const contraShort = sig.id === 'longs_overcrowded' || sig.id === 'longs_heavy';
+          const contraLong  = sig.id === 'shorts_overcrowded' || sig.id === 'shorts_crowded';
           return { id, fr, sig, carryArb, contraShort, contraLong };
         }).filter((x): x is NonNullable<typeof x> => x !== null);
 
@@ -381,24 +405,24 @@ export default function FundingHistory() {
         return (
           <div className="card" style={{ padding: '12px 14px', marginBottom: 12 }}>
             <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 8 }}>
-              <Tip width={250} text="A snapshot of every coin's current funding regime: crowded-short setups (squeeze candidates), crowded-long setups (dump risk), and coins whose funding rate is extreme enough to arbitrage.">Regime Overview</Tip>
+              <Tip width={250} text={t('FUNDING_REGIME_OVERVIEW_TIP')}>{t('FUNDING_REGIME_OVERVIEW_LABEL')}</Tip>
             </div>
 
             {/* Summary chips */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
               <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(248,113,113,0.10)', color: '#f87171', border: '0.5px solid rgba(248,113,113,0.25)', fontWeight: 700 }}>
-                <Tip iconColor="#f87171" text="Coins where longs are overcrowded and overpaying to hold - contrarian read: the crowd is positioned to get flushed, so a short setup on weakness has an edge.">
-                  {shortSignals.length} Contrarian Short{shortSignals.length !== 1 ? 's' : ''}
+                <Tip iconColor="#f87171" text={t('FUNDING_CONTRARIAN_SHORT_TIP')}>
+                  {t('FUNDING_CONTRARIAN_SHORT_COUNT', { count: shortSignals.length, plural: shortSignals.length !== 1 ? 's' : '' })}
                 </Tip>
               </span>
               <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(52,211,153,0.10)', color: '#34d399', border: '0.5px solid rgba(52,211,153,0.25)', fontWeight: 700 }}>
-                <Tip iconColor="#34d399" text="Coins where shorts are overcrowded and overpaying to hold - contrarian read: the crowd is positioned to get squeezed, so a long setup on dips has an edge.">
-                  {longSignals.length} Contrarian Long{longSignals.length !== 1 ? 's' : ''}
+                <Tip iconColor="#34d399" text={t('FUNDING_CONTRARIAN_LONG_TIP')}>
+                  {t('FUNDING_CONTRARIAN_LONG_COUNT', { count: longSignals.length, plural: longSignals.length !== 1 ? 's' : '' })}
                 </Tip>
               </span>
               <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(26,122,255,0.10)', color: '#1a7aff', border: '0.5px solid rgba(26,122,255,0.25)', fontWeight: 700 }}>
-                <Tip iconColor="#1a7aff" text="Funding rate is extreme enough (over ~0.03%/8h) that a delta-neutral trade - long spot, short perp, or vice versa - can collect the funding payment with no directional price risk.">
-                  {arbs.length} Carry Arb
+                <Tip iconColor="#1a7aff" text={t('FUNDING_CARRY_ARB_TIP')}>
+                  {t('FUNDING_CARRY_ARB_COUNT', { count: arbs.length })}
                 </Tip>
               </span>
             </div>
@@ -414,22 +438,22 @@ export default function FundingHistory() {
                     {frFmt(fr)}
                   </span>
                   <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 8, background: sig.bg, color: sig.color, border: `0.5px solid ${withAlpha(sig.color, '33')}`, fontWeight: 600, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
-                    {sig.crowd}
+                    {t(sig.crowdKey)}
                   </span>
                   <span style={{ flex: 1 }} />
                   {contraShort && (
                     <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 3, background: 'rgba(248,113,113,0.12)', color: '#f87171', fontWeight: 700, flexShrink: 0 }}>
-                      Short
+                      {t('FUNDING_BADGE_SHORT_LABEL')}
                     </span>
                   )}
                   {contraLong && (
                     <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 3, background: 'rgba(52,211,153,0.12)', color: '#34d399', fontWeight: 700, flexShrink: 0 }}>
-                      Long
+                      {t('FUNDING_BADGE_LONG_LABEL')}
                     </span>
                   )}
                   {carryArb && (
                     <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 3, background: 'rgba(26,122,255,0.10)', color: '#1a7aff', fontWeight: 600, flexShrink: 0 }}>
-                      Arb
+                      {t('FUNDING_BADGE_ARB_LABEL')}
                     </span>
                   )}
                 </div>
@@ -438,7 +462,7 @@ export default function FundingHistory() {
 
             {arbs.length > 0 && (
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 8, paddingTop: 6, borderTop: '0.5px solid var(--bdr)' }}>
-                Carry Arb: annualized rate exceeds ~40% (|FR| greater than 0.03%/8h) - long spot + short perp captures the premium delta-neutral.
+                {t('FUNDING_CARRY_ARB_FOOTNOTE')}
               </div>
             )}
           </div>
@@ -453,16 +477,16 @@ export default function FundingHistory() {
             className={`frh-range-btn${rangeKey === r.key ? ' on' : ''}`}
             onClick={() => setRangeKey(r.key)}
           >
-            {r.label}
+            {t(RANGE_LABEL_KEYS[r.key])}
           </button>
         ))}
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 4, alignSelf: 'center', opacity: 0.6 }}>
-          - avg column · sparklines · chart
+          {t('FUNDING_RANGE_ROW_HINT')}
         </span>
       </div>
 
       {/* Loading state */}
-      {loading && <LoadingState message="Fetching funding history…" />}
+      {loading && <LoadingState message={t('FUNDING_LOADING_MESSAGE')} />}
 
       {!loading && (() => {
         let longCnt = 0, shortCnt = 0, neutralCnt = 0;
@@ -478,17 +502,17 @@ export default function FundingHistory() {
 
           {/* Market lean summary */}
           <div className="frh-summary-bar">
-            <span className="frh-summary-heading">Market lean</span>
+            <span className="frh-summary-heading">{t('FUNDING_MARKET_LEAN_HEADING')}</span>
             <span className="frh-summary-item" style={{ color: '#f87171' }}>
-              <span className="frh-summary-count">{longCnt}</span> Long-heavy
+              <span className="frh-summary-count">{longCnt}</span> {t('FUNDING_LONG_HEAVY_LABEL')}
             </span>
             <span className="frh-summary-sep">·</span>
             <span className="frh-summary-item" style={{ color: '#34d399' }}>
-              <span className="frh-summary-count">{shortCnt}</span> Short-heavy
+              <span className="frh-summary-count">{shortCnt}</span> {t('FUNDING_SHORT_HEAVY_LABEL')}
             </span>
             <span className="frh-summary-sep">·</span>
             <span className="frh-summary-item" style={{ color: 'var(--txt3)' }}>
-              <span className="frh-summary-count" style={{ color: 'var(--txt2)' }}>{neutralCnt}</span> Neutral
+              <span className="frh-summary-count" style={{ color: 'var(--txt2)' }}>{neutralCnt}</span> {t('FUNDING_NEUTRAL_LABEL')}
             </span>
           </div>
 
@@ -505,13 +529,13 @@ export default function FundingHistory() {
                 </svg>
                 <input
                   type="text"
-                  placeholder="Search coins…"
+                  placeholder={t('FUNDING_SEARCH_PLACEHOLDER')}
                   value={frSearch}
                   onChange={e => setFrSearch(e.target.value)}
                   style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', padding: '8px 0', fontSize: 'var(--fs-caption)', color: 'var(--txt)' }}
                 />
                 {frSearch && (
-                  <button onClick={() => setFrSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: '0.8125rem', lineHeight: 1 }} aria-label="Clear search">×</button>
+                  <button onClick={() => setFrSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--txt3)', fontSize: '0.8125rem', lineHeight: 1 }} aria-label={t('FUNDING_CLEAR_SEARCH_ARIA')}>×</button>
                 )}
               </div>
               {/* Scrollable table */}
@@ -519,11 +543,11 @@ export default function FundingHistory() {
                 <table className="frh-table">
                   <thead>
                     <tr>
-                      <th>Coin</th>
-                      <th>Current</th>
-                      <th>Avg {rangeKey}</th>
-                      <th>Signal</th>
-                      <th className="frh-spark-th">Last {rangeKey}</th>
+                      <th>{t('FUNDING_TABLE_COIN_COL')}</th>
+                      <th>{t('FUNDING_TABLE_CURRENT_COL')}</th>
+                      <th>{t('FUNDING_TABLE_AVG_COL', { range: t(RANGE_LABEL_KEYS[rangeKey]) })}</th>
+                      <th>{t('FUNDING_TABLE_SIGNAL_COL')}</th>
+                      <th className="frh-spark-th">{t('FUNDING_TABLE_LAST_COL', { range: t(RANGE_LABEL_KEYS[rangeKey]) })}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -555,8 +579,8 @@ export default function FundingHistory() {
                                   const sig = frSignal(current);
                                   return (
                                     <span className="frh-sig-chip" style={{ borderColor: withAlpha(sig.color, '44'), background: sig.bg }}>
-                                      <span className="frh-sig-crowd" style={{ color: sig.color }}>{sig.crowd}</span>
-                                      <span className="frh-sig-hint">→ {sig.hint}</span>
+                                      <span className="frh-sig-crowd" style={{ color: sig.color }}>{t(sig.crowdKey)}</span>
+                                      <span className="frh-sig-hint">→ {t(sig.hintKey)}</span>
                                     </span>
                                   );
                                 })()
@@ -569,7 +593,7 @@ export default function FundingHistory() {
                                   style={{ display: 'block', width: '100%', height: '36px' }}
                                   ref={el => { sparkRefs.current[id] = el ?? undefined; }}
                                 />
-                              : <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>No perp</span>
+                              : <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('FUNDING_NO_PERP_LABEL')}</span>
                             }
                           </td>
                         </tr>
@@ -586,19 +610,19 @@ export default function FundingHistory() {
                 <div className="frh-chart-header">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--accent)', fontFamily: "'JetBrains Mono', monospace" }}>{COIN_LABELS[selected]}</span>
-                    <span style={{ color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>· {rangeKey.toUpperCase()} CHART</span>
+                    <span style={{ color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>· {rangeKey.toUpperCase()} {t('FUNDING_CHART_SUFFIX')}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     {currentCoin?.fundingRate != null && (
                       <span className="frh-current-badge" style={{ color: frColor(currentCoin.fundingRate) }}>
-                        {frFmt(currentCoin.fundingRate)} now
+                        {frFmt(currentCoin.fundingRate)} {t('FUNDING_NOW_SUFFIX')}
                       </span>
                     )}
                     {(() => {
                       const s = getStats(selected);
                       return s?.extremes ? (
                         <span style={{ fontSize: 'var(--fs-caption)', color: '#fbbf24', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          <Warn size={12} /> {s.extremes} extreme{s.extremes > 1 ? 's' : ''}
+                          <Warn size={12} /> {t('FUNDING_EXTREME_COUNT', { count: s.extremes, plural: s.extremes > 1 ? 's' : '' })}
                         </span>
                       ) : null;
                     })()}
@@ -612,10 +636,10 @@ export default function FundingHistory() {
                     <div className="frh-signal" style={{ background: sig.bg, borderColor: withAlpha(sig.color, '55') }}>
                       <div style={{ flex: 1 }}>
                         <div className="frh-signal-top">
-                          <span className="frh-signal-label" style={{ color: sig.color }}>{sig.label}</span>
-                          <span className="frh-signal-action" style={{ color: sig.color }}>→ {sig.action}</span>
+                          <span className="frh-signal-label" style={{ color: sig.color }}>{t(sig.labelKey)}</span>
+                          <span className="frh-signal-action" style={{ color: sig.color }}>→ {t(sig.actionKey)}</span>
                         </div>
-                        <div className="frh-signal-desc">{sig.desc}</div>
+                        <div className="frh-signal-desc">{t(sig.descKey)}</div>
                       </div>
                     </div>
                   );
@@ -624,12 +648,12 @@ export default function FundingHistory() {
                 {(history[selected] ?? []).length >= 2
                   ? <canvas ref={fullChartRef} style={{ display: 'block', width: '100%', height: '190px' }} />
                   : <div style={{ height: 190, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--txt3)', fontSize: 'var(--fs-caption)' }}>
-                      No perp data for {COIN_LABELS[selected]}
+                      {t('FUNDING_NO_PERP_DATA', { coin: COIN_LABELS[selected] })}
                     </div>
                 }
                 <div className="frh-legend">
-                  <span style={{ color: '#f87171' }}>● Positive FR</span> = longs paying shorts → bearish pressure, expect dump &nbsp;·&nbsp;
-                  <span style={{ color: '#34d399' }}>● Negative FR</span> = shorts paying longs → bullish pressure, expect squeeze
+                  <span style={{ color: '#f87171' }}>{t('FUNDING_LEGEND_POSITIVE_LABEL')}</span> = {t('FUNDING_LEGEND_POSITIVE_DESC')} &nbsp;·&nbsp;
+                  <span style={{ color: '#34d399' }}>{t('FUNDING_LEGEND_NEGATIVE_LABEL')}</span> = {t('FUNDING_LEGEND_NEGATIVE_DESC')}
                 </div>
               </div>
             </div>

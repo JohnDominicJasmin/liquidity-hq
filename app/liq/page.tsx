@@ -7,6 +7,8 @@ import GexTable from '@/components/GexTable';
 import { Warn } from '@/components/icons';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 
 /* ─── All leverage tiers - every real level Binance/Bybit offers ──────────── */
@@ -53,12 +55,12 @@ const RANGE_TO_BYBIT_PERIOD: Record<TimeRange, string> = {
   '1w':  '1d',
 };
 
-const RANGES: { key: TimeRange; label: string; maxDist: number; hint: string }[] = [
-  { key: '12h', label: '12h',    maxDist: 0.05,  hint: 'Short-term moves · showing clusters within ±5% of current price' },
-  { key: '24h', label: '24h',    maxDist: 0.10,  hint: 'Day trade range · showing clusters within ±10% of current price' },
-  { key: '48h', label: '48h',    maxDist: 0.13,  hint: '2-day swing range · showing clusters within ±13% of current price' },
-  { key: '3d',  label: '3 days', maxDist: 0.25,  hint: 'Multi-day swing range · showing clusters within ±25% of current price' },
-  { key: '1w',  label: '1 week', maxDist: 0.50,  hint: 'Full week range · showing all clusters within ±50% of current price' },
+const RANGES: { key: TimeRange; labelKey: LabelKey; maxDist: number; hintKey: LabelKey }[] = [
+  { key: '12h', labelKey: 'LIQ_RANGE_LABEL_12H', maxDist: 0.05,  hintKey: 'LIQ_RANGE_HINT_12H' },
+  { key: '24h', labelKey: 'LIQ_RANGE_LABEL_24H', maxDist: 0.10,  hintKey: 'LIQ_RANGE_HINT_24H' },
+  { key: '48h', labelKey: 'LIQ_RANGE_LABEL_48H', maxDist: 0.13,  hintKey: 'LIQ_RANGE_HINT_48H' },
+  { key: '3d',  labelKey: 'LIQ_RANGE_LABEL_3D',  maxDist: 0.25,  hintKey: 'LIQ_RANGE_HINT_3D' },
+  { key: '1w',  labelKey: 'LIQ_RANGE_LABEL_1W',  maxDist: 0.50,  hintKey: 'LIQ_RANGE_HINT_1W' },
 ];
 
 /* ─── Estimated band types ─────────────────────────────────────────────────── */
@@ -146,6 +148,7 @@ function BandRow({ b }: { b: Band }) {
 
 /* ─── Real cluster card ─────────────────────────────────────────────────────── */
 function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentPrice: number }) {
+  const { t } = useLabels();
   if (clusters.length === 0) {
     return (
       <div style={{
@@ -158,7 +161,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
           background: '#fbbf24', boxShadow: '0 0 6px #fbbf2466',
         }} />
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-          Real cluster data building from live Binance + Bybit feeds - takes a few minutes on first load.
+          {t('LIQ_CLUSTERS_BUILDING')}
         </span>
       </div>
     );
@@ -189,16 +192,16 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
             background: '#34d399', boxShadow: '0 0 6px #34d39966',
           }} />
           <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)' }}>
-            Real Liquidation Clusters
+            {t('LIQ_CLUSTERS_TITLE')}
           </span>
           <span style={{
             fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.06em',
             padding: '2px 7px', borderRadius: 10,
             background: 'rgba(52,211,153,0.12)', color: '#34d399',
             border: '0.5px solid rgba(52,211,153,0.25)',
-          }}>LIVE DATA</span>
+          }}>{t('LIQ_CLUSTERS_LIVE_BADGE')}</span>
         </div>
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>24h window · Binance + Bybit</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_CLUSTERS_WINDOW_LABEL')}</span>
       </div>
 
       {/* Column headers */}
@@ -207,7 +210,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
         padding: '6px 14px 4px',
         gap: 8,
       }}>
-        {[['Price', 'left'], ['Volume (longs red · shorts green)', 'left'], ['Total', 'right'], ['', 'right']].map(([h, a]) => (
+        {[[t('LIQ_CLUSTERS_COL_PRICE'), 'left'], [t('LIQ_CLUSTERS_COL_VOLUME'), 'left'], [t('LIQ_CLUSTERS_COL_TOTAL'), 'right'], ['', 'right']].map(([h, a]) => (
           <span key={h} style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.06em', textTransform: 'uppercase', textAlign: a as 'left' | 'right' }}>{h}</span>
         ))}
       </div>
@@ -232,7 +235,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
                   {c.label}
                 </div>
                 <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-                  {fmtP(distUsd)} {isAbove ? '↑ above' : '↓ below'}
+                  {fmtP(distUsd)} {isAbove ? t('LIQ_CLUSTERS_ABOVE') : t('LIQ_CLUSTERS_BELOW')}
                 </div>
               </div>
               {/* Stacked bars */}
@@ -244,7 +247,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
                 {fmtUsd(c.total)}
               </div>
               <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: domCol, textAlign: 'right' }}>
-                {c.longUsd > c.shortUsd ? 'L' : 'S'}
+                {c.longUsd > c.shortUsd ? t('LIQ_CLUSTERS_DOM_LONG') : t('LIQ_CLUSTERS_DOM_SHORT')}
               </div>
             </div>
           );
@@ -252,7 +255,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
       </div>
 
       <div style={{ padding: '6px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)', fontSize: 'var(--fs-caption)', color: '#444' }}>
-        Red bars = long liquidations at that price · Green bars = short liquidations · L/S = dominant side
+        {t('LIQ_CLUSTERS_FOOTER_LEGEND')}
       </div>
     </div>
   );
@@ -260,6 +263,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
 
 /* ─── Page ─────────────────────────────────────────────────────────────────── */
 export default function LiqPage() {
+  const { t } = useLabels();
   const { store }  = useMarket();
   const [coin, setCoin]   = useState<CoinId>('btc');
   const [range, setRange] = useState<TimeRange>('24h');
@@ -334,10 +338,10 @@ export default function LiqPage() {
   /* Bias */
   const bias = bands
     ? bands.totalLongM > bands.totalShortM * 1.15
-      ? { txt: 'Long-heavy', sub: 'More trapped longs below - larger traders may push price down to trigger them', col: '#f87171' }
+      ? { txt: t('LIQ_BIAS_LONG_HEAVY'), sub: t('LIQ_BIAS_LONG_HEAVY_SUB'), col: '#f87171' }
       : bands.totalShortM > bands.totalLongM * 1.15
-      ? { txt: 'Short-heavy', sub: 'More trapped shorts above - larger traders may push price up to trigger them', col: '#34d399' }
-      : { txt: 'Balanced', sub: 'Roughly equal liquidation pressure on both sides - no strong directional lean', col: '#606060' }
+      ? { txt: t('LIQ_BIAS_SHORT_HEAVY'), sub: t('LIQ_BIAS_SHORT_HEAVY_SUB'), col: '#34d399' }
+      : { txt: t('LIQ_BIAS_BALANCED'), sub: t('LIQ_BIAS_BALANCED_SUB'), col: '#606060' }
     : null;
 
   return (
@@ -345,10 +349,10 @@ export default function LiqPage() {
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>
-          Liquidation Map
+          {t('LIQ_TITLE')}
         </h1>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-          Estimated liquidation zones · nearest dense cluster = price magnet
+          {t('LIQ_SUBTITLE')}
         </div>
       </div>
 
@@ -386,7 +390,7 @@ export default function LiqPage() {
           }}>▼</span>
         </div>
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-          {COINS.length} coins
+          {t('LIQ_COIN_COUNT', { count: COINS.length })}
         </span>
       </div>
 
@@ -394,12 +398,12 @@ export default function LiqPage() {
       <div className="liq-range-row">
         {RANGES.map(r => (
           <button key={r.key} className={`liq-range-btn${range === r.key ? ' on' : ''}`} onClick={() => setRange(r.key)}>
-            {r.label}
+            {t(r.labelKey)}
           </button>
         ))}
       </div>
       <div className="liq-range-hint">
-        {rangeConf.hint}
+        {t(rangeConf.hintKey)}
         {cd?.price && (
           <span style={{ color: '#555', marginLeft: 8 }}>
             · {fmtP(cd.price * (1 - rangeConf.maxDist))} – {fmtP(cd.price * (1 + rangeConf.maxDist))}
@@ -409,13 +413,13 @@ export default function LiqPage() {
 
       {!cd?.price && (
         <div className="card" style={{ textAlign: 'center', padding: '2rem' }} role="status" aria-live="polite">
-          <span className="sr-only">Loading {coin.toUpperCase()}…</span>
+          <span className="sr-only">{t('LIQ_LOADING_SR', { coin: coin.toUpperCase() })}</span>
           <SkeletonBar width={140} height={14} radius={4} style={{ margin: '0 auto' }} />
         </div>
       )}
       {cd?.price && !cd?.oi && (
         <div className="card" style={{ textAlign: 'center', color: '#444', padding: '2rem' }}>
-          No open interest data for {coin.toUpperCase()}
+          {t('LIQ_NO_OI_DATA', { coin: coin.toUpperCase() })}
         </div>
       )}
 
@@ -437,20 +441,20 @@ export default function LiqPage() {
           <div className="liq-stats-row">
             {/* Long side - both exchanges */}
             <div className="liq-stat-item">
-              <div className="liq-stat-label">Long accounts</div>
+              <div className="liq-stat-label">{t('LIQ_STAT_LONG_ACCOUNTS')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 2 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>
                     {((bybitPos?.longRatio ?? cd.longRatio ?? 0.5) * 100).toFixed(0)}%
                   </span>
-                  <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Bybit · {bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h'}</span>
+                  <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BYBIT_PERIOD', { period: bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h' })}</span>
                 </div>
                 {(retailPos?.longRatio ?? cd.bnLongRatio) != null && (
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                     <span style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'rgba(248,113,113,0.65)', fontVariantNumeric: 'tabular-nums' }}>
                       {((retailPos?.longRatio ?? cd.bnLongRatio!) * 100).toFixed(0)}%
                     </span>
-                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Binance · {retailPos ? RANGE_TO_PERIOD[range] : '5m'}</span>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BINANCE_PERIOD', { period: retailPos ? RANGE_TO_PERIOD[range] : '5m' })}</span>
                   </div>
                 )}
               </div>
@@ -460,28 +464,28 @@ export default function LiqPage() {
 
             {/* Open Interest - center */}
             <div className="liq-stat-item" style={{ textAlign: 'center' }}>
-              <div className="liq-stat-label" style={{ textAlign: 'center' }}>Open Interest</div>
+              <div className="liq-stat-label" style={{ textAlign: 'center' }}>{t('LIQ_STAT_OPEN_INTEREST')}</div>
               <div className="liq-stat-val" style={{ color: 'var(--accent)', textAlign: 'center' }}>
                 {fmtM(cd.oi / 1e6)}
               </div>
-              <div className="liq-stat-sub" style={{ textAlign: 'center' }}>{bands.tierCount}/17 zones in window</div>
+              <div className="liq-stat-sub" style={{ textAlign: 'center' }}>{t('LIQ_STAT_ZONES_IN_WINDOW', { count: bands.tierCount })}</div>
             </div>
 
             <div className="liq-stat-sep" />
 
             {/* Short side - both exchanges */}
             <div className="liq-stat-item" style={{ textAlign: 'right' }}>
-              <div className="liq-stat-label">Short accounts</div>
+              <div className="liq-stat-label">{t('LIQ_STAT_SHORT_ACCOUNTS')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', marginTop: 2 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                  <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Bybit · {bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h'}</span>
+                  <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BYBIT_PERIOD', { period: bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h' })}</span>
                   <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>
                     {((bybitPos?.shortRatio ?? cd.shortRatio ?? 0.5) * 100).toFixed(0)}%
                   </span>
                 </div>
                 {(retailPos?.shortRatio ?? cd.bnShortRatio) != null && (
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Binance · {retailPos ? RANGE_TO_PERIOD[range] : '5m'}</span>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BINANCE_PERIOD', { period: retailPos ? RANGE_TO_PERIOD[range] : '5m' })}</span>
                     <span style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'rgba(52,211,153,0.65)', fontVariantNumeric: 'tabular-nums' }}>
                       {((retailPos?.shortRatio ?? cd.bnShortRatio!) * 100).toFixed(0)}%
                     </span>
@@ -495,25 +499,25 @@ export default function LiqPage() {
           {cd.liqDelta != null && cd.liqLongUsd != null && cd.liqShortUsd != null ? (() => {
             const netCol = cd.liqDelta! > 0 ? '#f87171' : cd.liqDelta! < 0 ? '#34d399' : 'var(--txt3)';
             const netTxt = cd.liqDelta! > 0
-              ? 'Net longs liquidated'
+              ? t('LIQ_DELTA_NET_LONGS')
               : cd.liqDelta! < 0
-              ? 'Net shorts liquidated'
-              : 'Balanced';
+              ? t('LIQ_DELTA_NET_SHORTS')
+              : t('LIQ_DELTA_BALANCED');
             return (
               <div className="liq-bias-card" style={{ borderColor: withAlpha(netCol, '33'), marginTop: 10 }}>
                 <span className="liq-bias-badge" style={{ color: netCol, background: withAlpha(netCol, '16') }}>
                   {cd.liqDelta! >= 0 ? '+' : '−'}{fmtM(Math.abs(cd.liqDelta!) / 1e6)}
                 </span>
                 <span className="liq-bias-sub">
-                  {netTxt} in the last 15m - Longs {fmtM(cd.liqLongUsd / 1e6)} · Shorts {fmtM(cd.liqShortUsd / 1e6)}
+                  {t('LIQ_DELTA_SUMMARY', { netText: netTxt, longUsd: fmtM(cd.liqLongUsd / 1e6), shortUsd: fmtM(cd.liqShortUsd / 1e6) })}
                 </span>
               </div>
             );
           })() : (
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '4px 2px 0' }}>
               {LIQ_DELTA_COINS.includes(coin)
-                ? 'Warming up - waiting for enough liquidation volume in the last 15m.'
-                : `Liquidation delta unavailable for ${coin.toUpperCase()} - tracked for ${LIQ_DELTA_COINS.map(c => c.toUpperCase()).join(', ')} only.`}
+                ? t('LIQ_DELTA_WARMING_UP')
+                : t('LIQ_DELTA_UNAVAILABLE', { coin: coin.toUpperCase(), coins: LIQ_DELTA_COINS.map(c => c.toUpperCase()).join(', ') })}
             </div>
           )}
 
@@ -545,7 +549,7 @@ export default function LiqPage() {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                     <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)' }}>
-                      Whale Positioning
+                      {t('LIQ_WHALE_TITLE')}
                     </span>
                     <span style={{
                       fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.06em',
@@ -554,11 +558,11 @@ export default function LiqPage() {
                       border: `0.5px solid ${withAlpha(accentW, '30')}`,
                       textTransform: 'uppercase',
                     }}>
-                      {whaleSide === 'long' ? 'Whale Long' : 'Whale Short'}
+                      {whaleSide === 'long' ? t('LIQ_WHALE_BADGE_LONG') : t('LIQ_WHALE_BADGE_SHORT')}
                     </span>
                   </div>
                   <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
-                    Binance top traders · position-weighted · {whalePos != null ? RANGE_TO_PERIOD[range] : '5m'}
+                    {t('LIQ_WHALE_SOURCE_LABEL', { period: whalePos != null ? RANGE_TO_PERIOD[range] : '5m' })}
                   </span>
                 </div>
 
@@ -573,10 +577,10 @@ export default function LiqPage() {
                       <span style={{ fontSize: '1.125rem', fontWeight: 800, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>
                         {(whaleLong * 100).toFixed(0)}%
                       </span>
-                      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 5 }}>whale long</span>
+                      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 5 }}>{t('LIQ_WHALE_LONG_SUFFIX')}</span>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginRight: 5 }}>whale short</span>
+                      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginRight: 5 }}>{t('LIQ_WHALE_SHORT_SUFFIX')}</span>
                       <span style={{ fontSize: '1.125rem', fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>
                         {(whaleShort * 100).toFixed(0)}%
                       </span>
@@ -597,15 +601,13 @@ export default function LiqPage() {
                     <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.6 }}>
                       {longSqueezeRisk ? (
                         <>
-                          <span style={{ color: '#f59e0b', fontWeight: 700 }}>Long squeeze setup.</span>
-                          {' '}Retail is {(retailLong * 100).toFixed(0)}% long but whales are positioned {(whaleShort * 100).toFixed(0)}% short.
-                          Whales have the money to push price down and force-close retail longs.
+                          <span style={{ color: '#f59e0b', fontWeight: 700 }}>{t('LIQ_WHALE_LONG_SQUEEZE_TITLE')}</span>
+                          {' '}{t('LIQ_WHALE_LONG_SQUEEZE_BODY', { retailPct: (retailLong * 100).toFixed(0), whalePct: (whaleShort * 100).toFixed(0) })}
                         </>
                       ) : (
                         <>
-                          <span style={{ color: '#f59e0b', fontWeight: 700 }}>Short squeeze setup.</span>
-                          {' '}Retail is {((1 - retailLong) * 100).toFixed(0)}% short but whales are positioned {(whaleLong * 100).toFixed(0)}% long.
-                          Whales have the money to push price up and force-close retail shorts.
+                          <span style={{ color: '#f59e0b', fontWeight: 700 }}>{t('LIQ_WHALE_SHORT_SQUEEZE_TITLE')}</span>
+                          {' '}{t('LIQ_WHALE_SHORT_SQUEEZE_BODY', { retailPct: ((1 - retailLong) * 100).toFixed(0), whalePct: (whaleLong * 100).toFixed(0) })}
                         </>
                       )}
                     </div>
@@ -618,16 +620,16 @@ export default function LiqPage() {
           {/* ══ ESTIMATED HEATMAP ══════════════════════════════════ */}
           <div className="liq-card">
             <div className="liq-section-hdr liq-section-hdr-short" role="heading" aria-level={3}>
-              <span>↑ Short squeeze zones</span>
-              <span className="liq-section-sub">price pumps, shorts get force-closed · {rangeConf.label}</span>
+              <span>{t('LIQ_HEATMAP_SHORT_HEADER')}</span>
+              <span className="liq-section-sub">{t('LIQ_HEATMAP_SHORT_SUB', { range: t(rangeConf.labelKey) })}</span>
             </div>
-            <div role="table" aria-label="Short squeeze liquidation zones">
+            <div role="table" aria-label={t('LIQ_HEATMAP_SHORT_ARIA')}>
               <div className="liq-col-hdr" role="row">
-                <span role="columnheader">Price</span>
-                <span role="columnheader">% Away</span>
-                <span role="columnheader"><abbr title="Leverage">Lev.</abbr></span>
-                <span role="columnheader">Relative density (model)</span>
-                <span role="columnheader" style={{ textAlign: 'right' }}>Est. USD</span>
+                <span role="columnheader">{t('LIQ_HEATMAP_COL_PRICE')}</span>
+                <span role="columnheader">{t('LIQ_HEATMAP_COL_PCT_AWAY')}</span>
+                <span role="columnheader"><abbr title={t('LIQ_HEATMAP_COL_LEV_TITLE')}>{t('LIQ_HEATMAP_COL_LEV_ABBR')}</abbr></span>
+                <span role="columnheader">{t('LIQ_HEATMAP_COL_DENSITY')}</span>
+                <span role="columnheader" style={{ textAlign: 'right' }}>{t('LIQ_HEATMAP_COL_EST_USD')}</span>
               </div>
               {bands.shortsDisplay.map((b, i) => <BandRow key={`s${i}`} b={b} />)}
             </div>
@@ -638,38 +640,38 @@ export default function LiqPage() {
               <span className="liq-current-chg" style={{ color: (cd.change ?? 0) >= 0 ? '#34d399' : '#f87171' }}>
                 {(cd.change ?? 0) >= 0 ? '▲' : '▼'}{Math.abs(cd.change ?? 0).toFixed(2)}%
               </span>
-              <span className="liq-current-tag">LIVE</span>
-              <span className="liq-current-oi">{fmtM(cd.oi / 1e6)} Open Interest</span>
+              <span className="liq-current-tag">{t('LIQ_HEATMAP_LIVE_TAG')}</span>
+              <span className="liq-current-oi">{t('LIQ_HEATMAP_OI_LABEL', { amount: fmtM(cd.oi / 1e6) })}</span>
             </div>
 
             <div className="liq-section-hdr liq-section-hdr-long" role="heading" aria-level={3}>
-              <span>↓ Long liquidation zones</span>
-              <span className="liq-section-sub">price drops, longs get force-closed · {rangeConf.label}</span>
+              <span>{t('LIQ_HEATMAP_LONG_HEADER')}</span>
+              <span className="liq-section-sub">{t('LIQ_HEATMAP_LONG_SUB', { range: t(rangeConf.labelKey) })}</span>
             </div>
-            <div role="table" aria-label="Long liquidation zones">
+            <div role="table" aria-label={t('LIQ_HEATMAP_LONG_ARIA')}>
               {bands.longs.map((b, i) => <BandRow key={`l${i}`} b={b} />)}
             </div>
           </div>
 
           {/* Legend */}
           <div className="liq-howto">
-            <div className="liq-howto-title">How to read this</div>
+            <div className="liq-howto-title">{t('LIQ_LEGEND_TITLE')}</div>
             <div className="liq-howto-row">
               <span className="liq-howto-dot" style={{ background: '#34d399' }} />
-              <span><strong style={{ color: '#34d399' }}>Short Squeeze Zones</strong> - price levels above current price where modeled short positions get force-closed. Larger traders push price UP into these to trigger them.</span>
+              <span><strong style={{ color: '#34d399' }}>{t('LIQ_LEGEND_SHORT_BOLD')}</strong> - {t('LIQ_LEGEND_SHORT_TEXT')}</span>
             </div>
             <div className="liq-howto-row">
               <span className="liq-howto-dot" style={{ background: '#f87171' }} />
-              <span><strong style={{ color: '#f87171' }}>Long Liquidation Zones</strong> - price levels below current price where modeled long positions get force-closed. Larger traders dump price DOWN into these.</span>
+              <span><strong style={{ color: '#f87171' }}>{t('LIQ_LEGEND_LONG_BOLD')}</strong> - {t('LIQ_LEGEND_LONG_TEXT')}</span>
             </div>
             <div className="liq-howto-row">
               <span style={{ flexShrink: 0 }}>◆</span>
-              <span><strong>Magnet</strong> - the largest estimated cluster in the selected window. The most likely price target for the next big move.</span>
+              <span><strong>{t('LIQ_LEGEND_MAGNET_BOLD')}</strong> - {t('LIQ_LEGEND_MAGNET_TEXT')}</span>
             </div>
           </div>
 
           <div className="liq-disclaimer">
-            Model only - price levels are mathematically correct (1/leverage), bar widths and USD amounts show relative density across tiers modeled from open interest.
+            {t('LIQ_DISCLAIMER')}
           </div>
         </>
       )}
