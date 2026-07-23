@@ -23,4 +23,5 @@ export const T = {
   admin_users:         `${p}admin_users`,
   app_config:          `${p}app_config`,
   user_status:         `${p}user_status`,
+  labels:              `${p}labels`,
 } as const;
