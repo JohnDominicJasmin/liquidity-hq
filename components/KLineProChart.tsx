@@ -219,14 +219,34 @@ const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d'];
 
 let emaSignalOverlayRegistered = false;
 let srLevelLineRegistered = false;
-let labelBandL: number[] = [];
-let labelBandR: number[] = [];
-let labelBandTs = 0;
-let claimLabelY: (y: number, side: 'left' | 'right') => number = y => y;
 let gexLevelLineRegistered = false;
 let reversalOverlayRegistered = false;
 
 interface SRLevel { price: number; type: 'support' | 'resistance'; touches: number; }
+
+// Deterministic label spacing for S/R / GEX price tags: derived once from the
+// level prices themselves, not from live pixel positions. Pixel y only exists
+// inside createPointFigures, which klinecharts calls on every repaint - every
+// live price tick, crosshair move, or pan - so any "is this close to a
+// sibling label" check done there via shared mutable state could answer
+// differently between repaints, which is what made the labels visibly
+// jitter. Computing it here, once per actual data change, and baking the
+// result into each overlay's own extendData keeps every repaint painting the
+// same offset until the underlying levels actually change.
+function computeLabelOffsets(levels: Array<{ price: number }>): Map<number, number> {
+  const offsets = new Map<number, number>();
+  if (levels.length < 2) return offsets;
+  const sorted = [...levels].sort((a, b) => b.price - a.price);
+  const spread = sorted[0].price - sorted[sorted.length - 1].price;
+  const CLOSE = Math.max(spread * 0.025, 1e-9);
+  let stack = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i - 1].price - sorted[i].price < CLOSE) stack += 1;
+    else stack = 0;
+    offsets.set(sorted[i].price, stack * 13);
+  }
+  return offsets;
+}
 
 function computeSRLevels(
   bars: { high: number; low: number; close: number }[],
@@ -650,24 +670,6 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
       if (!srLevelLineRegistered) {
         srLevelLineRegistered = true;
-        // Nudge S/R and GEX price-tag labels apart when their levels sit close
-        // together (e.g. two resistance lines a few px apart). klinecharts calls
-        // every overlay's createPointFigures synchronously within one draw pass,
-        // so bucketing calls into a tight time window stands in for the "start
-        // of this draw pass" hook the library doesn't expose.
-        claimLabelY = (y: number, side: 'left' | 'right') => {
-          const now = performance.now();
-          if (now - labelBandTs > 32) { labelBandL = []; labelBandR = []; }
-          labelBandTs = now;
-          const band = side === 'left' ? labelBandL : labelBandR;
-          const MIN_GAP = 13;
-          let adjusted = y;
-          for (const claimedY of band) {
-            if (Math.abs(adjusted - claimedY) < MIN_GAP) adjusted = claimedY - MIN_GAP;
-          }
-          band.push(adjusted);
-          return adjusted;
-        };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (kc as any).registerOverlay({
           name: 'srLevelLine',
@@ -677,12 +679,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           needDefaultYAxisFigure: false,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
-            const { srType, price } = overlay.extendData as { srType: 'support' | 'resistance'; price: number };
+            const { srType, price, labelYOffset } = overlay.extendData as { srType: 'support' | 'resistance'; price: number; labelYOffset?: number };
             const y = coordinates[0]?.y;
             if (y == null || !isFinite(y) || y < 0) return [];
             const color = srType === 'resistance' ? '#f87171' : '#34d399';
             const rightX = (bounding?.width ?? 9999);
-            const labelY = claimLabelY(y - 3, 'right');
+            const labelY = y - 3 - (labelYOffset ?? 0);
             return [
               {
                 type: 'line',
@@ -714,13 +716,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           needDefaultYAxisFigure: false,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
-            const { gexType, price } = overlay.extendData as { gexType: 'maxpain' | 'flip'; price: number };
+            const { gexType, price, labelYOffset } = overlay.extendData as { gexType: 'maxpain' | 'flip'; price: number; labelYOffset?: number };
             const y = coordinates[0]?.y;
             if (y == null || !isFinite(y) || y < 0) return [];
             const color = gexType === 'maxpain' ? '#a78bfa' : '#22d3ee';
             const label = gexType === 'maxpain' ? 'MAX PAIN' : 'γ FLIP';
             const rightX = (bounding?.width ?? 9999);
-            const labelY = claimLabelY(y - 3, 'left');
+            const labelY = y - 3 - (labelYOffset ?? 0);
             return [
               {
                 type: 'line',
@@ -1037,12 +1039,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     srOverlayIds.current.forEach(id => chart.removeOverlay({ id }));
     srOverlayIds.current = [];
     if (!showSR || !srLevels.length) return;
+    const labelOffsets = computeLabelOffsets(srLevels);
     for (const level of srLevels) {
       const id = chart.createOverlay({
         name: 'srLevelLine',
         groupId: 'sr_levels',
         lock: true,
-        extendData: { srType: level.type, price: level.price },
+        extendData: { srType: level.type, price: level.price, labelYOffset: labelOffsets.get(level.price) ?? 0 },
         points: [{ value: level.price }],
       } as OverlayCreate);
       if (typeof id === 'string') srOverlayIds.current.push(id);
@@ -1059,12 +1062,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     const lines: Array<{ gexType: 'maxpain' | 'flip'; price: number }> = [];
     if (gexLevels.maxPain != null && isFinite(gexLevels.maxPain)) lines.push({ gexType: 'maxpain', price: gexLevels.maxPain });
     if (gexLevels.flip    != null && isFinite(gexLevels.flip))    lines.push({ gexType: 'flip',    price: gexLevels.flip });
+    const labelOffsets = computeLabelOffsets(lines);
     for (const l of lines) {
       const id = chart.createOverlay({
         name: 'gexLevelLine',
         groupId: 'gex_levels',
         lock: true,
-        extendData: l,
+        extendData: { ...l, labelYOffset: labelOffsets.get(l.price) ?? 0 },
         points: [{ value: l.price }],
       } as OverlayCreate);
       if (typeof id === 'string') gexLevelIds.current.push(id);
