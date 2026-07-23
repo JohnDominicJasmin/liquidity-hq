@@ -248,6 +248,20 @@ function computeLabelOffsets(levels: Array<{ price: number }>): Map<number, numb
   return offsets;
 }
 
+// VOL/RSI sub-pane heights were a fixed 60px/70px regardless of total chart
+// height. Fine at the ~500px mobile default, but the chart is user-resizable
+// up to 1000px (see CHART_H_MIN/CHART_H_MAX below) and the price pane soaked
+// up every extra pixel while these two stayed pinned - on a tall chart they
+// shrank to a barely-readable sliver relative to the candles. Scale them with
+// the container instead, clamped so they don't get silly at either extreme.
+function applyProportionalPaneHeights(chart: KChart, containerHeight: number) {
+  if (!containerHeight) return;
+  const volH = Math.round(Math.min(140, Math.max(30, containerHeight * 0.09)));
+  const rsiH = Math.round(Math.min(170, Math.max(30, containerHeight * 0.11)));
+  chart.setPaneOptions({ id: 'vol_pane', height: volH });
+  chart.setPaneOptions({ id: 'rsi_pane', height: rsiH });
+}
+
 function computeSRLevels(
   bars: { high: number; low: number; close: number }[],
   currentPrice: number,
@@ -545,13 +559,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         { name: 'EMARibbon' },
         { isStack: false, pane: { id: 'candle_pane' } }
       );
-      chart.createIndicator('VOL', { pane: { height: 60, minHeight: 30 } });
+      chart.createIndicator('VOL', { pane: { id: 'vol_pane', height: 90, minHeight: 30 } });
       // RSI-14 (Wilder's smoothing) - matches the period used everywhere else
       // in the app (marketStore rsi14/rsi1h/rsi4h/rsiDaily), instead of the
       // built-in indicator's default 3-line [6,12,24] preset.
       chart.createIndicator(
         { name: 'RSI', calcParams: [14], styles: { lines: [{ color: '#5aa3ff', size: 1.5 }] } },
-        { pane: { height: 70, minHeight: 30 } }
+        { pane: { id: 'rsi_pane', height: 110, minHeight: 30 } }
       );
 
       if (!emaSignalOverlayRegistered) {
@@ -837,13 +851,24 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       setChartSymbolPeriod(chart, coin, tf);
 
       if (!disposed) {
-        setTimeout(() => chartRef.current?.resize(), 100);
+        setTimeout(() => {
+          chartRef.current?.resize();
+          if (chartRef.current && containerRef.current) {
+            applyProportionalPaneHeights(chartRef.current, containerRef.current.getBoundingClientRect().height);
+          }
+        }, 100);
         setChartReady(true);
       }
     })();
 
-    // Resize chart whenever the container changes dimensions (handles mobile viewport changes)
-    const ro = new ResizeObserver(() => { chartRef.current?.resize(); });
+    // Resize chart whenever the container changes dimensions (handles mobile
+    // viewport changes, and the drag-resize handle further down this file) -
+    // also re-applies VOL/RSI pane proportions so they track the new height.
+    const ro = new ResizeObserver(entries => {
+      chartRef.current?.resize();
+      const h = entries[0]?.contentRect?.height;
+      if (chartRef.current && h) applyProportionalPaneHeights(chartRef.current, h);
+    });
     if (containerRef.current) ro.observe(containerRef.current);
 
     return () => {
