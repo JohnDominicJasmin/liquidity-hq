@@ -24,7 +24,10 @@ const sentryHost = (process.env.NEXT_PUBLIC_SENTRY_DSN ?? '').match(/@([^/]+)/)?
 //   font-src also includes fonts.gstatic.com as defensive fallback for any CDN font loads
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us-assets.i.posthog.com`,
+  // https://challenges.cloudflare.com: Cloudflare Turnstile (CAPTCHA on the
+  // magic-link sign-in form, app/login/page.tsx) - loads its widget script
+  // from here and renders inside an iframe from the same origin.
+  `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us-assets.i.posthog.com https://challenges.cloudflare.com`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://fonts.gstatic.com",
@@ -49,8 +52,12 @@ const csp = [
     posthogHost,
     "https://us-assets.i.posthog.com https://us.posthog.com",
     sentryHost ? `https://${sentryHost}` : "",
+    // Cloudflare Turnstile - widget verification calls
+    "https://challenges.cloudflare.com",
   ].filter(Boolean).join(" "),
-  "frame-src 'none'",
+  // Cloudflare Turnstile renders its challenge inside an iframe from this
+  // origin - otherwise identical to 'none' (no other framing allowed).
+  "frame-src https://challenges.cloudflare.com",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

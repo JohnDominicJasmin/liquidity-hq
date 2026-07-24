@@ -1,13 +1,21 @@
 'use client';
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { getSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 import { useAuth } from '@/components/AuthProvider';
 import { friendlyAuthError } from '@/lib/authErrors';
 import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
+
+// Only rendered once NEXT_PUBLIC_TURNSTILE_SITE_KEY is set - until then the
+// magic-link form works exactly as before (no widget, no token required).
+// Site keys are meant to be public (Cloudflare's own docs embed them
+// client-side); the paired Secret key lives only in Supabase's Auth
+// dashboard config and never touches this app.
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
 
 // Only allow same-origin path redirects - anything else ("//evil.com",
 // "https://...") falls back to the dashboard, so ?next= can't be used as an
@@ -28,6 +36,8 @@ function LoginInner() {
   const [emailLoading, setEmailLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError]               = useState('');
+  const [captchaToken, setCaptchaToken] = useState('');
+  const turnstileRef = useRef<TurnstileInstance>(null);
   const { t } = useLabels();
 
   // Already signed in - the login form has nothing to offer, go where the
@@ -60,6 +70,15 @@ function LoginInner() {
   const sendMagicLink = async () => {
     const trimmed = email.trim();
     if (!trimmed) return;
+    // Once a site key is configured, Supabase's server-side CAPTCHA
+    // protection (once you enable it in the dashboard) rejects any
+    // signInWithOtp call with no/invalid captchaToken - block submission
+    // client-side too so the user sees "complete the check" instead of a
+    // raw server error.
+    if (TURNSTILE_SITE_KEY && !captchaToken) {
+      setError(t('LOGIN_ERROR_COMPLETE_VERIFICATION'));
+      return;
+    }
     const sb = getSupabase();
     if (!sb) { setError(t('LOGIN_ERROR_SUPABASE_NOT_CONFIGURED')); return; }
     setEmailLoading(true);
@@ -67,9 +86,16 @@ function LoginInner() {
     track.signIn('magic_link');
     const { error } = await sb.auth.signInWithOtp({
       email: trimmed,
-      options: { emailRedirectTo: callbackUrl() },
+      options: {
+        emailRedirectTo: callbackUrl(),
+        ...(captchaToken ? { captchaToken } : {}),
+      },
     });
     setEmailLoading(false);
+    // Turnstile tokens are single-use - reset regardless of outcome so a
+    // retry (e.g. after a typo) gets a fresh token instead of a stale one.
+    turnstileRef.current?.reset();
+    setCaptchaToken('');
     if (error) setError(friendlyAuthError(error.message));
     else setEmailSent(true);
   };
@@ -137,11 +163,24 @@ function LoginInner() {
               <button
                 className="login-email-btn"
                 onClick={sendMagicLink}
-                disabled={emailLoading || !email.trim()}
+                disabled={emailLoading || !email.trim() || (!!TURNSTILE_SITE_KEY && !captchaToken)}
               >
                 {emailLoading ? <span className="login-spinner" /> : t('LOGIN_SEND_MAGIC_LINK_BUTTON')}
               </button>
             </div>
+
+            {/* CAPTCHA - only rendered once a site key is configured, so the
+                form works unchanged until Turnstile is actually set up. */}
+            {TURNSTILE_SITE_KEY && (
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={TURNSTILE_SITE_KEY}
+                onSuccess={setCaptchaToken}
+                onExpire={() => setCaptchaToken('')}
+                onError={() => setCaptchaToken('')}
+                className="login-turnstile"
+              />
+            )}
 
             {error && <div className="login-error">{error}</div>}
           </>
