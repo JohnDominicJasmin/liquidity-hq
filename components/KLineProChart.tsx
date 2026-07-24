@@ -1037,13 +1037,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
   // ── Reversal warnings - RSI divergence, a leading heads-up distinct from the
   //     ribbon's confirmed buy/sell markers above ─────────────────────────────
-  // OFF by default: these amber RSI-divergence markers fire mid-trend and often
-  // contradict both the ribbon's own Buy/Sell markers and the AI read, making
-  // the chart look like it's shouting several directions at once. The divergence
-  // signal still feeds the Confluence "RSI Divergence Warning" penalty, so the
-  // information isn't lost - it just no longer clutters the chart. Flip to true
-  // to draw them again.
-  const SHOW_REVERSAL_WARNINGS = false;
+  // Re-enabled per user request - these amber RSI-divergence markers can
+  // contradict the ribbon's own Buy/Sell markers and the AI read (mid-trend
+  // exhaustion warning, not a confirmed signal), but the user wants them
+  // visible on the chart again rather than only feeding the Confluence
+  // "RSI Divergence Warning" penalty silently.
+  const SHOW_REVERSAL_WARNINGS = true;
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !chartReady) return;
