@@ -200,8 +200,11 @@ as a historical record of what changed, not a pending-work list:**
   prod-only; dev's webhook is unregistered).
 - `supabase/migrations/20260805g_labels_seed_ema_signal.sql` — 6 new label
   rows (English only, paused-translation convention) + a stale-reference fix
-  to the existing `ALERTS_COIN_SELECTION_DESC` key (English only - it still
-  says "EMA Ribbon Setup" in ko/zh/ar/ru, not fixed, see the file's comment).
+  to the existing `ALERTS_COIN_SELECTION_DESC` key, all 5 done locales
+  (en/ko/zh/ar/ru). Verified live 2026-07-25 via direct query on both prod
+  and dev - none say "EMA Ribbon Setup" anymore. (A prior version of this
+  note wrongly claimed only English was fixed - it wasn't checked against
+  the DB at the time; corrected now.)
 - `supabase/migrations/20260805h_ema_signal_mute_migration.sql` — one-time
   mute-key carryover. **Prod only.** Verified: exactly 2 users affected,
   both got `ema_signal_15m` muted, nothing else.
