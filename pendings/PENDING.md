@@ -5,7 +5,9 @@ API-cost abuse, signup/trial abuse, any exploit that breaches system/keys/logs).
 Full audit deliverable: `pendings/SECURITY_AUDIT.md`. Pricing/costing analysis
 (`pendings/PRICING_ANALYSIS.md`) was unpaused 2026-07-24 — the security list was
 effectively resolved and the one remaining item (`AI_GLOBAL_DAILY_MAX`) was
-itself blocked on this analysis. Now updated with REAL xAI rates.
+itself blocked on this analysis. Now updated with REAL xAI rates. LemonSqueezy
+payment-feature items (deferred, payments not live yet) moved to
+`pendings/LEMONSQUEEZY.md`.
 
 ## ✅ RESOLVED — xAI credit outage (found + fixed 2026-07-24)
 
@@ -87,17 +89,13 @@ Nothing outstanding right now. Everything that was "mine" is either done
 
 ## ❓ OPEN — YOUR action (can't do from code)
 
-- **Set the LemonSqueezy product/variant price to $25** when payment goes
-  live (external, LemonSqueezy's own dashboard — not this repo). See the
-  payment-deferred section below; the app-side price display is already $25.
+Nothing outstanding right now.
 
 ## 🔭 DEFERRED — tied to unfinished payment feature
 
-- LemonSqueezy `custom_data.user_id` unbound from payer (MED) — not
-  exploitable until payments live. Build checklist when resuming: bind user_id
-  to verified LS customer; add webhook idempotency/replay protection.
-- LemonSqueezy variant price needs to be set to **$25** (matches the new
-  displayed price) once checkout is actually configured.
+Moved to `pendings/LEMONSQUEEZY.md` (LemonSqueezy variant price, the
+`custom_data.user_id` binding gap, webhook idempotency) — not urgent, payments
+aren't live yet.
 
 ## ✅ Pricing analysis + repricing — DONE 2026-07-24
 
