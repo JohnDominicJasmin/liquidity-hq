@@ -28,7 +28,17 @@ export function rateLimit(key: string, limit: number, windowMs: number): boolean
 
 export function getClientIp(req: Request): string {
   const h = req.headers;
-  return h.get('x-forwarded-for')?.split(',')[0]?.trim()
-    ?? h.get('x-real-ip')
-    ?? 'unknown';
+  // x-forwarded-for is a comma-separated hop chain: client-claimed,
+  // proxy1, proxy2, ... - anyone can put whatever they want in the LEFTMOST
+  // entries by sending their own x-forwarded-for header directly, so reading
+  // [0] (the old bug here) is trivially spoofable and defeats the per-IP
+  // limits entirely. Render is the only proxy in front of this app (no CDN),
+  // so the RIGHTMOST entry is the one hop we can trust - Render's own edge
+  // appends the real connecting IP there, after any client-supplied prefix.
+  const xff = h.get('x-forwarded-for');
+  if (xff) {
+    const hops = xff.split(',').map(s => s.trim()).filter(Boolean);
+    if (hops.length) return hops[hops.length - 1];
+  }
+  return h.get('x-real-ip') ?? 'unknown';
 }
