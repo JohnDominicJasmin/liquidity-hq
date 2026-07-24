@@ -10,7 +10,11 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     Sentry.init({
       dsn,
-      tracesSampleRate: 0.1,
+      // Performance tracing off - GlitchTip's free-tier event quota (1,000/mo)
+      // was 99% consumed by trace events (2,138 in one month) vs 14 real
+      // error issues, throttling the exact error-alerting apiError() relies
+      // on. Errors matter here, latency traces don't - see lib/apiError.ts.
+      tracesSampleRate: 0,
       environment: process.env.NEXT_PUBLIC_APP_ENV ?? 'production',
     });
   }
@@ -18,7 +22,11 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'edge') {
     Sentry.init({
       dsn,
-      tracesSampleRate: 0.1,
+      // Performance tracing off - GlitchTip's free-tier event quota (1,000/mo)
+      // was 99% consumed by trace events (2,138 in one month) vs 14 real
+      // error issues, throttling the exact error-alerting apiError() relies
+      // on. Errors matter here, latency traces don't - see lib/apiError.ts.
+      tracesSampleRate: 0,
       environment: process.env.NEXT_PUBLIC_APP_ENV ?? 'production',
     });
   }

@@ -5,7 +5,9 @@ import * as Sentry from '@sentry/nextjs';
 // two replay recorders would double the privacy surface, not add value.
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-  tracesSampleRate: 0.1,
+  // Performance tracing off - see instrumentation.ts's comment. Was 99% of
+  // GlitchTip's free-tier event quota, crowding out real error alerting.
+  tracesSampleRate: 0,
   environment: process.env.NEXT_PUBLIC_APP_ENV ?? 'production',
 });
 
