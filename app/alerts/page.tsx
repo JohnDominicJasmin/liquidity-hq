@@ -19,7 +19,7 @@ interface PriceAlert { id: number; coin: string; target_price: number; direction
 const COIN_OPTIONS = COINS;
 const COIN_LABELS: Record<string, string> = Object.fromEntries(COINS.map(c => [c, c.toUpperCase()]));
 
-const ALERT_COIN_CAP = 20; // Alerts is a Pro-only feature - single cap, no free/pro split needed here
+const ALERT_COIN_CAP = 10; // Alerts is a Pro-only feature - single cap, no free/pro split needed here
 
 export default function AlertsPage() {
   const { t } = useLabels();
