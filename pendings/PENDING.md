@@ -2,49 +2,77 @@
 
 Single source of truth. Security audit = user's #1 priority (stop untraceable
 API-cost abuse, signup/trial abuse, any exploit that breaches system/keys/logs).
-Full audit deliverable: `pendings/SECURITY_AUDIT.md`. Other work-tracking docs
-in this folder too (I18N_MIGRATION, OPS_ROADMAP).
+Full audit deliverable: `pendings/SECURITY_AUDIT.md`. Pricing/costing analysis
+is explicitly **paused** until this list is fully resolved — see
+`pendings/PRICING_ANALYSIS.md` (aware of the issue, working it after this).
 
-## ✅ `dev` MERGED TO `main` AND DEPLOYED — prod is now fully protected
+## ✅ ALL CODE WORK DONE — merged to `main`, deployed, smoke-tested
 
-2026-07-24: merged 15 commits `dev`→`main` (2 conflicts in hypotheses routes,
-resolved to dev's version — has the ownership checks + apiError). tsc clean,
-deploy `dep-d9hktcb7uimc73fes8l0` went **live**. Smoke-tested: homepage 200,
-`telegram/bot-info` → `webhook_ok: true`. All fixes below are now live on prod,
-not just `dev`.
+`dev`→`main` merged (15 commits, 2026-07-24), deploy `dep-d9hktcb7uimc73fes8l0`
+live, verified (homepage 200, `webhook_ok: true`). Since then, 3 more commits
+shipped straight to `dev` (global circuit breaker, IP-spoof fix, non-xAI
+logging) — **not yet merged to `main`**, see the one open item below.
 
-## ✅ DONE — verified live on prod (code + DB + infra all in sync now)
-
-- AI cost caps on all 9+2 xAI/Grok routes (thesis-check, strategy-research,
-  shadow-account, behavioral-bias, pine-script, hypotheses/analyze,
-  token-unlock, smc-snapshot, grok, grok-chat, briefing) + TOCTOU race closed
-  (atomic `increment_ai_usage`).
-- token-unlock / smc-snapshot cache-bypass closed (strict input + cap on cache-miss only).
+- AI cost caps on all 9+2 xAI/Grok routes + TOCTOU race closed (atomic `increment_ai_usage`).
+- **Global daily xAI circuit breaker** — one app-wide counter on top of per-user caps; stops a *fleet* of accounts each staying under their own cap. Built, live-tested (capped at limit, rolled back correctly), on both Supabase projects. **OFF until `AI_GLOBAL_DAILY_MAX` is set in Render** (see "your action" below).
+- token-unlock / smc-snapshot cache-bypass closed.
 - macro / telegram detect / bot-info / webhook per-IP rate-limited; telegram/test auth-required.
-- Cron auth fail-closed (`lib/cronAuth.ts`), `CRON_SECRET` set — verified 200 on a live cron run.
-- Telegram webhook: `TELEGRAM_WEBHOOK_SECRET` + `NEXT_PUBLIC_APP_URL` set, webhook re-registered with secret_token — `webhook_ok: true` confirmed post-deploy. `/start` restored.
-- Trial abuse: email dedup (normalized, Gmail dot/+tag folding), revoked stray write grants on subscription tables, FK CASCADE→SET NULL, null-email = no trial.
-- Error-message leakage: ~25 routes now via `lib/apiError.ts` (generic client message, real cause logged server-side).
+- **IP-spoof fix** — `getClientIp` read the client-controllable leftmost `X-Forwarded-For` hop; now reads the rightmost (Render-appended, trusted) hop. Every per-IP limit in the app now actually holds.
+- **Non-xAI traceability** — `cmc` + `news/finnhub` now log IP on every call (structured, greppable) so a quota spike is traceable. Full user-attribution needs a client-side change (see open item below) — these routes are intentionally unauthenticated (public market data/news, called for signed-out visitors too).
+- Cron auth fail-closed, `CRON_SECRET` set, verified 200 on a live cron run.
+- Telegram webhook: secret set + re-registered, `webhook_ok: true` confirmed. `/start` restored.
+- Trial abuse: email dedup, revoked stray write grants, FK CASCADE→SET NULL, null-email = no trial.
+- Error-message leakage: ~25 routes via `lib/apiError.ts`.
 - LemonSqueezy webhook rejects `test_mode` in prod.
-- Secrets/keys/logs audited clean. Admin traceability already exists at `/ops` (per-user usage, ban/unban, grant/revoke Pro).
-- Adversarial re-verification (live prod DB, 3 passes): 5/6 sampled fixes SOUND; the 1 defect found (trial-claims CASCADE) fixed same session.
+- Secrets/keys/logs audited clean. Admin traceability exists at `/ops`.
+- Adversarial re-verification (live prod DB, 3 passes): 5/6 sampled fixes SOUND; 1 defect found + fixed same session.
 
-## ⛔ OPEN — code (mine, not urgent)
+## ⛔ OPEN — code (mine)
 
-- **Global daily circuit breaker for xAI** — per-user caps exist but nothing stops a *fleet* of farmed accounts each staying under their own cap. Recommended in SECURITY_AUDIT.md §3.2: one global counter row + env threshold, alert on trip. Not built yet.
-- Rate-limiter IP-spoof (LOW) — `lib/rateLimit.ts` getClientIp trusts X-Forwarded-For first value; derive from Render's trusted proxy hop instead.
-- Add `TELEGRAM_WEBHOOK_SECRET` + `NEXT_PUBLIC_APP_URL` to the **dev** Render service + `.env.example` docs (dev deploy deferred re: hour cap — not urgent, dev isn't the live webhook target).
-- Attribute non-xAI metered routes (CMC, Finnhub) to a user instead of IP-only (SECURITY_AUDIT.md §3.4).
-- Admin cost view: add $-estimate column + global daily total + spike alert to `/ops` (SECURITY_AUDIT.md §5).
+1. **Merge the 3 newest `dev` commits to `main` + deploy** (circuit breaker,
+   IP-spoof fix, IP logging) — same pattern as the earlier merge. Not done yet;
+   ask before I push, per the established prod-deploy confirmation habit.
+
+Everything else that was "mine" is now either done or explicitly deferred below
+— nothing else is silently outstanding.
+
+## ⏸️ DEFERRED — low priority, explicitly scoped, not blocking anything
+
+- **Full non-xAI user-attribution** (CMC/Finnhub) — needs wiring a bearer token
+  through `MarketProvider`/`NewsProvider` (1000+ line, always-mounted client
+  components, currently have zero auth access wired in). Real regression risk
+  for a LOW-severity, free-API item. IP logging (shipped) covers "traceable
+  after a spike"; this would add "traceable to a specific account." Do later,
+  deliberately, with its own test pass — not urgent.
+- **Dev Render env vars** (`TELEGRAM_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL`) —
+  dev isn't the live webhook target, so this doesn't protect anything real
+  right now. Setting an env var triggers a Render deploy (dev has a 500hr/mo
+  cap) — deferred until there's an actual reason to burn one.
+- **Admin $-cost view** — tied to the paused pricing analysis
+  (`PRICING_ANALYSIS.md` §5E). Will build once pricing/caps are decided, so the
+  cost constants are real rather than placeholders.
 
 ## ❓ OPEN — YOUR action (can't do from code)
 
-- **Enable Supabase Auth CAPTCHA** (Dashboard → Auth → Settings → Bot & Abuse Protection, Turnstile/hCaptcha). The only durable fix for unlimited *distinct real* inbox trial farming.
-- **Disposable-email domain blocklist** (optional, pairs with CAPTCHA) — mailinator-style throwaway domains still get a trial today.
+- **Set `AI_GLOBAL_DAILY_MAX` in Render** (prod, and dev if/when its env vars
+  get set) — this is what actually turns the circuit breaker ON. Pick a number
+  tied to a daily $ budget you're willing to eat (see PRICING_ANALYSIS.md §5A
+  for a worked example).
+- **Enable Supabase Auth CAPTCHA** (Dashboard → Auth → Settings → Bot & Abuse
+  Protection, Turnstile/hCaptcha). Only durable fix for unlimited *distinct
+  real* inbox trial farming.
+- **Disposable-email domain blocklist** (optional, pairs with CAPTCHA).
 
 ## 🔭 DEFERRED — tied to unfinished payment feature
 
-- LemonSqueezy `custom_data.user_id` unbound from payer (MED) — not exploitable until payments live. Build checklist when resuming: bind user_id to verified LS customer; add webhook idempotency/replay protection.
+- LemonSqueezy `custom_data.user_id` unbound from payer (MED) — not
+  exploitable until payments live. Build checklist when resuming: bind user_id
+  to verified LS customer; add webhook idempotency/replay protection.
+
+## Next up (per user, after this list is fully resolved)
+
+- `pendings/PRICING_ANALYSIS.md` — is $15/mo Pro profitable, per-user cost
+  model, recommended reprice + cap resize. Paused, not forgotten.
 
 ## i18n translation — paused (see also pendings/I18N_MIGRATION.md)
 
