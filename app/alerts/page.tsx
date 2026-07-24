@@ -624,13 +624,10 @@ export default function AlertsPage() {
       )}
 
       {/* ── Alert Conditions ─────────────────────────────────────────────── */}
-      {!entitled ? (
-        <LockedFeatureCard
-          title={t('ALERTS_CONDITIONS_LABEL')}
-          description={t('ALERTS_LOCKED_FEATURE_DESC')}
-          onUnlock={() => setUpgradeGate(t('ALERTS_UPGRADE_GATE_FEATURE_LABEL'))}
-        />
-      ) : (
+      {/* Locked state already shown once, above (Telegram card) - repeating
+          the same "Unlock Pro" pitch here read as a hard sell, not a second
+          real gate. Free/signed-out users just don't see this section at all. */}
+      {entitled && (
       <div className="card" style={{ marginBottom: 10 }}>
         <div className="lbl" style={{ marginBottom: 4 }}>{t('ALERTS_CONDITIONS_LABEL')}</div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 10 }}>
