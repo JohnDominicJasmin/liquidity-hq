@@ -173,7 +173,8 @@ DB column, new Settings UI, new cap). **Wrong — didn't check `/alerts` and
 
 ## 7. Implementation closeout (2026-07-25)
 
-**Code (uncommitted as of this writing, on `dev`):**
+**Code — since committed (`bd3d5e6`), merged to `main`, deployed. Kept below
+as a historical record of what changed, not a pending-work list:**
 - `app/api/telegram/alert/route.ts` — `checkEMASetup`/`checkEMACross`/
   `computeEMA`/`emaSideMap`/`calcEMALocal`/`calcSMALocal`/`EMA_SETUP_TF_CONFIG`
   all deleted. New `checkEMASignal` + `fetchRibbonCandles` (Binance-first,
@@ -210,4 +211,5 @@ local dev-server check via real Chrome (signed-in account): new picker
 renders, all 8 timeframe chips present, cap-reached message fires correctly
 on the 4th pick, state persists across reload, old EMA Ribbon
 Setup/200 EMA Cross rows confirmed gone, no console errors.
-**Not done:** no commit, no push, no Render deploy of any kind.
+Since then: committed, pushed, merged to `main`, live on prod - see the
+status line at the top of this doc.
