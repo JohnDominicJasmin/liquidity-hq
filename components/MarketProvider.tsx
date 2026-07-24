@@ -5,6 +5,7 @@ import {
   BINANCE_SYMS, BYBIT_SYMS,
 } from '@/lib/marketStore';
 import { detectPatterns } from '@/lib/patterns';
+import { getAuthToken } from '@/lib/supabase';
 
 const WHALE_USD_THRESHOLD = 500_000; // $500k single trade = whale
 
@@ -936,9 +937,11 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
   /* ── Coinglass: exchange net flow + liquidation levels ── */
   const fetchCoinglassData = useCallback(async () => {
+    const token = await getAuthToken();
+    const authHeaders = token ? { Authorization: `Bearer ${token}` } : undefined;
     /* 1. Exchange net flow */
     try {
-      const res = await fetch('/api/proxy?type=coinglass-flow', { cache: 'no-cache' });
+      const res = await fetch('/api/proxy?type=coinglass-flow', { cache: 'no-cache', headers: authHeaders });
       const data = await res.json();
       const netInflow =
         data?.data?.netInflow ??
@@ -951,7 +954,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
     /* 2. Liquidation levels */
     try {
-      const res = await fetch('/api/proxy?type=coinglass-liq', { cache: 'no-cache' });
+      const res = await fetch('/api/proxy?type=coinglass-liq', { cache: 'no-cache', headers: authHeaders });
       const data = await res.json();
       const arr: Array<{ price: number; amount: number; side: string }> =
         data?.data ?? [];
@@ -972,7 +975,11 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   /* ── Google Trends 'bitcoin' (7-day) ── */
   const fetchGoogleTrends = useCallback(async () => {
     try {
-      const res = await fetch('/api/proxy?type=trends', { cache: 'no-cache' });
+      const token = await getAuthToken();
+      const res = await fetch('/api/proxy?type=trends', {
+        cache: 'no-cache',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       const dataJson = await res.json();
       const timelineData: Array<{ value: number[] }> =
         dataJson?.default?.timelineData ?? [];
@@ -1129,7 +1136,11 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   /* ── BTC + ETH Spot ETF Net Flows (SoSoValue) ── */
   const fetchETF = useCallback(async () => {
     try {
-      const res = await fetch('/api/proxy?type=etf', { cache: 'no-cache' });
+      const token = await getAuthToken();
+      const res = await fetch('/api/proxy?type=etf', {
+        cache: 'no-cache',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       const { btc, eth } = await res.json();
       if (btc) {
         const raw = btc?.data?.list?.[0]?.totalNetInflow
@@ -1151,7 +1162,10 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   /* ── BTC + ETH Dominance via CMC (accurate - excludes stablecoins from total) ── */
   const fetchCMCGlobal = useCallback(async () => {
     try {
-      const res = await fetch('/api/cmc?type=global');
+      const token = await getAuthToken();
+      const res = await fetch('/api/cmc?type=global', {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       const d = await res.json();
       const dom    = d?.data?.btc_dominance   as number | undefined;
       const ethDom = d?.data?.eth_dominance   as number | undefined;
@@ -1176,7 +1190,10 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
   const fetchAltSeason = useCallback(async () => {
     try {
-      const res = await fetch('/api/cmc?type=altseason');
+      const token = await getAuthToken();
+      const res = await fetch('/api/cmc?type=altseason', {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       const d = await res.json();
       const coins = (d?.data ?? []) as Array<{
         symbol: string;

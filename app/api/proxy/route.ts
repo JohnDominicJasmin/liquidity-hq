@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
@@ -17,12 +18,39 @@ import { cached } from '@/lib/apiCache';
 // unofficial endpoint blocks aggressively under repeated hits - cache long.
 const TRENDS_TTL = 60 * 60_000;
 
+function sb(token: string) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${token}` } } }
+  );
+}
+
+// Same shape as /api/cmc and /api/news/finnhub: intentionally unauthenticated
+// (public data, called for signed-out visitors too) - a bearer token is
+// attached when the caller happens to be signed in, so a COINGLASS_API_KEY
+// quota spike (coinglass-flow / coinglass-liq) is attributable to an account,
+// not just an IP.
+async function attributedUser(req: NextRequest): Promise<string> {
+  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  if (!token) return 'anon';
+  try {
+    const { data } = await sb(token).auth.getUser();
+    return data.user?.id ?? 'anon';
+  } catch {
+    return 'anon';
+  }
+}
+
 export async function GET(req: NextRequest) {
-  if (!rateLimit(`proxy:${getClientIp(req)}`, 20, 60_000)) {
+  const ip = getClientIp(req);
+  if (!rateLimit(`proxy:${ip}`, 20, 60_000)) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
 
   const type = req.nextUrl.searchParams.get('type');
+  const user = await attributedUser(req);
+  console.log(`[proxy] ip=${ip} user=${user} type=${type}`);
 
   try {
     /* ── Coinglass: BTC exchange net flow ── */

@@ -10,7 +10,10 @@ is explicitly **paused** until this list is fully resolved — see
 
 Two merges today: 15 commits (homepage 200, `webhook_ok: true`), then 5 more
 (`dep-d9hlm2cm0tmc73b4qum0`, live, re-smoke-tested: homepage 200, webhook
-healthy). **Everything below is live on prod right now**, not just `dev`.
+healthy). **Everything below is live on prod right now**, not just `dev` —
+**except the non-xAI full-attribution item** (now covering `cmc`,
+`news/finnhub`, `econ-calendar`, `proxy`), which is done and locally verified
+but not yet committed (see status note on that bullet).
 
 - **Raw i18n label keys flashing on every full page load** (user-reported via
   screen recording, `/dashboard` + confirmed on `/markets`, `/arena`,
@@ -28,7 +31,7 @@ healthy). **Everything below is live on prod right now**, not just `dev`.
 - token-unlock / smc-snapshot cache-bypass closed.
 - macro / telegram detect / bot-info / webhook per-IP rate-limited; telegram/test auth-required.
 - **IP-spoof fix** — `getClientIp` read the client-controllable leftmost `X-Forwarded-For` hop; now reads the rightmost (Render-appended, trusted) hop. Every per-IP limit in the app now actually holds.
-- **Non-xAI traceability** — `cmc` + `news/finnhub` now log IP on every call (structured, greppable) so a quota spike is traceable. Full user-attribution needs a client-side change (see open item below) — these routes are intentionally unauthenticated (public market data/news, called for signed-out visitors too).
+- **Non-xAI traceability, now full account-level** — *(done, verified locally, not yet committed/deployed)* every unauthenticated route that calls a metered/keyed external API now logs IP **and** user id (or `anon`) on every call: `cmc` (`CMC_API_KEY`), `news/finnhub` (`FINNHUB_KEY`), `econ-calendar` (shares `FINNHUB_KEY`), `proxy` (`COINGLASS_API_KEY` for the coinglass-flow/liq types). Checked every other API route for the same shape first — `macro`, `coinbase-price`, `cycle`, `ath`, `forex/jpy`, `funding`, `news-rss` all call keyless public APIs (Yahoo Finance, Coinbase, Bybit, CoinGecko, open.er-api.com, Binance futures, plain RSS) with no vendor cost/quota to attribute, so they're correctly out of scope. `MarketProvider`/`NewsProvider`/`EconCalendarWidget`/`ConfluenceScore` attach a bearer token when the caller happens to be signed in (`lib/supabase.ts` `getAuthToken()`); each route verifies it server-side (`auth.getUser()`) and logs the real user id, falling back to `anon` — auth stays optional, all four routes are still intentionally unauthenticated (public data for signed-out visitors too). Verified locally: fresh requests on `/markets` log `user=anon` for all four routes for a signed-out session, no regression. `npx tsc --noEmit` clean.
 - Cron auth fail-closed, `CRON_SECRET` set, verified 200 on a live cron run.
 - Telegram webhook: secret set + re-registered, `webhook_ok: true` confirmed. `/start` restored.
 - Trial abuse: email dedup, revoked stray write grants, FK CASCADE→SET NULL, null-email = no trial.
@@ -45,12 +48,6 @@ Nothing outstanding right now. Everything that was "mine" is either done
 
 ## ⏸️ DEFERRED — low priority, explicitly scoped, not blocking anything
 
-- **Full non-xAI user-attribution** (CMC/Finnhub) — needs wiring a bearer token
-  through `MarketProvider`/`NewsProvider` (1000+ line, always-mounted client
-  components, currently have zero auth access wired in). Real regression risk
-  for a LOW-severity, free-API item. IP logging (shipped) covers "traceable
-  after a spike"; this would add "traceable to a specific account." Do later,
-  deliberately, with its own test pass — not urgent.
 - **Dev Render env vars** (`TELEGRAM_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL`) —
   dev isn't the live webhook target, so this doesn't protect anything real
   right now. Setting an env var triggers a Render deploy (dev has a 500hr/mo

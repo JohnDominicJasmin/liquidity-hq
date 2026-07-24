@@ -48,8 +48,8 @@ Also xAI-calling on a schedule (not user-triggered): `app/api/telegram/alert`
 
 | Route | Provider | Paid? | Auth | Protection (dev) |
 |-------|----------|-------|------|------------------|
-| `app/api/cmc/route.ts` | CoinMarketCap pro-api | **PAID** | no | RL 20/min/IP + cache |
-| `app/api/proxy/route.ts` | Coinglass / SoSoValue / Google Trends | mixed | no | RL 20/min/IP + cache |
+| `app/api/cmc/route.ts` | CoinMarketCap pro-api | **PAID** | no | RL 20/min/IP + cache + **user-attributed (new)** |
+| `app/api/proxy/route.ts` | Coinglass (**metered**) / SoSoValue / Google Trends | mixed | no | RL 20/min/IP + cache + **user-attributed (new)** |
 | `app/api/macro/route.ts` | Yahoo Finance | free | no | **RL (new)** + 60s cache |
 | `app/api/forex/jpy/route.ts` | Yahoo Finance | free | no | RL + cache |
 | `app/api/ath/route.ts` | CoinGecko | free | no | RL + cache |
@@ -63,13 +63,14 @@ Also xAI-calling on a schedule (not user-triggered): `app/api/telegram/alert`
 
 | Route | Provider | Paid? | Auth | Protection (dev) |
 |-------|----------|-------|------|------------------|
-| `app/api/news/finnhub/route.ts` | Finnhub | **metered** | no | **RL (new)** |
+| `app/api/news/finnhub/route.ts` | Finnhub | **metered** | no | RL + **user-attributed (new)** |
 | `app/api/news-rss/route.ts` | RSS feeds | free | no | RL + cache |
-| `app/api/econ-calendar/route.ts` | calendar provider | free | no | RL + cache |
+| `app/api/econ-calendar/route.ts` | Finnhub (primary) + ForexFactory/Fed/computed (fallback) | **metered** (shares `FINNHUB_KEY`) | no | RL + **user-attributed (new)** |
 
 **Coverage confirmation:** 14 xAI paths + 10 market-data + 3 news = 27 metered
-paths enumerated. Highest $ risk: xAI routes (#1–11) and CMC/Finnhub (metered
-key quotas). Everything else is a free provider where abuse risks IP-blocking of
+paths enumerated. Highest $ risk: xAI routes (#1–11) and CMC/Finnhub/proxy
+(coinglass)/econ-calendar (all metered key quotas, all now user-attributed —
+see F8). Everything else is a free provider where abuse risks IP-blocking of
 our outbound address rather than a bill.
 
 ---
@@ -142,9 +143,17 @@ no cost/global view.**
   `lhq_admin_audit_log`.
 - Gaps: (a) no estimated **$ cost** column — only raw counts; (b) no **global
   daily total** or spike alert — you'd notice the xAI spike from the bill, not a
-  dashboard; (c) non-xAI metered calls (CMC, Finnhub) are IP-rate-limited but
-  **not attributed to a user** at all (those routes are unauthenticated), so a
-  CMC-quota spike is untraceable. See §5.
+  dashboard. See §5.
+- (c, fixed) non-xAI metered calls (CMC, Finnhub, and — once audited for the
+  same shape — Coinglass via `proxy` and Finnhub-via-`econ-calendar`) were
+  IP-rate-limited but not attributed to a user. Now fixed on all four:
+  `MarketProvider`/`NewsProvider`/`EconCalendarWidget`/`ConfluenceScore` attach
+  a bearer token when the caller is signed in, the routes verify it
+  server-side and log the real user id (falling back to `anon`) alongside IP —
+  auth stays optional, all four routes remain usable signed-out. The other
+  free-provider routes (macro, coinbase-price, cycle, ath, forex/jpy, funding,
+  news-rss) were checked and correctly excluded — no vendor key/quota to
+  attribute.
 
 ### P1 — #4 General exploit surface
 
@@ -195,10 +204,12 @@ service-role server-only, none in git, none logged.
    macro-context, onchain). They're fixed-key so cost is naturally ~1 call/TTL,
    but add a small per-user counter for symmetry + attribution.
 
-4. **Attribute + rate-limit the metered non-xAI routes (CMC, Finnhub) per user,
-   not just per IP.** They're currently unauthenticated + IP-limited only. Either
-   require auth (preferred — they back in-app features) or add a global daily cap
-   like #2. IP limits are spoofable (F-note below).
+4. **(Fixed) Attribute the metered non-xAI routes per user, not just per IP.**
+   Covers all four routes with a real vendor key/quota behind them: CMC,
+   Finnhub (`news/finnhub`), Coinglass (`proxy`), and Finnhub-via-`econ-calendar`.
+   Auth stayed optional (all four remain public/unauthenticated by design) but
+   a signed-in caller's user id is now logged alongside IP, so a quota spike is
+   traceable to an account when the caller was signed in.
 
 5. **Fix `getClientIp` (LOW).** `lib/rateLimit.ts` takes the first
    `X-Forwarded-For` value = client-controlled. On Render, derive the real client
@@ -229,9 +240,11 @@ service-role server-only, none in git, none logged.
   units/$ on `/ops` overview; a cron (already have the cron harness) checks the
   daily total vs a threshold and Telegrams the owner on breach — so a spike is
   caught in minutes, not on the monthly invoice.
-- **Attribute non-xAI metered calls.** Log CMC/Finnhub calls with user id (once
-  those routes require auth) or at least IP + route into a lightweight usage
-  table, so any metered spike is traceable.
+- **(Fixed) Attribute non-xAI metered calls.** CMC, Finnhub (`news/finnhub`),
+  Coinglass (`proxy`), and Finnhub-via-`econ-calendar` now all log user id
+  (or `anon`) alongside IP on every call — no schema change, structured
+  console log only; a usage table would only be worth it once §5's cost view
+  is built.
 - **Per-user drill-down** already exists (`/api/ops/users/[id]`); add the cost
   figure and a sortable "top spenders (24h/7d)" view.
 

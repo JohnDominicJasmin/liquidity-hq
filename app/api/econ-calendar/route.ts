@@ -1,8 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { classifyEcon } from '@/lib/classify';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 const FINNHUB_KEY = process.env.FINNHUB_KEY ?? '';
+
+function sb(token: string) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${token}` } } }
+  );
+}
+
+// Same shape as /api/cmc and /api/news/finnhub: intentionally unauthenticated
+// (public calendar, called for signed-out visitors too) - a bearer token is
+// attached when the caller happens to be signed in, so a FINNHUB_KEY quota
+// spike is attributable to an account, not just an IP.
+async function attributedUser(req: NextRequest): Promise<string> {
+  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  if (!token) return 'anon';
+  try {
+    const { data } = await sb(token).auth.getUser();
+    return data.user?.id ?? 'anon';
+  } catch {
+    return 'anon';
+  }
+}
 
 const DISPLAY_NAMES: Record<string, string> = {
   FOMC:   'FOMC Rate Decision',
@@ -309,9 +333,12 @@ function computeMacroSchedule(now: Date): CalEvent[] {
 }
 
 export async function GET(req: NextRequest) {
-  if (!rateLimit(`econ-calendar:${getClientIp(req)}`, 20, 60_000)) {
+  const ip = getClientIp(req);
+  if (!rateLimit(`econ-calendar:${ip}`, 20, 60_000)) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
+  const user = await attributedUser(req);
+  console.log(`[econ-calendar] ip=${ip} user=${user}`);
   const now  = new Date();
   const from = new Date(+now - 864e5).toISOString().slice(0, 10);
   const to   = new Date(+now + 90 * 864e5).toISOString().slice(0, 10);

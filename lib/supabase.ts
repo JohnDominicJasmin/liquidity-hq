@@ -24,6 +24,16 @@ export function getSupabase(): SupabaseClient | null {
   return _client;
 }
 
+// Current session's access token, if any - for attaching an optional
+// Authorization header to unauthenticated-allowed routes (cmc, news/finnhub)
+// so a signed-in caller is attributable, without requiring auth to use them.
+export async function getAuthToken(): Promise<string | undefined> {
+  const sb = getSupabase();
+  if (!sb) return undefined;
+  const { data } = await sb.auth.getSession();
+  return data.session?.access_token;
+}
+
 export interface Signal {
   id?: number;
   coin: string;

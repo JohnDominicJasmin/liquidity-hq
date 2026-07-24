@@ -13,6 +13,7 @@ import {
 import Tip from './Tip';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { getAuthToken } from '@/lib/supabase';
 
 const VERDICT_CONFIG: Record<string, { labelKey: LabelKey; color: string }> = {
   STRONG_BULL:  { labelKey: 'CONFLUENCE_SCORE_VERDICT_STRONG_BULL',  color: '#34d399' },
@@ -34,7 +35,10 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
     let cancelled = false;
     async function load() {
       try {
-        const r = await fetch('/api/econ-calendar');
+        const token = await getAuthToken();
+        const r = await fetch('/api/econ-calendar', {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
         if (!r.ok) return;
         const j = await r.json() as { events?: CalEvent[] };
         if (!cancelled) setEconEvents(j.events ?? []);
