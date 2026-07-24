@@ -103,11 +103,49 @@ Translating the 2370 seeded `en` rows into each of the other 9 supported locales
 8. Reconcile row counts (`select count(*) from lhq_labels where locale = 'ko'`) against 2370 for both projects before calling it done.
 9. Live spot-check via `claude-in-chrome`: set `localStorage.lhq_lang_v1 = '<locale>'` and reload (no URL param support — it's a `LabelsProvider` localStorage setting, key `lhq_lang_v1`, see `lib/labels.ts`). **Wait ~3s after reload before reading the page** — same async-fetch load race as extraction (process rule 10), confirmed again here: immediately after reload every key showed raw, fully resolved to native-language text on the second read. On `zh`, a 3s (and even a 65s) wait still showed every key raw — turned out the dev server itself was just slow to answer `/api/labels` (still `pending` in `read_network_requests`) because dozens of concurrent seeding subagents were hammering the same local Next.js process; it resolved fine ~8s later with no code or data problem. If a locale check still shows all-raw after the usual short wait, check `read_network_requests` for the labels call's actual status before assuming a real bug — a `pending` request means keep waiting, not investigate.
 
+## Raw-key flash on full page load (fixed 2026-07-24) — regenerating `lib/labelDefaults.en.json`
+
+Distinct from process-rule 10 below (which is about a *testing* artifact after
+`navigate` calls). This was a real, ships-to-every-real-user bug: user-reported
+via screen recording, raw KEY_NAME strings visible for a split second on
+`/dashboard`, `/markets`, `/arena`, `/settings` - confirmed via `curl` that the
+raw keys were literally present in the **server-rendered HTML**, on every full
+page load (typing a URL, refresh - not client-side `Link` navigation, which
+never remounts `LabelsProvider` and was already flash-free). Root cause:
+`LabelsProvider`'s `map` state started as `{}` with no SSR-safe default;
+`localStorage` (needed to know the real locale) isn't available server-side,
+so first paint always rendered with an empty map until the post-mount effect
+resolved.
+
+**Fix:** `lib/labelDefaults.en.json` is a static build-time snapshot of every
+English label (generated via `curl http://localhost:3000/api/labels?locale=en`,
+which already correctly returns the full un-truncated set per the wave-6 fix
+above), imported by `LabelsProvider.tsx` as the initial `map` state instead of
+`{}`. Worst case is now a brief flash of English before the user's real locale
+loads (same tradeoff every i18n framework makes for its default locale) -
+never a raw internal key, and zero flash at all for English users or on repeat
+visits (localStorage cache still applies immediately). Verified: 0 raw-key
+matches server-rendered on all 4 reported routes post-fix, no hydration
+warnings (server and client use the same static import for the initial
+render, so there's no mismatch).
+
+**Regenerate this file whenever label VALUES change** (new keys, edited
+English copy) - it's a snapshot, not read live:
+```
+curl -s "http://localhost:3000/api/labels?locale=en" -o lib/labelDefaults.en.json
+```
+Run against a dev server that has the latest seeded English rows. Staleness is
+low-risk and self-healing: a brand-new key not yet in the snapshot just falls
+back to today's old behavior (raw key on first paint only, until the live
+fetch resolves) for that one key, not a regression across the whole page.
+Regenerate as part of the normal closeout order (rule 3 below) whenever a wave
+adds/edits English label text.
+
 ## Process rules (lessons learned this session — follow these)
 
 1. **Batch size.** Agents reliably hit the output-token cap past 7+ files or a long self-report. Keep delegated batches to 4-5 files with a short report format. For one large file (Dashboard was 555 lines), self-chop into stages — one group of Edit calls per stage — instead of one giant edit.
 2. **Don't trust agent self-reports for the key list.** Even when a report gets cut off, the file edits usually already landed. Pull the real list from `git diff`, not the agent's summary.
-3. **Closeout order, every wave:** append new keys to `lib/labelKeys.ts` (anchor the edit on the literal `] as const;` line — it's unique in the file) → write one new `supabase/migrations/*_labels_seed_*.sql` → seed both `lhq_labels` and `lhq_dev_labels` via Supabase MCP `execute_sql` → `npx tsc --noEmit` must be clean → spot-verify 2-3 pages live → commit → push to `dev` (never `main`).
+3. **Closeout order, every wave:** append new keys to `lib/labelKeys.ts` (anchor the edit on the literal `] as const;` line — it's unique in the file) → write one new `supabase/migrations/*_labels_seed_*.sql` → seed both `lhq_labels` and `lhq_dev_labels` via Supabase MCP `execute_sql` → regenerate `lib/labelDefaults.en.json` (see the raw-key-flash section above) if English values changed → `npx tsc --noEmit` must be clean → spot-verify 2-3 pages live → commit → push to `dev` (never `main`).
 4. **Live verification uses `claude-in-chrome`, not the in-app Browser pane** — the in-app pane is known to wedge here (dead screenshots, stale state).
 5. **Don't migrate computed/data-driven text** — `chartPattern`-derived strings, `classifyFunding()`/`oi1hSignal()` outputs, anything computed in `lib/` and merely rendered here. Only migrate strings literally authored in the component being edited.
 6. **`app/offline/page.tsx` shows as git-modified but it's a CRLF-only diff**, no real content change. Leave it out of commits, don't "fix" it — outside scope.

@@ -6,13 +6,32 @@ Full audit deliverable: `pendings/SECURITY_AUDIT.md`. Pricing/costing analysis
 is explicitly **paused** until this list is fully resolved — see
 `pendings/PRICING_ANALYSIS.md` (aware of the issue, working it after this).
 
+## ✅ FIXED — raw label keys flashing on page navigation (user-reported 2026-07-24 20:17, `dev` only)
+
+User sent a screen recording of `/dashboard` showing raw i18n key names
+(`NAV_DASHBOARD`, `DASH_EDGE_OI_LABEL`, `MARKET_CONDITIONS_WIDGET_TITLE`, etc.)
+for a split second before real text replaced them; confirmed it also happens
+typing `/markets`, `/arena`, `/settings` directly into the URL bar.
+**Root-caused, not guessed:** `curl`ing the SSR HTML directly showed the raw
+keys were literally in the server-rendered payload, on every full page load
+(client-side `Link` nav was already flash-free - a genuinely different code
+path than what was fixed earlier this project). `LabelsProvider` had no
+SSR-safe default (`map` started as `{}`, since `localStorage` isn't reachable
+server-side), so first paint always rendered empty until a post-mount effect
+resolved. Fixed by seeding a static English label snapshot
+(`lib/labelDefaults.en.json`) as the initial state - worst case is now a brief
+English flash before the real locale swaps in, never a raw key. Verified: 0
+raw-key matches server-rendered on all 4 reported routes, no hydration
+warnings. Full writeup + regeneration process in `pendings/I18N_MIGRATION.md`.
+Committed to `dev`, not yet merged to `main`.
+
 ## ✅ ALL CODE WORK DONE — merged to `main`, deployed, smoke-tested
 
 `dev`→`main` merged (15 commits, 2026-07-24), deploy `dep-d9hktcb7uimc73fes8l0`
-live, verified (homepage 200, `webhook_ok: true`). Since then, 4 more commits
+live, verified (homepage 200, `webhook_ok: true`). Since then, 5 more commits
 shipped straight to `dev` (global circuit breaker, IP-spoof fix, non-xAI
-logging, Turnstile CAPTCHA) — **not yet merged to `main`**, see the one open
-item below.
+logging, Turnstile CAPTCHA, raw-label-key SSR fix) — **not yet merged to
+`main`**, see the one open item below.
 
 - AI cost caps on all 9+2 xAI/Grok routes + TOCTOU race closed (atomic `increment_ai_usage`).
 - **Global daily xAI circuit breaker** — one app-wide counter on top of per-user caps; stops a *fleet* of accounts each staying under their own cap. Built, live-tested (capped at limit, rolled back correctly), on both Supabase projects. **OFF until `AI_GLOBAL_DAILY_MAX` is set in Render** (see "your action" below).
@@ -31,10 +50,11 @@ item below.
 
 ## ⛔ OPEN — code (mine)
 
-1. **Merge the 4 newest `dev` commits to `main` + deploy** (circuit breaker,
-   IP-spoof fix, IP logging, Turnstile) — same pattern as the earlier merge.
-   Not done yet; ask before I push, per the established prod-deploy
-   confirmation habit.
+1. **Merge the 5 newest `dev` commits to `main` + deploy** (circuit breaker,
+   IP-spoof fix, IP logging, Turnstile, raw-label-key SSR fix) — same pattern
+   as the earlier merge. Not done yet; ask before I push, per the established
+   prod-deploy confirmation habit. The label-key bug is currently LIVE ON PROD
+   too (this fix is dev-only until merged) — worth prioritizing this merge.
 
 Everything else that was "mine" is now either done or explicitly deferred below
 — nothing else is silently outstanding.

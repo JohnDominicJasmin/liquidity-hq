@@ -2,12 +2,28 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { LabelsContext, Locale, loadLocalLocale, saveLocalLocale, interpolate } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import DEFAULT_EN_LABELS from '@/lib/labelDefaults.en.json';
 
 // Not user-scoped (labels are public content, same for every visitor), so
 // this mounts outside AuthProvider and doesn't wait on auth to hydrate -
 // see components/AppShell.tsx. Mirrors SettingsProvider's localStorage-first
 // pattern: the saved locale applies immediately on mount (no flash back to
 // English on reload), then a fetch keeps the label map in sync with it.
+//
+// DEFAULT_EN_LABELS (a static build-time snapshot of the `en` locale - see
+// "regenerating lib/labelDefaults.en.json" in pendings/I18N_MIGRATION.md for
+// how/when to refresh it) seeds the initial `map` state instead of `{}`. Every
+// full page load / hard navigation (typing a URL, refresh - not just a
+// client-side Link click) server-renders this component from scratch with
+// no access to localStorage, so without a real default the FIRST PAINT -
+// including the server-rendered HTML itself, confirmed via curl - showed
+// raw KEY_NAME strings for every label on the page until the post-mount
+// effect below resolved. Seeding with real English text instead means the
+// worst case is a brief flash of English before the user's real locale
+// swaps in (same as any i18n framework's default-locale fallback), never a
+// raw internal key. Hydration-safe: server and client run this exact same
+// static import for the initial render, so there's no mismatch - the
+// locale/live-data swap only happens in the effect, same as before.
 
 const MAP_CACHE_PREFIX = 'lhq_labels_cache_v1_';
 
@@ -28,7 +44,7 @@ function saveCachedMap(locale: Locale, map: Record<string, string>) {
 
 export default function LabelsProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>('en');
-  const [map, setMap] = useState<Record<string, string>>({});
+  const [map, setMap] = useState<Record<string, string>>(DEFAULT_EN_LABELS);
   const [loading, setLoading] = useState(true);
   const reqId = useRef(0);
 
