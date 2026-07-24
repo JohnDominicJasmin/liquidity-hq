@@ -3823,9 +3823,13 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 [data-theme="light"] .ticker-red    { border-bottom-color: rgba(185,28,28,0.25); }
 [data-theme="light"] .ticker-amber  { border-bottom-color: rgba(180,83,9,0.25); }
 [data-theme="light"] .ticker-purple { border-bottom-color: rgba(0,82,204,0.25); }
-[data-theme="light"] .ticker-red .ticker-badge,
-[data-theme="light"] .ticker-amber .ticker-badge,
-[data-theme="light"] .ticker-purple .ticker-badge { color: #fff; }
+/* Badge text was set to white here while the background stayed the
+   dark-mode 0.14-alpha translucent tint (meant to sit on a near-black page) -
+   on the light ticker's white background that read as barely-visible white-
+   on-pale-pink. Solid backgrounds restore real contrast. */
+[data-theme="light"] .ticker-red    .ticker-badge { background: var(--red);    color: #fff; }
+[data-theme="light"] .ticker-amber  .ticker-badge { background: var(--amber);  color: #fff; }
+[data-theme="light"] .ticker-purple .ticker-badge { background: var(--purple); color: #fff; }
 [data-theme="light"] .ticker-content span               { color: var(--txt2); }
 [data-theme="light"] .ticker-red    .ticker-content span { color: var(--red); }
 [data-theme="light"] .ticker-amber  .ticker-content span { color: var(--amber); }

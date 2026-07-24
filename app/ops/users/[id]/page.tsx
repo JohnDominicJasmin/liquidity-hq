@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useAdminResource, adminFetch, fmtInt, fmtAgo } from '../../_client';
 import { fmtUsd } from '@/lib/aiCost';
-import { Stat, CardShell } from '../../_cards';
+import { Stat, CardShell, CallsByType } from '../../_cards';
 import styles from '../../ops.module.css';
 import { useLabels } from '@/lib/labels';
 
@@ -18,6 +18,7 @@ interface Detail {
   counts: { trades: number; hypotheses: number; priceAlerts: number };
   aiUsage14d: { day: string; total: number }[];
   aiCost14d: { day: string; cost: number }[];
+  callsByType: { type: string; count: number }[];
   cost14dTotal: number;
   revenueMonthly: number;
   margin14d: number;
@@ -111,6 +112,8 @@ export default function UserDetailPage() {
                     title={`${d.day}: ${d.total}`} />
                 ))}
               </div>
+              <p className={styles.cardMeta} style={{ marginTop: 10, marginBottom: 4 }}>{t('OPS_USER_DETAIL_CALLS_BY_TYPE')}</p>
+              <CallsByType items={data.callsByType} />
               <p className={styles.note}>{t('OPS_USER_DETAIL_MARGIN_NOTE')}</p>
             </CardShell>
 

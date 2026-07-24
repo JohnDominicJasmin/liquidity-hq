@@ -185,7 +185,6 @@ function ArenaContent() {
   const [scannerSearch, setScannerSearch] = useState('');
   const scannerSearchRef = useRef<HTMLInputElement>(null);
   const [coinCat, setCoinCat]           = useState<'all' | 'majors' | 'alts' | 'defi' | 'meme'>('all');
-  const [sigDetailsOpen, setSigDetailsOpen] = useState(false);
   const [copiedKey, setCopiedKey]           = useState<string | null>(null);
   const [jpyUsd, setJpyUsd]                 = useState<number | null>(null);
   const scannerRef      = useRef<HTMLDivElement>(null);
@@ -1036,7 +1035,6 @@ function ArenaContent() {
       // Track Quick signals separately so Deep can show an override notice when they disagree
       if (mode === 'quick') setQuickSignals(prev => ({ ...prev, [selectedCoin]: res.signal }));
       setDetailIdx(null);
-      setSigDetailsOpen(false);
       const entryStr = res.entryLow && res.entryHigh
         ? `$${fmtPrice(res.entryLow)} – $${fmtPrice(res.entryHigh)}`
         : '-';
@@ -1900,58 +1898,47 @@ function ArenaContent() {
           </div>
         );
       })()}
-      {/* ── Full breakdown - collapsible. The granular technical cards (multi-
-          timeframe alignment, higher-timeframe context, order-flow / stop zone)
-          and the AI's long-form reasoning live here so the default page stays
-          answer-first. The always-visible Confluence panel in the rail is the
-          at-a-glance summary of these same signals - open this only to drill in. ── */}
-      <div className="av-rail-panel" style={{ marginBottom: 10 }}>
-        <button className="av-rail-collapse" onClick={() => setSigDetailsOpen(v => !v)}>
-          <span>{sigDetailsOpen ? t('ARENA_BREAKDOWN_HIDE') : t('ARENA_BREAKDOWN_SHOW')}</span>
-          <span className="chev">{sigDetailsOpen ? '▴' : '▾'}</span>
-        </button>
-      </div>
-      {sigDetailsOpen && (
+      {/* ── Full breakdown - always visible (was collapsible, user asked for it
+          up front rather than an extra click to drill in). Granular technical
+          cards (multi-timeframe alignment, higher-timeframe context, stop
+          zone) plus the AI's long-form reasoning/patterns. ── */}
+      <MultiTFAlignment coin={selectedCoin} />
+      {/* Informational only (not a filter - see component header for why): flags when
+          the 4h has already moved a lot, so a same-direction lower-TF signal doesn't
+          look more trustworthy than it is. Only shows on 1m/5m/15m/30m. */}
+      <HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />
+      {/* Stop Loss Zone - S/R anchored stop suggestion */}
+      <StopLossZone coin={selectedCoin} grokSignal={result?.signal} />
+      {/* AI long-form reasoning / chart read / patterns - only when a read has run */}
+      {result && (
         <>
-          <MultiTFAlignment coin={selectedCoin} />
-          {/* Informational only (not a filter - see component header for why): flags when
-              the 4h has already moved a lot, so a same-direction lower-TF signal doesn't
-              look more trustworthy than it is. Only shows on 1m/5m/15m/30m. */}
-          <HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />
-          {/* Stop Loss Zone - S/R anchored stop suggestion */}
-          <StopLossZone coin={selectedCoin} grokSignal={result?.signal} />
-          {/* AI long-form reasoning / chart read / patterns - only when a read has run */}
-          {result && (
-            <>
-              {result.chartAnalysis && (
-                <div className="arena-reasoning" style={{ margin: '10px 0' }}>
-                  <div className="arena-reasoning-title">{t('ARENA_REASONING_CHART_TITLE')}</div>
-                  <div className="arena-reasoning-text"><ReasoningText text={result.chartAnalysis} /></div>
-                </div>
-              )}
-              {result.patterns && result.patterns.length > 0 && (
-                <div style={{ margin: '10px 0' }}>
-                  <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>{t('ARENA_REASONING_PATTERNS_TITLE')}</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {result.patterns.map((p, i) => {
-                      const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
-                      const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
-                      const col = isBull ? '#34d399' : isBear ? '#f87171' : '#1a7aff';
-                      const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
-                      const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
-                      return (
-                        <span key={i} style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              <div className="arena-reasoning">
-                <div className="arena-reasoning-title">{t('ARENA_REASONING_TITLE')}</div>
-                <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
-              </div>
-            </>
+          {result.chartAnalysis && (
+            <div className="arena-reasoning" style={{ margin: '10px 0' }}>
+              <div className="arena-reasoning-title">{t('ARENA_REASONING_CHART_TITLE')}</div>
+              <div className="arena-reasoning-text"><ReasoningText text={result.chartAnalysis} /></div>
+            </div>
           )}
+          {result.patterns && result.patterns.length > 0 && (
+            <div style={{ margin: '10px 0' }}>
+              <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>{t('ARENA_REASONING_PATTERNS_TITLE')}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {result.patterns.map((p, i) => {
+                  const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
+                  const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
+                  const col = isBull ? '#34d399' : isBear ? '#f87171' : '#1a7aff';
+                  const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
+                  const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
+                  return (
+                    <span key={i} style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <div className="arena-reasoning">
+            <div className="arena-reasoning-title">{t('ARENA_REASONING_TITLE')}</div>
+            <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
+          </div>
         </>
       )}
       {/* ── SESSION HISTORY ── */}
