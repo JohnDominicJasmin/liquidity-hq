@@ -18,20 +18,16 @@ on conflict (key, locale) do update set value = excluded.value, updated_at = now
 -- Same 6 rows, run against lhq_dev_labels on wdtjhrilakoitfcezxpx (already applied).
 
 -- Stale-reference fix: ALERTS_COIN_SELECTION_DESC (existing key, both
--- projects) named "EMA Ribbon Setup entry signals" - that feature no longer
--- exists under that name. Updated the English value only (already applied,
--- both projects):
---   old: 'Tap a coin to stop all alerts for it, including which coins the
---         EMA Ribbon Setup entry signals scan. Your saved price alerts are
---         not affected.'
---   new: 'Tap a coin to stop all alerts for it, including which coins the
---         EMA Buy/Sell Signal scans. Your saved price alerts are not affected.'
--- NOT fixed: the same stale "EMA Ribbon Setup" / "EMA Ribbon 设置" / etc
--- wording still exists in the ko/zh/ar/ru translations of this same key -
--- left alone (translation work is paused, and patching a single term
--- accurately in 4 languages I can't verify natively is riskier than leaving
--- a stale-but-still-correct-shaped sentence). Worth a small patch whenever
--- translation work resumes.
+-- projects) named "EMA Ribbon Setup" / its translated equivalent - that
+-- feature no longer exists under that name. Updated all 5 done locales
+-- (en/ko/zh/ar/ru), both projects - only the "EMA Ribbon Setup [entry
+-- signals]" noun phrase changed in each, rest of each sentence untouched:
+update lhq_labels set value = 'Tap a coin to stop all alerts for it, including which coins the EMA Buy/Sell Signal scans. Your saved price alerts are not affected.', updated_at = now() where key = 'ALERTS_COIN_SELECTION_DESC' and locale = 'en';
+update lhq_labels set value = '코인을 탭하면 EMA 매수/매도 신호가 스캔하는 대상을 포함해 해당 코인의 모든 알림이 중지됩니다. 저장된 가격 알림에는 영향을 주지 않습니다.', updated_at = now() where key = 'ALERTS_COIN_SELECTION_DESC' and locale = 'ko';
+update lhq_labels set value = '点击某币种可停用其所有警报，包括EMA买卖信号的扫描范围，不影响你已保存的价格警报', updated_at = now() where key = 'ALERTS_COIN_SELECTION_DESC' and locale = 'zh';
+update lhq_labels set value = 'اضغط على عملة لإيقاف جميع تنبيهاتها، بما في ذلك العملات التي تفحصها إشارة الشراء/البيع EMA. تنبيهات الأسعار المحفوظة لديك لن تتأثر.', updated_at = now() where key = 'ALERTS_COIN_SELECTION_DESC' and locale = 'ar';
+update lhq_labels set value = 'Нажмите на монету, чтобы отключить для неё все оповещения, включая то, какие монеты сканирует сигнал покупки/продажи EMA. Ваши сохранённые ценовые оповещения при этом не затрагиваются.', updated_at = now() where key = 'ALERTS_COIN_SELECTION_DESC' and locale = 'ru';
+-- Same 5 statements against lhq_dev_labels on wdtjhrilakoitfcezxpx (already applied).
 
 -- Cleanup: the 10 keys these replace (ALERTS_SECTION_TRADING_SIGNALS,
 -- ALERTS_EMA_SETUP_4H/1H/30M/15M_TITLE/DESC, ALERTS_SECTION_TREND,
