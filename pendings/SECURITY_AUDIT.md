@@ -6,13 +6,17 @@ not theoretical — enumerated every metered code path, traced each from trigger
 to upstream call, verified DB/RLS state directly against prod Supabase
 (`qdpwhnvmhqgzijuwopso`).
 
-> ⚠️ **READ FIRST — dev/prod split.** Most fixes referenced below are committed
-> to the `dev` branch. **Prod runs `main`.** DB changes (usage-cap function,
-> trial dedup, grants, RLS) and env secrets (`CRON_SECRET`,
-> `TELEGRAM_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL`) ARE live on prod, but the
-> prod **code** does not yet call the new caps/validation. **Until `dev`→`main`
-> merges, prod's cost-abuse surface is only partially closed.** Every "FIXED"
-> below means "fixed on dev"; prod status is called out where it differs.
+> ✅ **UPDATE 2026-07-24 (later same day) — deployed.** The core fixes below
+> (routes #4–11 capped, TOCTOU, macro/telegram rate-limits, IP-spoof fix,
+> global circuit breaker, Turnstile CAPTCHA, raw-label-key fix) merged to
+> `main` and were **deployed + smoke-tested on prod** — verified live, not
+> just merged (e.g. Turnstile's checkbox confirmed rendering on the real
+> `/login` URL, `AI_GLOBAL_DAILY_MAX=2000` confirmed set on Render). A second,
+> later batch — non-xAI full attribution (§2 F8c), the $25 repricing, and the
+> `/ops` $-cost view — is **merged to `main` but not yet deployed** (prod
+> `autoDeploy` is off; deploy is manual, your call on timing). Every "FIXED"
+> below is live on prod unless explicitly marked "merged, not yet deployed."
+> Full live status: `pendings/PENDING.md`.
 
 ---
 
@@ -29,17 +33,21 @@ rate limit. Cache = response cache bounding upstream calls.
 | 1 | `app/api/grok/route.ts` | yes | Cap (atomic, deep/quick) | Cap (pre-existing) |
 | 2 | `app/api/grok-chat/route.ts` | yes | Cap (atomic, chat/search) | Cap (pre-existing) |
 | 3 | `app/api/briefing/route.ts` | yes | Cap (atomic, briefing) | Cap (pre-existing) |
-| 4 | `app/api/thesis-check/route.ts` | yes | **Cap (new)** | **UNCAPPED** |
-| 5 | `app/api/strategy-research/route.ts` | yes | **Cap (new)** | **UNCAPPED** |
-| 6 | `app/api/shadow-account/route.ts` | yes | **Cap (new)** | **UNCAPPED** |
-| 7 | `app/api/behavioral-bias/route.ts` | yes | **Cap (new)** | **UNCAPPED** |
-| 8 | `app/api/pine-script/route.ts` | yes | **Cap (new)** | **UNCAPPED** |
-| 9 | `app/api/hypotheses/[id]/analyze/route.ts` | yes | **Cap (new)** | **UNCAPPED** |
-| 10 | `app/api/token-unlock/route.ts` | yes | **Cap + strict input (new)** | **Cache-key bypassable** |
-| 11 | `app/api/smc-snapshot/route.ts` | yes | **Cap + strict input (new)** | **Cache-key bypassable** |
+| 4 | `app/api/thesis-check/route.ts` | yes | Cap | **Cap — deployed** |
+| 5 | `app/api/strategy-research/route.ts` | yes | Cap | **Cap — deployed** |
+| 6 | `app/api/shadow-account/route.ts` | yes | Cap | **Cap — deployed** |
+| 7 | `app/api/behavioral-bias/route.ts` | yes | Cap | **Cap — deployed** |
+| 8 | `app/api/pine-script/route.ts` | yes | Cap | **Cap — deployed** |
+| 9 | `app/api/hypotheses/[id]/analyze/route.ts` | yes | Cap | **Cap — deployed** |
+| 10 | `app/api/token-unlock/route.ts` | yes | Cap + strict input | **Cap + strict input — deployed** |
+| 11 | `app/api/smc-snapshot/route.ts` | yes | Cap + strict input | **Cap + strict input — deployed** |
 | 12 | `app/api/dry-powder/route.ts` | yes | Cache (fixed key, 1h) | Cache (fixed key) |
 | 13 | `app/api/macro-context/route.ts` | yes + Pro | Cache (fixed key) | Cache (fixed key) |
 | 14 | `app/api/onchain/route.ts` | yes + Pro | Cache (fixed key) | Cache (fixed key) |
+
+All 14 rows above are now identical dev/prod — deployed and smoke-tested. The
+distinction that used to matter here (dev-only vs prod) no longer applies to
+this table; kept for the historical record of what pass 1 found.
 
 Also xAI-calling on a schedule (not user-triggered): `app/api/telegram/alert`
 (cron-gated), `app/api/macro-alert` (cron-gated).
@@ -71,7 +79,9 @@ Also xAI-calling on a schedule (not user-triggered): `app/api/telegram/alert`
 paths enumerated. Highest $ risk: xAI routes (#1–11) and CMC/Finnhub/proxy
 (coinglass)/econ-calendar (all metered key quotas, all now user-attributed —
 see F8). Everything else is a free provider where abuse risks IP-blocking of
-our outbound address rather than a bill.
+our outbound address rather than a bill. **The user-attribution code (CMC,
+Finnhub, proxy, econ-calendar) is merged to `main` but not yet deployed** —
+see the top-of-doc update note.
 
 ---
 
@@ -79,31 +89,36 @@ our outbound address rather than a bill.
 
 ### P0 — #1 Uncapped third-party API cost exposure
 
-**F1 (CRITICAL, prod). Six xAI routes + two cache-bypass routes are uncapped on
-prod.** Routes #4–11 above. On `main` (prod) they require auth but have NO
-per-user cap. Exploit: any signed-in user (incl. a free 14-day-trial account)
-scripts `POST /api/thesis-check` (or strategy-research, shadow-account,
-behavioral-bias, pine-script, hypotheses/analyze) in a tight loop → unbounded
-grok-4.3 calls → unbounded xAI bill. `token-unlock`/`smc-snapshot` add a second
-vector: vary the `symbol`/`asset` string to miss the cache every time.
-- Fix status: **FIXED on `dev`** — shared `lib/aiUsage.ts` reserves an atomic
-  daily unit before the upstream call; strict `^[A-Z0-9]{2,10}$` input on the
-  cached routes. **Not yet on prod — merge `dev`→`main`.**
+**F1 (CRITICAL → fixed, deployed). Six xAI routes + two cache-bypass routes
+were uncapped on prod.** Routes #4–11 above. Exploit (closed): any signed-in
+user (incl. a free 14-day-trial account) scripts `POST /api/thesis-check` (or
+strategy-research, shadow-account, behavioral-bias, pine-script,
+hypotheses/analyze) in a tight loop → unbounded grok-4.3 calls → unbounded
+xAI bill. `token-unlock`/`smc-snapshot` had a second vector: vary the
+`symbol`/`asset` string to miss the cache every time.
+- Fix: shared `lib/aiUsage.ts` reserves an atomic daily unit before the
+  upstream call; strict `^[A-Z0-9]{2,10}$` input on the cached routes.
+  **Merged to `main` and deployed — live on prod.**
 
 **F2 (HIGH → fixed). TOCTOU race on the daily caps.** The pre-existing capped
 routes read-then-wrote usage non-atomically; two concurrent requests could both
 pass the check. Fix: single atomic `UPDATE … WHERE col < limit RETURNING` in
 the `increment_ai_usage()` Postgres fn (live on prod DB; called by dev code).
 
-**F3 (MEDIUM, prod). `macro`, `telegram/detect`, `telegram/bot-info` had zero
-rate-limit/auth.** `macro` fired 5 Yahoo calls per request with `cache:'no-store'`.
-Exploit: unauthenticated loop → hammer Yahoo, get our egress IP throttled.
-Fix: per-IP `rateLimit()` added on `dev`; `macro` switched to a 60s cache.
+**F3 (MEDIUM → fixed, deployed). `macro`, `telegram/detect`, `telegram/bot-info`
+had zero rate-limit/auth.** `macro` fired 5 Yahoo calls per request with
+`cache:'no-store'`. Exploit (closed): unauthenticated loop → hammer Yahoo, get
+our egress IP throttled. Fix: per-IP `rateLimit()` added; `macro` switched to
+a 60s cache. **Live on prod.**
 
-**F4 (LOW). No GLOBAL ceiling / circuit breaker on xAI.** Per-user caps do not
-stop a *fleet* of farmed accounts each spending its daily allotment (ties to
-P0-#2). There is no global daily xAI counter or kill-switch. Not yet built —
-see §3 recommendation.
+**F4 (LOW → fixed, deployed). No GLOBAL ceiling / circuit breaker on xAI.**
+Per-user caps didn't stop a *fleet* of farmed accounts each spending its own
+daily allotment (ties to P0-#2). Fix: one app-wide `lhq_global_ai_usage`
+daily counter, incremented atomically inside the same `increment_ai_usage()`
+call as the per-user cap; every xAI route blocks once the global total hits
+`AI_GLOBAL_DAILY_MAX`. **Live on prod: `AI_GLOBAL_DAILY_MAX=2000` set on both
+Render services (Render `srv-d8aluf6l51nc73e1ijp0` + `srv-d8prs6po3t8c739aepdg`),
+DB function live on both Supabase projects.**
 
 ### P0 — #2 Signup & trial abuse
 
@@ -189,33 +204,36 @@ service-role server-only, none in git, none logged.
 
 ## 3. Ranked cap recommendations (implementation-level)
 
-1. **[DO FIRST] Merge `dev`→`main` + deploy.** The per-user caps, atomic
-   increment wiring, cache-key hardening, rate-limits, and error-leakage fixes
-   already exist on `dev` and are the single biggest risk reduction. Nothing
-   protects prod until this ships. One PR, ~10 commits.
+1. **(Done) Merge `dev`→`main` + deploy.** The per-user caps, atomic increment
+   wiring, cache-key hardening, rate-limits, and error-leakage fixes are live
+   on prod, smoke-tested. (A later, separate batch — non-xAI attribution,
+   pricing/caps, `/ops` cost view — is merged but awaiting your manual deploy;
+   not part of what "DO FIRST" was protecting against.)
 
-2. **Global daily circuit breaker for xAI (the missing layer).** Add a
-   `global_ai_usage(date, count)` single-row counter incremented inside the same
-   `increment_ai_usage()` fn (one extra `UPDATE`). Gate every xAI route on a
-   configurable `AI_GLOBAL_DAILY_MAX` env; when exceeded, return 503
-   `code:'GLOBAL_CAP'` and skip the upstream call. This is what stops a farmed
-   fleet (F4/F5) that individually stays under per-user caps. Cheap, atomic,
-   env-tunable. Pair with a Telegram alert to the owner when it trips.
+2. **(Done) Global daily circuit breaker for xAI.** `lhq_global_ai_usage`
+   counter, incremented inside the same `increment_ai_usage()` call as the
+   per-user cap; every xAI route blocks once the daily total hits
+   `AI_GLOBAL_DAILY_MAX` (set to 2,000). This is what stops a farmed fleet
+   (F4/F5) that individually stays under per-user caps. **Live on prod.**
+   Not yet paired with a Telegram alert on trip — still worth adding (see §5).
 
 3. **Per-user cap on the 3 cached xAI routes' cache-MISS path too** (dry-powder,
    macro-context, onchain). They're fixed-key so cost is naturally ~1 call/TTL,
-   but add a small per-user counter for symmetry + attribution.
+   but add a small per-user counter for symmetry + attribution. **Still open —
+   not attempted.**
 
-4. **(Fixed) Attribute the metered non-xAI routes per user, not just per IP.**
-   Covers all four routes with a real vendor key/quota behind them: CMC,
-   Finnhub (`news/finnhub`), Coinglass (`proxy`), and Finnhub-via-`econ-calendar`.
-   Auth stayed optional (all four remain public/unauthenticated by design) but
-   a signed-in caller's user id is now logged alongside IP, so a quota spike is
-   traceable to an account when the caller was signed in.
+4. **(Fixed, merged — awaiting deploy) Attribute the metered non-xAI routes
+   per user, not just per IP.** Covers all four routes with a real vendor
+   key/quota behind them: CMC, Finnhub (`news/finnhub`), Coinglass (`proxy`),
+   and Finnhub-via-`econ-calendar`. Auth stayed optional (all four remain
+   public/unauthenticated by design) but a signed-in caller's user id is now
+   logged alongside IP, so a quota spike is traceable to an account when the
+   caller was signed in.
 
-5. **Fix `getClientIp` (LOW).** `lib/rateLimit.ts` takes the first
-   `X-Forwarded-For` value = client-controlled. On Render, derive the real client
-   IP from the trusted proxy hop so per-IP limits can't be rotated around.
+5. **(Done) Fix `getClientIp` (LOW).** `lib/rateLimit.ts` took the first
+   `X-Forwarded-For` value = client-controlled. Now derives the real client
+   IP from the trusted rightmost (Render-appended) hop so per-IP limits can't
+   be rotated around. **Live on prod.**
 
 ## 4. Signup / trial gap — recommendation
 
@@ -238,20 +256,24 @@ service-role server-only, none in git, none logged.
 
 ## 5. Logging & admin "who's using how much" — recommendation
 
-- **Add an estimated-cost column.** Store per-call-type unit cost (env or a small
-  table) and compute `$` in `/api/ops/ai-cost` so the console shows spend, not
-  just counts.
-- **Global daily total + threshold alert.** Surface today's total xAI
-  units/$ on `/ops` overview; a cron (already have the cron harness) checks the
-  daily total vs a threshold and Telegrams the owner on breach — so a spike is
-  caught in minutes, not on the monthly invoice.
+- **(Done, merged — awaiting deploy) Add an estimated-cost column.**
+  `lib/aiCost.ts` holds the real per-token rates ($1.25/$0.20/$2.50 input/
+  cached/output per 1M, from console.x.ai/models); `/api/ops/ai-cost` now
+  computes real $ figures (24h/7d/30d, global + per-user) instead of raw
+  counts.
+- **(Partially done) Global daily total + threshold alert.** `/ops` now shows
+  today's calls vs `AI_GLOBAL_DAILY_MAX` with an 80%-of-cap spike flag in the
+  UI. **Still missing:** a cron that Telegrams the owner on breach — right
+  now a spike is caught by looking at `/ops`, not pushed to you. Worth
+  adding if you want to stop checking the dashboard manually.
 - **(Fixed) Attribute non-xAI metered calls.** CMC, Finnhub (`news/finnhub`),
   Coinglass (`proxy`), and Finnhub-via-`econ-calendar` now all log user id
   (or `anon`) alongside IP on every call — no schema change, structured
-  console log only; a usage table would only be worth it once §5's cost view
-  is built.
-- **Per-user drill-down** already exists (`/api/ops/users/[id]`); add the cost
-  figure and a sortable "top spenders (24h/7d)" view.
+  console log only.
+- **(Done, merged — awaiting deploy) Per-user drill-down.**
+  `/api/ops/users/[id]` now includes the same $ cost breakdown (14-day) plus
+  a margin figure (Pro revenue minus cost); `/api/ops/ai-cost` has a sortable
+  top-10 "top spenders (30d)" list by $ with margin.
 
 ## 6. Pass confirmation (3 passes)
 
@@ -275,10 +297,37 @@ service-role server-only, none in git, none logged.
   uncapped on `dev`. Re-confirmed items unchanged since pass 2: SSRF (none — proxy
   is type-switched), secrets (clean).
 
-**Net:** on `dev`, the P0 cost-abuse and trial-abuse surfaces are closed except
-the two structural residuals that need non-code action — **(a) merge to prod**
-and **(b) enable signup CAPTCHA** — plus the recommended **global circuit
-breaker** as the missing defense-in-depth layer. See `pendings/PENDING.md` for
-live status.
+## 7. Where things actually stand now (2026-07-24, later same day)
+
+Every P0/P1 finding from this audit is fixed. Status split by what's live vs.
+merged-but-not-yet-deployed:
+
+**Live on prod:**
+- All 14 xAI routes capped (F1); TOCTOU closed (F2); macro/telegram RL (F3);
+  global circuit breaker, `AI_GLOBAL_DAILY_MAX=2000` (F4); trial email-dedup,
+  revoked grants, CASCADE→SET NULL (F5–F7); error-message leakage fixed (F9);
+  IDOR fixed (F10); cron/webhook fail-open fixed (F11); Telegram/GrokChat
+  injection fixed (F12); IP-spoof fix (§3.5); Turnstile CAPTCHA (§4);
+  disposable-email domain blocklist (§4, DB-only change, always live
+  regardless of app deploy).
+- **Both structural residuals this doc originally flagged as "needs non-code
+  action" are done: CAPTCHA is enabled, and the disposable-domain blocklist
+  closes the remaining real-inbox gap.**
+
+**Merged to `main`, awaiting your manual deploy** (prod `autoDeploy` is off):
+- Non-xAI full attribution (CMC/Finnhub/proxy/econ-calendar user-id logging).
+- `/ops` $-cost view (real per-token rates, top spenders, margin).
+- Pro repricing ($15→$25) and cap resize — not a security fix, bundled in the
+  same merge; see `pendings/PRICING_ANALYSIS.md`.
+
+**Still genuinely open, not attempted (all LOW priority):**
+- Per-user cap on the 3 cached xAI routes' cache-miss path (§3.3).
+- Telegram alert on global-cap-breach spike (§5) — the spike flag exists in
+  the `/ops` UI, just isn't pushed anywhere yet.
+- IP/velocity Auth Hook for signup (§4) — optional, CAPTCHA + the disposable
+  blocklist already cover the higher-value cases.
+
+See `pendings/PENDING.md` for the live, continuously-updated status — this
+document is the point-in-time audit, that one is the working list.
 
 
