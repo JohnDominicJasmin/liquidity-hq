@@ -41,7 +41,7 @@ note on that bullet).
   key. Verified 0 raw-key matches on all 4 routes **on prod itself** post-deploy.
   Writeup + regeneration process in `pendings/I18N_MIGRATION.md`.
 - AI cost caps on all 9+2 xAI/Grok routes + TOCTOU race closed (atomic `increment_ai_usage`).
-- **Global daily xAI circuit breaker** — one app-wide counter on top of per-user caps; stops a *fleet* of accounts each staying under their own cap. Built, live-tested (capped at limit, rolled back correctly), on both Supabase projects. **OFF until `AI_GLOBAL_DAILY_MAX` is set in Render** (see "your action" below).
+- **Global daily xAI circuit breaker — LIVE.** One app-wide counter on top of per-user caps; stops a *fleet* of accounts each staying under their own cap. Built, live-tested (capped at limit, rolled back correctly), on both Supabase projects. `AI_GLOBAL_DAILY_MAX=2000` now set on both Render services (prod + dev) — the breaker is ON.
 - token-unlock / smc-snapshot cache-bypass closed.
 - macro / telegram detect / bot-info / webhook per-IP rate-limited; telegram/test auth-required.
 - **IP-spoof fix** — `getClientIp` read the client-controllable leftmost `X-Forwarded-For` hop; now reads the rightmost (Render-appended, trusted) hop. Every per-IP limit in the app now actually holds.
@@ -70,31 +70,45 @@ Nothing outstanding right now. Everything that was "mine" is either done
 
 ## ❓ OPEN — YOUR action (can't do from code)
 
-- **Set `AI_GLOBAL_DAILY_MAX` in Render** (prod, and dev if/when its env vars
-  get set) — this is what actually turns the circuit breaker ON. No longer
-  blocked on "what number" — PRICING_ANALYSIS.md §5A now has real-rate-based
-  options: **~2,000/day** for a $10/day budget, **~3,000/day** for $15/day,
-  **~6,000/day** for $30/day. Pick whichever daily $ figure you're comfortable
-  eating and I'll set it.
 - **Disposable-email domain blocklist** (optional, pairs with CAPTCHA).
+- **Set the LemonSqueezy product/variant price to $25** when payment goes
+  live (external, LemonSqueezy's own dashboard — not this repo). See the
+  payment-deferred section below; the app-side price display is already $25.
 
 ## 🔭 DEFERRED — tied to unfinished payment feature
 
 - LemonSqueezy `custom_data.user_id` unbound from payer (MED) — not
   exploitable until payments live. Build checklist when resuming: bind user_id
   to verified LS customer; add webhook idempotency/replay protection.
+- LemonSqueezy variant price needs to be set to **$25** (matches the new
+  displayed price) once checkout is actually configured.
 
-## ✅ Pricing analysis — DONE 2026-07-24, real rates confirmed
+## ✅ Pricing analysis + repricing — DONE 2026-07-24
 
 `pendings/PRICING_ANALYSIS.md` fully rewritten with real xAI grok-4.3 rates
 (console.x.ai/models, cross-validated against this account's actual invoice)
-in place of the original ESTIMATED rates. **Big correction: the old output
-rate assumption was 6× too high** ($15/M assumed vs $2.50/M real). Revised
-conclusion: $15/mo Pro is far closer to sustainable than previously
-estimated — a fully cap-maxing Pro user now costs an estimated ~$57/mo (was
-~$291/mo). The old "must reprice to $29+" recommendation is now optional
-margin-safety, not an urgent fix. See the doc's §0 for the full diff and §5
-for revised recommendations — repricing itself is still your call, not done.
+— the old output rate assumption was **6× too high** ($15/M assumed vs
+$2.50/M real). That correction, plus a real-competitor-pricing check
+($16-$50/mo is normal for this market), led to a final decision — **all
+implemented and verified live**, not just analyzed:
+
+- `AI_GLOBAL_DAILY_MAX = 2,000` — set on both Render services.
+- **Pro price $15 → $25/mo** — updated everywhere: `/upgrade`, landing page
+  (4 locales), DB-backed checkout CTA label (5 locales, both Supabase
+  projects), `lib/labelDefaults.en.json` regenerated.
+- **Pro caps trimmed** in `lib/limits.ts`: quick 50→40, deep 25→18, chat
+  100→75, search 25→18, briefing 10→8, one-shot tools 25→18 each.
+- **Free caps trimmed**: quick 7→5, deep 5→3, chat 15→10, search 5→3,
+  briefing 3→2, tools 5→3 each. Landing-page hand-typed copy (4 locales)
+  updated to match.
+- Result: a fully cap-maxing Pro account now costs an estimated **~$42/mo**
+  against $25 revenue (1.67× underwater — down from the original 19×).
+  Free worst-case dropped to **~$6.54/mo** for $0 revenue (was ~$54).
+
+See `pendings/PRICING_ANALYSIS.md` §7 for the full final numbers and the
+worst-case cost table. Verified live locally (`tsc` clean, `/upgrade` and
+landing page both render the new price and caps correctly in the browser)
+— not yet committed/pushed as of this writing.
 
 ## i18n translation — paused (see also pendings/I18N_MIGRATION.md)
 

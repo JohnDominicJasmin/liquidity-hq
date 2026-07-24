@@ -3,13 +3,23 @@
 **Question being answered:** what does a user actually cost us in API spend, is
 $15/mo Pro profitable, and where should the price / caps land?
 
-> ✅ **Updated 2026-07-24 with REAL xAI rates.** The original version of this
-> doc used labeled *estimates* ($3/M input, $15/M output). Those are now
-> replaced with the actual grok-4.3 rate card, confirmed live on
-> console.x.ai/models and cross-checked against this account's real 7-day
-> invoice. **The old output-token estimate was 6× too high** — this changes
-> the bottom line materially (see §0). Formula and methodology are unchanged;
-> only the input numbers were wrong.
+> ✅ **DECIDED 2026-07-24.** Final: **Pro price $15 → $25/mo**, **Pro caps
+> trimmed** (quick 50→40, deep 25→18, chat 100→75, search 25→18, briefing
+> 10→8, one-shot tools 25→18 each) and **Free caps trimmed** (quick 7→5,
+> deep 5→3, chat 15→10, search 5→3, briefing 3→2, tools 5→3 each). Both price
+> and caps changed together after grounding the decision in real competitor
+> pricing (crypto trading tools run $16-$50/mo entry-to-mid tier — $25 is
+> solidly normal, not expensive) and the real xAI rate correction below.
+> Implemented live: `lib/limits.ts`, `/upgrade` page, landing page (all 4
+> locales), and the DB-backed checkout CTA label (5 locales, both Supabase
+> projects). See §7 for the final numbers.
+>
+> The rate correction itself: the original version of this doc used labeled
+> *estimates* ($3/M input, $15/M output). Those were replaced with the actual
+> grok-4.3 rate card, confirmed live on console.x.ai/models and cross-checked
+> against this account's real 7-day invoice. **The old output-token estimate
+> was 6× too high** — this is what made the original "$29+ mandatory" framing
+> wrong (see §0).
 
 ## 0. What changed
 
@@ -166,3 +176,54 @@ from the existing `lhq_grok_usage` counts, and surface on `/ops`: per-user $
 - **Next actions:** (1) set `AI_GLOBAL_DAILY_MAX` using the corrected
   multiplier in §5A, (2) CAPTCHA — already live, closed, (3) build the live $
   cost view (§5E) once you want it, using the real constants above.
+
+## 7. Final decision & implementation (2026-07-24)
+
+Sections 2-6 above are the analysis trail that led here — left intact for the
+reasoning, but the numbers below are what actually shipped.
+
+- **`AI_GLOBAL_DAILY_MAX = 2,000`** — set on both Render services (prod +
+  dev). Chosen from the $10/day-budget row in §5A.
+- **Pro price: $15 → $25/mo.** Landed here after checking real competitor
+  pricing (3Commas/TradeSanta/altFINS $18-20, Bitsgap $23, Coinrule/TradeZella
+  ~$29-30) — $25 sits naturally in the middle of that band, not expensive for
+  this market.
+- **Pro caps trimmed** (`lib/limits.ts`): quick 50→40, deep 25→18, chat
+  100→75, search 25→18, briefing 10→8, one-shot tools (thesisCheck /
+  strategyResearch / shadowAccount / behavioralBias / pineScript /
+  hypothesisAnalyze / tokenUnlock / smcSnapshot) 25→18 each.
+- **Free caps trimmed** (`lib/limits.ts`): quick 7→5, deep 5→3, chat 15→10,
+  search 5→3, briefing 3→2, one-shot tools 5→3 each.
+
+**Recomputed worst-case cost with the final numbers (real rates from §1):**
+
+| Tier | Plain calls/day | Search calls/day | Total/day | Cost/day | Cost/30d |
+|------|-----------------|------------------|-----------|----------|----------|
+| Free | 41 | 6 | 47 | ~$0.22 | **~$6.54** |
+| Pro | 267 | 36 | 303 | ~$1.39 | **~$41.76** |
+
+- Pro worst-case: **~$41.76/mo cost vs $25/mo revenue ≈ 1.67× underwater** at
+  100% cap-maxing — down from the original 19× (wrong rate) and the
+  intermediate 3.8× (right rate, old caps, old price). This is the best
+  margin position reached across the whole analysis, combining the rate
+  correction, the price move, and the cap trim.
+- Breakeven at $25: blended rate ≈ $0.0046/call → ~182 calls/day to break
+  even, vs the new 303/day Pro cap → ~1.67× headroom for a maxed account.
+  Realistic (non-maxing) usage is comfortably profitable.
+- Free worst-case drops from the original ~$54/mo estimate to **~$6.54/mo**
+  for $0 revenue — a taster tier again, not a workhorse.
+
+**Implemented in:** `lib/limits.ts` (caps), `app/upgrade/page.tsx` +
+`components/LandingContent.tsx` (price literals), `lib/i18n/dictionaries.ts`
+(landing-page copy, all 4 locales: en/ko/zh/ar — both price and the hand-typed
+cap numbers in the feature lists), Supabase `lhq_labels` + `lhq_dev_labels`
+(`UPGRADE_CHECKOUT_BUTTON_CTA`, 5 locales incl. ru), `lib/labelDefaults.en.json`
+(regenerated). The `/upgrade` page's own feature-list numbers (quick/deep/
+chat/search) are template-driven from `lib/limits.ts` and needed no separate
+edit.
+
+**Not yet done — external, when payments go live:** the LemonSqueezy
+product/variant's actual charge price still needs to be set to $25 in
+LemonSqueezy's dashboard (not this repo) once `NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL`
+is configured and checkout goes live — tracked in `pendings/PENDING.md` under
+the payment-feature-deferred section.
