@@ -88,7 +88,23 @@ export default function AlertsPage() {
       if (!token) return;
       fetch('/api/alert-prefs', { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.json())
-        .then(d => setMuted(new Set<string>(d.muted ?? [])))
+        .then(async d => {
+          const mutedList: string[] = d.muted ?? [];
+          setMuted(new Set<string>(mutedList));
+          // No coin prefs saved yet (brand-new user) - default to btc/eth/sol only,
+          // not every coin, by seeding the rest as muted server-side.
+          if (!mutedList.some(k => k.startsWith('coin:'))) {
+            const toMute = COINS.filter(c => !['btc', 'eth', 'sol'].includes(c));
+            await Promise.all(toMute.map(c =>
+              fetch('/api/alert-prefs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ key: `coin:${c}`, muted: true }),
+              }).catch(() => {})
+            ));
+            setMuted(prev => { const n = new Set(prev); toMute.forEach(c => n.add(`coin:${c}`)); return n; });
+          }
+        })
         .catch(() => {});
     });
     fetchHistory();
@@ -315,7 +331,7 @@ export default function AlertsPage() {
           upgrade pitch. Free users now get a single locked-feature card
           (same component/pattern as Arena's other Pro-gated cards) instead
           of a form they can look at but not touch. */}
-      {user && !entitled ? (
+      {!entitled ? (
         <LockedFeatureCard
           title={t('ALERTS_CONNECT_TELEGRAM_TITLE')}
           description={t('ALERTS_LOCKED_FEATURE_DESC')}
@@ -608,6 +624,13 @@ export default function AlertsPage() {
       )}
 
       {/* ── Alert Conditions ─────────────────────────────────────────────── */}
+      {!entitled ? (
+        <LockedFeatureCard
+          title={t('ALERTS_CONDITIONS_LABEL')}
+          description={t('ALERTS_LOCKED_FEATURE_DESC')}
+          onUnlock={() => setUpgradeGate(t('ALERTS_UPGRADE_GATE_FEATURE_LABEL'))}
+        />
+      ) : (
       <div className="card" style={{ marginBottom: 10 }}>
         <div className="lbl" style={{ marginBottom: 4 }}>{t('ALERTS_CONDITIONS_LABEL')}</div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 10 }}>
@@ -754,6 +777,7 @@ export default function AlertsPage() {
           </div>
         </div>
       </div>
+      )}
 
       <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center', marginBottom: 16 }}>
         {t('ALERTS_COOLDOWN_FOOTER_NOTE')}
