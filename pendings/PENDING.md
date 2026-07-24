@@ -3,8 +3,21 @@
 Single source of truth. Security audit = user's #1 priority (stop untraceable
 API-cost abuse, signup/trial abuse, any exploit that breaches system/keys/logs).
 Full audit deliverable: `pendings/SECURITY_AUDIT.md`. Pricing/costing analysis
-is explicitly **paused** until this list is fully resolved — see
-`pendings/PRICING_ANALYSIS.md` (aware of the issue, working it after this).
+(`pendings/PRICING_ANALYSIS.md`) was unpaused 2026-07-24 — the security list was
+effectively resolved and the one remaining item (`AI_GLOBAL_DAILY_MAX`) was
+itself blocked on this analysis. Now updated with REAL xAI rates.
+
+## 🚨 URGENT — YOUR action (found 2026-07-24, unrelated to the above)
+
+- **xAI account is at $0.00 credit balance right now** — "no credits
+  remaining" on console.x.ai billing. Any live Grok/xAI feature (chat,
+  signals, briefing, etc.) is likely failing for real users until this is
+  topped up. Invoice history shows one past **failed** $5 auto top-up
+  (7 Jun 2026) — worth checking why (expired card? — the Visa on file shows
+  exp 3/2029, so probably a transient decline) and considering **enabling
+  auto top-up** (toggle exists on the billing page) so this doesn't recur
+  silently. This is a live incident, not a backlog item — highest priority
+  until confirmed resolved.
 
 ## ✅ ALL CODE WORK DONE — merged to `main`, deployed, smoke-tested (2026-07-24, 20 commits total)
 
@@ -50,16 +63,19 @@ Nothing outstanding right now. Everything that was "mine" is either done
 
 ## ⏸️ DEFERRED — low priority, explicitly scoped, not blocking anything
 
-- **Admin $-cost view** — tied to the paused pricing analysis
-  (`PRICING_ANALYSIS.md` §5E). Will build once pricing/caps are decided, so the
-  cost constants are real rather than placeholders.
+- **Admin $-cost view** — `PRICING_ANALYSIS.md` §5E now has real cost constants
+  ($1.25 / $0.20 / $2.50 per 1M input/cached/output tokens) instead of
+  placeholders. No longer blocked on pricing being "decided" — build whenever
+  you want the `/ops` cost dashboard.
 
 ## ❓ OPEN — YOUR action (can't do from code)
 
 - **Set `AI_GLOBAL_DAILY_MAX` in Render** (prod, and dev if/when its env vars
-  get set) — this is what actually turns the circuit breaker ON. Pick a number
-  tied to a daily $ budget you're willing to eat (see PRICING_ANALYSIS.md §5A
-  for a worked example).
+  get set) — this is what actually turns the circuit breaker ON. No longer
+  blocked on "what number" — PRICING_ANALYSIS.md §5A now has real-rate-based
+  options: **~2,000/day** for a $10/day budget, **~3,000/day** for $15/day,
+  **~6,000/day** for $30/day. Pick whichever daily $ figure you're comfortable
+  eating and I'll set it.
 - **Disposable-email domain blocklist** (optional, pairs with CAPTCHA).
 
 ## 🔭 DEFERRED — tied to unfinished payment feature
@@ -68,10 +84,17 @@ Nothing outstanding right now. Everything that was "mine" is either done
   exploitable until payments live. Build checklist when resuming: bind user_id
   to verified LS customer; add webhook idempotency/replay protection.
 
-## Next up (per user, after this list is fully resolved)
+## ✅ Pricing analysis — DONE 2026-07-24, real rates confirmed
 
-- `pendings/PRICING_ANALYSIS.md` — is $15/mo Pro profitable, per-user cost
-  model, recommended reprice + cap resize. Paused, not forgotten.
+`pendings/PRICING_ANALYSIS.md` fully rewritten with real xAI grok-4.3 rates
+(console.x.ai/models, cross-validated against this account's actual invoice)
+in place of the original ESTIMATED rates. **Big correction: the old output
+rate assumption was 6× too high** ($15/M assumed vs $2.50/M real). Revised
+conclusion: $15/mo Pro is far closer to sustainable than previously
+estimated — a fully cap-maxing Pro user now costs an estimated ~$57/mo (was
+~$291/mo). The old "must reprice to $29+" recommendation is now optional
+margin-safety, not an urgent fix. See the doc's §0 for the full diff and §5
+for revised recommendations — repricing itself is still your call, not done.
 
 ## i18n translation — paused (see also pendings/I18N_MIGRATION.md)
 
