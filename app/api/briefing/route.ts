@@ -4,7 +4,7 @@ import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
-import { incrementUsageColumn } from '@/lib/aiUsage';
+import { incrementUsageColumn, rateLimitMessage } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 
 export const dynamic = 'force-dynamic';
@@ -78,11 +78,11 @@ export async function POST(req: NextRequest) {
 
   // Atomic check-and-increment (reserve before spending on xAI) - closes the
   // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
-  const newCount = await incrementUsageColumn(token, userId, 'briefing_count', briefingLimit);
-  if (newCount === null) {
+  const usageResult = await incrementUsageColumn(token, userId, 'briefing_count', briefingLimit);
+  if (usageResult.blocked) {
     return NextResponse.json(
       {
-        error: `Daily limit of ${briefingLimit} briefings reached.`,
+        error: rateLimitMessage(usageResult.reason, briefingLimit, 'briefings'),
         code: 'RATE_LIMIT',
         usage: { briefing_used: briefingUsed, briefing_limit: briefingLimit },
       },
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       briefing,
-      _usage: { briefing_used: newCount, briefing_limit: briefingLimit },
+      _usage: { briefing_used: usageResult.count, briefing_limit: briefingLimit },
     });
   } catch (e) {
     return apiError('briefing', e, 500, 'Request failed');

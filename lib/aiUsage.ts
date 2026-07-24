@@ -47,13 +47,20 @@ const EXTRA_TOOL_COLUMN: Record<ExtraTool, string> = {
   smcSnapshot:       'smc_snapshot_count',
 };
 
-// Returns the new count on success, or null if the caller is blocked - either
-// by their own per-user cap or by the global daily circuit breaker. Both cases
-// return null to the caller (identical client-facing 429), but a global-cap
-// trip is logged distinctly server-side so it's visible in the logs.
+// blocked.reason distinguishes what actually blocked the caller - this
+// user's own daily count, or the app-wide circuit breaker. Callers use it to
+// give an accurate error message: every route used to say "your daily limit
+// reached" even when a user's own count was nowhere near their cap and the
+// real cause was the shared breaker tripping - confusing (the usage meter
+// shows the real, unexhausted per-user count right next to that message)
+// and simply wrong about the cause.
+export type UsageIncrementResult =
+  | { blocked: false; count: number }
+  | { blocked: true; reason: 'user' | 'global' };
+
 export async function incrementUsageColumn(
   token: string, userId: string, column: string, limit: number,
-): Promise<number | null> {
+): Promise<UsageIncrementResult> {
   const today = new Date().toISOString().slice(0, 10);
   const { data, error } = await sb(token).rpc('increment_ai_usage', {
     p_user_id: userId, p_date: today, p_column: column, p_limit: limit,
@@ -61,23 +68,33 @@ export async function incrementUsageColumn(
   });
   if (error) {
     console.error(`[aiUsage] increment_ai_usage failed for ${column}:`, error.message);
-    return null;
+    return { blocked: true, reason: 'user' };
   }
   // -1 is the DB sentinel for "global daily cap reached" (distinct from null =
   // per-user cap). The per-user increment was already rolled back in-txn.
   if (data === -1) {
     console.error(`[aiUsage] GLOBAL daily xAI cap hit (AI_GLOBAL_DAILY_MAX) - blocked ${column} for ${userId}`);
-    return null;
+    return { blocked: true, reason: 'global' };
   }
-  return data as number | null;
+  if (data === null) {
+    return { blocked: true, reason: 'user' };
+  }
+  return { blocked: false, count: data as number };
 }
 
-// Convenience wrapper for the 6 one-shot tool routes (keyed by lib/limits.ts's
+// Convenience wrapper for the 8 one-shot tool routes (keyed by lib/limits.ts's
 // ExtraTool union instead of a raw column string).
 export async function incrementToolUsage(
   token: string, userId: string, tool: ExtraTool, limit: number,
-): Promise<number | null> {
+): Promise<UsageIncrementResult> {
   return incrementUsageColumn(token, userId, EXTRA_TOOL_COLUMN[tool], limit);
+}
+
+// Shared message builder so all 11 call sites word this identically.
+export function rateLimitMessage(reason: 'user' | 'global', limit: number, label: string): string {
+  return reason === 'global'
+    ? `AI Arena is at capacity right now across all users - try again shortly.`
+    : `Daily limit of ${limit} ${label} reached.`;
 }
 
 // Global-only check for call sites with no natural per-user attribution - a

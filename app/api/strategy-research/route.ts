@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { incrementToolUsage } from '@/lib/aiUsage';
+import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
 import { getUserRole } from '@/lib/entitlements';
 import { AI_LIMITS } from '@/lib/limits';
 
@@ -77,10 +77,10 @@ export async function POST(req: NextRequest) {
 
   const role = await getUserRole(token, authData.user.id);
   const limit = AI_LIMITS[role].strategyResearch;
-  const newCount = await incrementToolUsage(token, authData.user.id, 'strategyResearch', limit);
-  if (newCount === null) {
+  const usageResult = await incrementToolUsage(token, authData.user.id, 'strategyResearch', limit);
+  if (usageResult.blocked) {
     return NextResponse.json(
-      { error: `Daily limit of ${limit} strategy research runs reached.`, code: 'RATE_LIMIT' },
+      { error: rateLimitMessage(usageResult.reason, limit, 'strategy research runs'), code: 'RATE_LIMIT' },
       { status: 429 },
     );
   }

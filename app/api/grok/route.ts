@@ -5,7 +5,7 @@ import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
-import { incrementUsageColumn } from '@/lib/aiUsage';
+import { incrementUsageColumn, rateLimitMessage } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 
 // Keys / limits (limits: single source of truth in lib/limits.ts)
@@ -115,25 +115,11 @@ export async function POST(req: NextRequest) {
   // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
   const column = type === 'deep' ? 'deep_count' : 'quick_count';
   const limit  = type === 'deep' ? deepLimit : quickLimit;
-  const used   = type === 'deep' ? deepUsed : quickUsed;
-  const newCount = await incrementUsageColumn(token!, userId, column, limit);
-  if (newCount === null) {
-    // incrementUsageColumn collapses two distinct DB outcomes into the same
-    // null - this user's own column was already at cap, OR the app-wide
-    // AI_GLOBAL_DAILY_MAX breaker tripped (unrelated to this user's count).
-    // `used` was read moments ago, before the atomic attempt - if it's still
-    // under their own limit, the block can only be the global breaker, since
-    // the per-user check inside the same atomic call would otherwise have
-    // passed. Previously this always blamed "your daily limit", which was
-    // actively wrong (and confusing - the usage meter shows this user's real,
-    // unexhausted count right next to the message) whenever the true cause
-    // was the shared breaker.
+  const usageResult = await incrementUsageColumn(token!, userId, column, limit);
+  if (usageResult.blocked) {
     const label = type === 'deep' ? 'deep analyses' : 'quick analyses';
-    const message = used >= limit
-      ? `Daily limit of ${limit} ${label} reached.`
-      : `AI Arena is at capacity right now across all users - try again shortly.`;
     return NextResponse.json(
-      { error: message, code: 'RATE_LIMIT', usage: allUsage() },
+      { error: rateLimitMessage(usageResult.reason, limit, label), code: 'RATE_LIMIT', usage: allUsage() },
       { status: 429 }
     );
   }
@@ -183,8 +169,8 @@ export async function POST(req: NextRequest) {
 
   const result = parseCombinedResponse(text, tf, session);
 
-  const newDeep  = type === 'deep'  ? newCount : deepUsed;
-  const newQuick = type === 'quick' ? newCount : quickUsed;
+  const newDeep  = type === 'deep'  ? usageResult.count : deepUsed;
+  const newQuick = type === 'quick' ? usageResult.count : quickUsed;
 
   return NextResponse.json({
     result,
