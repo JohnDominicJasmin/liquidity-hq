@@ -5,11 +5,26 @@ import { isFeatureEnabled } from '@/lib/featureFlags';
 export const dynamic = 'force-dynamic';
 
 // This route has no auth gate - the app itself calls it unauthenticated for
-// dashboard-triggered alerts (CVD divergence, liquidation cascades, etc.), and
-// TELEGRAM_CHAT_ID is a single global destination (the owner's own chat), not
-// per-user. Without a rate limit + length cap, anyone who finds this URL could
-// use it as a free spam relay into that chat.
+// dashboard-triggered alerts (CVD divergence, liquidation cascades, Arena
+// liquidity-raid alerts), and TELEGRAM_CHAT_ID is a single global destination
+// (the owner's own chat), not per-user. Rate limit + length cap bound spam
+// volume, but neither stops arbitrary HTML: the message is sent with
+// parse_mode:HTML, and one caller (the Arena raid alert) embeds short
+// AI-generated fields, which could in principle reproduce injected markup
+// from prompt/search-influenced content. sanitizeTelegramHtml() closes that
+// off at the one place all three callers funnel through, regardless of
+// whether every call site remembers to escape its own inputs: every `<`/`>`
+// is escaped, then only the exact tags the app's own templates actually use
+// (<b> <i>) are unescaped back. Anything else - <a href>, onmouseover
+// attributes, whatever - stays inert text.
 const MAX_MESSAGE_LEN = 1000;
+const ALLOWED_TAGS = ['b', '/b', 'i', '/i'];
+
+function sanitizeTelegramHtml(raw: string): string {
+  const escaped = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return escaped.replace(/&lt;(\/?\w+)&gt;/g, (whole, tag) =>
+    ALLOWED_TAGS.includes(tag) ? `<${tag}>` : whole);
+}
 
 export async function POST(req: NextRequest) {
   if (!rateLimit(`telegram-send:${getClientIp(req)}`, 10, 60_000)) {
@@ -48,7 +63,7 @@ export async function POST(req: NextRequest) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: chatId,
-      text: body.message,
+      text: sanitizeTelegramHtml(body.message),
       parse_mode: 'HTML',
     }),
   });

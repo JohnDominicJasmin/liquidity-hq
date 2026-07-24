@@ -59,6 +59,15 @@ async function grokAnalyze(prompt: string): Promise<string> {
   }
 }
 
+// Telegram's parse_mode:HTML treats any of these characters as markup -
+// user-supplied free text (e.g. a saved price alert's label) must be escaped
+// before insertion into a message body, or it can inject its own tags
+// (e.g. a label containing `<a href="...">`) into a message sent through
+// the app's trusted bot identity.
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /* ── Conviction parser ── */
 function parseConviction(raw: string): { text: string; badge: string } {
   const m = raw.match(/\n?CONVICTION:\s*(High|Moderate|Weak)/i);
@@ -950,7 +959,7 @@ async function checkPriceAlerts(
       const body = `🎯 <b>${label} Price Alert Triggered</b>\n\n` +
         `${dirLabel} <b>$${alert.target_price.toLocaleString()}</b>\n` +
         `Current: $${price.toLocaleString()}` +
-        (alert.label ? `\nNote: ${alert.label}` : '') +
+        (alert.label ? `\nNote: ${escapeHtml(alert.label)}` : '') +
         `${grokLine}\n\n<i>${stamp}</i>`;
 
       await tg(token, recipient, body);
@@ -1022,8 +1031,8 @@ async function checkDailySummary(
   const phtMin  = d.getUTCMinutes();
   if (phtHour !== 7 || phtMin > 10) return [];
   if (onCooldown('daily_summary', CD.daily)) return [];
-  const chatId = recipientChatIds(recipients, mutedByUser, 'daily_summary');
-  if (chatId.length === 0) return [];
+  const eligible = recipients.filter(r => !isMutedFor(mutedByUser, r.userId, 'daily_summary'));
+  if (eligible.length === 0) return [];
 
   const dateStr = d.toLocaleString('en-PH', {
     timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric',
@@ -1052,17 +1061,19 @@ async function checkDailySummary(
   const frBlock    = [frParts.slice(0, 4).join(' · '), frParts.slice(4).join(' · ')].filter(Boolean).join('\n');
   const frForGrok  = frParts.join(', ');
 
-  // Active price alerts
-  let alertsBlock = '';
+  // Active price alerts - grouped by owner so each recipient's summary only
+  // ever shows THEIR OWN alerts. This used to be one shared query with no
+  // user_id filter, pooling every user's alerts (labels included) into the
+  // single broadcast every daily_summary subscriber received - a cross-user
+  // privacy leak, not just an injection risk.
+  const alertsByUser = new Map<string, PriceAlert[]>();
   try {
     const { data } = await getSupabaseAdmin().from(T.price_alerts).select('*').eq('active', true);
-    if (data?.length) {
-      const lines = (data as PriceAlert[]).map(a => {
-        const lbl = LABELS[a.coin] ?? a.coin.toUpperCase();
-        const dir = a.direction === 'above' ? '↑' : '↓';
-        return `• ${lbl} ${dir} $${parseFloat(String(a.target_price)).toLocaleString()}${a.label ? ` (${a.label})` : ''}`;
-      }).join('\n');
-      alertsBlock = `\n\n🎯 <b>Active Price Alerts:</b>\n${lines}`;
+    for (const a of (data ?? []) as PriceAlert[]) {
+      if (!a.user_id) continue; // legacy ownerless rows - never shown in anyone's personalized summary
+      const list = alertsByUser.get(a.user_id) ?? [];
+      list.push(a);
+      alertsByUser.set(a.user_id, list);
     }
   } catch { /* skip */ }
 
@@ -1076,14 +1087,23 @@ async function checkDailySummary(
   );
   const grokLine = grokRaw ? `\n\n🤖 <b>LiquidityAI:</b> ${grokRaw}` : '';
 
-  await tg(token, chatId,
+  const bodyBase =
     `☀️ <b>Morning Briefing - ${dateStr}</b>` +
     `${fngLine}\n\n` +
     `📊 <b>Funding Rates:</b>\n${frBlock}` +
-    `${grokLine}` +
-    `${alertsBlock}\n\n` +
-    `<i>${stamp}</i>`
-  );
+    `${grokLine}`;
+
+  await Promise.all(eligible.map(r => {
+    const own = alertsByUser.get(r.userId) ?? [];
+    const alertsBlock = own.length
+      ? `\n\n🎯 <b>Active Price Alerts:</b>\n${own.map(a => {
+          const lbl = LABELS[a.coin] ?? a.coin.toUpperCase();
+          const dir = a.direction === 'above' ? '↑' : '↓';
+          return `• ${lbl} ${dir} $${parseFloat(String(a.target_price)).toLocaleString()}${a.label ? ` (${escapeHtml(a.label)})` : ''}`;
+        }).join('\n')}`
+      : '';
+    return tg(token, r.chatId, `${bodyBase}${alertsBlock}\n\n<i>${stamp}</i>`);
+  }));
 
   markSent('daily_summary');
   return ['Daily 7am summary'];

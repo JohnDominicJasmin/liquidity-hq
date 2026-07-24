@@ -92,10 +92,19 @@ async function generateFollowUps(response: string, coin: string, token?: string)
 
 /* ── Markdown renderer ─────────────────────────────────────────── */
 function renderMd(raw: string): string {
+  // Escaping quotes here (not just &/</>) matters because this runs BEFORE
+  // the link-detection regexes below build `href="${u}"` attributes straight
+  // from captured URL text - search-mode responses can incorporate content
+  // from arbitrary web pages/X posts, and an unescaped `"` in a captured URL
+  // breaks out of the attribute (e.g. `.../x" onmouseover="...`), letting
+  // that external content run its own script in this DOM. &quot; renders
+  // identically to a literal " for any plain text this touches, so this is
+  // safe for the non-URL cases too.
   let s = raw
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 
   // Citations [[1]](url)
   s = s.replace(/\[\[([^\]]+)\]\]\((https?:\/\/[^)]+)\)/g,
