@@ -9,9 +9,10 @@ is explicitly **paused** until this list is fully resolved — see
 ## ✅ ALL CODE WORK DONE — merged to `main`, deployed, smoke-tested
 
 `dev`→`main` merged (15 commits, 2026-07-24), deploy `dep-d9hktcb7uimc73fes8l0`
-live, verified (homepage 200, `webhook_ok: true`). Since then, 3 more commits
+live, verified (homepage 200, `webhook_ok: true`). Since then, 4 more commits
 shipped straight to `dev` (global circuit breaker, IP-spoof fix, non-xAI
-logging) — **not yet merged to `main`**, see the one open item below.
+logging, Turnstile CAPTCHA) — **not yet merged to `main`**, see the one open
+item below.
 
 - AI cost caps on all 9+2 xAI/Grok routes + TOCTOU race closed (atomic `increment_ai_usage`).
 - **Global daily xAI circuit breaker** — one app-wide counter on top of per-user caps; stops a *fleet* of accounts each staying under their own cap. Built, live-tested (capped at limit, rolled back correctly), on both Supabase projects. **OFF until `AI_GLOBAL_DAILY_MAX` is set in Render** (see "your action" below).
@@ -26,12 +27,14 @@ logging) — **not yet merged to `main`**, see the one open item below.
 - LemonSqueezy webhook rejects `test_mode` in prod.
 - Secrets/keys/logs audited clean. Admin traceability exists at `/ops`.
 - Adversarial re-verification (live prod DB, 3 passes): 5/6 sampled fixes SOUND; 1 defect found + fixed same session.
+- **Turnstile CAPTCHA on magic-link login** — code side DONE and verified (widget renders only when configured, CSP updated to allow `challenges.cloudflare.com`, button correctly gates on the token, Google OAuth untouched). Tested end-to-end locally with Cloudflare's official always-pass test key. **OFF until you complete the 3-step handoff below** — this is what actually stops unlimited-distinct-inbox trial farming.
 
 ## ⛔ OPEN — code (mine)
 
-1. **Merge the 3 newest `dev` commits to `main` + deploy** (circuit breaker,
-   IP-spoof fix, IP logging) — same pattern as the earlier merge. Not done yet;
-   ask before I push, per the established prod-deploy confirmation habit.
+1. **Merge the 4 newest `dev` commits to `main` + deploy** (circuit breaker,
+   IP-spoof fix, IP logging, Turnstile) — same pattern as the earlier merge.
+   Not done yet; ask before I push, per the established prod-deploy
+   confirmation habit.
 
 Everything else that was "mine" is now either done or explicitly deferred below
 — nothing else is silently outstanding.
@@ -58,9 +61,17 @@ Everything else that was "mine" is now either done or explicitly deferred below
   get set) — this is what actually turns the circuit breaker ON. Pick a number
   tied to a daily $ budget you're willing to eat (see PRICING_ANALYSIS.md §5A
   for a worked example).
-- **Enable Supabase Auth CAPTCHA** (Dashboard → Auth → Settings → Bot & Abuse
-  Protection, Turnstile/hCaptcha). Only durable fix for unlimited *distinct
-  real* inbox trial farming.
+- **Turnstile CAPTCHA — 3-step handoff** (code is done, waiting on you):
+  1. Go to [dash.cloudflare.com](https://dash.cloudflare.com) → Turnstile →
+     create a widget for your domain. Copy the **Site key** and **Secret key**.
+  2. Set `NEXT_PUBLIC_TURNSTILE_SITE_KEY=<site key>` in Render (prod, and dev
+     if you want it there too) — triggers a redeploy, same as any env var.
+  3. Paste the **Secret key** into Supabase Dashboard → Authentication →
+     Settings → Bot and Abuse Protection → Enable CAPTCHA protection → provider
+     Turnstile → Save. The secret only ever lives in Supabase's config, never
+     in this repo or Render.
+  Do steps 2 and 3 together/same session — once Supabase's toggle is on, magic
+  link requires a valid token, so the widget needs to already be live.
 - **Disposable-email domain blocklist** (optional, pairs with CAPTCHA).
 
 ## 🔭 DEFERRED — tied to unfinished payment feature
