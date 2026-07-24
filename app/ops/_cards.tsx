@@ -123,6 +123,22 @@ interface AiCost {
   generatedAt: string;
 }
 
+// Top-of-page notification when today's xAI usage is approaching the global
+// daily cap - same data/threshold as AiCostCard's buried note below, just in
+// a spot an admin can't miss without opening that card.
+export function SpikeBanner() {
+  const { t } = useLabels();
+  const { data } = useAdminResource<AiCost>('/api/ops/ai-cost');
+  const gb = data?.globalBreaker;
+  if (!gb?.spikeAlert || gb.capCalls == null) return null;
+  const pct = Math.round((gb.todayCalls / gb.capCalls) * 100);
+  return (
+    <div className={styles.spikeBanner}>
+      {t('OPS_SPIKE_BANNER', { calls: fmtInt(gb.todayCalls), cap: fmtInt(gb.capCalls), pct: String(pct) })}
+    </div>
+  );
+}
+
 export function AiCostCard() {
   const { t } = useLabels();
   const { data, error, loading, reload } = useAdminResource<AiCost>('/api/ops/ai-cost');

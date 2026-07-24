@@ -4,71 +4,70 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { useLabels } from '@/lib/labels';
+import { nextResetLocalTime } from '@/lib/resetTime';
 
-// Daily AI quotas reset at midnight UTC (server-side fact - see lib/resetTime.ts
-// and the /api/grok limits). Live countdown so the "you're running low, it won't
-// refill for hours" pressure is visible, not silent.
-function msToNextUtcMidnight(now: number): number {
-  const d = new Date(now);
-  const next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 0, 0);
-  return next - now;
-}
-function fmtCountdown(ms: number): string {
-  const totalMin = Math.max(0, Math.floor(ms / 60_000));
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+// Visible usage tracker under the Arena AI buttons: today's Quick/Deep tally
+// + when it resets. Deliberately framed as "X of Y used" with a calm fill
+// bar, not "X left" with a ticking countdown - the old copy (see git history)
+// was built as a scarcity/urgency conversion tactic, which reads as "burn
+// through it before it resets" instead of "here's your daily budget." Color
+// only escalates near the real cap (80%/100%, same threshold used for the
+// AI-spend spike banner in app/ops), so most of the day this is a quiet,
+// ambient fact - not a pressure signal.
+function StatBlock({ label, used, limit }: { label: string; used: number; limit: number }) {
+  const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const color = pct >= 100 ? 'var(--red)' : pct >= 80 ? 'var(--amber)' : 'var(--txt2)';
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 96 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 'var(--fs-caption)' }}>
+        <span style={{ color: 'var(--txt2)' }}>{label}</span>
+        <span style={{ color, fontVariantNumeric: 'tabular-nums' }}>{used}/{limit}</span>
+      </div>
+      <div style={{ height: 3, borderRadius: 2, background: 'var(--bdr2)', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: color, transition: 'width 0.3s' }} />
+      </div>
+    </div>
+  );
 }
 
-// Visible usage meter under the Arena AI buttons: remaining Quick/Deep for the
-// day + a live reset countdown. Visible scarcity converts far better than a
-// silently-disabled button (freemium plan, move #3).
 export default function UsageMeter() {
   const { user, isPro } = useAuth();
   const { usage } = useGrokUsage();
   const { t } = useLabels();
-  const [ms, setMs] = useState<number | null>(null);
+  const [resetTime, setResetTime] = useState<string | null>(null);
 
   useEffect(() => {
-    const tick = () => setMs(msToNextUtcMidnight(Date.now()));
+    const tick = () => setResetTime(nextResetLocalTime());
     tick();
-    const id = setInterval(tick, 30_000);
+    // Just keeps the clock-time string correct if the tab is left open past
+    // midnight - not a countdown, so it doesn't need to be frequent.
+    const id = setInterval(tick, 5 * 60_000);
     return () => clearInterval(id);
   }, []);
 
   if (!user || !usage) return null;
 
-  const quickLeft = Math.max(0, usage.quick_limit - usage.quick_used);
-  const deepLeft  = Math.max(0, usage.deep_limit  - usage.deep_used);
-  const col = (left: number) => left === 0 ? 'var(--red)' : left <= 1 ? 'var(--amber)' : 'var(--txt)';
+  const quickPct = usage.quick_limit > 0 ? (usage.quick_used / usage.quick_limit) * 100 : 0;
+  const deepPct  = usage.deep_limit  > 0 ? (usage.deep_used  / usage.deep_limit)  * 100 : 0;
+  const nearCap  = quickPct >= 80 || deepPct >= 80;
 
   return (
     <div
       style={{
-        display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
-        margin: '2px 0 10px', padding: '7px 12px',
-        borderRadius: 10, border: '0.5px solid var(--bdr)', background: 'var(--bg2)',
-        fontSize: 'var(--fs-caption)', color: 'var(--txt2)',
-        fontVariantNumeric: 'tabular-nums',
+        display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap',
+        margin: '2px 0 10px', padding: '8px 14px',
+        borderRadius: 'var(--radius-card)', border: '0.5px solid var(--bdr)', background: 'var(--bg2)',
       }}
     >
-      <span>
-        {t('USAGE_METER_QUICK_LABEL')} <b style={{ color: col(quickLeft), fontWeight: 700 }}>{quickLeft}</b>
-        <span style={{ color: 'var(--txt3)' }}>{t('USAGE_METER_LEFT_SUFFIX', { limit: usage.quick_limit })}</span>
-      </span>
-      <span style={{ color: 'var(--bdr2)' }}>·</span>
-      <span>
-        {t('USAGE_METER_DEEP_LABEL')} <b style={{ color: col(deepLeft), fontWeight: 700 }}>{deepLeft}</b>
-        <span style={{ color: 'var(--txt3)' }}>{t('USAGE_METER_LEFT_SUFFIX', { limit: usage.deep_limit })}</span>
-      </span>
-      {ms != null && (
-        <>
-          <span style={{ color: 'var(--bdr2)' }}>·</span>
-          <span style={{ color: 'var(--txt3)' }}>{t('USAGE_METER_RESETS_IN', { countdown: fmtCountdown(ms) })}</span>
-        </>
+      <StatBlock label={t('USAGE_METER_QUICK_LABEL')} used={usage.quick_used} limit={usage.quick_limit} />
+      <StatBlock label={t('USAGE_METER_DEEP_LABEL')} used={usage.deep_used} limit={usage.deep_limit} />
+      {resetTime != null && (
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
+          {t('USAGE_METER_RESET_FACT', { time: resetTime })}
+        </span>
       )}
-      {!isPro && (
-        <Link href="/upgrade" style={{ marginLeft: 'auto', color: 'var(--accent)', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+      {!isPro && nearCap && (
+        <Link href="/upgrade" style={{ marginLeft: 'auto', color: 'var(--accent)', fontWeight: 700, fontSize: 'var(--fs-caption)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
           {t('USAGE_METER_UPGRADE_LINK')}
         </Link>
       )}

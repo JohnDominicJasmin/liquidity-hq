@@ -12,11 +12,21 @@ interface AdminAddedArgs {
   invitedBy?: string | null;
 }
 
+interface SpikeAlertArgs {
+  todayCalls: number;
+  capCalls: number;
+  pct: number;
+}
+
 const APP_NAME = 'LiquidityHQ';
+
+// Fixed recipient list for the AI-spend spike alert - the owner's own
+// addresses, not a per-user setting, so no env var / admin UI for this list.
+const SPIKE_ALERT_RECIPIENTS = ['johndominicbuilds@gmail.com', 'mikocabal27@gmail.com'];
 
 function opsLoginUrl(): string {
   const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'https://liquidity-hq.onrender.com';
-  return `${base}/ops/login`;
+  return `${base}/ops`;
 }
 
 // Notification only - tells someone their email was granted admin access.
@@ -52,6 +62,48 @@ export async function sendAdminAddedEmail(args: AdminAddedArgs): Promise<boolean
       body: JSON.stringify({
         sender: { name: `${APP_NAME} Ops`, email: from },
         to: [{ email: args.to }],
+        subject,
+        htmlContent: html,
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Owner-only warning: today's xAI call volume crossed 80% of the global
+// daily cap (app/api/ops/spike-alert/route.ts). Fixed recipient list, not
+// per-user - see SPIKE_ALERT_RECIPIENTS above.
+export async function sendSpikeAlertEmail(args: SpikeAlertArgs): Promise<boolean> {
+  const apiKey = process.env.BREVO_API_KEY;
+  const from = process.env.BREVO_SENDER_EMAIL;
+  if (!apiKey || !from) return false;
+
+  const opsUrl = opsLoginUrl();
+  const subject = `${APP_NAME}: AI usage at ${args.pct}% of daily cap`;
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#111;max-width:520px">
+      <h2 style="margin:0 0 12px;font-size:18px">AI Usage Spike Warning</h2>
+      <p style="margin:0 0 12px">
+        Today's xAI calls: <b>${args.todayCalls}</b> / ${args.capCalls} (<b>${args.pct}%</b>).
+        Getting close to the daily cap.
+      </p>
+      <p style="margin:0 0 12px">Check the breakdown: <a href="${opsUrl}">${opsUrl}</a></p>
+    </div>`;
+
+  try {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: `${APP_NAME} Ops`, email: from },
+        to: SPIKE_ALERT_RECIPIENTS.map(email => ({ email })),
         subject,
         htmlContent: html,
       }),

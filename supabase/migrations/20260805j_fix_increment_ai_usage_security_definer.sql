@@ -1,0 +1,30 @@
+-- Fixes a false "Daily limit reached" shown to users whose real per-user
+-- count was nowhere near their cap. Root cause: increment_ai_usage() (see
+-- 20260805a_global_ai_circuit_breaker.sql) runs as SECURITY INVOKER, but
+-- lhq_global_ai_usage has INSERT/UPDATE revoked from anon/authenticated by
+-- design (only the function should ever touch it). Whenever p_global_limit
+-- is non-null (AI_GLOBAL_DAILY_MAX set - true on both deployed Render
+-- services, unset on local dev), the function's own write to that table hit
+-- a permission-denied error under the caller's (authenticated) privileges.
+-- Postgres rolled back the ENTIRE function on that unhandled exception,
+-- including the per-user increment already made, and the exception
+-- surfaced to lib/aiUsage.ts as a generic `error`, which it maps to
+-- `{blocked: true, reason: 'user'}` - a false "your daily limit reached"
+-- regardless of the caller's actual (unexhausted) count. This is why it was
+-- reproducible on both deployed prod and deployed dev (global breaker env
+-- var set on both) but never on a local dev server (env var unset there,
+-- so the function takes the early-return path before ever touching
+-- lhq_global_ai_usage).
+--
+-- Fix: SECURITY DEFINER so the function runs as its owner (postgres, which
+-- already holds INSERT/UPDATE/DELETE on lhq_global_ai_usage - see the
+-- REVOKE/GRANT block in 20260805a) instead of the caller. search_path
+-- pinned per SECURITY DEFINER best practice. Table itself stays locked down
+-- from direct client access - only this function's elevated execution
+-- changes.
+--
+-- Applied directly to both live projects 2026-07-25 (qdpwhnvmhqgzijuwopso
+-- prod, wdtjhrilakoitfcezxpx dev) - this file documents it for history/any
+-- future environment, not a pending action.
+alter function increment_ai_usage(uuid, date, text, int, int) security definer;
+alter function increment_ai_usage(uuid, date, text, int, int) set search_path = public;
