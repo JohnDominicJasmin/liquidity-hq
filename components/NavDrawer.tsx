@@ -6,6 +6,7 @@ import { useMarket } from '@/lib/marketStore';
 import { useAuth } from './AuthProvider';
 import { track } from '@/lib/analytics';
 import SettingsModal from './SettingsModal';
+import LanguageNavSwitcher from './LanguageNavSwitcher';
 import { getCurrentWindow } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { withAlpha } from '@/lib/color';
@@ -347,6 +348,8 @@ export default function NavDrawer() {
             >
               {theme === 'dark' ? <IconSun /> : <IconMoon />}
             </button>
+
+            <LanguageNavSwitcher />
 
             {!authLoading && (
               user ? (

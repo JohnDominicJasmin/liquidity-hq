@@ -3778,9 +3778,41 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 /* Mobile drawer sign out - match nav-item style but destructive color */
 .nav-signout { background: none; border: none; font-family: inherit; width: 100%; text-align: left; color: var(--red) !important; cursor: pointer; }
 
+/* Top-nav language switcher - always visible regardless of auth state
+   (unlike Settings, which needs the auth-gated avatar menu, or the drawer
+   hamburger, which is CSS-hidden at desktop widths). See
+   components/LanguageNavSwitcher.tsx. */
+.lang-nav-wrap { position: relative; flex-shrink: 0; }
+.lang-nav-btn {
+  font-size: var(--fs-caption); font-weight: 700; letter-spacing: 0.03em; color: var(--txt2);
+  padding: 5px 9px; border-radius: 8px; flex-shrink: 0;
+  border: 0.5px solid var(--bdr2); background: transparent;
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  min-height: 36px; font-family: var(--font-mono), monospace;
+}
+.lang-nav-btn:hover { color: var(--txt); background: rgba(255,255,255,0.05); }
+.lang-nav-dropdown {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  background: var(--bg2); border: 0.5px solid var(--bdr2);
+  border-radius: 12px; padding: 6px; min-width: 148px; max-height: 320px; overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.65); z-index: 300;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.lang-nav-item {
+  display: block; width: 100%; text-align: left;
+  font-size: var(--fs-caption); color: var(--txt2); font-weight: 500;
+  padding: 7px 9px; border-radius: 8px; background: none; border: none;
+  cursor: pointer; font-family: inherit; transition: background 0.1s;
+}
+.lang-nav-item:hover { background: rgba(255,255,255,0.05); color: var(--txt); }
+.lang-nav-item.on { color: var(--accent-2); font-weight: 700; background: rgba(90,150,255,0.08); }
+
 /* Light theme overrides */
 [data-theme="light"] .auth-signin-btn:hover { background: rgba(0,0,0,0.05); color: var(--txt); }
 [data-theme="light"] .auth-dropdown { background: #fff; border-color: rgba(0,0,0,0.1); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+[data-theme="light"] .lang-nav-btn:hover { background: rgba(0,0,0,0.05); color: var(--txt); }
+[data-theme="light"] .lang-nav-dropdown { background: #fff; border-color: rgba(0,0,0,0.1); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+[data-theme="light"] .lang-nav-item:hover { background: rgba(0,0,0,0.05); color: var(--txt); }
 
 /* Card elevation in light mode */
 [data-theme="light"] .card { box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(0,0,0,0.05); }
