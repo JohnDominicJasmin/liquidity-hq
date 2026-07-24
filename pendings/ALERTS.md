@@ -129,19 +129,17 @@ DB column, new Settings UI, new cap). **Wrong — didn't check `/alerts` and
   copy ("BUY/SELL signal" not "setup"/"crossed").
 - `checkEMASignal` should keep the `fullyMutedCoins` scan-skip
   `checkEMASetup` already has — carry it forward, don't lose it.
-- **Open question, needs your call:** you answered "15" for a coin cap when
-  I was (mistakenly) proposing a new system — the real, already-shipped cap
-  is **20**. Lower it to 15, or leave the working 20 alone?
+- **✅ Decided: lowered `ALERT_COIN_CAP` from 20 to 10.** Live on `dev`
+  (`app/alerts/page.tsx`) — all the over-limit/at-limit copy was already
+  templated (`{onCount}/{cap}`), no label changes needed.
 
 ## 5. Open decisions (need your call before implementing)
 
-1. **Coin cap** — lower the existing `ALERT_COIN_CAP` from 20 to 15, or
-   leave it at 20?
-2. **Pending/tentative signals** — push a "heads up" for a signal that's
+1. **Pending/tentative signals** — push a "heads up" for a signal that's
    armed+confirmed but still within the live edge (`pending: true`), or wait
    for full confirmation only? (Recommendation: wait — avoids sending a call
    that later gets rejected once more candles print.)
-3. **New `ruleKey` names** — e.g. `ema_signal_1h`/`ema_signal_4h`/`ema_signal_1d`,
+2. **New `ruleKey` names** — e.g. `ema_signal_1h`/`ema_signal_4h`/`ema_signal_1d`,
    or a different naming scheme? (Affects both the cron and the `/alerts` UI
    rows, and whether existing users' current mute choices on the old keys
    carry over — they won't automatically since the keys are changing;
