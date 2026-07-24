@@ -1017,6 +1017,11 @@ export const LABEL_KEYS = [
   // same reasoning as wave 13.
   'OPS_SPIKE_BANNER',
 
+  // Wave 15: /ops AI cost card, call-count breakdown by feature (both the
+  // alert cron's signal types and user-triggered quick/deep/chat/etc).
+  // English-only, same reasoning as wave 13.
+  'OPS_CARDS_ALERT_CALLS_BY_TYPE', 'OPS_CARDS_USER_CALLS_BY_TYPE',
+
   // Wave 12: ops team + users + user detail
   'OPS_TEAM_ERR_NOT_SIGNED_IN', 'OPS_TEAM_ERR_OWNER_ONLY',
   'OPS_TEAM_ERR_FAILED_TO_ADD', 'OPS_TEAM_ADD_SUCCESS_NEW', 'OPS_TEAM_ADD_SUCCESS_EXISTING',

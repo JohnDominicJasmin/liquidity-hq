@@ -111,8 +111,37 @@ export function CronsCard() {
 }
 
 // ── AI cost (Grok) ─────────────────────────────────────────────────────────
+// Prettifies raw snake_case type keys (alert cron signal_type strings and
+// grok_usage column names, both flow through this) - "ema_signal_1h" ->
+// "EMA signal 1h", "whale_trade" -> "Whale trade". Known domain acronyms
+// stay uppercase regardless of position; everything else is sentence case.
+const TYPE_ACRONYMS = new Set(['ema', 'smc', 'oi', 'tf']);
+function prettifyType(type: string): string {
+  return type.split('_').map((w, i) => {
+    if (TYPE_ACRONYMS.has(w)) return w.toUpperCase();
+    return i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w;
+  }).join(' ');
+}
+
+function CallsByType({ items }: { items: { type: string; count: number }[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {items.map(b => (
+        <span key={b.type} style={{
+          fontSize: 'var(--fs-caption)', color: 'var(--txt2)', background: 'var(--bg2)',
+          border: '0.5px solid var(--bdr)', borderRadius: 'var(--radius-chip)', padding: '2px 8px',
+        }}>
+          {prettifyType(b.type)} <b style={{ color: 'var(--txt)', fontVariantNumeric: 'tabular-nums' }}>{fmtInt(b.count)}</b>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 interface AiCost {
   system: { total24h: number; total7d: number; perDay: { day: string; count: number }[]; byType: { type: string; count: number }[] };
+  userCallsByType: { type: string; count: number }[];
   topSpenders: {
     userId: string; email: string | null; role: string;
     cost24h: number; cost7d: number; cost30d: number;
@@ -171,6 +200,10 @@ export function AiCostCard() {
                 title={`${d.day}: ${d.count}`} />
             ))}
           </div>
+          <p className={styles.cardMeta} style={{ marginTop: 10, marginBottom: 4 }}>{t('OPS_CARDS_ALERT_CALLS_BY_TYPE')}</p>
+          <CallsByType items={data.system.byType} />
+          <p className={styles.cardMeta} style={{ marginTop: 10, marginBottom: 4 }}>{t('OPS_CARDS_USER_CALLS_BY_TYPE')}</p>
+          <CallsByType items={data.userCallsByType} />
           <p className={styles.cardMeta} style={{ marginTop: 10, marginBottom: 4 }}>{t('OPS_CARDS_TOP_SPENDERS_TITLE')}</p>
           <div className={styles.rows}>
             {data.topSpenders.length === 0 && <div className={styles.rowSub}>{t('OPS_CARDS_NO_AI_USAGE')}</div>}

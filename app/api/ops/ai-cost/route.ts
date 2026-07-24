@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { withAdmin } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
-import { estimateRowCostUsd, PRO_PRICE_USD_PER_MONTH } from '@/lib/aiCost';
+import { estimateRowCostUsd, PRO_PRICE_USD_PER_MONTH, ALL_USAGE_COLUMNS } from '@/lib/aiCost';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,6 +73,12 @@ export const GET = withAdmin(async () => {
   const userCost7d = new Map<string, number>();
   const userCost30d = new Map<string, number>();
   let globalCost24h = 0, globalCost7d = 0, globalCost30d = 0;
+  // Call-count breakdown by feature (quick/deep/chat/etc), summed across
+  // every user, 30-day window - answers "how many calls of each kind have
+  // we made," distinct from the $ totals above (same source rows, just
+  // counted instead of priced). Mirrors system.byType's shape below, which
+  // does the same thing for the alert cron's signal types.
+  const userCallsByTypeMap = new Map<string, number>();
 
   for (const row of usage ?? []) {
     const uid = row.user_id as string;
@@ -88,7 +94,14 @@ export const GET = withAdmin(async () => {
       userCost24h.set(uid, (userCost24h.get(uid) ?? 0) + cost);
       globalCost24h += cost;
     }
+    for (const col of ALL_USAGE_COLUMNS) {
+      const n = Number((row as Record<string, number | null>)[col] ?? 0);
+      if (n) userCallsByTypeMap.set(col, (userCallsByTypeMap.get(col) ?? 0) + n);
+    }
   }
+  const userCallsByType = [...userCallsByTypeMap.entries()]
+    .map(([type, count]) => ({ type: type.replace(/_count$/, ''), count }))
+    .sort((a, b) => b.count - a.count);
 
   const topSpenderIds = [...userCost30d.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
 
@@ -124,6 +137,7 @@ export const GET = withAdmin(async () => {
 
   return NextResponse.json({
     system: { total24h, total7d, perDay, byType },
+    userCallsByType,
     topSpenders,
     cost: { global24h: globalCost24h, global7d: globalCost7d, global30d: globalCost30d },
     globalBreaker: { todayCalls, capCalls: globalCapCalls, spikeAlert },
