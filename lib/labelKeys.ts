@@ -1012,6 +1012,11 @@ export const LABEL_KEYS = [
   'OPS_CARDS_TOP_SPENDERS_TITLE', 'OPS_CARDS_MARGIN_LABEL',
   'OPS_USER_DETAIL_EST_COST_14D', 'OPS_USER_DETAIL_MARGIN_14D', 'OPS_USER_DETAIL_MARGIN_NOTE',
 
+  // Wave 14: /ops top-of-page spike banner (distinct from the buried
+  // AiCostCard note above - same data, more visible placement). English-only,
+  // same reasoning as wave 13.
+  'OPS_SPIKE_BANNER',
+
   // Wave 12: ops team + users + user detail
   'OPS_TEAM_ERR_NOT_SIGNED_IN', 'OPS_TEAM_ERR_OWNER_ONLY',
   'OPS_TEAM_ERR_FAILED_TO_ADD', 'OPS_TEAM_ADD_SUCCESS_NEW', 'OPS_TEAM_ADD_SUCCESS_EXISTING',
