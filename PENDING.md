@@ -4,9 +4,10 @@ Tracked backlog from ongoing security audit + i18n pause. Update as items close.
 
 ## Security audit — open findings
 
+1. ~~**Uncapped Grok-cost routes**~~ — DONE. `thesis-check`, `strategy-research`, `hypotheses/[id]/analyze`, `shadow-account`, `behavioral-bias`, `pine-script` now capped via `lib/aiUsage.ts` (free 5/day, pro 25/day each). Committed `282732a` on `dev`, not yet merged to `main`.
+
 Not started, ranked by severity:
 
-1. **Uncapped Grok-cost routes** — `thesis-check`, `strategy-research`, `hypotheses/[id]/analyze`, `shadow-account`, `behavioral-bias`, `pine-script` have no daily cap. Any signed-in user can loop-call and run up xAI bill.
 2. **TOCTOU race on daily AI usage caps** — `grok/route.ts`, `grok-chat/route.ts`, `briefing/route.ts` read-then-write non-atomically. Concurrent requests can exceed cap.
 3. **`token-unlock/route.ts` cache-key bypass** — cache keyed off unvalidated input, trivially bypassed to force fresh expensive calls.
 4. **Verbose error leakage** — ~20 routes return raw `error.message`/`String(e)` to callers, leaks Supabase/PostgREST internals (bounded to authenticated/admin callers only, not public).
