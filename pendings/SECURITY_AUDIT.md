@@ -12,13 +12,15 @@ abuse, traceability, general exploit surface.
 
 ## Still open (all LOW priority — nothing here is urgent)
 
-- ~~🟡 Telegram alert on global-cap-breach spike~~ — **code done 2026-07-25**,
-  scheduling pending. `app/api/ops/spike-alert/route.ts` Telegrams the owner
-  once today's usage crosses 80% of `AI_GLOBAL_DAILY_MAX` (same threshold as
-  the `/ops` dashboard's own flag), with a `spike_alerted` dedup column so it
-  fires once per day, not once per tick. Needs a scheduler pointed at it -
-  user chose n8n over cron-job.org (see `INFRASTRUCTURE.md` §8) - not a
-  security gap once wired, just not live yet.
+- ~~🟡 AI-spend spike alert~~ — **done 2026-07-25**. Owner rejected Telegram
+  as the channel; `app/api/ops/spike-alert/route.ts` now emails both of the
+  owner's addresses (`lib/email.ts`'s `sendSpikeAlertEmail`, via the existing
+  Brevo setup) once today's usage crosses 80% of `AI_GLOBAL_DAILY_MAX`, plus
+  a top-of-page banner on `/ops` itself (`SpikeBanner`, same threshold/data
+  source as the dashboard's own flag) so the trip is visible in-app too, not
+  email-only. `spike_alerted` dedup column unchanged - still fires once per
+  day, not once per tick. Scheduler (n8n) still needs pointing at the route -
+  not a security gap once wired, just not live yet.
 - **Per-user cap on the 3 cached xAI routes' cache-miss path** (dry-powder,
   macro-context, onchain). Fixed-key caching already bounds cost to ~1
   call/TTL, but there's no per-user counter for symmetry/attribution with
