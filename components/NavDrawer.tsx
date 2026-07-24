@@ -11,7 +11,7 @@ import { useTheme } from '@/lib/theme';
 import { withAlpha } from '@/lib/color';
 import {
   IconSun, IconMoon,
-  NavDashboard, NavBriefing, NavArena, NavMarkets, NavPrices, NavScanner,
+  NavDashboard, NavBriefing, NavArena, NavMarkets, NavScanner,
   NavLiqMap, NavFunding, NavCorrelation, NavBacktest, NavTracking, NavResearch,
   NavNews, NavCalendar, NavJournal, NavCalc, NavAlerts, NavHours, NavPlaybook,
   NavSettings, NavAbout,
@@ -126,7 +126,6 @@ const PRIMARY = [
 
 const SCANNERS = [
   { path: '/markets',       labelKey: 'NAV_MARKETS'        as const },
-  { path: '/prices',        labelKey: 'NAV_LIVE_PRICES'    as const },
   { path: '/scanner',       labelKey: 'NAV_SETUP_SCANNER'  as const },
   { path: '/liq',           labelKey: 'NAV_LIQUIDATION_MAP' as const },
   { path: '/funding',       labelKey: 'NAV_FR_HISTORY'     as const },
@@ -161,7 +160,6 @@ const NAV_SECTIONS: NavSection[] = [
   { headerKey: 'NAV_SECTION_ANALYSIS', items: [
     { path: '/arena',         labelKey: 'NAV_ARENA',           Icon: NavArena },
     { path: '/markets',       labelKey: 'NAV_MARKETS',         Icon: NavMarkets },
-    { path: '/prices',        labelKey: 'NAV_LIVE_PRICES',     Icon: NavPrices },
     { path: '/scanner',       labelKey: 'NAV_SETUP_SCANNER',   Icon: NavScanner },
     { path: '/liq',           labelKey: 'NAV_LIQUIDATION_MAP', Icon: NavLiqMap },
     { path: '/funding',       labelKey: 'NAV_FR_HISTORY',      Icon: NavFunding },
