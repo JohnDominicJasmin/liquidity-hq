@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { incrementToolUsage } from '@/lib/aiUsage';
 import { getUserRole } from '@/lib/entitlements';
 import { AI_LIMITS } from '@/lib/limits';
+import { apiError } from '@/lib/apiError';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -101,7 +102,7 @@ export async function POST(req: NextRequest) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as { error?: string };
-    return NextResponse.json({ error: err.error ?? 'AI error' }, { status: 502 });
+    return apiError('thesis-check', err.error ?? 'upstream AI error', 502, 'AI service error');
   }
 
   const data = await res.json();

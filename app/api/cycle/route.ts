@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 export interface CyclePoint { day: number; ratio: number; }
@@ -98,9 +99,6 @@ export async function GET(req: NextRequest) {
       currentDay,
     } satisfies CycleData);
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'fetch failed' },
-      { status: 500 }
-    );
+    return apiError('cycle', e, 500, 'Request failed');
   }
 }

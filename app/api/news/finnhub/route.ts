@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 const KEY  = process.env.FINNHUB_KEY ?? '';
@@ -42,9 +43,6 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ error: 'Unknown type' }, { status: 400 });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Finnhub fetch failed' },
-      { status: 500 }
-    );
+    return apiError('news/finnhub', e, 500, 'Finnhub fetch failed');
   }
 }

@@ -18,6 +18,7 @@ import { getUserRole } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
 import { incrementUsageColumn } from '@/lib/aiUsage';
+import { apiError } from '@/lib/apiError';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -149,9 +150,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(data, { status });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Grok proxy error' },
-      { status: 500 }
-    );
+    return apiError('grok-chat', e, 500, 'AI service error');
   }
 }

@@ -6,6 +6,7 @@ import { getUserRole } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
 import { incrementUsageColumn } from '@/lib/aiUsage';
+import { apiError } from '@/lib/apiError';
 
 // Keys / limits (limits: single source of truth in lib/limits.ts)
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -163,10 +164,7 @@ export async function POST(req: NextRequest) {
       text = d.choices?.[0]?.message?.content ?? '';
     }
   } catch (e: unknown) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'xAI error' },
-      { status: 500 }
-    );
+    return apiError('grok', e, 500, 'AI service error');
   }
 
   const result = parseCombinedResponse(text, tf, session);

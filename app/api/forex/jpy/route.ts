@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 export async function GET(req: NextRequest) {
@@ -15,6 +16,6 @@ export async function GET(req: NextRequest) {
     if (!jpy) throw new Error('no JPY in response');
     return NextResponse.json({ jpy }, { headers: { 'Cache-Control': 'public, max-age=300' } });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 502 });
+    return apiError('forex/jpy', e, 502, 'Upstream fetch failed');
   }
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: false })
     .limit(100);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return apiError('price-alerts', error);
   return NextResponse.json({ alerts: data ?? [] });
 }
 
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return apiError('price-alerts', error);
   return NextResponse.json({ alert: data });
 }
 
@@ -80,7 +81,7 @@ export async function PATCH(req: NextRequest) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return apiError('price-alerts', error);
   return NextResponse.json({ alert: data });
 }
 
@@ -100,6 +101,6 @@ export async function DELETE(req: NextRequest) {
     .eq('id', id)
     .eq('user_id', user.id); // ownership check - prevents deleting other users' alerts
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return apiError('price-alerts', error);
   return NextResponse.json({ ok: true });
 }

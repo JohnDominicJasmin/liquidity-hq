@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { withAdmin } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
@@ -106,7 +107,7 @@ export const PATCH = withAdmin<[{ params: Promise<{ id: string }> }]>(async (req
         { user_id: id, role, updated_at: new Date().toISOString() },
         { onConflict: 'user_id' },
       );
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) return apiError('ops/users/[id]', error);
       break;
     }
     case 'ban':
@@ -114,13 +115,13 @@ export const PATCH = withAdmin<[{ params: Promise<{ id: string }> }]>(async (req
       const { error } = await admin.auth.admin.updateUserById(id, {
         ban_duration: action === 'ban' ? BAN_DURATION : 'none',
       });
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) return apiError('ops/users/[id]', error);
       break;
     }
     case 'reset_ai_limit': {
       const today = new Date().toISOString().slice(0, 10);
       const { error } = await admin.from(T.grok_usage).delete().eq('user_id', id).eq('date', today);
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) return apiError('ops/users/[id]', error);
       break;
     }
   }

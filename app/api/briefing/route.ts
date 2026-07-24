@@ -5,6 +5,7 @@ import { getUserRole } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
 import { incrementUsageColumn } from '@/lib/aiUsage';
+import { apiError } from '@/lib/apiError';
 
 export const dynamic = 'force-dynamic';
 
@@ -108,7 +109,7 @@ export async function POST(req: NextRequest) {
 
     if (!res.ok) {
       const txt = await res.text();
-      return NextResponse.json({ error: txt }, { status: res.status });
+      return apiError('briefing', txt, res.status, 'AI service error');
     }
 
     const data = await res.json();
@@ -119,6 +120,6 @@ export async function POST(req: NextRequest) {
       _usage: { briefing_used: newCount, briefing_limit: briefingLimit },
     });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return apiError('briefing', e, 500, 'Request failed');
   }
 }

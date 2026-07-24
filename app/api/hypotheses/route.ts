@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
     .eq('user_id', authData.user.id)
     .order('created_at', { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return apiError('hypotheses', error);
   return NextResponse.json({ hypotheses: data ?? [] });
 }
 
@@ -60,6 +61,6 @@ export async function POST(req: NextRequest) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return apiError('hypotheses', error);
   return NextResponse.json({ hypothesis: data }, { status: 201 });
 }

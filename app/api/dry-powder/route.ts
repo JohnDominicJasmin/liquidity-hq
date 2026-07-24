@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
 
@@ -93,6 +94,6 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json(result);
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Request failed' }, { status: 502 });
+    return apiError('dry-powder', e, 502, 'Request failed');
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { withOwner } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
@@ -26,7 +27,7 @@ export const PATCH = withOwner<[Ctx]>(async (req, { user }, { params }) => {
 
   const admin = getSupabaseAdmin();
   const { error } = await admin.from(T.admin_users).update(patch).eq('user_id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return apiError('ops/team/[id]', error);
 
   await admin.from(T.admin_audit_log).insert({
     actor_email: user.email,
@@ -49,7 +50,7 @@ export const DELETE = withOwner<[Ctx]>(async (_req, { user }, { params }) => {
 
   const admin = getSupabaseAdmin();
   const { error } = await admin.from(T.admin_users).delete().eq('user_id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return apiError('ops/team/[id]', error);
 
   await admin.from(T.admin_audit_log).insert({
     actor_email: user.email,

@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
 
@@ -144,9 +145,6 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ error: 'Unknown type' }, { status: 400 });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Proxy fetch failed' },
-      { status: 500 }
-    );
+    return apiError('proxy', e, 500, 'Proxy fetch failed');
   }
 }

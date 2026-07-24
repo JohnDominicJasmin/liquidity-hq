@@ -4,6 +4,7 @@ import { T } from '@/lib/tables';
 import { incrementToolUsage } from '@/lib/aiUsage';
 import { getUserRole } from '@/lib/entitlements';
 import { AI_LIMITS } from '@/lib/limits';
+import { apiError } from '@/lib/apiError';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -139,7 +140,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const d = await r.json();
     analysis = d.choices?.[0]?.message?.content ?? '';
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Request failed' }, { status: 500 });
+    return apiError('hypotheses/[id]/analyze', e, 500, 'Request failed');
   }
 
   const verdict   = parseSection(analysis, 'VERDICT');

@@ -4,6 +4,7 @@ import { cached } from '@/lib/apiCache';
 import { incrementToolUsage } from '@/lib/aiUsage';
 import { getUserRole } from '@/lib/entitlements';
 import { AI_LIMITS } from '@/lib/limits';
+import { apiError } from '@/lib/apiError';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // Every visitor requesting the same asset+timeframe within this window gets
@@ -157,6 +158,6 @@ export async function POST(req: NextRequest) {
     if (e instanceof RateLimitError) {
       return NextResponse.json({ error: e.message, code: 'RATE_LIMIT' }, { status: 429 });
     }
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Request failed' }, { status: 502 });
+    return apiError('smc-snapshot', e, 502, 'Request failed');
   }
 }

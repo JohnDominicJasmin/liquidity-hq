@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   try {
     const db = getSupabaseAdmin();
     const { data, error } = await db.from(T.muted_alerts).select('key').eq('user_id', userId);
-    if (error) return NextResponse.json({ muted: [], error: error.message });
+    if (error) { console.error('[alert-prefs] GET:', error.message); return NextResponse.json({ muted: [] }); }
     return NextResponse.json({ muted: (data ?? []).map(r => String(r.key)) });
   } catch {
     return NextResponse.json({ muted: [] });
@@ -58,9 +58,10 @@ export async function POST(req: NextRequest) {
     const res = muted
       ? await db.from(T.muted_alerts).upsert({ user_id: userId, key })
       : await db.from(T.muted_alerts).delete().eq('user_id', userId).eq('key', key);
-    if (res.error) return NextResponse.json({ ok: false, error: res.error.message }, { status: 500 });
+    if (res.error) { console.error('[alert-prefs] POST:', res.error.message); return NextResponse.json({ ok: false, error: 'Failed to update' }, { status: 500 }); }
     return NextResponse.json({ ok: true });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : 'Supabase not configured' }, { status: 503 });
+    console.error('[alert-prefs] POST exception:', e instanceof Error ? e.message : String(e));
+    return NextResponse.json({ ok: false, error: 'Request failed' }, { status: 503 });
   }
 }
