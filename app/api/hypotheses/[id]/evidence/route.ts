@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .eq('user_id', authData.user.id)
     .order('created_at', { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return apiError('hypotheses/[id]/evidence', error);
   return NextResponse.json({ evidence: data ?? [] });
 }
 
@@ -80,7 +81,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return apiError('hypotheses/[id]/evidence', error);
   return NextResponse.json({ evidence: data }, { status: 201 });
 }
 
@@ -98,6 +99,6 @@ export async function DELETE(req: NextRequest) {
     .delete()
     .eq('id', evidenceId)
     .eq('user_id', authData.user.id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return apiError('hypotheses/[id]/evidence', error);
   return NextResponse.json({ ok: true });
 }

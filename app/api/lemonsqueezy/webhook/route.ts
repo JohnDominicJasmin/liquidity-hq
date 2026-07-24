@@ -28,6 +28,14 @@ export async function POST(req: NextRequest) {
   const attrs = event.data?.attributes ?? {};
   const userId: string | undefined = event.meta?.custom_data?.user_id;
 
+  // Ignore test-mode events in production - a LemonSqueezy test-mode purchase
+  // uses a fake card and must never grant real Pro. Dev keeps them so the
+  // checkout flow can be exercised end to end.
+  const isProd = process.env.NEXT_PUBLIC_APP_ENV !== 'dev';
+  if (isProd && attrs.test_mode === true) {
+    return NextResponse.json({ received: true, ignored: 'test_mode' });
+  }
+
   if (!userId) return NextResponse.json({ received: true });
 
   const sb = getSupabaseAdmin();

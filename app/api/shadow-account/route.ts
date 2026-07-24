@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
+import { incrementToolUsage } from '@/lib/aiUsage';
+import { getUserRole } from '@/lib/entitlements';
+import { AI_LIMITS } from '@/lib/limits';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -89,6 +92,16 @@ export async function POST(req: NextRequest) {
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
+
+  const role = await getUserRole(token, authData.user.id);
+  const limit = AI_LIMITS[role].shadowAccount;
+  const newCount = await incrementToolUsage(token, authData.user.id, 'shadowAccount', limit);
+  if (newCount === null) {
+    return NextResponse.json(
+      { error: `Daily limit of ${limit} Shadow Account reports reached.`, code: 'RATE_LIMIT' },
+      { status: 429 },
+    );
+  }
 
   const { data: trades, error } = await sb(token)
     .from(T.trades)

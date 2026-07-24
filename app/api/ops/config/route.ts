@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { withOwner } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
@@ -57,7 +58,7 @@ export const PATCH = withOwner(async (req, { user }) => {
     { key, value, updated_by: user.email, updated_at: new Date().toISOString() },
     { onConflict: 'key' },
   );
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return apiError('ops/config', error);
 
   await admin.from(T.admin_audit_log).insert({
     actor_email: user.email,

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
 import { hasProFeatures } from '@/lib/entitlements';
@@ -169,6 +170,6 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json(result);
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Request failed' }, { status: 502 });
+    return apiError('macro-context', e, 502, 'Request failed');
   }
 }

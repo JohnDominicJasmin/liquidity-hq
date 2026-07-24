@@ -4,6 +4,8 @@ import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
+import { incrementUsageColumn } from '@/lib/aiUsage';
+import { apiError } from '@/lib/apiError';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,7 +76,10 @@ export async function POST(req: NextRequest) {
   ]);
   const briefingLimit = AI_LIMITS[role].briefing;
 
-  if (briefingUsed >= briefingLimit) {
+  // Atomic check-and-increment (reserve before spending on xAI) - closes the
+  // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
+  const newCount = await incrementUsageColumn(token, userId, 'briefing_count', briefingLimit);
+  if (newCount === null) {
     return NextResponse.json(
       {
         error: `Daily limit of ${briefingLimit} briefings reached.`,
@@ -104,25 +109,17 @@ export async function POST(req: NextRequest) {
 
     if (!res.ok) {
       const txt = await res.text();
-      return NextResponse.json({ error: txt }, { status: res.status });
+      return apiError('briefing', txt, res.status, 'AI service error');
     }
 
     const data = await res.json();
     const briefing = (data.choices?.[0]?.message?.content ?? '').trim();
 
-    /* ── Increment briefing_count ── */
-    const newBriefing = briefingUsed + 1;
-    const { error: upsertErr } = await sb(token).from(T.grok_usage).upsert(
-      { user_id: userId, date: today, briefing_count: newBriefing, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id,date' }
-    );
-    if (upsertErr) console.error('[briefing] usage upsert failed:', upsertErr.message);
-
     return NextResponse.json({
       briefing,
-      _usage: { briefing_used: newBriefing, briefing_limit: briefingLimit },
+      _usage: { briefing_used: newCount, briefing_limit: briefingLimit },
     });
   } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 });
+    return apiError('briefing', e, 500, 'Request failed');
   }
 }

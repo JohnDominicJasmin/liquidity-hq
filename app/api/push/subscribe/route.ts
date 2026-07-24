@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     { onConflict: 'endpoint' }
   );
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return apiError('push/subscribe', error);
   return NextResponse.json({ ok: true });
 }
 

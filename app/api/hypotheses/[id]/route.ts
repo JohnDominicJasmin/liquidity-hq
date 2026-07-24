@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 
@@ -37,7 +38,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return apiError('hypotheses/[id]', error);
   return NextResponse.json({ hypothesis: data });
 }
 
@@ -53,6 +54,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     .delete()
     .eq('id', id)
     .eq('user_id', authData.user.id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return apiError('hypotheses/[id]', error);
   return NextResponse.json({ ok: true });
 }

@@ -1,11 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
+import { incrementToolUsage } from '@/lib/aiUsage';
+import { getUserRole } from '@/lib/entitlements';
+import { AI_LIMITS } from '@/lib/limits';
+import { apiError } from '@/lib/apiError';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // Every visitor requesting the same asset+timeframe within this window gets
 // the same candles and the same Grok read - cache per (asset, tf).
 const CACHE_TTL = 2 * 60_000;
+
+class RateLimitError extends Error {
+  constructor(public limit: number) {
+    super(`Daily limit of ${limit} SMC snapshots reached.`);
+  }
+}
+
+const VALID_TFS = new Set([
+  '1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h',
+  '1d', '3d', '1w', '1M',
+]);
 
 const SYMBOL_MAP: Record<string, string> = {
   BTC: 'BTCUSDT', ETH: 'ETHUSDT', SOL: 'SOLUSDT', XRP: 'XRPUSDT',
@@ -89,10 +104,30 @@ export async function POST(req: NextRequest) {
   const asset  = (body.asset ?? 'BTC').toUpperCase().replace(/USDT$/i, '').trim();
   const tf     = body.tf ?? '1h';
 
+  // Strict charset/allowlist (not just a default) - previously any string was
+  // accepted into the cache key below, letting callers defeat it with
+  // arbitrary noise and force unlimited fresh xAI calls. See pendings/PENDING.md
+  // finding #3 (same class of bug as token-unlock).
+  if (!/^[A-Z0-9]{1,10}$/.test(asset)) {
+    return NextResponse.json({ error: 'Invalid asset symbol' }, { status: 400 });
+  }
+  if (!VALID_TFS.has(tf)) {
+    return NextResponse.json({ error: 'Invalid timeframe' }, { status: 400 });
+  }
+
   const symbol = SYMBOL_MAP[asset] ?? `${asset}USDT`;
 
   try {
     const result = await cached(`smc-snapshot:${asset}:${tf}`, CACHE_TTL, async () => {
+      // Only the cache-miss path spends on xAI, so only it needs the daily
+      // cap - a cache hit within the 2min TTL stays free for everyone.
+      const role = await getUserRole(token, authData.user.id);
+      const limit = AI_LIMITS[role].smcSnapshot;
+      const newCount = await incrementToolUsage(token, authData.user.id, 'smcSnapshot', limit);
+      if (newCount === null) {
+        throw new RateLimitError(limit);
+      }
+
       const candles = await fetchCandles(symbol, tf, 50);
       if (candles.length < 20) throw new Error('Not enough candle data - try a different timeframe');
 
@@ -120,6 +155,9 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(result);
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Request failed' }, { status: 502 });
+    if (e instanceof RateLimitError) {
+      return NextResponse.json({ error: e.message, code: 'RATE_LIMIT' }, { status: 429 });
+    }
+    return apiError('smc-snapshot', e, 502, 'Request failed');
   }
 }

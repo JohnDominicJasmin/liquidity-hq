@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
+import { incrementToolUsage } from '@/lib/aiUsage';
+import { getUserRole } from '@/lib/entitlements';
+import { AI_LIMITS } from '@/lib/limits';
+import { apiError } from '@/lib/apiError';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -96,6 +100,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
+  const role = await getUserRole(token, authData.user.id);
+  const limit = AI_LIMITS[role].hypothesisAnalyze;
+  const newCount = await incrementToolUsage(token, authData.user.id, 'hypothesisAnalyze', limit);
+  if (newCount === null) {
+    return NextResponse.json(
+      { error: `Daily limit of ${limit} hypothesis analyses reached.`, code: 'RATE_LIMIT' },
+      { status: 429 },
+    );
+  }
+
   const { id } = await params;
 
   const [{ data: hyp }, { data: evs }] = await Promise.all([
@@ -126,7 +140,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const d = await r.json();
     analysis = d.choices?.[0]?.message?.content ?? '';
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Request failed' }, { status: 500 });
+    return apiError('hypotheses/[id]/analyze', e, 500, 'Request failed');
   }
 
   const verdict   = parseSection(analysis, 'VERDICT');

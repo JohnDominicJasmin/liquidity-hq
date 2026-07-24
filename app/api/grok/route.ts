@@ -5,6 +5,8 @@ import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
+import { incrementUsageColumn } from '@/lib/aiUsage';
+import { apiError } from '@/lib/apiError';
 
 // Keys / limits (limits: single source of truth in lib/limits.ts)
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -109,15 +111,15 @@ export async function POST(req: NextRequest) {
     briefing_used: briefingUsed, briefing_limit: briefingLimit,
   });
 
-  if (type === 'deep' && deepUsed >= deepLimit) {
+  // Atomic check-and-increment (reserve before spending on xAI) - closes the
+  // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
+  const column = type === 'deep' ? 'deep_count' : 'quick_count';
+  const limit  = type === 'deep' ? deepLimit : quickLimit;
+  const newCount = await incrementUsageColumn(token!, userId, column, limit);
+  if (newCount === null) {
+    const label = type === 'deep' ? 'deep analyses' : 'quick analyses';
     return NextResponse.json(
-      { error: `Daily limit of ${deepLimit} deep analyses reached.`, code: 'RATE_LIMIT', usage: allUsage() },
-      { status: 429 }
-    );
-  }
-  if (type === 'quick' && quickUsed >= quickLimit) {
-    return NextResponse.json(
-      { error: `Daily limit of ${quickLimit} quick analyses reached.`, code: 'RATE_LIMIT', usage: allUsage() },
+      { error: `Daily limit of ${limit} ${label} reached.`, code: 'RATE_LIMIT', usage: allUsage() },
       { status: 429 }
     );
   }
@@ -162,22 +164,13 @@ export async function POST(req: NextRequest) {
       text = d.choices?.[0]?.message?.content ?? '';
     }
   } catch (e: unknown) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'xAI error' },
-      { status: 500 }
-    );
+    return apiError('grok', e, 500, 'AI service error');
   }
 
   const result = parseCombinedResponse(text, tf, session);
 
-  // ── Update usage ──────────────────────────────────────────────────────────
-  const newDeep  = type === 'deep'  ? deepUsed  + 1 : deepUsed;
-  const newQuick = type === 'quick' ? quickUsed + 1 : quickUsed;
-  const { error: upsertErr } = await sb(token!).from(T.grok_usage).upsert(
-    { user_id: userId, date: today, deep_count: newDeep, quick_count: newQuick, updated_at: new Date().toISOString() },
-    { onConflict: 'user_id,date' }
-  );
-  if (upsertErr) console.error('[grok] usage upsert failed:', upsertErr.message);
+  const newDeep  = type === 'deep'  ? newCount : deepUsed;
+  const newQuick = type === 'quick' ? newCount : quickUsed;
 
   return NextResponse.json({
     result,

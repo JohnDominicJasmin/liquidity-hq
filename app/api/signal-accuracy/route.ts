@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 
 function emaArr(closes: number[], period: number): number[] {
   const result = new Array<number>(closes.length).fill(NaN);
@@ -189,9 +190,6 @@ export async function GET() {
 
     return NextResponse.json({ stats, candles: closes.length });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'failed' },
-      { status: 500 }
-    );
+    return apiError('signal-accuracy', e, 500, 'Request failed');
   }
 }

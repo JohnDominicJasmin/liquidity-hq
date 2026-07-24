@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
+import { apiError } from '@/lib/apiError';
 
 const CMC_KEY = process.env.CMC_API_KEY ?? '';
 const BASE    = 'https://pro-api.coinmarketcap.com';
@@ -48,9 +49,6 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ error: 'Unknown type' }, { status: 400 });
   } catch (e) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'CMC fetch failed' },
-      { status: 500 }
-    );
+    return apiError('cmc', e, 500, 'CMC fetch failed');
   }
 }

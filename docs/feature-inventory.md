@@ -337,7 +337,7 @@ Offline fallback page, install-to-homescreen manifest, and a service worker hand
 
 ## 16. Admin / Ops Console (internal — not a user tier)
 
-Owner/staff-only operations console at `/ops` (login at `/ops/login`; old `/admin` path is a honeypot that logs the probe and 404s). Not part of any pricing tier — internal tooling. Full status + backlog in `OPS_ROADMAP.md`.
+Owner/staff-only operations console at `/ops` (login at `/ops/login`; old `/admin` path is a honeypot that logs the probe and 404s). Not part of any pricing tier — internal tooling. Full status + backlog in `pendings/OPS_ROADMAP.md`.
 
 ### Access control & auth
 DB-backed membership + roles (`owner` | `staff`) in `lhq_admin_users`, managed from the Team page, with `ADMIN_EMAILS` as an emergency-bootstrap owner. Server-side guard (`withAdmin` / `withOwner`) on every `/api/ops/*` route validates the Supabase bearer token then the role before any service-role query. `/ops/login` does email+password + Google; signed-in non-admins get an "Access denied" screen.
@@ -360,7 +360,7 @@ Grant/Revoke Pro (writes only `user_subscriptions.role`, never touches Lemon Squ
 **Cost:** 🔵 DB + auth admin
 
 ### Team management (owner-only)
-Add an admin (creates a pre-confirmed Supabase user or grants an existing account access), change role, disable/remove. Best-effort "you've been added" email via Brevo (`lib/email.ts`) — unreliable without a verified domain, see `OPS_ROADMAP.md`.
+Add an admin (creates a pre-confirmed Supabase user or grants an existing account access), change role, disable/remove. Best-effort "you've been added" email via Brevo (`lib/email.ts`) — unreliable without a verified domain, see `pendings/OPS_ROADMAP.md`.
 **Files:** `app/ops/team/page.tsx`, `app/api/ops/team/**`, `lib/email.ts`
 **Cost:** 🔵 DB + auth admin + external Brevo (best-effort)
 

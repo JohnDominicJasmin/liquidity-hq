@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
@@ -84,6 +85,6 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json(result);
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return apiError('funding', err, 500, 'Request failed');
   }
 }

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { incrementToolUsage } from '@/lib/aiUsage';
+import { getUserRole } from '@/lib/entitlements';
+import { AI_LIMITS } from '@/lib/limits';
+import { apiError } from '@/lib/apiError';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -57,6 +61,16 @@ export async function POST(req: NextRequest) {
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
+  const role = await getUserRole(token, authData.user.id);
+  const limit = AI_LIMITS[role].thesisCheck;
+  const newCount = await incrementToolUsage(token, authData.user.id, 'thesisCheck', limit);
+  if (newCount === null) {
+    return NextResponse.json(
+      { error: `Daily limit of ${limit} thesis checks reached.`, code: 'RATE_LIMIT' },
+      { status: 429 },
+    );
+  }
+
   const body = await req.json().catch(() => ({})) as {
     symbol?: string; direction?: string; entryDate?: string;
     thesisText?: string; assumptions?: string[];
@@ -88,7 +102,7 @@ export async function POST(req: NextRequest) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as { error?: string };
-    return NextResponse.json({ error: err.error ?? 'AI error' }, { status: 502 });
+    return apiError('thesis-check', err.error ?? 'upstream AI error', 502, 'AI service error');
   }
 
   const data = await res.json();

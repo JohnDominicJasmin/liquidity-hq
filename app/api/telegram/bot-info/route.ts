@@ -1,8 +1,13 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!rateLimit(`telegram-bot-info:${getClientIp(req)}`, 20, 60_000)) {
+    return NextResponse.json({ ok: false, error: 'Rate limit exceeded' }, { status: 429 });
+  }
+
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return NextResponse.json({ ok: false, username: null, first_name: null, webhook_ok: true });
 

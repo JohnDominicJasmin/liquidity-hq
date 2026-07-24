@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 // Yahoo Finance v8 works fine server-to-server (no CORS restriction from a server).
 // It only blocks browser requests via proxies (proxy IPs get 401).
@@ -35,7 +36,7 @@ async function yf(sym: string) {
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch(`${YF_BASE}/${sym}?interval=1d&range=2d`, {
-      cache: 'no-store',
+      next: { revalidate: 60 },
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -48,7 +49,15 @@ async function yf(sym: string) {
   } catch { clearTimeout(timer); return null; }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Previously fully uncapped (no auth, no rate limit) and cache:'no-store'
+  // on every upstream Yahoo Finance call - a scripted caller hitting this in
+  // a loop could hammer Yahoo with zero backpressure. Same per-IP pattern as
+  // the other public data proxies (app/api/cmc, ath, funding, etc.).
+  if (!rateLimit(`macro:${getClientIp(req)}`, 20, 60_000)) {
+    return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  }
+
   const [oil, dxy, spx, gold, jpy] = await Promise.all([
     yf('CL%3DF'),      // WTI Crude Oil
     yf('DX-Y.NYB'),    // DXY (US Dollar Index)

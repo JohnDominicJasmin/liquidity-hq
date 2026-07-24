@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { withOwner } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
@@ -25,7 +26,7 @@ export const GET = withOwner(async () => {
   const { data, error } = await admin.from(T.admin_users)
     .select('user_id, email, role, active, created_at')
     .order('created_at', { ascending: true });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return apiError('ops/team', error);
   return NextResponse.json({ admins: data ?? [] });
 });
 

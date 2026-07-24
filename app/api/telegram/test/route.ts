@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
+import { rateLimit } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,31 +18,37 @@ export async function GET(req: NextRequest) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (!botToken) return NextResponse.json({ ok: false, error: 'Bot not configured on server' });
 
-  let chatId: string | null = null;
-
+  // Previously an anonymous caller (no Authorization header at all) fell
+  // through to the global TELEGRAM_CHAT_ID env var below with no auth check
+  // and no rate limit - anyone could spam the owner's real Telegram chat on
+  // demand. Auth is now mandatory before any send can happen.
   const authHeader = req.headers.get('Authorization');
-  if (authHeader) {
-    const userToken = authHeader.replace('Bearer ', '');
-    const sb = makeSb(userToken);
-    const { data: { user } } = await sb.auth.getUser();
-    if (user) {
-      // Telegram alerts are Pro-only - don't send a reassuring "connected!"
-      // message to a free user whose real alerts will never arrive.
-      const role = await getUserRole(userToken, user.id);
-      if (role !== 'pro') {
-        return NextResponse.json({ ok: false, error: 'PRO_REQUIRED', message: 'Telegram alerts are a Pro feature.' });
-      }
-      const { data } = await sb
-        .from(T.user_settings)
-        .select('telegram_chat_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      chatId = data?.telegram_chat_id?.trim() || null;
-    }
+  const userToken = authHeader?.replace('Bearer ', '');
+  if (!userToken) return NextResponse.json({ ok: false, error: 'Sign in required' }, { status: 401 });
+
+  const sb = makeSb(userToken);
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return NextResponse.json({ ok: false, error: 'Sign in required' }, { status: 401 });
+
+  if (!rateLimit(`telegram-test:${user.id}`, 5, 60_000)) {
+    return NextResponse.json({ ok: false, error: 'Rate limit exceeded' }, { status: 429 });
   }
 
-  // Fallback to global env var (legacy)
-  if (!chatId) chatId = process.env.TELEGRAM_CHAT_ID ?? null;
+  // Telegram alerts are Pro-only - don't send a reassuring "connected!"
+  // message to a free user whose real alerts will never arrive.
+  const role = await getUserRole(userToken, user.id);
+  if (role !== 'pro') {
+    return NextResponse.json({ ok: false, error: 'PRO_REQUIRED', message: 'Telegram alerts are a Pro feature.' });
+  }
+
+  const { data: settingsData } = await sb
+    .from(T.user_settings)
+    .select('telegram_chat_id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  // Fallback to global env var (legacy) - only reachable now by an
+  // authenticated, rate-limited Pro user, not an anonymous caller.
+  const chatId = settingsData?.telegram_chat_id?.trim() || process.env.TELEGRAM_CHAT_ID || null;
 
   if (!chatId) {
     return NextResponse.json({ ok: false, error: 'No Chat ID configured. Connect Telegram first.' });

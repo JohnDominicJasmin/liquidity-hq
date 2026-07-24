@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
+import { incrementToolUsage } from '@/lib/aiUsage';
+import { getUserRole } from '@/lib/entitlements';
+import { AI_LIMITS } from '@/lib/limits';
+import { apiError } from '@/lib/apiError';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // Vesting schedules don't change hour to hour, and every visitor checking the
 // same symbol gets an identical Grok answer - cache per symbol.
 const CACHE_TTL = 6 * 60 * 60_000;
+
+class RateLimitError extends Error {
+  constructor(public limit: number) {
+    super(`Daily limit of ${limit} token-unlock checks reached.`);
+  }
+}
 
 function sb(token: string) {
   return createClient(
@@ -49,12 +59,24 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as { symbol?: string };
   const symbol = (body.symbol ?? '').toUpperCase().replace(/USDT$/i, '').trim();
 
-  if (!symbol || symbol.length < 2 || symbol.length > 10) {
+  // Strict charset (not just length) - a loose check let callers defeat the
+  // cache key below by padding with punctuation/whitespace noise, forcing a
+  // fresh (unbounded, unrated) xAI call every time. See pendings/PENDING.md.
+  if (!/^[A-Z0-9]{2,10}$/.test(symbol)) {
     return NextResponse.json({ error: 'Enter a valid token symbol (e.g. ARB, OP, PYTH)' }, { status: 400 });
   }
 
   try {
     const result = await cached(`token-unlock:${symbol}`, CACHE_TTL, async () => {
+      // Only the cache-miss path actually spends on xAI, so only it needs the
+      // daily cap - a cache hit for a popular symbol stays free for everyone.
+      const role = await getUserRole(authToken, authData.user.id);
+      const limit = AI_LIMITS[role].tokenUnlock;
+      const newCount = await incrementToolUsage(authToken, authData.user.id, 'tokenUnlock', limit);
+      if (newCount === null) {
+        throw new RateLimitError(limit);
+      }
+
       const prompt = buildUnlockPrompt(symbol);
 
       const aiRes = await fetch('https://api.x.ai/v1/chat/completions', {
@@ -79,6 +101,9 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(result);
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Request failed' }, { status: 502 });
+    if (e instanceof RateLimitError) {
+      return NextResponse.json({ error: e.message, code: 'RATE_LIMIT' }, { status: 429 });
+    }
+    return apiError('token-unlock', e, 502, 'Request failed');
   }
 }

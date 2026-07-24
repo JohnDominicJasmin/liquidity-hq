@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { apiError } from '@/lib/apiError';
 import { withAdmin } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
@@ -29,7 +30,7 @@ export const GET = withAdmin(async (req) => {
   const all: AuthUserLite[] = [];
   for (let p = 1; p <= 50; p++) {
     const { data, error } = await admin.auth.admin.listUsers({ page: p, perPage: 1000 });
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return apiError('ops/users', error);
     all.push(...data.users.map(u => ({
       id: u.id, email: u.email, created_at: u.created_at,
       last_sign_in_at: u.last_sign_in_at, banned_until: u.banned_until,
