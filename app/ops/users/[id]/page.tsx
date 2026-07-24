@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useAdminResource, adminFetch, fmtInt, fmtAgo } from '../../_client';
+import { fmtUsd } from '@/lib/aiCost';
 import { Stat, CardShell } from '../../_cards';
 import styles from '../../ops.module.css';
 import { useLabels } from '@/lib/labels';
@@ -16,6 +17,10 @@ interface Detail {
   pushSubscriptions: number;
   counts: { trades: number; hypotheses: number; priceAlerts: number };
   aiUsage14d: { day: string; total: number }[];
+  aiCost14d: { day: string; cost: number }[];
+  cost14dTotal: number;
+  revenueMonthly: number;
+  margin14d: number;
 }
 
 type UserAction = 'grant_pro' | 'revoke_pro' | 'ban' | 'unban' | 'reset_ai_limit';
@@ -93,8 +98,11 @@ export default function UserDetailPage() {
             </CardShell>
 
             <CardShell title={t('OPS_USER_DETAIL_AI_USAGE_TITLE')} onReload={reload} loading={loading} error={null} hasData>
-              <div className={styles.stats} style={{ gridTemplateColumns: 'repeat(1,1fr)' }}>
+              <div className={styles.stats} style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
                 <Stat label={t('OPS_USER_DETAIL_TOTAL_CALLS')} val={fmtInt(aiTotal14d)} />
+                <Stat label={t('OPS_USER_DETAIL_EST_COST_14D')} val={fmtUsd(data.cost14dTotal)} />
+                <Stat label={t('OPS_USER_DETAIL_MARGIN_14D')} val={fmtUsd(data.margin14d)}
+                  cls={data.margin14d < 0 ? styles.bad : styles.good} />
               </div>
               <div className={styles.miniBars} aria-hidden>
                 {data.aiUsage14d.map(d => (
@@ -103,6 +111,7 @@ export default function UserDetailPage() {
                     title={`${d.day}: ${d.total}`} />
                 ))}
               </div>
+              <p className={styles.note}>{t('OPS_USER_DETAIL_MARGIN_NOTE')}</p>
             </CardShell>
 
             <CardShell title={t('OPS_USER_DETAIL_ACTIONS')} loading={false} error={null} hasData span2>

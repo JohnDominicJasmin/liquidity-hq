@@ -50,18 +50,27 @@ now, live on prod only after your next manual deploy.
 - Adversarial re-verification (live prod DB, 3 passes): 5/6 sampled fixes SOUND; 1 defect found + fixed same session.
 - **Turnstile CAPTCHA on magic-link login — LIVE on prod.** Widget "LiquidityHQ Login" created in Cloudflare (hostnames `liquidity-hq.onrender.com` + `liquidity-hq-dev.onrender.com`, Managed mode). `NEXT_PUBLIC_TURNSTILE_SITE_KEY` set on both Render services (prod deploy `dep-d9hnd57lk1mc73eagneg` confirmed `live`). Secret key saved in Supabase (`LiquidityHq` prod project) → Authentication → Attack Protection → Captcha provider `Turnstile by Cloudflare`, toggle on. Verified end-to-end on the real prod URL: the Turnstile checkbox ("Verify you are human") renders live on `/login`, not just the earlier loading placeholder. This is what actually stops unlimited-distinct-inbox trial farming — closed.
 - **Dev aligned to prod on `TELEGRAM_WEBHOOK_SECRET` + `NEXT_PUBLIC_APP_URL`** — both set on `liquidity-hq-dev` (`https://liquidity-hq-dev.onrender.com`), matching prod's setup. Deploy triggered automatically by the env var update (also picks up the non-xAI attribution commit above). Note: dev's Telegram webhook itself is still unregistered — this only makes the route ready to verify a secret if one is ever pointed at dev; no live Telegram traffic depends on it.
+- **Admin $-cost view, built** — new `lib/aiCost.ts` (real per-token rates:
+  $1.25/$0.20/$2.50 input/cached/output per 1M, plain-call ≈$0.0041,
+  search-call ≈$0.0091, matching `PRICING_ANALYSIS.md` §1). `/api/ops/ai-cost`
+  now returns real $ figures (24h/7d/30d, global + per-user), sorted top-10
+  spenders by $ with role + margin (Pro revenue minus cost), and the global
+  circuit breaker's today-vs-cap usage with an 80%-threshold spike flag.
+  `/api/ops/users/[id]` gets the same per-day $ + 14-day margin. New table
+  registry entry `T.global_ai_usage`. 11 new English-only labels (admin-only
+  surface, labels API already falls back to English for any other locale —
+  see `pendings/PENDING.md`'s i18n-paused note). Verified: `tsc` clean, `/ops`
+  loads with no console errors (correctly gated to `/ops/login` signed-out),
+  cost formula cross-checked by hand against a real `lhq_dev_grok_usage` row.
+  **Not verified end-to-end as a signed-in admin** — that needs your actual
+  login, I don't have ops credentials. Prod currently has zero `lhq_grok_usage`
+  rows in the last 30 days (real usage hasn't accumulated yet / credits were
+  out), so the card will show its empty state until there's real traffic.
 
 ## ⛔ OPEN — code (mine)
 
 Nothing outstanding right now. Everything that was "mine" is either done
 (above, all live on `main`/prod) or explicitly deferred below.
-
-## ⏸️ DEFERRED — low priority, explicitly scoped, not blocking anything
-
-- **Admin $-cost view** — `PRICING_ANALYSIS.md` §5E now has real cost constants
-  ($1.25 / $0.20 / $2.50 per 1M input/cached/output tokens) instead of
-  placeholders. No longer blocked on pricing being "decided" — build whenever
-  you want the `/ops` cost dashboard.
 
 ## ❓ OPEN — YOUR action (can't do from code)
 

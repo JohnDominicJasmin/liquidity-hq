@@ -1008,6 +1008,14 @@ export const LABEL_KEYS = [
   'OPS_CARDS_ALERT_24H_WIN', 'OPS_CARDS_RESOLVED_SUB', 'OPS_CARDS_LIVE_SIG_WIN', 'OPS_CARDS_AVG_R',
   'OPS_CARDS_NO_RESOLVED_ALERTS',
 
+  // Wave 13: ops AI $-cost view. English-only by design - admin-only
+  // surface, no reason to translate (see PENDING.md i18n-paused note).
+  // The labels API falls back to English for any other locale automatically.
+  'OPS_CARDS_AI_SPEND_24H', 'OPS_CARDS_AI_SPEND_7D', 'OPS_CARDS_AI_SPEND_30D',
+  'OPS_CARDS_GLOBAL_CAP_TODAY', 'OPS_CARDS_GLOBAL_CAP_UNSET', 'OPS_CARDS_SPIKE_ALERT',
+  'OPS_CARDS_TOP_SPENDERS_TITLE', 'OPS_CARDS_MARGIN_LABEL',
+  'OPS_USER_DETAIL_EST_COST_14D', 'OPS_USER_DETAIL_MARGIN_14D', 'OPS_USER_DETAIL_MARGIN_NOTE',
+
   // Wave 12: ops team + users + user detail
   'OPS_TEAM_ERR_NOT_SIGNED_IN', 'OPS_TEAM_ERR_OWNER_ONLY',
   'OPS_TEAM_ERR_FAILED_TO_ADD', 'OPS_TEAM_ADD_SUCCESS_NEW', 'OPS_TEAM_ADD_SUCCESS_EXISTING',

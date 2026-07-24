@@ -3,6 +3,7 @@ import { apiError } from '@/lib/apiError';
 import { withAdmin } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import { estimateRowCostUsd, PRO_PRICE_USD_PER_MONTH } from '@/lib/aiCost';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,16 +40,23 @@ export const GET = withAdmin<[{ params: Promise<{ id: string }> }]>(async (_req,
     : 0;
 
   const aiUsage14d: { day: string; total: number }[] = [];
+  const aiCost14d: { day: string; cost: number }[] = [];
   const byDay = new Map<string, number>();
+  const costByDay = new Map<string, number>();
   for (const row of usageRows.data ?? []) {
     let sum = 0;
     for (const c of USAGE_COLS) sum += Number(row[c] ?? 0);
     byDay.set(row.date, (byDay.get(row.date) ?? 0) + sum);
+    costByDay.set(row.date, (costByDay.get(row.date) ?? 0) + estimateRowCostUsd(row as Record<string, number | null>));
   }
   for (let i = 13; i >= 0; i--) {
     const day = new Date(Date.now() - i * DAY).toISOString().slice(0, 10);
     aiUsage14d.push({ day, total: byDay.get(day) ?? 0 });
+    aiCost14d.push({ day, cost: costByDay.get(day) ?? 0 });
   }
+  const cost14dTotal = aiCost14d.reduce((s, d) => s + d.cost, 0);
+  const role = sub.data?.role === 'pro' ? 'pro' : 'free';
+  const revenueMonthly = role === 'pro' ? PRO_PRICE_USD_PER_MONTH : 0;
 
   return NextResponse.json({
     id: u.id,
@@ -70,6 +78,10 @@ export const GET = withAdmin<[{ params: Promise<{ id: string }> }]>(async (_req,
       priceAlerts: priceAlertsCount.count ?? 0,
     },
     aiUsage14d,
+    aiCost14d,
+    cost14dTotal,
+    revenueMonthly,
+    margin14d: revenueMonthly - cost14dTotal,
   });
 });
 
