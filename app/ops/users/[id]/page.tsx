@@ -6,6 +6,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useAdminResource, adminFetch, fmtInt, fmtAgo } from '../../_client';
 import { Stat, CardShell } from '../../_cards';
 import styles from '../../ops.module.css';
+import { useLabels } from '@/lib/labels';
 
 interface Detail {
   id: string; email: string | null; createdAt: string; lastSignInAt: string | null;
@@ -20,6 +21,7 @@ interface Detail {
 type UserAction = 'grant_pro' | 'revoke_pro' | 'ban' | 'unban' | 'reset_ai_limit';
 
 export default function UserDetailPage() {
+  const { t } = useLabels();
   const params = useParams<{ id: string }>();
   const { user: me } = useAuth();
   const { data, error, loading, reload } = useAdminResource<Detail>(`/api/ops/users/${params.id}`);
@@ -31,7 +33,7 @@ export default function UserDetailPage() {
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   async function doAction(action: UserAction) {
-    if (action === 'ban' && !window.confirm('Ban this account? They will be unable to sign in until unbanned.')) return;
+    if (action === 'ban' && !window.confirm(t('OPS_USER_DETAIL_BAN_CONFIRM'))) return;
     setBusy(action);
     setActionMsg(null);
     const res = await adminFetch(`/api/ops/users/${params.id}`, {
@@ -41,58 +43,58 @@ export default function UserDetailPage() {
     });
     setBusy(null);
     const j = res ? await res.json().catch(() => ({})) : {};
-    if (!res || !res.ok) { setActionMsg(j.error ?? 'Action failed.'); return; }
-    setActionMsg('Done.');
+    if (!res || !res.ok) { setActionMsg(j.error ?? t('OPS_USER_DETAIL_ACTION_FAILED')); return; }
+    setActionMsg(t('OPS_USER_DETAIL_DONE'));
     reload();
   }
 
   return (
     <div>
-      <Link href="/ops/users" className={styles.backLink}>← Back to users</Link>
+      <Link href="/ops/users" className={styles.backLink}>{t('OPS_USER_DETAIL_BACK_LINK')}</Link>
 
-      {loading && !data && <div className={styles.loadingText}>Loading…</div>}
-      {error && <div className={styles.err}>{error === 'HTTP 404' ? 'User not found' : error === 'HTTP 403' ? 'Not authorized' : error}</div>}
+      {loading && !data && <div className={styles.loadingText}>{t('OPS_USER_DETAIL_LOADING')}</div>}
+      {error && <div className={styles.err}>{error === 'HTTP 404' ? t('OPS_USER_DETAIL_NOT_FOUND') : error === 'HTTP 403' ? t('OPS_USER_DETAIL_NOT_AUTHORIZED') : error}</div>}
 
       {data && (
         <>
           <div className={styles.detailHead}>
             <span className={styles.detailEmail}>{data.email ?? data.id}</span>
-            {data.subscription.role === 'pro' && <span className={`${styles.badge} ${styles.badgePro}`}>PRO</span>}
-            {data.banned && <span className={`${styles.badge} ${styles.badgeBad}`}>BANNED</span>}
+            {data.subscription.role === 'pro' && <span className={`${styles.badge} ${styles.badgePro}`}>{t('OPS_USER_DETAIL_PRO_BADGE')}</span>}
+            {data.banned && <span className={`${styles.badge} ${styles.badgeBad}`}>{t('OPS_USER_DETAIL_BANNED_BADGE')}</span>}
           </div>
           <div className={styles.detailSub}>
-            joined {fmtAgo(data.createdAt)} · last active {fmtAgo(data.lastSignInAt)} · id {data.id}
+            {t('OPS_USER_DETAIL_META', { joined: fmtAgo(data.createdAt), active: fmtAgo(data.lastSignInAt), id: data.id })}
           </div>
 
           <div className={styles.grid}>
-            <CardShell title="Subscription" loading={false} error={null} hasData>
+            <CardShell title={t('OPS_USER_DETAIL_SUBSCRIPTION')} loading={false} error={null} hasData>
               <div className={styles.stats} style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
-                <Stat label="Role" val={data.subscription.role} cls={data.subscription.role === 'pro' ? styles.accent : undefined} />
-                <Stat label="LS status" val={data.subscription.lsStatus ?? '-'} />
-                <Stat label="Period end" val={data.subscription.currentPeriodEnd ? new Date(data.subscription.currentPeriodEnd).toLocaleDateString() : '-'} />
+                <Stat label={t('OPS_USER_DETAIL_ROLE')} val={data.subscription.role} cls={data.subscription.role === 'pro' ? styles.accent : undefined} />
+                <Stat label={t('OPS_USER_DETAIL_LS_STATUS')} val={data.subscription.lsStatus ?? '-'} />
+                <Stat label={t('OPS_USER_DETAIL_PERIOD_END')} val={data.subscription.currentPeriodEnd ? new Date(data.subscription.currentPeriodEnd).toLocaleDateString() : '-'} />
               </div>
             </CardShell>
 
-            <CardShell title="Onboarding & devices" loading={false} error={null} hasData>
+            <CardShell title={t('OPS_USER_DETAIL_ONBOARDING_DEVICES')} loading={false} error={null} hasData>
               <div className={styles.stats} style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
-                <Stat label="Tour seen" val={data.onboarding.tourSeen ? 'Yes' : 'No'} />
-                <Stat label="Checklist" val={`${data.onboarding.checklistDone}/${data.onboarding.checklistTotal}`} />
-                <Stat label="Push devices" val={fmtInt(data.pushSubscriptions)} />
+                <Stat label={t('OPS_USER_DETAIL_TOUR_SEEN')} val={data.onboarding.tourSeen ? t('OPS_USER_DETAIL_YES') : t('OPS_USER_DETAIL_NO')} />
+                <Stat label={t('OPS_USER_DETAIL_CHECKLIST')} val={`${data.onboarding.checklistDone}/${data.onboarding.checklistTotal}`} />
+                <Stat label={t('OPS_USER_DETAIL_PUSH_DEVICES')} val={fmtInt(data.pushSubscriptions)} />
               </div>
             </CardShell>
 
-            <CardShell title="Activity counts" loading={false} error={null} hasData>
+            <CardShell title={t('OPS_USER_DETAIL_ACTIVITY_COUNTS')} loading={false} error={null} hasData>
               <div className={styles.stats} style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
-                <Stat label="Trades logged" val={fmtInt(data.counts.trades)} />
-                <Stat label="Hypotheses" val={fmtInt(data.counts.hypotheses)} />
-                <Stat label="Price alerts" val={fmtInt(data.counts.priceAlerts)} />
+                <Stat label={t('OPS_USER_DETAIL_TRADES_LOGGED')} val={fmtInt(data.counts.trades)} />
+                <Stat label={t('OPS_USER_DETAIL_HYPOTHESES')} val={fmtInt(data.counts.hypotheses)} />
+                <Stat label={t('OPS_USER_DETAIL_PRICE_ALERTS')} val={fmtInt(data.counts.priceAlerts)} />
               </div>
-              <p className={styles.note}>Counts only - journal/hypothesis content stays private.</p>
+              <p className={styles.note}>{t('OPS_USER_DETAIL_COUNTS_NOTE')}</p>
             </CardShell>
 
-            <CardShell title="AI usage · 14d" onReload={reload} loading={loading} error={null} hasData>
+            <CardShell title={t('OPS_USER_DETAIL_AI_USAGE_TITLE')} onReload={reload} loading={loading} error={null} hasData>
               <div className={styles.stats} style={{ gridTemplateColumns: 'repeat(1,1fr)' }}>
-                <Stat label="Total calls" val={fmtInt(aiTotal14d)} />
+                <Stat label={t('OPS_USER_DETAIL_TOTAL_CALLS')} val={fmtInt(aiTotal14d)} />
               </div>
               <div className={styles.miniBars} aria-hidden>
                 {data.aiUsage14d.map(d => (
@@ -103,39 +105,37 @@ export default function UserDetailPage() {
               </div>
             </CardShell>
 
-            <CardShell title="Actions" loading={false} error={null} hasData span2>
+            <CardShell title={t('OPS_USER_DETAIL_ACTIONS')} loading={false} error={null} hasData span2>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 {data.subscription.role === 'pro' ? (
                   <button className={styles.pagerBtn} disabled={!!busy} onClick={() => doAction('revoke_pro')}>
-                    {busy === 'revoke_pro' ? 'Working…' : 'Revoke Pro'}
+                    {busy === 'revoke_pro' ? t('OPS_USER_DETAIL_WORKING') : t('OPS_USER_DETAIL_REVOKE_PRO')}
                   </button>
                 ) : (
                   <button className={styles.pagerBtn} disabled={!!busy} onClick={() => doAction('grant_pro')}>
-                    {busy === 'grant_pro' ? 'Working…' : 'Grant Pro'}
+                    {busy === 'grant_pro' ? t('OPS_USER_DETAIL_WORKING') : t('OPS_USER_DETAIL_GRANT_PRO')}
                   </button>
                 )}
                 {data.banned ? (
                   <button className={styles.pagerBtn} disabled={!!busy} onClick={() => doAction('unban')}>
-                    {busy === 'unban' ? 'Working…' : 'Unban'}
+                    {busy === 'unban' ? t('OPS_USER_DETAIL_WORKING') : t('OPS_USER_DETAIL_UNBAN')}
                   </button>
                 ) : isSelf ? (
-                  <button className={styles.pagerBtn} disabled title="You can't ban the account you're signed in as.">
-                    Ban account (not your own)
+                  <button className={styles.pagerBtn} disabled title={t('OPS_USER_DETAIL_BAN_SELF_TITLE')}>
+                    {t('OPS_USER_DETAIL_BAN_SELF_LABEL')}
                   </button>
                 ) : (
                   <button className={styles.pagerBtn} disabled={!!busy} onClick={() => doAction('ban')}>
-                    {busy === 'ban' ? 'Working…' : 'Ban account'}
+                    {busy === 'ban' ? t('OPS_USER_DETAIL_WORKING') : t('OPS_USER_DETAIL_BAN_ACCOUNT')}
                   </button>
                 )}
                 <button className={styles.pagerBtn} disabled={!!busy} onClick={() => doAction('reset_ai_limit')}>
-                  {busy === 'reset_ai_limit' ? 'Working…' : "Reset today's AI limit"}
+                  {busy === 'reset_ai_limit' ? t('OPS_USER_DETAIL_WORKING') : t('OPS_USER_DETAIL_RESET_AI_LIMIT')}
                 </button>
               </div>
               {actionMsg && <p className={styles.note}>{actionMsg}</p>}
               <p className={styles.note}>
-                Grant/Revoke Pro only touches the role - an existing paid subscription's billing
-                fields are untouched. Ban blocks sign-in via Supabase Auth; you cannot ban yourself.
-                Every action is written to the audit log.
+                {t('OPS_USER_DETAIL_ACTIONS_NOTE')}
               </p>
             </CardShell>
           </div>

@@ -85,6 +85,15 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  async redirects() {
+    return [
+      // /prices was a plain coin/price/24h-change list - Markets shows the
+      // same price + change columns plus grade/volume/signal, so it was cut
+      // as a redundant duplicate page. Old links/bookmarks land on Markets.
+      { source: "/prices", destination: "/markets", permanent: true },
+    ];
+  },
 };
 
 // No org/project/authToken set - source-map upload stays off until that's

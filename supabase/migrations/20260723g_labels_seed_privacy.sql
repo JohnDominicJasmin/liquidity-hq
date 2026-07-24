@@ -1,0 +1,33 @@
+-- PRIVACY_* rows. Run once against BOTH lhq_labels (prod) and lhq_dev_labels (dev).
+
+insert into lhq_labels (key, locale, value) values
+('PRIVACY_EYEBROW','en','Legal'),
+('PRIVACY_PAGE_TITLE','en','Privacy Policy.'),
+('PRIVACY_LAST_UPDATED','en','Last updated: July 2026'),
+('PRIVACY_SECTION_INFO_COLLECTED_TITLE','en','Information We Collect'),
+('PRIVACY_SECTION_INFO_COLLECTED_BODY','en','We collect information you provide directly: email address and password when creating an account, and any preferences or settings you configure within the Platform. We also collect usage data automatically - pages visited, features used, session duration - to improve the service.'),
+('PRIVACY_SECTION_HOW_WE_USE_TITLE','en','How We Use Your Information'),
+('PRIVACY_SECTION_HOW_WE_USE_BODY','en','We use your information to operate and improve LiquidityHQ, authenticate your account, send service-related communications (such as account updates or security notices), and analyze usage patterns to prioritize features. We do not use your data to provide personalized investment advice.'),
+('PRIVACY_SECTION_DATA_STORAGE_TITLE','en','Data Storage and Security'),
+('PRIVACY_SECTION_DATA_STORAGE_BODY','en','Account data is stored securely via Supabase, a managed cloud database provider. We implement industry-standard security measures including encryption in transit (TLS) and at rest. No system is perfectly secure, and we cannot guarantee absolute security of your data.'),
+('PRIVACY_SECTION_THIRD_PARTY_TITLE','en','Third-Party Services'),
+('PRIVACY_SECTION_THIRD_PARTY_BODY','en','LiquidityHQ integrates with third-party services including Supabase (database), xAI Grok (AI analysis), Binance, Bybit, Finnhub, and Alternative.me (market data). These providers have their own privacy policies and data practices. We are not responsible for their data handling.'),
+('PRIVACY_SECTION_COOKIES_TITLE','en','Cookies and Tracking'),
+('PRIVACY_SECTION_COOKIES_BODY','en','We use session cookies necessary for authentication and platform functionality. We do not currently use third-party advertising cookies or cross-site tracking. You may disable cookies in your browser, but doing so will prevent you from logging in.'),
+('PRIVACY_SECTION_DATA_RETENTION_TITLE','en','Data Retention'),
+('PRIVACY_SECTION_DATA_RETENTION_BODY','en','We retain your account data for as long as your account is active. If you delete your account, we will remove your personal data from active systems within 30 days, except where retention is required by law or for legitimate business purposes such as fraud prevention.'),
+('PRIVACY_SECTION_SHARING_TITLE','en','Sharing of Information'),
+('PRIVACY_SECTION_SHARING_BODY','en','We do not sell your personal data. We do not share your data with third parties for marketing purposes. We may share data with service providers who assist in operating the Platform (e.g., hosting, analytics) under data processing agreements, and when required by law.'),
+('PRIVACY_SECTION_YOUR_RIGHTS_TITLE','en','Your Rights'),
+('PRIVACY_SECTION_YOUR_RIGHTS_BODY','en','Depending on your jurisdiction, you may have the right to access, correct, or delete your personal data; to restrict or object to processing; and to data portability. To exercise these rights, contact us at the address below. We will respond within 30 days.'),
+('PRIVACY_SECTION_CHILDRENS_PRIVACY_TITLE','en','Children''s Privacy'),
+('PRIVACY_SECTION_CHILDRENS_PRIVACY_BODY','en','LiquidityHQ is not intended for users under 18 years of age. We do not knowingly collect personal information from minors. If we learn that we have collected data from a user under 18, we will delete it promptly.'),
+('PRIVACY_SECTION_INTERNATIONAL_USERS_TITLE','en','International Users'),
+('PRIVACY_SECTION_INTERNATIONAL_USERS_BODY','en','LiquidityHQ is operated from the Philippines. If you access the Platform from outside the Philippines, your data may be transferred to and processed in the Philippines or other countries where our service providers operate. By using the Platform, you consent to this transfer.'),
+('PRIVACY_SECTION_CHANGES_TITLE','en','Changes to This Policy'),
+('PRIVACY_SECTION_CHANGES_BODY','en','We may update this Privacy Policy from time to time. When we do, we will update the date at the top of this page. Continued use of the Platform after changes constitute acceptance of the updated policy. For material changes, we will provide notice via email or an in-app notification.'),
+('PRIVACY_SECTION_CONTACT_TITLE','en','Contact Us'),
+('PRIVACY_SECTION_CONTACT_BODY','en','If you have questions about this Privacy Policy or how we handle your data, please contact us at the email address listed on the About page. We take privacy inquiries seriously and will respond promptly.'),
+('PRIVACY_FOOTER_ACKNOWLEDGEMENT','en','By using LiquidityHQ, you acknowledge that you have read and understood this Privacy Policy and consent to the collection and use of your information as described.'),
+('PRIVACY_FOOTER_COPYRIGHT','en','© {year} LiquidityHQ. All rights reserved.')
+on conflict (key, locale) do update set value = excluded.value, updated_at = now();

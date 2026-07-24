@@ -6,6 +6,8 @@ import { useAuth } from '@/components/AuthProvider';
 import { getCheckoutUrl } from '@/lib/checkout';
 import LoadingState from '@/components/LoadingState';
 import { AI_LIMITS } from '@/lib/limits';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 const CHECKOUT_CONFIGURED = !!(
   process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL &&
@@ -14,37 +16,38 @@ const CHECKOUT_CONFIGURED = !!(
 
 const F = AI_LIMITS.free, P = AI_LIMITS.pro; // limit numbers derived, not hand-typed
 
-const FREE_FEATURES = [
-  'Dashboard + market overview',
-  'Morning briefing',
-  'News feed',
-  'Squeeze scanner on every tracked coin',
-  'Charts + signals on 30 minute and higher timeframes',
-  `${F.quick} Quick + ${F.deep} Deep AI analyses / day`,
-  `${F.chat} AI chat messages / day`,
-];
-
 // Keep this list in sync with the actual gates: the timeframe clamp and
 // locked cards in app/arena/page.tsx, the /backtest paywall, and the
 // PRO_REQUIRED checks in /api/onchain and /api/macro-context.
 // (AI limit numbers come from lib/limits.ts - they can't drift from the API.)
-const PRO_FEATURES = [
-  'Everything in Free',
-  'Signals on the 1 minute, 5 minute, and 15 minute charts',
-  'Confluence Score, Order Flow, and Absorption Detector',
-  'Full strategy backtesting',
-  'On-chain and global macro AI analysis',
-  'Telegram alerts - all signal types',
-  'Unlimited price alerts',
-  `${P.quick} Quick + ${P.deep} Deep AI analyses / day`,
-  `${P.chat} AI chat messages + ${P.search} live searches / day`,
-  'Priority support',
+const FREE_FEATURES: Array<[LabelKey, Record<string, string | number>?]> = [
+  ['UPGRADE_FREE_FEATURE_DASHBOARD'],
+  ['UPGRADE_FREE_FEATURE_BRIEFING'],
+  ['UPGRADE_FREE_FEATURE_NEWS'],
+  ['UPGRADE_FREE_FEATURE_SCANNER'],
+  ['UPGRADE_FREE_FEATURE_CHARTS'],
+  ['UPGRADE_FREE_FEATURE_AI_ANALYSES', { quick: F.quick, deep: F.deep }],
+  ['UPGRADE_FREE_FEATURE_AI_CHAT', { chat: F.chat }],
+];
+
+const PRO_FEATURES: Array<[LabelKey, Record<string, string | number>?]> = [
+  ['UPGRADE_PRO_FEATURE_EVERYTHING_FREE'],
+  ['UPGRADE_PRO_FEATURE_FAST_TIMEFRAMES'],
+  ['UPGRADE_PRO_FEATURE_CONFLUENCE'],
+  ['UPGRADE_PRO_FEATURE_BACKTESTING'],
+  ['UPGRADE_PRO_FEATURE_ONCHAIN_MACRO'],
+  ['UPGRADE_PRO_FEATURE_TELEGRAM'],
+  ['UPGRADE_PRO_FEATURE_UNLIMITED_ALERTS'],
+  ['UPGRADE_PRO_FEATURE_AI_ANALYSES', { quick: P.quick, deep: P.deep }],
+  ['UPGRADE_PRO_FEATURE_AI_CHAT_SEARCH', { chat: P.chat, search: P.search }],
+  ['UPGRADE_PRO_FEATURE_PRIORITY_SUPPORT'],
 ];
 
 export default function UpgradePage() {
   const { user, loading, isPro } = useAuth();
   const router = useRouter();
   const [redirecting, setRedirecting] = useState(false);
+  const { t } = useLabels();
 
   useEffect(() => {
     if (loading) return;
@@ -63,7 +66,7 @@ export default function UpgradePage() {
   }
 
   if (loading || isPro) {
-    return <LoadingState message={isPro ? 'Redirecting…' : 'Loading…'} fullPage />;
+    return <LoadingState message={isPro ? t('UPGRADE_LOADING_REDIRECTING') : t('UPGRADE_LOADING')} fullPage />;
   }
 
   return (
@@ -72,7 +75,7 @@ export default function UpgradePage() {
       {/* Nav */}
       <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: 'var(--bg)', borderBottom: '0.5px solid var(--bdr)', padding: '0 24px', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Link href="/arena" style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
-          ← Back
+          {t('UPGRADE_BACK_LABEL')}
         </Link>
         <span style={{ fontSize: 'var(--fs-card-title)', fontWeight: 800, letterSpacing: '-.02em', color: 'var(--txt)' }}>
           LiquidityHQ
@@ -86,13 +89,13 @@ export default function UpgradePage() {
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 48 }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--accent)', background: 'var(--accent-bg)', border: '0.5px solid var(--accent-bdr)', borderRadius: 20, padding: '4px 14px', marginBottom: 20 }}>
-            Pro Plan
+            {t('UPGRADE_EYEBROW')}
           </div>
           <h1 style={{ fontSize: 'clamp(1.75rem, 5vw, 2.75rem)', fontWeight: 900, letterSpacing: '-.03em', margin: '0 0 14px', lineHeight: 1.1 }}>
-            Unlock the full stack
+            {t('UPGRADE_HERO_TITLE')}
           </h1>
           <p style={{ fontSize: 'var(--fs-body)', color: 'var(--txt2)', margin: 0, lineHeight: 1.65, maxWidth: 440, marginInline: 'auto' }}>
-            Fast timeframes, the full signal stack, backtesting, and more AI everywhere. Everything a serious trader needs in one place.
+            {t('UPGRADE_HERO_SUBTITLE')}
           </p>
         </div>
 
@@ -101,13 +104,13 @@ export default function UpgradePage() {
 
           {/* Free card */}
           <div style={{ borderRadius: 16, padding: '24px 28px', border: '0.5px solid var(--bdr)', background: 'var(--bg1)' }}>
-            <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>Current plan</div>
-            <div style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)', marginBottom: 2 }}>Free</div>
-            <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-.04em', marginBottom: 20 }}>$0<span style={{ fontSize: 'var(--fs-body)', fontWeight: 400, color: 'var(--txt3)' }}>/mo</span></div>
+            <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 6 }}>{t('UPGRADE_FREE_CARD_EYEBROW')}</div>
+            <div style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)', marginBottom: 2 }}>{t('UPGRADE_FREE_CARD_NAME')}</div>
+            <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-.04em', marginBottom: 20 }}>$0<span style={{ fontSize: 'var(--fs-body)', fontWeight: 400, color: 'var(--txt3)' }}>{t('UPGRADE_PRICE_SUFFIX_MONTHLY')}</span></div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {FREE_FEATURES.map(f => (
-                <li key={f} style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <span style={{ color: '#22c55e', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span> {f}
+              {FREE_FEATURES.map(([k, vars]) => (
+                <li key={k} style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <span style={{ color: '#22c55e', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span> {t(k, vars)}
                 </li>
               ))}
             </ul>
@@ -116,15 +119,15 @@ export default function UpgradePage() {
           {/* Pro card */}
           <div style={{ borderRadius: 16, padding: '24px 28px', border: '0.5px solid var(--accent-bdr)', background: 'linear-gradient(160deg, var(--accent-bg) 0%, var(--bg1) 60%)', position: 'relative' }}>
             <div style={{ position: 'absolute', top: -11, left: '50%', transform: 'translateX(-50%)', fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', background: 'var(--accent)', color: '#fff', padding: '3px 14px', borderRadius: 20, whiteSpace: 'nowrap' }}>
-              Recommended
+              {t('UPGRADE_PRO_CARD_BADGE')}
             </div>
-            <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 6 }}>Upgrade to</div>
-            <div style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)', marginBottom: 2 }}>Pro</div>
-            <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-.04em', marginBottom: 20 }}>$15<span style={{ fontSize: 'var(--fs-body)', fontWeight: 400, color: 'var(--txt3)' }}>/mo</span></div>
+            <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 6 }}>{t('UPGRADE_PRO_CARD_EYEBROW')}</div>
+            <div style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)', marginBottom: 2 }}>{t('UPGRADE_PRO_CARD_NAME')}</div>
+            <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '-.04em', marginBottom: 20 }}>$15<span style={{ fontSize: 'var(--fs-body)', fontWeight: 400, color: 'var(--txt3)' }}>{t('UPGRADE_PRICE_SUFFIX_MONTHLY')}</span></div>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
-              {PRO_FEATURES.map(f => (
-                <li key={f} style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <span style={{ color: 'var(--accent)', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span> {f}
+              {PRO_FEATURES.map(([k, vars]) => (
+                <li key={k} style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <span style={{ color: 'var(--accent)', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span> {t(k, vars)}
                 </li>
               ))}
             </ul>
@@ -142,12 +145,12 @@ export default function UpgradePage() {
                 onMouseEnter={e => { if (!redirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
               >
-                {redirecting ? 'Redirecting to checkout…' : 'Get Pro - $15/mo →'}
+                {redirecting ? t('UPGRADE_CHECKOUT_BUTTON_REDIRECTING') : t('UPGRADE_CHECKOUT_BUTTON_CTA')}
               </button>
               <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center' }}>
-                {['Cancel anytime', 'Instant access', 'Secure checkout'].map(t => (
-                  <span key={t} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ color: '#22c55e', fontSize: '0.6875rem' }}>✓</span> {t}
+                {(['UPGRADE_TRUST_CANCEL_ANYTIME', 'UPGRADE_TRUST_INSTANT_ACCESS', 'UPGRADE_TRUST_SECURE_CHECKOUT'] as const).map(label => (
+                  <span key={label} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ color: '#22c55e', fontSize: '0.6875rem' }}>✓</span> {t(label)}
                   </span>
                 ))}
               </div>
@@ -156,21 +159,21 @@ export default function UpgradePage() {
             <div style={{ borderRadius: 14, padding: '28px 36px', border: '0.5px solid var(--accent-bdr)', background: 'var(--accent-bg)', maxWidth: 400, width: '100%' }}>
               
               <div style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--txt)', marginBottom: 8 }}>
-                Pro payments launching soon
+                {t('UPGRADE_COMING_SOON_TITLE')}
               </div>
               <p style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.65, margin: '0 0 16px' }}>
                 {user ? (
-                  <>We&apos;re finalising the payment system. You&apos;ll be notified at{' '}
+                  <>{t('UPGRADE_COMING_SOON_SIGNED_IN_PRE')}{' '}
                   <span style={{ color: 'var(--accent)' }}>{user.email}</span>{' '}
-                  as soon as Pro is available.</>
+                  {t('UPGRADE_COMING_SOON_SIGNED_IN_POST')}</>
                 ) : (
-                  <>We&apos;re finalising the payment system.{' '}
-                  <a href="/login?signup=1&next=/upgrade" style={{ color: 'var(--accent)' }}>Sign up</a>{' '}
-                  to get notified as soon as Pro is available.</>
+                  <>{t('UPGRADE_COMING_SOON_SIGNED_OUT_PRE')}{' '}
+                  <a href="/login?signup=1&next=/upgrade" style={{ color: 'var(--accent)' }}>{t('UPGRADE_COMING_SOON_SIGNUP_LINK')}</a>{' '}
+                  {t('UPGRADE_COMING_SOON_SIGNED_OUT_POST')}</>
                 )}
               </p>
               <Link href="/arena" style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', textDecoration: 'underline' }}>
-                Back to Arena
+                {t('UPGRADE_BACK_TO_ARENA_LINK')}
               </Link>
             </div>
           )}

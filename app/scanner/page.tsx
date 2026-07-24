@@ -7,14 +7,16 @@ import SetupScanner from '@/components/SetupScanner';
 import AccumulationTracker from '@/components/AccumulationTracker';
 import DistributionTracker from '@/components/DistributionTracker';
 import PageHint from '@/components/PageHint';
+import { useLabels } from '@/lib/labels';
 
 export default function ScannerPage() {
+  const { t } = useLabels();
   return (
     <div>
       <PageHint
         pageKey="scanner"
-        title="Scanners"
-        body="Scan the market for squeeze setups, multi-timeframe confluences, and coins showing unusual accumulation or distribution patterns."
+        title={t('SCANNER_HINT_TITLE')}
+        body={t('SCANNER_HINT_BODY')}
       />
       <AccumulationTracker />
       <DistributionTracker />

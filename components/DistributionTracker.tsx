@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { useMarket, COINS, CoinId, CoinData, fmtPrice, COIN_DEC } from '@/lib/marketStore';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import Tip from '@/components/Tip';
+import { useLabels } from '@/lib/labels';
 
 /* ── Distribution Tracker ───────────────────────────────────────────────────
    The mirror of the Accumulation Tracker: detects big players EXITING into
@@ -45,6 +46,7 @@ const MAX_ROWS  = 6;
 
 export default function DistributionTracker() {
   const { store, selectCoin } = useMarket();
+  const { t } = useLabels();
 
   const rows = useMemo<DistRow[]>(() => {
     return COINS
@@ -65,17 +67,17 @@ export default function DistributionTracker() {
           fontFamily: 'var(--font-mono), monospace', fontSize: 'var(--fs-micro)', fontWeight: 600,
           color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.12em',
         }}>
-          <Tip width={270} text="Scores every coin for profit-taking by big players: price still up on the day while CVD shows sellers into strength, open interest unwinds out of the rally, top traders lean out of longs, and retail keeps paying positive funding (buying what whales sell). High score = distribution phase - caution on new longs.">
-            Distribution Tracker
+          <Tip width={270} text={t('DISTRIBUTION_TRACKER_TOOLTIP')}>
+            {t('DISTRIBUTION_TRACKER_TITLE')}
           </Tip>
         </span>
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>winners being sold into - big players taking profit</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('DISTRIBUTION_TRACKER_SUBTITLE')}</span>
       </div>
 
       {rows.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-title">No distribution detected</div>
-          <div className="empty-state-sub">Signals appear when a coin shows sellers into strength, OI unwinding, or whales leaning out.</div>
+          <div className="empty-state-title">{t('DISTRIBUTION_TRACKER_EMPTY_TITLE')}</div>
+          <div className="empty-state-sub">{t('DISTRIBUTION_TRACKER_EMPTY_SUB')}</div>
         </div>
       ) : (
         <div style={{ padding: '6px 8px 8px' }}>

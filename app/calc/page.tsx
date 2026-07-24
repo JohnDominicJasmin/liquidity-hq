@@ -9,19 +9,21 @@ import PnLCalc          from '@/components/PnLCalc';
 import RiskRewardCalc   from '@/components/RiskRewardCalc';
 import FundingCostCalc  from '@/components/FundingCostCalc';
 import DcaCalc          from '@/components/DcaCalc';
+import { useLabels } from '@/lib/labels';
 
 const TABS = [
-  { id: 'sizer',       label: 'Position Sizer'     },
-  { id: 'liquidation', label: 'Liquidation Price'  },
-  { id: 'pnl',         label: 'PnL'                },
-  { id: 'rr',          label: 'Risk / Reward'      },
-  { id: 'funding',     label: 'Funding Cost'       },
-  { id: 'dca',         label: 'DCA Average'        },
-];
+  { id: 'sizer',       key: 'CALC_TAB_SIZER'       },
+  { id: 'liquidation', key: 'CALC_TAB_LIQUIDATION' },
+  { id: 'pnl',         key: 'CALC_TAB_PNL'         },
+  { id: 'rr',          key: 'CALC_TAB_RR'          },
+  { id: 'funding',     key: 'CALC_TAB_FUNDING'     },
+  { id: 'dca',         key: 'CALC_TAB_DCA'         },
+] as const;
 
 function CalcPageContent() {
   const searchParams = useSearchParams();
   const [tab, setTab] = useState('sizer');
+  const { t } = useLabels();
 
   // Coin selection lives here, one level above the tabs, so it survives
   // switching between Position Sizer / Liquidation / PnL / etc instead of
@@ -56,14 +58,14 @@ function CalcPageContent() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Calculators</h1>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Position sizing, liquidation, PnL, risk/reward, funding cost, and DCA average</div>
+        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('CALC_PAGE_TITLE')}</h1>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('CALC_PAGE_SUBTITLE')}</div>
       </div>
 
       <div className="ps-presets" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
-        {TABS.map(t => (
-          <button key={t.id} className={`ps-preset${tab === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>
-            {t.label}
+        {TABS.map(tabDef => (
+          <button key={tabDef.id} className={`ps-preset${tab === tabDef.id ? ' on' : ''}`} onClick={() => setTab(tabDef.id)}>
+            {t(tabDef.key)}
           </button>
         ))}
       </div>
@@ -72,7 +74,7 @@ function CalcPageContent() {
           auto-fills its own relevant price field from whatever's picked
           here, so switching tools doesn't mean re-selecting the coin. */}
       <div className="ps-coin-row" style={{ marginBottom: 16 }}>
-        <label className="ps-lbl">Coin <span className="ps-opt">(optional - auto-fills price fields below)</span></label>
+        <label className="ps-lbl">{t('CALC_COIN_LABEL')} <span className="ps-opt">{t('CALC_COIN_OPTIONAL_HINT')}</span></label>
         <div className="ps-coin-irow">
           <div className="ps-coin-combo" ref={coinMenuRef}>
             <button
@@ -85,7 +87,7 @@ function CalcPageContent() {
               {coin
                 ? <CoinIcon coin={coin} size={18} />
                 : <span className="ps-coin-trigger-dot" />}
-              <span className="ps-coin-trigger-label">{coin ? COIN_LABELS[coin] : 'Any coin (enter prices manually)'}</span>
+              <span className="ps-coin-trigger-label">{coin ? COIN_LABELS[coin] : t('CALC_COIN_ANY_LABEL')}</span>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" className="ps-coin-chevron">
                 <path d="M3 4.5 6 7.5 9 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -100,7 +102,7 @@ function CalcPageContent() {
                   onClick={() => { setCoin(''); setCoinMenuOpen(false); }}
                 >
                   <span className="ps-coin-opt-dot" />
-                  <span>Any coin (enter prices manually)</span>
+                  <span>{t('CALC_COIN_ANY_LABEL')}</span>
                 </button>
                 {COINS.map(c => (
                   <button

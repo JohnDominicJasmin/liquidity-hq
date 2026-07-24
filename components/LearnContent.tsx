@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { GLOSSARY } from '@/lib/glossary';
+import { useLabels } from '@/lib/labels';
 
 // Public glossary page (Tier 2 #14). Deliberately does NOT redirect signed-in
 // users away like the marketing homepage (components/LandingContent.tsx) -
@@ -10,6 +11,7 @@ import { GLOSSARY } from '@/lib/glossary';
 // point is SEO) AND by existing logged-in users referencing a term while
 // using the app, e.g. via the footer or nav drawer.
 export default function LearnContent() {
+  const { t } = useLabels();
   const { user } = useAuth();
   const [query, setQuery] = useState('');
 
@@ -36,11 +38,11 @@ export default function LearnContent() {
           <Link href="/" className="lp-logo" style={{ textDecoration: 'none' }}>LiquidityHQ</Link>
           <div className="lp-nav-actions">
             {user ? (
-              <Link href="/dashboard" className="lp-btn-primary">Open Dashboard</Link>
+              <Link href="/dashboard" className="lp-btn-primary">{t('LEARN_CONTENT_NAV_OPEN_DASHBOARD')}</Link>
             ) : (
               <>
-                <Link href="/login" className="lp-btn-ghost">Sign In</Link>
-                <Link href="/login?signup=1" className="lp-btn-primary">Get Started</Link>
+                <Link href="/login" className="lp-btn-ghost">{t('LEARN_CONTENT_NAV_SIGN_IN')}</Link>
+                <Link href="/login?signup=1" className="lp-btn-primary">{t('LEARN_CONTENT_NAV_GET_STARTED')}</Link>
               </>
             )}
           </div>
@@ -50,11 +52,10 @@ export default function LearnContent() {
       {/* ── HEADER ── */}
       <section className="learn-header">
         <h1 className="lp-h1" style={{ fontSize: 'clamp(2rem, 5vw, 2.75rem)' }}>
-          Crypto Trading <span className="lp-h1-accent">Glossary</span>
+          {t('LEARN_CONTENT_HEADING_MAIN')} <span className="lp-h1-accent">{t('LEARN_CONTENT_HEADING_ACCENT')}</span>
         </h1>
         <p className="lp-hero-sub" style={{ maxWidth: 640 }}>
-          Plain-English definitions for the momentum, order-flow, sentiment, and risk
-          terms used throughout LiquidityHQ - and across crypto trading generally.
+          {t('LEARN_CONTENT_HERO_SUB')}
         </p>
         <div className="learn-search-wrap">
           <input
@@ -62,8 +63,8 @@ export default function LearnContent() {
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search terms…"
-            aria-label="Search glossary terms"
+            placeholder={t('LEARN_CONTENT_SEARCH_PLACEHOLDER')}
+            aria-label={t('LEARN_CONTENT_SEARCH_ARIA_LABEL')}
             autoComplete="off"
           />
         </div>
@@ -72,7 +73,7 @@ export default function LearnContent() {
       {/* ── GLOSSARY ── */}
       <section className="learn-body">
         {filtered.length === 0 && (
-          <p className="learn-empty">No terms match "{query}".</p>
+          <p className="learn-empty">{t('LEARN_CONTENT_EMPTY_STATE', { query })}</p>
         )}
         {filtered.map(cat => (
           <div key={cat.key} className="learn-category">
@@ -93,9 +94,9 @@ export default function LearnContent() {
       {!user && (
         <section className="learn-cta">
           <h2 className="lp-h1" style={{ fontSize: 'clamp(1.5rem, 3vw, 2rem)' }}>
-            See these signals live, not just defined.
+            {t('LEARN_CONTENT_CTA_HEADING')}
           </h2>
-          <Link href="/login?signup=1" className="lp-btn-primary" style={{ marginTop: 16 }}>Get Started Free</Link>
+          <Link href="/login?signup=1" className="lp-btn-primary" style={{ marginTop: 16 }}>{t('LEARN_CONTENT_CTA_BUTTON')}</Link>
         </section>
       )}
 

@@ -20,18 +20,21 @@ import Sparkline24h from '@/components/Sparkline24h';
 import CoinIcon from '@/components/CoinIcon';
 import { GlobalSpotlight, useMobile } from '@/components/MagicBento';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
-const OI_TREND_META: Record<string, { txt: string; sub: string; col: string }> = {
-  strong_up:   { txt: '▲ New buyers opening', sub: 'Open interest rising with price - real trend', col: '#34d399' },
-  strong_down: { txt: '▼ New sellers opening', sub: 'Open interest rising as price falls - real dump', col: '#f87171' },
-  weak_up:     { txt: '△ Short covering',      sub: 'Open interest falling as price rises - weak pump', col: '#fbbf24' },
-  weak_down:   { txt: '▽ Long exits',           sub: 'Open interest falling with price - no panic',      col: '#94a3b8' },
+const OI_TREND_META: Record<string, { txtKey: LabelKey; subKey: LabelKey; col: string }> = {
+  strong_up:   { txtKey: 'OI_TREND_STRONG_UP_TXT',   subKey: 'OI_TREND_STRONG_UP_SUB',   col: '#34d399' },
+  strong_down: { txtKey: 'OI_TREND_STRONG_DOWN_TXT', subKey: 'OI_TREND_STRONG_DOWN_SUB', col: '#f87171' },
+  weak_up:     { txtKey: 'OI_TREND_WEAK_UP_TXT',     subKey: 'OI_TREND_WEAK_UP_SUB',     col: '#fbbf24' },
+  weak_down:   { txtKey: 'OI_TREND_WEAK_DOWN_TXT',   subKey: 'OI_TREND_WEAK_DOWN_SUB',   col: '#94a3b8' },
 };
 
 
 /* ── Market Pulse Strip - compact stat chips replacing 3 sidebar indicator cards ── */
 function MarketPulseStrip() {
   const { store } = useMarket();
+  const { t } = useLabels();
   const [volLabel, setVolLabel] = useState<string | null>(null);
 
   useEffect(() => {
@@ -61,14 +64,14 @@ function MarketPulseStrip() {
     : volLabel === 'High Vol' ? '#f87171'
     : 'var(--txt2)';
 
-  const domNote = dom == null ? '' : dom >= 60 ? 'BTC leads' : dom >= 55 ? 'Elevated' : dom >= 48 ? 'Normal' : 'Alt season';
-  const altNote = alt == null ? '' : alt >= 75 ? 'Alt season' : alt >= 50 ? 'Lean alts' : alt >= 25 ? 'BTC leads' : 'BTC season';
+  const domNote = dom == null ? '' : dom >= 60 ? t('DASH_PULSE_NOTE_BTC_LEADS') : dom >= 55 ? t('DASH_PULSE_NOTE_ELEVATED') : dom >= 48 ? t('DASH_PULSE_NOTE_NORMAL') : t('DASH_PULSE_NOTE_ALT_SEASON');
+  const altNote = alt == null ? '' : alt >= 75 ? t('DASH_PULSE_NOTE_ALT_SEASON') : alt >= 50 ? t('DASH_PULSE_NOTE_LEAN_ALTS') : alt >= 25 ? t('DASH_PULSE_NOTE_BTC_LEADS') : t('DASH_PULSE_NOTE_BTC_SEASON');
 
   type Chip = { label: string; value: string; note: string; color: string };
   const chips: Chip[] = [
-    { label: 'BTC.D', value: dom != null ? dom.toFixed(1) + '%' : '-', note: domNote, color: 'var(--txt)' },
-    { label: 'ALT', value: alt != null ? String(alt) : '-', note: altNote, color: altColor },
-    ...(volLabel ? [{ label: 'VOL', value: volLabel.replace(' Vol', ''), note: 'BTC regime', color: volColor }] : []),
+    { label: t('DASH_PULSE_BTC_DOM_LABEL'), value: dom != null ? dom.toFixed(1) + '%' : '-', note: domNote, color: 'var(--txt)' },
+    { label: t('DASH_PULSE_ALT_LABEL'), value: alt != null ? String(alt) : '-', note: altNote, color: altColor },
+    ...(volLabel ? [{ label: t('DASH_PULSE_VOL_LABEL'), value: volLabel.replace(' Vol', ''), note: t('DASH_PULSE_VOL_NOTE'), color: volColor }] : []),
   ];
 
   return (
@@ -104,6 +107,7 @@ const SIDEBAR_DEFAULT = 7;
 
 function CoinSidebar() {
   const { store, selectCoin } = useMarket();
+  const { t } = useLabels();
   const { settings } = useSettings();
   const watchlist = settings.watchlist ?? [];
   const pinned = watchlist.filter((id): id is CoinId => (COINS as string[]).includes(id));
@@ -126,13 +130,13 @@ function CoinSidebar() {
         let sig: { text: string; col: string } | null = null;
         if (d?.fundingRate != null) {
           const fr = d.fundingRate * 100;
-          if (fr >= 0.04)       sig = { text: 'Longs overcrowded', col: '#f87171' };
-          else if (fr <= -0.02) sig = { text: 'Shorts squeezed',   col: '#34d399' };
+          if (fr >= 0.04)       sig = { text: t('DASH_SIDEBAR_SIG_LONGS_OVERCROWDED'), col: '#f87171' };
+          else if (fr <= -0.02) sig = { text: t('DASH_SIDEBAR_SIG_SHORTS_SQUEEZED'),   col: '#34d399' };
         }
-        if (!sig && d?.cvdDivergence === 'bullish') sig = { text: 'Smart buyers active', col: '#34d399' };
-        if (!sig && d?.cvdDivergence === 'bearish') sig = { text: 'Smart sellers active', col: '#f87171' };
-        if (!sig && d?.oiTrend === 'strong_up')     sig = { text: 'New buyers opening',  col: '#34d399' };
-        if (!sig && d?.oiTrend === 'strong_down')   sig = { text: 'New sellers opening', col: '#f87171' };
+        if (!sig && d?.cvdDivergence === 'bullish') sig = { text: t('DASH_SIDEBAR_SIG_SMART_BUYERS'), col: '#34d399' };
+        if (!sig && d?.cvdDivergence === 'bearish') sig = { text: t('DASH_SIDEBAR_SIG_SMART_SELLERS'), col: '#f87171' };
+        if (!sig && d?.oiTrend === 'strong_up')     sig = { text: t('DASH_SIDEBAR_SIG_NEW_BUYERS'),  col: '#34d399' };
+        if (!sig && d?.oiTrend === 'strong_down')   sig = { text: t('DASH_SIDEBAR_SIG_NEW_SELLERS'), col: '#f87171' };
         if (!sig && d?.chartPattern) {
           const isBull = /bull|higher high|engulf.*bull|hammer(?! man)|double bot/i.test(d.chartPattern);
           const isBear = /bear|lower high|engulf.*bear|shooting|double top/i.test(d.chartPattern);
@@ -141,15 +145,15 @@ function CoinSidebar() {
           else if (isBear)  sig = { text: label, col: '#f87171' };
           else if (label)   sig = { text: label, col: 'var(--txt3)' };
         }
-        if (!sig && d?.oiTrend === 'weak_up')   sig = { text: 'Shorts closing (weak up)',   col: '#fbbf24' };
-        if (!sig && d?.oiTrend === 'weak_down')  sig = { text: 'Buyers taking profit',       col: '#94a3b8' };
+        if (!sig && d?.oiTrend === 'weak_up')   sig = { text: t('DASH_SIDEBAR_SIG_SHORTS_CLOSING'),   col: '#fbbf24' };
+        if (!sig && d?.oiTrend === 'weak_down')  sig = { text: t('DASH_SIDEBAR_SIG_BUYERS_PROFIT'),       col: '#94a3b8' };
         if (!sig && d?.fundingRate != null && d.fundingRate !== 0) {
           const fr = d.fundingRate * 100;
-          if      (fr >= 0.05)   sig = { text: 'Funding very high',      col: '#f87171' };
-          else if (fr >= 0.01)   sig = { text: 'Funding slightly high',  col: '#fca5a5' };
-          else if (fr <= -0.03)  sig = { text: 'Funding very low',       col: '#34d399' };
-          else if (fr <= -0.005) sig = { text: 'Funding slightly low',   col: '#86efac' };
-          else                   sig = { text: 'Funding neutral',         col: 'var(--txt3)' };
+          if      (fr >= 0.05)   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_VERY_HIGH'),      col: '#f87171' };
+          else if (fr >= 0.01)   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_SLIGHTLY_HIGH'),  col: '#fca5a5' };
+          else if (fr <= -0.03)  sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_VERY_LOW'),       col: '#34d399' };
+          else if (fr <= -0.005) sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_SLIGHTLY_LOW'),   col: '#86efac' };
+          else                   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_NEUTRAL'),         col: 'var(--txt3)' };
         }
 
         const barCol = tbp >= 60 ? '#34d399' : tbp <= 40 ? '#f87171' : '#404040';
@@ -216,7 +220,7 @@ function CoinSidebar() {
           letterSpacing: '0.04em', textAlign: 'center', textDecoration: 'none',
         }}
       >
-        ▼ +{COINS.length - SIDEBAR_DEFAULT} more coins
+        {t('DASH_SIDEBAR_MORE_COINS', { count: COINS.length - SIDEBAR_DEFAULT })}
       </a>
 
       <div className="csb2-status">
@@ -228,7 +232,7 @@ function CoinSidebar() {
               : '#34d399',
           }}
         />
-        <span>{store.wsStatus.includes('backup') ? 'Backup' : store.wsStatus.includes('Live') ? 'Live' : 'Connecting'}</span>
+        <span>{store.wsStatus.includes('backup') ? t('DASH_SIDEBAR_STATUS_BACKUP') : store.wsStatus.includes('Live') ? t('DASH_SIDEBAR_STATUS_LIVE') : t('DASH_SIDEBAR_STATUS_CONNECTING')}</span>
       </div>
     </div>
   );
@@ -237,6 +241,7 @@ function CoinSidebar() {
 /* ── Liquidation Cascade Alert Banner ── */
 function CascadeAlertBanner() {
   const { store, setStore } = useMarket();
+  const { t } = useLabels();
   const alert = store.cascadeAlert;
 
   useEffect(() => {
@@ -250,14 +255,14 @@ function CascadeAlertBanner() {
   const usdStr = alert.totalUsd >= 1e6
     ? `$${(alert.totalUsd / 1e6).toFixed(1)}M`
     : `$${(alert.totalUsd / 1e3).toFixed(0)}K`;
-  const label = alert.side === 'LONG' ? 'LONG LIQ CASCADE'
-              : alert.side === 'SHORT' ? 'SHORT LIQ CASCADE'
-              : 'LIQ CASCADE';
+  const label = alert.side === 'LONG' ? t('DASH_CASCADE_LABEL_LONG')
+              : alert.side === 'SHORT' ? t('DASH_CASCADE_LABEL_SHORT')
+              : t('DASH_CASCADE_LABEL_NEUTRAL');
   const hint = alert.side === 'LONG'
-    ? 'Longs wiped - short squeeze window open'
+    ? t('DASH_CASCADE_HINT_LONG')
     : alert.side === 'SHORT'
-    ? 'Shorts flushed - continuation window open'
-    : 'Multi-directional flush - vol spike imminent';
+    ? t('DASH_CASCADE_HINT_SHORT')
+    : t('DASH_CASCADE_HINT_NEUTRAL');
   const col = alert.side === 'LONG' ? '#f87171'
             : alert.side === 'SHORT' ? '#34d399'
             : '#fbbf24';
@@ -270,9 +275,9 @@ function CascadeAlertBanner() {
       <div className="cascade-dot" style={{ background: col }} />
       <div className="cascade-body">
         <div className="cascade-title" style={{ color: col }}>
-          {alert.coin} - {label}
+          {t('DASH_CASCADE_TITLE', { coin: alert.coin, label })}
         </div>
-        <div className="cascade-sub">{usdStr} in 60s · {hint}</div>
+        <div className="cascade-sub">{t('DASH_CASCADE_SUB', { usd: usdStr, hint })}</div>
       </div>
       <button
         className="cascade-dismiss"
@@ -284,6 +289,7 @@ function CascadeAlertBanner() {
 
 function EdgeSignals() {
   const { store } = useMarket();
+  const { t } = useLabels();
   const coin = store.selectedCoin;
   const d    = store.coins[coin];
   const oi1h = useOI1h(coin);
@@ -294,12 +300,12 @@ function EdgeSignals() {
     : cbPct >= 0.05  ? '#34d399'
     : cbPct <= -0.05 ? '#f87171'
     : 'var(--txt2)';
-  const cbSig = cbPct == null ? 'Loading…'
-    : cbPct >= 0.1   ? 'US retail FOMO ▲'
-    : cbPct >= 0.05  ? 'Mild US buy pressure'
-    : cbPct <= -0.1  ? 'US retail selling ▼'
-    : cbPct <= -0.05 ? 'Mild US sell pressure'
-    : 'Neutral - no CB premium';
+  const cbSig = cbPct == null ? t('DASH_EDGE_CB_LOADING')
+    : cbPct >= 0.1   ? t('DASH_EDGE_CB_FOMO')
+    : cbPct >= 0.05  ? t('DASH_EDGE_CB_MILD_BUY')
+    : cbPct <= -0.1  ? t('DASH_EDGE_CB_RETAIL_SELLING')
+    : cbPct <= -0.05 ? t('DASH_EDGE_CB_MILD_SELL')
+    : t('DASH_EDGE_CB_NEUTRAL');
 
   // ── VWAP ──
   const price    = d?.price;
@@ -333,20 +339,20 @@ function EdgeSignals() {
   const vwapCard = (
     <div className="edge-card">
       <div className="edge-card-label">
-        <Tip text="Volume Weighted Average Price - the average price across the day, weighted by how much was traded at each level. Price above VWAP signals buy-side control; below signals sellers are in charge.">VWAP - {coin.toUpperCase()}</Tip>
+        <Tip text={t('DASH_EDGE_VWAP_TIP')}>{t('DASH_EDGE_VWAP_LABEL', { coin: coin.toUpperCase() })}</Tip>
       </div>
       <div className="edge-card-value" style={{ color: vwapCol, fontSize: 'var(--fs-data)' }}>
         {price != null ? '$' + fmtPrice(price, COIN_DEC[coin]) : '-'}
       </div>
       {vwap != null && (
         <div className="edge-card-sub">
-          <span style={{ color: 'var(--txt3)' }}>VWAP </span>
+          <span style={{ color: 'var(--txt3)' }}>{t('DASH_EDGE_VWAP_SUB_PREFIX')} </span>
           <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>${vwap.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
           {vwapPct != null && <span style={{ color: vwapCol }}> ({vwapPct >= 0 ? '+' : ''}{vwapPct.toFixed(2)}%)</span>}
         </div>
       )}
       <div className="edge-card-signal" style={{ color: vwapCol }}>
-        {vwapAbove === null ? <SkeletonBar width={100} height={11} radius={4} /> : vwapAbove ? '▲ Above VWAP - bullish' : '▼ Below VWAP - bearish'}
+        {vwapAbove === null ? <SkeletonBar width={100} height={11} radius={4} /> : vwapAbove ? t('DASH_EDGE_VWAP_SIG_ABOVE') : t('DASH_EDGE_VWAP_SIG_BELOW')}
       </div>
     </div>
   );
@@ -354,16 +360,16 @@ function EdgeSignals() {
   const oiCard = (
     <div className="edge-card">
       <div className="edge-card-label">
-        <Tip width={260} text="Open Interest is the total number of live futures contracts. Rising OI + rising price = new longs entering (real conviction). Falling OI + rising price = shorts covering (weaker signal).">Open Interest - {coin.toUpperCase()}</Tip>
+        <Tip width={260} text={t('DASH_EDGE_OI_TIP')}>{t('DASH_EDGE_OI_LABEL', { coin: coin.toUpperCase() })}</Tip>
       </div>
       {oiMeta ? (
         <>
-          <div className="edge-card-value" style={{ color: oiMeta.col, fontSize: 'var(--fs-data)' }}>{oiMeta.txt}</div>
-          <div className="edge-card-signal" style={{ color: oiMeta.col }}>{oiMeta.sub}</div>
+          <div className="edge-card-value" style={{ color: oiMeta.col, fontSize: 'var(--fs-data)' }}>{t(oiMeta.txtKey)}</div>
+          <div className="edge-card-signal" style={{ color: oiMeta.col }}>{t(oiMeta.subKey)}</div>
         </>
       ) : (
         <div className="edge-card-signal" style={{ color: 'var(--txt3)', marginTop: 4 }}>
-          {d?.oi != null ? 'Flat - no strong signal' : <SkeletonBar width={90} height={11} radius={4} />}
+          {d?.oi != null ? t('DASH_EDGE_OI_FLAT') : <SkeletonBar width={90} height={11} radius={4} />}
         </div>
       )}
     </div>
@@ -372,7 +378,7 @@ function EdgeSignals() {
   const fundingCard = (
     <div className="edge-card">
       <div className="edge-card-label">
-        <Tip text="The fee longs pay shorts every 8 hours to keep perpetual futures positions open. Strongly positive means too many people are leveraged long - whales often dump price to liquidate them and pocket the fee.">Funding Rate - {coin.toUpperCase()}</Tip>
+        <Tip text={t('DASH_EDGE_FUNDING_TIP')}>{t('DASH_EDGE_FUNDING_LABEL', { coin: coin.toUpperCase() })}</Tip>
       </div>
       <div className="edge-card-value" style={{ color: frCol }}>
         {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '-'}
@@ -386,16 +392,16 @@ function EdgeSignals() {
   const setupCard = (
     <div className="edge-card">
       <div className="edge-card-label">
-        <Tip width={260} text="Squeeze setup score: funding rate (0–40 pts) + long/short ratio positioning (0–40 pts) + volume spike bonus (0–20 pts). LONG_LIQ = longs overcrowded, ripe for a dump. SHORT_SQ = shorts overcrowded, ripe for a pump.">Setup Scanner - {coin.toUpperCase()}</Tip>
+        <Tip width={260} text={t('DASH_EDGE_SETUP_TIP')}>{t('DASH_EDGE_SETUP_LABEL', { coin: coin.toUpperCase() })}</Tip>
       </div>
       <div className="edge-card-value" style={{ color: sqCol, fontSize: 'var(--fs-data)' }}>
         {sq.score}
         <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, marginLeft: 6 }}>{sq.label}</span>
       </div>
       <div className="edge-card-signal" style={{ color: sqCol }}>
-        {sq.dir === 'SHORT_SQ' ? '▲ Short squeeze setup'
-         : sq.dir === 'LONG_LIQ' ? '▼ Long liquidation risk'
-         : 'Balanced positioning'}
+        {sq.dir === 'SHORT_SQ' ? t('DASH_EDGE_SETUP_SHORT_SQ')
+         : sq.dir === 'LONG_LIQ' ? t('DASH_EDGE_SETUP_LONG_LIQ')
+         : t('DASH_EDGE_SETUP_BALANCED')}
       </div>
     </div>
   );
@@ -403,7 +409,7 @@ function EdgeSignals() {
   const cbCard = (
     <div className="edge-card">
       <div className="edge-card-label">
-        <Tip text="Coinbase price minus Binance price, as a %. Positive = US retail buyers are paying a premium (bullish signal). Negative = US retail selling at a discount (bearish signal).">CB Premium</Tip>
+        <Tip text={t('DASH_EDGE_CB_TIP')}>{t('DASH_EDGE_CB_LABEL')}</Tip>
       </div>
       <div className="edge-card-value" style={{ color: cbCol, fontSize: 'var(--fs-data)' }}>
         {cbPct != null ? (cbPct >= 0 ? '+' : '') + cbPct.toFixed(3) + '%' : '-'}
@@ -417,7 +423,7 @@ function EdgeSignals() {
   const oi1hCard = (
     <div className="edge-card">
       <div className="edge-card-label">
-        <Tip text="How much the total value of open futures positions changed in the last hour. A sharp rise means new money is entering aggressively; a sharp drop means mass liquidations or traders closing positions.">Open Interest 1h - {coin.toUpperCase()}</Tip>
+        <Tip text={t('DASH_EDGE_OI1H_TIP')}>{t('DASH_EDGE_OI1H_LABEL', { coin: coin.toUpperCase() })}</Tip>
       </div>
       <div className="edge-card-value" style={{ color: oi1hCol }}>
         {oi1h.loading ? '-' : oi1hPctStr}
@@ -445,9 +451,10 @@ function EdgeSignals() {
 
 function CoinSignalsHeader() {
   const { store } = useMarket();
+  const { t } = useLabels();
   return (
     <div className="dash-section dash-section-hot">
-      Coin Signals - {store.selectedCoin.toUpperCase()}
+      {t('DASH_COIN_SIGNALS_HEADER', { coin: store.selectedCoin.toUpperCase() })}
     </div>
   );
 }
@@ -456,6 +463,7 @@ function CoinSignalsHeader() {
    funding/vol/vwap; those live in Coin Signals below) ── */
 function SelectedCoinCard() {
   const { store } = useMarket();
+  const { t } = useLabels();
   const id  = store.selectedCoin;
   const d   = store.coins[id];
   const dec = COIN_DEC[id];
@@ -464,7 +472,7 @@ function SelectedCoinCard() {
   const badgeCol = coinBadgeColor(id);
   const oi = d?.oiTrend ? OI_TREND_META[d.oiTrend] : null;
   const pattern = d?.chartPattern?.split(';')[0].split('(')[0].trim();
-  const sigText = oi?.txt ?? (pattern || null);
+  const sigText = oi ? t(oi.txtKey) : (pattern || null);
   const sigCol  = oi?.col ?? 'var(--txt3)';
 
   return (
@@ -483,6 +491,7 @@ function SelectedCoinCard() {
 }
 
 export default function Dashboard() {
+  const { t } = useLabels();
   const [showTour, setShowTour] = useState(false);
   const rightRef = useRef<HTMLElement>(null);
   const mainRef  = useRef<HTMLDivElement>(null);
@@ -517,7 +526,7 @@ export default function Dashboard() {
 
         {/* 2. Best Setup Today */}
         <div id="tour-best-setup" className="mb-glow-card" style={{ borderRadius: 10 }}>
-          <div className="dash-section dash-section-hot" style={{ marginTop: 0 }}>Best Setup Today</div>
+          <div className="dash-section dash-section-hot" style={{ marginTop: 0 }}>{t('DASH_BEST_SETUP_TODAY_HEADER')}</div>
           <SOTD />
         </div>
 

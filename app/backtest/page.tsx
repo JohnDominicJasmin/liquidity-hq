@@ -7,6 +7,8 @@ import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { FullPageUpgradeGate } from '@/components/UpgradeGateModal';
 import LoadingState from '@/components/LoadingState';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 const OF_YEARS_BACK = 1; // shorter than EMA's lookback - 15m+1h+4h+funding fetch per coin is much heavier
 
@@ -19,33 +21,33 @@ const YEARS_BACK_BY_TF: Record<TF, number> = {
   '30m': 2, '1h': 3, '4h': 4, '1d': 4,
 };
 
-const WT_VARIANT_LABELS: Record<string, string> = {
-  current:         'Current (20-bar window)',
-  tightRecency:    'Tight Recency (5-bar, pre-tuning default)',
-  armWindow:       'Arm Window (full cross phase)',
-  divergenceOnly:  'Divergence Only (no cross req.)',
-  looseThresholds: 'Loose Thresholds (±45 + arm)',
+const WT_VARIANT_LABEL_KEYS: Record<string, LabelKey> = {
+  current:         'BACKTEST_WT_VARIANT_CURRENT',
+  tightRecency:    'BACKTEST_WT_VARIANT_TIGHT_RECENCY',
+  armWindow:       'BACKTEST_WT_VARIANT_ARM_WINDOW',
+  divergenceOnly:  'BACKTEST_WT_VARIANT_DIVERGENCE_ONLY',
+  looseThresholds: 'BACKTEST_WT_VARIANT_LOOSE_THRESHOLDS',
 };
 
 const SMC_TFS = ['5m', '15m', '30m', '1h', '4h', '1d'] as const;
 type SMCTF = typeof SMC_TFS[number];
 
-const SMC_SECTIONS = [
-  { key: 'MARKET_STRUCTURE', label: 'Market Structure', color: 'var(--accent)' },
-  { key: 'FAIR_VALUE_GAPS',  label: 'Fair Value Gaps',  color: 'var(--amber)' },
-  { key: 'ORDER_BLOCKS',     label: 'Order Blocks',     color: 'var(--orange)' },
-  { key: 'LIQUIDITY_ZONES',  label: 'Liquidity Zones',  color: 'var(--accent-2)' },
-  { key: 'BIAS',             label: 'Directional Bias'                   },
-  { key: 'KEY_LEVELS',       label: 'Key Levels',       color: 'var(--green)' },
+const SMC_SECTIONS: Array<{ key: string; labelKey: LabelKey; color?: string }> = [
+  { key: 'MARKET_STRUCTURE', labelKey: 'BACKTEST_SMC_SECTION_MARKET_STRUCTURE', color: 'var(--accent)' },
+  { key: 'FAIR_VALUE_GAPS',  labelKey: 'BACKTEST_SMC_SECTION_FAIR_VALUE_GAPS',  color: 'var(--amber)' },
+  { key: 'ORDER_BLOCKS',     labelKey: 'BACKTEST_SMC_SECTION_ORDER_BLOCKS',     color: 'var(--orange)' },
+  { key: 'LIQUIDITY_ZONES',  labelKey: 'BACKTEST_SMC_SECTION_LIQUIDITY_ZONES',  color: 'var(--accent-2)' },
+  { key: 'BIAS',             labelKey: 'BACKTEST_SMC_SECTION_DIRECTIONAL_BIAS'                   },
+  { key: 'KEY_LEVELS',       labelKey: 'BACKTEST_SMC_SECTION_KEY_LEVELS',       color: 'var(--green)' },
 ];
 
-const UNLOCK_SECTIONS = [
-  { key: 'CURRENT_SUPPLY',     label: 'Current Supply'                         },
-  { key: 'UNLOCK_SCHEDULE',    label: 'Unlock Schedule',    color: 'var(--amber)'   },
-  { key: 'SELL_PRESSURE_30D',  label: '30-Day Sell Pressure', color: 'var(--red)' },
-  { key: 'SELL_PRESSURE_90D',  label: '90-Day Sell Pressure', color: 'var(--orange)' },
-  { key: 'HISTORICAL_PATTERN', label: 'Historical Pattern'                      },
-  { key: 'RECOMMENDATION',     label: 'Recommendation',     color: 'var(--green)'   },
+const UNLOCK_SECTIONS: Array<{ key: string; labelKey: LabelKey; color?: string }> = [
+  { key: 'CURRENT_SUPPLY',     labelKey: 'BACKTEST_UL_SECTION_CURRENT_SUPPLY'                         },
+  { key: 'UNLOCK_SCHEDULE',    labelKey: 'BACKTEST_UL_SECTION_UNLOCK_SCHEDULE',    color: 'var(--amber)'   },
+  { key: 'SELL_PRESSURE_30D',  labelKey: 'BACKTEST_UL_SECTION_SELL_PRESSURE_30D', color: 'var(--red)' },
+  { key: 'SELL_PRESSURE_90D',  labelKey: 'BACKTEST_UL_SECTION_SELL_PRESSURE_90D', color: 'var(--orange)' },
+  { key: 'HISTORICAL_PATTERN', labelKey: 'BACKTEST_UL_SECTION_HISTORICAL_PATTERN'                      },
+  { key: 'RECOMMENDATION',     labelKey: 'BACKTEST_UL_SECTION_RECOMMENDATION',     color: 'var(--green)'   },
 ];
 
 function parseSMCSection(text: string, key: string): string {
@@ -60,13 +62,13 @@ function parseUnlockSection(text: string, key: string): string {
   return (text.match(regex)?.[1] ?? '').trim();
 }
 
-const STRATEGY_SECTIONS = [
-  { key: 'THEORETICAL_EDGE',      label: 'Theoretical Edge' },
-  { key: 'OPTIMAL_CONDITIONS',    label: 'Optimal Conditions' },
-  { key: 'KEY_RISKS',             label: 'Key Risks', color: 'var(--red)' },
-  { key: 'PARAMETER_SUGGESTIONS', label: 'Parameter Suggestions', color: 'var(--green)' },
-  { key: 'CRYPTO_NOTES',          label: 'Crypto Notes', color: 'var(--amber)' },
-  { key: 'HONEST_ASSESSMENT',     label: 'Honest Assessment', color: 'var(--accent)' },
+const STRATEGY_SECTIONS: Array<{ key: string; labelKey: LabelKey; color?: string }> = [
+  { key: 'THEORETICAL_EDGE',      labelKey: 'BACKTEST_SR_SECTION_THEORETICAL_EDGE' },
+  { key: 'OPTIMAL_CONDITIONS',    labelKey: 'BACKTEST_SR_SECTION_OPTIMAL_CONDITIONS' },
+  { key: 'KEY_RISKS',             labelKey: 'BACKTEST_SR_SECTION_KEY_RISKS', color: 'var(--red)' },
+  { key: 'PARAMETER_SUGGESTIONS', labelKey: 'BACKTEST_SR_SECTION_PARAMETER_SUGGESTIONS', color: 'var(--green)' },
+  { key: 'CRYPTO_NOTES',          labelKey: 'BACKTEST_SR_SECTION_CRYPTO_NOTES', color: 'var(--amber)' },
+  { key: 'HONEST_ASSESSMENT',     labelKey: 'BACKTEST_SR_SECTION_HONEST_ASSESSMENT', color: 'var(--accent)' },
 ];
 
 function parseSection(text: string, key: string): string {
@@ -76,6 +78,7 @@ function parseSection(text: string, key: string): string {
 }
 
 export default function BacktestPage() {
+  const { t } = useLabels();
   const { entitled, loading: authLoading } = useAuth();
   const [tf, setTf]               = useState<TF>('1h');
   const [coinScope, setCoinScope] = useState<'majors' | 'all'>('majors');
@@ -134,12 +137,12 @@ export default function BacktestPage() {
       });
       const json = await res.json() as { analysis?: string; error?: string };
       if (!res.ok) {
-        setSrError(json.error ?? 'Analysis failed');
+        setSrError(json.error ?? t('BACKTEST_SR_ANALYSIS_FAILED'));
       } else {
         setSrResult(json.analysis ?? null);
       }
     } catch {
-      setSrError('Network error - try again');
+      setSrError(t('BACKTEST_SR_NETWORK_ERROR'));
     } finally {
       setSrRunning(false);
     }
@@ -163,10 +166,10 @@ export default function BacktestPage() {
         body: JSON.stringify({ description: srPrompt, analysisText: srResult }),
       });
       const json = await res.json() as { code?: string; error?: string };
-      if (!res.ok) setPsError(json.error ?? 'Generation failed');
+      if (!res.ok) setPsError(json.error ?? t('BACKTEST_PINE_GENERATION_FAILED'));
       else         setPsResult(json.code ?? null);
     } catch {
-      setPsError('Network error - try again');
+      setPsError(t('BACKTEST_PINE_NETWORK_ERROR'));
     } finally {
       setPsRunning(false);
     }
@@ -189,10 +192,10 @@ export default function BacktestPage() {
         body: JSON.stringify({ asset: smcAsset, tf: smcTf }),
       });
       const json = await res.json() as { analysis?: string; error?: string };
-      if (!res.ok) setSmcError(json.error ?? 'Analysis failed');
+      if (!res.ok) setSmcError(json.error ?? t('BACKTEST_SMC_ANALYSIS_FAILED'));
       else         setSmcResult(json.analysis ?? null);
     } catch {
-      setSmcError('Network error - try again');
+      setSmcError(t('BACKTEST_SMC_NETWORK_ERROR'));
     } finally {
       setSmcRunning(false);
     }
@@ -215,10 +218,10 @@ export default function BacktestPage() {
         body: JSON.stringify({ symbol: ulSymbol }),
       });
       const json = await res.json() as { analysis?: string; error?: string };
-      if (!res.ok) setUlError(json.error ?? 'Analysis failed');
+      if (!res.ok) setUlError(json.error ?? t('BACKTEST_UL_ANALYSIS_FAILED'));
       else         setUlResult(json.analysis ?? null);
     } catch {
-      setUlError('Network error - try again');
+      setUlError(t('BACKTEST_UL_NETWORK_ERROR'));
     } finally {
       setUlRunning(false);
     }
@@ -261,12 +264,12 @@ export default function BacktestPage() {
   // Backtesting is Pro-only (trial users included). Wait for the auth role to
   // resolve so an entitled user never sees a paywall flash, then replace the
   // entire page for free users.
-  if (authLoading) return <LoadingState message="Loading…" fullPage />;
+  if (authLoading) return <LoadingState message={t('BACKTEST_LOADING')} fullPage />;
   if (!entitled) {
     return (
       <FullPageUpgradeGate
-        title="Backtesting is part of Pro."
-        description="Replay the full signal engine against years of historical candles - every coin, every timeframe, Anti-Chop on and off side by side - plus the order flow backtest and the AI strategy research tools."
+        title={t('BACKTEST_UPGRADE_TITLE')}
+        description={t('BACKTEST_UPGRADE_DESC')}
       />
     );
   }
@@ -274,29 +277,36 @@ export default function BacktestPage() {
   return (
     <div>
       <div className="mb-header">
-        <h1 className="mb-title">Strategy Backtest</h1>
-        <div className="mb-subtitle">EMA ribbon strategy replayed against historical candles - Anti-Chop ON vs OFF, side by side</div>
+        <h1 className="mb-title">{t('BACKTEST_PAGE_TITLE')}</h1>
+        <div className="mb-subtitle">{t('BACKTEST_PAGE_SUBTITLE')}</div>
       </div>
 
       <div className="frh-range-row">
-        {TIMEFRAMES.map(t => (
-          <button key={t} className={`frh-range-btn${tf === t ? ' on' : ''}`} onClick={() => setTf(t)} disabled={running}>
-            {t.toUpperCase()}
+        {TIMEFRAMES.map(tfOption => (
+          <button key={tfOption} className={`frh-range-btn${tf === tfOption ? ' on' : ''}`} onClick={() => setTf(tfOption)} disabled={running}>
+            {tfOption.toUpperCase()}
           </button>
         ))}
       </div>
 
       <div className="frh-range-row">
         <button className={`frh-range-btn${coinScope === 'majors' ? ' on' : ''}`} onClick={() => setCoinScope('majors')} disabled={running}>
-          Majors ({MAJORS.length})
+          {t('BACKTEST_MAJORS_BUTTON', { count: MAJORS.length })}
         </button>
         <button className={`frh-range-btn${coinScope === 'all' ? ' on' : ''}`} onClick={() => setCoinScope('all')} disabled={running}>
-          All Coins ({COINS.length})
+          {t('BACKTEST_ALL_COINS_BUTTON', { count: COINS.length })}
         </button>
       </div>
 
       <p style={{ fontSize: 'var(--fs-caption)', opacity: 0.4, marginBottom: 14 }}>
-        Lookback: {YEARS_BACK_BY_TF[tf]} years · Pooled across {coins.length} coin{coins.length !== 1 ? 's' : ''} · Fixed 2:1 R:R per signal (matches live strategy SL/TP rule) · Net of an estimated {ROUND_TRIP_COST_PCT.toFixed(2)}% round-trip cost ({TAKER_FEE_PCT}% taker fee + {SLIPPAGE_PCT}% slippage, each side) - not gross
+        {t('BACKTEST_LOOKBACK_INFO', {
+          years: YEARS_BACK_BY_TF[tf],
+          count: coins.length,
+          s: coins.length !== 1 ? 's' : '',
+          roundTripPct: ROUND_TRIP_COST_PCT.toFixed(2),
+          takerFeePct: TAKER_FEE_PCT,
+          slippagePct: SLIPPAGE_PCT,
+        })}
       </p>
 
       <button
@@ -311,32 +321,32 @@ export default function BacktestPage() {
         }}
       >
         {running
-          ? `Running… ${progress?.done ?? 0}/${progress?.total ?? coins.length}${progress?.coin ? ` (${progress.coin})` : ''}`
-          : 'Run Backtest'}
+          ? t('BACKTEST_RUNNING_PROGRESS', { done: progress?.done ?? 0, total: progress?.total ?? coins.length, coinSuffix: progress?.coin ? ` (${progress.coin})` : '' })
+          : t('BACKTEST_RUN_BUTTON')}
       </button>
 
       {error && (
-        <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>Error: {error}</div>
+        <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>{t('BACKTEST_ERROR_PREFIX', { error })}</div>
       )}
 
       {!result && !srResult && !smcResult && !ulResult && !running && !srRunning && !smcRunning && !ulRunning && (
         <div style={{ border: '0.5px solid var(--bdr)', borderRadius: 10, padding: '16px 18px', marginBottom: 20 }}>
           <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
-            4 tools on this page - pick one to get started
+            {t('BACKTEST_TOOLS_INTRO')}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
             {([
-              { dot: '#1a7aff', label: 'Strategy Backtest',       desc: 'Replay the EMA ribbon against 2-4 years of candles. Pick a timeframe and scope above, then hit Run Backtest.' },
-              { dot: '#5aa3ff', label: 'Strategy Research',       desc: 'Describe any trading strategy in plain English. Grok evaluates its edge, risks, and optimal entry conditions. Scroll down.' },
-              { dot: '#fbbf24', label: 'SMC Snapshot',            desc: 'Pick a coin and timeframe. Grok reads live candles and identifies Break of Structure, Fair Value Gaps, Order Blocks, and Liquidity zones.' },
-              { dot: '#f87171', label: 'Token Unlock Forecaster', desc: 'Enter any token ticker. Grok assesses 30-day and 90-day sell pressure risk based on vesting schedules and unlock history.' },
-            ] as const).map(t => (
-              <div key={t.label} style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.02)', border: '0.5px solid var(--bdr)', borderRadius: 8 }}>
+              { dot: '#1a7aff', labelKey: 'BACKTEST_TOOL_BACKTEST_LABEL',   descKey: 'BACKTEST_TOOL_BACKTEST_DESC' },
+              { dot: '#5aa3ff', labelKey: 'BACKTEST_TOOL_RESEARCH_LABEL',   descKey: 'BACKTEST_TOOL_RESEARCH_DESC' },
+              { dot: '#fbbf24', labelKey: 'BACKTEST_TOOL_SMC_LABEL',        descKey: 'BACKTEST_TOOL_SMC_DESC' },
+              { dot: '#f87171', labelKey: 'BACKTEST_TOOL_UNLOCK_LABEL',     descKey: 'BACKTEST_TOOL_UNLOCK_DESC' },
+            ] as const).map(tool => (
+              <div key={tool.labelKey} style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.02)', border: '0.5px solid var(--bdr)', borderRadius: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: t.dot, flexShrink: 0 }} />
-                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)' }}>{t.label}</span>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: tool.dot, flexShrink: 0 }} />
+                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt)' }}>{t(tool.labelKey)}</span>
                 </div>
-                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.55 }}>{t.desc}</div>
+                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.55 }}>{t(tool.descKey)}</div>
               </div>
             ))}
           </div>
@@ -347,24 +357,28 @@ export default function BacktestPage() {
         <>
           {result.failedCoins.length > 0 && (
             <div style={{ fontSize: 'var(--fs-caption)', opacity: 0.4, marginBottom: 12 }}>
-              Skipped {result.failedCoins.length} coin{result.failedCoins.length !== 1 ? 's' : ''} (no data or fetch error): {result.failedCoins.map(c => c.toUpperCase()).join(', ')}
+              {t('BACKTEST_SKIPPED_COINS', { count: result.failedCoins.length, s: result.failedCoins.length !== 1 ? 's' : '', list: result.failedCoins.map(c => c.toUpperCase()).join(', ') })}
             </div>
           )}
 
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 24 }}>
-            <SideCard title="ANTI-CHOP ON" stats={result.antiChopOn.stats} color="#34d399" />
-            <SideCard title="ANTI-CHOP OFF" stats={result.antiChopOff.stats} color="#f87171" />
+            <SideCard title={t('BACKTEST_SIDECARD_ANTICHOP_ON')} stats={result.antiChopOn.stats} color="#34d399" />
+            <SideCard title={t('BACKTEST_SIDECARD_ANTICHOP_OFF')} stats={result.antiChopOff.stats} color="#f87171" />
           </div>
 
-          <h2 className="mb-title" style={{ fontSize: 'var(--fs-card-title)', marginBottom: 4 }}>WaveTrend Confirming-Layer Tuning</h2>
+          <h2 className="mb-title" style={{ fontSize: 'var(--fs-card-title)', marginBottom: 4 }}>{t('BACKTEST_WT_TUNING_TITLE')}</h2>
           <p style={{ fontSize: 'var(--fs-caption)', opacity: 0.4, marginBottom: 8 }}>
-            Each row requires WaveTrend to also agree before counting an Anti-Chop ON signal as a trade. Compare against the Anti-Chop ON baseline above ({fmtPct(result.antiChopOn.stats.winRate)} win rate, {result.antiChopOn.stats.totalTrades} trades, PF {isFinite(result.antiChopOn.stats.profitFactor) ? result.antiChopOn.stats.profitFactor.toFixed(2) : '∞'}).
+            {t('BACKTEST_WT_TUNING_DESC', {
+              winRate: fmtPct(result.antiChopOn.stats.winRate),
+              trades: result.antiChopOn.stats.totalTrades,
+              pf: isFinite(result.antiChopOn.stats.profitFactor) ? result.antiChopOn.stats.profitFactor.toFixed(2) : '∞',
+            })}
           </p>
           <div style={{ overflowX: 'auto', marginBottom: 24 }}>
             <table className="frh-table">
               <thead>
                 <tr>
-                  <th>Variant</th><th>Trades</th><th>Win Rate</th><th>Avg R</th><th>Profit Factor</th><th>Max DD</th>
+                  <th>{t('BACKTEST_COL_VARIANT')}</th><th>{t('BACKTEST_COL_TRADES')}</th><th>{t('BACKTEST_COL_WIN_RATE')}</th><th>{t('BACKTEST_COL_AVG_R')}</th><th>{t('BACKTEST_COL_PROFIT_FACTOR')}</th><th>{t('BACKTEST_COL_MAX_DD')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -373,7 +387,7 @@ export default function BacktestPage() {
                   const beatsBaseline = isFinite(s.profitFactor) && s.profitFactor > result.antiChopOn.stats.profitFactor;
                   return (
                     <tr key={name}>
-                      <td style={{ fontWeight: 600 }}>{WT_VARIANT_LABELS[name] ?? name}{beatsBaseline ? <span style={{ color: '#4ade80' }}> ▲</span> : ''}</td>
+                      <td style={{ fontWeight: 600 }}>{WT_VARIANT_LABEL_KEYS[name] ? t(WT_VARIANT_LABEL_KEYS[name]) : name}{beatsBaseline ? <span style={{ color: '#4ade80' }}> ▲</span> : ''}</td>
                       <td>{s.totalTrades} ({s.wins}W/{s.losses}L)</td>
                       <td style={{ color: s.winRate >= 0.5 ? '#34d399' : '#f87171' }}>{fmtPct(s.winRate)}</td>
                       <td style={{ color: s.avgR >= 0 ? '#34d399' : '#f87171' }}>{fmtR(s.avgR)}</td>
@@ -386,12 +400,12 @@ export default function BacktestPage() {
             </table>
           </div>
 
-          <h2 className="mb-title" style={{ fontSize: 'var(--fs-card-title)', marginBottom: 8 }}>Per-Coin Breakdown (Anti-Chop ON)</h2>
+          <h2 className="mb-title" style={{ fontSize: 'var(--fs-card-title)', marginBottom: 8 }}>{t('BACKTEST_PERCOIN_TITLE_ON')}</h2>
           <div style={{ overflowX: 'auto' }}>
             <table className="frh-table">
               <thead>
                 <tr>
-                  <th>Coin</th><th>Trades</th><th>Win Rate</th><th>Avg R</th><th>Profit Factor</th>
+                  <th>{t('BACKTEST_COL_COIN')}</th><th>{t('BACKTEST_COL_TRADES')}</th><th>{t('BACKTEST_COL_WIN_RATE')}</th><th>{t('BACKTEST_COL_AVG_R')}</th><th>{t('BACKTEST_COL_PROFIT_FACTOR')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -416,20 +430,19 @@ export default function BacktestPage() {
       <div style={{ borderTop: '1px solid var(--bdr)', margin: '32px 0 20px' }} />
 
       <div className="mb-header">
-        <h2 className="mb-title">Order Flow Setup Validation</h2>
+        <h2 className="mb-title">{t('BACKTEST_OF_SECTION_TITLE')}</h2>
         <div className="mb-subtitle">
-          Tests the Arena page&apos;s &quot;Order Flow Setup&quot; card - but only the 5 signals that can be faithfully
-          replayed from history: RSI on 15m/1h/4h, price vs POC, price vs VWAP, and funding rate.
+          {t('BACKTEST_OF_SECTION_SUBTITLE')}
         </div>
       </div>
 
       <p style={{ fontSize: 'var(--fs-caption)', opacity: 0.4, marginBottom: 14, maxWidth: 640 }}>
-        Open Interest trend, CVD divergence, and taker buy ratio (3 of the live card&apos;s 8 signals) are
-        intentionally excluded - those need trade-level/positioning data exchanges don&apos;t retain far enough
-        back to backtest meaningfully (Binance&apos;s OI history, for example, only goes back ~30 days). Lookback
-        is {OF_YEARS_BACK} year{OF_YEARS_BACK !== 1 ? 's' : ''} (shorter than the EMA backtest above - fetching
-        15m+1h+4h+funding per coin is a much heavier pull) · uses the same coin scope selected above ({coins.length} coins).
-        Also net of the same {ROUND_TRIP_COST_PCT.toFixed(2)}% round-trip fee + slippage estimate.
+        {t('BACKTEST_OF_INFO', {
+          years: OF_YEARS_BACK,
+          s: OF_YEARS_BACK !== 1 ? 's' : '',
+          count: coins.length,
+          roundTripPct: ROUND_TRIP_COST_PCT.toFixed(2),
+        })}
       </p>
 
       <button
@@ -444,32 +457,32 @@ export default function BacktestPage() {
         }}
       >
         {ofRunning
-          ? `Running… ${ofProgress?.done ?? 0}/${ofProgress?.total ?? coins.length}${ofProgress?.coin ? ` (${ofProgress.coin})` : ''}`
-          : 'Run Order Flow Backtest'}
+          ? t('BACKTEST_RUNNING_PROGRESS', { done: ofProgress?.done ?? 0, total: ofProgress?.total ?? coins.length, coinSuffix: ofProgress?.coin ? ` (${ofProgress.coin})` : '' })
+          : t('BACKTEST_RUN_OF_BUTTON')}
       </button>
 
       {ofError && (
-        <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>Error: {ofError}</div>
+        <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>{t('BACKTEST_OF_ERROR_PREFIX', { error: ofError })}</div>
       )}
 
       {ofResult && (
         <>
           {ofResult.failedCoins.length > 0 && (
             <div style={{ fontSize: 'var(--fs-caption)', opacity: 0.4, marginBottom: 12 }}>
-              Skipped {ofResult.failedCoins.length} coin{ofResult.failedCoins.length !== 1 ? 's' : ''} (no data or fetch error): {ofResult.failedCoins.map(c => c.toUpperCase()).join(', ')}
+              {t('BACKTEST_OF_SKIPPED_COINS', { count: ofResult.failedCoins.length, s: ofResult.failedCoins.length !== 1 ? 's' : '', list: ofResult.failedCoins.map(c => c.toUpperCase()).join(', ') })}
             </div>
           )}
 
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 24 }}>
-            <SideCard title="ORDER FLOW SETUP (5 SIGNALS)" stats={ofResult.side.stats} color="var(--amber)" />
+            <SideCard title={t('BACKTEST_SIDECARD_OF_TITLE')} stats={ofResult.side.stats} color="var(--amber)" />
           </div>
 
-          <h2 className="mb-title" style={{ fontSize: 'var(--fs-card-title)', marginBottom: 8 }}>Per-Coin Breakdown</h2>
+          <h2 className="mb-title" style={{ fontSize: 'var(--fs-card-title)', marginBottom: 8 }}>{t('BACKTEST_PERCOIN_TITLE')}</h2>
           <div style={{ overflowX: 'auto' }}>
             <table className="frh-table">
               <thead>
                 <tr>
-                  <th>Coin</th><th>Trades</th><th>Win Rate</th><th>Avg R</th><th>Profit Factor</th>
+                  <th>{t('BACKTEST_COL_COIN')}</th><th>{t('BACKTEST_COL_TRADES')}</th><th>{t('BACKTEST_COL_WIN_RATE')}</th><th>{t('BACKTEST_COL_AVG_R')}</th><th>{t('BACKTEST_COL_PROFIT_FACTOR')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -495,18 +508,18 @@ export default function BacktestPage() {
       <div style={{ borderTop: '1px solid var(--bdr)', margin: '36px 0 20px' }} />
 
       <div className="mb-header">
-        <h2 className="mb-title">AI Strategy Research</h2>
-        <div className="mb-subtitle">Describe any trading strategy in plain English - get an honest analysis of its edge, risks, optimal conditions, and crypto-specific parameters.</div>
+        <h2 className="mb-title">{t('BACKTEST_AI_RESEARCH_TITLE')}</h2>
+        <div className="mb-subtitle">{t('BACKTEST_AI_RESEARCH_SUBTITLE')}</div>
       </div>
 
       <p style={{ fontSize: 'var(--fs-caption)', opacity: 0.4, marginBottom: 14, maxWidth: 560 }}>
-        Examples: &quot;EMA 9/20 crossover with RSI confirmation on 1h BTC&quot; · &quot;Buy the open interest spike with funding rate reversal&quot; · &quot;Mean reversion after 3 consecutive red 4h candles&quot;
+        {t('BACKTEST_AI_RESEARCH_EXAMPLES')}
       </p>
 
       <textarea
         value={srPrompt}
         onChange={e => setSrPrompt(e.target.value)}
-        placeholder="Describe a strategy to research…"
+        placeholder={t('BACKTEST_SR_PLACEHOLDER')}
         rows={3}
         style={{
           width: '100%', boxSizing: 'border-box',
@@ -529,7 +542,7 @@ export default function BacktestPage() {
             cursor: srRunning || !srPrompt.trim() ? 'default' : 'pointer',
           }}
         >
-          {srRunning ? 'Researching…' : 'Research Strategy'}
+          {srRunning ? t('BACKTEST_SR_RUNNING') : t('BACKTEST_SR_BUTTON')}
         </button>
         {srResult && (
           <button
@@ -540,7 +553,7 @@ export default function BacktestPage() {
               padding: '6px 12px', fontSize: 'var(--fs-caption)', cursor: 'pointer',
             }}
           >
-            Clear
+            {t('BACKTEST_SR_CLEAR')}
           </button>
         )}
       </div>
@@ -550,7 +563,7 @@ export default function BacktestPage() {
       {srResult && (
         <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
-            {STRATEGY_SECTIONS.map(({ key, label, color }) => {
+            {STRATEGY_SECTIONS.map(({ key, labelKey, color }) => {
               const content = parseSection(srResult, key);
               if (!content) return null;
               return (
@@ -562,7 +575,7 @@ export default function BacktestPage() {
                     fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
                     color: color ?? 'var(--txt3)', marginBottom: 8,
                   }}>
-                    {label}
+                    {t(labelKey)}
                   </div>
                   <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                     {content}
@@ -575,7 +588,7 @@ export default function BacktestPage() {
           {/* Pine Script Export */}
           <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 14 }}>
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 8 }}>
-              Export this strategy to TradingView
+              {t('BACKTEST_PINE_EXPORT_LABEL')}
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: psResult ? 12 : 0 }}>
               {!psResult && (
@@ -590,7 +603,7 @@ export default function BacktestPage() {
                     cursor: psRunning ? 'default' : 'pointer',
                   }}
                 >
-                  {psRunning ? 'Generating Pine Script…' : 'Generate TradingView Alert'}
+                  {psRunning ? t('BACKTEST_PINE_GENERATING') : t('BACKTEST_PINE_GENERATE_BUTTON')}
                 </button>
               )}
               {psResult && (
@@ -609,13 +622,13 @@ export default function BacktestPage() {
                       borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-caption)', fontWeight: 700, cursor: 'pointer',
                     }}
                   >
-                    {psCopied ? 'Copied!' : 'Copy Pine Script'}
+                    {psCopied ? t('BACKTEST_PINE_COPIED') : t('BACKTEST_PINE_COPY_BUTTON')}
                   </button>
                   <button
                     onClick={() => { setPsResult(null); setPsError(null); }}
                     style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '6px 10px', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
                   >
-                    Regenerate
+                    {t('BACKTEST_PINE_REGENERATE')}
                   </button>
                 </>
               )}
@@ -641,15 +654,15 @@ export default function BacktestPage() {
       <div style={{ borderTop: '1px solid var(--bdr)', margin: '36px 0 20px' }} />
 
       <div className="mb-header">
-        <h2 className="mb-title">SMC Snapshot</h2>
-        <div className="mb-subtitle">Pick an asset and timeframe - Grok analyzes recent price action using Smart Money Concepts: Break of Structure, Fair Value Gaps, Order Blocks, and Liquidity zones.</div>
+        <h2 className="mb-title">{t('BACKTEST_SMC_TITLE')}</h2>
+        <div className="mb-subtitle">{t('BACKTEST_SMC_SUBTITLE')}</div>
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
         <input
           value={smcAsset}
           onChange={e => setSmcAsset(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))}
-          placeholder="BTC"
+          placeholder={t('BACKTEST_SMC_ASSET_PLACEHOLDER')}
           maxLength={10}
           style={{
             width: 80, padding: '8px 10px', borderRadius: 6,
@@ -659,14 +672,14 @@ export default function BacktestPage() {
           }}
         />
         <div style={{ display: 'flex', gap: 4 }}>
-          {SMC_TFS.map(t => (
+          {SMC_TFS.map(smcTfOption => (
             <button
-              key={t}
-              className={`frh-range-btn${smcTf === t ? ' on' : ''}`}
-              onClick={() => setSmcTf(t)}
+              key={smcTfOption}
+              className={`frh-range-btn${smcTf === smcTfOption ? ' on' : ''}`}
+              onClick={() => setSmcTf(smcTfOption)}
               disabled={smcRunning}
             >
-              {t}
+              {smcTfOption}
             </button>
           ))}
         </div>
@@ -681,14 +694,14 @@ export default function BacktestPage() {
             cursor: smcRunning || !smcAsset.trim() ? 'default' : 'pointer',
           }}
         >
-          {smcRunning ? 'Analyzing…' : 'Run SMC Analysis'}
+          {smcRunning ? t('BACKTEST_SMC_RUNNING') : t('BACKTEST_SMC_RUN_BUTTON')}
         </button>
         {smcResult && (
           <button
             onClick={() => { setSmcResult(null); setSmcError(null); }}
             style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '5px 10px', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
           >
-            Clear
+            {t('BACKTEST_SMC_CLEAR')}
           </button>
         )}
       </div>
@@ -697,7 +710,7 @@ export default function BacktestPage() {
 
       {smcResult && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 8 }}>
-          {SMC_SECTIONS.map(({ key, label, color }) => {
+          {SMC_SECTIONS.map(({ key, labelKey, color }) => {
             const content = parseSMCSection(smcResult, key);
             if (!content) return null;
             return (
@@ -709,7 +722,7 @@ export default function BacktestPage() {
                   fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
                   color: color ?? 'var(--txt3)', marginBottom: 8,
                 }}>
-                  {label}
+                  {t(labelKey)}
                 </div>
                 <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                   {content}
@@ -724,12 +737,12 @@ export default function BacktestPage() {
       <div style={{ borderTop: '1px solid var(--bdr)', margin: '36px 0 20px' }} />
 
       <div className="mb-header">
-        <h2 className="mb-title">Token Unlock Sell Pressure</h2>
-        <div className="mb-subtitle">Enter a token symbol - Grok analyzes upcoming vesting cliff events and classifies sell pressure impact for the next 30 and 90 days.</div>
+        <h2 className="mb-title">{t('BACKTEST_UL_TITLE')}</h2>
+        <div className="mb-subtitle">{t('BACKTEST_UL_SUBTITLE')}</div>
       </div>
 
       <p style={{ fontSize: 'var(--fs-caption)', opacity: 0.4, marginBottom: 14, maxWidth: 560 }}>
-        Examples: ARB · OP · PYTH · JUP · STRK · SUI · W · ZK · EIGEN
+        {t('BACKTEST_UL_EXAMPLES')}
       </p>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 18 }}>
@@ -737,7 +750,7 @@ export default function BacktestPage() {
           value={ulSymbol}
           onChange={e => setUlSymbol(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))}
           onKeyDown={e => e.key === 'Enter' && runTokenUnlock()}
-          placeholder="e.g. ARB"
+          placeholder={t('BACKTEST_UL_PLACEHOLDER')}
           maxLength={10}
           style={{
             width: 110, padding: '8px 10px', borderRadius: 6,
@@ -757,14 +770,14 @@ export default function BacktestPage() {
             cursor: ulRunning || !ulSymbol.trim() ? 'default' : 'pointer',
           }}
         >
-          {ulRunning ? 'Analyzing…' : 'Analyze Unlock Risk'}
+          {ulRunning ? t('BACKTEST_UL_RUNNING') : t('BACKTEST_UL_RUN_BUTTON')}
         </button>
         {ulResult && (
           <button
             onClick={() => { setUlResult(null); setUlError(null); }}
             style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '5px 10px', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
           >
-            Clear
+            {t('BACKTEST_UL_CLEAR')}
           </button>
         )}
       </div>
@@ -773,7 +786,7 @@ export default function BacktestPage() {
 
       {ulResult && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {UNLOCK_SECTIONS.map(({ key, label, color }) => {
+          {UNLOCK_SECTIONS.map(({ key, labelKey, color }) => {
             const content = parseUnlockSection(ulResult, key);
             if (!content) return null;
             return (
@@ -785,7 +798,7 @@ export default function BacktestPage() {
                   fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
                   color: color ?? 'var(--txt3)', marginBottom: 8,
                 }}>
-                  {label}
+                  {t(labelKey)}
                 </div>
                 <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                   {content}

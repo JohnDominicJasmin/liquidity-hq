@@ -9,30 +9,38 @@ import Sparkline24h from '@/components/Sparkline24h';
 import Tip from '@/components/Tip';
 import CoinIcon from '@/components/CoinIcon';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 type SortKey = 'volume' | 'change' | 'grade' | 'signal' | 'name';
 
-function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): { text: string; col: string } {
-  if (!d) return { text: '-', col: '#333' };
+function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): { key: LabelKey | null; col: string } {
+  if (!d) return { key: null, col: '#333' };
   if (d.fundingRate != null) {
     const fr = d.fundingRate * 100;
-    if (fr >= 0.04) return { text: 'Longs overcrowded', col: '#f87171' };
-    if (fr <= -0.02) return { text: 'Shorts squeezed', col: '#34d399' };
+    if (fr >= 0.04) return { key: 'MARKETS_SIGNAL_LONGS_OVERCROWDED', col: '#f87171' };
+    if (fr <= -0.02) return { key: 'MARKETS_SIGNAL_SHORTS_SQUEEZED', col: '#34d399' };
   }
-  if (d.cvdDivergence === 'bullish') return { text: 'Smart buyers active', col: '#34d399' };
-  if (d.cvdDivergence === 'bearish') return { text: 'Smart sellers active', col: '#f87171' };
-  if (d.oiTrend === 'strong_up')   return { text: 'New buyers opening', col: '#34d399' };
-  if (d.oiTrend === 'strong_down') return { text: 'New sellers opening', col: '#f87171' };
-  if (d.oiTrend === 'weak_up')     return { text: 'Short covering', col: '#fbbf24' };
-  if (d.oiTrend === 'weak_down')   return { text: 'Longs exiting', col: '#94a3b8' };
-  return { text: 'No signal', col: '#333' };
+  if (d.cvdDivergence === 'bullish') return { key: 'MARKETS_SIGNAL_SMART_BUYERS', col: '#34d399' };
+  if (d.cvdDivergence === 'bearish') return { key: 'MARKETS_SIGNAL_SMART_SELLERS', col: '#f87171' };
+  if (d.oiTrend === 'strong_up')   return { key: 'MARKETS_SIGNAL_NEW_BUYERS', col: '#34d399' };
+  if (d.oiTrend === 'strong_down') return { key: 'MARKETS_SIGNAL_NEW_SELLERS', col: '#f87171' };
+  if (d.oiTrend === 'weak_up')     return { key: 'MARKETS_SIGNAL_SHORT_COVERING', col: '#fbbf24' };
+  if (d.oiTrend === 'weak_down')   return { key: 'MARKETS_SIGNAL_LONGS_EXITING', col: '#94a3b8' };
+  return { key: 'MARKETS_SIGNAL_NONE', col: '#333' };
 }
+
+const SORT_LABEL_KEYS: Record<SortKey, LabelKey> = {
+  volume: 'MARKETS_SORT_VOLUME', change: 'MARKETS_SORT_CHANGE', grade: 'MARKETS_SORT_GRADE',
+  signal: 'MARKETS_SORT_SIGNAL', name: 'MARKETS_SORT_NAME',
+};
 
 const GRADE_ORDER: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, F: 4, '-': 5 };
 const PAGE_SIZE = 20;
 const ROW_COLS = '48px 1fr 40px 96px 58px 92px 1fr';
 
 export default function MarketsPage() {
+  const { t } = useLabels();
   const { store, selectCoin } = useMarket();
   const router = useRouter();
   // MarketProvider starts every coin at its zeroed defaultStore shape and fills
@@ -132,20 +140,20 @@ export default function MarketsPage() {
               background: 'none', cursor: 'pointer', flexShrink: 0,
             }}
           >
-            ← Back
+            {t('MARKETS_BACK_BUTTON')}
           </button>
           <div>
             <div style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '.04em', textTransform: 'uppercase' }}>
-              Markets
+              {t('MARKETS_PAGE_TITLE')}
             </div>
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 1, letterSpacing: '.02em' }}>
-              {COINS.length} coins live
+              {t('MARKETS_COINS_LIVE_SUFFIX', { count: COINS.length })}
             </div>
           </div>
           <div className="mkt-mono" style={{ marginLeft: 'auto', display: 'flex', gap: 14, fontSize: 'var(--fs-caption)' }}>
-            <span style={{ color: '#34d399' }}>▲ {bullCount} bullish</span>
-            <span style={{ color: '#f87171' }}>▼ {bearCount} bearish</span>
-            <span style={{ color: 'var(--txt3)' }}>- {COINS.length - bullCount - bearCount} neutral</span>
+            <span style={{ color: '#34d399' }}>{t('MARKETS_BULLISH_COUNT', { count: bullCount })}</span>
+            <span style={{ color: '#f87171' }}>{t('MARKETS_BEARISH_COUNT', { count: bearCount })}</span>
+            <span style={{ color: 'var(--txt3)' }}>{t('MARKETS_NEUTRAL_COUNT', { count: COINS.length - bullCount - bearCount })}</span>
           </div>
         </div>
 
@@ -154,7 +162,7 @@ export default function MarketsPage() {
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search coins…"
+            placeholder={t('MARKETS_SEARCH_PLACEHOLDER')}
             style={{
               flex: 1, minWidth: 120,
               background: 'var(--bg1)', border: '0.5px solid var(--bdr)',
@@ -176,7 +184,7 @@ export default function MarketsPage() {
                 cursor: 'pointer', textTransform: 'capitalize',
               }}
             >
-              {key} {sort === key ? (sortAsc ? '↑' : '↓') : ''}
+              {t(SORT_LABEL_KEYS[key])} {sort === key ? (sortAsc ? '↑' : '↓') : ''}
             </button>
           ))}
         </div>
@@ -191,24 +199,24 @@ export default function MarketsPage() {
           borderBottom: '0.5px solid var(--bdr)', marginBottom: 2,
         }}>
           <div>
-            <Tip width={250} text="An A-F health grade blending the squeeze setup score with RSI extremes, open-interest trend, and CVD divergence. A means the strongest confluence of positioning signals; F means little or conflicting signal.">Grade</Tip>
+            <Tip width={250} text={t('MARKETS_GRADE_TIP')}>{t('MARKETS_GRADE_COL_LABEL')}</Tip>
           </div>
-          <div style={{ paddingLeft: 10 }}>Coin</div>
+          <div style={{ paddingLeft: 10 }}>{t('MARKETS_COIN_COL_LABEL')}</div>
           <div className="mkt-col-spark" />
-          <div style={{ textAlign: 'right' }}>Price</div>
-          <div style={{ textAlign: 'right' }}>24h</div>
+          <div style={{ textAlign: 'right' }}>{t('MARKETS_PRICE_COL_LABEL')}</div>
+          <div style={{ textAlign: 'right' }}>{t('MARKETS_24H_COL_LABEL')}</div>
           <div className="mkt-col-pressure" style={{ paddingLeft: 16 }}>
-            <Tip width={250} text="The share of recent volume that hit the ask (aggressive buying) versus the bid. Above 55% buy means buyers are lifting offers; below 45% means sellers are hitting bids.">Pressure</Tip>
+            <Tip width={250} text={t('MARKETS_PRESSURE_TIP')}>{t('MARKETS_PRESSURE_COL_LABEL')}</Tip>
           </div>
           <div style={{ paddingLeft: 12 }}>
-            <Tip width={250} text="The single most notable derivatives signal for this coin right now - crowded funding, a CVD divergence, or an open-interest shift - color-coded green for bullish or red for bearish.">Signal</Tip>
+            <Tip width={250} text={t('MARKETS_SIGNAL_TIP')}>{t('MARKETS_SIGNAL_COL_LABEL')}</Tip>
           </div>
         </div>
 
         {/* Rows */}
         {!wsReady ? (
           <div role="status" aria-live="polite" style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 10px' }}>
-            <span className="sr-only">Loading market data…</span>
+            <span className="sr-only">{t('MARKETS_LOADING_SR')}</span>
             {Array.from({ length: 10 }).map((_, i) => (
               <SkeletonBar key={i} height={40} radius={8} style={{ opacity: 1 - i * 0.06 }} />
             ))}
@@ -283,7 +291,7 @@ export default function MarketsPage() {
                   <div style={{ height: '100%', width: tbp + '%', background: barCol, borderRadius: 2, transition: 'width 0.5s' }} />
                 </div>
                 <div className="mkt-mono" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>
-                  {tbp}% buy
+                  {t('MARKETS_BUY_PCT_SUFFIX', { pct: tbp })}
                 </div>
               </div>
 
@@ -293,7 +301,7 @@ export default function MarketsPage() {
                 color: sig.col === '#333' ? 'var(--txt3)' : sig.col,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>
-                {sig.text}
+                {sig.key ? t(sig.key) : '-'}
               </div>
 
               {/* Bottom accent line = buy pressure */}
@@ -308,7 +316,7 @@ export default function MarketsPage() {
 
         {rows.length === 0 && (
           <div style={{ padding: '32px 10px', textAlign: 'center', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-            No coins match &ldquo;{query}&rdquo;
+            {t('MARKETS_NO_MATCH', { query })}
           </div>
         )}
 
@@ -320,7 +328,7 @@ export default function MarketsPage() {
             borderTop: '0.5px solid var(--bdr)',
           }}>
             <span className="mkt-mono" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-              {rangeStart}–{rangeEnd} of {rows.length}
+              {t('MARKETS_RANGE_OF', { start: rangeStart, end: rangeEnd, total: rows.length })}
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               <button
@@ -334,7 +342,7 @@ export default function MarketsPage() {
                   cursor: pageSafe === 0 ? 'default' : 'pointer', opacity: pageSafe === 0 ? 0.4 : 1,
                 }}
               >
-                ← Prev
+                {t('MARKETS_PREV_BUTTON')}
               </button>
               {Array.from({ length: pageCount }, (_, i) => i).map(i => (
                 <button
@@ -363,7 +371,7 @@ export default function MarketsPage() {
                   cursor: pageSafe >= pageCount - 1 ? 'default' : 'pointer', opacity: pageSafe >= pageCount - 1 ? 0.4 : 1,
                 }}
               >
-                Next →
+                {t('MARKETS_NEXT_BUTTON')}
               </button>
             </div>
           </div>

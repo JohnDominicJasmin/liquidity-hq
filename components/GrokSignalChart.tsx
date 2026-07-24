@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useMarket, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
+import { useLabels } from '@/lib/labels';
 
 function useAppTheme(): 'dark' | 'light' {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -12,8 +13,8 @@ function useAppTheme(): 'dark' | 'light' {
 
     // Watch for changes made by the theme toggle in NavDrawer
     const observer = new MutationObserver(() => {
-      const t = document.documentElement.getAttribute('data-theme');
-      setTheme(t === 'light' ? 'light' : 'dark');
+      const newTheme = document.documentElement.getAttribute('data-theme');
+      setTheme(newTheme === 'light' ? 'light' : 'dark');
     });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     return () => observer.disconnect();
@@ -31,6 +32,7 @@ const TF_TO_TV: Record<string, string> = {
 };
 
 export default function GrokSignalChart({ coin: coinProp, tf }: { coin?: string; tf?: string }) {
+  const { t } = useLabels();
   const { store } = useMarket();
   const theme = useAppTheme();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -84,7 +86,7 @@ export default function GrokSignalChart({ coin: coinProp, tf }: { coin?: string;
         </div>
         <button
           onClick={toggleFullscreen}
-          title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          title={isFullscreen ? t('GROK_SIGNAL_CHART_EXIT_FULLSCREEN') : t('GROK_SIGNAL_CHART_FULLSCREEN')}
           style={{
             background: 'none', border: '0.5px solid var(--bdr2)', borderRadius: 6,
             color: 'var(--txt3)', cursor: 'pointer', padding: '3px 8px',

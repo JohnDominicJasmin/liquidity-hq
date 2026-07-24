@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import Tip from './Tip';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
 
 interface DPData {
   current:   number;
@@ -61,6 +62,7 @@ function Sparkline({ series }: { series: number[] }) {
 }
 
 export default function DryPowder() {
+  const { t } = useLabels();
   const [state, setState]    = useState<LoadState>('loading');
   const [errMsg, setErrMsg]  = useState('');
 
@@ -120,14 +122,14 @@ export default function DryPowder() {
     <div style={{ padding: '12px 14px' }}>
       {/* Header */}
       <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 2 }}>
-        <Tip width={320} text="Tracks total stablecoin market cap (USDT, USDC, DAI, etc.) via DeFi Llama. Expansion means fresh capital entering crypto - bullish dry powder. Contraction means money leaving or already deployed. Grok provides the narrative context.">
-          Stablecoin Dry Powder
+        <Tip width={320} text={t('DRY_POWDER_TOOLTIP')}>
+          {t('DRY_POWDER_TITLE')}
         </Tip>
       </div>
 
       {state === 'loading' && (
         <div style={{ padding: '4px 0' }} role="status" aria-live="polite">
-          <span className="sr-only">Loading stablecoin data…</span>
+          <span className="sr-only">{t('DRY_POWDER_LOADING_SR')}</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, marginTop: 4 }}>
             <SkeletonBar width={90} height={20} radius={5} />
             <SkeletonBar width={120} height={20} radius={4} />
@@ -139,7 +141,7 @@ export default function DryPowder() {
       )}
 
       {state === 'unauth' && (
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '8px 0' }}>Sign in to view dry powder analysis.</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '8px 0' }}>{t('DRY_POWDER_SIGN_IN')}</div>
       )}
 
       {state === 'error' && (
@@ -149,7 +151,7 @@ export default function DryPowder() {
             onClick={fetchData}
             style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}
           >
-            Retry
+            {t('DRY_POWDER_RETRY')}
           </button>
         </div>
       )}
@@ -171,11 +173,11 @@ export default function DryPowder() {
                     fontSize: 'var(--fs-caption)', fontWeight: 700, fontFamily: 'var(--font-mono), monospace',
                     color: chg30Up ? '#34d399' : '#f87171',
                   }}>
-                    {chg30} / 30d
+                    {t('DRY_POWDER_30D_CHANGE', { pct: chg30 })}
                   </span>
                 </div>
                 <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>
-                  90d ago: {fmt(d.prev90)} ({chgPct(d.current, d.prev90)})
+                  {t('DRY_POWDER_90D_AGO', { value: fmt(d.prev90), pct: chgPct(d.current, d.prev90) })}
                 </div>
               </div>
               <Sparkline series={d.series} />
@@ -206,7 +208,7 @@ export default function DryPowder() {
                 fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2,
                 paddingTop: 6, borderTop: '0.5px solid var(--bdr)',
               }}>
-                <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>Watch: </span>
+                <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>{t('DRY_POWDER_WATCH_LABEL')}</span>
                 {d.keyLevel}
               </div>
             )}
@@ -220,7 +222,7 @@ export default function DryPowder() {
                 border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left',
               }}
             >
-              Refresh (4h cache)
+              {t('DRY_POWDER_REFRESH')}
             </button>
           </>
         );

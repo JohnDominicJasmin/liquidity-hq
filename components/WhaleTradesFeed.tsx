@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
 
 /* ── Binance futures combined aggTrade stream - Binance-listed coins only (HYPE is Bybit-only) ── */
 const SYMBOLS = ['btcusdt','ethusdt','solusdt','xrpusdt','bnbusdt','nearusdt','suiusdt'];
@@ -48,6 +49,7 @@ function fmtTime(ts: number): string {
 }
 
 export default function WhaleTradesFeed() {
+  const { t } = useLabels();
   const [feed,     setFeed]     = useState<WhaleTrade[]>([]);
   const [stats,    setStats]    = useState<Stats>({ buyUsd: 0, sellUsd: 0, count: 0 });
   const [status,   setStatus]   = useState<'connecting' | 'live' | 'error'>('connecting');
@@ -58,10 +60,10 @@ export default function WhaleTradesFeed() {
 
   function rebuildStats(history: WhaleTrade[]) {
     const cutoff = Date.now() - STATS_WIN;
-    const win    = history.filter(t => t.ts >= cutoff);
+    const win    = history.filter(trade => trade.ts >= cutoff);
     setStats({
-      buyUsd:  win.filter(t => t.side === 'BUY').reduce((s, t) => s + t.usd, 0),
-      sellUsd: win.filter(t => t.side === 'SELL').reduce((s, t) => s + t.usd, 0),
+      buyUsd:  win.filter(trade => trade.side === 'BUY').reduce((s, trade) => s + trade.usd, 0),
+      sellUsd: win.filter(trade => trade.side === 'SELL').reduce((s, trade) => s + trade.usd, 0),
       count:   win.length,
     });
   }
@@ -122,22 +124,22 @@ export default function WhaleTradesFeed() {
       <div className="wf-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--txt)' }}>
-            <Tip text="Live single trades over $50K on Binance futures. Large clusters of buys or sells often signal institutional positioning before smaller traders react.">Whale Trades</Tip>
+            <Tip text={t('WHALE_TRADES_FEED_TOOLTIP')}>{t('WHALE_TRADES_FEED_TITLE')}</Tip>
           </span>
           <span className={`wf-dot wf-dot-${status}`} title={status} />
         </div>
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>All markets · &gt;$50K · {msgCount > 0 ? `${msgCount} msgs` : 'waiting…'}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('WHALE_TRADES_FEED_ALL_MARKETS')} {msgCount > 0 ? t('WHALE_TRADES_FEED_MSG_COUNT', { count: msgCount }) : t('WHALE_TRADES_FEED_WAITING')}</span>
       </div>
 
       {/* Stats bar */}
       <div className="wf-stats">
         <div className="wf-stat">
-          <span className="wf-stat-lbl">Whale Buys (1h)</span>
+          <span className="wf-stat-lbl">{t('WHALE_TRADES_FEED_STAT_BUYS')}</span>
           <span className="wf-stat-val" style={{ color: '#22d3ee' }}>{fmtUSD(stats.buyUsd)}</span>
         </div>
         <div className="wf-stat-sep" />
         <div className="wf-stat" style={{ textAlign: 'center' }}>
-          <span className="wf-stat-lbl">Net Flow</span>
+          <span className="wf-stat-lbl">{t('WHALE_TRADES_FEED_STAT_NET_FLOW')}</span>
           <span className="wf-stat-val" style={{ color: netFlow >= 0 ? '#22d3ee' : '#f97316' }}>
             {netFlow >= 0 ? '+' : ''}{fmtUSD(Math.abs(netFlow))}
             <span style={{ fontSize: 'var(--fs-caption)', color: '#444', marginLeft: 3 }}>
@@ -147,7 +149,7 @@ export default function WhaleTradesFeed() {
         </div>
         <div className="wf-stat-sep" />
         <div className="wf-stat" style={{ textAlign: 'right' }}>
-          <span className="wf-stat-lbl">Whale Sells (1h)</span>
+          <span className="wf-stat-lbl">{t('WHALE_TRADES_FEED_STAT_SELLS')}</span>
           <span className="wf-stat-val" style={{ color: '#f97316' }}>{fmtUSD(stats.sellUsd)}</span>
         </div>
       </div>
@@ -161,16 +163,16 @@ export default function WhaleTradesFeed() {
       )}
       {totalUsd > 0 && (
         <div className="wf-bias-label">
-          {netBull && <span style={{ color: '#22d3ee' }}>Whales net buying - institutional accumulation</span>}
-          {netBear && <span style={{ color: '#f97316' }}>Whales net selling - institutional distribution</span>}
-          {!netBull && !netBear && <span style={{ color: 'var(--txt3)' }}>Balanced whale flow - watching both sides</span>}
+          {netBull && <span style={{ color: '#22d3ee' }}>{t('WHALE_TRADES_FEED_BIAS_NET_BUY')}</span>}
+          {netBear && <span style={{ color: '#f97316' }}>{t('WHALE_TRADES_FEED_BIAS_NET_SELL')}</span>}
+          {!netBull && !netBear && <span style={{ color: 'var(--txt3)' }}>{t('WHALE_TRADES_FEED_BIAS_BALANCED')}</span>}
         </div>
       )}
 
       {/* Feed states */}
       {feed.length === 0 && status === 'connecting' && (
         <div style={{ padding: '10px 14px' }} role="status" aria-live="polite">
-          <span className="sr-only">Connecting to live trade feed…</span>
+          <span className="sr-only">{t('WHALE_TRADES_FEED_SR_CONNECTING')}</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {[0, 1, 2].map(i => (
               <SkeletonBar key={i} height={30} radius={8} style={{ opacity: 1 - i * 0.18 }} />
@@ -180,7 +182,7 @@ export default function WhaleTradesFeed() {
       )}
       {feed.length === 0 && status === 'live' && (
         <div style={{ padding: '10px 14px' }} role="status" aria-live="polite">
-          <span className="sr-only">Watching for trades &gt; $50K…</span>
+          <span className="sr-only">{t('WHALE_TRADES_FEED_SR_WATCHING')}</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {[0, 1, 2].map(i => (
               <SkeletonBar key={i} height={30} radius={8} style={{ opacity: 1 - i * 0.18 }} />
@@ -191,26 +193,26 @@ export default function WhaleTradesFeed() {
 
       {/* Feed list */}
       <div className="wf-list">
-        {feed.map(t => {
-          const isBuy  = t.side === 'BUY';
-          const isMega = t.usd >= MEGA_USD;
-          const isBig  = t.usd >= BIG_USD;
+        {feed.map(trade => {
+          const isBuy  = trade.side === 'BUY';
+          const isMega = trade.usd >= MEGA_USD;
+          const isBig  = trade.usd >= BIG_USD;
           const accent = isBuy ? '#22d3ee' : '#f97316';
-          const badge  = isMega ? 'MEGA' : isBig ? 'WHALE' : t.side;
+          const badge  = isMega ? t('WHALE_TRADES_FEED_BADGE_MEGA') : isBig ? t('WHALE_TRADES_FEED_BADGE_WHALE') : trade.side;
 
           return (
             <div
-              key={t.id}
+              key={trade.id}
               className={`wf-row${isBig ? ' wf-row-big' : ''}`}
               style={{ borderLeftColor: accent }}
             >
-              <span className="wf-row-coin"  style={{ color: accent }}>{t.coin}</span>
+              <span className="wf-row-coin"  style={{ color: accent }}>{trade.coin}</span>
               <span className={`wf-row-side wf-row-side-${isBuy ? 'buy' : 'sell'}`}>{badge}</span>
               <span className="wf-row-usd"   style={{ color: isBig ? accent : '#8e8e93' }}>
-                {fmtUSD(t.usd)}
+                {fmtUSD(trade.usd)}
               </span>
-              <span className="wf-row-price">${t.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
-              <span className="wf-row-time">{fmtTime(t.ts)}</span>
+              <span className="wf-row-price">${trade.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>
+              <span className="wf-row-time">{fmtTime(trade.ts)}</span>
             </div>
           );
         })}

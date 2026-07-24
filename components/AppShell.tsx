@@ -7,6 +7,8 @@ import NavDrawer from './NavDrawer';
 import GrokChat from './GrokChat';
 import NewsTicker from './NewsTicker';
 import AuthProvider from './AuthProvider';
+import LabelsProvider from './LabelsProvider';
+import LanguageSync from './LanguageSync';
 import PostHogProvider from './PostHogProvider';
 import SettingsProvider from './SettingsProvider';
 import OnboardingProvider from './OnboardingProvider';
@@ -46,7 +48,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (isChromeless(pathname)) {
     return (
       <PostHogProvider>
-        <AuthProvider>{children}</AuthProvider>
+        <LabelsProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </LabelsProvider>
       </PostHogProvider>
     );
   }
@@ -56,36 +60,41 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   if (config?.maintenanceMode) {
     return (
       <PostHogProvider>
-        <MaintenanceScreen />
+        <LabelsProvider>
+          <MaintenanceScreen />
+        </LabelsProvider>
       </PostHogProvider>
     );
   }
 
   return (
     <PostHogProvider>
-      <AuthProvider>
-        <SettingsProvider>
-          <MarketProvider>
-            <NewsProvider>
-              <OnboardingProvider>
-                <GrokUsageProvider>
-                  <AnnouncementBanner banner={config?.announcementBanner ?? null} />
-                  <NavDrawer />
-                  <NewsTicker />
-                  <main className="app-content">
-                    <TrialBanner />
-                    <OnboardingGate>{children}</OnboardingGate>
-                    <PlatformFooter />
-                  </main>
-                  <GrokChat />
-                  <SetupChecklist />
-                  <PWAInstallPrompt />
-                </GrokUsageProvider>
-              </OnboardingProvider>
-            </NewsProvider>
-          </MarketProvider>
-        </SettingsProvider>
-      </AuthProvider>
+      <LabelsProvider>
+        <AuthProvider>
+          <SettingsProvider>
+            <MarketProvider>
+              <NewsProvider>
+                <OnboardingProvider>
+                  <GrokUsageProvider>
+                    <LanguageSync />
+                    <AnnouncementBanner banner={config?.announcementBanner ?? null} />
+                    <NavDrawer />
+                    <NewsTicker />
+                    <main className="app-content">
+                      <TrialBanner />
+                      <OnboardingGate>{children}</OnboardingGate>
+                      <PlatformFooter />
+                    </main>
+                    <GrokChat />
+                    <SetupChecklist />
+                    <PWAInstallPrompt />
+                  </GrokUsageProvider>
+                </OnboardingProvider>
+              </NewsProvider>
+            </MarketProvider>
+          </SettingsProvider>
+        </AuthProvider>
+      </LabelsProvider>
     </PostHogProvider>
   );
 }

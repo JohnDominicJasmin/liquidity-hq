@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 interface SignalStat {
   name:       string;
@@ -42,7 +44,16 @@ function accBar(pct: number, color: string) {
   );
 }
 
+const COLS: { labelKey: LabelKey; align: 'left' | 'right'; tipKey: LabelKey | null }[] = [
+  { labelKey: 'SIGNAL_ACCURACY_COL_SIGNAL',       align: 'left',  tipKey: null },
+  { labelKey: 'SIGNAL_ACCURACY_COL_TF',           align: 'right', tipKey: null },
+  { labelKey: 'SIGNAL_ACCURACY_COL_WIN_RATE_12H', align: 'right', tipKey: 'SIGNAL_ACCURACY_TIP_WIN_RATE_12H' },
+  { labelKey: 'SIGNAL_ACCURACY_COL_WIN_RATE_24H', align: 'right', tipKey: 'SIGNAL_ACCURACY_TIP_WIN_RATE_24H' },
+  { labelKey: 'SIGNAL_ACCURACY_COL_COUNT',        align: 'right', tipKey: 'SIGNAL_ACCURACY_TIP_COUNT' },
+];
+
 export default function SignalAccuracy() {
+  const { t } = useLabels();
   const [data, setData] = useState<ApiResponse | null>(null);
   const [err,  setErr]  = useState<string | null>(null);
 
@@ -67,25 +78,25 @@ export default function SignalAccuracy() {
         display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
       }}>
         <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
-          <Tip width={260} text="Backtests each signal against real BTC 4H history: every time it fired in the past, did price move favorably within 12h and 24h? Win rate is the honest hit-rate, misses included - not a guarantee, a track record.">Signal Accuracy Tracker</Tip>
+          <Tip width={260} text={t('SIGNAL_ACCURACY_TOOLTIP')}>{t('SIGNAL_ACCURACY_TITLE')}</Tip>
         </span>
         {data?.candles && (
-          <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>BTC · 4H · last {data.candles} candles</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>{t('SIGNAL_ACCURACY_CANDLES_INFO', { candles: data.candles })}</span>
         )}
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>10 min cache</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>{t('SIGNAL_ACCURACY_CACHE_NOTE')}</span>
       </div>
 
       {/* Loading / error */}
       {!data && !err && (
         <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 10 }} role="status" aria-live="polite">
-          <span className="sr-only">Computing signal accuracy…</span>
+          <span className="sr-only">{t('SIGNAL_ACCURACY_SR_COMPUTING')}</span>
           {[0, 1, 2, 3].map(i => (
             <SkeletonBar key={i} height={14} radius={4} style={{ opacity: 1 - i * 0.15 }} />
           ))}
         </div>
       )}
       {err && (
-        <div style={{ padding: '16px 14px', fontSize: 'var(--fs-caption)', color: '#f87171' }}>Failed to load: {err}</div>
+        <div style={{ padding: '16px 14px', fontSize: 'var(--fs-caption)', color: '#f87171' }}>{t('SIGNAL_ACCURACY_LOAD_ERROR')} {err}</div>
       )}
 
       {/* Column headers */}
@@ -99,19 +110,13 @@ export default function SignalAccuracy() {
             borderBottom: '0.5px solid rgba(255,255,255,0.05)',
             background: 'rgba(255,255,255,0.02)',
           }}>
-            {[
-              ['Signal', 'left', null],
-              ['TF', 'right', null],
-              ['Win Rate 12h', 'right', '% of past firings where price moved favorably within 12 hours.'],
-              ['Win Rate 24h', 'right', '% of past firings where price moved favorably within 24 hours.'],
-              ['Count', 'right', 'How many times this signal fired in the backtested window - low counts mean less statistical confidence.'],
-            ].map(
-              ([h, align, tip]) => (
-                <span key={h as string} style={{
+            {COLS.map(
+              ({ labelKey, align, tipKey }) => (
+                <span key={labelKey} style={{
                   fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '.07em',
-                  textTransform: 'uppercase', color: '#333', textAlign: align as 'left' | 'right',
+                  textTransform: 'uppercase', color: '#333', textAlign: align,
                 }}>
-                  {tip ? <Tip width={200} text={tip as string}>{h}</Tip> : h}
+                  {tipKey ? <Tip width={200} text={t(tipKey)}>{t(labelKey)}</Tip> : t(labelKey)}
                 </span>
               )
             )}
@@ -141,7 +146,7 @@ export default function SignalAccuracy() {
                     <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)' }}>{sig.label}</span>
                   </div>
                   <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>
-                    avg {sig.direction === 'long' ? '+' : ''}{sig.avgReturn6.toFixed(2)}% at 24h
+                    {t('SIGNAL_ACCURACY_AVG_RETURN', { sign: sig.direction === 'long' ? '+' : '', value: sig.avgReturn6.toFixed(2) })}
                   </span>
                 </div>
 
@@ -173,7 +178,7 @@ export default function SignalAccuracy() {
           {/* Footer */}
           <div style={{ padding: '6px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)' }}>
             <span style={{ fontSize: 'var(--fs-caption)', color: '#333' }}>
-              Win Rate = % of signals where price moved in the expected direction after 12h or 24h
+              {t('SIGNAL_ACCURACY_FOOTER_NOTE')}
             </span>
           </div>
         </div>

@@ -10,6 +10,7 @@ import { StatRow } from '@/components/BacktestStatsUI';
 import Tip from '@/components/Tip';
 import EmptyState from '@/components/EmptyState';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
 
 interface FireRow {
   rule_key: string;
@@ -23,10 +24,6 @@ interface FireRow {
   resolved_48h: boolean;
 }
 
-const RULE_LABELS: Record<string, string> = {
-  squeeze: 'Squeeze / Flush', ema_cross: '200 EMA Cross', distribution: 'Distribution',
-  rsi: 'RSI Overbought/Oversold', whales: 'Whale Trades',
-};
 const RULE_ORDER = ['squeeze', 'ema_cross', 'distribution', 'rsi', 'whales'];
 
 function fmtPct(n: number): string { return (n >= 0 ? '+' : '') + n.toFixed(2) + '%'; }
@@ -38,9 +35,21 @@ function timeAgo(iso: string): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
+function ruleLabel(t: (key: any) => string, key: string): string {
+  switch (key) {
+    case 'squeeze':      return t('ALERT_OUTCOMES_RULE_SQUEEZE');
+    case 'ema_cross':    return t('ALERT_OUTCOMES_RULE_EMA_CROSS');
+    case 'distribution': return t('ALERT_OUTCOMES_RULE_DISTRIBUTION');
+    case 'rsi':           return t('ALERT_OUTCOMES_RULE_RSI');
+    case 'whales':        return t('ALERT_OUTCOMES_RULE_WHALES');
+    default:               return key;
+  }
+}
+
 export default function AlertOutcomes() {
   const [rows, setRows]       = useState<FireRow[] | null>(null);
   const [error, setError]     = useState<string | null>(null);
+  const { t } = useLabels();
 
   useEffect(() => {
     let cancelled = false;
@@ -63,11 +72,11 @@ export default function AlertOutcomes() {
   if (rows === null) {
     return (
       <div className="card" style={{ marginBottom: 10 }}>
-        <div className="lbl">Alert Track Record</div>
+        <div className="lbl">{t('ALERT_OUTCOMES_TITLE')}</div>
         <div style={{ padding: '4px 0' }}>
           <SkeletonBar width="60%" height={13} style={{ marginBottom: 8 }} />
           <SkeletonBar width="40%" height={13} />
-          <span className="sr-only">Loading…</span>
+          <span className="sr-only">{t('ALERT_OUTCOMES_LOADING_SR')}</span>
         </div>
       </div>
     );
@@ -80,7 +89,7 @@ export default function AlertOutcomes() {
     const favorable = rr.filter(r => r.outcome_pct_24h! > 0).length;
     const winRate   = favorable / rr.length;
     const avgPct    = rr.reduce((s, r) => s + r.outcome_pct_24h!, 0) / rr.length;
-    return { key, label: RULE_LABELS[key], count: rr.length, winRate, avgPct };
+    return { key, label: ruleLabel(t, key), count: rr.length, winRate, avgPct };
   }).filter((x): x is NonNullable<typeof x> => x !== null);
 
   const recent = rows.slice(0, 12);
@@ -89,15 +98,15 @@ export default function AlertOutcomes() {
     <div className="card" style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <div className="lbl" style={{ margin: 0 }}>
-          <Tip width={260} text="How this app's own directional alerts actually performed: the signed price move by 24h after each alert fired, misses included - not a backtest, the real record. Only alert types with a clear implied direction are scored (squeeze, EMA cross, distribution, RSI, whale trades).">Alert Track Record</Tip>
+          <Tip width={260} text={t('ALERT_OUTCOMES_TOOLTIP')}>{t('ALERT_OUTCOMES_TITLE')}</Tip>
         </div>
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>24h outcome · misses included</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ALERT_OUTCOMES_SUBTITLE')}</span>
       </div>
 
       {byRule.length === 0 ? (
         <EmptyState
-          title="No resolved outcomes yet"
-          sub="Outcomes fill in ~24h after each squeeze, EMA cross, distribution, RSI, or whale alert fires."
+          title={t('ALERT_OUTCOMES_EMPTY_TITLE')}
+          sub={t('ALERT_OUTCOMES_EMPTY_SUB')}
         />
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '2px 24px', marginBottom: 12 }}>
@@ -115,7 +124,7 @@ export default function AlertOutcomes() {
       {recent.length > 0 && (
         <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 10 }}>
           <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--txt3)', marginBottom: 6 }}>
-            Recent Fires
+            {t('ALERT_OUTCOMES_RECENT_FIRES')}
           </div>
           {recent.map((r, i) => {
             const pending = !r.resolved_24h;
@@ -127,7 +136,7 @@ export default function AlertOutcomes() {
                 <span style={{ color: 'var(--txt3)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</span>
                 <span style={{ color: 'var(--txt3)' }}>{timeAgo(r.fired_at)}</span>
                 <span style={{ color: col, fontWeight: 700, minWidth: 56, textAlign: 'right' }}>
-                  {pending ? 'pending' : fmtPct(pct!)}
+                  {pending ? t('ALERT_OUTCOMES_PENDING_LABEL') : fmtPct(pct!)}
                 </span>
               </div>
             );

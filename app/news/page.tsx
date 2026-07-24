@@ -5,16 +5,18 @@ import { GEO_KEYWORDS, ECON_NOTES, getCoinsInHeadline } from '@/lib/classify';
 import { withAlpha } from '@/lib/color';
 import LoadingState from '@/components/LoadingState';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 type Tab = 'foryou' | 'breaking' | 'all' | 'geo' | 'crypto' | 'events';
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'foryou',   label: 'For You'   },
-  { id: 'breaking', label: 'Breaking'  },
-  { id: 'all',      label: 'All'       },
-  { id: 'geo',      label: 'War & Geo' },
-  { id: 'crypto',   label: 'Crypto'    },
-  { id: 'events',   label: 'Calendar'  },
+const TABS: { id: Tab; labelKey: LabelKey }[] = [
+  { id: 'foryou',   labelKey: 'NEWS_TAB_FORYOU'   },
+  { id: 'breaking', labelKey: 'NEWS_TAB_BREAKING'  },
+  { id: 'all',      labelKey: 'NEWS_TAB_ALL'       },
+  { id: 'geo',      labelKey: 'NEWS_TAB_GEO' },
+  { id: 'crypto',   labelKey: 'NEWS_TAB_CRYPTO'    },
+  { id: 'events',   labelKey: 'NEWS_TAB_EVENTS'  },
 ];
 
 /* ── Decode HTML entities in headlines (&#39; → ' etc.) ── */
@@ -34,12 +36,14 @@ function decodeEntities(str: string): string {
     });
 }
 
-function timeAgo(ts: number): string {
+type TFn = (key: LabelKey, vars?: Record<string, string | number>) => string;
+
+function timeAgo(ts: number, t: TFn): string {
   const s = Math.floor(Date.now() / 1000 - ts);
-  if (s < 60)    return 'just now';
-  if (s < 3600)  return Math.floor(s / 60) + 'm ago';
-  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
-  return Math.floor(s / 86400) + 'd ago';
+  if (s < 60)    return t('NEWS_TIME_JUST_NOW');
+  if (s < 3600)  return t('NEWS_TIME_MINUTES_AGO', { n: Math.floor(s / 60) });
+  if (s < 86400) return t('NEWS_TIME_HOURS_AGO', { n: Math.floor(s / 3600) });
+  return t('NEWS_TIME_DAYS_AGO', { n: Math.floor(s / 86400) });
 }
 
 function getGeoMeta(headline: string): { tag: string; note: string } | null {
@@ -55,11 +59,11 @@ function fmtUSD(v: number): string {
   return '$' + (v / 1000).toFixed(0) + 'K';
 }
 
-function askGrok(headline: string) {
+function askGrok(headline: string, t: TFn) {
   window.dispatchEvent(new CustomEvent('grok-chat', {
     detail: {
       coin: 'btc',
-      prompt: `Breaking news: "${headline}"\n\nHow does this affect BTC and crypto markets right now? What's the likely short-term price impact, direction bias, and should I adjust my position?`,
+      prompt: t('NEWS_ASK_GROK_PROMPT', { headline }),
     },
   }));
 }
@@ -95,6 +99,7 @@ function getBtcSentiment(headline: string): BtcSentiment {
 }
 
 function SentimentBadge({ headline }: { headline: string }) {
+  const { t } = useLabels();
   const s = getBtcSentiment(headline);
   // Neutral is the default for most non-crypto headlines - rendering a grey
   // "Neutral" pill on the majority of cards is pure noise, so only surface a
@@ -103,8 +108,8 @@ function SentimentBadge({ headline }: { headline: string }) {
   const coins = getCoinsInHeadline(headline);
   const prefix = coins.length === 1 ? `${coins[0]}: ` : '';
   const cfg = s === 'bullish'
-    ? { bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)',   color: '#34d399', label: `${prefix}Bullish ↗` }
-    : { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)',  color: '#f87171', label: `${prefix}Bearish ↘` };
+    ? { bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)',   color: '#34d399', label: t('NEWS_SENTIMENT_BULLISH', { prefix }) }
+    : { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)',  color: '#f87171', label: t('NEWS_SENTIMENT_BEARISH', { prefix }) };
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center',
@@ -120,6 +125,7 @@ function SentimentBadge({ headline }: { headline: string }) {
 
 /* ── Coin Buzz Bar - summary of coin mentions across all alerts ── */
 function CoinBuzzBar({ mentions }: { mentions: { symbol: string; total: number; bullish: number; bearish: number }[] }) {
+  const { t } = useLabels();
   if (mentions.length < 2) return null;
   return (
     <div className="hscroll-fade-outer">
@@ -131,7 +137,7 @@ function CoinBuzzBar({ mentions }: { mentions: { symbol: string; total: number; 
         fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600,
         letterSpacing: '.05em', textTransform: 'uppercase', flexShrink: 0,
       }}>
-        Coin buzz
+        {t('NEWS_COIN_BUZZ_LABEL')}
       </span>
       {mentions.map(m => {
         const pctBull = m.total > 0 ? m.bullish / m.total : 0;
@@ -178,10 +184,10 @@ const SOURCE_COLORS: Record<string, string> = {
 };
 
 /* ── Card type config ── */
-const TYPE_CFG = {
-  red:    { dot: '#f87171', label: 'Breaking', accentBg: 'rgba(248,113,113,0.08)'  },
-  amber:  { dot: '#fbbf24', label: 'Macro',    accentBg: 'rgba(251,191,36,0.07)'  },
-  purple: { dot: '#1a7aff', label: 'Crypto',   accentBg: 'rgba(26,122,255,0.07)' },
+const TYPE_CFG: Record<'red' | 'amber' | 'purple', { dot: string; labelKey: LabelKey; accentBg: string }> = {
+  red:    { dot: '#f87171', labelKey: 'NEWS_TYPE_BADGE_BREAKING', accentBg: 'rgba(248,113,113,0.08)'  },
+  amber:  { dot: '#fbbf24', labelKey: 'NEWS_TYPE_BADGE_MACRO',    accentBg: 'rgba(251,191,36,0.07)'  },
+  purple: { dot: '#1a7aff', labelKey: 'NEWS_TYPE_BADGE_CRYPTO',   accentBg: 'rgba(26,122,255,0.07)' },
 };
 
 /* ── Market impact chip - first 6 words of note ── */
@@ -219,9 +225,10 @@ type AlertItem = ReturnType<typeof useNews>['alerts'][0];
    HERO CARD - first story, spans all 3 columns
 ──────────────────────────────────────────────── */
 function HeroCard({ a }: { a: AlertItem }) {
+  const { t } = useLabels();
   const cfg   = TYPE_CFG[a.type];
   const geo   = getGeoMeta(a.headline);
-  const label = geo ? geo.tag : cfg.label;
+  const label = geo ? geo.tag : t(cfg.labelKey);
   const title = decodeEntities(a.headline);
 
   return (
@@ -240,7 +247,7 @@ function HeroCard({ a }: { a: AlertItem }) {
             <SourcePill source={a.source} />
             <SentimentBadge headline={a.headline} />
           </div>
-          <span className="ncard-meta">{timeAgo(a.ts)}</span>
+          <span className="ncard-meta">{timeAgo(a.ts, t)}</span>
         </div>
         <h2 className="ncard-grid-headline">
           {a.link
@@ -248,12 +255,12 @@ function HeroCard({ a }: { a: AlertItem }) {
             : title}
         </h2>
         <div className="ncard-grid-actions">
-          <button className="ncard-ask-btn" onClick={() => askGrok(a.headline)}>
-            <span className="ncard-ask-spark" aria-hidden>✦</span> Ask LiquidityAI
+          <button className="ncard-ask-btn" onClick={() => askGrok(a.headline, t)}>
+            <span className="ncard-ask-spark" aria-hidden>✦</span> {t('NEWS_ASK_AI_BUTTON')}
           </button>
           {a.link && (
             <a className="ncard-open-btn" href={a.link} target="_blank" rel="noopener noreferrer">
-              Read article ↗
+              {t('NEWS_READ_ARTICLE_LINK')}
             </a>
           )}
         </div>
@@ -266,11 +273,12 @@ function HeroCard({ a }: { a: AlertItem }) {
    GRID NEWS CARD - one cell in the 3-col grid
 ──────────────────────────────────────────────── */
 function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; note: string } | null }; hero?: boolean }) {
+  const { t } = useLabels();
   if (hero) return <HeroCard a={a} />;
 
   const cfg    = TYPE_CFG[a.type];
   const geo    = getGeoMeta(a.headline);
-  const label  = geo ? geo.tag : cfg.label;
+  const label  = geo ? geo.tag : t(cfg.labelKey);
   const hasImg = !!a.image;
   const title  = decodeEntities(a.headline);
 
@@ -290,7 +298,7 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
             <SourcePill source={a.source} />
             <SentimentBadge headline={a.headline} />
           </div>
-          <span className="ncard-meta">{timeAgo(a.ts)}</span>
+          <span className="ncard-meta">{timeAgo(a.ts, t)}</span>
         </div>
         <h3 className="ncard-grid-headline">
           {a.link
@@ -298,12 +306,12 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
             : title}
         </h3>
         <div className="ncard-grid-actions">
-          <button className="ncard-ask-btn" onClick={() => askGrok(a.headline)}>
-            <span className="ncard-ask-spark" aria-hidden>✦</span> Ask LiquidityAI
+          <button className="ncard-ask-btn" onClick={() => askGrok(a.headline, t)}>
+            <span className="ncard-ask-spark" aria-hidden>✦</span> {t('NEWS_ASK_AI_BUTTON')}
           </button>
           {a.link && (
             <a className="ncard-open-btn" href={a.link} target="_blank" rel="noopener noreferrer">
-              Read article ↗
+              {t('NEWS_READ_ARTICLE_LINK')}
             </a>
           )}
         </div>
@@ -316,6 +324,7 @@ function NewsCard({ a, hero = false }: { a: AlertItem & { geo?: { tag: string; n
    PAGE
 ──────────────────────────────────────────────── */
 export default function NewsPage() {
+  const { t } = useLabels();
   const { alerts, geoEvents, econEvents, whaleAlerts, alertsLoaded } = useNews();
   const [tab, setTab] = useState<Tab>('foryou');
 
@@ -367,9 +376,9 @@ export default function NewsPage() {
     crypto:  cryptoNews,
   };
 
-  const hasBadge = (t: Tab) => {
-    if (t === 'foryou')   return (catalysts.length + whaleAlerts.length) > 0;
-    if (t === 'breaking') return breaking.length > 0;
+  const hasBadge = (tabId: Tab) => {
+    if (tabId === 'foryou')   return (catalysts.length + whaleAlerts.length) > 0;
+    if (tabId === 'breaking') return breaking.length > 0;
     return false;
   };
 
@@ -393,12 +402,12 @@ export default function NewsPage() {
       {/* ── Header ── */}
       <div style={{ padding: '1rem 0 0.5rem' }}>
         <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2, letterSpacing: '-0.3px' }}>
-          News
+          {t('NEWS_PAGE_TITLE')}
         </h1>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 12 }}>
-          Reuters · AP · BBC · CoinDesk · CoinTelegraph · Decrypt · The Block · Finnhub
+          {t('NEWS_SOURCE_LIST')}
           <span style={{ marginLeft: 8, fontWeight: 700, color: alerts.length > 0 ? 'var(--green)' : 'var(--txt3)' }}>
-            · {alerts.length} alert{alerts.length !== 1 ? 's' : ''}
+            · {t('NEWS_ALERT_COUNT', { count: alerts.length, s: alerts.length !== 1 ? 's' : '' })}
           </span>
         </div>
       </div>
@@ -406,16 +415,16 @@ export default function NewsPage() {
       {/* ── Tab bar ── */}
       <div className="hscroll-fade-outer">
         <div className="ntab-bar">
-          {TABS.map(t => (
+          {TABS.map(tabItem => (
             <button
-              key={t.id}
-              className={`ntab-btn${tab === t.id ? ' on' : ''}`}
-              onClick={() => setTab(t.id)}
+              key={tabItem.id}
+              className={`ntab-btn${tab === tabItem.id ? ' on' : ''}`}
+              onClick={() => setTab(tabItem.id)}
             >
-              {t.label}
-              {hasBadge(t.id) && (
+              {t(tabItem.labelKey)}
+              {hasBadge(tabItem.id) && (
                 <span className="ntab-count">
-                  {t.id === 'breaking' ? breaking.length : catalysts.length + whaleAlerts.length}
+                  {tabItem.id === 'breaking' ? breaking.length : catalysts.length + whaleAlerts.length}
                 </span>
               )}
             </button>
@@ -432,9 +441,9 @@ export default function NewsPage() {
         <div className="nfeed">
           {breaking.length === 0 ? (
             <div className="nfeed-empty">
-              
-              <div style={{ fontSize: 'var(--fs-body)', color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>No breaking news</div>
-              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>War · blockades · sanctions · crashes will appear here</div>
+
+              <div style={{ fontSize: 'var(--fs-body)', color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>{t('NEWS_BREAKING_EMPTY_TITLE')}</div>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('NEWS_BREAKING_EMPTY_BODY')}</div>
             </div>
           ) : (
             breaking.map((a, i) => <NewsCard key={a.id} a={a} hero={i === 0} />)
@@ -451,21 +460,21 @@ export default function NewsPage() {
               background: 'var(--bg2)', border: '0.5px solid var(--bdr)',
               fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.5,
             }}>
-              No breaking catalysts right now - showing latest crypto news
+              {t('NEWS_FORYOU_FALLBACK_BANNER')}
             </div>
           )}
 
           {!alertsLoaded && alerts.length === 0 && (
-            <LoadingState message="Loading feeds…" />
+            <LoadingState message={t('NEWS_LOADING_FEEDS')} />
           )}
 
           {foryouEmpty && alertsLoaded && (
             <div className="nfeed-empty">
-              
-              <div style={{ fontSize: 'var(--fs-body)', color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>Scanning for catalysts…</div>
-              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>High-impact news + whale trades will appear here</div>
+
+              <div style={{ fontSize: 'var(--fs-body)', color: 'var(--txt2)', fontWeight: 600, marginBottom: 4 }}>{t('NEWS_FORYOU_EMPTY_TITLE')}</div>
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('NEWS_FORYOU_EMPTY_BODY')}</div>
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 12, opacity: 0.7 }}>
-                Reuters · AP · BBC · CoinDesk · CoinTelegraph · Decrypt · The Block · Finnhub
+                {t('NEWS_SOURCE_LIST')}
               </div>
             </div>
           )}
@@ -479,26 +488,26 @@ export default function NewsPage() {
                 <div className="ncard-grid-body">
                   <div className="ncard-grid-top">
                     <span className="ncard-type-badge" style={{ color: col }}>
-                      {isBuy ? '↑' : '↓'} {w.symbol} Whale {isBuy ? 'BUY' : 'SELL'}
+                      {t('NEWS_WHALE_BADGE', { arrow: isBuy ? '↑' : '↓', symbol: w.symbol, side: isBuy ? t('NEWS_WHALE_SIDE_BUY') : t('NEWS_WHALE_SIDE_SELL') })}
                     </span>
-                    <span className="ncard-meta">{timeAgo(w.ts)}</span>
+                    <span className="ncard-meta">{timeAgo(w.ts, t)}</span>
                   </div>
                   <h3 className="ncard-grid-headline" style={{ color: col }}>
-                    {fmtUSD(w.usdValue)} {isBuy ? 'bought' : 'sold'} at ${w.price.toLocaleString()}
+                    {t('NEWS_WHALE_HEADLINE', { usd: fmtUSD(w.usdValue), action: isBuy ? t('NEWS_WHALE_BOUGHT') : t('NEWS_WHALE_SOLD'), price: w.price.toLocaleString() })}
                     <span style={{ color: 'var(--txt3)', fontSize: 'var(--fs-caption)', fontWeight: 400, marginLeft: 6 }}>
                       ({w.qty.toFixed(3)} {w.symbol})
                     </span>
                   </h3>
                   <div className="ncard-grid-actions">
                     <ImpactChip
-                      note={isBuy ? 'Institutional accumulation - watch follow-through' : 'Distribution signal - sell pressure incoming'}
+                      note={isBuy ? t('NEWS_WHALE_NOTE_BUY') : t('NEWS_WHALE_NOTE_SELL')}
                       color={col}
                     />
                     <button className="ncard-ask-btn" onClick={() =>
                       window.dispatchEvent(new CustomEvent('grok-chat', {
-                        detail: { coin: w.symbol.toLowerCase() as 'btc' | 'eth', prompt: `A whale just ${isBuy ? 'bought' : 'sold'} ${fmtUSD(w.usdValue)} of ${w.symbol} at $${w.price.toLocaleString()}. What does this mean for the next 1-4 hours?` },
+                        detail: { coin: w.symbol.toLowerCase() as 'btc' | 'eth', prompt: t('NEWS_WHALE_ASK_PROMPT', { action: isBuy ? t('NEWS_WHALE_BOUGHT') : t('NEWS_WHALE_SOLD'), usd: fmtUSD(w.usdValue), symbol: w.symbol, price: w.price.toLocaleString() }) },
                       }))
-                    }><span className="ncard-ask-spark" aria-hidden>✦</span> Ask LiquidityAI</button>
+                    }><span className="ncard-ask-spark" aria-hidden>✦</span> {t('NEWS_ASK_AI_BUTTON')}</button>
                   </div>
                 </div>
               </article>
@@ -522,7 +531,7 @@ export default function NewsPage() {
                 <h3 className="ncard-grid-headline">{decodeEntities(g.headline)}</h3>
                 <div className="ncard-grid-actions">
                   <ImpactChip note={g.note} color="var(--accent)" />
-                  <button className="ncard-ask-btn" onClick={() => askGrok(g.headline)}><span className="ncard-ask-spark" aria-hidden>✦</span> Ask LiquidityAI</button>
+                  <button className="ncard-ask-btn" onClick={() => askGrok(g.headline, t)}><span className="ncard-ask-spark" aria-hidden>✦</span> {t('NEWS_ASK_AI_BUTTON')}</button>
                 </div>
               </div>
             </article>
@@ -536,13 +545,13 @@ export default function NewsPage() {
           {isEmpty && (
             <div className="nfeed-empty">
               {tab === 'geo' ? (
-                <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>No war/conflict alerts yet</div>
+                <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_GEO_EMPTY')}</div>
               ) : tab === 'crypto' ? (
-                <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>No crypto news yet</div>
+                <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_CRYPTO_EMPTY')}</div>
               ) : (
                 <>
                   <SkeletonBar width={210} height={15} style={{ margin: '0 auto' }} />
-                  <span className="sr-only">Fetching news - feeds loading…</span>
+                  <span className="sr-only">{t('NEWS_ALL_LOADING_SR')}</span>
                 </>
               )}
             </div>
@@ -558,7 +567,7 @@ export default function NewsPage() {
         <div style={{ paddingBottom: 24 }}>
           {econEvents.length === 0 && (
             <div className="nfeed-empty">
-              <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>No upcoming high-impact US events found</div>
+              <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)' }}>{t('NEWS_EVENTS_EMPTY')}</div>
             </div>
           )}
           {(() => {
@@ -579,14 +588,14 @@ export default function NewsPage() {
                   borderBottom: '1px solid var(--border)',
                 }}>
                   <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: g.isToday ? 'var(--amber)' : 'var(--txt)' }}>
-                    {g.isToday ? `Today - ${g.dateLabel}` : g.dateLabel}
+                    {g.isToday ? t('NEWS_EVENTS_TODAY_PREFIX', { date: g.dateLabel }) : g.dateLabel}
                   </span>
-                  {g.isToday && <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 6px', borderRadius: 8, background: 'rgba(251,191,36,0.12)', color: 'var(--amber)', fontWeight: 600 }}>LIVE</span>}
+                  {g.isToday && <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 6px', borderRadius: 8, background: 'rgba(251,191,36,0.12)', color: 'var(--amber)', fontWeight: 600 }}>{t('NEWS_EVENTS_LIVE_BADGE')}</span>}
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                 {/* Column headers */}
                 <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr 72px 72px 72px 52px', gap: 4, padding: '4px 8px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontWeight: 600, letterSpacing: '0.04em', minWidth: 370 }}>
-                  <span>TIME (PHT)</span><span>EVENT</span><span style={{ textAlign: 'right' }}>PREV</span><span style={{ textAlign: 'right' }}>EST</span><span style={{ textAlign: 'right' }}>ACTUAL</span><span style={{ textAlign: 'center' }}>IMPACT</span>
+                  <span>{t('NEWS_EVENTS_COL_TIME')}</span><span>{t('NEWS_EVENTS_COL_EVENT')}</span><span style={{ textAlign: 'right' }}>{t('NEWS_EVENTS_COL_PREV')}</span><span style={{ textAlign: 'right' }}>{t('NEWS_EVENTS_COL_EST')}</span><span style={{ textAlign: 'right' }}>{t('NEWS_EVENTS_COL_ACTUAL')}</span><span style={{ textAlign: 'center' }}>{t('NEWS_EVENTS_COL_IMPACT')}</span>
                 </div>
                 {/* Rows */}
                 {g.events.map((e, ei) => {
@@ -606,7 +615,7 @@ export default function NewsPage() {
                       alignItems: 'start',
                     }}>
                       <span style={{ fontSize: 'var(--fs-caption)', color: urgent ? '#f87171' : soon ? '#fbbf24' : 'var(--txt2)', fontWeight: 600, paddingTop: 1 }}>
-                        {urgent ? 'NOW' : timePHT}
+                        {urgent ? t('NEWS_EVENTS_NOW_BADGE') : timePHT}
                       </span>
                       <div>
                         <div style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--txt)', marginBottom: note ? 4 : 0 }}>{decodeEntities(e.name)}</div>
@@ -616,7 +625,7 @@ export default function NewsPage() {
                       <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.estimate ?? '-'}</span>
                       <span style={{ fontSize: 'var(--fs-caption)', fontWeight: e.actual ? 700 : 400, color: e.actual ? 'var(--green)' : 'var(--txt3)', textAlign: 'right', paddingTop: 1 }}>{e.actual ?? '-'}</span>
                       <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 1 }}>
-                        <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.15)', color: '#f87171', fontWeight: 700, letterSpacing: '0.03em' }}>HIGH</span>
+                        <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.15)', color: '#f87171', fontWeight: 700, letterSpacing: '0.03em' }}>{t('NEWS_EVENTS_IMPACT_HIGH')}</span>
                       </div>
                     </div>
                   );
@@ -626,7 +635,7 @@ export default function NewsPage() {
             ));
           })()}
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 4, textAlign: 'center' }}>
-            High-impact US events · Finnhub when available · Fed calendar + computed schedule as fallback · Times in PHT
+            {t('NEWS_EVENTS_FOOTER_NOTE')}
           </div>
         </div>
       )}

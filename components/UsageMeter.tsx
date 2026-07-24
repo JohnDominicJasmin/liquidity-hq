@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
+import { useLabels } from '@/lib/labels';
 
 // Daily AI quotas reset at midnight UTC (server-side fact - see lib/resetTime.ts
 // and the /api/grok limits). Live countdown so the "you're running low, it won't
@@ -25,6 +26,7 @@ function fmtCountdown(ms: number): string {
 export default function UsageMeter() {
   const { user, isPro } = useAuth();
   const { usage } = useGrokUsage();
+  const { t } = useLabels();
   const [ms, setMs] = useState<number | null>(null);
 
   useEffect(() => {
@@ -51,23 +53,23 @@ export default function UsageMeter() {
       }}
     >
       <span>
-        Quick <b style={{ color: col(quickLeft), fontWeight: 700 }}>{quickLeft}</b>
-        <span style={{ color: 'var(--txt3)' }}>/{usage.quick_limit} left</span>
+        {t('USAGE_METER_QUICK_LABEL')} <b style={{ color: col(quickLeft), fontWeight: 700 }}>{quickLeft}</b>
+        <span style={{ color: 'var(--txt3)' }}>{t('USAGE_METER_LEFT_SUFFIX', { limit: usage.quick_limit })}</span>
       </span>
       <span style={{ color: 'var(--bdr2)' }}>·</span>
       <span>
-        Deep <b style={{ color: col(deepLeft), fontWeight: 700 }}>{deepLeft}</b>
-        <span style={{ color: 'var(--txt3)' }}>/{usage.deep_limit} left</span>
+        {t('USAGE_METER_DEEP_LABEL')} <b style={{ color: col(deepLeft), fontWeight: 700 }}>{deepLeft}</b>
+        <span style={{ color: 'var(--txt3)' }}>{t('USAGE_METER_LEFT_SUFFIX', { limit: usage.deep_limit })}</span>
       </span>
       {ms != null && (
         <>
           <span style={{ color: 'var(--bdr2)' }}>·</span>
-          <span style={{ color: 'var(--txt3)' }}>resets in {fmtCountdown(ms)}</span>
+          <span style={{ color: 'var(--txt3)' }}>{t('USAGE_METER_RESETS_IN', { countdown: fmtCountdown(ms) })}</span>
         </>
       )}
       {!isPro && (
         <Link href="/upgrade" style={{ marginLeft: 'auto', color: 'var(--accent)', fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-          Upgrade →
+          {t('USAGE_METER_UPGRADE_LINK')}
         </Link>
       )}
     </div>

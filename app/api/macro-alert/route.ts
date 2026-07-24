@@ -87,13 +87,20 @@ export async function GET(req: Request) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN not set' }, { status: 503 });
 
-  // Telegram alerts are Pro-only - resolve Pro users before collecting
-  // recipients (same gate as app/api/telegram/alert/route.ts).
+  // Telegram alerts are Pro-only - resolve entitled users (paid Pro OR active
+  // trial, matching lib/entitlements.ts) before collecting recipients (same
+  // gate as app/api/telegram/alert/route.ts - see that file's comment for why
+  // role === 'pro' alone silently drops trial users for the whole 14 days).
   const proUserIds = new Set<string>();
   try {
     const admin = getSupabaseAdmin();
-    const { data } = await admin.from(T.user_subscriptions).select('user_id').eq('role', 'pro');
-    for (const row of data ?? []) proUserIds.add(row.user_id as string);
+    const { data } = await admin.from(T.user_subscriptions).select('user_id, role, trial_ends_at');
+    const now = Date.now();
+    for (const row of data ?? []) {
+      const isPro   = row.role === 'pro';
+      const isTrial = row.role !== 'pro' && !!row.trial_ends_at && new Date(row.trial_ends_at as string).getTime() > now;
+      if (isPro || isTrial) proUserIds.add(row.user_id as string);
+    }
   } catch { /* admin not configured - chatIds falls back to the env var below */ }
 
   // Collect Pro users' Telegram chat IDs

@@ -5,6 +5,8 @@ import { getSupabase } from '@/lib/supabase';
 import EmptyState from '@/components/EmptyState';
 import { withAlpha } from '@/lib/color';
 import LoadingState from '@/components/LoadingState';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 interface Hypothesis {
   id: string;
@@ -31,11 +33,11 @@ interface Evidence {
   created_at: string;
 }
 
-const STATUS_META: Record<string, { label: string; col: string; bg: string }> = {
-  active:        { label: 'Active',         col: '#1a7aff', bg: 'rgba(26,122,255,0.12)' },
-  confirmed:     { label: 'Confirmed',      col: '#34d399', bg: 'rgba(52,211,153,0.12)' },
-  disconfirmed:  { label: 'Disconfirmed',   col: '#f87171', bg: 'rgba(248,113,113,0.12)' },
-  expired:       { label: 'Expired',        col: '#94a3b8', bg: 'rgba(148,163,184,0.10)' },
+const STATUS_META: Record<string, { labelKey: LabelKey; col: string; bg: string }> = {
+  active:        { labelKey: 'HYPOTHESIS_TRACKER_STATUS_ACTIVE',       col: '#1a7aff', bg: 'rgba(26,122,255,0.12)' },
+  confirmed:     { labelKey: 'HYPOTHESIS_TRACKER_STATUS_CONFIRMED',    col: '#34d399', bg: 'rgba(52,211,153,0.12)' },
+  disconfirmed:  { labelKey: 'HYPOTHESIS_TRACKER_STATUS_DISCONFIRMED', col: '#f87171', bg: 'rgba(248,113,113,0.12)' },
+  expired:       { labelKey: 'HYPOTHESIS_TRACKER_STATUS_EXPIRED',      col: '#94a3b8', bg: 'rgba(148,163,184,0.10)' },
 };
 
 const VERDICT_META: Record<string, { col: string }> = {
@@ -44,10 +46,10 @@ const VERDICT_META: Record<string, { col: string }> = {
   UNCLEAR:      { col: '#fbbf24' },
 };
 
-const EV_META: Record<string, { icon: string; col: string }> = {
-  supporting: { icon: '↑', col: '#34d399' },
-  against:    { icon: '↓', col: '#f87171' },
-  neutral:    { icon: '→', col: '#94a3b8' },
+const EV_META: Record<string, { icon: string; col: string; labelKey: LabelKey }> = {
+  supporting: { icon: '↑', col: '#34d399', labelKey: 'HYPOTHESIS_TRACKER_EV_SUPPORTING' },
+  against:    { icon: '↓', col: '#f87171', labelKey: 'HYPOTHESIS_TRACKER_EV_AGAINST' },
+  neutral:    { icon: '→', col: '#94a3b8', labelKey: 'HYPOTHESIS_TRACKER_EV_NEUTRAL' },
 };
 
 function fmtDate(iso: string) {
@@ -71,6 +73,7 @@ async function apiFetch(path: string, opts?: RequestInit) {
 
 export default function HypothesisTracker() {
   const { user } = useAuth();
+  const { t } = useLabels();
   const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -142,15 +145,15 @@ export default function HypothesisTracker() {
         await fetchHypotheses();
       } else {
         const e = await res.json().catch(() => ({})) as { error?: string };
-        setCfError(e.error ?? 'Failed to save hypothesis');
+        setCfError(e.error ?? t('HYPOTHESIS_TRACKER_SAVE_ERROR_FALLBACK'));
       }
     } catch {
-      setCfError('Network error - please try again');
+      setCfError(t('HYPOTHESIS_TRACKER_NETWORK_ERROR'));
     } finally { setCfSaving(false); }
   };
 
   const deleteHypothesis = async (id: string) => {
-    if (!confirm('Delete this hypothesis and all its evidence?')) return;
+    if (!confirm(t('HYPOTHESIS_TRACKER_DELETE_CONFIRM'))) return;
     const res = await apiFetch(`/api/hypotheses/${id}`, { method: 'DELETE' });
     if (res.ok) {
       setHypotheses(prev => prev.filter(h => h.id !== id));
@@ -209,7 +212,7 @@ export default function HypothesisTracker() {
   if (!user) {
     return (
       <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--txt3)', fontSize: 'var(--fs-label)' }}>
-        Sign in to use the Research Hypothesis Tracker.
+        {t('HYPOTHESIS_TRACKER_SIGN_IN_PROMPT')}
       </div>
     );
   }
@@ -220,10 +223,10 @@ export default function HypothesisTracker() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.2px' }}>
-            Research Hypotheses
+            {t('HYPOTHESIS_TRACKER_TITLE')}
           </div>
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>
-            Track structured market theses with measurable criteria and evidence
+            {t('HYPOTHESIS_TRACKER_SUBTITLE')}
           </div>
         </div>
         <button
@@ -239,7 +242,7 @@ export default function HypothesisTracker() {
             cursor: 'pointer',
           }}
         >
-          {showCreate ? '✕ Cancel' : '+ New Hypothesis'}
+          {showCreate ? t('HYPOTHESIS_TRACKER_CANCEL_BUTTON') : t('HYPOTHESIS_TRACKER_NEW_BUTTON')}
         </button>
       </div>
 
@@ -252,26 +255,26 @@ export default function HypothesisTracker() {
           padding: '14px',
           marginBottom: 14,
         }}>
-          <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--accent)', marginBottom: 12 }}>New Hypothesis</div>
+          <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--accent)', marginBottom: 12 }}>{t('HYPOTHESIS_TRACKER_FORM_HEADING')}</div>
 
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 4, fontWeight: 600 }}>Title</div>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 4, fontWeight: 600 }}>{t('HYPOTHESIS_TRACKER_TITLE_FIELD_LABEL')}</div>
             <input
               value={cfTitle}
               onChange={e => setCfTitle(e.target.value)}
-              placeholder="e.g. BTC enters accumulation phase below $60k"
+              placeholder={t('HYPOTHESIS_TRACKER_TITLE_PLACEHOLDER')}
               style={inputStyle}
             />
           </div>
 
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 4, fontWeight: 600 }}>
-              Thesis - What do you believe and why?
+              {t('HYPOTHESIS_TRACKER_THESIS_FIELD_LABEL')}
             </div>
             <textarea
               value={cfHypothesis}
               onChange={e => setCfHypothesis(e.target.value)}
-              placeholder="Describe your hypothesis in detail. Include your reasoning, the market context that supports it, and what price action or on-chain data you expect to see."
+              placeholder={t('HYPOTHESIS_TRACKER_THESIS_PLACEHOLDER')}
               rows={3}
               style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.5 }}
             />
@@ -279,14 +282,14 @@ export default function HypothesisTracker() {
 
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 4, fontWeight: 600 }}>
-              Acceptance Criteria - When is this confirmed?
+              {t('HYPOTHESIS_TRACKER_CRITERIA_FIELD_LABEL')}
             </div>
             {cfCriteria.map((c, i) => (
               <input
                 key={i}
                 value={c}
                 onChange={e => setCfCriteria(prev => prev.map((x, j) => j === i ? e.target.value : x))}
-                placeholder={`Criterion ${i + 1} - e.g. "BTC closes above $72k on weekly"`}
+                placeholder={t('HYPOTHESIS_TRACKER_CRITERION_PLACEHOLDER', { n: i + 1 })}
                 style={{ ...inputStyle, marginBottom: 6 }}
               />
             ))}
@@ -294,13 +297,13 @@ export default function HypothesisTracker() {
               onClick={() => setCfCriteria(prev => [...prev, ''])}
               style={ghostBtnStyle}
             >
-              + Add criterion
+              {t('HYPOTHESIS_TRACKER_ADD_CRITERION_BUTTON')}
             </button>
           </div>
 
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 4, fontWeight: 600 }}>
-              Target Date (optional)
+              {t('HYPOTHESIS_TRACKER_TARGET_DATE_LABEL')}
             </div>
             <input
               type="date"
@@ -318,16 +321,16 @@ export default function HypothesisTracker() {
             disabled={cfSaving || !cfTitle.trim() || !cfHypothesis.trim()}
             style={primaryBtnStyle(cfSaving || !cfTitle.trim() || !cfHypothesis.trim())}
           >
-            {cfSaving ? 'Saving…' : 'Save Hypothesis'}
+            {cfSaving ? t('HYPOTHESIS_TRACKER_SAVING') : t('HYPOTHESIS_TRACKER_SAVE_BUTTON')}
           </button>
         </div>
       )}
 
       {/* List */}
       {loading ? (
-        <LoadingState message="Loading…" />
+        <LoadingState message={t('HYPOTHESIS_TRACKER_LOADING')} />
       ) : hypotheses.length === 0 ? (
-        <EmptyState dashed title="No hypotheses yet. Click &ldquo;New Hypothesis&rdquo; to track your first market thesis." />
+        <EmptyState dashed title={t('HYPOTHESIS_TRACKER_EMPTY_STATE')} />
       ) : (
         hypotheses.map(h => {
           const sm = STATUS_META[h.status] ?? STATUS_META.active;
@@ -364,7 +367,7 @@ export default function HypothesisTracker() {
                     <span style={{
                       fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20,
                       background: sm.bg, color: sm.col,
-                    }}>{sm.label}</span>
+                    }}>{t(sm.labelKey)}</span>
                     {vm && (
                       <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: vm.col }}>
                         ● {h.grok_verdict}
@@ -376,8 +379,8 @@ export default function HypothesisTracker() {
                   </div>
                   <div style={{ display: 'flex', gap: 10, marginTop: 5, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
                     <span>{fmtDate(h.created_at)}</span>
-                    {h.target_date && <span>Target: {h.target_date}</span>}
-                    {h.grok_last_run && <span>Last analysis: {fmtDate(h.grok_last_run)}</span>}
+                    {h.target_date && <span>{t('HYPOTHESIS_TRACKER_TARGET_DATE_DISPLAY', { date: h.target_date })}</span>}
+                    {h.grok_last_run && <span>{t('HYPOTHESIS_TRACKER_LAST_ANALYSIS', { date: fmtDate(h.grok_last_run) })}</span>}
                   </div>
                 </div>
                 <span style={{ color: 'var(--txt3)', fontSize: 'var(--fs-caption)', flexShrink: 0, marginTop: 2 }}>
@@ -397,7 +400,7 @@ export default function HypothesisTracker() {
                   {h.acceptance_criteria?.length > 0 && (
                     <div style={{ marginBottom: 14 }}>
                       <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        Acceptance Criteria
+                        {t('HYPOTHESIS_TRACKER_CRITERIA_HEADING')}
                       </div>
                       {h.acceptance_criteria.map((c, i) => (
                         <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
@@ -423,7 +426,7 @@ export default function HypothesisTracker() {
                           color: VERDICT_META[h.grok_verdict]?.col ?? 'var(--txt)',
                           letterSpacing: '0.05em',
                         }}>
-                          GROK: {h.grok_verdict}
+                          {t('HYPOTHESIS_TRACKER_GROK_VERDICT_PREFIX', { verdict: h.grok_verdict })}
                         </span>
                         {h.grok_confidence && (
                           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>· {h.grok_confidence}</span>
@@ -436,7 +439,7 @@ export default function HypothesisTracker() {
                       )}
                       {h.grok_next_check && (
                         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--accent)', borderTop: '0.5px solid var(--bdr)', paddingTop: 6, marginTop: 4 }}>
-                          <span style={{ fontWeight: 700 }}>Next check: </span>{h.grok_next_check}
+                          <span style={{ fontWeight: 700 }}>{t('HYPOTHESIS_TRACKER_NEXT_CHECK_LABEL')} </span>{h.grok_next_check}
                         </div>
                       )}
                     </div>
@@ -454,17 +457,17 @@ export default function HypothesisTracker() {
                       width: '100%',
                     }}
                   >
-                    {isAnalyzing ? 'Grok is analyzing evidence…' : h.grok_verdict ? '↻ Re-run Grok Analysis' : 'Run Grok Analysis'}
+                    {isAnalyzing ? t('HYPOTHESIS_TRACKER_ANALYZING') : h.grok_verdict ? t('HYPOTHESIS_TRACKER_RERUN_ANALYSIS_BUTTON') : t('HYPOTHESIS_TRACKER_RUN_ANALYSIS_BUTTON')}
                   </button>
 
                   {/* Evidence log */}
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Evidence ({evList.length})
+                      {t('HYPOTHESIS_TRACKER_EVIDENCE_HEADING', { count: evList.length })}
                     </div>
                     {evList.length === 0 ? (
                       <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontStyle: 'italic' }}>
-                        No evidence logged yet. Add observations below.
+                        {t('HYPOTHESIS_TRACKER_NO_EVIDENCE')}
                       </div>
                     ) : (
                       evList.map(ev => {
@@ -490,7 +493,7 @@ export default function HypothesisTracker() {
                             <button
                               onClick={() => deleteEvidence(h.id, ev.id)}
                               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)', fontSize: '0.875rem', padding: 0, opacity: 0.5, flexShrink: 0 }}
-                              title="Delete evidence"
+                              title={t('HYPOTHESIS_TRACKER_DELETE_EVIDENCE_TOOLTIP')}
                             >×</button>
                           </div>
                         );
@@ -507,38 +510,38 @@ export default function HypothesisTracker() {
                     marginBottom: 12,
                   }}>
                     <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Add Evidence
+                      {t('HYPOTHESIS_TRACKER_ADD_EVIDENCE_HEADING')}
                     </div>
                     <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                      {(['supporting', 'against', 'neutral'] as const).map(t => (
+                      {(['supporting', 'against', 'neutral'] as const).map(opt => (
                         <button
-                          key={t}
-                          onClick={() => setEvType(t)}
+                          key={opt}
+                          onClick={() => setEvType(opt)}
                           style={{
-                            background: evType === t ? withAlpha(EV_META[t].col, '22') : 'transparent',
-                            border: `0.5px solid ${evType === t ? EV_META[t].col : 'var(--bdr)'}`,
+                            background: evType === opt ? withAlpha(EV_META[opt].col, '22') : 'transparent',
+                            border: `0.5px solid ${evType === opt ? EV_META[opt].col : 'var(--bdr)'}`,
                             borderRadius: 5,
                             padding: '4px 10px',
                             fontSize: 'var(--fs-caption)',
-                            fontWeight: evType === t ? 700 : 400,
-                            color: evType === t ? EV_META[t].col : 'var(--txt3)',
+                            fontWeight: evType === opt ? 700 : 400,
+                            color: evType === opt ? EV_META[opt].col : 'var(--txt3)',
                             cursor: 'pointer',
                             textTransform: 'capitalize',
                           }}
-                        >{EV_META[t].icon} {t}</button>
+                        >{EV_META[opt].icon} {t(EV_META[opt].labelKey)}</button>
                       ))}
                     </div>
                     <textarea
                       value={evContent}
                       onChange={e => setEvContent(e.target.value)}
-                      placeholder="Describe the evidence or observation…"
+                      placeholder={t('HYPOTHESIS_TRACKER_EVIDENCE_PLACEHOLDER')}
                       rows={2}
                       style={{ ...inputStyle, resize: 'vertical', marginBottom: 6 }}
                     />
                     <input
                       value={evSource}
                       onChange={e => setEvSource(e.target.value)}
-                      placeholder="Source (optional - e.g. Glassnode, X/Twitter, price action)"
+                      placeholder={t('HYPOTHESIS_TRACKER_SOURCE_PLACEHOLDER')}
                       style={{ ...inputStyle, marginBottom: 8 }}
                     />
                     <button
@@ -546,13 +549,13 @@ export default function HypothesisTracker() {
                       disabled={evSaving || !evContent.trim()}
                       style={primaryBtnStyle(evSaving || !evContent.trim())}
                     >
-                      {evSaving ? 'Saving…' : 'Add Evidence'}
+                      {evSaving ? t('HYPOTHESIS_TRACKER_SAVING') : t('HYPOTHESIS_TRACKER_ADD_EVIDENCE_BUTTON')}
                     </button>
                   </div>
 
                   {/* Status controls + delete */}
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Status:</span>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('HYPOTHESIS_TRACKER_STATUS_LABEL')}</span>
                     {(['active','confirmed','disconfirmed','expired'] as const).map(s => (
                       <button
                         key={s}
@@ -568,13 +571,13 @@ export default function HypothesisTracker() {
                           cursor: 'pointer',
                           textTransform: 'capitalize',
                         }}
-                      >{s}</button>
+                      >{t(STATUS_META[s].labelKey)}</button>
                     ))}
                     <button
                       onClick={() => deleteHypothesis(h.id)}
                       style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', fontSize: 'var(--fs-caption)', opacity: 0.6, padding: '3px 0' }}
                     >
-                      Delete
+                      {t('HYPOTHESIS_TRACKER_DELETE_BUTTON')}
                     </button>
                   </div>
                 </div>

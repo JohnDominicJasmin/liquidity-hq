@@ -5,6 +5,8 @@ import LoadingState from '@/components/LoadingState';
 import Tip from '@/components/Tip';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, type CoinId } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 /* ── constants ── */
 
@@ -14,6 +16,11 @@ const RANGES = [
   { key: '30d', label: '30d', interval: '4h',  limit: 181 },
 ] as const;
 type RangeKey = typeof RANGES[number]['key'];
+const RANGE_LABEL_KEYS: Record<RangeKey, LabelKey> = {
+  '24h': 'CORRELATION_RANGE_24H',
+  '7d':  'CORRELATION_RANGE_7D',
+  '30d': 'CORRELATION_RANGE_30D',
+};
 
 /* ── data fetching ── */
 async function fetchCloses(id: CoinId, interval: string, limit: number): Promise<number[]> {
@@ -94,33 +101,34 @@ function cellColor(r: number | null, diag: boolean): string {
 }
 
 /* ── alt season signal ── */
-interface AltSig { label: string; desc: string; color: string; bg: string; }
+interface AltSig { labelKey: LabelKey; descKey: LabelKey | null; avg: number | null; color: string; bg: string; }
 function altSignal(avg: number | null): AltSig {
-  if (avg == null) return { label: 'Loading…', desc: '', color: '#a0a0a0', bg: 'transparent' };
+  if (avg == null) return { labelKey: 'CORRELATION_ALT_SIG_LOADING_LABEL', descKey: null, avg, color: '#a0a0a0', bg: 'transparent' };
   if (avg < 0.30)  return {
-    label: 'Alt Season Conditions',
+    labelKey: 'CORRELATION_ALT_SIG_ALT_SEASON_LABEL',
     color: '#34d399', bg: 'rgba(52,211,153,0.08)',
-    desc: `BTC-alt avg correlation is ${avg.toFixed(2)} - very low. Altcoins are moving independently from BTC. This is when alts can outperform BTC significantly. Rotate into high-conviction alt setups.`,
+    descKey: 'CORRELATION_ALT_SIG_ALT_SEASON_DESC', avg,
   };
   if (avg < 0.55)  return {
-    label: 'Mixed Market',
+    labelKey: 'CORRELATION_ALT_SIG_MIXED_LABEL',
     color: '#fbbf24', bg: 'rgba(251,191,36,0.07)',
-    desc: `Moderate BTC-alt correlation (${avg.toFixed(2)}). Some alts following BTC, others moving on their own catalyst. Selective alt plays possible but watch BTC direction first.`,
+    descKey: 'CORRELATION_ALT_SIG_MIXED_DESC', avg,
   };
   if (avg < 0.75)  return {
-    label: 'BTC Leading',
+    labelKey: 'CORRELATION_ALT_SIG_BTC_LEADING_LABEL',
     color: '#d4b483', bg: 'rgba(212,180,131,0.06)',
-    desc: `High BTC-alt correlation (${avg.toFixed(2)}). BTC is dragging most alts. Get BTC direction right before trading alts - individual setups matter less when correlation is this high.`,
+    descKey: 'CORRELATION_ALT_SIG_BTC_LEADING_DESC', avg,
   };
   return {
-    label: 'BTC Dominance - Alts Lockstep',
+    labelKey: 'CORRELATION_ALT_SIG_LOCKSTEP_LABEL',
     color: '#f87171', bg: 'rgba(248,113,113,0.07)',
-    desc: `Very high BTC-alt correlation (${avg.toFixed(2)}). Everything pumps and dumps with BTC. No independent alt edge right now - trade BTC or wait for correlation to break.`,
+    descKey: 'CORRELATION_ALT_SIG_LOCKSTEP_DESC', avg,
   };
 }
 
 /* ── component ── */
 export default function CorrelationHeatmap() {
+  const { t }                   = useLabels();
   const [rets, setRets]         = useState<Partial<Record<CoinId, number[]>>>({});
   const [rangeKey, setRangeKey] = useState<RangeKey>('7d');
   const [loading, setLoading]   = useState(true);
@@ -177,8 +185,8 @@ export default function CorrelationHeatmap() {
 
       {/* Header */}
       <div className="mb-header">
-        <h1 className="mb-title">Correlation Heatmap</h1>
-        <div className="mb-subtitle">How coins move together · based on {range.label} price returns</div>
+        <h1 className="mb-title">{t('CORRELATION_PAGE_TITLE')}</h1>
+        <div className="mb-subtitle">{t('CORRELATION_PAGE_SUBTITLE', { range: t(RANGE_LABEL_KEYS[range.key]) })}</div>
       </div>
 
       {/* Range */}
@@ -189,12 +197,12 @@ export default function CorrelationHeatmap() {
             className={`frh-range-btn${rangeKey === r.key ? ' on' : ''}`}
             onClick={() => setRangeKey(r.key)}
           >
-            {r.label}
+            {t(RANGE_LABEL_KEYS[r.key])}
           </button>
         ))}
       </div>
 
-      {loading && <LoadingState message="Calculating correlations…" />}
+      {loading && <LoadingState message={t('CORRELATION_LOADING_MESSAGE')} />}
 
       {!loading && (
         <>
@@ -204,14 +212,14 @@ export default function CorrelationHeatmap() {
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <div>
                 <div style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: sig.color, marginBottom: 4 }}>
-                  {sig.label}
+                  {t(sig.labelKey)}
                   {avgCorr != null && (
                     <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--txt3)', marginLeft: 8 }}>
-                      avg BTC-alt: {avgCorr.toFixed(2)}
+                      {t('CORRELATION_AVG_BTC_ALT_LABEL', { avg: avgCorr.toFixed(2) })}
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.6 }}>{sig.desc}</div>
+                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.6 }}>{sig.descKey ? t(sig.descKey, { avg: sig.avg != null ? sig.avg.toFixed(2) : '' }) : ''}</div>
               </div>
             </div>
           </div>
@@ -219,9 +227,9 @@ export default function CorrelationHeatmap() {
           {/* Heatmap grid */}
           <div className="card" style={{ marginBottom: 10 }}>
             <div className="lbl" style={{ marginBottom: 10 }}>
-              <Tip width={260} text="Measures how tightly two coins' price returns move together over the window, from +1 (identical moves) to -1 (opposite). High correlation means holding both gives little diversification - you are effectively doubling the same bet.">Price Return Correlation</Tip>
+              <Tip width={260} text={t('CORRELATION_MATRIX_TIP')}>{t('CORRELATION_MATRIX_LABEL')}</Tip>
               <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--txt3)', marginLeft: 8 }}>
-                +1.00 = perfect sync · 0.00 = no relation · −1.00 = opposite
+                {t('CORRELATION_MATRIX_SCALE_HINT')}
               </span>
             </div>
             <div className="corr-grid-outer">
@@ -297,17 +305,17 @@ export default function CorrelationHeatmap() {
               </div>
             </div>
             </div>
-            <div className="corr-scroll-hint">swipe to see all coins →</div>
+            <div className="corr-scroll-hint">{t('CORRELATION_SCROLL_HINT')}</div>
             <div className="corr-legend">
-              <span style={{ color: '#34d399' }}>■ Green</span> = moves together &nbsp;·&nbsp;
-              <span style={{ color: '#f87171' }}>■ Red</span> = moves opposite &nbsp;·&nbsp;
-              Brighter = stronger relationship
+              <span style={{ color: '#34d399' }}>{t('CORRELATION_LEGEND_GREEN_LABEL')}</span> = {t('CORRELATION_LEGEND_GREEN_DESC')} &nbsp;·&nbsp;
+              <span style={{ color: '#f87171' }}>{t('CORRELATION_LEGEND_RED_LABEL')}</span> = {t('CORRELATION_LEGEND_RED_DESC')} &nbsp;·&nbsp;
+              {t('CORRELATION_LEGEND_BRIGHTNESS_HINT')}
             </div>
           </div>
 
           {/* Strongest pairs */}
           <div className="card" style={{ marginBottom: 10 }}>
-            <div className="lbl">Most Correlated Pairs</div>
+            <div className="lbl">{t('CORRELATION_STRONGEST_PAIRS_TITLE')}</div>
             {strongest.map(({ a, b, r }) => (
               <div key={`${a}-${b}`} className="corr-pair-row">
                 <span className="corr-pair-coins">{COIN_LABELS[a]} / {COIN_LABELS[b]}</span>
@@ -330,9 +338,9 @@ export default function CorrelationHeatmap() {
           {/* Weakest pairs */}
           <div className="card" style={{ marginBottom: 10 }}>
             <div className="lbl">
-              Least Correlated Pairs
+              {t('CORRELATION_WEAKEST_PAIRS_TITLE')}
               <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>
-                - potential diversification
+                {t('CORRELATION_WEAKEST_PAIRS_HINT')}
               </span>
             </div>
             {weakest.map(({ a, b, r }) => (

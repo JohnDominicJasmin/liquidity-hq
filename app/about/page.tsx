@@ -1,35 +1,36 @@
-import type { Metadata } from 'next';
-export const metadata: Metadata = { title: 'About' };
+'use client';
+import { useLabels } from '@/lib/labels';
 
 export default function About() {
+  const { t } = useLabels();
+
   return (
     <div>
       <div style={{ padding: '1rem 0 0.5rem' }}>
-        <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>About</div>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>Liquidity Hunter HQ - private trading intelligence tool</div>
+        <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('ABOUT_PAGE_TITLE')}</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>{t('ABOUT_PAGE_SUBTITLE')}</div>
       </div>
 
       <div className="card">
-        <div className="lbl">What this is</div>
+        <div className="lbl">{t('ABOUT_WHAT_THIS_IS_LABEL')}</div>
         <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.7 }}>
-          A personal crypto trading intelligence tool built around one core belief: the market is a machine for hunting stop losses.
-          This app helps you read the liquidation map, identify the highest-probability raid setups, and time your entries around institutional windows.
+          {t('ABOUT_WHAT_THIS_IS_BODY')}
         </div>
       </div>
 
       <div className="card">
-        <div className="lbl">Data sources</div>
+        <div className="lbl">{t('ABOUT_DATA_SOURCES_LABEL')}</div>
         {[
-          ['Prices', 'Binance WebSocket + REST - 50 coins (majors, alts, memes)'],
-          ['HYPE / PEPE / BONK', 'Bybit REST API'],
-          ['Funding & Open Interest', 'Bybit Public API'],
-          ['Long/Short Ratio', 'Bybit Account Ratio'],
-          ['Fear & Greed', 'Alternative.me'],
-          ['BTC Dominance', 'CoinMarketCap'],
-          ['Breaking News', 'Finnhub WebSocket'],
-          ['Crypto News', 'Finnhub + RSS (Reuters/AP/CoinDesk)'],
-          ['Econ Calendar', 'Finnhub Calendar API'],
-          ['AI Signal', 'LiquidityAI (xAI)'],
+          [t('ABOUT_DATA_SOURCE_PRICES_LABEL'), t('ABOUT_DATA_SOURCE_PRICES_VALUE')],
+          [t('ABOUT_DATA_SOURCE_ALTCOINS_LABEL'), t('ABOUT_DATA_SOURCE_ALTCOINS_VALUE')],
+          [t('ABOUT_DATA_SOURCE_FUNDING_OI_LABEL'), t('ABOUT_DATA_SOURCE_FUNDING_OI_VALUE')],
+          [t('ABOUT_DATA_SOURCE_LONG_SHORT_LABEL'), t('ABOUT_DATA_SOURCE_LONG_SHORT_VALUE')],
+          [t('ABOUT_DATA_SOURCE_FEAR_GREED_LABEL'), t('ABOUT_DATA_SOURCE_FEAR_GREED_VALUE')],
+          [t('ABOUT_DATA_SOURCE_BTC_DOMINANCE_LABEL'), t('ABOUT_DATA_SOURCE_BTC_DOMINANCE_VALUE')],
+          [t('ABOUT_DATA_SOURCE_BREAKING_NEWS_LABEL'), t('ABOUT_DATA_SOURCE_BREAKING_NEWS_VALUE')],
+          [t('ABOUT_DATA_SOURCE_CRYPTO_NEWS_LABEL'), t('ABOUT_DATA_SOURCE_CRYPTO_NEWS_VALUE')],
+          [t('ABOUT_DATA_SOURCE_ECON_CALENDAR_LABEL'), t('ABOUT_DATA_SOURCE_ECON_CALENDAR_VALUE')],
+          [t('ABOUT_DATA_SOURCE_AI_SIGNAL_LABEL'), t('ABOUT_DATA_SOURCE_AI_SIGNAL_VALUE')],
         ].map(([k, v]) => (
           <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '0.5px solid var(--bdr)', fontSize: 'var(--fs-caption)' }}>
             <span style={{ color: 'var(--txt3)' }}>{k}</span>
@@ -39,22 +40,22 @@ export default function About() {
       </div>
 
       <div className="card">
-        <div className="lbl">How to use</div>
+        <div className="lbl">{t('ABOUT_HOW_TO_USE_LABEL')}</div>
         <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.8 }}>
-          1. <strong style={{ color: 'var(--txt)' }}>Open the Liquidation Map</strong> - 24h window. Find the brightest, tightest cluster.<br />
-          2. <strong style={{ color: 'var(--txt)' }}>Check the Raid Meter</strong> - needs at least 60/100 to be worth trading.<br />
-          3. <strong style={{ color: 'var(--txt)' }}>Run the Scanner</strong> - 7-question system. If it says NO, stay flat.<br />
-          4. <strong style={{ color: 'var(--txt)' }}>Check Best Hours</strong> - God Tier or Prime window only.<br />
-          5. <strong style={{ color: 'var(--txt)' }}>Run LiquidityAI Arena</strong> - confirms news sentiment aligns with setup.<br />
-          6. <strong style={{ color: 'var(--txt)' }}>Enter 0.8–1.5% before the cluster.</strong> Exit the second it touches. Never hold.
+          1. <strong style={{ color: 'var(--txt)' }}>{t('ABOUT_STEP1_BOLD')}</strong> - {t('ABOUT_STEP1_TEXT')}<br />
+          2. <strong style={{ color: 'var(--txt)' }}>{t('ABOUT_STEP2_BOLD')}</strong> - {t('ABOUT_STEP2_TEXT')}<br />
+          3. <strong style={{ color: 'var(--txt)' }}>{t('ABOUT_STEP3_BOLD')}</strong> - {t('ABOUT_STEP3_TEXT')}<br />
+          4. <strong style={{ color: 'var(--txt)' }}>{t('ABOUT_STEP4_BOLD')}</strong> - {t('ABOUT_STEP4_TEXT')}<br />
+          5. <strong style={{ color: 'var(--txt)' }}>{t('ABOUT_STEP5_BOLD')}</strong> - {t('ABOUT_STEP5_TEXT')}<br />
+          6. <strong style={{ color: 'var(--txt)' }}>{t('ABOUT_STEP6_BOLD')}</strong> {t('ABOUT_STEP6_TEXT')}
         </div>
       </div>
 
       <div className="card">
-        <div className="lbl">Reminder</div>
+        <div className="lbl">{t('ABOUT_REMINDER_LABEL')}</div>
         <div className="pbox">
-          <div className="pt">This is a private tool - not financial advice</div>
-          <div className="pb">Built for one trader. No warranties. No signals service. All decisions are yours. The market does not care about your analysis.</div>
+          <div className="pt">{t('ABOUT_REMINDER_TITLE')}</div>
+          <div className="pb">{t('ABOUT_REMINDER_BODY')}</div>
         </div>
       </div>
     </div>

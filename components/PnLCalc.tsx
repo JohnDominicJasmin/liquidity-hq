@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useMarket, COIN_LABELS, COIN_DEC, fmtPrice, type CoinId } from '@/lib/marketStore';
 import EmptyState from '@/components/EmptyState';
 import Tip from '@/components/Tip';
+import { useLabels } from '@/lib/labels';
 
 type Dir = 'long' | 'short';
 
@@ -32,6 +33,7 @@ function fmtQ(v: number) {
 
 export default function PnLCalc({ coin }: { coin: CoinId | '' }) {
   const { store } = useMarket();
+  const { t } = useLabels();
   const [dir,      setDir]      = useState<Dir>('long');
   const [entry,    setEntry]    = useState('');
   const [exit,     setExit]     = useState('');
@@ -63,61 +65,61 @@ export default function PnLCalc({ coin }: { coin: CoinId | '' }) {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <h2 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>PnL Calculator</h2>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Entry · exit · margin · leverage → PnL, PnL%, ROE%</div>
+        <h2 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('CALC_PNL_TITLE')}</h2>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('CALC_PNL_SUBTITLE')}</div>
       </div>
 
       <div className="ps-card">
-        <div className="ps-card-lbl">Direction</div>
+        <div className="ps-card-lbl">{t('CALC_PNL_DIRECTION_LABEL')}</div>
         <div className="ps-presets">
-          <button className={`ps-preset${dir === 'long'  ? ' on' : ''}`} onClick={() => setDir('long')}>Long</button>
-          <button className={`ps-preset${dir === 'short' ? ' on' : ''}`} onClick={() => setDir('short')}>Short</button>
+          <button className={`ps-preset${dir === 'long'  ? ' on' : ''}`} onClick={() => setDir('long')}>{t('CALC_PNL_LONG_BUTTON')}</button>
+          <button className={`ps-preset${dir === 'short' ? ' on' : ''}`} onClick={() => setDir('short')}>{t('CALC_PNL_SHORT_BUTTON')}</button>
         </div>
       </div>
 
       <div className="ps-card">
-        <div className="ps-card-lbl">Trade</div>
+        <div className="ps-card-lbl">{t('CALC_PNL_TRADE_LABEL')}</div>
         {coin && (
           <div className="ps-coin-row">
             <div className="ps-coin-irow">
               {livePrice != null ? (
-                <button type="button" className="ps-live-btn" onClick={() => setEntry(String(livePrice))} title="Set entry to the current live price">
+                <button type="button" className="ps-live-btn" onClick={() => setEntry(String(livePrice))} title={t('CALC_PNL_LIVE_PRICE_TITLE')}>
                   <span className="ps-live-dot" /> {COIN_LABELS[coin]} {fmtPrice(livePrice, COIN_DEC[coin])}
                 </button>
               ) : (
-                <span className="ps-live-wait">{COIN_LABELS[coin]} price loading…</span>
+                <span className="ps-live-wait">{t('CALC_PNL_PRICE_LOADING', { coin: COIN_LABELS[coin] })}</span>
               )}
             </div>
           </div>
         )}
         <div className="ps-row">
           <div className="ps-field">
-            <label className="ps-lbl">Entry Price</label>
+            <label className="ps-lbl">{t('CALC_PNL_ENTRY_PRICE_LABEL')}</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp" aria-label="Entry Price" type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
+              <input className="ps-inp" aria-label={t('CALC_PNL_ENTRY_PRICE_LABEL')} type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
             </div>
           </div>
           <div className="ps-field">
-            <label className="ps-lbl">Exit Price</label>
+            <label className="ps-lbl">{t('CALC_PNL_EXIT_PRICE_LABEL')}</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp" aria-label="Exit Price" type="number" placeholder="0.00" value={exit} onChange={e => setExit(e.target.value)} />
+              <input className="ps-inp" aria-label={t('CALC_PNL_EXIT_PRICE_LABEL')} type="number" placeholder="0.00" value={exit} onChange={e => setExit(e.target.value)} />
             </div>
           </div>
         </div>
         <div className="ps-row" style={{ marginTop: 10 }}>
           <div className="ps-field">
-            <label className="ps-lbl">Margin (Capital)</label>
+            <label className="ps-lbl">{t('CALC_PNL_MARGIN_LABEL')}</label>
             <div className="ps-irow">
               <span className="ps-affix">$</span>
-              <input className="ps-inp" aria-label="Margin" type="number" placeholder="1000" value={margin} onChange={e => setMargin(e.target.value)} />
+              <input className="ps-inp" aria-label={t('CALC_PNL_MARGIN_ARIA')} type="number" placeholder="1000" value={margin} onChange={e => setMargin(e.target.value)} />
             </div>
           </div>
           <div className="ps-field ps-field-sm">
-            <label className="ps-lbl">Leverage</label>
+            <label className="ps-lbl">{t('CALC_PNL_LEVERAGE_LABEL')}</label>
             <div className="ps-irow">
-              <input className="ps-inp" aria-label="Leverage" type="number" placeholder="1" min="1" value={leverage} onChange={e => setLeverage(e.target.value)} />
+              <input className="ps-inp" aria-label={t('CALC_PNL_LEVERAGE_LABEL')} type="number" placeholder="1" min="1" value={leverage} onChange={e => setLeverage(e.target.value)} />
               <span className="ps-affix ps-suffix">x</span>
             </div>
           </div>
@@ -136,33 +138,35 @@ export default function PnLCalc({ coin }: { coin: CoinId | '' }) {
               ? { background: 'var(--green-bg)', color: 'var(--green)', border: '0.5px solid var(--green-bdr)' }
               : { background: 'var(--red-bg)',   color: 'var(--red)',   border: '0.5px solid var(--red-bdr)'   }
           }>
-            {isProfit ? '▲ PROFIT' : '▼ LOSS'} - {result.pnlPct >= 0 ? '+' : ''}{result.pnlPct.toFixed(2)}%
+            {isProfit
+              ? t('CALC_PNL_BANNER_PROFIT', { pct: `${result.pnlPct >= 0 ? '+' : ''}${result.pnlPct.toFixed(2)}%` })
+              : t('CALC_PNL_BANNER_LOSS', { pct: `${result.pnlPct >= 0 ? '+' : ''}${result.pnlPct.toFixed(2)}%` })}
           </div>
           <div className="ps-results">
             <div className={`ps-result ${isProfit ? 'ps-result-profit' : 'ps-result-risk'}`}>
-              <div className="ps-rlbl">PnL</div>
+              <div className="ps-rlbl">{t('CALC_PNL_RESULT_PNL')}</div>
               <div className="ps-rval">{result.pnl >= 0 ? '+' : '-'}{fmtUSD(result.pnl)}</div>
             </div>
             <div className={`ps-result ${isProfit ? 'ps-result-profit' : 'ps-result-risk'}`}>
-              <div className="ps-rlbl">PnL%</div>
+              <div className="ps-rlbl">{t('CALC_PNL_RESULT_PNL_PCT')}</div>
               <div className="ps-rval">{result.pnlPct >= 0 ? '+' : ''}{result.pnlPct.toFixed(2)}%</div>
             </div>
             <div className={`ps-result ${isProfit ? 'ps-result-profit' : 'ps-result-risk'}`}>
-              <div className="ps-rlbl"><Tip text="Return on Equity - your profit as a % of the margin (collateral) you actually put up, same number as PnL% here since both are measured against your margin.">ROE%</Tip></div>
+              <div className="ps-rlbl"><Tip text={t('CALC_PNL_ROE_TIP')}>{t('CALC_PNL_ROE_LABEL')}</Tip></div>
               <div className="ps-rval">{result.roe >= 0 ? '+' : ''}{result.roe.toFixed(2)}%</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl"><Tip text="The full size of your position (margin × leverage), before accounting for what you actually put up as collateral. This is the amount your P&L is calculated against.">Notional Value</Tip></div>
+              <div className="ps-rlbl"><Tip text={t('CALC_PNL_NOTIONAL_TIP')}>{t('CALC_PNL_NOTIONAL_LABEL')}</Tip></div>
               <div className="ps-rval">{fmtUSD(result.notional)}</div>
             </div>
             <div className="ps-result">
-              <div className="ps-rlbl">Quantity</div>
+              <div className="ps-rlbl">{t('CALC_PNL_RESULT_QUANTITY')}</div>
               <div className="ps-rval">{fmtQ(result.quantity)}</div>
             </div>
           </div>
         </>
       ) : (
-        <EmptyState dashed title="Fill in entry, exit, margin and leverage to calculate" />
+        <EmptyState dashed title={t('CALC_PNL_EMPTY_TITLE')} />
       )}
     </div>
   );

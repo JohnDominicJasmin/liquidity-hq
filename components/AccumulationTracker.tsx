@@ -2,6 +2,7 @@
 import { useMemo } from 'react';
 import { useMarket, COINS, CoinId, CoinData, fmtPrice, COIN_DEC } from '@/lib/marketStore';
 import Tip from '@/components/Tip';
+import { useLabels } from '@/lib/labels';
 
 /* ── Accumulation score ─────────────────────────────────────────────────────
    Detects coins being quietly loaded BEFORE the move: price still flat while
@@ -66,6 +67,7 @@ const MAX_ROWS  = 6;
 
 export default function AccumulationTracker() {
   const { store, selectCoin } = useMarket();
+  const { t } = useLabels();
 
   const rows = useMemo<AccumRow[]>(() => {
     return COINS
@@ -88,16 +90,16 @@ export default function AccumulationTracker() {
           fontFamily: 'var(--font-mono), monospace', fontSize: 'var(--fs-micro)', fontWeight: 600,
           color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.12em',
         }}>
-          <Tip width={270} text="Scores every coin for stealth accumulation: price still flat while CVD shows absorption, taker buys dominate, open interest builds, whale positioning leans long, and funding stays calm (crowd not in yet). High score = smart money loading before the move.">
-            Accumulation Tracker
+          <Tip width={270} text={t('ACCUMULATION_TRACKER_TOOLTIP')}>
+            {t('ACCUMULATION_TRACKER_TITLE')}
           </Tip>
         </span>
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>quiet coins being loaded - before the pump</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ACCUMULATION_TRACKER_SUBTITLE')}</span>
       </div>
 
       {rows.length === 0 ? (
         <div style={{ padding: '10px 14px 12px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-          No stealth accumulation detected right now. Signals appear when a flat-priced coin shows CVD absorption, rising open interest, or heavy taker buying.
+          {t('ACCUMULATION_TRACKER_EMPTY')}
         </div>
       ) : (
         <div style={{ padding: '6px 8px 8px' }}>

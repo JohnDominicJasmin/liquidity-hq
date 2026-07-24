@@ -11,12 +11,14 @@ import { useTheme } from '@/lib/theme';
 import { withAlpha } from '@/lib/color';
 import {
   IconSun, IconMoon,
-  NavDashboard, NavBriefing, NavArena, NavMarkets, NavPrices, NavScanner,
+  NavDashboard, NavBriefing, NavArena, NavMarkets, NavScanner,
   NavLiqMap, NavFunding, NavCorrelation, NavBacktest, NavTracking, NavResearch,
   NavNews, NavCalendar, NavJournal, NavCalc, NavAlerts, NavHours, NavPlaybook,
   NavSettings, NavAbout,
 } from './icons';
 import type { ComponentType } from 'react';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 /* ── Mobile tab bar icons - plain SVGs, not emoji. Emoji glyphs like ⚡ render
    as native color emoji on most platforms (a hardcoded yellow bolt) and
@@ -117,72 +119,70 @@ function SessionPill() {
 
 /* ── Nav data ──────────────────────────────────────────────────────────────── */
 const PRIMARY = [
-  { path: '/dashboard', label: 'Dashboard' },
-  { path: '/arena',     label: 'Arena'     },
-  { path: '/briefing',  label: 'Briefing'  },
+  { path: '/dashboard', labelKey: 'NAV_DASHBOARD' as const },
+  { path: '/arena',     labelKey: 'NAV_ARENA'     as const },
+  { path: '/briefing',  labelKey: 'NAV_BRIEFING'  as const },
 ];
 
 const SCANNERS = [
-  { path: '/markets',     label: 'Markets'           },
-  { path: '/prices',      label: 'Live Prices'       },
-  { path: '/scanner',     label: 'Setup Scanner'     },
-  { path: '/liq',         label: 'Liquidation Map'   },
-  { path: '/funding',     label: 'FR History'        },
-  { path: '/correlation', label: 'Correlation'       },
-  { path: '/backtest',    label: 'Backtest'          },
-  { path: '/live-tracking', label: 'Live Tracking'   },
+  { path: '/markets',       labelKey: 'NAV_MARKETS'        as const },
+  { path: '/scanner',       labelKey: 'NAV_SETUP_SCANNER'  as const },
+  { path: '/liq',           labelKey: 'NAV_LIQUIDATION_MAP' as const },
+  { path: '/funding',       labelKey: 'NAV_FR_HISTORY'     as const },
+  { path: '/correlation',   labelKey: 'NAV_CORRELATION'    as const },
+  { path: '/backtest',      labelKey: 'NAV_BACKTEST'       as const },
+  { path: '/live-tracking', labelKey: 'NAV_LIVE_TRACKING'  as const },
 ];
 
 const TOOLS = [
-  { path: '/journal',        label: 'Journal'             },
-  { path: '/research',       label: 'Research'            },
-  { path: '/calc',           label: 'Calculators'         },
-  { path: '/econ-calendar',  label: 'Economic Calendar'   },
-  { path: '/alerts',         label: 'Alerts'              },
-  { path: '/hours',          label: 'Best Hours'          },
-  { path: '/playbook',       label: 'Playbook'            },
+  { path: '/journal',       labelKey: 'NAV_JOURNAL'       as const },
+  { path: '/research',      labelKey: 'NAV_RESEARCH'      as const },
+  { path: '/calc',          labelKey: 'NAV_CALCULATORS'   as const },
+  { path: '/econ-calendar', labelKey: 'NAV_ECON_CALENDAR' as const },
+  { path: '/alerts',        labelKey: 'NAV_ALERTS'        as const },
+  { path: '/hours',         labelKey: 'NAV_BEST_HOURS'    as const },
+  { path: '/playbook',      labelKey: 'NAV_PLAYBOOK'      as const },
 ];
 
 const TAIL = [
-  { path: '/news', label: 'News' },
+  { path: '/news', labelKey: 'NAV_NEWS' as const },
 ];
 
 type NavIcon = ComponentType<{ size?: number }>;
-type NavDest = { path: string; label: string; Icon: NavIcon; modal?: boolean };
-type NavSection = { header: string; items: NavDest[] };
+type NavDest = { path: string; labelKey: LabelKey; Icon: NavIcon; modal?: boolean };
+type NavSection = { headerKey: LabelKey; items: NavDest[] };
 
 const NAV_SECTIONS: NavSection[] = [
-  { header: 'Main', items: [
-    { path: '/dashboard', label: 'Dashboard', Icon: NavDashboard },
-    { path: '/briefing',  label: 'Briefing',  Icon: NavBriefing },
+  { headerKey: 'NAV_SECTION_MAIN', items: [
+    { path: '/dashboard', labelKey: 'NAV_DASHBOARD', Icon: NavDashboard },
+    { path: '/briefing',  labelKey: 'NAV_BRIEFING',  Icon: NavBriefing },
   ] },
-  { header: 'Analysis', items: [
-    { path: '/arena',         label: 'Arena',           Icon: NavArena },
-    { path: '/markets',       label: 'Markets',         Icon: NavMarkets },
-    { path: '/prices',        label: 'Live Prices',     Icon: NavPrices },
-    { path: '/scanner',       label: 'Setup Scanner',   Icon: NavScanner },
-    { path: '/liq',           label: 'Liquidation Map', Icon: NavLiqMap },
-    { path: '/funding',       label: 'FR History',      Icon: NavFunding },
-    { path: '/correlation',   label: 'Correlation',     Icon: NavCorrelation },
-    { path: '/backtest',      label: 'Backtest',        Icon: NavBacktest },
-    { path: '/live-tracking', label: 'Live Tracking',   Icon: NavTracking },
+  { headerKey: 'NAV_SECTION_ANALYSIS', items: [
+    { path: '/arena',         labelKey: 'NAV_ARENA',           Icon: NavArena },
+    { path: '/markets',       labelKey: 'NAV_MARKETS',         Icon: NavMarkets },
+    { path: '/scanner',       labelKey: 'NAV_SETUP_SCANNER',   Icon: NavScanner },
+    { path: '/liq',           labelKey: 'NAV_LIQUIDATION_MAP', Icon: NavLiqMap },
+    { path: '/funding',       labelKey: 'NAV_FR_HISTORY',      Icon: NavFunding },
+    { path: '/correlation',   labelKey: 'NAV_CORRELATION',     Icon: NavCorrelation },
+    { path: '/backtest',      labelKey: 'NAV_BACKTEST',        Icon: NavBacktest },
+    { path: '/live-tracking', labelKey: 'NAV_LIVE_TRACKING',   Icon: NavTracking },
   ] },
-  { header: 'Research', items: [
-    { path: '/research',      label: 'Research',          Icon: NavResearch },
-    { path: '/news',          label: 'News',              Icon: NavNews },
-    { path: '/econ-calendar', label: 'Economic Calendar', Icon: NavCalendar },
-    { path: '/learn',         label: 'Glossary',          Icon: NavPlaybook },
+  { headerKey: 'NAV_SECTION_RESEARCH', items: [
+    { path: '/research',      labelKey: 'NAV_RESEARCH',      Icon: NavResearch },
+    { path: '/news',          labelKey: 'NAV_NEWS',          Icon: NavNews },
+    { path: '/econ-calendar', labelKey: 'NAV_ECON_CALENDAR', Icon: NavCalendar },
+    { path: '/learn',         labelKey: 'NAV_GLOSSARY',      Icon: NavPlaybook },
   ] },
-  { header: 'My Tools', items: [
-    { path: '/journal',  label: 'Journal',        Icon: NavJournal },
-    { path: '/calc',     label: 'Position Sizer', Icon: NavCalc },
-    { path: '/alerts',   label: 'Alerts',         Icon: NavAlerts },
-    { path: '/hours',    label: 'Best Hours',     Icon: NavHours },
-    { path: '/playbook', label: 'Playbook',       Icon: NavPlaybook },
+  { headerKey: 'NAV_SECTION_MY_TOOLS', items: [
+    { path: '/journal',  labelKey: 'NAV_JOURNAL',        Icon: NavJournal },
+    { path: '/calc',     labelKey: 'NAV_POSITION_SIZER', Icon: NavCalc },
+    { path: '/alerts',   labelKey: 'NAV_ALERTS',         Icon: NavAlerts },
+    { path: '/hours',    labelKey: 'NAV_BEST_HOURS',     Icon: NavHours },
+    { path: '/playbook', labelKey: 'NAV_PLAYBOOK',       Icon: NavPlaybook },
   ] },
-  { header: 'Account', items: [
-    { path: '/settings', label: 'Settings', Icon: NavSettings, modal: true },
-    { path: '/about',    label: 'About',    Icon: NavAbout },
+  { headerKey: 'NAV_SECTION_ACCOUNT', items: [
+    { path: '/settings', labelKey: 'NAV_SETTINGS_LABEL', Icon: NavSettings, modal: true },
+    { path: '/about',    labelKey: 'NAV_ABOUT',          Icon: NavAbout },
   ] },
 ];
 
@@ -238,6 +238,7 @@ function NavDropdown({ label, items, open, onToggle, onClose, pathname }: {
 
 /* ── NavDrawer ─────────────────────────────────────────────────────────────── */
 export default function NavDrawer() {
+  const { t } = useLabels();
   const [drawerOpen, setDrawerOpen]     = useState(false);
   const [navQuery, setNavQuery]         = useState('');
   const [openDrop, setOpenDrop]         = useState<DropKey | null>(null);
@@ -300,13 +301,13 @@ export default function NavDrawer() {
                 href={item.path}
                 className={`desktop-nav-item${pathname === item.path ? ' on' : ''}`}
               >
-                {item.label}
+                {t(item.labelKey)}
               </Link>
             ))}
 
             <NavDropdown
-              label="Scanners"
-              items={SCANNERS}
+              label={t('NAV_DROPDOWN_SCANNERS')}
+              items={SCANNERS.map(i => ({ path: i.path, label: t(i.labelKey) }))}
               open={openDrop === 'scanners'}
               onToggle={() => toggleDrop('scanners')}
               onClose={closeDrop}
@@ -314,8 +315,8 @@ export default function NavDrawer() {
             />
 
             <NavDropdown
-              label="Tools"
-              items={TOOLS}
+              label={t('NAV_DROPDOWN_TOOLS')}
+              items={TOOLS.map(i => ({ path: i.path, label: t(i.labelKey) }))}
               open={openDrop === 'tools'}
               onToggle={() => toggleDrop('tools')}
               onClose={closeDrop}
@@ -328,7 +329,7 @@ export default function NavDrawer() {
                 href={item.path}
                 className={`desktop-nav-item${pathname === item.path ? ' on' : ''}`}
               >
-                {item.label}
+                {t(item.labelKey)}
               </Link>
             ))}
           </nav>
@@ -362,14 +363,14 @@ export default function NavDrawer() {
                     <div className="auth-dropdown">
                       <div className="auth-dropdown-email">{user.email}</div>
                       <Link href="/arena" className="auth-dropdown-usage" onClick={() => setAuthOpen(false)}>
-                        LiquidityAI - <span>view usage</span>
+                        {t('NAV_VIEW_USAGE')}
                       </Link>
                       <button
                         className="auth-dropdown-usage"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', padding: 0 }}
                         onClick={() => { setAuthOpen(false); setSettingsOpen(true); }}
                       >
-                        Settings
+                        {t('NAV_SETTINGS_LABEL')}
                       </button>
                       <button
                         className="auth-signout-btn"
@@ -380,13 +381,13 @@ export default function NavDrawer() {
                           router.push('/login');
                         }}
                       >
-                        Sign out
+                        {t('NAV_SIGN_OUT_MENU')}
                       </button>
                     </div>
                   )}
                 </div>
               ) : (
-                <Link href="/login" className="auth-signin-btn">Sign In</Link>
+                <Link href="/login" className="auth-signin-btn">{t('NAV_SIGN_IN')}</Link>
               )
             )}
 
@@ -410,10 +411,10 @@ export default function NavDrawer() {
           one tap away. On phones this replaces the top hamburger entirely. */}
       <nav className="mobile-tab-bar" aria-label="Main navigation">
         {[
-          { path: '/dashboard', label: 'Home',     Icon: IconDashboard },
-          { path: '/briefing',  label: 'Briefing', Icon: IconBriefing },
-          { path: '/arena',     label: 'Arena',     Icon: IconArena },
-          { path: '/news',      label: 'News',      Icon: IconNews },
+          { path: '/dashboard', labelKey: 'NAV_HOME'     as const, Icon: IconDashboard },
+          { path: '/briefing',  labelKey: 'NAV_BRIEFING' as const, Icon: IconBriefing },
+          { path: '/arena',     labelKey: 'NAV_ARENA'    as const, Icon: IconArena },
+          { path: '/news',      labelKey: 'NAV_NEWS'     as const, Icon: IconNews },
         ].map(item => {
           const active = pathname === item.path;
           return (
@@ -426,7 +427,7 @@ export default function NavDrawer() {
               <span className="mobile-tab-icon-wrap">
                 <item.Icon />
               </span>
-              <span className="mobile-tab-label">{item.label}</span>
+              <span className="mobile-tab-label">{t(item.labelKey)}</span>
             </Link>
           );
         })}
@@ -437,12 +438,12 @@ export default function NavDrawer() {
           aria-haspopup="menu"
           aria-expanded={drawerOpen}
           aria-controls="nav-drawer"
-          aria-label="More"
+          aria-label={t('NAV_MORE')}
         >
           <span className="mobile-tab-icon-wrap">
             <IconMore />
           </span>
-          <span className="mobile-tab-label">More</span>
+          <span className="mobile-tab-label">{t('NAV_MORE')}</span>
         </button>
       </nav>
 
@@ -460,8 +461,8 @@ export default function NavDrawer() {
                 type="text"
                 value={navQuery}
                 onChange={e => setNavQuery(e.target.value)}
-                placeholder="Search pages"
-                aria-label="Search pages"
+                placeholder={t('NAV_SEARCH_PLACEHOLDER')}
+                aria-label={t('NAV_SEARCH_PLACEHOLDER')}
                 autoComplete="off"
                 autoCapitalize="off"
                 spellCheck={false}
@@ -483,7 +484,7 @@ export default function NavDrawer() {
               const inner = (
                 <>
                   <span className="nav-tile-icon"><d.Icon size={20} /></span>
-                  <span className="nav-tile-label">{d.label}</span>
+                  <span className="nav-tile-label">{t(d.labelKey)}</span>
                 </>
               );
               return d.modal ? (
@@ -510,16 +511,16 @@ export default function NavDrawer() {
 
             const q = navQuery.trim().toLowerCase();
             if (q) {
-              const matches = ALL_DESTS.filter(d => d.label.toLowerCase().includes(q));
+              const matches = ALL_DESTS.filter(d => t(d.labelKey).toLowerCase().includes(q));
               return matches.length ? (
                 <div className="nav-grid">{matches.map(renderTile)}</div>
               ) : (
-                <div className="nav-empty">No pages match “{navQuery.trim()}”</div>
+                <div className="nav-empty">{t('NAV_NO_MATCHES', { query: navQuery.trim() })}</div>
               );
             }
             return NAV_SECTIONS.map(sec => (
-              <div key={sec.header} className="nav-section">
-                <div className="nav-section-label">{sec.header}</div>
+              <div key={sec.headerKey} className="nav-section">
+                <div className="nav-section-label">{t(sec.headerKey)}</div>
                 <div className="nav-grid">{sec.items.map(renderTile)}</div>
               </div>
             ));
@@ -537,7 +538,7 @@ export default function NavDrawer() {
                   router.push('/login');
                 }}
               >
-                Sign Out
+                {t('NAV_SIGN_OUT_DRAWER')}
               </button>
             ) : (
               <Link
@@ -545,7 +546,7 @@ export default function NavDrawer() {
                 className={`nav-item${pathname === '/login' ? ' on' : ''}`}
                 onClick={() => setDrawerOpen(false)}
               >
-                Sign In
+                {t('NAV_SIGN_IN')}
               </Link>
             )
           )}

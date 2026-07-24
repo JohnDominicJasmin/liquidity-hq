@@ -1,5 +1,6 @@
 'use client';
 import { useAdminResource, fmtInt, fmtPct, fmtAgo } from './_client';
+import { useLabels } from '@/lib/labels';
 import styles from './ops.module.css';
 
 // Shared stat tile.
@@ -21,15 +22,16 @@ export function CardShell({
   loading: boolean; error: string | null; hasData: boolean; span2?: boolean;
   children: React.ReactNode;
 }) {
+  const { t } = useLabels();
   return (
     <section className={`${styles.card} ${span2 ? styles.cardSpan2 : ''}`}>
       <div className={styles.cardHead}>
         <span className={styles.cardTitle}>{title}</span>
         {meta ? <span className={styles.cardMeta}>{meta}</span>
-              : onReload ? <button className={styles.reload} onClick={onReload} aria-label="Reload">↻</button> : null}
+              : onReload ? <button className={styles.reload} onClick={onReload} aria-label={t('OPS_CARDS_RELOAD_ARIA')}>↻</button> : null}
       </div>
-      {loading && !hasData && <div className={styles.loadingText}>Loading…</div>}
-      {error && <div className={styles.err}>{error === 'HTTP 403' ? 'Not authorized' : error}</div>}
+      {loading && !hasData && <div className={styles.loadingText}>{t('OPS_CARDS_LOADING')}</div>}
+      {error && <div className={styles.err}>{error === 'HTTP 403' ? t('OPS_CARDS_NOT_AUTHORIZED') : error}</div>}
       {children}
     </section>
   );
@@ -42,18 +44,19 @@ interface Overview {
 }
 
 export function OverviewCard() {
+  const { t } = useLabels();
   const { data, error, loading, reload } = useAdminResource<Overview>('/api/ops/overview');
   const proRate = data && data.totalUsers ? Math.round((data.proUsers / data.totalUsers) * 100) : null;
   return (
-    <CardShell title="Users & revenue" onReload={reload} loading={loading} error={error} hasData={!!data} span2>
+    <CardShell title={t('OPS_CARDS_OVERVIEW_TITLE')} onReload={reload} loading={loading} error={error} hasData={!!data} span2>
       {data && (
         <div className={styles.stats}>
-          <Stat label="Total users" val={fmtInt(data.totalUsers)} />
-          <Stat label="Pro" val={fmtInt(data.proUsers)} cls={styles.accent} sub={`${fmtInt(data.activePaying)} paying`} />
-          <Stat label="Free" val={fmtInt(data.freeUsers)} />
-          <Stat label="New · 7d" val={fmtInt(data.signups7d)} sub={`${fmtInt(data.signups30d)} in 30d`} />
-          <Stat label="Active · 7d" val={fmtInt(data.active7d)} sub={`${fmtInt(data.active30d)} in 30d`} />
-          <Stat label="Pro rate" val={proRate == null ? '-' : `${proRate}%`} />
+          <Stat label={t('OPS_CARDS_TOTAL_USERS')} val={fmtInt(data.totalUsers)} />
+          <Stat label={t('OPS_CARDS_PRO')} val={fmtInt(data.proUsers)} cls={styles.accent} sub={t('OPS_CARDS_PAYING_SUB', { count: fmtInt(data.activePaying) })} />
+          <Stat label={t('OPS_CARDS_FREE')} val={fmtInt(data.freeUsers)} />
+          <Stat label={t('OPS_CARDS_NEW_7D')} val={fmtInt(data.signups7d)} sub={t('OPS_CARDS_IN_30D_SUB', { count: fmtInt(data.signups30d) })} />
+          <Stat label={t('OPS_CARDS_ACTIVE_7D')} val={fmtInt(data.active7d)} sub={t('OPS_CARDS_IN_30D_SUB', { count: fmtInt(data.active30d) })} />
+          <Stat label={t('OPS_CARDS_PRO_RATE')} val={proRate == null ? '-' : `${proRate}%`} />
         </div>
       )}
     </CardShell>
@@ -73,9 +76,10 @@ const dotFor = (s: Cron['status']) =>
   s === 'ok' ? styles.dotGood : s === 'warn' ? styles.dotWarn : styles.dotBad;
 
 export function CronsCard() {
+  const { t } = useLabels();
   const { data, error, loading, reload } = useAdminResource<CronsData>('/api/ops/crons');
   return (
-    <CardShell title="Cron health" onReload={reload} loading={loading} error={error} hasData={!!data}>
+    <CardShell title={t('OPS_CARDS_CRON_HEALTH_TITLE')} onReload={reload} loading={loading} error={error} hasData={!!data}>
       {data && (
         <>
           <div className={styles.rows}>
@@ -96,8 +100,7 @@ export function CronsCard() {
             ))}
           </div>
           <p className={styles.note}>
-            Scanner &amp; tracker show last activity, not last run - a quiet market fires nothing.
-            The resolver&apos;s overdue count is the true health signal.
+            {t('OPS_CARDS_CRON_NOTE')}
           </p>
         </>
       )}
@@ -113,15 +116,16 @@ interface AiCost {
 }
 
 export function AiCostCard() {
+  const { t } = useLabels();
   const { data, error, loading, reload } = useAdminResource<AiCost>('/api/ops/ai-cost');
   const max = data ? Math.max(1, ...data.system.perDay.map(d => d.count)) : 1;
   return (
-    <CardShell title="AI cost · Grok" onReload={reload} loading={loading} error={error} hasData={!!data}>
+    <CardShell title={t('OPS_CARDS_AI_COST_TITLE')} onReload={reload} loading={loading} error={error} hasData={!!data}>
       {data && (
         <>
           <div className={styles.stats} style={{ gridTemplateColumns: 'repeat(2,1fr)' }}>
-            <Stat label="Cron calls · 24h" val={fmtInt(data.system.total24h)} />
-            <Stat label="Cron calls · 7d" val={fmtInt(data.system.total7d)} />
+            <Stat label={t('OPS_CARDS_CRON_CALLS_24H')} val={fmtInt(data.system.total24h)} />
+            <Stat label={t('OPS_CARDS_CRON_CALLS_7D')} val={fmtInt(data.system.total7d)} />
           </div>
           <div className={styles.miniBars} aria-hidden>
             {data.system.perDay.map(d => (
@@ -131,7 +135,7 @@ export function AiCostCard() {
             ))}
           </div>
           <div className={styles.rows} style={{ marginTop: 12 }}>
-            {data.topUsers.length === 0 && <div className={styles.rowSub}>No per-user AI usage in the last 7 days.</div>}
+            {data.topUsers.length === 0 && <div className={styles.rowSub}>{t('OPS_CARDS_NO_AI_USAGE')}</div>}
             {data.topUsers.map(u => (
               <div className={styles.row} key={u.userId}>
                 <span className={styles.rowLabel}>
@@ -141,7 +145,7 @@ export function AiCostCard() {
               </div>
             ))}
           </div>
-          <p className={styles.note}>14-day system call volume; top AI users last 7d (deep + quick + chat + search + briefing).</p>
+          <p className={styles.note}>{t('OPS_CARDS_AI_COST_NOTE')}</p>
         </>
       )}
     </CardShell>
@@ -162,22 +166,23 @@ const winCls = (rate: number | null): string | undefined =>
   rate == null ? undefined : rate >= 50 ? styles.good : styles.bad;
 
 export function AccuracyCard() {
+  const { t } = useLabels();
   const { data, error, loading, reload } = useAdminResource<Accuracy>('/api/ops/accuracy');
   const avgR = data?.liveSignals.avgR ?? null;
   return (
-    <CardShell title="Signal accuracy" onReload={reload} loading={loading} error={error} hasData={!!data}>
+    <CardShell title={t('OPS_CARDS_SIGNAL_ACCURACY_TITLE')} onReload={reload} loading={loading} error={error} hasData={!!data}>
       {data && (
         <>
           <div className={styles.stats} style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
-            <Stat label="Alert 24h win" val={fmtPct(data.alerts.overall.winRate)}
-              sub={`${fmtInt(data.alerts.overall.n)} resolved`} cls={winCls(data.alerts.overall.winRate)} />
-            <Stat label="Live sig win" val={fmtPct(data.liveSignals.winRate)}
-              sub={`${fmtInt(data.liveSignals.n)} resolved`} cls={winCls(data.liveSignals.winRate)} />
-            <Stat label="Avg R" val={avgR == null ? '-' : avgR.toFixed(2)}
+            <Stat label={t('OPS_CARDS_ALERT_24H_WIN')} val={fmtPct(data.alerts.overall.winRate)}
+              sub={t('OPS_CARDS_RESOLVED_SUB', { count: fmtInt(data.alerts.overall.n) })} cls={winCls(data.alerts.overall.winRate)} />
+            <Stat label={t('OPS_CARDS_LIVE_SIG_WIN')} val={fmtPct(data.liveSignals.winRate)}
+              sub={t('OPS_CARDS_RESOLVED_SUB', { count: fmtInt(data.liveSignals.n) })} cls={winCls(data.liveSignals.winRate)} />
+            <Stat label={t('OPS_CARDS_AVG_R')} val={avgR == null ? '-' : avgR.toFixed(2)}
               cls={avgR == null ? undefined : avgR > 0 ? styles.good : styles.bad} />
           </div>
           <div className={styles.rows} style={{ marginTop: 12 }}>
-            {data.alerts.byRule.length === 0 && <div className={styles.rowSub}>No resolved alerts yet.</div>}
+            {data.alerts.byRule.length === 0 && <div className={styles.rowSub}>{t('OPS_CARDS_NO_RESOLVED_ALERTS')}</div>}
             {data.alerts.byRule.map(r => (
               <div className={styles.row} key={r.rule}>
                 <span className={styles.rowLabel}>

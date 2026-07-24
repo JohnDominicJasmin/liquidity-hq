@@ -6,6 +6,8 @@ import { useSettings } from '@/lib/settings';
 import { getSupabase } from '@/lib/supabase';
 import { T } from '@/lib/tables';
 import LoadingState from '@/components/LoadingState';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 
 interface Props { onStartTour: () => void; }
@@ -16,13 +18,13 @@ type Acct       = '1k5k' | '5k25k' | '25k100k' | '100kplus';
 type Challenge  = 'read_signals' | 'entry_exit' | 'risk_management' | 'discipline';
 type Heard      = 'social' | 'youtube' | 'tiktok' | 'search' | 'word' | 'other';
 
-const STEP_META = [
-  { key: 'Profile',    label: 'Profile'    },
-  { key: 'Experience', label: 'Experience' },
-  { key: 'Style',      label: 'Style'      },
-  { key: 'Goals',      label: 'Goals'      },
-  { key: 'Source',     label: 'Source'     },
-] as const;
+const STEP_META: { key: string; labelKey: LabelKey }[] = [
+  { key: 'Profile',    labelKey: 'ONBOARDING_FLOW_STEP_PROFILE'    },
+  { key: 'Experience', labelKey: 'ONBOARDING_FLOW_STEP_EXPERIENCE' },
+  { key: 'Style',      labelKey: 'ONBOARDING_FLOW_STEP_STYLE'      },
+  { key: 'Goals',      labelKey: 'ONBOARDING_FLOW_STEP_GOALS'      },
+  { key: 'Source',     labelKey: 'ONBOARDING_FLOW_STEP_SOURCE'     },
+];
 
 const COUNTRIES = [
   { flag: '🇦🇷', name: 'Argentina' },
@@ -58,12 +60,12 @@ const COUNTRIES = [
   { flag: '🌐', name: 'Other' },
 ];
 
-const STEP_COPY = [
-  { headline: ['Set up your', 'profile.'],                    desc: 'Personalizes your signals, alerts, and position sizing.' },
-  { headline: ['How long have you been', 'trading crypto?'],  desc: 'Sets Beginner Mode on or off for your dashboard.' },
-  { headline: ['How do you', 'mainly trade?'],                desc: 'Pre-selects your default chart timeframe in Arena.' },
-  { headline: ['What is your biggest', 'challenge?'],         desc: 'Surfaces the most relevant signals and education for you.' },
-  { headline: ['Where did you find', 'LiquidityHQ?'],         desc: 'Optional - helps us know where to invest our energy.' },
+const STEP_COPY: { headlineKeys: [LabelKey, LabelKey]; descKey: LabelKey }[] = [
+  { headlineKeys: ['ONBOARDING_FLOW_HEADLINE_PROFILE_1',    'ONBOARDING_FLOW_HEADLINE_PROFILE_2'],    descKey: 'ONBOARDING_FLOW_DESC_PROFILE'    },
+  { headlineKeys: ['ONBOARDING_FLOW_HEADLINE_EXPERIENCE_1', 'ONBOARDING_FLOW_HEADLINE_EXPERIENCE_2'], descKey: 'ONBOARDING_FLOW_DESC_EXPERIENCE' },
+  { headlineKeys: ['ONBOARDING_FLOW_HEADLINE_STYLE_1',      'ONBOARDING_FLOW_HEADLINE_STYLE_2'],      descKey: 'ONBOARDING_FLOW_DESC_STYLE'      },
+  { headlineKeys: ['ONBOARDING_FLOW_HEADLINE_GOALS_1',      'ONBOARDING_FLOW_HEADLINE_GOALS_2'],      descKey: 'ONBOARDING_FLOW_DESC_GOALS'      },
+  { headlineKeys: ['ONBOARDING_FLOW_HEADLINE_SOURCE_1',     'ONBOARDING_FLOW_HEADLINE_SOURCE_2'],     descKey: 'ONBOARDING_FLOW_DESC_SOURCE'     },
 ];
 
 /* ── Reusable check glyph for selection indicators ── */
@@ -77,6 +79,7 @@ function CheckGlyph() {
 
 /* ── Custom country dropdown with emoji flags ── */
 function CountrySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useLabels();
   const [open, setOpen]   = useState(false);
   const [query, setQuery] = useState('');
   const containerRef      = useRef<HTMLDivElement>(null);
@@ -114,7 +117,7 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.name}</span>
             </>
           ) : (
-            <span>Select your country…</span>
+            <span>{t('ONBOARDING_FLOW_SELECT_COUNTRY_PLACEHOLDER')}</span>
           )}
         </span>
         <svg
@@ -133,14 +136,14 @@ function CountrySelect({ value, onChange }: { value: string; onChange: (v: strin
               type="text"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Search country…"
+              placeholder={t('ONBOARDING_FLOW_SEARCH_COUNTRY_PLACEHOLDER')}
               className="obw-input"
               style={{ padding: '8px 12px', fontSize: 'var(--fs-label)' }}
             />
           </div>
           <div className="obw-menu-list">
             {filtered.length === 0 ? (
-              <div style={{ padding: 16, textAlign: 'center', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>No match</div>
+              <div style={{ padding: 16, textAlign: 'center', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ONBOARDING_FLOW_NO_MATCH')}</div>
             ) : filtered.map(c => {
               const isActive = value === c.name;
               return (
@@ -185,11 +188,12 @@ function OptionRow<T extends string>({ value, selected, label, sub, onClick }: {
 
 /* ── Account size 2x2 grid ── */
 function AcctGrid({ acct, setAcct }: { acct: Acct | null; setAcct: (v: Acct) => void }) {
-  const opts: { value: Acct; label: string }[] = [
-    { value: '1k5k',     label: '$1k - $5k'    },
-    { value: '5k25k',    label: '$5k - $25k'   },
-    { value: '25k100k',  label: '$25k - $100k' },
-    { value: '100kplus', label: '$100k+'       },
+  const { t } = useLabels();
+  const opts: { value: Acct; labelKey: LabelKey }[] = [
+    { value: '1k5k',     labelKey: 'ONBOARDING_FLOW_ACCT_1K_5K'     },
+    { value: '5k25k',    labelKey: 'ONBOARDING_FLOW_ACCT_5K_25K'    },
+    { value: '25k100k',  labelKey: 'ONBOARDING_FLOW_ACCT_25K_100K'  },
+    { value: '100kplus', labelKey: 'ONBOARDING_FLOW_ACCT_100K_PLUS' },
   ];
   return (
     <div className="obw-grid">
@@ -200,7 +204,7 @@ function AcctGrid({ acct, setAcct }: { acct: Acct | null; setAcct: (v: Acct) => 
           className={`obw-tile ${acct === o.value ? 'is-selected' : ''}`}
           onClick={() => setAcct(o.value)}
         >
-          {o.label}
+          {t(o.labelKey)}
         </button>
       ))}
     </div>
@@ -209,6 +213,7 @@ function AcctGrid({ acct, setAcct }: { acct: Acct | null; setAcct: (v: Acct) => 
 
 /* ── Main onboarding component ── */
 export default function OnboardingFlow({ onStartTour }: Props) {
+  const { t }                       = useLabels();
   const { user }                    = useAuth();
   const { state, loaded, markDone } = useOnboarding();
   const { update }                  = useSettings();
@@ -233,7 +238,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
   // brand-new signups. Block with the same full-screen backdrop instead so
   // nothing shows through.
   if (!loaded) {
-    return <LoadingState message="Loading…" fullPage />;
+    return <LoadingState message={t('ONBOARDING_FLOW_LOADING')} fullPage />;
   }
 
   const meta   = STEP_META[step];
@@ -297,7 +302,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
         {STEP_META.map((s, i) => (
           <div key={s.key} className={`obw-seg ${i < step ? 'is-done' : ''} ${i === step ? 'is-active' : ''}`}>
             <div className="obw-seg-track"><span className="obw-seg-fill" /></div>
-            <div className="obw-seg-label">{s.label}</div>
+            <div className="obw-seg-label">{t(s.labelKey)}</div>
           </div>
         ))}
       </div>
@@ -308,33 +313,33 @@ export default function OnboardingFlow({ onStartTour }: Props) {
           <div key={step} className="obw-step">
             {/* Step meta */}
             <div className="obw-eyebrow">
-              <span className="k">{`STEP ${String(step + 1).padStart(2, '0')}`}</span>
+              <span className="k">{t('ONBOARDING_FLOW_STEP_PREFIX', { num: String(step + 1).padStart(2, '0') })}</span>
               <span className="d">/ {String(STEP_META.length).padStart(2, '0')}</span>
-              <span className="d">&mdash; {meta.label.toUpperCase()}</span>
+              <span className="d">&mdash; {t(meta.labelKey).toUpperCase()}</span>
             </div>
 
             {/* Headline */}
             <h1 className="obw-headline">
-              {copy.headline.map((line, i) => (
-                <span key={i} style={{ display: 'block' }} className={i === copy.headline.length - 1 ? 'accent' : undefined}>
-                  {line}
+              {copy.headlineKeys.map((k, i) => (
+                <span key={i} style={{ display: 'block' }} className={i === copy.headlineKeys.length - 1 ? 'accent' : undefined}>
+                  {t(k)}
                 </span>
               ))}
             </h1>
-            <div className="obw-desc">{copy.desc}</div>
+            <div className="obw-desc">{t(copy.descKey)}</div>
 
             {/* ── Step 0: Profile ── */}
             {step === 0 && (
               <>
                 <div style={{ marginBottom: 'var(--space-4)' }}>
                   <label className="obw-label">
-                    Display name <span className="opt">(optional)</span>
+                    {t('ONBOARDING_FLOW_DISPLAY_NAME_LABEL')} <span className="opt">{t('ONBOARDING_FLOW_OPTIONAL')}</span>
                   </label>
                   <input
                     type="text"
                     value={displayName}
                     onChange={e => setDisplayName(e.target.value)}
-                    placeholder="e.g. trader_dom"
+                    placeholder={t('ONBOARDING_FLOW_DISPLAY_NAME_PLACEHOLDER')}
                     maxLength={32}
                     className="obw-input"
                   />
@@ -347,12 +352,12 @@ export default function OnboardingFlow({ onStartTour }: Props) {
                 </div>
 
                 <div style={{ marginBottom: 'var(--space-5)' }}>
-                  <label className="obw-label">Country</label>
+                  <label className="obw-label">{t('ONBOARDING_FLOW_COUNTRY_LABEL')}</label>
                   <CountrySelect value={country} onChange={setCountry} />
                 </div>
 
                 <div>
-                  <label className="obw-label">Trading account range</label>
+                  <label className="obw-label">{t('ONBOARDING_FLOW_ACCOUNT_RANGE_LABEL')}</label>
                   <AcctGrid acct={acct} setAcct={setAcct} />
                 </div>
               </>
@@ -361,30 +366,30 @@ export default function OnboardingFlow({ onStartTour }: Props) {
             {/* ── Step 1: Experience ── */}
             {step === 1 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                <OptionRow<Exp> value="lt6m"   selected={exp} label="Less than 6 months" sub="Just getting started - Beginner Mode enabled" onClick={setExp} />
-                <OptionRow<Exp> value="6to12m" selected={exp} label="6-12 months"        sub="Finding my footing - Beginner Mode enabled"  onClick={setExp} />
-                <OptionRow<Exp> value="1to3y"  selected={exp} label="1-3 years"          sub="Getting comfortable - full tools unlocked"   onClick={setExp} />
-                <OptionRow<Exp> value="3plus"  selected={exp} label="3+ years"           sub="I know what I am doing - full access"        onClick={setExp} />
+                <OptionRow<Exp> value="lt6m"   selected={exp} label={t('ONBOARDING_FLOW_EXP_LT6M_LABEL')}   sub={t('ONBOARDING_FLOW_EXP_LT6M_SUB')}   onClick={setExp} />
+                <OptionRow<Exp> value="6to12m" selected={exp} label={t('ONBOARDING_FLOW_EXP_6TO12M_LABEL')} sub={t('ONBOARDING_FLOW_EXP_6TO12M_SUB')} onClick={setExp} />
+                <OptionRow<Exp> value="1to3y"  selected={exp} label={t('ONBOARDING_FLOW_EXP_1TO3Y_LABEL')}  sub={t('ONBOARDING_FLOW_EXP_1TO3Y_SUB')}  onClick={setExp} />
+                <OptionRow<Exp> value="3plus"  selected={exp} label={t('ONBOARDING_FLOW_EXP_3PLUS_LABEL')}  sub={t('ONBOARDING_FLOW_EXP_3PLUS_SUB')}  onClick={setExp} />
               </div>
             )}
 
             {/* ── Step 2: Style ── */}
             {step === 2 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                <OptionRow<TradeStyle> value="scalp"    selected={tradeStyle} label="Scalp"          sub="Minutes to hours - defaults to 5m chart"      onClick={setTradeStyle} />
-                <OptionRow<TradeStyle> value="swing"    selected={tradeStyle} label="Swing trade"    sub="Days to weeks - defaults to 4h chart"         onClick={setTradeStyle} />
-                <OptionRow<TradeStyle> value="both"     selected={tradeStyle} label="Both"           sub="Depends on the setup - defaults to 15m chart" onClick={setTradeStyle} />
-                <OptionRow<TradeStyle> value="learning" selected={tradeStyle} label="Still learning" sub="Not sure yet - Beginner Mode on"              onClick={setTradeStyle} />
+                <OptionRow<TradeStyle> value="scalp"    selected={tradeStyle} label={t('ONBOARDING_FLOW_STYLE_SCALP_LABEL')}    sub={t('ONBOARDING_FLOW_STYLE_SCALP_SUB')}    onClick={setTradeStyle} />
+                <OptionRow<TradeStyle> value="swing"    selected={tradeStyle} label={t('ONBOARDING_FLOW_STYLE_SWING_LABEL')}    sub={t('ONBOARDING_FLOW_STYLE_SWING_SUB')}    onClick={setTradeStyle} />
+                <OptionRow<TradeStyle> value="both"     selected={tradeStyle} label={t('ONBOARDING_FLOW_STYLE_BOTH_LABEL')}     sub={t('ONBOARDING_FLOW_STYLE_BOTH_SUB')}     onClick={setTradeStyle} />
+                <OptionRow<TradeStyle> value="learning" selected={tradeStyle} label={t('ONBOARDING_FLOW_STYLE_LEARNING_LABEL')} sub={t('ONBOARDING_FLOW_STYLE_LEARNING_SUB')} onClick={setTradeStyle} />
               </div>
             )}
 
             {/* ── Step 3: Goals ── */}
             {step === 3 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                <OptionRow<Challenge> value="read_signals"    selected={challenge} label="Reading the signals correctly"     sub="Not sure what the data is telling me"       onClick={setChallenge} />
-                <OptionRow<Challenge> value="entry_exit"      selected={challenge} label="Knowing when to enter and exit"    sub="Always too early, too late, or too scared"  onClick={setChallenge} />
-                <OptionRow<Challenge> value="risk_management" selected={challenge} label="Managing risk and not overtrading" sub="Position sizing, stop losses, overexposure" onClick={setChallenge} />
-                <OptionRow<Challenge> value="discipline"      selected={challenge} label="Staying disciplined and patient"   sub="Chasing trades, revenge trading, FOMO"      onClick={setChallenge} />
+                <OptionRow<Challenge> value="read_signals"    selected={challenge} label={t('ONBOARDING_FLOW_CHALLENGE_SIGNALS_LABEL')}    sub={t('ONBOARDING_FLOW_CHALLENGE_SIGNALS_SUB')}    onClick={setChallenge} />
+                <OptionRow<Challenge> value="entry_exit"      selected={challenge} label={t('ONBOARDING_FLOW_CHALLENGE_ENTRY_EXIT_LABEL')} sub={t('ONBOARDING_FLOW_CHALLENGE_ENTRY_EXIT_SUB')} onClick={setChallenge} />
+                <OptionRow<Challenge> value="risk_management" selected={challenge} label={t('ONBOARDING_FLOW_CHALLENGE_RISK_LABEL')}       sub={t('ONBOARDING_FLOW_CHALLENGE_RISK_SUB')}       onClick={setChallenge} />
+                <OptionRow<Challenge> value="discipline"      selected={challenge} label={t('ONBOARDING_FLOW_CHALLENGE_DISCIPLINE_LABEL')} sub={t('ONBOARDING_FLOW_CHALLENGE_DISCIPLINE_SUB')} onClick={setChallenge} />
               </div>
             )}
 
@@ -392,20 +397,20 @@ export default function OnboardingFlow({ onStartTour }: Props) {
             {step === 4 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
                 {([
-                  ['social',  'Facebook / Instagram'],
-                  ['youtube', 'YouTube'],
-                  ['tiktok',  'TikTok'],
-                  ['search',  'Search'],
-                  ['word',    'Word of mouth'],
-                  ['other',   'Other'],
-                ] as [Heard, string][]).map(([val, label]) => (
+                  ['social',  'ONBOARDING_FLOW_SOURCE_SOCIAL'],
+                  ['youtube', 'ONBOARDING_FLOW_SOURCE_YOUTUBE'],
+                  ['tiktok',  'ONBOARDING_FLOW_SOURCE_TIKTOK'],
+                  ['search',  'ONBOARDING_FLOW_SOURCE_SEARCH'],
+                  ['word',    'ONBOARDING_FLOW_SOURCE_WORD'],
+                  ['other',   'ONBOARDING_FLOW_SOURCE_OTHER'],
+                ] as [Heard, LabelKey][]).map(([val, labelKey]) => (
                   <button
                     key={val}
                     type="button"
                     className={`obw-chip ${heard === val ? 'is-selected' : ''}`}
                     onClick={() => setHeard(val)}
                   >
-                    {label}
+                    {t(labelKey)}
                   </button>
                 ))}
               </div>
@@ -416,7 +421,7 @@ export default function OnboardingFlow({ onStartTour }: Props) {
           <div className="obw-nav">
             {step > 0 && !saving && (
               <button type="button" className="obw-btn obw-btn-back" onClick={goBack}>
-                ← Back
+                {t('ONBOARDING_FLOW_BACK')}
               </button>
             )}
             <button
@@ -425,13 +430,13 @@ export default function OnboardingFlow({ onStartTour }: Props) {
               onClick={goNext}
               disabled={!canNext() || saving}
             >
-              {saving ? 'Setting up…' : isLast ? 'Launch Dashboard →' : 'Continue →'}
+              {saving ? t('ONBOARDING_FLOW_SAVING') : isLast ? t('ONBOARDING_FLOW_LAUNCH_DASHBOARD') : t('ONBOARDING_FLOW_CONTINUE')}
             </button>
           </div>
 
           {isLast && !saving && (
             <button type="button" className="obw-skip" onClick={finish}>
-              Skip this question →
+              {t('ONBOARDING_FLOW_SKIP_QUESTION')}
             </button>
           )}
         </div>
@@ -440,15 +445,14 @@ export default function OnboardingFlow({ onStartTour }: Props) {
       {/* ── Footer: disclaimer + legal links ── */}
       <footer className="obw-footer">
         <p className="obw-footer-disc">
-          LiquidityHQ provides data analytics and software tools for informational purposes only.
-          This is not financial, investment, or trading advice. Trade at your own risk.
+          {t('ONBOARDING_FLOW_FOOTER_DISCLAIMER')}
         </p>
         <div className="obw-footer-links">
-          <a href="/terms" target="_blank" rel="noopener noreferrer" className="obw-footer-link">Terms of Use</a>
-          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="obw-footer-link">Privacy Policy</a>
-          <a href="/disclaimer" target="_blank" rel="noopener noreferrer" className="obw-footer-link">Full Disclaimer</a>
+          <a href="/terms" target="_blank" rel="noopener noreferrer" className="obw-footer-link">{t('ONBOARDING_FLOW_FOOTER_TERMS')}</a>
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="obw-footer-link">{t('ONBOARDING_FLOW_FOOTER_PRIVACY')}</a>
+          <a href="/disclaimer" target="_blank" rel="noopener noreferrer" className="obw-footer-link">{t('ONBOARDING_FLOW_FOOTER_DISCLAIMER_LINK')}</a>
         </div>
-        <div className="obw-footer-copy">© {new Date().getFullYear()} LIQUIDITYHQ</div>
+        <div className="obw-footer-copy">{t('ONBOARDING_FLOW_FOOTER_COPYRIGHT', { year: String(new Date().getFullYear()) })}</div>
       </footer>
     </div>
   );

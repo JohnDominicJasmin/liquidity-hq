@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import Tip from './Tip';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 interface HVData {
   hv30:       number;   // current 30-day annualized HV %
@@ -10,10 +12,10 @@ interface HVData {
   regime:     'low' | 'neutral' | 'high';
 }
 
-const REGIME_META = {
-  low:     { label: 'Low Vol',  col: '#34d399', bg: 'rgba(52,211,153,0.10)',  bdr: 'rgba(52,211,153,0.3)',  hint: 'Build positions - volatility likely to expand' },
-  neutral: { label: 'Normal',   col: '#fbbf24', bg: 'rgba(251,191,36,0.10)',  bdr: 'rgba(251,191,36,0.3)',  hint: 'Standard position sizing' },
-  high:    { label: 'High Vol', col: '#f87171', bg: 'rgba(248,113,113,0.10)', bdr: 'rgba(248,113,113,0.3)', hint: 'Reduce exposure or hedge' },
+const REGIME_META: Record<'low' | 'neutral' | 'high', { labelKey: LabelKey; col: string; bg: string; bdr: string; hintKey: LabelKey }> = {
+  low:     { labelKey: 'VOLATILITY_REGIME_LABEL_LOW',     col: '#34d399', bg: 'rgba(52,211,153,0.10)',  bdr: 'rgba(52,211,153,0.3)',  hintKey: 'VOLATILITY_REGIME_HINT_LOW' },
+  neutral: { labelKey: 'VOLATILITY_REGIME_LABEL_NEUTRAL', col: '#fbbf24', bg: 'rgba(251,191,36,0.10)',  bdr: 'rgba(251,191,36,0.3)',  hintKey: 'VOLATILITY_REGIME_HINT_NEUTRAL' },
+  high:    { labelKey: 'VOLATILITY_REGIME_LABEL_HIGH',    col: '#f87171', bg: 'rgba(248,113,113,0.10)', bdr: 'rgba(248,113,113,0.3)', hintKey: 'VOLATILITY_REGIME_HINT_HIGH' },
 };
 
 const CACHE_KEY = 'lhq_vol_regime';
@@ -65,6 +67,8 @@ function calcHV(symbol: string): Promise<HVData | null> {
 type LoadState = HVData | null | 'loading';
 
 function HVRow({ label, data }: { label: string; data: LoadState }) {
+  const { t } = useLabels();
+
   if (data === 'loading') return (
     <div style={{ padding: '9px 0', borderTop: '0.5px solid var(--bdr)', display: 'flex', alignItems: 'center', gap: 8 }}>
       <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt3)', minWidth: 28 }}>{label}</span>
@@ -75,7 +79,7 @@ function HVRow({ label, data }: { label: string; data: LoadState }) {
   if (!data) return (
     <div style={{ padding: '9px 0', borderTop: '0.5px solid var(--bdr)', display: 'flex', alignItems: 'center', gap: 8 }}>
       <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--txt3)', minWidth: 28 }}>{label}</span>
-      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Unavailable</span>
+      <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('VOLATILITY_REGIME_UNAVAILABLE')}</span>
     </div>
   );
 
@@ -91,7 +95,7 @@ function HVRow({ label, data }: { label: string; data: LoadState }) {
           background: m.bg, color: m.col, border: `0.5px solid ${m.bdr}`,
           letterSpacing: '0.03em',
         }}>
-          {m.label}
+          {t(m.labelKey)}
         </span>
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: m.col, fontFamily: 'var(--font-mono), monospace' }}>
@@ -119,12 +123,13 @@ function HVRow({ label, data }: { label: string; data: LoadState }) {
       </div>
 
       {/* Hint */}
-      <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 5 }}>{m.hint}</div>
+      <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 5 }}>{t(m.hintKey)}</div>
     </div>
   );
 }
 
 export default function VolatilityRegime() {
+  const { t } = useLabels();
   const [btc, setBtc] = useState<LoadState>('loading');
   const [eth, setEth] = useState<LoadState>('loading');
 
@@ -159,8 +164,8 @@ export default function VolatilityRegime() {
         fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase',
         letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 2,
       }}>
-        <Tip width={300} text="Historical Volatility (HV) measures how much price has moved over the past 30 days, annualized. The percentile shows where today's HV sits vs. the past ~120 days. Low vol historically precedes expansion - volatility mean-reverts. High vol means the market is already moving hard: size down or hedge.">
-          Volatility Regime
+        <Tip width={300} text={t('VOLATILITY_REGIME_TOOLTIP')}>
+          {t('VOLATILITY_REGIME_TITLE')}
         </Tip>
       </div>
 
@@ -171,14 +176,14 @@ export default function VolatilityRegime() {
           return (
             <span key={r} style={{ fontSize: 'var(--fs-caption)', color: m.col, display: 'flex', alignItems: 'center', gap: 3 }}>
               <span style={{ width: 5, height: 5, borderRadius: '50%', background: m.col, flexShrink: 0 }} />
-              {r === 'low' ? '< p20' : r === 'high' ? '> p80' : 'p20–p80'}
+              {r === 'low' ? t('VOLATILITY_REGIME_ZONE_LOW') : r === 'high' ? t('VOLATILITY_REGIME_ZONE_HIGH') : t('VOLATILITY_REGIME_ZONE_NEUTRAL')}
             </span>
           );
         })}
       </div>
 
-      <HVRow label="BTC" data={btc} />
-      <HVRow label="ETH" data={eth} />
+      <HVRow label={t('VOLATILITY_REGIME_BTC')} data={btc} />
+      <HVRow label={t('VOLATILITY_REGIME_ETH')} data={eth} />
     </div>
   );
 }

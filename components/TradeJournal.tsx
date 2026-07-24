@@ -12,6 +12,8 @@ import { withAlpha } from '@/lib/color';
 import { T } from '@/lib/tables';
 import { coinBadgeColor } from '@/lib/coinBadge';
 import LoadingState from '@/components/LoadingState';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 type Direction = 'LONG' | 'SHORT';
 type TradeResult = 'OPEN' | 'WIN' | 'LOSS' | 'BE';
@@ -30,19 +32,19 @@ interface TradingRule {
   enabled:  boolean;
 }
 
-const RULE_FIELD_LABELS: Record<RuleField, string> = {
-  coin:       'Coin',
-  direction:  'Direction',
-  setup_type: 'Setup',
-  leverage:   'Leverage',
-  session:    'Session',
+const RULE_FIELD_LABEL_KEYS: Record<RuleField, LabelKey> = {
+  coin:       'TRADE_JOURNAL_RULES_FIELD_COIN',
+  direction:  'TRADE_JOURNAL_RULES_FIELD_DIRECTION',
+  setup_type: 'TRADE_JOURNAL_RULES_FIELD_SETUP',
+  leverage:   'TRADE_JOURNAL_RULES_FIELD_LEVERAGE',
+  session:    'TRADE_JOURNAL_RULES_FIELD_SESSION',
 };
 
-const RULE_OP_LABELS: Record<RuleOperator, string> = {
-  is:     'is',
-  is_not: 'is not',
-  lte:    '≤',
-  gte:    '≥',
+const RULE_OP_LABEL_KEYS: Record<RuleOperator, LabelKey> = {
+  is:     'TRADE_JOURNAL_RULES_OP_IS',
+  is_not: 'TRADE_JOURNAL_RULES_OP_IS_NOT',
+  lte:    'TRADE_JOURNAL_RULES_OP_LTE',
+  gte:    'TRADE_JOURNAL_RULES_OP_GTE',
 };
 
 const SESSIONS = ['New York', 'London', 'Asia', 'Pre-Market', 'Weekend'];
@@ -64,23 +66,25 @@ function ruleViolated(rule: TradingRule, fields: {
 }
 
 /* Human-readable rule summary */
-function ruleLabel(r: TradingRule): string {
-  const field = RULE_FIELD_LABELS[r.field];
-  const op    = RULE_OP_LABELS[r.operator];
+function ruleLabel(r: TradingRule, t: (key: LabelKey, vars?: Record<string, string | number>) => string): string {
+  const field = t(RULE_FIELD_LABEL_KEYS[r.field]);
+  const op    = t(RULE_OP_LABEL_KEYS[r.operator]);
   const val   = (r.operator === 'lte' || r.operator === 'gte')
     ? (r.field === 'leverage' ? r.value + 'x' : r.value)
     : r.value.split(',').map(v => v.trim()).join(', ');
   return `${field} ${op} ${val}`;
 }
 
-/* Quick-add presets */
-const RULE_PRESETS: Omit<TradingRule, 'id'>[] = [
-  { name: 'Only long BTC/ETH',      field: 'coin',       operator: 'is',     value: 'btc,eth',      enabled: true },
-  { name: 'Max 20x leverage',       field: 'leverage',   operator: 'lte',    value: '20',           enabled: true },
-  { name: 'Only LONG trades',       field: 'direction',  operator: 'is',     value: 'LONG',         enabled: true },
-  { name: 'Squeeze setups only',    field: 'setup_type', operator: 'is',     value: 'Squeeze',      enabled: true },
-  { name: 'NY or London only',      field: 'session',    operator: 'is',     value: 'New York,London', enabled: true },
-  { name: 'No Other setup',         field: 'setup_type', operator: 'is_not', value: 'Other',        enabled: true },
+/* Quick-add presets. `name` stays the stable, untranslated id used for the
+   exists-check and persisted rule storage; `labelKey` is the translated
+   display text shown on the button. */
+const RULE_PRESETS: (Omit<TradingRule, 'id'> & { labelKey: LabelKey })[] = [
+  { name: 'Only long BTC/ETH',      field: 'coin',       operator: 'is',     value: 'btc,eth',      enabled: true, labelKey: 'TRADE_JOURNAL_RULES_PRESET_LONG_BTC_ETH' },
+  { name: 'Max 20x leverage',       field: 'leverage',   operator: 'lte',    value: '20',           enabled: true, labelKey: 'TRADE_JOURNAL_RULES_PRESET_MAX_20X_LEVERAGE' },
+  { name: 'Only LONG trades',       field: 'direction',  operator: 'is',     value: 'LONG',         enabled: true, labelKey: 'TRADE_JOURNAL_RULES_PRESET_ONLY_LONG' },
+  { name: 'Squeeze setups only',    field: 'setup_type', operator: 'is',     value: 'Squeeze',      enabled: true, labelKey: 'TRADE_JOURNAL_RULES_PRESET_SQUEEZE_ONLY' },
+  { name: 'NY or London only',      field: 'session',    operator: 'is',     value: 'New York,London', enabled: true, labelKey: 'TRADE_JOURNAL_RULES_PRESET_NY_LONDON' },
+  { name: 'No Other setup',         field: 'setup_type', operator: 'is_not', value: 'Other',        enabled: true, labelKey: 'TRADE_JOURNAL_RULES_PRESET_NO_OTHER_SETUP' },
 ];
 
 interface Trade {
@@ -116,13 +120,13 @@ function fmtUSD(v: number | null | undefined, showSign = true) {
    Falls back to this whenever a trade's stored pnl_r is null (legacy rows
    closed before risk_usd was reliably captured - see QA-1), so a real
    winning/losing trade never silently drops out of the R stats. */
-function tradeR(t: Trade): number | null {
-  if (t.pnl_r != null) return t.pnl_r;
-  if (t.exit_price == null) return null;
-  const stopDist = Math.abs(t.entry_price - t.stop_loss);
+function tradeR(tr: Trade): number | null {
+  if (tr.pnl_r != null) return tr.pnl_r;
+  if (tr.exit_price == null) return null;
+  const stopDist = Math.abs(tr.entry_price - tr.stop_loss);
   if (stopDist <= 0) return null;
-  const dir = t.direction === 'LONG' ? 1 : -1;
-  return ((t.exit_price - t.entry_price) * dir) / stopDist;
+  const dir = tr.direction === 'LONG' ? 1 : -1;
+  return ((tr.exit_price - tr.entry_price) * dir) / stopDist;
 }
 
 function fmtDate(s: string) {
@@ -132,13 +136,13 @@ function fmtDate(s: string) {
 }
 
 /* ── Shadow Account result renderer ── */
-const SHADOW_SECTIONS: { key: string; label: string; color?: string }[] = [
-  { key: 'IMPLICIT_RULES',       label: 'Implicit Trading Rules' },
-  { key: 'BEHAVIORAL_PATTERNS',  label: 'Behavioral Patterns' },
-  { key: 'SHADOW_STRATEGY',      label: 'Shadow Strategy', color: 'var(--accent)' },
-  { key: 'RULE_VIOLATIONS',      label: 'Rule Violations', color: 'var(--red)' },
-  { key: 'RECOMMENDATIONS',      label: 'Recommendations', color: 'var(--green)' },
-  { key: 'KEY_INSIGHT',          label: 'Key Insight', color: 'var(--amber)' },
+const SHADOW_SECTIONS: { key: string; labelKey: LabelKey; color?: string }[] = [
+  { key: 'IMPLICIT_RULES',       labelKey: 'TRADE_JOURNAL_SHADOW_SECTION_IMPLICIT_RULES' },
+  { key: 'BEHAVIORAL_PATTERNS',  labelKey: 'TRADE_JOURNAL_SHADOW_SECTION_BEHAVIORAL_PATTERNS' },
+  { key: 'SHADOW_STRATEGY',      labelKey: 'TRADE_JOURNAL_SHADOW_SECTION_STRATEGY', color: 'var(--accent)' },
+  { key: 'RULE_VIOLATIONS',      labelKey: 'TRADE_JOURNAL_SHADOW_SECTION_VIOLATIONS', color: 'var(--red)' },
+  { key: 'RECOMMENDATIONS',      labelKey: 'TRADE_JOURNAL_SHADOW_SECTION_RECOMMENDATIONS', color: 'var(--green)' },
+  { key: 'KEY_INSIGHT',          labelKey: 'TRADE_JOURNAL_SHADOW_SECTION_KEY_INSIGHT', color: 'var(--amber)' },
 ];
 
 function parseShadowSection(text: string, key: string): string {
@@ -147,9 +151,10 @@ function parseShadowSection(text: string, key: string): string {
 }
 
 function ShadowAccountResult({ text }: { text: string }) {
+  const { t } = useLabels();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {SHADOW_SECTIONS.map(({ key, label, color }) => {
+      {SHADOW_SECTIONS.map(({ key, labelKey, color }) => {
         const content = parseShadowSection(text, key);
         if (!content) return null;
         return (
@@ -161,7 +166,7 @@ function ShadowAccountResult({ text }: { text: string }) {
               fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
               color: color ?? 'var(--txt3)', marginBottom: 8,
             }}>
-              {label}
+              {t(labelKey)}
             </div>
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
               {content}
@@ -174,13 +179,13 @@ function ShadowAccountResult({ text }: { text: string }) {
 }
 
 /* ── Behavioral Bias ── */
-const BIAS_SECTIONS: { key: string; label: string; color?: string }[] = [
-  { key: 'DISPOSITION_EFFECT', label: 'Disposition Effect',   color: 'var(--red)' },
-  { key: 'OVERTRADING',        label: 'Overtrading',          color: 'var(--orange)' },
-  { key: 'MOMENTUM_CHASING',   label: 'Momentum Chasing',     color: 'var(--amber)' },
-  { key: 'ANCHORING_BIAS',     label: 'Anchoring Bias',       color: 'var(--accent-2)' },
-  { key: 'PNL_IMPACT',         label: 'P&L Impact by Bias',   color: 'var(--accent)' },
-  { key: 'PRIORITY_FIX',       label: 'Priority Fix',         color: 'var(--green)' },
+const BIAS_SECTIONS: { key: string; labelKey: LabelKey; color?: string }[] = [
+  { key: 'DISPOSITION_EFFECT', labelKey: 'TRADE_JOURNAL_BIAS_SECTION_DISPOSITION_EFFECT', color: 'var(--red)' },
+  { key: 'OVERTRADING',        labelKey: 'TRADE_JOURNAL_BIAS_SECTION_OVERTRADING',         color: 'var(--orange)' },
+  { key: 'MOMENTUM_CHASING',   labelKey: 'TRADE_JOURNAL_BIAS_SECTION_MOMENTUM_CHASING',    color: 'var(--amber)' },
+  { key: 'ANCHORING_BIAS',     labelKey: 'TRADE_JOURNAL_BIAS_SECTION_ANCHORING',           color: 'var(--accent-2)' },
+  { key: 'PNL_IMPACT',         labelKey: 'TRADE_JOURNAL_BIAS_SECTION_PNL_IMPACT',          color: 'var(--accent)' },
+  { key: 'PRIORITY_FIX',       labelKey: 'TRADE_JOURNAL_BIAS_SECTION_PRIORITY_FIX',        color: 'var(--green)' },
 ];
 
 function parseBiasSection(text: string, key: string): string {
@@ -189,15 +194,16 @@ function parseBiasSection(text: string, key: string): string {
 }
 
 function BiasResult({ text }: { text: string }) {
+  const { t } = useLabels();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {BIAS_SECTIONS.map(({ key, label, color }) => {
+      {BIAS_SECTIONS.map(({ key, labelKey, color }) => {
         const content = parseBiasSection(text, key);
         if (!content) return null;
         return (
           <div key={key} style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 'var(--radius-card)', padding: '12px 14px' }}>
             <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: color ?? 'var(--txt3)', marginBottom: 8 }}>
-              {label}
+              {t(labelKey)}
             </div>
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
               {content}
@@ -225,11 +231,11 @@ interface TradeThesis {
 
 const THESIS_KEY = 'lhq_theses';
 
-const THESIS_CHECK_SECTIONS: { key: string; label: string; color?: string }[] = [
-  { key: 'ASSUMPTION_CHECK', label: 'Assumption Check'            },
-  { key: 'THESIS_HEALTH',    label: 'Thesis Health Score', color: 'var(--accent)' },
-  { key: 'KEY_RISK',         label: 'Key Risk',            color: 'var(--red)' },
-  { key: 'RECOMMENDATION',   label: 'Recommendation',      color: 'var(--green)' },
+const THESIS_CHECK_SECTIONS: { key: string; labelKey: LabelKey; color?: string }[] = [
+  { key: 'ASSUMPTION_CHECK', labelKey: 'TRADE_JOURNAL_THESIS_SECTION_ASSUMPTION_CHECK' },
+  { key: 'THESIS_HEALTH',    labelKey: 'TRADE_JOURNAL_THESIS_SECTION_HEALTH_SCORE', color: 'var(--accent)' },
+  { key: 'KEY_RISK',         labelKey: 'TRADE_JOURNAL_THESIS_SECTION_KEY_RISK',      color: 'var(--red)' },
+  { key: 'RECOMMENDATION',   labelKey: 'TRADE_JOURNAL_THESIS_SECTION_RECOMMENDATION', color: 'var(--green)' },
 ];
 
 function parseThesisSection(text: string, key: string): string {
@@ -255,6 +261,7 @@ function saveTheses(ts: TradeThesis[]) {
 function Inner() {
   const sp     = useSearchParams();
   const router = useRouter();
+  const { t }  = useLabels();
 
   const [tab,       setTab]       = useState<'log' | 'history' | 'stats' | 'rules' | 'shadow' | 'bias' | 'thesis'>('log');
   const [trades,    setTrades]    = useState<Trade[]>([]);
@@ -387,18 +394,18 @@ function Inner() {
      a trade after the fact with approximate levels. */
   const levelWarnings = useMemo(() => {
     const warnings: string[] = [];
-    const e = parseFloat(entry), s = parseFloat(stopLoss), t = parseFloat(tpPrice);
+    const e = parseFloat(entry), s = parseFloat(stopLoss), tp = parseFloat(tpPrice);
     const long = direction === 'LONG';
     if (e && s) {
-      if (long && s >= e)  warnings.push(`Stop $${s} is above entry $${e} on a LONG - stop should be below entry.`);
-      if (!long && s <= e) warnings.push(`Stop $${s} is below entry $${e} on a SHORT - stop should be above entry.`);
+      if (long && s >= e)  warnings.push(t('TRADE_JOURNAL_WARN_STOP_ABOVE_ENTRY_LONG', { stop: s, entry: e }));
+      if (!long && s <= e) warnings.push(t('TRADE_JOURNAL_WARN_STOP_BELOW_ENTRY_SHORT', { stop: s, entry: e }));
     }
-    if (e && tpPrice && t) {
-      if (long && t <= e)  warnings.push(`Take-profit $${t} is at or below entry $${e} on a LONG - TP should be above entry.`);
-      if (!long && t >= e) warnings.push(`Take-profit $${t} is at or above entry $${e} on a SHORT - TP should be below entry.`);
+    if (e && tpPrice && tp) {
+      if (long && tp <= e)  warnings.push(t('TRADE_JOURNAL_WARN_TP_BELOW_ENTRY_LONG', { tp, entry: e }));
+      if (!long && tp >= e) warnings.push(t('TRADE_JOURNAL_WARN_TP_ABOVE_ENTRY_SHORT', { tp, entry: e }));
     }
     return warnings;
-  }, [entry, stopLoss, tpPrice, direction]);
+  }, [entry, stopLoss, tpPrice, direction, t]);
 
   /* Which closed trades violate at least one active rule */
   const violatingTradeIds = useMemo(() => {
@@ -406,24 +413,24 @@ function Inner() {
     if (!active.length) return new Set<string>();
     return new Set(
       trades
-        .filter(t => t.result !== 'OPEN' && t.id && active.some(r =>
+        .filter(tr => tr.result !== 'OPEN' && tr.id && active.some(r =>
           ruleViolated(r, {
-            coin:       t.coin,
-            direction:  t.direction,
-            setup_type: t.setup_type,
-            leverage:   t.leverage ?? 1,
-            session:    t.session ?? '',
+            coin:       tr.coin,
+            direction:  tr.direction,
+            setup_type: tr.setup_type,
+            leverage:   tr.leverage ?? 1,
+            session:    tr.session ?? '',
           })
         ))
-        .map(t => t.id!)
+        .map(tr => tr.id!)
     );
   }, [rules, trades]);
 
   /* Compliance score over closed trades */
   const complianceScore = useMemo(() => {
-    const closed = trades.filter(t => t.result !== 'OPEN');
+    const closed = trades.filter(tr => tr.result !== 'OPEN');
     if (!closed.length || !rules.some(r => r.enabled)) return null;
-    const clean = closed.filter(t => !violatingTradeIds.has(t.id!));
+    const clean = closed.filter(tr => !violatingTradeIds.has(tr.id!));
     return { pct: Math.round((clean.length / closed.length) * 100), clean: clean.length, total: closed.length };
   }, [trades, violatingTradeIds, rules]);
 
@@ -445,15 +452,15 @@ function Inner() {
       const json = await res.json() as { analysis?: string; error?: string; count?: number };
       if (!res.ok) {
         if (json.error === 'NEED_MORE_TRADES') {
-          setShadowError(`Need at least 5 closed trades to run analysis (you have ${json.count ?? 0}).`);
+          setShadowError(t('TRADE_JOURNAL_SHADOW_NEED_MORE_TRADES', { count: json.count ?? 0 }));
         } else {
-          setShadowError(json.error ?? 'Analysis failed');
+          setShadowError(json.error ?? t('TRADE_JOURNAL_ANALYSIS_FAILED'));
         }
       } else {
         setShadowAnalysis(json.analysis ?? null);
       }
     } catch {
-      setShadowError('Network error - try again');
+      setShadowError(t('TRADE_JOURNAL_NETWORK_ERROR'));
     } finally {
       setShadowLoading(false);
     }
@@ -478,15 +485,15 @@ function Inner() {
       const json = await res.json() as { analysis?: string; error?: string; count?: number };
       if (!res.ok) {
         if (json.error === 'NEED_MORE_TRADES') {
-          setBiasError(`Need at least 5 closed trades (you have ${json.count ?? 0}).`);
+          setBiasError(t('TRADE_JOURNAL_BIAS_NEED_MORE_TRADES', { count: json.count ?? 0 }));
         } else {
-          setBiasError(json.error ?? 'Analysis failed');
+          setBiasError(json.error ?? t('TRADE_JOURNAL_ANALYSIS_FAILED'));
         }
       } else {
         setBiasAnalysis(json.analysis ?? null);
       }
     } catch {
-      setBiasError('Network error - try again');
+      setBiasError(t('TRADE_JOURNAL_NETWORK_ERROR'));
     } finally {
       setBiasLoading(false);
     }
@@ -517,7 +524,7 @@ function Inner() {
   };
 
   const deleteThesis = (id: string) => {
-    const updated = theses.filter(t => t.id !== id);
+    const updated = theses.filter(th => th.id !== id);
     setTheses(updated);
     saveTheses(updated);
   };
@@ -546,9 +553,9 @@ function Inner() {
       if (!res.ok) return;
       const feedback = json.analysis ?? '';
       const score    = extractScore(feedback);
-      const updated  = theses.map(t => t.id === thesis.id
-        ? { ...t, lastFeedback: feedback, lastScore: score, lastScoreDate: new Date().toISOString().slice(0, 10) }
-        : t,
+      const updated  = theses.map(th => th.id === thesis.id
+        ? { ...th, lastFeedback: feedback, lastScore: score, lastScoreDate: new Date().toISOString().slice(0, 10) }
+        : th,
       );
       setTheses(updated);
       saveTheses(updated);
@@ -642,9 +649,9 @@ function Inner() {
   const deleteTrade = async (id: string) => {
     const db = getSupabase();
     if (!db) return;
-    if (!confirm('Delete this trade?')) return;
+    if (!confirm(t('TRADE_JOURNAL_CONFIRM_DELETE_TRADE'))) return;
     await db.from(T.trades).delete().eq('id', id);
-    setTrades(prev => prev.filter(t => t.id !== id));
+    setTrades(prev => prev.filter(tr => tr.id !== id));
   };
 
   const startEdit = (trade: Trade) => {
@@ -678,28 +685,28 @@ function Inner() {
 
   /* Stats */
   const stats = useMemo(() => {
-    const closed = trades.filter(t => t.result !== 'OPEN');
-    const wins   = closed.filter(t => t.result === 'WIN').length;
-    const losses = closed.filter(t => t.result === 'LOSS').length;
+    const closed = trades.filter(tr => tr.result !== 'OPEN');
+    const wins   = closed.filter(tr => tr.result === 'WIN').length;
+    const losses = closed.filter(tr => tr.result === 'LOSS').length;
     const winRate   = closed.length ? (wins / closed.length) * 100 : 0;
-    const totalPnL  = closed.reduce((s, t) => s + (t.pnl_usd ?? 0), 0);
+    const totalPnL  = closed.reduce((s, tr) => s + (tr.pnl_usd ?? 0), 0);
     const rValues   = closed.map(tradeR).filter((r): r is number => r != null);
     const avgR      = rValues.length ? rValues.reduce((s, r) => s + r, 0) / rValues.length : 0;
 
     const byCoin: Record<string, { total: number; wins: number; pnl: number }> = {};
-    closed.forEach(t => {
-      if (!byCoin[t.coin]) byCoin[t.coin] = { total: 0, wins: 0, pnl: 0 };
-      byCoin[t.coin].total++;
-      if (t.result === 'WIN') byCoin[t.coin].wins++;
-      byCoin[t.coin].pnl += t.pnl_usd ?? 0;
+    closed.forEach(tr => {
+      if (!byCoin[tr.coin]) byCoin[tr.coin] = { total: 0, wins: 0, pnl: 0 };
+      byCoin[tr.coin].total++;
+      if (tr.result === 'WIN') byCoin[tr.coin].wins++;
+      byCoin[tr.coin].pnl += tr.pnl_usd ?? 0;
     });
 
     const bySetup: Record<string, { total: number; wins: number }> = {};
-    closed.forEach(t => {
-      const s = t.setup_type || 'Other';
+    closed.forEach(tr => {
+      const s = tr.setup_type || 'Other';
       if (!bySetup[s]) bySetup[s] = { total: 0, wins: 0 };
       bySetup[s].total++;
-      if (t.result === 'WIN') bySetup[s].wins++;
+      if (tr.result === 'WIN') bySetup[s].wins++;
     });
 
     // Streaks - sort closed by created_at ascending
@@ -711,13 +718,13 @@ function Inner() {
     const cumPnL: { idx: number; value: number }[] = [];
     let running = 0;
     for (let i = 0; i < chronological.length; i++) {
-      const t = chronological[i];
-      running += t.pnl_usd ?? 0;
+      const tr = chronological[i];
+      running += tr.pnl_usd ?? 0;
       cumPnL.push({ idx: i, value: running });
 
       // BE trades are neutral - skip them for streak tracking
-      if (t.result === 'BE') continue;
-      const isWin = t.result === 'WIN';
+      if (tr.result === 'BE') continue;
+      const isWin = tr.result === 'WIN';
       const dir: 'W' | 'L' = isWin ? 'W' : 'L';
       if (dir === curDir) {
         curStreak++;
@@ -737,8 +744,8 @@ function Inner() {
   if (noDb) return (
     <div style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--txt3)', fontSize: 'var(--fs-label)' }}>
       
-      <div style={{ fontWeight: 600, marginBottom: 6 }}>Supabase not configured</div>
-      <div>Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to enable the trade journal.</div>
+      <div style={{ fontWeight: 600, marginBottom: 6 }}>{t('TRADE_JOURNAL_NO_DB_TITLE')}</div>
+      <div>{t('TRADE_JOURNAL_NO_DB_MESSAGE')}</div>
     </div>
   );
 
@@ -746,17 +753,17 @@ function Inner() {
     <div>
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
-        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Trade Journal</h1>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Log every trade · track results · build discipline</div>
+        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('TRADE_JOURNAL_PAGE_TITLE')}</h1>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('TRADE_JOURNAL_PAGE_SUBTITLE')}</div>
       </div>
 
       {/* Tabs */}
       <div className="tj-tabs">
-        <button className={`tj-tab${tab === 'log' ? ' on' : ''}`} onClick={() => setTab('log')}>+ Log Trade</button>
-        <button className={`tj-tab${tab === 'history' ? ' on' : ''}`} onClick={() => setTab('history')}>History ({trades.length})</button>
-        <button className={`tj-tab${tab === 'stats' ? ' on' : ''}`} onClick={() => setTab('stats')}>Stats</button>
+        <button className={`tj-tab${tab === 'log' ? ' on' : ''}`} onClick={() => setTab('log')}>{t('TRADE_JOURNAL_TAB_LOG')}</button>
+        <button className={`tj-tab${tab === 'history' ? ' on' : ''}`} onClick={() => setTab('history')}>{t('TRADE_JOURNAL_TAB_HISTORY', { count: trades.length })}</button>
+        <button className={`tj-tab${tab === 'stats' ? ' on' : ''}`} onClick={() => setTab('stats')}>{t('TRADE_JOURNAL_TAB_STATS')}</button>
         <button className={`tj-tab${tab === 'rules' ? ' on' : ''}`} onClick={() => setTab('rules')} style={{ position: 'relative' }}>
-          Rules{rules.filter(r => r.enabled).length > 0 && (
+          {t('TRADE_JOURNAL_TAB_RULES')}{rules.filter(r => r.enabled).length > 0 && (
             <span style={{
               marginLeft: 5, fontSize: 'var(--fs-caption)', fontWeight: 700,
               background: 'var(--accent)', color: '#fff',
@@ -764,10 +771,10 @@ function Inner() {
             }}>{rules.filter(r => r.enabled).length}</span>
           )}
         </button>
-        <button className={`tj-tab${tab === 'shadow' ? ' on' : ''}`} onClick={() => setTab('shadow')}>Shadow Account</button>
-        <button className={`tj-tab${tab === 'bias' ? ' on' : ''}`} onClick={() => setTab('bias')}>Bias Diagnostics</button>
+        <button className={`tj-tab${tab === 'shadow' ? ' on' : ''}`} onClick={() => setTab('shadow')}>{t('TRADE_JOURNAL_TAB_SHADOW')}</button>
+        <button className={`tj-tab${tab === 'bias' ? ' on' : ''}`} onClick={() => setTab('bias')}>{t('TRADE_JOURNAL_TAB_BIAS')}</button>
         <button className={`tj-tab${tab === 'thesis' ? ' on' : ''}`} onClick={() => setTab('thesis')} style={{ position: 'relative' }}>
-          Thesis Tracker{theses.length > 0 && (
+          {t('TRADE_JOURNAL_TAB_THESIS')}{theses.length > 0 && (
             <span style={{ marginLeft: 5, fontSize: 'var(--fs-caption)', fontWeight: 700, background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '1px 5px' }}>{theses.length}</span>
           )}
         </button>
@@ -778,7 +785,7 @@ function Inner() {
         <div>
           {/* Coin + Direction */}
           <div className="tj-card">
-            <div className="tj-card-lbl">Coin & Direction</div>
+            <div className="tj-card-lbl">{t('TRADE_JOURNAL_LOG_COIN_DIRECTION_LABEL')}</div>
             <div className="tj-coins">
               {COINS.map(c => (
                 <button
@@ -793,14 +800,14 @@ function Inner() {
               ))}
             </div>
             <div className="tj-dir-row">
-              <button className={`tj-dir-btn${direction === 'LONG' ? ' tj-long' : ''}`} onClick={() => setDirection('LONG')}>▲ LONG</button>
-              <button className={`tj-dir-btn${direction === 'SHORT' ? ' tj-short' : ''}`} onClick={() => setDirection('SHORT')}>▼ SHORT</button>
+              <button className={`tj-dir-btn${direction === 'LONG' ? ' tj-long' : ''}`} onClick={() => setDirection('LONG')}>▲ {t('TRADE_JOURNAL_LOG_DIR_LONG_BUTTON')}</button>
+              <button className={`tj-dir-btn${direction === 'SHORT' ? ' tj-short' : ''}`} onClick={() => setDirection('SHORT')}>▼ {t('TRADE_JOURNAL_LOG_DIR_SHORT_BUTTON')}</button>
             </div>
           </div>
 
           {/* Setup type */}
           <div className="tj-card">
-            <div className="tj-card-lbl">Setup Type</div>
+            <div className="tj-card-lbl">{t('TRADE_JOURNAL_LOG_SETUP_TYPE_LABEL')}</div>
             <div className="tj-setups">
               {SETUPS.map(s => (
                 <button key={s} className={`tj-setup-btn${setup === s ? ' on' : ''}`} onClick={() => setSetup(s)}>{s}</button>
@@ -810,36 +817,36 @@ function Inner() {
 
           {/* Price levels */}
           <div className="tj-card">
-            <div className="tj-card-lbl">Price Levels</div>
+            <div className="tj-card-lbl">{t('TRADE_JOURNAL_LOG_PRICE_LEVELS_LABEL')}</div>
             <div className="tj-price-grid">
               <div className="tj-field">
-                <label className="tj-lbl">Entry *</label>
+                <label className="tj-lbl">{t('TRADE_JOURNAL_LOG_ENTRY_LABEL')}</label>
                 <div className="tj-irow"><span className="tj-affix">$</span>
-                  <input className="tj-inp" aria-label="Entry" type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
+                  <input className="tj-inp" aria-label={t('TRADE_JOURNAL_LOG_ENTRY_ARIA')} type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
                 </div>
               </div>
               <div className="tj-field">
-                <label className="tj-lbl">Stop Loss *</label>
+                <label className="tj-lbl">{t('TRADE_JOURNAL_LOG_STOP_LOSS_LABEL')}</label>
                 <div className="tj-irow"><span className="tj-affix">$</span>
-                  <input className="tj-inp tj-inp-stop" aria-label="Stop Loss" type="number" placeholder="0.00" value={stopLoss} onChange={e => setStopLoss(e.target.value)} />
+                  <input className="tj-inp tj-inp-stop" aria-label={t('TRADE_JOURNAL_LOG_STOP_LOSS_ARIA')} type="number" placeholder="0.00" value={stopLoss} onChange={e => setStopLoss(e.target.value)} />
                 </div>
               </div>
               <div className="tj-field">
-                <label className="tj-lbl">Take Profit</label>
+                <label className="tj-lbl">{t('TRADE_JOURNAL_LOG_TAKE_PROFIT_LABEL')}</label>
                 <div className="tj-irow"><span className="tj-affix">$</span>
-                  <input className="tj-inp tj-inp-tp" aria-label="Take Profit" type="number" placeholder="0.00" value={tpPrice} onChange={e => setTpPrice(e.target.value)} />
+                  <input className="tj-inp tj-inp-tp" aria-label={t('TRADE_JOURNAL_LOG_TAKE_PROFIT_LABEL')} type="number" placeholder="0.00" value={tpPrice} onChange={e => setTpPrice(e.target.value)} />
                 </div>
               </div>
               <div className="tj-field">
-                <label className="tj-lbl">Position Size ($)</label>
+                <label className="tj-lbl">{t('TRADE_JOURNAL_LOG_POSITION_SIZE_LABEL')}</label>
                 <div className="tj-irow"><span className="tj-affix">$</span>
-                  <input className="tj-inp" aria-label="Position Size" type="number" placeholder="from calc" value={posUSD} onChange={e => setPosUSD(e.target.value)} />
+                  <input className="tj-inp" aria-label={t('TRADE_JOURNAL_LOG_POSITION_SIZE_ARIA')} type="number" placeholder={t('TRADE_JOURNAL_LOG_POSITION_SIZE_PLACEHOLDER')} value={posUSD} onChange={e => setPosUSD(e.target.value)} />
                 </div>
               </div>
             </div>
             {riskUsd != null && (
               <div className="tj-autofill">
-                ✓ Risk: ${riskUsd.toFixed(2)}{riskFromLevels == null ? ' (auto from Position Sizer)' : ''}
+                {t('TRADE_JOURNAL_LOG_RISK_LINE', { amount: riskUsd.toFixed(2) })}{riskFromLevels == null ? ` ${t('TRADE_JOURNAL_LOG_RISK_AUTO_SUFFIX')}` : ''}
               </div>
             )}
           </div>
@@ -851,22 +858,22 @@ function Inner() {
             const trackBg  = `linear-gradient(to right, ${levColor} 0%, ${levColor} ${levPct}%, rgba(255,255,255,0.08) ${levPct}%, rgba(255,255,255,0.08) 100%)`;
             return (
               <div className="tj-card">
-                <div className="tj-card-lbl" style={{ margin: '0 0 14px' }}>Leverage</div>
+                <div className="tj-card-lbl" style={{ margin: '0 0 14px' }}>{t('TRADE_JOURNAL_LOG_LEVERAGE_LABEL')}</div>
 
                 {/* Slider */}
                 <div className="tj-lev-slider-wrap">
                   <input
                     type="range"
                     className="tj-lev-slider"
-                    aria-label="Leverage"
+                    aria-label={t('TRADE_JOURNAL_LOG_LEVERAGE_LABEL')}
                     min={1} max={125} step={1}
                     value={leverage}
                     onChange={e => setLeverage(Number(e.target.value))}
                     style={{ background: trackBg, color: levColor }}
                   />
                   <div className="tj-lev-ticks">
-                    {['1×', '25×', '50×', '75×', '100×', '125×'].map(t => (
-                      <span key={t}>{t}</span>
+                    {['1×', '25×', '50×', '75×', '100×', '125×'].map(tick => (
+                      <span key={tick}>{tick}</span>
                     ))}
                   </div>
                 </div>
@@ -888,7 +895,7 @@ function Inner() {
                   <input
                     type="number"
                     className="tj-lev-num"
-                    aria-label="Leverage value"
+                    aria-label={t('TRADE_JOURNAL_LOG_LEVERAGE_VALUE_ARIA')}
                     min={1} max={125}
                     value={leverage}
                     onChange={e => setLeverage(Math.max(1, Math.min(125, parseInt(e.target.value) || 1)))}
@@ -900,10 +907,10 @@ function Inner() {
                   <div className="tj-lev-warn" style={{ color: levColor, display: 'flex', alignItems: 'center', gap: 5 }}>
                     <Warn />
                     {leverage >= 75
-                      ? 'Liquidation risk is extreme - positions can vanish instantly'
+                      ? t('TRADE_JOURNAL_LOG_LEV_WARN_EXTREME')
                       : leverage >= 50
-                      ? 'Very high leverage - use micro position sizes only'
-                      : 'High leverage - ensure your stop loss is tight'}
+                      ? t('TRADE_JOURNAL_LOG_LEV_WARN_VERY_HIGH')
+                      : t('TRADE_JOURNAL_LOG_LEV_WARN_HIGH')}
                   </div>
                 )}
               </div>
@@ -912,12 +919,12 @@ function Inner() {
 
           {/* Notes */}
           <div className="tj-card">
-            <div className="tj-card-lbl">Notes</div>
+            <div className="tj-card-lbl">{t('TRADE_JOURNAL_LOG_NOTES_LABEL')}</div>
             <textarea
               className="tj-notes"
-              aria-label="Trade notes"
+              aria-label={t('TRADE_JOURNAL_LOG_NOTES_ARIA')}
               rows={3}
-              placeholder="Why you took this trade, market context, setup quality…"
+              placeholder={t('TRADE_JOURNAL_LOG_NOTES_PLACEHOLDER')}
               value={notes}
               onChange={e => setNotes(e.target.value)}
             />
@@ -929,7 +936,7 @@ function Inner() {
               borderRadius: 8, padding: '10px 12px', marginBottom: 12,
             }}>
               <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#f59e0b', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
-                <Warn /> Price levels don&apos;t match direction
+                <Warn /> {t('TRADE_JOURNAL_LOG_LEVEL_WARNINGS_TITLE')}
               </div>
               {levelWarnings.map((w, i) => (
                 <div key={i} style={{ fontSize: 'var(--fs-caption)', color: '#f59e0b', opacity: 0.85, lineHeight: 1.5 }}>
@@ -945,18 +952,22 @@ function Inner() {
               borderRadius: 8, padding: '10px 12px', marginBottom: 12,
             }}>
               <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#f87171', marginBottom: 6 }}>
-                Rule violation{activeViolations.length > 1 ? 's' : ''} - review before logging
+                {t('TRADE_JOURNAL_LOG_RULE_VIOLATION_TITLE', { plural: activeViolations.length > 1 ? 's' : '' })}
               </div>
               {activeViolations.map(r => (
                 <div key={r.id} style={{ fontSize: 'var(--fs-caption)', color: '#f87171', opacity: 0.85, lineHeight: 1.5 }}>
-                  · {r.name} ({ruleLabel(r)})
+                  · {r.name} ({ruleLabel(r, t)})
                 </div>
               ))}
             </div>
           )}
 
           <button className="tj-submit" onClick={saveTrade} disabled={saving || !entry || !stopLoss}>
-            {saving ? 'Saving…' : activeViolations.length > 0 ? `Log Trade (${activeViolations.length} violation${activeViolations.length > 1 ? 's' : ''})` : 'Log Trade'}
+            {saving
+              ? t('TRADE_JOURNAL_LOG_SAVING_BUTTON')
+              : activeViolations.length > 0
+              ? t('TRADE_JOURNAL_LOG_SUBMIT_WITH_VIOLATIONS', { count: activeViolations.length, plural: activeViolations.length > 1 ? 's' : '' })
+              : t('TRADE_JOURNAL_LOG_SUBMIT_BUTTON')}
           </button>
         </div>
       )}
@@ -964,23 +975,23 @@ function Inner() {
       {/* ──────── HISTORY TAB ──────── */}
       {tab === 'history' && (
         <div>
-          {loading && <LoadingState message="Loading trades…" />}
+          {loading && <LoadingState message={t('TRADE_JOURNAL_HISTORY_LOADING_MESSAGE')} />}
           {!loading && trades.length === 0 && (
             <div style={{
               border: '0.5px solid var(--bdr)', borderRadius: 10,
               padding: '24px 20px', margin: '8px 0', textAlign: 'center',
             }}>
               <div style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt)', marginBottom: 8 }}>
-                Your trade history starts here
+                {t('TRADE_JOURNAL_HISTORY_EMPTY_TITLE')}
               </div>
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.65, marginBottom: 16, maxWidth: 320, margin: '0 auto 16px' }}>
-                Log your first trade to start tracking P&amp;L, win rate, R-factor, and behavioral patterns across your entire trading history.
+                {t('TRADE_JOURNAL_HISTORY_EMPTY_DESC')}
               </div>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginBottom: 18, flexWrap: 'wrap' }}>
-                {(['Track P&L and R-factor', 'Win rate by setup type', 'Spot your behavioral biases'] as const).map(item => (
-                  <span key={item} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                {(['TRADE_JOURNAL_HISTORY_EMPTY_BULLET_PNL', 'TRADE_JOURNAL_HISTORY_EMPTY_BULLET_WINRATE', 'TRADE_JOURNAL_HISTORY_EMPTY_BULLET_BIAS'] as const).map(bulletKey => (
+                  <span key={bulletKey} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', flexShrink: 0 }} />
-                    {item}
+                    {t(bulletKey)}
                   </span>
                 ))}
               </div>
@@ -993,7 +1004,7 @@ function Inner() {
                   cursor: 'pointer',
                 }}
               >
-                Log your first trade →
+                {t('TRADE_JOURNAL_HISTORY_EMPTY_CTA')} →
               </button>
             </div>
           )}
@@ -1022,30 +1033,30 @@ function Inner() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span className={`tj-result-badge tj-rb-${trade.result.toLowerCase()}`}>{trade.result}</span>
                   {trade.id && violatingTradeIds.has(trade.id) && (
-                    <span title="Violated one or more active rules" style={{
+                    <span title={t('TRADE_JOURNAL_HISTORY_RULE_VIOLATION_TITLE')} style={{
                       fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '0.05em',
                       background: 'rgba(248,113,113,0.12)', color: '#f87171',
                       border: '0.5px solid rgba(248,113,113,0.3)',
                       borderRadius: 4, padding: '2px 5px',
-                    }}>RULE</span>
+                    }}>{t('TRADE_JOURNAL_HISTORY_RULE_BADGE')}</span>
                   )}
-                  <button className="tj-edit-btn" title="Edit" onClick={() => editingId === trade.id ? setEditingId(null) : startEdit(trade)}>✎</button>
+                  <button className="tj-edit-btn" title={t('TRADE_JOURNAL_HISTORY_EDIT_TITLE')} onClick={() => editingId === trade.id ? setEditingId(null) : startEdit(trade)}>✎</button>
                   <button className="tj-del-btn" onClick={() => trade.id && deleteTrade(trade.id)}>✕</button>
                 </div>
               </div>
 
               <div className="tj-trade-prices">
-                <div className="tj-tp"><span className="tj-tp-lbl">Entry</span><span className="tj-tp-val">${trade.entry_price.toLocaleString()}</span></div>
-                <div className="tj-tp"><span className="tj-tp-lbl">Stop</span><span className="tj-tp-val" style={{ color: '#f87171' }}>${trade.stop_loss.toLocaleString()}</span></div>
+                <div className="tj-tp"><span className="tj-tp-lbl">{t('TRADE_JOURNAL_HISTORY_TP_ENTRY_LABEL')}</span><span className="tj-tp-val">${trade.entry_price.toLocaleString()}</span></div>
+                <div className="tj-tp"><span className="tj-tp-lbl">{t('TRADE_JOURNAL_HISTORY_TP_STOP_LABEL')}</span><span className="tj-tp-val" style={{ color: '#f87171' }}>${trade.stop_loss.toLocaleString()}</span></div>
                 {trade.take_profit != null && (
-                  <div className="tj-tp"><span className="tj-tp-lbl">TP</span><span className="tj-tp-val" style={{ color: '#34d399' }}>${trade.take_profit.toLocaleString()}</span></div>
+                  <div className="tj-tp"><span className="tj-tp-lbl">{t('TRADE_JOURNAL_HISTORY_TP_TP_LABEL')}</span><span className="tj-tp-val" style={{ color: '#34d399' }}>${trade.take_profit.toLocaleString()}</span></div>
                 )}
                 {trade.exit_price != null && (
-                  <div className="tj-tp"><span className="tj-tp-lbl">Exit</span><span className="tj-tp-val">${trade.exit_price.toLocaleString()}</span></div>
+                  <div className="tj-tp"><span className="tj-tp-lbl">{t('TRADE_JOURNAL_HISTORY_TP_EXIT_LABEL')}</span><span className="tj-tp-val">${trade.exit_price.toLocaleString()}</span></div>
                 )}
                 {trade.pnl_usd != null && (
                   <div className="tj-tp">
-                    <span className="tj-tp-lbl">P&amp;L</span>
+                    <span className="tj-tp-lbl">{t('TRADE_JOURNAL_HISTORY_TP_PNL_LABEL')}</span>
                     <span className="tj-tp-val" style={{ color: trade.pnl_usd >= 0 ? '#34d399' : '#f87171' }}>
                       {fmtUSD(trade.pnl_usd)}
                     </span>
@@ -1056,7 +1067,7 @@ function Inner() {
                   if (r == null || Math.abs(r) < 0.005) return null;
                   return (
                     <div className="tj-tp">
-                      <span className="tj-tp-lbl">R</span>
+                      <span className="tj-tp-lbl">{t('TRADE_JOURNAL_HISTORY_TP_R_LABEL')}</span>
                       <span className="tj-tp-val" style={{ color: r >= 0 ? '#34d399' : '#f87171' }}>
                         {r >= 0 ? '+' : ''}{r.toFixed(2)}R
                       </span>
@@ -1081,19 +1092,19 @@ function Inner() {
                       <input
                         className="tj-inp"
                         type="number"
-                        placeholder="Exit price"
+                        placeholder={t('TRADE_JOURNAL_HISTORY_EXIT_PRICE_PLACEHOLDER')}
                         value={exitInput}
                         onChange={e => setExitInput(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && closeTrade(trade)}
                         autoFocus
                       />
                     </div>
-                    <button className="tj-confirm-btn" onClick={() => closeTrade(trade)}>✓ Close</button>
-                    <button className="tj-cancel-btn" onClick={() => { setClosingId(null); setExitInput(''); }}>Cancel</button>
+                    <button className="tj-confirm-btn" onClick={() => closeTrade(trade)}>✓ {t('TRADE_JOURNAL_HISTORY_CLOSE_CONFIRM_BUTTON')}</button>
+                    <button className="tj-cancel-btn" onClick={() => { setClosingId(null); setExitInput(''); }}>{t('TRADE_JOURNAL_HISTORY_CANCEL_BUTTON')}</button>
                   </div>
                 ) : (
                   <button className="tj-close-btn" onClick={() => setClosingId(trade.id ?? null)}>
-                    Close Trade →
+                    {t('TRADE_JOURNAL_HISTORY_CLOSE_TRADE_BUTTON')} →
                   </button>
                 )
               )}
@@ -1103,19 +1114,24 @@ function Inner() {
                 <div className="tj-edit-form">
                   <div className="tj-edit-row">
                     <div className="tj-edit-field">
-                      <label className="tj-lbl">Result</label>
+                      <label className="tj-lbl">{t('TRADE_JOURNAL_HISTORY_EDIT_RESULT_LABEL')}</label>
                       <select
                         className="tj-edit-select"
                         value={editDraft.result}
                         onChange={e => setEditDraft(p => ({ ...p, result: e.target.value as TradeResult }))}
                       >
                         {(['OPEN','WIN','LOSS','BE'] as TradeResult[]).map(r => (
-                          <option key={r} value={r}>{r}</option>
+                          <option key={r} value={r}>
+                            {r === 'OPEN' ? t('TRADE_JOURNAL_HISTORY_RESULT_OPEN')
+                              : r === 'WIN' ? t('TRADE_JOURNAL_HISTORY_RESULT_WIN')
+                              : r === 'LOSS' ? t('TRADE_JOURNAL_HISTORY_RESULT_LOSS')
+                              : t('TRADE_JOURNAL_HISTORY_RESULT_BE')}
+                          </option>
                         ))}
                       </select>
                     </div>
                     <div className="tj-edit-field">
-                      <label className="tj-lbl">Exit Price</label>
+                      <label className="tj-lbl">{t('TRADE_JOURNAL_HISTORY_EDIT_EXIT_PRICE_LABEL')}</label>
                       <div className="tj-irow"><span className="tj-affix">$</span>
                         <input className="tj-inp" type="number" placeholder="0.00"
                           value={editDraft.exit_price}
@@ -1123,7 +1139,7 @@ function Inner() {
                       </div>
                     </div>
                     <div className="tj-edit-field">
-                      <label className="tj-lbl">P&amp;L ($)</label>
+                      <label className="tj-lbl">{t('TRADE_JOURNAL_HISTORY_EDIT_PNL_LABEL')}</label>
                       <div className="tj-irow"><span className="tj-affix">$</span>
                         <input className="tj-inp" type="number" placeholder="0.00"
                           value={editDraft.pnl_usd}
@@ -1132,14 +1148,14 @@ function Inner() {
                     </div>
                   </div>
                   <div className="tj-edit-field" style={{ marginTop: 8 }}>
-                    <label className="tj-lbl">Notes</label>
+                    <label className="tj-lbl">{t('TRADE_JOURNAL_HISTORY_EDIT_NOTES_LABEL')}</label>
                     <textarea className="tj-notes" rows={2}
                       value={editDraft.notes}
                       onChange={e => setEditDraft(p => ({ ...p, notes: e.target.value }))} />
                   </div>
                   <div className="tj-edit-btns">
-                    <button className="tj-confirm-btn" onClick={() => saveEdit(trade)}>Save</button>
-                    <button className="tj-cancel-btn" onClick={() => setEditingId(null)}>Cancel</button>
+                    <button className="tj-confirm-btn" onClick={() => saveEdit(trade)}>{t('TRADE_JOURNAL_HISTORY_SAVE_BUTTON')}</button>
+                    <button className="tj-cancel-btn" onClick={() => setEditingId(null)}>{t('TRADE_JOURNAL_HISTORY_CANCEL_BUTTON')}</button>
                   </div>
                 </div>
               )}
@@ -1154,7 +1170,11 @@ function Inner() {
               borderTop: '0.5px solid var(--bdr)',
             }}>
               <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontFamily: 'var(--font-mono), monospace' }}>
-                {historyPageSafe * HISTORY_PAGE_SIZE + 1}–{Math.min(trades.length, historyPageSafe * HISTORY_PAGE_SIZE + HISTORY_PAGE_SIZE)} of {trades.length}
+                {t('TRADE_JOURNAL_HISTORY_PAGE_RANGE', {
+                  start: historyPageSafe * HISTORY_PAGE_SIZE + 1,
+                  end: Math.min(trades.length, historyPageSafe * HISTORY_PAGE_SIZE + HISTORY_PAGE_SIZE),
+                  total: trades.length,
+                })}
               </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <button
@@ -1167,7 +1187,7 @@ function Inner() {
                     cursor: historyPageSafe === 0 ? 'default' : 'pointer', opacity: historyPageSafe === 0 ? 0.4 : 1,
                   }}
                 >
-                  ← Prev
+                  ← {t('TRADE_JOURNAL_HISTORY_PREV_BUTTON')}
                 </button>
                 {Array.from({ length: historyPageCount }, (_, i) => i).map(i => (
                   <button
@@ -1194,7 +1214,7 @@ function Inner() {
                     cursor: historyPageSafe >= historyPageCount - 1 ? 'default' : 'pointer', opacity: historyPageSafe >= historyPageCount - 1 ? 0.4 : 1,
                   }}
                 >
-                  Next →
+                  {t('TRADE_JOURNAL_HISTORY_NEXT_BUTTON')} →
                 </button>
               </div>
             </div>
@@ -1208,15 +1228,15 @@ function Inner() {
 
           {/* Header */}
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Trading Rules</div>
+            <div style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>{t('TRADE_JOURNAL_RULES_PAGE_TITLE')}</div>
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-              Define your rules - violations flag in real time when logging a trade and badge past trades in History.
+              {t('TRADE_JOURNAL_RULES_PAGE_SUBTITLE')}
             </div>
           </div>
 
           {/* Quick-add presets */}
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 8 }}>Quick Add</div>
+            <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 8 }}>{t('TRADE_JOURNAL_RULES_QUICK_ADD_LABEL')}</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {RULE_PRESETS.map(p => {
                 const exists = rules.some(r => r.name === p.name);
@@ -1233,7 +1253,7 @@ function Inner() {
                       cursor: exists ? 'default' : 'pointer', opacity: exists ? 0.4 : 1,
                     }}
                   >
-                    {exists ? '✓ ' : '+ '}{p.name}
+                    {exists ? '✓ ' : '+ '}{t(p.labelKey)}
                   </button>
                 );
               })}
@@ -1244,7 +1264,7 @@ function Inner() {
           {rules.length > 0 && (
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 8 }}>
-                Active Rules ({rules.filter(r => r.enabled).length} of {rules.length} enabled)
+                {t('TRADE_JOURNAL_RULES_ACTIVE_RULES_LABEL', { enabled: rules.filter(r => r.enabled).length, total: rules.length })}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {rules.map(r => (
@@ -1255,7 +1275,7 @@ function Inner() {
                   }}>
                     <button
                       onClick={() => toggleRule(r.id)}
-                      title={r.enabled ? 'Disable' : 'Enable'}
+                      title={r.enabled ? t('TRADE_JOURNAL_RULES_TOGGLE_DISABLE_TITLE') : t('TRADE_JOURNAL_RULES_TOGGLE_ENABLE_TITLE')}
                       style={{
                         width: 28, height: 16, borderRadius: 8, flexShrink: 0, cursor: 'pointer',
                         background: r.enabled ? 'var(--accent)' : 'rgba(255,255,255,0.12)',
@@ -1270,7 +1290,7 @@ function Inner() {
                     </button>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)', marginBottom: 1 }}>{r.name}</div>
-                      <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontFamily: 'var(--font-mono), monospace' }}>{ruleLabel(r)}</div>
+                      <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontFamily: 'var(--font-mono), monospace' }}>{ruleLabel(r, t)}</div>
                     </div>
                     <button
                       onClick={() => deleteRule(r.id)}
@@ -1283,7 +1303,7 @@ function Inner() {
           )}
 
           {rules.length === 0 && (
-            <div style={{ color: 'var(--txt3)', fontSize: 'var(--fs-caption)', marginBottom: 16 }}>No rules yet - add a preset above or create a custom rule below.</div>
+            <div style={{ color: 'var(--txt3)', fontSize: 'var(--fs-caption)', marginBottom: 16 }}>{t('TRADE_JOURNAL_RULES_EMPTY_STATE')}</div>
           )}
 
           {/* Custom rule form */}
@@ -1295,7 +1315,7 @@ function Inner() {
               color: 'var(--txt2)', cursor: 'pointer', marginBottom: showRuleForm ? 12 : 0,
             }}
           >
-            {showRuleForm ? '− Cancel' : '+ Custom Rule'}
+            {showRuleForm ? `− ${t('TRADE_JOURNAL_RULES_CANCEL_BUTTON')}` : `+ ${t('TRADE_JOURNAL_RULES_CUSTOM_RULE_BUTTON')}`}
           </button>
 
           {showRuleForm && (
@@ -1303,7 +1323,7 @@ function Inner() {
               background: 'var(--bg1)', border: '0.5px solid var(--bdr)',
               borderRadius: 8, padding: '12px 14px',
             }}>
-              <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 10 }}>New Rule</div>
+              <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 10 }}>{t('TRADE_JOURNAL_RULES_FORM_TITLE')}</div>
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
                 {/* Field */}
@@ -1312,8 +1332,8 @@ function Inner() {
                   onChange={e => { setRuleField(e.target.value as RuleField); setRuleValue(''); }}
                   style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
                 >
-                  {(Object.entries(RULE_FIELD_LABELS) as [RuleField, string][]).map(([k, v]) => (
-                    <option key={k} value={k}>{v}</option>
+                  {(Object.entries(RULE_FIELD_LABEL_KEYS) as [RuleField, LabelKey][]).map(([k, v]) => (
+                    <option key={k} value={k}>{t(v)}</option>
                   ))}
                 </select>
 
@@ -1327,7 +1347,7 @@ function Inner() {
                     ? (['lte', 'gte'] as RuleOperator[])
                     : (['is', 'is_not'] as RuleOperator[])
                   ).map(op => (
-                    <option key={op} value={op}>{RULE_OP_LABELS[op]}</option>
+                    <option key={op} value={op}>{t(RULE_OP_LABEL_KEYS[op])}</option>
                   ))}
                 </select>
 
@@ -1338,7 +1358,7 @@ function Inner() {
                     onChange={e => setRuleValue(e.target.value)}
                     style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
                   >
-                    <option value="">Select coin</option>
+                    <option value="">{t('TRADE_JOURNAL_RULES_SELECT_COIN_PLACEHOLDER')}</option>
                     {COINS.map(c => <option key={c} value={c}>{c.toUpperCase()}</option>)}
                   </select>
                 )}
@@ -1348,9 +1368,9 @@ function Inner() {
                     onChange={e => setRuleValue(e.target.value)}
                     style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
                   >
-                    <option value="">Select direction</option>
-                    <option value="LONG">LONG</option>
-                    <option value="SHORT">SHORT</option>
+                    <option value="">{t('TRADE_JOURNAL_RULES_SELECT_DIRECTION_PLACEHOLDER')}</option>
+                    <option value="LONG">{t('TRADE_JOURNAL_RULES_DIRECTION_LONG')}</option>
+                    <option value="SHORT">{t('TRADE_JOURNAL_RULES_DIRECTION_SHORT')}</option>
                   </select>
                 )}
                 {ruleField === 'setup_type' && (
@@ -1359,7 +1379,7 @@ function Inner() {
                     onChange={e => setRuleValue(e.target.value)}
                     style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
                   >
-                    <option value="">Select setup</option>
+                    <option value="">{t('TRADE_JOURNAL_RULES_SELECT_SETUP_PLACEHOLDER')}</option>
                     {SETUPS.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 )}
@@ -1369,7 +1389,7 @@ function Inner() {
                     onChange={e => setRuleValue(e.target.value)}
                     style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
                   >
-                    <option value="">Select session</option>
+                    <option value="">{t('TRADE_JOURNAL_RULES_SELECT_SESSION_PLACEHOLDER')}</option>
                     {SESSIONS.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 )}
@@ -1378,7 +1398,7 @@ function Inner() {
                     type="number" min={1} max={125}
                     value={ruleValue}
                     onChange={e => setRuleValue(e.target.value)}
-                    placeholder="e.g. 20"
+                    placeholder={t('TRADE_JOURNAL_RULES_LEVERAGE_PLACEHOLDER')}
                     style={{ width: 70, padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)' }}
                   />
                 )}
@@ -1386,7 +1406,7 @@ function Inner() {
 
               <input
                 type="text"
-                placeholder="Rule name (e.g. No high leverage)"
+                placeholder={t('TRADE_JOURNAL_RULES_NAME_PLACEHOLDER')}
                 value={ruleName}
                 onChange={e => setRuleName(e.target.value)}
                 style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', marginBottom: 10, outline: 'none' }}
@@ -1406,7 +1426,7 @@ function Inner() {
                   border: `0.5px solid ${!ruleValue || !ruleName.trim() ? 'var(--bdr)' : 'var(--accent-bdr)'}`,
                 }}
               >
-                Add Rule
+                {t('TRADE_JOURNAL_RULES_ADD_RULE_BUTTON')}
               </button>
             </div>
           )}
@@ -1417,9 +1437,9 @@ function Inner() {
       {tab === 'shadow' && (
         <div>
           <div style={{ padding: '12px 0 16px' }}>
-            <div style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Shadow Account</div>
+            <div style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>{t('TRADE_JOURNAL_SHADOW_PAGE_TITLE')}</div>
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 16, maxWidth: 520 }}>
-              AI analysis of your trade history - extracts your implicit trading rules, identifies your best and worst patterns, flags rule violations, and shows what your stats would look like if you only took your highest-probability setups.
+              {t('TRADE_JOURNAL_SHADOW_PAGE_SUBTITLE')}
             </div>
             {!shadowAnalysis && (
               <button
@@ -1433,7 +1453,7 @@ function Inner() {
                   cursor: shadowLoading ? 'default' : 'pointer',
                 }}
               >
-                {shadowLoading ? 'Analyzing your trades…' : 'Analyze My Trades'}
+                {shadowLoading ? t('TRADE_JOURNAL_SHADOW_ANALYZING_BUTTON') : t('TRADE_JOURNAL_SHADOW_ANALYZE_BUTTON')}
               </button>
             )}
             {shadowAnalysis && (
@@ -1445,7 +1465,7 @@ function Inner() {
                   padding: '6px 12px', fontSize: 'var(--fs-caption)', cursor: 'pointer', marginBottom: 16,
                 }}
               >
-                Re-run Analysis
+                {t('TRADE_JOURNAL_SHADOW_RERUN_BUTTON')}
               </button>
             )}
             {shadowError && (
@@ -1461,9 +1481,9 @@ function Inner() {
       {tab === 'bias' && (
         <div>
           <div style={{ padding: '12px 0 16px' }}>
-            <div style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Behavioral Bias Diagnostics</div>
+            <div style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>{t('TRADE_JOURNAL_BIAS_PAGE_TITLE')}</div>
             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 16, maxWidth: 520 }}>
-              Analyzes your trade history for the four most damaging trader biases - disposition effect, overtrading, momentum chasing, and anchoring - with specific examples from your actual trades and estimated P&L drag per bias.
+              {t('TRADE_JOURNAL_BIAS_PAGE_SUBTITLE')}
             </div>
             {!biasAnalysis && (
               <button
@@ -1477,7 +1497,7 @@ function Inner() {
                   cursor: biasLoading ? 'default' : 'pointer',
                 }}
               >
-                {biasLoading ? 'Analyzing your trades…' : 'Run Bias Diagnostics'}
+                {biasLoading ? t('TRADE_JOURNAL_BIAS_ANALYZING_BUTTON') : t('TRADE_JOURNAL_BIAS_RUN_BUTTON')}
               </button>
             )}
             {biasAnalysis && (
@@ -1485,7 +1505,7 @@ function Inner() {
                 onClick={() => { setBiasAnalysis(null); setBiasError(null); }}
                 style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '6px 12px', fontSize: 'var(--fs-caption)', cursor: 'pointer', marginBottom: 16 }}
               >
-                Re-run Analysis
+                {t('TRADE_JOURNAL_BIAS_RERUN_BUTTON')}
               </button>
             )}
             {biasError && (
@@ -1501,9 +1521,9 @@ function Inner() {
         <div>
           <div style={{ padding: '12px 0 4px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div>
-              <div style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>Thesis Tracker</div>
+              <div style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>{t('TRADE_JOURNAL_THESIS_PAGE_TITLE')}</div>
               <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', maxWidth: 480 }}>
-                Write a trade thesis with measurable assumptions. Grok checks whether your assumptions still hold and scores thesis health 1-10.
+                {t('TRADE_JOURNAL_THESIS_PAGE_SUBTITLE')}
               </div>
             </div>
             <button
@@ -1515,19 +1535,19 @@ function Inner() {
                 borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-caption)', fontWeight: 700, cursor: 'pointer', flexShrink: 0,
               }}
             >
-              {showThesisForm ? 'Cancel' : '+ New Thesis'}
+              {showThesisForm ? t('TRADE_JOURNAL_THESIS_CANCEL_BUTTON') : t('TRADE_JOURNAL_THESIS_NEW_BUTTON')}
             </button>
           </div>
 
           {/* New thesis form */}
           {showThesisForm && (
             <div style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 'var(--radius-card)', padding: '14px', marginBottom: 16, marginTop: 12 }}>
-              <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>New Thesis</div>
+              <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>{t('TRADE_JOURNAL_THESIS_FORM_TITLE')}</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
                 <input
                   value={thesisFormSymbol}
                   onChange={e => setThesisFormSymbol(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))}
-                  placeholder="Ticker (e.g. BTC)"
+                  placeholder={t('TRADE_JOURNAL_THESIS_TICKER_PLACEHOLDER')}
                   maxLength={10}
                   style={{ width: 110, padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', outline: 'none', fontFamily: 'var(--font-mono), monospace', fontWeight: 700 }}
                 />
@@ -1536,8 +1556,8 @@ function Inner() {
                   onChange={e => setThesisFormDirection(e.target.value as 'LONG' | 'SHORT')}
                   style={{ padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
                 >
-                  <option value="LONG">LONG</option>
-                  <option value="SHORT">SHORT</option>
+                  <option value="LONG">{t('TRADE_JOURNAL_THESIS_DIRECTION_LONG')}</option>
+                  <option value="SHORT">{t('TRADE_JOURNAL_THESIS_DIRECTION_SHORT')}</option>
                 </select>
                 <input
                   type="date"
@@ -1549,12 +1569,12 @@ function Inner() {
               <textarea
                 value={thesisFormText}
                 onChange={e => setThesisFormText(e.target.value)}
-                placeholder="Your trade thesis - why are you taking this position? What is the setup?"
+                placeholder={t('TRADE_JOURNAL_THESIS_TEXT_PLACEHOLDER')}
                 rows={3}
                 style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', resize: 'vertical', outline: 'none', marginBottom: 10 }}
               />
               <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
-                Measurable Assumptions (3-5) - these get checked by Grok
+                {t('TRADE_JOURNAL_THESIS_ASSUMPTIONS_LABEL')}
               </div>
               {thesisFormAssumptions.map((a, i) => (
                 <input
@@ -1565,7 +1585,7 @@ function Inner() {
                     copy[i] = e.target.value;
                     setThesisFormAssumptions(copy);
                   }}
-                  placeholder={`Assumption ${i + 1} - e.g. "BTC holds above $95k support"`}
+                  placeholder={t('TRADE_JOURNAL_THESIS_ASSUMPTION_PLACEHOLDER', { n: i + 1 })}
                   style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', outline: 'none', marginBottom: 6 }}
                 />
               ))}
@@ -1575,7 +1595,7 @@ function Inner() {
                     onClick={() => setThesisFormAssumptions(a => [...a, ''])}
                     style={{ fontSize: 'var(--fs-caption)', color: '#1a7aff', background: 'transparent', border: '0.5px solid rgba(26,122,255,0.3)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
                   >
-                    + Add Assumption
+                    {t('TRADE_JOURNAL_THESIS_ADD_ASSUMPTION_BUTTON')}
                   </button>
                 )}
                 {thesisFormAssumptions.length > 1 && (
@@ -1583,7 +1603,7 @@ function Inner() {
                     onClick={() => setThesisFormAssumptions(a => a.slice(0, -1))}
                     style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
                   >
-                    Remove Last
+                    {t('TRADE_JOURNAL_THESIS_REMOVE_LAST_BUTTON')}
                   </button>
                 )}
               </div>
@@ -1597,14 +1617,14 @@ function Inner() {
                   padding: '10px', fontSize: 'var(--fs-label)', fontWeight: 700, cursor: 'pointer',
                 }}
               >
-                Save Thesis
+                {t('TRADE_JOURNAL_THESIS_SAVE_BUTTON')}
               </button>
             </div>
           )}
 
           {/* Thesis list */}
           {theses.length === 0 && !showThesisForm && (
-            <div className="tj-empty-state" style={{ marginTop: 16 }}>No theses yet - click New Thesis to track your first position thesis.</div>
+            <div className="tj-empty-state" style={{ marginTop: 16 }}>{t('TRADE_JOURNAL_THESIS_EMPTY_STATE')}</div>
           )}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
@@ -1625,7 +1645,7 @@ function Inner() {
                     }}>
                       {thesis.direction}
                     </span>
-                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Entry: {thesis.entryDate}</span>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('TRADE_JOURNAL_THESIS_ENTRY_DATE_LABEL', { date: thesis.entryDate })}</span>
                     {score != null && (
                       <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: scoreCol, fontFamily: 'var(--font-mono), monospace', marginLeft: 'auto' }}>
                         {score}/10
@@ -1650,14 +1670,14 @@ function Inner() {
                   {thesis.lastFeedback && (
                     <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 10, marginBottom: 10 }}>
                       <div style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>
-                        Last checked: {thesis.lastScoreDate}
+                        {t('TRADE_JOURNAL_THESIS_LAST_CHECKED_LABEL', { date: thesis.lastScoreDate ?? '' })}
                       </div>
-                      {THESIS_CHECK_SECTIONS.map(({ key, label, color }) => {
+                      {THESIS_CHECK_SECTIONS.map(({ key, labelKey, color }) => {
                         const content = parseThesisSection(thesis.lastFeedback!, key);
                         if (!content) return null;
                         return (
                           <div key={key} style={{ marginBottom: 8 }}>
-                            <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: color ?? 'var(--txt3)', marginBottom: 3 }}>{label}</div>
+                            <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: color ?? 'var(--txt3)', marginBottom: 3 }}>{t(labelKey)}</div>
                             <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{content}</div>
                           </div>
                         );
@@ -1677,13 +1697,13 @@ function Inner() {
                         borderRadius: 6, padding: '5px 12px', fontSize: 'var(--fs-caption)', fontWeight: 700, cursor: isChecking ? 'default' : 'pointer',
                       }}
                     >
-                      {isChecking ? 'Checking…' : thesis.lastFeedback ? 'Re-check Health' : 'Check Thesis Health'}
+                      {isChecking ? t('TRADE_JOURNAL_THESIS_CHECKING_BUTTON') : thesis.lastFeedback ? t('TRADE_JOURNAL_THESIS_RECHECK_BUTTON') : t('TRADE_JOURNAL_THESIS_CHECK_HEALTH_BUTTON')}
                     </button>
                     <button
                       onClick={() => deleteThesis(thesis.id)}
                       style={{ background: 'transparent', color: 'var(--txt3)', border: '0.5px solid var(--bdr)', borderRadius: 6, padding: '5px 10px', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
                     >
-                      Delete
+                      {t('TRADE_JOURNAL_THESIS_DELETE_BUTTON')}
                     </button>
                   </div>
                 </div>
@@ -1697,7 +1717,7 @@ function Inner() {
       {tab === 'stats' && (
         <div>
           {stats.closed === 0 ? (
-            <div className="tj-empty-state">Close at least one trade to see stats</div>
+            <div className="tj-empty-state">{t('TRADE_JOURNAL_STATS_EMPTY_STATE')}</div>
           ) : (
             <>
               {complianceScore && (
@@ -1708,8 +1728,8 @@ function Inner() {
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
                 }}>
                   <div>
-                    <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 2 }}>Rule Compliance</div>
-                    <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{complianceScore.clean} of {complianceScore.total} closed trades followed all rules</div>
+                    <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 2 }}>{t('TRADE_JOURNAL_STATS_RULE_COMPLIANCE_LABEL')}</div>
+                    <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('TRADE_JOURNAL_STATS_RULE_COMPLIANCE_DESC', { clean: complianceScore.clean, total: complianceScore.total })}</div>
                   </div>
                   <div style={{
                     fontSize: '1.625rem', fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
@@ -1722,25 +1742,25 @@ function Inner() {
 
               <div className="tj-stats-grid">
                 <div className="tj-stat">
-                  <div className="tj-stat-lbl"><Tip width={230} text="The share of your closed trades that finished in profit. On its own it can mislead - a low win rate is still profitable if your wins are bigger than your losses (see Avg R).">Win Rate</Tip></div>
+                  <div className="tj-stat-lbl"><Tip width={230} text={t('TRADE_JOURNAL_STATS_WIN_RATE_TOOLTIP')}>{t('TRADE_JOURNAL_STATS_WIN_RATE_LABEL')}</Tip></div>
                   <div className="tj-stat-val" style={{ color: stats.winRate >= 50 ? '#34d399' : '#f87171' }}>
                     {stats.winRate.toFixed(0)}%
                   </div>
                 </div>
                 <div className="tj-stat">
-                  <div className="tj-stat-lbl">Total P&amp;L</div>
+                  <div className="tj-stat-lbl">{t('TRADE_JOURNAL_STATS_TOTAL_PNL_LABEL')}</div>
                   <div className="tj-stat-val" style={{ color: stats.totalPnL >= 0 ? '#34d399' : '#f87171' }}>
                     {fmtUSD(stats.totalPnL)}
                   </div>
                 </div>
                 <div className="tj-stat">
-                  <div className="tj-stat-lbl"><Tip width={230} text="Your average result per trade in R - multiples of what you risked. +0.20R means each trade netted a fifth of your risk on average. Positive over many trades is the real proof of an edge.">Avg R/Trade</Tip></div>
+                  <div className="tj-stat-lbl"><Tip width={230} text={t('TRADE_JOURNAL_STATS_AVG_R_TOOLTIP')}>{t('TRADE_JOURNAL_STATS_AVG_R_LABEL')}</Tip></div>
                   <div className="tj-stat-val" style={{ color: stats.avgR >= 0 ? '#34d399' : '#f87171' }}>
                     {stats.avgR >= 0 ? '+' : ''}{stats.avgR.toFixed(2)}R
                   </div>
                 </div>
                 <div className="tj-stat">
-                  <div className="tj-stat-lbl">Record</div>
+                  <div className="tj-stat-lbl">{t('TRADE_JOURNAL_STATS_RECORD_LABEL')}</div>
                   <div className="tj-stat-val">
                     <span style={{ color: '#34d399' }}>{stats.wins}W</span>
                     <span style={{ color: 'var(--txt3)' }}> · </span>
@@ -1748,13 +1768,13 @@ function Inner() {
                   </div>
                 </div>
                 <div className="tj-stat">
-                  <div className="tj-stat-lbl">Current Streak</div>
+                  <div className="tj-stat-lbl">{t('TRADE_JOURNAL_STATS_CURRENT_STREAK_LABEL')}</div>
                   <div className="tj-stat-val" style={{ color: stats.streak.dir === 'W' ? '#34d399' : stats.streak.dir === 'L' ? '#f87171' : 'var(--txt3)' }}>
                     {stats.streak.dir === 'W' ? `${stats.streak.current}W` : stats.streak.dir === 'L' ? `${stats.streak.current}L` : '-'}
                   </div>
                 </div>
                 <div className="tj-stat">
-                  <div className="tj-stat-lbl">Best Win Streak</div>
+                  <div className="tj-stat-lbl">{t('TRADE_JOURNAL_STATS_BEST_WIN_STREAK_LABEL')}</div>
                   <div className="tj-stat-val" style={{ color: stats.streak.bestWin > 0 ? '#34d399' : 'var(--txt3)' }}>
                     {stats.streak.bestWin > 0 ? `${stats.streak.bestWin}W` : '-'}
                   </div>
@@ -1777,7 +1797,7 @@ function Inner() {
                 return (
                   <div className="tj-breakdown" style={{ marginBottom: 0 }}>
                     <div className="tj-breakdown-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Equity Curve</span>
+                      <span>{t('TRADE_JOURNAL_STATS_EQUITY_CURVE_LABEL')}</span>
                       <span style={{ color: lastV >= 0 ? '#34d399' : '#f87171', fontWeight: 700 }}>
                         {lastV >= 0 ? '+' : ''}{lastV.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
@@ -1799,7 +1819,7 @@ function Inner() {
 
               {Object.keys(stats.byCoin).length > 0 && (
                 <div className="tj-breakdown">
-                  <div className="tj-breakdown-title">Performance by Coin</div>
+                  <div className="tj-breakdown-title">{t('TRADE_JOURNAL_STATS_PERFORMANCE_BY_COIN_LABEL')}</div>
                   {Object.entries(stats.byCoin).sort(([,a],[,b]) => b.pnl - a.pnl).map(([c, d]) => {
                     const wr = d.total > 0 ? (d.wins / d.total) * 100 : 0;
                     return (
@@ -1818,11 +1838,11 @@ function Inner() {
 
               {Object.keys(stats.bySetup).length > 0 && (
                 <div className="tj-breakdown">
-                  <div className="tj-breakdown-title">Performance by Setup</div>
+                  <div className="tj-breakdown-title">{t('TRADE_JOURNAL_STATS_PERFORMANCE_BY_SETUP_LABEL')}</div>
                   {Object.entries(stats.bySetup).sort(([,a],[,b]) => (b.wins/b.total) - (a.wins/a.total)).map(([s, d]) => (
                     <div key={s} className="tj-breakdown-row">
                       <span className="tj-breakdown-name">{s}</span>
-                      <span className="tj-breakdown-sub">{d.wins}/{d.total} trades</span>
+                      <span className="tj-breakdown-sub">{t('TRADE_JOURNAL_STATS_TRADES_COUNT', { wins: d.wins, total: d.total })}</span>
                       <span className="tj-breakdown-pnl" style={{ color: (d.wins/d.total) >= 0.5 ? '#34d399' : '#f87171' }}>
                         {((d.wins/d.total)*100).toFixed(0)}% WR
                       </span>
@@ -1840,12 +1860,13 @@ function Inner() {
 
 /* Suspense wrapper required for useSearchParams in App Router */
 export default function TradeJournal() {
+  const { t } = useLabels();
   return (
     <AuthGate
-      title="Sign in to access your Journal"
-      desc="Your trade history, P&amp;L stats, and setups are private to your account."
+      title={t('TRADE_JOURNAL_AUTH_TITLE')}
+      desc={t('TRADE_JOURNAL_AUTH_DESC')}
     >
-      <Suspense fallback={<LoadingState message="Loading…" fullPage />}>
+      <Suspense fallback={<LoadingState message={t('TRADE_JOURNAL_LOADING_MESSAGE')} fullPage />}>
         <Inner />
       </Suspense>
     </AuthGate>

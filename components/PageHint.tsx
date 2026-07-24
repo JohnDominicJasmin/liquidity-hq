@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useLabels } from '@/lib/labels';
 
 interface Props {
   pageKey: string;
@@ -10,6 +11,7 @@ interface Props {
 export default function PageHint({ pageKey, title, body }: Props) {
   const key = `lhq_hint_${pageKey}`;
   const [show, setShow] = useState(false);
+  const { t } = useLabels();
 
   useEffect(() => {
     try {
@@ -53,7 +55,7 @@ export default function PageHint({ pageKey, title, body }: Props) {
           flexShrink: 0,
           opacity: 0.6,
         }}
-        aria-label="Dismiss hint"
+        aria-label={t('PAGE_HINT_DISMISS_LABEL')}
       >×</button>
     </div>
   );

@@ -3,6 +3,7 @@ import { useMarket, COIN_DEC, fmtPrice, computeFibLevels } from '@/lib/marketSto
 import type { CoinData, CoinId } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
 import { withAlpha } from '@/lib/color';
+import { useLabels } from '@/lib/labels';
 
 export type Bias = 'long' | 'short' | 'neutral';
 
@@ -114,6 +115,7 @@ function computeTP(d: CoinData, bias: Bias, stop: Level): Level | null {
 
 export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokSignal?: string }) {
   const { store } = useMarket();
+  const { t } = useLabels();
   const d    = store.coins[coin];
   const dec  = COIN_DEC[coin] ?? 2;
 
@@ -146,21 +148,21 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
 
   const roleCol   = (role: Row['role']) => role === 'sl' ? '#f87171' : role === 'tp' ? '#34d399' : 'var(--txt)';
   const roleTint  = (role: Row['role']) => role === 'tp' ? 'rgba(52,211,153,0.07)' : role === 'sl' ? 'rgba(248,113,113,0.07)' : 'transparent';
-  const roleLabel = (role: Row['role']) => role === 'sl' ? 'Stop Loss' : role === 'tp' ? 'Take Profit' : 'Entry';
+  const roleLabel = (role: Row['role']) => role === 'sl' ? t('STOP_LOSS_ZONE_ROLE_SL') : role === 'tp' ? t('STOP_LOSS_ZONE_ROLE_TP') : t('STOP_LOSS_ZONE_ROLE_ENTRY');
 
   return (
     <div className="sms-card">
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '10px 14px 8px' }}>
-        <span className="sms-title">Order Flow Setup</span>
+        <span className="sms-title">{t('STOP_LOSS_ZONE_TITLE')}</span>
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-          {coin.toUpperCase()} · {score}/{total} indicators
+          {coin.toUpperCase()} · {t('STOP_LOSS_ZONE_INDICATOR_COUNT', { score, total })}
         </span>
       </div>
 
       {bias === 'neutral' || !stop || rows.length === 0 ? (
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.6, padding: '0 14px 14px' }}>
-          Signals are split - wait for RSI and OI to agree on direction before entering.
+          {t('STOP_LOSS_ZONE_NEUTRAL_HINT')}
         </div>
       ) : (
         <>
@@ -175,9 +177,9 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
               }}>
                 <span style={{ color: '#f59e0b', flexShrink: 0, lineHeight: 0 }}><Warn size={12} /></span>
                 <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', lineHeight: 1.5 }}>
-                  AI analysis leans{' '}
+                  {t('STOP_LOSS_ZONE_CONFLICT_PREFIX')}{' '}
                   <span style={{ color: '#f59e0b', fontWeight: 700 }}>{grokSignal}</span>
-                  {' '}- indicators may not reflect recent catalysts. Check the AI result below.
+                  {' '}{t('STOP_LOSS_ZONE_CONFLICT_SUFFIX')}
                 </span>
               </div>
             </div>
@@ -190,11 +192,11 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
               color: biasCol, background: withAlpha(biasCol, '18'), border: `0.5px solid ${withAlpha(biasCol, '40')}`,
               letterSpacing: '.03em',
             }}>
-              {bias === 'long' ? '▲ Bullish' : '▼ Bearish'}
+              {bias === 'long' ? t('STOP_LOSS_ZONE_BULLISH') : t('STOP_LOSS_ZONE_BEARISH')}
             </span>
             {rr && (
               <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, letterSpacing: '-.01em', color: 'var(--txt2)' }}>
-                R:R&nbsp;1:{rr.toFixed(1)}
+                {t('STOP_LOSS_ZONE_RR_LABEL')}&nbsp;1:{rr.toFixed(1)}
               </span>
             )}
           </div>
@@ -207,8 +209,8 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
                 <div style={{ flex: 1, background: '#f87171', opacity: 0.65, borderRadius: '0 3px 3px 0' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                <span style={{ fontSize: 'var(--fs-micro)', color: 'rgba(52,211,153,0.5)', letterSpacing: '.07em', textTransform: 'uppercase' }}>Reward</span>
-                <span style={{ fontSize: 'var(--fs-micro)', color: 'rgba(248,113,113,0.5)', letterSpacing: '.07em', textTransform: 'uppercase' }}>Risk</span>
+                <span style={{ fontSize: 'var(--fs-micro)', color: 'rgba(52,211,153,0.5)', letterSpacing: '.07em', textTransform: 'uppercase' }}>{t('STOP_LOSS_ZONE_REWARD')}</span>
+                <span style={{ fontSize: 'var(--fs-micro)', color: 'rgba(248,113,113,0.5)', letterSpacing: '.07em', textTransform: 'uppercase' }}>{t('STOP_LOSS_ZONE_RISK')}</span>
               </div>
             </div>
           )}
@@ -257,7 +259,7 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
                       </div>
                     </div>
                   ) : (
-                    <div style={{ fontSize: 'var(--fs-caption)', color: 'rgba(255,255,255,0.18)' }}>current</div>
+                    <div style={{ fontSize: 'var(--fs-caption)', color: 'rgba(255,255,255,0.18)' }}>{t('STOP_LOSS_ZONE_CURRENT')}</div>
                   )}
                 </div>
               </div>

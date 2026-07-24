@@ -3,24 +3,26 @@ import { useState, useEffect } from 'react';
 import { getLocalNow, getCurrentWindow, isDead, getUpcomingWindows } from '@/lib/session';
 import SessionCountdown from '@/components/SessionCountdown';
 import Tip from '@/components/Tip';
+import { useLabels } from '@/lib/labels';
+import type { LabelKey } from '@/lib/labelKeys';
 
 /* Typical-weekday session blocks on a 24h PHT axis */
 const TIMELINE_SEGS = [
-  { start: 0,    end: 2,    bg: 'rgba(96,165,250,0.55)',  label: 'NY' },
-  { start: 2,    end: 5,    bg: 'rgba(125,224,164,0.70)', label: 'PRIME' },
-  { start: 7,    end: 11,   bg: 'rgba(251,191,36,0.55)',  label: 'ASIA' },
-  { start: 12,   end: 15,   bg: 'rgba(248,113,113,0.45)', label: 'DEAD' },
-  { start: 15,   end: 18,   bg: 'rgba(122,184,245,0.55)', label: 'LONDON' },
-  { start: 20,   end: 21.5, bg: 'rgba(148,163,184,0.45)', label: 'PRE-NY' },
-  { start: 21.5, end: 24,   bg: 'rgba(96,165,250,0.55)',  label: 'NY' },
+  { start: 0,    end: 2,    bg: 'rgba(96,165,250,0.55)',  labelKey: 'HOURS_SEG_NY' as LabelKey },
+  { start: 2,    end: 5,    bg: 'rgba(125,224,164,0.70)', labelKey: 'HOURS_SEG_PRIME' as LabelKey },
+  { start: 7,    end: 11,   bg: 'rgba(251,191,36,0.55)',  labelKey: 'HOURS_SEG_ASIA' as LabelKey },
+  { start: 12,   end: 15,   bg: 'rgba(248,113,113,0.45)', labelKey: 'HOURS_SEG_DEAD' as LabelKey },
+  { start: 15,   end: 18,   bg: 'rgba(122,184,245,0.55)', labelKey: 'HOURS_SEG_LONDON' as LabelKey },
+  { start: 20,   end: 21.5, bg: 'rgba(148,163,184,0.45)', labelKey: 'HOURS_SEG_PRE_NY' as LabelKey },
+  { start: 21.5, end: 24,   bg: 'rgba(96,165,250,0.55)',  labelKey: 'HOURS_SEG_NY' as LabelKey },
 ];
 
 const WINDOWS = [
-  { cls: 'wp-god', badge: 'GOD TIER', time: 'Sunday 11PM – Monday 3AM PHT', desc: 'Lowest volume of the week. Retail asleep globally. Minimum capital needed to move price. Highest probability of violent raids. Maximum priority.' },
-  { cls: 'wp-prime', badge: 'PRIME', time: 'Daily 2AM – 5AM PHT', desc: 'Asia/Europe overlap. High institutional activity. Volume picks up. Best daily window for clean setups. 4:00–4:45AM PHT is the single most consistent reversal sub-window.' },
-  { cls: 'wp-prime', badge: 'MON EVENING', time: 'Monday 8PM – 11PM PHT', desc: 'Weekly liquidity build-up complete. US session active. Strong trend continuation or violent reversal setups. High probability of 3-5% moves.' },
-  { cls: 'wp-london', badge: 'LONDON OPEN', time: '3PM – 6PM PHT (9:30–11AM UTC)', desc: 'European institutions enter. Volume spike. Almost always a fake move first to trap early entries, then real direction emerges. Never trade the first 15 minutes.' },
-  { cls: 'wp-dead', badge: 'DEAD ZONE', time: '12PM – 3PM PHT', desc: 'Do not trade. US pre-market, Europe lunch, Asia sleeping. Fake moves, tight spreads, no follow-through. Highest probability of stopping out on noise.' },
+  { cls: 'wp-god', badgeKey: 'HOURS_WIN_GOD_BADGE' as LabelKey, timeKey: 'HOURS_WIN_GOD_TIME' as LabelKey, descKey: 'HOURS_WIN_GOD_DESC' as LabelKey },
+  { cls: 'wp-prime', badgeKey: 'HOURS_WIN_PRIME_BADGE' as LabelKey, timeKey: 'HOURS_WIN_PRIME_TIME' as LabelKey, descKey: 'HOURS_WIN_PRIME_DESC' as LabelKey },
+  { cls: 'wp-prime', badgeKey: 'HOURS_WIN_MON_EVE_BADGE' as LabelKey, timeKey: 'HOURS_WIN_MON_EVE_TIME' as LabelKey, descKey: 'HOURS_WIN_MON_EVE_DESC' as LabelKey },
+  { cls: 'wp-london', badgeKey: 'HOURS_WIN_LONDON_BADGE' as LabelKey, timeKey: 'HOURS_WIN_LONDON_TIME' as LabelKey, descKey: 'HOURS_WIN_LONDON_DESC' as LabelKey },
+  { cls: 'wp-dead', badgeKey: 'HOURS_WIN_DEAD_BADGE' as LabelKey, timeKey: 'HOURS_WIN_DEAD_TIME' as LabelKey, descKey: 'HOURS_WIN_DEAD_DESC' as LabelKey },
 ];
 
 function pad(n: number) { return n < 10 ? '0' + n : '' + n; }
@@ -32,22 +34,23 @@ export default function BestHours() {
   // and the client's first render agree on showing none of them, then swap
   // in the live state right after mount (client-only, nothing for hydration
   // to compare against).
+  const { t } = useLabels();
   const [mounted, setMounted] = useState(false);
   const [tick, setTick] = useState(0);
   useEffect(() => {
     setMounted(true);
-    const t = setInterval(() => setTick(v => v + 1), 1000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setTick(v => v + 1), 1000);
+    return () => clearInterval(timer);
   }, []);
 
   const now = new Date();
   const pht = getLocalNow();
   const win = getCurrentWindow(pht);
   const dead = isDead(pht);
-  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const days = [t('HOURS_DAY_SUN'), t('HOURS_DAY_MON'), t('HOURS_DAY_TUE'), t('HOURS_DAY_WED'), t('HOURS_DAY_THU'), t('HOURS_DAY_FRI'), t('HOURS_DAY_SAT')];
+  const months = [t('HOURS_MONTH_JAN'), t('HOURS_MONTH_FEB'), t('HOURS_MONTH_MAR'), t('HOURS_MONTH_APR'), t('HOURS_MONTH_MAY'), t('HOURS_MONTH_JUN'), t('HOURS_MONTH_JUL'), t('HOURS_MONTH_AUG'), t('HOURS_MONTH_SEP'), t('HOURS_MONTH_OCT'), t('HOURS_MONTH_NOV'), t('HOURS_MONTH_DEC')];
   const h = pht.getHours(), m = pht.getMinutes(), s = pht.getSeconds();
-  const ampm = h >= 12 ? 'PM' : 'AM';
+  const ampm = h >= 12 ? t('HOURS_PM') : t('HOURS_AM');
   const h12 = h % 12 || 12;
 
   const upcoming = (!win && !dead) ? getUpcomingWindows(now, 3) : [];
@@ -55,8 +58,8 @@ export default function BestHours() {
   return (
     <div>
       <div style={{ padding: '1rem 0 0.5rem' }}>
-        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>Best Hours</h1>
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>Live PHT clock + session window detector</div>
+        <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('HOURS_TITLE')}</h1>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 14 }}>{t('HOURS_SUBTITLE')}</div>
       </div>
 
       <SessionCountdown />
@@ -64,7 +67,7 @@ export default function BestHours() {
       <div className="card" style={{ textAlign: 'center', marginBottom: 14 }}>
         <div suppressHydrationWarning style={{ fontSize: '2.25rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--txt)', letterSpacing: -1 }}>
           {pad(h12)}:{pad(m)}:{pad(s)}
-          <span style={{ fontSize: 'var(--fs-body)', color: 'var(--txt3)', marginLeft: 8 }}>{ampm} PHT</span>
+          <span style={{ fontSize: 'var(--fs-body)', color: 'var(--txt3)', marginLeft: 8 }}>{t('HOURS_AMPM_PHT', { ampm })}</span>
         </div>
         <div suppressHydrationWarning style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', marginTop: 4 }}>
           {days[pht.getDay()]}, {months[pht.getMonth()]} {pht.getDate()} {pht.getFullYear()}
@@ -74,12 +77,12 @@ export default function BestHours() {
           {mounted && (win ? (
             <div className="window-pill" style={{ background: win.bg, color: win.color, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" /></svg>
-              {win.name} - Active now
+              {t('HOURS_WINDOW_ACTIVE_NOW', { name: win.name })}
             </div>
           ) : dead ? (
-            <div className="window-pill wp-dead" style={{ display: 'inline-block' }}>Dead zone - do not trade</div>
+            <div className="window-pill wp-dead" style={{ display: 'inline-block' }}>{t('HOURS_DEAD_ZONE_MSG')}</div>
           ) : (
-            <div className="window-pill wp-other" style={{ display: 'inline-block' }}>Outside prime windows</div>
+            <div className="window-pill wp-other" style={{ display: 'inline-block' }}>{t('HOURS_OUTSIDE_PRIME')}</div>
           ))}
         </div>
       </div>
@@ -87,8 +90,8 @@ export default function BestHours() {
       {/* 24h timeline */}
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="lbl" style={{ marginBottom: 10 }}>
-          <Tip width={260} text="Highlights the hours when major markets (Asia, London, New York) are open and overlapping. Volume and volatility concentrate in these windows - the best liquidity to trade into, and where most large moves start.">24h Session Map</Tip>
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>PHT · typical weekday</span>
+          <Tip width={260} text={t('HOURS_SESSION_MAP_TIP')}>{t('HOURS_SESSION_MAP_TITLE')}</Tip>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 400, color: 'var(--txt3)', marginLeft: 6 }}>{t('HOURS_SESSION_MAP_SUBTITLE')}</span>
         </div>
 
         {/* Bar + needle wrapper - overflow visible so needle tip shows */}
@@ -107,7 +110,7 @@ export default function BestHours() {
                 }}>
                   {width > 7 && (
                     <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#fff', letterSpacing: '.04em', opacity: 0.9 }}>
-                      {seg.label}
+                      {t(seg.labelKey)}
                     </span>
                   )}
                 </div>
@@ -146,32 +149,32 @@ export default function BestHours() {
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           {[0, 3, 6, 9, 12, 15, 18, 21, 24].map(hr => (
             <span key={hr} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', fontVariantNumeric: 'tabular-nums' }}>
-              {hr === 0 || hr === 24 ? '12A' : hr === 12 ? '12P' : hr < 12 ? `${hr}A` : `${hr - 12}P`}
+              {hr === 0 || hr === 24 ? t('HOURS_TICK_MIDNIGHT') : hr === 12 ? t('HOURS_TICK_NOON') : hr < 12 ? t('HOURS_TICK_AM', { hr }) : t('HOURS_TICK_PM', { hr: hr - 12 })}
             </span>
           ))}
         </div>
 
         {/* Current position label */}
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>
-          ▲ now: <span style={{ color: 'var(--txt2)', fontWeight: 600 }}>{pad(h12)}:{pad(m)} {ampm} PHT</span>
-          {mounted && win && <span style={{ marginLeft: 8, color: win.color, fontWeight: 600 }}>· {win.name}</span>}
-          {mounted && dead && <span style={{ marginLeft: 8, color: '#f87171', fontWeight: 600 }}>· Dead Zone</span>}
+          {t('HOURS_NOW_PREFIX')}<span style={{ color: 'var(--txt2)', fontWeight: 600 }}>{t('HOURS_NOW_TIME', { time: `${pad(h12)}:${pad(m)}`, ampm })}</span>
+          {mounted && win && <span style={{ marginLeft: 8, color: win.color, fontWeight: 600 }}>{t('HOURS_DOT_SEPARATOR')} {win.name}</span>}
+          {mounted && dead && <span style={{ marginLeft: 8, color: '#f87171', fontWeight: 600 }}>{t('HOURS_DOT_DEAD_ZONE')}</span>}
         </div>
       </div>
 
       {/* Active or upcoming */}
       <div className="card" style={{ marginBottom: 14 }}>
-        <div className="lbl">Next windows</div>
+        <div className="lbl">{t('HOURS_NEXT_WINDOWS')}</div>
         {mounted && (win ? (
           <div className="nw-row" style={{ marginBottom: 0 }}>
             <div>
               <div className="nw-name" style={{ color: win.color, display: 'flex', alignItems: 'center', gap: 5 }}>
                 <svg width="13" height="13" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 1.5C10.4 5.2 11.8 6.6 15.5 7 11.8 7.4 10.4 8.8 10 12.5 9.6 8.8 8.2 7.4 4.5 7 8.2 6.6 9.6 5.2 10 1.5Z" fill="currentColor" /></svg>
-                {win.name} is active RIGHT NOW
+                {t('HOURS_WINDOW_ACTIVE_RIGHT_NOW', { name: win.name })}
               </div>
               <div className="nw-time">{win.label}</div>
             </div>
-            <div className="nw-countdown" style={{ color: win.color }}>Go hunt.</div>
+            <div className="nw-countdown" style={{ color: win.color }}>{t('HOURS_GO_HUNT')}</div>
           </div>
         ) : upcoming.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -186,19 +189,19 @@ export default function BestHours() {
             ))}
           </div>
         ) : (
-          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>No windows detected in next 7 days</div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('HOURS_NO_WINDOWS')}</div>
         ))}
       </div>
 
       {/* Window descriptions */}
-      <div className="dash-section">All windows</div>
+      <div className="dash-section">{t('HOURS_ALL_WINDOWS')}</div>
       {WINDOWS.map((w, i) => (
         <div key={i} className="card" style={{ marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <div className={`window-pill ${w.cls}`}>{w.badge}</div>
-            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{w.time}</div>
+            <div className={`window-pill ${w.cls}`}>{t(w.badgeKey)}</div>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t(w.timeKey)}</div>
           </div>
-          <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.6 }}>{w.desc}</div>
+          <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.6 }}>{t(w.descKey)}</div>
         </div>
       ))}
     </div>

@@ -1,5 +1,6 @@
 'use client';
 import type { LiqLevel } from '@/lib/marketStore';
+import { useLabels } from '@/lib/labels';
 
 function fmtK(price: number): string {
   if (price >= 1000) return '$' + (price / 1000).toFixed(1) + 'K';
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export default function LiqHeatmap({ levels, currentPrice }: Props) {
+  const { t } = useLabels();
   if (!levels.length || !currentPrice) return null;
 
   // Split relative to current price
@@ -83,15 +85,15 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
   return (
     <div className="card" style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div className="lbl" style={{ margin: 0 }}>BTC Liquidation Clusters</div>
-        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>BTC only · Coinglass</span>
+        <div className="lbl" style={{ margin: 0 }}>{t('LIQ_HEATMAP_TITLE')}</div>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_HEATMAP_SUBTITLE')}</span>
       </div>
 
       {/* Short liq clusters - above price */}
       {above.length > 0 && (
         <>
           <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: '#34d399', letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 4 }}>
-            Short liquidations above - bulls target here
+            {t('LIQ_HEATMAP_SHORT_SECTION_LABEL')}
           </div>
           {above.map((l, i) => <Row key={i} l={l} side="above" />)}
         </>
@@ -103,7 +105,7 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
         margin: '8px 0', padding: '5px 0',
         borderTop: '0.5px solid var(--bdr)', borderBottom: '0.5px solid var(--bdr)',
       }}>
-        <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', letterSpacing: '.05em', textTransform: 'uppercase' }}>Current</span>
+        <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', letterSpacing: '.05em', textTransform: 'uppercase' }}>{t('LIQ_HEATMAP_CURRENT_LABEL')}</span>
         <span style={{ fontSize: 'var(--fs-label)', fontWeight: 800, color: 'var(--txt)', letterSpacing: '-0.3px' }}>
           {fmtK(currentPrice)}
         </span>
@@ -114,7 +116,7 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
         <>
           {below.map((l, i) => <Row key={i} l={l} side="below" />)}
           <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: '#f87171', letterSpacing: '.06em', textTransform: 'uppercase', marginTop: 4 }}>
-            Long liquidations below - bears target here
+            {t('LIQ_HEATMAP_LONG_SECTION_LABEL')}
           </div>
         </>
       )}

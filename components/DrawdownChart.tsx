@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useMarket, COINS, CoinId } from '@/lib/marketStore';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
 
 interface AthEntry {
   ath: number;
@@ -35,6 +36,7 @@ function fmtPrice(p: number): string {
 }
 
 export default function DrawdownChart() {
+  const { t } = useLabels();
   const { store } = useMarket();
   const [ath, setAth] = useState<Record<string, AthEntry> | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -69,32 +71,32 @@ export default function DrawdownChart() {
         display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
       }}>
         <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--txt3)', letterSpacing: '.07em', textTransform: 'uppercase', flex: 1 }}>
-          <Tip text="How far each coin sits below its all-time high price, worst first. A deep drawdown means a coin needs a huge rally just to recover - useful context before sizing a long.">Drawdown from All-Time High</Tip>
+          <Tip text={t('DRAWDOWN_CHART_TOOLTIP')}>{t('DRAWDOWN_CHART_TITLE')}</Tip>
         </span>
         {nearAth > 0 && (
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
-            {nearAth} near ATH
+            {t('DRAWDOWN_CHART_NEAR_ATH_BADGE', { count: nearAth })}
           </span>
         )}
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#333' }}>via CoinGecko</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: '#333' }}>{t('DRAWDOWN_CHART_SOURCE')}</span>
       </div>
 
       {/* Loading / error states */}
       {!ath && !err && (
         <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 10 }} role="status" aria-live="polite">
-          <span className="sr-only">Loading ATH data…</span>
+          <span className="sr-only">{t('DRAWDOWN_CHART_LOADING_SR')}</span>
           {[0, 1, 2, 3, 4].map(i => (
             <SkeletonBar key={i} height={12} radius={4} style={{ opacity: 1 - i * 0.12 }} />
           ))}
         </div>
       )}
       {err && (
-        <div style={{ padding: '16px 14px', fontSize: 'var(--fs-caption)', color: '#f87171' }}>Failed to load ATH data · {err}</div>
+        <div style={{ padding: '16px 14px', fontSize: 'var(--fs-caption)', color: '#f87171' }}>{t('DRAWDOWN_CHART_ERROR', { error: err })}</div>
       )}
 
       {/* Bar chart rows */}
       {ath && rows.length === 0 && (
-        <div style={{ padding: '20px 14px', fontSize: 'var(--fs-caption)', color: '#444' }}>No drawdown data available.</div>
+        <div style={{ padding: '20px 14px', fontSize: 'var(--fs-caption)', color: '#444' }}>{t('DRAWDOWN_CHART_EMPTY')}</div>
       )}
 
       {ath && rows.length > 0 && (
@@ -121,7 +123,7 @@ export default function DrawdownChart() {
                   )}
                   {athPrice != null && (
                     <span style={{ fontSize: 'var(--fs-caption)', color: '#444', fontVariantNumeric: 'tabular-nums' }}>
-                      → ATH {fmtPrice(athPrice)}
+                      {t('DRAWDOWN_CHART_ATH_PRICE', { price: fmtPrice(athPrice) })}
                     </span>
                   )}
                   {athDate && (
@@ -147,14 +149,14 @@ export default function DrawdownChart() {
 
       {/* Footer */}
       <div style={{ padding: '5px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        {[
-          { label: '< 20% down', col: '#34d399' },
-          { label: '20-40%', col: '#fbbf24' },
-          { label: '40-60%', col: '#fb923c' },
-          { label: '60-80%', col: '#f87171' },
-          { label: '> 80%', col: '#ef4444' },
-        ].map(({ label, col }) => (
-          <span key={label} style={{ fontSize: 'var(--fs-caption)', color: col, fontWeight: 600 }}>{label}</span>
+        {([
+          { labelKey: 'DRAWDOWN_CHART_LEGEND_UNDER_20', col: '#34d399' },
+          { labelKey: 'DRAWDOWN_CHART_LEGEND_20_40', col: '#fbbf24' },
+          { labelKey: 'DRAWDOWN_CHART_LEGEND_40_60', col: '#fb923c' },
+          { labelKey: 'DRAWDOWN_CHART_LEGEND_60_80', col: '#f87171' },
+          { labelKey: 'DRAWDOWN_CHART_LEGEND_OVER_80', col: '#ef4444' },
+        ] as const).map(({ labelKey, col }) => (
+          <span key={labelKey} style={{ fontSize: 'var(--fs-caption)', color: col, fontWeight: 600 }}>{t(labelKey)}</span>
         ))}
       </div>
     </div>

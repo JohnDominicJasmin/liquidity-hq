@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
 
 /* ── Types ── */
 interface Candle { t: number; o: number; h: number; l: number; c: number; v: number }
@@ -134,6 +135,7 @@ function evBg(ev: StructureEvent): string {
 interface Props { coin: CoinId; onData?: (d: MSData | null) => void }
 
 export default function MarketStructure({ coin, onData }: Props) {
+  const { t } = useLabels();
   const [data,    setData]    = useState<MSData | null>(null);
   const [loading, setLoading] = useState(true);
   const [err,     setErr]     = useState('');
@@ -186,9 +188,9 @@ export default function MarketStructure({ coin, onData }: Props) {
   if (loading && !data) {
     return (
       <div className="ms-card" role="status" aria-live="polite">
-        <span className="sr-only">Loading…</span>
+        <span className="sr-only">{t('MARKET_STRUCTURE_LOADING_SR')}</span>
         <div className="ms-header">
-          <span className="ms-title">Market Structure · 4H</span>
+          <span className="ms-title">{t('MARKET_STRUCTURE_TITLE')}</span>
           <SkeletonBar width={50} height={11} radius={4} />
         </div>
         <div className="ms-last-event">
@@ -208,8 +210,8 @@ export default function MarketStructure({ coin, onData }: Props) {
     return (
       <div className="ms-card">
         <div className="ms-header">
-          <span className="ms-title">Market Structure · 4H</span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>Failed</span>
+          <span className="ms-title">{t('MARKET_STRUCTURE_TITLE')}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>{t('MARKET_STRUCTURE_FAILED')}</span>
         </div>
       </div>
     );
@@ -224,7 +226,7 @@ export default function MarketStructure({ coin, onData }: Props) {
 
       {/* ── Header: title + bias ── */}
       <div className="ms-header">
-        <span className="ms-title">Market Structure · 4H</span>
+        <span className="ms-title">{t('MARKET_STRUCTURE_TITLE')}</span>
         <span className="ms-bias" style={{ color: biasCol }}>{d.bias}</span>
       </div>
 
@@ -237,7 +239,7 @@ export default function MarketStructure({ coin, onData }: Props) {
           <span className="ms-ev-price">${fmtP(le.price)}</span>
           <span className="ms-ev-ago">{fmtAge(le.candlesAgo)}</span>
           {le.type === 'CHoCH' && (
-            <span style={{ fontSize: 'var(--fs-caption)', color: evCol(le), fontWeight: 700, marginLeft: 4 }}>FLIP</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: evCol(le), fontWeight: 700, marginLeft: 4 }}>{t('MARKET_STRUCTURE_FLIP_TAG')}</span>
           )}
         </div>
       )}
@@ -246,13 +248,13 @@ export default function MarketStructure({ coin, onData }: Props) {
       <div className="ms-levels">
         {d.lastSwingHigh != null && (
           <div className="ms-level">
-            <span className="ms-level-lbl">Swing High</span>
+            <span className="ms-level-lbl">{t('MARKET_STRUCTURE_SWING_HIGH_LABEL')}</span>
             <span className="ms-level-val" style={{ color: '#f87171' }}>${fmtP(d.lastSwingHigh)}</span>
           </div>
         )}
         {d.lastSwingLow != null && (
           <div className="ms-level">
-            <span className="ms-level-lbl">Swing Low</span>
+            <span className="ms-level-lbl">{t('MARKET_STRUCTURE_SWING_LOW_LABEL')}</span>
             <span className="ms-level-val" style={{ color: '#34d399' }}>${fmtP(d.lastSwingLow)}</span>
           </div>
         )}
@@ -274,7 +276,7 @@ export default function MarketStructure({ coin, onData }: Props) {
       )}
 
       <div className="ms-footer">
-        BOS = trend continuation · CHoCH = potential reversal · 4H swing lookback 3
+        {t('MARKET_STRUCTURE_FOOTER')}
       </div>
     </div>
   );

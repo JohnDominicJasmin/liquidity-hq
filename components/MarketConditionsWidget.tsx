@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useMarket, BINANCE_SYMS } from '@/lib/marketStore';
 import Sparkline from './Sparkline';
 import { SkeletonBar } from '@/components/Skeleton';
+import { useLabels } from '@/lib/labels';
 
 /* ── Fear & Greed label → CSS class (existing .score-* tokens, previously
    unused - this widget is the first to actually wire them up). Derived from
@@ -106,6 +107,7 @@ function useBtcLongShort(): { long: number; short: number } | null {
    from the market store, Binance global long/short account ratio (same
    endpoint already used on /liq). ── */
 export default function MarketConditionsWidget() {
+  const { t } = useLabels();
   const { store } = useMarket();
   const history = useFngHistory();
   const longShort = useBtcLongShort();
@@ -117,24 +119,24 @@ export default function MarketConditionsWidget() {
   const delta = fng != null && fngPrev != null ? fng - fngPrev : null;
 
   const rsiCol   = rsi == null ? 'var(--txt3)' : rsi >= 70 ? '#f87171' : rsi <= 30 ? '#34d399' : '#fbbf24';
-  const rsiLabel = rsi == null ? '-' : rsi >= 70 ? 'Overbought' : rsi <= 30 ? 'Oversold' : 'Neutral';
+  const rsiLabel = rsi == null ? '-' : rsi >= 70 ? t('MARKET_CONDITIONS_WIDGET_RSI_OVERBOUGHT') : rsi <= 30 ? t('MARKET_CONDITIONS_WIDGET_RSI_OVERSOLD') : t('MARKET_CONDITIONS_WIDGET_RSI_NEUTRAL');
 
   return (
     <div className="av-rail-panel">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <div>
-          <div className="av-rail-panel-h" style={{ marginBottom: 1 }}>Market conditions</div>
-          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Is now a good time?</div>
+          <div className="av-rail-panel-h" style={{ marginBottom: 1 }}>{t('MARKET_CONDITIONS_WIDGET_TITLE')}</div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('MARKET_CONDITIONS_WIDGET_SUBTITLE')}</div>
         </div>
         <a href="https://alternative.me/crypto/fear-and-greed-index/" target="_blank" rel="noopener noreferrer"
           style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textDecoration: 'underline', flexShrink: 0 }}>
-          alternative.me
+          {t('MARKET_CONDITIONS_WIDGET_SOURCE_LINK')}
         </a>
       </div>
 
       {/* Fear & Greed */}
       <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 4 }}>
-        Fear &amp; greed
+        {t('MARKET_CONDITIONS_WIDGET_FNG_LABEL')}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <FngGauge value={fng} />
@@ -152,7 +154,7 @@ export default function MarketConditionsWidget() {
       {/* 30-day trend */}
       {history.length > 1 && (
         <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>30-day trend</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('MARKET_CONDITIONS_WIDGET_TREND_LABEL')}</span>
           <Sparkline points={history} width={90} height={20} />
         </div>
       )}
@@ -161,7 +163,7 @@ export default function MarketConditionsWidget() {
       <div style={{ marginTop: 12, paddingTop: 10, borderTop: '0.5px solid var(--bdr)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
           <span style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--txt3)' }}>
-            BTC RSI (14)
+            {t('MARKET_CONDITIONS_WIDGET_RSI_LABEL')}
           </span>
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: rsiCol }}>
             {rsi != null ? rsi.toFixed(1) : '-'} {rsi != null && `· ${rsiLabel}`}
@@ -177,7 +179,7 @@ export default function MarketConditionsWidget() {
       {/* BTC Long/Short */}
       <div style={{ marginTop: 12, paddingTop: 10, borderTop: '0.5px solid var(--bdr)' }}>
         <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 5 }}>
-          BTC long / short
+          {t('MARKET_CONDITIONS_WIDGET_LONG_SHORT_LABEL')}
         </div>
         {longShort ? (() => {
           const total = longShort.long + longShort.short;
@@ -190,19 +192,19 @@ export default function MarketConditionsWidget() {
                 <div style={{ width: `${shortPct}%`, background: '#f87171' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-caption)' }}>
-                <span style={{ color: '#34d399', fontWeight: 600 }}>Long {longPct.toFixed(1)}%</span>
-                <span style={{ color: '#f87171', fontWeight: 600 }}>Short {shortPct.toFixed(1)}%</span>
+                <span style={{ color: '#34d399', fontWeight: 600 }}>{t('MARKET_CONDITIONS_WIDGET_LONG_PCT', { pct: longPct.toFixed(1) })}</span>
+                <span style={{ color: '#f87171', fontWeight: 600 }}>{t('MARKET_CONDITIONS_WIDGET_SHORT_PCT', { pct: shortPct.toFixed(1) })}</span>
               </div>
             </>
           );
         })() : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }} role="status" aria-live="polite">
-            <span className="sr-only">Loading…</span>
+            <span className="sr-only">{t('MARKET_CONDITIONS_WIDGET_LOADING_SR')}</span>
             <SkeletonBar height={5} radius={3} />
             <SkeletonBar width="60%" height={11} radius={4} />
           </div>
         )}
-        <div style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', marginTop: 6, textAlign: 'right' }}>Data by Binance</div>
+        <div style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', marginTop: 6, textAlign: 'right' }}>{t('MARKET_CONDITIONS_WIDGET_DATA_SOURCE')}</div>
       </div>
     </div>
   );
