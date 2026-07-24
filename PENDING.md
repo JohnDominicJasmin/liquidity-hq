@@ -2,26 +2,23 @@
 
 Tracked backlog from ongoing security audit + i18n pause. Update as items close.
 
+## Security audit — closed findings (2026-07-24)
+
+1. ~~**Uncapped Grok-cost routes**~~ — DONE. `thesis-check`, `strategy-research`, `hypotheses/[id]/analyze`, `shadow-account`, `behavioral-bias`, `pine-script` capped via `lib/aiUsage.ts`. `282732a` on `dev`.
+2. ~~**TOCTOU race on daily AI usage caps**~~ — DONE. All 9 AI routes now use an atomic `increment_ai_usage()` Postgres function instead of read-then-upsert. `3f25d72` on `dev`.
+3. ~~**`token-unlock`/`smc-snapshot` cache-key bypass**~~ — DONE. Strict input validation (charset/allowlist) + daily cap on the cache-miss path only, so cache hits stay free. `c1336e4` on `dev`.
+4. ~~**Unlimited trial abuse**~~ — DONE. `lhq_grant_signup_trial()` now dedupes by normalized email (Gmail dot/plus-alias, generic +tag) via a permanent claims table — one real inbox, one trial, ever. Verified live on both Supabase projects. Does NOT stop disposable-domain abuse (mailinator etc.) — that needs a Supabase Auth Hook or CAPTCHA, dashboard-level config outside SQL migrations. `c1336e4` on `dev`.
+5. ~~**Cron routes unauthenticated in prod**~~ — DONE end to end. `CRON_SECRET` set in Render prod env, all 3 cron-job.org jobs send `x-cron-secret`, verified a live 6:10 PM cron run returned `200 OK` post-deploy. `lib/cronAuth.ts` fail-closed fix also merged `dev` → `main` (`7cfbb18`). Note: Render's `liquidity-hq-prod` has `autoDeploy: off`, so prod is still serving the commit before this merge — functionally fine since that commit's old inline check + the now-set `CRON_SECRET` already enforces correctly; a fresh deploy isn't urgent, just not yet triggered.
+6. ~~**Uncapped/unauthenticated non-AI routes**~~ — DONE. `macro`, `telegram/detect`, `telegram/bot-info` now per-IP rate-limited (previously zero limiting at all; `macro` also had `cache:'no-store'` on 5 Yahoo Finance calls per request — switched to a 60s Next fetch cache). `telegram/test`'s silent fallback to the global `TELEGRAM_CHAT_ID` let an anonymous caller spam the owner's real Telegram — auth is now mandatory before any send. `c1336e4` on `dev`.
+7. ~~**Admin traceability**~~ — turned out to already exist. `/ops` has per-user AI usage breakdown, ban/unban (via `auth.admin.updateUserById`), grant/revoke Pro, reset AI limits, all audit-logged to `admin_audit_log`. Nothing built, just wasn't known about.
+
 ## Security audit — open findings
-
-1. ~~**Uncapped Grok-cost routes**~~ — DONE. `thesis-check`, `strategy-research`, `hypotheses/[id]/analyze`, `shadow-account`, `behavioral-bias`, `pine-script` now capped via `lib/aiUsage.ts` (free 5/day, pro 25/day each). Committed `282732a` on `dev`, not yet merged to `main`.
-
-2. ~~**TOCTOU race on daily AI usage caps**~~ — DONE. All 9 AI routes (`grok`, `grok-chat`, `briefing` + the 6 one-shot tools) now use an atomic `increment_ai_usage()` Postgres function instead of read-then-upsert. Committed `3f25d72` on `dev`, not yet merged to `main`.
 
 Not started, ranked by severity:
 
-3. **`token-unlock/route.ts` cache-key bypass** — cache keyed off unvalidated input, trivially bypassed to force fresh expensive calls.
-4. **Verbose error leakage** — ~20 routes return raw `error.message`/`String(e)` to callers, leaks Supabase/PostgREST internals (bounded to authenticated/admin callers only, not public).
-5. **Unlimited trial abuse** — signup has no email verification/dedup, same person can spin up infinite fresh 14-day Pro trials.
-6. **LemonSqueezy `custom_data.user_id` trust gap** — client-supplied at checkout, a user could redirect their own paid entitlement onto another account.
-
-## Waiting on user action (code done, blocked on infra)
-
-- **Cron-secret fix** — `lib/cronAuth.ts` written, fail-closed, applied to `telegram/alert`, `macro-alert`, `signals/track`, `telegram/setup-webhook`. Sitting on `dev` only, NOT merged to `main`. Needs, in order:
-  1. Generate a `CRON_SECRET` value.
-  2. Add `x-cron-secret` header to the 3 live cron-job.org jobs.
-  3. Set `CRON_SECRET` in Render prod env.
-  4. Then merge to `main` (deploying before steps 1-3 breaks the live cron jobs — they currently send no auth header).
+1. **Verbose error leakage** — ~20 routes return raw `error.message`/`String(e)` to callers, leaks Supabase/PostgREST internals (bounded to authenticated/admin callers only, not public).
+2. **LemonSqueezy `custom_data.user_id` trust gap** — client-supplied at checkout, a user could redirect their own paid entitlement onto another account.
+3. **Independent adversarial re-audit** — user asked for the fix set above to be re-checked multiple times, not single-pass. In progress.
 
 ## i18n translation — paused
 
