@@ -93,6 +93,7 @@ export async function POST(req: NextRequest) {
   const { data: trades, error } = await sb(token)
     .from(T.trades)
     .select('*')
+    .eq('user_id', authData.user.id)
     .order('created_at', { ascending: true })
     .limit(500);
 

@@ -25,6 +25,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .from(T.hypothesis_evidence)
     .select('*')
     .eq('hypothesis_id', id)
+    .eq('user_id', authData.user.id)
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -39,6 +40,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
+
+  // Verify the target hypothesis actually belongs to the caller before
+  // attaching evidence to it. RLS on hypothesis_evidence only scopes by the
+  // evidence row's OWN user_id (which is always the caller's own id here),
+  // so without this check a caller could attach their own evidence to
+  // someone else's hypothesis just by guessing/enumerating its id.
+  const { data: hyp, error: hypErr } = await sb(token)
+    .from(T.hypotheses)
+    .select('id')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (hypErr) return NextResponse.json({ error: hypErr.message }, { status: 500 });
+  if (!hyp) return NextResponse.json({ error: 'Hypothesis not found' }, { status: 404 });
+
   const body = await req.json().catch(() => ({})) as {
     type?: string;
     content?: string;
@@ -77,7 +93,11 @@ export async function DELETE(req: NextRequest) {
   const evidenceId = req.nextUrl.searchParams.get('evidenceId');
   if (!evidenceId) return NextResponse.json({ error: 'evidenceId required' }, { status: 400 });
 
-  const { error } = await sb(token).from(T.hypothesis_evidence).delete().eq('id', evidenceId);
+  const { error } = await sb(token)
+    .from(T.hypothesis_evidence)
+    .delete()
+    .eq('id', evidenceId)
+    .eq('user_id', authData.user.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

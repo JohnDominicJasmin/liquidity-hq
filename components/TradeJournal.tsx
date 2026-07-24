@@ -5,6 +5,7 @@ import { COINS, CoinId } from '@/lib/marketStore';
 import { getLocalNow, getSessionName } from '@/lib/session';
 import { getSupabase } from '@/lib/supabase';
 import AuthGate from './AuthGate';
+import { useAuth } from './AuthProvider';
 import Tip from './Tip';
 import { Warn } from './icons';
 import { track } from '@/lib/analytics';
@@ -262,6 +263,7 @@ function Inner() {
   const sp     = useSearchParams();
   const router = useRouter();
   const { t }  = useLabels();
+  const { user } = useAuth();
 
   const [tab,       setTab]       = useState<'log' | 'history' | 'stats' | 'rules' | 'shadow' | 'bias' | 'thesis'>('log');
   const [trades,    setTrades]    = useState<Trade[]>([]);
@@ -570,7 +572,7 @@ function Inner() {
   /* Save new trade */
   const saveTrade = async () => {
     const db = getSupabase();
-    if (!db) return;
+    if (!db || !user) return;
     const entryNum = parseFloat(entry);
     const stopNum  = parseFloat(stopLoss);
     if (!entryNum || !stopNum) return;
@@ -580,6 +582,7 @@ function Inner() {
 
     setSaving(true);
     const payload = {
+      user_id: user.id,
       coin, direction, setup_type: setup,
       entry_price: entryNum, stop_loss: stopNum,
       exit_price:       null,

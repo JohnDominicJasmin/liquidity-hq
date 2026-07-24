@@ -99,8 +99,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
 
   const [{ data: hyp }, { data: evs }] = await Promise.all([
-    sb(token).from(T.hypotheses).select('*').eq('id', id).single(),
-    sb(token).from(T.hypothesis_evidence).select('*').eq('hypothesis_id', id).order('created_at', { ascending: true }),
+    sb(token).from(T.hypotheses).select('*').eq('id', id).eq('user_id', authData.user.id).single(),
+    sb(token).from(T.hypothesis_evidence).select('*').eq('hypothesis_id', id).eq('user_id', authData.user.id).order('created_at', { ascending: true }),
   ]);
 
   if (!hyp) return NextResponse.json({ error: 'Hypothesis not found' }, { status: 404 });
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     grok_last_run: new Date().toISOString(),
     status: newStatus,
     updated_at: new Date().toISOString(),
-  }).eq('id', id);
+  }).eq('id', id).eq('user_id', authData.user.id);
 
   return NextResponse.json({
     verdict: normalizedVerdict,
