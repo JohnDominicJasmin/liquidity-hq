@@ -22,9 +22,9 @@ Two Supabase projects, both need every seed file run:
 
 **Supported** (locale codes wired into the switcher/type system, `lib/labels.ts`): 10 — `en, ko, zh, ar, vi, pt-BR, tr, es, id, ru`.
 
-**Implemented app-wide** (has actual DB rows, not just the code path): **4 — `en`, `ko`, `zh`, `ar`.** Verified via `select count(*) from lhq_labels where locale = '<code>'` = 2370, matching the full key count, in both prod and dev projects.
+**Implemented app-wide** (has actual DB rows, not just the code path): **5 — `en`, `ko`, `zh`, `ar`, `ru`.** Verified via `select count(*) from lhq_labels where locale = '<code>'` = 2370, matching the full key count, in both prod and dev projects.
 
-**Not yet implemented app-wide**: 6 — `vi, pt-BR, tr, es, id, ru`. Switcher lets a user pick them; `t()` silently falls back to English (or the raw key) since no translated row exists yet.
+**Not yet implemented app-wide**: 5 — `vi, pt-BR, tr, es, id`. Switcher lets a user pick them; `t()` silently falls back to English (or the raw key) since no translated row exists yet.
 
 **Arabic is RTL and the app has no RTL layout support** (no `dir="rtl"`, no mirrored layout/icons). The `ar` rows translate the text correctly, but the UI will render Arabic text left-to-right in a left-to-right layout — readable but visually wrong. That's a separate frontend task, out of scope for this translation-content wave, not a bug in the seeded data.
 
@@ -88,7 +88,8 @@ Translating the 2370 seeded `en` rows into each of the other 9 supported locales
 | `ko` | DONE (2026-07-24) | 2370/2370 both projects | First locale. See process below. |
 | `zh` | DONE (2026-07-24) | 2370/2370 both projects | Simplified Chinese. Same process, reused the `ko` wave's `chunks/*.json` English source files unchanged. |
 | `ar` | DONE (2026-07-24) | 2370/2370 both projects | Modern Standard Arabic. **Seed chunk size had to drop from 150→50 rows** — see note below. DB-count verified only, no live browser check (explicit token-budget tradeoff this wave). |
-| `vi, pt-BR, tr, es, id, ru` | Not started | 0 | Same process, repeat per locale. |
+| `ru` | DONE (2026-07-24) | 2370/2370 both projects | Russian, Cyrillic. Seed default was raised back to 150 rows/chunk as a token-saving experiment; 13/16 parts held at 150, but 3 parts (05, 06, 13) still hit the 8000-token cap and had to be re-split to 50 rows/chunk to clear — confirms the 150→50 threshold is script-dependent, not a fixed rule, and 150 isn't safe to assume even for non-CJK scripts. DB-count verified only, no live browser check. |
+| `vi, pt-BR, tr, es, id` | Not started | 0 | Same process, repeat per locale. |
 
 **Process (established on `ko`, repeat per locale):**
 1. Parse all `supabase/migrations/*_labels_seed_*.sql` files (the `en` source of truth) into `(key, value)` pairs — a small Node script, not by hand (2370 keys).
