@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
 
   // Strict charset/allowlist (not just a default) - previously any string was
   // accepted into the cache key below, letting callers defeat it with
-  // arbitrary noise and force unlimited fresh xAI calls. See PENDING.md
+  // arbitrary noise and force unlimited fresh xAI calls. See pendings/PENDING.md
   // finding #3 (same class of bug as token-unlock).
   if (!/^[A-Z0-9]{1,10}$/.test(asset)) {
     return NextResponse.json({ error: 'Invalid asset symbol' }, { status: 400 });

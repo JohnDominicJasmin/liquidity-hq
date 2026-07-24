@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
 
   // Strict charset (not just length) - a loose check let callers defeat the
   // cache key below by padding with punctuation/whitespace noise, forcing a
-  // fresh (unbounded, unrated) xAI call every time. See PENDING.md finding #3.
+  // fresh (unbounded, unrated) xAI call every time. See pendings/PENDING.md.
   if (!/^[A-Z0-9]{2,10}$/.test(symbol)) {
     return NextResponse.json({ error: 'Enter a valid token symbol (e.g. ARB, OP, PYTH)' }, { status: 400 });
   }
