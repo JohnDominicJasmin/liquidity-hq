@@ -1,5 +1,7 @@
 'use client';
+import Link from 'next/link';
 import { useAdminResource, fmtInt, fmtPct, fmtAgo } from './_client';
+import { fmtUsd } from '@/lib/aiCost';
 import { useLabels } from '@/lib/labels';
 import styles from './ops.module.css';
 
@@ -111,7 +113,13 @@ export function CronsCard() {
 // ── AI cost (Grok) ─────────────────────────────────────────────────────────
 interface AiCost {
   system: { total24h: number; total7d: number; perDay: { day: string; count: number }[]; byType: { type: string; count: number }[] };
-  topUsers: { userId: string; email: string | null; total: number }[];
+  topSpenders: {
+    userId: string; email: string | null; role: string;
+    cost24h: number; cost7d: number; cost30d: number;
+    revenueMonthly: number; margin: number;
+  }[];
+  cost: { global24h: number; global7d: number; global30d: number };
+  globalBreaker: { todayCalls: number; capCalls: number | null; spikeAlert: boolean };
   generatedAt: string;
 }
 
@@ -119,14 +127,27 @@ export function AiCostCard() {
   const { t } = useLabels();
   const { data, error, loading, reload } = useAdminResource<AiCost>('/api/ops/ai-cost');
   const max = data ? Math.max(1, ...data.system.perDay.map(d => d.count)) : 1;
+  const gb = data?.globalBreaker;
   return (
-    <CardShell title={t('OPS_CARDS_AI_COST_TITLE')} onReload={reload} loading={loading} error={error} hasData={!!data}>
+    <CardShell title={t('OPS_CARDS_AI_COST_TITLE')} onReload={reload} loading={loading} error={error} hasData={!!data} span2>
       {data && (
         <>
           <div className={styles.stats} style={{ gridTemplateColumns: 'repeat(2,1fr)' }}>
             <Stat label={t('OPS_CARDS_CRON_CALLS_24H')} val={fmtInt(data.system.total24h)} />
             <Stat label={t('OPS_CARDS_CRON_CALLS_7D')} val={fmtInt(data.system.total7d)} />
           </div>
+          <div className={styles.stats} style={{ gridTemplateColumns: 'repeat(4,1fr)', marginTop: 12 }}>
+            <Stat label={t('OPS_CARDS_AI_SPEND_24H')} val={fmtUsd(data.cost.global24h)} />
+            <Stat label={t('OPS_CARDS_AI_SPEND_7D')} val={fmtUsd(data.cost.global7d)} />
+            <Stat label={t('OPS_CARDS_AI_SPEND_30D')} val={fmtUsd(data.cost.global30d)} />
+            <Stat
+              label={t('OPS_CARDS_GLOBAL_CAP_TODAY')}
+              val={gb?.capCalls != null ? `${fmtInt(gb.todayCalls)} / ${fmtInt(gb.capCalls)}` : fmtInt(gb?.todayCalls)}
+              cls={gb?.spikeAlert ? styles.bad : undefined}
+              sub={gb?.capCalls == null ? t('OPS_CARDS_GLOBAL_CAP_UNSET') : undefined}
+            />
+          </div>
+          {gb?.spikeAlert && <p className={styles.err} style={{ marginTop: 8 }}>{t('OPS_CARDS_SPIKE_ALERT')}</p>}
           <div className={styles.miniBars} aria-hidden>
             {data.system.perDay.map(d => (
               <div key={d.day} className={styles.bar}
@@ -134,15 +155,22 @@ export function AiCostCard() {
                 title={`${d.day}: ${d.count}`} />
             ))}
           </div>
-          <div className={styles.rows} style={{ marginTop: 12 }}>
-            {data.topUsers.length === 0 && <div className={styles.rowSub}>{t('OPS_CARDS_NO_AI_USAGE')}</div>}
-            {data.topUsers.map(u => (
-              <div className={styles.row} key={u.userId}>
+          <p className={styles.cardMeta} style={{ marginTop: 10, marginBottom: 4 }}>{t('OPS_CARDS_TOP_SPENDERS_TITLE')}</p>
+          <div className={styles.rows}>
+            {data.topSpenders.length === 0 && <div className={styles.rowSub}>{t('OPS_CARDS_NO_AI_USAGE')}</div>}
+            {data.topSpenders.map(u => (
+              <Link href={`/ops/users/${u.userId}`} key={u.userId} className={styles.row} style={{ textDecoration: 'none' }}>
                 <span className={styles.rowLabel}>
                   <span className={styles.rowName}>{u.email ?? `${u.userId.slice(0, 8)}…`}</span>
+                  {u.role === 'pro' && <span className={`${styles.badge} ${styles.badgePro}`}>{t('OPS_USERS_PRO_BADGE')}</span>}
                 </span>
-                <span className={styles.rowVal}>{fmtInt(u.total)}</span>
-              </div>
+                <span className={styles.rowVal}>
+                  {fmtUsd(u.cost30d)}
+                  <span className={`${styles.rowSub} ${u.margin < 0 ? styles.bad : styles.good}`} style={{ marginLeft: 8 }}>
+                    {t('OPS_CARDS_MARGIN_LABEL', { margin: fmtUsd(u.margin) })}
+                  </span>
+                </span>
+              </Link>
             ))}
           </div>
           <p className={styles.note}>{t('OPS_CARDS_AI_COST_NOTE')}</p>
