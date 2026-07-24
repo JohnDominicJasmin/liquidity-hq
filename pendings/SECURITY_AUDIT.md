@@ -12,12 +12,13 @@ abuse, traceability, general exploit surface.
 
 ## Still open (all LOW priority — nothing here is urgent)
 
-- **🟡 Telegram alert on global-cap-breach spike.** The global circuit
-  breaker (`AI_GLOBAL_DAILY_MAX`) and its 80%-of-cap spike flag are live on
-  `/ops`, but nothing pushes a notification — a spike is only caught by
-  looking at the dashboard. Add a cron (the harness already exists for
-  other crons) that checks the daily total vs. a threshold and Telegrams the
-  owner on breach.
+- ~~🟡 Telegram alert on global-cap-breach spike~~ — **code done 2026-07-25**,
+  scheduling pending. `app/api/ops/spike-alert/route.ts` Telegrams the owner
+  once today's usage crosses 80% of `AI_GLOBAL_DAILY_MAX` (same threshold as
+  the `/ops` dashboard's own flag), with a `spike_alerted` dedup column so it
+  fires once per day, not once per tick. Needs a scheduler pointed at it -
+  user chose n8n over cron-job.org (see `INFRASTRUCTURE.md` §8) - not a
+  security gap once wired, just not live yet.
 - **Per-user cap on the 3 cached xAI routes' cache-miss path** (dry-powder,
   macro-context, onchain). Fixed-key caching already bounds cost to ~1
   call/TTL, but there's no per-user counter for symmetry/attribution with
