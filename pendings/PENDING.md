@@ -40,6 +40,7 @@ but not yet committed (see status note on that bullet).
 - Secrets/keys/logs audited clean. Admin traceability exists at `/ops`.
 - Adversarial re-verification (live prod DB, 3 passes): 5/6 sampled fixes SOUND; 1 defect found + fixed same session.
 - **Turnstile CAPTCHA on magic-link login** — code side DONE and verified (widget renders only when configured, CSP updated to allow `challenges.cloudflare.com`, button correctly gates on the token, Google OAuth untouched). Tested end-to-end locally with Cloudflare's official always-pass test key. **OFF until you complete the 3-step handoff below** — this is what actually stops unlimited-distinct-inbox trial farming.
+- **Dev aligned to prod on `TELEGRAM_WEBHOOK_SECRET` + `NEXT_PUBLIC_APP_URL`** — both set on `liquidity-hq-dev` (`https://liquidity-hq-dev.onrender.com`), matching prod's setup. Deploy triggered automatically by the env var update (also picks up the non-xAI attribution commit above). Note: dev's Telegram webhook itself is still unregistered — this only makes the route ready to verify a secret if one is ever pointed at dev; no live Telegram traffic depends on it.
 
 ## ⛔ OPEN — code (mine)
 
@@ -48,10 +49,6 @@ Nothing outstanding right now. Everything that was "mine" is either done
 
 ## ⏸️ DEFERRED — low priority, explicitly scoped, not blocking anything
 
-- **Dev Render env vars** (`TELEGRAM_WEBHOOK_SECRET`, `NEXT_PUBLIC_APP_URL`) —
-  dev isn't the live webhook target, so this doesn't protect anything real
-  right now. Setting an env var triggers a Render deploy (dev has a 500hr/mo
-  cap) — deferred until there's an actual reason to burn one.
 - **Admin $-cost view** — tied to the paused pricing analysis
   (`PRICING_ANALYSIS.md` §5E). Will build once pricing/caps are decided, so the
   cost constants are real rather than placeholders.
