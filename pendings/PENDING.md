@@ -17,14 +17,16 @@ have broken every live Grok/xAI feature for real users. Topped up **$10**
 enabled** ($10 charge when balance falls to $5 or below) so this doesn't
 recur silently. Closed.
 
-## ✅ ALL CODE WORK MERGED TO `main` — awaiting your manual deploy (2026-07-24)
+## ✅ ALL CODE WORK LIVE ON PROD (2026-07-24)
 
-Three merges today: 15 commits (homepage 200, `webhook_ok: true`), then 5 more
-(`dep-d9hlm2cm0tmc73b4qum0`, live, re-smoke-tested), then a third covering
-non-xAI attribution + the pricing/cap repricing below — merged to `main`
-(`beb2a8d`) and pushed, but **not yet deployed** (prod `autoDeploy` is off;
-you're deploying this one manually). Everything below is on `main` right
-now, live on prod only after your next manual deploy.
+Four merges today, all deployed: 15 commits (homepage 200, `webhook_ok:
+true`), then 5 more (`dep-d9hlm2cm0tmc73b4qum0`), then non-xAI attribution +
+pricing/cap repricing (`beb2a8d`), then the `/ops` cost view + disposable-email
+blocklist (`da737f7`, deploy `dep-d9hofvd7vvec73er9o4g`, **manually deployed
+by you and confirmed live** — re-smoke-tested: homepage 200,
+`/api/telegram/status` → `{"configured":true}`, `/upgrade` verified in a real
+browser showing `$25/mo` and the trimmed 5/3/10/40/18/75/18 caps). Everything
+below is live on prod right now, not just `main`.
 
 - **Raw i18n label keys flashing on every full page load** (user-reported via
   screen recording, `/dashboard` + confirmed on `/markets`, `/arena`,
@@ -42,7 +44,7 @@ now, live on prod only after your next manual deploy.
 - token-unlock / smc-snapshot cache-bypass closed.
 - macro / telegram detect / bot-info / webhook per-IP rate-limited; telegram/test auth-required.
 - **IP-spoof fix** — `getClientIp` read the client-controllable leftmost `X-Forwarded-For` hop; now reads the rightmost (Render-appended, trusted) hop. Every per-IP limit in the app now actually holds.
-- **Non-xAI traceability, now full account-level** — *(done, merged to `main`, awaiting your manual deploy)* every unauthenticated route that calls a metered/keyed external API now logs IP **and** user id (or `anon`) on every call: `cmc` (`CMC_API_KEY`), `news/finnhub` (`FINNHUB_KEY`), `econ-calendar` (shares `FINNHUB_KEY`), `proxy` (`COINGLASS_API_KEY` for the coinglass-flow/liq types). Checked every other API route for the same shape first — `macro`, `coinbase-price`, `cycle`, `ath`, `forex/jpy`, `funding`, `news-rss` all call keyless public APIs (Yahoo Finance, Coinbase, Bybit, CoinGecko, open.er-api.com, Binance futures, plain RSS) with no vendor cost/quota to attribute, so they're correctly out of scope. `MarketProvider`/`NewsProvider`/`EconCalendarWidget`/`ConfluenceScore` attach a bearer token when the caller happens to be signed in (`lib/supabase.ts` `getAuthToken()`); each route verifies it server-side (`auth.getUser()`) and logs the real user id, falling back to `anon` — auth stays optional, all four routes are still intentionally unauthenticated (public data for signed-out visitors too). Verified locally: fresh requests on `/markets` log `user=anon` for all four routes for a signed-out session, no regression. `npx tsc --noEmit` clean.
+- **Non-xAI traceability, now full account-level — LIVE on prod.** Every unauthenticated route that calls a metered/keyed external API now logs IP **and** user id (or `anon`) on every call: `cmc` (`CMC_API_KEY`), `news/finnhub` (`FINNHUB_KEY`), `econ-calendar` (shares `FINNHUB_KEY`), `proxy` (`COINGLASS_API_KEY` for the coinglass-flow/liq types). Checked every other API route for the same shape first — `macro`, `coinbase-price`, `cycle`, `ath`, `forex/jpy`, `funding`, `news-rss` all call keyless public APIs (Yahoo Finance, Coinbase, Bybit, CoinGecko, open.er-api.com, Binance futures, plain RSS) with no vendor cost/quota to attribute, so they're correctly out of scope. `MarketProvider`/`NewsProvider`/`EconCalendarWidget`/`ConfluenceScore` attach a bearer token when the caller happens to be signed in (`lib/supabase.ts` `getAuthToken()`); each route verifies it server-side (`auth.getUser()`) and logs the real user id, falling back to `anon` — auth stays optional, all four routes are still intentionally unauthenticated (public data for signed-out visitors too). Verified locally: fresh requests on `/markets` log `user=anon` for all four routes for a signed-out session, no regression. `npx tsc --noEmit` clean.
 - Cron auth fail-closed, `CRON_SECRET` set, verified 200 on a live cron run.
 - Telegram webhook: secret set + re-registered, `webhook_ok: true` confirmed. `/start` restored.
 - Trial abuse: email dedup, revoked stray write grants, FK CASCADE→SET NULL, null-email = no trial.
@@ -52,7 +54,7 @@ now, live on prod only after your next manual deploy.
 - Adversarial re-verification (live prod DB, 3 passes): 5/6 sampled fixes SOUND; 1 defect found + fixed same session.
 - **Turnstile CAPTCHA on magic-link login — LIVE on prod.** Widget "LiquidityHQ Login" created in Cloudflare (hostnames `liquidity-hq.onrender.com` + `liquidity-hq-dev.onrender.com`, Managed mode). `NEXT_PUBLIC_TURNSTILE_SITE_KEY` set on both Render services (prod deploy `dep-d9hnd57lk1mc73eagneg` confirmed `live`). Secret key saved in Supabase (`LiquidityHq` prod project) → Authentication → Attack Protection → Captcha provider `Turnstile by Cloudflare`, toggle on. Verified end-to-end on the real prod URL: the Turnstile checkbox ("Verify you are human") renders live on `/login`, not just the earlier loading placeholder. This is what actually stops unlimited-distinct-inbox trial farming — closed.
 - **Dev aligned to prod on `TELEGRAM_WEBHOOK_SECRET` + `NEXT_PUBLIC_APP_URL`** — both set on `liquidity-hq-dev` (`https://liquidity-hq-dev.onrender.com`), matching prod's setup. Deploy triggered automatically by the env var update (also picks up the non-xAI attribution commit above). Note: dev's Telegram webhook itself is still unregistered — this only makes the route ready to verify a secret if one is ever pointed at dev; no live Telegram traffic depends on it.
-- **Admin $-cost view, built** — new `lib/aiCost.ts` (real per-token rates:
+- **Admin $-cost view, LIVE on prod** — new `lib/aiCost.ts` (real per-token rates:
   $1.25/$0.20/$2.50 input/cached/output per 1M, plain-call ≈$0.0041,
   search-call ≈$0.0091, matching `PRICING_ANALYSIS.md` §1). `/api/ops/ai-cost`
   now returns real $ figures (24h/7d/30d, global + per-user), sorted top-10
@@ -120,9 +122,9 @@ implemented and verified live**, not just analyzed:
   Free worst-case dropped to **~$6.54/mo** for $0 revenue (was ~$54).
 
 See `pendings/PRICING_ANALYSIS.md` §7 for the full final numbers and the
-worst-case cost table. Verified live locally (`tsc` clean, `/upgrade` and
-landing page both render the new price and caps correctly in the browser),
-merged to `main`, awaiting your manual deploy.
+worst-case cost table. **Live on prod** — verified in a real browser against
+`liquidity-hq.onrender.com/upgrade`: `$25/mo` and the trimmed caps both render
+correctly.
 
 ## i18n translation — paused (see also pendings/I18N_MIGRATION.md)
 
