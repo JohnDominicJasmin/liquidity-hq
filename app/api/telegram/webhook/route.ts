@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,11 @@ export async function POST(req: NextRequest) {
     if (provided !== webhookSecret) {
       return NextResponse.json({ ok: false }, { status: 401 });
     }
+  } else if (!rateLimit(`telegram-webhook:${getClientIp(req)}`, 30, 60_000)) {
+    // Defense-in-depth when the secret isn't configured (verification above is
+    // then skipped): bound how fast an unauthenticated caller can drive the
+    // /start welcome-DM path. Set TELEGRAM_WEBHOOK_SECRET to close it fully.
+    return NextResponse.json({ ok: false }, { status: 429 });
   }
 
   const update = await req.json() as {
