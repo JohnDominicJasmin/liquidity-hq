@@ -3813,6 +3813,10 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 [data-theme="light"] .lang-nav-btn:hover { background: rgba(0,0,0,0.05); color: var(--txt); }
 [data-theme="light"] .lang-nav-dropdown { background: #fff; border-color: rgba(0,0,0,0.1); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
 [data-theme="light"] .lang-nav-item:hover { background: rgba(0,0,0,0.05); color: var(--txt); }
+/* Onboarding checklist (mini pill + full panel) - had no light override at
+   all, so the 0.25-opacity black shadow tuned for a near-black page showed
+   up as a hard grey block on the white dashboard. */
+[data-theme="light"] .ob-checklist { box-shadow: 0 4px 18px rgba(0,0,0,0.12); }
 
 /* Card elevation in light mode */
 [data-theme="light"] .card { box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(0,0,0,0.05); }
