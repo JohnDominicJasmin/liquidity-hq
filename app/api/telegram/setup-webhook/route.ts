@@ -24,7 +24,12 @@ export async function GET(req: NextRequest) {
   const info = await infoRes.json() as { ok: boolean; result?: { url?: string } };
   const currentUrl = info.result?.url ?? '';
 
-  if (currentUrl === webhookUrl) {
+  // Skipping when the URL already matches is an optimization that also skips
+  // applying a newly-configured secret_token (getWebhookInfo doesn't expose
+  // whether a secret is set). Pass ?force=1 to re-register unconditionally -
+  // needed after setting TELEGRAM_WEBHOOK_SECRET on an already-registered URL.
+  const force = new URL(req.url).searchParams.get('force') === '1';
+  if (!force && currentUrl === webhookUrl) {
     return NextResponse.json({ ok: true, already_set: true, webhook_url: webhookUrl });
   }
 
