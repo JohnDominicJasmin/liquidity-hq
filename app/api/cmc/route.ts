@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 
@@ -9,16 +10,36 @@ function cmcHeaders() {
   return { 'X-CMC_PRO_API_KEY': CMC_KEY, 'Accept': 'application/json' };
 }
 
+function sb(token: string) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${token}` } } }
+  );
+}
+
+// Still intentionally unauthenticated (public market data, called for
+// signed-out visitors too) - a bearer token is attached when the caller
+// happens to be signed in (see MarketProvider.tsx) so a quota spike is
+// attributable to an account, not just an IP, without requiring auth to use it.
+async function attributedUser(req: NextRequest): Promise<string> {
+  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  if (!token) return 'anon';
+  try {
+    const { data } = await sb(token).auth.getUser();
+    return data.user?.id ?? 'anon';
+  } catch {
+    return 'anon';
+  }
+}
+
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
   if (!rateLimit(`cmc:${ip}`, 20, 60_000)) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
-  // No auth on this route (public market data, called from every visitor
-  // incl. signed-out) so there's no user_id to attribute to - IP is the only
-  // traceability available without wiring a bearer token through
-  // MarketProvider's fetches. Structured so a CMC-quota spike is greppable.
-  console.log(`[cmc] ip=${ip} type=${req.nextUrl.searchParams.get('type')}`);
+  const user = await attributedUser(req);
+  console.log(`[cmc] ip=${ip} user=${user} type=${req.nextUrl.searchParams.get('type')}`);
 
   if (!CMC_KEY) {
     return NextResponse.json({ error: 'CMC_API_KEY not configured' }, { status: 500 });

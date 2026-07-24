@@ -205,7 +205,7 @@ export default function LandingContent({ dict, locale, dir }: Props) {
               <div className="lp-plan-badge">{dict.pricing.pro.badge}</div>
               <div className="lp-plan-header">
                 <div className="lp-plan-name">{dict.pricing.pro.name}</div>
-                <div className="lp-plan-price">$15<span>/mo</span></div>
+                <div className="lp-plan-price">$25<span>/mo</span></div>
                 <div className="lp-plan-sub">{dict.pricing.pro.sub}</div>
               </div>
               <ul className="lp-plan-features">

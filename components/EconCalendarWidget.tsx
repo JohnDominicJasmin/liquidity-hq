@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { getAuthToken } from '@/lib/supabase';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
@@ -39,7 +40,9 @@ export default function EconCalendarWidget() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/econ-calendar')
+    getAuthToken().then(token => fetch('/api/econ-calendar', {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    }))
       .then(r => r.json())
       .then(d => { if (!cancelled) setEvents(d.events ?? []); })
       .catch(() => { if (!cancelled) setError(true); });

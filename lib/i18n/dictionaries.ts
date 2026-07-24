@@ -90,7 +90,7 @@ export const en: LandingDict = {
       { title: 'Run AI analysis', desc: 'Open AI Arena, select a coin, hit Analyze. Grok reads 35 live signals and gives you a direct, actionable trade bias.' },
     ],
   },
-  // AI limit numbers below (7 Quick / 5 Deep / 15 chat, and 50/25/100/25 for Pro)
+  // AI limit numbers below (5 Quick / 3 Deep / 10 chat, and 40/18/75/18 for Pro)
   // must match lib/limits.ts, the enforced source of truth. These are embedded in
   // localized prose across en/ko/zh/ar so they can't be templated - update by hand
   // (all four locales) if a limit changes. The /upgrade page IS derived from limits.ts.
@@ -99,13 +99,13 @@ export const en: LandingDict = {
     h2: 'Start free. Upgrade when ready.',
     free: {
       name: 'Free', sub: 'Always free, no card needed',
-      features: ['Dashboard + market overview', 'Morning briefing', 'News feed', 'All 50 coins - squeeze scanner', '7 Quick + 5 Deep AI analyses / day', '15 AI chat messages / day', 'Telegram alerts', 'Price alerts'],
+      features: ['Dashboard + market overview', 'Morning briefing', 'News feed', 'All 50 coins - squeeze scanner', '5 Quick + 3 Deep AI analyses / day', '10 AI chat messages / day', 'Telegram alerts', 'Price alerts'],
       cta: 'Get started free',
     },
     pro: {
       badge: 'Most popular', name: 'Pro', sub: 'Everything, unlimited',
-      features: ['Everything in Free', 'Telegram alerts - all signal types', 'Unlimited price alerts', '50 Quick + 25 Deep analyses / day', '100 AI chat messages / day', '25 live searches / day', 'Priority support'],
-      cta: 'Get Pro - $15/mo',
+      features: ['Everything in Free', 'Telegram alerts - all signal types', 'Unlimited price alerts', '40 Quick + 18 Deep analyses / day', '75 AI chat messages / day', '18 live searches / day', 'Priority support'],
+      cta: 'Get Pro - $25/mo',
     },
   },
   finalCta: { h2: 'Ready to read the map?', sub: 'Join traders who see the liquidity before it moves.', cta: 'Create free account →' },
@@ -162,13 +162,13 @@ export const ko: LandingDict = {
     h2: '무료로 시작하고, 준비되면 업그레이드하세요.',
     free: {
       name: '무료', sub: '항상 무료, 카드 필요 없음',
-      features: ['대시보드 + 시장 개요', '모닝 브리핑', '뉴스 피드', '전체 50개 코인 - 스퀴즈 스캐너', '일일 퀵 분석 7회 + 딥 분석 5회', '일일 AI 채팅 15회', '텔레그램 알림', '가격 알림'],
+      features: ['대시보드 + 시장 개요', '모닝 브리핑', '뉴스 피드', '전체 50개 코인 - 스퀴즈 스캐너', '일일 퀵 분석 5회 + 딥 분석 3회', '일일 AI 채팅 10회', '텔레그램 알림', '가격 알림'],
       cta: '무료로 시작하기',
     },
     pro: {
       badge: '가장 인기', name: 'Pro', sub: '모든 기능, 무제한',
-      features: ['무료 플랜의 모든 기능', '텔레그램 알림 - 전체 신호 유형', '무제한 가격 알림', '일일 퀵 분석 50회 + 딥 분석 25회', '일일 AI 채팅 100회', '일일 실시간 검색 25회', '우선 지원'],
-      cta: 'Pro 시작하기 - $15/월',
+      features: ['무료 플랜의 모든 기능', '텔레그램 알림 - 전체 신호 유형', '무제한 가격 알림', '일일 퀵 분석 40회 + 딥 분석 18회', '일일 AI 채팅 75회', '일일 실시간 검색 18회', '우선 지원'],
+      cta: 'Pro 시작하기 - $25/월',
     },
   },
   finalCta: { h2: '지도를 읽을 준비가 되셨나요?', sub: '유동성이 움직이기 전에 미리 보는 트레이더들과 함께하세요.', cta: '무료 계정 만들기 →' },
@@ -225,13 +225,13 @@ export const zh: LandingDict = {
     h2: '免费开始,准备好后再升级。',
     free: {
       name: '免费版', sub: '永久免费,无需信用卡',
-      features: ['仪表盘+市场概览', '晨间简报', '新闻资讯', '全部50种币--挤压扫描器', '每日7次快速+5次深度AI分析', '每日15条AI聊天消息', 'Telegram提醒', '价格提醒'],
+      features: ['仪表盘+市场概览', '晨间简报', '新闻资讯', '全部50种币--挤压扫描器', '每日5次快速+3次深度AI分析', '每日10条AI聊天消息', 'Telegram提醒', '价格提醒'],
       cta: '免费开始使用',
     },
     pro: {
       badge: '最受欢迎', name: 'Pro', sub: '全部功能,无限制',
-      features: ['免费版全部功能', 'Telegram提醒--全部信号类型', '无限价格提醒', '每日50次快速+25次深度分析', '每日100条AI聊天消息', '每日25次实时搜索', '优先支持'],
-      cta: '升级Pro--$15/月',
+      features: ['免费版全部功能', 'Telegram提醒--全部信号类型', '无限价格提醒', '每日40次快速+18次深度分析', '每日75条AI聊天消息', '每日18次实时搜索', '优先支持'],
+      cta: '升级Pro--$25/月',
     },
   },
   finalCta: { h2: '准备好读懂地图了吗?', sub: '加入那些在流动性变动前就已洞察先机的交易者行列。', cta: '创建免费账户 →' },
@@ -288,13 +288,13 @@ export const ar: LandingDict = {
     h2: 'ابدأ مجانًا. قم بالترقية عندما تكون جاهزًا.',
     free: {
       name: 'مجاني', sub: 'مجاني دائمًا، بدون الحاجة لبطاقة',
-      features: ['لوحة التحكم + نظرة عامة على السوق', 'الموجز الصباحي', 'خلاصة الأخبار', 'جميع العملات الـ50 - ماسح الانضغاط', '7 تحليلات سريعة + 5 تحليلات معمّقة يوميًا', '15 رسالة دردشة ذكاء اصطناعي يوميًا', 'تنبيهات تيليجرام', 'تنبيهات الأسعار'],
+      features: ['لوحة التحكم + نظرة عامة على السوق', 'الموجز الصباحي', 'خلاصة الأخبار', 'جميع العملات الـ50 - ماسح الانضغاط', '5 تحليلات سريعة + 3 تحليلات معمّقة يوميًا', '10 رسالة دردشة ذكاء اصطناعي يوميًا', 'تنبيهات تيليجرام', 'تنبيهات الأسعار'],
       cta: 'ابدأ مجانًا',
     },
     pro: {
       badge: 'الأكثر شيوعًا', name: 'Pro', sub: 'كل شيء، بلا حدود',
-      features: ['كل ما في الخطة المجانية', 'تنبيهات تيليجرام - جميع أنواع الإشارات', 'تنبيهات أسعار غير محدودة', '50 تحليل سريع + 25 تحليلًا معمّقًا يوميًا', '100 رسالة دردشة ذكاء اصطناعي يوميًا', '25 بحثًا مباشرًا يوميًا', 'دعم ذو أولوية'],
-      cta: 'احصل على Pro - 15$/شهريًا',
+      features: ['كل ما في الخطة المجانية', 'تنبيهات تيليجرام - جميع أنواع الإشارات', 'تنبيهات أسعار غير محدودة', '40 تحليل سريع + 18 تحليلًا معمّقًا يوميًا', '75 رسالة دردشة ذكاء اصطناعي يوميًا', '18 بحثًا مباشرًا يوميًا', 'دعم ذو أولوية'],
+      cta: 'احصل على Pro - 25$/شهريًا',
     },
   },
   finalCta: { h2: 'هل أنت مستعد لقراءة الخريطة؟', sub: 'انضم إلى المتداولين الذين يرون السيولة قبل أن تتحرك.', cta: 'أنشئ حسابًا مجانيًا ←' },

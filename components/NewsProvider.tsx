@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { classifyNews, GEO_KEYWORDS } from '@/lib/classify';
+import { getAuthToken } from '@/lib/supabase';
 
 // Finnhub calls go through /api/news/finnhub - key stays server-side
 
@@ -129,9 +130,11 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   /* ── Finnhub REST news - primary source (crypto + general) ── */
   const fetchFinnhubNews = useCallback(async () => {
     try {
+      const token = await getAuthToken();
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : undefined;
       const [cryptoRes, generalRes] = await Promise.allSettled([
-        fetch('/api/news/finnhub?type=crypto').then(r => r.json()),
-        fetch('/api/news/finnhub?type=general').then(r => r.json()),
+        fetch('/api/news/finnhub?type=crypto', { headers: authHeaders }).then(r => r.json()),
+        fetch('/api/news/finnhub?type=general', { headers: authHeaders }).then(r => r.json()),
       ]);
 
       const cryptoItems: Record<string, string | number>[] =
@@ -166,7 +169,10 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const fetchEconEvents = useCallback(async () => {
     const now = new Date();
     try {
-      const res = await fetch('/api/econ-calendar');
+      const token = await getAuthToken();
+      const res = await fetch('/api/econ-calendar', {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (res.ok) {
         const { events: raw }: { events: { name: string; type: string; isoDate: string; impact: string; previous?: string; estimate?: string; actual?: string }[] } = await res.json();
         const seen = new Set<string>();
@@ -194,7 +200,10 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   /* ── Finnhub geo news ── */
   const fetchGeoEvents = useCallback(async () => {
     try {
-      const res = await fetch('/api/news/finnhub?type=general');
+      const token = await getAuthToken();
+      const res = await fetch('/api/news/finnhub?type=general', {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       const articles: Record<string, string | number>[] = await res.json();
       if (!Array.isArray(articles)) return;
       const now = Math.floor(Date.now() / 1000);

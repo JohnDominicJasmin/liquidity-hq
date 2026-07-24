@@ -1,20 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 
 const KEY  = process.env.FINNHUB_KEY ?? '';
 const BASE = 'https://finnhub.io/api/v1';
 
+function sb(token: string) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${token}` } } }
+  );
+}
+
+// Still intentionally unauthenticated (public news, called for signed-out
+// visitors too) - a bearer token is attached when the caller happens to be
+// signed in (see NewsProvider.tsx) so a quota spike is attributable to an
+// account, not just an IP, without requiring auth to use it.
+async function attributedUser(req: NextRequest): Promise<string> {
+  const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+  if (!token) return 'anon';
+  try {
+    const { data } = await sb(token).auth.getUser();
+    return data.user?.id ?? 'anon';
+  } catch {
+    return 'anon';
+  }
+}
+
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
   if (!rateLimit(`finnhub:${ip}`, 20, 60_000)) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
-  // No auth on this route (public news, called from every visitor incl.
-  // signed-out) so there's no user_id to attribute to - IP is the only
-  // traceability available without wiring a bearer token through
-  // NewsProvider's fetches. Structured so a Finnhub-quota spike is greppable.
-  console.log(`[finnhub] ip=${ip} type=${req.nextUrl.searchParams.get('type')}`);
+  const user = await attributedUser(req);
+  console.log(`[finnhub] ip=${ip} user=${user} type=${req.nextUrl.searchParams.get('type')}`);
 
   if (!KEY) {
     return NextResponse.json({ error: 'FINNHUB_KEY not configured' }, { status: 500 });
