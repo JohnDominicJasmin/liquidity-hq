@@ -19,7 +19,15 @@ interface PriceAlert { id: number; coin: string; target_price: number; direction
 const COIN_OPTIONS = COINS;
 const COIN_LABELS: Record<string, string> = Object.fromEntries(COINS.map(c => [c, c.toUpperCase()]));
 
-const ALERT_COIN_CAP = 20; // Alerts is a Pro-only feature - single cap, no free/pro split needed here
+const ALERT_COIN_CAP = 10; // Alerts is a Pro-only feature - single cap, no free/pro split needed here
+
+// EMA Buy/Sell Signal timeframes - same list Arena's own chart TF picker
+// offers (app/arena/page.tsx), so a user's choice here always matches a
+// timeframe they can actually go look at on the chart. Capped at
+// ALERT_TF_CAP concurrently active, same shape as ALERT_COIN_CAP above.
+const EMA_SIGNAL_TFS = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'] as const;
+const ALERT_TF_CAP = 3;
+const DEFAULT_ON_TFS: readonly string[] = ['1h', '4h', '1d'];
 
 export default function AlertsPage() {
   const { t } = useLabels();
@@ -59,6 +67,7 @@ export default function AlertsPage() {
   const [muteErr, setMuteErr] = useState('');
   const [coinCapMsg, setCoinCapMsg] = useState('');
   const [coinSearch, setCoinSearch] = useState('');
+  const [tfCapMsg, setTfCapMsg] = useState('');
 
   // Alert history
   const [history, setHistory] = useState<{ label: string; ts: number }[]>([]);
@@ -103,6 +112,21 @@ export default function AlertsPage() {
               }).catch(() => {})
             ));
             setMuted(prev => { const n = new Set(prev); toMute.forEach(c => n.add(`coin:${c}`)); return n; });
+          }
+          // Same pattern for the EMA Buy/Sell Signal timeframe picker - a
+          // brand-new user (no ema_signal_ keys at all yet) starts with
+          // DEFAULT_ON_TFS active and the rest pre-muted, rather than all 8
+          // (which would blow past ALERT_TF_CAP the moment they're seen).
+          if (!mutedList.some(k => k.startsWith('ema_signal_'))) {
+            const toMuteTf = EMA_SIGNAL_TFS.filter(tf => !DEFAULT_ON_TFS.includes(tf));
+            await Promise.all(toMuteTf.map(tf =>
+              fetch('/api/alert-prefs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ key: `ema_signal_${tf}`, muted: true }),
+              }).catch(() => {})
+            ));
+            setMuted(prev => { const n = new Set(prev); toMuteTf.forEach(tf => n.add(`ema_signal_${tf}`)); return n; });
           }
         })
         .catch(() => {});
@@ -158,6 +182,24 @@ export default function AlertsPage() {
       }
     }
     setCoinCapMsg('');
+    toggleMute(key);
+  };
+
+  const toggleTf = (tf: string) => {
+    const key = `ema_signal_${tf}`;
+    const isOff = muted.has(key);
+    if (isOff) {
+      const onCount = EMA_SIGNAL_TFS.filter(x => !muted.has(`ema_signal_${x}`)).length;
+      if (onCount >= ALERT_TF_CAP) {
+        setTfCapMsg(
+          onCount > ALERT_TF_CAP
+            ? t('ALERTS_TF_CAP_OVER_MSG', { onCount, cap: ALERT_TF_CAP })
+            : t('ALERTS_TF_CAP_REACHED_MSG', { cap: ALERT_TF_CAP })
+        );
+        return;
+      }
+    }
+    setTfCapMsg('');
     toggleMute(key);
   };
 
@@ -276,18 +318,9 @@ export default function AlertsPage() {
   const botLabel = botUsername ? `@${botUsername}` : t('ALERTS_BOT_FALLBACK_NAME');
 
   const ALERT_GROUPS: { section: string; items: { key: string; dot: string; title: string; desc: string; grok: boolean }[] }[] = [
-    { section: t('ALERTS_SECTION_TRADING_SIGNALS'), items: [
-      { key: 'ema_setup', dot: '#4ade80', title: t('ALERTS_EMA_SETUP_4H_TITLE'), desc: t('ALERTS_EMA_SETUP_4H_DESC'), grok: true },
-      { key: 'ema_setup_1h', dot: '#4ade80', title: t('ALERTS_EMA_SETUP_1H_TITLE'), desc: t('ALERTS_EMA_SETUP_1H_DESC'), grok: true },
-      { key: 'ema_setup_30m', dot: '#4ade80', title: t('ALERTS_EMA_SETUP_30M_TITLE'), desc: t('ALERTS_EMA_SETUP_30M_DESC'), grok: true },
-      { key: 'ema_setup_15m', dot: '#4ade80', title: t('ALERTS_EMA_SETUP_15M_TITLE'), desc: t('ALERTS_EMA_SETUP_15M_DESC'), grok: true },
-    ]},
     { section: t('ALERTS_SECTION_MOMENTUM'), items: [
       { key: 'rsi',        dot: '#fbbf24', title: t('ALERTS_RSI_TITLE'), desc: t('ALERTS_RSI_DESC'), grok: false },
       { key: 'rapid_move', dot: '#fb923c', title: t('ALERTS_RAPID_MOVES_TITLE'),     desc: t('ALERTS_RAPID_MOVES_DESC'), grok: true },
-    ]},
-    { section: t('ALERTS_SECTION_TREND'), items: [
-      { key: 'ema_cross', dot: '#34d399', title: t('ALERTS_EMA_CROSS_TITLE'), desc: t('ALERTS_EMA_CROSS_DESC'), grok: true },
     ]},
     { section: t('ALERTS_SECTION_FLOW'), items: [
       { key: 'whales',   dot: '#1a7aff', title: t('ALERTS_WHALES_TITLE'),        desc: t('ALERTS_WHALES_DESC'), grok: true },
@@ -634,6 +667,57 @@ export default function AlertsPage() {
           {t('ALERTS_MUTE_HINT_PREFIX')} <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4 }}>{t('ALERTS_AI_BADGE_LABEL')}</span> {t('ALERTS_MUTE_HINT_SUFFIX')}
         </div>
         {muteErr && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 8 }}>{muteErr}</div>}
+
+        {/* ── EMA Buy/Sell Signal - real chart-parity signal, capped timeframe picker ── */}
+        <div style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '0.5px solid var(--bdr)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+            <span className="tg-cond-dot" style={{ background: '#4ade80' }} />
+            <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)' }}>{t('ALERTS_EMA_SIGNAL_TITLE')}</div>
+            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4 }}>{t('ALERTS_AI_BADGE_LABEL')}</span>
+          </div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 8, paddingLeft: 14 }}>
+            {t('ALERTS_EMA_SIGNAL_DESC')}
+          </div>
+          <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 4, paddingLeft: 14 }}>
+            {(() => {
+              const onCount = EMA_SIGNAL_TFS.filter(tf => !muted.has(`ema_signal_${tf}`)).length;
+              return onCount > ALERT_TF_CAP
+                ? t('ALERTS_TF_OVER_LIMIT', { onCount, cap: ALERT_TF_CAP })
+                : t('ALERTS_TF_COUNT', { onCount, cap: ALERT_TF_CAP });
+            })()}
+          </div>
+          {tfCapMsg && (
+            <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 8, paddingLeft: 14 }}>
+              {tfCapMsg}
+            </div>
+          )}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingLeft: 14 }}>
+            {EMA_SIGNAL_TFS.map(tf => {
+              const off = muted.has(`ema_signal_${tf}`);
+              return (
+                <button
+                  key={tf}
+                  onClick={() => toggleTf(tf)}
+                  aria-pressed={!off}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    padding: '4px 12px', borderRadius: 7, cursor: 'pointer',
+                    fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.03em',
+                    fontFamily: 'var(--font-mono), monospace',
+                    background: off ? 'transparent' : 'var(--accent-bg)',
+                    border: `0.5px solid ${off ? 'var(--bdr)' : 'var(--accent-bdr)'}`,
+                    color: off ? 'var(--txt3)' : 'var(--accent-2)',
+                    textDecoration: off ? 'line-through' : 'none',
+                    transition: 'all .15s',
+                  }}
+                >
+                  {tf.toUpperCase()}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {ALERT_GROUPS.map(group => (
           <div key={group.section} style={{ marginBottom: 6 }}>
             <div style={{

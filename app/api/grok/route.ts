@@ -5,7 +5,7 @@ import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
-import { incrementUsageColumn } from '@/lib/aiUsage';
+import { incrementUsageColumn, rateLimitMessage } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 
 // Keys / limits (limits: single source of truth in lib/limits.ts)
@@ -115,11 +115,11 @@ export async function POST(req: NextRequest) {
   // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
   const column = type === 'deep' ? 'deep_count' : 'quick_count';
   const limit  = type === 'deep' ? deepLimit : quickLimit;
-  const newCount = await incrementUsageColumn(token!, userId, column, limit);
-  if (newCount === null) {
+  const usageResult = await incrementUsageColumn(token!, userId, column, limit);
+  if (usageResult.blocked) {
     const label = type === 'deep' ? 'deep analyses' : 'quick analyses';
     return NextResponse.json(
-      { error: `Daily limit of ${limit} ${label} reached.`, code: 'RATE_LIMIT', usage: allUsage() },
+      { error: rateLimitMessage(usageResult.reason, limit, label), code: 'RATE_LIMIT', usage: allUsage() },
       { status: 429 }
     );
   }
@@ -169,8 +169,8 @@ export async function POST(req: NextRequest) {
 
   const result = parseCombinedResponse(text, tf, session);
 
-  const newDeep  = type === 'deep'  ? newCount : deepUsed;
-  const newQuick = type === 'quick' ? newCount : quickUsed;
+  const newDeep  = type === 'deep'  ? usageResult.count : deepUsed;
+  const newQuick = type === 'quick' ? usageResult.count : quickUsed;
 
   return NextResponse.json({
     result,

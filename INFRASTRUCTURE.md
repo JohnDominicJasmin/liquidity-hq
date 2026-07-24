@@ -37,7 +37,7 @@ Account: `console.cron-job.org` (external, separate login — not in this repo, 
 All four active jobs above target **prod only** (`liquidity-hq.onrender.com`). `macro-alert` and `signals/track` were both verified working on dev too via direct curl (`liquidity-hq-dev.onrender.com`, both `200 OK`, `signals/track` genuinely logged a real signal) - the routes work fine there, there's just no cron pointed at dev for them. Confirmed intentional with the user 2026-07-19: dev is staging, doesn't need production alert cadence. Don't re-flag this as a gap.
 | `dev liquidity hq environment` | `https://liquidity-hq-dev.onrender.com/` | (was recurring) | **Inactive** (disabled), last run **failed** | none | Old keep-alive ping for dev (free-tier spin-down mitigation). Last ran 2026-07-01, failed. |
 
-**`CRON_SECRET` is not currently set on the production Render service.** The `telegram/alert` job above sends no auth header and still succeeds, confirming this empirically. If `CRON_SECRET` is ever set in Render's env vars without also adding an `x-cron-secret` header to these cron-job.org jobs, they will start failing with 401s silently (cron-job.org does have failure-notification settings, but confirm they're actually configured before relying on that).
+**`CRON_SECRET` IS set on prod, as of the security-audit fixes (`pendings/PENDING.md`: "Cron auth fail-closed, CRON_SECRET set, verified 200 on a live cron run").** This section previously said it was unset — stale, corrected 2026-07-25. `lib/cronAuth.ts`'s `checkCronAuth()` fails CLOSED with no secret configured, so every job in the table above must send a matching `x-cron-secret` header (or `?secret=` query param) or it 401s. Any NEW cron-job.org job or n8n workflow hitting a `checkCronAuth`-gated route needs this header from the start - it will not silently work unauthenticated the way the original jobs briefly did before the fail-closed change shipped.
 
 **`api/macro-alert` and `api/signals/track` schedule gap — CLOSED 2026-07-19.** Both wired to cron-job.org (see rows above), matching `telegram/alert`'s existing pattern rather than adding a third scheduling tool. `signals/track`'s route has no Binance→Bybit failover on fetch failure (unlike `alert-outcomes/resolve`, which tries both concurrently) — a pre-existing code characteristic, not something this wiring pass touched; worth hardening later if Binance rate-limiting becomes a recurring problem for that route specifically.
 
@@ -135,3 +135,11 @@ From `package.json`. **Next.js 16.2.6 is explicitly called out in `AGENTS.md` as
 
 - ~~`api/macro-alert` and `api/signals/track` have no confirmed scheduler anywhere~~ — **CLOSED same day**, both wired to cron-job.org. See §2.
 - ~~7 of the 11 `DASHBOARD_SECTIONS` toggles in Settings are inert~~ — **RESOLVED 2026-07-21**. Investigated each of the 7: `session` was a real gating bug (fixed, then removed along with the rest below); the other 6 (`accumulation`, `distribution`, `catalysts`, `gex`, `macro`, `commandments`) referenced widgets that either live on other pages entirely or were never built. Rather than build 6 new dashboard widgets or leave non-functional checkboxes, the user chose to remove the whole "Dashboard Sections" toggle feature - `DASHBOARD_SECTIONS`, `hidden_sections`, and the Settings UI for it no longer exist. `/dashboard` now always renders all its sections unconditionally.
+- **`api/ops/spike-alert` — built 2026-07-25, NOT YET SCHEDULED.** Telegrams
+  the owner (`TELEGRAM_CHAT_ID`) once today's xAI usage crosses 80% of
+  `AI_GLOBAL_DAILY_MAX` (`pendings/SECURITY_AUDIT.md`'s one remaining open
+  item). `checkCronAuth`-gated like the others - needs an `x-cron-secret`
+  header. User is wiring this via n8n (own choice, has an existing similar
+  workflow - see §3), not cron-job.org. Until that workflow exists, this
+  route is genuinely dead - nothing calls it on a schedule yet. Update this
+  entry once it's wired (workflow name, schedule) - don't leave it stale.
