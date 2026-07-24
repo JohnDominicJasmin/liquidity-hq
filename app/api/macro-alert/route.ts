@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import { checkCronAuth } from '@/lib/cronAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,14 +76,7 @@ async function sendTelegram(token: string, chatId: string, text: string): Promis
 }
 
 export async function GET(req: Request) {
-  // Protect with CRON_SECRET if set
-  const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = req.headers.get('x-cron-secret') ?? new URL(req.url).searchParams.get('secret');
-    if (auth !== secret) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-  }
+  if (!checkCronAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN not set' }, { status: 503 });

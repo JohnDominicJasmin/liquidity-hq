@@ -10,6 +10,7 @@ import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS } from '@/lib/coins';
 import { getWaveTrendConfirmation } from '@/lib/waveTrend';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
 import { isFeatureEnabled } from '@/lib/featureFlags';
+import { checkCronAuth } from '@/lib/cronAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -1681,14 +1682,11 @@ async function fetchMutedKeysByUser(): Promise<Map<string, Set<string>>> {
 }
 
 export async function GET(req: NextRequest) {
-  // Protect with CRON_SECRET if set - same opt-in pattern as macro-alert.
-  // Without this, anyone who finds the URL can trigger it: burns Grok budget,
-  // spams every connected Telegram chat, and force-deactivates price alerts.
-  const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = req.headers.get('x-cron-secret') ?? req.nextUrl.searchParams.get('secret');
-    if (auth !== secret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  // Fail-closed: burns Grok budget, spams every connected Telegram chat, and
+  // force-deactivates price alerts if left reachable by anyone who finds the
+  // URL. See lib/cronAuth.ts for why this denies by default instead of only
+  // checking when CRON_SECRET happens to be set.
+  if (!checkCronAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token)

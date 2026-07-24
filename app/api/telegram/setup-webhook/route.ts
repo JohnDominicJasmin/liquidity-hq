@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkCronAuth } from '@/lib/cronAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,11 +8,7 @@ export const dynamic = 'force-dynamic';
 // Protected by CRON_SECRET - this mutates where Telegram sends bot updates,
 // so it must not be triggerable by an arbitrary caller (or Host-header spoof).
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const auth = req.headers.get('x-cron-secret') ?? req.nextUrl.searchParams.get('secret');
-    if (auth !== cronSecret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!checkCronAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return NextResponse.json({ ok: false, error: 'No TELEGRAM_BOT_TOKEN configured' }, { status: 500 });
