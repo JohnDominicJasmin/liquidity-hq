@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { detectEMASignals, DEFAULT_FILTER_PARAMS, OHLCV } from '@/lib/strategyCore';
+import { checkCronAuth } from '@/lib/cronAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -133,11 +134,7 @@ async function runTracking(): Promise<{ logged: string[]; resolved: string[]; er
 }
 
 export async function GET(req: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = req.headers.get('x-cron-secret') ?? new URL(req.url).searchParams.get('secret');
-    if (auth !== secret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!checkCronAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Safety net - never exceed Render's 30s request limit, same pattern as the
   // Telegram alert route.

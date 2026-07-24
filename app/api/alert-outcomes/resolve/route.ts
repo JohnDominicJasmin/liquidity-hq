@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
+import { checkCronAuth } from '@/lib/cronAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,11 +79,7 @@ async function runResolve(): Promise<{ resolved24h: number; resolved48h: number 
 }
 
 export async function GET(req: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = req.headers.get('x-cron-secret') ?? new URL(req.url).searchParams.get('secret');
-    if (auth !== secret) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!checkCronAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Same 28s safety net as the other cron routes - never exceed Render's 30s limit.
   let timerId: ReturnType<typeof setTimeout>;
