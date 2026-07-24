@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { LabelsContext, Locale, loadLocalLocale, saveLocalLocale, interpolate } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 
@@ -8,27 +8,63 @@ import type { LabelKey } from '@/lib/labelKeys';
 // see components/AppShell.tsx. Mirrors SettingsProvider's localStorage-first
 // pattern: the saved locale applies immediately on mount (no flash back to
 // English on reload), then a fetch keeps the label map in sync with it.
+
+const MAP_CACHE_PREFIX = 'lhq_labels_cache_v1_';
+
+// Last-known-good label map per locale, so a repeat visit/navigation can
+// paint real text immediately instead of raw KEY_NAME fallbacks for however
+// long the network fetch takes. Never cache a fail-open {} - that would
+// poison every future load with permanent raw keys.
+function loadCachedMap(locale: Locale): Record<string, string> | null {
+  try {
+    const raw = localStorage.getItem(MAP_CACHE_PREFIX + locale);
+    return raw ? JSON.parse(raw) as Record<string, string> : null;
+  } catch { return null; }
+}
+function saveCachedMap(locale: Locale, map: Record<string, string>) {
+  if (Object.keys(map).length === 0) return;
+  try { localStorage.setItem(MAP_CACHE_PREFIX + locale, JSON.stringify(map)); } catch { /* ignore */ }
+}
+
 export default function LabelsProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>('en');
   const [map, setMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const reqId = useRef(0);
 
-  useEffect(() => { setLocaleState(loadLocalLocale()); }, []);
-
-  useEffect(() => {
-    let alive = true;
+  const fetchLabels = useCallback((l: Locale) => {
+    const id = ++reqId.current;
     setLoading(true);
-    fetch(`/api/labels?locale=${encodeURIComponent(locale)}`, { cache: 'no-store' })
+    fetch(`/api/labels?locale=${encodeURIComponent(l)}`, { cache: 'no-store' })
       .then(r => r.json())
-      .then(data => { if (alive) setMap(data); })
+      .then(data => {
+        if (reqId.current !== id) return; // a newer locale switch has since started
+        setMap(data);
+        saveCachedMap(l, data);
+      })
       .catch(() => { /* keep last-known map on transient failure */ })
-      .finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, [locale]);
+      .finally(() => { if (reqId.current === id) setLoading(false); });
+  }, []);
+
+  // Runs once, after hydration (avoids an SSR-vs-client text mismatch from
+  // reading localStorage during render). Resolves the real saved locale and
+  // fetches it directly - deliberately NOT two effects chained through a
+  // `locale` state change, which used to fetch English first and then the
+  // real locale a beat later (a wasted request, and a longer raw-key flash).
+  useEffect(() => {
+    const real = loadLocalLocale();
+    setLocaleState(real);
+    const cached = loadCachedMap(real);
+    if (cached) { setMap(cached); setLoading(false); }
+    fetchLabels(real);
+  }, [fetchLabels]);
 
   const setLocale = (l: Locale) => {
     setLocaleState(l);
     saveLocalLocale(l);
+    const cached = loadCachedMap(l);
+    if (cached) setMap(cached);
+    fetchLabels(l);
   };
 
   const t = (key: LabelKey, vars?: Record<string, string | number>) => interpolate(map[key] ?? key, vars);
