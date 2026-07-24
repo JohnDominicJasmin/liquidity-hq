@@ -31,8 +31,15 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 // gives a throttled request a second, staggered chance; logging the real
 // status/error means the NEXT occurrence is diagnosable (via Render logs
 // and now GlitchTip - see lib/apiError.ts) instead of just "could not fetch".
+// `symbol` arrives ALREADY percent-encoded from the call site below
+// ('%5EVIX', 'GC%3DF', etc.) - do not encodeURIComponent() it again here.
+// That double-encoding (%5E -> %255E) is the actual root cause found live:
+// Yahoo correctly 404s "may be delisted" for a symbol name that doesn't
+// exist, which %255EVIX isn't. DX-Y.NYB has no special characters, so
+// double-encoding was a no-op for it alone - exactly why it was the only
+// one of the 5 that ever worked.
 async function fetchYFOnce(symbol: string): Promise<{ price: number; prev: number } | null> {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=2d&interval=1d`;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=2d&interval=1d`;
   const res = await fetch(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
