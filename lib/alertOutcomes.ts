@@ -6,7 +6,13 @@ import { T } from './tables';
 // Everything else - news, fear_greed, cvd, oi_spike, sentiment_extremes,
 // daily_summary, price_alerts - never gets scored: there's no honest way to
 // say what "favorable" means for those without fabricating a side.
-export const OUTCOME_TRACKED_RULE_KEYS = new Set(['squeeze', 'ema_cross', 'distribution', 'rsi', 'whales']);
+// ema_cross is gone (replaced by ema_signal_<tf> - see pendings/ALERTS.md);
+// the new signal has a real entry/SL/TP and is at least as trackable.
+export const OUTCOME_TRACKED_RULE_KEYS = new Set([
+  'squeeze', 'distribution', 'rsi', 'whales',
+  'ema_signal_1m', 'ema_signal_5m', 'ema_signal_15m', 'ema_signal_30m',
+  'ema_signal_1h', 'ema_signal_2h', 'ema_signal_4h', 'ema_signal_1d',
+]);
 
 export interface FireForOutcome {
   ruleKey: string;
@@ -32,10 +38,21 @@ export function isOutcomeTracked(ruleKey: string, dir: 'long' | 'short' | undefi
 // dedup happens here against it, independent of the cron's own cooldown.
 const OUTCOME_DEDUP_MS: Record<string, number> = {
   squeeze: 4 * 3600_000,
-  ema_cross: 12 * 3600_000,
   distribution: 4 * 3600_000,
   rsi: 4 * 3600_000,
   whales: 30 * 60_000,
+  // EMA Buy/Sell Signal - roughly 2x each timeframe's own candle period.
+  // Belt-and-suspenders alongside the cron's own in-memory identity dedup
+  // (emaSignalLastTs), which resets on every redeploy - this is the one that
+  // survives a restart and keeps the outcome table honest.
+  ema_signal_1m: 10 * 60_000,
+  ema_signal_5m: 30 * 60_000,
+  ema_signal_15m: 60 * 60_000,
+  ema_signal_30m: 2 * 3600_000,
+  ema_signal_1h: 4 * 3600_000,
+  ema_signal_2h: 8 * 3600_000,
+  ema_signal_4h: 12 * 3600_000,
+  ema_signal_1d: 48 * 3600_000,
 };
 
 // Best-effort - outcome logging must never break the alert-send cron.

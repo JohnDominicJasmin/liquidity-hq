@@ -7,10 +7,11 @@ import { T } from '@/lib/tables';
 import { recordFires } from '@/lib/alertHistory';
 import { isOutcomeTracked, persistAlertFires } from '@/lib/alertOutcomes';
 import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS } from '@/lib/coins';
-import { getWaveTrendConfirmation } from '@/lib/waveTrend';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
+import { detectEMASignals, DEFAULT_FILTER_PARAMS, OHLCV } from '@/lib/strategyCore';
+import { incrementGlobalUsage } from '@/lib/aiUsage';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,10 +38,14 @@ function inferSignalType(prompt: string): string {
   return 'unknown';
 }
 
-async function grokAnalyze(prompt: string): Promise<string> {
+async function grokAnalyze(prompt: string, checkGlobalCap = false): Promise<string> {
   if (!GROK_KEY) return '';
   if (!(await isFeatureEnabled('grok'))) return ''; // kill switch - alerts still send, just no AI commentary
   if (grokInFlight >= GROK_CONCURRENCY) return ''; // shed load
+  // Only the EMA Buy/Sell Signal (checkEMASignal) opts into this - it was the
+  // single uncapped majority of this cron's xAI usage (see pendings/ALERTS.md).
+  // Every other signal type here stays as before, ungated by the global cap.
+  if (checkGlobalCap && !(await incrementGlobalUsage())) return '';
   grokInFlight++;
   try {
     const res = await fetch('https://api.x.ai/v1/chat/completions', {
@@ -200,11 +205,14 @@ const WHALE_THRESHOLD: Record<string, number> = {
 
 /* ── In-memory state ── */
 const lastSent   = new Map<string, number>();
-const emaSideMap = new Map<string, 'above' | 'below'>();   // EMA 200 cross detection
+// EMA Buy/Sell Signal dedup - keyed `${coin}_${tf}`, value = the fired
+// signal's own timestamp (its arm/confirm candle). More precise than a time
+// cooldown: re-fires only when a genuinely NEW signal (alternation flipped)
+// appears, never on every tick while the same one is still current.
+const emaSignalLastTs = new Map<string, number>();
 
 const CD: Record<string, number> = {
   rsi:        4 * 3600_000,
-  ema:       12 * 3600_000,
   move5m:    30 * 60_000,
   move1h:     2 * 3600_000,
   move4h:     4 * 3600_000,
@@ -216,10 +224,6 @@ const CD: Record<string, number> = {
   daily:     23 * 3600_000,   // Daily 7am summary
   sentiment:  4 * 3600_000,   // Sentiment Extremes - all 3 indicators aligned
   squeeze:      4 * 3600_000,   // Squeeze/Flush threshold alert per coin per direction
-  ema_setup:     6 * 3600_000,   // EMA ribbon strategy (4H) - all conditions green
-  ema_setup_1h:  2 * 3600_000,   // EMA ribbon strategy (1H) - faster TF, shorter cooldown
-  ema_setup_30m: 60 * 60_000,    // EMA ribbon strategy (30M)
-  ema_setup_15m: 30 * 60_000,    // EMA ribbon strategy (15M) - fastest TF, shortest cooldown
   distribution:  4 * 3600_000,   // Distribution - big players taking profit into strength
 };
 
@@ -410,14 +414,6 @@ function computeRSI(closes: number[], period = 14): number {
   return 100 - 100 / (1 + ag / al);
 }
 
-function computeEMA(closes: number[], period: number): number {
-  if (closes.length < period) return closes[closes.length - 1] ?? 0;
-  const k = 2 / (period + 1);
-  let ema = closes.slice(0, period).reduce((s, v) => s + v, 0) / period;
-  for (let i = period; i < closes.length; i++) ema = closes[i] * k + ema * (1 - k);
-  return ema;
-}
-
 async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipient[], thresholdsByUser: Map<string, UserThresholds>): Promise<string[]> {
   const fired: string[] = [];
   // Loosest (most sensitive) threshold across current recipients - a push
@@ -467,80 +463,6 @@ async function checkRSI(stamp: string, queue: SignalEntry[], recipients: Recipie
           metricValue: rsi, thresholdKind: 'rsi_os', canonicalHit: rsi <= DEFAULT_THRESHOLDS.rsiOs,
         });
         markSent(`rsi_os_${coin}`); fired.push(`${label} RSI oversold (${r})`);
-      }
-    } catch { /* skip */ }
-  }), 6);
-  return fired;
-}
-
-/* ════════════════════════════════════════
-   3b. EMA 200 CROSS (1H)
-   ════════════════════════════════════════ */
-async function checkEMACross(stamp: string, queue: SignalEntry[]): Promise<string[]> {
-  const fired: string[] = [];
-  await runBatched(COINS.map(coin => async () => {
-    try {
-      let closes: number[];
-      if (BINANCE_SPOT[coin]) {
-        const res = await fetch(
-          `https://api.binance.com/api/v3/klines?symbol=${BINANCE_SPOT[coin]}&interval=1h&limit=300`,
-          { cache: 'no-store', signal: AbortSignal.timeout(7_000) }
-        );
-        if (!res.ok) return;
-        const data = await res.json() as Array<unknown[]>;
-        closes = data.map(c => parseFloat(c[4] as string));
-      } else if (BYBIT_KLINE_SYMS[coin]) {
-        closes = await fetchBybitKlines(BYBIT_KLINE_SYMS[coin], '60', 300);
-        if (closes.length === 0) return;
-      } else {
-        return;
-      }
-      if (closes.length < 200) return;
-
-      const ema200   = computeEMA(closes, 200);
-      const price    = closes[closes.length - 1];
-      const side     = price > ema200 ? 'above' : 'below';
-      const lastSide = emaSideMap.get(coin);
-      emaSideMap.set(coin, side);
-      if (!lastSide || lastSide === side) return;
-
-      const label    = LABELS[coin];
-      const priceFmt = price.toLocaleString();
-      const emaFmt   = ema200.toLocaleString();
-
-      if (side === 'above' && !onCooldown(`ema_bull_${coin}`, CD.ema)) {
-        const grokTake = await grokAnalyze(
-          `Elite crypto trader. ${label} price just crossed above its 200-period EMA on the 1H chart. ` +
-          `Price: $${priceFmt}, EMA(200): $${emaFmt}. ` +
-          `In 2-3 sentences: valid bullish reclaim or false breakout? What confluence confirms? Direct, no hedging. ` +
-          `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
-        queue.push({
-          coin, dir: 'long', ruleKey: 'ema_cross', name: `${label} crossed above 200 EMA`, price,
-          title: `200 EMA Cross ↑ (1H)`,
-          body: `📈 <b>${label} Crossed Above 200 EMA (1H)</b>\n\n` +
-            `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
-            `Signal: Bullish - price reclaimed major moving average\n` +
-            `Action: Watch for EMA retest as support and higher-high confirmation.` +
-            `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
-        });
-        markSent(`ema_bull_${coin}`); fired.push(`${label} crossed above 200 EMA`);
-      }
-      if (side === 'below' && !onCooldown(`ema_bear_${coin}`, CD.ema)) {
-        const grokTake = await grokAnalyze(
-          `Elite crypto trader. ${label} price just crossed below its 200-period EMA on the 1H chart. ` +
-          `Price: $${priceFmt}, EMA(200): $${emaFmt}. ` +
-          `In 2-3 sentences: genuine bearish breakdown or fake-out? What to watch for? Direct, no hedging. ` +
-          `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
-        queue.push({
-          coin, dir: 'short', ruleKey: 'ema_cross', name: `${label} crossed below 200 EMA`, price,
-          title: `200 EMA Cross ↓ (1H)`,
-          body: `📉 <b>${label} Crossed Below 200 EMA (1H)</b>\n\n` +
-            `Price: <b>$${priceFmt}</b> | EMA(200): $${emaFmt}\n` +
-            `Signal: Bearish - price lost major moving average\n` +
-            `Action: Watch for failed EMA retest as resistance and lower-low confirmation.` +
-            `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
-        });
-        markSent(`ema_bear_${coin}`); fired.push(`${label} crossed below 200 EMA`);
       }
     } catch { /* skip */ }
   }), 6);
@@ -1467,151 +1389,103 @@ async function checkDistribution(
 }
 
 /* ════════════════════════════════════════
-   13. EMA RIBBON STRATEGY SETUP
-   Fires when all core conditions pass: daily 200 SMA trend gate (LONG only
-   above / SHORT only below - same rule as the Arena strategy card) + ribbon
-   aligned + value zone (price between 9 & 20 EMA) + ribbon spread + funding OK.
-   Checked across all coins - muted coins (via the Alert Coins toggle on
-   /alerts) are skipped before fetching, so a user's coin selection there
-   directly controls both scan cost and which coins this can fire for.
+   13. EMA BUY/SELL SIGNAL
+   Real chart-parity signal - calls the exact same detectEMASignals() the
+   Arena chart uses (lib/strategyCore.ts), same DEFAULT_FILTER_PARAMS, so a
+   fired alert is bit-for-bit the same BUY/SELL marker the chart would draw
+   right now. Replaces the old checkEMASetup (a soft "value zone, wait for
+   it" state check) and checkEMACross (an unrelated simple 200EMA cross) -
+   neither matched the chart's actual rule (see pendings/ALERTS.md).
+   Every timeframe the chart itself offers is checked here; which ones a
+   user actually receives is entirely their own choice on /alerts (capped at
+   ALERT_TF_CAP there) - fullyMutedTfs (nobody has this TF on at all) skips
+   the fetch/compute entirely, same cost-control shape as fullyMutedCoins.
    ════════════════════════════════════════ */
 
-function calcEMALocal(closes: number[], period: number): number {
-  if (closes.length < period) return closes[closes.length - 1] ?? 0;
-  const k = 2 / (period + 1);
-  let e = closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
-  for (let i = period; i < closes.length; i++) e = closes[i] * k + e * (1 - k);
-  return e;
-}
-
-function calcSMALocal(closes: number[], period: number): number {
-  if (closes.length < period) return closes[closes.length - 1] ?? 0;
-  const slice = closes.slice(-period);
-  return slice.reduce((a, b) => a + b, 0) / period;
-}
-
-type EMASetupTF = '15m' | '30m' | '1h' | '4h';
-type EMASetupCooldownKey = 'ema_setup_15m' | 'ema_setup_30m' | 'ema_setup_1h' | 'ema_setup';
-const EMA_SETUP_TF_CONFIG: Record<EMASetupTF, { binanceInterval: string; label: string; cooldownKey: EMASetupCooldownKey }> = {
-  '15m': { binanceInterval: '15m', label: '15M', cooldownKey: 'ema_setup_15m' },
-  '30m': { binanceInterval: '30m', label: '30M', cooldownKey: 'ema_setup_30m' },
-  '1h':  { binanceInterval: '1h',  label: '1H',  cooldownKey: 'ema_setup_1h' },
-  '4h':  { binanceInterval: '4h',  label: '4H',  cooldownKey: 'ema_setup' },
+const EMA_SIGNAL_TFS = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'] as const;
+export type EMASignalTF = typeof EMA_SIGNAL_TFS[number];
+const BYBIT_TF_INTERVAL: Record<EMASignalTF, string> = {
+  '1m': '1', '5m': '5', '15m': '15', '30m': '30', '1h': '60', '2h': '120', '4h': '240', '1d': 'D',
 };
 
-async function checkEMASetup(
+// Binance-first, Bybit fallback for Bybit-only coins (e.g. HYPE) - matches
+// how the Arena chart itself sources candles (lib/useEMAStrategy.ts), a gap
+// the old Binance-only checkEMASetup silently had.
+async function fetchRibbonCandles(coin: string, tf: EMASignalTF): Promise<OHLCV[]> {
+  const bnSym = BINANCE_PERP[coin];
+  if (bnSym) {
+    const res = await fetch(
+      `https://fapi.binance.com/fapi/v1/klines?symbol=${bnSym}&interval=${tf}&limit=300`,
+      { cache: 'no-store', signal: AbortSignal.timeout(9_000) }
+    );
+    if (!res.ok) return [];
+    const raw = await res.json() as Array<(string | number)[]>;
+    return raw.map(k => ({ time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }));
+  }
+  const bySym = BYBIT_KLINE_SYMS[coin];
+  if (!bySym) return [];
+  const res = await fetch(
+    `https://api.bybit.com/v5/market/kline?category=linear&symbol=${bySym}&interval=${BYBIT_TF_INTERVAL[tf]}&limit=300`,
+    { cache: 'no-store', signal: AbortSignal.timeout(9_000) }
+  );
+  if (!res.ok) return [];
+  const d = await res.json() as { result?: { list?: string[][] } };
+  const list = [...(d.result?.list ?? [])].reverse();
+  return list.map(k => ({ time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }));
+}
+
+async function checkEMASignal(
   stamp: string,
-  frMap: Record<string, number | null>,
   queue: SignalEntry[],
-  fullyMutedCoins: Set<string>,
-  tf: EMASetupTF = '4h',
+  fullyMutedTfs: Set<EMASignalTF>,
+  tf: EMASignalTF,
 ): Promise<string[]> {
-  const { binanceInterval, label: tfLabel, cooldownKey } = EMA_SETUP_TF_CONFIG[tf];
   const fired: string[] = [];
+  if (fullyMutedTfs.has(tf)) return fired;
+  const ruleKey = `ema_signal_${tf}`;
+  const tfLabel = tf.toUpperCase();
 
   await Promise.all(COINS.map(async coin => {
-    if (fullyMutedCoins.has(coin)) return;
-    const sym = BINANCE_PERP[coin];
-    if (!sym) return;
     try {
-      // Fetch ribbon TF (200 candles) and Daily (220 candles) in parallel
-      const [rTf, r1d] = await Promise.allSettled([
-        fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${binanceInterval}&limit=200`,
-          { cache: 'no-store', signal: AbortSignal.timeout(9_000) }),
-        fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=1d&limit=220`,
-          { cache: 'no-store', signal: AbortSignal.timeout(9_000) }),
-      ]);
-      if (rTf.status !== 'fulfilled' || !rTf.value.ok) return;
-      if (r1d.status !== 'fulfilled' || !r1d.value.ok) return;
+      const candles = await fetchRibbonCandles(coin, tf);
+      if (candles.length < 55) return; // same minimum runway the chart's own hook requires
 
-      const rawTf  = await rTf.value.json() as Array<unknown[]>;
-      const raw1d  = await r1d.value.json() as Array<unknown[]>;
-      if (rawTf.length < 55 || raw1d.length < 205) return;
+      const { signalLongs, signalShorts } = detectEMASignals(candles, tf, DEFAULT_FILTER_PARAMS);
+      const all = [...signalLongs, ...signalShorts];
+      if (all.length === 0) return;
+      const latest = all.sort((a, b) => b.timestamp - a.timestamp)[0];
+      if (latest.pending) return; // still on the live edge - not a confirmed call yet
 
-      const clTf = rawTf.map(k => parseFloat(k[4] as string));
-      const cl1d = raw1d.map(k => parseFloat(k[4] as string));
-      const ohlcTf = rawTf.map(k => ({
-        time: +(k[0] as number),
-        open: parseFloat(k[1] as string),
-        high: parseFloat(k[2] as string),
-        low: parseFloat(k[3] as string),
-        close: parseFloat(k[4] as string),
-        volume: parseFloat(k[5] as string),
-      }));
+      // Identity-based dedup (not a time cooldown) - re-fires only when
+      // alternation produces a genuinely NEW signal, never on every tick
+      // while the same one is still current.
+      const dedupKey = `${coin}_${tf}`;
+      if (emaSignalLastTs.get(dedupKey) === latest.timestamp) return;
+      emaSignalLastTs.set(dedupKey, latest.timestamp);
 
-      const ema9   = calcEMALocal(clTf, 9);
-      const ema20  = calcEMALocal(clTf, 20);
-      const ema50  = calcEMALocal(clTf, 50);
-      const sma200 = calcSMALocal(cl1d, 200);
-      const price  = clTf[clTf.length - 1];
-      const priceD = cl1d[cl1d.length - 1];
-      const fr     = frMap[coin];
-
-      // Rule checks
-      const above200D  = priceD > sma200;
-      const ribbonBull = ema9 > ema20 && ema20 > ema50;
-      const ribbonBear = ema50 > ema20 && ema20 > ema9;
-
-      const inVZoneLong  = ribbonBull && above200D  && price <= ema9 && price >= ema20;
-      const inVZoneShort = ribbonBear && !above200D && price >= ema9 && price <= ema20;
-      const inValueZone  = inVZoneLong || inVZoneShort;
-      if (!inValueZone) return;
-
-      // Spread filter: ribbon must be separated ≥ 0.3% of price - tangled EMAs = chop = skip
-      const spreadOK = price > 0 && Math.abs(ema9 - ema20) / price >= 0.003;
-      if (!spreadOK) return;
-
-      const fundingOK = fr == null ? true
-        : ribbonBull ? fr <= 0.0005
-        : fr >= -0.0005;
-      if (!fundingOK) return;
-
-      const dir   = inVZoneLong ? 'LONG' : 'SHORT';
-      const key   = `ema_setup_${tf}_${dir}_${coin}`;
-      if (onCooldown(key, CD[cooldownKey])) return;
-
-      const label  = LABELS[coin];
-      const fmtP   = (n: number) => n >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : n.toFixed(4);
-      const frPct  = fr != null ? `${(fr >= 0 ? '+' : '')}${(fr * 100).toFixed(4)}%` : '-';
-      const sl     = dir === 'LONG' ? ema50 * 0.995 : ema50 * 1.005;
-      const tp     = dir === 'LONG' ? price + (price - sl) * 2 : price - (sl - price) * 2;
-
-      // WaveTrend (Cipher B) - confirming layer, NOT a hard gate. Informational only,
-      // same framing as the live Arena card and Grok context.
-      const wt = getWaveTrendConfirmation(ohlcTf, dir === 'LONG' ? 'long' : 'short');
-      const wtLine = wt.pass === true ? `WaveTrend confirming: ${wt.detail}`
-        : wt.pass === false ? `WaveTrend not yet confirming: ${wt.detail}`
-        : 'WaveTrend: unavailable';
+      const label   = LABELS[coin];
+      const fmtP    = (n: number) => n >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : n.toFixed(4);
+      const dirWord = latest.dir === 'long' ? 'BUY' : 'SELL';
 
       const grokTake = await grokAnalyze(
-        `Elite crypto trader. ${label}/USDT EMA Ribbon Strategy setup triggered on ${tfLabel} chart. ` +
-        `Direction: ${dir}. Price $${fmtP(price)} pulled into the 9-20 EMA value zone. ` +
-        `EMA9: $${fmtP(ema9)}, EMA20: $${fmtP(ema20)}, EMA50: $${fmtP(ema50)}, Daily 200 SMA: $${fmtP(sma200)}. ` +
-        `Funding: ${frPct}. ${wtLine} (confirming layer, not a blocking filter - weigh it but don't auto-reject on it). ` +
-        `In 2-3 sentences: is this a high-conviction entry or wait for confirmation? ` +
-        `What volume or OI confirmation would seal it? Direct, no hedging. ` +
-        `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
+        `Elite crypto trader. ${label}/USDT just printed a confirmed ${dirWord} signal on the ${tfLabel} chart ` +
+        `(EMA9/20/50 ribbon strategy - same rule the live chart uses). Entry: $${fmtP(latest.entryPrice)}, ` +
+        `SL: $${fmtP(latest.sl)}, TP: $${fmtP(latest.tp)}. ` +
+        `In 2-3 sentences: how strong does this setup look right now? What would confirm or invalidate it? Direct, no hedging. ` +
+        `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`,
+        true, // also gate on the global daily xAI cap - see lib/aiUsage.ts
       );
 
       queue.push({
-        coin, dir: dir === 'LONG' ? 'long' : 'short', ruleKey: cooldownKey, name: `${label} EMA ribbon ${dir} setup (${tfLabel})`,
-        title: `EMA Ribbon ${dir} Setup - In Value Zone (${tfLabel})`,
+        coin, dir: latest.dir, ruleKey, name: `${label} ${dirWord} signal (${tfLabel})`, price: latest.entryPrice,
+        title: `${dirWord} Signal (${tfLabel})`,
         body:
-          `📐 <b>EMA RIBBON ${dir} SETUP (${tfLabel}) - ${label}/USDT</b>\n\n` +
-          `Price pulled into the EMA 9–20 Value Zone\n\n` +
-          `EMA9:  <b>$${fmtP(ema9)}</b> (trigger)\n` +
-          `EMA20: <b>$${fmtP(ema20)}</b> (entry target)\n` +
-          `EMA50: <b>$${fmtP(ema50)}</b> (stop baseline)\n` +
-          `SMA200 (1D): <b>$${fmtP(sma200)}</b>\n` +
-          `Funding: <b>${frPct}</b>\n` +
-          `${wt.pass === true ? '✅' : wt.pass === false ? '⚪' : '-'} ${wtLine}\n\n` +
-          `SL: $${fmtP(sl)} · TP: $${fmtP(tp)} (2:1)\n` +
-          `Wait for bounce candle with above-avg volume to enter.` +
-          `${fmtGrok(grokTake)}\n\n` +
-          `<i>${stamp}</i>`,
+          `${latest.dir === 'long' ? '🟢' : '🔴'} <b>${label}/USDT ${dirWord} (${tfLabel})</b>\n\n` +
+          `Entry: <b>$${fmtP(latest.entryPrice)}</b>\n` +
+          `SL: $${fmtP(latest.sl)} · TP: $${fmtP(latest.tp)} (2:1)` +
+          `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
       });
-      markSent(key);
-      fired.push(`${label} EMA ribbon ${dir} setup in value zone (${tfLabel})`);
+      fired.push(`${label} ${dirWord} signal (${tfLabel})`);
     } catch { /* skip */ }
   }));
 
@@ -1794,11 +1668,17 @@ async function runAlerts(token: string): Promise<NextResponse> {
   ]);
 
   // Coins muted by every single recipient - the only case it's safe to skip
-  // fetching entirely (checkDistribution/checkEMASetup's cost-control
-  // pre-filter). Anything less than 100% agreement still has to be fetched;
-  // per-recipient eligibility is decided later, at flush/push time.
+  // fetching entirely (checkDistribution's cost-control pre-filter).
+  // Anything less than 100% agreement still has to be fetched; per-recipient
+  // eligibility is decided later, at flush/push time.
   const fullyMutedCoins = new Set(
     COINS.filter(coin => recipients.every(r => mutedByUser.get(r.userId)?.has(`coin:${coin}`))),
+  );
+
+  // Same shape, per-timeframe: a TF nobody has selected at all (see
+  // ALERT_TF_CAP on /alerts) is skipped before fetching for every coin.
+  const fullyMutedTfs = new Set(
+    EMA_SIGNAL_TFS.filter(tf => recipients.every(r => mutedByUser.get(r.userId)?.has(`ema_signal_${tf}`))),
   );
 
   // Per-request signal queue - all coin checks push here, flushed after.
@@ -1811,7 +1691,6 @@ async function runAlerts(token: string): Promise<NextResponse> {
 
   const results = await Promise.allSettled([
     checkRSI(stamp, signalQueue, recipients, thresholdsByUser),
-    checkEMACross(stamp, signalQueue),
     checkRapidMove(stamp, signalQueue),
     checkWhales(stamp, signalQueue),
     checkNews(token, recipients, mutedByUser, stamp),                     // global - sends directly
@@ -1823,10 +1702,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     checkSentimentExtremes(token, recipients, mutedByUser, stamp, frMap), // global - sends directly
     checkSqueezeAlerts(stamp, frMap, lsMap, prices, signalQueue, recipients, thresholdsByUser),
     checkDistribution(stamp, frMap, signalQueue, fullyMutedCoins),
-    checkEMASetup(stamp, frMap, signalQueue, fullyMutedCoins, '4h'),
-    checkEMASetup(stamp, frMap, signalQueue, fullyMutedCoins, '1h'),
-    checkEMASetup(stamp, frMap, signalQueue, fullyMutedCoins, '30m'),
-    checkEMASetup(stamp, frMap, signalQueue, fullyMutedCoins, '15m'),
+    ...EMA_SIGNAL_TFS.map(tf => checkEMASignal(stamp, signalQueue, fullyMutedTfs, tf)),
   ]);
 
   // Flush: single signals → send as-is, 2+ same coin → confluence alert.
@@ -1859,7 +1735,11 @@ async function runAlerts(token: string): Promise<NextResponse> {
     ok: true, fired,
     recipients: recipients.length,
     mutedUsers: mutedByUser.size,
-    checked: ['RSI', 'EMA 200 cross', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD', 'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'Distribution', 'EMA Ribbon Setup (4H)', 'EMA Ribbon Setup (1H)', 'EMA Ribbon Setup (30M)', 'EMA Ribbon Setup (15M)'],
+    checked: [
+      'RSI', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD',
+      'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'Distribution',
+      ...EMA_SIGNAL_TFS.map(tf => `EMA Buy/Sell Signal (${tf.toUpperCase()})`),
+    ],
     coins: COINS.length,
     session: nyActive ? 'NY/Pre-NY (high activity)' : 'Asia/London',
     cooldowns: { whale: `${CD.whale / 60_000}min`, news: `${CD.news / 60_000}min` },

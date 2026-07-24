@@ -15,6 +15,7 @@
 // compensating-write path.
 import { createClient } from '@supabase/supabase-js';
 import { ExtraTool } from '@/lib/limits';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 function sb(token: string) {
   return createClient(
@@ -77,4 +78,31 @@ export async function incrementToolUsage(
   token: string, userId: string, tool: ExtraTool, limit: number,
 ): Promise<number | null> {
   return incrementUsageColumn(token, userId, EXTRA_TOOL_COLUMN[tool], limit);
+}
+
+// Global-only check for call sites with no natural per-user attribution - a
+// single shared commentary call in a cron fanning out to many recipients at
+// once (app/api/telegram/alert/route.ts's checkEMASignal), not one user's own
+// request. increment_ai_usage() needs a real per-user row in lhq_grok_usage,
+// which doesn't fit here; this touches only lhq_global_ai_usage, via the
+// service-role client since the caller is a cron, not a signed-in user.
+// Fail-open on a Supabase error (matches every other Supabase-unreachable
+// path in the alert cron) - a DB hiccup should never silently kill AI
+// commentary that would otherwise be within budget.
+export async function incrementGlobalUsage(): Promise<boolean> {
+  const limit = globalDailyMax();
+  if (limit === null) return true; // breaker disabled
+  const today = new Date().toISOString().slice(0, 10);
+  const { data, error } = await getSupabaseAdmin().rpc('increment_global_ai_usage', {
+    p_date: today, p_global_limit: limit,
+  });
+  if (error) {
+    console.error('[aiUsage] increment_global_ai_usage failed:', error.message);
+    return true;
+  }
+  if (data === -1) {
+    console.error('[aiUsage] GLOBAL daily xAI cap hit (AI_GLOBAL_DAILY_MAX) - blocked checkEMASignal commentary');
+    return false;
+  }
+  return true;
 }

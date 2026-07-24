@@ -1,8 +1,13 @@
 # Telegram Alert System — Cost + Quality Plan
 
-**Status:** planning only, nothing implemented yet. Feature: `app/api/telegram/alert/route.ts`
-(cron-gated, Pro/trial-only, scans all 50 coins every tick, fans out to every
-connected user's Telegram chat).
+**Status: ✅ IMPLEMENTED 2026-07-25.** `checkEMASignal` replaces `checkEMASetup`
++ `checkEMACross` in `app/api/telegram/alert/route.ts`. New `ema_signal_<tf>`
+mute rows + timeframe picker live on `/alerts`. Global-cap wiring done. All
+Supabase changes (labels, new SQL function, mute-key migration) applied live
+to both prod and dev. Code changes are still uncommitted in the working tree
+as of this writing (on `dev` branch, nothing pushed) - see §7 for exact state.
+Feature: `app/api/telegram/alert/route.ts` (cron-gated, Pro/trial-only, scans
+all 50 coins every tick, fans out to every connected user's Telegram chat).
 
 ## 1. The problem
 
@@ -133,17 +138,27 @@ DB column, new Settings UI, new cap). **Wrong — didn't check `/alerts` and
   (`app/alerts/page.tsx`) — all the over-limit/at-limit copy was already
   templated (`{onCount}/{cap}`), no label changes needed.
 
-## 5. Open decisions (need your call before implementing)
+## 5. Open decisions — RESOLVED 2026-07-25
 
-1. **Pending/tentative signals** — push a "heads up" for a signal that's
-   armed+confirmed but still within the live edge (`pending: true`), or wait
-   for full confirmation only? (Recommendation: wait — avoids sending a call
-   that later gets rejected once more candles print.)
-2. **New `ruleKey` names** — e.g. `ema_signal_1h`/`ema_signal_4h`/`ema_signal_1d`,
-   or a different naming scheme? (Affects both the cron and the `/alerts` UI
-   rows, and whether existing users' current mute choices on the old keys
-   carry over — they won't automatically since the keys are changing;
-   worth deciding if that's fine or if we should map old→new.)
+1. **Pending/tentative signals** — moot. `DEFAULT_FILTER_PARAMS.persistBoost
+   = -10` clamps `PERSIST` to 0 for every timeframe (`Math.max(0, ...)`), and
+   `holdsBeyond50()` short-circuits to `'confirmed'` whenever `PERSIST === 0`.
+   Since Plan A always calls `detectEMASignals(candles, tf,
+   DEFAULT_FILTER_PARAMS)`, `pending: true` can never reach the alert cron -
+   only `STRICT_FILTER_PARAMS` (unused here) could produce it. No decision
+   needed; `checkEMASignal` still defensively checks `latest.pending` anyway.
+2. **New `ruleKey` names** — `ema_signal_<tf>`, confirmed. **Bigger change
+   than originally scoped**: timeframes are NOT fixed to 1h/4h/1d for every
+   user. Every timeframe the Arena chart itself offers (1m/5m/15m/30m/1h/2h/4h/1d)
+   is selectable on `/alerts`, capped at `ALERT_TF_CAP = 3` concurrently
+   active per user (same UX pattern as `ALERT_COIN_CAP`) - the user's own
+   call, not a fixed default for everyone. New users default to 1h/4h/1d
+   pre-selected. Existing users: old mutes carried over 1:1 to the matching
+   new key; the one case that could exceed the new cap (all 4 old
+   `checkEMASetup` timeframes on, which is the default-untouched state) gets
+   trimmed by muting `ema_signal_15m` (fastest/noisiest, matches the
+   Plan A cost reasoning above). Verified live: exactly 2 users affected on
+   prod, both got only `ema_signal_15m` muted, nothing else changed.
 
 ## 6. Related, not blocking this plan
 
@@ -153,3 +168,44 @@ DB column, new Settings UI, new cap). **Wrong — didn't check `/alerts` and
 - Per-user cap on the 3 cached xAI routes' cache-miss path (dry-powder,
   macro-context, onchain) — also independent, still open, tracked in
   `SECURITY_AUDIT.md`.
+
+## 7. Implementation closeout (2026-07-25)
+
+**Code (uncommitted as of this writing, on `dev`):**
+- `app/api/telegram/alert/route.ts` — `checkEMASetup`/`checkEMACross`/
+  `computeEMA`/`emaSideMap`/`calcEMALocal`/`calcSMALocal`/`EMA_SETUP_TF_CONFIG`
+  all deleted. New `checkEMASignal` + `fetchRibbonCandles` (Binance-first,
+  Bybit fallback - closes a gap `checkEMASetup` silently had for Bybit-only
+  coins like HYPE). `grokAnalyze()` gained an opt-in `checkGlobalCap` param,
+  used only by `checkEMASignal`'s call. `fullyMutedTfs` added alongside the
+  existing `fullyMutedCoins`.
+- `app/alerts/page.tsx` — old 4 `ema_setup_*` rows + the `ema_cross` row (and
+  the now-empty Trading Signals/Trend sections) removed. New capped
+  timeframe picker (`ALERT_TF_CAP = 3`, `toggleTf`, `tfCapMsg`) mirroring the
+  existing `ALERT_COIN_CAP`/`toggleCoin` pattern exactly. Brand-new-user
+  default seeding (1h/4h/1d on) mirrors the existing BTC/ETH/SOL coin seed.
+- `lib/aiUsage.ts` — new `incrementGlobalUsage()`, global-only check (no
+  per-user row) for the one call site with no natural user attribution.
+- `lib/alertOutcomes.ts` — `ema_cross` swapped for the 8 `ema_signal_<tf>`
+  keys in `OUTCOME_TRACKED_RULE_KEYS` + `OUTCOME_DEDUP_MS`.
+- `lib/labelKeys.ts` — 10 old EMA-related keys removed, 7 new ones added.
+
+**Database (already applied live, both prod `qdpwhnvmhqgzijuwopso` and dev
+`wdtjhrilakoitfcezxpx` unless noted):**
+- `supabase/migrations/20260805f_global_only_ai_usage_check.sql` — new
+  `increment_global_ai_usage()` function. **Prod only** (Telegram alerts are
+  prod-only; dev's webhook is unregistered).
+- `supabase/migrations/20260805g_labels_seed_ema_signal.sql` — 6 new label
+  rows (English only, paused-translation convention) + a stale-reference fix
+  to the existing `ALERTS_COIN_SELECTION_DESC` key (English only - it still
+  says "EMA Ribbon Setup" in ko/zh/ar/ru, not fixed, see the file's comment).
+- `supabase/migrations/20260805h_ema_signal_mute_migration.sql` — one-time
+  mute-key carryover. **Prod only.** Verified: exactly 2 users affected,
+  both got `ema_signal_15m` muted, nothing else.
+
+**Verified:** `npx tsc --noEmit` clean (run 3x across the changes). Live
+local dev-server check via real Chrome (signed-in account): new picker
+renders, all 8 timeframe chips present, cap-reached message fires correctly
+on the 4th pick, state persists across reload, old EMA Ribbon
+Setup/200 EMA Cross rows confirmed gone, no console errors.
+**Not done:** no commit, no push, no Render deploy of any kind.

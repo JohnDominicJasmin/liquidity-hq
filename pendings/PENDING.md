@@ -10,7 +10,9 @@ payment-feature items (deferred, payments not live yet) moved to
 `pendings/LEMONSQUEEZY.md`. Telegram alert cron cost + signal-quality plan
 (the uncapped `ema_setup`/`ema_cross` xAI usage found 2026-07-25, the
 consolidation into one real buy/sell signal, and the per-user coin-cap idea)
-is in `pendings/ALERTS.md` — planning only, not started.
+is in `pendings/ALERTS.md` — **implemented 2026-07-25**, DB changes live on
+both prod/dev, code changes uncommitted in the working tree (not yet
+pushed/deployed).
 
 ## ✅ RESOLVED — xAI credit outage (found + fixed 2026-07-24)
 
