@@ -924,6 +924,20 @@ async function checkPriceAlerts(
         (alert.direction === 'below' && price <= alert.target_price);
       if (!triggered) continue;
 
+      // Route to owner if known; only a row with NO user_id at all (true
+      // legacy, pre-dates per-user ownership) falls back to broadcasting to
+      // everyone. A row WITH a user_id whose owner isn't entitled/connected
+      // must never fall through to the broadcast branch - that used to
+      // happen here (ownerChatId ?? allChatIds treated "owner not entitled"
+      // the same as "no owner"), which leaked a free user's private price-
+      // alert note to every Pro user's Telegram. Leave it active; it's
+      // retried next tick in case the owner becomes entitled.
+      const hasOwner = !!alert.user_id;
+      const ownerChatId = hasOwner ? chatIdByUser.get(alert.user_id!) : undefined;
+      if (hasOwner && !ownerChatId) continue;
+      if (!hasOwner && allChatIds.length === 0) continue;
+      const recipient = hasOwner ? ownerChatId! : allChatIds;
+
       const label    = LABELS[alert.coin] ?? alert.coin.toUpperCase();
       const dirLabel = alert.direction === 'above' ? '📈 Crossed Above' : '📉 Crossed Below';
       const grokTake = await grokAnalyze(
@@ -938,11 +952,6 @@ async function checkPriceAlerts(
         `Current: $${price.toLocaleString()}` +
         (alert.label ? `\nNote: ${alert.label}` : '') +
         `${grokLine}\n\n<i>${stamp}</i>`;
-
-      // Route to owner if known; legacy rows (no user_id) broadcast to everyone
-      const ownerChatId = alert.user_id ? chatIdByUser.get(alert.user_id) : null;
-      const recipient   = ownerChatId ?? allChatIds;
-      if (!ownerChatId && allChatIds.length === 0) continue;
 
       await tg(token, recipient, body);
 
@@ -1702,14 +1711,24 @@ async function runAlerts(token: string): Promise<NextResponse> {
 
   // Telegram alerts are a Pro-only feature (matches the /alerts page gate and
   // the /upgrade pricing card) - resolve which connected users are actually
-  // Pro before collecting recipients, so a free user's chat_id (however it
+  // entitled before collecting recipients, so a free user's chat_id (however it
   // got saved - the UI disables the connect form, but that's not a security
-  // boundary) never receives a broadcast.
+  // boundary) never receives a broadcast. "Entitled" here must match
+  // lib/entitlements.ts's definition (paid Pro OR active trial) - this used to
+  // check role === 'pro' only, so a brand-new signup could connect Telegram
+  // and configure conditions in the UI (both correctly gated on `entitled`,
+  // which includes trial) and then silently never receive a single alert for
+  // the entire 14-day trial, since this cron excluded them.
   const proUserIds = new Set<string>();
   try {
     const admin = getSupabaseAdmin();
-    const { data } = await admin.from(T.user_subscriptions).select('user_id').eq('role', 'pro');
-    for (const row of data ?? []) proUserIds.add(row.user_id as string);
+    const { data } = await admin.from(T.user_subscriptions).select('user_id, role, trial_ends_at');
+    const now = Date.now();
+    for (const row of data ?? []) {
+      const isPro   = row.role === 'pro';
+      const isTrial = row.role !== 'pro' && !!row.trial_ends_at && new Date(row.trial_ends_at as string).getTime() > now;
+      if (isPro || isTrial) proUserIds.add(row.user_id as string);
+    }
   } catch { /* admin key not configured - allChatIds falls back to the env var below */ }
 
   // Collect Pro users who have connected their Telegram

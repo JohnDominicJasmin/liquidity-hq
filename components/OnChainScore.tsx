@@ -1,6 +1,8 @@
 'use client';
 import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
+import { LockedFeatureCard } from './UpgradeGateModal';
 import { useMarket } from '@/lib/marketStore';
 import { getSupabase } from '@/lib/supabase';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -78,7 +80,8 @@ function MetricPill({ label, value, source }: { label: string; value: number | n
 
 export default function OnChainScore() {
   const { t } = useLabels();
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, entitled, loading: authLoading } = useAuth();
   const { store } = useMarket();
   const btcPrice = store.coins['btc']?.price ?? 0;
 
@@ -126,6 +129,16 @@ export default function OnChainScore() {
       overflow: 'hidden',
       marginBottom: 12,
     }}>
+      {!authLoading && !entitled ? (
+        <div style={{ padding: '10px 14px' }}>
+          <LockedFeatureCard
+            title={t('ON_CHAIN_SCORE_TITLE')}
+            description={t('ON_CHAIN_SCORE_LOCKED_DESC')}
+            onUnlock={() => router.push('/upgrade')}
+          />
+        </div>
+      ) : (
+      <>
       {/* Header */}
       <div style={{
         padding: '10px 14px',
@@ -267,6 +280,8 @@ export default function OnChainScore() {
             )}
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

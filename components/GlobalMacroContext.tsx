@@ -1,6 +1,9 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
+import { useAuth } from './AuthProvider';
+import { LockedFeatureCard } from './UpgradeGateModal';
 import Tip from './Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
@@ -48,6 +51,8 @@ function chgStr(chg: number) {
 
 export default function GlobalMacroContext() {
   const { t } = useLabels();
+  const router = useRouter();
+  const { entitled, loading: authLoading } = useAuth();
   const [state,  setState]  = useState<LoadState>('loading');
   const [errMsg, setErrMsg] = useState('');
 
@@ -92,6 +97,10 @@ export default function GlobalMacroContext() {
   }, []);
 
   useEffect(() => {
+    // Wait for the role to resolve, and skip entirely for a non-entitled
+    // user - this is Pro-gated server-side (403 PRO_REQUIRED), so fetching
+    // anyway just burns a round trip to show the locked-card branch below.
+    if (authLoading || !entitled) return;
     try {
       const raw = localStorage.getItem(CACHE_KEY);
       if (raw) {
@@ -100,7 +109,7 @@ export default function GlobalMacroContext() {
       }
     } catch { /* ignore */ }
     fetchData();
-  }, [fetchData]);
+  }, [authLoading, entitled, fetchData]);
 
   const signalKey = typeof state === 'object' && state !== null
     ? (state.signal.match(/^(RISK_ON|RISK_OFF|NEUTRAL)/)?.[1] ?? 'NEUTRAL')
@@ -115,6 +124,14 @@ export default function GlobalMacroContext() {
         </Tip>
       </div>
 
+      {!authLoading && !entitled ? (
+        <LockedFeatureCard
+          title={t('GLOBAL_MACRO_CONTEXT_TITLE')}
+          description={t('GLOBAL_MACRO_CONTEXT_LOCKED_DESC')}
+          onUnlock={() => router.push('/upgrade')}
+        />
+      ) : (
+      <>
       {state === 'loading' && (
         <div style={{ padding: '4px 0' }} role="status" aria-live="polite">
           <span className="sr-only">{t('GLOBAL_MACRO_CONTEXT_FETCHING_SR')}</span>
@@ -197,6 +214,8 @@ export default function GlobalMacroContext() {
           </>
         );
       })()}
+      </>
+      )}
     </div>
   );
 }
