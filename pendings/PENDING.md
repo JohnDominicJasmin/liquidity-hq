@@ -7,27 +7,22 @@ Full audit deliverable: `pendings/SECURITY_AUDIT.md`. Pricing/costing analysis
 effectively resolved and the one remaining item (`AI_GLOBAL_DAILY_MAX`) was
 itself blocked on this analysis. Now updated with REAL xAI rates.
 
-## 🚨 URGENT — YOUR action (found 2026-07-24, unrelated to the above)
+## ✅ RESOLVED — xAI credit outage (found + fixed 2026-07-24)
 
-- **xAI account is at $0.00 credit balance right now** — "no credits
-  remaining" on console.x.ai billing. Any live Grok/xAI feature (chat,
-  signals, briefing, etc.) is likely failing for real users until this is
-  topped up. Invoice history shows one past **failed** $5 auto top-up
-  (7 Jun 2026) — worth checking why (expired card? — the Visa on file shows
-  exp 3/2029, so probably a transient decline) and considering **enabling
-  auto top-up** (toggle exists on the billing page) so this doesn't recur
-  silently. This is a live incident, not a backlog item — highest priority
-  until confirmed resolved.
+xAI account had hit $0.00 credit balance ("no credits remaining"), which would
+have broken every live Grok/xAI feature for real users. Topped up **$10**
+(new balance ~$9.96, confirmed on console.x.ai billing) and **auto top-up
+enabled** ($10 charge when balance falls to $5 or below) so this doesn't
+recur silently. Closed.
 
-## ✅ ALL CODE WORK DONE — merged to `main`, deployed, smoke-tested (2026-07-24, 20 commits total)
+## ✅ ALL CODE WORK MERGED TO `main` — awaiting your manual deploy (2026-07-24)
 
-Two merges today: 15 commits (homepage 200, `webhook_ok: true`), then 5 more
-(`dep-d9hlm2cm0tmc73b4qum0`, live, re-smoke-tested: homepage 200, webhook
-healthy). **Everything below is live on prod right now**, not just `dev` —
-**except the non-xAI full-attribution item** (now covering `cmc`,
-`news/finnhub`, `econ-calendar`, `proxy`), which is done, committed, and
-pushed to `dev` but not yet merged to `main`/deployed to prod (see status
-note on that bullet).
+Three merges today: 15 commits (homepage 200, `webhook_ok: true`), then 5 more
+(`dep-d9hlm2cm0tmc73b4qum0`, live, re-smoke-tested), then a third covering
+non-xAI attribution + the pricing/cap repricing below — merged to `main`
+(`beb2a8d`) and pushed, but **not yet deployed** (prod `autoDeploy` is off;
+you're deploying this one manually). Everything below is on `main` right
+now, live on prod only after your next manual deploy.
 
 - **Raw i18n label keys flashing on every full page load** (user-reported via
   screen recording, `/dashboard` + confirmed on `/markets`, `/arena`,
@@ -45,7 +40,7 @@ note on that bullet).
 - token-unlock / smc-snapshot cache-bypass closed.
 - macro / telegram detect / bot-info / webhook per-IP rate-limited; telegram/test auth-required.
 - **IP-spoof fix** — `getClientIp` read the client-controllable leftmost `X-Forwarded-For` hop; now reads the rightmost (Render-appended, trusted) hop. Every per-IP limit in the app now actually holds.
-- **Non-xAI traceability, now full account-level** — *(done, verified locally, committed + pushed to `dev`, not yet merged to `main`)* every unauthenticated route that calls a metered/keyed external API now logs IP **and** user id (or `anon`) on every call: `cmc` (`CMC_API_KEY`), `news/finnhub` (`FINNHUB_KEY`), `econ-calendar` (shares `FINNHUB_KEY`), `proxy` (`COINGLASS_API_KEY` for the coinglass-flow/liq types). Checked every other API route for the same shape first — `macro`, `coinbase-price`, `cycle`, `ath`, `forex/jpy`, `funding`, `news-rss` all call keyless public APIs (Yahoo Finance, Coinbase, Bybit, CoinGecko, open.er-api.com, Binance futures, plain RSS) with no vendor cost/quota to attribute, so they're correctly out of scope. `MarketProvider`/`NewsProvider`/`EconCalendarWidget`/`ConfluenceScore` attach a bearer token when the caller happens to be signed in (`lib/supabase.ts` `getAuthToken()`); each route verifies it server-side (`auth.getUser()`) and logs the real user id, falling back to `anon` — auth stays optional, all four routes are still intentionally unauthenticated (public data for signed-out visitors too). Verified locally: fresh requests on `/markets` log `user=anon` for all four routes for a signed-out session, no regression. `npx tsc --noEmit` clean.
+- **Non-xAI traceability, now full account-level** — *(done, merged to `main`, awaiting your manual deploy)* every unauthenticated route that calls a metered/keyed external API now logs IP **and** user id (or `anon`) on every call: `cmc` (`CMC_API_KEY`), `news/finnhub` (`FINNHUB_KEY`), `econ-calendar` (shares `FINNHUB_KEY`), `proxy` (`COINGLASS_API_KEY` for the coinglass-flow/liq types). Checked every other API route for the same shape first — `macro`, `coinbase-price`, `cycle`, `ath`, `forex/jpy`, `funding`, `news-rss` all call keyless public APIs (Yahoo Finance, Coinbase, Bybit, CoinGecko, open.er-api.com, Binance futures, plain RSS) with no vendor cost/quota to attribute, so they're correctly out of scope. `MarketProvider`/`NewsProvider`/`EconCalendarWidget`/`ConfluenceScore` attach a bearer token when the caller happens to be signed in (`lib/supabase.ts` `getAuthToken()`); each route verifies it server-side (`auth.getUser()`) and logs the real user id, falling back to `anon` — auth stays optional, all four routes are still intentionally unauthenticated (public data for signed-out visitors too). Verified locally: fresh requests on `/markets` log `user=anon` for all four routes for a signed-out session, no regression. `npx tsc --noEmit` clean.
 - Cron auth fail-closed, `CRON_SECRET` set, verified 200 on a live cron run.
 - Telegram webhook: secret set + re-registered, `webhook_ok: true` confirmed. `/start` restored.
 - Trial abuse: email dedup, revoked stray write grants, FK CASCADE→SET NULL, null-email = no trial.
@@ -107,8 +102,8 @@ implemented and verified live**, not just analyzed:
 
 See `pendings/PRICING_ANALYSIS.md` §7 for the full final numbers and the
 worst-case cost table. Verified live locally (`tsc` clean, `/upgrade` and
-landing page both render the new price and caps correctly in the browser)
-— not yet committed/pushed as of this writing.
+landing page both render the new price and caps correctly in the browser),
+merged to `main`, awaiting your manual deploy.
 
 ## i18n translation — paused (see also pendings/I18N_MIGRATION.md)
 
