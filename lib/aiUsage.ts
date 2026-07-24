@@ -14,7 +14,6 @@
 // migration file's comment for why that tradeoff was chosen over a second
 // compensating-write path.
 import { createClient } from '@supabase/supabase-js';
-import { T } from '@/lib/tables';
 import { ExtraTool } from '@/lib/limits';
 
 function sb(token: string) {
@@ -23,6 +22,17 @@ function sb(token: string) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { global: { headers: { Authorization: `Bearer ${token}` } } },
   );
+}
+
+// App-wide daily xAI ceiling - a circuit breaker on top of the per-user caps.
+// Per-user caps stop one account looping; this stops a FLEET of farmed accounts
+// each staying under its own cap from collectively blowing the budget. Once
+// today's total xAI calls across ALL users hits this number, every route
+// blocks. Unset/0/invalid => breaker disabled (per-user caps still apply).
+// Tune in Render env without a redeploy of logic - just bump the number.
+function globalDailyMax(): number | null {
+  const raw = Number(process.env.AI_GLOBAL_DAILY_MAX);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : null;
 }
 
 const EXTRA_TOOL_COLUMN: Record<ExtraTool, string> = {
@@ -36,17 +46,26 @@ const EXTRA_TOOL_COLUMN: Record<ExtraTool, string> = {
   smcSnapshot:       'smc_snapshot_count',
 };
 
-// Returns the new count on success, or null if the caller was already at/over
-// the limit (blocked - no row was written).
+// Returns the new count on success, or null if the caller is blocked - either
+// by their own per-user cap or by the global daily circuit breaker. Both cases
+// return null to the caller (identical client-facing 429), but a global-cap
+// trip is logged distinctly server-side so it's visible in the logs.
 export async function incrementUsageColumn(
   token: string, userId: string, column: string, limit: number,
 ): Promise<number | null> {
   const today = new Date().toISOString().slice(0, 10);
   const { data, error } = await sb(token).rpc('increment_ai_usage', {
     p_user_id: userId, p_date: today, p_column: column, p_limit: limit,
+    p_global_limit: globalDailyMax(),
   });
   if (error) {
     console.error(`[aiUsage] increment_ai_usage failed for ${column}:`, error.message);
+    return null;
+  }
+  // -1 is the DB sentinel for "global daily cap reached" (distinct from null =
+  // per-user cap). The per-user increment was already rolled back in-txn.
+  if (data === -1) {
+    console.error(`[aiUsage] GLOBAL daily xAI cap hit (AI_GLOBAL_DAILY_MAX) - blocked ${column} for ${userId}`);
     return null;
   }
   return data as number | null;

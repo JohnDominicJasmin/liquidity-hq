@@ -6,9 +6,15 @@ const KEY  = process.env.FINNHUB_KEY ?? '';
 const BASE = 'https://finnhub.io/api/v1';
 
 export async function GET(req: NextRequest) {
-  if (!rateLimit(`finnhub:${getClientIp(req)}`, 20, 60_000)) {
+  const ip = getClientIp(req);
+  if (!rateLimit(`finnhub:${ip}`, 20, 60_000)) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
+  // No auth on this route (public news, called from every visitor incl.
+  // signed-out) so there's no user_id to attribute to - IP is the only
+  // traceability available without wiring a bearer token through
+  // NewsProvider's fetches. Structured so a Finnhub-quota spike is greppable.
+  console.log(`[finnhub] ip=${ip} type=${req.nextUrl.searchParams.get('type')}`);
 
   if (!KEY) {
     return NextResponse.json({ error: 'FINNHUB_KEY not configured' }, { status: 500 });

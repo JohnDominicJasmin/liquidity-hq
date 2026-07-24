@@ -3945,6 +3945,10 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 .login-email-btn:hover:not(:disabled) { background: rgba(26,122,255,0.12); border-color: var(--accent); }
 .login-email-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* Turnstile CAPTCHA - centered under the email form, only rendered once
+   NEXT_PUBLIC_TURNSTILE_SITE_KEY is set */
+.login-turnstile { display: flex; justify-content: center; margin-top: 12px; }
+
 /* Error */
 .login-error {
   font-size: var(--fs-caption); color: var(--red);

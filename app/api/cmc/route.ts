@@ -10,9 +10,15 @@ function cmcHeaders() {
 }
 
 export async function GET(req: NextRequest) {
-  if (!rateLimit(`cmc:${getClientIp(req)}`, 20, 60_000)) {
+  const ip = getClientIp(req);
+  if (!rateLimit(`cmc:${ip}`, 20, 60_000)) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
+  // No auth on this route (public market data, called from every visitor
+  // incl. signed-out) so there's no user_id to attribute to - IP is the only
+  // traceability available without wiring a bearer token through
+  // MarketProvider's fetches. Structured so a CMC-quota spike is greppable.
+  console.log(`[cmc] ip=${ip} type=${req.nextUrl.searchParams.get('type')}`);
 
   if (!CMC_KEY) {
     return NextResponse.json({ error: 'CMC_API_KEY not configured' }, { status: 500 });
