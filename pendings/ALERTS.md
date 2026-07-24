@@ -74,8 +74,11 @@ Replace both `checkEMASetup` and `checkEMACross` with one `checkEMASignal`:
   currently also makes — not needed by `detectEMASignals` itself).
 - Call `detectEMASignals(candles, tf, DEFAULT_FILTER_PARAMS)` — same params
   the chart uses by default, for bit-for-bit parity.
-- **Timeframe: 4h only** (dropping 1h/30m/15m) — a swing signal, not a
-  scalp ping. Cuts the 4-timeframe fan-out that's the main volume driver.
+- **Timeframes: 1h, 4h, 1d** (three options, down from today's four —
+  4h/1h/30m/15m — dropping the two scalp timeframes 30m/15m). Each is an
+  independent toggle on `/alerts`, same UX pattern as today's per-timeframe
+  mute rows, just fewer/cleaner and firing real BUY/SELL instead of
+  "setup"/"crossed."
 - Fire only on a **new, non-pending (fully confirmed)** signal per coin —
   dedup via a last-alerted-timestamp map, same pattern as the existing
   `emaSideMap` cooldown.
@@ -95,43 +98,54 @@ firing should cut `ema_setup`+`ema_cross` volume substantially — exact
 number depends on real market activity, not knowable in advance, but the
 structural driver (4x fan-out + non-event firing) goes away either way.
 
-## 4. Plan B — per-user coin cap on alerts (separate ask, "can't have unlimited")
+## 4. Plan B — CORRECTION: this mostly already exists, don't rebuild it
 
-Today: alert cron scans **all 50 coins** for every connected Pro/trial user,
-no per-user coin preference exists anywhere in the schema or UI.
+Original version of this section proposed a brand-new coin-cap system (new
+DB column, new Settings UI, new cap). **Wrong — didn't check `/alerts` and
+`/api/alert-prefs` before writing it.** What's actually there today:
 
-**Phase 1 (proposed now): cap it for the new EMA signal check only.**
-- New `user_settings` column — an array of selected coins, hard-capped at
-  **N** (open decision, you said "10 or 20, something like that" — I'd
-  suggest 15 as a middle point, final call is yours).
-- New Settings UI: a coin picker (checkbox list over the 50 coins), enforces
-  the cap client + server side.
-- Cron change: `checkEMASignal` scans the **union** of every connected
-  user's selected coins, not all 50 — if the real user base's picks only
-  span, say, 20 distinct coins total, that's a real cut in scan volume (and
-  Grok calls) on top of the timeframe consolidation in Plan A.
-- Delivery: a signal only pushes to users who selected that specific coin.
+- **Coin selection already exists**, capped at **`ALERT_COIN_CAP = 20`**
+  (`app/alerts/page.tsx`). New users default to BTC/ETH/SOL only (rest
+  auto-muted). Toggle UI already built, already enforces the cap.
+- **Per-timeframe mute toggles already exist** for the current EMA alerts:
+  `ema_setup` (4H), `ema_setup_1h`, `ema_setup_30m`, `ema_setup_15m`,
+  `ema_cross` — each independently on/off per user.
+- **Direction filter already exists** (`dir:long` / `dir:short` mute keys).
+- **One generic mechanism backs all of it**: `lhq_muted_alerts (user_id,
+  key)`. Delivery checks `[ruleKey, coin:${coin}, dir:${dir}]` against a
+  user's muted set before sending — see `entryMuteKeys()`/`isMutedFor()` in
+  `app/api/telegram/alert/route.ts`.
+- **Scan-scope reduction already exists too** — `checkEMASetup` already
+  takes a `fullyMutedCoins` set (coins *every* connected user has muted) and
+  skips scanning them entirely. The cost-saving idea in the original Plan B
+  was already half-built.
 
-**Phase 2 (later, not now): extend the same coin-preference to
-whale/squeeze/CVD/OI-spike/news alerts too** — same idea, separate broadcast
-paths in the same file, bigger lift. Since EMA is 94% of current volume,
-Phase 1 alone captures most of the benefit; worth revisiting once Phase 1's
-mechanism is proven.
+**So there's no Plan B to build.** What actually changes because of Plan A:
+
+- The 5 existing mute rows (`ema_setup`, `ema_setup_1h`, `ema_setup_30m`,
+  `ema_setup_15m`, `ema_cross`) get replaced with **3 new rows** matching the
+  new signal's timeframes (1h/4h/1d) — same UI pattern, same
+  `lhq_muted_alerts` mechanism, just new `ruleKey` values and updated
+  copy ("BUY/SELL signal" not "setup"/"crossed").
+- `checkEMASignal` should keep the `fullyMutedCoins` scan-skip
+  `checkEMASetup` already has — carry it forward, don't lose it.
+- **Open question, needs your call:** you answered "15" for a coin cap when
+  I was (mistakenly) proposing a new system — the real, already-shipped cap
+  is **20**. Lower it to 15, or leave the working 20 alone?
 
 ## 5. Open decisions (need your call before implementing)
 
-1. **Coin cap number** — 15, or a specific number (10 / 20 / other)?
-2. **Users who haven't picked coins yet** — zero EMA alerts until they visit
-   Settings and pick, or a default set (e.g. top 5-10 by volume) so the
-   feature isn't silently off for everyone who hasn't configured it?
-3. **Timeframe** — 4h only, or keep a faster tier (1h) alongside it for more
-   frequent signals?
-4. **Pending/tentative signals** — push a "heads up" for a signal that's
+1. **Coin cap** — lower the existing `ALERT_COIN_CAP` from 20 to 15, or
+   leave it at 20?
+2. **Pending/tentative signals** — push a "heads up" for a signal that's
    armed+confirmed but still within the live edge (`pending: true`), or wait
    for full confirmation only? (Recommendation: wait — avoids sending a call
    that later gets rejected once more candles print.)
-5. **Scope** — do Plan A + Plan B Phase 1 together now, or Plan A first and
-   revisit the coin cap separately?
+3. **New `ruleKey` names** — e.g. `ema_signal_1h`/`ema_signal_4h`/`ema_signal_1d`,
+   or a different naming scheme? (Affects both the cron and the `/alerts` UI
+   rows, and whether existing users' current mute choices on the old keys
+   carry over — they won't automatically since the keys are changing;
+   worth deciding if that's fine or if we should map old→new.)
 
 ## 6. Related, not blocking this plan
 
