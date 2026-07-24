@@ -1011,6 +1011,7 @@ export const LABEL_KEYS = [
   'OPS_CARDS_GLOBAL_CAP_TODAY', 'OPS_CARDS_GLOBAL_CAP_UNSET', 'OPS_CARDS_SPIKE_ALERT',
   'OPS_CARDS_TOP_SPENDERS_TITLE', 'OPS_CARDS_MARGIN_LABEL',
   'OPS_USER_DETAIL_EST_COST_14D', 'OPS_USER_DETAIL_MARGIN_14D', 'OPS_USER_DETAIL_MARGIN_NOTE',
+  'OPS_USER_DETAIL_CALLS_BY_TYPE',
 
   // Wave 14: /ops top-of-page spike banner (distinct from the buried
   // AiCostCard note above - same data, more visible placement). English-only,

@@ -123,7 +123,7 @@ function prettifyType(type: string): string {
   }).join(' ');
 }
 
-function CallsByType({ items }: { items: { type: string; count: number }[] }) {
+export function CallsByType({ items }: { items: { type: string; count: number }[] }) {
   if (items.length === 0) return null;
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>

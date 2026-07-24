@@ -3,12 +3,16 @@ import { apiError } from '@/lib/apiError';
 import { withAdmin } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
-import { estimateRowCostUsd, PRO_PRICE_USD_PER_MONTH } from '@/lib/aiCost';
+import { estimateRowCostUsd, PRO_PRICE_USD_PER_MONTH, ALL_USAGE_COLUMNS } from '@/lib/aiCost';
 
 export const dynamic = 'force-dynamic';
 
 const DAY = 86_400_000;
-const USAGE_COLS = ['deep_count', 'quick_count', 'chat_count', 'chat_search_count', 'briefing_count'] as const;
+// Was a hand-picked 5 of the 13 real usage columns (missing all 8 one-shot
+// tools - thesis check, strategy research, pine script, etc) - undercounted
+// "Total calls" for any account that used a tool. Now the full set, same
+// source ALL_USAGE_COLUMNS the app-wide /ops cost view already uses.
+const USAGE_COLS = ALL_USAGE_COLUMNS;
 
 // Single-user detail: identity, subscription, and AGGREGATES/COUNTS only.
 // Deliberately does NOT return raw trades/hypotheses/settings/watchlist content -
@@ -43,12 +47,20 @@ export const GET = withAdmin<[{ params: Promise<{ id: string }> }]>(async (_req,
   const aiCost14d: { day: string; cost: number }[] = [];
   const byDay = new Map<string, number>();
   const costByDay = new Map<string, number>();
+  const byTypeMap = new Map<string, number>();
   for (const row of usageRows.data ?? []) {
     let sum = 0;
-    for (const c of USAGE_COLS) sum += Number(row[c] ?? 0);
+    for (const c of USAGE_COLS) {
+      const n = Number(row[c] ?? 0);
+      sum += n;
+      if (n) byTypeMap.set(c, (byTypeMap.get(c) ?? 0) + n);
+    }
     byDay.set(row.date, (byDay.get(row.date) ?? 0) + sum);
     costByDay.set(row.date, (costByDay.get(row.date) ?? 0) + estimateRowCostUsd(row as Record<string, number | null>));
   }
+  const callsByType = [...byTypeMap.entries()]
+    .map(([type, count]) => ({ type: type.replace(/_count$/, ''), count }))
+    .sort((a, b) => b.count - a.count);
   for (let i = 13; i >= 0; i--) {
     const day = new Date(Date.now() - i * DAY).toISOString().slice(0, 10);
     aiUsage14d.push({ day, total: byDay.get(day) ?? 0 });
@@ -79,6 +91,7 @@ export const GET = withAdmin<[{ params: Promise<{ id: string }> }]>(async (_req,
     },
     aiUsage14d,
     aiCost14d,
+    callsByType,
     cost14dTotal,
     revenueMonthly,
     margin14d: revenueMonthly - cost14dTotal,
