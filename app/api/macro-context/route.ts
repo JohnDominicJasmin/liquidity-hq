@@ -19,22 +19,49 @@ function sb(token: string) {
 
 interface YFMeta { regularMarketPrice: number; previousClose: number; shortName?: string }
 
-async function fetchYF(symbol: string): Promise<{ price: number; prev: number } | null> {
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+// Was silently swallowing every failure into a bare `null`, with no record
+// of WHY - found live on Render (both prod and dev) that DXY always
+// succeeds while VIX/Gold/Oil/10Y consistently fail for hours at a time,
+// even though every one of these symbols returns 200 fine when hit
+// directly (not from Render). All 5 firing as one Promise.all burst is the
+// likely cause - Yahoo's undocumented chart endpoint reads that as
+// bot-like from a single server IP. One retry after a short random delay
+// gives a throttled request a second, staggered chance; logging the real
+// status/error means the NEXT occurrence is diagnosable (via Render logs
+// and now GlitchTip - see lib/apiError.ts) instead of just "could not fetch".
+async function fetchYFOnce(symbol: string): Promise<{ price: number; prev: number } | null> {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=2d&interval=1d`;
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept': 'application/json',
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`YF ${symbol}: HTTP ${res.status} - ${body.slice(0, 200)}`);
+  }
+  const data = await res.json() as { chart?: { result?: Array<{ meta?: YFMeta }> } };
+  const meta = data.chart?.result?.[0]?.meta;
+  if (!meta?.regularMarketPrice) throw new Error(`YF ${symbol}: no regularMarketPrice in response`);
+  return { price: meta.regularMarketPrice, prev: meta.previousClose };
+}
+
+async function fetchYF(symbol: string, initialDelayMs = 0): Promise<{ price: number; prev: number } | null> {
+  if (initialDelayMs > 0) await sleep(initialDelayMs);
   try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=2d&interval=1d`;
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-      },
-    });
-    if (!res.ok) return null;
-    const data = await res.json() as { chart?: { result?: Array<{ meta?: YFMeta }> } };
-    const meta = data.chart?.result?.[0]?.meta;
-    if (!meta?.regularMarketPrice) return null;
-    return { price: meta.regularMarketPrice, prev: meta.previousClose };
-  } catch {
-    return null;
+    return await fetchYFOnce(symbol);
+  } catch (e1) {
+    console.error(`[macro-context] first attempt failed: ${e1 instanceof Error ? e1.message : String(e1)}`);
+    await sleep(400 + Math.random() * 400);
+    try {
+      return await fetchYFOnce(symbol);
+    } catch (e2) {
+      console.error(`[macro-context] retry also failed: ${e2 instanceof Error ? e2.message : String(e2)}`);
+      return null;
+    }
   }
 }
 
@@ -111,12 +138,13 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await cached('macro-context', CACHE_TTL, async () => {
+      // Staggered, not a single Promise.all burst - see fetchYF's comment.
       const [dxyData, vixData, goldData, oilData, tnxData] = await Promise.all([
-        fetchYF('DX-Y.NYB'),
-        fetchYF('%5EVIX'),
-        fetchYF('GC%3DF'),
-        fetchYF('CL%3DF'),
-        fetchYF('%5ETNX'),
+        fetchYF('DX-Y.NYB',   0),
+        fetchYF('%5EVIX',   120),
+        fetchYF('GC%3DF',   240),
+        fetchYF('CL%3DF',   360),
+        fetchYF('%5ETNX',   480),
       ]);
 
       const missing = [
