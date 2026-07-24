@@ -66,6 +66,19 @@ now, live on prod only after your next manual deploy.
   login, I don't have ops credentials. Prod currently has zero `lhq_grok_usage`
   rows in the last 30 days (real usage hasn't accumulated yet / credits were
   out), so the card will show its empty state until there's real traffic.
+- **Disposable-email domain blocklist — LIVE on both DB projects.** New
+  `lhq_disposable_email_domains` table (46-domain starter list — mailinator,
+  guerrillamail, 10minutemail, yopmail, temp-mail.org, and similar
+  well-known throwaway providers; not exhaustive, extend by hand over time).
+  `lhq_grant_signup_trial()` now checks the signup email's domain against it
+  — a match still gets a free-tier account (same non-destructive pattern as
+  the existing dedup logic), just `trial_ends_at = null` instead of a fresh
+  14-day trial. Pairs with Turnstile: CAPTCHA stops scripted mass signups,
+  this catches a human manually farming trials with real throwaway addresses.
+  Verified live via direct SQL (not a real signup): `test@mailinator.com` →
+  blocked, `real.person@gmail.com` → not blocked, `YOPMAIL.COM` uppercase →
+  still correctly matched. Applied to both `qdpwhnvmhqgzijuwopso` (prod) and
+  `wdtjhrilakoitfcezxpx` (dev).
 
 ## ⛔ OPEN — code (mine)
 
@@ -74,7 +87,6 @@ Nothing outstanding right now. Everything that was "mine" is either done
 
 ## ❓ OPEN — YOUR action (can't do from code)
 
-- **Disposable-email domain blocklist** (optional, pairs with CAPTCHA).
 - **Set the LemonSqueezy product/variant price to $25** when payment goes
   live (external, LemonSqueezy's own dashboard — not this repo). See the
   payment-deferred section below; the app-side price display is already $25.

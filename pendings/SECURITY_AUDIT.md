@@ -117,8 +117,10 @@ registers. Exploit: script/registration farm creates N accounts → N fresh
 - Partial fix (live on prod DB): `lhq_grant_signup_trial()` now dedupes by
   **normalized email** (`lhq_trial_claims`, Gmail dot/+tag folding) → one real
   inbox = one trial ever. This kills the *alias* trick (name+1@, na.me@).
-- **Residual (not code-fixable): distinct real inboxes.** Needs Supabase Auth
-  CAPTCHA (Turnstile/hCaptcha) + disposable-domain blocklist — see §4.
+- **(Fixed) Residual: distinct real inboxes.** Turnstile CAPTCHA (stops
+  scripted mass account creation) and the disposable-domain blocklist (stops
+  a human farming trials with real throwaway addresses) are both now live —
+  see §4.
 
 **F6 (HIGH → fixed). Over-broad table grants = RLS was the only barrier to
 self-serve Pro.** `anon`/`authenticated` held INSERT/UPDATE/DELETE/TRUNCATE on
@@ -217,13 +219,16 @@ service-role server-only, none in git, none logged.
 
 ## 4. Signup / trial gap — recommendation
 
-- **Enable Supabase Auth CAPTCHA** (Dashboard → Authentication → Settings → Bot
-  & Abuse Protection; Turnstile or hCaptcha). This is the single highest-leverage
-  control — it breaks scripted mass account creation, which is the root enabler
-  of trial farming (F5). Not doable from app code.
-- **Disposable-domain blocklist** at trial issuance: extend
-  `lhq_grant_signup_trial()` to skip the trial (grant `trial_ends_at=null`) when
-  the email domain is on a maintained throwaway-domain list (mailinator, etc.).
+- **(Fixed, live on prod) Enable Supabase Auth CAPTCHA** — Turnstile is live
+  (Dashboard → Authentication → Attack Protection). This was the single
+  highest-leverage control — it breaks scripted mass account creation, the
+  root enabler of trial farming (F5).
+- **(Fixed, live on both DB projects) Disposable-domain blocklist** at trial
+  issuance — `lhq_grant_signup_trial()` now checks the signup email's domain
+  against `lhq_disposable_email_domains` (46-domain starter list: mailinator,
+  guerrillamail, 10minutemail, yopmail, etc.) and grants `trial_ends_at=null`
+  instead of a fresh 14-day trial on a match. Catches a human manually farming
+  trials with real throwaway addresses — the gap Turnstile alone doesn't close.
 - **IP / velocity signal (optional, needs an Auth Hook):** a Supabase
   `before-user-created` Auth Hook can reject when >N signups from one IP/day.
 - **Keep the email-normalization dedup** already shipped — it's the alias-trick
