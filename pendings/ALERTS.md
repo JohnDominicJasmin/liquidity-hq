@@ -1,11 +1,13 @@
 # Telegram Alert System — Cost + Quality Plan
 
-**Status: ✅ IMPLEMENTED 2026-07-25.** `checkEMASignal` replaces `checkEMASetup`
-+ `checkEMACross` in `app/api/telegram/alert/route.ts`. New `ema_signal_<tf>`
-mute rows + timeframe picker live on `/alerts`. Global-cap wiring done. All
-Supabase changes (labels, new SQL function, mute-key migration) applied live
-to both prod and dev. Code changes are still uncommitted in the working tree
-as of this writing (on `dev` branch, nothing pushed) - see §7 for exact state.
+**Status: ✅ DONE, LIVE ON PROD 2026-07-25.** `checkEMASignal` replaces
+`checkEMASetup` + `checkEMACross` in `app/api/telegram/alert/route.ts`. New
+`ema_signal_<tf>` mute rows + timeframe picker live on `/alerts`. Global-cap
+wiring done. All Supabase changes (labels, new SQL function, mute-key
+migration) applied live to both prod and dev. Code committed (`bd3d5e6`),
+merged to `main`, deployed - `git log origin/main..origin/dev` shows nothing
+outstanding for this. §7's "uncommitted" note below is stale, kept only as a
+historical record of what changed.
 Feature: `app/api/telegram/alert/route.ts` (cron-gated, Pro/trial-only, scans
 all 50 coins every tick, fans out to every connected user's Telegram chat).
 
@@ -162,12 +164,12 @@ DB column, new Settings UI, new cap). **Wrong — didn't check `/alerts` and
 
 ## 6. Related, not blocking this plan
 
-- Telegram alert on global-cap-breach spike (from `SECURITY_AUDIT.md`) — a
-  cron that Telegrams the owner when `AI_GLOBAL_DAILY_MAX` usage crosses a
-  threshold. Independent of this doc, still open.
+- ~~Telegram alert on global-cap-breach spike~~ — **done 2026-07-25**, and
+  switched from Telegram to email + an `/ops` dashboard banner (owner
+  rejected Telegram as the channel). See `SECURITY_AUDIT.md`. Scheduler
+  (n8n) still needs pointing at the route.
 - Per-user cap on the 3 cached xAI routes' cache-miss path (dry-powder,
-  macro-context, onchain) — also independent, still open, tracked in
-  `SECURITY_AUDIT.md`.
+  macro-context, onchain) — still open, tracked in `SECURITY_AUDIT.md`.
 
 ## 7. Implementation closeout (2026-07-25)
 
