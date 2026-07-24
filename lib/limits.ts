@@ -12,9 +12,25 @@
 
 export type Tier = 'free' | 'pro';
 
+// One-shot analysis tools gated by lib/aiUsage.ts (thesis-check, strategy-research,
+// shadow-account, behavioral-bias, pine-script, hypotheses/[id]/analyze). No web
+// search tools, cheaper per-call than `deep`, but still real xAI spend - previously
+// unbounded.
+export type ExtraTool =
+  | 'thesisCheck' | 'strategyResearch' | 'shadowAccount'
+  | 'behavioralBias' | 'pineScript' | 'hypothesisAnalyze';
+
 export const AI_LIMITS: Record<Tier, {
   quick: number; deep: number; chat: number; search: number; briefing: number;
-}> = {
-  free: { quick: 7,  deep: 5,  chat: 15,  search: 5,  briefing: 3  },
-  pro:  { quick: 50, deep: 25, chat: 100, search: 25, briefing: 10 },
+} & Record<ExtraTool, number>> = {
+  free: {
+    quick: 7,  deep: 5,  chat: 15,  search: 5,  briefing: 3,
+    thesisCheck: 5, strategyResearch: 5, shadowAccount: 5,
+    behavioralBias: 5, pineScript: 5, hypothesisAnalyze: 5,
+  },
+  pro: {
+    quick: 50, deep: 25, chat: 100, search: 25, briefing: 10,
+    thesisCheck: 25, strategyResearch: 25, shadowAccount: 25,
+    behavioralBias: 25, pineScript: 25, hypothesisAnalyze: 25,
+  },
 };
