@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
-import { checkToolUsage, incrementToolUsage } from '@/lib/aiUsage';
+import { incrementToolUsage } from '@/lib/aiUsage';
+import { getUserRole } from '@/lib/entitlements';
+import { AI_LIMITS } from '@/lib/limits';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -127,8 +129,10 @@ export async function POST(req: NextRequest) {
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
-  const { used, limit } = await checkToolUsage(token, authData.user.id, 'behavioralBias');
-  if (used >= limit) {
+  const role = await getUserRole(token, authData.user.id);
+  const limit = AI_LIMITS[role].behavioralBias;
+  const newCount = await incrementToolUsage(token, authData.user.id, 'behavioralBias', limit);
+  if (newCount === null) {
     return NextResponse.json(
       { error: `Daily limit of ${limit} bias reports reached.`, code: 'RATE_LIMIT' },
       { status: 429 },
@@ -168,6 +172,5 @@ export async function POST(req: NextRequest) {
   const data = await res.json();
   const text: string = data.choices?.[0]?.message?.content ?? '';
 
-  await incrementToolUsage(token, authData.user.id, 'behavioralBias', used);
   return NextResponse.json({ analysis: text, tradeCount: closed.length });
 }

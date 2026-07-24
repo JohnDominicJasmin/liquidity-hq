@@ -1,16 +1,21 @@
-// Shared daily-cap gate for the one-shot AI analysis routes (thesis-check,
-// strategy-research, shadow-account, behavioral-bias, pine-script,
-// hypotheses/[id]/analyze). These previously had auth checks but no usage cap -
-// any signed-in user could loop-call them and run up the xAI bill.
+// Atomic daily-cap gate for every AI route (grok, grok-chat, briefing, and the
+// one-shot tools: thesis-check, strategy-research, shadow-account,
+// behavioral-bias, pine-script, hypotheses/[id]/analyze).
 //
-// Mirrors app/api/grok/route.ts's pattern: read usage + role, check the limit,
-// call the AI, then increment only on success (so a failed xAI call doesn't
-// burn quota). Same read-then-write race as grok/route.ts - see PENDING.md
-// finding #2 (TOCTOU on daily caps) for the follow-up fix.
+// Calls the `increment_ai_usage` Postgres function (see
+// supabase/migrations/20260804c_atomic_ai_usage_increment.sql) instead of the
+// old read-count-then-upsert pattern - that was a TOCTOU race: two concurrent
+// requests could both read the same under-limit count and both pass the
+// check before either write landed, exceeding the daily cap. The DB function
+// does the check-and-increment as a single atomic UPDATE ... WHERE <col> <
+// limit, so Postgres's row lock serializes concurrent callers.
+//
+// No refund on a failed xAI call after a successful increment - see the
+// migration file's comment for why that tradeoff was chosen over a second
+// compensating-write path.
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
-import { getUserRole } from '@/lib/entitlements';
-import { AI_LIMITS, ExtraTool } from '@/lib/limits';
+import { ExtraTool } from '@/lib/limits';
 
 function sb(token: string) {
   return createClient(
@@ -20,7 +25,7 @@ function sb(token: string) {
   );
 }
 
-const COLUMN: Record<ExtraTool, string> = {
+const EXTRA_TOOL_COLUMN: Record<ExtraTool, string> = {
   thesisCheck:       'thesis_check_count',
   strategyResearch:  'strategy_research_count',
   shadowAccount:     'shadow_account_count',
@@ -29,28 +34,26 @@ const COLUMN: Record<ExtraTool, string> = {
   hypothesisAnalyze: 'hypothesis_analyze_count',
 };
 
-export async function checkToolUsage(
-  token: string, userId: string, tool: ExtraTool,
-): Promise<{ used: number; limit: number }> {
+// Returns the new count on success, or null if the caller was already at/over
+// the limit (blocked - no row was written).
+export async function incrementUsageColumn(
+  token: string, userId: string, column: string, limit: number,
+): Promise<number | null> {
   const today = new Date().toISOString().slice(0, 10);
-  const column = COLUMN[tool];
-  const client = sb(token);
-  const [{ data }, role] = await Promise.all([
-    client.from(T.grok_usage).select(column).eq('user_id', userId).eq('date', today).maybeSingle(),
-    getUserRole(token, userId),
-  ]);
-  const used = (data as Record<string, number> | null)?.[column] ?? 0;
-  return { used, limit: AI_LIMITS[role][tool] };
+  const { data, error } = await sb(token).rpc('increment_ai_usage', {
+    p_user_id: userId, p_date: today, p_column: column, p_limit: limit,
+  });
+  if (error) {
+    console.error(`[aiUsage] increment_ai_usage failed for ${column}:`, error.message);
+    return null;
+  }
+  return data as number | null;
 }
 
+// Convenience wrapper for the 6 one-shot tool routes (keyed by lib/limits.ts's
+// ExtraTool union instead of a raw column string).
 export async function incrementToolUsage(
-  token: string, userId: string, tool: ExtraTool, currentUsed: number,
-): Promise<void> {
-  const today = new Date().toISOString().slice(0, 10);
-  const column = COLUMN[tool];
-  const { error } = await sb(token).from(T.grok_usage).upsert(
-    { user_id: userId, date: today, [column]: currentUsed + 1, updated_at: new Date().toISOString() },
-    { onConflict: 'user_id,date' },
-  );
-  if (error) console.error(`[aiUsage] usage upsert failed for ${tool}:`, error.message);
+  token: string, userId: string, tool: ExtraTool, limit: number,
+): Promise<number | null> {
+  return incrementUsageColumn(token, userId, EXTRA_TOOL_COLUMN[tool], limit);
 }

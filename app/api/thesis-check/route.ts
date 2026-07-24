@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { checkToolUsage, incrementToolUsage } from '@/lib/aiUsage';
+import { incrementToolUsage } from '@/lib/aiUsage';
+import { getUserRole } from '@/lib/entitlements';
+import { AI_LIMITS } from '@/lib/limits';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -58,8 +60,10 @@ export async function POST(req: NextRequest) {
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
-  const { used, limit } = await checkToolUsage(token, authData.user.id, 'thesisCheck');
-  if (used >= limit) {
+  const role = await getUserRole(token, authData.user.id);
+  const limit = AI_LIMITS[role].thesisCheck;
+  const newCount = await incrementToolUsage(token, authData.user.id, 'thesisCheck', limit);
+  if (newCount === null) {
     return NextResponse.json(
       { error: `Daily limit of ${limit} thesis checks reached.`, code: 'RATE_LIMIT' },
       { status: 429 },
@@ -103,6 +107,5 @@ export async function POST(req: NextRequest) {
   const data = await res.json();
   const analysis: string = data.choices?.[0]?.message?.content ?? '';
 
-  await incrementToolUsage(token, authData.user.id, 'thesisCheck', used);
   return NextResponse.json({ analysis });
 }

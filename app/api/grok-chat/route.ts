@@ -17,6 +17,7 @@ import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
+import { incrementUsageColumn } from '@/lib/aiUsage';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -95,20 +96,16 @@ export async function POST(req: NextRequest) {
   const chatLimit   = AI_LIMITS[role].chat;
   const searchLimit = AI_LIMITS[role].search;
 
-  if (isSearch && searchUsed >= searchLimit) {
+  // Atomic check-and-increment (reserve before spending on xAI) - closes the
+  // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
+  const column = isSearch ? 'chat_search_count' : 'chat_count';
+  const limit  = isSearch ? searchLimit : chatLimit;
+  const newCount = await incrementUsageColumn(token, userId, column, limit);
+  if (newCount === null) {
+    const label = isSearch ? 'live search messages' : 'chat messages';
     return NextResponse.json(
       {
-        error: `Daily limit of ${searchLimit} live search messages reached.`,
-        code: 'RATE_LIMIT',
-        usage: { chat_used: chatUsed, chat_limit: chatLimit, search_used: searchUsed, search_limit: searchLimit },
-      },
-      { status: 429 }
-    );
-  }
-  if (!isSearch && chatUsed >= chatLimit) {
-    return NextResponse.json(
-      {
-        error: `Daily limit of ${chatLimit} chat messages reached.`,
+        error: `Daily limit of ${limit} ${label} reached.`,
         code: 'RATE_LIMIT',
         usage: { chat_used: chatUsed, chat_limit: chatLimit, search_used: searchUsed, search_limit: searchLimit },
       },
@@ -141,19 +138,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Unknown mode: ${mode}` }, { status: 400 });
     }
 
-    /* ── Update usage (only on success) ── */
     if (status >= 200 && status < 300) {
-      const newChat   = isSearch ? chatUsed   : chatUsed   + 1;
-      const newSearch = isSearch ? searchUsed + 1 : searchUsed;
-      const { error: upsertErr } = await sb(token).from(T.grok_usage).upsert(
-        {
-          user_id: userId, date: today,
-          chat_count: newChat, chat_search_count: newSearch,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,date' }
-      );
-      if (upsertErr) console.error('[grok-chat] usage upsert failed:', upsertErr.message);
+      const newChat   = isSearch ? chatUsed   : newCount;
+      const newSearch = isSearch ? newCount   : searchUsed;
       return NextResponse.json({
         ...((data as Record<string, unknown>) ?? {}),
         _usage: { chat_used: newChat, chat_limit: chatLimit, search_used: newSearch, search_limit: searchLimit },
