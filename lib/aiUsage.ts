@@ -32,6 +32,8 @@ const EXTRA_TOOL_COLUMN: Record<ExtraTool, string> = {
   behavioralBias:    'behavioral_bias_count',
   pineScript:        'pine_script_count',
   hypothesisAnalyze: 'hypothesis_analyze_count',
+  tokenUnlock:       'token_unlock_count',
+  smcSnapshot:       'smc_snapshot_count',
 };
 
 // Returns the new count on success, or null if the caller was already at/over
