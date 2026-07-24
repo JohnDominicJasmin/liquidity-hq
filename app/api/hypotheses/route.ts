@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await sb(token)
     .from(T.hypotheses)
     .select('*')
+    .eq('user_id', authData.user.id)
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

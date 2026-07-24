@@ -33,6 +33,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .from(T.hypotheses)
     .update(update)
     .eq('id', id)
+    .eq('user_id', authData.user.id)
     .select()
     .single();
 
@@ -47,7 +48,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const { error } = await sb(token).from(T.hypotheses).delete().eq('id', id);
+  const { error } = await sb(token)
+    .from(T.hypotheses)
+    .delete()
+    .eq('id', id)
+    .eq('user_id', authData.user.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
