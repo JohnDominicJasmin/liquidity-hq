@@ -15,23 +15,21 @@ import { T } from '@/lib/tables';
 import { Warn } from '@/components/icons';
 import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
 import UpgradeGateModal, { LockedFeatureCard } from '@/components/UpgradeGateModal';
+import ConfluenceScore from '@/components/ConfluenceScore';
+import MultiTFAlignment from '@/components/MultiTFAlignment';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import MarketStructure, { MSData } from '@/components/MarketStructure';
 import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
 import EMASignal from '@/components/EMASignal';
-import ConfluenceScore from '@/components/ConfluenceScore';
 import HigherTfMoveBadge from '@/components/HigherTfMoveBadge';
-import StopLossZone from '@/components/StopLossZone';
 import Tip from '@/components/Tip';
 import LiqHeatmap from '@/components/LiqHeatmap';
-import GexTable from '@/components/GexTable';
 import UsageMeter from '@/components/UsageMeter';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
-import MultiTFAlignment from '@/components/MultiTFAlignment';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
@@ -1904,16 +1902,12 @@ function ArenaContent() {
           currentPrice={store.coins['btc']?.price ?? 0}
         />
       )}
-      {/* BTC Options Market Pressure (GEX) - BTC-only, same widget as the
-          Liquidation Map page. Ungated: near-zero cost (already in the market
-          store) and it also feeds the AI read above, so showing the raw table
-          lets users see what the AI is reading. GexTable renders its own
-          "Fetching…" state, so gate on coin only. */}
-      {selectedCoin === 'btc' && (
-        <div style={{ marginBottom: 10 }}>
-          <GexTable />
-        </div>
-      )}
+      {/* GEX / Options Market Pressure table removed here 2026-07-25
+          (signal-overload pass): biggest single block on the page (~456px),
+          BTC-only, and max-pain/net-gamma is background context rather than a
+          trade decision - it still feeds the AI read above, which is where it
+          now surfaces. Full table remains on the Liquidation Map page for
+          anyone who wants the raw numbers. */}
       {/* ── Pullback warning - reuses the Distribution score for the selected coin.
           "This pump is getting weaker" made explicit as text, not just a header chip. ── */}
       {(() => {
@@ -1945,12 +1939,13 @@ function ArenaContent() {
           cards (multi-timeframe alignment, higher-timeframe context, stop
           zone) plus the AI's long-form reasoning/patterns. ── */}
       <MultiTFAlignment coin={selectedCoin} />
+      {/* StopLossZone ("Order Flow Setup" card) stays removed - its stop + R:R
+          duplicated the AI read card's own STOP and R:R cells. Component kept in
+          the codebase, just not mounted here. */}
       {/* Informational only (not a filter - see component header for why): flags when
           the 4h has already moved a lot, so a same-direction lower-TF signal doesn't
           look more trustworthy than it is. Only shows on 1m/5m/15m/30m. */}
       <HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />
-      {/* Stop Loss Zone - S/R anchored stop suggestion */}
-      <StopLossZone coin={selectedCoin} grokSignal={result?.signal} />
       {/* AI long-form reasoning / chart read / patterns - only when a read has run */}
       {result && (
         <>
