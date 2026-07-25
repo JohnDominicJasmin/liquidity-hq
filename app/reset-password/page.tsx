@@ -78,27 +78,12 @@ export default function ResetPasswordPage() {
   if (invalid) {
     return (
       <div className="login-wrap">
-        <div className="term-window">
-          <div className="term-titlebar">
-            <span className="term-dots" aria-hidden="true"><i /><i /><i /></span>
-            <span className="term-path">AUTH://LIQUIDITYHQ/RESET</span>
-            <span className="term-live"><span className="term-live-dot" aria-hidden="true" />{t('AUTH_TERMINAL_LIVE_TAG')}</span>
-          </div>
-          <div className="term-scanlines" aria-hidden="true" />
-          <div className="term-body">
-          <div className="login-error">{t('RESET_PASSWORD_INVALID_LINK')}</div>
+        <div className="login-card">
+          <div className="login-logo">Liquidity<span>HQ</span></div>
+          <div className="login-error" style={{ marginTop: 16 }}>{t('RESET_PASSWORD_INVALID_LINK')}</div>
           <Link href="/forgot-password" className="login-back-btn" style={{ display: 'block', marginTop: 14 }}>
             {t('RESET_PASSWORD_REQUEST_NEW_LINK')}
           </Link>
-          </div>
-          <div className="term-statusbar">
-            <span>MODE: RESET</span>
-            <span>LIQUIDITYHQ · ENCRYPTED</span>
-          </div>
-          <span className="term-corner term-corner-tl" aria-hidden="true" />
-          <span className="term-corner term-corner-tr" aria-hidden="true" />
-          <span className="term-corner term-corner-bl" aria-hidden="true" />
-          <span className="term-corner term-corner-br" aria-hidden="true" />
         </div>
       </div>
     );
@@ -108,14 +93,8 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="login-wrap">
-      <div className="term-window">
-        <div className="term-titlebar">
-          <span className="term-dots" aria-hidden="true"><i /><i /><i /></span>
-          <span className="term-path">AUTH://LIQUIDITYHQ/RESET</span>
-          <span className="term-live"><span className="term-live-dot" aria-hidden="true" />{t('AUTH_TERMINAL_LIVE_TAG')}</span>
-        </div>
-        <div className="term-scanlines" aria-hidden="true" />
-        <div className="term-body">
+      <div className="login-card">
+        <div className="login-logo">Liquidity<span>HQ</span></div>
         <p className="login-sub">{t('RESET_PASSWORD_SUBTITLE')}</p>
 
         {done ? (
@@ -156,15 +135,6 @@ export default function ResetPasswordPage() {
             {error && <div className="login-error">{error}</div>}
           </>
         )}
-        </div>
-        <div className="term-statusbar">
-          <span>MODE: RESET</span>
-          <span>LIQUIDITYHQ · ENCRYPTED</span>
-        </div>
-        <span className="term-corner term-corner-tl" aria-hidden="true" />
-        <span className="term-corner term-corner-tr" aria-hidden="true" />
-        <span className="term-corner term-corner-bl" aria-hidden="true" />
-        <span className="term-corner term-corner-br" aria-hidden="true" />
       </div>
     </div>
   );

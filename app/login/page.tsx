@@ -184,17 +184,10 @@ function LoginInner() {
 
   return (
     <div className="login-wrap">
-      <div className="term-window">
-        <div className="term-titlebar">
-          <span className="term-dots" aria-hidden="true"><i /><i /><i /></span>
-          <span className="term-path">
-            AUTH://LIQUIDITYHQ/{authMethod === 'link' ? 'MAGIC-LINK' : pwMode === 'signup' ? 'SIGN-UP' : 'SIGN-IN'}
-          </span>
-          <span className="term-live"><span className="term-live-dot" aria-hidden="true" />{t('AUTH_TERMINAL_LIVE_TAG')}</span>
-        </div>
-        <div className="term-scanlines" aria-hidden="true" />
-        <div className="term-body">
+      <div className="login-card">
 
+        {/* Logo */}
+        <div className="login-logo">Liquidity<span>HQ</span></div>
         <p className="login-sub">{isSignup ? t('LOGIN_SUBTITLE_SIGNUP') : t('LOGIN_SUBTITLE_SIGNIN')}</p>
 
         {authMethod === 'link' ? (
@@ -378,15 +371,6 @@ function LoginInner() {
             </>
           )
         )}
-        </div>
-        <div className="term-statusbar">
-          <span>{authMethod === 'link' ? 'MODE: MAGIC-LINK' : `MODE: PASSWORD/${pwMode.toUpperCase()}`}</span>
-          <span>LIQUIDITYHQ · ENCRYPTED</span>
-        </div>
-        <span className="term-corner term-corner-tl" aria-hidden="true" />
-        <span className="term-corner term-corner-tr" aria-hidden="true" />
-        <span className="term-corner term-corner-bl" aria-hidden="true" />
-        <span className="term-corner term-corner-br" aria-hidden="true" />
       </div>
 
       {/* Skip link */}
