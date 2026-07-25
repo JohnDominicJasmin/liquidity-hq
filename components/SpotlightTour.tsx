@@ -4,24 +4,42 @@ import { useRouter } from 'next/navigation';
 import { useOnboarding } from './OnboardingProvider';
 import { withAlpha } from '@/lib/color';
 import { useLabels } from '@/lib/labels';
+import { useTheme } from '@/lib/theme';
 import type { LabelKey } from '@/lib/labelKeys';
 
-const ACCENT  = '#1a7aff';
-const GREEN   = '#4ade80';
-const RED     = '#f87171';
-const BG0     = '#07090f';
-const BG1     = '#0c0f1c';
-const BG2     = '#101324';
-const TXT1    = '#eef0fa';
-const TXT2    = '#9296b5';
-const TXT3    = '#4e5374';
-const BDR     = 'rgba(26,122,255,0.1)';
-const MONO    = "var(--font-mono, 'IBM Plex Mono', monospace)";
-const SANS    = "var(--font-sans, 'Figtree', system-ui, sans-serif)";
+const MONO = "var(--font-mono, 'IBM Plex Mono', monospace)";
+const SANS = "var(--font-sans, 'Figtree', system-ui, sans-serif)";
+
+// Every color here used to be a flat module-level dark-only constant - this
+// whole component is inline-style (no CSS classes), so it never picked up
+// [data-theme="light"] at all. Values below match the app's real light-theme
+// tokens (app/globals.css's [data-theme="light"] block), not guesses.
+const DARK = {
+  ACCENT: '#1a7aff', GREEN: '#4ade80', RED: '#f87171', ORANGE: '#f97316',
+  BG0: '#07090f', BG1: '#0c0f1c', BG2: '#101324',
+  TXT1: '#eef0fa', TXT2: '#9296b5', TXT3: '#4e5374',
+  BDR: 'rgba(26,122,255,0.1)', TRACK_BG: 'rgba(26,122,255,0.06)', GRID: 'rgba(26,122,255,0.05)',
+  TG_BG: 'rgba(34,158,217,0.06)', TG_BDR: 'rgba(34,158,217,0.28)', TG_TXT: '#4db8e8',
+  MODAL_SHADOW: '0 32px 80px rgba(0,0,0,0.7)',
+};
+const LIGHT = {
+  ACCENT: '#0052CC', GREEN: '#047857', RED: '#B91C1C', ORANGE: '#C2410C',
+  BG0: '#F2F3F5', BG1: '#FFFFFF', BG2: '#F2F3F5',
+  TXT1: '#111318', TXT2: '#44475A', TXT3: '#63656F',
+  BDR: 'rgba(0,82,204,0.14)', TRACK_BG: 'rgba(0,82,204,0.08)', GRID: 'rgba(0,82,204,0.08)',
+  TG_BG: 'rgba(34,158,217,0.08)', TG_BDR: 'rgba(34,158,217,0.35)', TG_TXT: '#0e7fae',
+  MODAL_SHADOW: '0 20px 48px rgba(20,25,40,0.18)',
+};
+type Palette = typeof DARK;
+function usePalette(): Palette {
+  const { theme } = useTheme();
+  return theme === 'light' ? LIGHT : DARK;
+}
 
 /* ── Step 1 visual: three metric cards ── */
 function Step1Visual() {
   const { t } = useLabels();
+  const { ACCENT, RED, BG2, TXT3, BDR } = usePalette();
   const cards = [
     { id: 'card1', labelKey: 'SPOTLIGHT_TOUR_CARD1_LABEL', value: '-0.07%', subKey: 'SPOTLIGHT_TOUR_CARD1_SUB', color: RED },
     { id: 'card2', labelKey: 'SPOTLIGHT_TOUR_CARD2_LABEL', value: '+$38M',  subKey: 'SPOTLIGHT_TOUR_CARD2_SUB', color: RED },
@@ -52,6 +70,7 @@ function Step1Visual() {
 /* ── Step 2 visual: funding rate bar ── */
 function Step2Visual() {
   const { t } = useLabels();
+  const { ACCENT, RED, BG2, TXT2, TXT3, BDR, TRACK_BG } = usePalette();
   const [width, setWidth] = useState(0);
   useEffect(() => { const tid = setTimeout(() => setWidth(78), 120); return () => clearTimeout(tid); }, []);
   const ticks = ['+0.10%', '+0.05%', '0%', '-0.05%', '-0.10%'];
@@ -68,7 +87,7 @@ function Step2Visual() {
         ))}
       </div>
       {/* Track */}
-      <div style={{ position: 'relative', height: 10, background: 'rgba(26,122,255,0.06)', borderRadius: 100, overflow: 'hidden' }}>
+      <div style={{ position: 'relative', height: 10, background: TRACK_BG, borderRadius: 100, overflow: 'hidden' }}>
         {/* neutral center line */}
         <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, background: BDR }} />
         {/* fill from center leftward (negative) */}
@@ -102,6 +121,7 @@ function Step2Visual() {
 /* ── Step 3 visual: OI change bars ── */
 function Step3Visual() {
   const { t } = useLabels();
+  const { RED, BG2, TXT2, TXT3, BDR } = usePalette();
   const bars = [
     { label: '20h', val: 18, color: TXT3 },
     { label: '16h', val: 24, color: TXT3 },
@@ -143,6 +163,7 @@ function Step3Visual() {
 /* ── Step 4 visual: fake signal card ── */
 function Step4Visual() {
   const { t } = useLabels();
+  const { ACCENT, GREEN, RED, BG2, TXT1, TXT2, TXT3, BDR } = usePalette();
   const [alertShown, setAlertShown] = useState(false);
   useEffect(() => { const tid = setTimeout(() => setAlertShown(true), 600); return () => clearTimeout(tid); }, []);
   return (
@@ -206,6 +227,7 @@ function Step4Visual() {
 /* ── Step 5 visual: animated arena chart mockup ── */
 function Step5Visual() {
   const { t } = useLabels();
+  const { ACCENT, GREEN, RED, ORANGE, BG0, BG2, TXT1, TXT3, BDR, GRID, TG_BG, TG_BDR, TG_TXT } = usePalette();
   const [phase,       setPhase]       = useState(0);
   const [markerScale, setMarkerScale] = useState(0);
   const [pulse,       setPulse]       = useState(false);
@@ -278,7 +300,7 @@ function Step5Visual() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
           <span style={{ fontSize: 'var(--fs-caption)', color: TXT3, fontFamily: MONO, letterSpacing: '.08em' }}>BTCUSDT · 4H</span>
           <div style={{ display: 'flex', gap: 10 }}>
-            {([['EMA9', ACCENT], ['EMA20', '#f97316'], ['EMA50', TXT3]] as const).map(([l, c]) => (
+            {([['EMA9', ACCENT], ['EMA20', ORANGE], ['EMA50', TXT3]] as const).map(([l, c]) => (
               <span key={l} style={{ fontSize: 'var(--fs-caption)', color: c, fontFamily: MONO }}>─ {l}</span>
             ))}
           </div>
@@ -287,13 +309,13 @@ function Step5Visual() {
         <svg width="100%" viewBox="0 0 264 96" style={{ display: 'block', overflow: 'visible' }}>
           {/* Subtle grid */}
           {[22, 44, 66].map(y => (
-            <line key={y} x1="0" y1={y} x2="264" y2={y} stroke="rgba(26,122,255,0.05)" strokeWidth="0.5" />
+            <line key={y} x1="0" y1={y} x2="264" y2={y} stroke={GRID} strokeWidth="0.5" />
           ))}
 
           {/* EMA lines - phase 2 */}
           {phase >= 2 && <>
             <polyline points={pts(ema50)} fill="none" stroke={TXT3}     strokeWidth="1"   strokeOpacity="0.35" />
-            <polyline points={pts(ema20)} fill="none" stroke="#f97316"  strokeWidth="1.2" strokeOpacity="0.55" />
+            <polyline points={pts(ema20)} fill="none" stroke={ORANGE}  strokeWidth="1.2" strokeOpacity="0.55" />
             <polyline points={pts(ema9)}  fill="none" stroke={ACCENT}   strokeWidth="1.5" strokeOpacity="0.9" />
           </>}
 
@@ -368,7 +390,7 @@ function Step5Visual() {
 
       {/* Telegram toast */}
       <div style={{
-        background: 'rgba(34,158,217,0.06)', border: '1px solid rgba(34,158,217,0.28)',
+        background: TG_BG, border: `1px solid ${TG_BDR}`,
         borderRadius: 8, padding: '7px 12px',
         display: 'flex', alignItems: 'center', gap: 9,
         opacity: phase >= 5 ? 1 : 0,
@@ -376,7 +398,7 @@ function Step5Visual() {
         transition: 'opacity 0.3s, transform 0.3s',
       }}>
         <span style={{ fontSize: '0.875rem', flexShrink: 0 }}>✈</span>
-        <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#4db8e8', fontFamily: MONO }}>
+        <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: TG_TXT, fontFamily: MONO }}>
           {t('SPOTLIGHT_TOUR_ALERT_FIRED')}
         </span>
       </div>
@@ -424,6 +446,7 @@ const STEPS: {
 
 export default function SpotlightTour({ onDone }: { onDone: () => void }) {
   const { t } = useLabels();
+  const { ACCENT, BG1, TXT1, TXT2, TXT3, BDR, TRACK_BG, MODAL_SHADOW } = usePalette();
   const { markDone } = useOnboarding();
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -460,7 +483,9 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
       aria-modal="true"
       style={{
         position: 'fixed', inset: 0, zIndex: 10001,
-        background: 'rgba(4,5,10,0.92)',
+        // Was 0.92 - much heavier than this app's own backdrop convention
+        // elsewhere (.smod-backdrop uses 0.55) - read as "too dark" against it.
+        background: 'rgba(4,5,10,0.55)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '16px',
         backdropFilter: 'blur(4px)',
@@ -475,11 +500,11 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
           background: BG1, border: `1px solid ${BDR}`,
           borderRadius: 16,
           overflow: 'hidden',
-          boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(26,122,255,0.06)',
+          boxShadow: `${MODAL_SHADOW}, 0 0 0 1px ${withAlpha(ACCENT, '0f')}`,
         }}
       >
         {/* Progress bar */}
-        <div style={{ height: 3, background: 'rgba(26,122,255,0.06)' }}>
+        <div style={{ height: 3, background: TRACK_BG }}>
           <div style={{
             height: '100%',
             width: `${((step + 1) / STEPS.length) * 100}%`,
@@ -542,7 +567,7 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
                   height: 4,
                   width: i === step ? 20 : 6,
                   borderRadius: 100,
-                  background: i === step ? ACCENT : i < step ? withAlpha(ACCENT, '50') : 'rgba(26,122,255,0.12)',
+                  background: i === step ? ACCENT : i < step ? withAlpha(ACCENT, '50') : TRACK_BG,
                   transition: 'all 0.3s cubic-bezier(0.16,1,0.3,1)',
                 }} />
               ))}
