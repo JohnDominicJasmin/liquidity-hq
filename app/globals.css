@@ -3658,16 +3658,16 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
   background: var(--bg2); border: 0.5px solid var(--bdr); color: var(--txt);
   font-size: var(--fs-label); cursor: pointer; text-align: left;
 }
-.cms-trigger.open  { border-color: var(--purple); }
+.cms-trigger.open  { border-color: var(--bdr2); }
 .cms-trigger-txt   { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--txt2); }
 .cms-trigger-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.cms-count    { font-size: var(--fs-data); font-weight: 700; padding: 1px 6px; border-radius: 10px; background: var(--purple-bg); color: #5aa3ff; }
+.cms-count    { font-size: var(--fs-data); font-weight: 700; padding: 1px 6px; border-radius: 10px; background: var(--bg3); color: var(--txt); }
 .cms-chevron  { font-size: 0.625rem; color: var(--txt3); }
 
 .cms-panel {
   position: fixed; z-index: 9995;
-  background: #13121c; border: 0.5px solid rgba(26,122,255,0.25); border-radius: 10px;
-  box-shadow: 0 10px 36px rgba(0,0,0,0.75);
+  background: var(--bg2); border: 0.5px solid var(--bdr); border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
   display: flex; flex-direction: column;
   max-height: 320px; overflow: hidden;
 }
@@ -3676,7 +3676,7 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
   background: rgba(255,255,255,0.05); border: 0.5px solid var(--bdr); border-radius: 7px;
   color: var(--txt); font-size: var(--fs-caption); outline: none;
 }
-.cms-search:focus { border-color: var(--purple); }
+.cms-search:focus { border-color: var(--bdr2); }
 .cms-list { flex: 1; overflow-y: auto; padding: 0 6px 6px; }
 .cms-row {
   display: flex; align-items: center; gap: 8px;
@@ -3685,8 +3685,8 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 }
 .cms-row:hover  { background: rgba(255,255,255,0.05); }
 .cms-row.checked { color: var(--txt); font-weight: 600; }
-.cms-row input[type="checkbox"] { accent-color: var(--purple); }
-.cms-check { margin-left: auto; color: var(--purple); font-size: 0.6875rem; }
+.cms-row input[type="checkbox"] { accent-color: var(--accent-2); }
+.cms-check { margin-left: auto; color: var(--accent-2); font-size: 0.6875rem; }
 .cms-empty { padding: 14px 10px; font-size: var(--fs-caption); color: var(--txt3); text-align: center; }
 .cms-clear {
   flex-shrink: 0; margin: 6px; padding: 7px; border-radius: 7px;
