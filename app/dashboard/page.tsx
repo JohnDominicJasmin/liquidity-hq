@@ -6,7 +6,6 @@ import type { CoinId } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { useSettings } from '@/lib/settings';
 import SOTD from '@/components/SOTD';
-import SessionContext from '@/components/SessionContext';
 import MarketRead from '@/components/MarketRead';
 import GlobalMacroContext from '@/components/GlobalMacroContext';
 import EconCalendarWidget from '@/components/EconCalendarWidget';
@@ -222,18 +221,6 @@ function CoinSidebar() {
       >
         {t('DASH_SIDEBAR_MORE_COINS', { count: COINS.length - SIDEBAR_DEFAULT })}
       </a>
-
-      <div className="csb2-status">
-        <span
-          className="csb2-status-dot"
-          style={{
-            background: store.wsStatus.includes('backup') ? '#fb923c'
-              : store.wsStatus.includes('error') || store.wsStatus.includes('Error') ? '#f87171'
-              : '#34d399',
-          }}
-        />
-        <span>{store.wsStatus.includes('backup') ? t('DASH_SIDEBAR_STATUS_BACKUP') : store.wsStatus.includes('Live') ? t('DASH_SIDEBAR_STATUS_LIVE') : t('DASH_SIDEBAR_STATUS_CONNECTING')}</span>
-      </div>
     </div>
   );
 }
@@ -551,7 +538,6 @@ export default function Dashboard() {
       <aside className="dash-right" ref={rightRef}>
         <CoinSidebar />
         <MarketPulseStrip />
-        <SessionContext />
         {/* Macro backdrop - answers "what's the broad market doing", which nothing
             else on the dashboard covers. Last in the rail so it never pushes the
             per-coin essentials down on mobile. */}

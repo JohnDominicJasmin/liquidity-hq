@@ -1073,23 +1073,6 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
 .sc-next-sep   { font-size: var(--fs-caption); color: var(--txt3); }
 .sc-next-timer { font-size: var(--fs-data); font-weight: 700; color: var(--txt2); font-variant-numeric: tabular-nums; }
 
-/* ── SESSION CONTEXT (merged session + settlement clocks) ── */
-.sctx-wrap        { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: var(--radius-card); padding: 10px 14px; margin-bottom: 10px; }
-.sctx-session-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.sctx-timing      { font-size: var(--fs-caption); color: var(--txt2); }
-.sctx-note        { font-size: var(--fs-caption); color: var(--txt3); }
-.sctx-dot         { font-size: var(--fs-caption); color: var(--bdr); }
-.sctx-divider     { height: 0.5px; background: var(--bdr); margin: 8px 0; }
-.sctx-events-row  { display: flex; align-items: center; overflow-x: auto; gap: 0; }
-.sctx-evt         { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; padding: 0 12px; }
-.sctx-evt:first-child { padding-left: 0; }
-.sctx-evt:last-child  { padding-right: 0; }
-.sctx-evt-label   { font-size: var(--fs-micro); font-weight: 700; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.07em; }
-.sctx-evt-value   { font-size: var(--fs-data); font-weight: 700; color: var(--txt); }
-.sctx-mono        { font-family: var(--font-mono), monospace; font-size: var(--fs-caption); color: var(--txt2); font-variant-numeric: tabular-nums; }
-.sctx-hot         { color: #f59e0b; }
-.sctx-evt-sep     { width: 0.5px; height: 28px; background: var(--bdr); flex-shrink: 0; }
-
 /* ── Notable Signals rows ── */
 .nbs-row          { display: flex; align-items: center; gap: 10px; padding: 9px 8px; margin: 0 -8px; border-radius: 8px; transition: background 0.12s; cursor: pointer; }
 .nbs-row:hover    { background: var(--bg2); }
@@ -3848,6 +3831,15 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 /* Coin sidebar 2 signal badge + bar track */
 [data-theme="light"] .csb2-sig       { background: var(--bg3); }
 [data-theme="light"] .csb2-bar-track { background: var(--bg3); }
+/* Coin sidebar cards: base rule uses --bg2 (a "nested row" tone, fine in dark
+   mode where bg1/bg2 are both near-black and barely distinguishable) - but
+   in light mode bg2 (#F2F3F5) sits almost on top of the page canvas (#E8EAED)
+   and reads as gray, not as its own card, unlike every sibling white card on
+   the dashboard. Bump the elevation ladder up one step here only: white at
+   rest, then bg2/bg3 for hover/selected same as before. */
+[data-theme="light"] .csb2-card         { background: var(--bg1); }
+[data-theme="light"] .csb2-card:hover   { background: var(--bg2); }
+[data-theme="light"] .csb2-card.csb2-sel { background: var(--bg3); }
 
 /* Liq feed - large-liq row highlight + cluster bar track */
 [data-theme="light"] .liqfeed-row-big  { background: var(--bg3); }
@@ -4316,11 +4308,6 @@ body.landing {
 @media (max-width: 480px) {
   /* AccumulationTracker: hide price+change columns so reason badges have room */
   .at-price, .at-change { display: none !important; }
-  /* SessionContext expiry row: reduce padding so "Monthly expiry" fits in 375px */
-  .sctx-evt { padding: 0 6px !important; }
-  .sctx-evt:first-child { padding-left: 0 !important; }
-  .sctx-evt:last-child  { padding-right: 0 !important; }
-  .sctx-evt-label { letter-spacing: 0.03em !important; }
 }
 
 /* ── LANDING PAGE - root & reset ────────────────────────────────────── */

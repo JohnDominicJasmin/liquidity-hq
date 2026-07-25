@@ -31,15 +31,18 @@ abuse, traceability, general exploit surface.
   everyone, only the real xAI call counts against the caller's own daily
   quota. New columns + `increment_ai_usage()` whitelist entries applied live
   on both prod and dev.
-- **IP/velocity signup Auth Hook (optional).** A Supabase
-  `before-user-created` Auth Hook could reject when >N signups come from one
-  IP/day. Turnstile CAPTCHA + the disposable-domain blocklist already cover
-  the higher-value cases here, so this is genuinely optional, not a gap.
+- ~~IP/velocity signup Auth Hook~~ — **done 2026-07-25.** Supabase
+  `before-user-created` Auth Hook `hook_restrict_signup_velocity` (migration
+  `20260725p_signup_ip_velocity_hook.sql`) rejects the 6th+ signup from the
+  same IP within 24h with a 429. Enabled live in Supabase Dashboard ->
+  Authentication -> Auth Hooks on both prod and dev. Was optional (Turnstile
+  + disposable-domain blocklist already covered the higher-value cases) but
+  shipped anyway.
 
 ## Nothing else open
 
-All P0/P1/P2 findings from the original audit are resolved. The only item
-left in this doc (IP/velocity signup hook) is explicitly optional.
+All P0/P1/P2 findings from the original audit are resolved, including the
+one optional item (IP/velocity signup hook).
 
 ## Also still open, tracked elsewhere
 
