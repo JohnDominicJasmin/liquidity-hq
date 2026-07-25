@@ -3589,6 +3589,15 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 }
 .st-toggle.on .st-toggle-thumb { left: 20px; background: #fff; }
 
+/* Password save */
+.st-save-btn {
+  padding: 8px 16px; border-radius: 8px;
+  background: var(--purple-bg); border: 0.5px solid var(--purple);
+  color: #5aa3ff; font-size: var(--fs-caption); font-weight: 600; cursor: pointer;
+}
+.st-save-btn:hover { background: var(--purple); color: #fff; }
+.st-save-btn:disabled { opacity: 0.5; cursor: default; }
+
 /* Sign out */
 .st-signout-btn {
   margin-top: 10px; padding: 8px 16px; border-radius: 8px;
@@ -3895,11 +3904,203 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 [data-theme="light"] .arena-cache-refresh       { background: var(--bg2); border-color: var(--bdr2); }
 [data-theme="light"] .arena-cache-refresh:hover { background: var(--bg3); border-color: var(--bdr2); }
 
-/* ── AUTH - Login Page ────────────────────────────────────────────────────── */
+/* ── AUTH - Terminal Window ───────────────────────────────────────────────
+   Auth pages (login/forgot-password/reset-password) share this "trading
+   terminal" chrome instead of a generic centered logo+card. Everything
+   inside runs in --font-mono (the same face already used for prices/data
+   site-wide) so the auth flow reads as an instrument panel, not a form. */
 .login-wrap {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  min-height: 72vh; padding: 20px; gap: 16px;
+  min-height: 72vh; padding: 20px; gap: 14px;
 }
+
+.term-window {
+  width: 100%; max-width: 380px; position: relative;
+  background: var(--bg1); border: 1px solid var(--bdr2);
+  border-radius: 8px; overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.4), 0 20px 48px rgba(0,0,0,0.5), 0 0 60px -20px var(--accent-bg);
+  font-family: var(--font-mono), monospace;
+}
+.term-corner { position: absolute; width: 9px; height: 9px; border-color: var(--accent-bdr); pointer-events: none; z-index: 2; }
+.term-corner-tl { top: -1px; left: -1px; border-top: 1.5px solid; border-left: 1.5px solid; }
+.term-corner-tr { top: -1px; right: -1px; border-top: 1.5px solid; border-right: 1.5px solid; }
+.term-corner-bl { bottom: -1px; left: -1px; border-bottom: 1.5px solid; border-left: 1.5px solid; }
+.term-corner-br { bottom: -1px; right: -1px; border-bottom: 1.5px solid; border-right: 1.5px solid; }
+
+.term-titlebar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; background: var(--bg2); border-bottom: 1px solid var(--bdr);
+}
+.term-dots { display: flex; gap: 5px; flex-shrink: 0; }
+.term-dots i { width: 6px; height: 6px; border-radius: 1px; background: var(--bdr2); display: block; }
+.term-dots i:last-child { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.term-path {
+  flex: 1; min-width: 0; text-align: center; font-size: var(--fs-micro); font-weight: 600;
+  color: var(--txt3); letter-spacing: 0.08em; text-transform: uppercase;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.term-live {
+  display: flex; align-items: center; gap: 5px; flex-shrink: 0;
+  font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.08em; color: var(--accent);
+}
+.term-live-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: term-blink 1.6s step-end infinite; }
+
+.term-scanlines {
+  position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.025) 0 1px, transparent 1px 3px);
+  mix-blend-mode: overlay;
+}
+
+.term-body { padding: 22px 20px 20px; display: flex; flex-direction: column; position: relative; z-index: 1; }
+.login-sub {
+  font-size: var(--fs-caption); color: var(--txt3); margin-bottom: 20px; line-height: 1.55;
+}
+.login-sub::before { content: '// '; color: var(--txt3); opacity: 0.6; }
+
+/* Google button - kept as a distinct "external provider" row, bracket-tagged
+   to match the terminal command language without hiding the required logo */
+.login-google-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 10px 14px; border-radius: 4px;
+  background: var(--bg2); border: 1px solid var(--bdr2);
+  color: var(--txt); font-size: var(--fs-label); font-weight: 500; cursor: pointer;
+  transition: all 0.12s; font-family: inherit; letter-spacing: 0.01em;
+}
+.login-google-btn:hover:not(:disabled) { border-color: var(--accent-bdr); background: var(--bg3); }
+.login-google-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Divider */
+.login-divider {
+  display: flex; align-items: center; gap: 10px;
+  font-size: var(--fs-micro); color: var(--txt3); margin: 16px 0; letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.login-divider::before, .login-divider::after {
+  content: ''; flex: 1; height: 1px;
+  background: repeating-linear-gradient(to right, var(--bdr2) 0 3px, transparent 3px 6px);
+}
+
+/* Prompt-style fields - a leading "$" glyph is pure decoration. ::before
+   doesn't reliably render on a replaced element like <input>, so it's a
+   background-image (inline SVG, needs no label key or JSX wrapper) instead
+   of a pseudo-element - applies uniformly to every text/email/password
+   input across all three auth pages with zero markup changes. */
+.login-email-wrap { display: flex; flex-direction: column; gap: 8px; }
+.login-email-input {
+  width: 100%; padding: 10px 12px 10px 26px; border-radius: 4px;
+  background-color: var(--bg2);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='16'%3E%3Ctext x='0' y='12' font-family='monospace' font-weight='700' font-size='13' fill='%231a7aff'%3E%24%3C/text%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: 12px center;
+  border: 1px solid var(--bdr2); border-left: 2px solid var(--bdr2);
+  color: var(--txt); font-size: var(--fs-label); font-family: inherit; outline: none;
+  transition: border-color 0.12s, background-color 0.12s;
+}
+.login-email-input::placeholder { color: var(--txt3); }
+.login-email-input:focus { border-color: var(--accent-bdr); border-left-color: var(--accent); background-color: var(--bg1); }
+
+/* Command buttons - "[ENTER]" is a decorative key-name tag, same idea as an
+   icon, so it's hardcoded rather than routed through i18n */
+.login-email-btn {
+  width: 100%; padding: 10px 16px; border-radius: 4px; margin-top: 2px;
+  background: var(--accent-bg); border: 1px solid var(--accent-bdr);
+  color: var(--accent); font-size: var(--fs-label); font-weight: 600; cursor: pointer;
+  transition: all 0.12s; font-family: inherit; letter-spacing: 0.02em;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.login-email-btn::before { content: '[ENTER]'; font-size: var(--fs-micro); opacity: 0.65; letter-spacing: 0.05em; }
+.login-email-btn:hover:not(:disabled) { background: rgba(26,122,255,0.16); border-color: var(--accent); box-shadow: 0 0 16px -4px var(--accent); }
+.login-email-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.login-email-btn:disabled::before { opacity: 0.3; }
+
+.login-turnstile { display: flex; justify-content: center; margin-top: 12px; }
+
+/* Status lines - [ERR]/[OK] tags are decorative like the button glyph above */
+.login-error {
+  font-size: var(--fs-caption); color: var(--red);
+  background: var(--red-bg); border: 1px solid var(--red-bdr); border-left: 2px solid var(--red);
+  border-radius: 3px; padding: 8px 10px; margin-top: 12px; line-height: 1.5;
+  display: flex; gap: 7px;
+}
+.login-error::before { content: '[ERR]'; flex-shrink: 0; opacity: 0.75; font-weight: 700; }
+
+.login-success { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 4px 0; }
+.login-success-icon { display: none; }
+.login-success-title {
+  font-size: var(--fs-label); font-weight: 700; color: var(--green); letter-spacing: 0.03em;
+  display: flex; align-items: center; gap: 7px; margin-bottom: 6px;
+}
+.login-success-title::before { content: '[OK]'; font-size: var(--fs-micro); opacity: 0.8; }
+.login-success-desc { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.65; }
+.login-success-desc strong { color: var(--txt); }
+.login-back-btn {
+  font-size: var(--fs-caption); color: var(--txt3); background: none; border: none; cursor: pointer;
+  font-family: inherit; padding: 10px 4px; margin-top: 4px; text-decoration: none;
+}
+.login-back-btn::before { content: '> '; color: var(--accent); }
+.login-back-btn:hover { color: var(--txt2); }
+
+/* Password sign-in/sign-up tabs - numbered like buffers, not pills */
+.login-pw-tabs { display: flex; gap: 2px; margin-bottom: 18px; border-bottom: 1px solid var(--bdr); }
+.login-pw-tab {
+  flex: 1; padding: 0 0 9px; border: none; cursor: pointer; position: relative;
+  background: transparent; color: var(--txt3); font-size: var(--fs-caption); font-weight: 600;
+  font-family: inherit; letter-spacing: 0.04em; transition: color 0.12s;
+}
+.login-pw-tab.on { color: var(--accent); }
+.login-pw-tab.on::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+.login-pw-tab:hover:not(.on) { color: var(--txt2); }
+
+.login-forgot-link {
+  display: block; text-align: right; font-size: var(--fs-micro); color: var(--txt3);
+  text-decoration: none; margin-top: 10px; letter-spacing: 0.02em;
+}
+.login-forgot-link:hover { color: var(--accent); }
+
+.term-statusbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 14px; background: var(--bg2); border-top: 1px solid var(--bdr);
+  font-size: var(--fs-micro); color: var(--txt3); letter-spacing: 0.06em; position: relative; z-index: 1;
+}
+
+.login-footer { display: flex; align-items: center; justify-content: center; padding: 4px 0; }
+.login-skip {
+  font-size: var(--fs-caption); font-family: var(--font-mono), monospace; color: var(--txt3);
+  text-decoration: none; transition: color 0.15s; padding: 12px 8px; min-height: 44px;
+  display: inline-flex; align-items: center; letter-spacing: 0.01em;
+}
+.login-skip:hover { color: var(--txt2); }
+
+/* Spinners */
+.login-spinner {
+  width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.2);
+  border-top-color: rgba(255,255,255,0.85);
+  animation: spin 0.65s linear infinite;
+}
+.login-spinner-lg {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 2px solid var(--bdr2); border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes term-blink { 0%, 45% { opacity: 1; } 50%, 95% { opacity: 0.25; } 100% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .term-live-dot { animation: none; }
+}
+
+/* Light theme overrides */
+[data-theme="light"] .term-window { box-shadow: 0 1px 4px rgba(0,0,0,0.1), 0 12px 32px rgba(0,0,0,0.08); }
+[data-theme="light"] .term-scanlines { background: repeating-linear-gradient(to bottom, rgba(0,0,0,0.02) 0 1px, transparent 1px 3px); mix-blend-mode: normal; }
+[data-theme="light"] .login-google-btn { background: var(--bg2); border-color: var(--bdr2); }
+[data-theme="light"] .login-google-btn:hover:not(:disabled) { background: var(--bg3); }
+[data-theme="light"] .login-email-input { background-color: var(--bg2); border-color: var(--bdr2); color: var(--txt); }
+[data-theme="light"] .login-spinner { border-color: rgba(0,0,0,0.12); border-top-color: rgba(0,0,0,0.7); }
+
+/* Legacy centered logo/subtitle - still used by /auth/callback's loading
+   card, left in place for that page only */
 .login-card {
   width: 100%; max-width: 360px;
   background: var(--bg1); border: 0.5px solid var(--bdr);
@@ -3907,107 +4108,9 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
   box-shadow: var(--nm-raise);
   display: flex; flex-direction: column;
 }
-.login-logo {
-  font-size: var(--fs-section); font-weight: 800; color: var(--txt);
-  letter-spacing: -0.5px; margin-bottom: 5px;
-}
+.login-logo { font-size: var(--fs-section); font-weight: 800; color: var(--txt); letter-spacing: -0.5px; margin-bottom: 5px; }
 .login-logo span { color: var(--purple); }
-.login-sub { font-size: var(--fs-caption); color: var(--txt3); margin-bottom: 28px; }
-
-/* Google button */
-.login-google-btn {
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  width: 100%; padding: 11px 16px; border-radius: 12px;
-  background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.14);
-  color: var(--txt); font-size: var(--fs-label); font-weight: 500; cursor: pointer;
-  transition: all 0.15s; font-family: inherit; letter-spacing: -0.1px;
-}
-.login-google-btn:hover:not(:disabled) { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.24); }
-.login-google-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* Divider */
-.login-divider {
-  display: flex; align-items: center; gap: 12px;
-  font-size: var(--fs-caption); color: var(--txt3); margin: 18px 0;
-}
-.login-divider::before, .login-divider::after {
-  content: ''; flex: 1; height: 0.5px; background: var(--bdr2);
-}
-
-/* Email magic link */
-.login-email-wrap { display: flex; flex-direction: column; gap: 8px; }
-.login-email-input {
-  width: 100%; padding: 11px 14px; border-radius: 12px;
-  background: var(--bg2); border: 0.5px solid var(--bdr2);
-  color: var(--txt); font-size: var(--fs-label); font-family: inherit; outline: none;
-  transition: border-color 0.15s;
-}
-.login-email-input::placeholder { color: var(--txt3); }
-.login-email-input:focus { border-color: var(--purple-bdr); }
-.login-email-btn {
-  width: 100%; padding: 11px 16px; border-radius: 12px;
-  background: var(--accent-bg); border: 0.5px solid var(--accent-bdr);
-  color: var(--accent); font-size: var(--fs-label); font-weight: 600; cursor: pointer;
-  transition: all 0.15s; font-family: inherit; letter-spacing: -0.1px;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-}
-.login-email-btn:hover:not(:disabled) { background: rgba(26,122,255,0.12); border-color: var(--accent); }
-.login-email-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-/* Turnstile CAPTCHA - centered under the email form, only rendered once
-   NEXT_PUBLIC_TURNSTILE_SITE_KEY is set */
-.login-turnstile { display: flex; justify-content: center; margin-top: 12px; }
-
-/* Error */
-.login-error {
-  font-size: var(--fs-caption); color: var(--red);
-  background: var(--red-bg); border: 0.5px solid var(--red-bdr);
-  border-radius: 8px; padding: 8px 12px; margin-top: 12px; line-height: 1.5;
-}
-
-/* Magic link sent success */
-.login-success { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 8px 0; }
-.login-success-icon { font-size: 2rem; }
-.login-success-title { font-size: var(--fs-card-title); font-weight: 700; color: var(--txt); }
-.login-success-desc { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.65; }
-.login-success-desc strong { color: var(--txt); }
-.login-back-btn {
-  font-size: var(--fs-caption); color: var(--txt3); background: none; border: none; cursor: pointer;
-  font-family: inherit; padding: 4px; text-decoration: underline; text-underline-offset: 3px;
-}
-.login-back-btn:hover { color: var(--txt2); }
-
-/* Skip link */
-.login-footer { display: flex; align-items: center; justify-content: center; padding: 4px 0; }
-.login-skip { font-size: var(--fs-caption); color: var(--txt3); text-decoration: none; transition: color 0.15s; padding: 12px 8px; min-height: 44px; display: inline-flex; align-items: center; }
-.login-skip:hover { color: var(--txt2); }
-
-/* Spinners */
-.login-spinner {
-  width: 16px; height: 16px; flex-shrink: 0; border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.2);
-  border-top-color: rgba(255,255,255,0.85);
-  animation: spin 0.65s linear infinite;
-}
-.login-spinner-lg {
-  width: 32px; height: 32px; border-radius: 50%;
-  border: 2px solid var(--bdr2); border-top-color: var(--purple);
-  animation: spin 0.7s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* Light theme overrides */
 [data-theme="light"] .login-card { background: var(--bg1); }
-[data-theme="light"] .login-google-btn {
-  background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.14);
-}
-[data-theme="light"] .login-google-btn:hover:not(:disabled) {
-  background: rgba(0,0,0,0.08); border-color: rgba(0,0,0,0.22);
-}
-[data-theme="light"] .login-email-input {
-  background: var(--bg2); border-color: var(--bdr2); color: var(--txt);
-}
-[data-theme="light"] .login-spinner { border-color: rgba(0,0,0,0.12); border-top-color: rgba(0,0,0,0.7); }
 
 /* ── ALT SEASON INDEX ─────────────────────────────────────────────────── */
 /* Bar gradient: orange (BTC season) → gray (neutral) → green (alt season) */

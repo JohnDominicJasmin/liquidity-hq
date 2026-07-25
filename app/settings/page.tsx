@@ -14,6 +14,8 @@ import LoadingState from '@/components/LoadingState';
 import { SkeletonBar } from '@/components/Skeleton';
 import LanguageSelect from '@/components/LanguageSelect';
 import { useLabels } from '@/lib/labels';
+import { getSupabase } from '@/lib/supabase';
+import { friendlyAuthError } from '@/lib/authErrors';
 
 
 
@@ -62,6 +64,17 @@ export default function SettingsPage() {
   const [pushWorking,  setPushWorking]  = useState(false);
   const [testResult,   setTestResult]   = useState<'idle' | 'sent' | 'error'>('idle');
 
+  // ── Password (set or change) - the client User object has no reliable
+  // "has a password" flag (a magic-link-only account and a password account
+  // both show identity provider 'email'), so this always renders as a
+  // generic "set/update" action rather than trying to branch copy on
+  // account type. updateUser() works identically either way. ──
+  const [pwNew, setPwNew]           = useState('');
+  const [pwConfirm, setPwConfirm]   = useState('');
+  const [pwLoading, setPwLoading]   = useState(false);
+  const [pwError, setPwError]       = useState('');
+  const [pwSaved, setPwSaved]       = useState(false);
+
   // Fetch Telegram status on mount
   useEffect(() => {
     fetch('/api/telegram/status').then(r => r.json())
@@ -76,6 +89,23 @@ export default function SettingsPage() {
       reg.pushManager.getSubscription().then(sub => setPushEnabled(!!sub));
     }).catch(() => {});
   }, []);
+
+  async function savePassword() {
+    if (!pwNew) return;
+    if (pwNew !== pwConfirm) { setPwError(t('SETTINGS_PASSWORD_MISMATCH')); return; }
+    if (pwNew.length < 8) { setPwError(t('SETTINGS_PASSWORD_TOO_SHORT')); return; }
+    const sb = getSupabase();
+    if (!sb) return;
+    setPwLoading(true);
+    setPwError('');
+    setPwSaved(false);
+    const { error } = await sb.auth.updateUser({ password: pwNew });
+    setPwLoading(false);
+    if (error) { setPwError(friendlyAuthError(error.message)); return; }
+    setPwNew(''); setPwConfirm('');
+    setPwSaved(true);
+    setTimeout(() => setPwSaved(false), 3000);
+  }
 
   async function getToken(): Promise<string | null> {
     const { createClient } = await import('@supabase/supabase-js');
@@ -225,6 +255,39 @@ export default function SettingsPage() {
             <UsageRings usage={usage} />
           </div>
         )}
+
+        <div className="st-field">
+          <div className="st-field-label">{t('SETTINGS_PASSWORD_LABEL')}</div>
+          <div className="st-desc">{t('SETTINGS_PASSWORD_DESC')}</div>
+          <input
+            type="password"
+            className="login-email-input"
+            placeholder={t('LOGIN_PASSWORD_NEW_PLACEHOLDER')}
+            value={pwNew}
+            onChange={e => setPwNew(e.target.value)}
+            autoComplete="new-password"
+          />
+          <input
+            type="password"
+            className="login-email-input"
+            placeholder={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
+            value={pwConfirm}
+            onChange={e => setPwConfirm(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && savePassword()}
+            autoComplete="new-password"
+            style={{ marginTop: 8 }}
+          />
+          <button
+            className="st-save-btn"
+            onClick={savePassword}
+            disabled={pwLoading || !pwNew || !pwConfirm}
+            style={{ marginTop: 8 }}
+          >
+            {pwLoading ? <span className="login-spinner" /> : t('SETTINGS_PASSWORD_SAVE_BUTTON')}
+          </button>
+          {pwError && <div className="login-error">{pwError}</div>}
+          {pwSaved && <div className="login-success-desc">{t('SETTINGS_PASSWORD_SAVED')}</div>}
+        </div>
 
         <button
           className="st-signout-btn"
