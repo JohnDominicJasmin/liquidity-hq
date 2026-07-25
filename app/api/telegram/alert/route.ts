@@ -11,59 +11,8 @@ import { computeDistributionScore, DistributionInputs } from '@/lib/distribution
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { detectEMASignals, DEFAULT_FILTER_PARAMS, OHLCV } from '@/lib/strategyCore';
-import { incrementGlobalUsage } from '@/lib/aiUsage';
 
 export const dynamic = 'force-dynamic';
-
-/* ── Grok (lightweight - no web search, pure reasoning) ── */
-const GROK_KEY = process.env.GROK_API_KEY ?? '';
-
-// Cap concurrent Grok calls - excess requests return '' immediately rather than
-// chaining 12s timeouts (e.g. 17 whale signals firing at once = 204s chained).
-let grokInFlight = 0;
-const GROK_CONCURRENCY = 3;
-
-function inferSignalType(prompt: string): string {
-  if (prompt.includes('Multiple signals fired')) return 'confluence';
-  if (prompt.includes('EMA Ribbon Strategy setup')) return 'ema_setup';
-  if (prompt.includes('Distribution detected')) return 'distribution';
-  if (prompt.includes('200-period EMA')) return 'ema_cross';
-  if (prompt.includes('Morning briefing')) return 'daily_summary';
-  if (prompt.includes('sentiment indicators')) return 'sentiment_extremes';
-  if (prompt.includes('A whale just')) return 'whale_trade';
-  if (prompt.includes('Breaking news:')) return 'news';
-  if (prompt.includes('Open Interest just')) return 'oi_spike';
-  if (prompt.includes('moved') && prompt.includes('% in one')) return 'rapid_move';
-  if (prompt.includes('just hit $') || prompt.includes('Price Alert')) return 'price_alert';
-  return 'unknown';
-}
-
-async function grokAnalyze(prompt: string, checkGlobalCap = false): Promise<string> {
-  if (!GROK_KEY) return '';
-  if (!(await isFeatureEnabled('grok'))) return ''; // kill switch - alerts still send, just no AI commentary
-  if (grokInFlight >= GROK_CONCURRENCY) return ''; // shed load
-  // Only the EMA Buy/Sell Signal (checkEMASignal) opts into this - it was the
-  // single uncapped majority of this cron's xAI usage (see pendings/ALERTS.md).
-  // Every other signal type here stays as before, ungated by the global cap.
-  if (checkGlobalCap && !(await incrementGlobalUsage())) return '';
-  grokInFlight++;
-  try {
-    const res = await fetch('https://api.x.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROK_KEY}` },
-      body: JSON.stringify({ model: 'grok-4.3', messages: [{ role: 'user', content: prompt }], max_tokens: 200 }),
-      signal: AbortSignal.timeout(12_000),
-    });
-    if (!res.ok) return '';
-    const data = await res.json();
-    const text = (data.choices?.[0]?.message?.content ?? '').trim();
-    // fire-and-forget: log to DB - never let this block or throw
-    void (async () => { try { await getSupabaseAdmin().from(T.alert_grok_log).insert({ signal_type: inferSignalType(prompt) }); } catch { } })();
-    return text;
-  } catch { return ''; } finally {
-    grokInFlight--;
-  }
-}
 
 // Telegram's parse_mode:HTML treats any of these characters as markup -
 // user-supplied free text (e.g. a saved price alert's label) must be escaped
@@ -72,25 +21,6 @@ async function grokAnalyze(prompt: string, checkGlobalCap = false): Promise<stri
 // the app's trusted bot identity.
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-/* ── Conviction parser ── */
-function parseConviction(raw: string): { text: string; badge: string } {
-  const m = raw.match(/\n?CONVICTION:\s*(High|Moderate|Weak)/i);
-  if (!m) return { text: raw, badge: '' };
-  const level = m[1] as 'High' | 'Moderate' | 'Weak';
-  const text  = raw.replace(/\n?CONVICTION:\s*(High|Moderate|Weak)/i, '').trim();
-  const badges: Record<string, string> = {
-    High:     '🔴 <i>High conviction</i>',
-    Moderate: '🟡 <i>Moderate - wait for confirmation</i>',
-    Weak:     '⚪ <i>Weak signal - observe only</i>',
-  };
-  return { text, badge: badges[level] };
-}
-function fmtGrok(raw: string): string {
-  if (!raw) return '';
-  const { text, badge } = parseConviction(raw);
-  return `\n\n🤖 <b>LiquidityAI:</b> ${text}${badge ? `\n${badge}` : ''}`;
 }
 
 /* ── Signal queue - for confluence batching ── */
@@ -319,17 +249,9 @@ async function flushSignals(
 
       // Confluence - 2+ signals this group is eligible for on this coin
       const bullets = elig.map(e => `• ${e.title}`).join('\n');
-      const grokTake = await grokAnalyze(
-        `Elite crypto trader. Multiple signals fired simultaneously for ${label}:\n${bullets}\n\n` +
-        `In 3-4 sentences: do these signals reinforce each other or diverge? ` +
-        `What is the highest-conviction trade setup right now considering all signals together? ` +
-        `Direct action bias, no hedging. ` +
-        `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
-      );
       await tg(token, chatIds,
         `🔀 <b>${label} - ${elig.length} Signals Aligned</b>\n\n` +
-        `${bullets}` +
-        `${fmtGrok(grokTake)}\n\n` +
+        `${bullets}\n\n` +
         `<i>${stamp}</i>`
       );
     }));
@@ -519,11 +441,6 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[]): Promise<stri
 
           const sign     = pct > 0 ? '+' : '';
           const emoji    = pct > 0 ? '🚀' : '🔻';
-          const grokTake = await grokAnalyze(
-            `Elite crypto trader. ${label} just moved ${sign}${pct.toFixed(1)}% in one ${tfLabel} candle. ` +
-            `Current price: $${currClose.toLocaleString()}. ` +
-            `In 2-3 sentences: genuine breakout/breakdown or spike reversal? What to watch next candle? Direct, no hedging. ` +
-            `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
 
           queue.push({
             coin, ruleKey: 'rapid_move', name: `${label} rapid ${dir} ${sign}${pct.toFixed(1)}% (${tfLabel})`,
@@ -533,7 +450,7 @@ async function checkRapidMove(stamp: string, queue: SignalEntry[]): Promise<stri
               `Signal: ${Math.abs(pct).toFixed(1)}% candle - ${pct > 0 ? 'momentum surge' : 'flash dump'}\n` +
               (patternStr ? `Pattern: <b>${patternStr}</b>\n` : '') +
               `Action: Check volume + OI. Next candle direction is key.` +
-              `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
+              `\n\n<i>${stamp}</i>`,
           });
           markSent(key); fired.push(`${label} rapid ${dir} ${sign}${pct.toFixed(1)}% (${tfLabel})`);
         } catch { /* skip */ }
@@ -570,16 +487,12 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
           const usdFmt   = usd >= 1_000_000 ? `$${(usd / 1_000_000).toFixed(2)}M` : `$${(usd / 1000).toFixed(0)}K`;
           const price    = parseFloat(t.p);
           const priceStr = price.toLocaleString();
-          const grokTake = await grokAnalyze(
-            `Elite crypto trader. A whale just ${side === 'BUY' ? 'bought' : 'sold'} ${usdFmt} of ${label} at $${priceStr}. ` +
-            `In 2-3 sentences: short-term (1-4h) market impact? Worth acting on now or wait for confirmation? Direct, no hedging. ` +
-            `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
           queue.push({
             coin, dir: side === 'BUY' ? 'long' : 'short', ruleKey: 'whales', name: `${label} whale ${side} ${usdFmt}`, price,
             title: `Whale ${side} ${usdFmt}`,
             body: side === 'BUY'
-              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy - institutional accumulation${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`
-              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell - institutional distribution${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
+              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy - institutional accumulation\n\n<i>${stamp}</i>`
+              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell - institutional distribution\n\n<i>${stamp}</i>`,
           });
           markSent(key); fired.push(`${label} whale ${side} ${usdFmt}`); break;
         }
@@ -607,16 +520,12 @@ async function checkWhales(stamp: string, queue: SignalEntry[]): Promise<string[
           const usdFmt   = usd >= 1_000_000 ? `$${(usd / 1_000_000).toFixed(2)}M` : `$${(usd / 1000).toFixed(0)}K`;
           const price    = parseFloat(t.p);
           const priceStr = price.toLocaleString();
-          const grokTake = await grokAnalyze(
-            `Elite crypto trader. A whale just ${side === 'BUY' ? 'bought' : 'sold'} ${usdFmt} of ${label} at $${priceStr}. ` +
-            `In 2-3 sentences: short-term (1-4h) market impact? Worth acting on now or wait for confirmation? Direct, no hedging. ` +
-            `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
           queue.push({
             coin, dir: side === 'BUY' ? 'long' : 'short', ruleKey: 'whales', name: `${label} whale ${side} ${usdFmt}`, price,
             title: `Whale ${side} ${usdFmt}`,
             body: side === 'BUY'
-              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy - institutional accumulation${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`
-              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell - institutional distribution${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
+              ? `🐋 <b>${label} Whale BUY Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive buy - institutional accumulation\n\n<i>${stamp}</i>`
+              : `🐋 <b>${label} Whale SELL Detected</b>\n\nSize: <b>${usdFmt}</b> at $${priceStr}\nSignal: Large aggressive sell - institutional distribution\n\n<i>${stamp}</i>`,
           });
           markSent(key); fired.push(`${label} whale ${side} ${usdFmt}`); break;
         }
@@ -660,11 +569,7 @@ async function checkNews(
       if (onCooldown(key, CD.news)) continue;
       const emoji    = type === 'red' ? '🚨' : '📊';
       const label    = type === 'red' ? 'Breaking Alert' : 'Macro Alert';
-      const grokTake = await grokAnalyze(
-        `Elite crypto trader. Breaking news: "${item.headline}". In 2-3 sentences: short-term (1-4h) crypto market impact? What should a trader watch for right now? Direct, no hedging. ` +
-        `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
-      const grokLine = fmtGrok(grokTake);
-      await tg(token, chatId, `${emoji} <b>${label}</b>\n\n<b>${item.headline}</b>\nSource: ${item.source}${grokLine}\n\n<i>${stamp}</i>`);
+      await tg(token, chatId, `${emoji} <b>${label}</b>\n\n<b>${item.headline}</b>\nSource: ${item.source}\n\n<i>${stamp}</i>`);
       markSent(key); fired.push(`news: ${item.headline.slice(0, 50)}`);
     }
   } catch { /* skip */ }
@@ -698,20 +603,13 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
         const key = `oi_${dir}_${coin}`;
         if (onCooldown(key, CD.oi)) return;
 
-        const grokTake = await grokAnalyze(
-          `Elite crypto trader. ${label} Open Interest just ${pct > 0 ? 'spiked +' : 'dropped '}${pct.toFixed(1)}% in 1 hour.` +
-          (price ? ` Current price: $${price.toLocaleString()}.` : '') +
-          ` In 2-3 sentences: Is this new longs, new shorts, or liquidation-driven? What's the likely next move? Direct, no hedging. ` +
-          `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
-        const grokLine = fmtGrok(grokTake);
-
         queue.push({
           coin, ruleKey: 'oi_spike', name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
           title: `Open Interest ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
           body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} - ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
             `Open interest changed from ${(oldest / 1000).toFixed(1)}K to ${(newest / 1000).toFixed(1)}K contracts\n` +
             `Signal: ${pct > 0 ? 'New money entering - big move likely building' : 'Positions closing - potential trend reversal'}` +
-            `${grokLine}\n\n<i>${stamp}</i>`,
+            `\n\n<i>${stamp}</i>`,
         });
         markSent(key); fired.push(`${label} OI ${dir} ${pct.toFixed(1)}%`);
       }
@@ -739,18 +637,13 @@ async function checkOISpike(stamp: string, prices: Record<string, number>, queue
           const dir = pct > 0 ? 'spike' : 'drop';
           const key = `oi_${dir}_${coin}`;
           if (onCooldown(key, CD.oi)) return;
-          const grokTake = await grokAnalyze(
-            `Elite crypto trader. ${label} Open Interest just ${pct > 0 ? 'spiked +' : 'dropped '}${pct.toFixed(1)}% in 1 hour.` +
-            (price ? ` Current price: $${price.toLocaleString()}.` : '') +
-            ` In 2-3 sentences: Is this new longs, new shorts, or liquidation-driven? What's the likely next move? Direct, no hedging. ` +
-            `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
           queue.push({
             coin, ruleKey: 'oi_spike', name: `${label} OI ${dir} ${pct.toFixed(1)}%`,
             title: `Open Interest ${pct > 0 ? 'Spike' : 'Drop'} ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% (1h)`,
             body: `📈 <b>${label} Open Interest ${pct > 0 ? 'Spike' : 'Drop'} - ${pct > 0 ? '+' : ''}${pct.toFixed(1)}% in 1h</b>\n\n` +
               `Open interest: ${(oldest / 1000).toFixed(1)}K → ${(newest / 1000).toFixed(1)}K contracts\n` +
               `Signal: ${pct > 0 ? 'New money entering - big move likely building' : 'Positions closing - potential trend reversal'}` +
-              `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
+              `\n\n<i>${stamp}</i>`,
           });
           markSent(key); fired.push(`${label} OI ${dir} ${pct.toFixed(1)}%`);
         }
@@ -872,18 +765,12 @@ async function checkPriceAlerts(
 
       const label    = LABELS[alert.coin] ?? alert.coin.toUpperCase();
       const dirLabel = alert.direction === 'above' ? '📈 Crossed Above' : '📉 Crossed Below';
-      const grokTake = await grokAnalyze(
-        `Elite crypto trader. ${label} just hit $${alert.target_price.toLocaleString()} (now $${price.toLocaleString()}).` +
-        (alert.label ? ` Saved alert: "${alert.label}".` : '') +
-        ` In 2-3 sentences: Is this a valid entry/exit level right now? What to watch for to confirm? Direct, no hedging. ` +
-        `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`);
-      const grokLine = fmtGrok(grokTake);
 
       const body = `🎯 <b>${label} Price Alert Triggered</b>\n\n` +
         `${dirLabel} <b>$${alert.target_price.toLocaleString()}</b>\n` +
         `Current: $${price.toLocaleString()}` +
         (alert.label ? `\nNote: ${escapeHtml(alert.label)}` : '') +
-        `${grokLine}\n\n<i>${stamp}</i>`;
+        `\n\n<i>${stamp}</i>`;
 
       await tg(token, recipient, body);
 
@@ -963,14 +850,13 @@ async function checkDailySummary(
 
   // Fear & Greed
   let fngLine    = '';
-  let fngForGrok = '';
   try {
     const fngRes = await fetch('https://api.alternative.me/fng/', { cache: 'no-store', signal: AbortSignal.timeout(7_000) });
     if (fngRes.ok) {
       const fngJson = await fngRes.json() as { data: FNGData[] };
       const val = fngJson.data?.[0]?.value;
       const cls = fngJson.data?.[0]?.value_classification;
-      if (val) { fngLine = `\n😨 F&amp;G: <b>${val}</b> (${cls})`; fngForGrok = `Fear & Greed: ${val} (${cls}). `; }
+      if (val) { fngLine = `\n😨 F&amp;G: <b>${val}</b> (${cls})`; }
     }
   } catch { /* skip */ }
 
@@ -982,7 +868,6 @@ async function checkDailySummary(
     return `${LABELS[coin]} ${sign}${(fr * 100).toFixed(4)}%`;
   }).filter(Boolean) as string[];
   const frBlock    = [frParts.slice(0, 4).join(' · '), frParts.slice(4).join(' · ')].filter(Boolean).join('\n');
-  const frForGrok  = frParts.join(', ');
 
   // Active price alerts - grouped by owner so each recipient's summary only
   // ever shows THEIR OWN alerts. This used to be one shared query with no
@@ -1000,21 +885,10 @@ async function checkDailySummary(
     }
   } catch { /* skip */ }
 
-  // Grok daily outlook (no conviction label - this is an overview, not a signal)
-  const grokRaw  = await grokAnalyze(
-    `Elite crypto trader. Morning briefing for ${dateStr}. ` +
-    fngForGrok +
-    `Funding rates: ${frForGrok}. ` +
-    `In 2-3 sentences: overall market bias today and which 1-2 coins look most interesting to watch? ` +
-    `Direct and actionable. No conviction label needed.`
-  );
-  const grokLine = grokRaw ? `\n\n🤖 <b>LiquidityAI:</b> ${grokRaw}` : '';
-
   const bodyBase =
     `☀️ <b>Morning Briefing - ${dateStr}</b>` +
     `${fngLine}\n\n` +
-    `📊 <b>Funding Rates:</b>\n${frBlock}` +
-    `${grokLine}`;
+    `📊 <b>Funding Rates:</b>\n${frBlock}`;
 
   await Promise.all(eligible.map(r => {
     const own = alertsByUser.get(r.userId) ?? [];
@@ -1072,13 +946,6 @@ async function checkSentimentExtremes(
     // ── BEARISH EXTREME: F&G greedy + FR long-heavy + L/S long-heavy ──
     // All 3 screaming "longs are overcrowded" → dump risk is elevated
     if (fng >= 75 && frPct >= 0.04 && longPct >= 60 && !onCooldown('sentiment_bear', CD.sentiment)) {
-      const grokTake = await grokAnalyze(
-        `Elite crypto trader. All 3 sentiment indicators are simultaneously at BEARISH extremes: ` +
-        `Fear & Greed ${fng} (${fngCls}), BTC Funding Rate +${frPct.toFixed(4)}% (longs overcrowded), ` +
-        `BTC L/S Ratio ${longPct.toFixed(1)}% long (overleveraged longs). ` +
-        `In 3-4 sentences: How severe is this risk? Should a trader reduce longs or set tight stops? ` +
-        `Direct, no hedging. End with: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
-      );
       await tg(token, chatId,
         `🚨 <b>Sentiment Extremes - ALL 3 BEARISH</b>\n\n` +
         `😱 F&amp;G: <b>${fng}</b> (${fngCls})\n` +
@@ -1086,8 +953,7 @@ async function checkSentimentExtremes(
         `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
         `Signal: All 3 sentiment gauges at extremes - <b>long flush risk elevated</b>\n` +
         `Action: Tighten stops on longs. Do NOT add longs into this setup.` +
-        `${fmtGrok(grokTake)}\n\n` +
-        `<i>${stamp}</i>`
+        `\n\n<i>${stamp}</i>`
       );
       markSent('sentiment_bear');
       fired.push(`Sentiment extremes - bearish (F&G ${fng}, FR +${frPct.toFixed(4)}%, Long ${longPct.toFixed(0)}%)`);
@@ -1096,13 +962,6 @@ async function checkSentimentExtremes(
     // ── BULLISH EXTREME (contrarian): F&G fearful + FR short-heavy + L/S short-heavy ──
     // All 3 screaming "shorts are overcrowded" → squeeze / reversal risk
     if (fng <= 25 && frPct <= -0.02 && longPct <= 40 && !onCooldown('sentiment_bull', CD.sentiment)) {
-      const grokTake = await grokAnalyze(
-        `Elite crypto trader. All 3 sentiment indicators are simultaneously at CONTRARIAN BULLISH extremes: ` +
-        `Fear & Greed ${fng} (${fngCls}) - extreme fear, BTC Funding Rate ${frPct.toFixed(4)}% (shorts paying), ` +
-        `BTC L/S Ratio ${longPct.toFixed(1)}% long / ${shortPct.toFixed(1)}% short (overleveraged shorts). ` +
-        `In 3-4 sentences: Is this genuine capitulation or a dead-cat bounce zone? ` +
-        `What confirms this as a valid reversal entry? Direct, no hedging. End with: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
-      );
       await tg(token, chatId,
         `🟢 <b>Sentiment Extremes - Contrarian BULLISH Setup</b>\n\n` +
         `😨 F&amp;G: <b>${fng}</b> (${fngCls})\n` +
@@ -1110,8 +969,7 @@ async function checkSentimentExtremes(
         `📊 L/S Ratio: <b>${longPct.toFixed(1)}% Long</b> / ${shortPct.toFixed(1)}% Short\n\n` +
         `Signal: All 3 sentiment gauges at fear extremes - <b>potential contrarian reversal zone</b>\n` +
         `Action: Watch for capitulation candle + volume spike before entering long.` +
-        `${fmtGrok(grokTake)}\n\n` +
-        `<i>${stamp}</i>`
+        `\n\n<i>${stamp}</i>`
       );
       markSent('sentiment_bull');
       fired.push(`Sentiment extremes - contrarian bullish (F&G ${fng}, FR ${frPct.toFixed(4)}%, Long ${longPct.toFixed(0)}%)`);
@@ -1358,14 +1216,6 @@ async function checkDistribution(
         if (onCooldown(key, CD.distribution)) return;
 
         const label = LABELS[coin];
-        const fmtP  = (n: number) => n >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : n.toFixed(4);
-
-        const grokTake = await grokAnalyze(
-          `Elite crypto trader. Distribution detected on ${label}/USDT - score ${res.score}/100. ` +
-          `Price $${fmtP(price)} is +${change24hPct.toFixed(1)}% in 24h but flow says big players are taking profit into strength: ${res.reasons.join(', ')}. ` +
-          `In 2-3 sentences: is this a local top forming or healthy rotation? What confirms the exit (levels, flow)? Direct, no hedging. ` +
-          `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`
-        );
 
         queue.push({
           coin, dir: 'short', ruleKey: 'distribution', name: `${label} distribution (${res.score}/100)`, price,
@@ -1376,8 +1226,7 @@ async function checkDistribution(
             `Price still up <b>+${change24hPct.toFixed(1)}%</b> in 24h, but big players look to be taking profits into strength:\n` +
             res.reasons.map(r => `• ${r}`).join('\n') + '\n\n' +
             `Caution on new longs - watch for lower highs and loss of VWAP.` +
-            `${fmtGrok(grokTake)}\n\n` +
-            `<i>${stamp}</i>`,
+            `\n\n<i>${stamp}</i>`,
         });
         markSent(key);
         fired.push(`${label} distribution detected (${res.score}/100)`);
@@ -1467,15 +1316,6 @@ async function checkEMASignal(
       const fmtP    = (n: number) => n >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : n.toFixed(4);
       const dirWord = latest.dir === 'long' ? 'BUY' : 'SELL';
 
-      const grokTake = await grokAnalyze(
-        `Elite crypto trader. ${label}/USDT just printed a confirmed ${dirWord} signal on the ${tfLabel} chart ` +
-        `(EMA9/20/50 ribbon strategy - same rule the live chart uses). Entry: $${fmtP(latest.entryPrice)}, ` +
-        `SL: $${fmtP(latest.sl)}, TP: $${fmtP(latest.tp)}. ` +
-        `In 2-3 sentences: how strong does this setup look right now? What would confirm or invalidate it? Direct, no hedging. ` +
-        `End with exactly one of: CONVICTION: High, CONVICTION: Moderate, or CONVICTION: Weak`,
-        true, // also gate on the global daily xAI cap - see lib/aiUsage.ts
-      );
-
       queue.push({
         coin, dir: latest.dir, ruleKey, name: `${label} ${dirWord} signal (${tfLabel})`, price: latest.entryPrice,
         title: `${dirWord} Signal (${tfLabel})`,
@@ -1483,7 +1323,7 @@ async function checkEMASignal(
           `${latest.dir === 'long' ? '🟢' : '🔴'} <b>${label}/USDT ${dirWord} (${tfLabel})</b>\n\n` +
           `Entry: <b>$${fmtP(latest.entryPrice)}</b>\n` +
           `SL: $${fmtP(latest.sl)} · TP: $${fmtP(latest.tp)} (2:1)` +
-          `${fmtGrok(grokTake)}\n\n<i>${stamp}</i>`,
+          `\n\n<i>${stamp}</i>`,
       });
       fired.push(`${label} ${dirWord} signal (${tfLabel})`);
     } catch { /* skip */ }
@@ -1576,10 +1416,10 @@ async function fetchMutedKeysByUser(): Promise<Map<string, Set<string>>> {
 }
 
 export async function GET(req: NextRequest) {
-  // Fail-closed: burns Grok budget, spams every connected Telegram chat, and
-  // force-deactivates price alerts if left reachable by anyone who finds the
-  // URL. See lib/cronAuth.ts for why this denies by default instead of only
-  // checking when CRON_SECRET happens to be set.
+  // Fail-closed: spams every connected Telegram chat and force-deactivates
+  // price alerts if left reachable by anyone who finds the URL. See
+  // lib/cronAuth.ts for why this denies by default instead of only checking
+  // when CRON_SECRET happens to be set.
   if (!checkCronAuth(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const token = process.env.TELEGRAM_BOT_TOKEN;
