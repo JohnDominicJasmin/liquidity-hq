@@ -1205,20 +1205,24 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     const aligned =
       (nearSR.type === 'support'    && sq.dir === 'SHORT_SQ') ||
       (nearSR.type === 'resistance' && sq.dir === 'LONG_LIQ');
+    // Squeeze + support/resistance confluence - a separate read from the
+    // chart's own EMA Buy/Sell marker, not a confirmation or restatement of
+    // it. The copy below says so explicitly (past confusion: "signals
+    // aren't aligned yet" read as if it meant the Buy/Sell signal itself).
     if (sq.score >= 65 && aligned) return {
       label: 'Prime Setup',
       detail: nearSR.type === 'support'
         ? `Support (${nearSR.touches}T) + Short Squeeze · Score ${sq.score}/100`
         : `Resistance (${nearSR.touches}T) + Long Flush · Score ${sq.score}/100`,
       explanation: nearSR.type === 'support'
-        ? 'Price is sitting on a tested support level while shorts are being squeezed out. High-probability long zone - watch for a confirmation candle before entering.'
-        : 'Price is pressing against tested resistance while longs are getting flushed. High-probability short zone - watch for a rejection candle before entering.',
+        ? "Squeeze + support confluence (separate from the chart's own Buy/Sell signal). Price is sitting on a tested support level while shorts are being squeezed out. High-probability long zone - watch for a confirmation candle before entering."
+        : "Squeeze + resistance confluence (separate from the chart's own Buy/Sell signal). Price is pressing against tested resistance while longs are getting flushed. High-probability short zone - watch for a rejection candle before entering.",
       color: '#fbbf24', bg: 'rgba(251,191,36,0.10)', bdr: 'rgba(251,191,36,0.28)',
     };
     return {
       label: 'Setup Forming',
       detail: `Near ${nearSR.type} (${nearSR.touches} touches) · Squeeze ${sq.score}/100`,
-      explanation: `Squeeze pressure is building near a key ${nearSR.type} level, but signals aren't fully aligned yet. Watch for direction confirmation - don't jump in early.`,
+      explanation: `Squeeze + ${nearSR.type} confluence (separate from the chart's own Buy/Sell signal) - the squeeze and the ${nearSR.type} level aren't lined up yet. Watch for direction confirmation - don't jump in early.`,
       color: '#1a7aff', bg: 'rgba(26,122,255,0.10)', bdr: 'rgba(26,122,255,0.28)',
     };
   })();
