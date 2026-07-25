@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AuthGate from '@/components/AuthGate';
 import UpgradeGateModal, { LockedFeatureCard } from '@/components/UpgradeGateModal';
-import { Warn } from '@/components/icons';
+import { Warn, CoinStack } from '@/components/icons';
 import { COINS } from '@/lib/marketStore';
 import { useSettings } from '@/lib/settings';
 import { getSupabase } from '@/lib/supabase';
@@ -667,6 +667,42 @@ export default function AlertsPage() {
         </div>
         {muteErr && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 8 }}>{muteErr}</div>}
 
+        {/* ── Alert coin selection - first, because it scopes everything below it:
+            every condition further down only ever fires for the coins picked
+            here, so asking "which coins?" before "which conditions?" matches
+            the actual order of the decision. ── */}
+        <div style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '0.5px solid var(--bdr)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+            <CoinStack size={15} style={{ color: 'var(--accent-2)', flexShrink: 0 }} />
+            <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)' }}>
+              {(() => {
+                const onCount = COINS.filter(c => !muted.has(`coin:${c}`)).length;
+                return onCount > ALERT_COIN_CAP
+                  ? t('ALERTS_COINS_OVER_LIMIT', { onCount, cap: ALERT_COIN_CAP })
+                  : t('ALERTS_COINS_COUNT', { onCount, cap: ALERT_COIN_CAP });
+              })()}
+            </div>
+          </div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 8 }}>
+            {t('ALERTS_COIN_SELECTION_DESC')}
+          </div>
+          {coinCapMsg && (
+            <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 8 }}>
+              {coinCapMsg}
+            </div>
+          )}
+          <CoinMultiSelect
+            value={COINS.filter(c => !muted.has(`coin:${c}`))}
+            onChange={next => {
+              const nextSet: Set<string> = new Set(next);
+              const curSet: Set<string>  = new Set(COINS.filter(c => !muted.has(`coin:${c}`)));
+              for (const c of next) if (!curSet.has(c)) toggleCoin(c);
+              for (const c of COINS) if (curSet.has(c) && !nextSet.has(c)) toggleCoin(c);
+            }}
+            previewCount={7}
+          />
+        </div>
+
         {/* ── EMA Buy/Sell Signal - real chart-parity signal, capped timeframe picker ── */}
         <div style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '0.5px solid var(--bdr)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
@@ -797,35 +833,6 @@ export default function AlertsPage() {
           </div>
         </div>
 
-        {/* ── Alert coin selection ── */}
-        <div style={{ marginTop: 12, padding: '10px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
-          <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 4 }}>
-            {(() => {
-              const onCount = COINS.filter(c => !muted.has(`coin:${c}`)).length;
-              return onCount > ALERT_COIN_CAP
-                ? t('ALERTS_COINS_OVER_LIMIT', { onCount, cap: ALERT_COIN_CAP })
-                : t('ALERTS_COINS_COUNT', { onCount, cap: ALERT_COIN_CAP });
-            })()}
-          </div>
-          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 8 }}>
-            {t('ALERTS_COIN_SELECTION_DESC')}
-          </div>
-          {coinCapMsg && (
-            <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 8 }}>
-              {coinCapMsg}
-            </div>
-          )}
-          <CoinMultiSelect
-            value={COINS.filter(c => !muted.has(`coin:${c}`))}
-            onChange={next => {
-              const nextSet: Set<string> = new Set(next);
-              const curSet: Set<string>  = new Set(COINS.filter(c => !muted.has(`coin:${c}`)));
-              for (const c of next) if (!curSet.has(c)) toggleCoin(c);
-              for (const c of COINS) if (curSet.has(c) && !nextSet.has(c)) toggleCoin(c);
-            }}
-            previewCount={7}
-          />
-        </div>
       </div>
       )}
 
