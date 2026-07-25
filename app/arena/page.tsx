@@ -1709,7 +1709,7 @@ function ArenaContent() {
             {/* ── Liquidity Raid Setup ── */}
             {result.raidSetup && (
               <div className="arena-raid-block" style={{
-                marginTop: 10,
+                marginTop: 8,
                 borderRadius: 10,
                 border: `0.5px solid ${result.raidSetup === 'SHORT SQUEEZE' ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
                 background: result.raidSetup === 'SHORT SQUEEZE' ? 'rgba(52,211,153,0.06)' : 'rgba(248,113,113,0.06)',
@@ -1742,10 +1742,10 @@ function ArenaContent() {
 
             {/* Catalysts - top 3 bullets only */}
             {result.catalysts && result.catalysts.length > 0 && (
-              <div style={{ marginTop: 10, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 10 }}>
+              <div style={{ marginTop: 8, borderTop: '0.5px solid rgba(255,255,255,0.05)', paddingTop: 8 }}>
                 <ul style={{ margin: 0, padding: '0 0 0 14px', listStyle: 'disc' }}>
                   {result.catalysts.slice(0, 3).map((c, i) => (
-                    <li key={i} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.7 }}>{c}</li>
+                    <li key={i} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.5 }}>{c}</li>
                   ))}
                 </ul>
               </div>
