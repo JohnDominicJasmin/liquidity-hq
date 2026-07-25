@@ -10,7 +10,7 @@ import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS } from '@/lib/coins';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
-import { detectEMASignals, DEFAULT_FILTER_PARAMS, OHLCV } from '@/lib/strategyCore';
+import { detectEMASignals, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, OHLCV } from '@/lib/strategyCore';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +43,10 @@ interface SignalEntry {
   coin: string; title: string; body: string; name: string;
   dir?: 'long' | 'short'; ruleKey: string; price?: number;
   metricValue?: number; thresholdKind?: 'rsi_ob' | 'rsi_os' | 'squeeze'; canonicalHit?: boolean;
+  // Set only on ema_signal entries: which filter mode produced this one
+  // (Arena's Anti-Chop Filter). Undefined on every other rule_key, which
+  // passesThreshold() reads as "no filter-mode gating, always eligible".
+  antiChopMode?: boolean;
 }
 
 /* ── Per-recipient mute-aware delivery ── */
@@ -70,8 +74,8 @@ function recipientChatIds(recipients: Recipient[], mutedByUser: Map<string, Set<
    Canonical/default values - unify with lib/settings.ts DEFAULT_SETTINGS and
    the Telegram cron's own prior hardcoded gates (previously 78/22, now 70/30
    to match what Arena's browser-push channel has used all along). */
-interface UserThresholds { rsiOb: number; rsiOs: number; squeezeThreshold: number }
-const DEFAULT_THRESHOLDS: UserThresholds = { rsiOb: 70, rsiOs: 30, squeezeThreshold: 70 };
+interface UserThresholds { rsiOb: number; rsiOs: number; squeezeThreshold: number; antiChopEnabled: boolean }
+const DEFAULT_THRESHOLDS: UserThresholds = { rsiOb: 70, rsiOs: 30, squeezeThreshold: 70, antiChopEnabled: false };
 
 // Fail-open: if Supabase is unreachable, every recipient falls back to
 // DEFAULT_THRESHOLDS - identical to what an unconfigured user already gets,
@@ -81,7 +85,7 @@ async function fetchThresholdsByUser(): Promise<Map<string, UserThresholds>> {
   const query = (async () => {
     try {
       const db = getSupabaseAdmin();
-      const { data, error } = await db.from(T.user_settings).select('user_id, rsi_ob, rsi_os, squeeze_threshold');
+      const { data, error } = await db.from(T.user_settings).select('user_id, rsi_ob, rsi_os, squeeze_threshold, anti_chop_enabled');
       if (error || !data) return fallback;
       const map = new Map<string, UserThresholds>();
       for (const row of data) {
@@ -89,6 +93,7 @@ async function fetchThresholdsByUser(): Promise<Map<string, UserThresholds>> {
           rsiOb: typeof row.rsi_ob === 'number' ? row.rsi_ob : DEFAULT_THRESHOLDS.rsiOb,
           rsiOs: typeof row.rsi_os === 'number' ? row.rsi_os : DEFAULT_THRESHOLDS.rsiOs,
           squeezeThreshold: typeof row.squeeze_threshold === 'number' ? row.squeeze_threshold : DEFAULT_THRESHOLDS.squeezeThreshold,
+          antiChopEnabled: typeof row.anti_chop_enabled === 'boolean' ? row.anti_chop_enabled : DEFAULT_THRESHOLDS.antiChopEnabled,
         });
       }
       return map;
@@ -100,6 +105,9 @@ async function fetchThresholdsByUser(): Promise<Map<string, UserThresholds>> {
 }
 
 function passesThreshold(e: SignalEntry, t: UserThresholds | undefined): boolean {
+  // EMA signal entries come in two variants (one per Anti-Chop Filter mode) -
+  // only deliver the one matching this recipient's own Arena chart setting.
+  if (e.antiChopMode !== undefined && e.antiChopMode !== (t ?? DEFAULT_THRESHOLDS).antiChopEnabled) return false;
   if (!e.thresholdKind || e.metricValue == null) return true; // not a threshold-gated rule_key
   const th = t ?? DEFAULT_THRESHOLDS;
   if (e.thresholdKind === 'rsi_ob') return e.metricValue >= th.rsiOb;
@@ -1294,38 +1302,59 @@ async function checkEMASignal(
   const ruleKey = `ema_signal_${tf}`;
   const tfLabel = tf.toUpperCase();
 
+  // Two variants per coin - Default and Anti-Chop (STRICT_FILTER_PARAMS) -
+  // computed from the same fetched candles. Each recipient only ever
+  // receives the variant matching their own Arena chart's Anti-Chop Filter
+  // setting (see passesThreshold's antiChopMode check), so a fired alert is
+  // always the same BUY/SELL marker that recipient's own chart would draw.
+  const MODES: Array<{ antiChopMode: boolean; params: typeof DEFAULT_FILTER_PARAMS; dedupSuffix: string }> = [
+    { antiChopMode: false, params: DEFAULT_FILTER_PARAMS, dedupSuffix: 'default' },
+    { antiChopMode: true,  params: STRICT_FILTER_PARAMS,  dedupSuffix: 'strict' },
+  ];
+
   await Promise.all(COINS.map(async coin => {
     try {
       const candles = await fetchRibbonCandles(coin, tf);
       if (candles.length < 55) return; // same minimum runway the chart's own hook requires
 
-      const { signalLongs, signalShorts } = detectEMASignals(candles, tf, DEFAULT_FILTER_PARAMS);
-      const all = [...signalLongs, ...signalShorts];
-      if (all.length === 0) return;
-      const latest = all.sort((a, b) => b.timestamp - a.timestamp)[0];
-      if (latest.pending) return; // still on the live edge - not a confirmed call yet
+      for (const mode of MODES) {
+        const { signalLongs, signalShorts } = detectEMASignals(candles, tf, mode.params);
+        const all = [...signalLongs, ...signalShorts];
+        if (all.length === 0) continue;
+        const latest = all.sort((a, b) => b.timestamp - a.timestamp)[0];
+        if (latest.pending) continue; // still on the live edge - not a confirmed call yet
 
-      // Identity-based dedup (not a time cooldown) - re-fires only when
-      // alternation produces a genuinely NEW signal, never on every tick
-      // while the same one is still current.
-      const dedupKey = `${coin}_${tf}`;
-      if (emaSignalLastTs.get(dedupKey) === latest.timestamp) return;
-      emaSignalLastTs.set(dedupKey, latest.timestamp);
+        // Identity-based dedup (not a time cooldown) - re-fires only when
+        // alternation produces a genuinely NEW signal, never on every tick
+        // while the same one is still current. Each filter mode dedups
+        // independently since they can hold different "current" signals.
+        const dedupKey = `${coin}_${tf}_${mode.dedupSuffix}`;
+        if (emaSignalLastTs.get(dedupKey) === latest.timestamp) continue;
+        emaSignalLastTs.set(dedupKey, latest.timestamp);
 
-      const label   = LABELS[coin];
-      const fmtP    = (n: number) => n >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : n.toFixed(4);
-      const dirWord = latest.dir === 'long' ? 'BUY' : 'SELL';
+        const label   = LABELS[coin];
+        const fmtP    = (n: number) => n >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : n.toFixed(4);
+        const dirWord = latest.dir === 'long' ? 'BUY' : 'SELL';
 
-      queue.push({
-        coin, dir: latest.dir, ruleKey, name: `${label} ${dirWord} signal (${tfLabel})`, price: latest.entryPrice,
-        title: `${dirWord} Signal (${tfLabel})`,
-        body:
-          `${latest.dir === 'long' ? '🟢' : '🔴'} <b>${label}/USDT ${dirWord} (${tfLabel})</b>\n\n` +
-          `Entry: <b>$${fmtP(latest.entryPrice)}</b>\n` +
-          `SL: $${fmtP(latest.sl)} · TP: $${fmtP(latest.tp)} (2:1)` +
-          `\n\n<i>${stamp}</i>`,
-      });
-      fired.push(`${label} ${dirWord} signal (${tfLabel})`);
+        queue.push({
+          coin, dir: latest.dir, ruleKey, name: `${label} ${dirWord} signal (${tfLabel})`, price: latest.entryPrice,
+          title: `${dirWord} Signal (${tfLabel})`,
+          antiChopMode: mode.antiChopMode,
+          // Both mode variants share this ruleKey with no other field to tell
+          // them apart - without this, Anti-Chop's variant would double up
+          // alongside Default's in the shared Alert Track Record every time
+          // both fire. Default is the canonical EMA definition (see
+          // DEFAULT_FILTER_PARAMS in strategyCore.ts), same precedent as
+          // rsi/squeeze's canonicalHit excluding personal-threshold-only hits.
+          canonicalHit: !mode.antiChopMode,
+          body:
+            `${latest.dir === 'long' ? '🟢' : '🔴'} <b>${label}/USDT ${dirWord} (${tfLabel})</b>\n\n` +
+            `Entry: <b>$${fmtP(latest.entryPrice)}</b>\n` +
+            `SL: $${fmtP(latest.sl)} · TP: $${fmtP(latest.tp)} (2:1)` +
+            `\n\n<i>${stamp}</i>`,
+        });
+        fired.push(`${label} ${dirWord} signal (${tfLabel})`);
+      }
     } catch { /* skip */ }
   }));
 

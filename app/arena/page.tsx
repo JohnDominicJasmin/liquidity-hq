@@ -134,7 +134,7 @@ function ArenaContent() {
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
   const { user, loading: authLoading, entitled } = useAuth();
-  const { settings } = useSettings();
+  const { settings, update } = useSettings();
   const searchParams = useSearchParams();
   const [selectedCoin, setSelectedCoin] = useState<CoinId>(() => {
     const c = searchParams.get('coin')?.toLowerCase() ?? '';
@@ -155,10 +155,11 @@ function ArenaContent() {
   const oi1h          = useOI1h(selectedCoin);
   // Default OFF: a 3-year majors/1h backtest showed raw signals (this filter off) beat
   // the stricter persistence-based filter on every metric - see STRICT_FILTER_PARAMS
-  // in lib/strategyCore.ts for the numbers. Explicit user choices are still respected
-  // via localStorage below.
-  const [antiChopEnabled, setAntiChopEnabled] = useState(false);
-  const filterLoadedRef = useRef(false);
+  // in lib/strategyCore.ts for the numbers. Server-synced (settings.anti_chop_enabled,
+  // not local-only state) so Telegram/push EMA signal alerts can fire under the exact
+  // same filter this chart is drawing with - see checkEMASignal in
+  // app/api/telegram/alert/route.ts.
+  const antiChopEnabled = settings.anti_chop_enabled;
   const filterParams = antiChopEnabled ? STRICT_FILTER_PARAMS : DEFAULT_FILTER_PARAMS;
   const emaSignal     = useEMAStrategy(
     selectedCoin,
@@ -249,19 +250,6 @@ function ArenaContent() {
     window.addEventListener('hashchange', scrollToUsage);
     return () => window.removeEventListener('hashchange', scrollToUsage);
   }, []);
-
-  /* ── Anti-chop toggle: load from localStorage on mount, save on change ── */
-  useEffect(() => {
-    if (!filterLoadedRef.current) {
-      try {
-        const saved = localStorage.getItem('lhq_anti_chop_enabled');
-        if (saved != null) setAntiChopEnabled(saved === 'true');
-      } catch {}
-      filterLoadedRef.current = true;
-      return;
-    }
-    try { localStorage.setItem('lhq_anti_chop_enabled', String(antiChopEnabled)); } catch {}
-  }, [antiChopEnabled]);
 
   /* ── Sync coin + tf to URL so the page is shareable ── */
   useEffect(() => {
@@ -1805,7 +1793,7 @@ function ArenaContent() {
       {/* Anti-chop filter toggle */}
       <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <button
-          onClick={() => setAntiChopEnabled(v => !v)}
+          onClick={() => update({ anti_chop_enabled: !antiChopEnabled })}
           style={{
             display: 'flex',
             alignItems: 'center',

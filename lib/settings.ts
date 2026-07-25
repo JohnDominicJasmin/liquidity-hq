@@ -23,6 +23,11 @@ export interface UserSettings {
   rsi_ob:           number;   // alert when RSI 1h >= this
   rsi_os:           number;   // alert when RSI 1h <= this
   squeeze_threshold: number;  // alert when squeeze/flush score >= this
+  // Arena EMA Ribbon signal filter - stricter persistence-based confirmation
+  // (fewer, calmer-looking BUY/SELL markers). Server-synced so Telegram/push
+  // EMA signal alerts can fire under the exact same filter this user's own
+  // chart is drawing with - see STRICT_FILTER_PARAMS in lib/strategyCore.ts.
+  anti_chop_enabled: boolean;
   // Telegram - per-user chat ID (empty string = not connected)
   telegram_chat_id: string;
   // View mode
@@ -51,6 +56,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   rsi_ob:             70,
   rsi_os:             30,
   squeeze_threshold:  70,
+  anti_chop_enabled:  false,
   telegram_chat_id:   '',
   beginner_mode:      true,
   watchlist:          ['btc', 'eth', 'sol'],
@@ -83,9 +89,26 @@ const LS_KEY = 'lhq_settings_v1';
 
 export function loadLocalSettings(): UserSettings {
   if (typeof window === 'undefined') return DEFAULT_SETTINGS;
+  // Arena's Anti-Chop Filter toggle used to be a standalone localStorage-only
+  // setting (never synced server-side, so Telegram alerts couldn't see it) -
+  // carry over whatever this browser already had it set to, regardless of
+  // which branch below returns (an existing lhq_settings_v1 blob predates
+  // this field entirely, so it never has anti_chop_enabled of its own).
+  // Gated on the migrated-marker (SettingsProvider sets it after the first
+  // real sync) so this stops overriding forever once a real value exists -
+  // otherwise a later explicit toggle-off would keep getting silently
+  // reverted by the stale legacy key on every pre-auth page load.
+  let antiChopOverride: Partial<UserSettings> = {};
+  try {
+    if (!localStorage.getItem('lhq_anti_chop_migrated')) {
+      const antiChop = localStorage.getItem('lhq_anti_chop_enabled');
+      if (antiChop != null) antiChopOverride = { anti_chop_enabled: antiChop === 'true' };
+    }
+  } catch { /* ignore */ }
+
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw), ...antiChopOverride };
   } catch { /* ignore */ }
   // Migrate legacy keys
   const acc   = localStorage.getItem('ps_account');
@@ -95,6 +118,7 @@ export function loadLocalSettings(): UserSettings {
     ...DEFAULT_SETTINGS,
     account_size: acc  ? (parseFloat(acc)  || DEFAULT_SETTINGS.account_size) : DEFAULT_SETTINGS.account_size,
     risk_pct:     risk ? (parseFloat(risk) || DEFAULT_SETTINGS.risk_pct)     : DEFAULT_SETTINGS.risk_pct,
+    ...antiChopOverride,
     // theme is handled separately by NavDrawer, just read it for the theme section
     ...(theme === 'light' ? { _theme: 'light' } as object : {}),
   };
@@ -124,6 +148,7 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
     rsi_ob:             +(row.rsi_ob          ?? DEFAULT_SETTINGS.rsi_ob),
     rsi_os:             +(row.rsi_os          ?? DEFAULT_SETTINGS.rsi_os),
     squeeze_threshold:  +(row.squeeze_threshold ?? DEFAULT_SETTINGS.squeeze_threshold),
+    anti_chop_enabled:  !!(row.anti_chop_enabled ?? DEFAULT_SETTINGS.anti_chop_enabled),
     telegram_chat_id:   String(row.telegram_chat_id ?? ''),
     beginner_mode:      !!(row.beginner_mode ?? false),
     watchlist:          Array.isArray(row.watchlist) ? row.watchlist as string[] : DEFAULT_SETTINGS.watchlist,
