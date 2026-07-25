@@ -317,26 +317,26 @@ export default function AlertsPage() {
   const botLink = botUsername ? `https://t.me/${botUsername}` : null;
   const botLabel = botUsername ? `@${botUsername}` : t('ALERTS_BOT_FALLBACK_NAME');
 
-  const ALERT_GROUPS: { section: string; items: { key: string; dot: string; title: string; desc: string; grok: boolean }[] }[] = [
+  const ALERT_GROUPS: { section: string; items: { key: string; dot: string; title: string; desc: string }[] }[] = [
     { section: t('ALERTS_SECTION_MOMENTUM'), items: [
-      { key: 'rsi',        dot: '#fbbf24', title: t('ALERTS_RSI_TITLE'), desc: t('ALERTS_RSI_DESC'), grok: false },
-      { key: 'rapid_move', dot: '#fb923c', title: t('ALERTS_RAPID_MOVES_TITLE'),     desc: t('ALERTS_RAPID_MOVES_DESC'), grok: true },
+      { key: 'rsi',        dot: '#fbbf24', title: t('ALERTS_RSI_TITLE'), desc: t('ALERTS_RSI_DESC') },
+      { key: 'rapid_move', dot: '#fb923c', title: t('ALERTS_RAPID_MOVES_TITLE'),     desc: t('ALERTS_RAPID_MOVES_DESC') },
     ]},
     { section: t('ALERTS_SECTION_FLOW'), items: [
-      { key: 'whales',   dot: '#1a7aff', title: t('ALERTS_WHALES_TITLE'),        desc: t('ALERTS_WHALES_DESC'), grok: true },
-      { key: 'oi_spike', dot: '#fbbf24', title: t('ALERTS_OI_SPIKE_TITLE'), desc: t('ALERTS_OI_SPIKE_DESC'), grok: true },
-      { key: 'cvd',      dot: '#34d399', title: t('ALERTS_CVD_TITLE'),      desc: t('ALERTS_CVD_DESC'), grok: false },
-      { key: 'squeeze',  dot: '#f43f5e', title: t('ALERTS_SQUEEZE_TITLE'), desc: t('ALERTS_SQUEEZE_DESC'), grok: true },
-      { key: 'distribution', dot: '#f97316', title: t('ALERTS_DISTRIBUTION_TITLE'), desc: t('ALERTS_DISTRIBUTION_DESC'), grok: true },
+      { key: 'whales',   dot: '#1a7aff', title: t('ALERTS_WHALES_TITLE'),        desc: t('ALERTS_WHALES_DESC') },
+      { key: 'oi_spike', dot: '#fbbf24', title: t('ALERTS_OI_SPIKE_TITLE'), desc: t('ALERTS_OI_SPIKE_DESC') },
+      { key: 'cvd',      dot: '#34d399', title: t('ALERTS_CVD_TITLE'),      desc: t('ALERTS_CVD_DESC') },
+      { key: 'squeeze',  dot: '#f43f5e', title: t('ALERTS_SQUEEZE_TITLE'), desc: t('ALERTS_SQUEEZE_DESC') },
+      { key: 'distribution', dot: '#f97316', title: t('ALERTS_DISTRIBUTION_TITLE'), desc: t('ALERTS_DISTRIBUTION_DESC') },
     ]},
     { section: t('ALERTS_SECTION_NEWS_SENTIMENT'), items: [
-      { key: 'news',               dot: '#f87171', title: t('ALERTS_NEWS_TITLE'),         desc: t('ALERTS_NEWS_DESC'), grok: true },
-      { key: 'fear_greed',         dot: '#f97316', title: t('ALERTS_FEAR_GREED_TITLE'), desc: t('ALERTS_FEAR_GREED_DESC'), grok: false },
-      { key: 'sentiment_extremes', dot: '#f43f5e', title: t('ALERTS_SENTIMENT_EXTREMES_TITLE'),    desc: t('ALERTS_SENTIMENT_EXTREMES_DESC'), grok: true },
+      { key: 'news',               dot: '#f87171', title: t('ALERTS_NEWS_TITLE'),         desc: t('ALERTS_NEWS_DESC') },
+      { key: 'fear_greed',         dot: '#f97316', title: t('ALERTS_FEAR_GREED_TITLE'), desc: t('ALERTS_FEAR_GREED_DESC') },
+      { key: 'sentiment_extremes', dot: '#f43f5e', title: t('ALERTS_SENTIMENT_EXTREMES_TITLE'),    desc: t('ALERTS_SENTIMENT_EXTREMES_DESC') },
     ]},
     { section: t('ALERTS_SECTION_PRICE_SUMMARY'), items: [
-      { key: 'price_alerts',  dot: '#9ba4ff', title: t('ALERTS_PRICE_LEVEL_TITLE'), desc: t('ALERTS_PRICE_LEVEL_DESC'), grok: true },
-      { key: 'daily_summary', dot: '#fbbf24', title: t('ALERTS_DAILY_SUMMARY_TITLE', { time: dailySummaryLocalTime }), desc: t('ALERTS_DAILY_SUMMARY_DESC', { time: dailySummaryLocalTime }), grok: true },
+      { key: 'price_alerts',  dot: '#9ba4ff', title: t('ALERTS_PRICE_LEVEL_TITLE'), desc: t('ALERTS_PRICE_LEVEL_DESC') },
+      { key: 'daily_summary', dot: '#fbbf24', title: t('ALERTS_DAILY_SUMMARY_TITLE', { time: dailySummaryLocalTime }), desc: t('ALERTS_DAILY_SUMMARY_DESC', { time: dailySummaryLocalTime }) },
     ]},
   ];
 
@@ -664,7 +664,7 @@ export default function AlertsPage() {
       <div className="card" style={{ marginBottom: 10 }}>
         <div className="lbl" style={{ marginBottom: 4 }}>{t('ALERTS_CONDITIONS_LABEL')}</div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 10 }}>
-          {t('ALERTS_MUTE_HINT_PREFIX')} <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4 }}>{t('ALERTS_AI_BADGE_LABEL')}</span> {t('ALERTS_MUTE_HINT_SUFFIX')}
+          {t('ALERTS_MUTE_HINT_PREFIX')}
         </div>
         {muteErr && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 8 }}>{muteErr}</div>}
 
@@ -673,7 +673,6 @@ export default function AlertsPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
             <span className="tg-cond-dot" style={{ background: '#4ade80' }} />
             <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)' }}>{t('ALERTS_EMA_SIGNAL_TITLE')}</div>
-            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4 }}>{t('ALERTS_AI_BADGE_LABEL')}</span>
           </div>
           <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 8, paddingLeft: 14 }}>
             {t('ALERTS_EMA_SIGNAL_DESC')}
@@ -738,7 +737,6 @@ export default function AlertsPage() {
                     </div>
                     <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>{c.desc}</div>
                   </div>
-                  {c.grok && <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>{t('ALERTS_AI_BADGE_LABEL')}</span>}
                   <button
                     role="switch"
                     aria-checked={!isMuted}
@@ -764,7 +762,6 @@ export default function AlertsPage() {
               {t('ALERTS_CONFLUENCE_ALERT_DESC')}
             </div>
           </div>
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.05em', color: '#1a7aff', background: 'rgba(26,122,255,0.1)', border: '0.5px solid rgba(26,122,255,0.25)', padding: '2px 6px', borderRadius: 4, flexShrink: 0 }}>{t('ALERTS_AI_BADGE_LABEL')}</span>
         </div>
         {/* ── Signal direction filter ── */}
         <div style={{ marginTop: 10, padding: '10px 0 0', borderTop: '0.5px solid var(--bdr)' }}>
