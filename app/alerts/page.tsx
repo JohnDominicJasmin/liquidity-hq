@@ -8,9 +8,9 @@ import { useSettings } from '@/lib/settings';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/components/AuthProvider';
 import { utcHourToLocalTime } from '@/lib/resetTime';
-import { coinBadgeColor } from '@/lib/coinBadge';
 import { withAlpha } from '@/lib/color';
 import AlertOutcomes from '@/components/AlertOutcomes';
+import CoinMultiSelect from '@/components/CoinMultiSelect';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 
@@ -66,7 +66,6 @@ export default function AlertsPage() {
   const [muted, setMuted]   = useState<Set<string>>(new Set());
   const [muteErr, setMuteErr] = useState('');
   const [coinCapMsg, setCoinCapMsg] = useState('');
-  const [coinSearch, setCoinSearch] = useState('');
   const [tfCapMsg, setTfCapMsg] = useState('');
 
   // Alert history
@@ -816,43 +815,16 @@ export default function AlertsPage() {
               {coinCapMsg}
             </div>
           )}
-          <input
-            className="acoin-search"
-            placeholder={t('ALERTS_COIN_SEARCH_PLACEHOLDER')}
-            value={coinSearch}
-            onChange={e => setCoinSearch(e.target.value)}
-            aria-label={t('ALERTS_COIN_SEARCH_ARIA')}
+          <CoinMultiSelect
+            value={COINS.filter(c => !muted.has(`coin:${c}`))}
+            onChange={next => {
+              const nextSet: Set<string> = new Set(next);
+              const curSet: Set<string>  = new Set(COINS.filter(c => !muted.has(`coin:${c}`)));
+              for (const c of next) if (!curSet.has(c)) toggleCoin(c);
+              for (const c of COINS) if (curSet.has(c) && !nextSet.has(c)) toggleCoin(c);
+            }}
+            previewCount={7}
           />
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {COINS.filter(c => c.includes(coinSearch.trim().toLowerCase())).map(c => {
-              const off = muted.has(`coin:${c}`);
-              const badgeCol = coinBadgeColor(c);
-              return (
-                <button
-                  key={c}
-                  onClick={() => toggleCoin(c)}
-                  aria-pressed={!off}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 5,
-                    padding: '4px 10px', borderRadius: 7, cursor: 'pointer',
-                    fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.03em',
-                    fontFamily: 'var(--font-mono), monospace',
-                    background: off ? 'transparent' : 'var(--accent-bg)',
-                    border: `0.5px solid ${off ? 'var(--bdr)' : 'var(--accent-bdr)'}`,
-                    color: off ? 'var(--txt3)' : 'var(--accent-2)',
-                    textDecoration: off ? 'line-through' : 'none',
-                    transition: 'all .15s',
-                  }}
-                >
-                  <span style={{ width: 5, height: 5, borderRadius: '50%', flexShrink: 0, background: off ? 'var(--txt3)' : badgeCol }} />
-                  {c.toUpperCase()}
-                </button>
-              );
-            })}
-            {coinSearch.trim() && !COINS.some(c => c.includes(coinSearch.trim().toLowerCase())) && (
-              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ALERTS_NO_COINS_MATCH', { search: coinSearch })}</div>
-            )}
-          </div>
         </div>
       </div>
       )}

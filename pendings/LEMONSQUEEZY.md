@@ -8,11 +8,13 @@ Everything below is scoped to "when resuming this feature," not urgent now.
 ## ❓ YOUR action (can't do from code, needed before launch)
 
 - **Set the LemonSqueezy product/variant price to $25** in LemonSqueezy's own
-  dashboard (not this repo) to match the app's displayed price — see
-  `pendings/PRICING_ANALYSIS.md` §7 for how $25/mo was decided. The app-side
-  price display is already $25 everywhere (`/upgrade`, landing page, DB
-  labels) as of 2026-07-24; only the actual LemonSqueezy variant price still
-  needs to match it once checkout is configured.
+  dashboard (not this repo) to match the app's displayed price. (The pricing
+  rationale doc this used to point to was removed 2026-07-25 - fully
+  resolved, nothing left pending in it; see git history for the full
+  analysis if needed.) The app-side price display is already $25 everywhere
+  (`/upgrade`, landing page, DB labels) as of 2026-07-24; only the actual
+  LemonSqueezy variant price still needs to match it once checkout is
+  configured.
 
 ## 🔭 Build checklist for when resuming payments
 
