@@ -624,7 +624,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   {
                     type: 'polygon',
                     attrs: { coordinates: [{ x, y: y + 4 }, { x: x - 14, y: y + 28 }, { x: x + 14, y: y + 28 }] },
-                    styles: { style: 'stroke', color: 'rgba(34,197,94,0.55)', size: 1.5 },
+                    styles: { style: 'stroke', borderColor: 'rgba(34,197,94,0.6)', borderSize: 1.5, borderStyle: 'dashed', borderDashedValue: [3, 3] },
+                  },
+                  {
+                    type: 'text',
+                    attrs: { x, y: y + 20, text: 'FORMING', align: 'center', baseline: 'middle' },
+                    styles: { color: 'rgba(34,197,94,0.85)', size: 7, weight: 'bold', backgroundColor: 'transparent' },
                   },
                 ];
               }
@@ -646,7 +651,12 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 {
                   type: 'polygon',
                   attrs: { coordinates: [{ x, y: y - 4 }, { x: x - 14, y: y - 28 }, { x: x + 14, y: y - 28 }] },
-                  styles: { style: 'stroke', color: 'rgba(239,68,68,0.55)', size: 1.5 },
+                  styles: { style: 'stroke', borderColor: 'rgba(239,68,68,0.6)', borderSize: 1.5, borderStyle: 'dashed', borderDashedValue: [3, 3] },
+                },
+                {
+                  type: 'text',
+                  attrs: { x, y: y - 20, text: 'FORMING', align: 'center', baseline: 'middle' },
+                  styles: { color: 'rgba(239,68,68,0.85)', size: 7, weight: 'bold', backgroundColor: 'transparent' },
                 },
               ];
             }
