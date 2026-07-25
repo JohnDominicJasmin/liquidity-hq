@@ -12,15 +12,18 @@ abuse, traceability, general exploit surface.
 
 ## Still open (all LOW priority — nothing here is urgent)
 
-- ~~🟡 AI-spend spike alert~~ — **done 2026-07-25**. Owner rejected Telegram
-  as the channel; `app/api/ops/spike-alert/route.ts` now emails both of the
-  owner's addresses (`lib/email.ts`'s `sendSpikeAlertEmail`, via the existing
-  Brevo setup) once today's usage crosses 80% of `AI_GLOBAL_DAILY_MAX`, plus
-  a top-of-page banner on `/ops` itself (`SpikeBanner`, same threshold/data
-  source as the dashboard's own flag) so the trip is visible in-app too, not
-  email-only. `spike_alerted` dedup column unchanged - still fires once per
-  day, not once per tick. Scheduler (n8n) still needs pointing at the route -
-  not a security gap once wired, just not live yet.
+- ~~🟡 AI-spend spike alert~~ — **fully done 2026-07-25.** Owner rejected
+  Telegram as the channel; `app/api/ops/spike-alert/route.ts` now emails both
+  of the owner's addresses (`lib/email.ts`'s `sendSpikeAlertEmail`, via the
+  existing Brevo setup) once today's usage crosses 80% of `AI_GLOBAL_DAILY_MAX`,
+  plus a top-of-page banner on `/ops` itself (`SpikeBanner`, same
+  threshold/data source as the dashboard's own flag) so the trip is visible
+  in-app too, not email-only. `spike_alerted` dedup column unchanged - still
+  fires once per day, not once per tick. **Scheduler confirmed live** - n8n
+  workflow "LHQ - AI Spike Alert" (`liquidityhq` folder), hourly Schedule
+  Trigger -> HTTP GET `/api/ops/spike-alert`, published, real execution
+  history shows hourly runs succeeding (checked live 2026-07-25, e.g.
+  13:00/12:00/11:00 all succeeded in under 1s). Nothing left open here.
 - **Per-user cap on the 3 cached xAI routes' cache-miss path** (dry-powder,
   macro-context, onchain). Fixed-key caching already bounds cost to ~1
   call/TTL, but there's no per-user counter for symmetry/attribution with
