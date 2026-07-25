@@ -1,18 +1,16 @@
 # Pending Work
 
-Single source of truth. Security audit = user's #1 priority (stop untraceable
-API-cost abuse, signup/trial abuse, any exploit that breaches system/keys/logs).
-Full audit deliverable: `pendings/SECURITY_AUDIT.md`. Pricing/costing analysis
-(`pendings/PRICING_ANALYSIS.md`) was unpaused 2026-07-24 — the security list was
-effectively resolved and the one remaining item (`AI_GLOBAL_DAILY_MAX`) was
-itself blocked on this analysis. Now updated with REAL xAI rates. LemonSqueezy
-payment-feature items (deferred, payments not live yet) moved to
-`pendings/LEMONSQUEEZY.md`. Telegram alert cron cost + signal-quality plan
-(the uncapped `ema_setup`/`ema_cross` xAI usage found 2026-07-25, the
-consolidation into one real buy/sell signal, and the per-user coin-cap idea)
-is in `pendings/ALERTS.md` — **implemented 2026-07-25**, DB changes live on
-both prod/dev, code changes uncommitted in the working tree (not yet
-pushed/deployed).
+Single source of truth. The original security audit (stop untraceable
+API-cost abuse, signup/trial abuse, any exploit that breaches system/keys/logs)
+is **fully resolved** - every finding fixed and live on prod, including the
+last optional item (signup IP-velocity Auth Hook, 2026-07-25). The pricing
+analysis that decided the $25/mo price point is also fully implemented and
+live. Both of those write-ups (`SECURITY_AUDIT.md`, `PRICING_ANALYSIS.md`)
+were removed 2026-07-25 since neither had anything pending left in it - see
+git history if the original detail is ever needed. Same for `ALERTS.md` (the
+alert-cron cost/signal-quality plan) - fully superseded, xAI removed
+entirely from every alert type, also removed. LemonSqueezy payment-feature
+items (deferred, payments not live yet) are in `pendings/LEMONSQUEEZY.md`.
 
 ## ✅ RESOLVED — xAI credit outage (found + fixed 2026-07-24)
 
@@ -61,7 +59,8 @@ below is live on prod right now, not just `main`.
 - **Dev aligned to prod on `TELEGRAM_WEBHOOK_SECRET` + `NEXT_PUBLIC_APP_URL`** — both set on `liquidity-hq-dev` (`https://liquidity-hq-dev.onrender.com`), matching prod's setup. Deploy triggered automatically by the env var update (also picks up the non-xAI attribution commit above). Note: dev's Telegram webhook itself is still unregistered — this only makes the route ready to verify a secret if one is ever pointed at dev; no live Telegram traffic depends on it.
 - **Admin $-cost view, LIVE on prod** — new `lib/aiCost.ts` (real per-token rates:
   $1.25/$0.20/$2.50 input/cached/output per 1M, plain-call ≈$0.0041,
-  search-call ≈$0.0091, matching `PRICING_ANALYSIS.md` §1). `/api/ops/ai-cost`
+  search-call ≈$0.0091, matching the pricing analysis - see git history,
+  `pendings/PRICING_ANALYSIS.md` was removed 2026-07-25). `/api/ops/ai-cost`
   now returns real $ figures (24h/7d/30d, global + per-user), sorted top-10
   spenders by $ with role + margin (Pro revenue minus cost), and the global
   circuit breaker's today-vs-cap usage with an 80%-threshold spike flag.
@@ -106,7 +105,8 @@ aren't live yet.
 
 ## ✅ Pricing analysis + repricing — DONE 2026-07-24
 
-`pendings/PRICING_ANALYSIS.md` fully rewritten with real xAI grok-4.3 rates
+The pricing analysis doc (removed 2026-07-25, fully resolved - see git
+history for the original write-up) was rewritten with real xAI grok-4.3 rates
 (console.x.ai/models, cross-validated against this account's actual invoice)
 — the old output rate assumption was **6× too high** ($15/M assumed vs
 $2.50/M real). That correction, plus a real-competitor-pricing check
@@ -126,8 +126,7 @@ implemented and verified live**, not just analyzed:
   against $25 revenue (1.67× underwater — down from the original 19×).
   Free worst-case dropped to **~$6.54/mo** for $0 revenue (was ~$54).
 
-See `pendings/PRICING_ANALYSIS.md` §7 for the full final numbers and the
-worst-case cost table. **Live on prod** — verified in a real browser against
+**Live on prod** — verified in a real browser against
 `liquidity-hq.onrender.com/upgrade`: `$25/mo` and the trimmed caps both render
 correctly.
 
