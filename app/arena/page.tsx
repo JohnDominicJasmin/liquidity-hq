@@ -174,6 +174,10 @@ function ArenaContent() {
   const [readError, setReadError]     = useState('');
   const [readMode,  setReadMode]      = useState<'quick' | 'deep'>('deep');
   const [resultsCache, setResultsCache] = useState<Partial<Record<CoinId, CacheEntry>>>({});
+  // Per-coin dismiss for the AI Read card - a UI-only "hide for now", not a
+  // data delete. Cleared automatically the next time this coin gets a fresh
+  // read, so dismissing never blocks the user from seeing the next real result.
+  const [dismissedResults, setDismissedResults] = useState<Set<CoinId>>(new Set());
   const [history, setHistory]         = useState<HistItem[]>([]);
   const [detailIdx, setDetailIdx]     = useState<number | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(false);
@@ -950,6 +954,12 @@ function ArenaContent() {
 
     setReadMode(mode);
     setReadLoading(true); setReadError('');
+    setDismissedResults(prev => {
+      if (!prev.has(selectedCoin)) return prev;
+      const next = new Set(prev);
+      next.delete(selectedCoin);
+      return next;
+    });
 
     try {
       // Step 1 - fetch candles (Binance preferred; fall back to Bybit for HYPE etc.)
@@ -1599,7 +1609,7 @@ function ArenaContent() {
 
       {readError && <div className="arena-err">{readError}</div>}
 
-      {result && Date.now() - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
+      {result && !dismissedResults.has(selectedCoin) && Date.now() - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
         const sigCol = result.signal === 'LONG' ? '#34d399' : result.signal === 'LEAN LONG' ? '#86efac' : result.signal === 'SHORT' ? '#f87171' : result.signal === 'LEAN SHORT' ? '#fca5a5' : '#9ca3af';
         const verdictWord = result.signal === 'LONG' ? t('ARENA_VERDICT_LONG') : result.signal === 'LEAN LONG' ? t('ARENA_VERDICT_LEAN_LONG') : result.signal === 'SHORT' ? t('ARENA_VERDICT_SHORT') : result.signal === 'LEAN SHORT' ? t('ARENA_VERDICT_LEAN_SHORT') : t('ARENA_VERDICT_WAIT');
         const sigGrad = result.signal.includes('LONG') ? 'linear-gradient(160deg,#5ff0b0,#34d399)'
@@ -1639,6 +1649,15 @@ function ArenaContent() {
         const freshness = secsDiff < 60 ? t('ARENA_FRESHNESS_JUST_NOW') : secsDiff < 3600 ? t('ARENA_FRESHNESS_MINUTES_AGO', { n: Math.floor(secsDiff/60) }) : t('ARENA_FRESHNESS_HOURS_AGO', { n: Math.floor(secsDiff/3600) });
         return (
           <div className={`arena-signal-card sig-${result.signal.toLowerCase().replace(' ', '-')}`}>
+            <button
+              type="button"
+              className="av-dismiss"
+              aria-label={t('ARENA_DISMISS_RESULT_ARIA')}
+              title={t('ARENA_DISMISS_RESULT_ARIA')}
+              onClick={() => setDismissedResults(prev => new Set(prev).add(selectedCoin))}
+            >
+              ✕
+            </button>
             {/* Answer-first header: big verdict word + confidence */}
             <div className="av-head">
               <div className="av-head-eyebrow">
