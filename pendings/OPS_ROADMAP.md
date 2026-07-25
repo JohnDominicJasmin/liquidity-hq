@@ -2,7 +2,7 @@
 
 Living status doc for the owner/staff admin console at `/ops`. What's shipped, what's deferred, and the key facts you need to work on it.
 
-Last updated: 2026-07-21 (GlitchTip error tracking confirmed live end-to-end on dev + prod).
+Last updated: 2026-07-25 (PostHog session-replay masking backlog item found already fixed - doc was stale, not the code).
 
 ---
 
@@ -54,12 +54,13 @@ Seeded with only these two flags on purpose — no per-feature kill-switches (Gr
 | Item | Notes |
 |---|---|
 | **Welcome email** on signup | Same Brevo path; deferred by owner — needs a domain to be reliable at user-facing scale (see below). On owner's personal list. |
-| **PostHog session-replay masking** | `components/PostHogProvider.tsx` has `maskAllInputs: false` — every typed field except passwords is visible in replays, tied to the real user. On a financial app, worth setting to `true` or scoping. |
 | **Custom ban reason / message** | Supabase shows a bare "user is banned" on login. A "suspended, contact support" message would need custom handling. |
 | **Instant session kill on ban** | A banned user's already-issued token still authenticates for up to ~1h until expiry. Force-expiry would need extra work. |
 | **Feature-flag kill-switches** | `app_config` + the `/ops/config` pattern exist now (Phase 3); no specific flags (Grok, Telegram, etc.) seeded yet — add on demand. |
 
 **Resolved 2026-07-21 (removed from this table):** the "7 dead dashboard toggles" - turned out to be 1 real bug (`session` was unconditional, gated it) + 6 checkboxes that never applied to the dashboard at all (`accumulation`/`distribution`/`gex`/`macro` live on other pages; `catalysts`/`commandments` were never built). First fix pass trimmed `DASHBOARD_SECTIONS` down to the 5 real ones - but hiding ALL 5 left an ugly blank dashboard (no empty-state fallback), and the user decided the whole toggle feature wasn't worth keeping for that risk. **Final state: the entire "Dashboard Sections" feature is removed** - `DASHBOARD_SECTIONS`, `UserSettings.hidden_sections`, and the Settings UI for it no longer exist anywhere in the codebase. `/dashboard` always renders every section unconditionally now.
+
+**Resolved, date unknown (removed from this table 2026-07-25):** PostHog session-replay masking. This doc claimed `maskAllInputs: false` since 2026-07-21, but `components/PostHogProvider.tsx` was actually changed to `maskAllInputs: true` back on 2026-07-22 (commit `2ddec77`, "realtime ban kill-switch, friendly ban message, mask session inputs") - this doc just never got updated to match. Found and corrected 2026-07-25 while auditing all `pendings/*.md` files for stale claims.
 
 ---
 

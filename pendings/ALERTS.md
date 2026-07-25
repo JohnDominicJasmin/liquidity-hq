@@ -1,13 +1,25 @@
 # Telegram Alert System — Cost + Quality Plan
 
-**Status: ✅ DONE, LIVE ON PROD 2026-07-25.** `checkEMASignal` replaces
-`checkEMASetup` + `checkEMACross` in `app/api/telegram/alert/route.ts`. New
-`ema_signal_<tf>` mute rows + timeframe picker live on `/alerts`. Global-cap
-wiring done. All Supabase changes (labels, new SQL function, mute-key
-migration) applied live to both prod and dev. Code committed (`bd3d5e6`),
-merged to `main`, deployed - `git log origin/main..origin/dev` shows nothing
-outstanding for this. §7's "uncommitted" note below is stale, kept only as a
-historical record of what changed.
+**Status: SUPERSEDED 2026-07-25 (later same day).** Everything below (§3-§7)
+describes an earlier plan that consolidated `ema_setup`+`ema_cross` into one
+`checkEMASignal`, keeping **one Grok commentary call per confirmed signal**
+and wiring it into the global cap. That shipped and was live for a few
+hours - but the same day, the owner decided the cron shouldn't call xAI at
+all (it was ~1000 calls/day, 100% cron-driven, zero real users behind it).
+**All Grok/xAI calls were then removed from every alert type in
+`app/api/telegram/alert/route.ts`** (EMA signal, whale trades, confluence,
+distribution, sentiment extremes, OI spike, rapid move, news, price alerts,
+daily briefing) - `grokAnalyze()`, `fmtGrok()`, `parseConviction()`,
+`inferSignalType()` all deleted outright, not just capped further. Alerts
+still fire with full price/entry/SL/TP data, just no AI sentence. Live on
+prod, verified: cron re-enabled, first tick after redeploy (highest-risk
+moment - wipes the in-memory dedup map, would've fired for every live
+signal at once under the old code) produced zero xAI calls. See
+`SECURITY_AUDIT.md` for current status - it has no open items left on this.
+Kept below only as a historical record of the consolidation work (which is
+still accurate - the signal *detection* logic, timeframe picker, and coin
+cap described here are all still exactly as shipped); just ignore every
+mention of "Grok commentary" as no longer true.
 Feature: `app/api/telegram/alert/route.ts` (cron-gated, Pro/trial-only, scans
 all 50 coins every tick, fans out to every connected user's Telegram chat).
 
@@ -169,8 +181,8 @@ DB column, new Settings UI, new cap). **Wrong — didn't check `/alerts` and
   rejected Telegram as the channel). Scheduler confirmed live too - n8n
   "LHQ - AI Spike Alert" workflow, hourly, real successful execution history
   checked live. See `SECURITY_AUDIT.md`.
-- Per-user cap on the 3 cached xAI routes' cache-miss path (dry-powder,
-  macro-context, onchain) — still open, tracked in `SECURITY_AUDIT.md`.
+- ~~Per-user cap on the 3 cached xAI routes' cache-miss path~~ — done
+  2026-07-25, see `SECURITY_AUDIT.md`.
 
 ## 7. Implementation closeout (2026-07-25)
 
