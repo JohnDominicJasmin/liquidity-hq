@@ -35,9 +35,34 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       .maybeSingle()
       .then(({ data }) => {
         if (data) {
-          const s = rowToSettings(data as Record<string, unknown>);
+          const row = data as Record<string, unknown>;
+          const s   = rowToSettings(row);
           setSettings(s);
           saveLocalSettings(s);
+
+          // One-time migration: Arena's Anti-Chop Filter toggle used to be a
+          // localStorage-only setting the server (Telegram alerts) could
+          // never see. The anti_chop_enabled column backfilled every
+          // existing row to its default (false) on creation - not null - so
+          // there's no way to tell "never set" apart from "explicitly off"
+          // from the DB value alone. A dedicated migrated-marker is the only
+          // reliable one-time gate; without it this would silently clobber
+          // whatever this browser had the legacy key set to.
+          try {
+            if (!localStorage.getItem('lhq_anti_chop_migrated')) {
+              const legacy = localStorage.getItem('lhq_anti_chop_enabled');
+              if (legacy != null) {
+                const legacyVal = legacy === 'true';
+                setSettings(prev => ({ ...prev, anti_chop_enabled: legacyVal }));
+                pendingRef.current = { ...(pendingRef.current ?? {}), anti_chop_enabled: legacyVal };
+                if (debounceRef.current) clearTimeout(debounceRef.current);
+                debounceRef.current = setTimeout(() => {
+                  if (pendingRef.current) { flushToDb(pendingRef.current); pendingRef.current = null; }
+                }, 800);
+              }
+              localStorage.setItem('lhq_anti_chop_migrated', '1');
+            }
+          } catch { /* ignore */ }
         }
         setLoading(false);
       }, () => setLoading(false));
