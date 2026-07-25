@@ -15,23 +15,21 @@ import { T } from '@/lib/tables';
 import { Warn } from '@/components/icons';
 import KLineProChart, { ChartTf, ChartAlert } from '@/components/KLineProChart';
 import UpgradeGateModal, { LockedFeatureCard } from '@/components/UpgradeGateModal';
+import ConfluenceScore from '@/components/ConfluenceScore';
+import MultiTFAlignment from '@/components/MultiTFAlignment';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import MarketStructure, { MSData } from '@/components/MarketStructure';
 import AbsorptionDetector, { AbsorptionData } from '@/components/AbsorptionDetector';
 import EMASignal from '@/components/EMASignal';
-import ConfluenceScore from '@/components/ConfluenceScore';
 import HigherTfMoveBadge from '@/components/HigherTfMoveBadge';
-import StopLossZone from '@/components/StopLossZone';
 import Tip from '@/components/Tip';
 import LiqHeatmap from '@/components/LiqHeatmap';
-import GexTable from '@/components/GexTable';
 import UsageMeter from '@/components/UsageMeter';
 import { useEMAStrategy, strategyToGrokLine, STRATEGY_LOADING, StrategySignal, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS } from '@/lib/useEMAStrategy';
 import { computeDistributionScore, distributionColor, DistributionInputs } from '@/lib/distribution';
 import { withAlpha } from '@/lib/color';
 import PageHint from '@/components/PageHint';
 import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
-import MultiTFAlignment from '@/components/MultiTFAlignment';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
@@ -174,6 +172,10 @@ function ArenaContent() {
   const [readError, setReadError]     = useState('');
   const [readMode,  setReadMode]      = useState<'quick' | 'deep'>('deep');
   const [resultsCache, setResultsCache] = useState<Partial<Record<CoinId, CacheEntry>>>({});
+  // Per-coin dismiss for the AI Read card - a UI-only "hide for now", not a
+  // data delete. Cleared automatically the next time this coin gets a fresh
+  // read, so dismissing never blocks the user from seeing the next real result.
+  const [dismissedResults, setDismissedResults] = useState<Set<CoinId>>(new Set());
   const [history, setHistory]         = useState<HistItem[]>([]);
   const [detailIdx, setDetailIdx]     = useState<number | null>(null);
   const [notifEnabled, setNotifEnabled] = useState(false);
@@ -950,6 +952,12 @@ function ArenaContent() {
 
     setReadMode(mode);
     setReadLoading(true); setReadError('');
+    setDismissedResults(prev => {
+      if (!prev.has(selectedCoin)) return prev;
+      const next = new Set(prev);
+      next.delete(selectedCoin);
+      return next;
+    });
 
     try {
       // Step 1 - fetch candles (Binance preferred; fall back to Bybit for HYPE etc.)
@@ -1599,7 +1607,7 @@ function ArenaContent() {
 
       {readError && <div className="arena-err">{readError}</div>}
 
-      {result && Date.now() - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
+      {result && !dismissedResults.has(selectedCoin) && Date.now() - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
         const sigCol = result.signal === 'LONG' ? '#34d399' : result.signal === 'LEAN LONG' ? '#86efac' : result.signal === 'SHORT' ? '#f87171' : result.signal === 'LEAN SHORT' ? '#fca5a5' : '#9ca3af';
         const verdictWord = result.signal === 'LONG' ? t('ARENA_VERDICT_LONG') : result.signal === 'LEAN LONG' ? t('ARENA_VERDICT_LEAN_LONG') : result.signal === 'SHORT' ? t('ARENA_VERDICT_SHORT') : result.signal === 'LEAN SHORT' ? t('ARENA_VERDICT_LEAN_SHORT') : t('ARENA_VERDICT_WAIT');
         const sigGrad = result.signal.includes('LONG') ? 'linear-gradient(160deg,#5ff0b0,#34d399)'
@@ -1639,6 +1647,15 @@ function ArenaContent() {
         const freshness = secsDiff < 60 ? t('ARENA_FRESHNESS_JUST_NOW') : secsDiff < 3600 ? t('ARENA_FRESHNESS_MINUTES_AGO', { n: Math.floor(secsDiff/60) }) : t('ARENA_FRESHNESS_HOURS_AGO', { n: Math.floor(secsDiff/3600) });
         return (
           <div className={`arena-signal-card sig-${result.signal.toLowerCase().replace(' ', '-')}`}>
+            <button
+              type="button"
+              className="av-dismiss"
+              aria-label={t('ARENA_DISMISS_RESULT_ARIA')}
+              title={t('ARENA_DISMISS_RESULT_ARIA')}
+              onClick={() => setDismissedResults(prev => new Set(prev).add(selectedCoin))}
+            >
+              ✕
+            </button>
             {/* Answer-first header: big verdict word + confidence */}
             <div className="av-head">
               <div className="av-head-eyebrow">
@@ -1885,16 +1902,12 @@ function ArenaContent() {
           currentPrice={store.coins['btc']?.price ?? 0}
         />
       )}
-      {/* BTC Options Market Pressure (GEX) - BTC-only, same widget as the
-          Liquidation Map page. Ungated: near-zero cost (already in the market
-          store) and it also feeds the AI read above, so showing the raw table
-          lets users see what the AI is reading. GexTable renders its own
-          "Fetching…" state, so gate on coin only. */}
-      {selectedCoin === 'btc' && (
-        <div style={{ marginBottom: 10 }}>
-          <GexTable />
-        </div>
-      )}
+      {/* GEX / Options Market Pressure table removed here 2026-07-25
+          (signal-overload pass): biggest single block on the page (~456px),
+          BTC-only, and max-pain/net-gamma is background context rather than a
+          trade decision - it still feeds the AI read above, which is where it
+          now surfaces. Full table remains on the Liquidation Map page for
+          anyone who wants the raw numbers. */}
       {/* ── Pullback warning - reuses the Distribution score for the selected coin.
           "This pump is getting weaker" made explicit as text, not just a header chip. ── */}
       {(() => {
@@ -1926,12 +1939,13 @@ function ArenaContent() {
           cards (multi-timeframe alignment, higher-timeframe context, stop
           zone) plus the AI's long-form reasoning/patterns. ── */}
       <MultiTFAlignment coin={selectedCoin} />
+      {/* StopLossZone ("Order Flow Setup" card) stays removed - its stop + R:R
+          duplicated the AI read card's own STOP and R:R cells. Component kept in
+          the codebase, just not mounted here. */}
       {/* Informational only (not a filter - see component header for why): flags when
           the 4h has already moved a lot, so a same-direction lower-TF signal doesn't
           look more trustworthy than it is. Only shows on 1m/5m/15m/30m. */}
       <HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />
-      {/* Stop Loss Zone - S/R anchored stop suggestion */}
-      <StopLossZone coin={selectedCoin} grokSignal={result?.signal} />
       {/* AI long-form reasoning / chart read / patterns - only when a read has run */}
       {result && (
         <>

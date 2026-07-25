@@ -346,12 +346,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const [drawMenuOpen, setDrawMenuOpen] = useState(false);
   const [wsStatus,     setWsStatus]    = useState<'connecting' | 'live' | 'error'>('connecting');
   const [fullscreen,   setFullscreen]  = useState(false);
-  const [copiedMsg,    setCopiedMsg]   = useState<string | null>(null);
   const [chartReady,   setChartReady]  = useState(false);
   const [countdown,    setCountdown]   = useState('-');
   const [priceLabelY,  setPriceLabelY] = useState<number | null>(null);
   const lastCloseRef   = useRef<number>(0);
-  const copyToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showSR, setShowSR]       = useState(true);
   const [srLevels, setSrLevels]   = useState<SRLevel[]>([]);
   const srSetRef                  = useRef(setSrLevels);
@@ -1194,16 +1192,6 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     try { localStorage.removeItem(drawingsKey(coin)); } catch { /* ignore */ }
   };
 
-  const handleCopy = (price: number, label: string) => {
-    const text = fmtPx(price);
-    navigator.clipboard.writeText(text).catch(() => {});
-    setCopiedMsg(`${label} $${text} copied!`);
-    if (copyToastTimer.current) clearTimeout(copyToastTimer.current);
-    copyToastTimer.current = setTimeout(() => setCopiedMsg(null), 1800);
-  };
-
-  const hasLevels = result && (result.entryLow || result.sl || result.tp);
-
   /* ── Setup Quality: price near strong S/R + squeeze forming ── */
   const setupQuality = (() => {
     const price = lastCloseRef.current;
@@ -1285,51 +1273,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           S/R
         </button>
 
-        {hasLevels && (
-          <div className="klc-legend">
-            {(result!.entryLow || result!.entryHigh) && (
-              <button
-                className="klc-price-chip"
-                style={{ color: '#34d399', background: 'rgba(52,211,153,0.08)', borderColor: 'rgba(52,211,153,0.2)' }}
-                onClick={() => {
-                  const mid = result!.entryLow && result!.entryHigh
-                    ? (result!.entryLow + result!.entryHigh) / 2
-                    : (result!.entryLow ?? result!.entryHigh ?? 0);
-                  handleCopy(mid, 'Entry');
-                }}
-                title="Click to copy entry midpoint"
-              >
-                - Entry&nbsp;
-                {result!.entryLow && result!.entryHigh
-                  ? `$${fmtPx(result!.entryLow)}–$${fmtPx(result!.entryHigh)}`
-                  : `$${fmtPx(result!.entryLow ?? result!.entryHigh ?? 0)}`}
-              </button>
-            )}
-            {result!.sl && (
-              <button
-                className="klc-price-chip"
-                style={{ color: '#f87171', background: 'rgba(248,113,113,0.08)', borderColor: 'rgba(248,113,113,0.2)' }}
-                onClick={() => handleCopy(result!.sl!, 'SL')}
-                title="Click to copy SL price"
-              >
-                - SL&nbsp;${fmtPx(result!.sl)}
-              </button>
-            )}
-            {result!.tp && (
-              <button
-                className="klc-price-chip"
-                style={{ color: '#5aa3ff', background: 'rgba(90,163,255,0.08)', borderColor: 'rgba(90,163,255,0.2)' }}
-                onClick={() => handleCopy(result!.tp!, 'TP')}
-                title="Click to copy TP price"
-              >
-                - TP&nbsp;${fmtPx(result!.tp)}
-              </button>
-            )}
-          </div>
-        )}
-
         {chartAlerts && chartAlerts.length > 0 && (
-          <div className="klc-legend" style={{ marginLeft: hasLevels ? 0 : undefined }}>
+          <div className="klc-legend">
             {chartAlerts.map(alert => (
               <span
                 key={alert.id}
@@ -1394,11 +1339,6 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           title={wsStatus}
         />
       </div>
-
-      {/* Copy toast */}
-      {copiedMsg && (
-        <div className="klc-copy-toast">{copiedMsg}</div>
-      )}
 
       {/* Chart canvas */}
       <div

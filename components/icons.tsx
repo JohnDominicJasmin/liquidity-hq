@@ -212,6 +212,14 @@ export function NavAlerts({ size = 20, style }: IconProps) {
     <path d="M8.4 16.2a1.8 1.8 0 0 0 3.2 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
   </>);
 }
+/** Stacked coins - section marker for the Alerts page's coin picker. */
+export function CoinStack({ size = 20, style }: IconProps) {
+  return svg(size, style, <g stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <ellipse cx="10" cy="5.4" rx="6.2" ry="2.6" />
+    <path d="M3.8 5.4v4.3c0 1.44 2.78 2.6 6.2 2.6s6.2-1.16 6.2-2.6V5.4" />
+    <path d="M3.8 9.7v4.3c0 1.44 2.78 2.6 6.2 2.6s6.2-1.16 6.2-2.6V9.7" />
+  </g>);
+}
 export function NavHours({ size = 20, style }: IconProps) {
   return svg(size, style, <>
     <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
