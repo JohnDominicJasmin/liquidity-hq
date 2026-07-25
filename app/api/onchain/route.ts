@@ -2,12 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
-import { hasProFeatures } from '@/lib/entitlements';
+import { hasProFeatures, getUserRole } from '@/lib/entitlements';
+import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
+import { AI_LIMITS } from '@/lib/limits';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // On-chain metrics (MVRV/SOPR/NVT/exchange flow) don't move within minutes, and
 // this is an expensive Grok web_search+x_search call - cache it across visitors.
 const CACHE_TTL = 10 * 60_000;
+
+class RateLimitError extends Error {
+  constructor(public limit: number, reason: 'user' | 'global') {
+    super(rateLimitMessage(reason, limit, 'on-chain score checks'));
+  }
+}
 
 function sb(token: string) {
   return createClient(
@@ -128,6 +136,16 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await cached('onchain', CACHE_TTL, async () => {
+      // Only the cache-miss path actually spends on xAI, so only it needs the
+      // daily cap - a cache hit stays free for everyone (same pattern as
+      // token-unlock/smc-snapshot).
+      const role = await getUserRole(token, authData.user.id);
+      const limit = AI_LIMITS[role].onchain;
+      const usageResult = await incrementToolUsage(token, authData.user.id, 'onchain', limit);
+      if (usageResult.blocked) {
+        throw new RateLimitError(limit, usageResult.reason);
+      }
+
       const stats = await fetchBlockchainStats();
       const prompt = buildOnChainPrompt(stats, btcPrice);
 
@@ -159,6 +177,9 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json(result);
   } catch (e) {
+    if (e instanceof RateLimitError) {
+      return NextResponse.json({ error: e.message, code: 'RATE_LIMIT' }, { status: 429 });
+    }
     return apiError('onchain', e, 502, 'Request failed');
   }
 }

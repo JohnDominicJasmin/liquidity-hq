@@ -45,6 +45,9 @@ const EXTRA_TOOL_COLUMN: Record<ExtraTool, string> = {
   hypothesisAnalyze: 'hypothesis_analyze_count',
   tokenUnlock:       'token_unlock_count',
   smcSnapshot:       'smc_snapshot_count',
+  dryPowder:         'dry_powder_count',
+  macroContext:      'macro_context_count',
+  onchain:           'onchain_count',
 };
 
 // blocked.reason distinguishes what actually blocked the caller - this

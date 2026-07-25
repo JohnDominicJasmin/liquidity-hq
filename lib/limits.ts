@@ -19,7 +19,7 @@ export type Tier = 'free' | 'pro';
 export type ExtraTool =
   | 'thesisCheck' | 'strategyResearch' | 'shadowAccount'
   | 'behavioralBias' | 'pineScript' | 'hypothesisAnalyze' | 'tokenUnlock'
-  | 'smcSnapshot';
+  | 'smcSnapshot' | 'dryPowder' | 'macroContext' | 'onchain';
 
 export const AI_LIMITS: Record<Tier, {
   quick: number; deep: number; chat: number; search: number; briefing: number;
@@ -28,12 +28,12 @@ export const AI_LIMITS: Record<Tier, {
     quick: 5,  deep: 3,  chat: 10,  search: 3,  briefing: 2,
     thesisCheck: 3, strategyResearch: 3, shadowAccount: 3,
     behavioralBias: 3, pineScript: 3, hypothesisAnalyze: 3, tokenUnlock: 3,
-    smcSnapshot: 3,
+    smcSnapshot: 3, dryPowder: 3, macroContext: 3, onchain: 3,
   },
   pro: {
     quick: 40, deep: 18, chat: 75, search: 18, briefing: 8,
     thesisCheck: 18, strategyResearch: 18, shadowAccount: 18,
     behavioralBias: 18, pineScript: 18, hypothesisAnalyze: 18, tokenUnlock: 18,
-    smcSnapshot: 18,
+    smcSnapshot: 18, dryPowder: 18, macroContext: 18, onchain: 18,
   },
 };

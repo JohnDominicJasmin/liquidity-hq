@@ -19,37 +19,11 @@
   transform: translateY(-1px);
 }
 
-/* The glowing border that follows the cursor */
-.mb-glow-card::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  padding: 1px;
-  background: radial-gradient(
-    var(--glow-radius) circle at var(--glow-x) var(--glow-y),
-    rgba(26, 122, 255, calc(var(--glow-intensity) * 0.9)) 0%,
-    rgba(26, 122, 255, calc(var(--glow-intensity) * 0.4)) 35%,
-    transparent 60%
-  );
-  border-radius: inherit;
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-  pointer-events: none;
-  z-index: 2;
-  transition: opacity 0.3s ease;
-}
+/* Glowing cursor-following border removed - same reasoning as the hover
+   shadow below (flat cards, no colored glows on card frames). */
 
-.mb-glow-card:hover {
-  box-shadow:
-    0 4px 20px rgba(22, 27, 64, 0.5),
-    0 0 24px rgba(26, 122, 255, 0.12);
-}
+/* Hover shadow + glow removed - flat dark cards only, no colored glows on
+   card frames (Bloomberg/Coinglass aesthetic, color on data values only). */
 
 /* Particle elements */
 .mb-particle {

@@ -164,10 +164,11 @@ DB column, new Settings UI, new cap). **Wrong — didn't check `/alerts` and
 
 ## 6. Related, not blocking this plan
 
-- ~~Telegram alert on global-cap-breach spike~~ — **done 2026-07-25**, and
+- ~~Telegram alert on global-cap-breach spike~~ — **fully done 2026-07-25**,
   switched from Telegram to email + an `/ops` dashboard banner (owner
-  rejected Telegram as the channel). See `SECURITY_AUDIT.md`. Scheduler
-  (n8n) still needs pointing at the route.
+  rejected Telegram as the channel). Scheduler confirmed live too - n8n
+  "LHQ - AI Spike Alert" workflow, hourly, real successful execution history
+  checked live. See `SECURITY_AUDIT.md`.
 - Per-user cap on the 3 cached xAI routes' cache-miss path (dry-powder,
   macro-context, onchain) — still open, tracked in `SECURITY_AUDIT.md`.
 

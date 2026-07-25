@@ -26,13 +26,16 @@ export const PRO_PRICE_USD_PER_MONTH = 25;
 
 // lhq_grok_usage columns that enable xAI's web/X search tools, billed at the
 // higher SEARCH_CALL_COST_USD rate. Every other count column is a "plain" call.
-export const SEARCH_USAGE_COLUMNS = new Set(['deep_count', 'chat_search_count']);
+// onchain uses /v1/responses with web_search+x_search (see app/api/onchain/
+// route.ts) - same search tier as deep/chat_search.
+export const SEARCH_USAGE_COLUMNS = new Set(['deep_count', 'chat_search_count', 'onchain_count']);
 
 export const ALL_USAGE_COLUMNS = [
   'quick_count', 'deep_count', 'chat_count', 'chat_search_count', 'briefing_count',
   'thesis_check_count', 'strategy_research_count', 'shadow_account_count',
   'behavioral_bias_count', 'pine_script_count', 'hypothesis_analyze_count',
   'token_unlock_count', 'smc_snapshot_count',
+  'dry_powder_count', 'macro_context_count', 'onchain_count',
 ] as const;
 
 // Estimated $ cost of one lhq_grok_usage row (one user, one day).
