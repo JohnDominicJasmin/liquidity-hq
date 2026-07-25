@@ -27,7 +27,7 @@ export const track = {
     capture('alert_created', { coin, condition }),
 
   /** User signed in */
-  signIn: (method: 'google' | 'magic_link') =>
+  signIn: (method: 'google' | 'magic_link' | 'password_signin' | 'password_signup') =>
     capture('sign_in', { method }),
 
   /** User signed out */

@@ -1,0 +1,205 @@
+-- Password auth (sign up, sign in, change password, forgot/reset password) -
+-- new labels for app/login/page.tsx, app/forgot-password/page.tsx,
+-- app/reset-password/page.tsx, app/settings/page.tsx.
+-- Run against both prod (qdpwhnvmhqgzijuwopso, table lhq_labels) and
+-- dev (wdtjhrilakoitfcezxpx, table lhq_dev_labels).
+
+insert into lhq_labels (key, locale, value) values
+('LOGIN_USE_PASSWORD_LINK', 'en', 'Use password instead'),
+('LOGIN_USE_PASSWORD_LINK', 'ko', '대신 비밀번호 사용'),
+('LOGIN_USE_PASSWORD_LINK', 'zh', '改用密码'),
+('LOGIN_USE_PASSWORD_LINK', 'ar', 'استخدام كلمة المرور بدلاً من ذلك'),
+('LOGIN_USE_PASSWORD_LINK', 'ru', 'Использовать пароль вместо этого'),
+
+('LOGIN_USE_MAGIC_LINK_LINK', 'en', 'Use magic link instead'),
+('LOGIN_USE_MAGIC_LINK_LINK', 'ko', '대신 매직 링크 사용'),
+('LOGIN_USE_MAGIC_LINK_LINK', 'zh', '改用魔法链接'),
+('LOGIN_USE_MAGIC_LINK_LINK', 'ar', 'استخدام رابط سحري بدلاً من ذلك'),
+('LOGIN_USE_MAGIC_LINK_LINK', 'ru', 'Использовать волшебную ссылку вместо этого'),
+
+('LOGIN_CONFIRM_EMAIL_TITLE', 'en', 'Confirm your email'),
+('LOGIN_CONFIRM_EMAIL_TITLE', 'ko', '이메일을 확인하세요'),
+('LOGIN_CONFIRM_EMAIL_TITLE', 'zh', '确认您的邮箱'),
+('LOGIN_CONFIRM_EMAIL_TITLE', 'ar', 'تأكيد بريدك الإلكتروني'),
+('LOGIN_CONFIRM_EMAIL_TITLE', 'ru', 'Подтвердите свою почту'),
+
+('LOGIN_CONFIRM_EMAIL_DESC_PRE', 'en', 'We sent a confirmation link to'),
+('LOGIN_CONFIRM_EMAIL_DESC_PRE', 'ko', '확인 링크를 다음 주소로 보냈습니다'),
+('LOGIN_CONFIRM_EMAIL_DESC_PRE', 'zh', '我们已将确认链接发送至'),
+('LOGIN_CONFIRM_EMAIL_DESC_PRE', 'ar', 'أرسلنا رابط تأكيد إلى'),
+('LOGIN_CONFIRM_EMAIL_DESC_PRE', 'ru', 'Мы отправили ссылку для подтверждения на'),
+
+('LOGIN_CONFIRM_EMAIL_DESC_POST', 'en', 'Click it to finish creating your account.'),
+('LOGIN_CONFIRM_EMAIL_DESC_POST', 'ko', '클릭하여 계정 생성을 완료하세요.'),
+('LOGIN_CONFIRM_EMAIL_DESC_POST', 'zh', '点击链接以完成账户创建。'),
+('LOGIN_CONFIRM_EMAIL_DESC_POST', 'ar', 'انقر عليه لإكمال إنشاء حسابك.'),
+('LOGIN_CONFIRM_EMAIL_DESC_POST', 'ru', 'Перейдите по ней, чтобы завершить создание аккаунта.'),
+
+('LOGIN_TAB_SIGNIN', 'en', 'Sign in'),
+('LOGIN_TAB_SIGNIN', 'ko', '로그인'),
+('LOGIN_TAB_SIGNIN', 'zh', '登录'),
+('LOGIN_TAB_SIGNIN', 'ar', 'تسجيل الدخول'),
+('LOGIN_TAB_SIGNIN', 'ru', 'Войти'),
+
+('LOGIN_TAB_SIGNUP', 'en', 'Create account'),
+('LOGIN_TAB_SIGNUP', 'ko', '계정 만들기'),
+('LOGIN_TAB_SIGNUP', 'zh', '创建账户'),
+('LOGIN_TAB_SIGNUP', 'ar', 'إنشاء حساب'),
+('LOGIN_TAB_SIGNUP', 'ru', 'Создать аккаунт'),
+
+('LOGIN_PASSWORD_NEW_PLACEHOLDER', 'en', 'New password'),
+('LOGIN_PASSWORD_NEW_PLACEHOLDER', 'ko', '새 비밀번호'),
+('LOGIN_PASSWORD_NEW_PLACEHOLDER', 'zh', '新密码'),
+('LOGIN_PASSWORD_NEW_PLACEHOLDER', 'ar', 'كلمة مرور جديدة'),
+('LOGIN_PASSWORD_NEW_PLACEHOLDER', 'ru', 'Новый пароль'),
+
+('LOGIN_PASSWORD_PLACEHOLDER', 'en', 'Password'),
+('LOGIN_PASSWORD_PLACEHOLDER', 'ko', '비밀번호'),
+('LOGIN_PASSWORD_PLACEHOLDER', 'zh', '密码'),
+('LOGIN_PASSWORD_PLACEHOLDER', 'ar', 'كلمة المرور'),
+('LOGIN_PASSWORD_PLACEHOLDER', 'ru', 'Пароль'),
+
+('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER', 'en', 'Confirm password'),
+('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER', 'ko', '비밀번호 확인'),
+('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER', 'zh', '确认密码'),
+('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER', 'ar', 'تأكيد كلمة المرور'),
+('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER', 'ru', 'Подтвердите пароль'),
+
+('LOGIN_CREATE_ACCOUNT_BUTTON', 'en', 'Create account'),
+('LOGIN_CREATE_ACCOUNT_BUTTON', 'ko', '계정 만들기'),
+('LOGIN_CREATE_ACCOUNT_BUTTON', 'zh', '创建账户'),
+('LOGIN_CREATE_ACCOUNT_BUTTON', 'ar', 'إنشاء حساب'),
+('LOGIN_CREATE_ACCOUNT_BUTTON', 'ru', 'Создать аккаунт'),
+
+('LOGIN_SIGNIN_BUTTON', 'en', 'Sign in'),
+('LOGIN_SIGNIN_BUTTON', 'ko', '로그인'),
+('LOGIN_SIGNIN_BUTTON', 'zh', '登录'),
+('LOGIN_SIGNIN_BUTTON', 'ar', 'تسجيل الدخول'),
+('LOGIN_SIGNIN_BUTTON', 'ru', 'Войти'),
+
+('LOGIN_FORGOT_PASSWORD_LINK', 'en', 'Forgot password?'),
+('LOGIN_FORGOT_PASSWORD_LINK', 'ko', '비밀번호를 잊으셨나요?'),
+('LOGIN_FORGOT_PASSWORD_LINK', 'zh', '忘记密码？'),
+('LOGIN_FORGOT_PASSWORD_LINK', 'ar', 'نسيت كلمة المرور؟'),
+('LOGIN_FORGOT_PASSWORD_LINK', 'ru', 'Забыли пароль?'),
+
+('LOGIN_PASSWORD_MISMATCH', 'en', 'Passwords do not match'),
+('LOGIN_PASSWORD_MISMATCH', 'ko', '비밀번호가 일치하지 않습니다'),
+('LOGIN_PASSWORD_MISMATCH', 'zh', '密码不匹配'),
+('LOGIN_PASSWORD_MISMATCH', 'ar', 'كلمتا المرور غير متطابقتين'),
+('LOGIN_PASSWORD_MISMATCH', 'ru', 'Пароли не совпадают'),
+
+('LOGIN_PASSWORD_TOO_SHORT', 'en', 'Password must be at least 8 characters'),
+('LOGIN_PASSWORD_TOO_SHORT', 'ko', '비밀번호는 8자 이상이어야 합니다'),
+('LOGIN_PASSWORD_TOO_SHORT', 'zh', '密码至少需要8个字符'),
+('LOGIN_PASSWORD_TOO_SHORT', 'ar', 'يجب أن تتكون كلمة المرور من 8 أحرف على الأقل'),
+('LOGIN_PASSWORD_TOO_SHORT', 'ru', 'Пароль должен содержать не менее 8 символов'),
+
+('FORGOT_PASSWORD_SUBTITLE', 'en', 'Enter your email and we will send you a link to reset your password.'),
+('FORGOT_PASSWORD_SUBTITLE', 'ko', '이메일을 입력하시면 비밀번호 재설정 링크를 보내드립니다.'),
+('FORGOT_PASSWORD_SUBTITLE', 'zh', '输入您的邮箱，我们将向您发送重置密码的链接。'),
+('FORGOT_PASSWORD_SUBTITLE', 'ar', 'أدخل بريدك الإلكتروني وسنرسل لك رابطًا لإعادة تعيين كلمة المرور.'),
+('FORGOT_PASSWORD_SUBTITLE', 'ru', 'Введите свою почту, и мы отправим вам ссылку для сброса пароля.'),
+
+('FORGOT_PASSWORD_SENT_TITLE', 'en', 'Check your inbox'),
+('FORGOT_PASSWORD_SENT_TITLE', 'ko', '받은 편지함을 확인하세요'),
+('FORGOT_PASSWORD_SENT_TITLE', 'zh', '请查收您的邮箱'),
+('FORGOT_PASSWORD_SENT_TITLE', 'ar', 'تحقق من بريدك الوارد'),
+('FORGOT_PASSWORD_SENT_TITLE', 'ru', 'Проверьте почту'),
+
+('FORGOT_PASSWORD_SENT_DESC_PRE', 'en', 'If an account exists for'),
+('FORGOT_PASSWORD_SENT_DESC_PRE', 'ko', '다음 계정이 존재하는 경우'),
+('FORGOT_PASSWORD_SENT_DESC_PRE', 'zh', '如果该账户存在'),
+('FORGOT_PASSWORD_SENT_DESC_PRE', 'ar', 'إذا كان هناك حساب مسجل باسم'),
+('FORGOT_PASSWORD_SENT_DESC_PRE', 'ru', 'Если аккаунт существует для'),
+
+('FORGOT_PASSWORD_SENT_DESC_POST', 'en', 'a password reset link is on its way.'),
+('FORGOT_PASSWORD_SENT_DESC_POST', 'ko', '비밀번호 재설정 링크가 발송됩니다.'),
+('FORGOT_PASSWORD_SENT_DESC_POST', 'zh', '密码重置链接正在发送中。'),
+('FORGOT_PASSWORD_SENT_DESC_POST', 'ar', 'فإن رابط إعادة تعيين كلمة المرور في طريقه إليك.'),
+('FORGOT_PASSWORD_SENT_DESC_POST', 'ru', 'ссылка для сброса пароля уже отправлена.'),
+
+('FORGOT_PASSWORD_BACK_TO_LOGIN', 'en', 'Back to sign in'),
+('FORGOT_PASSWORD_BACK_TO_LOGIN', 'ko', '로그인으로 돌아가기'),
+('FORGOT_PASSWORD_BACK_TO_LOGIN', 'zh', '返回登录'),
+('FORGOT_PASSWORD_BACK_TO_LOGIN', 'ar', 'العودة لتسجيل الدخول'),
+('FORGOT_PASSWORD_BACK_TO_LOGIN', 'ru', 'Назад ко входу'),
+
+('FORGOT_PASSWORD_SEND_BUTTON', 'en', 'Send reset link'),
+('FORGOT_PASSWORD_SEND_BUTTON', 'ko', '재설정 링크 보내기'),
+('FORGOT_PASSWORD_SEND_BUTTON', 'zh', '发送重置链接'),
+('FORGOT_PASSWORD_SEND_BUTTON', 'ar', 'إرسال رابط إعادة التعيين'),
+('FORGOT_PASSWORD_SEND_BUTTON', 'ru', 'Отправить ссылку для сброса'),
+
+('RESET_PASSWORD_INVALID_LINK', 'en', 'This password reset link is invalid or has expired.'),
+('RESET_PASSWORD_INVALID_LINK', 'ko', '이 비밀번호 재설정 링크는 유효하지 않거나 만료되었습니다.'),
+('RESET_PASSWORD_INVALID_LINK', 'zh', '此密码重置链接无效或已过期。'),
+('RESET_PASSWORD_INVALID_LINK', 'ar', 'رابط إعادة تعيين كلمة المرور هذا غير صالح أو منتهي الصلاحية.'),
+('RESET_PASSWORD_INVALID_LINK', 'ru', 'Эта ссылка для сброса пароля недействительна или срок её действия истёк.'),
+
+('RESET_PASSWORD_REQUEST_NEW_LINK', 'en', 'Request a new link'),
+('RESET_PASSWORD_REQUEST_NEW_LINK', 'ko', '새 링크 요청하기'),
+('RESET_PASSWORD_REQUEST_NEW_LINK', 'zh', '请求新链接'),
+('RESET_PASSWORD_REQUEST_NEW_LINK', 'ar', 'طلب رابط جديد'),
+('RESET_PASSWORD_REQUEST_NEW_LINK', 'ru', 'Запросить новую ссылку'),
+
+('RESET_PASSWORD_SUBTITLE', 'en', 'Choose a new password for your account.'),
+('RESET_PASSWORD_SUBTITLE', 'ko', '계정의 새 비밀번호를 설정하세요.'),
+('RESET_PASSWORD_SUBTITLE', 'zh', '为您的账户设置新密码。'),
+('RESET_PASSWORD_SUBTITLE', 'ar', 'اختر كلمة مرور جديدة لحسابك.'),
+('RESET_PASSWORD_SUBTITLE', 'ru', 'Выберите новый пароль для своего аккаунта.'),
+
+('RESET_PASSWORD_SUCCESS_TITLE', 'en', 'Password updated'),
+('RESET_PASSWORD_SUCCESS_TITLE', 'ko', '비밀번호가 변경되었습니다'),
+('RESET_PASSWORD_SUCCESS_TITLE', 'zh', '密码已更新'),
+('RESET_PASSWORD_SUCCESS_TITLE', 'ar', 'تم تحديث كلمة المرور'),
+('RESET_PASSWORD_SUCCESS_TITLE', 'ru', 'Пароль обновлён'),
+
+('RESET_PASSWORD_SUCCESS_DESC', 'en', 'Taking you to your dashboard...'),
+('RESET_PASSWORD_SUCCESS_DESC', 'ko', '대시보드로 이동 중입니다...'),
+('RESET_PASSWORD_SUCCESS_DESC', 'zh', '正在跳转到您的仪表板...'),
+('RESET_PASSWORD_SUCCESS_DESC', 'ar', 'جارٍ نقلك إلى لوحة التحكم...'),
+('RESET_PASSWORD_SUCCESS_DESC', 'ru', 'Переходим в панель управления...'),
+
+('RESET_PASSWORD_SUBMIT_BUTTON', 'en', 'Set new password'),
+('RESET_PASSWORD_SUBMIT_BUTTON', 'ko', '새 비밀번호 설정'),
+('RESET_PASSWORD_SUBMIT_BUTTON', 'zh', '设置新密码'),
+('RESET_PASSWORD_SUBMIT_BUTTON', 'ar', 'تعيين كلمة مرور جديدة'),
+('RESET_PASSWORD_SUBMIT_BUTTON', 'ru', 'Установить новый пароль'),
+
+('SETTINGS_PASSWORD_LABEL', 'en', 'Password'),
+('SETTINGS_PASSWORD_LABEL', 'ko', '비밀번호'),
+('SETTINGS_PASSWORD_LABEL', 'zh', '密码'),
+('SETTINGS_PASSWORD_LABEL', 'ar', 'كلمة المرور'),
+('SETTINGS_PASSWORD_LABEL', 'ru', 'Пароль'),
+
+('SETTINGS_PASSWORD_DESC', 'en', 'Set or update the password used to sign in with email.'),
+('SETTINGS_PASSWORD_DESC', 'ko', '이메일 로그인에 사용되는 비밀번호를 설정하거나 변경하세요.'),
+('SETTINGS_PASSWORD_DESC', 'zh', '设置或更新用于邮箱登录的密码。'),
+('SETTINGS_PASSWORD_DESC', 'ar', 'قم بتعيين أو تحديث كلمة المرور المستخدمة لتسجيل الدخول عبر البريد الإلكتروني.'),
+('SETTINGS_PASSWORD_DESC', 'ru', 'Установите или обновите пароль для входа по почте.'),
+
+('SETTINGS_PASSWORD_SAVE_BUTTON', 'en', 'Save password'),
+('SETTINGS_PASSWORD_SAVE_BUTTON', 'ko', '비밀번호 저장'),
+('SETTINGS_PASSWORD_SAVE_BUTTON', 'zh', '保存密码'),
+('SETTINGS_PASSWORD_SAVE_BUTTON', 'ar', 'حفظ كلمة المرور'),
+('SETTINGS_PASSWORD_SAVE_BUTTON', 'ru', 'Сохранить пароль'),
+
+('SETTINGS_PASSWORD_SAVED', 'en', 'Password updated.'),
+('SETTINGS_PASSWORD_SAVED', 'ko', '비밀번호가 변경되었습니다.'),
+('SETTINGS_PASSWORD_SAVED', 'zh', '密码已更新。'),
+('SETTINGS_PASSWORD_SAVED', 'ar', 'تم تحديث كلمة المرور.'),
+('SETTINGS_PASSWORD_SAVED', 'ru', 'Пароль обновлён.'),
+
+('SETTINGS_PASSWORD_MISMATCH', 'en', 'Passwords do not match'),
+('SETTINGS_PASSWORD_MISMATCH', 'ko', '비밀번호가 일치하지 않습니다'),
+('SETTINGS_PASSWORD_MISMATCH', 'zh', '密码不匹配'),
+('SETTINGS_PASSWORD_MISMATCH', 'ar', 'كلمتا المرور غير متطابقتين'),
+('SETTINGS_PASSWORD_MISMATCH', 'ru', 'Пароли не совпадают'),
+
+('SETTINGS_PASSWORD_TOO_SHORT', 'en', 'Password must be at least 8 characters'),
+('SETTINGS_PASSWORD_TOO_SHORT', 'ko', '비밀번호는 8자 이상이어야 합니다'),
+('SETTINGS_PASSWORD_TOO_SHORT', 'zh', '密码至少需要8个字符'),
+('SETTINGS_PASSWORD_TOO_SHORT', 'ar', 'يجب أن تتكون كلمة المرور من 8 أحرف على الأقل'),
+('SETTINGS_PASSWORD_TOO_SHORT', 'ru', 'Пароль должен содержать не менее 8 символов')
+on conflict (key, locale) do update set value = excluded.value;
