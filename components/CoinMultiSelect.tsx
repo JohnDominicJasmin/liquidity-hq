@@ -22,6 +22,10 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3 }: P
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef    = useRef<HTMLDivElement>(null);
   const searchRef   = useRef<HTMLInputElement>(null);
+  // Checked coins sort to the top, but only re-sorted when the panel opens -
+  // not on every toggle, or the list would reshuffle under the cursor while
+  // checking off several coins in a row.
+  const orderRef    = useRef<CoinId[]>(COINS);
 
   const positionPanel = useCallback(() => {
     if (!triggerRef.current) return;
@@ -30,10 +34,15 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3 }: P
   }, []);
 
   const openPanel = useCallback(() => {
+    orderRef.current = [...COINS].sort((a, b) => {
+      const aChecked = value.includes(a);
+      const bChecked = value.includes(b);
+      return aChecked === bChecked ? 0 : aChecked ? -1 : 1;
+    });
     positionPanel();
     setOpen(true);
     setTimeout(() => searchRef.current?.focus(), 30);
-  }, [positionPanel]);
+  }, [positionPanel, value]);
 
   useEffect(() => {
     if (!open) return;
@@ -62,7 +71,7 @@ export default function CoinMultiSelect({ value, onChange, previewCount = 3 }: P
     onChange(value.includes(c) ? value.filter(x => x !== c) : [...value, c]);
   };
 
-  const filtered = COINS.filter(c => c.toUpperCase().includes(search.toUpperCase()));
+  const filtered = orderRef.current.filter(c => c.toUpperCase().includes(search.toUpperCase()));
 
   const summary = value.length === 0
     ? t('COIN_SELECT_PLACEHOLDER')
