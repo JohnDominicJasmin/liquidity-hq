@@ -10,9 +10,11 @@ import { useLabels } from '@/lib/labels';
 interface Props {
   value: string[];
   onChange: (next: string[]) => void;
+  /** How many selected coins the closed trigger previews before "+N more". Default 3. */
+  previewCount?: number;
 }
 
-export default function CoinMultiSelect({ value, onChange }: Props) {
+export default function CoinMultiSelect({ value, onChange, previewCount = 3 }: Props) {
   const { t } = useLabels();
   const [open, setOpen]     = useState(false);
   const [search, setSearch] = useState('');
@@ -64,9 +66,9 @@ export default function CoinMultiSelect({ value, onChange }: Props) {
 
   const summary = value.length === 0
     ? t('COIN_SELECT_PLACEHOLDER')
-    : value.length <= 3
+    : value.length <= previewCount
     ? value.map(c => c.toUpperCase()).join(', ')
-    : `${value.slice(0, 3).map(c => c.toUpperCase()).join(', ')} +${value.length - 3} more`;
+    : `${value.slice(0, previewCount).map(c => c.toUpperCase()).join(', ')} +${value.length - previewCount} more`;
 
   return (
     <>
