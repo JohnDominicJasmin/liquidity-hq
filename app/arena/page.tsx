@@ -231,6 +231,23 @@ function ArenaContent() {
     }
   }
 
+  /* ── Scroll to the usage meter when linked via #usage-meter (nav's "view
+     usage" link). Next's client-side Link navigation updates the URL hash
+     but doesn't trigger the browser's native anchor-scroll, and clicking it
+     while already on /arena doesn't remount this page at all - so `hashchange`
+     is the one signal that reliably fires for both the same-page and
+     cross-page cases. ── */
+  useEffect(() => {
+    const scrollToUsage = () => {
+      if (window.location.hash === '#usage-meter') {
+        document.getElementById('usage-meter')?.scrollIntoView({ behavior: 'auto', block: 'start' });
+      }
+    };
+    scrollToUsage();
+    window.addEventListener('hashchange', scrollToUsage);
+    return () => window.removeEventListener('hashchange', scrollToUsage);
+  }, []);
+
   /* ── Anti-chop toggle: load from localStorage on mount, save on change ── */
   useEffect(() => {
     if (!filterLoadedRef.current) {
@@ -1455,8 +1472,14 @@ function ArenaContent() {
       </div>
 
       {/* Live daily-usage meter - remaining Quick/Deep + reset countdown. Visible
-          scarcity (freemium plan move #3) instead of a silently-disabled button. */}
-      <UsageMeter />
+          scarcity (freemium plan move #3) instead of a silently-disabled button.
+          id + scroll-margin-top: the nav's "view usage" link points at
+          #usage-meter so it scrolls straight here instead of dumping the user
+          at the top of the whole Arena page - scroll-margin-top clears the
+          sticky ticker+nav bar so the meter doesn't land hidden under them. */}
+      <div id="usage-meter" style={{ scrollMarginTop: 90 }}>
+        <UsageMeter />
+      </div>
 
       {/* ── Price alert inline form - buy/sell-panel styling ── */}
       {alertFormOpen && user && (
