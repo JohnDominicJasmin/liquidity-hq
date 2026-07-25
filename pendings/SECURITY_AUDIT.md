@@ -24,14 +24,22 @@ abuse, traceability, general exploit surface.
   Trigger -> HTTP GET `/api/ops/spike-alert`, published, real execution
   history shows hourly runs succeeding (checked live 2026-07-25, e.g.
   13:00/12:00/11:00 all succeeded in under 1s). Nothing left open here.
-- **Per-user cap on the 3 cached xAI routes' cache-miss path** (dry-powder,
-  macro-context, onchain). Fixed-key caching already bounds cost to ~1
-  call/TTL, but there's no per-user counter for symmetry/attribution with
-  the rest of the metered routes. Not attempted.
+- ~~Per-user cap on the 3 cached xAI routes' cache-miss path~~ — **done
+  2026-07-25.** dry-powder, macro-context, onchain now each go through
+  `incrementToolUsage` on the cache-miss path only (same pattern as
+  `token_unlock_count`/`smc_snapshot_count`) - a cache hit stays free for
+  everyone, only the real xAI call counts against the caller's own daily
+  quota. New columns + `increment_ai_usage()` whitelist entries applied live
+  on both prod and dev.
 - **IP/velocity signup Auth Hook (optional).** A Supabase
   `before-user-created` Auth Hook could reject when >N signups come from one
   IP/day. Turnstile CAPTCHA + the disposable-domain blocklist already cover
   the higher-value cases here, so this is genuinely optional, not a gap.
+
+## Nothing else open
+
+All P0/P1/P2 findings from the original audit are resolved. The only item
+left in this doc (IP/velocity signup hook) is explicitly optional.
 
 ## Also still open, tracked elsewhere
 
