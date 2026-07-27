@@ -13,6 +13,19 @@ import { getSupabase } from '@/lib/supabase';
 import { nextResetLocalTime } from '@/lib/resetTime';
 import { withAlpha } from '@/lib/color';
 
+// A 429 from /api/grok-chat can mean the caller's own daily cap OR the
+// app-wide circuit breaker (AI_GLOBAL_DAILY_MAX) - the server already words
+// each case correctly (lib/aiUsage.ts rateLimitMessage), so use its message
+// rather than assuming the personal cap. This used to hardcode "No chat
+// messages left today", which told a user their quota was gone while the
+// usage meter beside it still showed quota remaining.
+// The reset time only makes sense for a personal cap; a breaker trip clears
+// when overall load drops, not at midnight, and its message says so itself.
+function rateLimitText(serverMsg: unknown, fallback: string): string {
+  if (typeof serverMsg === 'string' && serverMsg.trim()) return serverMsg;
+  return `${fallback} - resets at ${nextResetLocalTime()}.`;
+}
+
 interface Msg {
   role: 'user' | 'assistant';
   content: string;
@@ -410,7 +423,7 @@ export default function GrokChat() {
             const u = j.usage;
             if (u && usage) setUsage({ ...usage, ...u });
             setRateLimited(true);
-            setError(`No live searches left today - resets at ${nextResetLocalTime()}.`);
+            setError(rateLimitText(j?.error, 'No live searches left today'));
             setLoading(false);
             return;
           }
@@ -437,7 +450,7 @@ export default function GrokChat() {
             const u = j.usage;
             if (u && usage) setUsage({ ...usage, ...u });
             setRateLimited(true);
-            setError(`No chat messages left today - resets at ${nextResetLocalTime()}.`);
+            setError(rateLimitText(j?.error, 'No chat messages left today'));
             setLoading(false);
             return;
           }

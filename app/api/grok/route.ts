@@ -4,7 +4,7 @@ import { parseCombinedResponse } from '@/lib/grok';
 import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
-import { AI_LIMITS } from '@/lib/limits';
+import { AI_LIMITS, type Tier } from '@/lib/limits';
 import { incrementUsageColumn, rateLimitMessage } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 
@@ -21,7 +21,7 @@ function sb(token?: string) {
 
 async function getUsageRow(token: string, userId: string, today: string) {
   const { data } = await sb(token).from(T.grok_usage)
-    .select('deep_count, quick_count, chat_count, chat_search_count, briefing_count')
+    .select('deep_count, quick_count, chat_count, chat_search_count, briefing_count, tool_pool_count')
     .eq('user_id', userId)
     .eq('date', today)
     .maybeSingle();
@@ -31,7 +31,16 @@ async function getUsageRow(token: string, userId: string, today: string) {
     chatUsed:     data?.chat_count        ?? 0,
     searchUsed:   data?.chat_search_count ?? 0,
     briefingUsed: data?.briefing_count    ?? 0,
+    toolPoolUsed: data?.tool_pool_count   ?? 0,
   };
+}
+
+// The shared one-shot-tool budget (lib/limits.ts AI_LIMITS[role].toolPool) is
+// Pro-only - free stays on per-tool caps, so there is no single number to show
+// a free user. 0 means "no pool", and UsageRings skips the ring entirely
+// rather than rendering a meaningless 0/0.
+function toolPoolLimitFor(role: Tier): number {
+  return AI_LIMITS[role].toolPool ?? 0;
 }
 
 // ── GET - return today's usage without running an analysis ──────────────────
@@ -44,7 +53,7 @@ export async function GET(req: NextRequest) {
   if (!userId) return NextResponse.json({ usage: null });
 
   const today = new Date().toISOString().slice(0, 10);
-  const [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed }, role] = await Promise.all([
+  const [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed }, role] = await Promise.all([
     getUsageRow(token, userId, today),
     getUserRole(token, userId),
   ]);
@@ -56,11 +65,12 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     usage: {
-      deep_used:     deepUsed,     deep_limit:     deepLimit,
-      quick_used:    quickUsed,    quick_limit:    quickLimit,
-      chat_used:     chatUsed,     chat_limit:     chatLimit,
-      search_used:   searchUsed,   search_limit:   searchLimit,
-      briefing_used: briefingUsed, briefing_limit: briefingLimit,
+      deep_used:      deepUsed,     deep_limit:      deepLimit,
+      quick_used:     quickUsed,    quick_limit:     quickLimit,
+      chat_used:      chatUsed,     chat_limit:      chatLimit,
+      search_used:    searchUsed,   search_limit:    searchLimit,
+      briefing_used:  briefingUsed, briefing_limit:  briefingLimit,
+      tool_pool_used: toolPoolUsed, tool_pool_limit: toolPoolLimitFor(role),
     },
   });
 }
@@ -93,7 +103,7 @@ export async function POST(req: NextRequest) {
 
   // ── Rate limit check ──────────────────────────────────────────────────────
   const today = new Date().toISOString().slice(0, 10);
-  let [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed }, role] = await Promise.all([
+  let [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed }, role] = await Promise.all([
     getUsageRow(token!, userId, today),
     getUserRole(token!, userId),
   ]);
@@ -104,11 +114,12 @@ export async function POST(req: NextRequest) {
   const briefingLimit = AI_LIMITS[role].briefing;
 
   const allUsage = () => ({
-    deep_used:     deepUsed,     deep_limit:     deepLimit,
-    quick_used:    quickUsed,    quick_limit:    quickLimit,
-    chat_used:     chatUsed,     chat_limit:     chatLimit,
-    search_used:   searchUsed,   search_limit:   searchLimit,
-    briefing_used: briefingUsed, briefing_limit: briefingLimit,
+    deep_used:      deepUsed,     deep_limit:      deepLimit,
+    quick_used:     quickUsed,    quick_limit:     quickLimit,
+    chat_used:      chatUsed,     chat_limit:      chatLimit,
+    search_used:    searchUsed,   search_limit:    searchLimit,
+    briefing_used:  briefingUsed, briefing_limit:  briefingLimit,
+    tool_pool_used: toolPoolUsed, tool_pool_limit: toolPoolLimitFor(role),
   });
 
   // Atomic check-and-increment (reserve before spending on xAI) - closes the

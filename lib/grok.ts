@@ -7,6 +7,13 @@ export interface GrokUsageInfo {
   chat_used:     number; chat_limit:     number;
   search_used:   number; search_limit:   number;
   briefing_used: number; briefing_limit: number;
+  // Shared daily budget across all 11 one-shot AI tools (thesis check, pine
+  // script, SMC snapshot, on-chain, ...). Pro-only - a 0 limit means this tier
+  // has no pool (free is capped per tool instead), and the UI hides the ring.
+  // Optional because a cached/in-flight response from before this field
+  // existed would otherwise render NaN.
+  tool_pool_used?:  number;
+  tool_pool_limit?: number;
 }
 
 /** Client-side proxy call - routes through /api/grok (key stays server-side, rate-limited). */
