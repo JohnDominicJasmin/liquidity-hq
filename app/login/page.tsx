@@ -264,6 +264,7 @@ function LoginInner() {
                   form works unchanged until Turnstile is actually set up. */}
               {TURNSTILE_SITE_KEY && (
                 <Turnstile
+                  id="cf-turnstile-magiclink"
                   ref={turnstileRef}
                   siteKey={TURNSTILE_SITE_KEY}
                   onSuccess={setCaptchaToken}
@@ -362,6 +363,7 @@ function LoginInner() {
 
               {TURNSTILE_SITE_KEY && (
                 <Turnstile
+                  id="cf-turnstile-password"
                   ref={pwTurnstileRef}
                   siteKey={TURNSTILE_SITE_KEY}
                   onSuccess={setPwCaptchaToken}
