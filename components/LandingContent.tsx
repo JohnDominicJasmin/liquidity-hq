@@ -192,7 +192,7 @@ export default function LandingContent({ dict, locale, dir }: Props) {
               <ul className="lp-plan-features">
                 {dict.pricing.free.features.map((f, i) => (
                   <li key={i}>
-                    <span className={i < 6 ? 'lp-check' : 'lp-x'}>{i < 6 ? '✓' : '✕'}</span> {f}
+                    <span className={f.included ? 'lp-check' : 'lp-x'}>{f.included ? '✓' : '✕'}</span> {f.text}
                   </li>
                 ))}
               </ul>
