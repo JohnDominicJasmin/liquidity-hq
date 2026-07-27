@@ -7,8 +7,6 @@ import { useSettings } from '@/lib/settings';
 import { useLabels } from '@/lib/labels';
 import LanguageSelect from './LanguageSelect';
 import { COINS } from '@/lib/marketStore';
-import { useGrokUsage } from '@/components/GrokUsageProvider';
-import UsageRings from '@/components/UsageRings';
 import CoinMultiSelect from '@/components/CoinMultiSelect';
 import ThemeChips from '@/components/ThemeChips';
 import { track } from '@/lib/analytics';
@@ -31,7 +29,6 @@ export default function SettingsModal({ open, onClose }: Props) {
   const { t } = useLabels();
   const { user, signOut } = useAuth();
   const { settings, saveStatus, update } = useSettings();
-  const { usage }               = useGrokUsage();
   const [tgStatus, setTgStatus] = useState<'loading' | 'configured' | 'not_configured'>('loading');
 
   // Close on Escape
@@ -92,12 +89,6 @@ export default function SettingsModal({ open, onClose }: Props) {
           <div className="smod-section">
             <div className="smod-section-title">{t('SETTINGS_SECTION_ACCOUNT')}</div>
             {user && <div className="smod-email">{user.email}</div>}
-
-            {usage && (
-              <div style={{ margin: '10px 0' }}>
-                <UsageRings usage={usage} />
-              </div>
-            )}
 
             {user && (
               <button className="st-signout-btn" onClick={async () => {

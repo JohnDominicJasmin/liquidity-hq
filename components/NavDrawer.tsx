@@ -6,6 +6,7 @@ import { useMarket } from '@/lib/marketStore';
 import { useAuth } from './AuthProvider';
 import { track } from '@/lib/analytics';
 import SettingsModal from './SettingsModal';
+import UsageModal from './UsageModal';
 import LanguageNavSwitcher from './LanguageNavSwitcher';
 import { getCurrentWindow } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
@@ -245,6 +246,7 @@ export default function NavDrawer() {
   const [openDrop, setOpenDrop]         = useState<DropKey | null>(null);
   const [authOpen, setAuthOpen]         = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [usageOpen, setUsageOpen] = useState(false);
   const { theme, toggleTheme }          = useTheme();
   const pathname = usePathname();
   const router   = useRouter();
@@ -368,7 +370,7 @@ export default function NavDrawer() {
                       <button
                         className="auth-dropdown-usage"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', padding: 0 }}
-                        onClick={() => { setAuthOpen(false); setSettingsOpen(true); }}
+                        onClick={() => { setAuthOpen(false); setUsageOpen(true); }}
                       >
                         {t('NAV_VIEW_USAGE')}
                       </button>
@@ -408,6 +410,7 @@ export default function NavDrawer() {
       </div>
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <UsageModal open={usageOpen} onClose={() => setUsageOpen(false)} />
 
       {/* Mobile bottom tab bar - 4 direct one-tap destinations plus a "More"
           tab that opens the full drawer. The app has ~25 screens but only 4

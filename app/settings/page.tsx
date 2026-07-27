@@ -4,8 +4,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
-import { useGrokUsage } from '@/components/GrokUsageProvider';
-import UsageRings from '@/components/UsageRings';
 import CoinMultiSelect from '@/components/CoinMultiSelect';
 import ThemeChips from '@/components/ThemeChips';
 import { track } from '@/lib/analytics';
@@ -58,7 +56,6 @@ export default function SettingsPage() {
   const { t } = useLabels();
   const { user, loading: authLoading, signOut } = useAuth();
   const { settings, saveStatus, update } = useSettings();
-  const { usage }                                                    = useGrokUsage();
   const [tgStatus, setTgStatus] = useState<'loading' | 'configured' | 'not_configured'>('loading');
   const [pushEnabled,  setPushEnabled]  = useState(false);
   const [pushWorking,  setPushWorking]  = useState(false);
@@ -249,12 +246,6 @@ export default function SettingsPage() {
           <div className="st-field-label">{t('SETTINGS_SIGNED_IN_AS')}</div>
           <div className="st-field-value">{user?.email}</div>
         </div>
-
-        {usage && (
-          <div className="st-field">
-            <UsageRings usage={usage} />
-          </div>
-        )}
 
         <div className="st-field">
           <div className="st-field-label">{t('SETTINGS_PASSWORD_LABEL')}</div>
