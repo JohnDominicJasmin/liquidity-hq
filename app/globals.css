@@ -3955,12 +3955,12 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 .login-email-input:focus { border-color: var(--purple-bdr); }
 .login-email-btn {
   width: 100%; padding: 11px 16px; border-radius: 12px;
-  background: var(--accent-bg); border: 0.5px solid var(--accent-bdr);
-  color: var(--accent); font-size: var(--fs-label); font-weight: 600; cursor: pointer;
+  background: var(--accent); border: 0.5px solid var(--accent);
+  color: #fff; font-size: var(--fs-label); font-weight: 600; cursor: pointer;
   transition: all 0.15s; font-family: inherit; letter-spacing: -0.1px;
   display: flex; align-items: center; justify-content: center; gap: 8px;
 }
-.login-email-btn:hover:not(:disabled) { background: rgba(26,122,255,0.12); border-color: var(--accent); }
+.login-email-btn:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
 .login-email-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Turnstile CAPTCHA - centered under the email form, only rendered once

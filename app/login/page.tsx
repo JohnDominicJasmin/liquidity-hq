@@ -159,6 +159,18 @@ function LoginInner() {
         // redirect effect above fires once `user` updates.
         return;
       }
+      // Supabase deliberately returns the same 200 shape for a brand-new
+      // signup and a repeat signup against an already-confirmed email (so
+      // the response can't be used to enumerate registered addresses) - the
+      // only client-visible difference is `identities: []` on the repeat
+      // case. Without this check every repeat signup fell into the
+      // "check your inbox" branch below even though GoTrue sends no email
+      // at all, leaving the user staring at an inbox that will never get it.
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        setPwMode('signin');
+        setPwError(t('LOGIN_EMAIL_ALREADY_REGISTERED'));
+        return;
+      }
       // Confirm-email is on - Supabase created the user but withheld a
       // session until the emailed link is clicked. Show the same "check your
       // inbox" pattern the magic-link flow already uses.
