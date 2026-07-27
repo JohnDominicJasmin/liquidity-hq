@@ -220,6 +220,7 @@ const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d'];
 let emaSignalOverlayRegistered = false;
 let srLevelLineRegistered = false;
 let gexLevelLineRegistered = false;
+let analysisLevelLineRegistered = false;
 let reversalOverlayRegistered = false;
 
 interface SRLevel { price: number; type: 'support' | 'resistance'; touches: number; }
@@ -795,6 +796,46 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         });
       }
 
+      if (!analysisLevelLineRegistered) {
+        analysisLevelLineRegistered = true;
+        // Entry/stop/target used to draw as the built-in `horizontalStraightLine`
+        // overlay - a plain colored dash with no text, while S/R and GEX levels
+        // right next to them get a price-tag label. Visually the three most
+        // important levels on the chart were the LEAST identifiable ones: a
+        // trader had to cross-reference the color against the text grid above
+        // to know which line was which, and an entry line sitting a few dollars
+        // from a resistance level was often indistinguishable from it. Same
+        // registerOverlay shape as srLevelLine/gexLevelLine, just its own label
+        // text and color per kind.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kc as any).registerOverlay({
+          name: 'analysisLevelLine',
+          totalStep: 1,
+          needDefaultPointFigure: false,
+          needDefaultXAxisFigure: false,
+          needDefaultYAxisFigure: false,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createPointFigures: ({ overlay, coordinates, bounding }: { overlay: any; coordinates: Array<{ x: number; y: number }>; bounding: any }) => {
+            const { label, price, color } = overlay.extendData as { label: string; price: number; color: string };
+            const y = coordinates[0]?.y;
+            if (y == null || !isFinite(y) || y < 0) return [];
+            const rightX = (bounding?.width ?? 9999);
+            return [
+              {
+                type: 'line',
+                attrs: { coordinates: [{ x: 0, y }, { x: rightX, y }] },
+                styles: { style: 'dashed', color, size: 1.5, dashedValue: [5, 3] },
+              },
+              {
+                type: 'text',
+                attrs: { x: 6, y: y - 3, text: `${label} $${fmtPx(price)}`, align: 'left', baseline: 'bottom' },
+                styles: { color, size: 10, weight: '700' },
+              },
+            ];
+          },
+        });
+      }
+
       // DataLoader
       const loader: DataLoader = {
         getBars: async ({ symbol, period, callback }) => {
@@ -1006,21 +1047,24 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     analysisIds.current = [];
     if (!result) return;
 
-    const draw = (price: number, color: string) => {
+    const draw = (price: number, color: string, label: string) => {
       const id = chart.createOverlay({
-        name: 'horizontalStraightLine',
+        name: 'analysisLevelLine',
         groupId: 'analysis',
         lock: true,
         points: [{ value: price }],
-        styles: { line: { style: 'dashed', color, size: 1 } },
+        extendData: { label, price, color },
       } as OverlayCreate);
       if (typeof id === 'string') analysisIds.current.push(id);
     };
 
-    if (result.entryLow)  draw(result.entryLow,  '#34d399');
-    if (result.entryHigh) draw(result.entryHigh, '#34d399');
-    if (result.sl)        draw(result.sl,        '#f87171');
-    if (result.tp)        draw(result.tp,        '#5aa3ff');
+    // Both entry bounds are labeled "ENTRY" (not "ENTRY LOW"/"ENTRY HIGH") - two
+    // same-colored, same-labeled lines read as one zone's edges; splitting the
+    // label would suggest two different things to watch instead of one range.
+    if (result.entryLow)  draw(result.entryLow,  '#34d399', 'ENTRY');
+    if (result.entryHigh) draw(result.entryHigh, '#34d399', 'ENTRY');
+    if (result.sl)        draw(result.sl,        '#f87171', 'STOP');
+    if (result.tp)        draw(result.tp,        '#5aa3ff', 'TARGET');
   }, [result]);
 
   // ── EMA signal markers - all significant crosses in the loaded data ──────────────
