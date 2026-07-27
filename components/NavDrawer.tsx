@@ -6,6 +6,7 @@ import { useMarket } from '@/lib/marketStore';
 import { useAuth } from './AuthProvider';
 import { track } from '@/lib/analytics';
 import SettingsModal from './SettingsModal';
+import UsageModal from './UsageModal';
 import LanguageNavSwitcher from './LanguageNavSwitcher';
 import { getCurrentWindow } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
@@ -245,6 +246,7 @@ export default function NavDrawer() {
   const [openDrop, setOpenDrop]         = useState<DropKey | null>(null);
   const [authOpen, setAuthOpen]         = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [usageOpen, setUsageOpen] = useState(false);
   const { theme, toggleTheme }          = useTheme();
   const pathname = usePathname();
   const router   = useRouter();
@@ -365,21 +367,13 @@ export default function NavDrawer() {
                   {authOpen && (
                     <div className="auth-dropdown">
                       <div className="auth-dropdown-email">{user.email}</div>
-                      <Link
-                        href="/arena#usage-meter"
+                      <button
                         className="auth-dropdown-usage"
-                        onClick={e => {
-                          setAuthOpen(false);
-                          // Already on Arena (the meter is in the DOM right now) - Next's
-                          // client router uses pushState for the hash-only URL change, which
-                          // doesn't fire a native hashchange event and doesn't scroll on its
-                          // own. Scroll directly instead of letting Link no-op.
-                          const el = document.getElementById('usage-meter');
-                          if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'auto', block: 'start' }); }
-                        }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', padding: 0 }}
+                        onClick={() => { setAuthOpen(false); setUsageOpen(true); }}
                       >
                         {t('NAV_VIEW_USAGE')}
-                      </Link>
+                      </button>
                       <button
                         className="auth-dropdown-usage"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', padding: 0 }}
@@ -416,6 +410,7 @@ export default function NavDrawer() {
       </div>
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <UsageModal open={usageOpen} onClose={() => setUsageOpen(false)} />
 
       {/* Mobile bottom tab bar - 4 direct one-tap destinations plus a "More"
           tab that opens the full drawer. The app has ~25 screens but only 4
