@@ -3685,8 +3685,8 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 }
 .cms-row:hover  { background: rgba(255,255,255,0.05); }
 .cms-row.checked { color: var(--txt); font-weight: 600; }
-.cms-row input[type="checkbox"] { accent-color: var(--accent-2); }
-.cms-check { margin-left: auto; color: var(--accent-2); font-size: 0.6875rem; }
+.cms-row input[type="checkbox"] { accent-color: var(--txt3); }
+.cms-check { margin-left: auto; color: var(--txt); font-size: 0.6875rem; }
 .cms-empty { padding: 14px 10px; font-size: var(--fs-caption); color: var(--txt3); text-align: center; }
 .cms-clear {
   flex-shrink: 0; margin: 6px; padding: 7px; border-radius: 7px;
