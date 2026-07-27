@@ -117,7 +117,9 @@ export function rateLimitMessage(
     return `AI Arena is at capacity right now across all users - try again shortly.`;
   }
   if (reason === 'pool') {
-    return `Daily limit of ${limit} AI tool runs reached. This budget is shared across all the one-shot analysis tools.`;
+    // "one-shot tool" is our internal name for these routes - a user has no
+    // idea what it means, so say what they'd actually observe instead.
+    return `Daily limit of ${limit} AI tool runs reached. All the AI analysis tools share one daily budget.`;
   }
   return `Daily limit of ${limit} ${label} reached.`;
 }
