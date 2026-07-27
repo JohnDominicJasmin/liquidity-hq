@@ -1,8 +1,9 @@
 // Real xAI grok-4.3 per-token rates and per-call cost estimates, used to turn
 // raw lhq_grok_usage counts into an approximate $ figure for the /ops cost
 // view. Source: console.x.ai/models (confirmed live 2026-07-24), cross-
-// validated against this account's actual invoice - see
-// pendings/PRICING_ANALYSIS.md §0-1 for the derivation. These are estimates
+// validated against this account's actual invoice. The full derivation lived
+// in pendings/PRICING_ANALYSIS.md, which was removed 2026-07-25 once nothing
+// in it was still pending - see git history for it. These are estimates
 // (fixed avg-tokens-per-call assumptions), not a byte-for-byte replica of
 // xAI's bill - good enough for "who's costing us the most" and margin,
 // not for accounting.
@@ -12,7 +13,7 @@ export const XAI_RATE_PER_1M = {
   output: 2.50,
 } as const;
 
-// Plain call: ~1,500 input + 900 output tokens (PRICING_ANALYSIS.md §1).
+// Plain call: ~1,500 input + 900 output tokens.
 export const PLAIN_CALL_COST_USD = 0.0041;
 // Search-enabled call (deep analysis, chat's live-search mode): ~4,500 input
 // + 1,400 output tokens - xAI's web/X search results get injected as extra
