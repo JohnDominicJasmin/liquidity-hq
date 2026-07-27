@@ -365,21 +365,13 @@ export default function NavDrawer() {
                   {authOpen && (
                     <div className="auth-dropdown">
                       <div className="auth-dropdown-email">{user.email}</div>
-                      <Link
-                        href="/arena#usage-meter"
+                      <button
                         className="auth-dropdown-usage"
-                        onClick={e => {
-                          setAuthOpen(false);
-                          // Already on Arena (the meter is in the DOM right now) - Next's
-                          // client router uses pushState for the hash-only URL change, which
-                          // doesn't fire a native hashchange event and doesn't scroll on its
-                          // own. Scroll directly instead of letting Link no-op.
-                          const el = document.getElementById('usage-meter');
-                          if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'auto', block: 'start' }); }
-                        }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', padding: 0 }}
+                        onClick={() => { setAuthOpen(false); setSettingsOpen(true); }}
                       >
                         {t('NAV_VIEW_USAGE')}
-                      </Link>
+                      </button>
                       <button
                         className="auth-dropdown-usage"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', padding: 0 }}
