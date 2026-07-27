@@ -162,11 +162,42 @@ instead.
   did, and the two pricing surfaces must not disagree.
 
 **Migrations already applied to BOTH Supabase projects** (`20260727e`,
-`20260727f`) and verified by direct SQL: pool binds across different tools; a
-pool-blocked call refunds its tool column without over-counting the pool; a
-global-cap block refunds both; a per-tool-cap block consumes no pool slot.
-Code is committed + pushed to `dev` (`40a5533`) and verified on localhost —
-**not yet merged to `main`/prod.**
+`20260727f`, `20260727g`) and verified by direct SQL: pool binds across
+different tools; a pool-blocked call refunds its tool column without
+over-counting the pool; a global-cap block refunds both; a per-tool-cap block
+consumes no pool slot. Also smoke-tested over real HTTP against PostgREST with
+the exact argument names `lib/aiUsage.ts` sends (returned `1, 2, -2` against a
+pool of 2), so the wiring is proven end to end, not just in SQL.
+
+### Pre-ship alignment audit (2026-07-27) — 2 fixes it forced
+
+1. **Tool pool was invisible in the UI.** `tool_pool_count` existed in the DB
+   but never reached the client — `GrokUsageInfo` and `/api/grok` both stopped
+   at the same 5 fields. Since pooling made the effective tool ceiling much
+   tighter (198/day → 25/day), a user spreading ~6 runs over ~5 tools was fine
+   before and is blocked now, with a hard 429 as the first warning. Plumbed
+   through as `tool_pool_used`/`tool_pool_limit` + a 6th "Tools" ring
+   (Pro-only; the component filters out any ring whose limit is 0, which also
+   makes a pre-field payload render nothing instead of `NaN`). Modal widened
+   400px → 460px so all six fit one row.
+2. **`components/GrokChat.tsx` reported the wrong cause.** It discarded the
+   server message and hardcoded "No chat messages left today", so a circuit-
+   breaker trip told users their personal quota was gone while the meter beside
+   it showed quota left. Now uses the server's wording.
+
+Also fixed stale comments the audit surfaced: `app/api/grok-chat/route.ts`
+restated the caps in its docblock and had gone stale across **two** repricings
+(claimed Free 15 chat + 5 search, Pro 100 + 25); `app/api/ops/ai-cost/route.ts`
+said "8 one-shot tools" (there are 11); `lib/aiCost.ts` cited a deleted doc.
+
+**Verified in the real browser signed in as Pro:** usage meter shows 0/30 and
+1/10, the usage modal shows all six rings (30 / 9 / 49 / 9 / 4 / 24 remaining)
+matching the API payload exactly, no console errors. `/upgrade` and the landing
+page verified signed-out in all locales. Swept all 2,436 label keys — zero
+hardcoded caps, everything templated.
+
+Code is committed + pushed to `dev` (through `9a5a5e0`) — **not yet merged to
+`main`/prod.**
 
 ## i18n translation — paused (see also pendings/I18N_MIGRATION.md)
 
