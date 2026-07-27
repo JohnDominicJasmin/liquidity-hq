@@ -3,8 +3,7 @@ import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
 import { hasProFeatures, getUserRole } from '@/lib/entitlements';
-import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
-import { AI_LIMITS } from '@/lib/limits';
+import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // DXY/VIX/gold/oil/10Y don't meaningfully shift within a few minutes - cache
@@ -12,7 +11,7 @@ const GROK_KEY = process.env.GROK_API_KEY ?? '';
 const CACHE_TTL = 5 * 60_000;
 
 class RateLimitError extends Error {
-  constructor(public limit: number, reason: 'user' | 'global') {
+  constructor(public limit: number, reason: UsageBlockReason) {
     super(rateLimitMessage(reason, limit, 'macro context checks'));
   }
 }
@@ -157,10 +156,9 @@ export async function GET(req: NextRequest) {
       // daily cap - a cache hit stays free for everyone (same pattern as
       // token-unlock/smc-snapshot).
       const role = await getUserRole(token, authData.user.id);
-      const limit = AI_LIMITS[role].macroContext;
-      const usageResult = await incrementToolUsage(token, authData.user.id, 'macroContext', limit);
+      const usageResult = await incrementToolUsage(token, authData.user.id, 'macroContext', role);
       if (usageResult.blocked) {
-        throw new RateLimitError(limit, usageResult.reason);
+        throw new RateLimitError(usageResult.limit, usageResult.reason);
       }
 
       // Staggered, not a single Promise.all burst - see fetchYF's comment.

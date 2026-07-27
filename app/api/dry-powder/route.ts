@@ -2,16 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
-import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
+import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 import { getUserRole } from '@/lib/entitlements';
-import { AI_LIMITS } from '@/lib/limits';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // DeFi Llama's stablecoin series only updates once a day - cache generously.
 const CACHE_TTL = 60 * 60_000;
 
 class RateLimitError extends Error {
-  constructor(public limit: number, reason: 'user' | 'global') {
+  constructor(public limit: number, reason: UsageBlockReason) {
     super(rateLimitMessage(reason, limit, 'dry powder checks'));
   }
 }
@@ -76,10 +75,9 @@ export async function GET(req: NextRequest) {
       // daily cap - a cache hit stays free for everyone (same pattern as
       // token-unlock/smc-snapshot).
       const role = await getUserRole(token, authData.user.id);
-      const limit = AI_LIMITS[role].dryPowder;
-      const usageResult = await incrementToolUsage(token, authData.user.id, 'dryPowder', limit);
+      const usageResult = await incrementToolUsage(token, authData.user.id, 'dryPowder', role);
       if (usageResult.blocked) {
-        throw new RateLimitError(limit, usageResult.reason);
+        throw new RateLimitError(usageResult.limit, usageResult.reason);
       }
 
       const series = await fetchStablecoinSeries();

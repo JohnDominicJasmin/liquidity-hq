@@ -14,7 +14,7 @@
 // migration file's comment for why that tradeoff was chosen over a second
 // compensating-write path.
 import { createClient } from '@supabase/supabase-js';
-import { ExtraTool } from '@/lib/limits';
+import { AI_LIMITS, ExtraTool, Tier } from '@/lib/limits';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 function sb(token: string) {
@@ -50,54 +50,76 @@ const EXTRA_TOOL_COLUMN: Record<ExtraTool, string> = {
   onchain:           'onchain_count',
 };
 
-// blocked.reason distinguishes what actually blocked the caller - this
-// user's own daily count, or the app-wide circuit breaker. Callers use it to
-// give an accurate error message: every route used to say "your daily limit
-// reached" even when a user's own count was nowhere near their cap and the
-// real cause was the shared breaker tripping - confusing (the usage meter
-// shows the real, unexhausted per-user count right next to that message)
-// and simply wrong about the cause.
+// blocked.reason distinguishes what actually blocked the caller - this user's
+// own daily count for this one feature, the shared one-shot-tool pool, or the
+// app-wide circuit breaker. Callers use it to give an accurate error message:
+// every route used to say "your daily limit reached" even when a user's own
+// count was nowhere near their cap and the real cause was the shared breaker
+// tripping - confusing (the usage meter shows the real, unexhausted per-user
+// count right next to that message) and simply wrong about the cause. `limit`
+// is the number that was actually hit, so the message can't quote a different
+// cap than the one that blocked the call.
+export type UsageBlockReason = 'user' | 'global' | 'pool';
+
 export type UsageIncrementResult =
   | { blocked: false; count: number }
-  | { blocked: true; reason: 'user' | 'global' };
+  | { blocked: true; reason: UsageBlockReason; limit: number };
 
 export async function incrementUsageColumn(
   token: string, userId: string, column: string, limit: number,
+  poolLimit: number | null = null,
 ): Promise<UsageIncrementResult> {
   const today = new Date().toISOString().slice(0, 10);
   const { data, error } = await sb(token).rpc('increment_ai_usage', {
     p_user_id: userId, p_date: today, p_column: column, p_limit: limit,
     p_global_limit: globalDailyMax(),
+    p_pool_limit: poolLimit,
   });
   if (error) {
     console.error(`[aiUsage] increment_ai_usage failed for ${column}:`, error.message);
-    return { blocked: true, reason: 'user' };
+    return { blocked: true, reason: 'user', limit };
   }
-  // -1 is the DB sentinel for "global daily cap reached" (distinct from null =
-  // per-user cap). The per-user increment was already rolled back in-txn.
+  // -1 / -2 are the DB sentinels for the two shared caps (distinct from null =
+  // this column's own per-user cap). Any increment already made was rolled
+  // back in-txn before the sentinel was returned.
   if (data === -1) {
     console.error(`[aiUsage] GLOBAL daily xAI cap hit (AI_GLOBAL_DAILY_MAX) - blocked ${column} for ${userId}`);
-    return { blocked: true, reason: 'global' };
+    return { blocked: true, reason: 'global', limit };
+  }
+  if (data === -2) {
+    return { blocked: true, reason: 'pool', limit: poolLimit ?? limit };
   }
   if (data === null) {
-    return { blocked: true, reason: 'user' };
+    return { blocked: true, reason: 'user', limit };
   }
   return { blocked: false, count: data as number };
 }
 
-// Convenience wrapper for the 8 one-shot tool routes (keyed by lib/limits.ts's
-// ExtraTool union instead of a raw column string).
+// Convenience wrapper for the 11 one-shot tool routes (keyed by lib/limits.ts's
+// ExtraTool union instead of a raw column string). Takes the caller's tier
+// rather than a pre-looked-up number so the per-tool cap and the shared pool
+// can never be sourced from different places - passing one without the other
+// is what would silently disable the pool for a route.
 export async function incrementToolUsage(
-  token: string, userId: string, tool: ExtraTool, limit: number,
+  token: string, userId: string, tool: ExtraTool, role: Tier,
 ): Promise<UsageIncrementResult> {
-  return incrementUsageColumn(token, userId, EXTRA_TOOL_COLUMN[tool], limit);
+  return incrementUsageColumn(
+    token, userId, EXTRA_TOOL_COLUMN[tool],
+    AI_LIMITS[role][tool], AI_LIMITS[role].toolPool,
+  );
 }
 
-// Shared message builder so all 11 call sites word this identically.
-export function rateLimitMessage(reason: 'user' | 'global', limit: number, label: string): string {
-  return reason === 'global'
-    ? `AI Arena is at capacity right now across all users - try again shortly.`
-    : `Daily limit of ${limit} ${label} reached.`;
+// Shared message builder so all 14 call sites word this identically.
+export function rateLimitMessage(
+  reason: UsageBlockReason, limit: number, label: string,
+): string {
+  if (reason === 'global') {
+    return `AI Arena is at capacity right now across all users - try again shortly.`;
+  }
+  if (reason === 'pool') {
+    return `Daily limit of ${limit} AI tool runs reached. This budget is shared across all the one-shot analysis tools.`;
+  }
+  return `Daily limit of ${limit} ${label} reached.`;
 }
 
 // Global-only check for call sites with no natural per-user attribution - a

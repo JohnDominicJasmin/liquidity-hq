@@ -40,6 +40,7 @@ const PRO_FEATURES: Array<[LabelKey, Record<string, string | number>?]> = [
   ['UPGRADE_PRO_FEATURE_UNLIMITED_ALERTS'],
   ['UPGRADE_PRO_FEATURE_AI_ANALYSES', { quick: P.quick, deep: P.deep }],
   ['UPGRADE_PRO_FEATURE_AI_CHAT_SEARCH', { chat: P.chat, search: P.search }],
+  ['UPGRADE_PRO_FEATURE_TOOL_POOL', { tools: P.toolPool ?? 0 }],
   ['UPGRADE_PRO_FEATURE_PRIORITY_SUPPORT'],
 ];
 

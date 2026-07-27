@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
-import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
+import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 import { getUserRole, hasProFeatures } from '@/lib/entitlements';
-import { AI_LIMITS } from '@/lib/limits';
 import { apiError } from '@/lib/apiError';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -12,7 +11,7 @@ const GROK_KEY = process.env.GROK_API_KEY ?? '';
 const CACHE_TTL = 2 * 60_000;
 
 class RateLimitError extends Error {
-  constructor(public limit: number, reason: 'user' | 'global') {
+  constructor(public limit: number, reason: UsageBlockReason) {
     super(rateLimitMessage(reason, limit, 'SMC snapshots'));
   }
 }
@@ -130,10 +129,9 @@ export async function POST(req: NextRequest) {
       // Only the cache-miss path spends on xAI, so only it needs the daily
       // cap - a cache hit within the 2min TTL stays free for everyone.
       const role = await getUserRole(token, authData.user.id);
-      const limit = AI_LIMITS[role].smcSnapshot;
-      const usageResult = await incrementToolUsage(token, authData.user.id, 'smcSnapshot', limit);
+      const usageResult = await incrementToolUsage(token, authData.user.id, 'smcSnapshot', role);
       if (usageResult.blocked) {
-        throw new RateLimitError(limit, usageResult.reason);
+        throw new RateLimitError(usageResult.limit, usageResult.reason);
       }
 
       const candles = await fetchCandles(symbol, tf, 50);
