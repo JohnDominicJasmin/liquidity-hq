@@ -21,10 +21,20 @@ export const SECRETS: Secret[] = [
   { n: 13, name: 'Funding rate divergence', cat: 'hunt', text: 'Extremely high positive funding (longs paying) but price keeps pumping = classic sign a short squeeze is being manufactured. They are using the longs own greed against them.' },
   { n: 14, name: 'Exhaustion spike signal', cat: 'hunt', text: 'When funding goes parabolic while price is raiding a zone, that is the top of the squeeze. The moment funding hits extreme levels during the raid - look for your exit immediately.' },
   { n: 15, name: 'The 90-minute rule', cat: 'time', text: 'After any major raid: first 30 minutes = chaos and fake moves. Next 60 minutes = real directional move emerges. Most people trade the first 30 and get wrecked every time.' },
-  { n: 16, name: 'Sunday night is hunting season', cat: 'time', text: 'Sunday 11PM – Monday 3AM PHT (Monday 00:30–02:30 UTC). Lowest volume of the entire week. Retail asleep. Easiest time to move price with minimum capital.' },
-  { n: 17, name: 'The 4:45AM PHT rule', cat: 'time', text: '4:00–4:45 AM PHT is the single most consistent reversal window. More violent reversals happen here than any other time of day. Watch this window every single night.' },
+  // Times stated in UTC so they read the same for every trader. The PHT ranges
+  // these used to carry were converted 1:1 - the only correction is n16's
+  // parenthetical, which said "Monday 00:30-02:30 UTC" while the PHT range in
+  // the same sentence (and isGodTier() in lib/session.ts) both mean
+  // Sunday 15:00-19:00 UTC. Playbook was teaching a window the signal engine
+  // doesn't use.
+  { n: 16, name: 'Sunday night is hunting season', cat: 'time', text: 'Sunday 15:00–19:00 UTC. Lowest volume of the entire week. Retail asleep. Easiest time to move price with minimum capital.' },
+  { n: 17, name: 'The 20:45 UTC rule', cat: 'time', text: '20:00–20:45 UTC is the single most consistent reversal window. More violent reversals happen here than any other time of day. Watch this window every single session.' },
   { n: 18, name: 'Dead quiet = storm coming', cat: 'time', text: 'The most boring flat 4H period almost always precedes a violent raid. When Twitter is silent and volume is near zero - that is when they are loading positions. Stay alert.' },
-  { n: 19, name: 'London open fake (9:30AM UTC)', cat: 'time', text: 'Every day around 5:30-6PM PHT there is almost always a fake move first. They shake out early positions before the real daily direction shows up. Never enter on the first move.' },
+  // Kept at 09:30 UTC - the number this entry already stated in its own name.
+  // Note it sits inside, not at the start of, isLondon()'s 07:00-10:00 UTC
+  // window; left as written rather than snapped to the window boundary, since
+  // it describes a specific observed move rather than the session open itself.
+  { n: 19, name: 'London open fake (09:30 UTC)', cat: 'time', text: 'Every day around 09:30–10:00 UTC there is almost always a fake move first. They shake out early positions before the real daily direction shows up. Never enter on the first move.' },
   { n: 20, name: '48-hour coil rule', cat: 'time', text: 'Bitcoin stuck in a tight range for 48+ hours = probability of violent raid goes through the roof. The longer the range, the bigger the spring that gets released.' },
   { n: 21, name: 'Bait candle', cat: 'trap', text: 'They create one extremely clean beautiful candle on the 15min or 1H chart to make retail think this is the real move. Once retail FOMOs in, the reversal comes. That clean candle is pure bait.' },
   { n: 22, name: 'Stop sweep - they hunt in pairs', cat: 'trap', text: 'Massive wick up takes out the shorts first. Then immediately a wick down takes out the new longs who just bought the breakout. Two hunts, one move. Called a stop sweep.' },

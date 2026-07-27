@@ -852,8 +852,9 @@ async function checkDailySummary(
   const eligible = recipients.filter(r => !isMutedFor(mutedByUser, r.userId, 'daily_summary'));
   if (eligible.length === 0) return [];
 
-  const dateStr = d.toLocaleString('en-PH', {
-    timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric',
+  // UTC: this summary fans out to every subscriber, not just PHT users.
+  const dateStr = d.toLocaleString('en-GB', {
+    timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric',
   });
 
   // Fear & Greed
@@ -1536,8 +1537,11 @@ async function runAlerts(token: string): Promise<NextResponse> {
   CD.whale = nyActive ? 5 * 60_000  : 30 * 60_000;
   CD.news  = nyActive ? 5 * 60_000  : 15 * 60_000;
 
-  const now   = new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit' });
-  const stamp = `⏰ ${now} PHT · ${getSession()}`;
+  // UTC stamp - alerts are multi-recipient (see Recipient[] above), so a
+  // Manila clock was someone else's time for most of them. The session name
+  // beside it is already timezone-independent.
+  const now   = new Date().toLocaleString('en-GB', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' });
+  const stamp = `⏰ ${now} UTC · ${getSession()}`;
 
   // Fetch shared data once (+ per-user muted alert groups + threshold settings)
   const [frMap, prices, lsMap, mutedByUser, thresholdsByUser] = await Promise.all([

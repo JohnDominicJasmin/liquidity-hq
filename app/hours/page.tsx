@@ -1,28 +1,61 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { getLocalNow, getCurrentWindow, isDead, getUpcomingWindows } from '@/lib/session';
+import { utcWindowToLocalRange, localZoneAbbr } from '@/lib/resetTime';
 import SessionCountdown from '@/components/SessionCountdown';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 
-/* Typical-weekday session blocks on a 24h PHT axis */
-const TIMELINE_SEGS = [
-  { start: 0,    end: 2,    bg: 'rgba(96,165,250,0.55)',  labelKey: 'HOURS_SEG_NY' as LabelKey },
-  { start: 2,    end: 5,    bg: 'rgba(125,224,164,0.70)', labelKey: 'HOURS_SEG_PRIME' as LabelKey },
-  { start: 7,    end: 11,   bg: 'rgba(251,191,36,0.55)',  labelKey: 'HOURS_SEG_ASIA' as LabelKey },
-  { start: 12,   end: 15,   bg: 'rgba(248,113,113,0.45)', labelKey: 'HOURS_SEG_DEAD' as LabelKey },
-  { start: 15,   end: 18,   bg: 'rgba(122,184,245,0.55)', labelKey: 'HOURS_SEG_LONDON' as LabelKey },
-  { start: 20,   end: 21.5, bg: 'rgba(148,163,184,0.45)', labelKey: 'HOURS_SEG_PRE_NY' as LabelKey },
-  { start: 21.5, end: 24,   bg: 'rgba(96,165,250,0.55)',  labelKey: 'HOURS_SEG_NY' as LabelKey },
+/* Typical-weekday session blocks, as UTC hour ranges - the same windows
+   lib/session.ts enforces. These used to be PHT hours on a fixed PHT axis
+   while the needle below was positioned from the VIEWER'S local clock, so
+   for anyone outside UTC+8 the blocks and the "you are here" marker
+   disagreed: a London trader saw the needle sitting in "DEAD" during their
+   own London open. Anchored to UTC here and shifted to the viewer's offset
+   at render time, so both agree for everyone.
+   Asia runs 23:00-03:00 UTC, written as 23->27 so the range stays ordered. */
+const TIMELINE_SEGS_UTC = [
+  { start: 4,    end: 7,    bg: 'rgba(248,113,113,0.45)', labelKey: 'HOURS_SEG_DEAD' as LabelKey },
+  { start: 7,    end: 10,   bg: 'rgba(122,184,245,0.55)', labelKey: 'HOURS_SEG_LONDON' as LabelKey },
+  { start: 12,   end: 13.5, bg: 'rgba(148,163,184,0.45)', labelKey: 'HOURS_SEG_PRE_NY' as LabelKey },
+  { start: 13.5, end: 18,   bg: 'rgba(96,165,250,0.55)',  labelKey: 'HOURS_SEG_NY' as LabelKey },
+  { start: 18,   end: 21,   bg: 'rgba(125,224,164,0.70)', labelKey: 'HOURS_SEG_PRIME' as LabelKey },
+  { start: 23,   end: 27,   bg: 'rgba(251,191,36,0.55)',  labelKey: 'HOURS_SEG_ASIA' as LabelKey },
 ];
 
-const WINDOWS = [
-  { cls: 'wp-god', badgeKey: 'HOURS_WIN_GOD_BADGE' as LabelKey, timeKey: 'HOURS_WIN_GOD_TIME' as LabelKey, descKey: 'HOURS_WIN_GOD_DESC' as LabelKey },
-  { cls: 'wp-prime', badgeKey: 'HOURS_WIN_PRIME_BADGE' as LabelKey, timeKey: 'HOURS_WIN_PRIME_TIME' as LabelKey, descKey: 'HOURS_WIN_PRIME_DESC' as LabelKey },
-  { cls: 'wp-prime', badgeKey: 'HOURS_WIN_MON_EVE_BADGE' as LabelKey, timeKey: 'HOURS_WIN_MON_EVE_TIME' as LabelKey, descKey: 'HOURS_WIN_MON_EVE_DESC' as LabelKey },
-  { cls: 'wp-london', badgeKey: 'HOURS_WIN_LONDON_BADGE' as LabelKey, timeKey: 'HOURS_WIN_LONDON_TIME' as LabelKey, descKey: 'HOURS_WIN_LONDON_DESC' as LabelKey },
-  { cls: 'wp-dead', badgeKey: 'HOURS_WIN_DEAD_BADGE' as LabelKey, timeKey: 'HOURS_WIN_DEAD_TIME' as LabelKey, descKey: 'HOURS_WIN_DEAD_DESC' as LabelKey },
+/* Shift the UTC blocks onto the viewer's own 0-24 local axis. A block pushed
+   past local midnight is split in two so it renders at both ends of the bar
+   instead of overflowing off it. */
+function localSegments(offsetHours: number) {
+  const out: { start: number; end: number; bg: string; labelKey: LabelKey }[] = [];
+  for (const seg of TIMELINE_SEGS_UTC) {
+    let s = seg.start + offsetHours;
+    let e = seg.end + offsetHours;
+    while (s < 0)   { s += 24; e += 24; }
+    while (s >= 24) { s -= 24; e -= 24; }
+    if (e <= 24) out.push({ ...seg, start: s, end: e });
+    else {
+      out.push({ ...seg, start: s, end: 24 });
+      out.push({ ...seg, start: 0, end: e - 24 });
+    }
+  }
+  return out;
+}
+
+/* Each window's hours are DERIVED from the UTC anchors in lib/session.ts and
+   formatted in the viewer's own timezone, instead of the pre-baked PHT strings
+   these used to read out of the labels table ("Daily 2AM - 5AM PHT"). Those
+   made every non-PHT trader read someone else's clock, and had drifted from
+   the enforced logic besides - the London label claimed "9:30-11AM UTC" while
+   isLondon() actually uses 07:00-10:00 UTC.
+   utc: [startHour, startMin, endHour, endMin, utcDay?] matching session.ts. */
+const WINDOWS: { cls: string; badgeKey: LabelKey; descKey: LabelKey; utc: [number, number, number, number, number?] }[] = [
+  { cls: 'wp-god',    badgeKey: 'HOURS_WIN_GOD_BADGE'     as LabelKey, descKey: 'HOURS_WIN_GOD_DESC'     as LabelKey, utc: [15, 0, 19, 0, 0] },
+  { cls: 'wp-prime',  badgeKey: 'HOURS_WIN_PRIME_BADGE'   as LabelKey, descKey: 'HOURS_WIN_PRIME_DESC'   as LabelKey, utc: [18, 0, 21, 0] },
+  { cls: 'wp-prime',  badgeKey: 'HOURS_WIN_MON_EVE_BADGE' as LabelKey, descKey: 'HOURS_WIN_MON_EVE_DESC' as LabelKey, utc: [12, 0, 15, 0, 1] },
+  { cls: 'wp-london', badgeKey: 'HOURS_WIN_LONDON_BADGE'  as LabelKey, descKey: 'HOURS_WIN_LONDON_DESC'  as LabelKey, utc: [7, 0, 10, 0] },
+  { cls: 'wp-dead',   badgeKey: 'HOURS_WIN_DEAD_BADGE'    as LabelKey, descKey: 'HOURS_WIN_DEAD_DESC'    as LabelKey, utc: [4, 0, 7, 0] },
 ];
 
 function pad(n: number) { return n < 10 ? '0' + n : '' + n; }
@@ -67,7 +100,10 @@ export default function BestHours() {
       <div className="card" style={{ textAlign: 'center', marginBottom: 14 }}>
         <div suppressHydrationWarning style={{ fontSize: '2.25rem', fontWeight: 700, fontFamily: 'monospace', color: 'var(--txt)', letterSpacing: -1 }}>
           {pad(h12)}:{pad(m)}:{pad(s)}
-          <span style={{ fontSize: 'var(--fs-body)', color: 'var(--txt3)', marginLeft: 8 }}>{t('HOURS_AMPM_PHT', { ampm })}</span>
+          {/* The clock has always shown the VIEWER'S own time (getLocalNow() is
+              just new Date()), but the label said "PHT" - so a trader in London
+              read "09:00 AM PHT" for their 9am. Show the real zone instead. */}
+          <span suppressHydrationWarning style={{ fontSize: 'var(--fs-body)', color: 'var(--txt3)', marginLeft: 8 }}>{ampm} {localZoneAbbr()}</span>
         </div>
         <div suppressHydrationWarning style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', marginTop: 4 }}>
           {days[pht.getDay()]}, {months[pht.getMonth()]} {pht.getDate()} {pht.getFullYear()}
@@ -98,7 +134,12 @@ export default function BestHours() {
         <div style={{ position: 'relative', marginBottom: 6 }}>
           {/* Segment strips */}
           <div style={{ position: 'relative', height: 44, borderRadius: 8, background: 'var(--bg3)', overflow: 'hidden' }}>
-            {TIMELINE_SEGS.map((seg, i) => {
+            {/* Client-only: the viewer's UTC offset both shifts the blocks and can
+                split one in two, so the server (always UTC) and the client would
+                render a different NUMBER of children - a structural hydration
+                mismatch, not just a differing attribute. Gate on `mounted` and
+                let the bar's background show for the first paint. */}
+            {mounted && localSegments(-new Date().getTimezoneOffset() / 60).map((seg, i) => {
               const left  = (seg.start / 24) * 100;
               const width = ((seg.end - seg.start) / 24) * 100;
               return (
@@ -156,7 +197,7 @@ export default function BestHours() {
 
         {/* Current position label */}
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textAlign: 'center' }}>
-          {t('HOURS_NOW_PREFIX')}<span style={{ color: 'var(--txt2)', fontWeight: 600 }}>{t('HOURS_NOW_TIME', { time: `${pad(h12)}:${pad(m)}`, ampm })}</span>
+          {t('HOURS_NOW_PREFIX')}<span suppressHydrationWarning style={{ color: 'var(--txt2)', fontWeight: 600 }}>{pad(h12)}:{pad(m)} {ampm} {localZoneAbbr()}</span>
           {mounted && win && <span style={{ marginLeft: 8, color: win.color, fontWeight: 600 }}>{t('HOURS_DOT_SEPARATOR')} {win.name}</span>}
           {mounted && dead && <span style={{ marginLeft: 8, color: '#f87171', fontWeight: 600 }}>{t('HOURS_DOT_DEAD_ZONE')}</span>}
         </div>
@@ -199,7 +240,11 @@ export default function BestHours() {
         <div key={i} className="card" style={{ marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
             <div className={`window-pill ${w.cls}`}>{t(w.badgeKey)}</div>
-            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t(w.timeKey)}</div>
+            {/* Client-only: formatting depends on the viewer's timezone, which the
+                prerendered HTML (always UTC) would get wrong. */}
+            <div suppressHydrationWarning style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
+              {mounted ? utcWindowToLocalRange(...w.utc) : ''}
+            </div>
           </div>
           <div style={{ fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.6 }}>{t(w.descKey)}</div>
         </div>

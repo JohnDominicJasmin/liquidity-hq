@@ -12,7 +12,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useGrokUsage } from '@/components/GrokUsageProvider';
 import { withAlpha } from '@/lib/color';
 import { getSupabase } from '@/lib/supabase';
-import { nextResetLocalTime } from '@/lib/resetTime';
+import { nextResetLocalTime, localZoneAbbr } from '@/lib/resetTime';
 import PageHint from '@/components/PageHint';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -69,8 +69,13 @@ function volRatioColor(vr: number | null): string {
 
 function pad2(n: number) { return String(n).padStart(2, '0'); }
 
-function phtNow() {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+// Was `new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }))`
+// - the round-trip-through-a-string trick that yields a Date whose LOCAL getters
+// read out Manila's wall clock. Every getHours()/getDay() below then reported
+// Manila regardless of where the viewer actually is. A plain Date gives the
+// viewer their own clock, which is what this page's header is claiming to show.
+function localNow() {
+  return new Date();
 }
 
 /* ── Which signals fired for a given setup direction ── */
@@ -121,8 +126,12 @@ function buildBriefingContext(
   recentGeo:  Array<{ tag: string; headline: string }>,
   jpyUsd?: number | null,
 ): string {
-  const phtTime = new Date().toLocaleString('en-US', {
-    timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', hour12: true,
+  // UTC, not the viewer's clock: this string is fed to Grok as context, and a
+  // bare local time with no zone made the model reason about session timing
+  // against an unknown offset. (It used to be Manila's clock labelled "PHT",
+  // which was at least unambiguous but wrong for every other user.)
+  const nowUtc = new Date().toLocaleString('en-GB', {
+    timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false,
   });
 
   const jpyStatus = jpyUsd == null ? 'N/A'
@@ -131,7 +140,7 @@ function buildBriefingContext(
     : `${jpyUsd.toFixed(2)} - Safe (below 158, carry trade stable)`;
 
   const lines = [
-    `Time: ${phtTime} PHT`,
+    `Time: ${nowUtc} UTC`,
     `Fear & Greed: ${store.fng ?? '?'} - ${store.fngLabel ?? '?'}`,
     `BTC Dominance: ${store.btcDom?.toFixed(1) ?? '?'}%`,
     `DXY: ${store.dxy?.toFixed(2) ?? '?'} (${store.dxyChg != null ? (store.dxyChg >= 0 ? '+' : '') + store.dxyChg.toFixed(2) : '?'}% 24h)`,
@@ -179,7 +188,7 @@ export default function MorningBriefing() {
   const { user }                               = useAuth();
   const { usage, setUsage }                    = useGrokUsage();
   const { t }                                   = useLabels();
-  const [now, setNow]           = useState<Date>(phtNow);
+  const [now, setNow]           = useState<Date>(localNow);
   const [generating, setGen]    = useState(false);
   const [briefErr, setBriefErr] = useState('');
   const [jpyUsd, setJpyUsd]     = useState<number | null>(null);
@@ -211,7 +220,7 @@ export default function MorningBriefing() {
 
   /* Tick once per minute so header time stays fresh */
   useEffect(() => {
-    const timer = setInterval(() => setNow(phtNow()), 60_000);
+    const timer = setInterval(() => setNow(localNow()), 60_000);
     return () => clearInterval(timer);
   }, []);
 
@@ -232,7 +241,7 @@ export default function MorningBriefing() {
   const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const h = now.getHours(), m = now.getMinutes();
-  const timeStr = `${pad2(h % 12 || 12)}:${pad2(m)} ${h >= 12 ? 'PM' : 'AM'} PHT`;
+  const timeStr = `${pad2(h % 12 || 12)}:${pad2(m)} ${h >= 12 ? 'PM' : 'AM'} ${localZoneAbbr()}`;
   const dateStr = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`;
 
   /* Coin rows */
