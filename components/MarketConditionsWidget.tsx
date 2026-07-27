@@ -123,15 +123,9 @@ export default function MarketConditionsWidget() {
 
   return (
     <div className="av-rail-panel">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div>
-          <div className="av-rail-panel-h" style={{ marginBottom: 1 }}>{t('MARKET_CONDITIONS_WIDGET_TITLE')}</div>
-          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('MARKET_CONDITIONS_WIDGET_SUBTITLE')}</div>
-        </div>
-        <a href="https://alternative.me/crypto/fear-and-greed-index/" target="_blank" rel="noopener noreferrer"
-          style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textDecoration: 'underline', flexShrink: 0 }}>
-          {t('MARKET_CONDITIONS_WIDGET_SOURCE_LINK')}
-        </a>
+      <div style={{ marginBottom: 10 }}>
+        <div className="av-rail-panel-h" style={{ marginBottom: 1 }}>{t('MARKET_CONDITIONS_WIDGET_TITLE')}</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('MARKET_CONDITIONS_WIDGET_SUBTITLE')}</div>
       </div>
 
       {/* Fear & Greed */}
@@ -204,7 +198,6 @@ export default function MarketConditionsWidget() {
             <SkeletonBar width="60%" height={11} radius={4} />
           </div>
         )}
-        <div style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', marginTop: 6, textAlign: 'right' }}>{t('MARKET_CONDITIONS_WIDGET_DATA_SOURCE')}</div>
       </div>
     </div>
   );
