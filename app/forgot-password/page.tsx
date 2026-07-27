@@ -81,6 +81,7 @@ export default function ForgotPasswordPage() {
 
             {TURNSTILE_SITE_KEY && (
               <Turnstile
+                id="cf-turnstile-forgot-password"
                 ref={turnstileRef}
                 siteKey={TURNSTILE_SITE_KEY}
                 onSuccess={setCaptchaToken}
