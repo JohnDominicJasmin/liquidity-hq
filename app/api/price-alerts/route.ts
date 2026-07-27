@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
+import { hasProFeatures } from '@/lib/entitlements';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,6 +42,15 @@ export async function POST(req: NextRequest) {
   if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const user = await getUser(token);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // Price alerts are delivered over Telegram, which the alert cron only sends
+  // to Pro/trial users (checkPriceAlerts filters on proUserIds). Creation used
+  // to be ungated, so a free user's alert saved successfully and then silently
+  // never fired - it read as a broken feature rather than a locked one. Gate
+  // creation instead, so the paywall is honest and visible up front.
+  if (!(await hasProFeatures(token, user.id))) {
+    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Price alerts are a Pro feature.' }, { status: 403 });
+  }
 
   const body = await req.json();
   const { coin, target_price, direction, label } = body;

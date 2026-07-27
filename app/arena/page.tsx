@@ -33,6 +33,7 @@ import CoinMarketSnapshot from '@/components/CoinMarketSnapshot';
 import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF } from '@/lib/limits';
 
 /* ── Pattern detection - delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -121,10 +122,11 @@ interface HistItem {
 
 const ARENA_HIST_KEY = 'arena-session-history-v1';
 
-// Fast timeframes are Pro-only. Free users are clamped to 30m and up; tapping
-// a gated timeframe opens the upgrade modal instead of switching.
-const GATED_TFS: readonly ChartTf[] = ['1m', '5m', '15m'];
-const FREE_FALLBACK_TF: ChartTf = '1h';
+// Fast timeframes are Pro-only (rule lives in lib/limits.ts so Settings and
+// onboarding enforce the same list). Free users are clamped to 30m and up;
+// tapping a gated timeframe opens the upgrade modal instead of switching.
+const GATED_TFS: readonly ChartTf[] = LIMIT_GATED_TFS as readonly ChartTf[];
+const FREE_FALLBACK_TF = LIMIT_FREE_FALLBACK_TF as ChartTf;
 const TF_FEATURE_LABEL_KEYS: Record<string, LabelKey> = {
   '1m': 'ARENA_TF_LABEL_1M', '5m': 'ARENA_TF_LABEL_5M', '15m': 'ARENA_TF_LABEL_15M',
 };

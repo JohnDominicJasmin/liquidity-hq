@@ -49,7 +49,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
   trading_challenge:  null,
   how_heard:          null,
   default_coin:       'btc',
-  default_tf:         '15m',
+  // Free-safe: 15m is a Pro-gated timeframe (see GATED_TFS in lib/limits.ts),
+  // so defaulting to it meant a free user's very first Arena load silently
+  // rewrote their timeframe to 1h with no explanation. Pro users can still
+  // pick any timeframe; this is only the untouched default.
+  default_tf:         '1h',
   fr_threshold:       0.05,
   fng_fear:           15,
   fng_greed:          85,
