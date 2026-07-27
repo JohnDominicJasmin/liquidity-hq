@@ -221,6 +221,28 @@ function alertTimeIn(timeZone: string | null): string {
   }
 }
 
+// checkDailySummary's per-recipient morning-window check. Unknown/bad
+// timezone falls back to Asia/Manila - the historical anchor this used
+// unconditionally before per-user timezones existed, so a recipient we don't
+// know the zone for still gets exactly the behavior they already had, not a
+// regression relative to before this fix.
+function localHourMinute(timeZone: string | null, d: Date): { hour: number; min: number } {
+  const read = (zone: string) => {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: zone, hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(d);
+    return {
+      hour: Number(parts.find(p => p.type === 'hour')?.value ?? '0'),
+      min:  Number(parts.find(p => p.type === 'minute')?.value ?? '0'),
+    };
+  };
+  try {
+    return read(timeZone || 'Asia/Manila');
+  } catch {
+    return read('Asia/Manila');
+  }
+}
+
 /* ── Telegram send ── */
 async function tg(token: string, chatId: string | string[], text: string): Promise<void> {
   const ids = Array.isArray(chatId) ? chatId : [chatId];
@@ -884,18 +906,28 @@ async function checkDailySummary(
   token: string, recipients: Recipient[], mutedByUser: Map<string, Set<string>>, stamp: string,
   frMap: Record<string, number | null>
 ): Promise<string[]> {
-  const d       = new Date();
-  const phtHour = (d.getUTCHours() + 8) % 24;
-  const phtMin  = d.getUTCMinutes();
-  if (phtHour !== 7 || phtMin > 10) return [];
-  if (onCooldown('daily_summary', CD.daily)) return [];
-  const eligible = recipients.filter(r => !isMutedFor(mutedByUser, r.userId, 'daily_summary'));
+  const d = new Date();
+  // Each recipient's OWN local 7:00-7:10am window, not one fixed instant that
+  // only actually meant "morning" for Philippine subscribers. This used to
+  // gate the entire function on a single `(getUTCHours()+8)%24 === 7` check -
+  // correct for PHT, but a "7am summary" that always lands at 7pm the
+  // previous evening for a US Eastern subscriber isn't a morning briefing for
+  // them at all. Cron ticks every few minutes (see the 10-minute slop below)
+  // and checks every recipient's zone each time, so each one gets exactly one
+  // send, at their own morning, on whichever tick happens to land in it - the
+  // per-chatId cooldown is what prevents a second send on the next tick.
+  const eligible: { r: Recipient; zone: string }[] = [];
+  for (const r of recipients) {
+    if (isMutedFor(mutedByUser, r.userId, 'daily_summary')) continue;
+    const zone = CHAT_TZ.get(r.chatId) || 'Asia/Manila';
+    const { hour, min } = localHourMinute(zone, d);
+    if (hour !== 7 || min > 10) continue;
+    const cdKey = `daily_summary_${r.chatId}`;
+    if (onCooldown(cdKey, CD.daily)) continue;
+    markSent(cdKey);
+    eligible.push({ r, zone });
+  }
   if (eligible.length === 0) return [];
-
-  // UTC: this summary fans out to every subscriber, not just PHT users.
-  const dateStr = d.toLocaleString('en-GB', {
-    timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric',
-  });
 
   // Fear & Greed
   let fngLine    = '';
@@ -934,12 +966,17 @@ async function checkDailySummary(
     }
   } catch { /* skip */ }
 
-  const bodyBase =
-    `☀️ <b>Morning Briefing - ${dateStr}</b>` +
-    `${fngLine}\n\n` +
-    `📊 <b>Funding Rates:</b>\n${frBlock}`;
-
-  await Promise.all(eligible.map(r => {
+  await Promise.all(eligible.map(({ r, zone }) => {
+    // "Today" in the header means the recipient's own calendar date at their
+    // 7am, not UTC's - someone far enough east or west of UTC can be on a
+    // different UTC calendar day than their own local morning.
+    const dateStr = d.toLocaleString('en-GB', {
+      timeZone: zone, weekday: 'short', month: 'short', day: 'numeric',
+    });
+    const bodyBase =
+      `☀️ <b>Morning Briefing - ${dateStr}</b>` +
+      `${fngLine}\n\n` +
+      `📊 <b>Funding Rates:</b>\n${frBlock}`;
     const own = alertsByUser.get(r.userId) ?? [];
     const alertsBlock = own.length
       ? `\n\n🎯 <b>Active Price Alerts:</b>\n${own.map(a => {
@@ -951,7 +988,6 @@ async function checkDailySummary(
     return tg(token, r.chatId, `${bodyBase}${alertsBlock}\n\n<i>${stamp}</i>`);
   }));
 
-  markSent('daily_summary');
   return ['Daily 7am summary'];
 }
 
