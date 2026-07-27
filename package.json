@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "labels:regen": "node scripts/regen-label-defaults.mjs"
   },
   "dependencies": {
     "@marsidev/react-turnstile": "^1.5.3",

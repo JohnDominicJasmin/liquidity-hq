@@ -9,6 +9,7 @@ import NewsTicker from './NewsTicker';
 import AuthProvider from './AuthProvider';
 import LabelsProvider from './LabelsProvider';
 import LanguageSync from './LanguageSync';
+import TimezoneSync from './TimezoneSync';
 import PostHogProvider from './PostHogProvider';
 import SettingsProvider from './SettingsProvider';
 import OnboardingProvider from './OnboardingProvider';
@@ -77,6 +78,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <OnboardingProvider>
                   <GrokUsageProvider>
                     <LanguageSync />
+                    <TimezoneSync />
                     <AnnouncementBanner banner={config?.announcementBanner ?? null} />
                     <NavDrawer />
                     <NewsTicker />

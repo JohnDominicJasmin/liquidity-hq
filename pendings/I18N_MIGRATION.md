@@ -132,9 +132,23 @@ render, so there's no mismatch).
 **Regenerate this file whenever label VALUES change** (new keys, edited
 English copy) - it's a snapshot, not read live:
 ```
-curl -s "http://localhost:3000/api/labels?locale=en" -o lib/labelDefaults.en.json
+npm run labels:regen
 ```
-Run against a dev server that has the latest seeded English rows. Staleness is
+Run against a dev server that has the latest seeded English rows.
+
+**Do NOT go back to `curl -o lib/labelDefaults.en.json`.** That was the
+documented command until 2026-07-27, and it bit us: the dev server answered
+mid-recompile with `{}`, curl wrote it verbatim, and the snapshot went from
+2,436 keys to zero with no error and no warning. A blanked snapshot means
+every label on every page falls back to a raw `KEY_NAME` on first paint -
+precisely the bug this file exists to prevent - and it was caught only by
+chance on the next diff. `scripts/regen-label-defaults.mjs` does the same
+fetch but refuses to write on: an unreachable server, non-200, non-JSON, a
+JSON array, an empty object, a response missing known-always-present canary
+keys, or a >10% drop in key count (override with `--allow-shrink` if a
+deletion is genuinely intended). It prints added/changed/removed keys, and
+writes nothing when there is no change. Verified against all six of those
+failure modes - each exits non-zero and leaves the snapshot untouched. Staleness is
 low-risk and self-healing: a brand-new key not yet in the snapshot just falls
 back to today's old behavior (raw key on first paint only, until the live
 fetch resolves) for that one key, not a regression across the whole page.
@@ -145,7 +159,7 @@ adds/edits English label text.
 
 1. **Batch size.** Agents reliably hit the output-token cap past 7+ files or a long self-report. Keep delegated batches to 4-5 files with a short report format. For one large file (Dashboard was 555 lines), self-chop into stages — one group of Edit calls per stage — instead of one giant edit.
 2. **Don't trust agent self-reports for the key list.** Even when a report gets cut off, the file edits usually already landed. Pull the real list from `git diff`, not the agent's summary.
-3. **Closeout order, every wave:** append new keys to `lib/labelKeys.ts` (anchor the edit on the literal `] as const;` line — it's unique in the file) → write one new `supabase/migrations/*_labels_seed_*.sql` → seed both `lhq_labels` and `lhq_dev_labels` via Supabase MCP `execute_sql` → regenerate `lib/labelDefaults.en.json` (see the raw-key-flash section above) if English values changed → `npx tsc --noEmit` must be clean → spot-verify 2-3 pages live → commit → push to `dev` (never `main`).
+3. **Closeout order, every wave:** append new keys to `lib/labelKeys.ts` (anchor the edit on the literal `] as const;` line — it's unique in the file) → write one new `supabase/migrations/*_labels_seed_*.sql` → seed both `lhq_labels` and `lhq_dev_labels` via Supabase MCP `execute_sql` → regenerate `lib/labelDefaults.en.json` via `npm run labels:regen` (never bare curl - see the raw-key-flash section above) if English values changed → `npx tsc --noEmit` must be clean → spot-verify 2-3 pages live → commit → push to `dev` (never `main`).
 4. **Live verification uses `claude-in-chrome`, not the in-app Browser pane** — the in-app pane is known to wedge here (dead screenshots, stale state).
 5. **Don't migrate computed/data-driven text** — `chartPattern`-derived strings, `classifyFunding()`/`oi1hSignal()` outputs, anything computed in `lib/` and merely rendered here. Only migrate strings literally authored in the component being edited.
 6. **`app/offline/page.tsx` shows as git-modified but it's a CRLF-only diff**, no real content change. Leave it out of commits, don't "fix" it — outside scope.

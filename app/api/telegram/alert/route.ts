@@ -191,18 +191,58 @@ function getSession(): string {
 const onCooldown = (key: string, ms: number) => { const t = lastSent.get(key); return t !== undefined && Date.now() - t < ms; };
 const markSent   = (key: string) => lastSent.set(key, Date.now());
 
+/* ── Per-recipient alert timestamps ──────────────────────────────────────────
+   Message bodies are built once and fanned out to many chat IDs, so the time
+   in them can't be baked in per recipient at build time. Instead bodies carry
+   TIME_TOKEN, and tg() swaps in each recipient's own local time right before
+   sending - grouping chat IDs by timezone so one Telegram call still covers
+   everyone who shares a zone, exactly as the mute-subset grouping already does.
+
+   CHAT_TZ is module scope because tg() is called from ~15 places that have no
+   reason to know about timezones. It's rebuilt from the same user_settings
+   rows at the top of every run, so a concurrent invocation can only ever
+   overwrite it with equivalent data. */
+const TIME_TOKEN = '__ALERT_TIME__';
+const CHAT_TZ = new Map<string, string | null>();
+
+function alertTimeIn(timeZone: string | null): string {
+  // Unknown timezone (never opened the web app, or an older row) -> UTC, and
+  // say so, rather than silently implying it's the reader's local time.
+  if (!timeZone) {
+    return new Date().toLocaleString('en-GB', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' }) + ' UTC';
+  }
+  try {
+    return new Date().toLocaleString('en-GB', {
+      timeZone, hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+    });
+  } catch {
+    // Bad/unknown IANA name stored - never let a formatting error kill an alert.
+    return new Date().toLocaleString('en-GB', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' }) + ' UTC';
+  }
+}
+
 /* ── Telegram send ── */
 async function tg(token: string, chatId: string | string[], text: string): Promise<void> {
   const ids = Array.isArray(chatId) ? chatId : [chatId];
+  // One rendered body per distinct timezone among these recipients.
+  const byZone = new Map<string | null, string[]>();
+  for (const id of ids) {
+    const tz = CHAT_TZ.get(id) ?? null;
+    const bucket = byZone.get(tz);
+    if (bucket) bucket.push(id); else byZone.set(tz, [id]);
+  }
   try {
-    await Promise.all(ids.map(id =>
-      fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: id, text, parse_mode: 'HTML' }),
-        signal: AbortSignal.timeout(10_000),
-      })
-    ));
+    await Promise.all([...byZone.entries()].flatMap(([tz, zoneIds]) => {
+      const body = text.includes(TIME_TOKEN) ? text.replaceAll(TIME_TOKEN, alertTimeIn(tz)) : text;
+      return zoneIds.map(id =>
+        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: id, text: body, parse_mode: 'HTML' }),
+          signal: AbortSignal.timeout(10_000),
+        })
+      );
+    }));
   } catch { /* fire-and-forget */ }
 }
 
@@ -1508,15 +1548,18 @@ async function runAlerts(token: string): Promise<NextResponse> {
     const admin = getSupabaseAdmin();
     const { data } = await admin
       .from(T.user_settings)
-      .select('user_id, telegram_chat_id')
+      .select('user_id, telegram_chat_id, timezone')
       .not('telegram_chat_id', 'is', null)
       .neq('telegram_chat_id', '');
+    // Rebuilt every run - see the note on CHAT_TZ above.
+    CHAT_TZ.clear();
     for (const row of data ?? []) {
       const userId = row.user_id as string;
       if (!proUserIds.has(userId)) continue;
       const id = (row.telegram_chat_id as string)?.trim();
       if (id && !allChatIds.includes(id)) {
         allChatIds.push(id);
+        CHAT_TZ.set(id, (row.timezone as string | null) || null);
         recipients.push({ userId, chatId: id });
       }
     }
@@ -1537,11 +1580,12 @@ async function runAlerts(token: string): Promise<NextResponse> {
   CD.whale = nyActive ? 5 * 60_000  : 30 * 60_000;
   CD.news  = nyActive ? 5 * 60_000  : 15 * 60_000;
 
-  // UTC stamp - alerts are multi-recipient (see Recipient[] above), so a
-  // Manila clock was someone else's time for most of them. The session name
-  // beside it is already timezone-independent.
-  const now   = new Date().toLocaleString('en-GB', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' });
-  const stamp = `⏰ ${now} UTC · ${getSession()}`;
+  // TIME_TOKEN, not a rendered time: tg() replaces it per recipient with that
+  // subscriber's own local clock (falling back to UTC when we don't know their
+  // timezone). Was a single Manila time for everyone, then a single UTC time -
+  // correct but still nobody's actual wall clock. The session name beside it is
+  // already timezone-independent.
+  const stamp = `⏰ ${TIME_TOKEN} · ${getSession()}`;
 
   // Fetch shared data once (+ per-user muted alert groups + threshold settings)
   const [frMap, prices, lsMap, mutedByUser, thresholdsByUser] = await Promise.all([
