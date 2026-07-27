@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { useOnboarding } from '@/components/OnboardingProvider';
 import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, classifyFunding, computeSqueezeScore } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
@@ -463,7 +464,11 @@ function SelectedCoinCard() {
   const sigCol  = oi?.col ?? 'var(--txt3)';
 
   return (
-    <div className="scc-card">
+    <Link
+      href={`/arena?coin=${id}`}
+      className="scc-card"
+      title={t('DASH_SELECTED_COIN_OPEN_ARENA', { coin: id.toUpperCase() })}
+    >
       <CoinIcon coin={id} size={30} color={badgeCol} bg={withAlpha(badgeCol, '24')} />
       <div className="scc-id">
         <span className="scc-ticker">{id.toUpperCase()}</span>
@@ -473,7 +478,8 @@ function SelectedCoinCard() {
         <span className={`scc-chg ${up ? 'scc-up' : 'scc-dn'}`}>{up ? '▲' : '▼'} {Math.abs(chg).toFixed(2)}%</span>
         <span className="scc-sig" style={{ color: sigCol }}>{sigText || <SkeletonBar width={80} height={11} radius={4} />}</span>
       </div>
-    </div>
+      <span className="scc-arrow" aria-hidden="true">›</span>
+    </Link>
   );
 }
 
