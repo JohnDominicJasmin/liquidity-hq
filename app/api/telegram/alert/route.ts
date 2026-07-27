@@ -1364,15 +1364,23 @@ async function checkEMASignal(
 /* ════════════════════════════════════════
    WEB PUSH DISPATCH
    ════════════════════════════════════════ */
-async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<string>>, thresholdsByUser: Map<string, UserThresholds>): Promise<void> {
+async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<string>>, thresholdsByUser: Map<string, UserThresholds>, proUserIds: Set<string>): Promise<void> {
   const pubKey  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const privKey = process.env.VAPID_PRIVATE_KEY;
   const email   = process.env.VAPID_EMAIL;
   if (!pubKey || !privKey || !email) return;
 
   const admin = getSupabaseAdmin();
-  const { data: subs } = await admin.from(T.push_subscriptions).select('*');
-  if (!subs?.length) return;
+  const { data: allSubs } = await admin.from(T.push_subscriptions).select('*');
+  if (!allSubs?.length) return;
+
+  // Signal alerts are a Pro feature. Telegram delivery already filters on
+  // proUserIds (see checkPriceAlerts / flushSignals recipients), but this
+  // push path used to fan out to EVERY stored subscription - so a free user
+  // who enabled browser notifications received the full Pro alert stream.
+  const subs = (allSubs as Array<{ endpoint: string; p256dh: string; auth: string; user_id: string }>)
+    .filter(s => proUserIds.has(s.user_id));
+  if (!subs.length) return;
 
   webpush.setVapidDetails(email, pubKey, privKey);
 
@@ -1390,7 +1398,7 @@ async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<s
     const label = LABELS[coin] ?? coin.toUpperCase();
 
     await Promise.allSettled(
-      (subs as Array<{ endpoint: string; p256dh: string; auth: string; user_id: string }>).map(async sub => {
+      subs.map(async sub => {
         const eligible = entries.filter(e =>
           !isMutedFor(mutedByUser, sub.user_id, ...entryMuteKeys(e)) && passesThreshold(e, thresholdsByUser.get(sub.user_id)));
         if (eligible.length === 0) return;
@@ -1579,7 +1587,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
   await flushSignals(token, recipients, mutedByUser, thresholdsByUser, stamp, signalQueue);
 
   // Web Push - fire-and-forget, never let it block or throw
-  void dispatchPush(signalQueue, mutedByUser, thresholdsByUser).catch(() => {});
+  void dispatchPush(signalQueue, mutedByUser, thresholdsByUser, proUserIds).catch(() => {});
 
   const fired = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
   if (fired.length > 0) recordFires(fired);

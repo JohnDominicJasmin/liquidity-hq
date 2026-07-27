@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
-import { getUserRole } from '@/lib/entitlements';
+import { getUserRole, hasProFeatures } from '@/lib/entitlements';
 import { AI_LIMITS } from '@/lib/limits';
 import { apiError } from '@/lib/apiError';
 
@@ -48,6 +48,14 @@ export async function POST(req: NextRequest) {
 
   const { data: authData } = await sb(token).auth.getUser();
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // Pro-only. This tool is reachable in-product only from /backtest, which
+  // is fully paywalled in the UI - so without a server-side check the paid
+  // xAI call was still callable directly with a free account token. Trial
+  // users pass (hasProFeatures covers isTrial).
+  if (!(await hasProFeatures(token, authData.user.id))) {
+    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Pine script export is a Pro feature.' }, { status: 403 });
+  }
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import webpush from 'web-push';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import { hasProFeatures } from '@/lib/entitlements';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,8 +16,16 @@ async function getUser(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const token = req.headers.get('authorization')?.replace('Bearer ', '');
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // Signal push notifications are Pro-only (see dispatchPush in the alert
+  // cron). Without this, a free user could send themselves a successful test
+  // push - "push is working" - and then never receive a single real alert.
+  if (!token || !(await hasProFeatures(token, user.id))) {
+    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Push notifications are a Pro feature.' }, { status: 403 });
+  }
 
   const pubKey  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const privKey = process.env.VAPID_PRIVATE_KEY;

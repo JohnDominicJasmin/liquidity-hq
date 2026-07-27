@@ -537,6 +537,18 @@ export default function AlertsPage() {
         title={t('ALERTS_AUTHGATE_TITLE')}
         desc={t('ALERTS_AUTHGATE_DESC')}
       >
+        {!entitled ? (
+          /* Price alerts are delivered over Telegram, which the alert cron
+             only sends to Pro/trial users. Creation used to be open to
+             everyone, so a free user's alert saved and then silently never
+             fired. Lock it up front instead - same pattern as the Telegram
+             card above - and the API enforces it too (PRO_REQUIRED). */
+          <LockedFeatureCard
+            title={t('ALERTS_PRICE_ALERTS_LABEL')}
+            description={t('ALERTS_PRICE_LOCKED_DESC')}
+            onUnlock={() => setUpgradeGate(t('ALERTS_PRICE_ALERTS_LABEL'))}
+          />
+        ) : (
         <div className="card" style={{ marginBottom: 10 }}>
           <div className="lbl" style={{ marginBottom: 12 }}>{t('ALERTS_PRICE_ALERTS_LABEL')}</div>
           <div className="pa-form">
@@ -584,6 +596,7 @@ export default function AlertsPage() {
             {t('ALERTS_PRICE_ALERT_FOOTER')}
           </div>
         </div>
+        )}
       </AuthGate>
 
       {/* ── Recently Fired ───────────────────────────────────────────────── */}

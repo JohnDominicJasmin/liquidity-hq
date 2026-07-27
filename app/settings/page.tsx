@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
+import { isGatedTf } from '@/lib/limits';
 import { useSettings } from '@/lib/settings';
 import CoinMultiSelect from '@/components/CoinMultiSelect';
 import ThemeChips from '@/components/ThemeChips';
@@ -54,7 +55,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function SettingsPage() {
   const router = useRouter();
   const { t } = useLabels();
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, loading: authLoading, signOut, entitled } = useAuth();
   const { settings, saveStatus, update } = useSettings();
   const [tgStatus, setTgStatus] = useState<'loading' | 'configured' | 'not_configured'>('loading');
   const [pushEnabled,  setPushEnabled]  = useState(false);
@@ -379,15 +380,24 @@ export default function SettingsPage() {
         <div className="st-field">
           <label className="st-field-label">{t('SETTINGS_FIELD_DEFAULT_TF')}</label>
           <div className="st-chip-row">
-            {TFS.map(t => (
-              <button
-                key={t}
-                className={`st-chip${settings.default_tf === t ? ' on' : ''}`}
-                onClick={() => update({ default_tf: t })}
-              >
-                {t}
-              </button>
-            ))}
+            {TFS.map(tf => {
+              // Fast timeframes are Pro-only. Previously every chip was
+              // selectable for everyone, so a free user could save 5m here and
+              // Arena would silently clamp it back to 1h on load.
+              const locked = !entitled && isGatedTf(tf);
+              return (
+                <button
+                  key={tf}
+                  className={`st-chip${settings.default_tf === tf ? ' on' : ''}`}
+                  onClick={() => { if (!locked) update({ default_tf: tf }); }}
+                  disabled={locked}
+                  title={locked ? t('SETTINGS_TF_PRO_ONLY') : undefined}
+                  style={locked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+                >
+                  {tf}{locked ? ' 🔒' : ''}
+                </button>
+              );
+            })}
           </div>
         </div>
       </Section>

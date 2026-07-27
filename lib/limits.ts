@@ -12,6 +12,17 @@
 
 export type Tier = 'free' | 'pro';
 
+// Fast timeframes are Pro-only. Kept here (not in app/arena) because three
+// other surfaces need the same rule: Arena's chart clamp, the Settings
+// "default timeframe" chips, and onboarding's style-based default. When this
+// lived only in Arena, Settings happily let a free user save `5m` and Arena
+// then silently rewrote it to 1h on load with no explanation.
+export const GATED_TFS = ['1m', '5m', '15m'] as const;
+export const FREE_FALLBACK_TF = '1h';
+export function isGatedTf(tf: string): boolean {
+  return (GATED_TFS as readonly string[]).includes(tf);
+}
+
 // One-shot analysis tools gated by lib/aiUsage.ts (thesis-check, strategy-research,
 // shadow-account, behavioral-bias, pine-script, hypotheses/[id]/analyze). No web
 // search tools, cheaper per-call than `deep`, but still real xAI spend - previously

@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
+import { isGatedTf } from '@/lib/limits';
 import { useSettings } from '@/lib/settings';
 import { useLabels } from '@/lib/labels';
 import LanguageSelect from './LanguageSelect';
@@ -27,7 +28,7 @@ interface Props { open: boolean; onClose: () => void; }
 export default function SettingsModal({ open, onClose }: Props) {
   const router = useRouter();
   const { t } = useLabels();
-  const { user, signOut } = useAuth();
+  const { user, signOut, entitled } = useAuth();
   const { settings, saveStatus, update } = useSettings();
   const [tgStatus, setTgStatus] = useState<'loading' | 'configured' | 'not_configured'>('loading');
 
@@ -167,10 +168,21 @@ export default function SettingsModal({ open, onClose }: Props) {
             <div className="st-field" style={{ marginBottom: 0 }}>
               <label className="st-field-label">{t('SETTINGS_FIELD_DEFAULT_TF')}</label>
               <div className="st-chip-row">
-                {TFS.map(t => (
-                  <button key={t} className={`st-chip${settings.default_tf === t ? ' on' : ''}`}
-                    onClick={() => update({ default_tf: t })}>{t}</button>
-                ))}
+                {TFS.map(tf => {
+                  // Fast timeframes are Pro-only - see the same guard on the
+                  // full /settings page. Without it a free user can save a
+                  // timeframe Arena will silently clamp away on load.
+                  const locked = !entitled && isGatedTf(tf);
+                  return (
+                    <button key={tf} className={`st-chip${settings.default_tf === tf ? ' on' : ''}`}
+                      onClick={() => { if (!locked) update({ default_tf: tf }); }}
+                      disabled={locked}
+                      title={locked ? t('SETTINGS_TF_PRO_ONLY') : undefined}
+                      style={locked ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}>
+                      {tf}{locked ? ' 🔒' : ''}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
