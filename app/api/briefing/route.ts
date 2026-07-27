@@ -4,7 +4,7 @@ import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
-import { incrementUsageColumn, rateLimitMessage } from '@/lib/aiUsage';
+import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 
 export const dynamic = 'force-dynamic';
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
   }
 
   /* ── Rate limit check ── */
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayUtc();
   const [{ briefingUsed }, role] = await Promise.all([
     getUsageRow(token, userId, today),
     getUserRole(token, userId),

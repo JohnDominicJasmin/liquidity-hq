@@ -25,6 +25,34 @@ function sb(token: string) {
   );
 }
 
+// The ONLY place "what day is it" gets decided for daily-cap bucketing.
+// Every route that checks or increments a cap must call this - never
+// `new Date()` inline - so there is exactly one place to audit for the abuse
+// case this exists to prevent: a user changing their OS/browser timezone, or
+// routing through a VPN in another region, to make the app think a new day
+// has started and get a fresh quota mid-day.
+//
+// That attack cannot work against this function, for two independent reasons:
+//   1. It runs on the SERVER. The client never supplies a date, a timezone,
+//      or anything this function reads - it takes no arguments. Grep every
+//      route in app/api that touches a usage cap; none destructure `date` or
+//      `timezone` out of the request body, headers, or query string. There is
+//      no wire from client input to this value - not a validated wire, no
+//      wire at all.
+//   2. `toISOString()` is specified by ECMA-262 to always render UTC,
+//      regardless of the server process's own TZ. Even a misconfigured
+//      container clock could not make this function disagree with itself
+//      from one call to the next in a way a client could steer.
+// A per-user local "day" (using user_settings.timezone, added for Telegram
+// alert display - see components/TimezoneSync.tsx) must NEVER be substituted
+// in here: that field is client-writable by design, and doing so would
+// reopen exactly this hole - a user picks a favorable timezone, the day
+// boundary moves for them specifically, quota resets on demand. It exists
+// for one purpose (cosmetic display) and must stay confined to it.
+export function todayUtc(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 // App-wide daily xAI ceiling - a circuit breaker on top of the per-user caps.
 // Per-user caps stop one account looping; this stops a FLEET of farmed accounts
 // each staying under its own cap from collectively blowing the budget. Once
@@ -69,7 +97,7 @@ export async function incrementUsageColumn(
   token: string, userId: string, column: string, limit: number,
   poolLimit: number | null = null,
 ): Promise<UsageIncrementResult> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayUtc();
   const { data, error } = await sb(token).rpc('increment_ai_usage', {
     p_user_id: userId, p_date: today, p_column: column, p_limit: limit,
     p_global_limit: globalDailyMax(),
@@ -136,7 +164,7 @@ export function rateLimitMessage(
 export async function incrementGlobalUsage(): Promise<boolean> {
   const limit = globalDailyMax();
   if (limit === null) return true; // breaker disabled
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayUtc();
   const { data, error } = await getSupabaseAdmin().rpc('increment_global_ai_usage', {
     p_date: today, p_global_limit: limit,
   });

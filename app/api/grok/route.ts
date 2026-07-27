@@ -5,7 +5,7 @@ import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS, type Tier } from '@/lib/limits';
-import { incrementUsageColumn, rateLimitMessage } from '@/lib/aiUsage';
+import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 
 // Keys / limits (limits: single source of truth in lib/limits.ts)
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
   const userId = data.user?.id ?? null;
   if (!userId) return NextResponse.json({ usage: null });
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayUtc();
   const [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed }, role] = await Promise.all([
     getUsageRow(token, userId, today),
     getUserRole(token, userId),
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Rate limit check ──────────────────────────────────────────────────────
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayUtc();
   let [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed }, role] = await Promise.all([
     getUsageRow(token!, userId, today),
     getUserRole(token!, userId),
