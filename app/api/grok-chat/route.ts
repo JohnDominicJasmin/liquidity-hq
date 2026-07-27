@@ -18,7 +18,7 @@ import { T } from '@/lib/tables';
 import { getUserRole } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
-import { incrementUsageColumn, rateLimitMessage } from '@/lib/aiUsage';
+import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
   const { data: userData } = await sb(token).auth.getUser();
   if (!userData.user) return NextResponse.json({ error: 'Auth required' }, { status: 401 });
   const userId = userData.user.id;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayUtc();
   const [{ chatUsed, searchUsed }, role] = await Promise.all([
     getUsageRow(token, userId, today),
     getUserRole(token, userId),
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
   const isSearch = mode === 'search';
 
   /* ── Rate limit check ── */
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayUtc();
   const [{ chatUsed, searchUsed }, role] = await Promise.all([
     getUsageRow(token, userId, today),
     getUserRole(token, userId),

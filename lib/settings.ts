@@ -37,6 +37,11 @@ export interface UserSettings {
   // UI language - null means no explicit choice saved server-side yet, so
   // the client falls back to whatever it has in localStorage (see lib/labels.ts)
   language:         string | null;
+  // IANA timezone, detected from the browser rather than asked for - the
+  // server has no other way to know it, and Telegram alerts need it to stamp
+  // each subscriber's own local time. Null = not detected yet; the alert route
+  // falls back to UTC. See components/TimezoneSync.tsx.
+  timezone:         string | null;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -65,6 +70,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   beginner_mode:      true,
   watchlist:          ['btc', 'eth', 'sol'],
   language:           null,
+  timezone:           null,
 };
 
 // ── Context ────────────────────────────────────────────────────────────────
@@ -157,5 +163,6 @@ export function rowToSettings(row: Record<string, unknown>): UserSettings {
     beginner_mode:      !!(row.beginner_mode ?? false),
     watchlist:          Array.isArray(row.watchlist) ? row.watchlist as string[] : DEFAULT_SETTINGS.watchlist,
     language:           (row.language as string | null) ?? null,
+    timezone:           (row.timezone as string | null) ?? null,
   };
 }

@@ -191,18 +191,80 @@ function getSession(): string {
 const onCooldown = (key: string, ms: number) => { const t = lastSent.get(key); return t !== undefined && Date.now() - t < ms; };
 const markSent   = (key: string) => lastSent.set(key, Date.now());
 
+/* ── Per-recipient alert timestamps ──────────────────────────────────────────
+   Message bodies are built once and fanned out to many chat IDs, so the time
+   in them can't be baked in per recipient at build time. Instead bodies carry
+   TIME_TOKEN, and tg() swaps in each recipient's own local time right before
+   sending - grouping chat IDs by timezone so one Telegram call still covers
+   everyone who shares a zone, exactly as the mute-subset grouping already does.
+
+   CHAT_TZ is module scope because tg() is called from ~15 places that have no
+   reason to know about timezones. It's rebuilt from the same user_settings
+   rows at the top of every run, so a concurrent invocation can only ever
+   overwrite it with equivalent data. */
+const TIME_TOKEN = '__ALERT_TIME__';
+const CHAT_TZ = new Map<string, string | null>();
+
+function alertTimeIn(timeZone: string | null): string {
+  // Unknown timezone (never opened the web app, or an older row) -> UTC, and
+  // say so, rather than silently implying it's the reader's local time.
+  if (!timeZone) {
+    return new Date().toLocaleString('en-GB', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' }) + ' UTC';
+  }
+  try {
+    return new Date().toLocaleString('en-GB', {
+      timeZone, hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+    });
+  } catch {
+    // Bad/unknown IANA name stored - never let a formatting error kill an alert.
+    return new Date().toLocaleString('en-GB', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' }) + ' UTC';
+  }
+}
+
+// checkDailySummary's per-recipient morning-window check. Unknown/bad
+// timezone falls back to Asia/Manila - the historical anchor this used
+// unconditionally before per-user timezones existed, so a recipient we don't
+// know the zone for still gets exactly the behavior they already had, not a
+// regression relative to before this fix.
+function localHourMinute(timeZone: string | null, d: Date): { hour: number; min: number } {
+  const read = (zone: string) => {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: zone, hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(d);
+    return {
+      hour: Number(parts.find(p => p.type === 'hour')?.value ?? '0'),
+      min:  Number(parts.find(p => p.type === 'minute')?.value ?? '0'),
+    };
+  };
+  try {
+    return read(timeZone || 'Asia/Manila');
+  } catch {
+    return read('Asia/Manila');
+  }
+}
+
 /* ── Telegram send ── */
 async function tg(token: string, chatId: string | string[], text: string): Promise<void> {
   const ids = Array.isArray(chatId) ? chatId : [chatId];
+  // One rendered body per distinct timezone among these recipients.
+  const byZone = new Map<string | null, string[]>();
+  for (const id of ids) {
+    const tz = CHAT_TZ.get(id) ?? null;
+    const bucket = byZone.get(tz);
+    if (bucket) bucket.push(id); else byZone.set(tz, [id]);
+  }
   try {
-    await Promise.all(ids.map(id =>
-      fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: id, text, parse_mode: 'HTML' }),
-        signal: AbortSignal.timeout(10_000),
-      })
-    ));
+    await Promise.all([...byZone.entries()].flatMap(([tz, zoneIds]) => {
+      const body = text.includes(TIME_TOKEN) ? text.replaceAll(TIME_TOKEN, alertTimeIn(tz)) : text;
+      return zoneIds.map(id =>
+        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: id, text: body, parse_mode: 'HTML' }),
+          signal: AbortSignal.timeout(10_000),
+        })
+      );
+    }));
   } catch { /* fire-and-forget */ }
 }
 
@@ -844,17 +906,28 @@ async function checkDailySummary(
   token: string, recipients: Recipient[], mutedByUser: Map<string, Set<string>>, stamp: string,
   frMap: Record<string, number | null>
 ): Promise<string[]> {
-  const d       = new Date();
-  const phtHour = (d.getUTCHours() + 8) % 24;
-  const phtMin  = d.getUTCMinutes();
-  if (phtHour !== 7 || phtMin > 10) return [];
-  if (onCooldown('daily_summary', CD.daily)) return [];
-  const eligible = recipients.filter(r => !isMutedFor(mutedByUser, r.userId, 'daily_summary'));
+  const d = new Date();
+  // Each recipient's OWN local 7:00-7:10am window, not one fixed instant that
+  // only actually meant "morning" for Philippine subscribers. This used to
+  // gate the entire function on a single `(getUTCHours()+8)%24 === 7` check -
+  // correct for PHT, but a "7am summary" that always lands at 7pm the
+  // previous evening for a US Eastern subscriber isn't a morning briefing for
+  // them at all. Cron ticks every few minutes (see the 10-minute slop below)
+  // and checks every recipient's zone each time, so each one gets exactly one
+  // send, at their own morning, on whichever tick happens to land in it - the
+  // per-chatId cooldown is what prevents a second send on the next tick.
+  const eligible: { r: Recipient; zone: string }[] = [];
+  for (const r of recipients) {
+    if (isMutedFor(mutedByUser, r.userId, 'daily_summary')) continue;
+    const zone = CHAT_TZ.get(r.chatId) || 'Asia/Manila';
+    const { hour, min } = localHourMinute(zone, d);
+    if (hour !== 7 || min > 10) continue;
+    const cdKey = `daily_summary_${r.chatId}`;
+    if (onCooldown(cdKey, CD.daily)) continue;
+    markSent(cdKey);
+    eligible.push({ r, zone });
+  }
   if (eligible.length === 0) return [];
-
-  const dateStr = d.toLocaleString('en-PH', {
-    timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric',
-  });
 
   // Fear & Greed
   let fngLine    = '';
@@ -893,12 +966,17 @@ async function checkDailySummary(
     }
   } catch { /* skip */ }
 
-  const bodyBase =
-    `☀️ <b>Morning Briefing - ${dateStr}</b>` +
-    `${fngLine}\n\n` +
-    `📊 <b>Funding Rates:</b>\n${frBlock}`;
-
-  await Promise.all(eligible.map(r => {
+  await Promise.all(eligible.map(({ r, zone }) => {
+    // "Today" in the header means the recipient's own calendar date at their
+    // 7am, not UTC's - someone far enough east or west of UTC can be on a
+    // different UTC calendar day than their own local morning.
+    const dateStr = d.toLocaleString('en-GB', {
+      timeZone: zone, weekday: 'short', month: 'short', day: 'numeric',
+    });
+    const bodyBase =
+      `☀️ <b>Morning Briefing - ${dateStr}</b>` +
+      `${fngLine}\n\n` +
+      `📊 <b>Funding Rates:</b>\n${frBlock}`;
     const own = alertsByUser.get(r.userId) ?? [];
     const alertsBlock = own.length
       ? `\n\n🎯 <b>Active Price Alerts:</b>\n${own.map(a => {
@@ -910,7 +988,6 @@ async function checkDailySummary(
     return tg(token, r.chatId, `${bodyBase}${alertsBlock}\n\n<i>${stamp}</i>`);
   }));
 
-  markSent('daily_summary');
   return ['Daily 7am summary'];
 }
 
@@ -1507,15 +1584,18 @@ async function runAlerts(token: string): Promise<NextResponse> {
     const admin = getSupabaseAdmin();
     const { data } = await admin
       .from(T.user_settings)
-      .select('user_id, telegram_chat_id')
+      .select('user_id, telegram_chat_id, timezone')
       .not('telegram_chat_id', 'is', null)
       .neq('telegram_chat_id', '');
+    // Rebuilt every run - see the note on CHAT_TZ above.
+    CHAT_TZ.clear();
     for (const row of data ?? []) {
       const userId = row.user_id as string;
       if (!proUserIds.has(userId)) continue;
       const id = (row.telegram_chat_id as string)?.trim();
       if (id && !allChatIds.includes(id)) {
         allChatIds.push(id);
+        CHAT_TZ.set(id, (row.timezone as string | null) || null);
         recipients.push({ userId, chatId: id });
       }
     }
@@ -1536,8 +1616,12 @@ async function runAlerts(token: string): Promise<NextResponse> {
   CD.whale = nyActive ? 5 * 60_000  : 30 * 60_000;
   CD.news  = nyActive ? 5 * 60_000  : 15 * 60_000;
 
-  const now   = new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit' });
-  const stamp = `⏰ ${now} PHT · ${getSession()}`;
+  // TIME_TOKEN, not a rendered time: tg() replaces it per recipient with that
+  // subscriber's own local clock (falling back to UTC when we don't know their
+  // timezone). Was a single Manila time for everyone, then a single UTC time -
+  // correct but still nobody's actual wall clock. The session name beside it is
+  // already timezone-independent.
+  const stamp = `⏰ ${TIME_TOKEN} · ${getSession()}`;
 
   // Fetch shared data once (+ per-user muted alert groups + threshold settings)
   const [frMap, prices, lsMap, mutedByUser, thresholdsByUser] = await Promise.all([

@@ -54,8 +54,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'No Chat ID configured. Connect Telegram first.' });
   }
 
-  const now = new Date().toLocaleString('en-PH', {
-    timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit',
+  const now = new Date().toLocaleString('en-GB', {
+    timeZone: 'UTC', hour: '2-digit', minute: '2-digit',
     day: 'numeric', month: 'short',
   });
 
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
         `• RSI overbought / oversold (1H)\n` +
         `• Whale trades, open interest spikes, rapid moves\n` +
         `• Price level alerts & daily 7am summary\n\n` +
-        `<i>⏰ ${now} PHT</i>`,
+        `<i>⏰ ${now} UTC</i>`,
     }),
   });
 

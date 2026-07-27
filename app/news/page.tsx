@@ -571,14 +571,20 @@ export default function NewsPage() {
             </div>
           )}
           {(() => {
-            // Group events by PHT date string
+            // Group events by the VIEWER'S own calendar date. This used to force
+            // 'en-PH' + Asia/Manila, so a trader in New York saw every release at
+            // Manila's clock AND filed under Manila's date - an 8:30 AM ET print
+            // showed as 9:30 PM and landed under the *next* day's heading, with
+            // "TODAY" pointing at the wrong group. Passing undefined as the locale
+            // also lets the date format follow the viewer, not the Philippines.
             const groups: { dateLabel: string; isToday: boolean; events: typeof econEvents }[] = [];
-            const todayPHT = new Date().toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            const dateFmt: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const todayLocal = new Date().toLocaleDateString(undefined, dateFmt);
             econEvents.forEach(e => {
-              const label = e.dt.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+              const label = e.dt.toLocaleDateString(undefined, dateFmt);
               const last = groups[groups.length - 1];
               if (last && last.dateLabel === label) { last.events.push(e); }
-              else groups.push({ dateLabel: label, isToday: label === todayPHT, events: [e] });
+              else groups.push({ dateLabel: label, isToday: label === todayLocal, events: [e] });
             });
             return groups.map((g, gi) => (
               <div key={gi} style={{ marginBottom: 20 }}>
@@ -602,7 +608,7 @@ export default function NewsPage() {
                   const urgent = e.h >= -0.5 && e.h < 2;
                   const soon = e.h < 24;
                   const past = e.h < 0;
-                  const timePHT = e.dt.toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', hour12: false });
+                  const timeLocal = e.dt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
                   const note = ECON_NOTES[e.type];
                   const borderColor = urgent ? '#f87171' : soon ? '#fbbf24' : 'var(--purple)';
                   return (
@@ -615,7 +621,7 @@ export default function NewsPage() {
                       alignItems: 'start',
                     }}>
                       <span style={{ fontSize: 'var(--fs-caption)', color: urgent ? '#f87171' : soon ? '#fbbf24' : 'var(--txt2)', fontWeight: 600, paddingTop: 1 }}>
-                        {urgent ? t('NEWS_EVENTS_NOW_BADGE') : timePHT}
+                        {urgent ? t('NEWS_EVENTS_NOW_BADGE') : timeLocal}
                       </span>
                       <div>
                         <div style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--txt)', marginBottom: note ? 4 : 0 }}>{decodeEntities(e.name)}</div>

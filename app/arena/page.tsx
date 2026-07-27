@@ -1635,6 +1635,25 @@ function ArenaContent() {
         );
         const secsDiff = Math.floor((Date.now() - result.analyzedAt) / 1000);
         const freshness = secsDiff < 60 ? t('ARENA_FRESHNESS_JUST_NOW') : secsDiff < 3600 ? t('ARENA_FRESHNESS_MINUTES_AGO', { n: Math.floor(secsDiff/60) }) : t('ARENA_FRESHNESS_HOURS_AGO', { n: Math.floor(secsDiff/3600) });
+        // Live invalidation/target-hit check - the entry/stop/target grid used to be a
+        // static snapshot from whenever the analysis ran: price could blow straight
+        // through the stop or reach the target and the card would look identical,
+        // still showing the old trade as if it were live. store.coins[selectedCoin].price
+        // ticks in real time, so this recomputes on every render, not just on a fresh
+        // AI call - "stopped"/"target" wins on the FIRST render where it's already true,
+        // not only the render where the cross happens.
+        // Checked in this priority order (stop first) so a candle that gaps past both
+        // levels in one move is reported as invalidated, not as a win.
+        const currentPrice = store.coins[selectedCoin]?.price ?? null;
+        const isLongDir  = result.signal === 'LONG' || result.signal === 'LEAN LONG';
+        const isShortDir = result.signal === 'SHORT' || result.signal === 'LEAN SHORT';
+        const levelStatus: 'stopped' | 'target' | null =
+          currentPrice == null || (!isLongDir && !isShortDir) ? null
+          : isLongDir  && result.sl != null && currentPrice <= result.sl ? 'stopped'
+          : isShortDir && result.sl != null && currentPrice >= result.sl ? 'stopped'
+          : isLongDir  && result.tp != null && currentPrice >= result.tp ? 'target'
+          : isShortDir && result.tp != null && currentPrice <= result.tp ? 'target'
+          : null;
         return (
           <div className={`arena-signal-card sig-${result.signal.toLowerCase().replace(' ', '-')}`}>
             <button
@@ -1715,6 +1734,45 @@ function ArenaContent() {
                 <div className="av-lv-v">{rr ? rr.toFixed(1) : '-'}</div>
               </div>
             </div>
+
+            {/* Live invalidation/target-hit - price has already moved past this
+                thesis's stop or target since the analysis ran. Same visual
+                treatment as the raid block below (colored border+bg card) so it
+                reads as the same family of "important state" callout. */}
+            {levelStatus === 'stopped' && (
+              <div style={{
+                marginTop: 8, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8,
+                border: '0.5px solid rgba(248,113,113,0.35)', background: 'rgba(248,113,113,0.09)',
+                padding: '9px 12px',
+              }}>
+                <span aria-hidden="true" style={{ fontSize: 16, flexShrink: 0 }}>⚠</span>
+                <div>
+                  <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: '#f87171' }}>
+                    {t('ARENA_STOP_HIT_HEADER')}
+                  </div>
+                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
+                    {t('ARENA_STOP_HIT_BODY', { price: fmtPrice(result.sl!) })}
+                  </div>
+                </div>
+              </div>
+            )}
+            {levelStatus === 'target' && (
+              <div style={{
+                marginTop: 8, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8,
+                border: '0.5px solid rgba(52,211,153,0.35)', background: 'rgba(52,211,153,0.09)',
+                padding: '9px 12px',
+              }}>
+                <span aria-hidden="true" style={{ fontSize: 16, flexShrink: 0 }}>✓</span>
+                <div>
+                  <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: '#34d399' }}>
+                    {t('ARENA_TARGET_HIT_HEADER')}
+                  </div>
+                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
+                    {t('ARENA_TARGET_HIT_BODY', { price: fmtPrice(result.tp!) })}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Wait-for - single inline row matching the mockup's .waitfor style */}
             {result.waitFor && (
