@@ -10,7 +10,7 @@
 //    (was SmartMoneyScore)
 //  - Contrarian flag: fires only at sentiment extremes (was SentimentExtremesAlert)
 import { classifyFunding, type MarketStore, type LiqWall } from '@/lib/marketStore';
-import { getLocalNow } from '@/lib/session';
+import { isGodTier, isPrime, isMonEvening, isLondon, isDead } from '@/lib/session';
 
 export type Band = 'good' | 'mid' | 'weak';
 export type FundingSide = 'pos' | 'neg' | 'neu';
@@ -103,18 +103,28 @@ export function computeMarketRead(store: MarketStore, manualFund: FundingSide | 
   const autoFundingSide: FundingSide = coin?.fundingRate != null ? classifyFunding(coin.fundingRate).rpm : 'neu';
   const fundingSide = manualFund ?? autoFundingSide;
 
-  const now = getLocalNow();
-  const day = now.getDay();
-  const mins = now.getHours() * 60 + now.getMinutes();
-  const isSunNight = (day === 0 && mins >= 1380) || (day === 1 && mins < 180);
-  const isPrime = mins >= 120 && mins < 300;
-  const isLondon = mins >= 900 && mins < 1080;
-  const isDead = mins >= 720 && mins < 900;
-  const isMonEve = day === 1 && mins >= 1200 && mins < 1380;
+  // Session detection MUST come from lib/session.ts, which anchors every
+  // window to UTC. This block used to re-implement the same five windows
+  // against the VIEWER'S local clock (`now.getHours()`), with thresholds that
+  // were really PHT wall-clock values - so a trader in London hit the
+  // "London Open" bonus at 15:00 London time, which is the NY session, while
+  // the actual London window (07:00-10:00 UTC) scored nothing. Silently wrong
+  // for everyone outside UTC+8, with no "PHT" label anywhere to hint at it.
+  // The two copies had already drifted apart (session.ts London = 07:00-10:00
+  // UTC vs 15:00-18:00 local here), which is exactly why this is a call now
+  // and not a second copy.
+  const now = new Date();
   let timeScore = 10;
-  if (isSunNight) timeScore = 30; else if (isPrime) timeScore = 26; else if (isMonEve) timeScore = 22;
-  else if (isLondon) timeScore = 16; else if (isDead) timeScore = 2;
+  if (isGodTier(now))         timeScore = 30;
+  else if (isPrime(now))      timeScore = 26;
+  else if (isMonEvening(now)) timeScore = 22;
+  else if (isLondon(now))     timeScore = 16;
+  else if (isDead(now))       timeScore = 2;
 
+  // Day-of-week scoring is anchored to UTC too - the session windows above
+  // are UTC, so reading a local day here would disagree with them either side
+  // of the viewer's midnight.
+  const day = now.getUTCDay();
   const dayScore = [15, 14, 11, 10, 9, 4, 12][day];
   const dayLabel = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][day];
 
