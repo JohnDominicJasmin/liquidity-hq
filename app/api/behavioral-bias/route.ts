@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
 import { getUserRole } from '@/lib/entitlements';
-import { AI_LIMITS } from '@/lib/limits';
 import { apiError } from '@/lib/apiError';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -131,11 +130,10 @@ export async function POST(req: NextRequest) {
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
   const role = await getUserRole(token, authData.user.id);
-  const limit = AI_LIMITS[role].behavioralBias;
-  const usageResult = await incrementToolUsage(token, authData.user.id, 'behavioralBias', limit);
+  const usageResult = await incrementToolUsage(token, authData.user.id, 'behavioralBias', role);
   if (usageResult.blocked) {
     return NextResponse.json(
-      { error: rateLimitMessage(usageResult.reason, limit, 'bias reports'), code: 'RATE_LIMIT' },
+      { error: rateLimitMessage(usageResult.reason, usageResult.limit, 'bias reports'), code: 'RATE_LIMIT' },
       { status: 429 },
     );
   }

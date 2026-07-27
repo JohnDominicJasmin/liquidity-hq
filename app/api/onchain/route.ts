@@ -3,8 +3,7 @@ import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
 import { hasProFeatures, getUserRole } from '@/lib/entitlements';
-import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
-import { AI_LIMITS } from '@/lib/limits';
+import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // On-chain metrics (MVRV/SOPR/NVT/exchange flow) don't move within minutes, and
@@ -12,7 +11,7 @@ const GROK_KEY = process.env.GROK_API_KEY ?? '';
 const CACHE_TTL = 10 * 60_000;
 
 class RateLimitError extends Error {
-  constructor(public limit: number, reason: 'user' | 'global') {
+  constructor(public limit: number, reason: UsageBlockReason) {
     super(rateLimitMessage(reason, limit, 'on-chain score checks'));
   }
 }
@@ -140,10 +139,9 @@ export async function GET(req: NextRequest) {
       // daily cap - a cache hit stays free for everyone (same pattern as
       // token-unlock/smc-snapshot).
       const role = await getUserRole(token, authData.user.id);
-      const limit = AI_LIMITS[role].onchain;
-      const usageResult = await incrementToolUsage(token, authData.user.id, 'onchain', limit);
+      const usageResult = await incrementToolUsage(token, authData.user.id, 'onchain', role);
       if (usageResult.blocked) {
-        throw new RateLimitError(limit, usageResult.reason);
+        throw new RateLimitError(usageResult.limit, usageResult.reason);
       }
 
       const stats = await fetchBlockchainStats();

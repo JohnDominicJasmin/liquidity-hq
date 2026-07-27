@@ -11,7 +11,8 @@ const DAY = 86_400_000;
 // AI (Grok) cost & usage. Three datasets:
 //  - alert_grok_log: system-level calls made by the alert cron (no user_id).
 //  - grok_usage: per-user daily counts (deep/quick/chat/chat_search/briefing/
-//    + 8 one-shot tools) - the basis for the $ estimates below.
+//    + 11 one-shot tools) - the basis for the $ estimates below. The
+//    authoritative column list is ALL_USAGE_COLUMNS in lib/aiCost.ts.
 //  - global_ai_usage: the circuit breaker's single daily counter, read here
 //    only to show "today's calls vs AI_GLOBAL_DAILY_MAX" and raise a spike
 //    flag - grok_usage is the source for the actual $ figures since it has

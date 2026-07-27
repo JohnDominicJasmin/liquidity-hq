@@ -6,9 +6,10 @@
  *   { mode: 'chat',   model, messages, max_tokens }  → /v1/chat/completions
  *   { mode: 'search', model, input, tools }           → /v1/responses  (live web + X search)
  *
- * Daily limits (resets midnight UTC):
- *   Free - 15 chat  + 5  search
- *   Pro  - 100 chat + 25 search
+ * Daily limits live in lib/limits.ts (AI_LIMITS[role].chat / .search) - the
+ * enforced source of truth. Deliberately not restated here: this docblock
+ * used to hardcode them and silently went stale across two separate
+ * repricings before anyone noticed.
  */
 
 import { NextRequest, NextResponse } from 'next/server';

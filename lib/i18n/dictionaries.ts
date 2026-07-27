@@ -90,7 +90,7 @@ export const en: LandingDict = {
       { title: 'Run AI analysis', desc: 'Open AI Arena, select a coin, hit Analyze. Grok reads 35 live signals and gives you a direct, actionable trade bias.' },
     ],
   },
-  // AI limit numbers below (5 Quick / 3 Deep / 10 chat, and 40/18/75/18 for Pro)
+  // AI limit numbers below (5 Quick / 3 Deep / 5 chat, and 30/10/50/10 for Pro)
   // must match lib/limits.ts, the enforced source of truth. These are embedded in
   // localized prose across en/ko/zh/ar so they can't be templated - update by hand
   // (all four locales) if a limit changes. The /upgrade page IS derived from limits.ts.
@@ -105,7 +105,7 @@ export const en: LandingDict = {
         { text: 'News feed', included: true },
         { text: 'All 50 coins - squeeze scanner', included: true },
         { text: '5 Quick + 3 Deep AI analyses / day', included: true },
-        { text: '10 AI chat messages / day', included: true },
+        { text: '5 AI chat messages / day', included: true },
         { text: 'Telegram alerts', included: false },
         { text: 'Price alerts', included: false },
       ],
@@ -113,7 +113,7 @@ export const en: LandingDict = {
     },
     pro: {
       badge: 'Most popular', name: 'Pro', sub: 'Every feature unlocked, generous daily limits',
-      features: ['Everything in Free', 'Signals on 1m/5m/15m charts', 'Confluence Score, Order Flow, and Absorption Detector', 'Full strategy backtesting', 'On-chain and macro AI analysis', 'Telegram alerts - all signal types', 'Unlimited price alerts', '40 Quick + 18 Deep analyses / day', '75 AI chat messages / day', '18 live searches / day', 'Priority support'],
+      features: ['Everything in Free', 'Signals on 1m/5m/15m charts', 'Confluence Score, Order Flow, and Absorption Detector', 'Full strategy backtesting', 'On-chain and macro AI analysis', 'Telegram alerts - all signal types', 'Unlimited price alerts', '30 Quick + 10 Deep analyses / day', '50 AI chat messages / day', '10 live searches / day', '25 AI tool runs / day (shared)', 'Priority support'],
       cta: 'Get Pro - $25/mo',
     },
   },
@@ -177,7 +177,7 @@ export const ko: LandingDict = {
         { text: '뉴스 피드', included: true },
         { text: '전체 50개 코인 - 스퀴즈 스캐너', included: true },
         { text: '일일 퀵 분석 5회 + 딥 분석 3회', included: true },
-        { text: '일일 AI 채팅 10회', included: true },
+        { text: '일일 AI 채팅 5회', included: true },
         { text: '텔레그램 알림', included: false },
         { text: '가격 알림', included: false },
       ],
@@ -185,7 +185,7 @@ export const ko: LandingDict = {
     },
     pro: {
       badge: '가장 인기', name: 'Pro', sub: '모든 기능 잠금 해제, 넉넉한 일일 한도',
-      features: ['무료 플랜의 모든 기능', '1분, 5분, 15분 차트 시그널', '컨플루언스 점수, 오더 플로우, 앱소프션 디텍터', '전체 전략 백테스팅', '온체인 및 글로벌 매크로 AI 분석', '텔레그램 알림 - 전체 신호 유형', '무제한 가격 알림', '일일 퀵 분석 40회 + 딥 분석 18회', '일일 AI 채팅 75회', '일일 실시간 검색 18회', '우선 지원'],
+      features: ['무료 플랜의 모든 기능', '1분, 5분, 15분 차트 시그널', '컨플루언스 점수, 오더 플로우, 앱소프션 디텍터', '전체 전략 백테스팅', '온체인 및 글로벌 매크로 AI 분석', '텔레그램 알림 - 전체 신호 유형', '무제한 가격 알림', '일일 퀵 분석 30회 + 딥 분석 10회', '일일 AI 채팅 50회', '일일 실시간 검색 10회', '일일 AI 도구 실행 25회 (공용)', '우선 지원'],
       cta: 'Pro 시작하기 - $25/월',
     },
   },
@@ -249,7 +249,7 @@ export const zh: LandingDict = {
         { text: '新闻资讯', included: true },
         { text: '全部50种币--挤压扫描器', included: true },
         { text: '每日5次快速+3次深度AI分析', included: true },
-        { text: '每日10条AI聊天消息', included: true },
+        { text: '每日5条AI聊天消息', included: true },
         { text: 'Telegram提醒', included: false },
         { text: '价格提醒', included: false },
       ],
@@ -257,7 +257,7 @@ export const zh: LandingDict = {
     },
     pro: {
       badge: '最受欢迎', name: 'Pro', sub: '解锁全部功能,每日额度充裕',
-      features: ['免费版全部功能', '1 分钟、5 分钟、15 分钟图表信号', '共振评分、订单流与吸筹探测器', '完整策略回测', '链上数据与全球宏观 AI 分析', 'Telegram提醒--全部信号类型', '无限价格提醒', '每日40次快速+18次深度分析', '每日75条AI聊天消息', '每日18次实时搜索', '优先支持'],
+      features: ['免费版全部功能', '1 分钟、5 分钟、15 分钟图表信号', '共振评分、订单流与吸筹探测器', '完整策略回测', '链上数据与全球宏观 AI 分析', 'Telegram提醒--全部信号类型', '无限价格提醒', '每日30次快速+10次深度分析', '每日50条AI聊天消息', '每日10次实时搜索', '每日25次AI工具调用(共享额度)', '优先支持'],
       cta: '升级Pro--$25/月',
     },
   },
@@ -321,7 +321,7 @@ export const ar: LandingDict = {
         { text: 'خلاصة الأخبار', included: true },
         { text: 'جميع العملات الـ50 - ماسح الانضغاط', included: true },
         { text: '5 تحليلات سريعة + 3 تحليلات معمّقة يوميًا', included: true },
-        { text: '10 رسالة دردشة ذكاء اصطناعي يوميًا', included: true },
+        { text: '5 رسائل دردشة ذكاء اصطناعي يوميًا', included: true },
         { text: 'تنبيهات تيليجرام', included: false },
         { text: 'تنبيهات الأسعار', included: false },
       ],
@@ -329,7 +329,7 @@ export const ar: LandingDict = {
     },
     pro: {
       badge: 'الأكثر شيوعًا', name: 'Pro', sub: 'كل الميزات مفتوحة، بحدود يومية سخية',
-      features: ['كل ما في الخطة المجانية', 'إشارات على الرسوم البيانية لدقيقة و5 دقائق و15 دقيقة', 'درجة التقاطع، تدفق الأوامر، وكاشف الامتصاص', 'اختبار استراتيجيات كامل على بيانات تاريخية', 'تحليل ذكاء اصطناعي للبيانات على السلسلة والاقتصاد الكلي العالمي', 'تنبيهات تيليجرام - جميع أنواع الإشارات', 'تنبيهات أسعار غير محدودة', '40 تحليل سريع + 18 تحليلًا معمّقًا يوميًا', '75 رسالة دردشة ذكاء اصطناعي يوميًا', '18 بحثًا مباشرًا يوميًا', 'دعم ذو أولوية'],
+      features: ['كل ما في الخطة المجانية', 'إشارات على الرسوم البيانية لدقيقة و5 دقائق و15 دقيقة', 'درجة التقاطع، تدفق الأوامر، وكاشف الامتصاص', 'اختبار استراتيجيات كامل على بيانات تاريخية', 'تحليل ذكاء اصطناعي للبيانات على السلسلة والاقتصاد الكلي العالمي', 'تنبيهات تيليجرام - جميع أنواع الإشارات', 'تنبيهات أسعار غير محدودة', '30 تحليلًا سريعًا + 10 تحليلات معمّقة يوميًا', '50 رسالة دردشة ذكاء اصطناعي يوميًا', '10 عمليات بحث مباشر يوميًا', '25 تشغيلًا لأدوات الذكاء الاصطناعي يوميًا (رصيد مشترك)', 'دعم ذو أولوية'],
       cta: 'احصل على Pro - 25$/شهريًا',
     },
   },

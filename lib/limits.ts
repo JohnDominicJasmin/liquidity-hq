@@ -32,19 +32,35 @@ export type ExtraTool =
   | 'behavioralBias' | 'pineScript' | 'hypothesisAnalyze' | 'tokenUnlock'
   | 'smcSnapshot' | 'dryPowder' | 'macroContext' | 'onchain';
 
+// `toolPool` is a SHARED daily budget across all 11 ExtraTool routes, on top of
+// each tool's own cap. Why it exists: 11 separate per-tool caps multiply out -
+// at 18 each that's a 198-call/day ceiling per Pro user (~43% of the whole
+// worst-case xAI bill) for tools nobody actually runs 18 times a day. A pool
+// collapses that ceiling while making each individual tool MORE generous: a
+// Pro user who only ever runs SMC snapshots gets 25 of them, not 6.
+// null = no pool, per-tool caps are the only gate (free tier - keeping
+// per-tool caps there means a free user can still sample every tool instead
+// of burning one shared budget on the first one they click).
 export const AI_LIMITS: Record<Tier, {
   quick: number; deep: number; chat: number; search: number; briefing: number;
+  toolPool: number | null;
 } & Record<ExtraTool, number>> = {
   free: {
-    quick: 5,  deep: 3,  chat: 10,  search: 3,  briefing: 2,
-    thesisCheck: 3, strategyResearch: 3, shadowAccount: 3,
-    behavioralBias: 3, pineScript: 3, hypothesisAnalyze: 3, tokenUnlock: 3,
-    smcSnapshot: 3, dryPowder: 3, macroContext: 3, onchain: 3,
+    quick: 5,  deep: 3,  chat: 5,  search: 3,  briefing: 2,
+    toolPool: null,
+    thesisCheck: 2, strategyResearch: 2, shadowAccount: 2,
+    behavioralBias: 2, pineScript: 2, hypothesisAnalyze: 2, tokenUnlock: 2,
+    smcSnapshot: 2, dryPowder: 2, macroContext: 2, onchain: 2,
   },
   pro: {
-    quick: 40, deep: 18, chat: 75, search: 18, briefing: 8,
-    thesisCheck: 18, strategyResearch: 18, shadowAccount: 18,
-    behavioralBias: 18, pineScript: 18, hypothesisAnalyze: 18, tokenUnlock: 18,
-    smcSnapshot: 18, dryPowder: 18, macroContext: 18, onchain: 18,
+    quick: 30, deep: 10, chat: 50, search: 10, briefing: 4,
+    toolPool: 25,
+    // Per-tool caps equal the pool on purpose: the pool is what actually
+    // binds, so any single tool can use the whole budget if that's what the
+    // user wants. Lowering one of these below `toolPool` would re-introduce
+    // the per-tool ceiling the pool exists to remove.
+    thesisCheck: 25, strategyResearch: 25, shadowAccount: 25,
+    behavioralBias: 25, pineScript: 25, hypothesisAnalyze: 25, tokenUnlock: 25,
+    smcSnapshot: 25, dryPowder: 25, macroContext: 25, onchain: 25,
   },
 };

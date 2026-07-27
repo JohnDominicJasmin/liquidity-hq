@@ -130,6 +130,75 @@ implemented and verified live**, not just analyzed:
 `liquidity-hq.onrender.com/upgrade`: `$25/mo` and the trimmed caps both render
 correctly.
 
+## ✅ Second repricing — worst case now PROFITABLE (2026-07-27, on `dev`)
+
+Recomputing straight from `lib/limits.ts` + `lib/aiCost.ts` gave a worse
+number than the ~$42 above: **~$52.01/mo** worst case (303 plain calls/day ×
+$0.0041 + 54 search calls/day × $0.0091), i.e. **2.08× underwater** at $25
+revenue. Fixed by attacking where the ceiling actually sat.
+
+Diagnosis: **43% of the worst-case bill was the 11 one-shot tools**, whose
+independent 18/day caps multiply out to a 198-call/day ceiling — for tools
+nobody runs 18 times a day. Trimming each per-tool number would have made
+every tool feel stingy for no structural gain, so they were **pooled**
+instead.
+
+- **Shared tool pool**: `AI_LIMITS.pro.toolPool = 25`/day across all 11
+  one-shot tools; free stays per-tool (`toolPool: null`) so a free user can
+  still sample every tool. A Pro user who only runs SMC snapshots now gets
+  **25/day, up from 18**, while the ceiling drops — more generous per tool
+  AND cheaper.
+- `increment_ai_usage()` gained `p_pool_limit` + a `tool_pool_count` column,
+  checked/incremented atomically alongside the per-tool counter. New `-2`
+  sentinel = pool exhausted, distinct from `null` (per-tool) and `-1`
+  (global breaker), so the 429 names the cap that actually blocked.
+- Other caps trimmed: Pro quick 40→30, deep 18→10, chat 75→50, search
+  18→10, briefing 8→4. Free chat 10→5, free tools 3→2.
+- **New worst case: ~$22.62/mo vs $25 revenue — profitable.** Realistic
+  usage (10-30% of caps) lands at 70-90% margin. Free worst case
+  $8.24 → **$6.12/mo**.
+- `/upgrade` now advertises the pool too (new `UPGRADE_PRO_FEATURE_TOOL_POOL`
+  label, `{tools}` interpolated from `limits.ts`) — the landing page already
+  did, and the two pricing surfaces must not disagree.
+
+**Migrations already applied to BOTH Supabase projects** (`20260727e`,
+`20260727f`, `20260727g`) and verified by direct SQL: pool binds across
+different tools; a pool-blocked call refunds its tool column without
+over-counting the pool; a global-cap block refunds both; a per-tool-cap block
+consumes no pool slot. Also smoke-tested over real HTTP against PostgREST with
+the exact argument names `lib/aiUsage.ts` sends (returned `1, 2, -2` against a
+pool of 2), so the wiring is proven end to end, not just in SQL.
+
+### Pre-ship alignment audit (2026-07-27) — 2 fixes it forced
+
+1. **Tool pool was invisible in the UI.** `tool_pool_count` existed in the DB
+   but never reached the client — `GrokUsageInfo` and `/api/grok` both stopped
+   at the same 5 fields. Since pooling made the effective tool ceiling much
+   tighter (198/day → 25/day), a user spreading ~6 runs over ~5 tools was fine
+   before and is blocked now, with a hard 429 as the first warning. Plumbed
+   through as `tool_pool_used`/`tool_pool_limit` + a 6th "Tools" ring
+   (Pro-only; the component filters out any ring whose limit is 0, which also
+   makes a pre-field payload render nothing instead of `NaN`). Modal widened
+   400px → 460px so all six fit one row.
+2. **`components/GrokChat.tsx` reported the wrong cause.** It discarded the
+   server message and hardcoded "No chat messages left today", so a circuit-
+   breaker trip told users their personal quota was gone while the meter beside
+   it showed quota left. Now uses the server's wording.
+
+Also fixed stale comments the audit surfaced: `app/api/grok-chat/route.ts`
+restated the caps in its docblock and had gone stale across **two** repricings
+(claimed Free 15 chat + 5 search, Pro 100 + 25); `app/api/ops/ai-cost/route.ts`
+said "8 one-shot tools" (there are 11); `lib/aiCost.ts` cited a deleted doc.
+
+**Verified in the real browser signed in as Pro:** usage meter shows 0/30 and
+1/10, the usage modal shows all six rings (30 / 9 / 49 / 9 / 4 / 24 remaining)
+matching the API payload exactly, no console errors. `/upgrade` and the landing
+page verified signed-out in all locales. Swept all 2,436 label keys — zero
+hardcoded caps, everything templated.
+
+Code is committed + pushed to `dev` (through `9a5a5e0`) — **not yet merged to
+`main`/prod.**
+
 ## i18n translation — paused (see also pendings/I18N_MIGRATION.md)
 
 - Done: en, ko, zh, ar, ru (2370/2370, both DBs). Pending: vi, pt-BR, tr, es, id. Do not resume proactively.
