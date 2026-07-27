@@ -679,9 +679,14 @@ body::after {
    instead of matching those. Match bg1 (white in light theme) instead. */
 .dash-conditions-row .av-rail-panel { background: var(--bg1); }
 
-/* ── Selected-coin glance card ── */
+/* ── Selected-coin glance card - links to /arena?coin=X, same hover language
+   as .csb2-card (the other clickable coin row) so it reads as tappable
+   instead of just another static stat block. ── */
 .scc-card { display: flex; align-items: center; gap: 12px; background: var(--bg1);
-  border: 0.5px solid var(--bdr); border-radius: 10px; padding: 11px 14px; }
+  border: 0.5px solid var(--bdr); border-radius: 10px; padding: 11px 14px;
+  text-decoration: none; color: inherit; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s; }
+.scc-card:hover { border-color: var(--bdr2); background: var(--bg2); }
 .scc-id { display: flex; flex-direction: column; min-width: 0; }
 .scc-ticker { font-family: var(--font-mono), monospace; font-size: var(--fs-micro);
   font-weight: 700; letter-spacing: .08em; color: var(--txt3); }
@@ -693,6 +698,7 @@ body::after {
 .scc-up { color: var(--green); } .scc-dn { color: var(--red); }
 .scc-sig { font-size: var(--fs-caption); font-weight: 600; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; max-width: 190px; }
+.scc-arrow { flex-shrink: 0; font-size: 1.1rem; color: var(--txt3); line-height: 1; }
 
 /* Macro Context rail wrapper - GlobalMacroContext has its own inner padding,
    this just gives it the flat-card frame the other rail items carry. */
