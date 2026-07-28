@@ -30,7 +30,7 @@ export const GET = withAdmin<[{ params: Promise<{ id: string }> }]>(async (_req,
   const since14 = new Date(Date.now() - 14 * DAY).toISOString().slice(0, 10);
 
   const [sub, onboarding, pushCount, usageRows, tradesCount, hypothesesCount, priceAlertsCount] = await Promise.all([
-    admin.from(T.user_subscriptions).select('role, ls_status, current_period_end').eq('user_id', id).maybeSingle(),
+    admin.from(T.user_subscriptions).select('role, ls_status, current_period_end, ban_reason').eq('user_id', id).maybeSingle(),
     admin.from(T.user_onboarding).select('tour_seen, checklist_telegram, checklist_price_alert, checklist_grok, checklist_coins').eq('user_id', id).maybeSingle(),
     admin.from(T.push_subscriptions).select('*', { count: 'exact', head: true }).eq('user_id', id),
     admin.from(T.grok_usage).select('*').eq('user_id', id).gte('date', since14),
@@ -78,6 +78,7 @@ export const GET = withAdmin<[{ params: Promise<{ id: string }> }]>(async (_req,
     lastSignInAt: u.last_sign_in_at ?? null,
     banned: !!(u.banned_until && new Date(u.banned_until).getTime() > Date.now()),
     bannedUntil: u.banned_until ?? null,
+    banReason: sub.data?.ban_reason ?? null,
     subscription: {
       role: sub.data?.role ?? 'free',
       lsStatus: sub.data?.ls_status ?? null,
@@ -112,6 +113,7 @@ export const PATCH = withAdmin<[{ params: Promise<{ id: string }> }]>(async (req
   const { id } = await params;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const action = body.action as UserAction;
+  const reason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 500) : '';
   if (!VALID_ACTIONS.includes(action)) {
     return NextResponse.json({ error: 'Unknown action.' }, { status: 400 });
   }
@@ -143,10 +145,14 @@ export const PATCH = withAdmin<[{ params: Promise<{ id: string }> }]>(async (req
         ban_duration: action === 'ban' ? BAN_DURATION : 'none',
       });
       if (error) return apiError('ops/users/[id]', error);
+      await admin.from(T.user_subscriptions).upsert(
+        { user_id: id, ban_reason: action === 'ban' ? (reason || null) : null, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' },
+      );
       // No unban email - the account can just sign back in, nothing to notify.
       if (action === 'ban') {
         const { data: target } = await admin.auth.admin.getUserById(id);
-        if (target?.user?.email) emailSent = await sendBanEmail({ to: target.user.email });
+        if (target?.user?.email) emailSent = await sendBanEmail({ to: target.user.email, reason });
       }
       break;
     }

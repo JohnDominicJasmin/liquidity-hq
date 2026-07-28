@@ -11,7 +11,7 @@ import { useLabels } from '@/lib/labels';
 
 interface Detail {
   id: string; email: string | null; createdAt: string; lastSignInAt: string | null;
-  banned: boolean; bannedUntil: string | null;
+  banned: boolean; bannedUntil: string | null; banReason: string | null;
   subscription: { role: 'free' | 'pro'; lsStatus: string | null; currentPeriodEnd: string | null };
   onboarding: { tourSeen: boolean; checklistDone: number; checklistTotal: number };
   pushSubscriptions: number;
@@ -38,20 +38,25 @@ export default function UserDetailPage() {
   const [busy, setBusy] = useState<UserAction | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
-  async function doAction(action: UserAction) {
-    if (action === 'ban' && !window.confirm(t('OPS_USER_DETAIL_BAN_CONFIRM'))) return;
+  async function doAction(action: UserAction, reason?: string) {
     setBusy(action);
     setActionMsg(null);
     const res = await adminFetch(`/api/ops/users/${params.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action }),
+      body: JSON.stringify(reason ? { action, reason } : { action }),
     });
     setBusy(null);
     const j = res ? await res.json().catch(() => ({})) : {};
     if (!res || !res.ok) { setActionMsg(j.error ?? t('OPS_USER_DETAIL_ACTION_FAILED')); return; }
     setActionMsg(t('OPS_USER_DETAIL_DONE'));
     reload();
+  }
+
+  function handleBan() {
+    if (!window.confirm(t('OPS_USER_DETAIL_BAN_CONFIRM'))) return;
+    const reason = window.prompt(t('OPS_USER_DETAIL_BAN_REASON_PROMPT')) ?? '';
+    doAction('ban', reason);
   }
 
   return (
@@ -71,6 +76,9 @@ export default function UserDetailPage() {
           <div className={styles.detailSub}>
             {t('OPS_USER_DETAIL_META', { joined: fmtAgo(data.createdAt), active: fmtAgo(data.lastSignInAt), id: data.id })}
           </div>
+          {data.banned && data.banReason && (
+            <div className={styles.detailSub}>{t('OPS_USER_DETAIL_BAN_REASON_LABEL', { reason: data.banReason })}</div>
+          )}
 
           <div className={styles.grid}>
             <CardShell title={t('OPS_USER_DETAIL_SUBSCRIPTION')} loading={false} error={null} hasData>
@@ -137,7 +145,7 @@ export default function UserDetailPage() {
                     {t('OPS_USER_DETAIL_BAN_SELF_LABEL')}
                   </button>
                 ) : (
-                  <button className={styles.pagerBtn} disabled={!!busy} onClick={() => doAction('ban')}>
+                  <button className={styles.pagerBtn} disabled={!!busy} onClick={handleBan}>
                     {busy === 'ban' ? t('OPS_USER_DETAIL_WORKING') : t('OPS_USER_DETAIL_BAN_ACCOUNT')}
                   </button>
                 )}

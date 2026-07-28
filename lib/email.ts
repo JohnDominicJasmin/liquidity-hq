@@ -24,6 +24,7 @@ interface WelcomeEmailArgs {
 
 interface BanEmailArgs {
   to: string;
+  reason?: string | null;
 }
 
 const APP_NAME = 'LiquidityHQ';
@@ -180,6 +181,7 @@ export async function sendBanEmail(args: BanEmailArgs): Promise<boolean> {
   if (!apiKey || !from) return false;
 
   const subject = `Your ${APP_NAME} account has been suspended`;
+  const reason = args.reason?.trim();
   const html = `
     <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#111;max-width:520px">
       <h2 style="margin:0 0 12px;font-size:18px">Account suspended</h2>
@@ -187,6 +189,7 @@ export async function sendBanEmail(args: BanEmailArgs): Promise<boolean> {
         Your ${APP_NAME} account (<b>${args.to}</b>) has been suspended and can no
         longer sign in.
       </p>
+      ${reason ? `<p style="margin:0 0 12px"><b>Reason:</b> ${reason}</p>` : ''}
       <p style="margin:0 0 12px">If you believe this is a mistake, reply to this email.</p>
     </div>`;
 
