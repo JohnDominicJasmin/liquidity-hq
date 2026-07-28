@@ -33,6 +33,8 @@ export function useAuth() {
 
 const INACTIVITY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const LAST_ACTIVE_KEY = 'lhq_last_active';
+// Read by AuthGate - shared here so both sides reference the same literal.
+export const BAN_NOTICE_KEY = 'lhq_ban_notice';
 
 // Module-scope (not state) - just suppresses a redundant welcome-email fetch
 // if SIGNED_IN refires for the same user within this tab. Not a correctness
@@ -119,6 +121,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         (payload) => {
           if ((payload.new as { banned?: boolean } | null)?.banned) {
             localStorage.removeItem(LAST_ACTIVE_KEY);
+            // AuthGate reads this once (and clears it) to show a specific
+            // suspended message instead of the generic sign-in prompt -
+            // without it, this signOut() just silently drops the user with
+            // no explanation for why their own open tab went dark.
+            sessionStorage.setItem(BAN_NOTICE_KEY, '1');
             sb.auth.signOut();
           }
         },

@@ -11,8 +11,15 @@ function CallbackInner() {
   const [errMsg, setErrMsg] = useState('');
 
   useEffect(() => {
-    const code  = params.get('code');
-    const error = params.get('error_description') ?? params.get('error');
+    const code = params.get('code');
+    // Implicit-flow errors (magic-link redemption, Google OAuth) land in the
+    // URL hash fragment, not the query string - useSearchParams() only ever
+    // sees the query, so a ban rejection on those two paths was silently
+    // swallowed here (falls into the `else` below, redirects with no session
+    // and no explanation). Check both; query wins if somehow both are set.
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const error = params.get('error_description') ?? params.get('error')
+      ?? hashParams.get('error_description') ?? hashParams.get('error');
 
     // Honor the ?next= the login page threaded through - same-origin paths
     // only, so the callback can't be turned into an open redirect.

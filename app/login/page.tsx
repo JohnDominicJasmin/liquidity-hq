@@ -185,7 +185,24 @@ function LoginInner() {
       setPwLoading(false);
       pwTurnstileRef.current?.reset();
       setPwCaptchaToken('');
-      if (error) setPwError(friendlyAuthError(error.message));
+      if (error) {
+        setPwError(friendlyAuthError(error.message));
+        // Password + this exact failure together prove account ownership -
+        // the ban-reason endpoint re-verifies both server-side before ever
+        // touching ban_reason, so this is safe to fire eagerly.
+        if (/banned/i.test(error.message)) {
+          fetch('/api/auth/ban-reason', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: trimmed, password }),
+          })
+            .then(res => res.json())
+            .then((j: { reason?: string | null }) => {
+              if (j.reason) setPwError(`${friendlyAuthError(error.message)} Reason: ${j.reason}`);
+            })
+            .catch(() => {});
+        }
+      }
       // On success, onAuthStateChange updates `user` and the redirect effect fires.
     }
   };
