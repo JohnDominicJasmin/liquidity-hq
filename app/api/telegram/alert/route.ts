@@ -1529,6 +1529,40 @@ async function fetchMutedKeysByUser(): Promise<Map<string, Set<string>>> {
   return Promise.race([query, cap]);
 }
 
+/* ── EMA signal dedup persistence (app_config) ──────────────────────────────
+   emaSignalLastTs is a plain in-memory Map - wiped on every deploy/restart.
+   Render restarted this service 8 times in one afternoon (2026-07-27) and
+   each restart made the next cron tick resend EVERY currently-active EMA
+   signal to Telegram, including ones armed days earlier, because the empty
+   Map treated them all as brand new (confirmed: XRP's 30M SELL, armed
+   2026-07-21, got re-sent at 11:30, 14:20, 16:35 and 19:00 on 07-27, each
+   time 1-3 minutes after a deploy's finishedAt). alertOutcomes.ts already
+   had to work around this same failure mode for the outcome-tracking table
+   (see its OUTCOME_DEDUP_MS comment) - this applies the same DB-backed fix
+   to the actual Telegram send gate. Hydrated once per process lifetime,
+   persisted back after every run, so a fresh process picks up exactly where
+   the last one left off instead of starting from empty. */
+let dedupHydrated = false;
+
+async function hydrateEMASignalDedup(): Promise<void> {
+  if (dedupHydrated) return;
+  dedupHydrated = true; // set first - a failed read must never retry every tick
+  try {
+    const admin = getSupabaseAdmin();
+    const { data } = await admin.from(T.app_config).select('value').eq('key', 'ema_signal_dedup').maybeSingle();
+    const saved = data?.value as Record<string, number> | undefined;
+    if (saved) for (const [k, v] of Object.entries(saved)) emaSignalLastTs.set(k, v);
+  } catch { /* fail open - worst case this run behaves like a fresh process */ }
+}
+
+async function persistEMASignalDedup(): Promise<void> {
+  try {
+    const admin = getSupabaseAdmin();
+    const value = Object.fromEntries(emaSignalLastTs);
+    await admin.from(T.app_config).upsert({ key: 'ema_signal_dedup', value }, { onConflict: 'key' });
+  } catch { /* best-effort - a missed persist just re-derives correctly next run */ }
+}
+
 export async function GET(req: NextRequest) {
   // Fail-closed: spams every connected Telegram chat and force-deactivates
   // price alerts if left reachable by anyone who finds the URL. See
@@ -1623,6 +1657,11 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // already timezone-independent.
   const stamp = `⏰ ${TIME_TOKEN} · ${getSession()}`;
 
+  // Restore EMA signal dedup state from its last persisted snapshot before any
+  // checkEMASignal call runs - no-op after the first call in this process's
+  // lifetime (see hydrateEMASignalDedup).
+  await hydrateEMASignalDedup();
+
   // Fetch shared data once (+ per-user muted alert groups + threshold settings)
   const [frMap, prices, lsMap, mutedByUser, thresholdsByUser] = await Promise.all([
     fetchAllFR(), fetchSpotPrices(), fetchAllLSR(), fetchMutedKeysByUser(), fetchThresholdsByUser(),
@@ -1665,6 +1704,10 @@ async function runAlerts(token: string): Promise<NextResponse> {
     checkDistribution(stamp, frMap, signalQueue, fullyMutedCoins),
     ...EMA_SIGNAL_TFS.map(tf => checkEMASignal(stamp, signalQueue, fullyMutedTfs, tf)),
   ]);
+
+  // Persist dedup state so the NEXT process (post-restart or post-deploy)
+  // hydrates from here instead of starting empty - see hydrateEMASignalDedup.
+  await persistEMASignalDedup();
 
   // Flush: single signals → send as-is, 2+ same coin → confluence alert.
   // Per-recipient coin:/dir:/ruleKey eligibility is decided inside.
