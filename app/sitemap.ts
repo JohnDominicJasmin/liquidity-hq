@@ -3,7 +3,7 @@ import type { MetadataRoute } from 'next';
 // Public, unauthenticated, SEO-relevant routes only - not the ~30 authenticated
 // app pages (dashboard, arena, journal, etc.), which Google shouldn't index
 // (they're behind sign-in and show live per-user data, not stable content).
-const BASE = 'https://liquidity-hq.onrender.com';
+const BASE = 'https://liquidity-hq.com';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [

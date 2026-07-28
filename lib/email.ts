@@ -25,7 +25,7 @@ const APP_NAME = 'LiquidityHQ';
 const SPIKE_ALERT_RECIPIENTS = ['johndominicbuilds@gmail.com', 'mikocabal27@gmail.com'];
 
 function opsLoginUrl(): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'https://liquidity-hq.onrender.com';
+  const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'https://liquidity-hq.com';
   return `${base}/ops`;
 }
 

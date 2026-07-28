@@ -32,7 +32,7 @@ function sendCVDAlert(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      message: `${emoji} <b>CVD Divergence - ${coin.toUpperCase()}</b>\n<b>${dir}</b>\n${hint}\n\n📊 ${coin.toUpperCase()} ${priceStr}\nliquidity-hq.onrender.com`,
+      message: `${emoji} <b>CVD Divergence - ${coin.toUpperCase()}</b>\n<b>${dir}</b>\n${hint}\n\n📊 ${coin.toUpperCase()} ${priceStr}\nliquidity-hq.com`,
     }),
   }).catch(() => {});
 }
@@ -67,7 +67,7 @@ function sendCascadeAlert(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      message: `${emoji} <b>Liquidation Cascade - ${coin}</b>\n${usdStr} ${who} wiped in 60s\n\n${hint}\nliquidity-hq.onrender.com`,
+      message: `${emoji} <b>Liquidation Cascade - ${coin}</b>\n${usdStr} ${who} wiped in 60s\n\n${hint}\nliquidity-hq.com`,
     }),
   }).catch(() => {});
 }
