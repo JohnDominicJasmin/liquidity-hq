@@ -542,6 +542,39 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     );
   }, [updateCoin]);
 
+  /* ── 5-minute RSI (all coins, matches the chart's fastest timeframe) ── */
+  const fetch5mRSI = useCallback(async () => {
+    await Promise.allSettled([
+      // Binance coins
+      ...Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype').map(async ([coin, sym]) => {
+        try {
+          const res = await fetch(
+            `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=5m&limit=16`
+          );
+          const klines = await res.json();
+          if (!Array.isArray(klines) || klines.length < 15) return;
+          const closes = klines.map((k: string[]) => parseFloat(k[4]));
+          const rsi = computeRSI14(closes);
+          if (rsi !== null) updateCoin(coin as CoinId, { rsi5m: rsi });
+        } catch { /* */ }
+      }),
+      // HYPE via Bybit (5 = 5-minute interval)
+      (async () => {
+        try {
+          const res = await fetch(
+            `https://api.bybit.com/v5/market/kline?category=linear&symbol=HYPEUSDT&interval=5&limit=16`
+          );
+          const d = await res.json();
+          const klines: string[][] = [...(d?.result?.list ?? [])].reverse();
+          if (klines.length < 15) return;
+          const closes = klines.map(k => parseFloat(k[4]));
+          const rsi = computeRSI14(closes);
+          if (rsi !== null) updateCoin('hype', { rsi5m: rsi });
+        } catch { /* */ }
+      })(),
+    ]);
+  }, [updateCoin]);
+
   /* ── Multi-timeframe RSI (1h + 4h) ── */
   const fetchMultiTFRSI = useCallback(async () => {
     const binanceCoins = Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype');
@@ -596,6 +629,45 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           if (rsi !== null) updateCoin('hype', { rsiDaily: rsi });
         } catch { /* */ }
       })(),
+    ]);
+  }, [updateCoin]);
+
+  /* ── Weekly + Monthly RSI (1W/1M candles - all coins, slow-moving, runs every 15 min) ── */
+  const fetchWeeklyMonthlyRSI = useCallback(async () => {
+    await Promise.allSettled([
+      // Binance coins
+      ...Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype').flatMap(([coin, sym]) =>
+        (['1w', '1M'] as const).map(async (tf) => {
+          try {
+            const res = await fetch(
+              `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${tf}&limit=20`,
+              { cache: 'no-store' }
+            );
+            const klines = await res.json();
+            if (!Array.isArray(klines) || klines.length < 15) return;
+            const closes = klines.map((k: string[]) => parseFloat(k[4]));
+            const rsi = computeRSI14(closes);
+            if (rsi === null) return;
+            updateCoin(coin as CoinId, tf === '1w' ? { rsiWeekly: rsi } : { rsiMonthly: rsi });
+          } catch { /* */ }
+        })
+      ),
+      // HYPE via Bybit (W = weekly, M = monthly interval)
+      ...(['W', 'M'] as const).map(async (interval) => {
+        try {
+          const res = await fetch(
+            `https://api.bybit.com/v5/market/kline?category=linear&symbol=HYPEUSDT&interval=${interval}&limit=20`,
+            { cache: 'no-store' }
+          );
+          const d = await res.json();
+          const klines: string[][] = [...(d?.result?.list ?? [])].reverse();
+          if (klines.length < 15) return;
+          const closes = klines.map(k => parseFloat(k[4]));
+          const rsi = computeRSI14(closes);
+          if (rsi === null) return;
+          updateCoin('hype', interval === 'W' ? { rsiWeekly: rsi } : { rsiMonthly: rsi });
+        } catch { /* */ }
+      }),
     ]);
   }, [updateCoin]);
 
@@ -1333,8 +1405,10 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     fetchAltSeason();
     fetchMacro();
     fetchETF();
+    fetch5mRSI();
     fetchMultiTFRSI();
     fetchDailyRSI();
+    fetchWeeklyMonthlyRSI();
     fetchCVD();
     fetchOrderBook();
     fetchPremiumIndex();
@@ -1361,8 +1435,10 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       setInterval(fetchAltSeason,        15  * 60 * 1000),   // 90d score - slow-moving, every 15m
       setInterval(fetchMacro,            10  * 60 * 1000),
       setInterval(fetchETF,              30  * 60 * 1000),
+      setInterval(fetch5mRSI,             3  * 60 * 1000),  // same cadence as Binance klines
       setInterval(fetchMultiTFRSI,       15  * 60 * 1000),
       setInterval(fetchDailyRSI,         15  * 60 * 1000),  // 1D RSI - slow-moving, every 15m
+      setInterval(fetchWeeklyMonthlyRSI, 15  * 60 * 1000),  // 1W/1M RSI - slow-moving, every 15m
       setInterval(fetchCVD,               5  * 60 * 1000),
       setInterval(fetchOrderBook,         2  * 60 * 1000),
       setInterval(fetchPremiumIndex,     30  * 1000),        // every 30s - premium changes frequently

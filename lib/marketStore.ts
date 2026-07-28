@@ -39,9 +39,12 @@ export interface CoinData {
   ma20: number | null;
   perpPrice: number | null;
   /* multi-timeframe RSI */
+  rsi5m: number | null;
   rsi1h: number | null;
   rsi4h: number | null;
-  rsiDaily: number | null; // 1D RSI - long-term bias signal
+  rsiDaily: number | null;   // 1D RSI - long-term bias signal
+  rsiWeekly: number | null;  // 1W RSI - long-term bias signal
+  rsiMonthly: number | null; // 1M RSI - long-term bias signal
   /* cumulative volume delta */
   cvd: number | null;
   /* CVD vs price divergence signal */
