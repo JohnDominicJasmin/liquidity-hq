@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     siteName: 'LiquidityHQ',
     title: 'LiquidityHQ - Crypto Trading Intelligence',
     description: 'Real-time crypto trading intelligence - whale trades, funding rates, squeeze alerts, and AI analysis.',
-    images: [{ url: '/icons/icon-512.png', width: 512, height: 512, alt: 'LiquidityHQ' }],
+    images: [{ url: '/icons/icon-512.jpg', width: 512, height: 512, alt: 'LiquidityHQ' }],
   },
   twitter: {
     card: 'summary',
@@ -57,7 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" data-theme="dark" className={`${figtree.variable} ${plexMono.variable}`} suppressHydrationWarning>
       <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.jpg" />
       </head>
       <body>
         {/* beforeInteractive - injected into the initial server HTML and
