@@ -16,6 +16,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { AI_LIMITS, ExtraTool, Tier } from '@/lib/limits';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { isFeatureEnabled } from '@/lib/featureFlags';
 
 function sb(token: string) {
   return createClient(
@@ -87,7 +88,7 @@ const EXTRA_TOOL_COLUMN: Record<ExtraTool, string> = {
 // count right next to that message) and simply wrong about the cause. `limit`
 // is the number that was actually hit, so the message can't quote a different
 // cap than the one that blocked the call.
-export type UsageBlockReason = 'user' | 'global' | 'pool';
+export type UsageBlockReason = 'user' | 'global' | 'pool' | 'disabled';
 
 export type UsageIncrementResult =
   | { blocked: false; count: number }
@@ -97,6 +98,12 @@ export async function incrementUsageColumn(
   token: string, userId: string, column: string, limit: number,
   poolLimit: number | null = null,
 ): Promise<UsageIncrementResult> {
+  // Single choke point for all 14 AI routes (see this file's header comment) -
+  // checking here instead of per-route means the admin kill switch
+  // (/ops/config) covers every one of them, including the 11 one-shot tools
+  // that have no other Grok-specific gate of their own.
+  if (!(await isFeatureEnabled('grok'))) return { blocked: true, reason: 'disabled', limit };
+
   const today = todayUtc();
   const { data, error } = await sb(token).rpc('increment_ai_usage', {
     p_user_id: userId, p_date: today, p_column: column, p_limit: limit,
@@ -141,6 +148,9 @@ export async function incrementToolUsage(
 export function rateLimitMessage(
   reason: UsageBlockReason, limit: number, label: string,
 ): string {
+  if (reason === 'disabled') {
+    return 'AI features are temporarily disabled.';
+  }
   if (reason === 'global') {
     return `AI Arena is at capacity right now across all users - try again shortly.`;
   }
@@ -162,6 +172,7 @@ export function rateLimitMessage(
 // path in the alert cron) - a DB hiccup should never silently kill AI
 // commentary that would otherwise be within budget.
 export async function incrementGlobalUsage(): Promise<boolean> {
+  if (!(await isFeatureEnabled('grok'))) return false;
   const limit = globalDailyMax();
   if (limit === null) return true; // breaker disabled
   const today = todayUtc();

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { checkCronAuth } from '@/lib/cronAuth';
+import { isFeatureEnabled } from '@/lib/featureFlags';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,6 +70,10 @@ async function fetchUpcomingEvents(): Promise<CalEvent[]> {
 }
 
 async function sendTelegram(token: string, chatId: string, text: string): Promise<boolean> {
+  // Same send-only kill switch as app/api/telegram/alert/route.ts's tg() -
+  // this cron has its own independent send helper (not shared code), so it
+  // needs its own check to stay covered by the same /ops/config switch.
+  if (!(await isFeatureEnabled('telegram'))) return false;
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
