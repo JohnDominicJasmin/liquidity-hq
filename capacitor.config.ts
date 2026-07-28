@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Liquidity HQ',
   webDir: 'public',
   server: {
-    url: 'https://liquidity-hq.onrender.com',
+    url: 'https://liquidity-hq.com',
     cleartext: false,
   },
   android: {

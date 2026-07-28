@@ -128,7 +128,7 @@ export async function GET(req: NextRequest) {
     FEEDS.map(async ({ url, source, cat }) => {
       try {
         const res = await fetch(url, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LiquidityHQ/1.0; +https://liquidity-hq.onrender.com)' },
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LiquidityHQ/1.0; +https://liquidity-hq.com)' },
           signal: AbortSignal.timeout(6000),
           next: { revalidate: 0 },
         });

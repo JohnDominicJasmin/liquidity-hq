@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   // to localhost:3000 (visible as a build warning), so every shared link's
   // preview image has been broken since launch. Also needed for sitemap.ts's
   // canonical entry URLs.
-  metadataBase: new URL('https://liquidity-hq.onrender.com'),
+  metadataBase: new URL('https://liquidity-hq.com'),
   title: {
     default: 'LiquidityHQ',
     template: '%s - LiquidityHQ',
