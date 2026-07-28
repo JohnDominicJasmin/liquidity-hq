@@ -46,9 +46,11 @@ export default function PlatformFooter() {
         </div>
         <nav className="pf-footer-nav">
           <Link href="/about" className="pf-footer-link">About</Link>
+          <Link href="/faq" className="pf-footer-link">FAQ</Link>
           <Link href="/learn" className="pf-footer-link">Glossary</Link>
           <Link href="/terms" className="pf-footer-link">Terms of Use</Link>
           <Link href="/privacy" className="pf-footer-link">Privacy Policy</Link>
+          <Link href="/refund" className="pf-footer-link">Refund Policy</Link>
           <Link href="/disclaimer" className="pf-footer-link">Full Disclaimer</Link>
         </nav>
       </div>

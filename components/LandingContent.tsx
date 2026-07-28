@@ -274,6 +274,7 @@ export default function LandingContent({ dict, locale, dir }: Props) {
             <Link href="/disclaimer">{dict.footer.links.disclaimer}</Link>
             <Link href="/terms">Terms of Use</Link>
             <Link href="/privacy">Privacy Policy</Link>
+            <Link href="/refund">Refund Policy</Link>
           </div>
         </div>
         {/* Risk Disclosure */}
@@ -311,8 +312,9 @@ export default function LandingContent({ dict, locale, dir }: Props) {
           <p style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, opacity: 0.7 }}>
             By using LiquidityHQ, you acknowledge that you understand and agree to our{' '}
             <Link href="/disclaimer" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Disclaimer</Link>,{' '}
-            <Link href="/terms" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Terms of Use</Link>, and{' '}
-            <Link href="/privacy" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Privacy Policy</Link>.
+            <Link href="/terms" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Terms of Use</Link>,{' '}
+            <Link href="/privacy" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Privacy Policy</Link>, and{' '}
+            <Link href="/refund" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Refund Policy</Link>.
           </p>
         </div>
       </footer>
