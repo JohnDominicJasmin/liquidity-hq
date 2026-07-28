@@ -87,21 +87,32 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
   const coin = (coinProp ?? store.selectedCoin) as ReturnType<typeof useMarket>['store']['selectedCoin'];
   const d = store.coins[coin];
 
-  const rsi14 = d?.rsi14 ?? null;
-  const rsi1h = d?.rsi1h ?? null;
-  const rsi4h = d?.rsi4h ?? null;
+  const rsi5m     = d?.rsi5m ?? null;
+  const rsi14     = d?.rsi14 ?? null;
+  const rsi1h     = d?.rsi1h ?? null;
+  const rsi4h     = d?.rsi4h ?? null;
+  const rsiDaily  = d?.rsiDaily ?? null;
+  const rsiWeekly = d?.rsiWeekly ?? null;
+  const rsiMonthly = d?.rsiMonthly ?? null;
 
-  const bias14 = getBias(rsi14);
-  const bias1h = getBias(rsi1h);
-  const bias4h = getBias(rsi4h);
+  const bias5m     = getBias(rsi5m);
+  const bias14     = getBias(rsi14);
+  const bias1h     = getBias(rsi1h);
+  const bias4h     = getBias(rsi4h);
+  const biasDaily  = getBias(rsiDaily);
+  const biasWeekly = getBias(rsiWeekly);
+  const biasMonthly = getBias(rsiMonthly);
 
-  const biases = [bias14, bias1h, bias4h];
+  const biases = [bias5m, bias14, bias1h, bias4h, biasDaily, biasWeekly, biasMonthly];
   const bullCount = biases.filter(b => b === 'bullish').length;
   const bearCount = biases.filter(b => b === 'bearish').length;
+  // Majority of however many timeframes are wired in - scales automatically
+  // rather than a count hardcoded to a 3-timeframe assumption.
+  const majority = Math.floor(biases.length / 2) + 1;
 
   const verdict: 'bullish' | 'bearish' | 'conflicting' | 'mixed' =
-    bullCount >= 2 ? 'bullish'
-    : bearCount >= 2 ? 'bearish'
+    bullCount >= majority ? 'bullish'
+    : bearCount >= majority ? 'bearish'
     : (bullCount > 0 && bearCount > 0) ? 'conflicting'
     : 'mixed';
 
@@ -154,9 +165,13 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
         <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>{t('MULTI_TF_ALIGNMENT_COL_BIAS')}</span>
       </div>
 
+      <RsiRow tf="5m"  rsi={rsi5m} bias={bias5m} />
       <RsiRow tf="15m" rsi={rsi14} bias={bias14} />
       <RsiRow tf="1h"  rsi={rsi1h} bias={bias1h} />
-      <RsiRow tf="4h"  rsi={rsi4h} bias={bias4h} last />
+      <RsiRow tf="4h"  rsi={rsi4h} bias={bias4h} />
+      <RsiRow tf="1D"  rsi={rsiDaily} bias={biasDaily} />
+      <RsiRow tf="1W"  rsi={rsiWeekly} bias={biasWeekly} />
+      <RsiRow tf="1M"  rsi={rsiMonthly} bias={biasMonthly} last />
 
       {/* Footer */}
       <div style={{
