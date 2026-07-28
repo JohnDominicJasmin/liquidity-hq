@@ -4,6 +4,7 @@ import { withAdmin } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
 import { estimateRowCostUsd, PRO_PRICE_USD_PER_MONTH, ALL_USAGE_COLUMNS } from '@/lib/aiCost';
+import { sendBanEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -119,6 +120,7 @@ export const PATCH = withAdmin<[{ params: Promise<{ id: string }> }]>(async (req
   }
 
   const admin = getSupabaseAdmin();
+  let emailSent = false;
 
   switch (action) {
     case 'grant_pro':
@@ -141,6 +143,11 @@ export const PATCH = withAdmin<[{ params: Promise<{ id: string }> }]>(async (req
         ban_duration: action === 'ban' ? BAN_DURATION : 'none',
       });
       if (error) return apiError('ops/users/[id]', error);
+      // No unban email - the account can just sign back in, nothing to notify.
+      if (action === 'ban') {
+        const { data: target } = await admin.auth.admin.getUserById(id);
+        if (target?.user?.email) emailSent = await sendBanEmail({ to: target.user.email });
+      }
       break;
     }
     case 'reset_ai_limit': {
@@ -155,7 +162,7 @@ export const PATCH = withAdmin<[{ params: Promise<{ id: string }> }]>(async (req
     actor_email: user.email,
     action: `user_${action}`,
     target_user_id: id,
-    detail: {},
+    detail: action === 'ban' ? { emailSent } : {},
   });
 
   return NextResponse.json({ ok: true });
