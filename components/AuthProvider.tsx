@@ -34,6 +34,11 @@ export function useAuth() {
 const INACTIVITY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const LAST_ACTIVE_KEY = 'lhq_last_active';
 
+// Module-scope (not state) - just suppresses a redundant welcome-email fetch
+// if SIGNED_IN refires for the same user within this tab. Not a correctness
+// guarantee (resets on reload) - the DB-side dedup in the route is that.
+let lastWelcomeCheckUserId: string | null = null;
+
 function touchActivity() {
   localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now()));
 }
@@ -69,7 +74,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     });
 
     // Keep in sync on sign-in / sign-out / token refresh
-    const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = sb.auth.onAuthStateChange((event, session) => {
       const u = session?.user ?? null;
       setUser(u);
       if (!u) setRole('free');
@@ -79,6 +84,19 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         if (u) posthog.identify(u.id, { email: u.email });
         else    posthog.reset();
       } catch { /* PostHog may not be initialised yet */ }
+      // Best-effort welcome-email trigger, covers all 3 signup methods (they
+      // all converge on SIGNED_IN). Fires on every real sign-in, not just
+      // signups - that's fine, the route itself dedupes via a DB column so
+      // the email only ever actually sends once per account. The module-level
+      // guard here just avoids a redundant network call if SIGNED_IN refires
+      // for the same user within this tab (e.g. multi-tab broadcast).
+      if (event === 'SIGNED_IN' && u && u.id !== lastWelcomeCheckUserId) {
+        lastWelcomeCheckUserId = u.id;
+        fetch('/api/auth/welcome-email', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session!.access_token}` },
+        }).catch(() => {});
+      }
     });
 
     return () => subscription.unsubscribe();

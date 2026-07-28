@@ -18,15 +18,28 @@ interface SpikeAlertArgs {
   pct: number;
 }
 
+interface WelcomeEmailArgs {
+  to: string;
+}
+
+interface BanEmailArgs {
+  to: string;
+  reason?: string | null;
+}
+
 const APP_NAME = 'LiquidityHQ';
 
 // Fixed recipient list for the AI-spend spike alert - the owner's own
 // addresses, not a per-user setting, so no env var / admin UI for this list.
 const SPIKE_ALERT_RECIPIENTS = ['johndominicbuilds@gmail.com', 'mikocabal27@gmail.com'];
 
-function opsLoginUrl(): string {
+function appUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || 'https://liquidity-hq.com';
-  return `${base}/ops`;
+  return `${base}${path}`;
+}
+
+function opsLoginUrl(): string {
+  return appUrl('/ops');
 }
 
 // Notification only - tells someone their email was granted admin access.
@@ -104,6 +117,93 @@ export async function sendSpikeAlertEmail(args: SpikeAlertArgs): Promise<boolean
       body: JSON.stringify({
         sender: { name: `${APP_NAME} Ops`, email: from },
         to: SPIKE_ALERT_RECIPIENTS.map(email => ({ email })),
+        subject,
+        htmlContent: html,
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Fires once per account, right after the first real sign-in (see
+// app/api/auth/welcome-email/route.ts for the dedup - this function itself
+// has no idempotency, it just sends).
+export async function sendWelcomeEmail(args: WelcomeEmailArgs): Promise<boolean> {
+  const apiKey = process.env.BREVO_API_KEY;
+  const from = process.env.BREVO_SENDER_EMAIL;
+  if (!apiKey || !from) return false;
+
+  const arenaUrl = appUrl('/arena');
+  const subject = `Welcome to ${APP_NAME}`;
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#111;max-width:520px">
+      <h2 style="margin:0 0 12px;font-size:18px">Welcome to ${APP_NAME}</h2>
+      <p style="margin:0 0 12px">
+        Your account is ready. You've got <b>14 days of Pro</b> - full access to every
+        signal, timeframe, and tool - before anything is gated.
+      </p>
+      <p style="margin:0 0 12px">Jump in: <a href="${arenaUrl}">${arenaUrl}</a></p>
+      <p style="margin:16px 0 0;color:#666;font-size:13px">
+        Questions or feedback - just reply to this email.
+      </p>
+    </div>`;
+
+  try {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: APP_NAME, email: from },
+        to: [{ email: args.to }],
+        subject,
+        htmlContent: html,
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Fires from the admin ban action (app/api/ops/users/[id]/route.ts) - no
+// login link, since the account can no longer sign in.
+export async function sendBanEmail(args: BanEmailArgs): Promise<boolean> {
+  const apiKey = process.env.BREVO_API_KEY;
+  const from = process.env.BREVO_SENDER_EMAIL;
+  if (!apiKey || !from) return false;
+
+  const subject = `Your ${APP_NAME} account has been suspended`;
+  const reason = args.reason?.trim();
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#111;max-width:520px">
+      <h2 style="margin:0 0 12px;font-size:18px">Account suspended</h2>
+      <p style="margin:0 0 12px">
+        Your ${APP_NAME} account (<b>${args.to}</b>) has been suspended and can no
+        longer sign in.
+      </p>
+      ${reason ? `<p style="margin:0 0 12px"><b>Reason:</b> ${reason}</p>` : ''}
+      <p style="margin:0 0 12px">If you believe this is a mistake, reply to this email.</p>
+    </div>`;
+
+  try {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: APP_NAME, email: from },
+        to: [{ email: args.to }],
         subject,
         htmlContent: html,
       }),
