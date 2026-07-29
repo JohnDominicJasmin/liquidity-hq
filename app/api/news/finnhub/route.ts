@@ -61,6 +61,13 @@ export async function GET(req: NextRequest) {
     if (type === 'calendar') {
       const from = req.nextUrl.searchParams.get('from') ?? '';
       const to   = req.nextUrl.searchParams.get('to')   ?? '';
+      // Both go straight into the upstream URL, so an unvalidated value can
+      // smuggle extra query parameters into the Finnhub call (from=x%26token%3D...).
+      // The host is fixed, so this is not SSRF, but the request shape should
+      // still be ours to decide.
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+        return NextResponse.json({ error: 'from and to must be YYYY-MM-DD.' }, { status: 400 });
+      }
       const r = await fetch(
         `${BASE}/calendar/economic?from=${from}&to=${to}&token=${KEY}`,
         { next: { revalidate: 3600 } }

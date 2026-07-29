@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { SUPPORTED_LOCALES, type Locale } from '@/lib/labels';
 import { T } from '@/lib/tables';
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +16,15 @@ const TTL_MS = 60_000;
 const cache = new Map<string, { data: Record<string, string>; expires: number }>();
 
 export async function GET(req: NextRequest) {
-  const locale = req.nextUrl.searchParams.get('locale') || 'en';
+  const raw = req.nextUrl.searchParams.get('locale') || 'en';
+  // Pin to the known locales BEFORE the cache lookup. Keying the cache on an
+  // arbitrary caller-supplied string made this route a memory bomb: every
+  // unknown locale missed, ran the paged service-role query below, and added
+  // a permanent entry to a Map with no eviction. A few thousand requests to
+  // ?locale=<random> would exhaust the Render instance - and on the way down,
+  // the Supabase pressure makes lib/featureFlags.ts fail open, quietly
+  // disabling the grok/telegram/signups kill switches at the worst moment.
+  const locale: Locale = (SUPPORTED_LOCALES as string[]).includes(raw) ? raw as Locale : 'en';
 
   const hit = cache.get(locale);
   if (hit && hit.expires > Date.now()) return NextResponse.json(hit.data);
