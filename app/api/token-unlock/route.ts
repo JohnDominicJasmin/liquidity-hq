@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
 import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
-import { getUserRole, hasProFeatures } from '@/lib/entitlements';
+import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     const result = await cached(`token-unlock:${symbol}`, CACHE_TTL, async () => {
       // Only the cache-miss path actually spends on xAI, so only it needs the
       // daily cap - a cache hit for a popular symbol stays free for everyone.
-      const role = await getUserRole(authToken, authData.user.id);
+      const role = await getUsageTier(authToken, authData.user.id);
       const usageResult = await incrementToolUsage(authData.user.id, 'tokenUnlock', role);
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason);

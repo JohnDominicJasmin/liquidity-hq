@@ -6,6 +6,7 @@ import { getLocalNow, getSessionName } from '@/lib/session';
 import { getSupabase } from '@/lib/supabase';
 import AuthGate from './AuthGate';
 import { useAuth } from './AuthProvider';
+import { LockedFeatureCard } from './UpgradeGateModal';
 import Tip from './Tip';
 import { Warn } from './icons';
 import { track } from '@/lib/analytics';
@@ -266,7 +267,14 @@ function Inner() {
   const sp     = useSearchParams();
   const router = useRouter();
   const { t }  = useLabels();
-  const { user } = useAuth();
+  const { user, entitled, loading: authLoading } = useAuth();
+
+  /* Shadow Account, Bias Diagnostics and Thesis Check all run on Pro-only
+     endpoints (403 PRO_REQUIRED). Entitlement is one thing for all three, so
+     one flag covers the mid-session case (a trial ending while the page is
+     open) and swaps every one of those tabs to the locked card. */
+  const [proLocked, setProLocked] = useState(false);
+  const toolsLocked = (!authLoading && !entitled) || proLocked;
 
   const [tab,       setTab]       = useState<'log' | 'history' | 'stats' | 'rules' | 'shadow' | 'bias' | 'thesis'>('log');
   const [trades,    setTrades]    = useState<Trade[]>([]);
@@ -442,6 +450,9 @@ function Inner() {
   const runShadowAccount = async () => {
     const db = getSupabase();
     if (!db) return;
+    // Pro-only server-side, so a free user's click never reaches it - show the
+    // locked card instead of burning a round trip on a guaranteed 403.
+    if (!entitled) { setProLocked(true); return; }
     setShadowLoading(true);
     setShadowError(null);
     setShadowAnalysis(null);
@@ -456,7 +467,9 @@ function Inner() {
       });
       const json = await res.json() as { analysis?: string; error?: string; count?: number };
       if (!res.ok) {
-        if (json.error === 'NEED_MORE_TRADES') {
+        if (res.status === 403 && json.error === 'PRO_REQUIRED') {
+          setProLocked(true);
+        } else if (json.error === 'NEED_MORE_TRADES') {
           setShadowError(t('TRADE_JOURNAL_SHADOW_NEED_MORE_TRADES', { count: json.count ?? 0 }));
         } else {
           setShadowError(json.error ?? t('TRADE_JOURNAL_ANALYSIS_FAILED'));
@@ -475,6 +488,8 @@ function Inner() {
   const runBiasAnalysis = async () => {
     const db = getSupabase();
     if (!db) return;
+    // Pro-only server-side - same skip-the-round-trip reasoning as above.
+    if (!entitled) { setProLocked(true); return; }
     setBiasLoading(true);
     setBiasError(null);
     setBiasAnalysis(null);
@@ -489,7 +504,9 @@ function Inner() {
       });
       const json = await res.json() as { analysis?: string; error?: string; count?: number };
       if (!res.ok) {
-        if (json.error === 'NEED_MORE_TRADES') {
+        if (res.status === 403 && json.error === 'PRO_REQUIRED') {
+          setProLocked(true);
+        } else if (json.error === 'NEED_MORE_TRADES') {
           setBiasError(t('TRADE_JOURNAL_BIAS_NEED_MORE_TRADES', { count: json.count ?? 0 }));
         } else {
           setBiasError(json.error ?? t('TRADE_JOURNAL_ANALYSIS_FAILED'));
@@ -537,6 +554,8 @@ function Inner() {
   const checkThesisHealth = async (thesis: TradeThesis) => {
     const db = getSupabase();
     if (!db) return;
+    // Pro-only server-side - same skip-the-round-trip reasoning as above.
+    if (!entitled) { setProLocked(true); return; }
     setCheckingThesisId(thesis.id);
     try {
       const token = (await db.auth.getSession()).data.session?.access_token;
@@ -555,6 +574,7 @@ function Inner() {
         }),
       });
       const json = await res.json() as { analysis?: string; error?: string };
+      if (res.status === 403 && json.error === 'PRO_REQUIRED') { setProLocked(true); return; }
       if (!res.ok) return;
       const feedback = json.analysis ?? '';
       const score    = extractScore(feedback);
@@ -1441,6 +1461,15 @@ function Inner() {
 
       {/* ──────── SHADOW ACCOUNT TAB ──────── */}
       {tab === 'shadow' && (
+        toolsLocked ? (
+        <div style={{ padding: '12px 0 16px' }}>
+          <LockedFeatureCard
+            title={t('TRADE_JOURNAL_SHADOW_PAGE_TITLE')}
+            description={t('TRADE_JOURNAL_SHADOW_LOCKED_DESC')}
+            onUnlock={() => router.push('/upgrade')}
+          />
+        </div>
+        ) : (
         <div>
           <div style={{ padding: '12px 0 16px' }}>
             <div style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>{t('TRADE_JOURNAL_SHADOW_PAGE_TITLE')}</div>
@@ -1481,10 +1510,20 @@ function Inner() {
 
           {shadowAnalysis && <ShadowAccountResult text={shadowAnalysis} />}
         </div>
+        )
       )}
 
       {/* ──────── BIAS DIAGNOSTICS TAB ──────── */}
       {tab === 'bias' && (
+        toolsLocked ? (
+        <div style={{ padding: '12px 0 16px' }}>
+          <LockedFeatureCard
+            title={t('TRADE_JOURNAL_BIAS_PAGE_TITLE')}
+            description={t('TRADE_JOURNAL_BIAS_LOCKED_DESC')}
+            onUnlock={() => router.push('/upgrade')}
+          />
+        </div>
+        ) : (
         <div>
           <div style={{ padding: '12px 0 16px' }}>
             <div style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--txt)', marginBottom: 4 }}>{t('TRADE_JOURNAL_BIAS_PAGE_TITLE')}</div>
@@ -1520,10 +1559,20 @@ function Inner() {
           </div>
           {biasAnalysis && <BiasResult text={biasAnalysis} />}
         </div>
+        )
       )}
 
       {/* ──────── THESIS TRACKER TAB ──────── */}
       {tab === 'thesis' && (
+        toolsLocked ? (
+        <div style={{ padding: '12px 0 16px' }}>
+          <LockedFeatureCard
+            title={t('TRADE_JOURNAL_THESIS_PAGE_TITLE')}
+            description={t('TRADE_JOURNAL_THESIS_LOCKED_DESC')}
+            onUnlock={() => router.push('/upgrade')}
+          />
+        </div>
+        ) : (
         <div>
           <div style={{ padding: '12px 0 4px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div>
@@ -1717,6 +1766,7 @@ function Inner() {
             })}
           </div>
         </div>
+        )
       )}
 
       {/* ──────── STATS TAB ──────── */}

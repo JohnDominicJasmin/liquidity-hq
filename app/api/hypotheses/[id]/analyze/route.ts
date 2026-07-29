@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
-import { getUserRole } from '@/lib/entitlements';
+import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 import { apiError } from '@/lib/apiError';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -97,9 +97,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { data: authData } = await sb(token).auth.getUser();
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  // Pro-only. /upgrade sells the one-shot AI tools as a Pro feature
+  // (UPGRADE_PRO_FEATURE_TOOL_POOL); this route is one of them. Without this
+  // check a free account could still spend real xAI budget here, which is
+  // what the pricing page says it cannot. Trial users pass - hasProFeatures
+  // covers isTrial.
+  if (!(await hasProFeatures(token, authData.user.id))) {
+    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'AI hypothesis analysis is a Pro feature.' }, { status: 403 });
+  }
+
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
-  const role = await getUserRole(token, authData.user.id);
+  const role = await getUsageTier(token, authData.user.id);
   const usageResult = await incrementToolUsage(authData.user.id, 'hypothesisAnalyze', role);
   if (usageResult.blocked) {
     return NextResponse.json(

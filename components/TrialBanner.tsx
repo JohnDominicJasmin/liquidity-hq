@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
+import { useLabels } from '@/lib/labels';
 
 // Slim in-flow countdown shown to users inside their 14-day Pro trial. Rendered
 // in normal document flow at the top of the content area (NOT position:fixed) so
@@ -9,12 +10,15 @@ import { useAuth } from '@/components/AuthProvider';
 // it's the "you'll lose this" pressure that converts a trial to paid.
 export default function TrialBanner() {
   const { isTrial, trialEndsAt } = useAuth();
+  const { t } = useLabels();
   if (!isTrial || trialEndsAt == null) return null;
 
   const msLeft = trialEndsAt - Date.now();
   if (msLeft <= 0) return null;
   const daysLeft = Math.ceil(msLeft / 86_400_000);
-  const label = daysLeft === 1 ? 'last day' : `${daysLeft} days left`;
+  const label = daysLeft === 1
+    ? t('TRIAL_BANNER_LAST_DAY')
+    : t('TRIAL_BANNER_DAYS_LEFT', { days: daysLeft });
   const urgent = daysLeft <= 3;
 
   const accent = urgent ? 'var(--amber)' : 'var(--accent)';
@@ -42,9 +46,9 @@ export default function TrialBanner() {
             color: accent, marginRight: 8,
           }}
         >
-          Pro trial
+          {t('TRIAL_BANNER_LABEL')}
         </span>
-        Full access - <strong style={{ color: 'var(--txt)' }}>{label}</strong>
+        {t('TRIAL_BANNER_FULL_ACCESS')} <strong style={{ color: 'var(--txt)' }}>{label}</strong>
       </span>
       <Link
         href="/upgrade"
@@ -53,7 +57,7 @@ export default function TrialBanner() {
           whiteSpace: 'nowrap',
         }}
       >
-        Keep Pro →
+        {t('TRIAL_BANNER_CTA')} →
       </Link>
     </div>
   );

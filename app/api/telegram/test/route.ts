@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
-import { getUserRole } from '@/lib/entitlements';
+import { hasProFeatures } from '@/lib/entitlements';
 import { rateLimit } from '@/lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
@@ -36,9 +36,16 @@ export async function GET(req: NextRequest) {
 
   // Telegram alerts are Pro-only - don't send a reassuring "connected!"
   // message to a free user whose real alerts will never arrive.
-  const role = await getUserRole(userToken, user.id);
-  if (role !== 'pro') {
-    return NextResponse.json({ ok: false, error: 'PRO_REQUIRED', message: 'Telegram alerts are a Pro feature.' });
+  // Uses hasProFeatures, not getUserRole: a trial user has role='free' but IS
+  // entitled to Pro features, and the old `role !== 'pro'` check locked them
+  // out of testing a connection the alert cron would then happily deliver to.
+  // Also returns a real 403 - it used to answer 200 with an error body, so any
+  // caller checking res.ok read the rejection as success.
+  if (!(await hasProFeatures(userToken, user.id))) {
+    return NextResponse.json(
+      { ok: false, error: 'PRO_REQUIRED', message: 'Telegram alerts are a Pro feature.' },
+      { status: 403 },
+    );
   }
 
   const { data: settingsData } = await sb

@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'crypto';
 
 // Shared gate for the cron/scheduler-only routes (telegram/alert, macro-alert,
 // signals/track, alert-outcomes/resolve, telegram/setup-webhook - see
-// INFRASTRUCTURE.md §2 for what actually calls these on a schedule).
+// docs/INFRASTRUCTURE.md §2 for what actually calls these on a schedule).
 //
 // Previously each route inlined `if (secret) { check } ` - fail-OPEN: with
 // CRON_SECRET unset (the confirmed state of prod as of this writing, since
@@ -14,7 +14,7 @@ import { timingSafeEqual } from 'crypto';
 // Deploying this to prod WILL start rejecting the live cron-job.org jobs
 // until CRON_SECRET is set in Render's env AND those jobs are updated to
 // send a matching `x-cron-secret` header - do that first (or in the same
-// window), not after. See INFRASTRUCTURE.md §2's own warning.
+// window), not after. See docs/INFRASTRUCTURE.md §2's own warning.
 // Takes a plain Request (NextRequest extends it) - some of these routes use
 // the bare Web Request type rather than NextRequest, so this reads the query
 // string via `new URL(req.url)` instead of `req.nextUrl` to work for both.

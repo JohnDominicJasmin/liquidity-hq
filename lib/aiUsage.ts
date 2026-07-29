@@ -13,7 +13,7 @@
 // No refund on a failed xAI call after a successful increment - see the
 // migration file's comment for why that tradeoff was chosen over a second
 // compensating-write path.
-import { AI_LIMITS, ExtraTool, Tier } from '@/lib/limits';
+import { AI_LIMITS, ExtraTool, UsageTier } from '@/lib/limits';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 
@@ -134,12 +134,15 @@ export async function incrementUsageColumn(
 // rather than a pre-looked-up number so the per-tool cap and the shared pool
 // can never be sourced from different places - passing one without the other
 // is what would silently disable the pool for a route.
+// `tier` is a UsageTier, NOT the paid role - it must come from getUsageTier()
+// so a trial user bills against the trial row rather than the free one. Passing
+// a role here is what previously made a trial user share the free limits.
 export async function incrementToolUsage(
-  userId: string, tool: ExtraTool, role: Tier,
+  userId: string, tool: ExtraTool, tier: UsageTier,
 ): Promise<UsageIncrementResult> {
   return incrementUsageColumn(
     userId, EXTRA_TOOL_COLUMN[tool],
-    AI_LIMITS[role][tool], AI_LIMITS[role].toolPool,
+    AI_LIMITS[tier][tool], AI_LIMITS[tier].toolPool,
   );
 }
 

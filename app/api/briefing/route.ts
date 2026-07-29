@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
-import { getUserRole } from '@/lib/entitlements';
+import { getUsageTier } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
 import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
   const today = todayUtc();
   const [{ briefingUsed }, role] = await Promise.all([
     getUsageRow(token, userId, today),
-    getUserRole(token, userId),
+    getUsageTier(token, userId),
   ]);
   const briefingLimit = AI_LIMITS[role].briefing;
 
