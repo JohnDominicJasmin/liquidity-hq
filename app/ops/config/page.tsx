@@ -8,7 +8,7 @@ import type { LabelKey } from '@/lib/labelKeys';
 interface BannerValue { text: string; link: string | null; expiresAt: string | null }
 interface BannerHistoryItem { value: BannerValue; actor_email: string; created_at: string }
 
-interface FeatureFlags { grok: boolean; telegram: boolean }
+interface FeatureFlags { grok: boolean; telegram: boolean; signups: boolean }
 
 interface ConfigData {
   maintenance_mode: { enabled: boolean };
@@ -20,6 +20,7 @@ interface ConfigData {
 const FEATURE_LABEL_KEYS: Record<keyof FeatureFlags, LabelKey> = {
   grok: 'OPS_CONFIG_FEATURE_GROK',
   telegram: 'OPS_CONFIG_FEATURE_TELEGRAM',
+  signups: 'OPS_CONFIG_FEATURE_SIGNUPS',
 };
 
 // value in hours, '' = no expiry
