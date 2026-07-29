@@ -80,6 +80,11 @@ export interface SettingsContextValue {
   loading:    boolean;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   update:     (partial: Partial<UserSettings>) => void;
+  // Re-read the saved row from the server. Needed by flows where the SERVER,
+  // not this client, writes the value: connecting Telegram is finished by the
+  // bot webhook (see app/api/telegram/webhook/route.ts), so the page has no
+  // way to learn it happened other than asking again.
+  refresh:    () => Promise<void>;
 }
 
 export const SettingsContext = createContext<SettingsContextValue>({
@@ -87,6 +92,7 @@ export const SettingsContext = createContext<SettingsContextValue>({
   loading:    false,
   saveStatus: 'idle',
   update:     () => {},
+  refresh:    async () => {},
 });
 
 export function useSettings(): SettingsContextValue {

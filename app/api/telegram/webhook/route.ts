@@ -1,6 +1,8 @@
 import { timingSafeEqual } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { T } from '@/lib/tables';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,18 +51,48 @@ export async function POST(req: NextRequest) {
   if (!chat) return NextResponse.json({ ok: true });
 
   if (text.startsWith('/start')) {
+    // `/start CODE` is the account-linking path. This is the ONLY way a
+    // telegram_chat_id gets written now: the value comes from Telegram's own
+    // update for a chat the sender demonstrably controls, never from a client
+    // that could name someone else's. See migration 20260807j.
+    const code = text.slice('/start'.length).trim().toUpperCase();
+    let reply =
+      `👋 Welcome to <b>LiquidityHQ</b>!\n\n` +
+      `To connect this chat, open Alerts in the app and press Connect Telegram. ` +
+      `It gives you a link that finishes the setup.`;
+
+    if (code) {
+      const admin = getSupabaseAdmin();
+      // Claim atomically: used_at goes non-null only once, so a code that
+      // leaks after redemption is inert, and two racing sends cannot both
+      // bind. Expiry is checked in the same statement.
+      const { data: claimed } = await admin.from(T.telegram_link_codes)
+        .update({ used_at: new Date().toISOString() })
+        .eq('code', code)
+        .is('used_at', null)
+        .gt('expires_at', new Date().toISOString())
+        .select('user_id')
+        .maybeSingle();
+
+      if (claimed?.user_id) {
+        const { error } = await admin.from(T.user_settings).upsert(
+          { user_id: claimed.user_id, telegram_chat_id: String(chat.id), updated_at: new Date().toISOString() },
+          { onConflict: 'user_id' },
+        );
+        reply = error
+          ? `⚠️ Could not finish connecting. Please try again from the app.`
+          : `✅ Connected. Alerts for your LiquidityHQ account will arrive here.`;
+      } else {
+        // Same message for wrong, expired and already-used, so this cannot be
+        // used to probe which codes exist.
+        reply = `⚠️ That link has expired or was already used. Press Connect Telegram in the app for a new one.`;
+      }
+    }
+
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chat.id,
-        parse_mode: 'HTML',
-        text:
-          `👋 Welcome to <b>LiquidityHQ</b>!\n\n` +
-          `Your Telegram Chat ID is:\n` +
-          `<code>${chat.id}</code>\n\n` +
-          `Copy the number above and paste it into the LiquidityHQ app to start receiving alerts.`,
-      }),
+      body: JSON.stringify({ chat_id: chat.id, parse_mode: 'HTML', text: reply }),
     });
   }
 

@@ -29,10 +29,19 @@ const EMA_SIGNAL_TFS = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'] as con
 const ALERT_TF_CAP = 3;
 const DEFAULT_ON_TFS: readonly string[] = ['1h', '4h', '1d'];
 
+// Connecting Telegram finishes OUTSIDE this page: the user sends the code to
+// the bot, and the webhook writes telegram_chat_id server-side. Nothing pushes
+// that back to the browser, so the page re-reads its own settings on a timer
+// while it waits. Two minutes is long enough to open Telegram and press Start;
+// past that the user gets a "check again" button instead of an endless poll.
+const LINK_POLL_MS      = 3_000;
+const LINK_POLL_MAX     = 40;
+const LINK_CODE_TTL_SEC = 600;
+
 export default function AlertsPage() {
   const { t } = useLabels();
   const { user, entitled } = useAuth();
-  const { settings, loading: settingsLoading, update } = useSettings();
+  const { settings, loading: settingsLoading, refresh: refreshSettings } = useSettings();
   const [upgradeGate, setUpgradeGate] = useState<string | null>(null);
 
   // utcHourToLocalTime() uses the runtime's own timezone (toLocaleTimeString with
@@ -53,14 +62,18 @@ export default function AlertsPage() {
   const [checkResult, setCheckResult] = useState<{ fired: string[]; note?: string } | null>(null);
   const [checkErr, setCheckErr]       = useState('');
 
-  // Wizard state
-  const [chatIdInput, setChatIdInput] = useState('');
-  const [detecting, setDetecting]     = useState(false);
-  const [detectError, setDetectError] = useState('');
-  const [detected, setDetected]       = useState(false);
-  const [botUsername, setBotUsername]   = useState<string | null>(null);
-  const [webhookOk, setWebhookOk]       = useState(true);
-  const [saveState, setSaveState]     = useState<'idle' | 'saving' | 'saved'>('idle');
+  // Connect-Telegram state. The chat ID is never typed here any more - the
+  // user proves the chat is theirs by sending a one-time code to the bot.
+  const [botUsername, setBotUsername] = useState<string | null>(null);
+  const [webhookOk, setWebhookOk]     = useState(true);
+  const [linkCode, setLinkCode]       = useState<{ code: string; deepLink: string | null } | null>(null);
+  const [linkSecondsLeft, setLinkSecondsLeft] = useState(0);
+  const [linkIssuing, setLinkIssuing]   = useState(false);
+  const [linkError, setLinkError]       = useState('');
+  const [pollExhausted, setPollExhausted] = useState(false);
+  const [codeCopied, setCodeCopied]     = useState(false);
+  const [disconnecting, setDisconnecting]   = useState(false);
+  const [disconnectError, setDisconnectError] = useState('');
 
   // Muted alert groups
   const [muted, setMuted]   = useState<Set<string>>(new Set());
@@ -139,10 +152,40 @@ export default function AlertsPage() {
     return () => { if (histTimerRef.current) clearInterval(histTimerRef.current); };
   }, [fetchHistory]);
 
-  // Sync input from saved settings when they load
+  // ── Waiting for the user to finish in Telegram ──────────────────────────
+  // Re-read settings on a timer while a code is outstanding: the webhook, not
+  // this page, writes telegram_chat_id, so polling is the only way to notice.
   useEffect(() => {
-    if (settings.telegram_chat_id) setChatIdInput(settings.telegram_chat_id);
-  }, [settings.telegram_chat_id]);
+    if (!linkCode) return;
+    let attempts = 0;
+    const id = setInterval(() => {
+      attempts += 1;
+      if (attempts > LINK_POLL_MAX) {
+        clearInterval(id);
+        setPollExhausted(true);
+        return;
+      }
+      refreshSettings();
+    }, LINK_POLL_MS);
+    return () => clearInterval(id);
+  }, [linkCode, refreshSettings]);
+
+  // Countdown on the outstanding code, so "expired" is visible rather than a
+  // silent failure the next time the user sends it.
+  useEffect(() => {
+    if (!linkCode) return;
+    const id = setInterval(() => setLinkSecondsLeft(s => (s > 0 ? s - 1 : 0)), 1000);
+    return () => clearInterval(id);
+  }, [linkCode]);
+
+  // Connection landed - drop the code panel and show the connected state.
+  useEffect(() => {
+    if (isConnected && linkCode) {
+      setLinkCode(null);
+      setPollExhausted(false);
+      setLinkSecondsLeft(0);
+    }
+  }, [isConnected, linkCode]);
 
   const getAuthToken = async (): Promise<string | null> => {
     const sb = getSupabase();
@@ -279,31 +322,57 @@ export default function AlertsPage() {
     } catch { setTestState('err'); setTestErr(t('ALERTS_NETWORK_ERROR')); }
   };
 
-  const detectChatId = async () => {
-    setDetecting(true); setDetectError(''); setDetected(false);
+  // Ask the server for a one-time code. The user hands it to the bot, the bot
+  // webhook writes the chat ID - the browser never supplies it, which is the
+  // whole point (see supabase/migrations/20260807j_telegram_link_codes.sql).
+  const requestLinkCode = async () => {
+    setLinkIssuing(true);
+    setLinkError('');
+    setPollExhausted(false);
+    setCodeCopied(false);
     try {
       const token = await getAuthToken();
-      const res = await fetch('/api/telegram/detect', {
+      const res = await fetch('/api/telegram/link-code', {
+        method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      const d = await res.json();
-      if (d.ok && d.chat_id) {
-        setChatIdInput(d.chat_id);
-        setDetected(true);
-        try { await navigator.clipboard.writeText(d.chat_id); } catch { /* no clipboard access */ }
-      } else {
-        setDetectError(d.error ?? t('ALERTS_DETECT_FAILED'));
-      }
-    } catch { setDetectError(t('ALERTS_NETWORK_ERROR')); }
-    setDetecting(false);
+      const d = await res.json() as { code?: string; expires_in_seconds?: number; deep_link?: string | null };
+      if (!res.ok || !d.code) throw new Error('link code failed');
+      setLinkCode({ code: d.code, deepLink: d.deep_link ?? null });
+      setLinkSecondsLeft(d.expires_in_seconds ?? LINK_CODE_TTL_SEC);
+    } catch {
+      setLinkError(t('ALERTS_CONNECT_FAILED'));
+    }
+    setLinkIssuing(false);
   };
 
-  const saveChatId = async () => {
-    if (!chatIdInput.trim()) return;
-    setSaveState('saving');
-    update({ telegram_chat_id: chatIdInput.trim() });
-    setSaveState('saved');
-    setTimeout(() => setSaveState('idle'), 2000);
+  const copyStartCommand = async () => {
+    if (!linkCode) return;
+    try {
+      await navigator.clipboard.writeText(`/start ${linkCode.code}`);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2500);
+    } catch { /* no clipboard access - the code is on screen anyway */ }
+  };
+
+  const disconnectTelegram = async () => {
+    setDisconnecting(true);
+    setDisconnectError('');
+    try {
+      const token = await getAuthToken();
+      const res = await fetch('/api/telegram/link-code', {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const d = await res.json() as { ok?: boolean };
+      if (!res.ok || !d.ok) throw new Error('disconnect failed');
+      await refreshSettings();
+      setTestState('idle');
+      setTestErr('');
+    } catch {
+      setDisconnectError(t('ALERTS_DISCONNECT_FAILED'));
+    }
+    setDisconnecting(false);
   };
 
   const checkNow = async () => {
@@ -377,7 +446,11 @@ export default function AlertsPage() {
           onUnlock={() => setUpgradeGate(t('ALERTS_UPGRADE_GATE_FEATURE_LABEL'))}
         />
       ) : (
-      /* ── Telegram Quick-Connect Wizard ──────────────────────────────── */
+      /* ── Connect Telegram ───────────────────────────────────────────────
+          One-time code, not a pasted chat ID: the user sends the code to the
+          bot and the webhook writes the chat ID server-side. See
+          supabase/migrations/20260807j_telegram_link_codes.sql for why the
+          old paste-your-chat-ID form had to go. */
       <div className="card" style={{ marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div className="lbl" style={{ margin: 0 }}>{t('ALERTS_CONNECT_TELEGRAM_TITLE')}</div>
@@ -405,35 +478,37 @@ export default function AlertsPage() {
         </div>
 
         {isConnected ? (
-          /* ── Connected state ── */
+          /* ── Connected state ──
+              The chat ID itself is deliberately not shown: the user never
+              supplied it and never needs it, and printing it back only
+              teaches people it is a value worth copying around. */
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-              <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
-                {t('ALERTS_CHAT_ID_LABEL')}&nbsp;
-                <code style={{ background: 'var(--bg2)', padding: '2px 7px', borderRadius: 4, fontSize: 'var(--fs-caption)' }}>
-                  {settings.telegram_chat_id}
-                </code>
-              </span>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', marginBottom: 14, lineHeight: 1.6 }}>
+              {t('ALERTS_CONNECTED_DESC')}
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
-                style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
-                onClick={() => { update({ telegram_chat_id: '' }); setChatIdInput(''); setSaveState('idle'); }}
+                className={`tg-action-btn${testState === 'ok' ? ' tg-btn-ok' : testState === 'err' ? ' tg-btn-err' : ''}`}
+                onClick={sendTest}
+                disabled={testState === 'sending'}
               >
-                {t('ALERTS_CHANGE_BUTTON')}
+                {testState === 'sending' ? t('ALERTS_TEST_SENDING') : testState === 'ok' ? t('ALERTS_TEST_SENT_OK') : testState === 'err' ? t('ALERTS_TEST_FAILED') : t('ALERTS_SEND_TEST_BUTTON')}
+              </button>
+              <button
+                className="tg-action-btn tg-btn-secondary"
+                onClick={disconnectTelegram}
+                disabled={disconnecting}
+              >
+                {disconnecting ? t('ALERTS_DISCONNECTING') : t('ALERTS_DISCONNECT_BUTTON')}
               </button>
             </div>
-            <button
-              className={`tg-action-btn${testState === 'ok' ? ' tg-btn-ok' : testState === 'err' ? ' tg-btn-err' : ''}`}
-              onClick={sendTest}
-              disabled={testState === 'sending'}
-            >
-              {testState === 'sending' ? t('ALERTS_TEST_SENDING') : testState === 'ok' ? t('ALERTS_TEST_SENT_OK') : testState === 'err' ? t('ALERTS_TEST_FAILED') : t('ALERTS_SEND_TEST_BUTTON')}
-            </button>
             {testState === 'err' && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 8 }}>{testErr}</div>}
+            {disconnectError && <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 8 }}>{disconnectError}</div>}
           </div>
         ) : (
-          /* ── Wizard ── */
+          /* ── Not connected ── */
           <div>
-            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 18, lineHeight: 1.6 }}>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 16, lineHeight: 1.6 }}>
               {t('ALERTS_WIZARD_INTRO')}
             </div>
 
@@ -442,98 +517,154 @@ export default function AlertsPage() {
                 fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 14, padding: '8px 12px',
                 background: '#f8717114', borderRadius: 6, border: '0.5px solid #f8717144',
               }}>
-                <Warn /> {t('ALERTS_WEBHOOK_FAILED_WARNING')}
+                <Warn /> {t('ALERTS_CONNECT_WEBHOOK_WARNING')}
               </div>
             )}
 
-            {/* Step 1 */}
-            <div style={stepStyle}>
-              <div style={numStyle}>1</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)', marginBottom: 8 }}>
-                  {t('ALERTS_STEP1_TITLE')}
-                </div>
-                {botLink ? (
-                  <a
-                    href={botLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                      fontSize: 'var(--fs-caption)', fontWeight: 600, color: '#fff',
-                      background: 'linear-gradient(135deg, #0088cc 0%, #229ed9 100%)',
-                      padding: '8px 16px', borderRadius: 8, textDecoration: 'none',
-                    }}
-                  >
-                    {t('ALERTS_OPEN_BOT_BUTTON', { bot: botLabel })}
-                  </a>
-                ) : (
-                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ALERTS_SEARCH_BOT_PRE')} <strong>{t('ALERTS_SEARCH_BOT_BOLD')}</strong> {t('ALERTS_SEARCH_BOT_POST')}</div>
-                )}
-              </div>
-            </div>
-
-            {/* Step 2 */}
-            <div style={stepStyle}>
-              <div style={numStyle}>2</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)', marginBottom: 4 }}>
-                  {t('ALERTS_STEP2_SEND_PRE')}&nbsp;
-                  <code style={{ background: 'var(--bg2)', padding: '2px 7px', borderRadius: 4, fontSize: 'var(--fs-caption)' }}>
-                    /start
-                  </code>
-                  &nbsp;{t('ALERTS_STEP2_SEND_POST')}
-                </div>
-                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
-                  {t('ALERTS_STEP2_HINT_PRE')} <strong style={{ color: 'var(--txt2)' }}>{t('ALERTS_STEP2_HINT_BOLD')}</strong> {t('ALERTS_STEP2_HINT_POST')}
-                </div>
-              </div>
-            </div>
-
-            {/* Step 3 */}
-            <div style={{ ...stepStyle, marginBottom: 0 }}>
-              <div style={numStyle}>3</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)', marginBottom: 10 }}>
-                  {t('ALERTS_STEP3_TITLE')}
-                </div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                  <input
-                    type="text"
-                    className="pa-input"
-                    aria-label={t('ALERTS_CHAT_ID_ARIA')}
-                    placeholder={t('ALERTS_CHAT_ID_PLACEHOLDER')}
-                    value={chatIdInput}
-                    onChange={e => { setChatIdInput(e.target.value); setDetected(false); setDetectError(''); }}
-                    style={{ flex: 1, minWidth: 110 }}
-                  />
-                  <button
-                    className="tg-action-btn tg-btn-secondary"
-                    onClick={detectChatId}
-                    disabled={detecting}
-                    style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-                  >
-                    {detecting ? t('ALERTS_DETECT_DETECTING') : detected ? t('ALERTS_DETECT_DETECTED') : t('ALERTS_DETECT_AUTO')}
-                  </button>
-                </div>
-                {detected && (
-                  <div style={{ fontSize: 'var(--fs-caption)', color: '#34d399', marginBottom: 8 }}>
-                    {t('ALERTS_DETECT_SUCCESS_MSG')}
-                  </div>
-                )}
-                {detectError && (
-                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 8 }}>{detectError}</div>
-                )}
+            {!linkCode ? (
+              <>
                 <button
                   className="tg-action-btn"
-                  onClick={saveChatId}
-                  disabled={!chatIdInput.trim() || saveState === 'saving'}
+                  onClick={requestLinkCode}
+                  disabled={linkIssuing}
                   style={{ width: '100%' }}
                 >
-                  {saveState === 'saving' ? t('ALERTS_SAVE_SAVING') : saveState === 'saved' ? t('ALERTS_SAVE_CONNECTED') : t('ALERTS_SAVE_CONNECT_BUTTON')}
+                  {linkIssuing ? t('ALERTS_CONNECT_PREPARING') : t('ALERTS_CONNECT_TELEGRAM_TITLE')}
                 </button>
+                {linkError && (
+                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 8 }}>{linkError}</div>
+                )}
+              </>
+            ) : (
+              <div>
+                {linkCode.deepLink && (
+                  <div style={{ marginBottom: 14 }}>
+                    <a
+                      href={linkCode.deepLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#fff',
+                        background: 'linear-gradient(135deg, #0088cc 0%, #229ed9 100%)',
+                        padding: '10px 18px', borderRadius: 8, textDecoration: 'none',
+                      }}
+                    >
+                      {t('ALERTS_CONNECT_OPEN_TELEGRAM')}
+                    </a>
+                    <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 8, lineHeight: 1.6 }}>
+                      {t('ALERTS_CONNECT_DEEP_LINK_HINT')}
+                    </div>
+                  </div>
+                )}
+
+                {/* Manual path - the only path when the bot username isn't
+                    configured server-side, a fallback otherwise. */}
+                <div style={{
+                  paddingTop: linkCode.deepLink ? 14 : 0,
+                  borderTop: linkCode.deepLink ? '0.5px solid var(--bdr)' : 'none',
+                }}>
+                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 12 }}>
+                    {linkCode.deepLink ? t('ALERTS_CONNECT_MANUAL_FALLBACK') : t('ALERTS_CONNECT_MANUAL_ONLY')}
+                  </div>
+
+                  <div style={stepStyle}>
+                    <div style={numStyle}>1</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)', marginBottom: 8 }}>
+                        {t('ALERTS_STEP1_TITLE')}
+                      </div>
+                      {botLink ? (
+                        <a
+                          href={botLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                            fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--accent-2)',
+                            textDecoration: 'underline',
+                          }}
+                        >
+                          {t('ALERTS_OPEN_BOT_BUTTON', { bot: botLabel })}
+                        </a>
+                      ) : (
+                        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
+                          {t('ALERTS_SEARCH_BOT_PRE')} <strong>{t('ALERTS_SEARCH_BOT_BOLD')}</strong> {t('ALERTS_SEARCH_BOT_POST')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ ...stepStyle, marginBottom: 0 }}>
+                    <div style={numStyle}>2</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)', marginBottom: 8 }}>
+                        {t('ALERTS_CONNECT_SEND_MESSAGE')}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <code style={{
+                          background: 'var(--bg2)', padding: '7px 12px', borderRadius: 6,
+                          fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.06em',
+                          fontFamily: 'var(--font-mono), monospace', color: 'var(--txt)',
+                          border: '0.5px solid var(--bdr)',
+                        }}>
+                          /start {linkCode.code}
+                        </code>
+                        <button
+                          className="tg-action-btn tg-btn-secondary"
+                          onClick={copyStartCommand}
+                          style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+                        >
+                          {codeCopied ? t('ALERTS_CONNECT_COPIED') : t('ALERTS_CONNECT_COPY_BUTTON')}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Expiry + waiting state */}
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '0.5px solid var(--bdr)' }}>
+                  {linkSecondsLeft > 0 ? (
+                    <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
+                      {t('ALERTS_CONNECT_EXPIRES_IN', {
+                        time: `${Math.floor(linkSecondsLeft / 60)}:${String(linkSecondsLeft % 60).padStart(2, '0')}`,
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>
+                      {t('ALERTS_CONNECT_CODE_EXPIRED')}
+                    </div>
+                  )}
+
+                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', marginTop: 6, lineHeight: 1.6 }}>
+                    {pollExhausted ? t('ALERTS_CONNECT_STILL_WAITING') : t('ALERTS_CONNECT_WAITING')}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                    {pollExhausted && (
+                      <button className="tg-action-btn tg-btn-secondary" onClick={() => refreshSettings()}>
+                        {t('ALERTS_CONNECT_CHECK_AGAIN')}
+                      </button>
+                    )}
+                    <button
+                      className="tg-action-btn tg-btn-secondary"
+                      onClick={requestLinkCode}
+                      disabled={linkIssuing}
+                    >
+                      {linkIssuing ? t('ALERTS_CONNECT_PREPARING') : t('ALERTS_CONNECT_NEW_CODE_BUTTON')}
+                    </button>
+                  </div>
+
+                  {linkError && (
+                    <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 8 }}>{linkError}</div>
+                  )}
+
+                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 10, lineHeight: 1.6 }}>
+                    {t('ALERTS_CONNECT_SECURITY_NOTE')}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>

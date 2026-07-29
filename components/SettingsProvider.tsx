@@ -68,6 +68,26 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
       }, () => setLoading(false));
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Re-read from Supabase on demand ───────────────────────────────────────
+  // Same read as the sign-in effect above, minus the one-time anti-chop
+  // migration (that must stay one-time). Exposed on the context for flows
+  // where the server writes a setting behind the client's back - the Telegram
+  // link code is redeemed by the bot webhook, so the Alerts page polls this to
+  // notice the connection landed.
+  const refresh = useCallback(async () => {
+    if (!user) return;
+    const sb = getSupabase();
+    if (!sb) return;
+    const { data } = await sb.from(T.user_settings)
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (!data) return;
+    const s = rowToSettings(data as Record<string, unknown>);
+    setSettings(s);
+    saveLocalSettings(s);
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Debounced Supabase upsert ─────────────────────────────────────────────
   const flushToDb = useCallback(async (partial: Partial<UserSettings>) => {
     if (!user) return;
@@ -113,7 +133,7 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
   }, [flushToDb]);
 
   return (
-    <SettingsContext.Provider value={{ settings, loading, saveStatus, update }}>
+    <SettingsContext.Provider value={{ settings, loading, saveStatus, update, refresh }}>
       {children}
     </SettingsContext.Provider>
   );
