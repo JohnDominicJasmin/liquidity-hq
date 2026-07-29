@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
       // Only the cache-miss path spends on xAI, so only it needs the daily
       // cap - a cache hit within the 2min TTL stays free for everyone.
       const role = await getUserRole(token, authData.user.id);
-      const usageResult = await incrementToolUsage(token, authData.user.id, 'smcSnapshot', role);
+      const usageResult = await incrementToolUsage(authData.user.id, 'smcSnapshot', role);
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason);
       }

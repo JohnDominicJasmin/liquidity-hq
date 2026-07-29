@@ -85,6 +85,15 @@ export async function POST(req: NextRequest) {
     prompt: string; tf: string; session: string; type: 'quick' | 'deep';
   };
 
+  // The prompt is assembled in the browser (lib/grok.ts) and sent whole, so its
+  // length is caller-controlled. The daily cap counts CALLS, not tokens, so
+  // without a bound here one allowed call can cost an arbitrary amount at xAI.
+  // The real assembled prompt runs well under this; anything larger is not the
+  // app talking.
+  if (typeof prompt !== 'string' || prompt.length > 64_000) {
+    return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
+  }
+
   const token = req.headers.get('Authorization')?.replace('Bearer ', '') || undefined;
 
   // Auth required for both Quick and Deep - prevents unauthenticated API burn
@@ -126,7 +135,7 @@ export async function POST(req: NextRequest) {
   // TOCTOU race the old read-then-upsert pattern had between concurrent requests.
   const column = type === 'deep' ? 'deep_count' : 'quick_count';
   const limit  = type === 'deep' ? deepLimit : quickLimit;
-  const usageResult = await incrementUsageColumn(token!, userId, column, limit);
+  const usageResult = await incrementUsageColumn(userId, column, limit);
   if (usageResult.blocked) {
     const label = type === 'deep' ? 'deep analyses' : 'quick analyses';
     return NextResponse.json(
@@ -147,6 +156,9 @@ export async function POST(req: NextRequest) {
           model: 'grok-4.3',
           input: [{ role: 'user', content: prompt }],
           tools: [{ type: 'web_search' }, { type: 'x_search' }],
+          // Deep is the expensive path (frontier model + web and X search) and
+          // was the only xAI call in the app with no output bound at all.
+          max_output_tokens: 2000,
         }),
       });
       if (!r.ok) {

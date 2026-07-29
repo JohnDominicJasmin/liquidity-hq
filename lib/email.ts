@@ -181,12 +181,20 @@ export async function sendBanEmail(args: BanEmailArgs): Promise<boolean> {
   if (!apiKey || !from) return false;
 
   const subject = `Your ${APP_NAME} account has been suspended`;
-  const reason = args.reason?.trim();
+  // Both are interpolated into an HTML body. The reason is free text an admin
+  // types into /ops, and the address comes from the account record - neither is
+  // markup, so neither should be able to act as markup in the recipient's mail
+  // client.
+  const esc = (s: string) => s
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const reason = args.reason?.trim() ? esc(args.reason.trim()) : '';
+  const to = esc(args.to);
   const html = `
     <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#111;max-width:520px">
       <h2 style="margin:0 0 12px;font-size:18px">Account suspended</h2>
       <p style="margin:0 0 12px">
-        Your ${APP_NAME} account (<b>${args.to}</b>) has been suspended and can no
+        Your ${APP_NAME} account (<b>${to}</b>) has been suspended and can no
         longer sign in.
       </p>
       ${reason ? `<p style="margin:0 0 12px"><b>Reason:</b> ${reason}</p>` : ''}

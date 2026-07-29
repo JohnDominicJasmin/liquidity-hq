@@ -82,8 +82,12 @@ export default function AlertsPage() {
   const [paAdding, setPaAdding]       = useState(false);
   const [paError, setPaError]         = useState('');
 
-  const fetchHistory = useCallback(() => {
-    fetch('/api/telegram/history').then(r => r.json())
+  const fetchHistory = useCallback(async () => {
+    const sb = getSupabase();
+    const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
+    if (!token) { setHistory([]); return; }
+    fetch('/api/telegram/history', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
       .then(d => setHistory(d.fires ?? []))
       .catch(() => {});
   }, []);
@@ -278,7 +282,10 @@ export default function AlertsPage() {
   const detectChatId = async () => {
     setDetecting(true); setDetectError(''); setDetected(false);
     try {
-      const res = await fetch('/api/telegram/detect');
+      const token = await getAuthToken();
+      const res = await fetch('/api/telegram/detect', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       const d = await res.json();
       if (d.ok && d.chat_id) {
         setChatIdInput(d.chat_id);

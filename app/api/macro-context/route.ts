@@ -156,7 +156,7 @@ export async function GET(req: NextRequest) {
       // daily cap - a cache hit stays free for everyone (same pattern as
       // token-unlock/smc-snapshot).
       const role = await getUserRole(token, authData.user.id);
-      const usageResult = await incrementToolUsage(token, authData.user.id, 'macroContext', role);
+      const usageResult = await incrementToolUsage(authData.user.id, 'macroContext', role);
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason);
       }

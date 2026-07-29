@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       // Only the cache-miss path actually spends on xAI, so only it needs the
       // daily cap - a cache hit for a popular symbol stays free for everyone.
       const role = await getUserRole(authToken, authData.user.id);
-      const usageResult = await incrementToolUsage(authToken, authData.user.id, 'tokenUnlock', role);
+      const usageResult = await incrementToolUsage(authData.user.id, 'tokenUnlock', role);
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason);
       }

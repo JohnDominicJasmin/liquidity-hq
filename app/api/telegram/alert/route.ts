@@ -245,6 +245,10 @@ function localHourMinute(timeZone: string | null, d: Date): { hour: number; min:
 
 /* ── Telegram send ── */
 async function tg(token: string, chatId: string | string[], text: string): Promise<void> {
+  // Send-only kill switch (/ops/config) - detection/tracking above this call
+  // keeps running either way, only the actual outbound message stops.
+  if (!(await isFeatureEnabled('telegram'))) return;
+
   const ids = Array.isArray(chatId) ? chatId : [chatId];
   // One rendered body per distinct timezone among these recipients.
   const byZone = new Map<string | null, string[]>();
@@ -845,7 +849,13 @@ async function checkPriceAlerts(
       await tg(token, recipient, body);
 
       triggeredIds.push(alert.id);
-      fired.push(`${label} price alert at $${alert.target_price.toLocaleString()}`);
+      // Deliberately NOT added to `fired`. That list goes to recordFires(),
+      // an app-wide in-memory feed served by /api/telegram/history and shown
+      // on /alerts to everyone - so pushing one user's coin and target price
+      // into it published their private alert to every other user. Same leak
+      // the comment above describes, just through the history feed instead of
+      // Telegram. `fired` is for market-wide signals only; a price alert is by
+      // definition one person's.
     }
 
     // Deactivate all fired alerts in a single round-trip
@@ -1442,6 +1452,11 @@ async function checkEMASignal(
    WEB PUSH DISPATCH
    ════════════════════════════════════════ */
 async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<string>>, thresholdsByUser: Map<string, UserThresholds>, proUserIds: Set<string>): Promise<void> {
+  // Same send-only kill switch as tg() - shares the 'telegram' flag rather
+  // than a separate one, since /ops/config's "Telegram + Push alerts" switch
+  // is meant to silence both outbound channels together.
+  if (!(await isFeatureEnabled('telegram'))) return;
+
   const pubKey  = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   const privKey = process.env.VAPID_PRIVATE_KEY;
   const email   = process.env.VAPID_EMAIL;
@@ -1573,9 +1588,6 @@ export async function GET(req: NextRequest) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token)
     return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN not set' }, { status: 503 });
-
-  if (!(await isFeatureEnabled('telegram')))
-    return NextResponse.json({ ok: true, fired: [], note: 'Telegram alerts disabled via kill switch' });
 
   // Safety net - never exceed Render's 30s limit
   let timerId: ReturnType<typeof setTimeout>;

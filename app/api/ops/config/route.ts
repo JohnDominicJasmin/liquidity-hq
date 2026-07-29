@@ -52,6 +52,23 @@ export const PATCH = withOwner(async (req, { user }) => {
   if (typeof value !== 'object' || value === null) {
     return NextResponse.json({ error: 'value must be an object.' }, { status: 400 });
   }
+  // feature_flags is read back by a Postgres function, not just by app code:
+  // hook_restrict_signup_velocity casts value->>'signups' to boolean on every
+  // single signup. A non-boolean here ("yes", 1) makes that cast raise, the
+  // Before-User-Created hook errors, and account creation stops dead for
+  // everyone until someone thinks to look at this row. Reject the wrong shape
+  // at the boundary rather than storing a value that breaks signups.
+  if (key === 'feature_flags') {
+    const bad = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => typeof v !== 'boolean')
+      .map(([k]) => k);
+    if (bad.length) {
+      return NextResponse.json(
+        { error: `Feature flags must be true or false. Not valid: ${bad.join(', ')}.` },
+        { status: 400 },
+      );
+    }
+  }
 
   const admin = getSupabaseAdmin();
   const { error } = await admin.from(T.app_config).upsert(

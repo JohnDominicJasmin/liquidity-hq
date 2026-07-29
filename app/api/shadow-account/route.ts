@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
   const role = await getUserRole(token, authData.user.id);
-  const usageResult = await incrementToolUsage(token, authData.user.id, 'shadowAccount', role);
+  const usageResult = await incrementToolUsage(authData.user.id, 'shadowAccount', role);
   if (usageResult.blocked) {
     return NextResponse.json(
       { error: rateLimitMessage(usageResult.reason, usageResult.limit, 'Shadow Account reports'), code: 'RATE_LIMIT' },
