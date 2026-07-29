@@ -196,5 +196,5 @@ Two Supabase clients exist server-side: user-scoped (`sb(token)`, respects RLS -
 - **Role string is `'pro'`.** Not `'premium'`, not `'paid'`.
 - **New third-party fetch in an API route?** Wrap it in `cached()` unless the response is genuinely per-user.
 - **New Pro feature?** Server route: gate with `getUserRole` (fail closed). UI: gate with `isPro` after `authLoading` resolves, and show `LockedFeatureCard` / `UpgradeGateModal` rather than silently hiding things.
-- **UI copy:** full words, no abbreviations; prices/percentages in the mono font per the Indigo Depth design system (`DESIGN_SYSTEM.md`).
+- **UI copy:** full words, no abbreviations; prices/percentages in the mono font per the Indigo Depth design system (`docs/DESIGN_SYSTEM.md`).
 - **Signal logic changes go in `strategyCore.ts` only** - never fork the math into a component, or live and backtest results silently diverge.
