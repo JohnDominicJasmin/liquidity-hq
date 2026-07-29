@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { T } from '@/lib/tables';
 
 export const dynamic = 'force-dynamic';
@@ -24,6 +25,15 @@ const userIdByEmailFn = process.env.NEXT_PUBLIC_APP_ENV === 'dev'
 // password, no such account, not actually banned - returns null, same
 // shape either way, so the response itself never distinguishes them.
 export async function POST(req: NextRequest) {
+  // This route runs a REAL signInWithPassword per call - unlike the public
+  // data routes (20/min per IP is fine for a price lookup), a caller here is
+  // trying a live credential, so the same limit would make this a
+  // credential-stuffing endpoint. Tighter than those, in line with the other
+  // auth-adjacent routes (telegram/test, telegram/link-code) at 5/min.
+  if (!rateLimit(`ban-reason:${getClientIp(req)}`, 5, 60_000)) {
+    return NextResponse.json({ reason: null }, { status: 429 });
+  }
+
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const email = typeof body.email === 'string' ? body.email.trim() : '';
   const password = typeof body.password === 'string' ? body.password : '';

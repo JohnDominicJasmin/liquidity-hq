@@ -30,6 +30,16 @@ export default function PostHogProvider({ children }: { children: React.ReactNod
       persistence:        'localStorage+cookie',
       session_recording: {
         maskAllInputs: true,
+        // maskAllInputs only covers form inputs. Rendered TEXT - a saved
+        // trade's notes, its thesis, and every dollar/R figure in
+        // TradeJournal - was captured in the clear, so a user's trade
+        // history and P&L landed in PostHog's recordings unmasked even
+        // though nothing was ever typed into a masked field during that
+        // capture. These are the only classes covered - PostHog masks
+        // exactly the matched elements' text, not the whole page, so
+        // anything added to TradeJournal later needs one of these classes
+        // (or a new one added here) to be covered too.
+        maskTextSelector: '.tj-trade-notes, .tj-tp-val, .tj-stat-val, .tj-breakdown-pnl, .tj-thesis-text',
       },
     });
   }, []);
