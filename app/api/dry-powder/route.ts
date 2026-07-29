@@ -3,7 +3,7 @@ import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
 import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
-import { getUserRole } from '@/lib/entitlements';
+import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // DeFi Llama's stablecoin series only updates once a day - cache generously.
@@ -67,6 +67,15 @@ export async function GET(req: NextRequest) {
   const { data: authData } = await sb(token).auth.getUser();
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  // Pro-only. /upgrade sells the one-shot AI tools as a Pro feature
+  // (UPGRADE_PRO_FEATURE_TOOL_POOL); this route is one of them. Without this
+  // check a free account could still spend real xAI budget here, which is
+  // what the pricing page says it cannot. Trial users pass - hasProFeatures
+  // covers isTrial.
+  if (!(await hasProFeatures(token, authData.user.id))) {
+    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Dry Powder analysis is a Pro feature.' }, { status: 403 });
+  }
+
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
   try {
@@ -74,7 +83,7 @@ export async function GET(req: NextRequest) {
       // Only the cache-miss path actually spends on xAI, so only it needs the
       // daily cap - a cache hit stays free for everyone (same pattern as
       // token-unlock/smc-snapshot).
-      const role = await getUserRole(token, authData.user.id);
+      const role = await getUsageTier(token, authData.user.id);
       const usageResult = await incrementToolUsage(authData.user.id, 'dryPowder', role);
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason);

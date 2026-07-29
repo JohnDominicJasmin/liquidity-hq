@@ -1,6 +1,9 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
+import { useAuth } from './AuthProvider';
+import { LockedFeatureCard } from './UpgradeGateModal';
 import Tip from './Tip';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
@@ -18,7 +21,7 @@ interface DPData {
 const CACHE_KEY = 'lhq_dry_powder';
 const CACHE_TTL = 4 * 60 * 60 * 1000;
 
-type LoadState = DPData | null | 'loading' | 'error' | 'unauth';
+type LoadState = DPData | null | 'loading' | 'error' | 'unauth' | 'locked';
 
 const SIGNAL_META: Record<string, { col: string; bg: string; bdr: string; icon: string }> = {
   EXPANDING:   { col: '#34d399', bg: 'rgba(52,211,153,0.10)',  bdr: 'rgba(52,211,153,0.3)',  icon: '↑' },
@@ -63,6 +66,8 @@ function Sparkline({ series }: { series: number[] }) {
 
 export default function DryPowder() {
   const { t } = useLabels();
+  const router = useRouter();
+  const { entitled, loading: authLoading } = useAuth();
   const [state, setState]    = useState<LoadState>('loading');
   const [errMsg, setErrMsg]  = useState('');
 
@@ -79,7 +84,12 @@ export default function DryPowder() {
         series?: number[]; analysis?: string; error?: string;
       };
 
-      if (!res.ok) { setErrMsg(json.error ?? 'Failed'); setState('error'); return; }
+      // Entitlement can lapse while the tab is still open (a trial ending
+      // mid-session), so treat the server's Pro gate as the source of truth
+      // and fall back to the same locked card the render path below shows.
+      if (res.status === 403 && json.error === 'PRO_REQUIRED') { setState('locked'); return; }
+
+      if (!res.ok) { setErrMsg(json.error ?? t('DRY_POWDER_FETCH_FAILED')); setState('error'); return; }
 
       const signal    = parseDPSection(json.analysis ?? '', 'SIGNAL');
       const narrative = parseDPSection(json.analysis ?? '', 'NARRATIVE');
@@ -103,6 +113,10 @@ export default function DryPowder() {
   }, []);
 
   useEffect(() => {
+    // Wait for the role to resolve, and skip entirely for a non-entitled
+    // user - this is Pro-gated server-side (403 PRO_REQUIRED), so fetching
+    // anyway just burns a round trip to show the locked-card branch below.
+    if (authLoading || !entitled) return;
     try {
       const raw = localStorage.getItem(CACHE_KEY);
       if (raw) {
@@ -111,7 +125,7 @@ export default function DryPowder() {
       }
     } catch { /* ignore */ }
     fetchData();
-  }, [fetchData]);
+  }, [authLoading, entitled, fetchData]);
 
   const signalKey = typeof state === 'object' && state !== null
     ? (state.signal.match(/^(EXPANDING|CONTRACTING|NEUTRAL)/)?.[1] ?? 'NEUTRAL')
@@ -127,6 +141,14 @@ export default function DryPowder() {
         </Tip>
       </div>
 
+      {(!authLoading && !entitled) || state === 'locked' ? (
+        <LockedFeatureCard
+          title={t('DRY_POWDER_TITLE')}
+          description={t('DRY_POWDER_LOCKED_DESC')}
+          onUnlock={() => router.push('/upgrade')}
+        />
+      ) : (
+      <>
       {state === 'loading' && (
         <div style={{ padding: '4px 0' }} role="status" aria-live="polite">
           <span className="sr-only">{t('DRY_POWDER_LOADING_SR')}</span>
@@ -227,6 +249,8 @@ export default function DryPowder() {
           </>
         );
       })()}
+      </>
+      )}
     </div>
   );
 }

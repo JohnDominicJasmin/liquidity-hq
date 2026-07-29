@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
-import { hasProFeatures, getUserRole } from '@/lib/entitlements';
+import { hasProFeatures, getUsageTier } from '@/lib/entitlements';
 import { incrementToolUsage, rateLimitMessage, type UsageBlockReason } from '@/lib/aiUsage';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
@@ -155,7 +155,7 @@ export async function GET(req: NextRequest) {
       // Only the cache-miss path actually spends on xAI, so only it needs the
       // daily cap - a cache hit stays free for everyone (same pattern as
       // token-unlock/smc-snapshot).
-      const role = await getUserRole(token, authData.user.id);
+      const role = await getUsageTier(token, authData.user.id);
       const usageResult = await incrementToolUsage(authData.user.id, 'macroContext', role);
       if (usageResult.blocked) {
         throw new RateLimitError(usageResult.limit, usageResult.reason);

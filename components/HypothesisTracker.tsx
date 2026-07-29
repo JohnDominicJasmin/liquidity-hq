@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from './AuthProvider';
+import { LockedFeatureCard } from './UpgradeGateModal';
 import { getSupabase } from '@/lib/supabase';
 import EmptyState from '@/components/EmptyState';
 import { withAlpha } from '@/lib/color';
@@ -72,14 +74,19 @@ async function apiFetch(path: string, opts?: RequestInit) {
 }
 
 export default function HypothesisTracker() {
-  const { user } = useAuth();
+  const { user, entitled, loading: authLoading } = useAuth();
   const { t } = useLabels();
+  const router = useRouter();
   const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [evidenceMap, setEvidenceMap] = useState<Record<string, Evidence[]>>({});
   const [showCreate, setShowCreate] = useState(false);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  // Set when the server refuses the analysis with a Pro gate, so entitlement
+  // lapsing mid-session (a trial ending while the page is open) swaps in the
+  // same locked card instead of a button that quietly does nothing.
+  const [proLocked, setProLocked] = useState(false);
 
   // Create form state
   const [cfTitle, setCfTitle] = useState('');
@@ -197,10 +204,14 @@ export default function HypothesisTracker() {
   };
 
   const runAnalysis = async (id: string) => {
+    // The analysis endpoint is Pro-only (403 PRO_REQUIRED), so a free user's
+    // click never reaches it - show the locked card instead of a round trip.
+    if (!entitled) { setProLocked(true); return; }
     setAnalyzingId(id);
     try {
       const res = await apiFetch(`/api/hypotheses/${id}/analyze`, { method: 'POST' });
-      const json = await res.json() as { verdict?: string; status?: string };
+      const json = await res.json() as { verdict?: string; status?: string; error?: string };
+      if (res.status === 403 && json.error === 'PRO_REQUIRED') { setProLocked(true); return; }
       if (json.verdict) {
         await fetchHypotheses();
         // re-fetch evidence so the expanded card reflects any DB changes
@@ -445,20 +456,32 @@ export default function HypothesisTracker() {
                     </div>
                   )}
 
-                  {/* Grok analysis button */}
-                  <button
-                    onClick={() => runAnalysis(h.id)}
-                    disabled={isAnalyzing}
-                    style={{
-                      ...ghostBtnStyle,
-                      color: isAnalyzing ? 'var(--txt3)' : 'var(--accent)',
-                      borderColor: 'rgba(26,122,255,0.3)',
-                      marginBottom: 14,
-                      width: '100%',
-                    }}
-                  >
-                    {isAnalyzing ? t('HYPOTHESIS_TRACKER_ANALYZING') : h.grok_verdict ? t('HYPOTHESIS_TRACKER_RERUN_ANALYSIS_BUTTON') : t('HYPOTHESIS_TRACKER_RUN_ANALYSIS_BUTTON')}
-                  </button>
+                  {/* Grok analysis button - the rest of the tracker (creating
+                      hypotheses, logging evidence) stays free, only the AI
+                      analysis is Pro, so just this control gets locked. */}
+                  {(!authLoading && !entitled) || proLocked ? (
+                    <div style={{ marginBottom: 14 }}>
+                      <LockedFeatureCard
+                        title={t('HYPOTHESIS_TRACKER_ANALYSIS_LOCKED_TITLE')}
+                        description={t('HYPOTHESIS_TRACKER_ANALYSIS_LOCKED_DESC')}
+                        onUnlock={() => router.push('/upgrade')}
+                      />
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => runAnalysis(h.id)}
+                      disabled={isAnalyzing}
+                      style={{
+                        ...ghostBtnStyle,
+                        color: isAnalyzing ? 'var(--txt3)' : 'var(--accent)',
+                        borderColor: 'rgba(26,122,255,0.3)',
+                        marginBottom: 14,
+                        width: '100%',
+                      }}
+                    >
+                      {isAnalyzing ? t('HYPOTHESIS_TRACKER_ANALYZING') : h.grok_verdict ? t('HYPOTHESIS_TRACKER_RERUN_ANALYSIS_BUTTON') : t('HYPOTHESIS_TRACKER_RUN_ANALYSIS_BUTTON')}
+                    </button>
+                  )}
 
                   {/* Evidence log */}
                   <div style={{ marginBottom: 10 }}>

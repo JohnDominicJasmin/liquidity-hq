@@ -4,6 +4,7 @@
 // ever read its own role, never someone else's.
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
+import type { UsageTier } from '@/lib/limits';
 
 export type Role = 'free' | 'pro';
 
@@ -50,6 +51,24 @@ export async function getEntitlement(token: string, userId: string): Promise<Ent
 // Convenience for feature-gate routes: true if paid Pro or in an active trial.
 export async function hasProFeatures(token: string, userId: string): Promise<boolean> {
   return (await getEntitlement(token, userId)).proFeatures;
+}
+
+// Which AI_LIMITS row this caller is billed against. NOT the same as `role`:
+// a trial user is role='free' but has its own limits row, because billing a
+// trial against the free row is what made the free numbers secretly mean
+// "trial" (see the long comment in lib/limits.ts). Anything that picks a
+// usage limit must use this; anything that asks "have they PAID us" - the
+// /upgrade sell, billing copy - must keep using `role`.
+export function usageTierOf(e: Entitlement): UsageTier {
+  return e.role === 'pro' ? 'pro' : e.trialActive ? 'trial' : 'free';
+}
+
+// Drop-in replacement for getUserRole() at any call site that is choosing a
+// USAGE LIMIT. Same signature, but returns 'trial' instead of collapsing a
+// trial user onto 'free'. Every AI route should use this; getUserRole stays
+// for the places that genuinely mean "has this account paid".
+export async function getUsageTier(token: string, userId: string): Promise<UsageTier> {
+  return usageTierOf(await getEntitlement(token, userId));
 }
 
 // Resolves the bearer token straight to a role, returning 'free' for any

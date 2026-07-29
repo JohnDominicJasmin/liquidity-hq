@@ -18,7 +18,16 @@ const F = AI_LIMITS.free, P = AI_LIMITS.pro; // limit numbers derived, not hand-
 
 // Keep this list in sync with the actual gates: the timeframe clamp and
 // locked cards in app/arena/page.tsx, the /backtest paywall, and the
-// PRO_REQUIRED checks in /api/onchain and /api/macro-context.
+// PRO_REQUIRED check in all 11 one-shot AI tool routes (thesis-check,
+// strategy-research, shadow-account, behavioral-bias, pine-script,
+// hypotheses/[id]/analyze, token-unlock, smc-snapshot, dry-powder,
+// macro-context, onchain).
+// This comment used to name only /api/onchain and /api/macro-context, and
+// that was the bug: the Pro column here has always sold the tool pool
+// (UPGRADE_PRO_FEATURE_TOOL_POOL) while 5 of the 11 routes never enforced it,
+// so a free account really could run them. All 11 now enforce it.
+// The free ExtraTool numbers in lib/limits.ts stay non-zero on purpose - they
+// are the TRIAL allowance, not a free-tier grant. See the long comment there.
 // (AI limit numbers come from lib/limits.ts - they can't drift from the API.)
 const FREE_FEATURES: Array<[LabelKey, Record<string, string | number>?]> = [
   ['UPGRADE_FREE_FEATURE_DASHBOARD'],

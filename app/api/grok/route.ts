@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { parseCombinedResponse } from '@/lib/grok';
 import { T } from '@/lib/tables';
-import { getUserRole } from '@/lib/entitlements';
+import { getUsageTier } from '@/lib/entitlements';
 import { isFeatureEnabled } from '@/lib/featureFlags';
-import { AI_LIMITS, type Tier } from '@/lib/limits';
+import { AI_LIMITS, type UsageTier } from '@/lib/limits';
 import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
 
@@ -39,7 +39,7 @@ async function getUsageRow(token: string, userId: string, today: string) {
 // Pro-only - free stays on per-tool caps, so there is no single number to show
 // a free user. 0 means "no pool", and UsageRings skips the ring entirely
 // rather than rendering a meaningless 0/0.
-function toolPoolLimitFor(role: Tier): number {
+function toolPoolLimitFor(role: UsageTier): number {
   return AI_LIMITS[role].toolPool ?? 0;
 }
 
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
   const today = todayUtc();
   const [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed }, role] = await Promise.all([
     getUsageRow(token, userId, today),
-    getUserRole(token, userId),
+    getUsageTier(token, userId),
   ]);
   const deepLimit     = AI_LIMITS[role].deep;
   const quickLimit    = AI_LIMITS[role].quick;
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
   const today = todayUtc();
   let [{ deepUsed, quickUsed, chatUsed, searchUsed, briefingUsed, toolPoolUsed }, role] = await Promise.all([
     getUsageRow(token!, userId, today),
-    getUserRole(token!, userId),
+    getUsageTier(token!, userId),
   ]);
   const deepLimit     = AI_LIMITS[role].deep;
   const quickLimit    = AI_LIMITS[role].quick;

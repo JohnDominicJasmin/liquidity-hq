@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
-import { getUserRole, hasProFeatures } from '@/lib/entitlements';
+import { getUsageTier, hasProFeatures } from '@/lib/entitlements';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
 
   if (!GROK_KEY) return NextResponse.json({ error: 'AI service not configured' }, { status: 503 });
 
-  const role = await getUserRole(token, authData.user.id);
+  const role = await getUsageTier(token, authData.user.id);
   const usageResult = await incrementToolUsage(authData.user.id, 'strategyResearch', role);
   if (usageResult.blocked) {
     return NextResponse.json(
