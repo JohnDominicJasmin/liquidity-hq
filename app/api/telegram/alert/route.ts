@@ -849,7 +849,13 @@ async function checkPriceAlerts(
       await tg(token, recipient, body);
 
       triggeredIds.push(alert.id);
-      fired.push(`${label} price alert at $${alert.target_price.toLocaleString()}`);
+      // Deliberately NOT added to `fired`. That list goes to recordFires(),
+      // an app-wide in-memory feed served by /api/telegram/history and shown
+      // on /alerts to everyone - so pushing one user's coin and target price
+      // into it published their private alert to every other user. Same leak
+      // the comment above describes, just through the history feed instead of
+      // Telegram. `fired` is for market-wide signals only; a price alert is by
+      // definition one person's.
     }
 
     // Deactivate all fired alerts in a single round-trip
