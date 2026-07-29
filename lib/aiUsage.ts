@@ -13,18 +13,9 @@
 // No refund on a failed xAI call after a successful increment - see the
 // migration file's comment for why that tradeoff was chosen over a second
 // compensating-write path.
-import { createClient } from '@supabase/supabase-js';
 import { AI_LIMITS, ExtraTool, Tier } from '@/lib/limits';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isFeatureEnabled } from '@/lib/featureFlags';
-
-function sb(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } },
-  );
-}
 
 // The ONLY place "what day is it" gets decided for daily-cap bucketing.
 // Every route that checks or increments a cap must call this - never
@@ -94,8 +85,16 @@ export type UsageIncrementResult =
   | { blocked: false; count: number }
   | { blocked: true; reason: UsageBlockReason; limit: number };
 
+// Called with the SERVICE-ROLE client, never the caller's own token, and the
+// RPC's EXECUTE is revoked from `authenticated` to match. Every argument here
+// is a cap the server decides, and a browser that could call the RPC directly
+// could decide them instead: pass a huge p_limit to sail past its own daily
+// cap, or a huge p_global_limit to inflate lhq_global_ai_usage past the real
+// AI_GLOBAL_DAILY_MAX and trip the app-wide breaker, locking every user out of
+// AI for the rest of the UTC day. `userId` is safe to pass because all 14
+// callers derive it from a verified token server-side, never from the body.
 export async function incrementUsageColumn(
-  token: string, userId: string, column: string, limit: number,
+  userId: string, column: string, limit: number,
   poolLimit: number | null = null,
 ): Promise<UsageIncrementResult> {
   // Single choke point for all 14 AI routes (see this file's header comment) -
@@ -105,7 +104,7 @@ export async function incrementUsageColumn(
   if (!(await isFeatureEnabled('grok'))) return { blocked: true, reason: 'disabled', limit };
 
   const today = todayUtc();
-  const { data, error } = await sb(token).rpc('increment_ai_usage', {
+  const { data, error } = await getSupabaseAdmin().rpc('increment_ai_usage', {
     p_user_id: userId, p_date: today, p_column: column, p_limit: limit,
     p_global_limit: globalDailyMax(),
     p_pool_limit: poolLimit,
@@ -136,10 +135,10 @@ export async function incrementUsageColumn(
 // can never be sourced from different places - passing one without the other
 // is what would silently disable the pool for a route.
 export async function incrementToolUsage(
-  token: string, userId: string, tool: ExtraTool, role: Tier,
+  userId: string, tool: ExtraTool, role: Tier,
 ): Promise<UsageIncrementResult> {
   return incrementUsageColumn(
-    token, userId, EXTRA_TOOL_COLUMN[tool],
+    userId, EXTRA_TOOL_COLUMN[tool],
     AI_LIMITS[role][tool], AI_LIMITS[role].toolPool,
   );
 }
