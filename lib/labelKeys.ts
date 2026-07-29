@@ -1127,6 +1127,19 @@ export const LABEL_KEYS = [
   // page for their whole 14-day trial.
   'TRIAL_BANNER_LABEL', 'TRIAL_BANNER_FULL_ACCESS',
   'TRIAL_BANNER_DAYS_LEFT', 'TRIAL_BANNER_LAST_DAY', 'TRIAL_BANNER_CTA',
+
+  // Telegram connect flow (Alerts page). Replaces the old "paste your Chat ID"
+  // wizard: the user now proves the chat is theirs with a one-time code and
+  // never supplies the chat ID at all, so the copy is about the code, the
+  // deep link, and waiting for the bot to confirm.
+  'ALERTS_CONNECT_PREPARING', 'ALERTS_CONNECT_OPEN_TELEGRAM', 'ALERTS_CONNECT_DEEP_LINK_HINT',
+  'ALERTS_CONNECT_MANUAL_FALLBACK', 'ALERTS_CONNECT_MANUAL_ONLY', 'ALERTS_CONNECT_SEND_MESSAGE',
+  'ALERTS_CONNECT_COPY_BUTTON', 'ALERTS_CONNECT_COPIED',
+  'ALERTS_CONNECT_EXPIRES_IN', 'ALERTS_CONNECT_CODE_EXPIRED', 'ALERTS_CONNECT_NEW_CODE_BUTTON',
+  'ALERTS_CONNECT_WAITING', 'ALERTS_CONNECT_STILL_WAITING', 'ALERTS_CONNECT_CHECK_AGAIN',
+  'ALERTS_CONNECT_FAILED', 'ALERTS_CONNECT_SECURITY_NOTE', 'ALERTS_CONNECT_WEBHOOK_WARNING',
+  'ALERTS_CONNECTED_DESC', 'ALERTS_DISCONNECT_BUTTON', 'ALERTS_DISCONNECTING',
+  'ALERTS_DISCONNECT_FAILED',
 ] as const;
 
 export type LabelKey = (typeof LABEL_KEYS)[number];

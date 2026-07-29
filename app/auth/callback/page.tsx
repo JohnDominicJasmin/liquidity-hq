@@ -1,4 +1,5 @@
 'use client';
+import { safeNextPath } from '@/lib/safeNext';
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
@@ -22,9 +23,11 @@ function CallbackInner() {
       ?? hashParams.get('error_description') ?? hashParams.get('error');
 
     // Honor the ?next= the login page threaded through - same-origin paths
-    // only, so the callback can't be turned into an open redirect.
-    const rawNext = params.get('next');
-    const dest = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/arena';
+    // only, so the callback can't be turned into an open redirect. Shared with
+    // the login page (lib/safeNext.ts) because both had the same backslash
+    // hole: `/\evil.com` passed a startsWith('/') check and the browser then
+    // resolved it off-origin.
+    const dest = safeNextPath(params.get('next'), '/arena');
 
     if (error) { setErrMsg(friendlyAuthError(error)); return; }
 
