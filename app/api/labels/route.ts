@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { SUPPORTED_LOCALES, type Locale } from '@/lib/labels';
+import { SUPPORTED_LOCALES, type Locale } from '@/lib/locales';
 import { T } from '@/lib/tables';
 
 export const dynamic = 'force-dynamic';

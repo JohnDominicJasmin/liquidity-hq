@@ -1,16 +1,11 @@
 import { createContext, useContext } from 'react';
 import type { LabelKey } from './labelKeys';
 
-// Matches the landing page's SUPPORTED_LOCALES (lib/i18n/dictionaries.ts)
-// plus the additional languages picked for the app-wide rollout - the two
-// systems are deliberately separate (landing stays build-time static) but
-// share the same locale codes.
-export type Locale = 'en' | 'ko' | 'zh' | 'ar' | 'vi' | 'pt-BR' | 'tr' | 'es' | 'id' | 'ru';
-export const SUPPORTED_LOCALES: Locale[] = ['en', 'ko', 'zh', 'ar', 'vi', 'pt-BR', 'tr', 'es', 'id', 'ru'];
-
-export function isSupportedLocale(v: string): v is Locale {
-  return (SUPPORTED_LOCALES as string[]).includes(v);
-}
+// The locale list lives in ./locales so server code can import it without
+// dragging this file's React imports across the client/server boundary.
+// Re-exported here so every existing `from '@/lib/labels'` import still works.
+export { SUPPORTED_LOCALES, isSupportedLocale, type Locale } from './locales';
+import { isSupportedLocale, type Locale } from './locales';
 
 export interface LabelsContextValue {
   locale: Locale;
