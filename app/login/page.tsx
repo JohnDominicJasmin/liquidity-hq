@@ -7,6 +7,7 @@ import { getSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 import { useAuth } from '@/components/AuthProvider';
 import { friendlyAuthError } from '@/lib/authErrors';
+import { safeNextPath } from '@/lib/safeNext';
 import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 
@@ -17,20 +18,12 @@ import { useLabels } from '@/lib/labels';
 // dashboard config and never touches this app.
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
 
-// Only allow same-origin path redirects - anything else ("//evil.com",
-// "https://...") falls back to the dashboard, so ?next= can't be used as an
-// open redirect.
-function safeNext(raw: string | null): string {
-  if (raw && raw.startsWith('/') && !raw.startsWith('//')) return raw;
-  return '/dashboard';
-}
-
 function LoginInner() {
   const searchParams = useSearchParams();
   const router       = useRouter();
   const { user, loading: authLoading } = useAuth();
   const isSignup     = searchParams.get('signup') === '1';
-  const nextUrl      = safeNext(searchParams.get('next'));
+  const nextUrl      = safeNextPath(searchParams.get('next'), '/dashboard');
   const [email, setEmail]               = useState('');
   const [emailSent, setEmailSent]       = useState(false);
   const [emailLoading, setEmailLoading] = useState(false);

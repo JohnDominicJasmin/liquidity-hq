@@ -73,6 +73,15 @@ export async function PATCH(req: NextRequest) {
   const user = await getUser(token);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  // Same gate as POST: editing an alert is using the feature, so a free user
+  // reactivating or re-pointing an old alert would otherwise walk straight
+  // around the creation paywall. GET and DELETE stay open on purpose - reading
+  // and removing your OWN rows is not the paid feature, and blocking DELETE
+  // would trap a lapsed trial user with alerts they cannot clear.
+  if (!(await hasProFeatures(token, user.id))) {
+    return NextResponse.json({ error: 'PRO_REQUIRED', message: 'Price alerts are a Pro feature.' }, { status: 403 });
+  }
+
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
