@@ -25,4 +25,5 @@ export const T = {
   app_config:          `${p}app_config`,
   user_status:         `${p}user_status`,
   labels:              `${p}labels`,
+  ls_webhook_events:   `${p}ls_webhook_events`,
 } as const;

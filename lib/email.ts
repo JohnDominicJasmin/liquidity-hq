@@ -27,6 +27,11 @@ interface BanEmailArgs {
   reason?: string | null;
 }
 
+interface TrialEndingArgs {
+  to: string;
+  daysLeft: number;
+}
+
 const APP_NAME = 'LiquidityHQ';
 
 // Fixed recipient list for the AI-spend spike alert - the owner's own
@@ -148,6 +153,67 @@ export async function sendWelcomeEmail(args: WelcomeEmailArgs): Promise<boolean>
       <p style="margin:0 0 12px">Jump in: <a href="${arenaUrl}">${arenaUrl}</a></p>
       <p style="margin:16px 0 0;color:#666;font-size:13px">
         Questions or feedback - just reply to this email.
+      </p>
+    </div>`;
+
+  try {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: APP_NAME, email: from },
+        to: [{ email: args.to }],
+        subject,
+        htmlContent: html,
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Fires once per account near the end of the 14-day trial, from the
+// cron-gated /api/trial-reminder route (which owns the dedup - this function
+// just sends). The in-app TrialBanner already shows a countdown, but it only
+// reaches someone who signs in; this is the one that catches the user who
+// signed up, got busy, and would otherwise return weeks later to a silently
+// downgraded account with no idea a trial ever ran.
+//
+// Names what they LOSE rather than what they'd buy: at this point they have
+// been using the features for twelve days, so the concrete list is the pitch.
+export async function sendTrialEndingEmail(args: TrialEndingArgs): Promise<boolean> {
+  const apiKey = process.env.BREVO_API_KEY;
+  const from = process.env.BREVO_SENDER_EMAIL;
+  if (!apiKey || !from) return false;
+
+  const upgradeUrl = appUrl('/upgrade');
+  const when = args.daysLeft <= 1 ? 'tomorrow' : `in ${args.daysLeft} days`;
+  const subject = `Your ${APP_NAME} Pro trial ends ${when}`;
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#111;max-width:520px">
+      <h2 style="margin:0 0 12px;font-size:18px">Your Pro trial ends ${when}</h2>
+      <p style="margin:0 0 12px">
+        Your account stays open and free after that - but these go back to locked:
+      </p>
+      <ul style="margin:0 0 12px;padding-left:20px">
+        <li>The 11 AI analysis tools</li>
+        <li>Fast timeframes (1 minute, 5 minute, 15 minute)</li>
+        <li>Backtesting</li>
+        <li>Telegram and push alerts</li>
+        <li>Price alerts</li>
+      </ul>
+      <p style="margin:0 0 12px">
+        Your daily AI analysis and chat also drop back to the free allowance.
+      </p>
+      <p style="margin:0 0 12px">Keep Pro: <a href="${upgradeUrl}">${upgradeUrl}</a></p>
+      <p style="margin:16px 0 0;color:#666;font-size:13px">
+        Not for you? No action needed - nothing will be charged.
       </p>
     </div>`;
 
