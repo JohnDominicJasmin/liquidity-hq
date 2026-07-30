@@ -1007,42 +1007,26 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     } catch { /* fail silently */ }
   }, []);
 
-  /* ── Coinglass: exchange net flow + liquidation levels ── */
-  const fetchCoinglassData = useCallback(async () => {
-    const token = await getAuthToken();
-    const authHeaders = token ? { Authorization: `Bearer ${token}` } : undefined;
-    /* 1. Exchange net flow */
-    try {
-      const res = await fetch('/api/proxy?type=coinglass-flow', { cache: 'no-cache', headers: authHeaders });
-      const data = await res.json();
-      const netInflow =
-        data?.data?.netInflow ??
-        data?.data?.[data?.data?.length - 1]?.netInflow ??
-        null;
-      if (netInflow != null) {
-        setStore(s => ({ ...s, btcExchangeNetFlow: parseFloat(String(netInflow)) }));
-      }
-    } catch { /* fail silently */ }
-
-    /* 2. Liquidation levels */
-    try {
-      const res = await fetch('/api/proxy?type=coinglass-liq', { cache: 'no-cache', headers: authHeaders });
-      const data = await res.json();
-      const arr: Array<{ price: number; amount: number; side: string }> =
-        data?.data ?? [];
-      if (!Array.isArray(arr) || arr.length === 0) return;
-      const levels = arr
-        .filter(item => item.price != null && item.amount != null)
-        .sort((a, b) => b.amount - a.amount)
-        .slice(0, 8)
-        .map(item => ({
-          price: parseFloat(String(item.price)),
-          amount: parseFloat(String(item.amount)),
-          side: (String(item.side).toLowerCase().includes('long') ? 'long' : 'short') as 'long' | 'short',
-        }));
-      setStore(s => ({ ...s, btcLiqLevels: levels }));
-    } catch { /* fail silently */ }
-  }, []);
+  /* ── Coinglass: exchange net flow + liquidation levels - DISABLED ────────
+   * Coinglass retired the /public/v2/ API this called. Both endpoints now
+   * return HTTP 500 in prod even with COINGLASS_API_KEY attached, and the v4
+   * replacement answers `{"code":"401","msg":"Upgrade plan"}` on this
+   * account's tier - verified 2026-07-30. There is no free API tier; plans
+   * start at $29/mo and Coinglass does not publish which tier includes the
+   * exchange-balance and liquidation endpoints.
+   *
+   * Both call sites already failed soft (a `catch {}` plus null guards), so
+   * nothing was ever fed a wrong value - btcExchangeNetFlow simply stayed
+   * null and the Arena liquidation card, which renders conditionally on
+   * btcLiqLevels.length, silently stopped appearing. The only live cost was
+   * two doomed requests per tab every 15 minutes, which is what this removes.
+   *
+   * Only the fetching is gone. store.btcExchangeNetFlow / store.btcLiqLevels,
+   * the prompt lines that read them, and the Arena heatmap component are all
+   * still wired and correct, so restoring this means pointing the proxy at
+   * open-api-v4.coinglass.com and re-filling those two fields - nothing has to
+   * be rebuilt. Restore steps are in pendings/PENDING.md.
+   */
 
   /* ── Google Trends 'bitcoin' (7-day) ── */
   const fetchGoogleTrends = useCallback(async () => {
@@ -1414,7 +1398,6 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     fetchPremiumIndex();
     fetchDeribitOptions();
     fetchStablecoinFlows();
-    fetchCoinglassData();
     fetchGoogleTrends();
     // CB Premium needs BTC price first - wait 3s for WS/REST to populate
     setTimeout(fetchCoinbasePremium, 3000);
@@ -1444,7 +1427,6 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       setInterval(fetchPremiumIndex,     30  * 1000),        // every 30s - premium changes frequently
       setInterval(fetchDeribitOptions,   15  * 60 * 1000),
       setInterval(fetchStablecoinFlows,  30  * 60 * 1000),
-      setInterval(fetchCoinglassData,    15  * 60 * 1000),
       setInterval(fetchGoogleTrends,     60  * 60 * 1000),
       setInterval(fetchCoinbasePremium,   30 * 1000),      // every 30s
     ];

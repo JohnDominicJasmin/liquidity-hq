@@ -12,6 +12,7 @@ import { Warn } from '@/components/icons';
 import { getSupabase } from '@/lib/supabase';
 import { nextResetLocalTime } from '@/lib/resetTime';
 import { withAlpha } from '@/lib/color';
+import { computeSectorRotation } from '@/lib/sectorRotation';
 
 // A 429 from /api/grok-chat can mean the caller's own daily cap OR the
 // app-wide circuit breaker (AI_GLOBAL_DAILY_MAX) - the server already words
@@ -262,6 +263,9 @@ function buildSystemCtx(
     ln('BTC ETF flow',      store.etfNetFlow != null ? (store.etfNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.etfNetFlow).toFixed(0) + 'M' : '-'),
     ln('ETH ETF flow',      store.ethEtfNetFlow != null ? (store.ethEtfNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.ethEtfNetFlow).toFixed(0) + 'M' : '-'),
     ln('Exchange net flow', store.btcExchangeNetFlow != null ? (store.btcExchangeNetFlow >= 0 ? '+' : '') + '$' + Math.abs(store.btcExchangeNetFlow).toFixed(1) + 'M' : '-'),
+    // Alts live or die on where capital sits relative to BTC, so this belongs
+    // in the chat context too - not just Quick/Deep. See lib/sectorRotation.ts.
+    ln('Sector rotation',   computeSectorRotation(store, coin).line),
     ln('Google Trends',     store.googleTrendsBtc != null ? store.googleTrendsBtc + '/100' : '-'),
     ln('Session',           session),
     '',

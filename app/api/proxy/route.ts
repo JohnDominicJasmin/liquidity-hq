@@ -53,7 +53,18 @@ export async function GET(req: NextRequest) {
   console.log(`[proxy] ip=${ip} user=${user} type=${type}`);
 
   try {
-    /* ── Coinglass: BTC exchange net flow ── */
+    /* ── Coinglass: BTC exchange net flow - DEAD UPSTREAM ──────────────────
+     * Both coinglass-* branches below call the retired /public/v2/ API, which
+     * returns HTTP 500 for every symbol even with COINGLASS_API_KEY set. The
+     * v4 replacement rejects this account's tier with
+     * `{"code":"401","msg":"Upgrade plan"}`, and Coinglass has no free API
+     * tier. Verified 2026-07-30.
+     *
+     * MarketProvider no longer calls either branch. They are left here, rather
+     * than deleted, so that migrating to open-api-v4.coinglass.com is a change
+     * to these two URLs plus the response parsing - see pendings/PENDING.md.
+     * Do NOT wire a new caller to them expecting data.
+     */
     if (type === 'coinglass-flow') {
       const cgKey = process.env.COINGLASS_API_KEY;
       const r = await fetch(

@@ -115,6 +115,36 @@ below is live on prod right now, not just `main`.
 
 ## ⛔ OPEN — code (mine)
 
+### Coinglass v4 migration — blocked on a paid plan (2026-07-30)
+
+`btcExchangeNetFlow` and the Arena BTC liquidation heatmap are both off. The
+`/public/v2/` API they used is retired (HTTP 500 for every symbol, even with the
+key), and v4 answers `{"code":"401","msg":"Upgrade plan"}` on the current tier.
+There is no free Coinglass API tier — $29/mo to $699/mo, and the tier→endpoint
+mapping is **not published**, so confirm with Coinglass support that a given
+tier includes `/api/exchange/balance/chart` before paying. See
+`docs/INFRASTRUCTURE.md` §5 for the full evidence.
+
+Nothing is broken for users: both call sites failed soft, so the value stayed
+null and the heatmap card (rendered conditionally on `btcLiqLevels.length`)
+simply stopped appearing. No wrong numbers were ever shown.
+
+To restore once a plan covers it — this is a URL + parsing change, not a
+rebuild, because every consumer is still wired:
+1. Point the two `coinglass-*` branches in `app/api/proxy/route.ts` at
+   `https://open-api-v4.coinglass.com`, and send the key as the `CG-API-KEY`
+   header (v2 used `coinglassSecret`).
+2. Re-add a `fetchCoinglassData` fetcher in `components/MarketProvider.tsx`
+   filling `btcExchangeNetFlow` and `btcLiqLevels` (removed there, with the
+   reasoning, in the same commit as this note).
+3. Adjust response parsing to the v4 shape.
+
+**This also unblocks the second half of the alt money-flow feature.** Sector
+rotation shipped without it (`lib/sectorRotation.ts`), but per-coin exchange
+flow — the other signal the owner asked for — needs a working per-symbol
+exchange-flow source. If Coinglass stays unpaid, that half needs a different
+provider rather than a Coinglass fix.
+
 ### API health + traffic tracking on `/ops` (requested 2026-07-30)
 
 Owner's #1 follow-up after the news push-delivery work. Right now there is no

@@ -118,6 +118,8 @@ export interface GrokContext {
   liqLevels: string;
   /* BTC dominance trend */
   btcDomTrend: string;
+  /* where capital sits between BTC and the alt complex - see lib/sectorRotation.ts */
+  sectorRotation: string;
   /* volume profile */
   pocLine: string;
   /* macro correlations */
@@ -246,6 +248,10 @@ export function buildPrompt(ctx: GrokContext): string {
     `Gold (XAU/USD): ${ctx.goldLine}`,
     `BTC Dominance (trend): ${ctx.btcDomTrend}`,
     `Fear & Greed: ${ctx.fearGreed}`,
+    '',
+    '=== SECTOR ROTATION (BTC vs alts) ===',
+    `${ctx.sectorRotation}`,
+    '(Alts are a money-flow game: capital rotating into BTC drains the alt complex regardless of how clean an individual alt setup looks, and that headwind matters most in a bear market. Treat "capital rotating INTO BTC" as a real reason to downgrade conviction on an alt long even when its own technicals are constructive - and the reverse for alt longs during alt season. Volume/open-interest share shows whether a move has real participation behind it or is a thin bounce.)',
     '',
     '=== EXCHANGE & ON-CHAIN FLOWS ===',
     `BTC exchange net flow (24h):  ${ctx.exchangeNetFlow}`,
