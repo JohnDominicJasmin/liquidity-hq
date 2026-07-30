@@ -115,15 +115,23 @@ below is live on prod right now, not just `main`.
 
 ## ⛔ OPEN — code (mine)
 
-### Coinglass v4 migration — blocked on a paid plan (2026-07-30)
+### Coinglass v4 migration — DEFERRED until there is revenue (decided 2026-07-30)
+
+**Owner's decision: do not pay for Coinglass until the product has monthly
+revenue or paying users.** Revisit then — not before. Nothing here is waiting on
+a technical answer, so do not re-raise it as an open question.
 
 `btcExchangeNetFlow` and the Arena BTC liquidation heatmap are both off. The
 `/public/v2/` API they used is retired (HTTP 500 for every symbol, even with the
 key), and v4 answers `{"code":"401","msg":"Upgrade plan"}` on the current tier.
 There is no free Coinglass API tier — $29/mo to $699/mo, and the tier→endpoint
-mapping is **not published**, so confirm with Coinglass support that a given
-tier includes `/api/exchange/balance/chart` before paying. See
-`docs/INFRASTRUCTURE.md` §5 for the full evidence.
+mapping is **not published**, so when this is revisited, confirm with Coinglass
+support that a given tier includes `/api/exchange/balance/chart` *before* paying.
+See `docs/INFRASTRUCTURE.md` §5 for the full evidence.
+
+The leaked-key note in that section still applies: the current key was exposed
+and deliberately not rotated, since nothing uses it. **Rotate it before ever
+upgrading**, or the exposed key inherits whatever plan is bought.
 
 Nothing is broken for users: both call sites failed soft, so the value stayed
 null and the heatmap card (rendered conditionally on `btcLiqLevels.length`)
@@ -139,10 +147,12 @@ rebuild, because every consumer is still wired:
    reasoning, in the same commit as this note).
 3. Adjust response parsing to the v4 shape.
 
-**This also unblocks the second half of the alt money-flow feature.** Sector
-rotation shipped without it (`lib/sectorRotation.ts`), but per-coin exchange
-flow — the other signal the owner asked for — needs a working per-symbol
-exchange-flow source. If Coinglass stays unpaid, that half needs a different
+**This also gates the second half of the alt money-flow feature.** Sector
+rotation shipped without it (`lib/sectorRotation.ts` — BTC dominance drift,
+alt-season score, and per-coin volume/OI share, all from data already on hand).
+Per-coin exchange flow — the other signal the owner asked for — needs a working
+per-symbol exchange-flow source, so it is deferred on the same terms. If the
+answer at revisit time is still "not paying", that half needs a different
 provider rather than a Coinglass fix.
 
 ### API health + traffic tracking on `/ops` (requested 2026-07-30)

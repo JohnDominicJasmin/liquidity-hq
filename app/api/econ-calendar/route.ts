@@ -13,7 +13,7 @@ function sb(token: string) {
   );
 }
 
-// Same shape as /api/cmc and /api/news/finnhub: intentionally unauthenticated
+// Same shape as /api/cmc and /api/proxy: intentionally unauthenticated
 // (public calendar, called for signed-out visitors too) - a bearer token is
 // attached when the caller happens to be signed in, so a FINNHUB_KEY quota
 // spike is attributable to an account, not just an IP.
