@@ -107,8 +107,17 @@ export function detectStructureSignals(candles: PACandle[]): PASignal[] {
   // continuation or reversal, so it is reported as BOS rather than inventing a
   // trend that was never observed.
   let trend: 'up' | 'down' | null = null;
-  let usedHigh = -Infinity;
-  let usedLow = Infinity;
+  // Index of the last pivot consumed on each side. A pivot fires at most once,
+  // but ANY later pivot is eligible regardless of its price.
+  //
+  // This was originally a price ratchet (usedHigh/usedLow), which was wrong in
+  // a way only long history exposed: once a high at 65,913 had been broken, no
+  // bull signal could ever fire again unless price exceeded that number, so in
+  // a range-bound market the signals simply stopped. Over a 300-bar window the
+  // ratchet reset often enough to look fine; over the ~1000 bars the chart
+  // actually loads, the newest signal was nine days stale.
+  let usedHighIdx = -1;
+  let usedLowIdx = -1;
 
   for (let i = 0; i < candles.length; i++) {
     const c = candles[i];
@@ -116,10 +125,10 @@ export function detectStructureSignals(candles: PACandle[]): PASignal[] {
     // Only pivots confirmed strictly before this candle are eligible; using a
     // pivot at or after i would be lookahead, and would make a backtest of this
     // look far better than live trading ever could.
-    const lastHigh = [...highs].reverse().find(p => p.index + LOOKBACK < i && p.price !== usedHigh);
-    const lastLow = [...lows].reverse().find(p => p.index + LOOKBACK < i && p.price !== usedLow);
+    const lastHigh = [...highs].reverse().find(p => p.index + LOOKBACK < i && p.index > usedHighIdx);
+    const lastLow = [...lows].reverse().find(p => p.index + LOOKBACK < i && p.index > usedLowIdx);
 
-    if (lastHigh && c.close > lastHigh.price && lastHigh.price > usedHigh) {
+    if (lastHigh && c.close > lastHigh.price) {
       const avg = avgVolume(candles, i);
       const ratio = avg && c.volume != null ? c.volume / avg : null;
       signals.push({
@@ -132,11 +141,11 @@ export function detectStructureSignals(candles: PACandle[]): PASignal[] {
         volumeBacked: ratio != null && ratio >= VOL_CONFIRM,
       });
       trend = 'up';
-      usedHigh = lastHigh.price;
+      usedHighIdx = lastHigh.index;
       continue;
     }
 
-    if (lastLow && c.close < lastLow.price && lastLow.price < usedLow) {
+    if (lastLow && c.close < lastLow.price) {
       const avg = avgVolume(candles, i);
       const ratio = avg && c.volume != null ? c.volume / avg : null;
       signals.push({
@@ -149,7 +158,7 @@ export function detectStructureSignals(candles: PACandle[]): PASignal[] {
         volumeBacked: ratio != null && ratio >= VOL_CONFIRM,
       });
       trend = 'down';
-      usedLow = lastLow.price;
+      usedLowIdx = lastLow.index;
     }
   }
 
