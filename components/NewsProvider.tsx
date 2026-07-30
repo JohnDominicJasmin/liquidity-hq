@@ -94,6 +94,13 @@ export function useNews() { return useContext(NewsContext)!; }
 // Module-level flag - survives React StrictMode double-mount so permission is only requested once
 let _notifRequested = false;
 
+// Upper bounds for the two structures that would otherwise grow for the whole
+// lifetime of a tab. Both sit comfortably above what anything renders: the
+// ticker caps at 12 and drops anything past its 2h red window, and hydration
+// reads at most 150 rows.
+const ALERT_LIMIT = 300;
+const SEEN_LIMIT  = 1000;
+
 function timeAgo(ts: number): string {
   const s = Math.floor(Date.now() / 1000 - ts);
   if (s < 60) return 'just now';
@@ -138,19 +145,54 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const alertsLoadedRef = useRef(false);
   const eventsLoadedRef = useRef(false);
 
-  const pushAlert = useCallback((headline: string, source: string, ts: number, type: 'red' | 'amber' | 'purple', link?: string, image?: string) => {
+  const pushAlert = useCallback((
+    headline: string,
+    source: string,
+    ts: number,
+    type: 'red' | 'amber' | 'purple',
+    link?: string,
+    image?: string,
+    // Hydration replays rows that already existed, so it passes false here.
+    // Without that, every reload re-fired a desktop notification for anything
+    // under 15 minutes old - and with a one-minute ingest cadence there is
+    // almost always something that recent, so a refresh meant a burst of
+    // notifications for news the user had already been told about. Only
+    // genuinely live Realtime pushes should notify.
+    notify = true,
+  ) => {
     const key = headline.slice(0, 60);
     if (seenRef.current.has(key)) return;
     seenRef.current.add(key);
+    // Bound the dedup set. Set preserves insertion order, so dropping from the
+    // front evicts the oldest keys. Safe because ingest only ever serves the
+    // last 6h and prunes past 12h, so an evicted headline cannot come back and
+    // re-fire - whereas clearing the whole set (the pattern used for whale ids
+    // below) would let everything still on screen re-add itself.
+    if (seenRef.current.size > SEEN_LIMIT) {
+      const excess = seenRef.current.size - SEEN_LIMIT;
+      let i = 0;
+      for (const k of seenRef.current) {
+        if (i++ >= excess) break;
+        seenRef.current.delete(k);
+      }
+    }
 
     setLatestHeadlines(prev => [headline, ...prev].slice(0, 25));
 
     const id = alertIdRef.current++;
-    setAlerts(prev => [...prev, { id, headline, source, ts, type, link, image }]);
+    // Cap the alert list. It used to grow for the lifetime of the tab, bounded
+    // only by how many distinct headlines arrived - a session left open all day
+    // accumulated every one of them. Nothing displays alerts older than the
+    // ticker's 2h red window anyway, so keeping the newest ALERT_LIMIT costs no
+    // visible behaviour. Trimmed from the front since alerts are appended.
+    setAlerts(prev => {
+      const next = [...prev, { id, headline, source, ts, type, link, image }];
+      return next.length > ALERT_LIMIT ? next.slice(next.length - ALERT_LIMIT) : next;
+    });
 
     // Only notify for articles < 15 min old - prevents stale articles re-firing on page refresh
     const ageMs = Date.now() - ts * 1000;
-    if ('Notification' in window && Notification.permission === 'granted' && ageMs < 15 * 60 * 1000) {
+    if (notify && 'Notification' in window && Notification.permission === 'granted' && ageMs < 15 * 60 * 1000) {
       new Notification(headline, {
         body: source + ' · ' + timeAgo(ts),
         requireInteraction: type === 'red',
@@ -163,13 +205,15 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     setAlerts(prev => prev.filter(a => a.id !== id));
   }, []);
 
-  /* ── One news row, from either the hydration read or a Realtime push ── */
-  const ingestRow = useCallback((row: NewsRow) => {
+  /* ── One news row, from either the hydration read or a Realtime push ──
+   * notify=false for the hydration pass: those rows already existed before
+   * this tab opened, so re-announcing them on every reload is noise. */
+  const ingestRow = useCallback((row: NewsRow, notify = true) => {
     const ts = Math.floor(new Date(row.published_at).getTime() / 1000);
     if (!row.headline || isNaN(ts)) return;
     // severity is null for rows that reached the table on a geo-keyword match
     // alone; those still belong in the ticker, at 'amber' as before.
-    pushAlert(row.headline, row.source, ts, (row.severity as Alert['type']) ?? 'amber', row.link ?? undefined, row.image ?? undefined);
+    pushAlert(row.headline, row.source, ts, (row.severity as Alert['type']) ?? 'amber', row.link ?? undefined, row.image ?? undefined, notify);
     setNewsRows(prev => (prev.some(r => r.dedup_key === row.dedup_key) ? prev : [row, ...prev].slice(0, 200)));
   }, [pushAlert]);
 
@@ -250,7 +294,10 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
         .limit(150);
       if (!live) return;
       // Oldest first so pushAlert's arrival order matches chronological order.
-      (data as NewsRow[] | null)?.slice().reverse().forEach(ingestRow);
+      // Explicit arrow rather than passing ingestRow straight to forEach -
+      // forEach hands the index in as the second argument, which would land on
+      // the notify parameter and make every row after the first notify.
+      (data as NewsRow[] | null)?.slice().reverse().forEach(row => ingestRow(row, false));
       setAlertsLoaded(true);
     };
 
