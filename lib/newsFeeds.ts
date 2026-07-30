@@ -2,13 +2,23 @@
 // scheduled ingest route (app/api/news/ingest) can reach it directly instead
 // of making an HTTP call back to this app's own origin.
 
+// Removed 2026-07-30, six feeds that had all been returning nothing:
+//   - feeds.reuters.com x3 and feeds.apnews.com x2 fail at DNS ("Could not
+//     resolve host"), not with an HTTP error. Both publishers retired these
+//     public RSS endpoints, so they had been dead for as long as they were
+//     listed here.
+//   - truthsocial.com/@realDonaldTrump.rss answers 200 but serves the site's
+//     HTML app shell, not a feed, so parseRSS finds zero <item> elements. The
+//     worse failure of the two, since a 200 looks healthy from the outside.
+// Confirmed against the live news table as well: no row has ever arrived from
+// any of the six, while every feed still listed below is represented. Reuters
+// coverage does still reach the app - through Finnhub's general category.
+//
+// Every remaining feed was re-checked the same day and returns real items.
+// Note CoinDesk and Bitcoin Magazine answer 308/301 and only work because
+// fetch() follows redirects by default - a redirect here is not a dead feed.
 export const FEEDS = [
   // ── Global breaking / geopolitical ──────────────────────────────────────
-  { url: 'https://feeds.reuters.com/reuters/topNews',          source: 'Reuters',          cat: 'geo'    },
-  { url: 'https://feeds.reuters.com/reuters/worldNews',        source: 'Reuters World',    cat: 'geo'    },
-  { url: 'https://feeds.reuters.com/reuters/businessNews',     source: 'Reuters Business', cat: 'macro'  },
-  { url: 'https://feeds.apnews.com/rss/apf-topnews',           source: 'AP News',          cat: 'geo'    },
-  { url: 'https://feeds.apnews.com/rss/apf-business',          source: 'AP Business',      cat: 'macro'  },
   { url: 'https://feeds.bbci.co.uk/news/world/rss.xml',        source: 'BBC World',        cat: 'geo'    },
   { url: 'https://feeds.bbci.co.uk/news/business/rss.xml',     source: 'BBC Business',     cat: 'macro'  },
   { url: 'https://www.aljazeera.com/xml/rss/all.xml',          source: 'Al Jazeera',       cat: 'geo'    },
@@ -16,8 +26,6 @@ export const FEEDS = [
   { url: 'https://moxie.foxnews.com/google-publisher/politics.xml', source: 'Fox News Politics', cat: 'geo' },
   { url: 'https://feeds.nbcnews.com/nbcnews/public/news',      source: 'NBC News',         cat: 'geo'    },
   { url: 'https://rss.politico.com/politics-news.xml',         source: 'Politico',         cat: 'geo'    },
-  // ── TruthSocial - Trump's primary platform (Mastodon RSS) ───────────────
-  { url: 'https://truthsocial.com/@realDonaldTrump.rss',        source: 'TruthSocial',      cat: 'geo'    },
   // ── Crypto news ─────────────────────────────────────────────────────────
   { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', source: 'CoinDesk',         cat: 'crypto' },
   { url: 'https://cointelegraph.com/rss',                   source: 'CoinTelegraph',    cat: 'crypto' },
