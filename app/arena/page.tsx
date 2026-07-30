@@ -34,6 +34,7 @@ import CoinIcon from '@/components/CoinIcon';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF } from '@/lib/limits';
+import { computeSectorRotation } from '@/lib/sectorRotation';
 
 /* ── Pattern detection - delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -684,6 +685,9 @@ function ArenaContent() {
         })()
       : (store.btcDom != null ? store.btcDom.toFixed(2) + '%' : '-');
 
+    /* Sector rotation - BTC vs the alt complex */
+    const sectorRotation = computeSectorRotation(store, selectedCoin).line;
+
     /* Volume Profile POC */
     const pocLine = coin?.poc != null
       ? '$' + coin.poc.toLocaleString(undefined, { maximumFractionDigits: 2 })
@@ -842,7 +846,7 @@ function ArenaContent() {
       oilPrice, bonds10y, upcomingEvents: upcoming, etfFlows,
       rsi1h, rsi4h, rsiDaily: fmt(coin?.rsiDaily), cvd, cvdDivergence, basis, fibNearest, orderWalls, squeezeScore,
       pcRatio, maxPain, btcGex,
-      exchangeNetFlow, stablecoinFlow, googleTrends, liqLevels, btcDomTrend,
+      exchangeNetFlow, stablecoinFlow, googleTrends, liqLevels, btcDomTrend, sectorRotation,
       pocLine, dxyLine, spxLine, goldLine,
       cbPremium, vwap, oiTrend, takerRatio, crossExchangeFunding,
       cascadeLine, whaleFlow,
