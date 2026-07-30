@@ -6,6 +6,7 @@ import { useAuth } from '@/components/AuthProvider';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import type { LandingDict, Locale } from '@/lib/i18n/dictionaries';
 import { BeamsBackground } from '@/components/BeamsBackground';
+import BrandMark from '@/components/BrandMark';
 
 interface Props {
   dict: LandingDict;
@@ -88,7 +89,12 @@ export default function LandingContent({ dict, locale, dir }: Props) {
       {/* ── NAV ── */}
       <nav className="lp-nav">
         <div className="lp-nav-inner">
-          <span className="lp-logo">LiquidityHQ</span>
+          {/* tone="dark" is fixed - .lp-nav's background is a hardcoded dark
+              rgba() blur, not theme-driven, so this bar never turns light. */}
+          <span className="lp-logo" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <BrandMark size={24} tone="dark" />
+            LiquidityHQ
+          </span>
           <div className="lp-nav-actions">
             <LanguageSwitcher locale={locale} />
             <Link href="/login" className="lp-btn-ghost">{dict.nav.signIn}</Link>
@@ -237,7 +243,10 @@ export default function LandingContent({ dict, locale, dir }: Props) {
       <footer className="lp-footer">
         <div className="lp-footer-grid">
           <div className="lp-footer-brand">
-            <span className="lp-logo">LiquidityHQ</span>
+            <span className="lp-logo" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <BrandMark size={32} tone="dark" />
+              LiquidityHQ
+            </span>
             <p>{dict.footer.brandDesc}</p>
           </div>
 

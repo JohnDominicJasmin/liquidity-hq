@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { GLOSSARY } from '@/lib/glossary';
 import { useLabels } from '@/lib/labels';
+import BrandMark from '@/components/BrandMark';
 
 // Public glossary page (Tier 2 #14). Deliberately does NOT redirect signed-in
 // users away like the marketing homepage (components/LandingContent.tsx) -
@@ -35,7 +36,11 @@ export default function LearnContent() {
       {/* ── NAV ── */}
       <nav className="lp-nav">
         <div className="lp-nav-inner">
-          <Link href="/" className="lp-logo" style={{ textDecoration: 'none' }}>LiquidityHQ</Link>
+          {/* tone="dark" fixed - same always-dark .lp-nav bar as LandingContent. */}
+          <Link href="/" className="lp-logo" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <BrandMark size={24} tone="dark" />
+            LiquidityHQ
+          </Link>
           <div className="lp-nav-actions">
             {user ? (
               <Link href="/dashboard" className="lp-btn-primary">{t('LEARN_CONTENT_NAV_OPEN_DASHBOARD')}</Link>

@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTheme } from '@/lib/theme';
+import BrandMark from '@/components/BrandMark';
 
 const DISCLOSURES = [
   {
@@ -33,6 +35,11 @@ const DISCLOSURES = [
 export default function PlatformFooter() {
   const pathname = usePathname();
   const [expanded, setExpanded] = useState(false);
+  // Unlike NavDrawer/LandingContent/LearnContent, PlatformFooter's background
+  // genuinely follows the app's light/dark toggle (no hardcoded bg on
+  // .pf-footer), so its mark must track the real theme rather than a fixed
+  // tone - the one surface in this rollout where that's actually true.
+  const { theme } = useTheme();
   if (pathname === '/' || pathname === '/login') return null;
 
   return (
@@ -40,9 +47,12 @@ export default function PlatformFooter() {
 
       {/* Top row - brand + nav */}
       <div className="pf-footer-top">
-        <div className="pf-footer-brand">
-          <span className="pf-footer-logo">LiquidityHQ</span>
-          <span className="pf-footer-tagline">Market intelligence for active crypto traders</span>
+        <div className="pf-footer-brand" style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <BrandMark size={40} tone={theme} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <span className="pf-footer-logo">LiquidityHQ</span>
+            <span className="pf-footer-tagline">Market intelligence for active crypto traders</span>
+          </div>
         </div>
         <nav className="pf-footer-nav">
           <Link href="/about" className="pf-footer-link">About</Link>

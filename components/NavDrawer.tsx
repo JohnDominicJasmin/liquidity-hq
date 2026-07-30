@@ -11,6 +11,7 @@ import LanguageNavSwitcher from './LanguageNavSwitcher';
 import { getCurrentWindow } from '@/lib/session';
 import { useTheme } from '@/lib/theme';
 import { withAlpha } from '@/lib/color';
+import BrandMark from './BrandMark';
 import {
   IconSun, IconMoon,
   NavDashboard, NavBriefing, NavArena, NavMarkets, NavScanner,
@@ -292,7 +293,11 @@ export default function NavDrawer() {
     <>
       <div className="app-bar">
         <div className="app-bar-inner">
-          <Link href="/dashboard" className="app-logo" style={{ display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}>
+          <Link href="/dashboard" className="app-logo" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+            {/* tone="dark" is fixed, not theme-derived - .app-bar's background
+                (#090b16) never changes with the light/dark toggle, so the mark
+                shouldn't either. */}
+            <BrandMark size={24} tone="dark" />
             LiquidityHQ
             <span className={`status-dot ${dot.cls}`} title={dot.title} />
           </Link>
