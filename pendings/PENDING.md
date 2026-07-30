@@ -115,8 +115,40 @@ below is live on prod right now, not just `main`.
 
 ## ⛔ OPEN — code (mine)
 
-Nothing outstanding right now. Everything that was "mine" is either done
-(above, all live on `main`/prod) or explicitly deferred below.
+### API health + traffic tracking on `/ops` (requested 2026-07-30)
+
+Owner's #1 follow-up after the news push-delivery work. Right now there is no
+single place that answers "which of our external APIs is actually working". The
+gap is real and this project has already been bitten by it more than once:
+
+- Three `feeds.reuters.com` and two `feeds.apnews.com` RSS feeds sat in the feed
+  list silently returning nothing (dead at DNS) — nobody could have known
+  without hand-testing each URL.
+- `truthsocial.com/@realDonaldTrump.rss` returned **200 OK** while serving an
+  HTML app shell with zero `<item>` elements. A naive uptime check would call
+  that healthy. Status code alone is not health.
+- Global Macro Context failed persistently in the past and only surfaced after
+  a user noticed, which is what prompted wiring `apiError()` into GlitchTip.
+- `FINNHUB_KEY` being empty produces an empty result, not an error.
+
+What it should cover (every external dependency, not just the noisy ones):
+Finnhub, the RSS feed list, Coinglass, CoinMarketCap, xAI/Grok, DeFi Llama,
+Yahoo Finance, FRED, ForexFactory, Binance/Bybit, Telegram, Brevo, Supabase.
+
+Design notes for whoever picks this up:
+- **Health must be semantic, not just HTTP status** — "did we get usable rows
+  back", not "did it return 200". The TruthSocial case is the proof.
+- Per-source last-success timestamp, last-failure timestamp + reason, and a
+  rolling success rate. A source that has not succeeded in N intervals is the
+  actual alert condition.
+- The ingest crons (`api/news/ingest`, `api/econ-calendar/ingest`) are the
+  natural write points for feed health — they already touch every feed once a
+  minute, so they can record per-source outcomes for free instead of a separate
+  prober hammering the same endpoints again.
+- Surface on `/ops` alongside the existing AI-cost and call-count panels.
+- Read `docs/feature-inventory.md` first for the current dependency list.
+
+Deliberately NOT started yet — owner wants the in-flight work finished first.
 
 ## ❓ OPEN — YOUR action (can't do from code)
 

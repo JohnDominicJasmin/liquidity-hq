@@ -38,31 +38,38 @@ export default function NewsTicker() {
     } catch {}
   }, []);
 
-  // Filter by severity + recency - re-evaluated every tick
-  const items = useMemo(() => {
+  // Filter by severity + recency, rank, THEN cap - in that order.
+  //
+  // The cap used to be applied before the sort, which silently made this a
+  // "first 12 that arrived" list rather than a "12 most important" one:
+  // `alerts` is in arrival order, and NewsProvider hydrates oldest-first, so a
+  // freshly-pushed breaking headline landed at the end of the array and was
+  // sliced away before the severity sort ever saw it. Recency filtering hid
+  // most of the damage, but a ticker that drops the newest item is exactly
+  // backwards. Ranking first means the cap now discards the least important
+  // items instead of the most recent ones.
+  const sorted = useMemo(() => {
     const now = Date.now() / 1000;
+    const order = { red: 0, amber: 1, purple: 2 } as const;
     return alerts
       .filter(a => {
         if (a.type === 'red')   return now - a.ts < 7200;  // 2 hours
         if (a.type === 'amber') return now - a.ts < 3600;  // 1 hour
         return now - a.ts < 900;                            // 15 min for purple
       })
+      // filter() already returned a fresh array, so sorting in place here does
+      // not mutate the alerts array held in NewsProvider's state.
+      .sort((a, b) => {
+        if (order[a.type] !== order[b.type]) return order[a.type] - order[b.type];
+        return b.ts - a.ts;
+      })
       .slice(0, 12);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alerts, tick]);  // tick forces re-evaluation of timestamps every 60s
 
-  // Sort: red first → amber → purple → newest within each tier
-  const sorted = useMemo(() => {
-    const order = { red: 0, amber: 1, purple: 2 } as const;
-    return [...items].sort((a, b) => {
-      if (order[a.type] !== order[b.type]) return order[a.type] - order[b.type];
-      return b.ts - a.ts;
-    });
-  }, [items]);
-
-  const topType = items.some(a => a.type === 'red')
+  const topType = sorted.some(a => a.type === 'red')
     ? 'red'
-    : items.some(a => a.type === 'amber')
+    : sorted.some(a => a.type === 'amber')
     ? 'amber'
     : 'purple';
 
@@ -90,8 +97,8 @@ export default function NewsTicker() {
 
   // Newest timestamp in the current batch; the ticker is hidden once dismissed
   // and only reappears when something newer than the dismissal arrives.
-  const newestTs = useMemo(() => items.reduce((m, a) => Math.max(m, a.ts), 0), [items]);
-  const visible = items.length > 0 && newestTs > dismissedTs;
+  const newestTs = useMemo(() => sorted.reduce((m, a) => Math.max(m, a.ts), 0), [sorted]);
+  const visible = sorted.length > 0 && newestTs > dismissedTs;
 
   // Toggle body class so app-content top-padding can adjust
   useEffect(() => {

@@ -132,6 +132,11 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const alertIdRef = useRef(0);
   const whaleIdRef = useRef(0);
   const seenWhaleIds = useRef<Set<number>>(new Set());
+  // Mirror the two loaded flags into refs so the Realtime fallback timer can
+  // read their current values - it is created once and would otherwise close
+  // over whatever they were on first render.
+  const alertsLoadedRef = useRef(false);
+  const eventsLoadedRef = useRef(false);
 
   const pushAlert = useCallback((headline: string, source: string, ts: number, type: 'red' | 'amber' | 'purple', link?: string, image?: string) => {
     const key = headline.slice(0, 60);
@@ -192,6 +197,9 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     });
   }, [pushAlert]);
 
+  useEffect(() => { alertsLoadedRef.current = alertsLoaded; }, [alertsLoaded]);
+  useEffect(() => { eventsLoadedRef.current = eventsLoaded; }, [eventsLoaded]);
+
   /* ── Whale trade listener ── */
   useEffect(() => {
     const handler = (e: Event) => {
@@ -217,11 +225,22 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
 
     let live = true;
 
-    // Hydration: one read each, for the state that already existed before this
-    // tab opened. Realtime only delivers changes made after subscribing, so
-    // without this a fresh tab would start blank and stay blank until the next
-    // ingest run.
-    (async () => {
+    // Hydration fills in what existed before this tab opened - Realtime only
+    // delivers changes made after the subscription is live, so without a read
+    // a fresh tab would start blank until the next ingest run.
+    //
+    // It runs from inside the subscribe() callback, NOT alongside it, and that
+    // ordering is the point: subscribing is an async websocket handshake, so
+    // reading first leaves a window where a row is in neither the read's result
+    // nor the not-yet-live subscription, and it is silently lost until the next
+    // full page load. Subscribe-then-read cannot drop a row; it can only
+    // duplicate one, and both paths already dedupe (pushAlert's seenRef and
+    // newsRows' dedup_key check).
+    //
+    // Re-running on every SUBSCRIBED is deliberate too - the callback fires
+    // again after a reconnect, which is exactly when a tab needs to catch up on
+    // whatever it missed while the socket was down.
+    const hydrateNews = async () => {
       const cutoff = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
       const { data } = await sb
         .from(T.news)
@@ -233,9 +252,9 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
       // Oldest first so pushAlert's arrival order matches chronological order.
       (data as NewsRow[] | null)?.slice().reverse().forEach(ingestRow);
       setAlertsLoaded(true);
-    })();
+    };
 
-    (async () => {
+    const hydrateEcon = async () => {
       const { data } = await sb
         .from(T.econ_snapshot)
         .select('events')
@@ -245,32 +264,40 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
       const events = (data as { events?: CalEvent[] } | null)?.events;
       if (events?.length) applyEconSnapshot(events);
       else setEventsLoaded(true);
-    })();
+    };
 
     const newsChannel = sb
       .channel('news-stream')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: T.news }, payload => {
         ingestRow(payload.new as NewsRow);
       })
-      .subscribe();
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED' && live) hydrateNews();
+      });
 
     // Re-reads rather than using payload.new: the snapshot is one jsonb column
     // holding the whole 90-day calendar, and a read is cheap at one per hour.
     const econChannel = sb
       .channel('econ-snapshot')
-      .on('postgres_changes', { event: '*', schema: 'public', table: T.econ_snapshot }, async () => {
-        const { data } = await sb
-          .from(T.econ_snapshot)
-          .select('events')
-          .eq('key', 'us_high_impact')
-          .maybeSingle();
-        const events = (data as { events?: CalEvent[] } | null)?.events;
-        if (live && events?.length) applyEconSnapshot(events);
+      .on('postgres_changes', { event: '*', schema: 'public', table: T.econ_snapshot }, () => {
+        if (live) hydrateEcon();
       })
-      .subscribe();
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED' && live) hydrateEcon();
+      });
+
+    // Realtime can fail entirely - blocked websocket, offline, project paused.
+    // Without this the ticker would sit empty forever behind a spinner, since
+    // the only read is now inside the subscribe callback that never fires.
+    const hydrateFallback = setTimeout(() => {
+      if (!live) return;
+      if (!alertsLoadedRef.current) hydrateNews();
+      if (!eventsLoadedRef.current) hydrateEcon();
+    }, 5000);
 
     return () => {
       live = false;
+      clearTimeout(hydrateFallback);
       sb.removeChannel(newsChannel);
       sb.removeChannel(econChannel);
     };
