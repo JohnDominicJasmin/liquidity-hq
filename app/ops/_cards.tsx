@@ -275,3 +275,68 @@ export function AccuracyCard() {
     </CardShell>
   );
 }
+
+interface ApiHealthSource {
+  source: string; category: string;
+  status: 'ok' | 'warn' | 'down';
+  detail: string | null; items: number | null;
+  lastOkAt: string | null; consecutiveFailures: number;
+  successRate: number | null; samples: number;
+}
+interface ApiHealthData {
+  sources: ApiHealthSource[];
+  summary: { total: number; down: number; warn: number; ok: number };
+  generatedAt: string;
+}
+
+const healthDot = (s: ApiHealthSource['status']) =>
+  s === 'ok' ? styles.dotGood : s === 'warn' ? styles.dotWarn : styles.dotBad;
+
+// External dependency health, written by the ingest crons rather than probed
+// from here - see lib/apiHealth.ts. Sorted worst-first by the route, so the
+// broken rows are the ones you land on.
+export function ApiHealthCard() {
+  const { t } = useLabels();
+  const { data, error, loading, reload } = useAdminResource<ApiHealthData>('/api/ops/api-health');
+  return (
+    <CardShell title={t('OPS_CARDS_API_HEALTH_TITLE')} onReload={reload} loading={loading} error={error} hasData={!!data} span2>
+      {data && (
+        <>
+          <div className={styles.stats} style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
+            <Stat label={t('OPS_CARDS_API_HEALTH_OK')} val={fmtInt(data.summary.ok)} cls={styles.good} />
+            <Stat label={t('OPS_CARDS_API_HEALTH_WARN')} val={fmtInt(data.summary.warn)}
+              cls={data.summary.warn > 0 ? styles.warn : undefined} />
+            <Stat label={t('OPS_CARDS_API_HEALTH_DOWN')} val={fmtInt(data.summary.down)}
+              cls={data.summary.down > 0 ? styles.bad : undefined} />
+          </div>
+          <div className={styles.rows} style={{ marginTop: 12 }}>
+            {data.sources.length === 0 && (
+              <div className={styles.rowSub}>{t('OPS_CARDS_API_HEALTH_EMPTY')}</div>
+            )}
+            {data.sources.map(s => (
+              <div className={styles.row} key={s.source}>
+                <span className={styles.rowLabel}>
+                  <span className={`${styles.dot} ${healthDot(s.status)}`} />
+                  <span>
+                    <span className={styles.rowName}>{s.source}</span>{' '}
+                    <span className={styles.rowSub}>{s.category}</span>
+                    <br />
+                    <span className={styles.rowSub}>
+                      {s.detail ?? '-'}
+                      {s.status !== 'ok' && ` · last ok ${fmtAgo(s.lastOkAt)}`}
+                      {s.consecutiveFailures > 0 && ` · ${s.consecutiveFailures} in a row`}
+                    </span>
+                  </span>
+                </span>
+                <span className={styles.rowVal}>
+                  {s.successRate == null ? '-' : fmtPct(s.successRate)}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className={styles.note}>{t('OPS_CARDS_API_HEALTH_NOTE')}</p>
+        </>
+      )}
+    </CardShell>
+  );
+}

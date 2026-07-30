@@ -126,6 +126,9 @@
 .accent { color: var(--accent-2); }
 .good { color: var(--green); }
 .bad { color: var(--red); }
+/* Same amber as .dotWarn below - a "needs a look" state that is deliberately
+   distinct from .bad, so a flaky feed does not read like a dead one. */
+.warn { color: #f5b544; }
 .dim { color: var(--txt3); }
 
 /* Rows (cron health, top users, accuracy breakdown) */

@@ -119,10 +119,27 @@ export function parseRSS(xml: string, source: string, cat: RSSItem['cat']): RSSI
   return items;
 }
 
-// Fetches every feed concurrently, tolerating individual failures, then sorts
-// newest-first and drops same-story duplicates across sources.
-export async function fetchAllFeeds(): Promise<RSSItem[]> {
+/** Outcome of a single feed fetch, for health reporting. */
+export interface FeedOutcome {
+  source: string;
+  ok: boolean;
+  detail: string;
+  items: number;
+}
+
+/**
+ * Fetches every feed concurrently, tolerating individual failures, then sorts
+ * newest-first and drops same-story duplicates across sources.
+ *
+ * Returns per-feed outcomes alongside the items. This used to swallow failures
+ * entirely - which is precisely how five dead feeds sat in the list unnoticed
+ * for months. A feed that parses to zero items counts as failed even on HTTP
+ * 200: that is the TruthSocial case, where the server answered 200 with an
+ * HTML app shell containing no <item> elements at all.
+ */
+export async function fetchAllFeeds(): Promise<{ items: RSSItem[]; outcomes: FeedOutcome[] }> {
   const all: RSSItem[] = [];
+  const outcomes: FeedOutcome[] = [];
 
   await Promise.allSettled(
     FEEDS.map(async ({ url, source, cat }) => {
@@ -132,10 +149,24 @@ export async function fetchAllFeeds(): Promise<RSSItem[]> {
           signal: AbortSignal.timeout(6000),
           next: { revalidate: 0 },
         });
-        if (!res.ok) return;
+        if (!res.ok) {
+          outcomes.push({ source, ok: false, detail: `HTTP ${res.status}`, items: 0 });
+          return;
+        }
         const xml = await res.text();
-        all.push(...parseRSS(xml, source, cat as RSSItem['cat']));
-      } catch { /* skip failed feed silently */ }
+        const parsed = parseRSS(xml, source, cat as RSSItem['cat']);
+        all.push(...parsed);
+        outcomes.push(
+          parsed.length > 0
+            ? { source, ok: true, detail: `${parsed.length} items`, items: parsed.length }
+            : { source, ok: false, detail: 'HTTP 200 but no items parsed', items: 0 },
+        );
+      } catch (e) {
+        // Includes DNS failure and the 6s timeout - the shape the retired
+        // Reuters and AP hostnames produced.
+        const msg = e instanceof Error ? e.message : String(e);
+        outcomes.push({ source, ok: false, detail: msg.slice(0, 140), items: 0 });
+      }
     })
   );
 
@@ -148,7 +179,7 @@ export async function fetchAllFeeds(): Promise<RSSItem[]> {
     return true;
   });
 
-  return deduped.slice(0, 150);
+  return { items: deduped.slice(0, 150), outcomes };
 }
 
 export interface FinnhubArticle {
