@@ -115,12 +115,35 @@ From `.env.example` — the authoritative list of what needs a key. Whether each
 | CoinMarketCap | `CMC_API_KEY` | BTC/ETH dominance, Alt Season Index | — |
 | PostHog | `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST` | Product analytics | — |
 | Grok (xAI) | `GROK_API_KEY` | AI chat/analysis features (Ask AI, briefing generation, dry-powder/macro-context routes) | — |
-| Coinglass | `COINGLASS_API_KEY` | BTC liquidation heatmap (Arena), exchange net flow | Free tier available |
+| Coinglass | `COINGLASS_API_KEY` | BTC liquidation heatmap (Arena), exchange net flow — **both DISABLED, see below** | **No free API tier** ($29–699/mo) |
 | Finnhub | `FINNHUB_KEY` | (economic calendar / macro data) | — |
 | Telegram Bot API | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_WEBHOOK_SECRET` | Alert delivery channel | — |
 | Web Push (VAPID) | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL` | Browser push notifications | — |
 | Binance / Bybit public REST | none (no key) | Live price ticker used by `api/alert-outcomes/resolve` and elsewhere | Public, unauthenticated |
 | `CRON_SECRET` | `CRON_SECRET` | Meant to protect `telegram/alert`, `macro-alert`, `signals/track`, `telegram/setup-webhook`, `alert-outcomes/resolve` from unauthenticated triggering. **Confirmed unset on prod** as of 2026-07-19 (see §2). | — |
+
+**Coinglass is dead upstream (2026-07-30).** The row above previously claimed a
+free tier; that was wrong and it cost real debugging time. What is actually true:
+
+- The app called `open-api.coinglass.com/public/v2/{exchange_amount_chart,liquidation_chart}`.
+  Coinglass retired that API. Both return HTTP 500 for every symbol, **including
+  with `COINGLASS_API_KEY` attached** - confirmed through prod's own proxy.
+- The v4 replacement (`open-api-v4.coinglass.com`) is live and the key is valid,
+  but this account's tier returns `{"code":"401","msg":"Upgrade plan"}`. An
+  invalid key returns `400 Invalid API key provided`, which is how we know the
+  key itself is fine.
+- **There is no free Coinglass API tier.** Plans run $29/mo (Hobbyist) to
+  $699/mo, and Coinglass does not publish which tier includes the
+  exchange-balance or liquidation endpoints - so ask their support which tier
+  covers `/api/exchange/balance/chart` *before* paying.
+
+Both features failed soft and still do: `btcExchangeNetFlow` stays null, and the
+Arena liquidation card renders conditionally on `btcLiqLevels.length` so it just
+does not appear. No user ever saw a wrong number. `fetchCoinglassData` and its
+15-minute interval were removed from `components/MarketProvider.tsx` so the two
+doomed requests per tab stop firing; the store fields, prompt lines, proxy
+branches and heatmap component are all still wired, so restoring is a URL and
+parsing change, not a rebuild.
 
 ---
 
