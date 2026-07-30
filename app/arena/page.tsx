@@ -35,6 +35,7 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF } from '@/lib/limits';
 import { computeSectorRotation } from '@/lib/sectorRotation';
+import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
 
 /* ── Pattern detection - delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -847,6 +848,10 @@ function ArenaContent() {
       rsi1h, rsi4h, rsiDaily: fmt(coin?.rsiDaily), cvd, cvdDivergence, basis, fibNearest, orderWalls, squeezeScore,
       pcRatio, maxPain, btcGex,
       exchangeNetFlow, stablecoinFlow, googleTrends, liqLevels, btcDomTrend, sectorRotation,
+      // Placeholder: needs candles, which this synchronous builder has no
+      // access to. Overridden at the call site once they are fetched, the same
+      // way rsiDaily is - see the gatherContext() spread below.
+      structureBreak: '-',
       pocLine, dxyLine, spxLine, goldLine,
       cbPremium, vwap, oiTrend, takerRatio, crossExchangeFunding,
       cascadeLine, whaleFlow,
@@ -981,6 +986,12 @@ function ArenaContent() {
       // Include volume so AI can detect drying-up volume (exhaustion signal)
       const recent20 = vis.slice(-15).map(c => `O:${c.o.toFixed(pDec)} H:${c.h.toFixed(pDec)} L:${c.l.toFixed(pDec)} C:${c.c.toFixed(pDec)} V:${c.v >= 1e6 ? (c.v/1e6).toFixed(2)+'M' : c.v >= 1e3 ? (c.v/1e3).toFixed(1)+'K' : c.v.toFixed(0)}`).join(' | ');
       const detectedPatterns = detectPatterns(vis);
+      // Structure read from the same candles already in hand - no extra fetch.
+      // Deliberately independent of the EMA ribbon: the prompt is told to
+      // surface a disagreement between the two rather than quietly pick one.
+      const structureBreak = describeStructureSignal(latestStructureSignal(
+        candles.map(c => ({ timestamp: c.t, open: c.o, high: c.h, low: c.l, close: c.c, volume: c.v })),
+      ));
       const chartData: ChartData = {
         tf: readTf, ema9, sma200, rsi, recent20,
         hi: Math.max(...vis.map(c => c.h)),
@@ -1009,7 +1020,7 @@ function ArenaContent() {
 
       // Step 2 - gather 34 market signals
       setReadStep('Reading market…');
-      const ctx = { ...gatherContext(), rsiDaily: rsiDailyStr };
+      const ctx = { ...gatherContext(), rsiDaily: rsiDailyStr, structureBreak };
 
       // Step 3 - ask Grok via server proxy (key hidden, rate-limited)
       setReadStep(mode === 'quick' ? 'Quick analysis…' : 'Searching live…');

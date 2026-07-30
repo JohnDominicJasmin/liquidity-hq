@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
-  useMarket, CoinId, COINS, computeSqueezeScore, classifyFunding,
+  useMarket, CoinId, COINS, computeSqueezeScore, classifyFunding, BINANCE_SYMS, BYBIT_SYMS,
 } from '@/lib/marketStore';
 import { getSessionName } from '@/lib/session';
 import { useNews, GeoEvent } from '@/components/NewsProvider';
@@ -13,6 +13,7 @@ import { getSupabase } from '@/lib/supabase';
 import { nextResetLocalTime } from '@/lib/resetTime';
 import { withAlpha } from '@/lib/color';
 import { computeSectorRotation } from '@/lib/sectorRotation';
+import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
 
 // A 429 from /api/grok-chat can mean the caller's own daily cap OR the
 // app-wide circuit breaker (AI_GLOBAL_DAILY_MAX) - the server already words
@@ -215,6 +216,7 @@ function buildSystemCtx(
   coin: CoinId,
   latestHeadlines: string[],
   geoEvents: GeoEvent[],
+  structureLine: string,
 ): string {
   const c   = store.coins[coin];
   const sq  = computeSqueezeScore(c);
@@ -266,6 +268,8 @@ function buildSystemCtx(
     // Alts live or die on where capital sits relative to BTC, so this belongs
     // in the chat context too - not just Quick/Deep. See lib/sectorRotation.ts.
     ln('Sector rotation',   computeSectorRotation(store, coin).line),
+    // Independent of the EMA ribbon on purpose - see lib/priceAction.ts.
+    ln('Structure break (1h)', structureLine),
     ln('Google Trends',     store.googleTrendsBtc != null ? store.googleTrendsBtc + '/100' : '-'),
     ln('Session',           session),
     '',
@@ -301,6 +305,11 @@ export default function GrokChat() {
   const [liveSearch,     setLiveSearch]     = useState(false);
   const [histView,       setHistView]       = useState(false);
   const [coin,           setCoin]           = useState<CoinId>('btc');
+  // Structure read needs candles, which this component otherwise has no reason
+  // to hold. Fetched once per coin selection rather than per message - the
+  // answer only changes on a new hourly close, so re-fetching on every send
+  // would be pure waste.
+  const [structureLine,  setStructureLine]  = useState('-');
   const [msgs,           setMsgs]           = useState<Msg[]>([]);
   const [input,          setInput]          = useState('');
   const [loading,        setLoading]        = useState(false);
@@ -322,6 +331,41 @@ export default function GrokChat() {
 
   /* ── Load history on mount ── */
   useEffect(() => { setConvos(loadHistory()); }, []);
+
+  /* ── Latest market-structure break for the selected coin ──
+     Only runs while the panel is open: this is the one piece of chat context
+     that costs a network request, and fetching it for a closed panel would be
+     a request per coin switch that nobody ever reads. Fails silently to '-',
+     which buildSystemCtx renders as "no data" rather than inventing a read. */
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const bn = BINANCE_SYMS[coin] as string | undefined;
+        const by = BYBIT_SYMS[coin] as string | undefined;
+        let raw: (string | number)[][];
+        if (bn) {
+          const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${bn}&interval=1h&limit=300`);
+          if (!r.ok) throw new Error('binance');
+          raw = await r.json();
+        } else if (by) {
+          const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${by}&interval=60&limit=300`);
+          if (!r.ok) throw new Error('bybit');
+          raw = [...((await r.json())?.result?.list ?? [])].reverse();
+        } else return;
+        if (cancelled) return;
+        const candles = raw.map(k => ({
+          timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
+          low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
+        }));
+        setStructureLine(describeStructureSignal(latestStructureSignal(candles)));
+      } catch {
+        if (!cancelled) setStructureLine('-');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [coin, open]);
 
   /* ── Hide FAB while scrolling (mobile only) ── */
   useEffect(() => {
@@ -400,7 +444,7 @@ export default function GrokChat() {
       // Anything with live search = full context so Grok can correlate web findings with live data
       const sysCtx = (isEducational(text) && !useSearch)
         ? buildMinimalCtx(store, activeCoin)
-        : buildSystemCtx(store, activeCoin, latestHeadlines, geoEvents);
+        : buildSystemCtx(store, activeCoin, latestHeadlines, geoEvents, structureLine);
 
       // Cap at last 8 messages (4 pairs) - prevents token cost growing unbounded
       const apiMsgs  = history.slice(-8).map(m => ({ role: m.role, content: m.content }));
