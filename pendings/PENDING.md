@@ -12,6 +12,31 @@ alert-cron cost/signal-quality plan) - fully superseded, xAI removed
 entirely from every alert type, also removed. LemonSqueezy payment-feature
 items (deferred, payments not live yet) are in `pendings/LEMONSQUEEZY.md`.
 
+## ❓ YOUR decision — upgrade Supabase to Pro before real payments launch
+
+Checked live in the dashboard 2026-08-07: **the org is on the Free plan, and
+Free does not include project backups at all** - not "7 days," zero. The
+Database → Backups page states this directly: "Free Plan does not include
+project backups. Upgrade to the Pro Plan for up to 7 days of scheduled
+backups." Confirmed via `get_organization`: `"plan":"free"`.
+
+Real cost, read off the actual pricing panel (not estimated): **Pro starts at
+$25/month**, usage-based above included quotas (100,000 MAU / 8GB disk / 250GB
+egress included). Gets you daily backups retained 7 days, plus 7-day log
+retention. Current usage (2 test accounts) is nowhere near the included
+quotas, so in practice this would be a flat $25/mo for a long while.
+
+Decision, deliberately deferred: **not urgent with zero real users - nothing
+of value would be lost today.** But there is currently no recovery path at all
+if a bad migration, a mistaken delete, or a Supabase-side incident hits prod.
+Upgrade **before flipping on real payments** (see `pendings/LEMONSQUEEZY.md`),
+not after the first paying signup - that is the point where "no backup"
+stops being theoretical.
+
+No payment method is on file for the org yet (`Billing` page confirmed
+"No payment methods"), so this needs the user directly - can't be actioned
+from code.
+
 ## ✅ RESOLVED — xAI credit outage (found + fixed 2026-07-24)
 
 xAI account had hit $0.00 credit balance ("no credits remaining"), which would
