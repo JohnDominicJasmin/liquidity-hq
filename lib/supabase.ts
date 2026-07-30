@@ -25,7 +25,7 @@ export function getSupabase(): SupabaseClient | null {
 }
 
 // Current session's access token, if any - for attaching an optional
-// Authorization header to unauthenticated-allowed routes (cmc, news/finnhub)
+// Authorization header to unauthenticated-allowed routes (cmc, econ-calendar)
 // so a signed-in caller is attributable, without requiring auth to use them.
 export async function getAuthToken(): Promise<string | undefined> {
   const sb = getSupabase();

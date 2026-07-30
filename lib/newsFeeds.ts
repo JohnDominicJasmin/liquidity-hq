@@ -1,6 +1,7 @@
-// Feed list + RSS parsing, extracted from app/api/news-rss/route.ts so the
-// scheduled ingest route (app/api/news/ingest) can reach it directly instead
-// of making an HTTP call back to this app's own origin.
+// Feed list + RSS parsing. Originally lived in app/api/news-rss/route.ts and
+// was extracted here so the scheduled ingest route (app/api/news/ingest) could
+// call it directly rather than over HTTP to this app's own origin. That route
+// has since been deleted - the ingest cron is now the only consumer.
 
 // Removed 2026-07-30, six feeds that had all been returning nothing:
 //   - feeds.reuters.com x3 and feeds.apnews.com x2 fail at DNS ("Could not

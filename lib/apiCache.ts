@@ -1,7 +1,7 @@
 // Shared in-memory response cache for API routes that fetch third-party data
 // (exchange APIs, macro feeds, or paid Grok calls) that's the same for every
 // visitor within a short window. Module-level Map survives across requests on
-// the same server instance - same pattern already used in app/api/news-rss.
+// the same server instance - same pattern used by app/api/econ-calendar.
 // Not a distributed cache: fine for a small number of long-lived instances,
 // not meant for edge/multi-region deployments.
 

@@ -26,7 +26,7 @@ function sb(token: string) {
   );
 }
 
-// Same shape as /api/cmc and /api/news/finnhub: intentionally unauthenticated
+// Same shape as /api/cmc and /api/econ-calendar: intentionally unauthenticated
 // (public data, called for signed-out visitors too) - a bearer token is
 // attached when the caller happens to be signed in, so a COINGLASS_API_KEY
 // quota spike (coinglass-flow / coinglass-liq) is attributable to an account,
