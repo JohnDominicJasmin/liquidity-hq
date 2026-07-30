@@ -34,6 +34,13 @@ Account: `console.cron-job.org` (external, separate login — not in this repo, 
 | `LiquidityHQ - signals/track` | `https://liquidity-hq.onrender.com/api/signals/track` | every 15 min (`*/15 * * * *`, tz Asia/Manila) | **Active**, route confirmed live via direct curl (200 OK) same day; first scheduled tick pending at creation time | none | Live EMA Ribbon signal detection + resolution (majors, 1h/4h) feeding `/live-tracking`. Wired 2026-07-19 — see §8, was previously the confirmed gap. |
 | `LiquidityHQ - trial reminder` | `https://liquidity-hq.com/api/trial-reminder` | daily 09:00 (`0 9 * * *`, tz Asia/Manila) | **Active**, created 2026-08-07; endpoint verified by direct curl the same day (no header → 401, wrong header → 401, real header → `200 {"ok":true,"sent":0}`) | `x-cron-secret` header | Emails anyone within 2 days of their 14-day trial expiring. Trial START was announced twice (welcome email + countdown banner) but the END was silent - this is the only notice that reaches a user who is not signed in. Route is `checkCronAuth`-gated and fails CLOSED, so without this job it silently never runs. |
 | `n8nreq` | `https://n8n-workflows-6ig6.onrender.com` | (was recurring) | **Inactive** (disabled) | none | Old keep-alive ping for the n8n service. Last ran 2026-03-10. |
+| **`LiquidityHQ - news ingest`** | `https://liquidity-hq.com/api/news/ingest` (**POST**) | every 1 min (`* * * * *`) | **Needs creating** - see the warning below | `x-cron-secret` header | Fetches the RSS feeds + Finnhub news once and writes new rows to `lhq_news`. Clients no longer poll for news at all; they subscribe to that table over Supabase Realtime (`components/NewsProvider.tsx`). Without this job the ticker only ever shows whatever was last ingested. |
+| **`LiquidityHQ - econ snapshot`** | `https://liquidity-hq.com/api/econ-calendar/ingest` (**POST**) | hourly (`0 * * * *`) | **Needs creating** - see the warning below | `x-cron-secret` header | Writes the economic calendar into `lhq_econ_snapshot` for the same push delivery. `/api/econ-calendar` itself stays live - `/econ-calendar`, `EconCalendarWidget` and `api/macro-alert` still read it directly. |
+
+**Both new jobs must be POST, not GET** - cron-job.org defaults to GET, and these
+routes only export `POST`, so a GET returns 405 and the job will look "successful"
+in some dashboards while never ingesting anything. Set the method explicitly and
+confirm the response body is `{"ok":true,...}`.
 
 **Target hostname corrected 2026-08-07:** the live jobs point at the custom domain `https://liquidity-hq.com`, NOT `liquidity-hq.onrender.com` as the older rows above still say. Verified in the dashboard. The onrender.com URLs still resolve, so nothing is broken - but copy the custom domain when adding a job, to match what is actually there.
 
@@ -81,8 +88,16 @@ A local Claude Code **scheduled-tasks** entry (`mcp__scheduled-tasks`, `lhq-aler
 
 | Project name | Ref | Region | Status | Used by LHQ? |
 |---|---|---|---|---|
-| **`LiquidityHq`** | `qdpwhnvmhqgzijuwopso` | ap-northeast-2 | Active | **Yes — production.** `liquidity-hq-prod` and local `.env.local` point here. Holds `lhq_*` (prod) tables. |
-| **`Automations`** | `wdtjhrilakoitfcezxpx` | ap-northeast-1 | Active | **Yes — deployed dev.** `liquidity-hq-dev` (Render) points here. Holds its own parallel `lhq_dev_*` table set. |
+| **`LiquidityHq`** | `qdpwhnvmhqgzijuwopso` | ap-northeast-2 | Active | **Yes — production only.** `liquidity-hq-prod` points here. Holds `lhq_*` (prod) tables. |
+| **`Automations`** | `wdtjhrilakoitfcezxpx` | ap-northeast-1 | Active | **Yes — all dev.** Both `liquidity-hq-dev` (Render) AND local `.env.local` point here. Holds the parallel `lhq_dev_*` table set. |
+
+> **Corrected 2026-07-30:** the row above previously said local `.env.local`
+> pointed at `LiquidityHq` (prod). It does not - verified by reading
+> `NEXT_PUBLIC_SUPABASE_URL` in `.env.local`, which is `wdtjhrilakoitfcezxpx`
+> (`Automations`), with `NEXT_PUBLIC_APP_ENV=dev` so it uses the `lhq_dev_`
+> prefix. Local development has never touched the prod database. Check the env
+> file rather than this table if it matters - that is what made the old claim
+> detectable.
 | `MotoTracker` | `bseewwodijmuvpbqdgcc` | ap-northeast-2 | Inactive | No - unrelated project. |
 | `Solar ROI tracker` | `trpubozqrgjllwyukfol` | ap-northeast-2 | Inactive | No - unrelated project. |
 

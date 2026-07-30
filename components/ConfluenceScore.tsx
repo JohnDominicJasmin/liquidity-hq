@@ -1,5 +1,4 @@
 'use client';
-import { useEffect, useState } from 'react';
 import { useMarket } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
 import { Warn } from '@/components/icons';
@@ -13,7 +12,7 @@ import {
 import Tip from './Tip';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
-import { getAuthToken } from '@/lib/supabase';
+import { useNews } from './NewsProvider';
 
 const VERDICT_CONFIG: Record<string, { labelKey: LabelKey; color: string }> = {
   STRONG_BULL:  { labelKey: 'CONFLUENCE_SCORE_VERDICT_STRONG_BULL',  color: '#34d399' },
@@ -23,31 +22,13 @@ const VERDICT_CONFIG: Record<string, { labelKey: LabelKey; color: string }> = {
   STRONG_BEAR:  { labelKey: 'CONFLUENCE_SCORE_VERDICT_STRONG_BEAR',  color: '#f87171' },
 };
 
-const ECON_REFRESH_MS = 5 * 60_000;
-
 export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: CoinId; emaSignal: StrategySignal; jpyUsd: number | null }) {
   const { t } = useLabels();
   const { store } = useMarket();
   const d = store.coins[coin];
-  const [econEvents, setEconEvents] = useState<CalEvent[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const token = await getAuthToken();
-        const r = await fetch('/api/econ-calendar', {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
-        if (!r.ok) return;
-        const j = await r.json() as { events?: CalEvent[] };
-        if (!cancelled) setEconEvents(j.events ?? []);
-      } catch { /* silent - macro overlay is best-effort */ }
-    }
-    load();
-    const id = setInterval(load, ECON_REFRESH_MS);
-    return () => { cancelled = true; clearInterval(id); };
-  }, []);
+  // Reads the calendar NewsProvider already holds instead of fetching it again
+  // on a 5-minute timer. Same data, one shared push-fed copy per tab.
+  const { econRaw: econEvents } = useNews();
 
   if (!d?.price) return null;
 

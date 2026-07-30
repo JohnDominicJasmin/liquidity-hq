@@ -1,9 +1,17 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { classifyNews, GEO_KEYWORDS } from '@/lib/classify';
-import { getAuthToken } from '@/lib/supabase';
+import { GEO_KEYWORDS } from '@/lib/classify';
+import { getSupabase } from '@/lib/supabase';
+import { T } from '@/lib/tables';
 
-// Finnhub calls go through /api/news/finnhub - key stays server-side
+// Push-based, not polled. A scheduled job (app/api/news/ingest and
+// app/api/econ-calendar/ingest, see docs/INFRASTRUCTURE.md §2) does the
+// upstream fetching once and writes to the news / econ snapshot tables; this
+// provider reads each table once to hydrate, then subscribes via Supabase
+// Realtime. Previously every open tab ran its own four timers against
+// /api/news/finnhub (2min), /api/news-rss (1min), /api/news/finnhub geo (3min)
+// and /api/econ-calendar (1h), so upstream load scaled with viewer count and a
+// breaking headline could sit up to a full interval before showing up.
 
 export interface Alert {
   id: number;
@@ -47,13 +55,34 @@ export interface WhaleAlert {
   ts: number;
 }
 
+// A row of the news table, as written by app/api/news/ingest.
+interface NewsRow {
+  dedup_key: string;
+  headline: string;
+  source: string;
+  published_at: string;
+  severity: string | null;
+  cat: string;
+  link: string | null;
+  image: string | null;
+}
+
+// Matches app/api/econ-calendar's CalEvent - the raw snapshot shape, kept
+// alongside the display-ready EconEvent because ConfluenceScore's macro-risk
+// factor wants the unformatted isoDate.
+export interface CalEvent {
+  name: string; type: string; isoDate: string; impact: string;
+  previous?: string; estimate?: string; actual?: string;
+}
+
 interface NewsCtx {
   alerts: Alert[];
   dismissAlert: (id: number) => void;
   econEvents: EconEvent[];
+  econRaw: CalEvent[];
   geoEvents: GeoEvent[];
   eventsLoaded: boolean;
-  alertsLoaded: boolean;  // true after first RSS + Finnhub fetch cycle completes
+  alertsLoaded: boolean;  // true once the initial news read has been applied
   newsActive: boolean;
   latestHeadlines: string[];
   whaleAlerts: WhaleAlert[];
@@ -92,7 +121,9 @@ function countdown(h: number): string {
 export default function NewsProvider({ children }: { children: React.ReactNode }) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [econEvents, setEconEvents] = useState<EconEvent[]>([]);
-  const [geoEvents, setGeoEvents] = useState<GeoEvent[]>([]);
+  const [econRaw, setEconRaw] = useState<CalEvent[]>([]);
+  const [newsRows, setNewsRows] = useState<NewsRow[]>([]);
+  const [geoTick, setGeoTick] = useState(0);
   const [eventsLoaded, setEventsLoaded] = useState(false);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
   const [latestHeadlines, setLatestHeadlines] = useState<string[]>([]);
@@ -127,127 +158,38 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     setAlerts(prev => prev.filter(a => a.id !== id));
   }, []);
 
-  /* ── Finnhub REST news - primary source (crypto + general) ── */
-  const fetchFinnhubNews = useCallback(async () => {
-    try {
-      const token = await getAuthToken();
-      const authHeaders = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const [cryptoRes, generalRes] = await Promise.allSettled([
-        fetch('/api/news/finnhub?type=crypto', { headers: authHeaders }).then(r => r.json()),
-        fetch('/api/news/finnhub?type=general', { headers: authHeaders }).then(r => r.json()),
-      ]);
-
-      const cryptoItems: Record<string, string | number>[] =
-        cryptoRes.status === 'fulfilled' && Array.isArray(cryptoRes.value) ? cryptoRes.value : [];
-      const generalItems: Record<string, string | number>[] =
-        generalRes.status === 'fulfilled' && Array.isArray(generalRes.value) ? generalRes.value : [];
-
-      // Crypto: always classify as at least 'purple' even if keywords miss
-      cryptoItems.slice(0, 40).forEach(a => {
-        const headline = (a.headline || '') as string;
-        if (!headline) return;
-        const type = classifyNews(headline) ?? 'purple';
-        const ts = (a.datetime as number) || Math.floor(Date.now() / 1000);
-        const img = (a.image as string) || undefined;
-        pushAlert(headline, (a.source as string) || 'Finnhub', ts, type, undefined, img);
-      });
-
-      // General: only include if keyword matches
-      generalItems.slice(0, 30).forEach(a => {
-        const headline = (a.headline || '') as string;
-        if (!headline) return;
-        const type = classifyNews(headline);
-        if (!type) return;
-        const ts = (a.datetime as number) || Math.floor(Date.now() / 1000);
-        const img = (a.image as string) || undefined;
-        pushAlert(headline, (a.source as string) || 'Finnhub', ts, type, undefined, img);
-      });
-    } catch { /* */ }
+  /* ── One news row, from either the hydration read or a Realtime push ── */
+  const ingestRow = useCallback((row: NewsRow) => {
+    const ts = Math.floor(new Date(row.published_at).getTime() / 1000);
+    if (!row.headline || isNaN(ts)) return;
+    // severity is null for rows that reached the table on a geo-keyword match
+    // alone; those still belong in the ticker, at 'amber' as before.
+    pushAlert(row.headline, row.source, ts, (row.severity as Alert['type']) ?? 'amber', row.link ?? undefined, row.image ?? undefined);
+    setNewsRows(prev => (prev.some(r => r.dedup_key === row.dedup_key) ? prev : [row, ...prev].slice(0, 200)));
   }, [pushAlert]);
 
-  /* ── Economic calendar - Finnhub primary, Trading Economics fallback ── */
-  const fetchEconEvents = useCallback(async () => {
+  /* ── Economic calendar snapshot, from the read or a Realtime push ── */
+  const applyEconSnapshot = useCallback((raw: CalEvent[]) => {
     const now = new Date();
-    try {
-      const token = await getAuthToken();
-      const res = await fetch('/api/econ-calendar', {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-      if (res.ok) {
-        const { events: raw }: { events: { name: string; type: string; isoDate: string; impact: string; previous?: string; estimate?: string; actual?: string }[] } = await res.json();
-        const seen = new Set<string>();
-        const events: EconEvent[] = raw
-          .flatMap(e => {
-            const key = `${e.name}|${e.isoDate}`;
-            if (seen.has(key)) return [];
-            const dt = new Date(e.isoDate);
-            if (isNaN(dt.getTime())) return [];
-            const h = (dt.getTime() - now.getTime()) / 3600000;
-            if (h < -24) return [];
-            seen.add(key);
-            return [{ name: e.name, type: e.type, impact: e.impact, dt, h, dateStr: toLocalTime(dt), previous: e.previous, estimate: e.estimate, actual: e.actual }];
-          })
-          .sort((a, b) => a.dt.getTime() - b.dt.getTime());
-        setEconEvents(events);
-        events.filter(e => e.h >= 0 && e.h < 1).forEach(e => {
-          pushAlert(`Upcoming: ${e.name} - ${countdown(e.h)}`, 'Calendar', Math.floor(Date.now() / 1000), 'amber');
-        });
-      }
-    } catch { /* */ }
+    const seen = new Set<string>();
+    const events: EconEvent[] = raw
+      .flatMap(e => {
+        const key = `${e.name}|${e.isoDate}`;
+        if (seen.has(key)) return [];
+        const dt = new Date(e.isoDate);
+        if (isNaN(dt.getTime())) return [];
+        const h = (dt.getTime() - now.getTime()) / 3600000;
+        if (h < -24) return [];
+        seen.add(key);
+        return [{ name: e.name, type: e.type, impact: e.impact, dt, h, dateStr: toLocalTime(dt), previous: e.previous, estimate: e.estimate, actual: e.actual }];
+      })
+      .sort((a, b) => a.dt.getTime() - b.dt.getTime());
+    setEconRaw(raw);
+    setEconEvents(events);
     setEventsLoaded(true);
-  }, [pushAlert]);
-
-  /* ── Finnhub geo news ── */
-  const fetchGeoEvents = useCallback(async () => {
-    try {
-      const token = await getAuthToken();
-      const res = await fetch('/api/news/finnhub?type=general', {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-      const articles: Record<string, string | number>[] = await res.json();
-      if (!Array.isArray(articles)) return;
-      const now = Math.floor(Date.now() / 1000);
-      const matched: GeoEvent[] = [];
-      const seen = new Set<string>();
-      articles.forEach(a => {
-        const headline = ((a.headline || a.summary || '') as string).toLowerCase();
-        if (!headline) return;
-        if (a.datetime && (now - (a.datetime as number)) > 12 * 3600) return;
-        for (const g of GEO_KEYWORDS) {
-          if (matched.length >= 8) break;
-          const hit = g.kw.some(k => headline.includes(k));
-          if (!hit) continue;
-          const key = ((a.headline || '') as string).slice(0, 50);
-          if (seen.has(key)) continue;
-          seen.add(key);
-          const h = (now - (a.datetime as number)) / 3600;
-          const timeStr = h < 1 ? Math.round(h * 60) + 'm ago' : h.toFixed(1) + 'h ago';
-          matched.push({ headline: a.headline as string || '', source: a.source as string || 'Finnhub', tag: g.tag, style: g.style, note: g.note, timeStr, ts: a.datetime as number || now });
-
-          const type = classifyNews(a.headline as string || '') || 'amber';
-          pushAlert(a.headline as string || '', a.source as string || 'Finnhub', a.datetime as number || now, type);
-        }
-      });
-      matched.sort((a, b) => b.ts - a.ts);
-      setGeoEvents(matched);
-    } catch { /* */ }
-  }, [pushAlert]);
-
-  /* ── Reuters / AP / BBC / CoinDesk / CoinTelegraph / Decrypt / The Block RSS ── */
-  const fetchRSSNews = useCallback(async () => {
-    try {
-      const res = await fetch('/api/news-rss');
-      if (!res.ok) return;
-      const { items } = await res.json() as { items: { title: string; source: string; pubDate: number; link?: string; image?: string; cat: string }[] };
-      const cutoff = Math.floor(Date.now() / 1000) - 6 * 3600; // ignore articles older than 6h
-      items.forEach(item => {
-        if (item.pubDate < cutoff) return;
-        // Crypto-category items always get at least 'purple'
-        const type = classifyNews(item.title) ?? (item.cat === 'crypto' ? 'purple' : null);
-        if (!type) return;
-        pushAlert(item.title, item.source, item.pubDate, type, item.link, item.image);
-      });
-    } catch { /* ignore */ }
+    events.filter(e => e.h >= 0 && e.h < 1).forEach(e => {
+      pushAlert(`Upcoming: ${e.name} - ${countdown(e.h)}`, 'Calendar', Math.floor(Date.now() / 1000), 'amber');
+    });
   }, [pushAlert]);
 
   /* ── Whale trade listener ── */
@@ -270,27 +212,114 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
       Notification.requestPermission();
     }
 
-    // Fire all sources immediately on mount; mark loaded after first cycle
-    Promise.allSettled([fetchFinnhubNews(), fetchRSSNews()]).then(() => setAlertsLoaded(true));
-    fetchEconEvents();
-    fetchGeoEvents();
+    const sb = getSupabase();
+    if (!sb) { setAlertsLoaded(true); setEventsLoaded(true); return; }
 
-    const intervals = [
-      setInterval(fetchFinnhubNews,  2 * 60 * 1000),    // every 2 min
-      setInterval(fetchRSSNews,      60 * 1000),         // every 1 min - Reuters/AP/Al Jazeera/CoinDesk
-      setInterval(fetchEconEvents,  60 * 60 * 1000),    // every 1h
-      setInterval(fetchGeoEvents,    3 * 60 * 1000),    // every 3 min
-    ];
+    let live = true;
+
+    // Hydration: one read each, for the state that already existed before this
+    // tab opened. Realtime only delivers changes made after subscribing, so
+    // without this a fresh tab would start blank and stay blank until the next
+    // ingest run.
+    (async () => {
+      const cutoff = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
+      const { data } = await sb
+        .from(T.news)
+        .select('dedup_key, headline, source, published_at, severity, cat, link, image')
+        .gte('published_at', cutoff)
+        .order('published_at', { ascending: false })
+        .limit(150);
+      if (!live) return;
+      // Oldest first so pushAlert's arrival order matches chronological order.
+      (data as NewsRow[] | null)?.slice().reverse().forEach(ingestRow);
+      setAlertsLoaded(true);
+    })();
+
+    (async () => {
+      const { data } = await sb
+        .from(T.econ_snapshot)
+        .select('events')
+        .eq('key', 'us_high_impact')
+        .maybeSingle();
+      if (!live) return;
+      const events = (data as { events?: CalEvent[] } | null)?.events;
+      if (events?.length) applyEconSnapshot(events);
+      else setEventsLoaded(true);
+    })();
+
+    const newsChannel = sb
+      .channel('news-stream')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: T.news }, payload => {
+        ingestRow(payload.new as NewsRow);
+      })
+      .subscribe();
+
+    // Re-reads rather than using payload.new: the snapshot is one jsonb column
+    // holding the whole 90-day calendar, and a read is cheap at one per hour.
+    const econChannel = sb
+      .channel('econ-snapshot')
+      .on('postgres_changes', { event: '*', schema: 'public', table: T.econ_snapshot }, async () => {
+        const { data } = await sb
+          .from(T.econ_snapshot)
+          .select('events')
+          .eq('key', 'us_high_impact')
+          .maybeSingle();
+        const events = (data as { events?: CalEvent[] } | null)?.events;
+        if (live && events?.length) applyEconSnapshot(events);
+      })
+      .subscribe();
 
     return () => {
-      intervals.forEach(clearInterval);
+      live = false;
+      sb.removeChannel(newsChannel);
+      sb.removeChannel(econChannel);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "War & Geo" is derived from the same rows the ticker uses rather than its
+  // own request - the geo keywords are what the ingest job already used to
+  // decide these rows were worth storing, so re-running them here needs no
+  // extra fetch. geoTick only exists to keep the relative timestamps moving
+  // now that nothing re-fetches on a timer.
+  const geoEvents: GeoEvent[] = (() => {
+    void geoTick;
+    const now = Math.floor(Date.now() / 1000);
+    const out: GeoEvent[] = [];
+    const seen = new Set<string>();
+    for (const row of [...newsRows].sort((a, b) => +new Date(b.published_at) - +new Date(a.published_at))) {
+      if (out.length >= 8) break;
+      const ts = Math.floor(new Date(row.published_at).getTime() / 1000);
+      if (now - ts > 12 * 3600) continue;
+      const hay = row.headline.toLowerCase();
+      const g = GEO_KEYWORDS.find(group => group.kw.some(k => hay.includes(k)));
+      if (!g) continue;
+      const key = row.headline.slice(0, 50);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const h = (now - ts) / 3600;
+      out.push({
+        headline: row.headline,
+        source: row.source,
+        tag: g.tag,
+        style: g.style,
+        note: g.note,
+        timeStr: h < 1 ? Math.round(h * 60) + 'm ago' : h.toFixed(1) + 'h ago',
+        ts,
+      });
+    }
+    return out;
+  })();
+
+  // Display-only clock, no network. Keeps "12m ago" honest between pushes.
+  useEffect(() => {
+    const id = setInterval(() => setGeoTick(n => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const newsActive = alerts.some(a => Date.now() / 1000 - a.ts < 5 * 60);
 
   return (
-    <NewsContext.Provider value={{ alerts, dismissAlert, econEvents, geoEvents, eventsLoaded, alertsLoaded, newsActive, latestHeadlines, whaleAlerts }}>
+    <NewsContext.Provider value={{ alerts, dismissAlert, econEvents, econRaw, geoEvents, eventsLoaded, alertsLoaded, newsActive, latestHeadlines, whaleAlerts }}>
       {children}
     </NewsContext.Provider>
   );
