@@ -10,6 +10,7 @@ import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS } from '@/lib/coins';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
+import { detectStructureSignals } from '@/lib/priceAction';
 import { detectEMASignals, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, OHLCV } from '@/lib/strategyCore';
 
 export const dynamic = 'force-dynamic';
@@ -1544,6 +1545,128 @@ async function fetchMutedKeysByUser(): Promise<Map<string, Set<string>>> {
   return Promise.race([query, cap]);
 }
 
+/* ════════════════════════════════════════
+   MARKET STRUCTURE (price action) - lib/priceAction.ts
+   A second, price-only read that runs alongside the EMA ribbon alerts and
+   never feeds into them. Its own rule_key, its own dedup, its own wording,
+   so a recipient can always tell which system fired - and can mute one
+   without losing the other.
+
+   Only 1h and 4h. Structure on a 1m chart is noise, and the EMA rule already
+   covers every timeframe the chart offers; the point of this alert is the
+   swing levels a swing trader would actually mark.
+   ════════════════════════════════════════ */
+
+const STRUCTURE_TFS = ['1h', '4h'] as const;
+type StructureTF = typeof STRUCTURE_TFS[number];
+
+// A structure break is only worth a notification while it is still news. On a
+// fresh process the dedup map is empty, so without this the first run would
+// happily announce whatever break happened to be latest - possibly days old.
+const STRUCTURE_MAX_AGE_BARS = 3;
+
+const structureLastTs = new Map<string, number>();
+
+// Deliberately does NOT take fullyMutedTfs. That set means "no user has this
+// EMA timeframe switched on", and reusing it here would couple two unrelated
+// systems: muting the EMA 1h alert would silently also kill 1h structure
+// alerts. Per-recipient muting still works, through the normal ruleKey path
+// (entryMuteKeys), so a user can mute structure_1h without touching the EMA
+// rule. The cost is 2 extra timeframe fetches per run, which is why this is
+// limited to 1h and 4h rather than every timeframe the chart offers.
+async function checkStructureSignal(
+  stamp: string,
+  queue: SignalEntry[],
+  tf: StructureTF,
+): Promise<string[]> {
+  const fired: string[] = [];
+  const ruleKey = `structure_${tf}`;
+  const tfLabel = tf.toUpperCase();
+
+  await Promise.all(COINS.map(async coin => {
+    try {
+      const candles = await fetchRibbonCandles(coin, tf);
+      if (candles.length < 30) return;
+
+      const signals = detectStructureSignals(
+        candles.map(c => ({
+          timestamp: c.time, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume,
+        })),
+      );
+      if (!signals.length) return;
+      const latest = signals[signals.length - 1];
+
+      // Must be on one of the last few bars - see STRUCTURE_MAX_AGE_BARS.
+      const lastBarTs = candles[candles.length - 1].time;
+      const barMs = candles.length > 1
+        ? candles[candles.length - 1].time - candles[candles.length - 2].time
+        : 0;
+      if (barMs > 0 && lastBarTs - latest.timestamp > barMs * STRUCTURE_MAX_AGE_BARS) return;
+
+      // Identity dedup on the breaking candle, same shape as the EMA rule:
+      // re-fires only on a genuinely new break, never every tick while the
+      // same one is still the latest.
+      const dedupKey = `${coin}_${tf}`;
+      if (structureLastTs.get(dedupKey) === latest.timestamp) return;
+      structureLastTs.set(dedupKey, latest.timestamp);
+
+      const label = LABELS[coin];
+      const fmtP  = (n: number) => n >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : n.toFixed(4);
+      const isBull = latest.dir === 'bull';
+      const kindWord = latest.kind === 'CHOCH' ? 'Change of Character' : 'Break of Structure';
+      const shortKind = latest.kind === 'CHOCH' ? 'CHoCH' : 'BOS';
+
+      queue.push({
+        coin,
+        dir: isBull ? 'long' : 'short',
+        ruleKey,
+        name: `${label} ${shortKind} ${isBull ? 'up' : 'down'} (${tfLabel})`,
+        price: latest.price,
+        title: `${shortKind} ${isBull ? '▲' : '▼'} (${tfLabel})`,
+        // Not counted in the shared Alert Track Record. That record measures
+        // the EMA rule's hit rate, and mixing a different system's signals
+        // into it would make both numbers meaningless.
+        canonicalHit: false,
+        body:
+          `${isBull ? '🔵' : '🟣'} <b>${label}/USDT ${shortKind} ${isBull ? 'UP' : 'DOWN'} (${tfLabel})</b>\n\n` +
+          `${kindWord} - price closed ${isBull ? 'above' : 'below'} the prior swing ` +
+          `${isBull ? 'high' : 'low'} at <b>$${fmtP(latest.level)}</b>\n` +
+          `Close: <b>$${fmtP(latest.price)}</b>\n` +
+          (latest.volumeRatio != null
+            ? `Volume: ${latest.volumeRatio.toFixed(1)}x average${latest.volumeBacked ? ' ⚡' : ' (light)'}\n`
+            : '') +
+          `\n<i>Price-action signal - separate from the EMA buy/sell rule.</i>`,
+      });
+      fired.push(`${ruleKey}:${coin}`);
+    } catch { /* one coin failing must not take down the rest of the run */ }
+  }));
+
+  return fired;
+}
+
+let structureDedupHydrated = false;
+
+async function hydrateStructureDedup(): Promise<void> {
+  if (structureDedupHydrated) return;
+  structureDedupHydrated = true;
+  try {
+    const admin = getSupabaseAdmin();
+    const { data } = await admin.from(T.app_config).select('value').eq('key', 'structure_signal_dedup').maybeSingle();
+    const saved = data?.value as Record<string, number> | undefined;
+    if (saved) for (const [k, v] of Object.entries(saved)) structureLastTs.set(k, v);
+  } catch { /* fail open - worst case this run behaves like a fresh process */ }
+}
+
+async function persistStructureDedup(): Promise<void> {
+  try {
+    const admin = getSupabaseAdmin();
+    await admin.from(T.app_config).upsert(
+      { key: 'structure_signal_dedup', value: Object.fromEntries(structureLastTs) },
+      { onConflict: 'key' },
+    );
+  } catch { /* best-effort - a missed persist just re-derives next run */ }
+}
+
 /* ── EMA signal dedup persistence (app_config) ──────────────────────────────
    emaSignalLastTs is a plain in-memory Map - wiped on every deploy/restart.
    Render restarted this service 8 times in one afternoon (2026-07-27) and
@@ -1673,6 +1796,9 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // checkEMASignal call runs - no-op after the first call in this process's
   // lifetime (see hydrateEMASignalDedup).
   await hydrateEMASignalDedup();
+  // Same restart problem, same DB-backed fix - a fresh process must not treat
+  // an existing structure break as brand new and re-announce it.
+  await hydrateStructureDedup();
 
   // Fetch shared data once (+ per-user muted alert groups + threshold settings)
   const [frMap, prices, lsMap, mutedByUser, thresholdsByUser] = await Promise.all([
@@ -1715,11 +1841,13 @@ async function runAlerts(token: string): Promise<NextResponse> {
     checkSqueezeAlerts(stamp, frMap, lsMap, prices, signalQueue, recipients, thresholdsByUser),
     checkDistribution(stamp, frMap, signalQueue, fullyMutedCoins),
     ...EMA_SIGNAL_TFS.map(tf => checkEMASignal(stamp, signalQueue, fullyMutedTfs, tf)),
+    ...STRUCTURE_TFS.map(tf => checkStructureSignal(stamp, signalQueue, tf)),
   ]);
 
   // Persist dedup state so the NEXT process (post-restart or post-deploy)
   // hydrates from here instead of starting empty - see hydrateEMASignalDedup.
   await persistEMASignalDedup();
+  await persistStructureDedup();
 
   // Flush: single signals → send as-is, 2+ same coin → confluence alert.
   // Per-recipient coin:/dir:/ruleKey eligibility is decided inside.
