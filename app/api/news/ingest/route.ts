@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { apiError } from '@/lib/apiError';
 import { classifyNews, GEO_KEYWORDS } from '@/lib/classify';
 import { fetchAllFeeds, fetchFinnhubCategory } from '@/lib/newsFeeds';
+import { recordApiHealth } from '@/lib/apiHealth';
 import { T } from '@/lib/tables';
 
 // Scheduled owner of the news pipeline. Every open tab used to run this work
@@ -45,10 +46,42 @@ export async function POST(req: Request) {
 
   try {
     const cutoff = Math.floor(Date.now() / 1000) - MAX_AGE_SEC;
-    const [rss, fhCrypto, fhGeneral] = await Promise.all([
+    const [feeds, fhCrypto, fhGeneral] = await Promise.all([
       fetchAllFeeds(),
       fetchFinnhubCategory('crypto'),
       fetchFinnhubCategory('general'),
+    ]);
+    const rss = feeds.items;
+
+    // Health is recorded per source, every run. This job already touches every
+    // dependency once a minute, so it is the cheapest possible place to notice
+    // one going quiet - no separate prober re-hammering the same endpoints.
+    //
+    // An empty Finnhub array is a failure, not an empty news day: it is what
+    // both a missing FINNHUB_KEY and an upstream outage look like, and either
+    // is worth surfacing.
+    await recordApiHealth([
+      ...feeds.outcomes.map(o => ({
+        source: `rss:${o.source}`,
+        category: 'news' as const,
+        ok: o.ok,
+        detail: o.detail,
+        items: o.items,
+      })),
+      {
+        source: 'finnhub:crypto',
+        category: 'news' as const,
+        ok: fhCrypto.length > 0,
+        detail: fhCrypto.length > 0 ? `${fhCrypto.length} articles` : 'no articles (key missing or upstream down)',
+        items: fhCrypto.length,
+      },
+      {
+        source: 'finnhub:general',
+        category: 'news' as const,
+        ok: fhGeneral.length > 0,
+        detail: fhGeneral.length > 0 ? `${fhGeneral.length} articles` : 'no articles (key missing or upstream down)',
+        items: fhGeneral.length,
+      },
     ]);
 
     const byKey = new Map<string, Row>();

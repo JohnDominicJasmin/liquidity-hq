@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { apiError } from '@/lib/apiError';
+import { recordApiHealth } from '@/lib/apiHealth';
 import { T } from '@/lib/tables';
 import type { CalEvent } from '../route';
 
@@ -31,6 +32,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Calendar fetch failed' }, { status: 502 });
     }
     const { events, source } = await res.json() as { events?: CalEvent[]; source?: string };
+
+    // Health is the count of events, not the HTTP status: /api/econ-calendar
+    // answers 200 with `{events: [], source: 'none'}` when all four upstream
+    // sources fail, so status alone would report a total outage as healthy.
+    await recordApiHealth([{
+      source: 'econ-calendar',
+      category: 'macro',
+      ok: (events?.length ?? 0) > 0,
+      detail: events?.length ? `${events.length} events via ${source ?? 'unknown'}` : 'no events - all upstream sources failed',
+      items: events?.length ?? 0,
+    }]);
 
     // An empty result means every upstream source failed at once. Overwriting a
     // good snapshot with [] would blank the calendar for every client, so keep
