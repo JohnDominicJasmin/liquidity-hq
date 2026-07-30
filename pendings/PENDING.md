@@ -155,11 +155,39 @@ per-symbol exchange-flow source, so it is deferred on the same terms. If the
 answer at revisit time is still "not paying", that half needs a different
 provider rather than a Coinglass fix.
 
-### API health + traffic tracking on `/ops` (requested 2026-07-30)
+### API health tracking on `/ops` — PHASE 1 SHIPPED 2026-07-31
 
-Owner's #1 follow-up after the news push-delivery work. Right now there is no
-single place that answers "which of our external APIs is actually working". The
-gap is real and this project has already been bitten by it more than once:
+**Live in prod.** `lhq_api_health` + `lhq_record_api_health()`, written by the
+ingest crons via `lib/apiHealth.ts`, surfaced by the External API Health card
+(`app/ops/_cards.tsx`, `app/api/ops/api-health`).
+
+It paid for itself within two minutes of going live: `rss:CryptoSlate` was
+returning **HTTP 403 from Render's IP** while returning 200 with ~10 items from
+a home connection. Nobody knew - and it had previously been guessed, wrongly, to
+be healthy. That failure is invisible to local testing by construction, which is
+the whole argument for measuring from where the code actually runs. Left in
+place deliberately (see the comment in `lib/newsFeeds.ts`); it is now visibly
+Down rather than silently empty.
+
+**Still to instrument (phase 2)** - currently only the news and econ ingest
+report. Everything below still fails silently:
+- `/api/proxy` (Coinglass, ETF, Google Trends), `/api/cmc`, `/api/macro`,
+  `/api/funding`, `/api/forex/jpy`, `/api/coinbase-price`
+- xAI/Grok calls (`lib/aiUsage.ts` is the funnel every AI route already passes
+  through - the natural hook, same trick as the ingest crons)
+- Telegram and Brevo delivery, Binance/Bybit price feeds
+Each needs the same treatment: decide what "usable data" means for that payload,
+then call `recordApiHealth`. Do not reach for HTTP status - see the note below.
+
+**Alerting is not built.** The card must be opened to be seen. A source sitting
+at `consecutive_failures >= 3` for hours currently notifies nobody; the obvious
+next step is folding that into the existing ops spike-alert email.
+
+Original rationale, kept because it is the design constraint:
+
+Owner's #1 follow-up after the news push-delivery work. There was no single
+place that answered "which of our external APIs is actually working". The gap
+was real and this project had already been bitten by it more than once:
 
 - Three `feeds.reuters.com` and two `feeds.apnews.com` RSS feeds sat in the feed
   list silently returning nothing (dead at DNS) — nobody could have known
@@ -175,20 +203,23 @@ What it should cover (every external dependency, not just the noisy ones):
 Finnhub, the RSS feed list, Coinglass, CoinMarketCap, xAI/Grok, DeFi Llama,
 Yahoo Finance, FRED, ForexFactory, Binance/Bybit, Telegram, Brevo, Supabase.
 
-Design notes for whoever picks this up:
-- **Health must be semantic, not just HTTP status** — "did we get usable rows
-  back", not "did it return 200". The TruthSocial case is the proof.
-- Per-source last-success timestamp, last-failure timestamp + reason, and a
-  rolling success rate. A source that has not succeeded in N intervals is the
-  actual alert condition.
-- The ingest crons (`api/news/ingest`, `api/econ-calendar/ingest`) are the
-  natural write points for feed health — they already touch every feed once a
-  minute, so they can record per-source outcomes for free instead of a separate
-  prober hammering the same endpoints again.
-- Surface on `/ops` alongside the existing AI-cost and call-count panels.
-- Read `docs/feature-inventory.md` first for the current dependency list.
-
-Deliberately NOT started yet — owner wants the in-flight work finished first.
+Design decisions, all now implemented in phase 1 — keep them when extending:
+- **Health is semantic, not HTTP status** — "did we get usable rows back", not
+  "did it return 200". TruthSocial is the proof, and CryptoSlate's 403 is the
+  reason the check has to run from Render rather than a laptop.
+- Per-source last-success and last-failure timestamps plus a rolling window.
+  `last_ok_at` is deliberately preserved across failures: the widening "last ok
+  3d ago" gap is what makes a dead source obvious.
+- The ingest crons are the write points — they already touch every feed once a
+  minute, so per-source outcomes cost nothing, and a separate prober would
+  re-hammer the same endpoints for worse data.
+- Read/modify/write of the window and the failure counter lives in SQL, not app
+  code: two crons can report the same source in the same minute and would race.
+- Staleness outranks the last outcome. A source that last succeeded but stopped
+  being reported is unmonitored, not healthy.
+- `recordApiHealth` never throws. Health tracking that can break the job it
+  measures is worse than none.
+- `docs/feature-inventory.md` has the full dependency list for phase 2.
 
 ## ❓ OPEN — YOUR action (can't do from code)
 
