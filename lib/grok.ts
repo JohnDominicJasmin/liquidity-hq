@@ -120,6 +120,8 @@ export interface GrokContext {
   btcDomTrend: string;
   /* where capital sits between BTC and the alt complex - see lib/sectorRotation.ts */
   sectorRotation: string;
+  /* latest market-structure break from price alone - see lib/priceAction.ts */
+  structureBreak: string;
   /* volume profile */
   pocLine: string;
   /* macro correlations */
@@ -195,6 +197,8 @@ export function buildPrompt(ctx: GrokContext): string {
     `WaveTrend (Cipher B momentum): ${ctx.waveTrend}`,
     '(WaveTrend is a confirming layer, NOT a 4th mandatory anti-chop filter - it checks for a bullish/bearish divergence or a cross-from-oversold/overbought agreeing with the EMA signal direction. If it confirms, add +5 confidence. If it does not confirm, do not downgrade automatically - just note the momentum oscillator has not caught up yet.)',
     `Market Structure (4H): ${ctx.marketStructure}`,
+    `Latest structure break (price action only): ${ctx.structureBreak}`,
+    '(BOS = price took out the prior swing in the direction it was already going: continuation. CHoCH = it took one out AGAINST the prevailing swing structure: the first hint the trend may be turning. This is derived from swing highs and lows alone - it is INDEPENDENT of the EMA ribbon signal above, so when the two disagree, say so rather than resolving it silently. A break on above-average volume carries more weight than one that drifted through on light volume.)',
     '(BOS = Break of Structure = trend continuation in the same direction. CHoCH = Change of Character = structural reversal signal. A bearish CHoCH means the 4H trend just flipped bearish - strong bias filter against longs. A bullish CHoCH = trend just flipped bullish.)',
     `RSI (14, 1h):  ${ctx.rsi1h}`,
     `RSI (14, 4h):  ${ctx.rsi4h}`,

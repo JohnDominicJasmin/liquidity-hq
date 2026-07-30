@@ -13,6 +13,7 @@ import Tip from './Tip';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { useNews } from './NewsProvider';
+import { computeSectorRotation, isAlt } from '@/lib/sectorRotation';
 
 const VERDICT_CONFIG: Record<string, { labelKey: LabelKey; color: string }> = {
   STRONG_BULL:  { labelKey: 'CONFLUENCE_SCORE_VERDICT_STRONG_BULL',  color: '#34d399' },
@@ -33,6 +34,12 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
   if (!d?.price) return null;
 
   const of = scoreBias(d);
+  // Computed for alts only - majors get a null direction so the factor below
+  // drops out entirely rather than voting neutral on a question that does not
+  // apply to them.
+  const rotation = isAlt(coin)
+    ? computeSectorRotation(store, coin)
+    : { line: '-', direction: null as null };
 
   const factors: ConfluenceFactorInput[] = [
     {
@@ -48,6 +55,35 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
     // vote: long gamma = ranging → dampens confidence in the trend signals;
     // short gamma = trending → no penalty. Included only for BTC.
     ...(coin === 'btc' ? [gexRegimeFactor(store.btcNetGex)] : []),
+    // Sector rotation - ALTS ONLY, and only when there is data to judge it by.
+    //
+    // Alts are a money-flow game: capital rotating into BTC drains the alt
+    // complex regardless of how clean an individual alt's technicals look, and
+    // that headwind bites hardest in a bear market. So it votes directionally -
+    // bull when capital is moving into alts, bear when it is moving into BTC.
+    //
+    // Excluded for BTC and the other majors on purpose: "is capital rotating
+    // into alts" is not a meaningful question to ask about BTC itself, and
+    // answering it for ETH would mislead, since ETH leads the alt complex
+    // rather than following it. Same reasoning that keeps GEX BTC-only above.
+    //
+    // Weight 20 matches Multi-TF RSI - a real input, deliberately below the
+    // coin's own trend (EMA 30) and order flow (25), because rotation shapes
+    // the odds on a setup rather than being the setup.
+    //
+    // Omitted entirely when direction is null. A directional factor still adds
+    // to the denominator even when it votes neutral, so emitting one on missing
+    // data would quietly dilute every other signal to say nothing.
+    ...(rotation.direction
+      ? [{
+          kind: 'directional' as const,
+          label: t('CONFLUENCE_SCORE_FACTOR_SECTOR_ROTATION'),
+          dir: (rotation.direction === 'to_alts' ? 'bull'
+              : rotation.direction === 'to_btc' ? 'bear'
+              : 'neutral') as 'bull' | 'bear' | 'neutral',
+          weight: 20,
+        }]
+      : []),
     {
       kind: 'penalty',
       label: t('CONFLUENCE_SCORE_FACTOR_CHOPPINESS'),

@@ -26,6 +26,11 @@ const ALERT_COIN_CAP = 10; // Alerts is a Pro-only feature - single cap, no free
 // timeframe they can actually go look at on the chart. Capped at
 // ALERT_TF_CAP concurrently active, same shape as ALERT_COIN_CAP above.
 const EMA_SIGNAL_TFS = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'] as const;
+// Must match STRUCTURE_TFS in app/api/telegram/alert - the cron only ever
+// computes these two, so offering more here would be a toggle for an alert
+// that can never fire. Not covered by ALERT_TF_CAP: that cap exists because
+// eight EMA timeframes at once is unusable, and two is not eight.
+const STRUCTURE_TFS = ['1h', '4h'] as const;
 const ALERT_TF_CAP = 3;
 const DEFAULT_ON_TFS: readonly string[] = ['1h', '4h', '1d'];
 
@@ -144,6 +149,22 @@ export default function AlertsPage() {
             ));
             setMuted(prev => { const n = new Set(prev); toMuteTf.forEach(tf => n.add(`ema_signal_${tf}`)); return n; });
           }
+          // Market-structure alerts start OFF for everyone, existing users
+          // included. A new rule_key is unmuted by default, so without this the
+          // first cron run after deploy would start sending a brand-new alert
+          // type to every connected chat unasked. The Arena chart's Structure
+          // markers are opt-in for the same reason - this keeps the two
+          // consistent instead of one defaulting on and one off.
+          if (!mutedList.some(k => k.startsWith('structure_'))) {
+            await Promise.all(STRUCTURE_TFS.map(tf =>
+              fetch('/api/alert-prefs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ key: `structure_${tf}`, muted: true }),
+              }).catch(() => {})
+            ));
+            setMuted(prev => { const n = new Set(prev); STRUCTURE_TFS.forEach(tf => n.add(`structure_${tf}`)); return n; });
+          }
         })
         .catch(() => {});
     });
@@ -248,6 +269,10 @@ export default function AlertsPage() {
     setTfCapMsg('');
     toggleMute(key);
   };
+
+  // No cap check: only two timeframes exist for this rule, so there is nothing
+  // to protect the user from.
+  const toggleStructureTf = (tf: string) => toggleMute(`structure_${tf}`);
 
   const loadPriceAlerts = useCallback(async () => {
     setPaLoading(true);
@@ -883,6 +908,47 @@ export default function AlertsPage() {
                 <button
                   key={tf}
                   onClick={() => toggleTf(tf)}
+                  aria-pressed={!off}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    padding: '4px 12px', borderRadius: 7, cursor: 'pointer',
+                    fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.03em',
+                    fontFamily: 'var(--font-mono), monospace',
+                    background: off ? 'transparent' : 'var(--accent-bg)',
+                    border: `0.5px solid ${off ? 'var(--bdr)' : 'var(--accent-bdr)'}`,
+                    color: off ? 'var(--txt3)' : 'var(--accent-2)',
+                    textDecoration: off ? 'line-through' : 'none',
+                    transition: 'all .15s',
+                  }}
+                >
+                  {tf.toUpperCase()}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Market structure - a price-only read that runs alongside the EMA
+            rule and never feeds into it. Its own dot colour (the same sky blue
+            the Arena chart uses for bullish structure) so the two are visibly
+            different systems here as well as on the chart. */}
+        <div style={{ marginTop: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <span className="tg-cond-dot" style={{ background: '#38bdf8' }} />
+            <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)' }}>
+              {t('ALERTS_STRUCTURE_TITLE')}
+            </div>
+          </div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 8, paddingLeft: 14 }}>
+            {t('ALERTS_STRUCTURE_DESC')}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingLeft: 14 }}>
+            {STRUCTURE_TFS.map(tf => {
+              const off = muted.has(`structure_${tf}`);
+              return (
+                <button
+                  key={tf}
+                  onClick={() => toggleStructureTf(tf)}
                   aria-pressed={!off}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 5,

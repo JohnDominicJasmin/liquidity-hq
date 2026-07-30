@@ -4,6 +4,7 @@ import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinech
 import { BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, CoinId, useMarket, computeSqueezeScore } from '@/lib/marketStore';
 import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
+import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
 import { Warn } from '@/components/icons';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
@@ -222,6 +223,12 @@ let srLevelLineRegistered = false;
 let gexLevelLineRegistered = false;
 let analysisLevelLineRegistered = false;
 let reversalOverlayRegistered = false;
+let structureOverlayRegistered = false;
+
+// How many recent structure breaks to draw. Older ones are history, not
+// something to act on, and drawing every break in the window would put the
+// chart back where the Arena signal-overload pass found it.
+const PA_MAX = 6;
 
 interface SRLevel { price: number; type: 'support' | 'resistance'; touches: number; }
 
@@ -354,6 +361,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const [showSR, setShowSR]       = useState(true);
   const [srLevels, setSrLevels]   = useState<SRLevel[]>([]);
   const srSetRef                  = useRef(setSrLevels);
+  // Market-structure breaks (lib/priceAction.ts) - a second, price-only read
+  // that runs alongside the EMA ribbon markers without touching them. Off by
+  // default: the Arena signal-overload pass deliberately reduced what shows on
+  // this chart, so a new marker family opts in rather than arriving unasked.
+  const [showPA, setShowPA]       = useState(false);
+  const [paSignals, setPaSignals] = useState<PASignal[]>([]);
+  const paSetRef                  = useRef(setPaSignals);
   const [sqHover, setSqHover]     = useState(false);
   const [rwTooltip, setRwTooltip] = useState<{ x: number; y: number; dir: 'bullish' | 'bearish' } | null>(null);
 
@@ -416,6 +430,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const { store } = useMarket();
   const coinData = store.coins[coin];
   const srOverlayIds              = useRef<string[]>([]);
+  const paOverlayIds              = useRef<string[]>([]);
   const userDrawOverlayIds        = useRef<string[]>([]);
   // Track the last loaded coin/tf so we only re-fetch what actually changed,
   // and a monotonic load token so stale in-flight fetches are dropped on arrival.
@@ -611,12 +626,60 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           needDefaultXAxisFigure: false,
           needDefaultYAxisFigure: false,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // Hovering a marker reveals the price the signal actually fired at.
+          // The marker is drawn offset from its anchor so it does not cover the
+          // candle, which means you cannot read the level off the y-axis by
+          // eye - the number has to be stated. extendData is mutated in place
+          // and the chart told to repaint, because a stationary cursor emits no
+          // further mousemove, so relying on the next natural frame would leave
+          // the label missing until the user jiggled the mouse.
+          onMouseEnter: (e: any) => {
+            if (e?.overlay?.extendData) {
+              e.overlay.extendData.hovered = true;
+              e.chart?.overrideOverlay({ id: e.overlay.id, extendData: e.overlay.extendData });
+            }
+          },
+          onMouseLeave: (e: any) => {
+            if (e?.overlay?.extendData) {
+              e.overlay.extendData.hovered = false;
+              e.chart?.overrideOverlay({ id: e.overlay.id, extendData: e.overlay.extendData });
+            }
+          },
           createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
-            const { dir, pending } = overlay.extendData as { dir: 'long' | 'short'; pending: boolean };
+            const { dir, pending, price, hovered } = overlay.extendData as {
+              dir: 'long' | 'short'; pending: boolean; price?: number; hovered?: boolean;
+            };
             const coord = coordinates[0];
             if (!coord || !isFinite(coord.x) || !isFinite(coord.y) || coord.x < 0 || coord.y < 0) return [];
             const x = coord.x;
             const y = coord.y;
+
+            // Sits on the far side of the marker from the candle - below a Buy,
+            // above a Sell - so it never lands on top of the price action.
+            const priceTag = (): any[] => {
+              if (!hovered || price == null || !isFinite(price)) return [];
+              const isLong = dir === 'long';
+              const tagY = isLong ? y + 40 : y - 40;
+              const col = pending
+                ? (isLong ? 'rgba(34,197,94,0.85)' : 'rgba(239,68,68,0.85)')
+                : (isLong ? '#22c55e' : '#ef4444');
+              return [{
+                type: 'text',
+                // Trailing zeros stripped: an alt priced at 0.00001234 and BTC
+                // at 67000 cannot share a fixed precision, and toPrecision
+                // leaves "67000.0000" style noise on the large ones.
+                attrs: {
+                  x, y: tagY,
+                  text: '$' + Number(price.toPrecision(6)).toString(),
+                  align: 'center', baseline: 'middle',
+                },
+                styles: {
+                  color: '#ffffff', size: 10, weight: 'bold',
+                  paddingLeft: 5, paddingRight: 5, paddingTop: 3, paddingBottom: 3,
+                  borderRadius: 3, backgroundColor: col,
+                },
+              }];
+            };
             if (dir === 'long') {
               if (pending) {
                 return [
@@ -630,6 +693,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                     attrs: { x, y: y + 20, text: 'FORMING', align: 'center', baseline: 'middle' },
                     styles: { color: 'rgba(34,197,94,0.85)', size: 7, weight: 'bold', backgroundColor: 'transparent' },
                   },
+                  ...priceTag(),
                 ];
               }
               return [
@@ -643,6 +707,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   attrs: { x, y: y + 20, text: 'Buy', align: 'center', baseline: 'middle' },
                   styles: { color: '#ffffff', size: 9, weight: 'bold', backgroundColor: 'transparent' },
                 },
+                ...priceTag(),
               ];
             }
             if (pending) {
@@ -657,6 +722,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   attrs: { x, y: y - 20, text: 'FORMING', align: 'center', baseline: 'middle' },
                   styles: { color: 'rgba(239,68,68,0.85)', size: 7, weight: 'bold', backgroundColor: 'transparent' },
                 },
+                ...priceTag(),
               ];
             }
             return [
@@ -669,6 +735,56 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 type: 'text',
                 attrs: { x, y: y - 20, text: 'Sell', align: 'center', baseline: 'middle' },
                 styles: { color: '#ffffff', size: 9, weight: 'bold', backgroundColor: 'transparent' },
+              },
+              ...priceTag(),
+            ];
+          },
+        });
+      }
+
+      if (!structureOverlayRegistered) {
+        structureOverlayRegistered = true;
+        // Market-structure break. Colour family is deliberately NOT the
+        // green/red of the EMA buy/sell markers, nor the amber of the reversal
+        // diamond - a trader glancing at this chart has to be able to tell
+        // instantly which system fired, and three signal types sharing two
+        // colours would defeat that. Sky blue for bullish structure, violet for
+        // bearish, with the direction also written into the glyph so the
+        // meaning survives for anyone who reads colour poorly.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kc as any).registerOverlay({
+          name: 'structureBreak',
+          totalStep: 1,
+          needDefaultPointFigure: false,
+          needDefaultXAxisFigure: false,
+          needDefaultYAxisFigure: false,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
+            const { dir, kind, volumeBacked } = overlay.extendData as {
+              dir: 'bull' | 'bear'; kind: 'BOS' | 'CHOCH'; volumeBacked: boolean;
+            };
+            const coord = coordinates[0];
+            if (!coord || !isFinite(coord.x) || !isFinite(coord.y) || coord.x < 0 || coord.y < 0) return [];
+            const isBull = dir === 'bull';
+            const col = isBull ? '#38bdf8' : '#a78bfa';
+            // Placed on the far side of the candle from the EMA markers, which
+            // sit within 28px of their anchor - keeps the two families from
+            // colliding when both fire on the same bar.
+            const y = isBull ? coord.y + 46 : coord.y - 46;
+            // Volume backing is written into the text rather than drawn as an
+            // outline: only the styles already proven on the other text figures
+            // in this file are used here, and "did anyone actually trade this
+            // level" reads better as a mark than as a 1px border nobody notices.
+            const label = `${isBull ? '▲' : '▼'} ${kind === 'CHOCH' ? 'CHoCH' : 'BOS'}${volumeBacked ? ' ⚡' : ''}`;
+            return [
+              {
+                type: 'text',
+                attrs: { x: coord.x, y, text: label, align: 'center', baseline: 'middle' },
+                styles: {
+                  color: '#ffffff', size: 9, weight: 'bold',
+                  paddingLeft: 4, paddingRight: 4, paddingTop: 2, paddingBottom: 2,
+                  borderRadius: 2, backgroundColor: col,
+                },
               },
             ];
           },
@@ -860,6 +976,11 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               if (bars.length) {
                 lastCloseRef.current = bars[bars.length - 1].close;
                 srSetRef.current(computeSRLevels(bars, bars[bars.length - 1].close));
+                // Cap at the most recent few: a long window can hold a dozen
+                // structure breaks, and older ones are history rather than
+                // actionable - showing them all just recreates the chart clutter
+                // the Arena signal-overload pass removed.
+                paSetRef.current(detectStructureSignals(bars).slice(-PA_MAX));
               }
               callback(bars, false);
             } else if (bybitSym) {
@@ -875,6 +996,11 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               if (bars.length) {
                 lastCloseRef.current = bars[bars.length - 1].close;
                 srSetRef.current(computeSRLevels(bars, bars[bars.length - 1].close));
+                // Cap at the most recent few: a long window can hold a dozen
+                // structure breaks, and older ones are history rather than
+                // actionable - showing them all just recreates the chart clutter
+                // the Arena signal-overload pass removed.
+                paSetRef.current(detectStructureSignals(bars).slice(-PA_MAX));
               }
               callback(bars, false);
             } else {
@@ -1077,8 +1203,17 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
     const place = (dir: 'long' | 'short', ts: number, price: number, pending: boolean) => {
       chart.createOverlay({
+        // lock stays on. In klinecharts it only gates mouse-down and
+        // pressed-move (index.esm.js: `if (overlay.lock) return false` in
+        // _figureMouseDownEvent, and the `!overlay.lock` guard on
+        // onPressedMoving), so hover still fires and the marker stays
+        // undraggable - dropping it would let a user drag a signal off its
+        // candle.
         name: 'emaSignal', lock: true,
-        extendData: { dir, pending },
+        // price is carried in extendData as well as in the point, because
+        // createPointFigures only receives screen coordinates - by the time it
+        // runs, the price behind the y pixel is gone.
+        extendData: { dir, pending, price, hovered: false },
         points: [{ timestamp: ts, value: price }],
       } as OverlayCreate);
     };
@@ -1161,6 +1296,25 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       if (typeof id === 'string') srOverlayIds.current.push(id);
     }
   }, [srLevels, showSR, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Draw / redraw market-structure break markers ─────────────────────
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    paOverlayIds.current.forEach(id => chart.removeOverlay({ id }));
+    paOverlayIds.current = [];
+    if (!showPA || !paSignals.length) return;
+    for (const sig of paSignals) {
+      const id = chart.createOverlay({
+        name: 'structureBreak',
+        groupId: 'structure_breaks',
+        lock: true,
+        extendData: { dir: sig.dir, kind: sig.kind, volumeBacked: sig.volumeBacked },
+        points: [{ timestamp: sig.timestamp, value: sig.price }],
+      } as OverlayCreate);
+      if (typeof id === 'string') paOverlayIds.current.push(id);
+    }
+  }, [paSignals, showPA, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── GEX context lines (BTC only): max-pain magnet + zero-gamma flip ──────────
   useEffect(() => {
@@ -1319,6 +1473,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           title="Toggle auto support &amp; resistance levels"
         >
           S/R
+        </button>
+
+        <button
+          className={`klc-tool-btn${showPA ? ' on' : ''}`}
+          onClick={() => setShowPA(v => !v)}
+          title="Toggle market structure breaks - price-action signals, separate from the EMA buy/sell markers"
+        >
+          Structure
         </button>
 
         {chartAlerts && chartAlerts.length > 0 && (
