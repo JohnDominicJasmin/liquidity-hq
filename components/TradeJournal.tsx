@@ -1708,8 +1708,8 @@ function Inner() {
                     )}
                   </div>
 
-                  {/* Thesis text */}
-                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.5, marginBottom: 8 }}>{thesis.thesisText}</div>
+                  {/* Thesis text - tj-thesis-text is masked in session replay, see PostHogProvider.tsx */}
+                  <div className="tj-thesis-text" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.5, marginBottom: 8 }}>{thesis.thesisText}</div>
 
                   {/* Assumptions */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>

@@ -23,6 +23,19 @@ import { apiError } from '@/lib/apiError';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
+// Pinned server-side, never taken from the client. `...payload` used to go
+// straight into the xAI request body, so an authenticated caller within their
+// own daily call COUNT could still pick an arbitrary model or max_tokens - the
+// cap here counts requests, not tokens or dollars, so one allowed call had no
+// real ceiling on what it could cost. The real client (components/GrokChat.tsx)
+// only ever sends this exact model and max_tokens of 100 or 600, so nothing
+// legitimate changes.
+const MODEL = 'grok-4.3';
+const MAX_TOKENS_CEILING = 600;
+// The only tools the product's search mode ever offers - pinned rather than
+// forwarded, so a caller cannot substitute a pricier or unintended tool.
+const ALLOWED_SEARCH_TOOLS = [{ type: 'web_search' }, { type: 'x_search' }];
+
 function sb(token: string) {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -121,18 +134,26 @@ export async function POST(req: NextRequest) {
     let status: number;
 
     if (isSearch) {
+      // Only `input` comes from the caller - model and tools are pinned above.
       const r = await fetch('https://api.x.ai/v1/responses', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
-        body:    JSON.stringify(payload),
+        body:    JSON.stringify({ model: MODEL, input: payload.input, tools: ALLOWED_SEARCH_TOOLS }),
       });
       data   = await r.json();
       status = r.status;
     } else if (mode === 'chat') {
+      // Only `messages` comes from the caller - model is pinned, and
+      // max_tokens is clamped rather than trusted outright, so a modified
+      // client can shrink it but never raise it past the real ceiling.
+      const requestedTokens = Number(payload.max_tokens);
+      const maxTokens = Number.isFinite(requestedTokens) && requestedTokens > 0
+        ? Math.min(requestedTokens, MAX_TOKENS_CEILING)
+        : MAX_TOKENS_CEILING;
       const r = await fetch('https://api.x.ai/v1/chat/completions', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
-        body:    JSON.stringify(payload),
+        body:    JSON.stringify({ model: MODEL, messages: payload.messages, max_tokens: maxTokens }),
       });
       data   = await r.json();
       status = r.status;
