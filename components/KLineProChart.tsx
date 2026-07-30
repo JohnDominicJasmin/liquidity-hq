@@ -611,12 +611,60 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           needDefaultXAxisFigure: false,
           needDefaultYAxisFigure: false,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          // Hovering a marker reveals the price the signal actually fired at.
+          // The marker is drawn offset from its anchor so it does not cover the
+          // candle, which means you cannot read the level off the y-axis by
+          // eye - the number has to be stated. extendData is mutated in place
+          // and the chart told to repaint, because a stationary cursor emits no
+          // further mousemove, so relying on the next natural frame would leave
+          // the label missing until the user jiggled the mouse.
+          onMouseEnter: (e: any) => {
+            if (e?.overlay?.extendData) {
+              e.overlay.extendData.hovered = true;
+              e.chart?.overrideOverlay({ id: e.overlay.id, extendData: e.overlay.extendData });
+            }
+          },
+          onMouseLeave: (e: any) => {
+            if (e?.overlay?.extendData) {
+              e.overlay.extendData.hovered = false;
+              e.chart?.overrideOverlay({ id: e.overlay.id, extendData: e.overlay.extendData });
+            }
+          },
           createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
-            const { dir, pending } = overlay.extendData as { dir: 'long' | 'short'; pending: boolean };
+            const { dir, pending, price, hovered } = overlay.extendData as {
+              dir: 'long' | 'short'; pending: boolean; price?: number; hovered?: boolean;
+            };
             const coord = coordinates[0];
             if (!coord || !isFinite(coord.x) || !isFinite(coord.y) || coord.x < 0 || coord.y < 0) return [];
             const x = coord.x;
             const y = coord.y;
+
+            // Sits on the far side of the marker from the candle - below a Buy,
+            // above a Sell - so it never lands on top of the price action.
+            const priceTag = (): any[] => {
+              if (!hovered || price == null || !isFinite(price)) return [];
+              const isLong = dir === 'long';
+              const tagY = isLong ? y + 40 : y - 40;
+              const col = pending
+                ? (isLong ? 'rgba(34,197,94,0.85)' : 'rgba(239,68,68,0.85)')
+                : (isLong ? '#22c55e' : '#ef4444');
+              return [{
+                type: 'text',
+                // Trailing zeros stripped: an alt priced at 0.00001234 and BTC
+                // at 67000 cannot share a fixed precision, and toPrecision
+                // leaves "67000.0000" style noise on the large ones.
+                attrs: {
+                  x, y: tagY,
+                  text: '$' + Number(price.toPrecision(6)).toString(),
+                  align: 'center', baseline: 'middle',
+                },
+                styles: {
+                  color: '#ffffff', size: 10, weight: 'bold',
+                  paddingLeft: 5, paddingRight: 5, paddingTop: 3, paddingBottom: 3,
+                  borderRadius: 3, backgroundColor: col,
+                },
+              }];
+            };
             if (dir === 'long') {
               if (pending) {
                 return [
@@ -630,6 +678,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                     attrs: { x, y: y + 20, text: 'FORMING', align: 'center', baseline: 'middle' },
                     styles: { color: 'rgba(34,197,94,0.85)', size: 7, weight: 'bold', backgroundColor: 'transparent' },
                   },
+                  ...priceTag(),
                 ];
               }
               return [
@@ -643,6 +692,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   attrs: { x, y: y + 20, text: 'Buy', align: 'center', baseline: 'middle' },
                   styles: { color: '#ffffff', size: 9, weight: 'bold', backgroundColor: 'transparent' },
                 },
+                ...priceTag(),
               ];
             }
             if (pending) {
@@ -657,6 +707,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   attrs: { x, y: y - 20, text: 'FORMING', align: 'center', baseline: 'middle' },
                   styles: { color: 'rgba(239,68,68,0.85)', size: 7, weight: 'bold', backgroundColor: 'transparent' },
                 },
+                ...priceTag(),
               ];
             }
             return [
@@ -670,6 +721,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 attrs: { x, y: y - 20, text: 'Sell', align: 'center', baseline: 'middle' },
                 styles: { color: '#ffffff', size: 9, weight: 'bold', backgroundColor: 'transparent' },
               },
+              ...priceTag(),
             ];
           },
         });
@@ -1077,8 +1129,17 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
     const place = (dir: 'long' | 'short', ts: number, price: number, pending: boolean) => {
       chart.createOverlay({
+        // lock stays on. In klinecharts it only gates mouse-down and
+        // pressed-move (index.esm.js: `if (overlay.lock) return false` in
+        // _figureMouseDownEvent, and the `!overlay.lock` guard on
+        // onPressedMoving), so hover still fires and the marker stays
+        // undraggable - dropping it would let a user drag a signal off its
+        // candle.
         name: 'emaSignal', lock: true,
-        extendData: { dir, pending },
+        // price is carried in extendData as well as in the point, because
+        // createPointFigures only receives screen coordinates - by the time it
+        // runs, the price behind the y pixel is gone.
+        extendData: { dir, pending, price, hovered: false },
         points: [{ timestamp: ts, value: price }],
       } as OverlayCreate);
     };
