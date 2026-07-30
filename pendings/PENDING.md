@@ -147,13 +147,48 @@ rebuild, because every consumer is still wired:
    reasoning, in the same commit as this note).
 3. Adjust response parsing to the v4 shape.
 
-**This also gates the second half of the alt money-flow feature.** Sector
-rotation shipped without it (`lib/sectorRotation.ts` — BTC dominance drift,
-alt-season score, and per-coin volume/OI share, all from data already on hand).
-Per-coin exchange flow — the other signal the owner asked for — needs a working
-per-symbol exchange-flow source, so it is deferred on the same terms. If the
-answer at revisit time is still "not paying", that half needs a different
-provider rather than a Coinglass fix.
+**This also gates per-coin exchange flow — see the next entry.**
+
+### Per-coin exchange flow — BACKLOG, blocked on a data source (2026-07-31)
+
+The second half of the alt money-flow request. The first half shipped: sector
+rotation is live in Quick, Deep, Chat and the Confluence Score
+(`lib/sectorRotation.ts`), built entirely from data already on hand.
+
+**What it measures:** whether a token is moving ONTO exchanges or OFF them.
+Coins arriving at an exchange are generally there to be sold, so rising inflow
+is incoming sell pressure; coins leaving to private wallets are accumulation.
+
+**Why per-coin, and why it matters for alts specifically:** the app already had
+this for BTC only (`store.btcExchangeNetFlow`, fed into the AI prompts — now
+dead with Coinglass). BTC's float is huge and liquid, so exchange flow moves it
+slowly. An alt is thin: one whale or an unlocked VC tranche landing on an
+exchange can be a meaningful share of circulating supply, and price reacts hard.
+Seeing that arrive before it is sold is the actual edge.
+
+**It does NOT overlap with sector rotation** — the two answer different
+questions and are meant to be read together:
+- Sector rotation: is money moving into alts as a group, or back into BTC?
+  Macro, relative. The tide.
+- Per-coin exchange flow: is *this token's* supply moving to where it gets sold?
+  Coin-specific, supply-side. Whether your particular boat is taking on water.
+
+Rotation can read "capital rotating into alts" — a green light — while the coin
+in front of you has a large tranche hitting exchanges. Nothing in the app warns
+about that today.
+
+**Options when this is revisited, cheapest first:**
+1. Have Grok fetch it via search on demand, the way `/api/onchain` already does
+   for MVRV/SOPR/NVT. Costs AI tokens rather than a subscription, but is slower
+   and less precise, and cannot be charted.
+2. A non-Coinglass provider with per-symbol exchange flow. Not yet researched -
+   do that before assuming Coinglass is the only option.
+3. Coinglass paid plan (see the entry above), only after their support confirms
+   which tier actually includes `/api/exchange/balance/chart`.
+
+Wiring is straightforward once a source exists: `store.btcExchangeNetFlow` is
+already threaded into the prompts, so the work is generalising that field
+per-coin and adding it to `lib/sectorRotation.ts`'s output — not new plumbing.
 
 ### API health tracking on `/ops` — PHASE 1 SHIPPED 2026-07-31
 
