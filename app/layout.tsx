@@ -50,15 +50,20 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#0d0d0d',
+  // Matches the app's real body background (app/globals.css) - was
+  // #0d0d0d, a stale value from before the icon redesign that public/
+  // manifest.json also had and got corrected there but was missed here.
+  themeColor: '#06070a',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" data-theme="dark" className={`${figtree.variable} ${plexMono.variable}`} suppressHydrationWarning>
-      <head>
-        <link rel="apple-touch-icon" href="/icons/icon-192.jpg" />
-      </head>
+      {/* No manual apple-touch-icon <link> here - app/apple-icon.png's file
+          convention already generates the correct tag automatically. The old
+          hardcoded one pointed at /icons/icon-192.jpg, which the icon
+          redesign deleted; keeping it would have shipped a broken link
+          alongside the correct auto-generated one. */}
       <body>
         {/* beforeInteractive - injected into the initial server HTML and
             runs before hydration, so data-theme is correct before first
