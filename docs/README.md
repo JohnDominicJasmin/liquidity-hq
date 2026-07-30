@@ -11,6 +11,7 @@ pulls in `AGENTS.md` by relative path) and `README.md` (GitHub renders it).
 | [INFRASTRUCTURE.md](INFRASTRUCTURE.md) | Render services, Supabase projects, cron jobs, env vars. Several schedulers live outside this repo (cron-job.org, n8n) and are invisible to a code search - this is the source of truth for them |
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Visual language, tokens, component conventions |
 | [feature-inventory.md](feature-inventory.md) | Every feature and what it costs to run |
+| [QA_TEST_PLAN.md](QA_TEST_PLAN.md) | Unit/integration/system/E2E/UAT plan for the 2026-08-07 to 2026-07-30 security batch - what's verified, what isn't, and a real gotcha about testing right after a Render deploy |
 
 ## Work in progress
 
