@@ -8,7 +8,7 @@ import type { LabelKey } from '@/lib/labelKeys';
 interface BannerValue { text: string; link: string | null; expiresAt: string | null }
 interface BannerHistoryItem { value: BannerValue; actor_email: string; created_at: string }
 
-interface FeatureFlags { grok: boolean; telegram: boolean; signups: boolean }
+interface FeatureFlags { grok: boolean; telegram: boolean; signups: boolean; structure_alerts: boolean }
 
 interface ConfigData {
   maintenance_mode: { enabled: boolean };
@@ -21,6 +21,9 @@ const FEATURE_LABEL_KEYS: Record<keyof FeatureFlags, LabelKey> = {
   grok: 'OPS_CONFIG_FEATURE_GROK',
   telegram: 'OPS_CONFIG_FEATURE_TELEGRAM',
   signups: 'OPS_CONFIG_FEATURE_SIGNUPS',
+  // Unlike the three above, this switch turns a feature ON rather than killing
+  // one - it ships off and stays off until deliberately enabled.
+  structure_alerts: 'OPS_CONFIG_FEATURE_STRUCTURE_ALERTS',
 };
 
 // value in hours, '' = no expiry
