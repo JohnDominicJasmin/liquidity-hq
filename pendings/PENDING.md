@@ -216,19 +216,45 @@ recorded on a run that attempted no sends, so a quiet tick cannot mark the
 source healthy. Verified against real traffic: log `sent=1 failed=0` and the
 health row `"1 sent"` agree to the second.
 
-**Still to instrument (phase 2)** - everything below still fails silently:
-- `/api/proxy` (Coinglass, ETF, Google Trends), `/api/cmc`, `/api/macro`,
-  `/api/funding`, `/api/forex/jpy`, `/api/coinbase-price`
-- xAI/Grok calls (`lib/aiUsage.ts` is the funnel every AI route already passes
-  through - the natural hook, same trick as the ingest crons)
-- Brevo delivery, Web Push delivery, Binance/Bybit price feeds
-Each needs the same treatment: decide what "usable data" means for that payload,
-then call `recordApiHealth`. Do not reach for HTTP status - see the note below.
+**PHASE 2 SHIPPED 2026-07-31.** Live in prod: 32 sources tracked, reading
+29 healthy / 2 degraded / 1 down on the card.
 
-Web Push is the awkward one: `dispatchPush` is deliberately `void`-ed so it
-never blocks the response, so a health write inside it may not finish before the
-process is frozen. It needs either an await or its own write point, not a copy
-of the Telegram tally.
+Added: `binance:klines`, `bybit:klines` (via `lib/ribbonCandles` - the single
+funnel the alert cron and `/api/alerts/preview` share), `binance:funding`,
+`bybit:funding`, `yahoo:{oil,dxy,spx,gold,jpy}` per symbol, `cmc:global-metrics`,
+`cmc:listings`, `coinbase:BTC-USD`, `er-api:USD`, `google-trends:bitcoin`,
+`sosovalue:etf-flows`, `brevo:smtp`, `webpush:vapid`, `xai:grok`.
+
+Two new helpers in `lib/apiHealth.ts`. The crons keep calling `recordApiHealth`
+directly (once a minute, one write per source costs nothing); the routes use
+`trackHealth`/`reportHealth`, which coalesce per source - a state change writes
+immediately, a repeat waits 30s - because those run per page load. The write is
+not awaited: Render is a long-lived Node process, so the floating promise
+completes without putting a Supabase round trip in front of every response.
+
+**It found two more silently-dead dependencies on the first run, and both
+reproduce from Render** (unlike CryptoSlate, which only fails from Render, these
+fail everywhere - so it is the dependency, not the IP):
+- `google-trends:bitcoin` - "trends explore blocked"
+- `sosovalue:etf-flows` - no response from either host
+Both feed the Grok prompt context (`googleTrends`, `etfFlows`), so every AI
+analysis has been running with those fields blank. Neither has a fix yet -
+decide whether to find replacements or drop the fields from the prompt.
+
+Also surfaced: `finnhub:crypto` reporting "no articles (key missing or upstream
+down)" while `finnhub:general` returns 100.
+
+**Coinglass deliberately NOT tracked** - known dead by decision with no callers,
+so it would park two permanently red rows and train the eye to ignore red. Add
+it as part of the v4 migration.
+
+Correction to an earlier note here: Web Push was described as needing special
+handling because `dispatchPush` is `void`-ed and "may not finish before the
+process is frozen". That was serverless reasoning applied to a persistent Node
+process - on Render the floating promise does complete. It still reports from
+inside `dispatchPush` rather than from a tally in the handler, but only because
+the handler has already returned by then. A 410 counts as an expired
+subscription, not a delivery failure.
 
 **Alerting is not built.** The card must be opened to be seen. A source sitting
 at `consecutive_failures >= 3` for hours currently notifies nobody; the obvious

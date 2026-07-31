@@ -116,6 +116,84 @@ export async function sendAdminAddedEmail(args: AdminAddedArgs): Promise<boolean
 // Owner-only warning: today's xAI call volume crossed 80% of the global
 // daily cap (app/api/ops/spike-alert/route.ts). Fixed recipient list, not
 // per-user - see SPIKE_ALERT_RECIPIENTS above.
+export interface HealthAlertArgs {
+  down: Array<{ source: string; category: string; detail: string; failures: number; lastOkAt: string | null }>;
+  recovered: string[];
+}
+
+/* Sent by lib/healthAlert on the hourly cron. Fixed owner recipient list, same
+   as the spike alert - this is an operations notice, never a user-facing one. */
+export async function sendHealthAlertEmail(args: HealthAlertArgs): Promise<boolean> {
+  const apiKey = process.env.BREVO_API_KEY;
+  const from = process.env.BREVO_SENDER_EMAIL;
+  if (!apiKey || !from) return false;
+
+  const opsUrl = opsLoginUrl();
+  // Subject carries the actual state - an ops email that needs opening to find
+  // out whether anything is wrong gets ignored within a week.
+  const subject = args.down.length
+    ? `${APP_NAME}: ${args.down.length} data source${args.down.length > 1 ? 's' : ''} down`
+    : `${APP_NAME}: ${args.recovered.length} data source${args.recovered.length > 1 ? 's' : ''} recovered`;
+
+  const fmtLastOk = (iso: string | null) => {
+    if (!iso) return 'never succeeded';
+    const hrs = Math.floor((Date.now() - Date.parse(iso)) / 3_600_000);
+    if (hrs < 1) return 'last ok under an hour ago';
+    if (hrs < 48) return `last ok ${hrs}h ago`;
+    return `last ok ${Math.floor(hrs / 24)}d ago`;
+  };
+
+  const downRows = args.down.map(d => `
+    <tr>
+      <td style="padding:6px 10px 6px 0;font-family:ui-monospace,monospace"><b>${d.source}</b></td>
+      <td style="padding:6px 10px 6px 0;color:#666">${d.category}</td>
+      <td style="padding:6px 0;color:#b91c1c">${d.detail} · ${d.failures} in a row · ${fmtLastOk(d.lastOkAt)}</td>
+    </tr>`).join('');
+
+  const html = `
+    <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#111;max-width:640px">
+      ${args.down.length ? `
+        <h2 style="margin:0 0 12px;font-size:18px">Data sources down</h2>
+        <p style="margin:0 0 12px;color:#444">
+          These have failed ${args.down.length === 1 ? 'its' : 'their'} last few checks in a row.
+          A source going quiet does not surface anywhere in the app - the page just shows a dash.
+        </p>
+        <table style="border-collapse:collapse;font-size:14px;margin:0 0 16px">${downRows}</table>
+      ` : ''}
+      ${args.recovered.length ? `
+        <h2 style="margin:0 0 8px;font-size:16px">Recovered</h2>
+        <p style="margin:0 0 16px;font-family:ui-monospace,monospace">${args.recovered.join(', ')}</p>
+      ` : ''}
+      <p style="margin:0 0 12px">Full list: <a href="${opsUrl}">${opsUrl}</a></p>
+      <p style="margin:16px 0 0;color:#666;font-size:13px">
+        One notice per source, repeated at most daily while it stays down.
+        To stop hearing about a source you have decided to leave broken, add it to
+        the <code>api_health_alert_suppress</code> list in app_config.
+      </p>
+    </div>`;
+
+  try {
+    const res = await brevoFetch({
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: `${APP_NAME} Ops`, email: from },
+        to: SPIKE_ALERT_RECIPIENTS.map(email => ({ email })),
+        subject,
+        htmlContent: html,
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function sendSpikeAlertEmail(args: SpikeAlertArgs): Promise<boolean> {
   const apiKey = process.env.BREVO_API_KEY;
   const from = process.env.BREVO_SENDER_EMAIL;
