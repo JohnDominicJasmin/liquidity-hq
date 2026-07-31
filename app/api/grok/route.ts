@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { xaiFetch } from '@/lib/xai';
 import { createClient } from '@supabase/supabase-js';
 import { parseCombinedResponse } from '@/lib/grok';
 import { T } from '@/lib/tables';
@@ -149,7 +150,7 @@ export async function POST(req: NextRequest) {
   try {
     if (type === 'deep') {
       // Responses API with live web + X search
-      const r = await fetch('https://api.x.ai/v1/responses', {
+      const r = await xaiFetch('https://api.x.ai/v1/responses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
         body: JSON.stringify({
@@ -170,7 +171,7 @@ export async function POST(req: NextRequest) {
       text = msg?.content?.[0]?.text ?? '';
     } else {
       // chat/completions - no search tools, cheaper
-      const r = await fetch('https://api.x.ai/v1/chat/completions', {
+      const r = await xaiFetch('https://api.x.ai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
         body: JSON.stringify({

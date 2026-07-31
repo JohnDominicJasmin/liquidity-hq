@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { xaiFetch } from '@/lib/xai';
 import { apiError } from '@/lib/apiError';
 import { createClient } from '@supabase/supabase-js';
 import { cached } from '@/lib/apiCache';
@@ -147,7 +148,7 @@ export async function GET(req: NextRequest) {
       const stats = await fetchBlockchainStats();
       const prompt = buildOnChainPrompt(stats, btcPrice);
 
-      const r = await fetch('https://api.x.ai/v1/responses', {
+      const r = await xaiFetch('https://api.x.ai/v1/responses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
         body: JSON.stringify({
