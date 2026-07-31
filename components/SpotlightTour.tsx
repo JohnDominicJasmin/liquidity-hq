@@ -451,6 +451,18 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [animKey, setAnimKey] = useState(0);
+  /* The rest of this component's motion lives in CSS classes that the global
+     prefers-reduced-motion block already covers; the dots are inline-styled, so
+     they have to read the preference themselves. Evaluated in an effect rather
+     than at render so the server and first client render agree. */
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const apply = () => setReduceMotion(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
 
   const current = STEPS[step];
   const isLast  = step === STEPS.length - 1;
@@ -560,7 +572,13 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
 
           {/* Navigation */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 22 }}>
-            {/* Dots */}
+            {/* Dots. Timing is deliberate: these used to run 0.3s on
+                cubic-bezier(0.16,1,0.3,1) - an expo-style curve that covers most
+                of its distance in the first quarter of the duration. At 14px of
+                travel that reads as an instant jump, and it finished before the
+                0.38s content fade and the 0.4s progress bar, so the one element
+                the eye tracks during a step change was the one that snapped.
+                Now 0.42s on easeOutCubic, landing with the rest of the step. */}
             <div style={{ display: 'flex', gap: 5, flex: 1 }}>
               {STEPS.map((_, i) => (
                 <div key={i} style={{
@@ -568,7 +586,11 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
                   width: i === step ? 20 : 6,
                   borderRadius: 100,
                   background: i === step ? ACCENT : i < step ? withAlpha(ACCENT, '50') : TRACK_BG,
-                  transition: 'all 0.3s cubic-bezier(0.16,1,0.3,1)',
+                  // Named properties, not `all` - `all` also transitions
+                  // border-radius and would fight the pill shape mid-animation.
+                  transition: reduceMotion
+                    ? 'none'
+                    : 'width 0.42s cubic-bezier(0.33,1,0.68,1), background-color 0.3s ease',
                 }} />
               ))}
             </div>

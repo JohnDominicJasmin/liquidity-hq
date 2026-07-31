@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
 import LoadingState from '@/components/LoadingState';
+import PasswordField from '@/components/PasswordField';
+import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
 import { useLabels } from '@/lib/labels';
 
 // Landed on directly from the password-reset email link
@@ -63,7 +65,7 @@ export default function ResetPasswordPage() {
   const submit = async () => {
     if (!password) return;
     if (password !== confirmPassword) { setError(t('LOGIN_PASSWORD_MISMATCH')); return; }
-    if (password.length < 8) { setError(t('LOGIN_PASSWORD_TOO_SHORT')); return; }
+    if (!passwordMeetsPolicy(password)) { setError(t('LOGIN_PASSWORD_POLICY_ERROR')); return; }
     const sb = getSupabase();
     if (!sb) { setError(t('LOGIN_ERROR_SUPABASE_NOT_CONFIGURED')); return; }
     setLoading(true);
@@ -106,21 +108,17 @@ export default function ResetPasswordPage() {
         ) : (
           <>
             <div className="login-email-wrap">
-              <input
-                type="password"
-                className="login-email-input"
-                placeholder={t('LOGIN_PASSWORD_NEW_PLACEHOLDER')}
+              <PasswordField
+                label={t('LOGIN_PASSWORD_NEW_PLACEHOLDER')}
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={setPassword}
                 autoComplete="new-password"
               />
-              <input
-                type="password"
-                className="login-email-input"
-                placeholder={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
+              <PasswordField
+                label={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
                 value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && submit()}
+                onChange={setConfirmPassword}
+                onEnter={submit}
                 autoComplete="new-password"
               />
               <button

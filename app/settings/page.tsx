@@ -15,6 +15,8 @@ import LanguageSelect from '@/components/LanguageSelect';
 import { useLabels } from '@/lib/labels';
 import { getSupabase } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
+import PasswordField from '@/components/PasswordField';
+import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
 
 
 
@@ -91,7 +93,7 @@ export default function SettingsPage() {
   async function savePassword() {
     if (!pwNew) return;
     if (pwNew !== pwConfirm) { setPwError(t('SETTINGS_PASSWORD_MISMATCH')); return; }
-    if (pwNew.length < 8) { setPwError(t('SETTINGS_PASSWORD_TOO_SHORT')); return; }
+    if (!passwordMeetsPolicy(pwNew)) { setPwError(t('LOGIN_PASSWORD_POLICY_ERROR')); return; }
     const sb = getSupabase();
     if (!sb) return;
     setPwLoading(true);
@@ -251,21 +253,17 @@ export default function SettingsPage() {
         <div className="st-field">
           <div className="st-field-label">{t('SETTINGS_PASSWORD_LABEL')}</div>
           <div className="st-desc">{t('SETTINGS_PASSWORD_DESC')}</div>
-          <input
-            type="password"
-            className="login-email-input"
-            placeholder={t('LOGIN_PASSWORD_NEW_PLACEHOLDER')}
+          <PasswordField
+            label={t('LOGIN_PASSWORD_NEW_PLACEHOLDER')}
             value={pwNew}
-            onChange={e => setPwNew(e.target.value)}
+            onChange={setPwNew}
             autoComplete="new-password"
           />
-          <input
-            type="password"
-            className="login-email-input"
-            placeholder={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
+          <PasswordField
+            label={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
             value={pwConfirm}
-            onChange={e => setPwConfirm(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && savePassword()}
+            onChange={setPwConfirm}
+            onEnter={savePassword}
             autoComplete="new-password"
             style={{ marginTop: 8 }}
           />
