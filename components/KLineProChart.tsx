@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
 import { BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, CoinId, useMarket, computeSqueezeScore } from '@/lib/marketStore';
+import { bybitSymbolPriceFactor } from '@/lib/coins';
 import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
@@ -996,9 +997,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               const d  = await r.json() as { result?: { list?: string[][] } };
               if (stale()) return; // superseded by a newer switch - drop it
               const list = [...(d?.result?.list ?? [])].reverse();
+              // 1000PEPEUSDT / 1000BONKUSDT quote per 1000 tokens, but this
+              // chart is labelled PEPE/USDT and the ticker beside it shows the
+              // per-token price. Without this the axis, the S/R lines and the
+              // structure markers were all 1000x the number everywhere else.
+              const pf = bybitSymbolPriceFactor(bybitSym);
               const bars = list.map(k => ({
-                timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
-                low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
+                timestamp: Number(k[0]), open: Number(k[1]) * pf, high: Number(k[2]) * pf,
+                low: Number(k[3]) * pf, close: Number(k[4]) * pf, volume: Number(k[5]),
               }));
               if (bars.length) {
                 lastCloseRef.current = bars[bars.length - 1].close;
@@ -1047,8 +1053,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 const d = await r.json() as { result?: { list?: string[][] } };
                 const k = d?.result?.list?.[0];
                 if (k) {
-                  lastCloseRef.current = Number(k[4]);
-                  callback({ timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]), low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]) });
+                  // Same 1000x conversion as the history load above - without it
+                  // the live bar jumps to a different scale than the candles it
+                  // is appended to.
+                  const pf = bybitSymbolPriceFactor(bybitSym);
+                  lastCloseRef.current = Number(k[4]) * pf;
+                  callback({
+                    timestamp: Number(k[0]), open: Number(k[1]) * pf, high: Number(k[2]) * pf,
+                    low: Number(k[3]) * pf, close: Number(k[4]) * pf, volume: Number(k[5]),
+                  });
                 }
               } catch { /* silent */ }
             }, 5000);

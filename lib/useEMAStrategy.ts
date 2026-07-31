@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from './marketStore';
+import { bybitSymbolPriceFactor } from './coins';
 import {
   emaArr, smaArr, volMA, atrArr, detectEMASignals,
   choppinessIndexArr, chopRegimeFor, ChopRegime,
@@ -94,8 +95,14 @@ async function fetchBybitKlines(sym: string, interval: string, limit: number): P
   if (!r.ok) throw new Error(`Bybit klines ${r.status}`);
   const d = await r.json() as { result?: { list?: string[][] } };
   const list = [...(d?.result?.list ?? [])].reverse();
+  // 1000PEPEUSDT / 1000BONKUSDT are quoted per 1000 tokens. This feeds the
+  // Arena EMA Signal card's entry / stop-loss / take-profit, which are shown as
+  // dollar prices next to a ticker quoting per-token - so without this those
+  // three numbers were 1000x on exactly two coins. Volume left alone: it is
+  // only ever compared against its own moving average.
+  const pf = bybitSymbolPriceFactor(sym);
   return list.map(k => ({
-    time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5],
+    time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5],
   }));
 }
 

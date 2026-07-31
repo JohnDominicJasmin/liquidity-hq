@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
+import { bybitSymbolPriceFactor } from '@/lib/coins';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
@@ -132,9 +133,13 @@ export default function MarketStructure({ coin, onData }: Props) {
       } else if (bytSym) {
         const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bytSym}&interval=240&limit=100`);
         if (!r.ok) throw new Error('Bybit 4H fetch failed');
+        // Per-1000 quoting on 1000PEPEUSDT / 1000BONKUSDT. This card prints the
+        // broken level and both swing levels as dollar prices, so without the
+        // factor they read 1000x against the ticker right above them.
+        const pf = bybitSymbolPriceFactor(bytSym);
         const raw = await r.json() as { result?: { list?: string[][] } };
         candles = [...(raw?.result?.list ?? [])].reverse().map(k => ({
-          t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5],
+          t: +k[0], o: +k[1] * pf, h: +k[2] * pf, l: +k[3] * pf, c: +k[4] * pf, v: +k[5],
         }));
       } else {
         throw new Error('No data source for ' + coin);
