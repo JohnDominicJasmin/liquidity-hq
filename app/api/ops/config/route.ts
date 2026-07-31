@@ -29,7 +29,15 @@ export const GET = withOwner(async () => {
   return NextResponse.json({
     maintenance_mode: byKey.maintenance_mode ?? { enabled: false },
     announcement_banner: byKey.announcement_banner ?? { text: '', link: null, expiresAt: null },
-    feature_flags: byKey.feature_flags ?? { grok: true, telegram: true },
+    // Merged rather than substituted: the stored row predates newer flags, so
+    // `?? defaults` only helped when the row was missing entirely and left any
+    // flag added later undefined in the UI. Defaults mirror lib/featureFlags.ts
+    // exactly - the pre-existing kill switches default ON, structure_alerts
+    // defaults OFF because it turns a feature on rather than killing one.
+    feature_flags: {
+      grok: true, telegram: true, signups: true, structure_alerts: false,
+      ...(byKey.feature_flags ?? {}),
+    },
     banner_history: (historyRes.data ?? []).map(r => ({
       value: r.detail?.value ?? {},
       actor_email: r.actor_email,

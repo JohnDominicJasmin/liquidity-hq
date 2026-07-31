@@ -1580,6 +1580,14 @@ async function checkStructureSignal(
   tf: StructureTF,
 ): Promise<string[]> {
   const fired: string[] = [];
+  // Opt-in at the system level, defaulting OFF (lib/featureFlags.ts). The
+  // per-recipient mute path below still applies once enabled, but it cannot be
+  // the default mechanism: absence of a mute row means "never configured", not
+  // "wants this", and the /alerts bootstrap that was supposed to write those
+  // rows only runs when a human opens the page. The cron does not wait for
+  // that, so on first deploy it delivered to every connected chat. Enable in
+  // /ops/config when you actually want these going out.
+  if (!(await isFeatureEnabled('structure_alerts'))) return fired;
   const ruleKey = `structure_${tf}`;
   const tfLabel = tf.toUpperCase();
 
