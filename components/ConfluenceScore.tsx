@@ -37,7 +37,10 @@ export default function ConfluenceScore(
 
   if (!d?.price) return null;
 
-  const of = scoreBias(d);
+  // RSI excluded here: the Multi-TF RSI factor below is built from the same
+  // three values, so counting them inside order flow too voted the same
+  // evidence twice. See scoreBias in StopLossZone.
+  const of = scoreBias(d, { includeRsi: false });
   // Computed for alts only - majors get a null direction so the factor below
   // drops out entirely rather than voting neutral on a question that does not
   // apply to them.
