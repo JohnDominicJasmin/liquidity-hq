@@ -204,15 +204,31 @@ the whole argument for measuring from where the code actually runs. Left in
 place deliberately (see the comment in `lib/newsFeeds.ts`); it is now visibly
 Down rather than silently empty.
 
-**Still to instrument (phase 2)** - currently only the news and econ ingest
-report. Everything below still fails silently:
+**Telegram delivery instrumented 2026-07-31** (`telegram:sendMessage`). This
+one turned out to be a bug, not just a gap: `tg()` was a bare `Promise.all`
+inside `catch {}` that never inspected the response, so every failure Telegram
+reports as a *resolved* non-2xx - bot blocked, chat not found, unparseable HTML
+in the body - was indistinguishable from a delivered message. Now checks
+`res.ok`, keeps Telegram's own `description` as the reason, and emits one
+`[alert] fired=... sent=... failed=...` log line per run (the route previously
+had no logging at all). Partial delivery counts as a failure; nothing is
+recorded on a run that attempted no sends, so a quiet tick cannot mark the
+source healthy. Verified against real traffic: log `sent=1 failed=0` and the
+health row `"1 sent"` agree to the second.
+
+**Still to instrument (phase 2)** - everything below still fails silently:
 - `/api/proxy` (Coinglass, ETF, Google Trends), `/api/cmc`, `/api/macro`,
   `/api/funding`, `/api/forex/jpy`, `/api/coinbase-price`
 - xAI/Grok calls (`lib/aiUsage.ts` is the funnel every AI route already passes
   through - the natural hook, same trick as the ingest crons)
-- Telegram and Brevo delivery, Binance/Bybit price feeds
+- Brevo delivery, Web Push delivery, Binance/Bybit price feeds
 Each needs the same treatment: decide what "usable data" means for that payload,
 then call `recordApiHealth`. Do not reach for HTTP status - see the note below.
+
+Web Push is the awkward one: `dispatchPush` is deliberately `void`-ed so it
+never blocks the response, so a health write inside it may not finish before the
+process is frozen. It needs either an await or its own write point, not a copy
+of the Telegram tally.
 
 **Alerting is not built.** The card must be opened to be seen. A source sitting
 at `consecutive_failures >= 3` for hours currently notifies nobody; the obvious
@@ -256,9 +272,30 @@ Design decisions, all now implemented in phase 1 — keep them when extending:
   measures is worse than none.
 - `docs/feature-inventory.md` has the full dependency list for phase 2.
 
+### "Check now" button on `/alerts` is dead in prod — needs a decision (2026-07-31)
+
+Verified from a live signed-in session: `GET /api/telegram/alert` returns
+**401**. The route is gated by `checkCronAuth`, and a browser has no cron
+secret, so the button can never succeed - it always lands in its failure state.
+
+Fallout from making the cron routes fail-closed (`7cfbb18`). Before `CRON_SECRET`
+existed the endpoint was open and the button worked; once the secret was set and
+the gate closed, it broke silently, because a failed button just looks like a
+failed check.
+
+Do NOT fix this by loosening the cron gate - that re-opens an endpoint which can
+burn the AI budget and message every connected chat on demand, which is exactly
+what `7cfbb18` closed. The fix is a separate user-authenticated path: verify the
+Supabase JWT, Pro-gate it, rate-limit per user, and most likely run detection
+*without* sending, so the button answers "what would fire right now" rather than
+spraying real alerts. Not built - it has a real security surface and needs a
+deliberate call.
+
 ## ❓ OPEN — YOUR action (can't do from code)
 
-Nothing outstanding right now.
+- **Ship `dev` to prod** when ready. `dev` is ahead by the Arena Market
+  Structure dedupe and the inventory-doc correction; prod is on `a813a55`.
+  Nothing in that gap is urgent - both are correctness/consistency, not outage.
 
 ## 🔭 DEFERRED — tied to unfinished payment feature
 
