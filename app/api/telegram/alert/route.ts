@@ -1590,27 +1590,29 @@ const STRUCTURE_MAX_AGE_BARS = 3;
 
 const structureLastTs = new Map<string, number>();
 
-// Deliberately does NOT take fullyMutedTfs. That set means "no user has this
-// EMA timeframe switched on", and reusing it here would couple two unrelated
-// systems: muting the EMA 1h alert would silently also kill 1h structure
-// alerts. Per-recipient muting still works, through the normal ruleKey path
-// (entryMuteKeys), so a user can mute structure_1h without touching the EMA
-// rule. The cost is 2 extra timeframe fetches per run, which is why this is
-// limited to 1h and 4h rather than every timeframe the chart offers.
+// Still deliberately does NOT take fullyMutedTfs. That set means "no user has
+// this EMA timeframe switched on", and reusing it here would couple two
+// unrelated systems: muting the EMA 1h alert would silently also kill 1h
+// structure alerts. unusedTfs is the structure-specific equivalent, computed
+// from the structure keys alone - see where it is built in the main handler.
 async function checkStructureSignal(
   stamp: string,
   queue: SignalEntry[],
   tf: StructureTF,
+  unusedTfs: Set<string>,
 ): Promise<string[]> {
   const fired: string[] = [];
   // Opt-in at the system level, defaulting OFF (lib/featureFlags.ts). The
-  // per-recipient mute path below still applies once enabled, but it cannot be
-  // the default mechanism: absence of a mute row means "never configured", not
-  // "wants this", and the /alerts bootstrap that was supposed to write those
-  // rows only runs when a human opens the page. The cron does not wait for
-  // that, so on first deploy it delivered to every connected chat. Enable in
-  // /ops/config when you actually want these going out.
+  // per-recipient opt-in below is the other half: this flag decides whether the
+  // feature runs at all, structure_on_<tf> rows decide who hears about it.
+  // Both default to silence, which is the point - the original bug was a
+  // default that only applied to users who opened the /alerts page, while the
+  // cron ran regardless and delivered to every connected chat.
   if (!(await isFeatureEnabled('structure_alerts'))) return fired;
+  // Nobody has this timeframe switched on, so every candle fetch below would be
+  // discarded at the delivery filter. Cheapest possible skip, same shape as
+  // fullyMutedTfs for the EMA rule.
+  if (unusedTfs.has(tf)) return fired;
   const ruleKey = `structure_${tf}`;
   const tfLabel = tf.toUpperCase();
 
@@ -1850,6 +1852,18 @@ async function runAlerts(token: string): Promise<NextResponse> {
     EMA_SIGNAL_TFS.filter(tf => recipients.every(r => mutedByUser.get(r.userId)?.has(`ema_signal_${tf}`))),
   );
 
+  // Structure's equivalent, and a stronger check than the two above rather than
+  // a copy of them. Those scan `recipients` (Telegram only), so a Web Push
+  // subscriber who is not also a Telegram recipient does not keep a timeframe
+  // alive. Structure keys are opt-IN, so the question has an exact answer with
+  // no recipient list at all: if NOT ONE user row anywhere holds
+  // structure_on_<tf>, then nobody on any channel can receive that timeframe
+  // and the per-coin candle fetch is pure waste. mutedByUser covers every user
+  // with any preference row, not just this run's recipients.
+  const unusedStructureTfs = new Set<string>(
+    STRUCTURE_TFS.filter(tf => ![...mutedByUser.values()].some(keys => isStructureEnabled(keys, tf))),
+  );
+
   // Per-request signal queue - all coin checks push here, flushed after.
   // Every check now runs unconditionally (compute is shared/unavoidable
   // regardless of who's muted what) - the old top-level skip() gate used to
@@ -1872,7 +1886,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     checkSqueezeAlerts(stamp, frMap, lsMap, prices, signalQueue, recipients, thresholdsByUser),
     checkDistribution(stamp, frMap, signalQueue, fullyMutedCoins),
     ...EMA_SIGNAL_TFS.map(tf => checkEMASignal(stamp, signalQueue, fullyMutedTfs, tf)),
-    ...STRUCTURE_TFS.map(tf => checkStructureSignal(stamp, signalQueue, tf)),
+    ...STRUCTURE_TFS.map(tf => checkStructureSignal(stamp, signalQueue, tf, unusedStructureTfs)),
   ]);
 
   // Persist dedup state so the NEXT process (post-restart or post-deploy)

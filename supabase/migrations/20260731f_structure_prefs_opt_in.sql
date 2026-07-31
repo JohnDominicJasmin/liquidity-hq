@@ -26,8 +26,24 @@
 --
 -- Idempotent: the insert is guarded by NOT EXISTS on the target key, and the
 -- delete is a no-op once the legacy rows are gone.
+--
+-- ORDERING - the two phases are NOT interchangeable, run phase 1 first.
+--
+--   Phase 1 (insert) is safe against BOTH code versions. Old code has never
+--   heard of `structure_on_*`, so the new rows are inert until the deploy
+--   lands; new code reads them as the enable.
+--
+--   Phase 2 (delete) is safe only AFTER the new code is live. Under old code a
+--   missing `structure_4h` row means UNMUTED - dropping it early would start
+--   sending exactly the 4H alerts the row exists to suppress. Phase 1 does not
+--   protect against this: old code ignores `structure_on_4h` entirely, so the
+--   legacy mute is the only thing holding 4H shut until the deploy.
+--
+-- Leaving phase 2 unrun indefinitely is harmless. Under new code a legacy
+-- `structure_<tf>` row still blocks through entryMuteKeys, so it agrees with
+-- the absent `structure_on_<tf>`; it is only redundant, not wrong.
 
--- ── PROD (qdpwhnvmhqgzijuwopso) ──────────────────────────────────────────────
+-- ── PHASE 1 - PROD (qdpwhnvmhqgzijuwopso). Run any time. ─────────────────────
 insert into lhq_muted_alerts (user_id, key)
 select u.user_id, 'structure_on_' || tf.tf
 from (
@@ -44,9 +60,10 @@ and not exists (
   where m.user_id = u.user_id and m.key = 'structure_on_' || tf.tf
 );
 
-delete from lhq_muted_alerts where key in ('structure_1h', 'structure_4h');
+-- ── PHASE 2 - PROD. Run ONLY after the new code is live on prod. ────────────
+-- delete from lhq_muted_alerts where key in ('structure_1h', 'structure_4h');
 
--- ── DEV (wdtjhrilakoitfcezxpx) ───────────────────────────────────────────────
+-- ── DEV (wdtjhrilakoitfcezxpx) - both phases, dev already runs the new code ──
 -- insert into lhq_dev_muted_alerts (user_id, key)
 -- select u.user_id, 'structure_on_' || tf.tf
 -- from (
