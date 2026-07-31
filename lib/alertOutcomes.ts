@@ -20,6 +20,13 @@ export interface FireForOutcome {
   dir: 'long' | 'short';
   label: string;
   price: number;
+  /* How much agreement existed for this coin in the same scan - see the
+     migration 20260801a comment for why this rather than the Arena Confluence
+     Score (which the cron cannot compute: its Order Flow factor needs data that
+     only reaches the browser). Optional so a caller that does not know can omit
+     them and the row records null rather than a misleading 1/0. */
+  agreeCount?: number;
+  agreeNet?: number;
 }
 
 export function isOutcomeTracked(ruleKey: string, dir: 'long' | 'short' | undefined, price: number | undefined): dir is 'long' | 'short' {
@@ -79,6 +86,8 @@ export async function persistAlertFires(fires: FireForOutcome[]): Promise<void> 
     await admin.from(T.alert_fires).insert(
       toInsert.map(f => ({
         rule_key: f.ruleKey, coin: f.coin, dir: f.dir, label: f.label, price_at_fire: f.price,
+        agree_count: f.agreeCount ?? null,
+        agree_net:   f.agreeNet   ?? null,
       }))
     );
   } catch { /* best-effort */ }

@@ -1960,9 +1960,41 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // regardless of what any individual user has tuned their own alerts to.
   // Entry types with no per-user threshold (ema_cross, distribution, whales)
   // never set canonicalHit, so it's undefined there and always passes.
+  // Agreement snapshot, recorded alongside each fire so "does confluence
+  // predict anything" is answerable later. It is measured over the WHOLE queue,
+  // not just the outcome-tracked subset: a structure break or a whale print
+  // agreeing with an EMA cross is real corroboration even though neither is
+  // itself outcome-tracked. Counting only the tracked ones would understate
+  // agreement precisely on the coins where most was happening.
+  //
+  // Distinct rule keys, so the same rule firing on several timeframes counts
+  // once - otherwise "confluence" would mostly measure how many timeframes a
+  // single indicator was switched on for.
+  //
+  // Deliberately NOT the Arena Confluence Score: that is computed in the
+  // browser and its Order Flow factor needs OI trend, CVD, taker ratio, POC and
+  // VWAP, none of which the cron holds. See migration 20260801a.
+  const agreementByCoin = new Map<string, { rules: Set<string>; net: number }>();
+  for (const e of signalQueue) {
+    if (!e.dir) continue;
+    const a = agreementByCoin.get(e.coin) ?? { rules: new Set<string>(), net: 0 };
+    if (!a.rules.has(e.ruleKey)) {
+      a.rules.add(e.ruleKey);
+      a.net += e.dir === 'long' ? 1 : -1;
+    }
+    agreementByCoin.set(e.coin, a);
+  }
+
   const outcomeFires = signalQueue
     .filter(e => isOutcomeTracked(e.ruleKey, e.dir, e.price) && e.canonicalHit !== false)
-    .map(e => ({ ruleKey: e.ruleKey, coin: e.coin, dir: e.dir as 'long' | 'short', label: e.name, price: e.price! }));
+    .map(e => {
+      const a = agreementByCoin.get(e.coin);
+      return {
+        ruleKey: e.ruleKey, coin: e.coin, dir: e.dir as 'long' | 'short', label: e.name, price: e.price!,
+        agreeCount: a?.rules.size,
+        agreeNet: a?.net,
+      };
+    });
   await persistAlertFires(outcomeFires);
 
   // ── Delivery observability ────────────────────────────────────────────────
