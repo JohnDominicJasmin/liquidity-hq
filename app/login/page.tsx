@@ -256,17 +256,22 @@ function LoginInner() {
 
               {/* ── Email magic link ── */}
               <div className="login-email-wrap">
-                <input
-                  type="email"
-                  className="login-email-input"
-                  placeholder={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
-                  aria-label={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && sendMagicLink()}
-                  autoComplete="email"
-                  autoFocus
-                />
+                <div className="login-field">
+                  <label className="login-field-label" htmlFor="magic-email">
+                    {t('LOGIN_FIELD_LABEL_EMAIL')}
+                  </label>
+                  <input
+                    id="magic-email"
+                    type="email"
+                    className="login-email-input"
+                    placeholder={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && sendMagicLink()}
+                    autoComplete="email"
+                    autoFocus
+                  />
+                </div>
                 <button
                   className="login-email-btn"
                   onClick={sendMagicLink}
@@ -334,21 +339,23 @@ function LoginInner() {
               </div>
 
               <div className="login-email-wrap">
-                {/* aria-label because every field here is placeholder-only: the
-                    placeholder is the accessible name until the user types, and
-                    then there is no name at all. */}
-                <input
-                  type="email"
-                  className="login-email-input"
-                  placeholder={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
-                  aria-label={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
-                  value={pwEmail}
-                  onChange={e => setPwEmail(e.target.value)}
-                  autoComplete="email"
-                  autoFocus
-                />
+                <div className="login-field">
+                  <label className="login-field-label" htmlFor="pw-email">
+                    {t('LOGIN_FIELD_LABEL_EMAIL')}
+                  </label>
+                  <input
+                    id="pw-email"
+                    type="email"
+                    className="login-email-input"
+                    placeholder={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
+                    value={pwEmail}
+                    onChange={e => setPwEmail(e.target.value)}
+                    autoComplete="email"
+                    autoFocus
+                  />
+                </div>
                 <PasswordField
-                  placeholder={pwMode === 'signup' ? t('LOGIN_PASSWORD_NEW_PLACEHOLDER') : t('LOGIN_PASSWORD_PLACEHOLDER')}
+                  label={pwMode === 'signup' ? t('LOGIN_PASSWORD_NEW_PLACEHOLDER') : t('LOGIN_PASSWORD_PLACEHOLDER')}
                   value={password}
                   onChange={setPassword}
                   onEnter={() => { if (pwMode === 'signin') submitPassword(); }}
@@ -374,7 +381,7 @@ function LoginInner() {
                       </div>
                     )}
                     <PasswordField
-                      placeholder={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
+                      label={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
                       value={confirmPassword}
                       onChange={setConfirmPassword}
                       onEnter={submitPassword}

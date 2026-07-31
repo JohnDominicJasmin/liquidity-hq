@@ -109,13 +109,13 @@ export default function ResetPasswordPage() {
           <>
             <div className="login-email-wrap">
               <PasswordField
-                placeholder={t('LOGIN_PASSWORD_NEW_PLACEHOLDER')}
+                label={t('LOGIN_PASSWORD_NEW_PLACEHOLDER')}
                 value={password}
                 onChange={setPassword}
                 autoComplete="new-password"
               />
               <PasswordField
-                placeholder={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
+                label={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
                 value={confirmPassword}
                 onChange={setConfirmPassword}
                 onEnter={submit}

@@ -254,13 +254,13 @@ export default function SettingsPage() {
           <div className="st-field-label">{t('SETTINGS_PASSWORD_LABEL')}</div>
           <div className="st-desc">{t('SETTINGS_PASSWORD_DESC')}</div>
           <PasswordField
-            placeholder={t('LOGIN_PASSWORD_NEW_PLACEHOLDER')}
+            label={t('LOGIN_PASSWORD_NEW_PLACEHOLDER')}
             value={pwNew}
             onChange={setPwNew}
             autoComplete="new-password"
           />
           <PasswordField
-            placeholder={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
+            label={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
             value={pwConfirm}
             onChange={setPwConfirm}
             onEnter={savePassword}
