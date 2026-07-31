@@ -13,6 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { xaiFetch } from '@/lib/xai';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { getUsageTier } from '@/lib/entitlements';
@@ -135,7 +136,7 @@ export async function POST(req: NextRequest) {
 
     if (isSearch) {
       // Only `input` comes from the caller - model and tools are pinned above.
-      const r = await fetch('https://api.x.ai/v1/responses', {
+      const r = await xaiFetch('https://api.x.ai/v1/responses', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
         body:    JSON.stringify({ model: MODEL, input: payload.input, tools: ALLOWED_SEARCH_TOOLS }),
@@ -150,7 +151,7 @@ export async function POST(req: NextRequest) {
       const maxTokens = Number.isFinite(requestedTokens) && requestedTokens > 0
         ? Math.min(requestedTokens, MAX_TOKENS_CEILING)
         : MAX_TOKENS_CEILING;
-      const r = await fetch('https://api.x.ai/v1/chat/completions', {
+      const r = await xaiFetch('https://api.x.ai/v1/chat/completions', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
         body:    JSON.stringify({ model: MODEL, messages: payload.messages, max_tokens: maxTokens }),

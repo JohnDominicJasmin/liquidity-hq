@@ -56,3 +56,78 @@ export async function recordApiHealth(reports: HealthReport[]): Promise<void> {
     console.error('[apiHealth] write threw:', healthError(e));
   }
 }
+
+/* ── Per-request sources ──────────────────────────────────────────────────
+   The ingest crons call recordApiHealth directly: they run once a minute, so
+   one write per source per run costs nothing. The routes below are different -
+   they are hit on page loads, potentially many times a second, and a DB write
+   per request would cost more than the signal is worth.
+
+   So writes are coalesced per source. A state CHANGE is always written
+   immediately, because the ok->down and down->ok transitions are the whole
+   point; a repeat of the same state waits out MIN_WRITE_INTERVAL_MS. Worst
+   case a source is one interval stale, which the card's own staleness rule
+   already accounts for.
+
+   In-memory, so per-process - the same single-long-lived-process assumption
+   lib/rateLimit.ts documents. If this service is ever scaled to multiple
+   instances the only consequence is more writes, not wrong ones. */
+const MIN_WRITE_INTERVAL_MS = 30_000;
+const lastWrite = new Map<string, { at: number; ok: boolean }>();
+
+function shouldWrite(source: string, ok: boolean): boolean {
+  const prev = lastWrite.get(source);
+  const now = Date.now();
+  if (!prev || prev.ok !== ok || now - prev.at >= MIN_WRITE_INTERVAL_MS) {
+    lastWrite.set(source, { at: now, ok });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Wraps a per-request upstream call. Returns whatever fn returns and rethrows
+ * whatever it throws, so existing error handling at the call site is unchanged
+ * and this can be dropped in without altering behaviour.
+ *
+ * Health is SEMANTIC (see the note at the top of this file), and the caller
+ * decides: throwing means unusable, and `describe` can mark a value that came
+ * back structurally fine but empty as a failure - which is the case that plain
+ * uptime checks miss.
+ *
+ * The write is deliberately not awaited. Render runs this app as a normal
+ * long-lived Node process, so a floating promise still completes after the
+ * response is sent; awaiting would put a Supabase round trip in front of every
+ * user-facing response to measure something nobody is waiting for.
+ */
+export async function trackHealth<T>(
+  source: string,
+  category: HealthCategory,
+  fn: () => Promise<T>,
+  describe?: (value: T) => { ok?: boolean; detail?: string; items?: number },
+): Promise<T> {
+  try {
+    const value = await fn();
+    const d = describe?.(value) ?? {};
+    const ok = d.ok ?? true;
+    if (shouldWrite(source, ok)) {
+      void recordApiHealth([{ source, category, ok, detail: d.detail, items: d.items }]);
+    }
+    return value;
+  } catch (e) {
+    if (shouldWrite(source, false)) {
+      void recordApiHealth([{ source, category, ok: false, detail: healthError(e) }]);
+    }
+    throw e;
+  }
+}
+
+/** For call sites that swallow failures into a null/empty result instead of
+ *  throwing - report the outcome without pretending to wrap control flow. */
+export function reportHealth(
+  source: string, category: HealthCategory, ok: boolean, detail?: string, items?: number,
+): void {
+  if (shouldWrite(source, ok)) {
+    void recordApiHealth([{ source, category, ok, detail, items }]);
+  }
+}

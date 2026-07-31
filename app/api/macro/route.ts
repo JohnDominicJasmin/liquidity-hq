@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
+import { reportHealth, healthError } from '@/lib/apiHealth';
 
 // Yahoo Finance v8 works fine server-to-server (no CORS restriction from a server).
 // It only blocks browser requests via proxies (proxy IPs get 401).
@@ -31,9 +32,16 @@ function extract(json: unknown): { price: number; chg: number } | null {
   } catch { return null; }
 }
 
-async function yf(sym: string) {
+// Health is reported per symbol, and this route is the reason that matters.
+// A failing symbol returns null and the response still goes out as a 200 with
+// `{ dxy: null }` in it - so Yahoo blocking one series looks identical to a
+// quiet market, and the card on the dashboard just renders a dash. Global
+// Macro Context has already failed persistently once and was only noticed
+// because a user said something.
+async function yf(sym: string, label: string) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
+  const source = `yahoo:${label}`;
   try {
     const res = await fetch(`${YF_BASE}/${sym}?interval=1d&range=2d`, {
       next: { revalidate: 60 },
@@ -44,9 +52,22 @@ async function yf(sym: string) {
       },
     });
     clearTimeout(timer);
-    if (!res.ok) return null;
-    return extract(await res.json());
-  } catch { clearTimeout(timer); return null; }
+    if (!res.ok) {
+      reportHealth(source, 'macro', false, `HTTP ${res.status}`);
+      return null;
+    }
+    const parsed = extract(await res.json());
+    // A 200 whose payload has no usable price is a failure here: extract()
+    // returns null for a missing or non-positive price, which is precisely the
+    // "responded fine, told us nothing" case.
+    reportHealth(source, 'macro', parsed != null,
+      parsed ? `${parsed.price}` : 'no price in payload');
+    return parsed;
+  } catch (e) {
+    clearTimeout(timer);
+    reportHealth(source, 'macro', false, healthError(e));
+    return null;
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -59,11 +80,11 @@ export async function GET(req: NextRequest) {
   }
 
   const [oil, dxy, spx, gold, jpy] = await Promise.all([
-    yf('CL%3DF'),      // WTI Crude Oil
-    yf('DX-Y.NYB'),    // DXY (US Dollar Index)
-    yf('%5EGSPC'),     // S&P 500
-    yf('GC%3DF'),      // Gold futures
-    yf('JPY%3DX'),     // USD/JPY - yen carry-trade direction (day change %)
+    yf('CL%3DF',   'oil'),   // WTI Crude Oil
+    yf('DX-Y.NYB', 'dxy'),   // DXY (US Dollar Index)
+    yf('%5EGSPC',  'spx'),   // S&P 500
+    yf('GC%3DF',   'gold'),  // Gold futures
+    yf('JPY%3DX',  'jpy'),   // USD/JPY - yen carry-trade direction (day change %)
   ]);
 
   return NextResponse.json(

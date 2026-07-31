@@ -272,30 +272,43 @@ Design decisions, all now implemented in phase 1 — keep them when extending:
   measures is worse than none.
 - `docs/feature-inventory.md` has the full dependency list for phase 2.
 
-### "Check now" button on `/alerts` is dead in prod — needs a decision (2026-07-31)
+### "Check now" button on `/alerts` — FIXED and live in prod (2026-07-31)
 
-Verified from a live signed-in session: `GET /api/telegram/alert` returns
-**401**. The route is gated by `checkCronAuth`, and a browser has no cron
-secret, so the button can never succeed - it always lands in its failure state.
+Was returning **401 on every press** since the cron routes were made fail-closed
+(`7cfbb18`): it called `GET /api/telegram/alert` directly, and a browser has no
+cron secret. Nobody noticed because a broken button just looks like a failed
+check.
 
-Fallout from making the cron routes fail-closed (`7cfbb18`). Before `CRON_SECRET`
-existed the endpoint was open and the button worked; once the secret was set and
-the gate closed, it broke silently, because a failed button just looks like a
-failed check.
+Fixed with a separate read-only route, `app/api/alerts/preview` - NOT by
+loosening the cron gate, which would re-open an endpoint that can burn AI budget
+and message every connected chat on demand. Reads the caller's Supabase JWT,
+answers for that user only, Pro-gated, 4/min per user. Sends nothing and mutates
+nothing; there is no send path in the file and it does not import the alert
+route, so it cannot reach `tg()` or the dedup maps.
 
-Do NOT fix this by loosening the cron gate - that re-opens an endpoint which can
-burn the AI budget and message every connected chat on demand, which is exactly
-what `7cfbb18` closed. The fix is a separate user-authenticated path: verify the
-Supabase JWT, Pro-gate it, rate-limit per user, and most likely run detection
-*without* sending, so the button answers "what would fire right now" rather than
-spraying real alerts. Not built - it has a real security surface and needs a
-deliberate call.
+The dedup point is the one worth remembering: those maps are what stop an
+already-announced signal firing again, so a preview that consumed a slot would
+SUPPRESS the real alert that followed and the user would silently never get it.
+Any future "preview"/"test" surface must keep that property.
+
+Scope is the EMA rule + market-structure breaks (the two with per-coin/timeframe
+settings on that page, both pure functions over candles). The UI carries a scope
+line saying so - without it, "No conditions active right now" reads as a claim
+about every alert type. Verified in prod with a real Pro session: returns only
+the user's own coins and enabled timeframes.
+
+**Watch as usage grows:** each press fans out to (coins x timeframes) kline
+fetches - up to ~50 at the page's own caps - and the limiter is the in-memory
+one in `lib/rateLimit.ts`, which assumes Render's single long-lived process. Two
+things break together if the service is ever scaled to multiple instances: the
+per-user limit becomes per-instance, and Binance/Bybit rate-limit exposure rises
+with it. Neither matters at one user; both need revisiting before real traffic.
 
 ## ❓ OPEN — YOUR action (can't do from code)
 
-- **Ship `dev` to prod** when ready. `dev` is ahead by the Arena Market
-  Structure dedupe and the inventory-doc correction; prod is on `a813a55`.
-  Nothing in that gap is urgent - both are correctness/consistency, not outage.
+Nothing outstanding. `dev` and `main` hold identical content (prod on
+`8249a85`); everything from the 2026-07-31 alerts work is shipped and verified
+in prod.
 
 ## 🔭 DEFERRED — tied to unfinished payment feature
 

@@ -678,83 +678,14 @@ export function buildQuickPrompt(ctx: GrokContext, chart: ChartData): string {
   return full;
 }
 
-/* ── Quick call - /v1/chat/completions, no search tools, ~$0.003 ── */
-export async function callGrokQuick(apiKey: string, prompt: string, tf: string, session: string): Promise<CombinedResult> {
-  const res = await fetch('https://api.x.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: 'grok-4.3',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 800,
-    }),
-  });
-  if (!res.ok) {
-    const errJson = await res.json().catch(() => ({}));
-    throw new Error(`Grok API error: ${res.status} - ${(errJson as { error?: string })?.error ?? res.statusText}`);
-  }
-  const data = await res.json();
-  const text: string = data.choices?.[0]?.message?.content ?? '';
-  return parseCombinedResponse(text, tf, session);
-}
+/* callGrokQuick / callGrokCombined / callGrok and their parseResponse helper
+   used to live here. All four were dead - nothing in the app has called them
+   since the AI routes moved to doing their own xAI requests, and each one held
+   its own copy of the request shape, so they were three more places to forget
+   when the API changed.
 
-export async function callGrokCombined(apiKey: string, prompt: string, tf: string, session: string): Promise<CombinedResult> {
-  const res = await fetch('https://api.x.ai/v1/responses', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: 'grok-4.3',
-      input: [{ role: 'user', content: prompt }],
-      tools: [{ type: 'web_search' }, { type: 'x_search' }],
-    }),
-  });
-  if (!res.ok) {
-    const errJson = await res.json().catch(() => ({}));
-    throw new Error(`Grok API error: ${res.status} - ${(errJson as {error?: string})?.error ?? res.statusText}`);
-  }
-  const data = await res.json();
-  const msgItem = data.output?.find((o: { type: string }) => o.type === 'message');
-  const text: string = msgItem?.content?.[0]?.text ?? '';
-  return parseCombinedResponse(text, tf, session);
-}
-
-export function parseResponse(text: string): GrokResult {
-  const result: GrokResult = { signal: 'FLAT', confidence: 0, entry: '-', reasoning: text };
-  const sigMatch    = text.match(/SIGNAL:\s*(LONG|SHORT|FLAT)/i);
-  const confMatch   = text.match(/CONFIDENCE:\s*(\d+)/i);
-  const entryMatch  = text.match(/ENTRY_ZONE:\s*([^\n]+)/i);
-  const reasonMatch = text.match(/REASONING:\s*([\s\S]+)/i);
-  if (sigMatch)    result.signal     = sigMatch[1].toUpperCase() as GrokResult['signal'];
-  if (confMatch)   result.confidence = parseInt(confMatch[1]);
-  if (entryMatch)  result.entry      = entryMatch[1].trim();
-  if (reasonMatch) result.reasoning  = reasonMatch[1].trim();
-  return result;
-}
-
-export async function callGrok(apiKey: string, prompt: string): Promise<GrokResult> {
-  // xAI Responses API - search_parameters deprecated, use tools array
-  const res = await fetch('https://api.x.ai/v1/responses', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'grok-4.3',
-      input: [{ role: 'user', content: prompt }],
-      tools: [
-        { type: 'web_search' },
-        { type: 'x_search' },
-      ],
-    }),
-  });
-  if (!res.ok) {
-    const errJson = await res.json().catch(() => ({}));
-    throw new Error(`Grok API error: ${res.status} - ${errJson?.error ?? res.statusText}`);
-  }
-  const data = await res.json();
-  // Response format: data.output[] - find the message item, grab first text content
-  const msgItem = data.output?.find((o: { type: string }) => o.type === 'message');
-  const text: string = msgItem?.content?.[0]?.text ?? '';
-  return parseResponse(text);
-}
+   Removing them also settles a boundary problem: this module is imported by
+   client components (Arena, KLineProChart, UsageRings, GrokUsageProvider), so
+   the xAI health hook could not live here - lib/apiHealth pulls in
+   supabase-admin, which must never reach a client bundle. The live call sites
+   are all server routes and now go through lib/xai.ts instead. */

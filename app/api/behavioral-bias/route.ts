@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { xaiFetch } from '@/lib/xai';
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import { incrementToolUsage, rateLimitMessage } from '@/lib/aiUsage';
@@ -162,7 +163,7 @@ export async function POST(req: NextRequest) {
 
   const prompt = buildBiasPrompt(trades as Record<string, unknown>[]);
 
-  const res = await fetch('https://api.x.ai/v1/chat/completions', {
+  const res = await xaiFetch('https://api.x.ai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
     body: JSON.stringify({

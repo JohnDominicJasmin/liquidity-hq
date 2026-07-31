@@ -2,12 +2,35 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
+import { reportHealth } from '@/lib/apiHealth';
 
 const CMC_KEY = process.env.CMC_API_KEY ?? '';
 const BASE    = 'https://pro-api.coinmarketcap.com';
 
 function cmcHeaders() {
   return { 'X-CMC_PRO_API_KEY': CMC_KEY, 'Accept': 'application/json' };
+}
+
+interface CmcBody { status?: { error_code?: number; error_message?: string }; data?: unknown[] }
+
+/* CMC reports its own failures INSIDE the body - quota exhausted, bad key,
+   plan does not include this endpoint - and this route has always passed that
+   body straight through as a 200 without checking either the HTTP status or
+   `status.error_code`. So an expired key looks to every caller like a normal
+   response that happens to contain nothing useful.
+   Health is read from the payload for exactly that reason. The pass-through
+   behaviour is deliberately left alone here (changing what this route returns
+   would ripple into every caller) - the point is that it stops being silent. */
+function reportCmc(source: string, res: Response, body: unknown, items?: number): void {
+  const status = (body as CmcBody)?.status;
+  const code = status?.error_code ?? 0;
+  const ok = res.ok && code === 0;
+  reportHealth(
+    source, 'market', ok,
+    ok ? (items != null ? `${items} items` : 'ok')
+       : status?.error_message ?? `HTTP ${res.status}`,
+    items,
+  );
 }
 
 function sb(token: string) {
@@ -58,6 +81,7 @@ export async function GET(req: NextRequest) {
       });
       clearTimeout(timer);
       const d = await r.json();
+      reportCmc('cmc:global-metrics', r, d);
       return NextResponse.json(d);
     }
 
@@ -71,6 +95,7 @@ export async function GET(req: NextRequest) {
         }
       );
       const d = await r.json();
+      reportCmc('cmc:listings', r, d, (d as CmcBody)?.data?.length);
       return NextResponse.json(d);
     }
 
