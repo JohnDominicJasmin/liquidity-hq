@@ -29,6 +29,7 @@ export default function PasswordField({
         type={shown ? 'text' : 'password'}
         className="login-email-input pw-field-input"
         placeholder={placeholder}
+        aria-label={placeholder}
         value={value}
         onChange={e => onChange(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter' && onEnter) onEnter(); }}

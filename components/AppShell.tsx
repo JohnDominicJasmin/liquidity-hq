@@ -9,6 +9,7 @@ import NewsTicker from './NewsTicker';
 import AuthProvider from './AuthProvider';
 import LabelsProvider from './LabelsProvider';
 import LanguageSync from './LanguageSync';
+import LanguageNavSwitcher from './LanguageNavSwitcher';
 import TimezoneSync from './TimezoneSync';
 import PostHogProvider from './PostHogProvider';
 import SettingsProvider from './SettingsProvider';
@@ -31,6 +32,19 @@ import { useAppConfig } from '@/lib/useAppConfig';
 // and analytics. Scoped to /ops only, so the /admin honeypot's 404 stays visually
 // identical to any other 404.
 const isChromeless = (pathname: string) => pathname === '/ops' || pathname.startsWith('/ops/');
+
+/* Auth screens get the same treatment, for a different reason. /login used to
+   render inside the full consumer shell, so a signed-OUT stranger arriving at
+   the sign-in page was handed the nav drawer, the scrolling news ticker, the
+   floating Ask-AI button and the coin rail - every one of which either bounces
+   them straight back to /login or shows "Sign in to use LiquidityAI". The one
+   task on the page was competing with a dozen dead controls, on the first
+   screen of the product.
+   Also drops MarketProvider/NewsProvider, which were opening market feeds and a
+   Realtime subscription for a page that renders a form. */
+const AUTH_ROUTES = ['/login', '/forgot-password', '/reset-password', '/auth/callback'];
+const isAuthRoute = (pathname: string) =>
+  AUTH_ROUTES.some(r => pathname === r || pathname.endsWith(r));
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -63,6 +77,32 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <PostHogProvider>
         <LabelsProvider>
           <MaintenanceScreen />
+        </LabelsProvider>
+      </PostHogProvider>
+    );
+  }
+
+  /* Deliberately AFTER the maintenance check, unlike /ops: the owner must always
+     be able to reach /ops to switch maintenance back off, but a normal user
+     hitting /login during maintenance should see the maintenance screen, not a
+     working sign-in form for an app that is down. */
+  if (isAuthRoute(pathname)) {
+    return (
+      <PostHogProvider>
+        <LabelsProvider>
+          <AuthProvider>
+            {/* SettingsProvider only reads auth + localStorage, no market feeds -
+                it is here because the language switcher and LanguageSync both
+                need it. Dropping the nav must not cost a non-English visitor the
+                only language control on the first screen they see. */}
+            <SettingsProvider>
+              <LanguageSync />
+              <div className="auth-shell">
+                <div className="auth-shell-lang"><LanguageNavSwitcher /></div>
+                {children}
+              </div>
+            </SettingsProvider>
+          </AuthProvider>
         </LabelsProvider>
       </PostHogProvider>
     );

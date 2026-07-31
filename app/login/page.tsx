@@ -260,9 +260,12 @@ function LoginInner() {
                   type="email"
                   className="login-email-input"
                   placeholder={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
+                  aria-label={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && sendMagicLink()}
+                  autoComplete="email"
+                  autoFocus
                 />
                 <button
                   className="login-email-btn"
@@ -331,13 +334,18 @@ function LoginInner() {
               </div>
 
               <div className="login-email-wrap">
+                {/* aria-label because every field here is placeholder-only: the
+                    placeholder is the accessible name until the user types, and
+                    then there is no name at all. */}
                 <input
                   type="email"
                   className="login-email-input"
                   placeholder={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
+                  aria-label={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
                   value={pwEmail}
                   onChange={e => setPwEmail(e.target.value)}
                   autoComplete="email"
+                  autoFocus
                 />
                 <PasswordField
                   placeholder={pwMode === 'signup' ? t('LOGIN_PASSWORD_NEW_PLACEHOLDER') : t('LOGIN_PASSWORD_PLACEHOLDER')}

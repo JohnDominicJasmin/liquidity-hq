@@ -3915,13 +3915,22 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   min-height: 72vh; padding: 20px; gap: 16px;
 }
+/* --bg1 is #06070a in dark - byte-identical to the page background, so the
+   card had no surface at all and read as a form floating in a void; only a
+   0.08 white hairline said "card". --bg3 is the first step that is actually
+   perceptible against the page while staying flat (no glow, no tinted border). */
 .login-card {
   width: 100%; max-width: 360px;
-  background: var(--bg1); border: 0.5px solid var(--bdr);
+  background: var(--bg3); border: 0.5px solid var(--bdr2);
   border-radius: 20px; padding: 36px 28px;
   box-shadow: var(--nm-raise);
   display: flex; flex-direction: column;
 }
+
+/* Auth screens render outside the app chrome (see components/AppShell.tsx), so
+   they own their own centring and the language control the nav used to carry. */
+.auth-shell { position: relative; min-height: 100dvh; }
+.auth-shell-lang { position: absolute; top: 16px; right: 16px; z-index: 2; }
 .login-logo {
   font-size: var(--fs-section); font-weight: 800; color: var(--txt);
   letter-spacing: -0.5px; margin-bottom: 5px;
@@ -4011,20 +4020,30 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 .login-success-title { font-size: var(--fs-card-title); font-weight: 700; color: var(--txt); }
 .login-success-desc { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.65; }
 .login-success-desc strong { color: var(--txt); }
+/* min-height matches .login-skip below - this was a 26px tap target, well under
+   the 44px minimum, on a control that is one of only two ways to change auth
+   method. align-self keeps the underline hugging the text rather than
+   stretching the full card width. */
 .login-back-btn {
   font-size: var(--fs-caption); color: var(--txt3); background: none; border: none; cursor: pointer;
-  font-family: inherit; padding: 4px; text-decoration: underline; text-underline-offset: 3px;
+  font-family: inherit; padding: 4px 8px; text-decoration: underline; text-underline-offset: 3px;
+  min-height: 44px; align-self: center;
 }
 .login-back-btn:hover { color: var(--txt2); }
 
 /* Password sign-in/sign-up tabs */
-.login-pw-tabs { display: flex; gap: 4px; padding: 3px; margin-bottom: 16px; background: var(--bg2); border-radius: 12px; }
+/* Segmented control. The track must sit BELOW the card and the selected pill
+   ABOVE it, or the control has no readable state - which is what happened when
+   the card was --bg1 and .on was also --bg1: the selected pill was the same
+   colour as the card behind it, so nothing but text colour marked the active
+   tab. Track --bg1, pill --bg4, card --bg3, in that order. */
+.login-pw-tabs { display: flex; gap: 4px; padding: 3px; margin-bottom: 16px; background: var(--bg1); border-radius: 12px; }
 .login-pw-tab {
   flex: 1; padding: 8px; border-radius: 9px; border: none; cursor: pointer;
   background: transparent; color: var(--txt3); font-size: var(--fs-label); font-weight: 600;
   font-family: inherit; transition: all 0.15s;
 }
-.login-pw-tab.on { background: var(--bg1); color: var(--txt); box-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+.login-pw-tab.on { background: var(--bg4); color: var(--txt); box-shadow: 0 1px 2px rgba(0,0,0,0.35); }
 .login-pw-tab:hover:not(.on) { color: var(--txt2); }
 
 /* Forgot-password link */
@@ -4055,6 +4074,12 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 
 /* Light theme overrides */
 [data-theme="light"] .login-card { background: var(--bg1); }
+/* The base rule above these is the DARK theme (this file's convention: :root is
+   dark, [data-theme="light"] overrides). Dark needs the track darker than the
+   card and the pill lighter; light needs the reverse - a recessed grey track
+   with a raised white pill - or the selected tab reads as the unselected one. */
+[data-theme="light"] .login-pw-tabs { background: var(--bg2); }
+[data-theme="light"] .login-pw-tab.on { background: var(--bg1); box-shadow: 0 1px 2px rgba(0,0,0,0.12); }
 [data-theme="light"] .login-google-btn {
   background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.14);
 }
