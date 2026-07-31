@@ -15,7 +15,7 @@ Defined in `render.yaml`. Two Render web services, same codebase:
 | `liquidity-hq` (production) | `main` | `prod` | `lhq_*` |
 | `liquidity-hq-dev` | `dev` | `dev` | `lhq_dev_*` |
 
-Both services share one Supabase project. Isolation comes from the table-name prefix, switched in one place: `lib/tables.ts` exports a `T` registry (`T.trades`, `T.user_subscriptions`, ...) that every query goes through. **Never hardcode a table name - always import `T`.**
+**Correction 2026-08-01:** this previously said both services share one Supabase project - wrong, corrected in `docs/INFRASTRUCTURE.md` §4 after direct confirmation with the owner. There are **two separate Supabase projects**: prod (`LiquidityHq`, ref `qdpwhnvmhqgzijuwopso`) uses unprefixed `lhq_*` tables, dev (`Automations`, ref `wdtjhrilakoitfcezxpx`) uses `lhq_dev_*`. Every migration is written to run against both. Isolation still comes from the table-name prefix either way, switched in one place: `lib/tables.ts` exports a `T` registry (`T.trades`, `T.user_subscriptions`, ...) that every query goes through. **Never hardcode a table name - always import `T`.**
 
 Workflow rule: all commits land on `dev` (auto-deploys to the dev service), `main` is release-only.
 

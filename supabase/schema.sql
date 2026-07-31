@@ -1,6 +1,11 @@
 -- Liquidity Hunter HQ - Supabase Schema
 -- Run this in your Supabase SQL Editor once.
 -- No auth: this is a private personal tool.
+--
+-- LEGACY / DEAD (confirmed 2026-08-01): predates the multi-user product.
+-- Superseded by the 135 files in supabase/migrations/. Grepped the app for
+-- 'clusters' and 'signals' table access - zero matches in app/ or lib/, so
+-- nothing reads or writes these tables. Kept for history only; do not run.
 
 -- ─────────────────────────────────────────
 -- Clusters table
