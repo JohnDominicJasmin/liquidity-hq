@@ -29,32 +29,45 @@ export default function TrialBanner() {
     <div
       role="status"
       style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-        flexWrap: 'wrap',
-        padding: '7px 14px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        gap: 14, flexWrap: 'wrap',
+        // Was 7px/--fs-caption with a 0.5px rule - a 12px strip that read as a
+        // system notice and got skipped. This is the only standing reminder that
+        // the trial ends, so it is sized to be read: body text, real padding,
+        // and a 2px accent rule instead of a hairline.
+        padding: '13px 18px',
         background: bg,
-        borderBottom: `0.5px solid ${bdr}`,
-        fontSize: 'var(--fs-caption)',
-        lineHeight: 1.4,
+        borderBottom: `2px solid ${bdr}`,
+        fontSize: 'var(--fs-body)',
+        lineHeight: 1.45,
       }}
     >
       <span style={{ color: 'var(--txt2)' }}>
         <span
           style={{
             fontFamily: 'var(--font-mono, monospace)',
-            fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-            color: accent, marginRight: 8,
+            fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+            fontSize: 'var(--fs-label)',
+            color: accent, marginRight: 10,
           }}
         >
           {t('TRIAL_BANNER_LABEL')}
         </span>
-        {t('TRIAL_BANNER_FULL_ACCESS')} <strong style={{ color: 'var(--txt)' }}>{label}</strong>
+        {t('TRIAL_BANNER_FULL_ACCESS')}{' '}
+        <strong style={{ color: 'var(--txt)', fontWeight: 700 }}>{label}</strong>
       </span>
+      {/* A bordered pill, not a bare text link - the CTA previously differed
+          from the surrounding sentence only by weight and colour, on a strip
+          where everything was already accent-coloured. */}
       <Link
         href="/upgrade"
         style={{
-          fontWeight: 700, color: accent, textDecoration: 'none',
-          whiteSpace: 'nowrap',
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '7px 15px', borderRadius: 999,
+          border: `1px solid ${accent}`,
+          fontSize: 'var(--fs-label)', fontWeight: 700,
+          color: accent, textDecoration: 'none', whiteSpace: 'nowrap',
+          lineHeight: 1,
         }}
       >
         {t('TRIAL_BANNER_CTA')} →
