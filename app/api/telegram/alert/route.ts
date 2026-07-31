@@ -11,6 +11,10 @@ import { computeDistributionScore, DistributionInputs } from '@/lib/distribution
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { detectStructureSignals } from '@/lib/priceAction';
+import {
+  STRUCTURE_TFS, type StructureTF,
+  isStructureEnabled, structureTfForRuleKey,
+} from '@/lib/structurePrefs';
 import { detectEMASignals, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, OHLCV } from '@/lib/strategyCore';
 
 export const dynamic = 'force-dynamic';
@@ -63,6 +67,26 @@ function entryMuteKeys(e: Pick<SignalEntry, 'coin' | 'dir' | 'ruleKey'>): string
   const keys = [e.ruleKey, `coin:${e.coin}`];
   if (e.dir) keys.push(`dir:${e.dir}`);
   return keys;
+}
+
+// The single per-recipient delivery decision, shared by Telegram (flushSignals)
+// and Web Push (dispatchPush) so a signal can never be eligible on one channel
+// and not the other.
+//
+// Two different polarities meet here. Every long-standing rule is opt-OUT: a
+// row in muted_alerts means the user silenced it, so no row means deliver.
+// Market-structure signals are opt-IN: the user must hold an explicit
+// structure_on_<tf> row, so no row means stay silent. See lib/structurePrefs.ts
+// for why that inversion exists rather than a server-side seeding step.
+function isEligibleFor(
+  mutedByUser: Map<string, Set<string>>,
+  userId: string,
+  e: Pick<SignalEntry, 'coin' | 'dir' | 'ruleKey'>,
+): boolean {
+  if (isMutedFor(mutedByUser, userId, ...entryMuteKeys(e))) return false;
+  const structureTf = structureTfForRuleKey(e.ruleKey);
+  if (structureTf) return isStructureEnabled(mutedByUser.get(userId), structureTf);
+  return true;
 }
 
 // For global (non-coin) checks that send directly rather than via the queue -
@@ -306,7 +330,7 @@ async function flushSignals(
     const groups = new Map<string, { entries: SignalEntry[]; chatIds: string[] }>();
     for (const r of recipients) {
       const eligible = entries.filter(e =>
-        !isMutedFor(mutedByUser, r.userId, ...entryMuteKeys(e)) && passesThreshold(e, thresholdsByUser.get(r.userId)));
+        isEligibleFor(mutedByUser, r.userId, e) && passesThreshold(e, thresholdsByUser.get(r.userId)));
       if (eligible.length === 0) continue;
       const sig = eligible.map(e => e.ruleKey + '_' + (e.dir ?? '')).join('|');
       if (!groups.has(sig)) groups.set(sig, { entries: eligible, chatIds: [] });
@@ -1493,7 +1517,7 @@ async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<s
     await Promise.allSettled(
       subs.map(async sub => {
         const eligible = entries.filter(e =>
-          !isMutedFor(mutedByUser, sub.user_id, ...entryMuteKeys(e)) && passesThreshold(e, thresholdsByUser.get(sub.user_id)));
+          isEligibleFor(mutedByUser, sub.user_id, e) && passesThreshold(e, thresholdsByUser.get(sub.user_id)));
         if (eligible.length === 0) return;
         const body = eligible.length === 1
           ? `${label}: ${eligible[0].title}`
@@ -1554,11 +1578,10 @@ async function fetchMutedKeysByUser(): Promise<Map<string, Set<string>>> {
 
    Only 1h and 4h. Structure on a 1m chart is noise, and the EMA rule already
    covers every timeframe the chart offers; the point of this alert is the
-   swing levels a swing trader would actually mark.
+   swing levels a swing trader would actually mark. STRUCTURE_TFS now lives in
+   lib/structurePrefs.ts so /alerts renders exactly the timeframes this cron
+   computes, instead of the two lists being kept in sync by a comment.
    ════════════════════════════════════════ */
-
-const STRUCTURE_TFS = ['1h', '4h'] as const;
-type StructureTF = typeof STRUCTURE_TFS[number];
 
 // A structure break is only worth a notification while it is still news. On a
 // fresh process the dedup map is empty, so without this the first run would

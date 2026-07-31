@@ -13,6 +13,7 @@ import AlertOutcomes from '@/components/AlertOutcomes';
 import CoinMultiSelect from '@/components/CoinMultiSelect';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { STRUCTURE_TFS, structureOnKey } from '@/lib/structurePrefs';
 
 interface PriceAlert { id: number; coin: string; target_price: number; direction: string; label: string; created_at: string }
 
@@ -26,11 +27,10 @@ const ALERT_COIN_CAP = 10; // Alerts is a Pro-only feature - single cap, no free
 // timeframe they can actually go look at on the chart. Capped at
 // ALERT_TF_CAP concurrently active, same shape as ALERT_COIN_CAP above.
 const EMA_SIGNAL_TFS = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'] as const;
-// Must match STRUCTURE_TFS in app/api/telegram/alert - the cron only ever
-// computes these two, so offering more here would be a toggle for an alert
-// that can never fire. Not covered by ALERT_TF_CAP: that cap exists because
-// eight EMA timeframes at once is unusable, and two is not eight.
-const STRUCTURE_TFS = ['1h', '4h'] as const;
+// STRUCTURE_TFS is imported, not redeclared: the cron only computes those two,
+// so a local copy could drift into offering a toggle for an alert that can
+// never fire. Not covered by ALERT_TF_CAP - that cap exists because eight EMA
+// timeframes at once is unusable, and two is not eight.
 const ALERT_TF_CAP = 3;
 const DEFAULT_ON_TFS: readonly string[] = ['1h', '4h', '1d'];
 
@@ -149,22 +149,15 @@ export default function AlertsPage() {
             ));
             setMuted(prev => { const n = new Set(prev); toMuteTf.forEach(tf => n.add(`ema_signal_${tf}`)); return n; });
           }
-          // Market-structure alerts start OFF for everyone, existing users
-          // included. A new rule_key is unmuted by default, so without this the
-          // first cron run after deploy would start sending a brand-new alert
-          // type to every connected chat unasked. The Arena chart's Structure
-          // markers are opt-in for the same reason - this keeps the two
-          // consistent instead of one defaulting on and one off.
-          if (!mutedList.some(k => k.startsWith('structure_'))) {
-            await Promise.all(STRUCTURE_TFS.map(tf =>
-              fetch('/api/alert-prefs', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ key: `structure_${tf}`, muted: true }),
-              }).catch(() => {})
-            ));
-            setMuted(prev => { const n = new Set(prev); STRUCTURE_TFS.forEach(tf => n.add(`structure_${tf}`)); return n; });
-          }
+          // No seeding step for market structure. Those keys are opt-IN
+          // (structure_on_<tf>, see lib/structurePrefs.ts): absence already
+          // means off, everywhere, without anyone having to open this page.
+          // There used to be a block here that wrote structure_<tf> mute rows
+          // for anyone who had none - which is how the feature shipped OFF in
+          // the UI and ON in the cron, since the cron never waits for a page
+          // load. It also silently re-muted anyone who turned both timeframes
+          // on, because turning a key on deletes its row, leaving them
+          // indistinguishable from a brand-new user on the next visit.
         })
         .catch(() => {});
     });
@@ -272,7 +265,13 @@ export default function AlertsPage() {
 
   // No cap check: only two timeframes exist for this rule, so there is nothing
   // to protect the user from.
-  const toggleStructureTf = (tf: string) => toggleMute(`structure_${tf}`);
+  //
+  // Inverted against every other toggle on this page. toggleMute() writes the
+  // key when it is absent and deletes it when present; for an opt-in key that
+  // reads as "write the row = turn the alert ON", which is exactly what we
+  // want, but it means `muted.has(structureOnKey(tf))` is the ENABLED state
+  // here, not the muted one. See lib/structurePrefs.ts.
+  const toggleStructureTf = (tf: string) => toggleMute(structureOnKey(tf));
 
   const loadPriceAlerts = useCallback(async () => {
     setPaLoading(true);
@@ -944,7 +943,8 @@ export default function AlertsPage() {
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingLeft: 14 }}>
             {STRUCTURE_TFS.map(tf => {
-              const off = muted.has(`structure_${tf}`);
+              // Opt-in: the row's presence is ON, so `off` is its absence.
+              const off = !muted.has(structureOnKey(tf));
               return (
                 <button
                   key={tf}
