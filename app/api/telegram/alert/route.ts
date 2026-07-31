@@ -10,6 +10,7 @@ import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS } from '@/lib/coins';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
+import { recordApiHealth, healthError } from '@/lib/apiHealth';
 import { detectStructureSignals } from '@/lib/priceAction';
 import {
   STRUCTURE_TFS, type StructureTF,
@@ -269,6 +270,19 @@ function localHourMinute(timeZone: string | null, d: Date): { hour: number; min:
 }
 
 /* ── Telegram send ── */
+/* Per-run delivery tally. Reset at the top of the handler, read at the end.
+   Module-level because tg() is called from a dozen check functions that have
+   no reason to thread a counter through their signatures - same shape as the
+   dedup maps above, and with the same caveat: it survives between requests in
+   a warm process, hence the explicit reset rather than lazy init. */
+const sendTally = { ok: 0, failed: 0, reasons: new Set<string>() };
+
+function resetSendTally(): void {
+  sendTally.ok = 0;
+  sendTally.failed = 0;
+  sendTally.reasons.clear();
+}
+
 async function tg(token: string, chatId: string | string[], text: string): Promise<void> {
   // Send-only kill switch (/ops/config) - detection/tracking above this call
   // keeps running either way, only the actual outbound message stops.
@@ -282,19 +296,38 @@ async function tg(token: string, chatId: string | string[], text: string): Promi
     const bucket = byZone.get(tz);
     if (bucket) bucket.push(id); else byZone.set(tz, [id]);
   }
-  try {
-    await Promise.all([...byZone.entries()].flatMap(([tz, zoneIds]) => {
-      const body = text.includes(TIME_TOKEN) ? text.replaceAll(TIME_TOKEN, alertTimeIn(tz)) : text;
-      return zoneIds.map(id =>
-        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  // Still fire-and-forget for the CALLER - a failed send must never abort the
+  // rest of a run. But it is no longer silent. This used to be a bare
+  // Promise.all inside `catch {}` that ignored the response entirely, so the
+  // whole class of failures Telegram reports as a resolved non-2xx - bot
+  // blocked by the user, chat not found, unparseable HTML in the body - was
+  // indistinguishable from a successful delivery. Nothing anywhere recorded
+  // whether a message actually landed.
+  await Promise.all([...byZone.entries()].flatMap(([tz, zoneIds]) => {
+    const body = text.includes(TIME_TOKEN) ? text.replaceAll(TIME_TOKEN, alertTimeIn(tz)) : text;
+    return zoneIds.map(async id => {
+      try {
+        const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ chat_id: id, text: body, parse_mode: 'HTML' }),
           signal: AbortSignal.timeout(10_000),
-        })
-      );
-    }));
-  } catch { /* fire-and-forget */ }
+        });
+        if (res.ok) { sendTally.ok++; return; }
+        sendTally.failed++;
+        // description is Telegram's own reason ("chat not found", "bot was
+        // blocked by the user") and is what makes the /ops entry actionable.
+        const why = await res.json().then(
+          (d: { description?: string }) => d?.description ?? `HTTP ${res.status}`,
+          () => `HTTP ${res.status}`,
+        );
+        sendTally.reasons.add(why);
+      } catch (e) {
+        sendTally.failed++;
+        sendTally.reasons.add(healthError(e));
+      }
+    });
+  }));
 }
 
 /* ════════════════════════════════════════
@@ -1825,6 +1858,11 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // already timezone-independent.
   const stamp = `⏰ ${TIME_TOKEN} · ${getSession()}`;
 
+  // Before any send in this run. The tally is module state, so a warm process
+  // would otherwise carry the previous run's counts into this one's health
+  // record - reporting a stale failure long after it was resolved.
+  resetSendTally();
+
   // Restore EMA signal dedup state from its last persisted snapshot before any
   // checkEMASignal call runs - no-op after the first call in this process's
   // lifetime (see hydrateEMASignalDedup).
@@ -1920,14 +1958,51 @@ async function runAlerts(token: string): Promise<NextResponse> {
     .map(e => ({ ruleKey: e.ruleKey, coin: e.coin, dir: e.dir as 'long' | 'short', label: e.name, price: e.price! }));
   await persistAlertFires(outcomeFires);
 
+  // ── Delivery observability ────────────────────────────────────────────────
+  // Until now this route emitted no logs at all and structure signals are
+  // deliberately kept out of lhq_alert_fires (canonicalHit: false, so they
+  // never pollute the shared Alert Track Record). Between the two there was no
+  // server-side record of whether ANY message reached anyone - a send that
+  // Telegram rejected looked exactly like one that landed, and confirming a
+  // delivery meant opening the app and reading the chat.
+  //
+  // Only recorded when a send was actually attempted: a quiet run with no
+  // signals is not evidence that Telegram is healthy, and marking the source
+  // ok on every empty tick would paper over a real outage between alerts.
+  const attempted = sendTally.ok + sendTally.failed;
+  if (attempted > 0) {
+    const reasons = [...sendTally.reasons].join('; ');
+    await recordApiHealth([{
+      source: 'telegram:sendMessage',
+      category: 'delivery',
+      // Semantic, per lib/apiHealth: partial delivery is a failure. One
+      // recipient silently not receiving alerts is the exact condition worth
+      // surfacing, and it would be invisible if any success counted as ok.
+      ok: sendTally.failed === 0,
+      detail: sendTally.failed === 0
+        ? `${sendTally.ok} sent`
+        : `${sendTally.failed} of ${attempted} failed: ${reasons}`,
+      items: sendTally.ok,
+    }]);
+  }
+  // One line per run, so Render logs can answer "did it fire, did it land"
+  // without a database query. Deliberately includes the rule keys - that is
+  // what makes a structure alert visible here at all.
+  console.log(
+    `[alert] fired=${fired.length}${fired.length ? ` (${fired.join(',')})` : ''} ` +
+    `sent=${sendTally.ok} failed=${sendTally.failed} recipients=${recipients.length}`
+  );
+
   return NextResponse.json({
     ok: true, fired,
     recipients: recipients.length,
     mutedUsers: mutedByUser.size,
+    delivery: { sent: sendTally.ok, failed: sendTally.failed, reasons: [...sendTally.reasons] },
     checked: [
       'RSI', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD',
       'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'Distribution',
       ...EMA_SIGNAL_TFS.map(tf => `EMA Buy/Sell Signal (${tf.toUpperCase()})`),
+      ...STRUCTURE_TFS.map(tf => `Market structure (${tf.toUpperCase()})`),
     ],
     coins: COINS.length,
     session: nyActive ? 'NY/Pre-NY (high activity)' : 'Asia/London',

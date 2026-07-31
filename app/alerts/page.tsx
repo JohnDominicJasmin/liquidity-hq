@@ -34,6 +34,25 @@ const EMA_SIGNAL_TFS = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'] as con
 const ALERT_TF_CAP = 3;
 const DEFAULT_ON_TFS: readonly string[] = ['1h', '4h', '1d'];
 
+// "This user has already been given defaults" markers. Stored as ordinary rows
+// in the same table, under a `seeded:` prefix that entryMuteKeys() in the alert
+// cron can never produce (it emits only <ruleKey>, coin:<c> and dir:<d>), so a
+// marker can never be mistaken for a mute and silence a real alert.
+const SEEDED_COINS    = 'seeded:coins';
+const SEEDED_EMA_TFS  = 'seeded:ema_signal_tfs';
+
+// Written after the defaults it marks. If some of those writes failed the user
+// keeps a partial default set and is not re-seeded, which is the better of the
+// two failures - the alternative is re-running the seed on every visit and
+// re-muting choices the user has since made, which is the bug this fixes.
+function markSeeded(token: string, marker: string): Promise<unknown> {
+  return fetch('/api/alert-prefs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ key: marker, muted: true }),
+  }).catch(() => {});
+}
+
 // Connecting Telegram finishes OUTSIDE this page: the user sends the code to
 // the bot, and the webhook writes telegram_chat_id server-side. Nothing pushes
 // that back to the browser, so the page re-reads its own settings on a timer
@@ -121,9 +140,16 @@ export default function AlertsPage() {
         .then(async d => {
           const mutedList: string[] = d.muted ?? [];
           setMuted(new Set<string>(mutedList));
-          // No coin prefs saved yet (brand-new user) - default to btc/eth/sol only,
-          // not every coin, by seeding the rest as muted server-side.
-          if (!mutedList.some(k => k.startsWith('coin:'))) {
+          const seeded = new Set(mutedList);
+          // Seeding is gated on an explicit marker rather than on "this user has
+          // no coin:/ema_signal_ rows", because those two conditions are not the
+          // same thing. Turning a key ON deletes its row (see /api/alert-prefs
+          // POST), so a user who switched every coin on has zero coin: rows -
+          // identical to a brand-new user - and the old row-count test re-muted
+          // all but three of them on their next visit. Same for timeframes. The
+          // marker is written once and never removed, so "already configured"
+          // stays true no matter what the user later turns on or off.
+          if (!seeded.has(SEEDED_COINS)) {
             const toMute = COINS.filter(c => !['btc', 'eth', 'sol'].includes(c));
             await Promise.all(toMute.map(c =>
               fetch('/api/alert-prefs', {
@@ -132,13 +158,19 @@ export default function AlertsPage() {
                 body: JSON.stringify({ key: `coin:${c}`, muted: true }),
               }).catch(() => {})
             ));
-            setMuted(prev => { const n = new Set(prev); toMute.forEach(c => n.add(`coin:${c}`)); return n; });
+            await markSeeded(token, SEEDED_COINS);
+            setMuted(prev => {
+              const n = new Set(prev);
+              toMute.forEach(c => n.add(`coin:${c}`));
+              n.add(SEEDED_COINS);
+              return n;
+            });
           }
-          // Same pattern for the EMA Buy/Sell Signal timeframe picker - a
-          // brand-new user (no ema_signal_ keys at all yet) starts with
-          // DEFAULT_ON_TFS active and the rest pre-muted, rather than all 8
-          // (which would blow past ALERT_TF_CAP the moment they're seen).
-          if (!mutedList.some(k => k.startsWith('ema_signal_'))) {
+          // Same pattern, same marker fix, for the EMA Buy/Sell Signal
+          // timeframe picker - a brand-new user starts with DEFAULT_ON_TFS
+          // active and the rest pre-muted, rather than all 8 (which would blow
+          // past ALERT_TF_CAP the moment they're seen).
+          if (!seeded.has(SEEDED_EMA_TFS)) {
             const toMuteTf = EMA_SIGNAL_TFS.filter(tf => !DEFAULT_ON_TFS.includes(tf));
             await Promise.all(toMuteTf.map(tf =>
               fetch('/api/alert-prefs', {
@@ -147,7 +179,13 @@ export default function AlertsPage() {
                 body: JSON.stringify({ key: `ema_signal_${tf}`, muted: true }),
               }).catch(() => {})
             ));
-            setMuted(prev => { const n = new Set(prev); toMuteTf.forEach(tf => n.add(`ema_signal_${tf}`)); return n; });
+            await markSeeded(token, SEEDED_EMA_TFS);
+            setMuted(prev => {
+              const n = new Set(prev);
+              toMuteTf.forEach(tf => n.add(`ema_signal_${tf}`));
+              n.add(SEEDED_EMA_TFS);
+              return n;
+            });
           }
           // No seeding step for market structure. Those keys are opt-IN
           // (structure_on_<tf>, see lib/structurePrefs.ts): absence already
