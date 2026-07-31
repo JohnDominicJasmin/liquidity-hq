@@ -10,7 +10,12 @@ import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS } from '@/lib/coins';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
+import { recordApiHealth, healthError } from '@/lib/apiHealth';
 import { detectStructureSignals } from '@/lib/priceAction';
+import {
+  STRUCTURE_TFS, type StructureTF,
+  isStructureEnabled, structureTfForRuleKey,
+} from '@/lib/structurePrefs';
 import { detectEMASignals, DEFAULT_FILTER_PARAMS, STRICT_FILTER_PARAMS, OHLCV } from '@/lib/strategyCore';
 
 export const dynamic = 'force-dynamic';
@@ -63,6 +68,26 @@ function entryMuteKeys(e: Pick<SignalEntry, 'coin' | 'dir' | 'ruleKey'>): string
   const keys = [e.ruleKey, `coin:${e.coin}`];
   if (e.dir) keys.push(`dir:${e.dir}`);
   return keys;
+}
+
+// The single per-recipient delivery decision, shared by Telegram (flushSignals)
+// and Web Push (dispatchPush) so a signal can never be eligible on one channel
+// and not the other.
+//
+// Two different polarities meet here. Every long-standing rule is opt-OUT: a
+// row in muted_alerts means the user silenced it, so no row means deliver.
+// Market-structure signals are opt-IN: the user must hold an explicit
+// structure_on_<tf> row, so no row means stay silent. See lib/structurePrefs.ts
+// for why that inversion exists rather than a server-side seeding step.
+function isEligibleFor(
+  mutedByUser: Map<string, Set<string>>,
+  userId: string,
+  e: Pick<SignalEntry, 'coin' | 'dir' | 'ruleKey'>,
+): boolean {
+  if (isMutedFor(mutedByUser, userId, ...entryMuteKeys(e))) return false;
+  const structureTf = structureTfForRuleKey(e.ruleKey);
+  if (structureTf) return isStructureEnabled(mutedByUser.get(userId), structureTf);
+  return true;
 }
 
 // For global (non-coin) checks that send directly rather than via the queue -
@@ -245,6 +270,19 @@ function localHourMinute(timeZone: string | null, d: Date): { hour: number; min:
 }
 
 /* ── Telegram send ── */
+/* Per-run delivery tally. Reset at the top of the handler, read at the end.
+   Module-level because tg() is called from a dozen check functions that have
+   no reason to thread a counter through their signatures - same shape as the
+   dedup maps above, and with the same caveat: it survives between requests in
+   a warm process, hence the explicit reset rather than lazy init. */
+const sendTally = { ok: 0, failed: 0, reasons: new Set<string>() };
+
+function resetSendTally(): void {
+  sendTally.ok = 0;
+  sendTally.failed = 0;
+  sendTally.reasons.clear();
+}
+
 async function tg(token: string, chatId: string | string[], text: string): Promise<void> {
   // Send-only kill switch (/ops/config) - detection/tracking above this call
   // keeps running either way, only the actual outbound message stops.
@@ -258,19 +296,38 @@ async function tg(token: string, chatId: string | string[], text: string): Promi
     const bucket = byZone.get(tz);
     if (bucket) bucket.push(id); else byZone.set(tz, [id]);
   }
-  try {
-    await Promise.all([...byZone.entries()].flatMap(([tz, zoneIds]) => {
-      const body = text.includes(TIME_TOKEN) ? text.replaceAll(TIME_TOKEN, alertTimeIn(tz)) : text;
-      return zoneIds.map(id =>
-        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  // Still fire-and-forget for the CALLER - a failed send must never abort the
+  // rest of a run. But it is no longer silent. This used to be a bare
+  // Promise.all inside `catch {}` that ignored the response entirely, so the
+  // whole class of failures Telegram reports as a resolved non-2xx - bot
+  // blocked by the user, chat not found, unparseable HTML in the body - was
+  // indistinguishable from a successful delivery. Nothing anywhere recorded
+  // whether a message actually landed.
+  await Promise.all([...byZone.entries()].flatMap(([tz, zoneIds]) => {
+    const body = text.includes(TIME_TOKEN) ? text.replaceAll(TIME_TOKEN, alertTimeIn(tz)) : text;
+    return zoneIds.map(async id => {
+      try {
+        const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ chat_id: id, text: body, parse_mode: 'HTML' }),
           signal: AbortSignal.timeout(10_000),
-        })
-      );
-    }));
-  } catch { /* fire-and-forget */ }
+        });
+        if (res.ok) { sendTally.ok++; return; }
+        sendTally.failed++;
+        // description is Telegram's own reason ("chat not found", "bot was
+        // blocked by the user") and is what makes the /ops entry actionable.
+        const why = await res.json().then(
+          (d: { description?: string }) => d?.description ?? `HTTP ${res.status}`,
+          () => `HTTP ${res.status}`,
+        );
+        sendTally.reasons.add(why);
+      } catch (e) {
+        sendTally.failed++;
+        sendTally.reasons.add(healthError(e));
+      }
+    });
+  }));
 }
 
 /* ════════════════════════════════════════
@@ -306,7 +363,7 @@ async function flushSignals(
     const groups = new Map<string, { entries: SignalEntry[]; chatIds: string[] }>();
     for (const r of recipients) {
       const eligible = entries.filter(e =>
-        !isMutedFor(mutedByUser, r.userId, ...entryMuteKeys(e)) && passesThreshold(e, thresholdsByUser.get(r.userId)));
+        isEligibleFor(mutedByUser, r.userId, e) && passesThreshold(e, thresholdsByUser.get(r.userId)));
       if (eligible.length === 0) continue;
       const sig = eligible.map(e => e.ruleKey + '_' + (e.dir ?? '')).join('|');
       if (!groups.has(sig)) groups.set(sig, { entries: eligible, chatIds: [] });
@@ -1493,7 +1550,7 @@ async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<s
     await Promise.allSettled(
       subs.map(async sub => {
         const eligible = entries.filter(e =>
-          !isMutedFor(mutedByUser, sub.user_id, ...entryMuteKeys(e)) && passesThreshold(e, thresholdsByUser.get(sub.user_id)));
+          isEligibleFor(mutedByUser, sub.user_id, e) && passesThreshold(e, thresholdsByUser.get(sub.user_id)));
         if (eligible.length === 0) return;
         const body = eligible.length === 1
           ? `${label}: ${eligible[0].title}`
@@ -1554,11 +1611,10 @@ async function fetchMutedKeysByUser(): Promise<Map<string, Set<string>>> {
 
    Only 1h and 4h. Structure on a 1m chart is noise, and the EMA rule already
    covers every timeframe the chart offers; the point of this alert is the
-   swing levels a swing trader would actually mark.
+   swing levels a swing trader would actually mark. STRUCTURE_TFS now lives in
+   lib/structurePrefs.ts so /alerts renders exactly the timeframes this cron
+   computes, instead of the two lists being kept in sync by a comment.
    ════════════════════════════════════════ */
-
-const STRUCTURE_TFS = ['1h', '4h'] as const;
-type StructureTF = typeof STRUCTURE_TFS[number];
 
 // A structure break is only worth a notification while it is still news. On a
 // fresh process the dedup map is empty, so without this the first run would
@@ -1567,27 +1623,29 @@ const STRUCTURE_MAX_AGE_BARS = 3;
 
 const structureLastTs = new Map<string, number>();
 
-// Deliberately does NOT take fullyMutedTfs. That set means "no user has this
-// EMA timeframe switched on", and reusing it here would couple two unrelated
-// systems: muting the EMA 1h alert would silently also kill 1h structure
-// alerts. Per-recipient muting still works, through the normal ruleKey path
-// (entryMuteKeys), so a user can mute structure_1h without touching the EMA
-// rule. The cost is 2 extra timeframe fetches per run, which is why this is
-// limited to 1h and 4h rather than every timeframe the chart offers.
+// Still deliberately does NOT take fullyMutedTfs. That set means "no user has
+// this EMA timeframe switched on", and reusing it here would couple two
+// unrelated systems: muting the EMA 1h alert would silently also kill 1h
+// structure alerts. unusedTfs is the structure-specific equivalent, computed
+// from the structure keys alone - see where it is built in the main handler.
 async function checkStructureSignal(
   stamp: string,
   queue: SignalEntry[],
   tf: StructureTF,
+  unusedTfs: Set<string>,
 ): Promise<string[]> {
   const fired: string[] = [];
   // Opt-in at the system level, defaulting OFF (lib/featureFlags.ts). The
-  // per-recipient mute path below still applies once enabled, but it cannot be
-  // the default mechanism: absence of a mute row means "never configured", not
-  // "wants this", and the /alerts bootstrap that was supposed to write those
-  // rows only runs when a human opens the page. The cron does not wait for
-  // that, so on first deploy it delivered to every connected chat. Enable in
-  // /ops/config when you actually want these going out.
+  // per-recipient opt-in below is the other half: this flag decides whether the
+  // feature runs at all, structure_on_<tf> rows decide who hears about it.
+  // Both default to silence, which is the point - the original bug was a
+  // default that only applied to users who opened the /alerts page, while the
+  // cron ran regardless and delivered to every connected chat.
   if (!(await isFeatureEnabled('structure_alerts'))) return fired;
+  // Nobody has this timeframe switched on, so every candle fetch below would be
+  // discarded at the delivery filter. Cheapest possible skip, same shape as
+  // fullyMutedTfs for the EMA rule.
+  if (unusedTfs.has(tf)) return fired;
   const ruleKey = `structure_${tf}`;
   const tfLabel = tf.toUpperCase();
 
@@ -1800,6 +1858,11 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // already timezone-independent.
   const stamp = `⏰ ${TIME_TOKEN} · ${getSession()}`;
 
+  // Before any send in this run. The tally is module state, so a warm process
+  // would otherwise carry the previous run's counts into this one's health
+  // record - reporting a stale failure long after it was resolved.
+  resetSendTally();
+
   // Restore EMA signal dedup state from its last persisted snapshot before any
   // checkEMASignal call runs - no-op after the first call in this process's
   // lifetime (see hydrateEMASignalDedup).
@@ -1827,6 +1890,18 @@ async function runAlerts(token: string): Promise<NextResponse> {
     EMA_SIGNAL_TFS.filter(tf => recipients.every(r => mutedByUser.get(r.userId)?.has(`ema_signal_${tf}`))),
   );
 
+  // Structure's equivalent, and a stronger check than the two above rather than
+  // a copy of them. Those scan `recipients` (Telegram only), so a Web Push
+  // subscriber who is not also a Telegram recipient does not keep a timeframe
+  // alive. Structure keys are opt-IN, so the question has an exact answer with
+  // no recipient list at all: if NOT ONE user row anywhere holds
+  // structure_on_<tf>, then nobody on any channel can receive that timeframe
+  // and the per-coin candle fetch is pure waste. mutedByUser covers every user
+  // with any preference row, not just this run's recipients.
+  const unusedStructureTfs = new Set<string>(
+    STRUCTURE_TFS.filter(tf => ![...mutedByUser.values()].some(keys => isStructureEnabled(keys, tf))),
+  );
+
   // Per-request signal queue - all coin checks push here, flushed after.
   // Every check now runs unconditionally (compute is shared/unavoidable
   // regardless of who's muted what) - the old top-level skip() gate used to
@@ -1849,7 +1924,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     checkSqueezeAlerts(stamp, frMap, lsMap, prices, signalQueue, recipients, thresholdsByUser),
     checkDistribution(stamp, frMap, signalQueue, fullyMutedCoins),
     ...EMA_SIGNAL_TFS.map(tf => checkEMASignal(stamp, signalQueue, fullyMutedTfs, tf)),
-    ...STRUCTURE_TFS.map(tf => checkStructureSignal(stamp, signalQueue, tf)),
+    ...STRUCTURE_TFS.map(tf => checkStructureSignal(stamp, signalQueue, tf, unusedStructureTfs)),
   ]);
 
   // Persist dedup state so the NEXT process (post-restart or post-deploy)
@@ -1883,14 +1958,51 @@ async function runAlerts(token: string): Promise<NextResponse> {
     .map(e => ({ ruleKey: e.ruleKey, coin: e.coin, dir: e.dir as 'long' | 'short', label: e.name, price: e.price! }));
   await persistAlertFires(outcomeFires);
 
+  // ── Delivery observability ────────────────────────────────────────────────
+  // Until now this route emitted no logs at all and structure signals are
+  // deliberately kept out of lhq_alert_fires (canonicalHit: false, so they
+  // never pollute the shared Alert Track Record). Between the two there was no
+  // server-side record of whether ANY message reached anyone - a send that
+  // Telegram rejected looked exactly like one that landed, and confirming a
+  // delivery meant opening the app and reading the chat.
+  //
+  // Only recorded when a send was actually attempted: a quiet run with no
+  // signals is not evidence that Telegram is healthy, and marking the source
+  // ok on every empty tick would paper over a real outage between alerts.
+  const attempted = sendTally.ok + sendTally.failed;
+  if (attempted > 0) {
+    const reasons = [...sendTally.reasons].join('; ');
+    await recordApiHealth([{
+      source: 'telegram:sendMessage',
+      category: 'delivery',
+      // Semantic, per lib/apiHealth: partial delivery is a failure. One
+      // recipient silently not receiving alerts is the exact condition worth
+      // surfacing, and it would be invisible if any success counted as ok.
+      ok: sendTally.failed === 0,
+      detail: sendTally.failed === 0
+        ? `${sendTally.ok} sent`
+        : `${sendTally.failed} of ${attempted} failed: ${reasons}`,
+      items: sendTally.ok,
+    }]);
+  }
+  // One line per run, so Render logs can answer "did it fire, did it land"
+  // without a database query. Deliberately includes the rule keys - that is
+  // what makes a structure alert visible here at all.
+  console.log(
+    `[alert] fired=${fired.length}${fired.length ? ` (${fired.join(',')})` : ''} ` +
+    `sent=${sendTally.ok} failed=${sendTally.failed} recipients=${recipients.length}`
+  );
+
   return NextResponse.json({
     ok: true, fired,
     recipients: recipients.length,
     mutedUsers: mutedByUser.size,
+    delivery: { sent: sendTally.ok, failed: sendTally.failed, reasons: [...sendTally.reasons] },
     checked: [
       'RSI', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD',
       'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'Distribution',
       ...EMA_SIGNAL_TFS.map(tf => `EMA Buy/Sell Signal (${tf.toUpperCase()})`),
+      ...STRUCTURE_TFS.map(tf => `Market structure (${tf.toUpperCase()})`),
     ],
     coins: COINS.length,
     session: nyActive ? 'NY/Pre-NY (high activity)' : 'Asia/London',
