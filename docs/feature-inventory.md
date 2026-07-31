@@ -45,8 +45,8 @@ Detects bullish/bearish RSI divergence (price making a new extreme while RSI doe
 **Cost:** 🟢 Pure compute
 
 ### Market Structure (BOS/CHoCH)
-Detects Break of Structure and Change of Character events from swing highs/lows on the 4H timeframe, surfacing the most recent structural flip with price level and time-ago.
-**Files:** `components/MarketStructure.tsx`
+Detects Break of Structure and Change of Character events from swing highs/lows on the 4H timeframe, surfacing the most recent structural flip with price level and time-ago. Reads `lib/priceAction.ts`, the single implementation shared with the chart's Structure markers, the Telegram structure alerts and the AI prompt context — the card previously carried its own copy, which detected breaks at swing points instead of candle closes and derived trend from the last break, so it disagreed with the chart about both the timing and the BOS/CHoCH label.
+**Files:** `components/MarketStructure.tsx`, `lib/priceAction.ts`
 **Cost:** 🟢 Pure compute
 
 ### Absorption Detector
@@ -172,9 +172,14 @@ The core per-coin AI analysis on the Arena page — full checklist read (200 SMA
 ## 6. Alerts & Notifications
 
 ### Telegram Alert Engine
-Cron-triggered scan (RSI extremes, EMA crosses, rapid moves, whale trades, news, fear/greed, daily summary, OI spikes) broadcast to every connected user's Telegram chat ID — a shared market-signal broadcast, not personalized per-user filtering.
-**Files:** `app/api/telegram/alert/route.ts` (1,400+ lines — the largest route in the app), `app/api/telegram/*`
+Cron-triggered scan (RSI extremes, EMA crosses, rapid moves, whale trades, news, fear/greed, daily summary, OI spikes) delivered per recipient — detection runs once for everyone, then each recipient's own coin/direction/rule mutes and personal thresholds decide what they actually receive. Recipients eligible for the same subset of a coin's signals are grouped into one send. Delivery outcomes are recorded as `telegram:sendMessage` in the API-health table and summarised in one `[alert]` log line per run.
+**Files:** `app/api/telegram/alert/route.ts` (~2,000 lines — the largest route in the app), `app/api/telegram/*`
 **Cost:** 🟡 Light API (multi-coin scan) + 🔵 DB (recipient list, mute state) + external Telegram Bot API
+
+### Market Structure Alerts (BOS/CHoCH)
+Price-action alerts on 1H and 4H, fired from the same `lib/priceAction.ts` the Arena chart markers and AI context read, and deliberately kept separate from the EMA buy/sell rule — its own rule keys (`structure_1h`/`structure_4h`), its own dedup, and excluded from the shared Alert Track Record so it never distorts the EMA rule's hit rate. Two independent off-switches, both defaulting to silence: a fail-closed `structure_alerts` feature flag in `/ops/config` (system-wide), and per-user opt-in keys (`structure_on_<tf>`) where an absent row means off. A timeframe nobody has enabled is skipped before any candle is fetched.
+**Files:** `lib/priceAction.ts`, `lib/structurePrefs.ts`, `app/api/telegram/alert/route.ts`, `app/alerts/page.tsx`
+**Cost:** 🟡 Light API (klines per coin, only for enabled timeframes) + 🔵 DB (dedup state in `app_config`)
 
 ### Web Push Notifications
 Full Web Push stack — VAPID-signed subscription, service worker `push`/`notificationclick` handlers, broadcast dispatch mirroring the same signal queue the Telegram engine builds.
