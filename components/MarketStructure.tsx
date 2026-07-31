@@ -4,10 +4,10 @@ import { CoinId, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
+import { detectStructureSignals, structureState, type PACandle } from '@/lib/priceAction';
 
 /* ── Types ── */
 interface Candle { t: number; o: number; h: number; l: number; c: number; v: number }
-interface SwingPt { idx: number; price: number; type: 'high' | 'low'; ts: number }
 
 export interface StructureEvent {
   type:       'BOS' | 'CHoCH';
@@ -25,80 +25,55 @@ export interface MSData {
   events:        StructureEvent[];  // most recent first
 }
 
-/* ── Swing-point detection (lookback = 3 candles each side) ── */
-function detectSwings(candles: Candle[], lb = 3): SwingPt[] {
-  const result: SwingPt[] = [];
-  for (let i = lb; i < candles.length - lb; i++) {
-    let isHigh = true, isLow = true;
-    for (let j = i - lb; j <= i + lb; j++) {
-      if (j === i) continue;
-      if (candles[j].h >= candles[i].h) isHigh = false;
-      if (candles[j].l <= candles[i].l) isLow  = false;
-    }
-    if (isHigh) result.push({ idx: i, price: candles[i].h, type: 'high', ts: candles[i].t });
-    if (isLow)  result.push({ idx: i, price: candles[i].l, type: 'low',  ts: candles[i].t });
-  }
-  return result.sort((a, b) => a.idx - b.idx);
-}
-
 /* ── BOS / CHoCH analysis ──────────────────────────────────────────────
    BOS   = price breaks a swing in the SAME direction as current trend  → continuation
    CHoCH = price breaks a swing AGAINST the current trend               → possible reversal
+
+   Delegated to lib/priceAction.ts, which is also what the Arena chart's
+   Structure markers, the Telegram structure alerts and the AI prompt context
+   all read. This component used to carry a second, independent implementation:
+   its own swing detector, its own break walk, and a trend variable set to
+   whichever direction the LAST break went. Two consequences, both visible to
+   the user:
+
+     1. Breaks were detected at swing points rather than on candle closes, so
+        the card and the chart markers disagreed about WHEN structure broke.
+     2. Because consecutive breaks alternate direction about half the time,
+        deriving trend from the last break labelled roughly half of all events
+        CHoCH - the card would call a routine continuation a structure flip,
+        including the "STRUCTURE FLIP" tag fed into the AI context, while the
+        chart called the same bar a plain BOS.
+
+   One definition now. The card reads differently than it used to: far fewer
+   CHoCH labels, and event timing that lines up with the chart markers.
 ─────────────────────────────────────────────────────────────────────── */
-function analyzeStructure(candles: Candle[], swings: SwingPt[]): MSData {
-  const highs = swings.filter(s => s.type === 'high');
-  const lows  = swings.filter(s => s.type === 'low');
-  const base: MSData = {
-    bias: 'RANGING', lastEvent: null,
-    lastSwingHigh: highs[highs.length - 1]?.price ?? null,
-    lastSwingLow:  lows[lows.length  - 1]?.price ?? null,
-    events: [],
-  };
-  if (swings.length < 6) return base;
+function analyzeStructure(candles: Candle[]): MSData {
+  const pa: PACandle[] = candles.map(c => ({
+    timestamp: c.t, open: c.o, high: c.h, low: c.l, close: c.c, volume: c.v,
+  }));
+  const { trend, lastSwingHigh, lastSwingLow } = structureState(pa);
+  const bias = trend === 'up' ? 'BULLISH' : trend === 'down' ? 'BEARISH' : 'RANGING';
 
-  const events: StructureEvent[] = [];
-  let trend: 'BULLISH' | 'BEARISH' | 'RANGING' = 'RANGING';
-  let kH: SwingPt | null = null;  // last confirmed swing high
-  let kL: SwingPt | null = null;  // last confirmed swing low
+  // candlesAgo is measured from the breaking candle, which is what the card's
+  // "~8h ago" reads off. Signals carry a timestamp rather than an index, so map
+  // back through the series once instead of scanning per signal.
+  const idxByTs = new Map(candles.map((c, i) => [c.t, i]));
 
-  for (const sw of swings) {
-    if (sw.type === 'high') {
-      if (kH && sw.price > kH.price) {
-        // Breaking above previous swing high
-        if (trend === 'BULLISH') {
-          events.push({ type: 'BOS',   dir: 'bullish', price: kH.price, ts: sw.ts, candlesAgo: candles.length - 1 - sw.idx });
-        } else if (trend === 'BEARISH') {
-          events.push({ type: 'CHoCH', dir: 'bullish', price: kH.price, ts: sw.ts, candlesAgo: candles.length - 1 - sw.idx });
-          trend = 'BULLISH';
-        } else {
-          trend = 'BULLISH';
-        }
-      }
-      kH = sw;
-    } else {
-      if (kL && sw.price < kL.price) {
-        // Breaking below previous swing low
-        if (trend === 'BEARISH') {
-          events.push({ type: 'BOS',   dir: 'bearish', price: kL.price, ts: sw.ts, candlesAgo: candles.length - 1 - sw.idx });
-        } else if (trend === 'BULLISH') {
-          events.push({ type: 'CHoCH', dir: 'bearish', price: kL.price, ts: sw.ts, candlesAgo: candles.length - 1 - sw.idx });
-          trend = 'BEARISH';
-        } else {
-          trend = 'BEARISH';
-        }
-      }
-      kL = sw;
-    }
-  }
+  const events: StructureEvent[] = detectStructureSignals(pa)
+    .map(s => ({
+      type: (s.kind === 'CHOCH' ? 'CHoCH' : 'BOS') as StructureEvent['type'],
+      dir: (s.dir === 'bull' ? 'bullish' : 'bearish') as StructureEvent['dir'],
+      // The level that was taken out, not the breaking close - unchanged from
+      // what this card displayed before, and what "broken level" means to a
+      // reader comparing it against the swing levels shown below it.
+      price: s.level,
+      ts: s.timestamp,
+      candlesAgo: candles.length - 1 - (idxByTs.get(s.timestamp) ?? candles.length - 1),
+    }))
+    .reverse()      // most recent first
+    .slice(0, 5);
 
-  const recent = [...events].reverse().slice(0, 5);
-  return {
-    bias: trend,
-    lastEvent: recent[0] ?? null,
-    lastSwingHigh: highs[highs.length - 1]?.price ?? null,
-    lastSwingLow:  lows[lows.length  - 1]?.price ?? null,
-    events: recent,
-  };
+  return { bias, lastEvent: events[0] ?? null, lastSwingHigh, lastSwingLow, events };
 }
 
 /* ── Candle-age → human time (each candle = 4h) ── */
@@ -165,8 +140,7 @@ export default function MarketStructure({ coin, onData }: Props) {
         throw new Error('No data source for ' + coin);
       }
 
-      const swings = detectSwings(candles);
-      const ms     = analyzeStructure(candles, swings);
+      const ms = analyzeStructure(candles);
       setData(ms);
       cbRef.current?.(ms);
     } catch (e) {

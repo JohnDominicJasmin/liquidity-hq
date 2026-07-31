@@ -78,6 +78,50 @@ export function findPivots(candles: PACandle[]): { highs: Pivot[]; lows: Pivot[]
   return { highs, lows };
 }
 
+/**
+ * Trend read from the SWING SEQUENCE, not from the last break.
+ *
+ * Higher highs AND higher lows is an uptrend; lower highs AND lower lows a
+ * downtrend; anything else is a range with no trend to continue or reverse.
+ *
+ * Only pivots confirmed strictly before `beforeIndex` count, so callers walking
+ * a series never see a trend built from bars that had not happened yet.
+ *
+ * Exported because the Arena Market Structure card needs the same answer. It
+ * used to carry its own copy of all of this - its own swing detector, its own
+ * BOS/CHoCH walk, and a `trend` variable set to whichever way the last break
+ * went. That is the bug described below, so the card was labelling roughly half
+ * its events CHoCH while the chart markers and Telegram alerts, both reading
+ * this file, labelled the same price action differently. One definition now.
+ */
+export function trendFromPivots(
+  highs: Pivot[], lows: Pivot[], beforeIndex: number,
+): 'up' | 'down' | null {
+  const hs = highs.filter(p => p.index + LOOKBACK < beforeIndex);
+  const ls = lows.filter(p => p.index + LOOKBACK < beforeIndex);
+  if (hs.length < 2 || ls.length < 2) return null;
+  const [h1, h0] = [hs[hs.length - 1], hs[hs.length - 2]];
+  const [l1, l0] = [ls[ls.length - 1], ls[ls.length - 2]];
+  if (h1.price > h0.price && l1.price > l0.price) return 'up';
+  if (h1.price < h0.price && l1.price < l0.price) return 'down';
+  return null;
+}
+
+/** Prevailing trend at the end of the series, plus the swing levels that define
+ *  it. What a "current structure" readout wants, as opposed to a signal list. */
+export function structureState(candles: PACandle[]): {
+  trend: 'up' | 'down' | null;
+  lastSwingHigh: number | null;
+  lastSwingLow: number | null;
+} {
+  const { highs, lows } = findPivots(candles);
+  return {
+    trend: trendFromPivots(highs, lows, candles.length),
+    lastSwingHigh: highs.length ? highs[highs.length - 1].price : null,
+    lastSwingLow: lows.length ? lows[lows.length - 1].price : null,
+  };
+}
+
 function avgVolume(candles: PACandle[], upToIndex: number): number | null {
   const start = Math.max(0, upToIndex - VOL_WINDOW);
   const slice = candles.slice(start, upToIndex);
@@ -103,28 +147,15 @@ export function detectStructureSignals(candles: PACandle[]): PASignal[] {
   const signals: PASignal[] = [];
 
   /**
-   * Trend read from the SWING SEQUENCE, not from the last signal.
-   *
-   * Higher highs AND higher lows is an uptrend; lower highs AND lower lows a
-   * downtrend; anything else is a range with no trend to continue or reverse.
-   *
-   * This started out as "whichever way the last break went", which quietly
-   * made CHoCH meaningless: since consecutive breaks alternate direction about
-   * half the time, half of all signals came back labelled CHoCH (38 of 74 on
-   * 1000 bars of BTC 1h). A change of character is supposed to be the rare,
-   * notable event where price breaks AGAINST an established structure - if it
-   * fires every other signal it tells you nothing.
+   * See trendFromPivots. It reads the swing sequence rather than the last
+   * signal, because "whichever way the last break went" quietly made CHoCH
+   * meaningless: consecutive breaks alternate direction about half the time, so
+   * half of all signals came back labelled CHoCH (38 of 74 on 1000 bars of BTC
+   * 1h). A change of character is supposed to be the rare, notable event where
+   * price breaks AGAINST an established structure - if it fires every other
+   * signal it tells you nothing.
    */
-  const trendAt = (i: number): 'up' | 'down' | null => {
-    const hs = highs.filter(p => p.index + LOOKBACK < i);
-    const ls = lows.filter(p => p.index + LOOKBACK < i);
-    if (hs.length < 2 || ls.length < 2) return null;
-    const [h1, h0] = [hs[hs.length - 1], hs[hs.length - 2]];
-    const [l1, l0] = [ls[ls.length - 1], ls[ls.length - 2]];
-    if (h1.price > h0.price && l1.price > l0.price) return 'up';
-    if (h1.price < h0.price && l1.price < l0.price) return 'down';
-    return null;
-  };
+  const trendAt = (i: number) => trendFromPivots(highs, lows, i);
   // Index of the last pivot consumed on each side. A pivot fires at most once,
   // but ANY later pivot is eligible regardless of its price.
   //
