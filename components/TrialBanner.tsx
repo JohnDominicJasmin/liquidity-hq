@@ -63,7 +63,12 @@ export default function TrialBanner() {
         href="/upgrade"
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '7px 15px', borderRadius: 999,
+          // minHeight, not more padding: the pill sits inline with the sentence
+          // beside it, so growing it vertically via padding alone would push the
+          // banner taller on every viewport. 44px is the touch-target floor -
+          // the first version of this pill was 29px, which is a miss on the one
+          // control in the app whose entire job is being tapped.
+          padding: '0 15px', minHeight: 44, borderRadius: 999,
           border: `1px solid ${accent}`,
           fontSize: 'var(--fs-label)', fontWeight: 700,
           color: accent, textDecoration: 'none', whiteSpace: 'nowrap',
