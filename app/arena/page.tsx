@@ -35,7 +35,7 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF } from '@/lib/limits';
 import { computeSectorRotation } from '@/lib/sectorRotation';
-import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
+import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
 
 /* ── Pattern detection - delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -154,6 +154,10 @@ function ArenaContent() {
   const arenaInitRef  = useRef(false);
   const oi1hDataRef   = useRef<{ pct: number | null; signal: string }>({ pct: null, signal: '-' });
   const msDataRef     = useRef<MSData | null>(null);
+  // State, not a ref: the Confluence Score re-renders on it. Sourced from the
+  // chart rather than recomputed here so the score votes on the same break the
+  // chart marks, on whichever timeframe is being viewed.
+  const [chartStructure, setChartStructure] = useState<PASignal | null>(null);
   const absDataRef    = useRef<AbsorptionData | null>(null);
   const emaSignalRef  = useRef<StrategySignal>(STRATEGY_LOADING);
   const oi1h          = useOI1h(selectedCoin);
@@ -1848,7 +1852,7 @@ function ArenaContent() {
       <div className="arena-ws">
         <div className="arena-ws-chart">
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
-      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} />
+      <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} onStructure={setChartStructure} />
 
       {/* Anti-chop filter toggle */}
       <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -1930,7 +1934,7 @@ function ArenaContent() {
           separate macro/event risk overlay (econ calendar + JPY carry-trade risk).
           Pro-only: free users get an in-place locked card so the layout holds. */}
       {entitled ? (
-        <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} />
+        <ConfluenceScore coin={selectedCoin} emaSignal={emaSignal} jpyUsd={jpyUsd} structure={chartStructure} />
       ) : (
         <LockedFeatureCard
           title={t('ARENA_CONFLUENCE_GATE_TITLE')}

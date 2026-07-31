@@ -6,7 +6,7 @@ import { detectPatterns } from '@/lib/patterns';
 import { T } from '@/lib/tables';
 import { recordFires } from '@/lib/alertHistory';
 import { isOutcomeTracked, persistAlertFires } from '@/lib/alertOutcomes';
-import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS } from '@/lib/coins';
+import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS, bybitSymbolPriceFactor } from '@/lib/coins';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
@@ -444,8 +444,7 @@ async function fetchBybitKlines(symbol: string, interval: string, limit: number)
     const data = await res.json() as { result?: { list?: string[][] } };
     const list = data.result?.list ?? [];
     // Bybit returns newest-first - reverse so index 0 = oldest
-    // Apply 0.001 factor for 1000x denomination symbols (e.g. 1000PEPEUSDT, 1000BONKUSDT)
-    const pf = symbol.startsWith('1000') ? 0.001 : 1;
+    const pf = bybitSymbolPriceFactor(symbol);
     return list.map(c => parseFloat(c[4]) * pf).reverse();
   } catch { return []; }
 }

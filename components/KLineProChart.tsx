@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
 import { BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, CoinId, useMarket, computeSqueezeScore } from '@/lib/marketStore';
+import { bybitSymbolPriceFactor } from '@/lib/coins';
 import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
@@ -214,6 +215,13 @@ interface Props {
   onAlertMove?:  (id: string, newPrice: number) => void;
   // BTC options context lines (null for non-BTC or before data loads).
   gexLevels?:    { flip: number | null; maxPain: number | null } | null;
+  // Latest market-structure break on the CURRENTLY DISPLAYED timeframe, or null
+  // when there is none. Emitted rather than recomputed by the consumer so the
+  // Confluence Score votes on exactly the break the user can see marked on this
+  // chart - same candles, same timeframe. Fires regardless of the Structure
+  // toggle: the toggle controls whether markers are drawn, not whether the
+  // signal exists.
+  onStructure?:  (sig: PASignal | null) => void;
 }
 
 const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d'];
@@ -318,7 +326,7 @@ function computeSRLevels(
   return [...resistances, ...supports];
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, onStructure }: Props) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -989,9 +997,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               const d  = await r.json() as { result?: { list?: string[][] } };
               if (stale()) return; // superseded by a newer switch - drop it
               const list = [...(d?.result?.list ?? [])].reverse();
+              // 1000PEPEUSDT / 1000BONKUSDT quote per 1000 tokens, but this
+              // chart is labelled PEPE/USDT and the ticker beside it shows the
+              // per-token price. Without this the axis, the S/R lines and the
+              // structure markers were all 1000x the number everywhere else.
+              const pf = bybitSymbolPriceFactor(bybitSym);
               const bars = list.map(k => ({
-                timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
-                low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
+                timestamp: Number(k[0]), open: Number(k[1]) * pf, high: Number(k[2]) * pf,
+                low: Number(k[3]) * pf, close: Number(k[4]) * pf, volume: Number(k[5]),
               }));
               if (bars.length) {
                 lastCloseRef.current = bars[bars.length - 1].close;
@@ -1040,8 +1053,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 const d = await r.json() as { result?: { list?: string[][] } };
                 const k = d?.result?.list?.[0];
                 if (k) {
-                  lastCloseRef.current = Number(k[4]);
-                  callback({ timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]), low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]) });
+                  // Same 1000x conversion as the history load above - without it
+                  // the live bar jumps to a different scale than the candles it
+                  // is appended to.
+                  const pf = bybitSymbolPriceFactor(bybitSym);
+                  lastCloseRef.current = Number(k[4]) * pf;
+                  callback({
+                    timestamp: Number(k[0]), open: Number(k[1]) * pf, high: Number(k[2]) * pf,
+                    low: Number(k[3]) * pf, close: Number(k[4]) * pf, volume: Number(k[5]),
+                  });
                 }
               } catch { /* silent */ }
             }, 5000);
@@ -1296,6 +1316,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       if (typeof id === 'string') srOverlayIds.current.push(id);
     }
   }, [srLevels, showSR, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Publish the newest structure break upward. Separate from the drawing effect
+  // below so it is not gated on showPA - a consumer scoring the market wants the
+  // signal whether or not the user has markers switched on.
+  const onStructureRef = useRef(onStructure);
+  useEffect(() => { onStructureRef.current = onStructure; }, [onStructure]);
+  useEffect(() => {
+    onStructureRef.current?.(paSignals.length ? paSignals[paSignals.length - 1] : null);
+  }, [paSignals]);
 
   // ── Draw / redraw market-structure break markers ─────────────────────
   useEffect(() => {

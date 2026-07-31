@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
-import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
+import { BINANCE_SYMS, BYBIT_SYMS, bybitPriceFactor } from '@/lib/coins';
 import { checkCronAuth } from '@/lib/cronAuth';
 
 export const dynamic = 'force-dynamic';
@@ -33,7 +33,13 @@ async function fetchCurrentPrices(): Promise<Record<string, number>> {
     const data = await bbR.value.json() as { result?: { list?: Array<{ symbol: string; lastPrice: string }> } };
     for (const item of data.result?.list ?? []) {
       const coin = Object.entries(BYBIT_SYMS).find(([, s]) => s === item.symbol)?.[0];
-      if (coin && out[coin] == null && item.lastPrice) out[coin] = parseFloat(item.lastPrice);
+      // bybitPriceFactor, not the raw lastPrice. 1000PEPEUSDT/1000BONKUSDT quote
+      // per 1000 tokens, while price_at_fire is stored per token - so without
+      // this the outcome maths compared two different units and produced
+      // ±100,000% moves on those two coins.
+      if (coin && out[coin] == null && item.lastPrice) {
+        out[coin] = parseFloat(item.lastPrice) * bybitPriceFactor(coin);
+      }
     }
   }
   return out;
