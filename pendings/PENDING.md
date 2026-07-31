@@ -256,9 +256,36 @@ inside `dispatchPush` rather than from a tally in the handler, but only because
 the handler has already returned by then. A 410 counts as an expired
 subscription, not a delivery failure.
 
-**Alerting is not built.** The card must be opened to be seen. A source sitting
-at `consecutive_failures >= 3` for hours currently notifies nobody; the obvious
-next step is folding that into the existing ops spike-alert email.
+**ALERTING SHIPPED 2026-07-31** (`lib/healthAlert.ts`). Emails the owner when a
+source hits `consecutive_failures >= 3`, and again when it recovers. Rides the
+hourly econ-snapshot cron - it needed an hourly schedule and that was the only
+hourly cron; its own route plus a new cron-job.org entry is exactly what
+`api/ops/spike-alert` did, which was built 2026-07-25, never wired, and is still
+dead. **If that cron is ever deleted or repointed, health alerting stops
+silently** - the stale calendar would be the visible symptom, the missing alerts
+would not be.
+
+Threshold is 3 in a row, matching the card, deliberately not one failure -
+Finnhub flaps (~3 in 50 samples as isolated ticks) and would otherwise page
+every few hours. Does NOT alert on staleness: most sources are only written when
+a user-facing route is hit, so with no overnight traffic they stop reporting,
+which is unmonitored rather than broken and must not send email at 4am.
+
+Verified in prod, every branch: down detected and emailed (landed in the inbox,
+not spam, from `noreply@liquidity-hq.com`); a repeat run while still down stayed
+silent; a suppressed source was dropped from state. Recovery was verified on dev.
+
+Two things learned doing it, both worth keeping:
+- The Brevo deliverability worry recorded elsewhere in these docs is **stale**.
+  It now sends from a real domain, not a freemail address, and reached Gmail's
+  inbox first try. Applies to the welcome and trial-reminder emails too.
+- `updated_at` on `lhq_app_config` is NOT maintained by these writes and there
+  is no trigger, so it is useless as a "did this run" signal - it sat unchanged
+  across two later writes. Compare the value, not the timestamp. The same trap
+  already bit `structure_signal_dedup` earlier the same day.
+
+Suppression list lives in `app_config.api_health_alert_suppress` and is seeded
+with the three known-dead sources. Edit the array to add or remove - no deploy.
 
 Original rationale, kept because it is the design constraint:
 

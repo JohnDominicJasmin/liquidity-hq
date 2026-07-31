@@ -666,11 +666,6 @@ function ArenaContent() {
           : '')
       : '-';
 
-    /* Google Trends */
-    const googleTrends = store.googleTrendsBtc != null
-      ? store.googleTrendsBtc + '/100' + (store.googleTrendsBtc > 70 ? ' (high retail - possible top)' : store.googleTrendsBtc < 25 ? ' (low - possible bottom)' : ' (moderate)')
-      : 'AI will search';
-
     /* Liquidation levels */
     const liqLevels = store.btcLiqLevels && store.btcLiqLevels.length > 0
       ? store.btcLiqLevels.slice(0, 4).map(l => '$' + l.price.toLocaleString() + ' ' + l.side).join(' | ')
@@ -782,16 +777,6 @@ function ArenaContent() {
       .join('\n') || 'None in next 48h';
     const upcoming = [recentlyReleased, upcomingList].filter(Boolean).join('\n');
 
-    /* ETF flows */
-    const fmtFlow = (v: number | null, asset: string) => {
-      if (v == null) return null;
-      const sign = v >= 0 ? '+' : '';
-      const tag = v > 200 ? ' (strong inflow)' : v > 0 ? ' (inflow)' : v < -200 ? ' (heavy outflow)' : ' (outflow)';
-      return `${asset} ${sign}$${Math.abs(v).toFixed(0)}M${tag}`;
-    };
-    const etfFlows = [fmtFlow(store.etfNetFlow, 'BTC ETF'), fmtFlow(store.ethEtfNetFlow, 'ETH ETF')]
-      .filter(Boolean).join(' | ') || 'AI will search live';
-
     /* Liquidation cascade size (#30) */
     const ca = store.cascadeAlert;
     const cascadeLine = ca && (Date.now() - ca.ts < 4 * 60 * 60 * 1000)
@@ -844,10 +829,10 @@ function ArenaContent() {
       session, clusters: '-',
       news: latestHeadlines.length > 0 ? latestHeadlines.slice(0, 15).join('\n') : 'No recent alerts',
       rsi14, ma20, priceVsMA, volRatio, longShortRatio,
-      oilPrice, bonds10y, upcomingEvents: upcoming, etfFlows,
+      oilPrice, bonds10y, upcomingEvents: upcoming,
       rsi1h, rsi4h, rsiDaily: fmt(coin?.rsiDaily), cvd, cvdDivergence, basis, fibNearest, orderWalls, squeezeScore,
       pcRatio, maxPain, btcGex,
-      exchangeNetFlow, stablecoinFlow, googleTrends, liqLevels, btcDomTrend, sectorRotation,
+      exchangeNetFlow, stablecoinFlow, liqLevels, btcDomTrend, sectorRotation,
       // Placeholder: needs candles, which this synchronous builder has no
       // access to. Overridden at the call site once they are fetched, the same
       // way rsiDaily is - see the gatherContext() spread below.

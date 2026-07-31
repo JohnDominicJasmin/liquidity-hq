@@ -270,7 +270,6 @@ function buildSystemCtx(
     ln('Sector rotation',   computeSectorRotation(store, coin).line),
     // Independent of the EMA ribbon on purpose - see lib/priceAction.ts.
     ln('Structure break (1h)', structureLine),
-    ln('Google Trends',     store.googleTrendsBtc != null ? store.googleTrendsBtc + '/100' : '-'),
     ln('Session',           session),
     '',
     '=== LIVE NEWS FEED ===',

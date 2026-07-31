@@ -1028,24 +1028,13 @@ export default function MarketProvider({ children }: { children: React.ReactNode
    * be rebuilt. Restore steps are in pendings/PENDING.md.
    */
 
-  /* ── Google Trends 'bitcoin' (7-day) ── */
-  const fetchGoogleTrends = useCallback(async () => {
-    try {
-      const token = await getAuthToken();
-      const res = await fetch('/api/proxy?type=trends', {
-        cache: 'no-cache',
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-      const dataJson = await res.json();
-      const timelineData: Array<{ value: number[] }> =
-        dataJson?.default?.timelineData ?? [];
-      if (!timelineData.length) return;
-      const score = timelineData[timelineData.length - 1]?.value?.[0];
-      if (score != null) {
-        setStore(s => ({ ...s, googleTrendsBtc: score }));
-      }
-    } catch { /* fail silently */ }
-  }, []);
+  /* Google Trends fetch removed 2026-07-31. Google blocks the unofficial
+     endpoint (confirmed from Render and locally), and its only consumer was
+     the Grok prompt's retail-sentiment line, which came out at the same time.
+     It ran on mount and hourly in every session, so it was a recurring call
+     to a known-blocked host for a value nothing read. /api/proxy?type=trends
+     still exists and is still health-tracked - restore a caller here if a
+     working source turns up. */
 
   /* ── OI Trend bootstrap - Bybit historical OI + klines ── */
   // Fires once on mount to populate OI trend without waiting for two 8-min Bybit polls
@@ -1398,7 +1387,6 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     fetchPremiumIndex();
     fetchDeribitOptions();
     fetchStablecoinFlows();
-    fetchGoogleTrends();
     // CB Premium needs BTC price first - wait 3s for WS/REST to populate
     setTimeout(fetchCoinbasePremium, 3000);
     // Retry server-proxied APIs that may miss on Render cold start
@@ -1427,7 +1415,6 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       setInterval(fetchPremiumIndex,     30  * 1000),        // every 30s - premium changes frequently
       setInterval(fetchDeribitOptions,   15  * 60 * 1000),
       setInterval(fetchStablecoinFlows,  30  * 60 * 1000),
-      setInterval(fetchGoogleTrends,     60  * 60 * 1000),
       setInterval(fetchCoinbasePremium,   30 * 1000),      // every 30s
     ];
 
