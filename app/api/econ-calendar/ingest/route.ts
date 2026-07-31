@@ -3,6 +3,7 @@ import { checkCronAuth } from '@/lib/cronAuth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { apiError } from '@/lib/apiError';
 import { recordApiHealth } from '@/lib/apiHealth';
+import { runHealthAlert } from '@/lib/healthAlert';
 import { T } from '@/lib/tables';
 import type { CalEvent } from '../route';
 
@@ -16,6 +17,25 @@ import type { CalEvent } from '../route';
 // stays in place for the pages that read it directly. app/api/macro-alert
 // already reaches it the same way.
 const SNAPSHOT_KEY = 'us_high_impact';
+
+/* The API-health alert sweep rides this job rather than owning a route.
+ *
+ * It needs an hourly schedule and this is the only hourly cron that exists.
+ * The alternative - its own route plus a new cron-job.org entry - is exactly
+ * what app/api/ops/spike-alert did: built 2026-07-25, never wired, still dead
+ * today. An alerting feature that depends on someone remembering to schedule
+ * it is worse than none, because it looks finished.
+ *
+ * Failing here must never fail the ingest: the calendar snapshot is the job,
+ * the sweep is a passenger. */
+async function healthAlertTick(): Promise<unknown> {
+  try {
+    return await runHealthAlert();
+  } catch (e) {
+    console.error('[econ-calendar/ingest] health alert failed:', e instanceof Error ? e.message : String(e));
+    return { error: 'health alert failed' };
+  }
+}
 
 export async function POST(req: Request) {
   if (!checkCronAuth(req)) {
@@ -46,9 +66,11 @@ export async function POST(req: Request) {
 
     // An empty result means every upstream source failed at once. Overwriting a
     // good snapshot with [] would blank the calendar for every client, so keep
-    // the last known-good one instead.
+    // the last known-good one instead. The health sweep still runs - a failing
+    // calendar is exactly when you want to hear about the other sources too.
     if (!events?.length) {
-      return NextResponse.json({ ok: true, skipped: 'empty result, kept previous snapshot' });
+      const health = await healthAlertTick();
+      return NextResponse.json({ ok: true, skipped: 'empty result, kept previous snapshot', health });
     }
 
     const sb = getSupabaseAdmin();
@@ -60,7 +82,8 @@ export async function POST(req: Request) {
     }, { onConflict: 'key' });
     if (error) return apiError('econ-calendar/ingest', error, 500, 'Snapshot write failed');
 
-    return NextResponse.json({ ok: true, events: events.length, source });
+    const health = await healthAlertTick();
+    return NextResponse.json({ ok: true, events: events.length, source, health });
   } catch (e) {
     return apiError('econ-calendar/ingest', e, 500, 'Calendar ingest failed');
   }
