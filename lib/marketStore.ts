@@ -136,7 +136,6 @@ export type MarketStore = {
   btcExchangeNetFlow: number | null;
   btcLiqLevels: LiqLevel[];
   /* Google Trends */
-  googleTrendsBtc: number | null;
   /* Macro correlations */
   dxy: number | null;        // US Dollar Index
   dxyChg: number | null;     // 24h % change
@@ -184,7 +183,6 @@ export const defaultStore: MarketStore = {
   stablecoinPrev: null,
   btcExchangeNetFlow: null,
   btcLiqLevels: [],
-  googleTrendsBtc: null,
   dxy: null, dxyChg: null,
   jpy: null, jpyChg: null,
   spx: null, spxChg: null,

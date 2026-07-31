@@ -83,8 +83,6 @@ export interface GrokContext {
   bonds10y: string;
   /* upcoming events */
   upcomingEvents: string;
-  /* ETF flows */
-  etfFlows: string;
   /* multi-timeframe RSI */
   rsi1h: string;
   rsi4h: string;
@@ -112,8 +110,6 @@ export interface GrokContext {
   cascadeLine: string;
   /* whale net flow (last 1h, selected coin) */
   whaleFlow: string;
-  /* retail sentiment */
-  googleTrends: string;
   /* liquidation clusters */
   liqLevels: string;
   /* BTC dominance trend */
@@ -265,9 +261,13 @@ export function buildPrompt(ctx: GrokContext): string {
     `Whale net flow (last 1h, ${ctx.coin}): ${ctx.whaleFlow}`,
     '(Net whale buying = institutional accumulation signal. Net whale selling = distribution / risk-off. Large single trades >$1M often precede directional moves within 15–30min.)',
     '',
-    '=== RETAIL SENTIMENT ===',
-    `Google Trends 'Bitcoin' (7d):  ${ctx.googleTrends}`,
-    '',
+    // RETAIL SENTIMENT (Google Trends) removed 2026-07-31. Google blocks the
+    // unofficial endpoint - confirmed failing from Render and locally - so the
+    // value was permanently the 'AI will search' fallback, never a number.
+    // That fallback only means something in Deep mode, which has web_search;
+    // Quick mode has no tools, so it was a standing instruction the model
+    // could not act on, spending tokens to say nothing. Restore alongside a
+    // source that actually answers, not as a search prompt.
     '=== LIQUIDATION CLUSTERS ===',
     ctx.liqLevels,
     '',
@@ -278,10 +278,12 @@ export function buildPrompt(ctx: GrokContext): string {
     '=== LIVE NEWS FEED (last 6 alerts - Finnhub + RSS) ===',
     ctx.news,
     '',
-    '=== BTC + ETH SPOT ETF FLOWS ===',
-    ctx.etfFlows,
-    '(Positive net flow = institutional inflows = demand. Negative = outflows = distribution/de-risking.)',
-    '',
+    // BTC + ETH SPOT ETF FLOWS removed 2026-07-31, same reason as retail
+    // sentiment above: SoSoValue answers from neither host, so the value was
+    // permanently 'AI will search live' sitting under a heading that told the
+    // model to read it as institutional demand. The store still carries
+    // etfNetFlow for /briefing, which renders an honest "N/A" - a prompt has
+    // no equivalent, which is why this comes out rather than degrading.
     '=== SESSION ===',
     `Current session: ${ctx.session}`,
     '',
