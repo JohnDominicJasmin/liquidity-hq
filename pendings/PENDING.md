@@ -237,12 +237,19 @@ reproduce from Render** (unlike CryptoSlate, which only fails from Render, these
 fail everywhere - so it is the dependency, not the IP):
 - `google-trends:bitcoin` - "trends explore blocked"
 - `sosovalue:etf-flows` - no response from either host
-Both feed the Grok prompt context (`googleTrends`, `etfFlows`), so every AI
-analysis has been running with those fields blank. Neither has a fix yet -
-decide whether to find replacements or drop the fields from the prompt.
+Both fed the Grok prompt context as `googleTrends` / `etfFlows`, so every AI
+analysis had been running with those fields blank. **RESOLVED 2026-08-01: both
+fields dropped from the prompt entirely** rather than replaced. They were never
+worth a new dependency - a fallback string (`'AI will search'`) meant the model
+was being told to go look it up anyway, so removing them costs nothing and stops
+the prompt claiming context it does not have. Both sources stay in the
+suppression list so they do not park red rows on the card. If a real ETF-flow or
+search-interest source ever turns up, that is a new feature, not a repair.
 
 Also surfaced: `finnhub:crypto` reporting "no articles (key missing or upstream
-down)" while `finnhub:general` returns 100.
+down)" while `finnhub:general` returns 100. **Recovered on its own** - reading
+healthy at 94 items on 2026-08-01. It was upstream flakiness, not a missing key,
+which is also why the alert threshold is 3 consecutive failures rather than 1.
 
 **Coinglass deliberately NOT tracked** - known dead by decision with no callers,
 so it would park two permanently red rows and train the eye to ignore red. Add
@@ -444,8 +451,9 @@ of ~95 directional weight while winning barely more than a coin flip.
 
 ## ❓ OPEN — YOUR action (can't do from code)
 
-Nothing blocking. `dev` and `main` hold identical content, prod on `2e4e342`;
-all 2026-07-31/08-01 work is shipped and verified.
+Nothing blocking. `dev` and `main` hold identical content, `main` on `e23cf33`;
+all 2026-07-31/08-01 work is shipped and verified. Prod's running build is
+`4e713d0` - the one commit since is docs-only, so no deploy was triggered.
 
 ## 🔭 DEFERRED — tied to unfinished payment feature
 
