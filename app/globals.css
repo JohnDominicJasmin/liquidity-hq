@@ -3969,6 +3969,31 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 .login-email-btn:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
 .login-email-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* Password input + reveal toggle (components/PasswordField.tsx). The input
+   keeps .login-email-input so it matches every other field; the extra right
+   padding is only to keep typed text from running under the eye button. */
+.pw-field { position: relative; display: block; }
+.pw-field-input { padding-right: 44px; }
+.pw-field-toggle {
+  position: absolute; top: 0; right: 0; height: 100%; width: 42px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--txt3); transition: color 0.15s;
+}
+.pw-field-toggle:hover { color: var(--txt); }
+
+/* Password requirement checklist under the create-account field */
+.pw-rules { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.pw-rule {
+  display: flex; align-items: center; gap: 7px;
+  font-size: var(--fs-caption); color: var(--txt3);
+}
+.pw-rule.met { color: var(--green); }
+.pw-rule-dot {
+  width: 14px; height: 14px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+
 /* Turnstile CAPTCHA - centered under the email form, only rendered once
    NEXT_PUBLIC_TURNSTILE_SITE_KEY is set */
 .login-turnstile { display: flex; justify-content: center; margin-top: 12px; }

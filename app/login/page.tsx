@@ -9,6 +9,8 @@ import { useAuth } from '@/components/AuthProvider';
 import { friendlyAuthError } from '@/lib/authErrors';
 import { safeNextPath } from '@/lib/safeNext';
 import LoadingState from '@/components/LoadingState';
+import PasswordField from '@/components/PasswordField';
+import { PASSWORD_RULES, PASSWORD_MIN_LENGTH, passwordMeetsPolicy } from '@/lib/passwordPolicy';
 import { useLabels } from '@/lib/labels';
 
 // Only rendered once NEXT_PUBLIC_TURNSTILE_SITE_KEY is set - until then the
@@ -120,8 +122,9 @@ function LoginInner() {
       setPwError(t('LOGIN_PASSWORD_MISMATCH'));
       return;
     }
-    if (pwMode === 'signup' && password.length < 8) {
-      setPwError(t('LOGIN_PASSWORD_TOO_SHORT'));
+    // Must match Supabase's own policy exactly - see lib/passwordPolicy.ts.
+    if (pwMode === 'signup' && !passwordMeetsPolicy(password)) {
+      setPwError(t('LOGIN_PASSWORD_POLICY_ERROR'));
       return;
     }
     const sb = getSupabase();
@@ -336,25 +339,40 @@ function LoginInner() {
                   onChange={e => setPwEmail(e.target.value)}
                   autoComplete="email"
                 />
-                <input
-                  type="password"
-                  className="login-email-input"
+                <PasswordField
                   placeholder={pwMode === 'signup' ? t('LOGIN_PASSWORD_NEW_PLACEHOLDER') : t('LOGIN_PASSWORD_PLACEHOLDER')}
                   value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && pwMode === 'signin' && submitPassword()}
+                  onChange={setPassword}
+                  onEnter={() => { if (pwMode === 'signin') submitPassword(); }}
                   autoComplete={pwMode === 'signup' ? 'new-password' : 'current-password'}
                 />
                 {pwMode === 'signup' && (
-                  <input
-                    type="password"
-                    className="login-email-input"
-                    placeholder={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
-                    value={confirmPassword}
-                    onChange={e => setConfirmPassword(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && submitPassword()}
-                    autoComplete="new-password"
-                  />
+                  <>
+                    {/* Shown only once typing starts, so an untouched form is not
+                        a wall of red - but shown BEFORE submitting, which is the
+                        whole point: the rules used to arrive from the server
+                        after the attempt had already failed. */}
+                    {password && (
+                      <div className="pw-rules">
+                        {PASSWORD_RULES.map(rule => {
+                          const met = rule.test(password);
+                          return (
+                            <div key={rule.key} className={`pw-rule${met ? ' met' : ''}`}>
+                              <span className="pw-rule-dot">{met ? '✓' : '○'}</span>
+                              {t(rule.key, { n: PASSWORD_MIN_LENGTH })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <PasswordField
+                      placeholder={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
+                      value={confirmPassword}
+                      onChange={setConfirmPassword}
+                      onEnter={submitPassword}
+                      autoComplete="new-password"
+                    />
+                  </>
                 )}
                 <button
                   className="login-email-btn"
