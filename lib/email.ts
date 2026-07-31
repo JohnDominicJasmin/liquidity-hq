@@ -297,6 +297,21 @@ export async function sendTrialEndingEmail(args: TrialEndingArgs): Promise<boole
   const upgradeUrl = appUrl('/upgrade');
   const when = args.daysLeft <= 1 ? 'tomorrow' : `in ${args.daysLeft} days`;
   const subject = `Your ${APP_NAME} Pro trial ends ${when}`;
+
+  /* Only promise a purchase path when one actually exists. Until checkout is
+     configured, /upgrade renders "Pro payments launching soon" - so a plain
+     "Keep Pro" link would send the most interested user we have, on the day
+     they are most willing to pay, to a page that cannot take their money. Same
+     env check /upgrade and UpgradeGateModal already use, so the three agree by
+     construction. The rest of the email still sends either way: its real job is
+     warning that features are about to lock, which is true regardless. */
+  const checkoutLive = !!(
+    process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL &&
+    process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL !== '#'
+  );
+  const cta = checkoutLive
+    ? `<p style="margin:0 0 12px">Keep Pro: <a href="${upgradeUrl}">${upgradeUrl}</a></p>`
+    : `<p style="margin:0 0 12px">Pro is not on sale yet, so there is nothing to buy today - the features above still lock ${when}, and we will email you as soon as there is a way to keep them.</p>`;
   const html = `
     <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.5;color:#111;max-width:520px">
       <h2 style="margin:0 0 12px;font-size:18px">Your Pro trial ends ${when}</h2>
@@ -313,7 +328,7 @@ export async function sendTrialEndingEmail(args: TrialEndingArgs): Promise<boole
       <p style="margin:0 0 12px">
         Your daily AI analysis and chat also drop back to the free allowance.
       </p>
-      <p style="margin:0 0 12px">Keep Pro: <a href="${upgradeUrl}">${upgradeUrl}</a></p>
+      ${cta}
       <p style="margin:16px 0 0;color:#666;font-size:13px">
         Not for you? No action needed - nothing will be charged.
       </p>
