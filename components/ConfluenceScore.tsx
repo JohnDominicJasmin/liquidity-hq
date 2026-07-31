@@ -14,6 +14,7 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { useNews } from './NewsProvider';
 import { computeSectorRotation, isAlt } from '@/lib/sectorRotation';
+import type { PASignal } from '@/lib/priceAction';
 
 const VERDICT_CONFIG: Record<string, { labelKey: LabelKey; color: string }> = {
   STRONG_BULL:  { labelKey: 'CONFLUENCE_SCORE_VERDICT_STRONG_BULL',  color: '#34d399' },
@@ -23,7 +24,10 @@ const VERDICT_CONFIG: Record<string, { labelKey: LabelKey; color: string }> = {
   STRONG_BEAR:  { labelKey: 'CONFLUENCE_SCORE_VERDICT_STRONG_BEAR',  color: '#f87171' },
 };
 
-export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: CoinId; emaSignal: StrategySignal; jpyUsd: number | null }) {
+export default function ConfluenceScore(
+  { coin, emaSignal, jpyUsd, structure }:
+  { coin: CoinId; emaSignal: StrategySignal; jpyUsd: number | null; structure: PASignal | null },
+) {
   const { t } = useLabels();
   const { store } = useMarket();
   const d = store.coins[coin];
@@ -81,6 +85,35 @@ export default function ConfluenceScore({ coin, emaSignal, jpyUsd }: { coin: Coi
           dir: (rotation.direction === 'to_alts' ? 'bull'
               : rotation.direction === 'to_btc' ? 'bear'
               : 'neutral') as 'bull' | 'bear' | 'neutral',
+          weight: 20,
+        }]
+      : []),
+    // Market structure - the only factor here read from price alone, and the
+    // reason it is worth having: every other directional input above is derived
+    // from the EMA ribbon or from derivatives positioning, so before this the
+    // "confluence" could agree with itself while price was breaking the other
+    // way. BOS and CHoCH vote the same direction; they differ in what they mean
+    // (continuation vs a first hint of a turn), not in which way price broke.
+    //
+    // Weight 20, matching sector rotation and Multi-TF RSI - a real independent
+    // vote, deliberately under the coin's own trend (EMA 30) and order flow
+    // (25). A single swing break is evidence, not a thesis.
+    //
+    // Volume-backed breaks only. lib/priceAction flags a break as backed when
+    // the breaking candle traded >=1.2x its trailing 20-bar average; a break on
+    // thin volume is exactly the kind that gets retraced, and counting it the
+    // same would put noise on equal footing with participation. Unbacked breaks
+    // still draw on the chart - they are shown, just not voted on.
+    //
+    // Omitted entirely (not voted neutral) when there is no qualifying break: a
+    // directional factor adds to the denominator even when neutral, so emitting
+    // one on absent data would dilute every other signal to say nothing. Same
+    // reasoning as sector rotation above.
+    ...(structure?.volumeBacked
+      ? [{
+          kind: 'directional' as const,
+          label: t('CONFLUENCE_SCORE_FACTOR_STRUCTURE'),
+          dir: (structure.dir === 'bull' ? 'bull' : 'bear') as 'bull' | 'bear' | 'neutral',
           weight: 20,
         }]
       : []),

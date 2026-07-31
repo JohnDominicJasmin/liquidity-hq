@@ -214,6 +214,13 @@ interface Props {
   onAlertMove?:  (id: string, newPrice: number) => void;
   // BTC options context lines (null for non-BTC or before data loads).
   gexLevels?:    { flip: number | null; maxPain: number | null } | null;
+  // Latest market-structure break on the CURRENTLY DISPLAYED timeframe, or null
+  // when there is none. Emitted rather than recomputed by the consumer so the
+  // Confluence Score votes on exactly the break the user can see marked on this
+  // chart - same candles, same timeframe. Fires regardless of the Structure
+  // toggle: the toggle controls whether markers are drawn, not whether the
+  // signal exists.
+  onStructure?:  (sig: PASignal | null) => void;
 }
 
 const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d'];
@@ -318,7 +325,7 @@ function computeSRLevels(
   return [...resistances, ...supports];
 }
 
-export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels }: Props) {
+export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal, chartAlerts, onAlertMove, gexLevels, onStructure }: Props) {
   const containerRef   = useRef<HTMLDivElement>(null);
   const wrapRef        = useRef<HTMLDivElement>(null);
   const canvasFadeRef  = useRef<HTMLDivElement>(null);
@@ -1296,6 +1303,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       if (typeof id === 'string') srOverlayIds.current.push(id);
     }
   }, [srLevels, showSR, chartReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Publish the newest structure break upward. Separate from the drawing effect
+  // below so it is not gated on showPA - a consumer scoring the market wants the
+  // signal whether or not the user has markers switched on.
+  const onStructureRef = useRef(onStructure);
+  useEffect(() => { onStructureRef.current = onStructure; }, [onStructure]);
+  useEffect(() => {
+    onStructureRef.current?.(paSignals.length ? paSignals[paSignals.length - 1] : null);
+  }, [paSignals]);
 
   // ── Draw / redraw market-structure break markers ─────────────────────
   useEffect(() => {
