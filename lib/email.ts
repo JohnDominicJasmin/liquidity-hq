@@ -155,7 +155,9 @@ export async function sendHealthAlertEmail(args: HealthAlertArgs): Promise<boole
       ${args.down.length ? `
         <h2 style="margin:0 0 12px;font-size:18px">Data sources down</h2>
         <p style="margin:0 0 12px;color:#444">
-          These have failed ${args.down.length === 1 ? 'its' : 'their'} last few checks in a row.
+          ${args.down.length === 1
+            ? 'This has failed its last few checks in a row.'
+            : 'These have failed their last few checks in a row.'}
           A source going quiet does not surface anywhere in the app - the page just shows a dash.
         </p>
         <table style="border-collapse:collapse;font-size:14px;margin:0 0 16px">${downRows}</table>
