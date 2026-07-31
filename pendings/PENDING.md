@@ -357,11 +357,55 @@ things break together if the service is ever scaled to multiple instances: the
 per-user limit becomes per-instance, and Binance/Bybit rate-limit exposure rises
 with it. Neither matters at one user; both need revisiting before real traffic.
 
+### Confluence Score is unvalidated - agreement now recorded, needs time (2026-08-01)
+
+`agree_count` / `agree_net` were added to `lhq_alert_fires` and are writing
+correctly in prod (verified on the first tick after deploy). They record how
+many DISTINCT rule keys fired for a coin in the same scan and how they split on
+direction. Analysis query is in migration `20260801a`.
+
+**Do not read it yet.** Every row so far is `agree_count: 1` - a solo fire has
+no agreement to measure - and the interesting slice (`>= 2`, especially `>= 3`)
+accumulates slowly. Needs a few weeks plus 24h resolution on top. A small sample
+will happily show a fake edge.
+
+This does NOT persist the Arena Confluence Score, and cannot: its Order Flow
+factor (weight 25) is built from OI trend, CVD divergence, taker buy ratio, POC
+and VWAP, all of which reach the browser over its own market feed and none of
+which the cron holds. See the migration comment.
+
+### What the outcome data said, and its limits (2026-08-01)
+
+First real measurement across 6,201 resolved fires, after the PEPE/BONK unit
+corruption was cleaned out:
+
+| rule | n | win rate | avg 24h |
+|---|---|---|---|
+| ema_signal_1d | 51 | 80.4% | +13.36% |
+| ema_signal_4h | 299 | 59.2% | +2.45% |
+| ema_signal_1h | 677 | 61.3% | +1.27% |
+| ema_signal_30m | 1218 | 60.5% | +1.11% |
+| **rsi** | 592 | **52.7%** | **+0.31%** |
+| ema_signal_5m | 782 | 51.5% | +0.11% |
+| ema_signal_1m | 1983 | 49.6% | -0.01% |
+| whales | 216 | 48.1% | **-0.39%** |
+
+This is what justified removing the RSI double-count - momentum was carrying ~45
+of ~95 directional weight while winning barely more than a coin flip.
+
+**Three caveats that must travel with these numbers:**
+- 24h horizon biases toward slow signals. A 1m alert is not meant to be held a
+  day, so the timeframe ranking is partly measurement artifact. RSI vs EMA-1h is
+  a fair comparison though - same horizon.
+- **12 days, one market regime** (Jul 19-31), no out-of-sample check.
+  `ema_signal_1d` at n=51 is as likely a trending fortnight as an edge.
+- `ema_signal_1m` is the largest sample and has no edge at 24h; `whales` is
+  negative. Neither has been acted on.
+
 ## ❓ OPEN — YOUR action (can't do from code)
 
-Nothing outstanding. `dev` and `main` hold identical content (prod on
-`8249a85`); everything from the 2026-07-31 alerts work is shipped and verified
-in prod.
+Nothing blocking. `dev` and `main` hold identical content, prod on `2e4e342`;
+all 2026-07-31/08-01 work is shipped and verified.
 
 ## 🔭 DEFERRED — tied to unfinished payment feature
 
