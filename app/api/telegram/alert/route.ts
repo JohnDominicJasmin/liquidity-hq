@@ -11,6 +11,9 @@ import { computeDistributionScore, DistributionInputs } from '@/lib/distribution
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
 import { recordApiHealth, healthError } from '@/lib/apiHealth';
+import {
+  EMA_SIGNAL_TFS, type EMASignalTF, fetchRibbonCandles, BYBIT_KLINE_SYMS,
+} from '@/lib/ribbonCandles';
 import { detectStructureSignals } from '@/lib/priceAction';
 import {
   STRUCTURE_TFS, type StructureTF,
@@ -146,10 +149,6 @@ function passesThreshold(e: SignalEntry, t: UserThresholds | undefined): boolean
 const BINANCE_PERP  = BINANCE_SYMS;
 const BYBIT_PERP    = BYBIT_SYMS;
 const BINANCE_SPOT  = BINANCE_SYMS;   // spot symbols are identical to perp symbols
-// Bybit-only coins: not listed on Binance perp - use Bybit for klines / OI / whale checks
-const BYBIT_KLINE_SYMS: Record<string, string> = Object.fromEntries(
-  Object.entries(BYBIT_SYMS).filter(([c]) => !BINANCE_SYMS[c])
-);
 const LABELS: Record<string, string> = COIN_LABELS;
 
 const WHALE_THRESHOLD: Record<string, number> = {
@@ -1404,37 +1403,9 @@ async function checkDistribution(
    the fetch/compute entirely, same cost-control shape as fullyMutedCoins.
    ════════════════════════════════════════ */
 
-const EMA_SIGNAL_TFS = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'] as const;
-export type EMASignalTF = typeof EMA_SIGNAL_TFS[number];
-const BYBIT_TF_INTERVAL: Record<EMASignalTF, string> = {
-  '1m': '1', '5m': '5', '15m': '15', '30m': '30', '1h': '60', '2h': '120', '4h': '240', '1d': 'D',
-};
-
-// Binance-first, Bybit fallback for Bybit-only coins (e.g. HYPE) - matches
-// how the Arena chart itself sources candles (lib/useEMAStrategy.ts), a gap
-// the old Binance-only checkEMASetup silently had.
-async function fetchRibbonCandles(coin: string, tf: EMASignalTF): Promise<OHLCV[]> {
-  const bnSym = BINANCE_PERP[coin];
-  if (bnSym) {
-    const res = await fetch(
-      `https://fapi.binance.com/fapi/v1/klines?symbol=${bnSym}&interval=${tf}&limit=300`,
-      { cache: 'no-store', signal: AbortSignal.timeout(9_000) }
-    );
-    if (!res.ok) return [];
-    const raw = await res.json() as Array<(string | number)[]>;
-    return raw.map(k => ({ time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }));
-  }
-  const bySym = BYBIT_KLINE_SYMS[coin];
-  if (!bySym) return [];
-  const res = await fetch(
-    `https://api.bybit.com/v5/market/kline?category=linear&symbol=${bySym}&interval=${BYBIT_TF_INTERVAL[tf]}&limit=300`,
-    { cache: 'no-store', signal: AbortSignal.timeout(9_000) }
-  );
-  if (!res.ok) return [];
-  const d = await res.json() as { result?: { list?: string[][] } };
-  const list = [...(d.result?.list ?? [])].reverse();
-  return list.map(k => ({ time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }));
-}
+// EMA_SIGNAL_TFS, EMASignalTF and fetchRibbonCandles now live in
+// lib/ribbonCandles.ts so /api/alerts/preview evaluates the same bars this
+// cron does - see the note there.
 
 async function checkEMASignal(
   stamp: string,

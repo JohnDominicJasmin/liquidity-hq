@@ -437,13 +437,27 @@ export default function AlertsPage() {
     setDisconnecting(false);
   };
 
+  // Hits /api/alerts/preview, NOT the alert cron. This used to call
+  // /api/telegram/alert directly, which stopped working the moment the cron
+  // routes were made fail-closed - a browser has no cron secret, so every
+  // press returned 401 and the button showed nothing but its own failure
+  // state. The preview route answers for this user only, sends nothing, and
+  // mutates nothing (see the note at the top of that file for why touching the
+  // cron's dedup state would be worse than the dead button).
   const checkNow = async () => {
     setCheckState('checking'); setCheckResult(null); setCheckErr('');
     try {
-      const res = await fetch('/api/telegram/alert', { signal: AbortSignal.timeout(30_000) });
-      if (!res.ok) throw new Error(t('ALERTS_SERVER_ERROR', { status: res.status }));
-      const d = await res.json();
-      setCheckResult(d);
+      const token = await getAuthToken();
+      const res = await fetch('/api/alerts/preview', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? t('ALERTS_SERVER_ERROR', { status: res.status }));
+      }
+      setCheckResult(await res.json());
       setCheckState('done');
     } catch (e) {
       setCheckErr(e instanceof Error ? e.message : t('ALERTS_CHECK_REQUEST_FAILED'));
@@ -845,7 +859,13 @@ export default function AlertsPage() {
       {/* ── Manual Check ─────────────────────────────────────────────────── */}
       {isConnected && (
         <div className="card" style={{ marginBottom: 10 }}>
-          <div className="lbl" style={{ marginBottom: 12 }}>{t('ALERTS_MANUAL_CHECK_LABEL')}</div>
+          <div className="lbl" style={{ marginBottom: 4 }}>{t('ALERTS_MANUAL_CHECK_LABEL')}</div>
+          {/* States the scope. Without it "No conditions active right now"
+              reads as a claim about every alert type, when this only covers
+              the two rules with per-coin/timeframe settings on this page. */}
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginBottom: 10, lineHeight: 1.6 }}>
+            {t('ALERTS_MANUAL_CHECK_DESC')}
+          </div>
           <button
             className={`tg-action-btn tg-btn-secondary${checkState === 'err' ? ' tg-btn-err' : ''}`}
             onClick={checkNow}
