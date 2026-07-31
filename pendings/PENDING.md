@@ -357,6 +357,46 @@ things break together if the service is ever scaled to multiple instances: the
 per-user limit becomes per-instance, and Binance/Bybit rate-limit exposure rises
 with it. Neither matters at one user; both need revisiting before real traffic.
 
+### PEPE/BONK chart: axis too wide on fast timeframes - COSMETIC, logged (2026-08-01)
+
+On 15m the Arena chart's y-axis spans roughly 0.0023-0.0030 while the candles
+occupy a much narrower band, so they render squashed into the middle. Correct
+scale, no negative ticks - just ~10x more range than the data needs. 1h and
+above look right.
+
+Not the same bug as the one fixed today. That one produced a zero-centred axis
+with NEGATIVE price ticks and a flat line, and came from feeding klinecharts
+per-token values (~2e-8 candle range) it cannot scale. Fixed by keeping the
+chart on Bybit's 1000x contract price and labelling it `1000PEPE/USDT`.
+
+Most likely cause of what remains: a long EMA, or an S/R level from the 200-bar
+lookback, sitting far from price on a fast timeframe and dragging the range.
+Unverified - stated as a starting point, not a diagnosis.
+
+Deliberately stopped here. Cosmetic, affects two coins on the fastest
+timeframes, and today already produced two wrong hypotheses from me on this
+exact chart (blamed the analysis overlay, then pricePrecision - the precision
+attempt is recorded in lib/coins.ts so it is not repeated).
+
+### The 1000x fix flushed out four separate bugs - worth remembering the shape
+
+One root cause (Bybit quoting PEPE/BONK per 1000 tokens, normalised in two
+places and missed in four) surfaced three more the moment it was fixed, because
+correct-but-tiny numbers finally reached code that had never seen them:
+
+1. `lhq_alert_fires` compared raw against 1000x prices - 22 rows at +-100,000%,
+   dragging the Track Record average to -126.70% against a +0.27% median.
+2. EMA and structure alerts quoted PEPE entry/SL/TP at 1000x the ticker.
+3. Three price formatters floored too shallow: the structure card printed `$0`,
+   the alert body would have printed `$0.0000`, the S/R chip printed `$0.00003`
+   for a level at 0.0000271.
+4. The chart could not render the true per-token scale at all.
+
+The lesson worth keeping: fixing a magnitude bug does not end at the fix. Every
+consumer downstream had been silently calibrated to the wrong magnitude, and
+each one has to be re-checked against the corrected value. Grep for the symbol
+prefix, then check every formatter and every stored price on the path.
+
 ### Confluence Score is unvalidated - agreement now recorded, needs time (2026-08-01)
 
 `agree_count` / `agree_net` were added to `lhq_alert_fires` and are writing
