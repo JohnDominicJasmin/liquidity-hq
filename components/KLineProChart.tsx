@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { Chart as KChart, DataLoader, OverlayCreate, Period } from 'klinecharts';
 import { BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, CoinId, useMarket, computeSqueezeScore } from '@/lib/marketStore';
-import { bybitSymbolPriceFactor } from '@/lib/coins';
+import { chartDisplaySymbol } from '@/lib/coins';
 import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
@@ -997,14 +997,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               const d  = await r.json() as { result?: { list?: string[][] } };
               if (stale()) return; // superseded by a newer switch - drop it
               const list = [...(d?.result?.list ?? [])].reverse();
-              // 1000PEPEUSDT / 1000BONKUSDT quote per 1000 tokens, but this
-              // chart is labelled PEPE/USDT and the ticker beside it shows the
-              // per-token price. Without this the axis, the S/R lines and the
-              // structure markers were all 1000x the number everywhere else.
-              const pf = bybitSymbolPriceFactor(bybitSym);
+              // Raw contract price, NOT converted to per-token. See
+              // chartDisplaySymbol in lib/coins: klinecharts cannot render a
+              // 2e-8 candle range and degenerates into a zero-centred axis with
+              // negative ticks. The chart label carries the 1000 prefix so the
+              // scale is stated rather than implied.
               const bars = list.map(k => ({
-                timestamp: Number(k[0]), open: Number(k[1]) * pf, high: Number(k[2]) * pf,
-                low: Number(k[3]) * pf, close: Number(k[4]) * pf, volume: Number(k[5]),
+                timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
+                low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
               }));
               if (bars.length) {
                 lastCloseRef.current = bars[bars.length - 1].close;
@@ -1053,15 +1053,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 const d = await r.json() as { result?: { list?: string[][] } };
                 const k = d?.result?.list?.[0];
                 if (k) {
-                  // Same 1000x conversion as the history load above - without it
-                  // the live bar jumps to a different scale than the candles it
-                  // is appended to.
-                  const pf = bybitSymbolPriceFactor(bybitSym);
-                  lastCloseRef.current = Number(k[4]) * pf;
-                  callback({
-                    timestamp: Number(k[0]), open: Number(k[1]) * pf, high: Number(k[2]) * pf,
-                    low: Number(k[3]) * pf, close: Number(k[4]) * pf, volume: Number(k[5]),
-                  });
+                  // Raw, matching the history load above - the live bar must be
+                  // on the same scale as the candles it is appended to.
+                  lastCloseRef.current = Number(k[4]);
+                  callback({ timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]), low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]) });
                 }
               } catch { /* silent */ }
             }, 5000);
@@ -1143,7 +1138,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       const bnSym    = BINANCE_SYMS[coin] as string | undefined;
       const bybitSym = BYBIT_SYMS[coin]   as string | undefined;
       const baseSym  = bnSym ?? bybitSym ?? 'BTCUSDT';
-      chart.setSymbol({ ticker: baseSym, shortName: coin.toUpperCase() + '/USDT', pricePrecision: COIN_DEC[coin] ?? 2 });
+      chart.setSymbol({ ticker: chartDisplaySymbol(coin), shortName: chartDisplaySymbol(coin), pricePrecision: COIN_DEC[coin] ?? 2 });
     }
     if (tfChanged) {
       loadGenRef.current += 1;
@@ -1697,18 +1692,22 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 }
 
 // ── Price formatter for chip labels ──────────────────────────────────────
+// The sub-0.01 branch used toFixed(6), which printed a PEPE support at
+// 0.0000271 as "$0.00003" - a level chip that rounds away the level. Same
+// rounding-floor family as the structure card's "$0"; significant digits fix
+// both without a per-coin table.
 function fmtPx(n: number): string {
   if (n >= 10000) return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
   if (n >= 100)   return n.toFixed(2);
   if (n >= 1)     return n.toFixed(3);
   if (n >= 0.01)  return n.toFixed(4);
-  return n.toFixed(6);
+  return n.toLocaleString('en-US', { maximumSignificantDigits: 4 });
 }
 
 // ── Helper ────────────────────────────────────────────────────────────────
 function setChartSymbolPeriod(chart: KChart, coin: CoinId, tf: string) {
   const bnSym    = BINANCE_SYMS[coin] as string | undefined;
   const bybitSym = BYBIT_SYMS[coin]   as string | undefined;
-  chart.setSymbol({ ticker: bnSym ?? bybitSym ?? 'BTCUSDT', shortName: coin.toUpperCase() + '/USDT', pricePrecision: COIN_DEC[coin] ?? 2 });
+  chart.setSymbol({ ticker: chartDisplaySymbol(coin), shortName: chartDisplaySymbol(coin), pricePrecision: COIN_DEC[coin] ?? 2 });
   chart.setPeriod(TF_TO_PERIOD[tf] ?? TF_TO_PERIOD['15m']);
 }

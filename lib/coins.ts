@@ -41,6 +41,29 @@ export const BINANCE_SYMS: Record<string, string> = {
   // hype/xau/spx: Bybit-only perps
 };
 
+/* The Arena chart deliberately plots PEPE and BONK in Bybit's own 1000-token
+   denomination, unlike everywhere else in the app.
+ *
+ * Not a preference - klinecharts cannot render them per-token. At ~0.0000027 a
+ * candle spans about 2e-8 and the library's axis degenerates: it produces a
+ * range roughly 150x too wide, centred on zero, complete with negative price
+ * ticks, and the candles collapse to a flat line. Raising pricePrecision to 10
+ * was tried and changed only the tick LABELS, not the range, so the cause is
+ * inside klinecharts' scale handling rather than our precision setting.
+ *
+ * So the chart keeps the raw contract price and SAYS so - hence the 1000 prefix
+ * in the label. Everything else in the app (ticker, alerts, outcome tracking,
+ * EMA Signal card, Market Structure card, Confluence Score) is per-token.
+ *
+ * Nothing leaks out of the chart at this scale: its two internal consumers of
+ * the last close are a pixel conversion and a percentage distance to S/R, both
+ * scale-invariant. Revisit if klinecharts fixes small-value axes - the fix is
+ * to delete this and re-apply bybitSymbolPriceFactor in the chart's fetches. */
+export function chartDisplaySymbol(coin: string): string {
+  const prefix = BYBIT_SYMS[coin]?.startsWith('1000') && !BINANCE_SYMS[coin] ? '1000' : '';
+  return `${prefix}${coin.toUpperCase()}/USDT`;
+}
+
 /* Bybit quotes the low-unit-price meme perps per 1000 tokens - 1000PEPEUSDT,
    1000BONKUSDT - so ANY price read from those symbols is 1000x the per-token
    price every other part of this app uses. Multiply by this factor to convert.
