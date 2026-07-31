@@ -247,7 +247,9 @@ suppression list so they do not park red rows on the card. If a real ETF-flow or
 search-interest source ever turns up, that is a new feature, not a repair.
 
 Also surfaced: `finnhub:crypto` reporting "no articles (key missing or upstream
-down)" while `finnhub:general` returns 100.
+down)" while `finnhub:general` returns 100. **Recovered on its own** - reading
+healthy at 94 items on 2026-08-01. It was upstream flakiness, not a missing key,
+which is also why the alert threshold is 3 consecutive failures rather than 1.
 
 **Coinglass deliberately NOT tracked** - known dead by decision with no callers,
 so it would park two permanently red rows and train the eye to ignore red. Add
