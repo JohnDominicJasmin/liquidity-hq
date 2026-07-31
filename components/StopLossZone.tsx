@@ -9,11 +9,30 @@ export type Bias = 'long' | 'short' | 'neutral';
 
 interface Level { price: number; label: string; distPct: number; }
 
-export function scoreBias(d: CoinData): { bias: Bias; score: number; total: number } {
+/**
+ * Tally of the bull/bear evidence in a coin's derivatives and flow data.
+ *
+ * `includeRsi` exists because this feeds two consumers that need different
+ * things. Here in StopLossZone it is a standalone read and RSI belongs in it.
+ * In the Confluence Score it sits alongside a SEPARATE "Multi-TF RSI Alignment"
+ * factor built from the same three RSI values - so counting RSI in both put the
+ * same evidence in the score twice, giving momentum roughly 45 of ~95
+ * directional weight while the UI presented it as 20. Correlated inputs agree
+ * with each other by construction, so double-counting makes the score most
+ * confident exactly where it is least independent.
+ *
+ * Passing false leaves this measuring what its label claims: order flow.
+ */
+export function scoreBias(
+  d: CoinData,
+  { includeRsi = true }: { includeRsi?: boolean } = {},
+): { bias: Bias; score: number; total: number } {
   let bull = 0, bear = 0;
-  if (d.rsi14 != null)  { if (d.rsi14  > 55) bull++; else if (d.rsi14  < 45) bear++; }
-  if (d.rsi1h  != null) { if (d.rsi1h  > 55) bull++; else if (d.rsi1h  < 45) bear++; }
-  if (d.rsi4h  != null) { if (d.rsi4h  > 55) bull++;  else if (d.rsi4h  < 45) bear++; }
+  if (includeRsi) {
+    if (d.rsi14 != null)  { if (d.rsi14  > 55) bull++; else if (d.rsi14  < 45) bear++; }
+    if (d.rsi1h  != null) { if (d.rsi1h  > 55) bull++; else if (d.rsi1h  < 45) bear++; }
+    if (d.rsi4h  != null) { if (d.rsi4h  > 55) bull++;  else if (d.rsi4h  < 45) bear++; }
+  }
   if (d.oiTrend === 'strong_up'   || d.oiTrend === 'weak_up')   bull++;
   if (d.oiTrend === 'strong_down' || d.oiTrend === 'weak_down') bear++;
   if (d.cvdDivergence === 'bullish') bull++;

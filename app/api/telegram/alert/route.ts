@@ -58,6 +58,19 @@ interface SignalEntry {
   antiChopMode?: boolean;
 }
 
+/* Prices in alert bodies - entry, stop, take profit, broken swing level.
+   Was `n.toFixed(4)` below 1000, which prints PEPE and BONK at their real
+   per-token price (~0.0000027) as "0.0000". That went unnoticed only because
+   those two coins were reaching this function 1000x too large; once the Bybit
+   per-1000 quoting was normalised, the true price arrived and the rounding
+   floor became visible. Significant digits below 0.01 so the same helper
+   serves BTC at 64,000 and PEPE at 0.0000027. */
+function fmtSignalPrice(n: number): string {
+  if (n >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  if (n >= 0.01) return n.toFixed(4);
+  return n.toLocaleString(undefined, { maximumSignificantDigits: 4 });
+}
+
 /* ── Per-recipient mute-aware delivery ── */
 interface Recipient { userId: string; chatId: string }
 
@@ -1448,7 +1461,7 @@ async function checkEMASignal(
         emaSignalLastTs.set(dedupKey, latest.timestamp);
 
         const label   = LABELS[coin];
-        const fmtP    = (n: number) => n >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : n.toFixed(4);
+        const fmtP    = fmtSignalPrice;
         const dirWord = latest.dir === 'long' ? 'BUY' : 'SELL';
 
         queue.push({
@@ -1671,7 +1684,7 @@ async function checkStructureSignal(
       structureLastTs.set(dedupKey, latest.timestamp);
 
       const label = LABELS[coin];
-      const fmtP  = (n: number) => n >= 1000 ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : n.toFixed(4);
+      const fmtP  = fmtSignalPrice;
       const isBull = latest.dir === 'bull';
       const kindWord = latest.kind === 'CHOCH' ? 'Change of Character' : 'Break of Structure';
       const shortKind = latest.kind === 'CHOCH' ? 'CHoCH' : 'BOS';

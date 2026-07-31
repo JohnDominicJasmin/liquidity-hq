@@ -87,12 +87,20 @@ function fmtAge(candlesAgo: number): string {
   return r ? `~${d}d ${r}h ago` : `~${d}d ago`;
 }
 
-/* ── Price formatter ── */
+/* ── Price formatter ──
+   The sub-0.01 tiers exist because PEPE and BONK trade around 0.0000027. The
+   old floor was 4 decimal places, which rendered every one of those as "$0" -
+   invisible until the 1000x Bybit normalisation landed and the real per-token
+   price finally reached this function. Significant digits rather than a fixed
+   scale, so the same call works for BTC at 64,000 and PEPE at 0.0000027. */
 function fmtP(n: number): string {
   if (n >= 10000) return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
   if (n >= 100)   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
   if (n >= 1)     return n.toLocaleString(undefined, { maximumFractionDigits: 3 });
-  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  if (n >= 0.01)  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  // toLocaleString caps at 20 fraction digits; significant digits keeps a
+  // meaningful number of them regardless of how many leading zeros there are.
+  return n.toLocaleString(undefined, { maximumSignificantDigits: 4 });
 }
 
 /* ── Event colour helpers ── */
