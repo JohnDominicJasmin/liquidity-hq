@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
+import { trackHealth } from '@/lib/apiHealth';
 
 // Coinbase Exchange public ticker - no auth required, no CORS issues from server
 const CB_TICKER = 'https://api.exchange.coinbase.com/products/BTC-USD/ticker';
@@ -13,17 +14,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
   try {
-    const price = await cached('coinbase-price', CACHE_TTL, async () => {
-      const res = await fetch(CB_TICKER, {
-        headers: { Accept: 'application/json' },
-        cache: 'no-store',
-      });
-      if (!res.ok) throw new Error('upstream failed');
-      const data = await res.json() as { price?: string };
-      const p = parseFloat(data.price ?? '');
-      if (isNaN(p) || p <= 0) throw new Error('bad price');
-      return p;
-    });
+    // trackHealth sits INSIDE cached(), so a cache hit is not reported as a
+    // fresh success. Reporting on every hit would keep the source looking
+    // green off a 5s-old value long after Coinbase stopped answering.
+    const price = await cached('coinbase-price', CACHE_TTL, () =>
+      trackHealth('coinbase:BTC-USD', 'market', async () => {
+        const res = await fetch(CB_TICKER, {
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json() as { price?: string };
+        const p = parseFloat(data.price ?? '');
+        if (isNaN(p) || p <= 0) throw new Error('bad price');
+        return p;
+      }, p => ({ detail: `$${p}` })),
+    );
     return NextResponse.json({ price });
   } catch {
     return NextResponse.json({ error: 'fetch failed' }, { status: 502 });

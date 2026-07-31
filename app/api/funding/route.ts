@@ -3,6 +3,7 @@ import { apiError } from '@/lib/apiError';
 import { COINS, BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
+import { reportHealth, healthError } from '@/lib/apiHealth';
 
 export const dynamic = 'force-dynamic';
 // Funding rates settle every 8h - a 20s cache collapses concurrent visitor
@@ -73,6 +74,26 @@ export async function GET(req: NextRequest) {
 
       const bn = bnResult.status === 'fulfilled' ? bnResult.value : { rates: {}, nextMs: {} };
       const bb = bbResult.status === 'fulfilled' ? bbResult.value : { rates: {}, nextMs: {} };
+
+      // allSettled means neither exchange failing can fail the request - the
+      // response is still a 200, just full of nulls, which on screen is a table
+      // of dashes that looks like a market with no funding rather than a dead
+      // feed. getBinance() additionally swallows its own failures by walking
+      // three hosts and returning {} if all of them miss, so even a rejection
+      // is not the signal here: zero rates is.
+      //
+      // Separate sources from binance:klines / bybit:klines deliberately -
+      // these are different endpoints on the same hosts and can fail
+      // independently, and "funding is stale but candles are fine" is a
+      // distinction worth being able to see.
+      reportHealth('binance:funding', 'market', Object.keys(bn.rates).length > 0,
+        bnResult.status === 'rejected' ? healthError(bnResult.reason)
+          : `${Object.keys(bn.rates).length} coins`,
+        Object.keys(bn.rates).length);
+      reportHealth('bybit:funding', 'market', Object.keys(bb.rates).length > 0,
+        bbResult.status === 'rejected' ? healthError(bbResult.reason)
+          : `${Object.keys(bb.rates).length} coins`,
+        Object.keys(bb.rates).length);
 
       const data = COINS.map(coin => ({
         coin,

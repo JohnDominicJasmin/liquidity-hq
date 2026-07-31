@@ -10,7 +10,7 @@ import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS } from '@/lib/coins';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
 import { isFeatureEnabled } from '@/lib/featureFlags';
 import { checkCronAuth } from '@/lib/cronAuth';
-import { recordApiHealth, healthError } from '@/lib/apiHealth';
+import { recordApiHealth, reportHealth, healthError } from '@/lib/apiHealth';
 import {
   EMA_SIGNAL_TFS, type EMASignalTF, fetchRibbonCandles, BYBIT_KLINE_SYMS,
 } from '@/lib/ribbonCandles';
@@ -1514,6 +1514,8 @@ async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<s
   }
 
   const expired: string[] = [];
+  let pushSent = 0;
+  let pushFailed = 0;
 
   for (const [coin, entries] of byCoin) {
     const label = LABELS[coin] ?? coin.toUpperCase();
@@ -1532,11 +1534,33 @@ async function dispatchPush(queue: SignalEntry[], mutedByUser: Map<string, Set<s
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
             payload
           );
+          pushSent++;
         } catch (err: unknown) {
           if ((err as { statusCode?: number }).statusCode === 410) expired.push(sub.endpoint);
+          else pushFailed++;
         }
       })
     );
+  }
+
+  // Reported here rather than from a tally in the main handler, because this
+  // function is void-ed at the call site and finishes after the response has
+  // gone out - the handler has already returned by the time these results
+  // exist. Render runs a normal long-lived Node process, so the floating
+  // promise does complete; this would need rethinking only on a runtime that
+  // freezes the container at response time.
+  //
+  // A 410 is NOT a failure of the push service: it means that particular
+  // subscription is gone (browser uninstalled, permission revoked), which is
+  // why they are pruned below rather than retried. Counting them as delivery
+  // failures would show Web Push as broken every time a user cleared their
+  // browser data.
+  if (pushSent + pushFailed > 0) {
+    reportHealth('webpush:vapid', 'delivery', pushFailed === 0,
+      pushFailed === 0
+        ? `${pushSent} sent${expired.length ? `, ${expired.length} expired` : ''}`
+        : `${pushFailed} of ${pushSent + pushFailed} failed`,
+      pushSent);
   }
 
   if (expired.length > 0) {

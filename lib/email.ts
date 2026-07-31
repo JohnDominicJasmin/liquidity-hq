@@ -32,6 +32,28 @@ interface TrialEndingArgs {
   daysLeft: number;
 }
 
+import { reportHealth, healthError } from '@/lib/apiHealth';
+
+/* Every sender in this file ends in `return res.ok` inside a try/catch that
+   returns false - so a bounced welcome email, an expired Brevo key or a
+   suspended account all look identical to the caller, which typically ignores
+   the boolean anyway. Nothing anywhere recorded whether mail was going out.
+   One source for the provider, not one per template: they share a key, a
+   sender domain and a reputation, and they fail together.
+   Deliverability is a separate question this cannot answer - Brevo accepting a
+   message is not Gmail putting it in an inbox (see the freemail-sender note in
+   the project docs). This only reports whether the API took it. */
+async function brevoFetch(init: RequestInit): Promise<Response> {
+  try {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', init);
+    reportHealth('brevo:smtp', 'delivery', res.ok, res.ok ? 'accepted' : `HTTP ${res.status}`);
+    return res;
+  } catch (e) {
+    reportHealth('brevo:smtp', 'delivery', false, healthError(e));
+    throw e;
+  }
+}
+
 const APP_NAME = 'LiquidityHQ';
 
 // Fixed recipient list for the AI-spend spike alert - the owner's own
@@ -70,7 +92,7 @@ export async function sendAdminAddedEmail(args: AdminAddedArgs): Promise<boolean
     </div>`;
 
   try {
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    const res = await brevoFetch({
       method: 'POST',
       headers: {
         'api-key': apiKey,
@@ -112,7 +134,7 @@ export async function sendSpikeAlertEmail(args: SpikeAlertArgs): Promise<boolean
     </div>`;
 
   try {
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    const res = await brevoFetch({
       method: 'POST',
       headers: {
         'api-key': apiKey,
@@ -157,7 +179,7 @@ export async function sendWelcomeEmail(args: WelcomeEmailArgs): Promise<boolean>
     </div>`;
 
   try {
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    const res = await brevoFetch({
       method: 'POST',
       headers: {
         'api-key': apiKey,
@@ -218,7 +240,7 @@ export async function sendTrialEndingEmail(args: TrialEndingArgs): Promise<boole
     </div>`;
 
   try {
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    const res = await brevoFetch({
       method: 'POST',
       headers: {
         'api-key': apiKey,
@@ -268,7 +290,7 @@ export async function sendBanEmail(args: BanEmailArgs): Promise<boolean> {
     </div>`;
 
   try {
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    const res = await brevoFetch({
       method: 'POST',
       headers: {
         'api-key': apiKey,

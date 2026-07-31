@@ -13,6 +13,7 @@ import { createClient } from '@supabase/supabase-js';
 import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
+import { trackHealth, reportHealth } from '@/lib/apiHealth';
 
 // Google Trends' 7-day bitcoin score barely moves hour to hour, and the
 // unofficial endpoint blocks aggressively under repeated hits - cache long.
@@ -64,6 +65,12 @@ export async function GET(req: NextRequest) {
      * than deleted, so that migrating to open-api-v4.coinglass.com is a change
      * to these two URLs plus the response parsing - see pendings/PENDING.md.
      * Do NOT wire a new caller to them expecting data.
+     *
+     * Deliberately NOT health-tracked. They are known dead by decision, not by
+     * accident, and nothing calls them - reporting would park two permanently
+     * red rows on /ops for a state nobody intends to fix until there is
+     * revenue, which trains the eye to ignore red. Add tracking as part of the
+     * v4 migration, when the answer starts mattering again.
      */
     if (type === 'coinglass-flow') {
       const cgKey = process.env.COINGLASS_API_KEY;
@@ -88,7 +95,12 @@ export async function GET(req: NextRequest) {
     if (type === 'trends') {
       const EMPTY = { default: { timelineData: [] } };
       try {
-        const json = await cached('trends', TRENDS_TTL, async () => {
+        // Inside cached(), so a cache hit does not re-report success - with a
+        // 1h TTL that would otherwise keep the source green for an hour after
+        // Google started blocking. The catch below turns a block into an empty
+        // 200, which is exactly the shape that hides a dead upstream.
+        const json = await cached('trends', TRENDS_TTL, () => trackHealth(
+          'google-trends:bitcoin', 'other', async () => {
           // Step 1: get widget token
           const exploreReq = JSON.stringify({
             comparisonItem: [{ keyword: 'bitcoin', geo: '', time: 'now 7-d' }],
@@ -133,9 +145,14 @@ export async function GET(req: NextRequest) {
 
           if (!dataRes.ok) throw new Error('trends data blocked');
 
-          const raw2 = await dataRes.text();
-          return JSON.parse(raw2.replace(/^\)\]\}'\n?/, ''));
-        });
+            const raw2 = await dataRes.text();
+            return JSON.parse(raw2.replace(/^\)\]\}'\n?/, ''));
+          },
+          j => {
+            const n = (j as { default?: { timelineData?: unknown[] } })?.default?.timelineData?.length ?? 0;
+            return { ok: n > 0, detail: n > 0 ? `${n} points` : 'no timeline data', items: n };
+          },
+        ));
         return NextResponse.json(json);
       } catch {
         // Google Trends blocked / timed out - return empty, never 500, never cached
@@ -178,6 +195,16 @@ export async function GET(req: NextRequest) {
         fetchSoSo('us-btc-spot'),
         fetchSoSo('us-eth-spot'),
       ]);
+
+      // fetchSoSo returns null after exhausting both hosts, and this route then
+      // answers 200 with {btc:null, eth:null} - indistinguishable from a day
+      // with no ETF flows. One source for the provider rather than two: both
+      // paths go to the same host behind the same headers and fail together,
+      // and the useful question is whether SoSoValue is answering at all.
+      const got = [btc, eth].filter(Boolean).length;
+      reportHealth('sosovalue:etf-flows', 'market', got === 2,
+        got === 2 ? 'btc + eth' : got === 1 ? 'only one of btc/eth' : 'no response from either host',
+        got);
 
       return NextResponse.json({ btc, eth });
     }
