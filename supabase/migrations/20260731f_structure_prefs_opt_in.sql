@@ -61,7 +61,10 @@ and not exists (
 );
 
 -- ── PHASE 2 - PROD. Run ONLY after the new code is live on prod. ────────────
--- delete from lhq_muted_alerts where key in ('structure_1h', 'structure_4h');
+-- APPLIED 2026-07-31 05:38 UTC, after deploy dep-d9m36hu7bikc73a0dmug went
+-- live at 05:33:39 and a cron tick at 05:35:15 confirmed the new code was
+-- serving (the [alert] summary log line only exists in the new build).
+delete from lhq_muted_alerts where key in ('structure_1h', 'structure_4h');
 
 -- ── DEV (wdtjhrilakoitfcezxpx) - both phases, dev already runs the new code ──
 -- insert into lhq_dev_muted_alerts (user_id, key)
