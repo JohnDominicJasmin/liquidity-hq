@@ -4015,7 +4015,26 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
   display: grid; grid-template-columns: 1fr 1fr;
   gap: 4px 12px; margin-top: 8px;
 }
-@media (max-width: 360px) { .pw-rules { grid-template-columns: 1fr; } }
+/* Mobile. The auth card had NO small-screen rules at all, which left two real
+   defects on a 375px phone - the width this app's users are most likely on,
+   since it is an installable PWA.
+
+   1. Turnstile renders a FIXED 300px iframe. At 375px the card's content box
+      was 375 - 40 (wrap padding) - 56 (card padding) = 279px, so the widget
+      overflowed its own card by 21px. Trimming the card's horizontal padding to
+      16px gives 303px of content - just enough for the widget to sit inside.
+      The overflow guard stays as a belt-and-braces in case Cloudflare ever
+      changes that width.
+   2. The password checklist's two columns were ~133px each here, too narrow for
+      "At least 12 characters" without wrapping - which would have made the
+      2x2 grid taller than the four stacked rows it replaced. Single column
+      below 420px, so the grid is only used where it actually fits. */
+@media (max-width: 420px) {
+  .pw-rules { grid-template-columns: 1fr; }
+  .login-card { padding: 26px 16px; }
+  .login-wrap { padding: 16px; }
+}
+.login-turnstile > * { max-width: 100%; }
 .pw-rule {
   display: flex; align-items: center; gap: 7px;
   font-size: var(--fs-caption); color: var(--txt3);
