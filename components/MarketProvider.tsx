@@ -4,6 +4,7 @@ import {
   MarketContext, MarketStore, defaultStore, CoinId, CoinData, GexLevel,
   BINANCE_SYMS, BYBIT_SYMS,
 } from '@/lib/marketStore';
+import { bybitPriceFactor } from '@/lib/coins';
 import { detectPatterns } from '@/lib/patterns';
 import { getAuthToken } from '@/lib/supabase';
 
@@ -202,9 +203,10 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         const item = bySymbol[BYBIT_SYMS[coin]];
         if (!item) continue;
 
-        // 1000x denomination coins (e.g. 1000PEPEUSDT, 1000BONKUSDT) - divide price by 1000
-        const priceFactor = BYBIT_SYMS[coin].startsWith('1000') ? 0.001 : 1;
-        const curPrice = parseFloat(item.lastPrice || '0') * priceFactor;
+        // Shared helper rather than an inline startsWith - this same conversion
+        // was open-coded here and in the alert cron, and forgotten in the
+        // outcome resolver. See bybitPriceFactor in lib/coins.
+        const curPrice = parseFloat(item.lastPrice || '0') * bybitPriceFactor(coin);
         // openInterestValue = USD-denominated OI; fall back to base-qty × price if missing
         const rawOIValue = parseFloat(item.openInterestValue || '0');
         const curOI = rawOIValue || (parseFloat(item.openInterest || '0') * curPrice);

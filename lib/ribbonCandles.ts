@@ -10,7 +10,7 @@
 // Binance-first with a Bybit fallback for Bybit-only coins (e.g. HYPE), which
 // matches how the Arena chart itself sources candles (lib/useEMAStrategy.ts) -
 // a gap the old Binance-only checkEMASetup silently had.
-import { BINANCE_SYMS, BYBIT_SYMS } from '@/lib/coins';
+import { BINANCE_SYMS, BYBIT_SYMS, bybitSymbolPriceFactor } from '@/lib/coins';
 import type { OHLCV } from '@/lib/strategyCore';
 import { reportHealth, healthError } from '@/lib/apiHealth';
 
@@ -80,7 +80,21 @@ export async function fetchRibbonCandles(coin: string, tf: EMASignalTF): Promise
     }
     const d = await res.json() as { result?: { list?: string[][] } };
     const list = [...(d.result?.list ?? [])].reverse();
-    const out = list.map(k => ({ time: +k[0], open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }));
+    // 1000PEPEUSDT / 1000BONKUSDT quote per 1000 tokens. Without this the EMA
+    // and structure signals built from these candles carried entry/SL/TP and
+    // swing levels 1000x the price shown everywhere else in the app - the
+    // Telegram alert said PEPE entry $0.0027 while the ticker said $0.0000027 -
+    // and lhq_alert_fires stored price_at_fire in whichever unit the rule
+    // happened to use, so outcome maths compared different scales.
+    //
+    // Price fields only. Volume on a 1000x contract is in units of 1000 tokens,
+    // but every use of it here is a RATIO against the same series' own average
+    // (see lib/priceAction), so a constant factor cancels and rescaling it
+    // would only invite confusion about what the number means.
+    const pf = bybitSymbolPriceFactor(bySym);
+    const out = list.map(k => ({
+      time: +k[0], open: +k[1] * pf, high: +k[2] * pf, low: +k[3] * pf, close: +k[4] * pf, volume: +k[5],
+    }));
     reportHealth('bybit:klines', 'market', out.length > 0,
       out.length > 0 ? `${out.length} candles` : 'no candles', out.length);
     return out;

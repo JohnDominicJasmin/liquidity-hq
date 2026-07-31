@@ -41,6 +41,27 @@ export const BINANCE_SYMS: Record<string, string> = {
   // hype/xau/spx: Bybit-only perps
 };
 
+/* Bybit quotes the low-unit-price meme perps per 1000 tokens - 1000PEPEUSDT,
+   1000BONKUSDT - so ANY price read from those symbols is 1000x the per-token
+   price every other part of this app uses. Multiply by this factor to convert.
+
+   This existed as an inline `sym.startsWith('1000') ? 0.001 : 1` in two places
+   and was missed in a third: app/api/alert-outcomes/resolve recorded price_24h
+   straight from Bybit while price_at_fire was already normalised, giving PEPE
+   and BONK outcomes of ±100,000%. That dragged the Alert Track Record's average
+   24h move to -126% when the real median across 6,201 fires is +0.28%.
+
+   Any new code reading a price, kline or level from BYBIT_SYMS must apply this.
+   The failure is silent and only shows up on two coins. */
+export function bybitPriceFactor(coin: string): number {
+  return BYBIT_SYMS[coin]?.startsWith('1000') ? 0.001 : 1;
+}
+
+/** Same conversion when only the symbol is in hand, not the coin id. */
+export function bybitSymbolPriceFactor(symbol: string): number {
+  return symbol.startsWith('1000') ? 0.001 : 1;
+}
+
 // Bybit linear perp symbols - includes all coins + 1000x meme coins + synthetics
 export const BYBIT_SYMS: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT',
