@@ -173,6 +173,60 @@ not just pushed to `main`.
 
 Nothing open left over from this arc.
 
+## ✅ Auth defect audit + tour modal fix — ALL LIVE ON PROD (2026-08-01)
+
+Five commits continuing the same day's audit, in a fresh terminal session
+picking the project up from `docs/HANDOVER.md`. All merged to `main`
+(`d0b1e4d`) — the first four confirmed live via Render deploy
+`dep-d9muvvbncjis7394ua50`; the fifth is docs-only, no deploy needed since no
+code changed.
+
+- **Four defects the auth-screen pass left behind** (`0a77a6b`). The
+  password reveal toggle carried `tabIndex={-1}` - unreachable by keyboard,
+  the one thing that control exists to be operated by. The policy checklist
+  only ever rendered on `/login`'s sign-up tab; `/reset-password` and
+  `/settings` both still dumped one lumped error after a rejected submit -
+  the exact failure the checklist was built to fix, live on two of three
+  screens that create a password. `isAuthRoute` matched with `endsWith()`,
+  and `/ops/login` is a real route that matched it - only branch order
+  (`isChromeless` checked first) was saving it from losing its shell.
+  `/forgot-password`'s email field had no label at all, missed by the pass
+  that fixed `/login`'s eight fields. `.login-back-btn` centred text on
+  `<button>` via `min-height: 44px` alone, but not on the two `<a>` tags
+  `/forgot-password` uses it on - measured 6px from the top of the box, 24px
+  from the bottom.
+- **Tour modal fixed height + dead fade-in** (`140be9e`). The visual panel
+  had no height of its own, so the whole modal card resized on every Next
+  click - 337px for Step1's three metric cards up to 525px for Step5's full
+  chart mockup, a 188px jump per step. `minHeight: 290` (measured, not
+  guessed) flex-centred brings the swing down to 23px, driven by title/body
+  copy length rather than the mockup changing size under the user. Also
+  found both the visual panel and text block carried
+  `animation: 'ob-fade-up ...'` - not a real keyframe (the actual one is
+  camelCase `obFadeUp`); `getAnimations()` confirmed zero animations had
+  ever run. Renamed and confirmed live.
+- **Comment arithmetic + Supabase project naming** (`74b2c1a`, `711a9f9`,
+  `179252d`). The mobile-fix comment's 375px content-box math forgot the
+  same media query also trims `.login-wrap`'s padding - real figure is
+  311px, not 303px. Separately: both Supabase projects have been called
+  `LiquidityHq`/`Automations` throughout the docs - confirmed directly
+  against the Supabase API that their real names are `liquidity-hq-prod`/
+  `liquidity-hq-dev`, same refs throughout. That collides with the Render
+  service names, which use the identical two strings - flagged inline in
+  `docs/INFRASTRUCTURE.md` to identify Supabase by ref and say which system
+  is meant. Fixed across `HANDOVER.md` plus five more docs.
+
+**Also independently verified this session, no code changes needed:**
+T1 (SMTP sender) - a real signup on prod confirmed `noreply@liquidity-hq.com`
+delivered clean to inbox, and the full chain (confirm → 14d trial grant →
+welcome email) fired correctly. T3 (375px mobile) - genuine `innerWidth: 375`
+confirmed `hasHorizScroll: false` and the checklist single-columns for real,
+not just under a forced media query. `/reset-password` checklist - exercised
+under an actual recovery-link token pulled from a real email, not a
+shortcut: 1/4 on a weak password, 4/4 on a strong one.
+
+Nothing open left over from this arc either.
+
 ## ⛔ OPEN — code (mine)
 
 ### Coinglass v4 migration — DEFERRED until there is revenue (decided 2026-07-30)
@@ -526,9 +580,10 @@ repo's already on GitHub) - revisit when actually prioritized.
 
 ## ❓ OPEN — YOUR action (can't do from code)
 
-Nothing blocking. `dev` and `main` hold identical content, `main` on `e23cf33`;
-all 2026-07-31/08-01 work is shipped and verified. Prod's running build is
-`4e713d0` - the one commit since is docs-only, so no deploy was triggered.
+Nothing blocking. `dev` (`179252d`) and `main` (`d0b1e4d`, a merge of the
+same) hold identical content as of 2026-08-01. Prod's running build is
+`c75c2da` - the one commit since (`d0b1e4d`'s doc sweep) is docs-only, so no
+deploy was triggered, matching the same pattern as the previous entry here.
 
 ## 🔭 DEFERRED — tied to unfinished payment feature
 
