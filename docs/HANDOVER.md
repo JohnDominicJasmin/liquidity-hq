@@ -36,16 +36,22 @@ calculators, trade journal, and an internal-only `/ops` admin console.
 | Dev site | https://liquidity-hq-dev.onrender.com |
 | Render prod service | `srv-d8aluf6l51nc73e1ijp0` — branch `main` |
 | Render dev service | `srv-d8prs6po3t8c739aepdg` — branch `dev` |
-| Supabase **prod** | project `LiquidityHq`, ref `qdpwhnvmhqgzijuwopso` — tables `lhq_*` |
-| Supabase **dev** | project `Automations`, ref `wdtjhrilakoitfcezxpx` — tables `lhq_dev_*` |
+| Supabase **prod** | project `liquidity-hq-prod`, ref `qdpwhnvmhqgzijuwopso` — tables `lhq_*` |
+| Supabase **dev** | project `liquidity-hq-dev`, ref `wdtjhrilakoitfcezxpx` — tables `lhq_dev_*` |
 | Error tracking | GlitchTip — `app.glitchtip.com/liquidityhq/issues`, project id `25983` |
 | Analytics / replay | PostHog |
 | Email | Brevo (SMTP relay + transactional API) |
 | External cron | cron-job.org + n8n (**outside this repo** — invisible to code search) |
 
 **Two separate Supabase projects, not one.** This has been gotten backwards twice in past
-audits. `.env.local` points at **Automations** (dev). A "table not found in schema cache"
-error locally is almost always this mistake, not cache lag.
+audits. `.env.local` points at the **dev** project (`liquidity-hq-dev`). A "table not found
+in schema cache" error locally is almost always this mistake, not cache lag.
+
+Note the name collision: the Supabase projects and the Render services share the names
+`liquidity-hq-prod` / `liquidity-hq-dev`. Always say which system you mean. Identify
+Supabase by **ref** (`qdpwhnvmhqgzijuwopso` = prod, `wdtjhrilakoitfcezxpx` = dev) — refs are
+unambiguous, names are not. Older docs call these projects `LiquidityHq` and `Automations`;
+those names are dead, the refs behind them were always correct.
 
 ---
 
@@ -426,14 +432,15 @@ Context for the move off the desktop GUI.
 
 ### Local dev setup
 
-- `.env.local` exists and points at the **dev** Supabase project (Automations), including
+- `.env.local` exists and points at the **dev** Supabase project (`wdtjhrilakoitfcezxpx`), including
   `SUPABASE_SERVICE_ROLE_KEY` — so `/api/ops/*` routes and `/ops/config` are fully testable
   on `localhost:3000` without burning dev-service build hours.
 - Env var **names** are listed in `.env.example`. External services wired: Supabase,
   Turnstile, CoinMarketCap, PostHog, xAI/Grok, Coinglass, Finnhub, Telegram, Brevo,
   GlitchTip/Sentry, Web Push (VAPID).
-- If a service-role key needs refreshing, get it from **Automations** → Settings → API →
-  Legacy API keys → `service_role`. **Never** LiquidityHq's.
+- If a service-role key needs refreshing, get it from the **dev** project
+  (`wdtjhrilakoitfcezxpx`) → Settings → API → Legacy API keys → `service_role`.
+  **Never** prod's (`qdpwhnvmhqgzijuwopso`).
 
 ---
 
