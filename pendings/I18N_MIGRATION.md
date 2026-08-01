@@ -15,8 +15,8 @@ Every UI string is being moved from hardcoded JSX text to `t('SOME_KEY')`, where
 - `supabase/migrations/2026*_labels*.sql` — one seed file per wave/group. All use `on conflict (key, locale) do update`, safe to re-run.
 
 Two Supabase projects, both need every seed file run:
-- **LiquidityHq** (`qdpwhnvmhqgzijuwopso`) = prod, table `lhq_labels`
-- **Automations** (`wdtjhrilakoitfcezxpx`) = dev, table `lhq_dev_labels`
+- **liquidity-hq-prod** (`qdpwhnvmhqgzijuwopso`) = prod, table `lhq_labels`
+- **liquidity-hq-dev** (`wdtjhrilakoitfcezxpx`) = dev, table `lhq_dev_labels`
 
 ## Languages
 
