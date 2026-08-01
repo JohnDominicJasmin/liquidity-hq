@@ -295,10 +295,44 @@ about that today.
 1. Have Grok fetch it via search on demand, the way `/api/onchain` already does
    for MVRV/SOPR/NVT. Costs AI tokens rather than a subscription, but is slower
    and less precise, and cannot be charted.
-2. A non-Coinglass provider with per-symbol exchange flow. Not yet researched -
-   do that before assuming Coinglass is the only option.
+2. A non-Coinglass provider with per-symbol exchange flow - **researched
+   2026-08-02**, see below.
 3. Coinglass paid plan (see the entry above), only after their support confirms
    which tier actually includes `/api/exchange/balance/chart`.
+
+**Non-Coinglass provider research (2026-08-02):**
+
+Checked against this app's actual ~48-coin list, specifically the low-cap end
+(pepe/bonk/wif/gmt/mana/sand/ena/dydx) where the whole feature's edge lives -
+a provider only covering top-20 majors misses the point.
+
+- **CryptoQuant - top pick.** Real REST endpoints confirmed
+  (`docs.cryptoquant.com/api-reference/erc20-exchange-flows/netflow`), per-chain
+  flow for BTC/ETH/XRP/TRX/stablecoins/ERC-20s, dashboard charts confirmed for
+  SOL and AVAX. API access needs **Professional, ~$99/mo annual** (~$109
+  mo-to-mo). PEPE likely covered (ERC-20, same bucket as confirmed SHIB);
+  **BONK/WIF (Solana SPL memecoins) unconfirmed** - Solana chain-level flow
+  exists, SPL-token-level unclear. Rate limits not published anywhere.
+- **Santiment - runner-up, cheapest to prototype.** GraphQL API, distinct
+  `exchange_inflow_usd`/`exchange_outflow_usd`/`exchange_balance` metrics
+  confirmed. Free tier + Pro ~$49/mo, 14-day trial. Rate limits confirmed
+  (Pro: 100/min, 1,000/hr, 5,000/mo). Found real coverage evidence for both
+  PEPE and BONK specifically; WIF/GMT/ENA/DYDX not individually confirmed.
+- **Glassnode - ruled out on price.** Broadest confirmed coverage (SPL memecoin
+  category added 2024, likely covers BONK/WIF) but the entry API tier is capped
+  at 50 calls/day - real access needs **Professional, ~$999/mo**. Too expensive
+  to prototype pre-revenue.
+- **Also ruled out:** IntoTheBlock (API discontinued, now a content site),
+  CoinMetrics (flow coverage too narrow - a few stablecoin pairs), Kaiko/
+  Amberdata (no distinct netflow metric, Amberdata is custom-quote only),
+  Nansen (Netflows API is Base/Solana-only smart-money-wallet flow, not total
+  exchange netflow), Arkham (best conceptual fit, but no public self-serve
+  pricing - application-gated, needs a direct sales inquiry to even quote).
+
+**Next step if this gets picked up:** trial both CryptoQuant and Santiment,
+verify BONK/WIF/DYDX coverage directly against real trial accounts (not
+documentation, which was inconclusive on exactly these three) before paying
+for either.
 
 Wiring is straightforward once a source exists: `store.btcExchangeNetFlow` is
 already threaded into the prompts, so the work is generalising that field
