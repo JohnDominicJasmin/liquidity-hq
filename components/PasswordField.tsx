@@ -1,6 +1,7 @@
 'use client';
 import { useId, useState } from 'react';
 import { useLabels } from '@/lib/labels';
+import { PASSWORD_RULES, PASSWORD_MIN_LENGTH } from '@/lib/passwordPolicy';
 
 interface Props {
   value:        string;
@@ -14,6 +15,13 @@ interface Props {
   autoComplete: 'new-password' | 'current-password';
   onEnter?:     () => void;
   style?:       React.CSSProperties;
+  /* Live policy checklist under the field. Set it on every screen that CREATES
+     a password - sign-up, reset-password, settings - so the rules arrive while
+     the user types instead of as one lumped error after a rejected submit.
+     That failure was fixed on sign-up first and the other two screens were left
+     behind, which is the whole reason this lives in the shared component now.
+     Off for sign-in, where the policy is not being applied to what is typed. */
+  showRules?:   boolean;
 }
 
 /* A password input with a reveal toggle. Every password field in the app uses
@@ -23,7 +31,7 @@ interface Props {
    The toggle is a button with type="button": inside the login form a bare
    <button> defaults to type="submit", which would submit the form on click. */
 export default function PasswordField({
-  value, onChange, label, placeholder, autoComplete, onEnter, style,
+  value, onChange, label, placeholder, autoComplete, onEnter, style, showRules,
 }: Props) {
   const [shown, setShown] = useState(false);
   const { t } = useLabels();
@@ -49,7 +57,6 @@ export default function PasswordField({
           onClick={() => setShown(s => !s)}
           aria-label={shown ? t('LOGIN_PASSWORD_HIDE') : t('LOGIN_PASSWORD_SHOW')}
           aria-pressed={shown}
-          tabIndex={-1}
         >
           {shown ? (
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -65,6 +72,24 @@ export default function PasswordField({
           )}
         </button>
       </div>
+      {/* Shown only once typing starts, so an untouched form is not a wall of
+          red - but shown BEFORE submitting, which is the point.
+          The tick/circle is deliberately NOT aria-hidden: it is the only
+          non-colour signal of met/unmet, and hiding it would leave the state
+          conveyed by colour alone. */}
+      {showRules && value && (
+        <div className="pw-rules">
+          {PASSWORD_RULES.map(rule => {
+            const met = rule.test(value);
+            return (
+              <div key={rule.key} className={`pw-rule${met ? ' met' : ''}`}>
+                <span className="pw-rule-dot">{met ? '✓' : '○'}</span>
+                {t(rule.key, { n: PASSWORD_MIN_LENGTH })}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

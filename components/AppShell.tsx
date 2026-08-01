@@ -41,10 +41,16 @@ const isChromeless = (pathname: string) => pathname === '/ops' || pathname.start
    task on the page was competing with a dozen dead controls, on the first
    screen of the product.
    Also drops MarketProvider/NewsProvider, which were opening market feeds and a
-   Realtime subscription for a page that renders a form. */
+   Realtime subscription for a page that renders a form.
+
+   Exact match, not endsWith: the only locale-prefixed route in the app is the
+   marketing landing page (app/[locale]/page.tsx - that segment holds nothing
+   else), so there is no /ar/login for a suffix match to catch. What endsWith
+   would catch is a future route that merely ends in one of these words -
+   /help/reset-password would silently lose the whole app shell, and the symptom
+   (a page rendering with no nav) looks nothing like its cause. */
 const AUTH_ROUTES = ['/login', '/forgot-password', '/reset-password', '/auth/callback'];
-const isAuthRoute = (pathname: string) =>
-  AUTH_ROUTES.some(r => pathname === r || pathname.endsWith(r));
+const isAuthRoute = (pathname: string) => AUTH_ROUTES.includes(pathname);
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

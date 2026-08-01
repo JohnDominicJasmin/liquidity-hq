@@ -3998,13 +3998,21 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
    padding is only to keep typed text from running under the eye button. */
 .pw-field { position: relative; display: block; }
 .pw-field-input { padding-right: 44px; }
+/* 44px wide to match .pw-field-input's 44px padding-right exactly - at 42px the
+   two disagreed, leaving a 2px strip that looks like the eye button but focuses
+   the input instead. Height is the input's own - measured 43px - rather than a
+   forced 44: the toggle cannot be taller than the field it sits in without
+   resizing every input in the app, and 43 already clears the touch-target floor.
+   Focus ring is inset - the global *:focus-visible offset would draw the ring
+   2px OUTSIDE the input's right border. */
 .pw-field-toggle {
-  position: absolute; top: 0; right: 0; height: 100%; width: 42px;
+  position: absolute; top: 0; right: 0; height: 100%; width: 44px;
   display: flex; align-items: center; justify-content: center;
   background: none; border: 0; padding: 0; cursor: pointer;
   color: var(--txt3); transition: color 0.15s;
 }
 .pw-field-toggle:hover { color: var(--txt); }
+.pw-field-toggle:focus-visible { outline-offset: -3px; border-radius: 10px; }
 
 /* Password requirement checklist under the create-account field.
    Two columns, not four stacked rows: adding visible field labels pushed the
@@ -4065,11 +4073,17 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 /* min-height matches .login-skip below - this was a 26px tap target, well under
    the 44px minimum, on a control that is one of only two ways to change auth
    method. align-self keeps the underline hugging the text rather than
-   stretching the full card width. */
+   stretching the full card width.
+
+   inline-flex + align-items, copied from .login-skip, because min-height alone
+   only looks right on a <button>: a button centres its own text, an <a> does
+   not. /forgot-password uses this class on two anchors, where the text was
+   sitting 6px from the top of a 44px box and 24px from the bottom. */
 .login-back-btn {
   font-size: var(--fs-caption); color: var(--txt3); background: none; border: none; cursor: pointer;
   font-family: inherit; padding: 4px 8px; text-decoration: underline; text-underline-offset: 3px;
   min-height: 44px; align-self: center;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .login-back-btn:hover { color: var(--txt2); }
 

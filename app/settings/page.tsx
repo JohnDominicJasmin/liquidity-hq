@@ -258,6 +258,7 @@ export default function SettingsPage() {
             value={pwNew}
             onChange={setPwNew}
             autoComplete="new-password"
+            showRules
           />
           <PasswordField
             label={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
