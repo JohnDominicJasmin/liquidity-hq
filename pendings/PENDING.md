@@ -478,26 +478,23 @@ things break together if the service is ever scaled to multiple instances: the
 per-user limit becomes per-instance, and Binance/Bybit rate-limit exposure rises
 with it. Neither matters at one user; both need revisiting before real traffic.
 
-### PEPE/BONK chart: axis too wide on fast timeframes - COSMETIC, logged (2026-08-01)
+### ✅ PEPE/BONK chart axis - FIXED (2026-08-01), live on prod
 
-On 15m the Arena chart's y-axis spans roughly 0.0023-0.0030 while the candles
-occupy a much narrower band, so they render squashed into the middle. Correct
-scale, no negative ticks - just ~10x more range than the data needs. 1h and
-above look right.
+Root cause confirmed: the EMA ribbon (200-period especially) was registered as
+a klinecharts **indicator**, and indicators contribute to the main pane's
+y-axis range - so on a fast timeframe where price barely moves, the long EMA
+sitting far from candles dragged the axis to fit it, squashing the candles
+into the middle. Two earlier hypotheses this session (analysis overlay,
+pricePrecision) were tested live and ruled out before landing on this one.
 
-Not the same bug as the one fixed today. That one produced a zero-centred axis
-with NEGATIVE price ticks and a flat line, and came from feeding klinecharts
-per-token values (~2e-8 candle range) it cannot scale. Fixed by keeping the
-chart on Bybit's 1000x contract price and labelling it `1000PEPE/USDT`.
-
-Most likely cause of what remains: a long EMA, or an S/R level from the 200-bar
-lookback, sitting far from price on a fast timeframe and dragging the range.
-Unverified - stated as a starting point, not a diagnosis.
-
-Deliberately stopped here. Cosmetic, affects two coins on the fastest
-timeframes, and today already produced two wrong hypotheses from me on this
-exact chart (blamed the analysis overlay, then pricePrecision - the precision
-attempt is recorded in lib/coins.ts so it is not repeated).
+Fixed by rewriting the EMA ribbon from an indicator to a plain line **overlay**
+(`registerOverlay('emaRibbonLine', ...)` in `components/KLineProChart.tsx`),
+which draws over the pane without feeding its range calc. `overrideOverlay`
+updates points in place on new bars/live ticks instead of remove+recreate.
+Verified on the bug case (PEPE 15m - axis now tracks candles) and the
+regression case (BTC 1h - unaffected), plus coin-switch cleanup and live-tick
+paths. Merged to `main` (`6a44b00`), deployed (`dep-d9n3666417fc73cio38g`,
+live), prod HTTP 200 confirmed post-deploy.
 
 ### The 1000x fix flushed out four separate bugs - worth remembering the shape
 
@@ -563,27 +560,21 @@ of ~95 directional weight while winning barely more than a coin flip.
 - `ema_signal_1m` is the largest sample and has no edge at 24h; `whales` is
   negative. Neither has been acted on.
 
-### CI/CD pipeline — BACKLOG, future work (2026-08-01)
+### ✅ CI/CD pipeline — SHIPPED (2026-08-01)
 
-No CI exists today - confirmed no `.github/workflows`, no CircleCI/GitLab config
-anywhere in the repo. Deploys are 100% manual: `autoDeploy` is `"no"` on both
-Render services (confirmed directly via the Render API, not just the docs),
-triggered by hand per deploy. No test runner is installed either - `package.json`
-scripts are just `dev`/`build`/`start`/`labels:regen`, matching
-`docs/QA_TEST_PLAN.md`'s manual, rigor-tiered verification approach.
-
-Flagging as future work, not urgent: add a CI/CD pipeline (build/typecheck gate
-at minimum, a test suite once one exists, auto-deploy on merge to `main`) so
-shipping doesn't depend on remembering to trigger Render by hand. No decision
-made yet on scope or provider (GitHub Actions is the obvious default given the
-repo's already on GitHub) - revisit when actually prioritized.
+`.github/workflows/ci.yml` added: on push to `dev`/`main`, checkout + Node 24 +
+`npm ci` + `npx tsc --noEmit` + `npm run build`. Deliberately scoped narrow -
+no test step (none exist yet), no auto-deploy wiring (Render's manual-trigger
+convention is intentional, left alone). First push was rejected (PAT lacked
+`workflow` scope) - fixed via a credential-manager reauth, then pushed clean.
+Gate is live on both branches.
 
 ## ❓ OPEN — YOUR action (can't do from code)
 
-Nothing blocking. `dev` (`179252d`) and `main` (`d0b1e4d`, a merge of the
-same) hold identical content as of 2026-08-01. Prod's running build is
-`c75c2da` - the one commit since (`d0b1e4d`'s doc sweep) is docs-only, so no
-deploy was triggered, matching the same pattern as the previous entry here.
+Nothing blocking. `dev` (`2b9d536`) and `main` (`6a44b00`, a merge of the
+same) hold identical content as of 2026-08-01. Prod's running build **is**
+`6a44b00` - deployed and confirmed `live` (`dep-d9n3666417fc73cio38g`), prod
+HTTP 200 verified post-deploy.
 
 ## 🔭 DEFERRED — tied to unfinished payment feature
 
