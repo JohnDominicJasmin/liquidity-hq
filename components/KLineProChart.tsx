@@ -227,11 +227,49 @@ interface Props {
 const TFS: ChartTf[] = ['1m','5m','15m','30m','1h','2h','4h','1d'];
 
 let emaSignalOverlayRegistered = false;
+let emaRibbonLineRegistered = false;
 let srLevelLineRegistered = false;
 let gexLevelLineRegistered = false;
 let analysisLevelLineRegistered = false;
 let reversalOverlayRegistered = false;
 let structureOverlayRegistered = false;
+
+/* One EMA period's ribbon line - drawn as a single continuous polyline overlay,
+   not a klinecharts built-in indicator. The indicator system folds every
+   plotted value into the pane's Y-axis regardless of the overrideYAxis range
+   override further down, confirmed by removing the old EMARibbon indicator
+   live and watching the axis snap from ~11x too wide to the correct tight
+   range - a klinecharts 10.0.0-beta3 limitation of the indicator pipeline,
+   not something fixable via indicator config (series type and value-clamping
+   were both tried and neither changed the rendered axis at all). Overlays are
+   proven NOT to affect the Y-axis (verified by removing every overlay on the
+   chart and seeing zero change), so redrawing the ribbon as an overlay keeps
+   the real, correct EMA200 value on screen without it dragging the axis on
+   fast timeframes for volatile coins (PEPE/BONK 15m, where EMA200's 200-bar
+   lookback still reaches a real multi-day-old price level). */
+const EMA_PERIODS = [
+  { period: 9,   color: '#fbbf24', size: 1   },  // gold
+  { period: 20,  color: '#60a5fa', size: 1.5 },  // blue
+  { period: 50,  color: '#f97316', size: 1.5 },  // orange
+  { period: 200, color: '#1a7aff', size: 2   },  // blue (thicker)
+] as const;
+
+interface EmaPoint { timestamp: number; value: number; }
+
+function computeEmaSeries(bars: Array<{ timestamp: number; close: number }>, period: number): EmaPoint[] {
+  const n = bars.length;
+  if (n < period) return [];
+  const k = 2 / (period + 1);
+  let e = 0;
+  for (let i = 0; i < period; i++) e += bars[i].close;
+  e /= period;
+  const out: EmaPoint[] = [{ timestamp: bars[period - 1].timestamp, value: e }];
+  for (let i = period; i < n; i++) {
+    e = bars[i].close * k + e * (1 - k);
+    out.push({ timestamp: bars[i].timestamp, value: e });
+  }
+  return out;
+}
 
 // How many recent structure breaks to draw. Older ones are history, not
 // something to act on, and drawing every break in the window would put the
@@ -334,6 +372,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const wsRef          = useRef<{ close: () => void } | null>(null);
   const analysisIds    = useRef<string[]>([]);
   const gexLevelIds    = useRef<string[]>([]);
+  // One overlay id per EMA_PERIODS entry, in the same order - null until the
+  // overlay has actually been created (first sync after data loads).
+  const emaRibbonIds   = useRef<Array<string | null>>(EMA_PERIODS.map(() => null));
+  // Full bar history for EMA recompute - klinecharts keeps its own candle list
+  // internally, but doesn't expose a stable "give me everything you have"
+  // read outside its own indicator/DataLoader lifecycle, so this mirrors it:
+  // replaced whole on load, upserted (append or replace-last) on each live tick.
+  const emaBarsRef     = useRef<Array<{ timestamp: number; close: number }>>([]);
   const alertOverlayMap  = useRef<Map<string, string>>(new Map()); // alert.id → overlay id
   const onAlertMoveRef = useRef(onAlertMove);
   const coinRef        = useRef<CoinId>(coin);
@@ -516,6 +562,50 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   // Keep coinRef fresh for the DataLoader closure
   useEffect(() => { coinRef.current = coin; }, [coin]);
 
+  // Recompute all 4 EMA lines from the full bar history and push them onto
+  // the chart - create the overlay the first time, overrideOverlay (in
+  // place, no remove/recreate flicker) every time after. Called after every
+  // DataLoader callback: full history load, and each live tick.
+  const syncEmaRibbon = useCallback(() => {
+    const chart = chartRef.current;
+    const bars = emaBarsRef.current;
+    if (!chart || !bars.length) return;
+    EMA_PERIODS.forEach((cfg, idx) => {
+      const series = computeEmaSeries(bars, cfg.period);
+      if (!series.length) return;
+      const points = series.map(p => ({ timestamp: p.timestamp, value: p.value }));
+      const existingId = emaRibbonIds.current[idx];
+      if (existingId) {
+        chart.overrideOverlay({ id: existingId, points });
+      } else {
+        const id = chart.createOverlay({
+          name: 'emaRibbonLine',
+          points,
+          extendData: { color: cfg.color, size: cfg.size },
+          // Higher zLevel paints on top. EMA_PERIODS is ordered fast-to-slow
+          // (9, 20, 50, 200), so EMA200 (idx 3, thickest) ends up on top and
+          // EMA9 (idx 0, thinnest) on the bottom - matches the original
+          // indicator's figures: [e9, e20, e50, e200] array, where klinecharts
+          // paints later entries over earlier ones.
+          zLevel: idx,
+        } as OverlayCreate);
+        emaRibbonIds.current[idx] = typeof id === 'string' ? id : null;
+      }
+    });
+  }, []);
+
+  // Upsert one live-updating bar into the EMA history: replace the last entry
+  // if it's the same (still-forming) candle, append if it's a genuinely new
+  // one - mirrors how the DataLoader's own callback(bar) distinguishes an
+  // update to the current candle from the start of the next one.
+  const upsertEmaBar = useCallback((bar: { timestamp: number; close: number }) => {
+    const bars = emaBarsRef.current;
+    const last = bars[bars.length - 1];
+    if (last && last.timestamp === bar.timestamp) bars[bars.length - 1] = bar;
+    else bars.push(bar);
+    syncEmaRibbon();
+  }, [syncEmaRibbon]);
+
   // ── Init chart once ──────────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
@@ -534,53 +624,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       chart.setStyles((dark ? DARK : LIGHT) as any);
 
-      // Register custom ribbon: EMA 9/20/50/200 as one indicator
-      kc.registerIndicator({
-        name: 'EMARibbon',
-        calc: (dataList) => {
-          const closes = dataList.map((d: { close: number }) => d.close);
-          const n = closes.length;
-
-          const emaArr = (period: number) => {
-            const out = new Array<number | null>(n).fill(null);
-            if (n < period) return out;
-            const k = 2 / (period + 1);
-            let e = closes.slice(0, period).reduce((a: number, b: number) => a + b, 0) / period;
-            out[period - 1] = e;
-            for (let i = period; i < n; i++) { e = closes[i] * k + e * (1 - k); out[i] = e; }
-            return out;
-          };
-          const smaArr = (period: number) => {
-            const out = new Array<number | null>(n).fill(null);
-            for (let i = period - 1; i < n; i++) {
-              let sum = 0;
-              for (let j = i - period + 1; j <= i; j++) sum += closes[j];
-              out[i] = sum / period;
-            }
-            return out;
-          };
-          const e9 = emaArr(9), e20 = emaArr(20), e50 = emaArr(50), e200 = emaArr(200);
-          return dataList.map((_: unknown, i: number) => ({ e9: e9[i], e20: e20[i], e50: e50[i], e200: e200[i] }));
-        },
-        figures: [
-          { key: 'e9',   type: 'line' },
-          { key: 'e20',  type: 'line' },
-          { key: 'e50',  type: 'line' },
-          { key: 'e200', type: 'line' },
-        ],
-        styles: {
-          lines: [
-            { color: '#fbbf24', size: 1   },  // EMA 9  - gold
-            { color: '#60a5fa', size: 1.5 },  // EMA 20 - blue
-            { color: '#f97316', size: 1.5 },  // EMA 50 - orange
-            { color: '#1a7aff', size: 2   },  // EMA 200 - blue
-          ],
-        },
-      });
-      chart.createIndicator(
-        { name: 'EMARibbon' },
-        { isStack: false, pane: { id: 'candle_pane' } }
-      );
+      // EMA 9/20/50/200 ribbon - drawn as 4 emaRibbonLine overlays (registered
+      // below, synced via syncEmaRibbon), not a klinecharts built-in indicator.
+      // See the EMA_PERIODS comment above for why.
       chart.createIndicator('VOL', { pane: { id: 'vol_pane', height: 90, minHeight: 30 } });
       // RSI-14 (Wilder's smoothing) - matches the period used everywhere else
       // in the app (marketStore rsi14/rsi1h/rsi4h/rsiDaily), instead of the
@@ -590,15 +636,22 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         { pane: { id: 'rsi_pane', height: 110, minHeight: 30 } }
       );
 
-      // klinecharts folds every indicator line's value (at each visible bar)
-      // into the candle pane's auto Y-range by default, unconditionally - not
-      // just candle high/low. EMARibbon's 200-period line is a real, correct
-      // value (a genuine trailing average), but when it sits far from the
-      // current price cluster it drags the whole price axis down to include
-      // it, crushing the actual candles into a fraction of the pane. Override
-      // this one pane's range to come from visible candle high/low only, so
-      // the price scale tracks price action - lines that stray outside it
-      // just extend past the edge, same as any other charting platform.
+      // Keeps this pane's Y-axis tracking only the VISIBLE candles' high/low,
+      // not the full loaded history. candle_pane hosts no klinecharts
+      // indicators (RSI/VOL live in their own panes; the EMA ribbon below is
+      // drawn as overlays, not an indicator) - it did until 2026-08, when the
+      // EMA200 line was still a registered indicator here. klinecharts folds
+      // every indicator's value into a pane's auto Y-range unconditionally,
+      // and neither this override's createRange NOR the indicator's own
+      // series type stopped it: a long EMA sitting far from the current price
+      // cluster still dragged the whole axis wide enough to crush real
+      // candles into a fraction of the pane, confirmed live on PEPE/BONK's
+      // 15m chart (measured ~11x wider than the actual visible price range).
+      // Fixed by moving the ribbon off the indicator pipeline entirely, not
+      // by anything in this function - overlays are exempt from that fold,
+      // proven by removing every overlay on the chart and watching the axis
+      // not move at all. This override stays as a still-useful, still-correct
+      // safety net for the visible-range-only behavior itself.
       chart.overrideYAxis({
         paneId: 'candle_pane',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -849,6 +902,32 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         });
       }
 
+      if (!emaRibbonLineRegistered) {
+        emaRibbonLineRegistered = true;
+        // One continuous polyline per EMA period - see the EMA_PERIODS /
+        // computeEmaSeries / syncEmaRibbon comments above for why this
+        // replaced a klinecharts built-in indicator.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (kc as any).registerOverlay({
+          name: 'emaRibbonLine',
+          totalStep: 1,
+          needDefaultPointFigure: false,
+          needDefaultXAxisFigure: false,
+          needDefaultYAxisFigure: false,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          createPointFigures: ({ overlay, coordinates }: { overlay: any; coordinates: Array<{ x: number; y: number }> }) => {
+            const { color, size } = overlay.extendData as { color: string; size: number };
+            const pts = coordinates.filter(c => c && isFinite(c.x) && isFinite(c.y));
+            if (pts.length < 2) return [];
+            return [{
+              type: 'line',
+              attrs: { coordinates: pts },
+              styles: { style: 'solid', color, size },
+            }];
+          },
+        });
+      }
+
       if (!srLevelLineRegistered) {
         srLevelLineRegistered = true;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -989,6 +1068,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // actionable - showing them all just recreates the chart clutter
                 // the Arena signal-overload pass removed.
                 paSetRef.current(detectStructureSignals(bars).slice(-PA_MAX));
+                emaBarsRef.current = bars;
+                syncEmaRibbon();
               }
               callback(bars, false);
             } else if (bybitSym) {
@@ -1014,6 +1095,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 // actionable - showing them all just recreates the chart clutter
                 // the Arena signal-overload pass removed.
                 paSetRef.current(detectStructureSignals(bars).slice(-PA_MAX));
+                emaBarsRef.current = bars;
+                syncEmaRibbon();
               }
               callback(bars, false);
             } else {
@@ -1040,6 +1123,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               const { k } = JSON.parse(e.data as string) as { k: Record<string, string | number> };
               const bar = { timestamp: Number(k.t), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c), volume: Number(k.v) };
               lastCloseRef.current = bar.close;
+              upsertEmaBar(bar);
               callback(bar);
             };
             wsRef.current = ws;
@@ -1056,7 +1140,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   // Raw, matching the history load above - the live bar must be
                   // on the same scale as the candles it is appended to.
                   lastCloseRef.current = Number(k[4]);
-                  callback({ timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]), low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]) });
+                  const bar = { timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]), low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]) };
+                  upsertEmaBar(bar);
+                  callback(bar);
                 }
               } catch { /* silent */ }
             }, 5000);
@@ -1125,6 +1211,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     chart.removeOverlay({ name: 'reversalWarning' });
     srOverlayIds.current.forEach(id => chart.removeOverlay({ id }));
     srOverlayIds.current = [];
+    chart.removeOverlay({ name: 'emaRibbonLine' });
+    emaRibbonIds.current = EMA_PERIODS.map(() => null);
+    emaBarsRef.current = [];
     setSrLevels([]);
     setActiveTool(null);
 
