@@ -113,6 +113,66 @@ below is live on prod right now, not just `main`.
   still correctly matched. Applied to both `qdpwhnvmhqgzijuwopso` (prod) and
   `wdtjhrilakoitfcezxpx` (dev).
 
+## ✅ Auth screen + mobile audit — ALL LIVE ON PROD (2026-08-01)
+
+Six commits, one continuous audit arc that started from a real signup on prod
+and ended with a mobile pass. All merged to `main` (`ab9dd58`) and deployed -
+confirmed live directly via Render (`dep-d9mecn3m8hqs73c6aaig`, status `live`),
+not just pushed to `main`.
+
+- **Trial-ending email stopped promising a checkout that doesn't exist**
+  (`0174e56`). The email said "Keep Pro" and linked `/upgrade`, which just
+  renders "Pro payments launching soon" until
+  `NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL` is set - sending the most interested
+  user we have to a page that cannot take their money. Gated on the same env
+  check `/upgrade` and `UpgradeGateModal` already use, so all three agree by
+  construction. No-ops the moment checkout is configured.
+- **Sign-up password check fixed + reveal toggle added** (`5a49b14`). Client
+  checked `password.length < 8`; Supabase Auth actually enforces 12 characters
+  plus upper, lower and a digit - so the form accepted the password and GoTrue
+  bounced back its own raw character-set string as the error, on the first
+  screen of the product. `lib/passwordPolicy.ts` is now the single mirror of
+  the dashboard policy; login/reset-password/settings each had their own stale
+  copy of the 8-character rule before this. Checklist renders as four separate
+  label keys, not one joined sentence - does not survive ko/zh/ar/ru.
+- **Auth screens pulled into their own surface** (`d154ac7`). `/login` was
+  rendering inside the full consumer app shell - nav drawer, scrolling news
+  ticker, floating Ask-AI button, coin rail, 35 interactive elements for a
+  screen with one job, most of which just bounce back to `/login` anyway.
+  Reuses the `/ops` chromeless branch, but checks the auth route *after* the
+  maintenance check - opposite order from `/ops`, intentionally: `/ops` must
+  stay reachable to turn maintenance off, while a signed-out user hitting
+  `/login` during maintenance should see the maintenance screen, not a working
+  form for a down app. Fixed 3 measured (not eyeballed) dark-mode contrast
+  bugs found in the process: `.login-card` was the same colour as the page
+  background (no surface at all), `.login-pw-tab.on` was the same colour as
+  its own track, and `.login-back-btn` was a 26px tap target under the 44px
+  floor.
+- **Tour dots + trial banner readability** (`c4e6044`). The tour's step-dot
+  transition finished at 0.3s, before the content fade (0.38s) and progress
+  bar (0.4s) - so the one element the eye tracks during a step change was the
+  only one that snapped ahead of the rest. Now 0.42s, landing together with
+  the rest of the step. Trial banner was a 7px strip that read as a
+  dismissible system notice and got ignored; now real body text with a 2px
+  accent rule and a bordered "Keep Pro" pill instead of a bare text link.
+- **Real field labels added** (`0e1ea60`) - the deferred item from the auth
+  audit. Every field was placeholder-only, so a half-filled form had no
+  accessible name at all for a screen reader or voice control. Follows the
+  app's existing `.lbl` idiom (mono, uppercase, tracked) rather than inventing
+  a second label style. Fixed the resulting card-height overflow (labels
+  pushed the create-account card to 710px against a 720px viewport) by making
+  the password checklist a 2x2 grid instead of four stacked rows.
+- **Mobile pass on all of the above** (`0bf7305`). The audit above had only
+  ever run at 1280x720 desktop, until asked directly whether mobile was
+  covered - it hadn't been, a real gap for an installable PWA. Three defects
+  found at 375px: Cloudflare Turnstile's fixed 300px iframe overflowed the
+  auth card by 21px, the new password-checklist 2x2 grid was too narrow for
+  "At least 12 characters" without wrapping (which would have made it taller
+  than the rows it replaced - now single-column below 420px), and the trial
+  banner's "Keep Pro" pill was a 29px touch target, under the 44px floor.
+
+Nothing open left over from this arc.
+
 ## ⛔ OPEN — code (mine)
 
 ### Coinglass v4 migration — DEFERRED until there is revenue (decided 2026-07-30)
@@ -448,6 +508,21 @@ of ~95 directional weight while winning barely more than a coin flip.
   `ema_signal_1d` at n=51 is as likely a trending fortnight as an edge.
 - `ema_signal_1m` is the largest sample and has no edge at 24h; `whales` is
   negative. Neither has been acted on.
+
+### CI/CD pipeline — BACKLOG, future work (2026-08-01)
+
+No CI exists today - confirmed no `.github/workflows`, no CircleCI/GitLab config
+anywhere in the repo. Deploys are 100% manual: `autoDeploy` is `"no"` on both
+Render services (confirmed directly via the Render API, not just the docs),
+triggered by hand per deploy. No test runner is installed either - `package.json`
+scripts are just `dev`/`build`/`start`/`labels:regen`, matching
+`docs/QA_TEST_PLAN.md`'s manual, rigor-tiered verification approach.
+
+Flagging as future work, not urgent: add a CI/CD pipeline (build/typecheck gate
+at minimum, a test suite once one exists, auto-deploy on merge to `main`) so
+shipping doesn't depend on remembering to trigger Render by hand. No decision
+made yet on scope or provider (GitHub Actions is the obvious default given the
+repo's already on GitHub) - revisit when actually prioritized.
 
 ## ❓ OPEN — YOUR action (can't do from code)
 

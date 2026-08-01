@@ -10,7 +10,7 @@ import { friendlyAuthError } from '@/lib/authErrors';
 import { safeNextPath } from '@/lib/safeNext';
 import LoadingState from '@/components/LoadingState';
 import PasswordField from '@/components/PasswordField';
-import { PASSWORD_RULES, PASSWORD_MIN_LENGTH, passwordMeetsPolicy } from '@/lib/passwordPolicy';
+import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
 import { useLabels } from '@/lib/labels';
 
 // Only rendered once NEXT_PUBLIC_TURNSTILE_SITE_KEY is set - until then the
@@ -360,34 +360,16 @@ function LoginInner() {
                   onChange={setPassword}
                   onEnter={() => { if (pwMode === 'signin') submitPassword(); }}
                   autoComplete={pwMode === 'signup' ? 'new-password' : 'current-password'}
+                  showRules={pwMode === 'signup'}
                 />
                 {pwMode === 'signup' && (
-                  <>
-                    {/* Shown only once typing starts, so an untouched form is not
-                        a wall of red - but shown BEFORE submitting, which is the
-                        whole point: the rules used to arrive from the server
-                        after the attempt had already failed. */}
-                    {password && (
-                      <div className="pw-rules">
-                        {PASSWORD_RULES.map(rule => {
-                          const met = rule.test(password);
-                          return (
-                            <div key={rule.key} className={`pw-rule${met ? ' met' : ''}`}>
-                              <span className="pw-rule-dot">{met ? '✓' : '○'}</span>
-                              {t(rule.key, { n: PASSWORD_MIN_LENGTH })}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    <PasswordField
-                      label={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
-                      value={confirmPassword}
-                      onChange={setConfirmPassword}
-                      onEnter={submitPassword}
-                      autoComplete="new-password"
-                    />
-                  </>
+                  <PasswordField
+                    label={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}
+                    value={confirmPassword}
+                    onChange={setConfirmPassword}
+                    onEnter={submitPassword}
+                    autoComplete="new-password"
+                  />
                 )}
                 <button
                   className="login-email-btn"

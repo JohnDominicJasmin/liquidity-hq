@@ -546,16 +546,32 @@ export default function SpotlightTour({ onDone }: { onDone: () => void }) {
             </button>
           </div>
 
-          {/* Visual panel */}
+          {/* Visual panel. Fixed height, not just min-height matching its
+              tallest content: Step1Visual's 3-card row measures ~95px tall,
+              Step5Visual's full chart mockup ~282px - a bare-content div let
+              the whole modal card jump from 337px to 525px on a single Next
+              click, since nothing below (text, nav, progress bar) varies
+              nearly as much. 290px covers the tallest step measured in
+              English plus headroom for locales whose chip/toast text runs
+              longer and wraps a line. Centered so shorter visuals (Step1)
+              sit in the middle of the frame instead of stranded at its top. */}
           <div key={`v-${animKey}`} style={{
             marginBottom: 20,
-            animation: 'ob-fade-up 0.35s cubic-bezier(0.16,1,0.3,1) both',
+            minHeight: 290,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            // Was 'ob-fade-up' - not a real keyframe name (globals.css defines
+            // the camelCase obFadeUp, used elsewhere via the .ob-fade-up
+            // CLASS; this inline animation shorthand needs the @keyframes
+            // identifier itself, not the class that wraps it). getAnimations()
+            // confirmed zero animations were ever running here - both this
+            // panel and the text block below appeared instantly, with no fade.
+            animation: 'obFadeUp 0.35s cubic-bezier(0.16,1,0.3,1) both',
           }}>
             <Visual />
           </div>
 
           {/* Text */}
-          <div key={`t-${animKey}`} style={{ animation: 'ob-fade-up 0.35s 0.05s cubic-bezier(0.16,1,0.3,1) both' }}>
+          <div key={`t-${animKey}`} style={{ animation: 'obFadeUp 0.35s 0.05s cubic-bezier(0.16,1,0.3,1) both' }}>
             <h2 style={{
               fontSize: 'var(--fs-section)', fontWeight: 800, color: TXT1,
               margin: '0 0 8px', lineHeight: 1.2, letterSpacing: '-.02em',

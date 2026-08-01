@@ -113,6 +113,7 @@ export default function ResetPasswordPage() {
                 value={password}
                 onChange={setPassword}
                 autoComplete="new-password"
+                showRules
               />
               <PasswordField
                 label={t('LOGIN_PASSWORD_CONFIRM_PLACEHOLDER')}

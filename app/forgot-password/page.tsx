@@ -61,15 +61,25 @@ export default function ForgotPasswordPage() {
         ) : (
           <>
             <div className="login-email-wrap">
-              <input
-                type="email"
-                className="login-email-input"
-                placeholder={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && submit()}
-                autoComplete="email"
-              />
+              {/* A placeholder is the accessible name only until the user types,
+                  and then the field has no name at all. /login's fields were
+                  given real labels; this page was missed in the same pass. */}
+              <div className="login-field">
+                <label className="login-field-label" htmlFor="forgot-email">
+                  {t('LOGIN_FIELD_LABEL_EMAIL')}
+                </label>
+                <input
+                  id="forgot-email"
+                  type="email"
+                  className="login-email-input"
+                  placeholder={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && submit()}
+                  autoComplete="email"
+                  autoFocus
+                />
+              </div>
               <button
                 className="login-email-btn"
                 onClick={submit}
@@ -93,7 +103,9 @@ export default function ForgotPasswordPage() {
 
             {error && <div className="login-error">{error}</div>}
 
-            <Link href="/login" className="login-back-btn" style={{ display: 'block', marginTop: 14 }}>
+            {/* No display override here - .login-back-btn centres its own text
+                via inline-flex, and `display: block` would defeat that. */}
+            <Link href="/login" className="login-back-btn" style={{ marginTop: 14 }}>
               {t('FORGOT_PASSWORD_BACK_TO_LOGIN')}
             </Link>
           </>

@@ -6,6 +6,7 @@ pulls in `AGENTS.md` by relative path) and `README.md` (GitHub renders it).
 
 | File | What it covers |
 |---|---|
+| [HANDOVER.md](HANDOVER.md) | **Start here when picking this project up cold.** Current progress, testing status (what's verified vs not), open issues, prioritised next steps, owner-only actions, and the gotchas worth not relearning |
 | [PRICING_AND_LIMITS.md](PRICING_AND_LIMITS.md) | Free / Trial / Pro: who is entitled, daily limits, which file owns each rule, and the invariants that keep the paywall and the limits agreeing. **Read before changing `lib/limits.ts`.** |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | App structure, table registry, data flow |
 | [INFRASTRUCTURE.md](INFRASTRUCTURE.md) | Render services, Supabase projects, cron jobs, env vars. Several schedulers live outside this repo (cron-job.org, n8n) and are invisible to a code search - this is the source of truth for them |
