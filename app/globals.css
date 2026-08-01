@@ -4029,8 +4029,10 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 
    1. Turnstile renders a FIXED 300px iframe. At 375px the card's content box
       was 375 - 40 (wrap padding) - 56 (card padding) = 279px, so the widget
-      overflowed its own card by 21px. Trimming the card's horizontal padding to
-      16px gives 303px of content - just enough for the widget to sit inside.
+      overflowed its own card by 21px. This block trims BOTH paddings to 16px,
+      giving 375 - 32 - 32 = 311px of content - measured at 311, with the 300px
+      widget clearing the right edge by 5px. (An earlier version of this comment
+      said 303px; that figure forgot this block also changes .login-wrap.)
       The overflow guard stays as a belt-and-braces in case Cloudflare ever
       changes that width.
    2. The password checklist's two columns were ~133px each here, too narrow for
