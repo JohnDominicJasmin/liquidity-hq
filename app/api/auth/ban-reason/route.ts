@@ -31,8 +31,11 @@ export async function POST(req: NextRequest) {
   // credential-stuffing endpoint. Tighter than those, in line with the other
   // auth-adjacent routes (telegram/test, telegram/link-code) at 5/min.
   // TEMP-DEBUG: root-causing why this limit isn't blocking on live dev - remove after.
+  // Header values are attacker-controlled - strip control/newline chars before
+  // logging so a crafted header can't forge fake log lines (log injection).
+  const _sanitizeForLog = (s: string | null) => (s ?? '').replace(/[\r\n\x00-\x1f]/g, ' ').slice(0, 200);
   const _dbgIp = getClientIp(req);
-  console.log(`[TEMP-DEBUG ban-reason] ip=${_dbgIp} xff="${req.headers.get('x-forwarded-for')}" xreal="${req.headers.get('x-real-ip')}"`);
+  console.log(`[TEMP-DEBUG ban-reason] ip=${_sanitizeForLog(_dbgIp)} xff="${_sanitizeForLog(req.headers.get('x-forwarded-for'))}" xreal="${_sanitizeForLog(req.headers.get('x-real-ip'))}"`);
   if (!rateLimit(`ban-reason:${_dbgIp}`, 5, 60_000)) {
     return NextResponse.json({ reason: null }, { status: 429 });
   }
