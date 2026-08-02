@@ -22,10 +22,10 @@ import type { LabelKey } from '@/lib/labelKeys';
    tall cards whose wrapping context lines left big empty gaps. */
 
 const OI_TREND_META: Record<string, { txtKey: LabelKey; subKey: LabelKey; col: string }> = {
-  strong_up:   { txtKey: 'COIN_MARKET_SNAPSHOT_OI_STRONG_UP_TXT',   subKey: 'COIN_MARKET_SNAPSHOT_OI_STRONG_UP_SUB',   col: '#34d399' },
-  strong_down: { txtKey: 'COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_TXT', subKey: 'COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB', col: '#f87171' },
-  weak_up:     { txtKey: 'COIN_MARKET_SNAPSHOT_OI_WEAK_UP_TXT',     subKey: 'COIN_MARKET_SNAPSHOT_OI_WEAK_UP_SUB',     col: '#fbbf24' },
-  weak_down:   { txtKey: 'COIN_MARKET_SNAPSHOT_OI_WEAK_DOWN_TXT',   subKey: 'COIN_MARKET_SNAPSHOT_OI_WEAK_DOWN_SUB',   col: '#94a3b8' },
+  strong_up:   { txtKey: 'COIN_MARKET_SNAPSHOT_OI_STRONG_UP_TXT',   subKey: 'COIN_MARKET_SNAPSHOT_OI_STRONG_UP_SUB',   col: 'var(--green)' },
+  strong_down: { txtKey: 'COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_TXT', subKey: 'COIN_MARKET_SNAPSHOT_OI_STRONG_DOWN_SUB', col: 'var(--red)' },
+  weak_up:     { txtKey: 'COIN_MARKET_SNAPSHOT_OI_WEAK_UP_TXT',     subKey: 'COIN_MARKET_SNAPSHOT_OI_WEAK_UP_SUB',     col: 'var(--amber)' },
+  weak_down:   { txtKey: 'COIN_MARKET_SNAPSHOT_OI_WEAK_DOWN_TXT',   subKey: 'COIN_MARKET_SNAPSHOT_OI_WEAK_DOWN_SUB',   col: 'var(--txt3)' },
 };
 
 export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
@@ -45,10 +45,10 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
   const fr     = d?.fundingRate;
   const frPct  = fr != null ? fr * 100 : null;
   const frCol  = frPct == null ? 'var(--txt3)'
-    : frPct >= 0.05  ? '#f87171'
-    : frPct >= 0.01  ? '#fca5a5'
-    : frPct <= -0.03 ? '#34d399'
-    : frPct <= -0.005? '#86efac'
+    : frPct >= 0.05  ? 'var(--red)'
+    : frPct >= 0.01  ? 'var(--red-soft)'
+    : frPct <= -0.03 ? 'var(--green)'
+    : frPct <= -0.005? 'var(--green-soft)'
     : 'var(--txt2)';
   const frSigKey: LabelKey = frPct == null ? 'COIN_MARKET_SNAPSHOT_FR_LOADING'
     : frPct >= 0.05  ? 'COIN_MARKET_SNAPSHOT_FR_LONGS_OVERCROWDED'

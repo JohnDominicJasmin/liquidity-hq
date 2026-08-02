@@ -47,10 +47,14 @@
   --green:     #4ade80;
   --green-bg:  rgba(74,222,128,0.08);
   --green-bdr: rgba(74,222,128,0.22);
+  /* Weaker-signal tier (e.g. "slightly high funding" vs "very high") - a
+     paler version of --green/--red so the two tiers stay visually distinct. */
+  --green-soft: #86efac;
 
   --red:     #f87171;
   --red-bg:  rgba(248,113,113,0.08);
   --red-bdr: rgba(248,113,113,0.22);
+  --red-soft: #fca5a5;
 
   --amber:     #fbbf24;
   --amber-2:   #fcd34d;
@@ -245,14 +249,23 @@ body::after {
      horizontal-scroll news banner) and overflows the viewport. */
   .dash-main  { min-width: 0; overflow-x: hidden; }
 
-  /* Sticky right rail */
+  /* Sticky right rail. Before the page scrolls enough to actually pin
+     top:68, this box sits at its natural in-flow position - well below 68,
+     since the trial/announcement banners push it down - and max-height
+     stretches it down from THAT position, not from 68. At calc(100vh-80px)
+     the box's bottom edge lands behind the fixed Ask AI FAB + Setup pill
+     from the very first (unscrolled) view, permanently tucking the last
+     card (macro context) under them. Trimmed further so bottom clears the
+     FAB even at that natural, un-stuck top (measured empirically, not
+     derived from the 68px sticky offset - that offset only applies once
+     stuck, and stuck is always a *smaller* top, so it's the safer case). */
   .dash-right {
     display: flex;
     flex-direction: column;
     gap: 8px;
     position: sticky;
     top: 68px;
-    max-height: calc(100vh - 80px);
+    max-height: calc(100vh - 265px);
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.05) transparent;
@@ -335,6 +348,8 @@ body::after {
     scrollbar-width: thin;
     scrollbar-color: rgba(255,255,255,0.05) transparent;
   }
+  /* Trimmed shorter than .dash-sidebar - see the >=1100 rule for why. */
+  .dash-right { max-height: calc(100vh - 265px); }
   /* Don't render both the sidebar AND the mobile stacked coin block */
   .mobile-only  { display: none !important; }
   .desktop-only { display: revert; }
@@ -358,15 +373,25 @@ body::after {
 .csb-status     { padding: 8px 12px; font-size: var(--fs-caption); color: var(--txt3); border-top: 0.5px solid var(--bdr); }
 
 /* ── COIN SIDEBAR v2 - signal cards ── */
-.csb2-container { display: flex; flex-direction: column; gap: 4px; padding-bottom: 8px; }
-.csb2-card      { padding: 8px 10px 0; border-radius: var(--radius-card); border: 0.5px solid transparent; border-left-width: 2px; cursor: pointer; transition: border-color 0.15s, background 0.15s; background: var(--bg2); overflow: hidden; }
+/* gap/padding loosened slightly (was 4px/8px) - 7 data points (icon, name,
+   health grade, price, change%, sparkline, signal tag) plus the taker-buy
+   bar were reading as one crowded block per card; a little more breathing
+   room separates them without cutting anything. */
+.csb2-container { display: flex; flex-direction: column; gap: 6px; padding-bottom: 8px; }
+/* border was transparent by default (only shown on hover/select) - in dark
+   mode --bg2 sits only 4 RGB units off the page's --bg1, so cards had no
+   visible edge and blended into the page; in light mode the --bg2/--bg1 gap
+   is much wider, so the same card read as a distinct row there. A real,
+   theme-aware border by default makes both themes equally legible instead
+   of light mode "accidentally" working. */
+.csb2-card      { padding: 9px 10px 0; border-radius: var(--radius-card); border: 0.5px solid var(--bdr); border-left-width: 2px; cursor: pointer; transition: border-color 0.15s, background 0.15s; background: var(--bg2); overflow: hidden; }
 .csb2-card:hover { border-color: var(--bdr2); background: var(--bg3); }
 .csb2-card.csb2-sel { border-color: var(--bdr2); background: var(--bg3); box-shadow: var(--nm-raise); }
-.csb2-top       { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+.csb2-top       { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
 .csb2-top .csb2-price { margin-left: auto; }
 .csb2-name      { font-family: var(--font-mono), monospace; font-size: var(--fs-caption); font-weight: 700; color: var(--txt); letter-spacing: 0.02em; }
 .csb2-price     { font-size: var(--fs-data); font-weight: 700; color: var(--txt); font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; }
-.csb2-bottom    { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.csb2-bottom    { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .csb2-chg       { font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; }
 .csb2-sig       { font-size: var(--fs-caption); font-weight: 700; padding: 1px 5px; border-radius: 4px; max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(255,255,255,0.04); }
 .csb2-bar-track { height: 3px; background: rgba(255,255,255,0.06); border-radius: 0 0 var(--radius-data) var(--radius-data); margin: 0 -10px; }
@@ -625,9 +650,15 @@ body::after {
 .mr-score { font-family: var(--font-mono), monospace; font-weight: 700; font-size: 3.2rem;
   line-height: .9; letter-spacing: -.03em; color: var(--mr); font-variant-numeric: tabular-nums; }
 .mr-score small { font-size: 1rem; color: var(--txt3); font-weight: 600; margin-left: 2px; }
-.mr-track { height: 5px; border-radius: 3px; background: var(--bg2); margin: 14px 0 12px;
-  overflow: hidden; border: 0.5px solid var(--bdr); }
+.mr-track-wrap { margin: 14px 0 12px; }
+.mr-track { position: relative; height: 5px; border-radius: 3px; background: var(--bg2);
+  border: 0.5px solid var(--bdr); }
 .mr-fill { height: 100%; background: var(--mr); border-radius: 3px; transition: width .35s ease; }
+.mr-track-good-tick { position: absolute; top: -2px; width: 1px; height: 9px;
+  background: var(--txt3); opacity: 0.5; }
+.mr-scale { display: flex; justify-content: space-between; margin-top: 4px;
+  font-family: var(--font-mono), monospace; font-size: var(--fs-micro); color: var(--txt3); }
+.mr-scale-good { opacity: 0.85; }
 .mr-factors { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
 .mr-factor { border: 0.5px solid var(--bdr); border-radius: 8px; padding: 8px 9px; background: var(--bg2);
   min-width: 0; }
@@ -2383,9 +2414,15 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   --green:     #047857;
   --green-bg:  rgba(4,120,87,0.07);
   --green-bdr: rgba(4,120,87,0.20);
+  /* No paler "soft" tier here - the dark-mode pastel greens/reds (#86efac/
+     #fca5a5) fail AA on light backgrounds, and a from-scratch pale shade
+     that still clears 4.5:1 is barely distinguishable from --green/--red
+     anyway. Collapse the two tiers to the same audited color instead. */
+  --green-soft: var(--green);
   --red:     #B91C1C;
   --red-bg:  rgba(185,28,28,0.07);
   --red-bdr: rgba(185,28,28,0.20);
+  --red-soft: var(--red);
   --amber:     #B45309;
   --amber-2:   #92400E;
   --amber-dim: rgba(180,83,9,0.12);

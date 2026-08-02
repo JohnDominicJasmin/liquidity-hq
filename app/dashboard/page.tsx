@@ -24,10 +24,10 @@ import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 
 const OI_TREND_META: Record<string, { txtKey: LabelKey; subKey: LabelKey; col: string }> = {
-  strong_up:   { txtKey: 'OI_TREND_STRONG_UP_TXT',   subKey: 'OI_TREND_STRONG_UP_SUB',   col: '#34d399' },
-  strong_down: { txtKey: 'OI_TREND_STRONG_DOWN_TXT', subKey: 'OI_TREND_STRONG_DOWN_SUB', col: '#f87171' },
-  weak_up:     { txtKey: 'OI_TREND_WEAK_UP_TXT',     subKey: 'OI_TREND_WEAK_UP_SUB',     col: '#fbbf24' },
-  weak_down:   { txtKey: 'OI_TREND_WEAK_DOWN_TXT',   subKey: 'OI_TREND_WEAK_DOWN_SUB',   col: '#94a3b8' },
+  strong_up:   { txtKey: 'OI_TREND_STRONG_UP_TXT',   subKey: 'OI_TREND_STRONG_UP_SUB',   col: 'var(--green)' },
+  strong_down: { txtKey: 'OI_TREND_STRONG_DOWN_TXT', subKey: 'OI_TREND_STRONG_DOWN_SUB', col: 'var(--red)' },
+  weak_up:     { txtKey: 'OI_TREND_WEAK_UP_TXT',     subKey: 'OI_TREND_WEAK_UP_SUB',     col: 'var(--amber)' },
+  weak_down:   { txtKey: 'OI_TREND_WEAK_DOWN_TXT',   subKey: 'OI_TREND_WEAK_DOWN_SUB',   col: 'var(--txt3)' },
 };
 
 
@@ -55,13 +55,13 @@ function MarketPulseStrip() {
   const alt = store.altSeasonScore;
 
   const altColor = alt == null ? 'var(--txt3)'
-    : alt >= 75 ? '#34d399'
-    : alt >= 50 ? '#86efac'
-    : alt >= 25 ? '#fca5a5'
-    : '#f87171';
+    : alt >= 75 ? 'var(--green)'
+    : alt >= 50 ? 'var(--green-soft)'
+    : alt >= 25 ? 'var(--red-soft)'
+    : 'var(--red)';
 
-  const volColor = volLabel === 'Low Vol' ? '#34d399'
-    : volLabel === 'High Vol' ? '#f87171'
+  const volColor = volLabel === 'Low Vol' ? 'var(--green)'
+    : volLabel === 'High Vol' ? 'var(--red)'
     : 'var(--txt2)';
 
   const domNote = dom == null ? '' : dom >= 60 ? t('DASH_PULSE_NOTE_BTC_LEADS') : dom >= 55 ? t('DASH_PULSE_NOTE_ELEVATED') : dom >= 48 ? t('DASH_PULSE_NOTE_NORMAL') : t('DASH_PULSE_NOTE_ALT_SEASON');
@@ -130,33 +130,33 @@ function CoinSidebar() {
         let sig: { text: string; col: string } | null = null;
         if (d?.fundingRate != null) {
           const fr = d.fundingRate * 100;
-          if (fr >= 0.04)       sig = { text: t('DASH_SIDEBAR_SIG_LONGS_OVERCROWDED'), col: '#f87171' };
-          else if (fr <= -0.02) sig = { text: t('DASH_SIDEBAR_SIG_SHORTS_SQUEEZED'),   col: '#34d399' };
+          if (fr >= 0.04)       sig = { text: t('DASH_SIDEBAR_SIG_LONGS_OVERCROWDED'), col: 'var(--red)' };
+          else if (fr <= -0.02) sig = { text: t('DASH_SIDEBAR_SIG_SHORTS_SQUEEZED'),   col: 'var(--green)' };
         }
-        if (!sig && d?.cvdDivergence === 'bullish') sig = { text: t('DASH_SIDEBAR_SIG_SMART_BUYERS'), col: '#34d399' };
-        if (!sig && d?.cvdDivergence === 'bearish') sig = { text: t('DASH_SIDEBAR_SIG_SMART_SELLERS'), col: '#f87171' };
-        if (!sig && d?.oiTrend === 'strong_up')     sig = { text: t('DASH_SIDEBAR_SIG_NEW_BUYERS'),  col: '#34d399' };
-        if (!sig && d?.oiTrend === 'strong_down')   sig = { text: t('DASH_SIDEBAR_SIG_NEW_SELLERS'), col: '#f87171' };
+        if (!sig && d?.cvdDivergence === 'bullish') sig = { text: t('DASH_SIDEBAR_SIG_SMART_BUYERS'), col: 'var(--green)' };
+        if (!sig && d?.cvdDivergence === 'bearish') sig = { text: t('DASH_SIDEBAR_SIG_SMART_SELLERS'), col: 'var(--red)' };
+        if (!sig && d?.oiTrend === 'strong_up')     sig = { text: t('DASH_SIDEBAR_SIG_NEW_BUYERS'),  col: 'var(--green)' };
+        if (!sig && d?.oiTrend === 'strong_down')   sig = { text: t('DASH_SIDEBAR_SIG_NEW_SELLERS'), col: 'var(--red)' };
         if (!sig && d?.chartPattern) {
           const isBull = /bull|higher high|engulf.*bull|hammer(?! man)|double bot/i.test(d.chartPattern);
           const isBear = /bear|lower high|engulf.*bear|shooting|double top/i.test(d.chartPattern);
           const label  = d.chartPattern.split(';')[0].split('(')[0].trim();
-          if (isBull)       sig = { text: label, col: '#34d399' };
-          else if (isBear)  sig = { text: label, col: '#f87171' };
+          if (isBull)       sig = { text: label, col: 'var(--green)' };
+          else if (isBear)  sig = { text: label, col: 'var(--red)' };
           else if (label)   sig = { text: label, col: 'var(--txt3)' };
         }
-        if (!sig && d?.oiTrend === 'weak_up')   sig = { text: t('DASH_SIDEBAR_SIG_SHORTS_CLOSING'),   col: '#fbbf24' };
-        if (!sig && d?.oiTrend === 'weak_down')  sig = { text: t('DASH_SIDEBAR_SIG_BUYERS_PROFIT'),       col: '#94a3b8' };
+        if (!sig && d?.oiTrend === 'weak_up')   sig = { text: t('DASH_SIDEBAR_SIG_SHORTS_CLOSING'),   col: 'var(--amber)' };
+        if (!sig && d?.oiTrend === 'weak_down')  sig = { text: t('DASH_SIDEBAR_SIG_BUYERS_PROFIT'),       col: 'var(--txt3)' };
         if (!sig && d?.fundingRate != null && d.fundingRate !== 0) {
           const fr = d.fundingRate * 100;
-          if      (fr >= 0.05)   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_VERY_HIGH'),      col: '#f87171' };
-          else if (fr >= 0.01)   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_SLIGHTLY_HIGH'),  col: '#fca5a5' };
-          else if (fr <= -0.03)  sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_VERY_LOW'),       col: '#34d399' };
-          else if (fr <= -0.005) sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_SLIGHTLY_LOW'),   col: '#86efac' };
+          if      (fr >= 0.05)   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_VERY_HIGH'),      col: 'var(--red)' };
+          else if (fr >= 0.01)   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_SLIGHTLY_HIGH'),  col: 'var(--red-soft)' };
+          else if (fr <= -0.03)  sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_VERY_LOW'),       col: 'var(--green)' };
+          else if (fr <= -0.005) sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_SLIGHTLY_LOW'),   col: 'var(--green-soft)' };
           else                   sig = { text: t('DASH_SIDEBAR_SIG_FUNDING_NEUTRAL'),         col: 'var(--txt3)' };
         }
 
-        const barCol = tbp >= 60 ? '#34d399' : tbp <= 40 ? '#f87171' : '#404040';
+        const barCol = tbp >= 60 ? 'var(--green)' : tbp <= 40 ? 'var(--red)' : '#404040';
 
         return (
           // Plain flat card - was ParticleCard/mb-glow-card, which drew a
@@ -251,9 +251,9 @@ function CascadeAlertBanner() {
     : alert.side === 'SHORT'
     ? t('DASH_CASCADE_HINT_SHORT')
     : t('DASH_CASCADE_HINT_NEUTRAL');
-  const col = alert.side === 'LONG' ? '#f87171'
-            : alert.side === 'SHORT' ? '#34d399'
-            : '#fbbf24';
+  const col = alert.side === 'LONG' ? 'var(--red)'
+            : alert.side === 'SHORT' ? 'var(--green)'
+            : 'var(--amber)';
   const bdr = alert.side === 'LONG' ? 'rgba(248,113,113,0.35)'
             : alert.side === 'SHORT' ? 'rgba(52,211,153,0.35)'
             : 'rgba(251,191,36,0.35)';
@@ -285,8 +285,8 @@ function EdgeSignals() {
   // ── CB Premium ──
   const cbPct = store.cbPremiumPct;
   const cbCol = cbPct == null ? 'var(--txt3)'
-    : cbPct >= 0.05  ? '#34d399'
-    : cbPct <= -0.05 ? '#f87171'
+    : cbPct >= 0.05  ? 'var(--green)'
+    : cbPct <= -0.05 ? 'var(--red)'
     : 'var(--txt2)';
   const cbSig = cbPct == null ? t('DASH_EDGE_CB_LOADING')
     : cbPct >= 0.1   ? t('DASH_EDGE_CB_FOMO')
@@ -310,10 +310,10 @@ function EdgeSignals() {
   const frPct  = fr != null ? fr * 100 : null;
   const frInfo = fr != null ? classifyFunding(fr) : null;
   const frCol  = frPct == null ? 'var(--txt3)'
-    : frPct >= 0.05  ? '#f87171'
-    : frPct >= 0.01  ? '#fca5a5'
-    : frPct <= -0.03 ? '#34d399'
-    : frPct <= -0.005? '#86efac'
+    : frPct >= 0.05  ? 'var(--red)'
+    : frPct >= 0.01  ? 'var(--red-soft)'
+    : frPct <= -0.03 ? 'var(--green)'
+    : frPct <= -0.005? 'var(--green-soft)'
     : 'var(--txt2)';
 
   // ── OI 1h ──
@@ -322,7 +322,7 @@ function EdgeSignals() {
 
   // ── Squeeze score ──
   const sq = computeSqueezeScore(d);
-  const sqCol = sq.dir === 'SHORT_SQ' ? '#34d399' : sq.dir === 'LONG_LIQ' ? '#f87171' : '#606060';
+  const sqCol = sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : '#606060';
 
   const vwapCard = (
     <div className="edge-card">
