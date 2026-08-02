@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   // commit's log-injection note) - remove after.
   const _sanitizeForLog = (s: string | null) => (s ?? '').replace(/[\r\n\x00-\x1f]/g, ' ').slice(0, 200);
   const _dbgKey = getClientIp(req);
-  console.log(`[TEMP-DEBUG2 ban-reason] resolvedKey=${_sanitizeForLog(_dbgKey)} xff="${_sanitizeForLog(req.headers.get('x-forwarded-for'))}"`);
+  console.log(`[TEMP-DEBUG3 ban-reason] resolvedKey=${_sanitizeForLog(_dbgKey)} xff="${_sanitizeForLog(req.headers.get('x-forwarded-for'))}" cfConnectingIp="${_sanitizeForLog(req.headers.get('cf-connecting-ip'))}" trueClientIp="${_sanitizeForLog(req.headers.get('true-client-ip'))}"`);
   if (!rateLimit(`ban-reason:${_dbgKey}`, 5, 60_000)) {
     return NextResponse.json({ reason: null }, { status: 429 });
   }
