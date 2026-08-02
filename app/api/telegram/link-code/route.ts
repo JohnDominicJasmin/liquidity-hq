@@ -1,24 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { randomBytes } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { rateLimit } from '@/lib/rateLimit';
 import { T } from '@/lib/tables';
+import { makeLinkCode } from '@/lib/telegramLinkCode';
 
 export const dynamic = 'force-dynamic';
 
 // Issues a one-time code the user sends to the bot to prove they control a
 // Telegram chat. See supabase/migrations/20260807j for why this exists: the
 // chat ID used to be accepted from a client PATCH, so anyone could point their
-// alerts at a stranger's phone.
-//
-// Ambiguous characters (0/O, 1/I/L) are left out so the code survives being
-// read off one screen and typed on another - the deep link means most people
-// never type it, but the ones who do are the ones already having trouble.
-const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-const CODE_LEN = 10;          // ~49 bits, single-use, 10-minute window
-const TTL_MS   = 10 * 60_000;
+// alerts at a stranger's phone. Code generation lives in lib/telegramLinkCode.ts.
+const TTL_MS = 10 * 60_000;
 
 // Resolved from Telegram rather than read from an env var. TELEGRAM_BOT_USERNAME
 // is not set on any environment, so requiring it would have meant the one-tap
@@ -43,20 +37,6 @@ async function getBotUsername(): Promise<string> {
   } catch {
     return '';
   }
-}
-
-function makeCode(): string {
-  // rejection-free: 31 symbols from a 256-value byte would bias slightly, so
-  // take 5 bits at a time and discard the one dead value.
-  let out = '';
-  while (out.length < CODE_LEN) {
-    for (const b of randomBytes(CODE_LEN)) {
-      const i = b & 31;
-      if (i < ALPHABET.length) out += ALPHABET[i];
-      if (out.length === CODE_LEN) break;
-    }
-  }
-  return out;
 }
 
 export async function POST(req: NextRequest) {
@@ -89,7 +69,7 @@ export async function POST(req: NextRequest) {
       .eq('user_id', auth.user.id)
       .is('used_at', null);
 
-    const code = makeCode();
+    const code = makeLinkCode();
     const { error } = await admin.from(T.telegram_link_codes).insert({
       code,
       user_id: auth.user.id,

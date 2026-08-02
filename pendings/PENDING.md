@@ -261,49 +261,6 @@ rebuild, because every consumer is still wired:
    reasoning, in the same commit as this note).
 3. Adjust response parsing to the v4 shape.
 
-**This also gates per-coin exchange flow — see the next entry.**
-
-### Per-coin exchange flow — BACKLOG, blocked on a data source (2026-07-31)
-
-The second half of the alt money-flow request. The first half shipped: sector
-rotation is live in Quick, Deep, Chat and the Confluence Score
-(`lib/sectorRotation.ts`), built entirely from data already on hand.
-
-**What it measures:** whether a token is moving ONTO exchanges or OFF them.
-Coins arriving at an exchange are generally there to be sold, so rising inflow
-is incoming sell pressure; coins leaving to private wallets are accumulation.
-
-**Why per-coin, and why it matters for alts specifically:** the app already had
-this for BTC only (`store.btcExchangeNetFlow`, fed into the AI prompts — now
-dead with Coinglass). BTC's float is huge and liquid, so exchange flow moves it
-slowly. An alt is thin: one whale or an unlocked VC tranche landing on an
-exchange can be a meaningful share of circulating supply, and price reacts hard.
-Seeing that arrive before it is sold is the actual edge.
-
-**It does NOT overlap with sector rotation** — the two answer different
-questions and are meant to be read together:
-- Sector rotation: is money moving into alts as a group, or back into BTC?
-  Macro, relative. The tide.
-- Per-coin exchange flow: is *this token's* supply moving to where it gets sold?
-  Coin-specific, supply-side. Whether your particular boat is taking on water.
-
-Rotation can read "capital rotating into alts" — a green light — while the coin
-in front of you has a large tranche hitting exchanges. Nothing in the app warns
-about that today.
-
-**Options when this is revisited, cheapest first:**
-1. Have Grok fetch it via search on demand, the way `/api/onchain` already does
-   for MVRV/SOPR/NVT. Costs AI tokens rather than a subscription, but is slower
-   and less precise, and cannot be charted.
-2. A non-Coinglass provider with per-symbol exchange flow. Not yet researched -
-   do that before assuming Coinglass is the only option.
-3. Coinglass paid plan (see the entry above), only after their support confirms
-   which tier actually includes `/api/exchange/balance/chart`.
-
-Wiring is straightforward once a source exists: `store.btcExchangeNetFlow` is
-already threaded into the prompts, so the work is generalising that field
-per-coin and adding it to `lib/sectorRotation.ts`'s output — not new plumbing.
-
 ### API health tracking on `/ops` — PHASE 1 SHIPPED 2026-07-31
 
 **Live in prod.** `lhq_api_health` + `lhq_record_api_health()`, written by the
@@ -478,26 +435,23 @@ things break together if the service is ever scaled to multiple instances: the
 per-user limit becomes per-instance, and Binance/Bybit rate-limit exposure rises
 with it. Neither matters at one user; both need revisiting before real traffic.
 
-### PEPE/BONK chart: axis too wide on fast timeframes - COSMETIC, logged (2026-08-01)
+### ✅ PEPE/BONK chart axis - FIXED (2026-08-01), live on prod
 
-On 15m the Arena chart's y-axis spans roughly 0.0023-0.0030 while the candles
-occupy a much narrower band, so they render squashed into the middle. Correct
-scale, no negative ticks - just ~10x more range than the data needs. 1h and
-above look right.
+Root cause confirmed: the EMA ribbon (200-period especially) was registered as
+a klinecharts **indicator**, and indicators contribute to the main pane's
+y-axis range - so on a fast timeframe where price barely moves, the long EMA
+sitting far from candles dragged the axis to fit it, squashing the candles
+into the middle. Two earlier hypotheses this session (analysis overlay,
+pricePrecision) were tested live and ruled out before landing on this one.
 
-Not the same bug as the one fixed today. That one produced a zero-centred axis
-with NEGATIVE price ticks and a flat line, and came from feeding klinecharts
-per-token values (~2e-8 candle range) it cannot scale. Fixed by keeping the
-chart on Bybit's 1000x contract price and labelling it `1000PEPE/USDT`.
-
-Most likely cause of what remains: a long EMA, or an S/R level from the 200-bar
-lookback, sitting far from price on a fast timeframe and dragging the range.
-Unverified - stated as a starting point, not a diagnosis.
-
-Deliberately stopped here. Cosmetic, affects two coins on the fastest
-timeframes, and today already produced two wrong hypotheses from me on this
-exact chart (blamed the analysis overlay, then pricePrecision - the precision
-attempt is recorded in lib/coins.ts so it is not repeated).
+Fixed by rewriting the EMA ribbon from an indicator to a plain line **overlay**
+(`registerOverlay('emaRibbonLine', ...)` in `components/KLineProChart.tsx`),
+which draws over the pane without feeding its range calc. `overrideOverlay`
+updates points in place on new bars/live ticks instead of remove+recreate.
+Verified on the bug case (PEPE 15m - axis now tracks candles) and the
+regression case (BTC 1h - unaffected), plus coin-switch cleanup and live-tick
+paths. Merged to `main` (`6a44b00`), deployed (`dep-d9n3666417fc73cio38g`,
+live), prod HTTP 200 confirmed post-deploy.
 
 ### The 1000x fix flushed out four separate bugs - worth remembering the shape
 
@@ -517,23 +471,6 @@ The lesson worth keeping: fixing a magnitude bug does not end at the fix. Every
 consumer downstream had been silently calibrated to the wrong magnitude, and
 each one has to be re-checked against the corrected value. Grep for the symbol
 prefix, then check every formatter and every stored price on the path.
-
-### Confluence Score is unvalidated - agreement now recorded, needs time (2026-08-01)
-
-`agree_count` / `agree_net` were added to `lhq_alert_fires` and are writing
-correctly in prod (verified on the first tick after deploy). They record how
-many DISTINCT rule keys fired for a coin in the same scan and how they split on
-direction. Analysis query is in migration `20260801a`.
-
-**Do not read it yet.** Every row so far is `agree_count: 1` - a solo fire has
-no agreement to measure - and the interesting slice (`>= 2`, especially `>= 3`)
-accumulates slowly. Needs a few weeks plus 24h resolution on top. A small sample
-will happily show a fake edge.
-
-This does NOT persist the Arena Confluence Score, and cannot: its Order Flow
-factor (weight 25) is built from OI trend, CVD divergence, taker buy ratio, POC
-and VWAP, all of which reach the browser over its own market feed and none of
-which the cron holds. See the migration comment.
 
 ### What the outcome data said, and its limits (2026-08-01)
 
@@ -563,27 +500,21 @@ of ~95 directional weight while winning barely more than a coin flip.
 - `ema_signal_1m` is the largest sample and has no edge at 24h; `whales` is
   negative. Neither has been acted on.
 
-### CI/CD pipeline — BACKLOG, future work (2026-08-01)
+### ✅ CI/CD pipeline — SHIPPED (2026-08-01)
 
-No CI exists today - confirmed no `.github/workflows`, no CircleCI/GitLab config
-anywhere in the repo. Deploys are 100% manual: `autoDeploy` is `"no"` on both
-Render services (confirmed directly via the Render API, not just the docs),
-triggered by hand per deploy. No test runner is installed either - `package.json`
-scripts are just `dev`/`build`/`start`/`labels:regen`, matching
-`docs/QA_TEST_PLAN.md`'s manual, rigor-tiered verification approach.
-
-Flagging as future work, not urgent: add a CI/CD pipeline (build/typecheck gate
-at minimum, a test suite once one exists, auto-deploy on merge to `main`) so
-shipping doesn't depend on remembering to trigger Render by hand. No decision
-made yet on scope or provider (GitHub Actions is the obvious default given the
-repo's already on GitHub) - revisit when actually prioritized.
+`.github/workflows/ci.yml` added: on push to `dev`/`main`, checkout + Node 24 +
+`npm ci` + `npx tsc --noEmit` + `npm run build`. Deliberately scoped narrow -
+no test step (none exist yet), no auto-deploy wiring (Render's manual-trigger
+convention is intentional, left alone). First push was rejected (PAT lacked
+`workflow` scope) - fixed via a credential-manager reauth, then pushed clean.
+Gate is live on both branches.
 
 ## ❓ OPEN — YOUR action (can't do from code)
 
-Nothing blocking. `dev` (`179252d`) and `main` (`d0b1e4d`, a merge of the
-same) hold identical content as of 2026-08-01. Prod's running build is
-`c75c2da` - the one commit since (`d0b1e4d`'s doc sweep) is docs-only, so no
-deploy was triggered, matching the same pattern as the previous entry here.
+Nothing blocking. `dev` (`2b9d536`) and `main` (`6a44b00`, a merge of the
+same) hold identical content as of 2026-08-01. Prod's running build **is**
+`6a44b00` - deployed and confirmed `live` (`dep-d9n3666417fc73cio38g`), prod
+HTTP 200 verified post-deploy.
 
 ## 🔭 DEFERRED — tied to unfinished payment feature
 
