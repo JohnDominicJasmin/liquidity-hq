@@ -26,10 +26,8 @@ export function rateLimit(key: string, limit: number, windowMs: number): boolean
   return true;
 }
 
-// RFC 1918 + loopback - Render's own internal network hop shows up in
-// x-forwarded-for as one of these (observed live: "...,  172.68.225.26,
-// 10.29.78.132" - a 10.x.x.x address, matching the internal address Render's
-// own boot log prints for the instance itself), not a real client address.
+// RFC 1918 + loopback - kept only as a last-resort fallback below, see why
+// it's not the primary signal in the comment on getClientIp.
 function isPrivateIp(ip: string): boolean {
   if (/^10\./.test(ip)) return true;
   if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return true;
@@ -41,25 +39,39 @@ function isPrivateIp(ip: string): boolean {
 
 export function getClientIp(req: Request): string {
   const h = req.headers;
-  // x-forwarded-for is a comma-separated hop chain. Client-supplied content
-  // can only ever be a PREFIX of what we see - each proxy in front of this
-  // app appends its own observed connecting IP rather than replacing the
-  // header, so the trailing hops are the ones we can trust regardless of
-  // what a caller stuffs into their own request.
+
+  // This app sits behind Cloudflare in front of Render - two proxy hops, not
+  // one. cf-connecting-ip is Cloudflare's own purpose-built header for this
+  // exact problem: it's the client IP Cloudflare itself observed on the
+  // incoming connection, and Cloudflare overwrites any client-supplied value
+  // for this header before setting its own - unlike x-forwarded-for, which a
+  // client can prepend to freely. Confirmed live (TEMP-DEBUG round 3): this
+  // header carries the same value that stayed constant across a whole burst
+  // of requests from one real client, while every other candidate did not
+  // (see below). true-client-ip is Cloudflare Enterprise's equivalent name
+  // for the same value - checked as a second source, not because either
+  // alone was in doubt.
+  const cf = h.get('cf-connecting-ip') ?? h.get('true-client-ip');
+  if (cf) return cf;
+
+  // Fallback for any request that somehow reaches this app without going
+  // through Cloudflare (e.g. a future infra change, or local testing against
+  // Render directly). x-forwarded-for's hop count turned out NOT to be the
+  // fixed 2 this originally assumed:
   //
-  // This used to assume exactly one trusted proxy (Render) and read the
-  // rightmost hop outright. Live testing found a real 3-hop chain -
-  // [client, an intermediate edge, Render's own internal instance IP] - so
-  // the rightmost hop was actually Render's private network address, the
-  // SAME value for every caller. That silently merged every distinct
-  // client into one shared rate-limit bucket, which is how a client could
-  // send far more than the stated per-IP limit and never get blocked: the
-  // limiter was real, it just was not keyed by IP at all in practice.
+  // Live testing found 3 hops - [client, a Cloudflare edge machine, Render's
+  // own internal instance IP] - and, worse, the MIDDLE hop varies request to
+  // request even from the same real client (Cloudflare's anycast network
+  // routes different requests to different edge machines), so it can never
+  // be a stable per-client rate-limit key regardless of which position it's
+  // read from. Only cf-connecting-ip is both stable and unspoofable here.
   //
-  // Fix: walk from the right and skip past private/internal addresses:
-  // spoof-resistant for the same reason as before (only trailing,
-  // proxy-appended hops are trusted), and no longer assumes a fixed chain
-  // length.
+  // This fallback path just skips Render's own known-private trailing hop
+  // and returns whatever's left - it will NOT reliably separate distinct
+  // clients the way the primary path does, but it is strictly better than
+  // returning Render's own IP for every caller, which is what silently
+  // shipped before this fix (every distinct client shared one bucket, so
+  // the limiter never actually triggered per-IP).
   const xff = h.get('x-forwarded-for');
   if (xff) {
     const hops = xff.split(',').map(s => s.trim()).filter(Boolean);
