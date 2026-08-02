@@ -30,7 +30,10 @@ export async function POST(req: NextRequest) {
   // trying a live credential, so the same limit would make this a
   // credential-stuffing endpoint. Tighter than those, in line with the other
   // auth-adjacent routes (telegram/test, telegram/link-code) at 5/min.
-  if (!rateLimit(`ban-reason:${getClientIp(req)}`, 5, 60_000)) {
+  // TEMP-DEBUG: root-causing why this limit isn't blocking on live dev - remove after.
+  const _dbgIp = getClientIp(req);
+  console.log(`[TEMP-DEBUG ban-reason] ip=${_dbgIp} xff="${req.headers.get('x-forwarded-for')}" xreal="${req.headers.get('x-real-ip')}"`);
+  if (!rateLimit(`ban-reason:${_dbgIp}`, 5, 60_000)) {
     return NextResponse.json({ reason: null }, { status: 429 });
   }
 
