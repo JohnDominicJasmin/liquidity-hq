@@ -21,6 +21,7 @@ import { isFeatureEnabled } from '@/lib/featureFlags';
 import { AI_LIMITS } from '@/lib/limits';
 import { incrementUsageColumn, rateLimitMessage, todayUtc } from '@/lib/aiUsage';
 import { apiError } from '@/lib/apiError';
+import { clampMaxTokens } from '@/lib/grokTokenClamp';
 
 const GROK_KEY = process.env.GROK_API_KEY ?? '';
 
@@ -32,7 +33,6 @@ const GROK_KEY = process.env.GROK_API_KEY ?? '';
 // only ever sends this exact model and max_tokens of 100 or 600, so nothing
 // legitimate changes.
 const MODEL = 'grok-4.3';
-const MAX_TOKENS_CEILING = 600;
 // The only tools the product's search mode ever offers - pinned rather than
 // forwarded, so a caller cannot substitute a pricier or unintended tool.
 const ALLOWED_SEARCH_TOOLS = [{ type: 'web_search' }, { type: 'x_search' }];
@@ -147,10 +147,7 @@ export async function POST(req: NextRequest) {
       // Only `messages` comes from the caller - model is pinned, and
       // max_tokens is clamped rather than trusted outright, so a modified
       // client can shrink it but never raise it past the real ceiling.
-      const requestedTokens = Number(payload.max_tokens);
-      const maxTokens = Number.isFinite(requestedTokens) && requestedTokens > 0
-        ? Math.min(requestedTokens, MAX_TOKENS_CEILING)
-        : MAX_TOKENS_CEILING;
+      const maxTokens = clampMaxTokens(payload.max_tokens);
       const r = await xaiFetch('https://api.x.ai/v1/chat/completions', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${GROK_KEY}` },
