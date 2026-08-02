@@ -30,7 +30,13 @@ export async function POST(req: NextRequest) {
   // trying a live credential, so the same limit would make this a
   // credential-stuffing endpoint. Tighter than those, in line with the other
   // auth-adjacent routes (telegram/test, telegram/link-code) at 5/min.
-  if (!rateLimit(`ban-reason:${getClientIp(req)}`, 5, 60_000)) {
+  // TEMP-DEBUG round 2: fix didn't resolve it - comparing xff across several
+  // requests to see which hop actually stays stable. Sanitized (see prior
+  // commit's log-injection note) - remove after.
+  const _sanitizeForLog = (s: string | null) => (s ?? '').replace(/[\r\n\x00-\x1f]/g, ' ').slice(0, 200);
+  const _dbgKey = getClientIp(req);
+  console.log(`[TEMP-DEBUG2 ban-reason] resolvedKey=${_sanitizeForLog(_dbgKey)} xff="${_sanitizeForLog(req.headers.get('x-forwarded-for'))}"`);
+  if (!rateLimit(`ban-reason:${_dbgKey}`, 5, 60_000)) {
     return NextResponse.json({ reason: null }, { status: 429 });
   }
 
