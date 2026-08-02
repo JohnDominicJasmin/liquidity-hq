@@ -51,14 +51,14 @@ to move to Postgres or Redis.
 | `getUsageTier` / 3-row `AI_LIMITS` (free/trial/pro) | - | - | DONE (SQL against dev, 4/4 cases) | - |
 | Telegram link-code claim (valid/replay/expired/unknown) | - | - | DONE (SQL against dev, 4/4 cases) | - |
 | Telegram connect UI (button → code → webhook → poll → connected/disconnect) | - | - | - | **yes** |
-| `safeNextPath` open-redirect fix | DONE (13 cases, Node harness) | - | - | not clicked through in a real browser |
+| `safeNextPath` open-redirect fix | DONE (13 cases, Node harness) | - | DONE (real browser, prod, 2026-08-02) | - |
 | Telegram webhook fail-closed on missing secret | - | - | DONE (curl, prod) | - |
 | Trial-ending email + cron job | - | - | DONE (curl auth check + DB due-count) | **the email itself has never actually sent** (0 rows were due both times checked) |
 | LemonSqueezy webhook: payer-email check + replay guard | - | - | - | **yes** - payments aren't live, no real webhook payload exists to test with |
 | `grok-chat` model pin + `max_tokens` clamp | DONE (9 cases, Node harness) | - | build+tsc only | **not curled against a live deployment** |
 | `ban-reason` rate limit (5/min/IP) | - | - | **attempted, inconclusive** (ran during deploy cutover, see gotcha above) | needs re-run |
 | `/api/admin` honeypot rate limit (5/min/IP) | - | - | **attempted, inconclusive** (same cutover) - also: status code is 404 either way BY DESIGN, so status code alone can never prove the limit fired | needs a DB-row-count check, not just curl |
-| PostHog `maskTextSelector` on TradeJournal | - | - | class-uniqueness confirmed via grep | **never opened in a real browser with recording on** |
+| PostHog `maskTextSelector` on TradeJournal | - | - | DONE (real browser, prod, 2026-08-02): all 5 selector classes confirmed via live `element.matches()` against real DOM; PostHog confirmed actively capturing (network trace: `us.i.posthog.com/e/` 200, `surveys.js` loaded) - `window.posthog` itself reads `undefined`, which is expected (npm-import pattern, not the injected snippet, never attaches to `window`) | **still open: the actual blocked-rectangle rendering in PostHog's own replay UI** - needs PostHog dashboard credentials, not available this session |
 | Price-alerts PATCH Pro-gate | - | - | build+tsc only | **not curled with a real free-tier token** |
 
 ## Test plan by layer
@@ -82,9 +82,9 @@ here is making them permanent instead of one-off.
 - [ ] Price-alerts PATCH: real free-tier token, attempt to edit an existing alert, expect `403 PRO_REQUIRED`. Needs one real free-tier test account with at least one existing alert row.
 
 ### 4. End-to-end (real browser, real Telegram bot, clicking through as a user)
-- [ ] Full Telegram connect flow: sign in on `/alerts` as a Pro/trial test account → press Connect Telegram → confirm deep link opens the real bot → send `/start CODE` for real → confirm the page auto-updates to connected within the 3s poll → press Disconnect → confirm it returns to the not-connected state and a fresh `/start` on the same code fails (already used).
-- [ ] Open-redirect fix, in a real browser: navigate to `/login?next=%2F%5Cevil.com`, sign in, confirm the browser lands on `/dashboard` (the fallback), not `evil.com`.
-- [ ] PostHog masking: open `/journal` with a PostHog recording active (may need a temporary project API key pointed at a scratch PostHog project, or just the real one filtered to a test session), add a trade with real notes and a P&L figure, then check the recording in PostHog's own replay UI - the notes/thesis/dollar figures should render as blocked rectangles, not the real text.
+- [ ] Full Telegram connect flow: sign in on `/alerts` as a Pro/trial test account → press Connect Telegram → confirm deep link opens the real bot → send `/start CODE` for real → confirm the page auto-updates to connected within the 3s poll → press Disconnect → confirm it returns to the not-connected state and a fresh `/start` on the same code fails (already used). **Checked 2026-08-02**: the real test account (mikocabal27@gmail.com) is already connected, so the fresh-connect path wasn't run this round - deliberately skipped rather than disconnecting a live integration mid-session (would drop real alerts until manually reconnected). Still open.
+- [x] Open-redirect fix, in a real browser: navigate to `/login?next=%2F%5Cevil.com`, confirm the browser lands on `/dashboard` (the fallback), not `evil.com`. **DONE 2026-08-02**, prod, real signed-in account. Turned out not to need a fresh sign-in at all: `app/login/page.tsx:57` fires `router.replace(nextUrl)` for any authenticated user on mount, not just post-credential-submit - so this ran against the existing session with zero sign-out risk. Landed on `/dashboard` as expected.
+- [ ] PostHog masking: open `/journal` with a PostHog recording active (may need a temporary project API key pointed at a scratch PostHog project, or just the real one filtered to a test session), add a trade with real notes and a P&L figure, then check the recording in PostHog's own replay UI - the notes/thesis/dollar figures should render as blocked rectangles, not the real text. **Partially done 2026-08-02** (see scope table) - selectors and active capture confirmed live; the actual replay-UI visual check is still open, blocked on PostHog dashboard access.
 
 ### 5. User acceptance (the actual product experience, judged by outcome not internals)
 - [ ] As a brand-new signup: does the 14-day trial banner appear, in the correct language, with a correct day count?
