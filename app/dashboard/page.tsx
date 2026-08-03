@@ -211,7 +211,7 @@ function CoinSidebar() {
         );
       })}
 
-      <a
+      <Link
         href="/markets"
         style={{
           display: 'block', width: '100%', background: 'none', border: 'none',
@@ -221,7 +221,7 @@ function CoinSidebar() {
         }}
       >
         {t('DASH_SIDEBAR_MORE_COINS', { count: COINS.length - SIDEBAR_DEFAULT })}
-      </a>
+      </Link>
     </div>
   );
 }

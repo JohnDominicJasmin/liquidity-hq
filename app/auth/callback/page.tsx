@@ -54,6 +54,15 @@ function CallbackInner() {
           <div className="login-error" style={{ marginTop: 24, textAlign: 'left' }}>
             Sign-in failed: {errMsg}
           </div>
+          {/*
+            Deliberately a plain <a>, not next/link. This branch only renders
+            after a sign-in attempt already failed, and this page can be reached
+            with error tokens sitting in the URL hash and a Supabase client left
+            half-initialised by a failed exchangeCodeForSession. A client-side
+            navigation would carry that state into the retry; a full document
+            load is what actually gives "Try again" a clean slate.
+          */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/login" className="login-back-btn" style={{ display: 'block', textAlign: 'center', marginTop: 16 }}>
             Try again
           </a>
