@@ -64,7 +64,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           hardcoded one pointed at /icons/icon-192.jpg, which the icon
           redesign deleted; keeping it would have shipped a broken link
           alongside the correct auto-generated one. */}
-      <body>
+      {/* consent-pending is set here, in the server markup, and removed by
+          components/CookieConsent.tsx once it has read the stored consent
+          state. It holds the Ask AI FAB back for those first few frames.
+          Without it the FAB painted immediately, then the consent bar mounted
+          and displaced it - which is how it got reported as "the FAB
+          disappears". See body.consent-pending in globals.css. */}
+      <body className="consent-pending">
         {/* beforeInteractive - injected into the initial server HTML and
             runs before hydration, so data-theme is correct before first
             paint (no flash of the wrong theme). Mirrors lib/theme.ts's

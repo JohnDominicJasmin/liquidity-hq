@@ -678,7 +678,12 @@ body::after {
 .mr-flag-body { color: var(--txt2); }
 .mr-flag-body b { color: inherit; }
 .mr-override { margin-top: 11px; }
-.mr-override-btn { background: none; border: none; padding: 0; cursor: pointer;
+/* padding: 0 left this an 18px-tall target, under the 24px WCAG 2.2 SC 2.5.8
+   minimum. Vertical padding + min-height gets it over the line; the negative
+   inline margin keeps the text optically aligned with the block above, so the
+   layout is unchanged. */
+.mr-override-btn { background: none; border: none; padding: 4px 0; min-height: 24px; cursor: pointer;
+  display: inline-flex; align-items: center;
   font-size: var(--fs-caption); letter-spacing: .03em; }
 .mr-override-opts { display: flex; gap: 6px; margin-top: 7px; }
 .mr-fopt { font-size: var(--fs-caption); color: var(--txt2); background: var(--bg2);
@@ -1004,9 +1009,15 @@ body[data-rpm-level="high"]::before {
 .ticker-purple .ticker-content span { color: rgba(90,163,255,0.82); }
 
 /* Dismiss control - hides the current batch until a newer alert arrives. */
+/* 30x22 previously, which fails WCAG 2.2 SC 2.5.8 (Target Size Minimum, 24x24).
+   The inline-text exception does not apply - this is a standalone icon button,
+   not a link inside a sentence. Bumped to 32x24 rather than 44x44 because the
+   ticker bar itself is only ~28px tall on mobile; the glyph inside is unchanged,
+   so nothing looks bigger, the hit area just stops being smaller than a
+   fingertip. */
 .ticker-close {
   flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-  height: 22px; width: 30px; padding: 0; margin-left: 4px;
+  height: 24px; min-width: 32px; padding: 0; margin-left: 4px;
   background: none; border: none; cursor: pointer;
   color: var(--txt3); transition: color 0.15s;
 }
@@ -1464,7 +1475,10 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
 /* rail panel wrapper - matches mockup .panel (--card=bg4) / .panel-h / .collapse */
 .av-rail-panel { background: var(--bg4); border: 0.5px solid var(--bdr); border-radius: 12px; padding: 11px 12px; }
 .av-rail-panel-h { font-size: var(--fs-micro); letter-spacing: .09em; text-transform: uppercase; color: var(--txt3); font-weight: 700; margin-bottom: 9px; }
-.av-rail-collapse { display: flex; justify-content: space-between; align-items: center; width: 100%; font-size: var(--fs-caption); color: var(--txt2); cursor: pointer; background: none; border: none; text-align: left; font-family: inherit; }
+/* min-height + padding for WCAG 2.2 SC 2.5.8 (24x24). It was 18px tall, and it
+   is a standalone control - the "See full calendar" row and the rail collapse
+   toggles - not an inline link, so the text exception does not cover it. */
+.av-rail-collapse { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 24px; padding: 3px 0; font-size: var(--fs-caption); color: var(--txt2); cursor: pointer; background: none; border: none; text-align: left; font-family: inherit; }
 .av-rail-collapse .chev { color: var(--txt3); }
 .arena-reasoning       { background: rgba(26,122,255,0.05); border: 0.5px solid var(--purple-bdr); border-radius: 12px; padding: 12px 14px; }
 .arena-reasoning-title { font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--purple); margin-bottom: 8px; }
@@ -4169,8 +4183,13 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 }
 .consent-link { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
 .consent-actions { display: flex; gap: 10px; flex-shrink: 0; }
-/* Accept and Decline share a size/weight on purpose - making refusal the
-   visibly weaker option is the dark pattern this component exists to avoid. */
+/* Accept and Decline are deliberately equal in prominence - making refusal the
+   visibly weaker option is the dark pattern this component exists to avoid.
+   They already shared size and font-weight; they now also share visual weight.
+   Decline previously sat on a near-background fill with a faint --bdr2 border
+   against Accept's solid accent, so "equal weight" was true of the box model
+   and not of what the eye actually saw. Both are now solid filled surfaces with
+   a full-strength border, differing only in hue. */
 .consent-btn {
   font-family: inherit; font-size: var(--fs-caption); font-weight: 700;
   padding: 0 18px; min-height: 44px; border-radius: 10px;
@@ -4179,19 +4198,53 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
   transition: filter 0.15s, background 0.15s;
 }
 .consent-accept  { background: var(--accent); border: 0.5px solid var(--accent); color: #fff; }
-.consent-decline { background: var(--bg3); border: 0.5px solid var(--bdr2); color: var(--txt); }
+.consent-decline { background: var(--bg4); border: 0.5px solid var(--txt3); color: var(--txt); }
 .consent-accept:hover  { filter: brightness(1.08); }
-.consent-decline:hover { background: var(--bg4); }
+.consent-decline:hover { filter: brightness(1.25); }
 
-body.consent-open .gchat-fab,
+/* The Ask AI FAB moves ABOVE the consent bar rather than disappearing.
+   It used to be hidden alongside the others (opacity: 0). On a phone this bar
+   stacks to ~190px starting at bottom:56, so it does cover the FAB's slot -
+   but hiding the FAB to solve that made it look like the feature was broken,
+   which is exactly how it got reported. --consent-top is the measured distance
+   from the viewport bottom to the top of the bar, published by
+   components/CookieConsent.tsx; the fallback keeps this harmless if the
+   measurement has not landed yet. */
+body.consent-open .gchat-fab {
+  bottom: calc(var(--consent-top, 0px) + 12px) !important;
+}
+/* These two stay hidden. Unlike the FAB they are nags rather than controls the
+   user might be reaching for, and stacking three floating things above a
+   consent prompt is worse than deferring them until it is answered. */
 body.consent-open .ob-checklist,
 body.consent-open .pwa-install-prompt { opacity: 0; pointer-events: none; }
 
+/* Hold the FAB back until the consent state has actually been read.
+   CookieConsent can only read localStorage after mount, so for the first frames
+   of a fresh visit nobody knows whether the bar is coming. Painting the FAB in
+   that window meant it appeared and then jumped, which reads as a glitch. The
+   class is set on <body> in the server-rendered markup and removed by
+   CookieConsent's mount effect, so the FAB simply arrives once, in its final
+   position. Visibility rather than display so nothing reflows when it resolves. */
+body.consent-pending .gchat-fab { visibility: hidden; }
+
 @media (max-width: 640px) {
   /* Stack on phones, and clear the 56px bottom tab bar. */
-  .consent-bar { bottom: 56px; flex-direction: column; align-items: stretch; padding: 14px 16px; }
+  .consent-bar { bottom: 56px; flex-direction: column; align-items: stretch; padding: 12px 16px; }
   .consent-actions { justify-content: stretch; }
   .consent-btn { flex: 1; }
+
+  /* Undo the flex-basis, which only makes sense in the desktop row layout.
+     `.consent-text` is `flex: 1 1 320px`, and flex-basis applies to the MAIN
+     axis - width in a row, HEIGHT in a column. Switching this bar to
+     flex-direction: column therefore turned "at least 320px wide" into
+     "320px tall", and the paragraph was rendered 320px high to hold about two
+     lines of 18px text. That inflated the whole bar to 403px, 45% of a phone
+     screen, almost all of it empty space. Measured on a real viewport, not
+     guessed - the text needed ~36px.
+
+     `auto` lets the paragraph be exactly as tall as its content. */
+  .consent-text { flex: 0 1 auto; max-width: none; }
 }
 
 /* Sign-in-wrap consent (app/login/page.tsx). Deliberately NOT --txt3 like the
