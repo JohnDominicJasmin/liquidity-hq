@@ -594,10 +594,31 @@ Gate is live on both branches.
 
 ## ❓ OPEN — YOUR action (can't do from code)
 
-Nothing blocking. `dev` (`2b9d536`) and `main` (`6a44b00`, a merge of the
-same) hold identical content as of 2026-08-01. Prod's running build **is**
-`6a44b00` - deployed and confirmed `live` (`dep-d9n3666417fc73cio38g`), prod
-HTTP 200 verified post-deploy.
+### 1. A separate BotFather bot for dev — the only item blocking anything
+
+Dev and prod share `LiquidityHQ_bot`. Since `8dec569` dev can no longer steal
+prod's webhook by accident, but whichever environment registered last still owns
+it, so **Telegram cannot be exercised on dev at all** - a `/start` sent while
+testing dev is answered by prod. That in turn blocks the last open QA item
+(`docs/QA_TEST_PLAN.md` layer 4, full connect flow), which otherwise needs a
+second Telegram account.
+
+Fix: one new bot from BotFather, its token as `TELEGRAM_BOT_TOKEN` on
+`liquidity-hq-dev`, then a single `setup-webhook` call against dev. Free, a few
+minutes. Until then treat prod as the only environment where Telegram is real,
+and expect dev's `/alerts` to show its bot-unhealthy banner permanently -
+that banner is correct, not a fault.
+
+### 2. Supabase Pro — see the decision item at the top of this file
+
+Still Free, still zero backups. Parked until revenue by your call; listed here
+only so it is not mistaken for handled.
+
+### Branch/deploy state (2026-08-03)
+
+`dev` = `82c27fb`, `main` = `952dcbc` (a merge of the same content), nothing
+unmerged. Prod is live on `952dcbc`, dev on `82c27fb`, CI green on both. The
+previous text here described the 2026-08-01 state and had gone stale.
 
 ## 🔭 DEFERRED — tied to unfinished payment feature
 
