@@ -19,34 +19,36 @@ export async function GET(req: NextRequest) {
   const me          = await meRes.json() as { ok: boolean; result?: { username?: string; first_name?: string } };
   const webhookInfo = await webhookRes.json() as { ok: boolean; result?: { url?: string } };
 
-  // Never trust the request's Host header for the URL registered with Telegram -
-  // this route runs unauthenticated on every /alerts page load, so a spoofed
-  // Host would silently redirect all future bot updates to an attacker's server.
+  // READ-ONLY on purpose. This used to call setWebhook whenever the registered
+  // URL did not match its own, which made an unauthenticated GET - one that
+  // fires on every /alerts page load - able to repoint where Telegram delivers
+  // bot updates.
+  //
+  // Dev and prod share one bot (LiquidityHQ_bot) and Telegram allows exactly
+  // one webhook per bot, so that turned every visit to dev's /alerts into a
+  // silent hijack of prod's webhook. Real users' /start would then land on dev,
+  // where their prod link code does not exist, and connecting would fail with
+  // "That link has expired or was already used" until somebody happened to
+  // load prod's /alerts and flip it back. Outbound alerts kept working, so
+  // nothing looked broken. Confirmed live on 2026-08-03 by calling this route
+  // against prod then dev and watching the webhook follow the second call.
+  //
+  // Registration belongs to /api/telegram/setup-webhook, which is gated behind
+  // CRON_SECRET precisely because it "mutates where Telegram sends bot updates".
+  // Duplicating it here without the gate defeated that. Now this route only
+  // REPORTS the mismatch; the UI surfaces webhook_ok: false and the fix is a
+  // deliberate call to the secured route.
   const appUrl  = process.env.NEXT_PUBLIC_APP_URL ?? '';
   const isLocal = !appUrl || appUrl.includes('localhost') || appUrl.includes('127.0.0.1');
 
-  let webhookOk = true; // assume OK unless we needed to register and it failed
+  // Local has no publicly reachable URL to register, so a mismatch there is
+  // expected rather than a fault - keep reporting OK as before.
+  let webhookOk = true;
 
   if (!isLocal) {
-    const expectedUrl   = `${appUrl.replace(/\/$/, '')}/api/telegram/webhook`;
-    const currentUrl    = webhookInfo.result?.url ?? '';
-    const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
-
-    if (currentUrl !== expectedUrl) {
-      // Await registration - surface failure to the UI instead of silent drop
-      try {
-        const setRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: expectedUrl, ...(webhookSecret ? { secret_token: webhookSecret } : {}) }),
-          signal: AbortSignal.timeout(5_000),
-        });
-        const setData = await setRes.json() as { ok: boolean };
-        webhookOk = setData.ok;
-      } catch {
-        webhookOk = false;
-      }
-    }
+    const expectedUrl = `${appUrl.replace(/\/$/, '')}/api/telegram/webhook`;
+    const currentUrl  = webhookInfo.result?.url ?? '';
+    webhookOk = currentUrl === expectedUrl;
   }
 
   return NextResponse.json({
