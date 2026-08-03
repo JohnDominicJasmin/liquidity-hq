@@ -1,7 +1,7 @@
 'use client';
 import { useAuth } from '@/components/AuthProvider';
 import { useSettings } from '@/lib/settings';
-import { useLabels, SUPPORTED_LOCALES, type Locale } from '@/lib/labels';
+import { useLabels, AVAILABLE_LOCALES, type Locale } from '@/lib/labels';
 
 // Distinct from the landing page's LanguageSwitcher.tsx (that one navigates
 // between static /[locale] routes; this one flips the runtime label system
@@ -32,7 +32,9 @@ export default function LanguageSelect() {
 
   return (
     <div className="st-chip-row">
-      {SUPPORTED_LOCALES.map(l => (
+      {/* AVAILABLE_LOCALES, not SUPPORTED_LOCALES - only offer languages that
+          actually have rows. See lib/locales.ts. */}
+      {AVAILABLE_LOCALES.map(l => (
         <button
           key={l}
           type="button"
