@@ -33,10 +33,26 @@ function clearPosthogArtifacts() {
       .forEach(k => localStorage.removeItem(k));
   } catch { /* storage blocked - nothing to clear */ }
   try {
+    // A cookie can only be deleted by a write whose domain/path MATCH the one
+    // it was set with. PostHog scopes its cookie to a domain, so expiring it
+    // with `path=/` alone silently does nothing - verified on the dev deploy,
+    // where the path-only write left the cookie untouched and adding an
+    // explicit domain removed it. localhost hid this: there is no registrable
+    // domain to scope to, so path-only happened to work there.
+    //
+    // We cannot read a cookie's domain back from document.cookie, so write the
+    // expiry against every candidate: no domain, the exact host, and each
+    // dot-prefixed parent suffix. Writes that do not match are inert.
+    const host = location.hostname;
+    const parts = host.split('.');
+    const domains: (string | undefined)[] = [undefined, host, `.${host}`];
+    for (let i = 1; i < parts.length - 1; i++) domains.push(`.${parts.slice(i).join('.')}`);
+
     for (const c of document.cookie.split(';')) {
       const name = c.split('=')[0].trim();
-      if (name.startsWith('ph_') || name.toLowerCase().includes('posthog')) {
-        document.cookie = `${name}=; Max-Age=0; path=/`;
+      if (!name.startsWith('ph_') && !name.toLowerCase().includes('posthog')) continue;
+      for (const d of domains) {
+        document.cookie = `${name}=; Max-Age=0; path=/${d ? `; domain=${d}` : ''}`;
       }
     }
   } catch { /* ignore */ }
