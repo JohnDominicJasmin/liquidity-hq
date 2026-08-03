@@ -59,7 +59,7 @@ to move to Postgres or Redis.
 | `ban-reason` rate limit (5/min/IP) | - | - | DONE (real burst, dev, 2026-08-02) - see `getClientIp` finding below, this is what surfaced it | - |
 | `/api/admin` honeypot rate limit (5/min/IP) | - | - | DONE (DB row-count before/after a 10-request burst, dev, 2026-08-02): 5 new rows for 10 requests, not 10 | - |
 | **`getClientIp` reading Render's own internal IP, not the caller's - found 2026-08-02** | - | - | **FIXED, DONE** (dev, real burst pre/post-fix) | - |
-| PostHog `maskTextSelector` on TradeJournal | - | - | DONE (real browser, prod, 2026-08-02): all 5 selector classes confirmed via live `element.matches()` against real DOM; PostHog confirmed actively capturing (network trace: `us.i.posthog.com/e/` 200, `surveys.js` loaded) - `window.posthog` itself reads `undefined`, which is expected (npm-import pattern, not the injected snippet, never attaches to `window`) | **still open: the actual blocked-rectangle rendering in PostHog's own replay UI** - needs PostHog dashboard credentials, not available this session |
+| PostHog `maskTextSelector` on TradeJournal | - | - | DONE (real browser, prod, 2026-08-02): all 5 selector classes confirmed via live `element.matches()` against real DOM; PostHog confirmed actively capturing (network trace: `us.i.posthog.com/e/` 200, `surveys.js` loaded) - `window.posthog` itself reads `undefined`, which is expected (npm-import pattern, not the injected snippet, never attaches to `window`) | **CLOSED 2026-08-03**: owner opened the PostHog dashboard, a canary trade was seeded with distinctive notes/P&L, and the replay rendered them as asterisks. Note for anyone re-running this: PostHog masks matched text as **asterisks**, not blocked rectangles - the rectangle wording here was wrong, asterisks are the pass condition |
 | Price-alerts PATCH Pro-gate | - | - | build+tsc only | **not curled with a real free-tier token** |
 
 ## Test plan by layer
@@ -89,11 +89,11 @@ here is making them permanent instead of one-off.
 ### 4. End-to-end (real browser, real Telegram bot, clicking through as a user)
 - [ ] Full Telegram connect flow: sign in on `/alerts` as a Pro/trial test account → press Connect Telegram → confirm deep link opens the real bot → send `/start CODE` for real → confirm the page auto-updates to connected within the 3s poll → press Disconnect → confirm it returns to the not-connected state and a fresh `/start` on the same code fails (already used). **Checked 2026-08-02**: the real test account (mikocabal27@gmail.com) is already connected, so the fresh-connect path wasn't run this round - deliberately skipped rather than disconnecting a live integration mid-session (would drop real alerts until manually reconnected). Still open.
 - [x] Open-redirect fix, in a real browser: navigate to `/login?next=%2F%5Cevil.com`, confirm the browser lands on `/dashboard` (the fallback), not `evil.com`. **DONE 2026-08-02**, prod, real signed-in account. Turned out not to need a fresh sign-in at all: `app/login/page.tsx:57` fires `router.replace(nextUrl)` for any authenticated user on mount, not just post-credential-submit - so this ran against the existing session with zero sign-out risk. Landed on `/dashboard` as expected.
-- [ ] PostHog masking: open `/journal` with a PostHog recording active (may need a temporary project API key pointed at a scratch PostHog project, or just the real one filtered to a test session), add a trade with real notes and a P&L figure, then check the recording in PostHog's own replay UI - the notes/thesis/dollar figures should render as blocked rectangles, not the real text. **Partially done 2026-08-02** (see scope table) - selectors and active capture confirmed live; the actual replay-UI visual check is still open, blocked on PostHog dashboard access.
+- [x] PostHog masking: open `/journal` with a PostHog recording active (may need a temporary project API key pointed at a scratch PostHog project, or just the real one filtered to a test session), add a trade with real notes and a P&L figure, then check the recording in PostHog's own replay UI - the notes/thesis/dollar figures should render as blocked rectangles, not the real text. **DONE 2026-08-03** - selectors and active capture were confirmed 2026-08-02; the replay-UI check was finished on 2026-08-03 once the owner opened the PostHog dashboard. A canary trade was seeded with distinctive notes and a distinctive P&L figure, and both came back as asterisks in the replay. The masked output is asterisks rather than blocked rectangles - that is what a pass looks like.
 
 ### 5. User acceptance (the actual product experience, judged by outcome not internals)
 - [x] As a brand-new signup: does the 14-day trial banner appear, in the correct language, with a correct day count? **DONE 2026-08-03**, localhost, disposable dev account with `trial_ends_at = now() + 14 days`. Appears: yes. Day count: correct - banner read "14 days left" against a DB value of exactly 14 days, and Pro surfaces unlocked at the same time (the macro card flipped from locked to live). **Correct language: NO** - see the i18n finding below.
-- [x] As a free user: does every locked feature show the `LockedFeatureCard` treatment (title + description + Upgrade), never a raw error or a silent no-op? **DONE 2026-08-03**, localhost, same account forced to genuinely free (`role='free'`, `trial_ends_at=null`). Checked every `LockedFeatureCard` call site: `/research` (Dry Powder, Global Macro Context, On-Chain Composite Score), `/alerts` (Connect Telegram, Price Alerts), `/dashboard` (Global Macro Context), `/arena` (Confluence Score). All render title + description + "Unlock with Pro". No raw errors anywhere; `/alerts` "Recently fired" degrades to a proper "No alerts fired yet" empty state. Also tested the one path that could have been a silent no-op - clicking a gated timeframe chip (`1m`) opens the upgrade modal ("The 1 minute timeframe is part of Pro") rather than doing nothing; free users default to `tf=1h` (`FREE_FALLBACK_TF`).
+- [x] As a free user: does every locked feature show the `LockedFeatureCard` treatment (title + description + Upgrade), never a raw error or a silent no-op? **DONE 2026-08-03**, localhost, same account forced to genuinely free (`role='free'`, `trial_ends_at=null`). Checked every `LockedFeatureCard` call site: `/research` (Dry Powder, Global Macro Context, On-Chain Composite Score), `/alerts` (Connect Telegram, Price Alerts), `/dashboard` (Global Macro Context), `/arena` (Confluence Score). All render title + description + "Unlock with Pro". No raw errors anywhere; `/alerts` "Recently fired" degraded to a proper "No alerts fired yet" empty state. (That card was removed later the same day - it was not user-scoped, see `pendings/PENDING.md` - so this particular empty state no longer exists to re-test.) Also tested the one path that could have been a silent no-op - clicking a gated timeframe chip (`1m`) opens the upgrade modal ("The 1 minute timeframe is part of Pro") rather than doing nothing; free users default to `tf=1h` (`FREE_FALLBACK_TF`).
 - [x] As a trial user 2 days from expiry: does the reminder email actually arrive, and does its copy match what the trial actually loses? **DONE 2026-08-03, end to end against prod.**
 
   *Copy* was audited against every `LockedFeatureCard` call site and `lib/limits.ts` `GATED_TFS`, and **did not match**: it omitted the Confluence Score, on-chain scores, macro context and Dry Powder - four Pro features, one of which (Confluence Score) the FAQ leads on. Fixed in `lib/email.ts`. Gated timeframes (1m/5m/15m) already matched `GATED_TFS` exactly.
@@ -122,12 +122,20 @@ here is making them permanent instead of one-off.
 
 ## Status (2026-08-03)
 
-Layers 1-3: complete. Layer 4: 1 of 3 done, 2 blocked on access that does not exist yet. **Layer 5: complete (4 of 4).**
+Layers 1-3: complete. **Layer 4: 2 of 3 done, 1 blocked.** **Layer 5: complete (4 of 4).**
 
-Only two items remain, both blocked on access rather than effort:
+One item remains, blocked on access rather than effort:
 
-- **Telegram connect flow (layer 4)** - needs a Telegram account that is not already linked. Running it on the live one would disconnect a working integration and drop real alerts until manually reconnected.
-- **PostHog replay masking (layer 4)** - selectors and capture are confirmed in code and at runtime; only the visual check inside PostHog's replay UI is left, which needs dashboard access.
+- **Telegram connect flow (layer 4)** - needs a Telegram account that is not already linked. Running it on the live one would disconnect a working integration and drop real alerts until manually reconnected. The owner's account is connected and is to stay connected, so this needs either a second Telegram account or the separate dev bot described in `pendings/PENDING.md`.
+
+**PostHog replay masking closed 2026-08-03** - the owner opened the dashboard, a
+canary trade was seeded, and the notes and P&L came back as asterisks in the
+replay. This was the last access-blocked item other than Telegram connect.
+
+Running layer 4 is also what surfaced the webhook-hijack defect (see
+`pendings/PENDING.md`) - a real prod bug that no amount of layer 1-3 testing
+would have found, because it only appeared when two environments touched the
+same live bot.
 
 Both layer 5 checks that could be run found real defects (a stale FAQ answer, an
 incomplete trial email), which is the argument for running the rest when the

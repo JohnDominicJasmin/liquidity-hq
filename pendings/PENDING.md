@@ -227,6 +227,48 @@ shortcut: 1/4 on a weak password, 4/4 on a strong one.
 
 Nothing open left over from this arc either.
 
+## ✅ Telegram webhook hijack — FIXED + LIVE ON PROD 2026-08-03 (`8dec569`, prod `54150c9`)
+
+**Real prod defect, found by running layer 4 of the QA plan.** Users trying to
+connect Telegram intermittently got *"That link has expired or was already
+used"* on a perfectly fresh code. Nothing looked broken from the outside —
+outbound alerts kept flowing the whole time, only *new connections* died.
+
+Cause: `GET /api/telegram/bot-info` called `setWebhook` whenever the registered
+URL did not match its own. That route is unauthenticated and fires on **every
+`/alerts` page load**. Telegram allows exactly one webhook per bot, and dev and
+prod share `LiquidityHQ_bot`, so any visit to dev's `/alerts` silently
+repointed prod's webhook at dev. Real users' `/start` then landed on dev, where
+their prod link code does not exist. It flipped back only when somebody
+happened to load prod's `/alerts`.
+
+Confirmed live by calling the route against prod then dev and watching the
+webhook follow the second call. Restored immediately.
+
+Fix: `bot-info` is now **read-only**. It reports the mismatch via `webhook_ok`
+and nothing more. Registration stays in `/api/telegram/setup-webhook`, which is
+gated behind `CRON_SECRET` with a comment saying it must not be triggerable by
+an arbitrary caller — `bot-info` had been doing exactly that without the gate.
+
+Verified after deploy: prod `webhook_ok: true`, dev `webhook_ok: false`. **The
+dev `false` is correct, not a bug** — the bot belongs to prod and dev can no
+longer take it. Dev's `/alerts` will show its bot-unhealthy warning banner
+permanently until dev gets its own bot.
+
+### ⛔ Root cause still open — dev and prod share one bot (YOUR action)
+
+Dev can no longer *steal* the webhook by accident, but whichever environment
+registered last still owns it, and two consequences remain:
+
+1. **Telegram connect cannot be tested on dev at all.** The bot delivers to
+   prod, so a `/start` sent while testing dev is answered by prod.
+2. This also blocks the last open QA item (`docs/QA_TEST_PLAN.md` layer 4,
+   full connect flow), which otherwise needs a second Telegram account.
+
+Fix is one BotFather bot for dev plus its `TELEGRAM_BOT_TOKEN` on
+`liquidity-hq-dev`, then a single `setup-webhook` call against dev. Cost: zero.
+Until then, treat prod as the only environment where Telegram is real.
+
 ## ✅ /alerts had two near-identical lists — one removed 2026-08-03 (`8c8558f`, on `dev`)
 
 User question: *"why do we have two types of list in alerts page? one is recent
