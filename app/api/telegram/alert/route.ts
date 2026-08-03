@@ -4,7 +4,6 @@ import { classifyNews } from '@/lib/classify';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { detectPatterns } from '@/lib/patterns';
 import { T } from '@/lib/tables';
-import { recordFires } from '@/lib/alertHistory';
 import { isOutcomeTracked, persistAlertFires } from '@/lib/alertOutcomes';
 import { BINANCE_SYMS, BYBIT_SYMS, COIN_LABELS, COINS, bybitSymbolPriceFactor } from '@/lib/coins';
 import { computeDistributionScore, DistributionInputs } from '@/lib/distribution';
@@ -918,13 +917,15 @@ async function checkPriceAlerts(
       await tg(token, recipient, body);
 
       triggeredIds.push(alert.id);
-      // Deliberately NOT added to `fired`. That list goes to recordFires(),
-      // an app-wide in-memory feed served by /api/telegram/history and shown
-      // on /alerts to everyone - so pushing one user's coin and target price
-      // into it published their private alert to every other user. Same leak
-      // the comment above describes, just through the history feed instead of
-      // Telegram. `fired` is for market-wide signals only; a price alert is by
-      // definition one person's.
+      // Deliberately NOT added to `fired`. Historically that list fed an
+      // app-wide in-memory feed served by /api/telegram/history and shown on
+      // /alerts to everyone, so pushing one user's coin and target price into
+      // it published their private alert to every other user. That feed has
+      // since been removed entirely (it was never user-scoped, so it did not
+      // belong on a page describing "your" alerts), but the rule still holds:
+      // `fired` is for market-wide signals only. A price alert is by
+      // definition one person's, so it must not leak into a shared surface if
+      // one is ever reintroduced.
     }
 
     // Deactivate all fired alerts in a single round-trip
@@ -1946,8 +1947,12 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // Web Push - fire-and-forget, never let it block or throw
   void dispatchPush(signalQueue, mutedByUser, thresholdsByUser, proUserIds).catch(() => {});
 
+  // Still derived, but no longer published anywhere user-facing: it used to
+  // also feed recordFires() and the app-wide "Recently Fired" list on /alerts,
+  // which has been removed. Now it only powers this run's log line and the
+  // cron's JSON response - both operator-facing.
   const fired = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
-  if (fired.length > 0) recordFires(fired);
+
 
   // Persist outcome-trackable fires (squeeze/ema_cross/distribution/rsi/whales -
   // the rule_keys with an unambiguous implied direction) so /alerts can later

@@ -105,10 +105,6 @@ export default function AlertsPage() {
   const [coinCapMsg, setCoinCapMsg] = useState('');
   const [tfCapMsg, setTfCapMsg] = useState('');
 
-  // Alert history
-  const [history, setHistory] = useState<{ label: string; ts: number }[]>([]);
-  const histTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   // Price alerts
   const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([]);
   const [paLoading, setPaLoading]     = useState(false);
@@ -118,16 +114,6 @@ export default function AlertsPage() {
   const [paLabel, setPaLabel]         = useState('');
   const [paAdding, setPaAdding]       = useState(false);
   const [paError, setPaError]         = useState('');
-
-  const fetchHistory = useCallback(async () => {
-    const sb = getSupabase();
-    const token = sb ? (await sb.auth.getSession()).data.session?.access_token : null;
-    if (!token) { setHistory([]); return; }
-    fetch('/api/telegram/history', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(d => setHistory(d.fires ?? []))
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     fetch('/api/telegram/bot-info').then(r => r.json())
@@ -199,10 +185,7 @@ export default function AlertsPage() {
         })
         .catch(() => {});
     });
-    fetchHistory();
-    histTimerRef.current = setInterval(fetchHistory, 60_000);
-    return () => { if (histTimerRef.current) clearInterval(histTimerRef.current); };
-  }, [fetchHistory]);
+  }, []);
 
   // ── Waiting for the user to finish in Telegram ──────────────────────────
   // Re-read settings on a timer while a code is outstanding: the webhook, not
@@ -813,48 +796,6 @@ export default function AlertsPage() {
         )}
       </AuthGate>
 
-      {/* ── Recently Fired ───────────────────────────────────────────────── */}
-      <div className="card" style={{ marginBottom: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          <div className="lbl" style={{ margin: 0 }}>{t('ALERTS_RECENTLY_FIRED_LABEL')}</div>
-          {history.length > 0 && (
-            <button
-              style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-              onClick={fetchHistory}
-            >
-              {t('ALERTS_REFRESH_BUTTON')}
-            </button>
-          )}
-        </div>
-        {history.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-title">{t('ALERTS_NO_HISTORY_TITLE')}</div>
-            <div className="empty-state-sub">{t('ALERTS_NO_HISTORY_SUB')}</div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {history.slice(0, 15).map((f, i) => {
-              const age = (Date.now() - f.ts) / 1000;
-              const ago = age < 60 ? t('ALERTS_AGO_JUST_NOW') : age < 3600 ? t('ALERTS_AGO_MINUTES', { n: Math.floor(age / 60) }) : age < 86400 ? t('ALERTS_AGO_HOURS', { n: Math.floor(age / 3600) }) : t('ALERTS_AGO_DAYS', { n: Math.floor(age / 86400) });
-              return (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '6px 0', borderBottom: i < Math.min(history.length, 15) - 1 ? '0.5px solid var(--bdr)' : 'none',
-                  gap: 10,
-                }}>
-                  <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {f.label}
-                  </span>
-                  <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', flexShrink: 0 }}>{ago}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 8, paddingTop: 8, borderTop: '0.5px solid var(--bdr)' }}>
-          {t('ALERTS_AUTO_REFRESH_NOTE')}
-        </div>
-      </div>
 
       {/* ── Manual Check ─────────────────────────────────────────────────── */}
       {isConnected && (
