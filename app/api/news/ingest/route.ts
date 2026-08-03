@@ -5,7 +5,7 @@ import { apiError } from '@/lib/apiError';
 import { classifyNews, GEO_KEYWORDS } from '@/lib/classify';
 import { fetchAllFeeds, fetchFinnhubCategory } from '@/lib/newsFeeds';
 import { recordApiHealth } from '@/lib/apiHealth';
-import { dedupKey } from '@/lib/newsDedup';
+import { dedupKey, identitiesOf } from '@/lib/newsDedup';
 import { T } from '@/lib/tables';
 
 // Scheduled owner of the news pipeline. Every open tab used to run this work
@@ -83,8 +83,20 @@ export async function POST(req: Request) {
       },
     ]);
 
+    // Dedup on BOTH identities, not just the stored key. The same article can
+    // arrive from RSS with a link (keyed by URL) and from Finnhub without one
+    // (keyed by headline) in this very run - CoinDesk did exactly that, and
+    // keying on the URL alone put both rows in the table because their keys
+    // genuinely differ. `seen` therefore tracks every identity a row has, so
+    // whichever form lands first wins and the other is dropped.
     const byKey = new Map<string, Row>();
-    const add = (r: Row) => { if (!byKey.has(r.dedup_key)) byKey.set(r.dedup_key, r); };
+    const seen = new Set<string>();
+    const add = (r: Row) => {
+      const ids = identitiesOf(r.headline, r.link);
+      if (ids.some(id => seen.has(id))) return;
+      ids.forEach(id => seen.add(id));
+      byKey.set(r.dedup_key, r);
+    };
 
     for (const item of rss) {
       if (item.pubDate < cutoff) continue;
@@ -144,8 +156,31 @@ export async function POST(req: Request) {
       });
     }
 
-    const rows = [...byKey.values()];
+    const batch = [...byKey.values()];
     const sb = getSupabaseAdmin();
+
+    // The primary key stops an exact repeat, but it cannot stop the SAME story
+    // arriving under its other identity on a LATER run - RSS files it with a
+    // link on one run, Finnhub files it linkless on the next, two different
+    // keys, two rows. So check what is already stored in the live window and
+    // drop anything we already hold under either identity.
+    //
+    // This is a read-then-write, which the primary key was chosen to avoid.
+    // The race it reopens is narrow and benign: two runs overlapping inside
+    // this window can still insert the same story twice, exactly as before.
+    // The key still guards the exact-key case, so nothing regresses; this only
+    // catches what the key structurally cannot see.
+    const { data: current } = await sb
+      .from(T.news)
+      .select('headline, link')
+      .gte('published_at', new Date(cutoff * 1000).toISOString());
+
+    const held = new Set<string>();
+    for (const r of current ?? []) {
+      for (const id of identitiesOf(r.headline ?? '', r.link)) held.add(id);
+    }
+
+    const rows = batch.filter(r => !identitiesOf(r.headline, r.link).some(id => held.has(id)));
 
     // ignoreDuplicates makes the primary key itself the dedup, so two runs
     // overlapping in time can't produce a duplicate push or resurrect an item
