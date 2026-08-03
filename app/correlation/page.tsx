@@ -135,6 +135,10 @@ export default function CorrelationHeatmap() {
   const [hovered, setHovered]   = useState<[number, number] | null>(null);
 
   const range = RANGES.find(r => r.key === rangeKey)!;
+  // The two values the fetch below actually depends on, pulled out so the
+  // effect can name them instead of depending on `rangeKey` and relying on the
+  // reader to know that RANGES maps one to the other.
+  const { interval, limit } = range;
 
   /* fetch on range change */
   useEffect(() => {
@@ -144,13 +148,13 @@ export default function CorrelationHeatmap() {
     (async () => {
       const result: Partial<Record<CoinId, number[]>> = {};
       await Promise.all(COINS.map(async id => {
-        const closes = await fetchCloses(id, range.interval, range.limit);
+        const closes = await fetchCloses(id, interval, limit);
         if (closes.length >= 5) result[id] = pctReturns(closes);
       }));
       if (!cancelled) { setRets(result); setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, [rangeKey]);
+  }, [interval, limit]);
 
   /* 8×8 correlation matrix */
   const matrix: (number | null)[][] = COINS.map((a, i) =>

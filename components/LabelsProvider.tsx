@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { LabelsContext, Locale, loadLocalLocale, saveLocalLocale, interpolate } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import DEFAULT_EN_LABELS from '@/lib/labelDefaults.en.json';
@@ -75,18 +75,46 @@ export default function LabelsProvider({ children }: { children: React.ReactNode
     fetchLabels(real);
   }, [fetchLabels]);
 
-  const setLocale = (l: Locale) => {
+  const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
     saveLocalLocale(l);
     const cached = loadCachedMap(l);
     if (cached) setMap(cached);
     fetchLabels(l);
-  };
+  }, [fetchLabels]);
 
-  const t = (key: LabelKey, vars?: Record<string, string | number>) => interpolate(map[key] ?? key, vars);
+  // `t` and the context value below are memoized, and the reason matters
+  // beyond tidiness.
+  //
+  // Both used to be created fresh on every render of this provider - `t` a new
+  // arrow function, the value a new object literal. Since this provider wraps
+  // the entire app, that meant every consumer of useLabels() re-rendered
+  // whenever LabelsProvider rendered for any reason at all.
+  //
+  // It also made `t` impossible to depend on honestly. Roughly a dozen effects
+  // and callbacks across the app use `t` to build strings, and every one of
+  // them had to omit it from its dependency list, because including an
+  // identity that changes every render would have re-run data fetches in a
+  // loop. So they all silently captured whichever `t` existed on first render
+  // and kept using it - meaning text produced inside those effects never
+  // re-translated when the user switched language.
+  //
+  // Keyed on `map`, `t` now changes identity exactly when the labels actually
+  // change (locale switch, or a fetch landing) and at no other time. That makes
+  // it a correct dependency AND a cheap one, which is what lets the callers be
+  // fixed rather than suppressed.
+  const t = useCallback(
+    (key: LabelKey, vars?: Record<string, string | number>) => interpolate(map[key] ?? key, vars),
+    [map],
+  );
+
+  const value = useMemo(
+    () => ({ locale, setLocale, t, loading }),
+    [locale, setLocale, t, loading],
+  );
 
   return (
-    <LabelsContext.Provider value={{ locale, setLocale, t, loading }}>
+    <LabelsContext.Provider value={value}>
       {children}
     </LabelsContext.Provider>
   );

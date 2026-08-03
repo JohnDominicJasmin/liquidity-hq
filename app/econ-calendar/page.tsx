@@ -77,14 +77,20 @@ export default function EconCalendarPage() {
   const [events, setEvents]   = useState<CalEvent[]>([]);
   const [source, setSource]   = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState('');
+  // A flag, not a translated string. Building the message inside the effect
+  // meant `t` had to be an effect dependency - and including it would have
+  // re-fired the fetch every time the label map changed, so it was omitted
+  // instead and the effect captured whichever `t` existed on first render.
+  // Translating at render time removes the dependency entirely AND means the
+  // message follows a language switch, which it previously did not.
+  const [failed, setFailed]   = useState(false);
   const now = useNow();
 
   useEffect(() => {
     fetch('/api/econ-calendar')
       .then(r => r.json())
       .then(d => { setEvents(d.events ?? []); setSource(d.source ?? ''); })
-      .catch(() => setError(t('ECON_CALENDAR_LOAD_ERROR')))
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false));
   }, []);
 
@@ -141,10 +147,10 @@ export default function EconCalendarPage() {
       })()}
 
       {loading && <LoadingState message={t('ECON_CALENDAR_LOADING')} />}
-      {error && (
-        <div style={{ color: '#f87171', fontSize: 'var(--fs-label)', padding: '20px 0', textAlign: 'center' }}>{error}</div>
+      {failed && (
+        <div style={{ color: '#f87171', fontSize: 'var(--fs-label)', padding: '20px 0', textAlign: 'center' }}>{t('ECON_CALENDAR_LOAD_ERROR')}</div>
       )}
-      {!loading && !error && sorted.length === 0 && (
+      {!loading && !failed && sorted.length === 0 && (
         <div style={{ color: 'var(--txt3)', fontSize: 'var(--fs-label)', padding: '40px 0', textAlign: 'center' }}>{t('ECON_CALENDAR_NO_EVENTS')}</div>
       )}
 

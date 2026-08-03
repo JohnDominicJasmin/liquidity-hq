@@ -67,7 +67,13 @@ export default function UpgradePage() {
     // handleCheckout below - a pricing page that bounces anonymous
     // visitors before they've seen a price is pure conversion friction.
     if (isPro) { router.replace('/arena'); return; }
-  }, [isPro, router]);
+    // `loading` has to be here, not just read. The effect bails out while auth
+    // is still resolving, and without loading in the list it never re-runs when
+    // that resolves - it only re-runs if isPro itself changes. A Pro user whose
+    // role landed before the loading flag cleared would hit the early return
+    // once and then never be redirected, sitting on a pricing page for a plan
+    // they already pay for.
+  }, [isPro, loading, router]);
 
   function handleCheckout() {
     if (!user) { router.push('/login?signup=1&next=/upgrade'); return; }

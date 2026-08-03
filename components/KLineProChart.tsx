@@ -1179,7 +1179,14 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       const h = entries[0]?.contentRect?.height;
       if (chartRef.current && h) applyProportionalPaneHeights(chartRef.current, h);
     });
-    if (containerRef.current) ro.observe(containerRef.current);
+    // Captured now, used in cleanup. Reading containerRef.current inside the
+    // cleanup function is a real leak, not a style nit: by the time cleanup
+    // runs React may already have detached the node and nulled the ref, so the
+    // dispose() below would silently no-op and leave the klinecharts instance
+    // and its listeners alive. The dispose has to name the exact element the
+    // chart was mounted on, which is this one.
+    const containerEl = containerRef.current;
+    if (containerEl) ro.observe(containerEl);
 
     return () => {
       disposed = true;
@@ -1187,7 +1194,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       wsRef.current?.close();
       wsRef.current = null;
       import('klinecharts').then(({ dispose }) => {
-        if (containerRef.current) dispose(containerRef.current);
+        if (containerEl) dispose(containerEl);
       });
       chartRef.current = null;
     };

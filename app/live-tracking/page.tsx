@@ -44,21 +44,28 @@ function rowToTrade(r: LiveSignalRow): SimulatedTrade {
 export default function LiveTrackingPage() {
   const { t } = useLabels();
   const [rows, setRows]       = useState<LiveSignalRow[] | null>(null);
-  const [error, setError]     = useState<string | null>(null);
+  // Discriminated rather than a pre-translated string. The effect below used to
+  // call t() to build this, which forced `t` to be a dependency it could not
+  // afford to declare (declaring it would re-run the query whenever the label
+  // map changed), so it was omitted and the effect froze onto first-render's
+  // `t`. Storing what went wrong and translating at render removes the
+  // dependency and makes the message follow a language switch.
+  type LoadError = { kind: 'not-configured' } | { kind: 'query'; message: string };
+  const [error, setError]     = useState<LoadError | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const sb = getSupabase();
-      if (!sb) { setError(t('LIVE_TRACKING_ERROR_SUPABASE_NOT_CONFIGURED')); setLoading(false); return; }
+      if (!sb) { setError({ kind: 'not-configured' }); setLoading(false); return; }
       const { data, error: err } = await sb
         .from(T.live_signals)
         .select('*')
         .order('signal_time', { ascending: true })
         .limit(5000); // safety cap - this table grows continuously via the tracking cron
       if (cancelled) return;
-      if (err) setError(err.message);
+      if (err) setError({ kind: 'query', message: err.message });
       else setRows(data as LiveSignalRow[]);
       setLoading(false);
     })();
@@ -86,7 +93,15 @@ export default function LiveTrackingPage() {
       </div>
 
       {loading && <LoadingState message={t('LIVE_TRACKING_LOADING')} />}
-      {error && <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)' }}>{t('LIVE_TRACKING_ERROR', { message: error })}</div>}
+      {error && (
+        <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)' }}>
+          {t('LIVE_TRACKING_ERROR', {
+            message: error.kind === 'not-configured'
+              ? t('LIVE_TRACKING_ERROR_SUPABASE_NOT_CONFIGURED')
+              : error.message,
+          })}
+        </div>
+      )}
 
       {!loading && !error && rows && rows.length === 0 && (
         <EmptyState
