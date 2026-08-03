@@ -1,6 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dedupKey, normalizeLink } from '../lib/newsDedup.ts';
+import { dedupKey, normalizeLink, headlineKey, identitiesOf } from '../lib/newsDedup.ts';
+
+// Does the ingest route's check: two items collide if they share ANY identity.
+const collide = (
+  a: { h: string; l?: string | null },
+  b: { h: string; l?: string | null },
+) => {
+  const idsA = new Set(identitiesOf(a.h, a.l));
+  return identitiesOf(b.h, b.l).some(id => idsA.has(id));
+};
 
 // The bug this file exists for: NBC published one story twice on 2026-08-03
 // with a revised headline. Same source, same published_at, same URL - but the
@@ -55,8 +64,51 @@ test('linkless items (Finnhub) fall back to the headline prefix', () => {
   assert.equal(dedupKey(HEADLINE_V1, ''), HEADLINE_V1.slice(0, 60).toLowerCase());
 });
 
-test('a linkless item and a linked item never collide', () => {
-  assert.notEqual(dedupKey(HEADLINE_V1, null), dedupKey(HEADLINE_V1, NBC_URL));
+// This previously asserted the OPPOSITE - that a linkless item and a linked
+// item never collide - and shipped that as intended behaviour. It was the bug:
+// CoinDesk arrives via RSS with a link and via Finnhub with link: null, so the
+// same story landed twice under two different keys. The two keys DO still
+// differ (that part was never wrong); what was wrong was concluding they are
+// different stories. Identity comparison is what the route must use.
+test('same story from a linked feed and a linkless feed is one story', () => {
+  assert.notEqual(
+    dedupKey(HEADLINE_V1, null),
+    dedupKey(HEADLINE_V1, NBC_URL),
+    'stored keys legitimately differ - only the identity check can see past that',
+  );
+  assert.ok(
+    collide({ h: HEADLINE_V1, l: null }, { h: HEADLINE_V1, l: NBC_URL }),
+    'but they must be recognised as the same story',
+  );
+});
+
+test('the real CoinDesk/Finnhub pair collapses', () => {
+  const h = 'Bitcoin slips under $63,000 despite Iran deal hopes as Coldcard losses rattle market';
+  const rss = { h, l: 'https://www.coindesk.com/markets/2026/08/03/bitcoin-slips-under-usd63-000-despite-iran-deal-hopes-as-coldcard-losses-rattle-market' };
+  const finnhub = { h, l: null };
+  assert.ok(collide(rss, finnhub));
+});
+
+test('a revised headline on one URL still collapses', () => {
+  assert.ok(collide({ h: HEADLINE_V1, l: NBC_URL }, { h: HEADLINE_V2, l: NBC_URL }));
+});
+
+test('genuinely different stories still do not collide', () => {
+  assert.ok(!collide(
+    { h: 'Bitcoin slips under $63,000 as markets wobble', l: 'https://coindesk.com/a' },
+    { h: 'Ethereum staking hits a new high this quarter', l: 'https://coindesk.com/b' },
+  ));
+  // Same headline prefix but different URLs is the one ambiguous case; treat
+  // it as the same story, since a shared 60-char prefix on the same feed is
+  // far more likely a repost than two distinct articles.
+  assert.ok(collide(
+    { h: 'Bitcoin slips under $63,000 as markets wobble today', l: 'https://coindesk.com/a' },
+    { h: 'Bitcoin slips under $63,000 as markets wobble today', l: 'https://coindesk.com/b' },
+  ));
+});
+
+test('headlineKey is the historical 60-char prefix, so it matches old rows', () => {
+  assert.equal(headlineKey(HEADLINE_V1), HEADLINE_V1.slice(0, 60).toLowerCase());
 });
 
 test('unparseable links still yield a stable key rather than throwing', () => {
