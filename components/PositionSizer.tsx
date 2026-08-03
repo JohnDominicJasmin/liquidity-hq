@@ -66,12 +66,18 @@ export default function PositionSizer({ coin }: { coin: CoinId | '' }) {
   // Entry with its current live price. One-shot per coin change, so later
   // price ticks don't overwrite what the user is editing; the "live" button
   // re-syncs on demand.
-  useEffect(() => {
-    if (!coin) return;
+  //
+  // Adjusted during render rather than from an effect - React's documented
+  // shape for "reset some state when a prop changes", and what
+  // react-hooks/set-state-in-effect is pointing at. The effect version painted
+  // once with the previous coin's price still in the box before correcting
+  // itself; setting during render re-renders before anything is shown.
+  const [seededCoin, setSeededCoin] = useState<CoinId | ''>('');
+  if (coin && coin !== seededCoin) {
+    setSeededCoin(coin);
     const p = store.coins[coin]?.price;
     if (p != null) setEntry(String(p));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coin]);
+  }
 
   /* Seed from Settings (replaces old localStorage read) - URL params win, so a
      shared link always reproduces the sender's exact setup. */
