@@ -1,5 +1,6 @@
 ﻿'use client';
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMarket, classifyFunding, CoinId, CoinData, COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
 import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
@@ -1493,7 +1494,7 @@ function ArenaContent() {
           {alertSuccess ? (
             <div style={{ fontSize: 'var(--fs-label)', fontWeight: 600, textAlign: 'center', padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
               <span style={{ color: 'var(--accent-2)' }}>{t('ARENA_ALERT_SET_SUCCESS', { coin: selectedCoin.toUpperCase() })}</span>
-              <a href="/alerts" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline' }}>{t('ARENA_VIEW_ALL_ALERTS_LINK')}</a>
+              <Link href="/alerts" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline' }}>{t('ARENA_VIEW_ALL_ALERTS_LINK')}</Link>
             </div>
           ) : (
             <>
@@ -1585,7 +1586,7 @@ function ArenaContent() {
       {!user && !authLoading && (
         <div className="usage-auth-notice">
           {t('ARENA_AUTH_NOTICE')}{' '}
-          <a href="/login" className="usage-auth-link">{t('ARENA_AUTH_SIGN_IN_LINK')}</a>
+          <Link href="/login" className="usage-auth-link">{t('ARENA_AUTH_SIGN_IN_LINK')}</Link>
         </div>
       )}
       {/* Free-tier usage now shown live by the UsageMeter under the buttons

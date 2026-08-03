@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "test": "node --test __tests__/*.test.mts",
+    "lint": "eslint .",
     "labels:regen": "node scripts/regen-label-defaults.mjs"
   },
   "dependencies": {
@@ -31,6 +32,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.2.12",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

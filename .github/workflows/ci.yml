@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    name: Typecheck + build
+    name: Lint + typecheck + test + build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,6 +17,19 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      # Nothing in this repo was linted before 2026-08-03. Next 16 removed the
+      # `next lint` command AND stopped `next build` from linting, so a green
+      # build had said nothing about lint for the whole of this project's life.
+      # Runs first because it is the fastest of the four steps.
+      #
+      # Fails on errors only. Warnings are printed but do not block - there are
+      # ~131 of them, a pre-existing React Compiler backlog documented in
+      # eslint.config.mjs. Deliberately no --max-warnings=0: it would either
+      # force a 67-file refactor of live code today, or be set to a number
+      # nobody maintains.
+      - name: Lint
+        run: npm run lint
 
       - name: Typecheck
         run: npx tsc --noEmit
