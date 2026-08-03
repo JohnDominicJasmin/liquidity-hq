@@ -2047,8 +2047,15 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gchat-expanded .gchat-msgs::-webkit-scrollbar-thumb { background: rgba(26,122,255,0.2); border-radius: 2px; }
 
 @media (max-width: 420px) {
-  .gchat-panel { width: calc(100vw - 24px); right: 12px; bottom: 84px; height: 65vh; }
-  .gchat-fab   { bottom: 20px; right: 16px; }
+  /* `bottom` is deliberately NOT set here. Both this block and the
+     max-width: 640px block near the end of the file match on a <=420px screen,
+     and that one wins with !important (bottom: 76px for the FAB, 140px for the
+     panel - the values that clear the 56px mobile tab bar). This block used to
+     also declare bottom: 20px / 84px, which never once applied. Anyone editing
+     them to reposition the panel would have seen nothing change; the live
+     values are the !important ones. Sizing and `right` still belong here. */
+  .gchat-panel { width: calc(100vw - 24px); right: 12px; height: 65vh; }
+  .gchat-fab   { right: 16px; }
   .gchat-panel.gchat-expanded {
     top: 0; left: 0; right: 0; bottom: 0;
     width: 100vw; height: 100dvh;
@@ -5272,7 +5279,16 @@ html[lang="ar"] .lp-h1-accent {
 .ob-next      { transition: all 0.2s !important; }
 .ob-country:hover { background: rgba(26,122,255,0.08) !important; }
 .ob-back:hover    { color: #9296b5 !important; }
-.ob-skip:hover    { color: #4e5374 !important; }
+/* Token, not a hex. This is unscoped - no media query, no [data-theme] - so the
+   hardcoded #4e5374 applied in BOTH themes and silently killed the themed
+   `.ob-skip:hover { color: var(--txt) }` defined earlier. In dark mode that
+   inverted the interaction: the button sits at --txt3 (#767d92) and hovering
+   moved it to #4e5374, which is DARKER against a dark background, so hover made
+   Skip harder to see instead of easier. --txt is brighter in dark and near-black
+   in light, which is the behaviour the earlier rule already intended; the
+   !important is kept so this still wins whatever specificity conflict it was
+   added for. */
+.ob-skip:hover    { color: var(--txt) !important; }
 
 /* ── Setup Checklist (fixed bottom-right) ── */
 .ob-checklist {
@@ -5331,7 +5347,11 @@ html[lang="ar"] .lp-h1-accent {
   padding: 8px 14px !important;
   display: flex; align-items: center; gap: 10px;
 }
-.ob-checklist.ob-checklist-mini { bottom: 24px; right: 94px; }
+/* Position is NOT set here. A second @media (max-width: 640px) block later in
+   this file sets bottom: 76px !important / right: 90px !important on the same
+   selector, so the values that used to sit here (24px / 94px) never applied on
+   any screen. The live values are the later ones, which put the pill in the
+   same row as the Ask AI FAB, clear of the mobile tab bar. */
 .ob-cl-mini-text { font-size: var(--fs-caption); font-weight: 600; color: var(--txt2); white-space: nowrap; }
 .ob-cl-mini-track {
   width: 56px; height: 3px; border-radius: 2px;
