@@ -20,6 +20,28 @@ function PageViewTracker() {
   return null;
 }
 
+// opt_out_capturing() stops further capture but leaves PostHog's own
+// distinct_id sitting in a cookie and in localStorage. Withdrawing consent
+// should not leave behind the identifier that was created under it, so drop
+// those too. Matches on the ph_/posthog prefixes PostHog itself uses; the
+// consent key (lhq_analytics_consent_v1) does not match either, so the user's
+// choice survives the cleanup that choice triggers.
+function clearPosthogArtifacts() {
+  try {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('ph_') || k.toLowerCase().includes('posthog'))
+      .forEach(k => localStorage.removeItem(k));
+  } catch { /* storage blocked - nothing to clear */ }
+  try {
+    for (const c of document.cookie.split(';')) {
+      const name = c.split('=')[0].trim();
+      if (name.startsWith('ph_') || name.toLowerCase().includes('posthog')) {
+        document.cookie = `${name}=; Max-Age=0; path=/`;
+      }
+    }
+  } catch { /* ignore */ }
+}
+
 // Analytics is gated on explicit consent (lib/consent.ts, components/
 // CookieConsent.tsx). This used to init unconditionally on mount, which meant
 // PostHog set its own cookie and started SESSION RECORDING for every visitor
@@ -75,13 +97,36 @@ export default function PostHogProvider({ children }: { children: React.ReactNod
       return;
     }
 
-    // Withdrawn mid-session. opt_out_capturing stops events AND recording and
-    // clears posthog's stored ids; reset() drops the distinct_id so a later
-    // re-consent is not silently stitched back onto the same person.
+    // Withdrawn mid-session. Order matters: reset() clears posthog's
+    // persistence, which takes the opt-out flag with it, so opting out FIRST
+    // and resetting second leaves capture re-enabled for the rest of the page
+    // view - verified in a local audit, where no opt-out marker survived the
+    // reset. reset() first drops the distinct_id so a later re-consent is not
+    // stitched back onto the same person; opt_out_capturing() last is what
+    // actually stops events and session recording, and it has to be the write
+    // that sticks. The init gate above still blocks everything on next load
+    // either way; this is what makes "turning this off stops collection
+    // immediately" true within the current one.
     if (inited.current) {
-      posthog.opt_out_capturing();
       posthog.reset();
+      posthog.opt_out_capturing();
     }
+    // Runs even when posthog was never initialised in THIS page view, which is
+    // the case that actually does the work. Measured behaviour:
+    //
+    //   Withdrawing mid-session - opt_out_capturing() stops events and
+    //   recording straight away, but posthog then flushes its own persistence
+    //   asynchronously and rewrites the distinct_id, so this clear does not
+    //   stick for the rest of that page view. Deferring it by a macrotask was
+    //   tried and still lost the race.
+    //
+    //   Next load - the gate above means posthog is never initialised, so
+    //   there is nothing left to rewrite and the entries are removed for good.
+    //
+    // So capture stops immediately and the identifier is gone by the next
+    // navigation. Not worth fighting posthog's write ordering for the seconds
+    // in between, when nothing is being captured anyway.
+    clearPosthogArtifacts();
     setActive(false);
   }, [consent]);
 
