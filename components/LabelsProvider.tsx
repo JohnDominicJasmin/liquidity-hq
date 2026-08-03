@@ -51,7 +51,12 @@ export default function LabelsProvider({ children }: { children: React.ReactNode
   const fetchLabels = useCallback((l: Locale) => {
     const id = ++reqId.current;
     setLoading(true);
-    fetch(`/api/labels?locale=${encodeURIComponent(l)}`, { cache: 'no-store' })
+    // No `cache: 'no-store'` any more. The route now sends
+    // `max-age=0, s-maxage=60`, which already forces the browser to revalidate
+    // while letting Cloudflare serve the response from an edge PoP. Keeping
+    // no-store here would have opted this request out of that entirely, which
+    // is the whole point of the change.
+    fetch(`/api/labels?locale=${encodeURIComponent(l)}`)
       .then(r => r.json())
       .then(data => {
         if (reqId.current !== id) return; // a newer locale switch has since started
