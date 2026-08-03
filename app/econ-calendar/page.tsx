@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useNow } from '@/lib/useNow';
 import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
@@ -56,15 +57,6 @@ function calcDelta(actual?: string, estimate?: string): { text: string; positive
   const d = a - e;
   const unit = actual.includes('%') ? '%' : actual.match(/[KMB]$/) ? actual.slice(-1) : '';
   return { text: (d >= 0 ? '+' : '') + d.toFixed(2) + unit, positive: d >= 0 };
-}
-
-function useNow() {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(id);
-  }, []);
-  return now;
 }
 
 const IMPACT_CFG = {

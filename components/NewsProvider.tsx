@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { GEO_KEYWORDS } from '@/lib/classify';
+import { useNow } from '@/lib/useNow';
 import { getSupabase } from '@/lib/supabase';
 import { T } from '@/lib/tables';
 
@@ -130,7 +131,11 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   const [econEvents, setEconEvents] = useState<EconEvent[]>([]);
   const [econRaw, setEconRaw] = useState<CalEvent[]>([]);
   const [newsRows, setNewsRows] = useState<NewsRow[]>([]);
-  const [geoTick, setGeoTick] = useState(0);
+  // Replaces a `geoTick` counter that existed only to force the relative
+  // timestamps below to recompute, and which had to be referenced with a
+  // `void geoTick;` statement to stop it looking unused. useNow expresses the
+  // same intent directly and hands back a clock the render can actually use.
+  const nowMs = useNow(60_000);
   const [eventsLoaded, setEventsLoaded] = useState(false);
   const [alertsLoaded, setAlertsLoaded] = useState(false);
   const [latestHeadlines, setLatestHeadlines] = useState<string[]>([]);
@@ -353,11 +358,10 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
   // "War & Geo" is derived from the same rows the ticker uses rather than its
   // own request - the geo keywords are what the ingest job already used to
   // decide these rows were worth storing, so re-running them here needs no
-  // extra fetch. geoTick only exists to keep the relative timestamps moving
-  // now that nothing re-fetches on a timer.
+  // extra fetch. nowMs only exists to keep the relative timestamps moving now
+  // that nothing re-fetches on a timer.
   const geoEvents: GeoEvent[] = (() => {
-    void geoTick;
-    const now = Math.floor(Date.now() / 1000);
+    const now = Math.floor(nowMs / 1000);
     const out: GeoEvent[] = [];
     const seen = new Set<string>();
     for (const row of [...newsRows].sort((a, b) => +new Date(b.published_at) - +new Date(a.published_at))) {
@@ -384,13 +388,11 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
     return out;
   })();
 
-  // Display-only clock, no network. Keeps "12m ago" honest between pushes.
-  useEffect(() => {
-    const id = setInterval(() => setGeoTick(n => n + 1), 60_000);
-    return () => clearInterval(id);
-  }, []);
+  // The display-only clock that used to live here (a setInterval bumping
+  // geoTick) is now useNow above - same "keeps '12m ago' honest between
+  // pushes" job, one less piece of state.
 
-  const newsActive = alerts.some(a => Date.now() / 1000 - a.ts < 5 * 60);
+  const newsActive = alerts.some(a => nowMs / 1000 - a.ts < 5 * 60);
 
   return (
     <NewsContext.Provider value={{ alerts, dismissAlert, econEvents, econRaw, geoEvents, eventsLoaded, alertsLoaded, newsActive, latestHeadlines, whaleAlerts }}>
