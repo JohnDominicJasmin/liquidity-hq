@@ -99,8 +99,23 @@ export default function AlertsPage() {
   const [disconnecting, setDisconnecting]   = useState(false);
   const [disconnectError, setDisconnectError] = useState('');
 
-  // Muted alert groups
+  // Muted alert groups.
+  //
+  // `muted` is an inverted model - a coin or timeframe is ON when it is ABSENT
+  // from this set - so the empty initial value does not mean "nothing loaded
+  // yet", it means "everything is on". Rendering the pickers against it before
+  // the real preferences arrive therefore showed all 8 timeframes and all
+  // coins active, complete with an "over limit" warning, and then snapped to
+  // the true selection once the fetch landed. On a cold server that misread
+  // was on screen for around five seconds.
+  //
+  // mutedLoaded is what the pickers actually gate on. It flips only after the
+  // fetch AND any first-visit seeding writes have settled, because a brand-new
+  // user gets two corrections, not one: the fetch returns an empty list, then
+  // the seeding step mutes everything outside the defaults. Waiting for both
+  // means the user sees one honest state instead of two wrong ones.
   const [muted, setMuted]   = useState<Set<string>>(new Set());
+  const [mutedLoaded, setMutedLoaded] = useState(false);
   const [muteErr, setMuteErr] = useState('');
   const [coinCapMsg, setCoinCapMsg] = useState('');
   const [tfCapMsg, setTfCapMsg] = useState('');
@@ -120,7 +135,10 @@ export default function AlertsPage() {
       .then(d => { setBotUsername(d.username ?? null); setWebhookOk(d.webhook_ok !== false); })
       .catch(() => {});
     getAuthToken().then(token => {
-      if (!token) return;
+      // Signed out: there are no preferences to wait for, and the pickers are
+      // not reachable anyway. Release the gate so a signed-out visitor is not
+      // left looking at skeletons forever.
+      if (!token) { setMutedLoaded(true); return; }
       fetch('/api/alert-prefs', { headers: { Authorization: `Bearer ${token}` } })
         .then(r => r.json())
         .then(async d => {
@@ -183,7 +201,13 @@ export default function AlertsPage() {
           // on, because turning a key on deletes its row, leaving them
           // indistinguishable from a brand-new user on the next visit.
         })
-        .catch(() => {});
+        .catch(() => {})
+        // Runs after the seeding awaits above, so the pickers unblock on the
+        // final state rather than the intermediate one. On failure it still
+        // fires: a user who cannot reach the API should get the pickers back
+        // (defaulting to everything-on, as before) rather than a permanent
+        // skeleton.
+        .finally(() => setMutedLoaded(true));
     });
   }, []);
 
@@ -849,7 +873,10 @@ export default function AlertsPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
             <CoinStack size={15} style={{ color: 'var(--accent-2)', flexShrink: 0 }} />
             <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)' }}>
-              {(() => {
+              {/* Held back until prefs load - an unloaded `muted` reads as
+                  "every coin on", which briefly rendered a false over-limit
+                  warning. */}
+              {!mutedLoaded ? <SkeletonBar width={110} height={10} /> : (() => {
                 const onCount = COINS.filter(c => !muted.has(`coin:${c}`)).length;
                 return onCount > ALERT_COIN_CAP
                   ? t('ALERTS_COINS_OVER_LIMIT', { onCount, cap: ALERT_COIN_CAP })
@@ -865,6 +892,13 @@ export default function AlertsPage() {
               {coinCapMsg}
             </div>
           )}
+          {/* Same reasoning as the timeframe chips: an unloaded `muted` makes
+              this render every coin as selected before correcting itself. */}
+          {!mutedLoaded ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {COINS.slice(0, 7).map(c => <SkeletonBar key={c} width={62} height={26} radius={7} />)}
+            </div>
+          ) : (
           <CoinMultiSelect
             value={COINS.filter(c => !muted.has(`coin:${c}`))}
             onChange={next => {
@@ -875,6 +909,7 @@ export default function AlertsPage() {
             }}
             previewCount={7}
           />
+          )}
         </div>
 
         {/* ── EMA Buy/Sell Signal - real chart-parity signal, capped timeframe picker ── */}
@@ -887,7 +922,9 @@ export default function AlertsPage() {
             {t('ALERTS_EMA_SIGNAL_DESC')}
           </div>
           <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 4, paddingLeft: 14 }}>
-            {(() => {
+            {/* Same gate as the coin counter above: before prefs land this read
+                "8 on (limit 3 - turn some off)", which is the bug being fixed. */}
+            {!mutedLoaded ? <SkeletonBar width={130} height={10} /> : (() => {
               const onCount = EMA_SIGNAL_TFS.filter(tf => !muted.has(`ema_signal_${tf}`)).length;
               return onCount > ALERT_TF_CAP
                 ? t('ALERTS_TF_OVER_LIMIT', { onCount, cap: ALERT_TF_CAP })
@@ -900,7 +937,13 @@ export default function AlertsPage() {
             </div>
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingLeft: 14 }}>
-            {EMA_SIGNAL_TFS.map(tf => {
+            {/* Placeholder chips rather than real ones while prefs load. The
+                chips are the part the user actually watched flip: all 8 lit,
+                then five of them switching off a few seconds later. */}
+            {!mutedLoaded && EMA_SIGNAL_TFS.map(tf => (
+              <SkeletonBar key={tf} width={52} height={26} radius={7} />
+            ))}
+            {mutedLoaded && EMA_SIGNAL_TFS.map(tf => {
               const off = muted.has(`ema_signal_${tf}`);
               return (
                 <button
