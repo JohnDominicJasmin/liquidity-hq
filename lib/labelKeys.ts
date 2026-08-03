@@ -107,6 +107,10 @@ export const LABEL_KEYS = [
   'LOGIN_PASSWORD_RULE_UPPER', 'LOGIN_PASSWORD_RULE_NUMBER',
   'LOGIN_PASSWORD_SHOW', 'LOGIN_PASSWORD_HIDE',
   'LOGIN_FIELD_LABEL_EMAIL',
+  // Sign-in-wrap consent. /login is the one page PlatformFooter deliberately
+  // skips, so before this the terms were never shown at the moment the
+  // account (and the contract) is actually created.
+  'LOGIN_LEGAL_CONSENT', 'LOGIN_LEGAL_TERMS', 'LOGIN_LEGAL_PRIVACY', 'LOGIN_LEGAL_DISCLAIMER',
 
   // Forgot / reset password
   'FORGOT_PASSWORD_SUBTITLE', 'FORGOT_PASSWORD_SENT_TITLE',
