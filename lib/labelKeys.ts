@@ -113,6 +113,13 @@ export const LABEL_KEYS = [
   // account (and the contract) is actually created.
   'LOGIN_LEGAL_CONSENT', 'LOGIN_LEGAL_TERMS', 'LOGIN_LEGAL_PRIVACY', 'LOGIN_LEGAL_DISCLAIMER',
 
+  // Analytics consent banner (components/CookieConsent.tsx) + the withdrawal
+  // control in Settings. Consent has to be as easy to take back as to give.
+  'CONSENT_BODY', 'CONSENT_ACCEPT', 'CONSENT_DECLINE', 'CONSENT_PRIVACY_LINK',
+  'CONSENT_ARIA_LABEL',
+  'SETTINGS_ANALYTICS_TITLE', 'SETTINGS_ANALYTICS_DESC',
+  'SETTINGS_ANALYTICS_ON', 'SETTINGS_ANALYTICS_OFF',
+
   // Forgot / reset password
   'FORGOT_PASSWORD_SUBTITLE', 'FORGOT_PASSWORD_SENT_TITLE',
   'FORGOT_PASSWORD_SENT_DESC_PRE', 'FORGOT_PASSWORD_SENT_DESC_POST',

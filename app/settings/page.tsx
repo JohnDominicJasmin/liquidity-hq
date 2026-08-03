@@ -17,11 +17,57 @@ import { getSupabase } from '@/lib/supabase';
 import { friendlyAuthError } from '@/lib/authErrors';
 import PasswordField from '@/components/PasswordField';
 import { passwordMeetsPolicy } from '@/lib/passwordPolicy';
+import { readConsent, writeConsent, onConsentChange, type ConsentState } from '@/lib/consent';
 
 
 
 const TFS    = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d'] as const;
 const RISK_PRESETS = ['0.25', '0.5', '1', '1.5', '2'];
+
+/* ── Analytics consent toggle ──
+   Rendered in BOTH the signed-out and signed-in branches of this page on
+   purpose. The consent banner is shown to signed-out visitors too, and
+   consent has to be as easy to withdraw as it was to give - a control only
+   reachable behind a login would not meet that. Backed by localStorage
+   (lib/consent.ts), so like the theme control beside it, it needs no account.
+
+   No local setState on click: writeConsent publishes a change event that
+   onConsentChange feeds back into state here, so the stored value stays the
+   single source of truth and this toggle cannot drift from PostHogProvider. */
+function AnalyticsConsentToggle() {
+  const { t } = useLabels();
+  const [state, setState] = useState<ConsentState>('unknown');
+
+  useEffect(() => {
+    setState(readConsent());
+    return onConsentChange(setState);
+  }, []);
+
+  const on = state === 'granted';
+
+  return (
+    <div className="st-field">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <div className="st-field-label" style={{ marginBottom: 2 }}>{t('SETTINGS_ANALYTICS_TITLE')}</div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
+            {on ? t('SETTINGS_ANALYTICS_ON') : t('SETTINGS_ANALYTICS_OFF')}
+          </div>
+        </div>
+        <button
+          className={`st-toggle${on ? ' on' : ''}`}
+          role="switch"
+          aria-checked={on}
+          aria-label={t('SETTINGS_ANALYTICS_TITLE')}
+          onClick={() => writeConsent(on ? 'denied' : 'granted')}
+        >
+          <span className="st-toggle-thumb" />
+        </button>
+      </div>
+      <div className="st-desc" style={{ marginTop: 8 }}>{t('SETTINGS_ANALYTICS_DESC')}</div>
+    </div>
+  );
+}
 
 /* ── Auto-save toast ── */
 function SaveToast({ status }: { status: 'idle' | 'saving' | 'saved' | 'error' }) {
@@ -188,6 +234,8 @@ export default function SettingsPage() {
             <label className="st-field-label">{t('SETTINGS_FIELD_THEME')}</label>
             <ThemeChips />
           </div>
+          {/* Not gated behind sign-in - see AnalyticsConsentToggle. */}
+          <AnalyticsConsentToggle />
         </Section>
 
         <div className="st-section">
@@ -554,10 +602,11 @@ export default function SettingsPage() {
           <label className="st-field-label">{t('SETTINGS_FIELD_THEME')}</label>
           <ThemeChips />
         </div>
-        <div className="st-field" style={{ marginBottom: 0 }}>
+        <div className="st-field">
           <label className="st-field-label">{t('SETTINGS_SECTION_LANGUAGE')}</label>
           <LanguageSelect />
         </div>
+        <AnalyticsConsentToggle />
       </Section>
 
       {/* ── 7. Telegram Alerts ── */}

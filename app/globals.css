@@ -4148,6 +4148,52 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 }
 .login-forgot-link:hover { color: var(--accent); text-decoration: underline; }
 
+/* ── ANALYTICS CONSENT BAR (components/CookieConsent.tsx) ──
+   Full-width bottom bar. z-index clears the Ask AI FAB (9995), which is the
+   highest fixed element in the app - nothing should be able to sit on top of
+   a consent prompt. While it is up, the bottom-right cluster (FAB, Setup
+   pill, PWA toast) is hidden rather than tetris'd around: same body-class
+   approach already used for body.nav-drawer-open / body.pwa-prompt-open. */
+.consent-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+  flex-wrap: wrap; gap: 10px 20px;
+  padding: 14px 20px;
+  background: var(--bg1);
+  border-top: 0.5px solid var(--bdr2);
+  box-shadow: 0 -4px 24px rgba(0,0,0,0.35);
+}
+.consent-text {
+  margin: 0; flex: 1 1 320px; max-width: 70ch;
+  font-size: var(--fs-caption); color: var(--txt2); line-height: 1.5;
+}
+.consent-link { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.consent-actions { display: flex; gap: 10px; flex-shrink: 0; }
+/* Accept and Decline share a size/weight on purpose - making refusal the
+   visibly weaker option is the dark pattern this component exists to avoid. */
+.consent-btn {
+  font-family: inherit; font-size: var(--fs-caption); font-weight: 700;
+  padding: 0 18px; min-height: 44px; border-radius: 10px;
+  cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: filter 0.15s, background 0.15s;
+}
+.consent-accept  { background: var(--accent); border: 0.5px solid var(--accent); color: #fff; }
+.consent-decline { background: var(--bg3); border: 0.5px solid var(--bdr2); color: var(--txt); }
+.consent-accept:hover  { filter: brightness(1.08); }
+.consent-decline:hover { background: var(--bg4); }
+
+body.consent-open .gchat-fab,
+body.consent-open .ob-checklist,
+body.consent-open .pwa-install-prompt { opacity: 0; pointer-events: none; }
+
+@media (max-width: 640px) {
+  /* Stack on phones, and clear the 56px bottom tab bar. */
+  .consent-bar { bottom: 56px; flex-direction: column; align-items: stretch; padding: 14px 16px; }
+  .consent-actions { justify-content: stretch; }
+  .consent-btn { flex: 1; }
+}
+
 /* Sign-in-wrap consent (app/login/page.tsx). Deliberately NOT --txt3 like the
    other secondary text here: a consent notice only does its job if it is
    legible, and the links must read as links (accent + underline) rather than
