@@ -21,5 +21,17 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      # The suite existed but nothing ran it, so a green CI said nothing about
+      # whether the tested behaviour still held. Runs before the build: a unit
+      # failure should be reported as a unit failure, not buried behind a
+      # several-minute build.
+      #
+      # Worth being honest about the limits - this would NOT have caught the
+      # news-dedup regression of 2026-08-03, because that test passed while
+      # asserting the wrong behaviour. Running tests catches breakage of what
+      # they claim; it cannot catch a claim that was wrong to begin with.
+      - name: Test
+        run: npm test
+
       - name: Build
         run: npm run build

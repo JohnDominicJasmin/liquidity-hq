@@ -620,4 +620,32 @@ Code is committed + pushed to `dev` (through `9a5a5e0`) — **not yet merged to
 
 ## i18n translation — paused (see also pendings/I18N_MIGRATION.md)
 
-- Done: en, ko, zh, ar, ru (2370/2370, both DBs). Pending: vi, pt-BR, tr, es, id. Do not resume proactively.
+- Done: en, ko, zh, ar, ru. Pending: vi, pt-BR, tr, es, id. Do not resume proactively.
+
+**Those locales have since fallen behind (measured 2026-08-03).** The
+"2370/2370" figure recorded here was true when written; `en` has grown since
+and the translated locales did not follow. Live counts, identical in dev and
+prod:
+
+| locale | rows |
+|---|---|
+| en | 2570 |
+| ko / zh / ar / ru | 2416 each |
+
+**154 keys behind per locale.** Nothing is broken - `app/api/labels/route.ts`
+layers English underneath every locale, so the gap renders as English rather
+than raw keys. But two of the affected surfaces matter more than the rest:
+
+- **`TRIAL_BANNER_*`** (all 5 keys) - the trial countdown is the main
+  conversion surface, and it is English for every non-English user.
+  `TrialBanner.tsx` is correctly wired to `t()`; only the rows are missing.
+- **`ALERTS_CONNECT_*`** (the whole Telegram connect wizard) - the onboarding
+  flow the FAQ walks users through.
+
+If i18n is unpaused for anything, those two first.
+
+**Separately: the language switcher offers locales that have zero rows.**
+`vi`, `pt-BR`, `tr`, `es`, `id` are all selectable in the UI and have no
+translations in either project, so choosing one silently renders English.
+Either seed them or hide them from the switcher until seeded - offering a
+language and then ignoring the choice is worse than not offering it.
