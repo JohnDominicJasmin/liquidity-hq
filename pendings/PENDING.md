@@ -281,9 +281,17 @@ record rather than the viewer's.
 **Removed: "Recently Fired".** It sat *inside* the Price Alerts card, right
 under the user's own alert rows, so the layout implied it listed *their* alerts
 firing. It never did. Source was `lib/alertHistory.ts`, a process-local array
-shared by every visitor and wiped on restart — so what you saw depended on which
-Render instance answered and how long it had been up. Two users on the same page
-could legitimately see different lists, and a restart emptied it for everybody.
+shared by every **signed-in** user and wiped on restart — so what you saw
+depended on which Render instance answered and how long it had been up. Two
+users on the same page could legitimately see different lists, and a restart
+emptied it for everybody.
+
+Precision note, because commit `8c8558f`'s message overstates this: the route
+was **not** open to the whole internet. It required a valid Supabase token and
+answered 401 without one (confirmed live on prod — the route returned 401 right
+up until the new build cut over). Sign-in gating is not user scoping, though,
+and the route's own comment said so outright: *"the feed still has no per-user
+scoping"*. Every signed-in user saw the same shared list.
 
 Not a data leak: private price alerts were already filtered out upstream, so the
 buffer only ever held market-wide signals. The problem was purely that a
