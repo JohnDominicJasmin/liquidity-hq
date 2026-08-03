@@ -4183,9 +4183,31 @@ a.mb-setup-row:hover { background: rgba(255,255,255,0.03); border-radius: 8px; p
 .consent-accept:hover  { filter: brightness(1.08); }
 .consent-decline:hover { background: var(--bg4); }
 
-body.consent-open .gchat-fab,
+/* The Ask AI FAB moves ABOVE the consent bar rather than disappearing.
+   It used to be hidden alongside the others (opacity: 0). On a phone this bar
+   stacks to ~190px starting at bottom:56, so it does cover the FAB's slot -
+   but hiding the FAB to solve that made it look like the feature was broken,
+   which is exactly how it got reported. --consent-top is the measured distance
+   from the viewport bottom to the top of the bar, published by
+   components/CookieConsent.tsx; the fallback keeps this harmless if the
+   measurement has not landed yet. */
+body.consent-open .gchat-fab {
+  bottom: calc(var(--consent-top, 0px) + 12px) !important;
+}
+/* These two stay hidden. Unlike the FAB they are nags rather than controls the
+   user might be reaching for, and stacking three floating things above a
+   consent prompt is worse than deferring them until it is answered. */
 body.consent-open .ob-checklist,
 body.consent-open .pwa-install-prompt { opacity: 0; pointer-events: none; }
+
+/* Hold the FAB back until the consent state has actually been read.
+   CookieConsent can only read localStorage after mount, so for the first frames
+   of a fresh visit nobody knows whether the bar is coming. Painting the FAB in
+   that window meant it appeared and then jumped, which reads as a glitch. The
+   class is set on <body> in the server-rendered markup and removed by
+   CookieConsent's mount effect, so the FAB simply arrives once, in its final
+   position. Visibility rather than display so nothing reflows when it resolves. */
+body.consent-pending .gchat-fab { visibility: hidden; }
 
 @media (max-width: 640px) {
   /* Stack on phones, and clear the 56px bottom tab bar. */
