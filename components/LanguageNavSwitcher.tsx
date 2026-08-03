@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from './AuthProvider';
 import { useSettings } from '@/lib/settings';
-import { useLabels, SUPPORTED_LOCALES, type Locale } from '@/lib/labels';
+import { useLabels, AVAILABLE_LOCALES, type Locale } from '@/lib/labels';
 
 // Locale names shown in their own language - deliberately not run through
 // t(), same choice as LanguageSelect.tsx (a language name is the one string
@@ -64,7 +64,9 @@ export default function LanguageNavSwitcher() {
       </button>
       {open && (
         <div className="lang-nav-dropdown" role="menu">
-          {SUPPORTED_LOCALES.map(l => (
+          {/* AVAILABLE_LOCALES, not SUPPORTED_LOCALES - only offer languages
+              that actually have rows. See lib/locales.ts. */}
+          {AVAILABLE_LOCALES.map(l => (
             <button
               key={l}
               type="button"
