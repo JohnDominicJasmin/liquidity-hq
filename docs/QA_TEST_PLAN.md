@@ -17,7 +17,54 @@ deploy is unreliable, because the request can land mid-cutover between the
 old and new instance. That is a real, reusable finding, folded into the
 procedure below rather than left as a one-off war story.
 
-## Known gotcha, discovered today - read before running anything live
+## Gotcha: RLS enabled with zero policies is deny-all, and it fails silently (2026-08-04)
+
+**If the browser shows stale or default data while the database clearly holds
+the right row, check `pg_policies` before you debug the React.**
+
+Cost us most of a Telegram QA run. `lhq_dev_user_settings` had RLS **enabled with
+zero policies**. In Postgres that is deny-all, not allow-all. The consequences
+are asymmetric and that is exactly what makes it hard to spot:
+
+- Anything using the **service-role** client (webhooks, cron, `/api/*` routes via
+  `getSupabaseAdmin()`) **bypasses RLS entirely**. Writes succeed. Server-side
+  reads succeed. Every server test passes.
+- The **browser** client (anon key + user JWT) gets an empty result for every
+  select. No error - just zero rows.
+
+So Telegram connect really did write `telegram_chat_id`, and `/alerts` really did
+keep saying "Not connected", and both were behaving correctly. `SettingsProvider`
+does `if (!data) return;` and falls back to `DEFAULT_SETTINGS`.
+
+It hid for a long time because `SettingsProvider` also caches settings to
+localStorage, so any browser that had ever read the row kept showing the cached
+copy. Deleting the row during an account reset removed the disguise.
+
+How to check, per project:
+
+```sql
+select c.relname, c.relrowsecurity as rls,
+       (select count(*) from pg_policies p where p.tablename = c.relname) as policies
+from pg_class c join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public' and c.relkind = 'r' and c.relname like 'lhq_%'
+order by policies, c.relname;
+```
+
+Then diff dev against prod. A dev table with **fewer** policies than its prod
+twin is the signal. Two caveats learned while doing exactly that:
+
+- A single `for all` policy is equivalent to four per-command ones.
+  `lhq_dev_price_alerts` has one `ALL` policy where prod has four - **not** a gap.
+- Plenty of tables correctly have zero policies. Those are server-only
+  (`app_config`, `admin_users`, `telegram_link_codes`, `trial_claims`, ...) where
+  deny-all to the browser is the intent. The dev zero-policy list matched prod's
+  exactly apart from `user_settings`.
+
+Fixed by mirroring prod's three policies onto the dev table (migration
+`add_missing_rls_policies_lhq_dev_user_settings`). Prod was always correct; this
+was dev drift.
+
+## Known gotcha, discovered 2026-08-02 - read before running anything live
 
 **Do not curl or click through a route within ~60 seconds of triggering a
 Render deploy.** `trigger_deploy` returns immediately with `status:
@@ -87,7 +134,15 @@ here is making them permanent instead of one-off.
 **Layer 3 complete - all 4 items done.**
 
 ### 4. End-to-end (real browser, real Telegram bot, clicking through as a user)
-- [ ] Full Telegram connect flow: sign in on `/alerts` as a Pro/trial test account → press Connect Telegram → confirm deep link opens the real bot → send `/start CODE` for real → confirm the page auto-updates to connected within the 3s poll → press Disconnect → confirm it returns to the not-connected state and a fresh `/start` on the same code fails (already used). **Checked 2026-08-02**: the real test account (mikocabal27@gmail.com) is already connected, so the fresh-connect path wasn't run this round - deliberately skipped rather than disconnecting a live integration mid-session (would drop real alerts until manually reconnected). Still open.
+- [x] Full Telegram connect flow: sign in on `/alerts` as a Pro/trial test account → press Connect Telegram → confirm deep link opens the real bot → send `/start CODE` for real → confirm the page auto-updates to connected → press Disconnect → confirm it returns to the not-connected state and a fresh `/start` on the same code fails (already used). **DONE 2026-08-04, on dev**, against the new dev-only bot (`@Liquidity_hq_dev_bot`), which is what finally unblocked this - see `pendings/PENDING.md`. Prod's bot and the owner's prod connection were untouched throughout.
+
+  What passed: webhook received the update and verified `TELEGRAM_WEBHOOK_SECRET`; a bare `/start` (what Telegram's blue START button actually sends) returned the correct "open Alerts and press Connect Telegram" fallback; `/start CODE` claimed the code atomically and wrote `telegram_chat_id`; the UI flipped to Connected; Disconnect returned it to not-connected and burned the outstanding codes.
+
+  Two things this run corrected about earlier notes in this file:
+  - The deep link **already** carries the payload (`https://t.me/<bot>?start=<CODE>`, built in `app/api/telegram/link-code/route.ts:86`). An earlier read of the FAQ correction below implied it did not. One-tap works; the copy-the-message path is the deliberate fallback, and its step-1 link is payload-free on purpose.
+  - Reissuing a code sets `used_at` on the previous one (link-code route burns outstanding codes so only one is ever live). A raw `used_at is not null` query therefore looks like "an expired code got claimed" when it did not. Check *why* `used_at` is set before calling that a defect.
+
+  **The blocker this run actually exposed was not Telegram at all** - see the RLS finding in the gotchas section below. `lhq_dev_user_settings` had RLS enabled with zero policies, so the browser could never read the row the webhook had just written. The connect genuinely worked while `/alerts` insisted "Not connected".
 - [x] Open-redirect fix, in a real browser: navigate to `/login?next=%2F%5Cevil.com`, confirm the browser lands on `/dashboard` (the fallback), not `evil.com`. **DONE 2026-08-02**, prod, real signed-in account. Turned out not to need a fresh sign-in at all: `app/login/page.tsx:57` fires `router.replace(nextUrl)` for any authenticated user on mount, not just post-credential-submit - so this ran against the existing session with zero sign-out risk. Landed on `/dashboard` as expected.
 - [x] PostHog masking: open `/journal` with a PostHog recording active (may need a temporary project API key pointed at a scratch PostHog project, or just the real one filtered to a test session), add a trade with real notes and a P&L figure, then check the recording in PostHog's own replay UI - the notes/thesis/dollar figures should render as blocked rectangles, not the real text. **DONE 2026-08-03** - selectors and active capture were confirmed 2026-08-02; the replay-UI check was finished on 2026-08-03 once the owner opened the PostHog dashboard. A canary trade was seeded with distinctive notes and a distinctive P&L figure, and both came back as asterisks in the replay. The masked output is asterisks rather than blocked rectangles - that is what a pass looks like.
 
@@ -120,22 +175,38 @@ here is making them permanent instead of one-off.
 3. Layer 4 next - needs the dev deploy settled and a real test account.
 4. Layer 5 last, and only after 1-4 are clean - no point judging user experience against code that hasn't been proven to work yet.
 
-## Status (2026-08-03)
+## Status (2026-08-04)
 
-Layers 1-3: complete. **Layer 4: 2 of 3 done, 1 blocked.** **Layer 5: complete (4 of 4).**
+**Layers 1-5: complete.** Nothing in this plan is now blocked.
 
-One item remains, blocked on access rather than effort:
+The last open item, the Telegram connect flow, was closed 2026-08-04 once dev got
+its own BotFather bot. Both remaining access blockers are gone:
 
-- **Telegram connect flow (layer 4)** - needs a Telegram account that is not already linked. Running it on the live one would disconnect a working integration and drop real alerts until manually reconnected. The owner's account is connected and is to stay connected, so this needs either a second Telegram account or the separate dev bot described in `pendings/PENDING.md`.
+- **Telegram connect flow** - closed. Ran end to end on dev against
+  `@Liquidity_hq_dev_bot`, with prod's bot and the owner's prod connection
+  untouched. Previously impossible: dev and prod shared one bot, and Telegram
+  allows exactly one webhook per bot, so dev could never receive an update.
+- **PostHog replay masking** - closed 2026-08-03. Canary trade seeded, notes and
+  P&L came back as asterisks in the replay.
 
-**PostHog replay masking closed 2026-08-03** - the owner opened the dashboard, a
-canary trade was seeded, and the notes and P&L came back as asterisks in the
-replay. This was the last access-blocked item other than Telegram connect.
+### What running layer 4 actually bought
 
-Running layer 4 is also what surfaced the webhook-hijack defect (see
-`pendings/PENDING.md`) - a real prod bug that no amount of layer 1-3 testing
-would have found, because it only appeared when two environments touched the
-same live bot.
+Both times this layer was run it found something the cheaper layers could not,
+which is the argument for keeping it:
+
+- **2026-08-03: the webhook-hijack defect.** A real prod bug where an
+  unauthenticated GET repointed the live bot's webhook. Only observable because
+  two environments touched the same bot.
+- **2026-08-04: an RLS misconfiguration on dev** (`lhq_dev_user_settings`, RLS on
+  with zero policies = deny-all for the browser). Invisible to every server-side
+  test, because the service-role client bypasses RLS - writes succeeded and the
+  table looked healthy. Only a real browser reading its own row could see it.
+
+Both were silent failures that looked like success from the server's side. Layers
+1-3 would never have caught either.
+
+Layer 5's two runnable checks also found real defects (a stale FAQ answer, an
+incomplete trial email), which is the same argument again.
 
 Both layer 5 checks that could be run found real defects (a stale FAQ answer, an
 incomplete trial email), which is the argument for running the rest when the

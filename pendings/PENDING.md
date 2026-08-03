@@ -592,33 +592,73 @@ convention is intentional, left alone). First push was rejected (PAT lacked
 `workflow` scope) - fixed via a credential-manager reauth, then pushed clean.
 Gate is live on both branches.
 
+## ✅ Environments finally isolated — dev has its own bot (2026-08-04)
+
+Dev now runs `@Liquidity_hq_dev_bot` with its own `TELEGRAM_BOT_TOKEN` and its
+own registered webhook. Prod keeps `LiquidityHQ_bot`. **Both report
+`webhook_ok: true` at the same time**, which was structurally impossible before -
+Telegram allows exactly one webhook per bot, so whichever environment registered
+last owned it and the other was simply dead.
+
+This unblocked the last open QA item (`docs/QA_TEST_PLAN.md` layer 4), which then
+passed end to end - and in passing found the RLS bug below.
+
+Dev also got its own `CRON_SECRET` (a different value from prod's, deliberately).
+That was needed to call `setup-webhook` on dev, and it incidentally makes the
+other cron-gated routes callable there. Nothing is *scheduled* on dev -
+cron-job.org still points only at prod, which is what stops dev firing real
+alerts.
+
+### ⚠️ Prod bot token was rotated the same day
+
+While opening BotFather to create the dev bot, prod's live token was exposed on
+screen. It was revoked and rotated immediately, `TELEGRAM_BOT_TOKEN` updated on
+`liquidity-hq-prod`, and the webhook re-registered with `?force=1`.
+
+Two things worth remembering from that:
+- **Revoking a token clears its webhook.** Outbound alerts kept working (they use
+  the token directly) but *incoming* `/start` was dead until re-registration.
+  After any token rotation, re-run `setup-webhook?force=1`.
+- `?force=1` matters: a plain call short-circuits when the URL already matches
+  and would skip re-applying `TELEGRAM_WEBHOOK_SECRET`.
+
+## ⛔ OPEN — dev RLS drift, one table fixed, worth a periodic re-check
+
+`lhq_dev_user_settings` had RLS **enabled with zero policies** - deny-all, not
+allow-all. Service-role clients (webhooks, cron, `/api/*`) bypass RLS, so writes
+worked and every server-side check passed; only the browser was blocked, and it
+got empty results rather than an error.
+
+Symptom: Telegram connect wrote `telegram_chat_id` successfully while `/alerts`
+insisted "Not connected" through a full reload. Masked for a long time because
+`SettingsProvider` caches to localStorage, so any browser that had ever read the
+row kept showing the cached copy.
+
+Fixed by migration `add_missing_rls_policies_lhq_dev_user_settings`, mirroring
+prod's three policies exactly. Prod was always correct - this was dev drift.
+
+A full sweep of all 28 `lhq_dev_*` tables found no other genuine gap: the dev
+zero-policy list matches prod's (server-only tables where deny-all is intended),
+and `lhq_dev_price_alerts`' single `for all` policy is equivalent to prod's four
+per-command ones. The comparison query is in `docs/QA_TEST_PLAN.md` - worth
+re-running after any schema work on dev, since this drift was silent.
+
 ## ❓ OPEN — YOUR action (can't do from code)
 
-### 1. A separate BotFather bot for dev — the only item blocking anything
-
-Dev and prod share `LiquidityHQ_bot`. Since `8dec569` dev can no longer steal
-prod's webhook by accident, but whichever environment registered last still owns
-it, so **Telegram cannot be exercised on dev at all** - a `/start` sent while
-testing dev is answered by prod. That in turn blocks the last open QA item
-(`docs/QA_TEST_PLAN.md` layer 4, full connect flow), which otherwise needs a
-second Telegram account.
-
-Fix: one new bot from BotFather, its token as `TELEGRAM_BOT_TOKEN` on
-`liquidity-hq-dev`, then a single `setup-webhook` call against dev. Free, a few
-minutes. Until then treat prod as the only environment where Telegram is real,
-and expect dev's `/alerts` to show its bot-unhealthy banner permanently -
-that banner is correct, not a fault.
-
-### 2. Supabase Pro — see the decision item at the top of this file
+### 1. Supabase Pro — see the decision item at the top of this file
 
 Still Free, still zero backups. Parked until revenue by your call; listed here
 only so it is not mistaken for handled.
 
-### Branch/deploy state (2026-08-03)
+### 2. Nothing else is blocking
 
-`dev` = `82c27fb`, `main` = `952dcbc` (a merge of the same content), nothing
-unmerged. Prod is live on `952dcbc`, dev on `82c27fb`, CI green on both. The
-previous text here described the 2026-08-01 state and had gone stale.
+The dev-bot item that used to sit here is done (above). No QA item is waiting on
+you.
+
+### Branch/deploy state (2026-08-04)
+
+`dev` = `32b2e86`, `main` = `40a5096` (a merge of the same content), nothing
+unmerged. Prod live on `40a5096`, dev on `32b2e86`, CI green on both.
 
 ## 🔭 DEFERRED — tied to unfinished payment feature
 
