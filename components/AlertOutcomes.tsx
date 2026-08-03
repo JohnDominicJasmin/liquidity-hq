@@ -5,7 +5,6 @@
 // of lhq_live_signals) - writes only ever happen server-side via the alert cron.
 import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
-import { COIN_LABELS, type CoinId } from '@/lib/marketStore';
 import { StatRow } from '@/components/BacktestStatsUI';
 import Tip from '@/components/Tip';
 import EmptyState from '@/components/EmptyState';
@@ -27,13 +26,6 @@ interface FireRow {
 const RULE_ORDER = ['squeeze', 'ema_cross', 'distribution', 'rsi', 'whales'];
 
 function fmtPct(n: number): string { return (n >= 0 ? '+' : '') + n.toFixed(2) + '%'; }
-function timeAgo(iso: string): string {
-  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
-}
 
 function ruleLabel(t: (key: any) => string, key: string): string {
   switch (key) {
@@ -92,8 +84,6 @@ export default function AlertOutcomes() {
     return { key, label: ruleLabel(t, key), count: rr.length, winRate, avgPct };
   }).filter((x): x is NonNullable<typeof x> => x !== null);
 
-  const recent = rows.slice(0, 12);
-
   return (
     <div className="card" style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -121,28 +111,13 @@ export default function AlertOutcomes() {
         </div>
       )}
 
-      {recent.length > 0 && (
-        <div style={{ borderTop: '0.5px solid var(--bdr)', paddingTop: 10 }}>
-          <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--txt3)', marginBottom: 6 }}>
-            {t('ALERT_OUTCOMES_RECENT_FIRES')}
-          </div>
-          {recent.map((r, i) => {
-            const pending = !r.resolved_24h;
-            const pct = r.outcome_pct_24h;
-            const col = pending ? 'var(--txt3)' : (pct ?? 0) >= 0 ? '#34d399' : '#f87171';
-            return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 'var(--fs-caption)' }}>
-                <span style={{ fontWeight: 700, color: 'var(--txt)', minWidth: 40 }}>{COIN_LABELS[r.coin as CoinId] ?? r.coin.toUpperCase()}</span>
-                <span style={{ color: 'var(--txt3)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</span>
-                <span style={{ color: 'var(--txt3)' }}>{timeAgo(r.fired_at)}</span>
-                <span style={{ color: col, fontWeight: 700, minWidth: 56, textAlign: 'right' }}>
-                  {pending ? t('ALERT_OUTCOMES_PENDING_LABEL') : fmtPct(pct!)}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {/* The per-fire "Recent Fires" list that used to sit here has been removed.
+          It was the second of two near-identical lists on this page (the other,
+          the app-wide "Recently Fired" buffer, went on 2026-08-03) and it still
+          read as a feed of individual events on a page whose job is the user's
+          own alerts. The win-rate summary above is what actually makes this card
+          worth showing - it is the honest track record, aggregated, and it does
+          not invite the reader to mistake app-wide signals for their own. */}
     </div>
   );
 }
