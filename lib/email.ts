@@ -318,10 +318,18 @@ export async function sendTrialEndingEmail(args: TrialEndingArgs): Promise<boole
       <p style="margin:0 0 12px">
         Your account stays open and free after that - but these go back to locked:
       </p>
+      <!-- Keep this list in step with what is actually gated. Audited against
+           every LockedFeatureCard call site and lib/limits.ts GATED_TFS: the
+           Confluence Score, on-chain scores, macro context and Dry Powder were
+           all Pro-gated but missing here, so the email undersold the loss by
+           four features - including the Confluence Score, which the FAQ leads
+           on as a headline Pro feature. -->
       <ul style="margin:0 0 12px;padding-left:20px">
         <li>The 11 AI analysis tools</li>
+        <li>The Confluence Score</li>
         <li>Fast timeframes (1 minute, 5 minute, 15 minute)</li>
         <li>Backtesting</li>
+        <li>On-chain scores, macro context, and Dry Powder</li>
         <li>Telegram and push alerts</li>
         <li>Price alerts</li>
       </ul>
