@@ -23,9 +23,9 @@ function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-function fmtDateHeader(iso: string, t: TFn): string {
+function fmtDateHeader(iso: string, t: TFn, now: number): string {
   const d = new Date(iso);
-  const today = new Date();
+  const today = new Date(now);
   const isToday = d.toDateString() === today.toDateString();
   return isToday ? t('ECON_CALENDAR_WIDGET_TODAY') : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
@@ -37,6 +37,19 @@ export default function EconCalendarWidget() {
   const { t } = useLabels();
   const [events, setEvents]   = useState<CalEvent[] | null>(null);
   const [error, setError]     = useState(false);
+
+  // "Now" is state, not a Date.now() call in the render body. Calling the clock
+  // during render makes render impure - two renders with identical props can
+  // disagree - which is what react-hooks/purity objects to. It was also a real
+  // bug: the cutoff below only re-evaluated when something else happened to
+  // re-render the widget, so an event that had already started could sit in the
+  // list indefinitely. The minute tick matches the granularity the rows are
+  // displayed at.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,11 +63,19 @@ export default function EconCalendarWidget() {
   }, []);
 
   const upcoming = (events ?? [])
-    .filter(e => new Date(e.isoDate).getTime() > Date.now() - 3_600_000)
+    .filter(e => new Date(e.isoDate).getTime() > now - 3_600_000)
     .sort((a, b) => new Date(a.isoDate).getTime() - new Date(b.isoDate).getTime())
     .slice(0, MAX_ROWS);
 
-  let lastDateKey = '';
+  // Date-header flags are computed up front rather than tracked with a mutable
+  // `let` that the .map() below reassigned while rendering. That only worked
+  // because map happens to run synchronously during render; it is precisely
+  // what react-hooks/immutability flags, and it goes wrong the moment rendering
+  // is interrupted and restarted. Each row now says whether it starts a new
+  // date by comparing against its predecessor, which needs no shared state.
+  const rows = upcoming
+    .map(e => ({ e, dateKey: fmtDateHeader(e.isoDate, t, now) }))
+    .map((row, i, all) => ({ ...row, showDateHeader: i === 0 || row.dateKey !== all[i - 1].dateKey }));
 
   return (
     <div className="av-rail-panel">
@@ -80,10 +101,7 @@ export default function EconCalendarWidget() {
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', padding: '6px 0' }}>{t('ECON_CALENDAR_WIDGET_NO_EVENTS')}</div>
       )}
 
-      {upcoming.map((e, i) => {
-        const dateKey = fmtDateHeader(e.isoDate, t);
-        const showDateHeader = dateKey !== lastDateKey;
-        lastDateKey = dateKey;
+      {rows.map(({ e, dateKey, showDateHeader }, i) => {
         const col = IMPACT_COLOR[e.impact] ?? IMPACT_COLOR.LOW;
         return (
           <div key={i}>

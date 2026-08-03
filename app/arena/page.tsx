@@ -1,6 +1,7 @@
 ﻿'use client';
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
+import { useNow } from '@/lib/useNow';
 import { useSearchParams } from 'next/navigation';
 import { useMarket, classifyFunding, CoinId, CoinData, COINS, computeSqueezeScore, computeFibLevels, BINANCE_SYMS, BYBIT_SYMS, computeCoinHealth } from '@/lib/marketStore';
 import { GrokContext, buildCombinedPrompt, buildQuickPrompt, CombinedResult, ChartData, calcEMA, calcSMA, calcRSI, callGrokViaProxy, GrokUsageInfo } from '@/lib/grok';
@@ -136,6 +137,12 @@ const TF_FEATURE_LABEL_KEYS: Record<string, LabelKey> = {
 
 function ArenaContent() {
   const { t } = useLabels();
+  // Clock for the analysis-freshness display and the cache-age gate below.
+  // Both used to call Date.now() mid-render, which meant the "just now" label
+  // and the expiry check only moved when something else re-rendered the page -
+  // a stale result could keep claiming to be fresh indefinitely. 30s is half
+  // the smallest bucket the freshness text distinguishes.
+  const nowMs = useNow(30_000);
   const { store } = useMarket();
   const { latestHeadlines, econEvents, whaleAlerts } = useNews();
   const { user, loading: authLoading, entitled } = useAuth();
@@ -1602,7 +1609,7 @@ function ArenaContent() {
 
       {readError && <div className="arena-err">{readError}</div>}
 
-      {result && !dismissedResults.has(selectedCoin) && Date.now() - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
+      {result && !dismissedResults.has(selectedCoin) && nowMs - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
         const sigCol = result.signal === 'LONG' ? '#34d399' : result.signal === 'LEAN LONG' ? '#86efac' : result.signal === 'SHORT' ? '#f87171' : result.signal === 'LEAN SHORT' ? '#fca5a5' : '#9ca3af';
         const verdictWord = result.signal === 'LONG' ? t('ARENA_VERDICT_LONG') : result.signal === 'LEAN LONG' ? t('ARENA_VERDICT_LEAN_LONG') : result.signal === 'SHORT' ? t('ARENA_VERDICT_SHORT') : result.signal === 'LEAN SHORT' ? t('ARENA_VERDICT_LEAN_SHORT') : t('ARENA_VERDICT_WAIT');
         const sigGrad = result.signal.includes('LONG') ? 'linear-gradient(160deg,#5ff0b0,#34d399)'
@@ -1638,7 +1645,7 @@ function ArenaContent() {
           prevQuickSignal &&
           prevQuickSignal !== result.signal
         );
-        const secsDiff = Math.floor((Date.now() - result.analyzedAt) / 1000);
+        const secsDiff = Math.floor((nowMs - result.analyzedAt) / 1000);
         const freshness = secsDiff < 60 ? t('ARENA_FRESHNESS_JUST_NOW') : secsDiff < 3600 ? t('ARENA_FRESHNESS_MINUTES_AGO', { n: Math.floor(secsDiff/60) }) : t('ARENA_FRESHNESS_HOURS_AGO', { n: Math.floor(secsDiff/3600) });
         // Live invalidation/target-hit check - the entry/stop/target grid used to be a
         // static snapshot from whenever the analysis ran: price could blow straight

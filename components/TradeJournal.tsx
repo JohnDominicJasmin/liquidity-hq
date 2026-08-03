@@ -379,6 +379,11 @@ function Inner() {
   };
 
   const addRule = (partial: Omit<TradingRule, 'id'>) => {
+    // Date.now() as an id source is impure by definition - that is the entire
+    // point of an id. This only ever runs from a click or a form submit (see
+    // addPreset and the "add rule" button), never during render, so the purity
+    // rule is being conservative about a function it cannot prove is a handler.
+    // eslint-disable-next-line react-hooks/purity
     persistRules([...rules, { ...partial, id: Date.now().toString() }]);
   };
 

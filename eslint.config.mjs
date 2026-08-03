@@ -20,15 +20,30 @@ const eslintConfig = defineConfig([
   {
     // ── Pre-existing backlog, deliberately non-blocking ────────────────────
     // eslint-plugin-react-hooks v6 ships the React Compiler rule set, which
-    // flags patterns this app has used since before the rules existed: 117
-    // errors across 67 files, ~75 of them react-hooks/set-state-in-effect.
+    // flags patterns this app has used since before the rules existed. The
+    // first run reported 117 of these across 67 files.
     //
-    // These are demoted to warnings, NOT because they are wrong - most are
-    // fair - but because the alternative is a 67-file refactor of live,
-    // revenue-path code performed solely to switch CI on. That is a worse
-    // trade than shipping the lint gate now and paying the backlog down
-    // deliberately. Warnings still print on every run, so the count stays
-    // visible instead of vanishing.
+    // Since then the classes that were fixable have been fixed - every
+    // react-hooks/purity warning is gone (they were mostly frozen clocks:
+    // relative timestamps that never advanced), plus use-memo, and the
+    // exhaustive-deps cases that were hiding stale closures. The count is now
+    // ~100, and what remains splits roughly into:
+    //
+    //   ~73  set-state-in-effect  - mostly SSR hydration guards (localStorage
+    //                               and matchMedia do not exist on the server,
+    //                               so the real value has to land after mount)
+    //                               and fetch-then-setState. Clearing these
+    //                               means useSyncExternalStore or a data layer,
+    //                               not an edit.
+    //   ~15  refs                 - deliberate, commented ref-writes in the
+    //                               chart and EMA-strategy engines that exist
+    //                               to stop refetch loops.
+    //    ~6  immutability         - hoisting order inside long providers.
+    //
+    // Demoted to warnings, NOT because they are wrong - most are fair - but
+    // because clearing them means restructuring live, revenue-path code, and
+    // that is its own project rather than a step in switching CI on. Warnings
+    // print on every run, so the count stays visible instead of vanishing.
     //
     // What this DOES gate today: every @next/next rule and the React
     // correctness rules, all at error. So new violations of those fail CI.

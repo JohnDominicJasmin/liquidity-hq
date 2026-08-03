@@ -103,13 +103,19 @@ export default function OnChainScore() {
       });
       if (!res.ok) {
         const e = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(e.error ?? t('ON_CHAIN_SCORE_REQUEST_FAILED'));
+        // Sentinel, not a message. Anything the server actually said is passed
+        // through verbatim; REQUEST_FAILED means it said nothing useful and the
+        // render path should supply the wording. Keeping t() out of here is
+        // what lets this callback declare its dependencies honestly - it could
+        // not include `t`, so the strings it built were stuck in whichever
+        // language was active on first render.
+        throw new Error(e.error ?? 'REQUEST_FAILED');
       }
       const result = await res.json() as OnChainData;
       setData(result);
       saveCache(result);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('ON_CHAIN_SCORE_FETCH_ERROR'));
+      setError(e instanceof Error ? e.message : 'FETCH_ERROR');
     } finally {
       setLoading(false);
     }
@@ -178,7 +184,11 @@ export default function OnChainScore() {
       {/* Error */}
       {error && (
         <div style={{ padding: '8px 14px', fontSize: 'var(--fs-caption)', color: '#f87171', background: 'rgba(248,113,113,0.06)' }}>
-          {error}
+          {/* The two sentinels set by the fetch above resolve to labels here;
+              anything else is a real message from the server and is shown as-is. */}
+          {error === 'REQUEST_FAILED' ? t('ON_CHAIN_SCORE_REQUEST_FAILED')
+            : error === 'FETCH_ERROR' ? t('ON_CHAIN_SCORE_FETCH_ERROR')
+            : error}
         </div>
       )}
 

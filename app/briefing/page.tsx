@@ -124,6 +124,9 @@ function buildBriefingContext(
   coinRows: Array<{ id: CoinId; c: MarketStore['coins'][CoinId] }>,
   urgentEcon: Array<{ type: string; name: string; h: number; impact: string; dt: Date }>,
   recentGeo:  Array<{ tag: string; headline: string }>,
+  // Passed in rather than read from the clock inside, so the "in Nh" / "Nm ago"
+  // lines describe the same instant as the events list the caller just built.
+  nowMs: number,
   jpyUsd?: number | null,
 ): string {
   // UTC, not the viewer's clock: this string is fed to Grok as context, and a
@@ -163,7 +166,7 @@ function buildBriefingContext(
   if (urgentEcon.length) {
     lines.push('', 'MACRO EVENTS (recent + upcoming):');
     urgentEcon.forEach(e => {
-      const lh = (e.dt.getTime() - Date.now()) / 3600000;
+      const lh = (e.dt.getTime() - nowMs) / 3600000;
       if (lh < 0) {
         const minsAgo = Math.round(-lh * 60);
         lines.push(`  ⚡ JUST RELEASED: ${e.type} - ${e.name} (${minsAgo}m ago - check news for actual print)`);
@@ -189,6 +192,11 @@ export default function MorningBriefing() {
   const { usage, setUsage }                    = useGrokUsage();
   const { t }                                   = useLabels();
   const [now, setNow]           = useState<Date>(localNow);
+  // Milliseconds form of the same ticking clock. The event/freshness maths
+  // below used to call Date.now() directly, which both made render impure and
+  // quietly ignored this state - meaning the "next 24h" and "already released"
+  // cutoffs did not actually move with the minute tick that exists right here.
+  const nowMs = now.getTime();
   const [generating, setGen]    = useState(false);
   const [briefErr, setBriefErr] = useState('');
   const [jpyUsd, setJpyUsd]     = useState<number | null>(null);
@@ -210,6 +218,11 @@ export default function MorningBriefing() {
     try {
       if (text) {
         sessionStorage.setItem('lhq_brief', text);
+        // Stamping when the brief was actually written has to read the real
+        // clock, not the render-scoped `now` below - setBrief runs from the
+        // generate handler, not during render, so this is genuinely a side
+        // effect and the timestamp needs to be accurate rather than stable.
+        // eslint-disable-next-line react-hooks/purity
         sessionStorage.setItem('lhq_brief_ts', String(Date.now()));
       } else {
         sessionStorage.removeItem('lhq_brief');
@@ -268,7 +281,7 @@ export default function MorningBriefing() {
       const token = sb ? (await sb.auth.getSession()).data.session?.access_token : undefined;
       if (!token) { setBriefErr(t('BRIEFING_SESSION_EXPIRED')); setGen(false); return; }
 
-      const ctx = buildBriefingContext(store, coinRows, urgentEcon, recentGeo, jpyUsd);
+      const ctx = buildBriefingContext(store, coinRows, urgentEcon, recentGeo, nowMs, jpyUsd);
       const res = await fetch('/api/briefing', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -301,7 +314,7 @@ export default function MorningBriefing() {
     .slice(0, 3);
 
   /* Events - upcoming (next 24h) + recently released (last 6h) */
-  const urgentEcon = econEvents.filter(e => { const lh = (e.dt.getTime() - Date.now()) / 3600000; return lh > -6 && lh < 24; }).slice(0, 8);
+  const urgentEcon = econEvents.filter(e => { const lh = (e.dt.getTime() - nowMs) / 3600000; return lh > -6 && lh < 24; }).slice(0, 8);
   const recentGeo  = geoEvents.slice(0, 4);
 
   /* Macro colors */
@@ -333,7 +346,7 @@ export default function MorningBriefing() {
       : { txt: t('BRIEFING_DOM_ALTS_ACTIVE'), col: '#34d399' }
     : null;
 
-  const futureEcon = urgentEcon.filter(e => e.dt.getTime() > Date.now());
+  const futureEcon = urgentEcon.filter(e => e.dt.getTime() > nowMs);
   const noEvents = futureEcon.length === 0 && recentGeo.length === 0 && (!whaleAlerts || whaleAlerts.length === 0);
 
   /* Yen Watch */
@@ -483,7 +496,7 @@ export default function MorningBriefing() {
               try {
                 const ts = sessionStorage.getItem('lhq_brief_ts');
                 if (!ts) return null;
-                const mins = Math.round((Date.now() - parseInt(ts)) / 60_000);
+                const mins = Math.round((nowMs - parseInt(ts)) / 60_000);
                 const label = mins < 1 ? 'just now' : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`;
                 return <div className="mb-brief-cached">{t('BRIEFING_BRIEF_CACHED', { label, mins: Math.max(0, 240 - mins) })}</div>;
               } catch { return null; }
@@ -743,7 +756,7 @@ export default function MorningBriefing() {
         )}
 
         {urgentEcon.map((e, i) => {
-          const lh = (e.dt.getTime() - Date.now()) / 3600000;
+          const lh = (e.dt.getTime() - nowMs) / 3600000;
           const isPast = lh < 0;
           return (
           <div key={i} className="mb-event-row">

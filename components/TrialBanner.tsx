@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useLabels } from '@/lib/labels';
+import { useNow } from '@/lib/useNow';
 
 // Slim in-flow countdown shown to users inside their 14-day Pro trial. Rendered
 // in normal document flow at the top of the content area (NOT position:fixed) so
@@ -11,9 +12,14 @@ import { useLabels } from '@/lib/labels';
 export default function TrialBanner() {
   const { isTrial, trialEndsAt } = useAuth();
   const { t } = useLabels();
+  // Called before the early returns below - hooks cannot sit behind a branch.
+  // The countdown only ever renders whole days, so a minute tick is more than
+  // enough to keep it honest; the point is that it advances at all, which a
+  // Date.now() read during render did not.
+  const now = useNow(60_000);
   if (!isTrial || trialEndsAt == null) return null;
 
-  const msLeft = trialEndsAt - Date.now();
+  const msLeft = trialEndsAt - now;
   if (msLeft <= 0) return null;
   const daysLeft = Math.ceil(msLeft / 86_400_000);
   const label = daysLeft === 1

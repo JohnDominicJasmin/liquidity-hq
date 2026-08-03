@@ -21,11 +21,17 @@ export default function MarketRead() {
     return () => clearInterval(timer);
   }, []);
 
+  // Hoisted out of the dependency list below: a computed member expression
+  // (store.coins[store.selectedCoin]) is not something React can compare
+  // reliably, and react-hooks/use-memo rejects it. Same value, same identity,
+  // now expressed as a plain reference.
+  const selectedCoinData = store.coins[store.selectedCoin];
+
   const read = useMemo(
     () => computeMarketRead(store, manualFund),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [store.fng, store.selectedCoin, store.cbPremiumPct, store.btcExchangeNetFlow,
-     store.coins[store.selectedCoin], manualFund],
+     selectedCoinData, manualFund],
   );
 
   // Ambient urgency glow, preserved from RaidMeter (body[data-rpm-level] drives

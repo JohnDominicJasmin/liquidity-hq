@@ -156,10 +156,29 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     await sb?.auth.signOut();
   };
 
+  // Trial expiry is compared against a clock held in state rather than a
+  // Date.now() call in the render body. Beyond the purity rule, the old form
+  // was wrong in a way users would eventually hit: isTrial only re-evaluated
+  // when something else happened to re-render this provider, so on a long-lived
+  // tab a trial could keep reporting active well after it had actually ended.
+  //
+  // Deliberately NOT a polling tick. Every page in the app sits under this
+  // provider, so an interval here would re-render the whole tree on a timer for
+  // a value that changes exactly once. This schedules a single timeout for the
+  // moment the trial ends, re-renders once, and then does nothing further.
+  const [clock, setClock] = useState(() => Date.now());
+  useEffect(() => {
+    if (trialEndsAt === null) return;
+    const ms = trialEndsAt - Date.now();
+    if (ms <= 0) return; // already past; `clock` is newer than trialEndsAt already
+    const id = setTimeout(() => setClock(Date.now()), ms + 1_000);
+    return () => clearTimeout(id);
+  }, [trialEndsAt]);
+
   const isPro   = role === 'pro';
   // Trial is active only for non-paid users still inside the window. Paid Pro
   // ignores the trial flag entirely (isPro already grants everything).
-  const isTrial = !isPro && trialEndsAt !== null && trialEndsAt > Date.now();
+  const isTrial = !isPro && trialEndsAt !== null && trialEndsAt > clock;
 
   return (
     <AuthContext.Provider value={{

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useNews } from './NewsProvider';
+import { useNow } from '@/lib/useNow';
 
 function decodeEntities(str: string): string {
   if (typeof document === 'undefined') return str;
@@ -22,12 +23,11 @@ export default function NewsTicker() {
   const [duration, setDuration] = useState(60);
   const [dismissedTs, setDismissedTs] = useState(0);
 
-  // Tick every 60s so aged-out items drop from the ticker without waiting for new alerts
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 60_000);
-    return () => clearInterval(id);
-  }, []);
+  // Tick every 60s so aged-out items drop from the ticker without waiting for
+  // new alerts. Previously a bare counter whose only purpose was to invalidate
+  // the memo below; useNow does the same thing and also supplies the clock the
+  // memo needs, which stops it reading Date.now() mid-render.
+  const nowMs = useNow(60_000);
 
   // Restore the last dismissal so a dismissed batch stays hidden across reloads -
   // the ticker only comes back when a newer alert arrives (ts beyond this mark).
@@ -49,7 +49,7 @@ export default function NewsTicker() {
   // backwards. Ranking first means the cap now discards the least important
   // items instead of the most recent ones.
   const sorted = useMemo(() => {
-    const now = Date.now() / 1000;
+    const now = nowMs / 1000;
     const order = { red: 0, amber: 1, purple: 2 } as const;
     return alerts
       .filter(a => {
@@ -65,7 +65,7 @@ export default function NewsTicker() {
       })
       .slice(0, 12);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [alerts, tick]);  // tick forces re-evaluation of timestamps every 60s
+  }, [alerts, nowMs]);  // nowMs forces re-evaluation of timestamps every 60s
 
   const topType = sorted.some(a => a.type === 'red')
     ? 'red'

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useNow } from '@/lib/useNow';
 import { withAlpha } from '@/lib/color';
 import { useLabels } from '@/lib/labels';
 
@@ -27,11 +27,7 @@ function daysUntil(date: Date): number {
 export default function CycleDayCounter() {
   const { t } = useLabels();
   const latest = HALVINGS[HALVINGS.length - 1];
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 60 * 60 * 1000); // refresh hourly
-    return () => clearInterval(id);
-  }, []);
+  const now = useNow(60 * 60 * 1000); // day counter - hourly is plenty
   const day        = Math.floor((now - latest.date.getTime()) / 86_400_000);
   const daysToNext = Math.ceil((NEXT_HALVING_EST.getTime() - now) / 86_400_000);
 

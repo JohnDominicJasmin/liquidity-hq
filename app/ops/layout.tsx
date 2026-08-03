@@ -26,10 +26,17 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<'checking' | 'ok' | 'denied'>('checking');
   const [role, setRole] = useState<'owner' | 'staff' | null>(null);
 
+  // Depend on the id, not the user object. Supabase hands back a new user
+  // object on every token refresh even when it is the same person, so keying
+  // this admin check on the object would re-run it on a timer for no reason.
+  // The id is what actually decides the answer. Referencing userId rather than
+  // user inside the effect makes that dependency honest instead of omitted.
+  const userId = user?.id;
+
   useEffect(() => {
     if (isLoginRoute) return;
     if (loading) return;
-    if (!user) { router.replace('/ops/login'); return; }
+    if (!userId) { router.replace('/ops/login'); return; }
     // Reset on every run (incl. account switch) so a stale 'ok' from a prior
     // session can never render the dashboard for the new user.
     setState('checking');
@@ -47,7 +54,7 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
       }
     })();
     return () => { alive = false; };
-  }, [user?.id, loading, isLoginRoute, router]);
+  }, [userId, loading, isLoginRoute, router]);
 
   async function signOutAndSwitch() {
     await getSupabase()?.auth.signOut();

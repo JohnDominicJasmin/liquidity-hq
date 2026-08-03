@@ -71,7 +71,7 @@ export default function GlobalMacroContext() {
         analysis?: string; error?: string;
       };
 
-      if (!res.ok) { setErrMsg(json.error ?? t('GLOBAL_MACRO_CONTEXT_FETCH_FAILED')); setState('error'); return; }
+      if (!res.ok) { setErrMsg(json.error ?? ''); setState('error'); return; }
 
       const text = json.analysis ?? '';
       const signal      = parseMacroSection(text, 'MACRO_SIGNAL').replace(/[^A-Z_]/g, '');
@@ -150,7 +150,12 @@ export default function GlobalMacroContext() {
       )}
       {state === 'error' && (
         <div style={{ padding: '8px 0' }}>
-          <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 6 }}>{errMsg}</div>
+          {/* Empty errMsg means the server gave no message of its own, so the
+              generic label stands in. Translating here rather than in the fetch
+              callback keeps `t` out of that callback's dependencies - it had to
+              be omitted there, which froze the message to first-render's
+              language and left it stale after a locale switch. */}
+          <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 6 }}>{errMsg || t('GLOBAL_MACRO_CONTEXT_FETCH_FAILED')}</div>
           <button onClick={fetchData} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}>{t('GLOBAL_MACRO_CONTEXT_RETRY')}</button>
         </div>
       )}

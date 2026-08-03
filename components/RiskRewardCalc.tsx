@@ -49,12 +49,21 @@ export default function RiskRewardCalc({ coin }: { coin: CoinId | '' }) {
   // Coin is picked one level up (shared across all calculator tabs) - fill
   // Entry with its live price whenever the shared pick changes, including
   // on mount (e.g. switching back to this tab).
-  useEffect(() => {
-    if (!coin) return;
+  //
+  // Adjusted during render rather than from an effect. This is React's
+  // documented shape for "reset some state when a prop changes", and it is
+  // what react-hooks/set-state-in-effect is pointing at. The effect version
+  // painted once showing the previous coin's entry price, then immediately
+  // painted again with the new one. Setting during render re-renders before
+  // anything reaches the screen, so that flash of the wrong price never
+  // happens. Guarded by seededCoin, so it fires once per coin change and does
+  // not fight the user while they type.
+  const [seededCoin, setSeededCoin] = useState<CoinId | ''>('');
+  if (coin && coin !== seededCoin) {
+    setSeededCoin(coin);
     const p = store.coins[coin]?.price;
     if (p != null) setEntry(String(p));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coin]);
+  }
 
   const result = calc(
     parseFloat(entry)   || 0,

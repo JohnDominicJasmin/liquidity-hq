@@ -20,6 +20,12 @@ export default function CoinIcon({ coin, size = 22, color, bg }: { coin: CoinId;
     );
   }
   return (
+    // Deliberately a plain <img>, not next/image. These are 22px PNGs already
+    // bundled in public/coin-icons and dozens render at once in coin lists and
+    // tables. next/image would put each one through the image optimizer for no
+    // gain at that size, and none of them is ever the LCP element - the rule is
+    // arguing about a cost this particular image does not have.
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={src}
       alt={coin}
