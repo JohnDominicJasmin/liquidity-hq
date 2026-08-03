@@ -4509,8 +4509,7 @@ body.landing .mobile-tab-bar,
 body.landing .news-ticker,
 body.landing .gchat-fab,
 body.landing .gchat-panel,
-body.landing .ob-checklist,
-body.landing .ob-overlay { display: none !important; }
+body.landing .ob-checklist { display: none !important; }
 body.landing .app-content {
   max-width: 100% !important;
   width: 100% !important;
@@ -4951,86 +4950,15 @@ html[lang="ar"] .lp-h1-accent {
    ONBOARDING TOUR & SETUP CHECKLIST
    ══════════════════════════════════════════════ */
 
-/* Overlay */
-.ob-overlay {
-  position: fixed; inset: 0; z-index: 9000;
-  background: rgba(0,0,0,0.72);
-  display: flex; align-items: center; justify-content: center;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  animation: ob-fade-in 0.2s ease;
-}
+/* The modal styles that used to live here (.ob-overlay, .ob-modal, .ob-skip,
+   .ob-step-*, .ob-dots/.ob-dot*, .ob-actions, .ob-btn*) were for an earlier
+   version of the onboarding flow. components/OnboardingFlow.tsx was rewritten
+   against an `obw-` prefix (obw-select, obw-menu, obw-row, obw-grid, ...) and
+   nothing in the app has carried an `ob-` modal class since. They were dead
+   weight in every shipped stylesheet.
 
-/* Modal */
-.ob-modal {
-  position: relative;
-  background: var(--bg1);
-  border: 1px solid rgba(26,122,255,0.3);
-  border-radius: 20px;
-  padding: 40px 32px 32px;
-  max-width: 440px; width: calc(100% - 32px);
-  box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(26,122,255,0.08);
-  text-align: center;
-  animation: ob-slide-up 0.25s ease;
-}
-
-.ob-skip {
-  position: absolute; top: 16px; right: 16px;
-  background: none; border: none;
-  color: var(--txt3); font-size: var(--fs-caption); cursor: pointer;
-  padding: 4px 8px; border-radius: 6px;
-  transition: color 0.15s, background 0.15s;
-}
-.ob-skip:hover { color: var(--txt); background: var(--bg2); }
-
-.ob-step-icon { font-size: 3rem; line-height: 1; margin-bottom: 16px; }
-.ob-step-title {
-  font-size: var(--fs-section); font-weight: 700; color: var(--txt);
-  margin: 0 0 12px; line-height: 1.3;
-}
-.ob-step-body {
-  font-size: var(--fs-label); color: var(--txt2); line-height: 1.65;
-  margin: 0 0 28px;
-}
-
-/* Step dots */
-.ob-dots {
-  display: flex; align-items: center; justify-content: center;
-  gap: 6px; margin-bottom: 24px;
-}
-.ob-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: var(--bg3); border: none; cursor: pointer; padding: 0;
-  transition: width 0.4s cubic-bezier(0.16,1,0.3,1),
-              border-radius 0.4s cubic-bezier(0.16,1,0.3,1),
-              background 0.3s ease;
-}
-.ob-dot-active {
-  width: 22px; border-radius: 4px;
-  background: var(--purple);
-}
-@media (prefers-reduced-motion: reduce) {
-  .ob-dot { transition: background 0.2s ease; }
-}
-
-/* Action buttons */
-.ob-actions { display: flex; align-items: center; justify-content: center; gap: 12px; }
-.ob-btn {
-  padding: 10px 24px; border-radius: 10px;
-  font-size: var(--fs-label); font-weight: 600; cursor: pointer;
-  border: none; transition: opacity 0.15s, transform 0.1s;
-}
-.ob-btn:active { transform: scale(0.97); }
-.ob-btn-primary { background: var(--purple); color: #fff; min-width: 130px; }
-.ob-btn-primary:hover { opacity: 0.88; }
-.ob-btn-ghost {
-  background: var(--bg2); color: var(--txt2);
-  border: 0.5px solid rgba(255,255,255,0.08);
-}
-.ob-btn-ghost:hover { color: var(--txt); }
-
-@keyframes ob-fade-in  { from { opacity: 0 } to { opacity: 1 } }
-@keyframes ob-slide-up { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: none } }
+   Still live and kept below: the Setup checklist (.ob-checklist, .ob-cl-*) and
+   .ob-fade-up, all of which components/SetupChecklist.tsx really uses. */
 
 /* ══════════════════════════════════════════════
    ONBOARDING WIZARD (terminal) - .obw-*
@@ -5265,30 +5193,13 @@ html[lang="ar"] .lp-h1-accent {
   .obw-main { padding: var(--space-5) var(--space-4); }
 }
 
-/* ── OnboardingFlow animations ── */
-@keyframes obFadeUp   { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
-@keyframes obCheckIn  { from { transform:scale(0) rotate(-45deg); opacity:0; } to { transform:scale(1) rotate(0); opacity:1; } }
-@keyframes obGlow     { 0%,100% { opacity:.3; } 50% { opacity:.6; } }
-@keyframes obFadeDown { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
-.ob-fade-up   { animation: obFadeUp 0.38s cubic-bezier(0.16,1,0.3,1) both; }
-.ob-check-in  { animation: obCheckIn 0.28s cubic-bezier(0.175,0.885,0.32,1.275) both; }
-.ob-glow      { animation: obGlow 3.5s ease-in-out infinite; }
-.ob-fade-down { animation: obFadeDown 0.18s ease both; }
-.ob-opt:hover       { filter: brightness(1.07); }
-.ob-next:not(:disabled):hover { filter:brightness(1.1); transform:translateY(-1px); }
-.ob-next      { transition: all 0.2s !important; }
-.ob-country:hover { background: rgba(26,122,255,0.08) !important; }
-.ob-back:hover    { color: #9296b5 !important; }
-/* Token, not a hex. This is unscoped - no media query, no [data-theme] - so the
-   hardcoded #4e5374 applied in BOTH themes and silently killed the themed
-   `.ob-skip:hover { color: var(--txt) }` defined earlier. In dark mode that
-   inverted the interaction: the button sits at --txt3 (#767d92) and hovering
-   moved it to #4e5374, which is DARKER against a dark background, so hover made
-   Skip harder to see instead of easier. --txt is brighter in dark and near-black
-   in light, which is the behaviour the earlier rule already intended; the
-   !important is kept so this still wins whatever specificity conflict it was
-   added for. */
-.ob-skip:hover    { color: var(--txt) !important; }
+/* ── OnboardingFlow animations ──
+   Only obFadeUp survives. The rest of this cluster (.ob-check-in, .ob-glow,
+   .ob-fade-down and the hover rules for .ob-opt / .ob-next / .ob-country /
+   .ob-back / .ob-skip, plus the obCheckIn/obGlow/obFadeDown keyframes they
+   drove) targeted the pre-rewrite onboarding modal and matched nothing. */
+@keyframes obFadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+.ob-fade-up { animation: obFadeUp 0.38s cubic-bezier(0.16,1,0.3,1) both; }
 
 /* ── Setup Checklist (fixed bottom-right) ── */
 .ob-checklist {
@@ -5333,7 +5244,6 @@ html[lang="ar"] .lp-h1-accent {
   color: var(--green); font-weight: 700;
 }
 .ob-cl-row:not(.done) .ob-cl-chk { color: var(--txt3); }
-.ob-cl-ico { font-size: var(--fs-label); flex-shrink: 0; }
 .ob-cl-lbl { font-size: var(--fs-caption); color: var(--txt2); flex: 1; line-height: 1.3; }
 .ob-cl-row.done .ob-cl-lbl { text-decoration: line-through; }
 .ob-cl-arrow { font-size: 0.6875rem; color: var(--txt3); flex-shrink: 0; }
@@ -5370,9 +5280,8 @@ html[lang="ar"] .lp-h1-accent {
 
 /* Mobile */
 @media (max-width: 420px) {
-  .ob-modal { padding: 32px 20px 24px; border-radius: var(--radius-card); }
-  .ob-step-icon { font-size: 3rem; }
-  .ob-step-title { font-size: 1.25rem; }
+  /* .ob-modal / .ob-step-icon / .ob-step-title dropped with the rest of the
+     pre-rewrite onboarding modal - they had nothing to style. */
   .ob-checklist { right: 12px; bottom: 128px; width: 220px; }
 }
 
