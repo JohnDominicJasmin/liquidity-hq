@@ -19,6 +19,7 @@ import SetupChecklist from './SetupChecklist';
 import GrokUsageProvider from './GrokUsageProvider';
 import PlatformFooter from './PlatformFooter';
 import PWAInstallPrompt from './PWAInstallPrompt';
+import CookieConsent from './CookieConsent';
 import MaintenanceScreen from './MaintenanceScreen';
 import AnnouncementBanner from './AnnouncementBanner';
 import TrialBanner from './TrialBanner';
@@ -107,6 +108,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="auth-shell-lang"><LanguageNavSwitcher /></div>
                 {children}
               </div>
+              {/* Also on the auth screens: analytics fires here too, and this
+                  is often the first page a visitor lands on. */}
+              <CookieConsent />
             </SettingsProvider>
           </AuthProvider>
         </LabelsProvider>
@@ -136,6 +140,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     <GrokChat />
                     <SetupChecklist />
                     <PWAInstallPrompt />
+                    <CookieConsent />
                   </GrokUsageProvider>
                 </OnboardingProvider>
               </NewsProvider>

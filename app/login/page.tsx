@@ -410,6 +410,22 @@ function LoginInner() {
             </>
           )
         )}
+
+        {/* Sign-in-wrap consent. PlatformFooter returns null on /login, so this
+            was the only page in the app showing no terms at all - and the one
+            where the account, and with it the agreement, is actually created.
+            Rendered outside the auth-method branches so it covers all three
+            paths (Google OAuth, magic link, email+password) rather than just
+            the password form. Links open in a new tab so reading the terms
+            never discards a half-filled form. */}
+        <div className="login-legal">
+          <p className="login-legal-text">{t('LOGIN_LEGAL_CONSENT')}</p>
+          <div className="login-legal-links">
+            <a href="/terms" target="_blank" rel="noopener noreferrer">{t('LOGIN_LEGAL_TERMS')}</a>
+            <a href="/privacy" target="_blank" rel="noopener noreferrer">{t('LOGIN_LEGAL_PRIVACY')}</a>
+            <a href="/disclaimer" target="_blank" rel="noopener noreferrer">{t('LOGIN_LEGAL_DISCLAIMER')}</a>
+          </div>
+        </div>
       </div>
 
       {/* Skip link */}

@@ -57,7 +57,21 @@ export default function MarketRead() {
         </div>
       </div>
 
-      <div className="mr-track"><div suppressHydrationWarning className="mr-fill" style={{ width: read.score + '%' }} /></div>
+      {/* Scale anchor: 0/100 endpoints plus a tick at 70, the "good" cutoff
+          (lib/marketRead.ts band thresholds) - the number alone gave no sense
+          of where 78 sits on the range or what counts as good. Plain "≥70" is
+          numerals + a symbol, not prose, so it skips the label/i18n system. */}
+      <div className="mr-track-wrap">
+        <div className="mr-track">
+          <div suppressHydrationWarning className="mr-fill" style={{ width: read.score + '%' }} />
+          <div className="mr-track-good-tick" style={{ left: '70%' }} title="Good ≥ 70" />
+        </div>
+        <div className="mr-scale">
+          <span>0</span>
+          <span className="mr-scale-good">≥ 70 good</span>
+          <span>100</span>
+        </div>
+      </div>
 
       <div className="mr-factors">
         {read.factors.map(f => (

@@ -107,10 +107,10 @@ export function oi1hSignal(pct: number | null, oiTrend?: string | null): { txt: 
     ? (trendTxt ?? (isPos ? 'OI spike - rising' : 'OI spike - unwinding'))
     : trendTxt ?? (Math.abs(pct) < 2 ? 'Stable' : isPos ? 'Rising' : 'Unwinding');
 
-  const col = isSpike && isPos ? '#34d399'
-    : isSpike && !isPos        ? '#f87171'
-    : isPos                    ? '#86efac'
-    : pct < 0                  ? '#fca5a5'
+  const col = isSpike && isPos ? 'var(--green)'
+    : isSpike && !isPos        ? 'var(--red)'
+    : isPos                    ? 'var(--green-soft)'
+    : pct < 0                  ? 'var(--red-soft)'
     : 'var(--txt3)';
 
   return { txt, col };

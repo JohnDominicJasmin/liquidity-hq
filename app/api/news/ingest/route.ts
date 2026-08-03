@@ -5,6 +5,7 @@ import { apiError } from '@/lib/apiError';
 import { classifyNews, GEO_KEYWORDS } from '@/lib/classify';
 import { fetchAllFeeds, fetchFinnhubCategory } from '@/lib/newsFeeds';
 import { recordApiHealth } from '@/lib/apiHealth';
+import { dedupKey } from '@/lib/newsDedup';
 import { T } from '@/lib/tables';
 
 // Scheduled owner of the news pipeline. Every open tab used to run this work
@@ -30,9 +31,7 @@ type Row = {
   image: string | null;
 };
 
-function dedupKey(headline: string): string {
-  return headline.slice(0, 60).toLowerCase();
-}
+// Key generation lives in lib/newsDedup.ts.
 
 function matchesGeo(text: string): boolean {
   const t = text.toLowerCase();
@@ -94,7 +93,7 @@ export async function POST(req: Request) {
       const severity = classifyNews(item.title) ?? (item.cat === 'crypto' ? 'purple' : null);
       if (!severity && !matchesGeo(item.title)) continue;
       add({
-        dedup_key: dedupKey(item.title),
+        dedup_key: dedupKey(item.title, item.link),
         headline: item.title,
         source: item.source,
         published_at: new Date(item.pubDate * 1000).toISOString(),

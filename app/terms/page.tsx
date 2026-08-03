@@ -9,6 +9,12 @@ const SECTIONS = [
   { titleKey: 'TERMS_SECTION_PROHIBITED_USES_TITLE', bodyKey: 'TERMS_SECTION_PROHIBITED_USES_BODY' },
   { titleKey: 'TERMS_SECTION_IP_TITLE', bodyKey: 'TERMS_SECTION_IP_BODY' },
   { titleKey: 'TERMS_SECTION_THIRD_PARTY_DATA_TITLE', bodyKey: 'TERMS_SECTION_THIRD_PARTY_DATA_BODY' },
+  // Sits immediately before Limitation of Liability on purpose: the warranty
+  // disclaimer says what is not promised, the liability cap says what is not
+  // owed when it goes wrong. /disclaimer already covers this in substance
+  // ("feeds can lag, drop, or briefly disagree with the exchange you actually
+  // trade on"), but that page is a notice - this one is the contract.
+  { titleKey: 'TERMS_SECTION_WARRANTY_TITLE', bodyKey: 'TERMS_SECTION_WARRANTY_BODY' },
   { titleKey: 'TERMS_SECTION_LIABILITY_TITLE', bodyKey: 'TERMS_SECTION_LIABILITY_BODY' },
   { titleKey: 'TERMS_SECTION_INDEMNIFICATION_TITLE', bodyKey: 'TERMS_SECTION_INDEMNIFICATION_BODY' },
   { titleKey: 'TERMS_SECTION_TERMINATION_TITLE', bodyKey: 'TERMS_SECTION_TERMINATION_BODY' },
