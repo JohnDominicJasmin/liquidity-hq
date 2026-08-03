@@ -227,6 +227,39 @@ shortcut: 1/4 on a weak password, 4/4 on a strong one.
 
 Nothing open left over from this arc either.
 
+## ✅ /alerts had two near-identical lists — one removed 2026-08-03 (`8c8558f`, on `dev`)
+
+User question: *"why do we have two types of list in alerts page? one is recent
+fires and recent fired wtf is this?"* — fair, they were genuinely confusable.
+
+**Kept: "Recent Fires" (Alert Track Record).** Backed by `lhq_alert_fires`,
+shows win/loss outcomes, and its heading says plainly it is the app's own
+record rather than the viewer's.
+
+**Removed: "Recently Fired".** It sat *inside* the Price Alerts card, right
+under the user's own alert rows, so the layout implied it listed *their* alerts
+firing. It never did. Source was `lib/alertHistory.ts`, a process-local array
+shared by every visitor and wiped on restart — so what you saw depended on which
+Render instance answered and how long it had been up. Two users on the same page
+could legitimately see different lists, and a restart emptied it for everybody.
+
+Not a data leak: private price alerts were already filtered out upstream, so the
+buffer only ever held market-wide signals. The problem was purely that a
+shared, unreliable, already-duplicated list wore a heading that claimed to be
+personal.
+
+Deleted `app/api/telegram/history/route.ts` (its only consumer) and
+`lib/alertHistory.ts`; dropped the `recordFires()` call from the alert cron.
+`const fired` in that cron was **kept** — `recordFires()` was not its only
+reader; it also feeds the run log line and the cron's JSON response.
+
+Nine labels became orphaned (`ALERTS_RECENTLY_FIRED_LABEL`,
+`ALERTS_REFRESH_BUTTON`, `ALERTS_NO_HISTORY_TITLE/_SUB`, `ALERTS_AGO_*`,
+`ALERTS_AUTO_REFRESH_NOTE`) and are gone from `LABEL_KEYS`. Their `lhq_labels`
+rows are left in both projects — never looked up, so harmless. Consequence for
+the i18n bookkeeping below: the seeded row count now **exceeds** the registry
+count by 9 per locale. Do not treat that gap as missing work.
+
 ## ⛔ OPEN — code (mine)
 
 ### Coinglass v4 migration — DEFERRED until there is revenue (decided 2026-07-30)
