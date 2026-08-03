@@ -632,20 +632,44 @@ prod:
 | en | 2570 |
 | ko / zh / ar / ru | 2416 each |
 
-**154 keys behind per locale.** Nothing is broken - `app/api/labels/route.ts`
-layers English underneath every locale, so the gap renders as English rather
-than raw keys. But two of the affected surfaces matter more than the rest:
+**154 keys behind per locale** when measured. Nothing is broken -
+`app/api/labels/route.ts` layers English underneath every locale, so the gap
+renders as English rather than raw keys, which is why it went unnoticed.
 
-- **`TRIAL_BANNER_*`** (all 5 keys) - the trial countdown is the main
-  conversion surface, and it is English for every non-English user.
-  `TrialBanner.tsx` is correctly wired to `t()`; only the rows are missing.
-- **`ALERTS_CONNECT_*`** (the whole Telegram connect wizard) - the onboarding
-  flow the FAQ walks users through.
+**✅ The two worst surfaces are now done (2026-08-03)** - migration
+`20260803g_labels_i18n_trial_banner_telegram.sql`, applied to both projects:
 
-If i18n is unpaused for anything, those two first.
+- **`TRIAL_BANNER_*`** (5 keys) - the trial countdown, i.e. the main conversion
+  surface. Was counting a paying-trial user down in English.
+- **`ALERTS_CONNECT_*`** (18 keys) - the whole Telegram connect wizard, the
+  onboarding flow the FAQ walks users through.
 
-**Separately: the language switcher offers locales that have zero rows.**
-`vi`, `pt-BR`, `tr`, `es`, `id` are all selectable in the UI and have no
-translations in either project, so choosing one silently renders English.
-Either seed them or hide them from the switcher until seeded - offering a
-language and then ignoring the choice is worse than not offering it.
+23 keys x ko/zh/ar/ru = 92 rows. Both surfaces now at 24/24 in all five
+locales. Verified live on the dev deploy at 7 days remaining:
+`프로 체험판 전체 이용 가능 - 7일 남음` and
+`النسخة التجريبية PRO وصول كامل - الأيام المتبقية: 7`.
+
+Two things worth carrying forward for whoever does the rest:
+
+- **Placeholders are load-bearing.** `{days}` and `{time}` are interpolated by
+  `lib/labels.ts`; drop a brace and the user sees the literal token. The
+  generator guards this - keep that guard.
+- **Arabic plurals.** Arabic has four plural forms and each label is one
+  template for every count, so an inflected phrase is wrong somewhere no matter
+  what. `TRIAL_BANNER_DAYS_LEFT` uses a label:value construction
+  (`الأيام المتبقية: {days}`) which sidesteps agreement entirely. Russian uses
+  the abbreviated `дн.` for the same reason. Prefer that shape over a
+  grammatically inflected one for any count-bearing string.
+
+**Still outstanding: ~131 keys per locale** across the rest of the app, plus the
+`LOGIN_LEGAL_*` and `CONSENT_*` keys added today (English-only by design, and
+now visible as English islands on an otherwise translated login page).
+
+**Separately: the language switcher offered locales that have zero rows.**
+`vi`, `pt-BR`, `tr`, `es`, `id` were all selectable in the UI with no
+translations in either project, so choosing one silently rendered English.
+**✅ Fixed 2026-08-03** - `lib/locales.ts` now exports `AVAILABLE_LOCALES`
+(the seeded five) and both pickers use it. `SUPPORTED_LOCALES` deliberately
+stays complete: it is the validation list, so a preference already saved as
+`tr` still resolves to English instead of erroring. Re-adding a language is a
+one-line change to `AVAILABLE_LOCALES` once its rows land.
