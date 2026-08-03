@@ -48,7 +48,7 @@ function fmtUSD(v: number) {
 export default function PositionSizer({ coin }: { coin: CoinId | '' }) {
   const router = useRouter();
   const { store } = useMarket();
-  const { settings, update: updateSettings } = useSettings();
+  const { settings, loading: settingsLoading, update: updateSettings } = useSettings();
   const { t } = useLabels();
   const searchParams = useSearchParams();
   const [account, setAccount] = useState(() => searchParams.get('acc') ?? '');
@@ -80,14 +80,25 @@ export default function PositionSizer({ coin }: { coin: CoinId | '' }) {
   }
 
   /* Seed from Settings (replaces old localStorage read) - URL params win, so a
-     shared link always reproduces the sender's exact setup. */
+     shared link always reproduces the sender's exact setup.
+
+     Waits for settingsLoading to clear, and that guard is load-bearing rather
+     than cosmetic. SettingsProvider starts at DEFAULT_SETTINGS, whose
+     account_size is 1000 and risk_pct 1.5 - both truthy. Without the guard this
+     effect ran on mount against those placeholders, seeded 1000/1.5, and set
+     seededRef. When the user's real settings arrived a moment later the effect
+     re-ran and hit the early return, so a saved account size was silently
+     discarded and the calculator always started at the default.
+
+     On a position-size calculator that is not a cosmetic flash: every figure it
+     produced was scaled to an account balance the user had not chosen. */
   useEffect(() => {
-    if (seededRef.current) return;
+    if (settingsLoading || seededRef.current) return;
     seededRef.current = true;
     const urlParams = new URLSearchParams(window.location.search);
     if (!urlParams.has('acc')  && settings.account_size) setAccount(String(settings.account_size));
     if (!urlParams.has('risk') && settings.risk_pct)      setRiskPct(String(settings.risk_pct));
-  }, [settings.account_size, settings.risk_pct]);
+  }, [settingsLoading, settings.account_size, settings.risk_pct]);
 
   /* Sync every input to the URL so the setup - entry, stop, TP, account,
      risk - is shareable, same pattern as Arena's coin+tf sync. Coin itself
