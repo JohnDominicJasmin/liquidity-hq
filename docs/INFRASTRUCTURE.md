@@ -174,10 +174,34 @@ deliberate exceptions. Set as of 2026-08-05:
 
 | Variable | Why not |
 |---|---|
-| `TELEGRAM_BOT_TOKEN` and the other `TELEGRAM_*` | **One webhook per bot.** If two services register a webhook against the same token, the last one wins and silently steals every alert from the other. That exact bug cost a day here (see `pendings/PENDING.md`). QA needs its own bot or no Telegram at all |
 | `NEXT_PUBLIC_POSTHOG_KEY` | QA test runs would land in product analytics and corrupt the numbers |
 | `LEMONSQUEEZY_WEBHOOK_SECRET` etc. | Payments. Staging has no business holding these |
 | `CRON_SECRET` | Cron routes fail **closed** without it (`lib/cronAuth.ts`), which is the desired state on staging |
+
+### Telegram on QA — currently dev's bot, safe only by accident
+
+**`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` and `TELEGRAM_WEBHOOK_SECRET` on the
+qa service are copies of dev's.** That is not the intended end state.
+
+Why it has not broken anything yet: registering a webhook goes through
+`/api/telegram/setup-webhook`, which is gated by `checkCronAuth`, and
+`CRON_SECRET` is **unset** on qa. `checkCronAuth` fails **closed** with no secret
+configured, so the route answers 401 and qa cannot re-register the webhook.
+Verified 2026-08-05: `GET /api/telegram/setup-webhook` on qa returns
+`{"error":"Unauthorized"}`.
+
+**So the safety property is: qa must not have `CRON_SECRET` while it shares
+dev's bot token.** Setting `CRON_SECRET` on qa without first giving it its own
+bot hands qa the ability to point dev's bot at itself, silently stealing every
+alert. That is the bug that already cost a day on this project.
+
+What qa can still do today: send outbound messages into the real dev chat during
+test runs. Noisy, not destructive. It cannot receive anything - the webhook
+points at dev - so `/start`, account linking and bot commands are untestable on
+qa either way.
+
+The fix is a dedicated QA bot; see `pendings/PENDING.md`. Until then, treat
+`CRON_SECRET` on qa as forbidden rather than merely absent.
 
 `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is domain-locked. Copying dev's value is not
 enough — add `liquidity-hq-qa.onrender.com` to that widget's allowed domains in
