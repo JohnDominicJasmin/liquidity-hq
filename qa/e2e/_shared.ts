@@ -105,6 +105,40 @@ export const CLS_BUDGET: Record<string, number> = {
 export const CLS_GOOD = 0.1;
 
 /**
+ * Routes whose CLS is too UNSTABLE to assert any number against.
+ *
+ * Still measured and attached to the report on every run - the value stays
+ * visible, it just is not a pass/fail gate. Nothing here is "allowed"; it is
+ * unmeasurable-by-threshold, which is a WORSE state than a bad fixed number.
+ *
+ * /scanner, 10 consecutive identical loads on this branch (dev, i.e. WITH
+ * fix/scanner-layout-shift):
+ *
+ *   0.622  0.861  1.196  1.221  1.276  1.278  1.330  1.440  1.535  1.693
+ *   min 0.622   mean 1.245   max 1.693
+ *
+ * The same 10-run measurement on main, without the fix, was min 0.775,
+ * mean 1.471, max 2.312. So the fix helps - roughly 15% off the mean and 27%
+ * off the worst case - but /scanner is still 6x-17x the 0.1 "good" threshold
+ * and just as non-deterministic. An earlier 3-run sample of this branch read
+ * 0.432/0.691/0.454 and was reported as "fixed"; 10 runs show that was an
+ * undersampled fluke. Three samples are not enough for this route.
+ *
+ * No budget, because a budget was tried and failed immediately: 3 samples on
+ * main gave a max of 1.002, a budget of 1.10 was set from it, and the very next
+ * run measured 1.195. An unsized element yields a repeatable number; a ~3x
+ * spread on identical input means something races. A ceiling that survived the
+ * tail would need to be ~2.0, loose enough to catch no regression worth
+ * catching - and playwright.config.ts is explicit that a flaky pass is worse
+ * than a fail, because it teaches everyone to re-run until green.
+ *
+ * To retire this entry: fix the race, re-measure over >=10 runs, then give
+ * /scanner a real CLS_BUDGET, or delete it from here entirely if it gets under
+ * CLS_GOOD.
+ */
+export const CLS_UNSTABLE = new Set<string>(['/scanner']);
+
+/**
  * Settle a page: wait for hydration, then assert the stylesheet actually
  * applied.
  *
