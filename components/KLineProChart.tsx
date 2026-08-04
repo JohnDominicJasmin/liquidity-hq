@@ -1072,13 +1072,59 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
           try {
             if (bnSym) {
               const iv = periodToBnInterval(period);
-              const r  = await fetch(`https://api.binance.com/api/v3/klines?symbol=${bnSym}&interval=${iv}&limit=1500`);
-              const raw = await r.json() as (string | number)[][];
+              // Futures FIRST, then spot, then Bybit.
+              //
+              // This used to hit api.binance.com (spot) only, with no fallback,
+              // and a `catch` that silently called back with an empty array. If
+              // that one host was unreachable the user got a blank chart with no
+              // explanation - which is exactly what happened: verified live that
+              // api.binance.com fails from the browser while fapi.binance.com,
+              // the Binance websockets and Bybit all answer normally, and that
+              // the same spot URL returns 200 from a server. So it is blocked at
+              // the browser, not the network.
+              //
+              // That is not an edge case. Binance's SPOT API is geo-blocked in
+              // the US, and crypto-exchange API hosts are on common ad/privacy
+              // blocklists, so a whole class of users would only ever see an
+              // empty chart. Meanwhile the app already had the right answer
+              // elsewhere: MarketProvider's fetchKlines tries futures then spot.
+              // The chart just never got the same treatment.
+              //
+              // Futures is also the better default on its own merits - this is a
+              // perp-trading app, and fapi's candles are the ones the funding,
+              // OI and liquidation data all refer to.
+              const tryFetch = async (url: string): Promise<(string | number)[][] | null> => {
+                try {
+                  const res = await fetch(url);
+                  if (!res.ok) return null;
+                  const j = await res.json();
+                  return Array.isArray(j) && j.length ? j as (string | number)[][] : null;
+                } catch { return null; }
+              };
+              const raw =
+                await tryFetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${bnSym}&interval=${iv}&limit=1500`)
+                ?? await tryFetch(`https://api.binance.com/api/v3/klines?symbol=${bnSym}&interval=${iv}&limit=1500`)
+                ?? [];
               if (stale()) return; // superseded by a newer switch - drop it
-              const bars = raw.map(k => ({
+              let bars = raw.map(k => ({
                 timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
                 low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
               }));
+              // Last resort: this coin also exists on Bybit, which is a wholly
+              // different host and so survives a Binance-specific block.
+              if (!bars.length && bybitSym) {
+                const bIv = periodToBybitInterval(period);
+                try {
+                  const rb = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${bIv}&limit=1000`);
+                  const db = await rb.json() as { result?: { list?: string[][] } };
+                  if (stale()) return;
+                  bars = [...(db?.result?.list ?? [])].reverse().map(k => ({
+                    timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
+                    low: Number(k[3]), close: Number(k[4]), volume: Number(k[5]),
+                  }));
+                } catch { /* fall through to the empty-chart path below */ }
+              }
+              if (!bars.length) console.error('[chart] no kline source reachable for', bnSym, iv);
               if (bars.length) {
                 lastCloseRef.current = bars[bars.length - 1].close;
                 srSetRef.current(computeSRLevels(bars, bars[bars.length - 1].close));
