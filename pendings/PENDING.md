@@ -12,6 +12,24 @@ alert-cron cost/signal-quality plan) - fully superseded, xAI removed
 entirely from every alert type, also removed. LemonSqueezy payment-feature
 items (deferred, payments not live yet) are in `pendings/LEMONSQUEEZY.md`.
 
+**Full QA sweep 2026-08-04 → `pendings/QA_AUDIT_2026-08-04.md`.** Build gates,
+65-route API security, responsiveness at 1440px + 375px, accessibility, SEO,
+Core Web Vitals, tech debt. Re-verified against a clean rebuild with a
+stylesheet guard — headline numbers reproduced exactly (§9.1).
+
+No security defect found (33/33 OWASP probes rejected, incl. a forged
+`alg:none` owner token). Findings: every route fires ~450 browser-side Binance
+calls including static legal pages (§1.1 — this machine is already IP-banned by
+Binance, `HTTP 418`); the brand blue `#1A7AFF` with white text is 3.98:1, so the
+primary "Get Started Free" CTA and every nav pill fail AA (§4.3); `/scanner`
+column headers are 1.55:1 (§4.3); 159 sub-24px tap targets, ~85% from one footer
+component (§4.1); `/briefing` hydration mismatch (§5.1); zero canonical tags and
+one shared meta description sitewide (§6).
+
+Nothing in it is fixed — it is a handoff list. BOLA/IDOR is still **unverified**
+(needs two test tokens). Passed clean: zero horizontal overflow at both widths,
+CLS 0.000 everywhere, no RLS-disabled tables.
+
 ## ❓ YOUR decision — upgrade Supabase to Pro before real payments launch
 
 Checked live in the dashboard 2026-08-07: **the org is on the Free plan, and
