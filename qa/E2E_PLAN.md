@@ -1,12 +1,30 @@
 # E2E test suite + CI job — implementation plan
 
-**Written 2026-08-04 by the QA session.** The spec files and
-`playwright.config.ts` are already written and committed-ready. What remains is
-three shared-file changes and two decisions, listed below.
+**Written 2026-08-04. Largely CARRIED OUT on 2026-08-05** — see
+`pendings/QA_E2E_FINDINGS_2026-08-05.md` for what executing it actually found.
+This file is kept for its reasoning (§1 in particular); read the status table
+below before trusting any individual section.
 
-**Nothing here has been executed.** `npm install` was not run, `package.json`
-and `.github/workflows/ci.yml` were not modified — those are shared files the
-development session owns, and this needs to land as one coherent commit.
+| § | Item | Status |
+|---|---|---|
+| 1 | Why Playwright and not a hosted service | still the standing decision |
+| 2 | What exists | accurate, but the baselines it quotes are **superseded** — see below |
+| 3.1 | `package.json` scripts + devDependency | **done** |
+| 3.2 | `.gitignore` entries | **done** |
+| 3.3 | CI `e2e` job | **done** — `ci.yml`, `needs: build` |
+| 4.1 | Supabase env in CI | **decided: option A.** Needs 3 repo secrets — owner action, see the findings doc §4 |
+| 4.2 | Turnstile in CI | unchanged, still correct |
+| 5 | BOLA / IDOR | **still open. Still the biggest gap.** |
+| 6 | Suggested sequence | steps 1–5 done, step 6 outstanding |
+
+⚠️ **The baseline numbers quoted in §2 below are wrong.** Executing the suite
+showed tap targets are **217** (at the suite's 390×844), not 159, and that
+`/arena` and `/briefing` fail CLS where audit §3.2 claimed 0.000 everywhere.
+`qa/e2e/_shared.ts` is authoritative; the reasoning is in the findings doc §1.
+
+Executing it also found three defects in the suite itself — most importantly
+the mobile project silently defaulting to WebKit, so **all 108 mobile tests had
+never run**. "Typechecks and lints clean" was not evidence the suite worked.
 
 ---
 
@@ -45,11 +63,17 @@ Revisit if real users arrive and cross-browser/real-device coverage is needed.
 `qa/e2e/_shared.ts` exports `BASELINE`, the known-failing counts from the audit:
 
 ```ts
-tapTargetsUnder24:   159   // §4.1
+tapTargetsUnder24:   217   // §4.1 - CORRECTED 2026-08-05 from 159; see below
 controlsWithoutName:   4   // §4.2
 pagesWithoutH1:       13   // §6.4
 pagesWithCanonical:    0   // §6.2 - inverted, must only go UP
 ```
+
+The tap-target figure was corrected **upward**, which the rule below otherwise
+forbids. That was legitimate exactly once, because 159 was a mis-measurement of
+unchanged code rather than a number the app later regressed past: audit §4.1
+counted `/playbook`'s 55 `button.pb-star` controls as one table row. It is not
+precedent. `_shared.ts` carries the full reasoning inline.
 
 Every spec passes on today's code. A spec fails only when a count gets **worse**.
 When something is fixed, lower the baseline in the same commit — that is the ratchet.

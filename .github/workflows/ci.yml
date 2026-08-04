@@ -3,6 +3,13 @@ name: CI
 on:
   push:
     branches: [dev, main]
+  # Also on PRs, or CI only ever runs AFTER a merge - which is the one moment
+  # it cannot help. The convention makes the PR the review point (CONTRIBUTING
+  # section 4), so the checks have to be green before the merge button, not
+  # after. Covers PRs from any branch, including QA-authored ones, which a
+  # push trigger limited to [dev, main] never sees.
+  pull_request:
+    branches: [dev, main]
 
 jobs:
   build:
@@ -24,7 +31,7 @@ jobs:
       # Runs first because it is the fastest of the four steps.
       #
       # Fails on errors only. Warnings are printed but do not block - there are
-      # ~131 of them, a pre-existing React Compiler backlog documented in
+      # 93 of them, a pre-existing React Compiler backlog documented in
       # eslint.config.mjs. Deliberately no --max-warnings=0: it would either
       # force a 67-file refactor of live code today, or be set to a number
       # nobody maintains.
@@ -48,3 +55,59 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    # Only after lint/typecheck/unit/build are green. A broken build would
+    # produce 216 browser failures that all say "the build is broken", which
+    # buries the one line that actually explains it.
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Chromium only. Firefox and WebKit roughly triple install time, and this
+      # app ships as a Chromium-based PWA plus a Capacitor Android shell, so
+      # neither engine reflects a real user.
+      #
+      # Note playwright.config.ts pins `browserName: 'chromium'` on the mobile
+      # project. devices['iPhone 13'] defaults to WebKit, and without that pin
+      # every mobile test fails here with "Executable doesn't exist at
+      # .../webkit-2336" - which is what happened the first time this suite ran.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # playwright.config.ts's webServer runs `npm run build && npm start` on
+      # port 3100, so CI and local exercise the same production build.
+      #
+      # The NEXT_PUBLIC_* vars are inlined AT BUILD TIME, which is why they are
+      # set on this step rather than only at run time. Without them AuthProvider
+      # builds no Supabase client, /login never renders its form, and
+      # /api/ops/* throws "supabaseUrl is required" and answers 500 instead of
+      # the 401 the security specs assert.
+      #
+      # These point at the DEV Supabase project, never prod, and carry the anon
+      # key only - never the service-role key. The anon key is public by design
+      # and the dev project holds no real user data.
+      - name: Run E2E
+        run: npm run test:e2e
+        env:
+          CI: true
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ secrets.E2E_TURNSTILE_SITE_KEY }}
+
+      # Uploaded on failure too - that is the run you actually need to read.
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: qa/e2e-report/
+          retention-days: 14

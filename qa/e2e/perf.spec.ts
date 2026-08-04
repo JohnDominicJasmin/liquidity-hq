@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { settle } from './_shared';
+import { settle, CLS_BUDGET, CLS_GOOD } from './_shared';
 
 // Core Web Vitals + third-party request volume.
 //
@@ -34,9 +34,22 @@ test.describe('performance', () => {
         setTimeout(() => resolve({ lcp: Math.round(lcp), cls: +cls.toFixed(3) }), 1200);
       }));
 
-      // Measured 0.000 on every page in the audit. 0.1 is the "good" threshold;
-      // anything above means content is jumping during load.
-      expect(vitals.cls, `${route} CLS regressed to ${vitals.cls}`).toBeLessThan(0.1);
+      // Audit §3.2 claimed 0.000 everywhere. That was wrong - /arena and
+      // /briefing both shift visibly during load (see CLS_BUDGET in _shared.ts
+      // for the measurements and which element moves). Those two are held to a
+      // documented known-bad budget; every other route is held to the real
+      // 0.1 "good" threshold.
+      const budget = CLS_BUDGET[route] ?? CLS_GOOD;
+      const known = route in CLS_BUDGET;
+      expect(
+        vitals.cls,
+        known
+          ? `${route} CLS ${vitals.cls} exceeded its known-bad budget of ${budget}. ` +
+            `This route already fails the 0.1 "good" threshold; it just got worse. ` +
+            `Do NOT raise the budget - see CLS_BUDGET in qa/e2e/_shared.ts.`
+          : `${route} CLS regressed to ${vitals.cls} (budget ${budget}). Content is ` +
+            `jumping during load.`,
+      ).toBeLessThan(budget);
 
       // Measured 84-720ms locally. 2500ms is Google's "good" bar - generous
       // headroom so this only fires on a genuine regression.

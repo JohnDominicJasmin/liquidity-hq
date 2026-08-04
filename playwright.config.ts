@@ -15,7 +15,15 @@ const PORT = Number(process.env.E2E_PORT ?? 3100);
 export default defineConfig({
   testDir: './qa/e2e',
   // Each spec sweeps ~32 routes; the default 30s is not enough on a cold start.
-  timeout: 120_000,
+  //
+  // 240s, not 120s. Measured 2026-08-04: a 32-route sweep (a11y, seo) takes
+  // ~90s on this dev machine, i.e. 75% of a 120s budget before CI is even
+  // involved. A GitHub ubuntu-latest runner is slower, so 120s would have
+  // turned every sweep test into a timeout the first time it ran in CI - and a
+  // timeout reads as a product failure, not as "the budget was too tight".
+  // The per-route cost is settle()'s deliberate 2500ms hydration wait; that
+  // wait is load-bearing for measurement accuracy, so the budget moves, not it.
+  timeout: 240_000,
   expect: { timeout: 10_000 },
 
   // A flaky pass is worse than a fail - it teaches everyone to re-run until
@@ -43,7 +51,16 @@ export default defineConfig({
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
     // Real iPhone metrics + touch + mobile UA. The app is an installable PWA,
     // so 375px is a primary target, not an edge case.
-    { name: 'mobile', use: { ...devices['iPhone 13'] } },
+    //
+    // browserName MUST stay pinned to chromium. devices['iPhone 13'] carries
+    // `defaultBrowserType: 'webkit'`, so without this the whole mobile project
+    // silently tries to launch WebKit - which this repo deliberately does not
+    // install (E2E_PLAN.md §3.3: Chromium only, the app ships as a
+    // Chromium-based PWA + Capacitor Android shell). That mistake made all 71
+    // mobile tests fail in ~2ms with "Executable doesn't exist at
+    // ...webkit-2336", which reads like 71 product bugs rather than one config
+    // line.
+    { name: 'mobile', use: { ...devices['iPhone 13'], browserName: 'chromium' } },
   ],
 
   // Playwright builds and boots the app itself so CI and local behave the same.
