@@ -271,6 +271,14 @@ previous build until someone triggers a deploy. QA must do both:
 3. Confirm the deploy reaches `live` and re-check the "How to test" steps
    against production, not just the branch.
 
+**None of this is enforced by GitHub.** Branch protection needs GitHub Pro on a
+private repo, and this repo has neither, so nothing technically stops anyone
+pushing straight to `main` or merging their own work. Checked, not assumed - the
+API returns *"Upgrade to GitHub Pro or make this repository public to enable
+this feature"* for `main`, `qa` and `dev` alike. Every rule here is therefore a
+convention people choose to follow, which is worth knowing: the cost of
+breaking one is paid later and by someone else, not caught at push time.
+
 This is a deliberate safety property, not an oversight: a merge can be reviewed
 and corrected before it reaches users. Do not turn auto-deploy on without
 agreeing it first — several rules here assume the gap exists.
