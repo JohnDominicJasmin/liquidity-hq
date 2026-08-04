@@ -11,6 +11,13 @@ import { getAuthToken } from '@/lib/supabase';
 
 const WHALE_USD_THRESHOLD = 500_000; // $500k single trade = whale
 
+/* How often the REST fallback polls while the WebSocket is down, and how often
+   it retries the socket. See ws.onclose for why 5s was dangerous: restPoll
+   costs Binance request weight 80, so 5s was 960 weight/min per tab against a
+   6000/min per-IP budget, indefinitely. 30s holds it at 160. */
+const REST_FALLBACK_MS = 30_000;
+const WS_RETRY_MS      = 60_000;
+
 /* ── CVD Divergence Telegram alert ── */
 function sendCVDAlert(
   coin: string,
@@ -96,6 +103,9 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   const retriesRef = useRef(0);
   const urlIdxRef = useRef(0);
   const restTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /* Retries the socket while the REST fallback is running, so falling back is
+     temporary rather than permanent. See ws.onclose. */
+  const wsRetryRef = useRef<ReturnType<typeof setInterval> | null>(null);
   /* CVD divergence: 5-snapshot sliding window per coin */
   const cvdSnapsRef = useRef<Partial<Record<CoinId, Array<{ price: number; cvd: number }>>>>({});
   /* Whale dedup: track last seen aggTrade id per symbol */
@@ -165,6 +175,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     ws.onopen = () => {
       retriesRef.current = 0; urlIdxRef.current = 0;
       if (restTimerRef.current) { clearInterval(restTimerRef.current); restTimerRef.current = null; }
+      if (wsRetryRef.current)  { clearInterval(wsRetryRef.current);  wsRetryRef.current = null; }
       setStore(s => ({ ...s, wsStatus: 'Live' }));
     };
 
@@ -188,10 +199,38 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       urlIdxRef.current++;
       if (retriesRef.current <= 5) {
         setTimeout(() => startWSRef.current(), 2000 * retriesRef.current);
-      } else {
-        setStore(s => ({ ...s, wsStatus: 'Live · backup feed' }));
-        restPoll();
-        restTimerRef.current = setInterval(restPoll, 5000);
+        return;
+      }
+
+      /* ── REST fallback ──
+         This used to poll every 5 seconds, forever, and never retry the
+         socket. restPoll asks Binance for ticker/24hr across 45 symbols, which
+         costs request weight 80 (weight scales with symbol count: 21-100
+         symbols is the 80 band). At one call per 5s that is 960 weight per
+         minute against a 6000/minute per-IP budget - from a single tab, with
+         nothing else running, indefinitely. Two tabs, or one tab plus a normal
+         page load's other requests, and the visitor's own IP earns a Binance
+         ban within minutes. A ban returns 418 to every request from that IP,
+         including the chart's, so the whole app looks broken and the cause is
+         invisible.
+         30s holds the same fallback at 160 weight/minute. Prices come from the
+         socket whenever it is up; this path exists only while it is down, and
+         a slightly staler backup beats a banned IP. */
+      setStore(s => ({ ...s, wsStatus: 'Live · backup feed' }));
+      if (restTimerRef.current) clearInterval(restTimerRef.current);
+      restPoll();
+      restTimerRef.current = setInterval(restPoll, REST_FALLBACK_MS);
+
+      /* Falling back was permanent: after five failed reconnects nothing ever
+         opened a socket again, so a visitor who hit one bad minute stayed on
+         the REST feed for the life of the tab. Keep trying in the background;
+         ws.onopen tears both timers down when one succeeds. */
+      if (!wsRetryRef.current) {
+        wsRetryRef.current = setInterval(() => {
+          retriesRef.current = 0;
+          urlIdxRef.current  = 0;
+          startWSRef.current();
+        }, WS_RETRY_MS);
       }
     };
   }, [restPoll, updateCoin]);
@@ -1322,8 +1361,13 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
     return () => {
       intervals.forEach(clearInterval);
-      wsRef.current?.close();
+      /* Detach onclose before closing. Otherwise unmounting fires the handler
+         above, which starts the REST fallback and the socket-retry timer for a
+         provider that no longer exists - the polling then outlives the page
+         that needed it. */
+      if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); }
       if (restTimerRef.current) clearInterval(restTimerRef.current);
+      if (wsRetryRef.current)  clearInterval(wsRetryRef.current);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
