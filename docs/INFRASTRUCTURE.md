@@ -8,15 +8,18 @@ This file exists because the codebase alone doesn't tell the whole story. `docs/
 
 ## 1. Hosting — Render
 
-Three services, one Render account, org workspace shared with unrelated projects (`n8n workflows` is also used by other automations, not exclusive to LHQ).
+Four services, one Render account, org workspace shared with unrelated projects (`n8n workflows` is also used by other automations, not exclusive to LHQ).
 
 | Service | Render ID | Plan | Region | Branch | URL | Purpose |
 |---|---|---|---|---|---|---|
 | `liquidity-hq-prod` | `srv-d8aluf6l51nc73e1ijp0` | starter | Singapore | `main` | `liquidity-hq.onrender.com` | Production. `npm install; npm run build` → `npm start`. |
-| `liquidity-hq-dev` | `srv-d8prs6po3t8c739aepdg` | free | Singapore | `dev` | `liquidity-hq-dev.onrender.com` | Staging. Free plan — spins down after inactivity, first request after idle is slow/can fail. |
+| `liquidity-hq-dev` | `srv-d8prs6po3t8c739aepdg` | free | Singapore | `dev` | `liquidity-hq-dev.onrender.com` | Dev integration. Free plan — spins down after inactivity, first request after idle is slow/can fail. |
+| `liquidity-hq-qa` | `srv-d9p42ke1egvs73f8car0` | free | Singapore | `qa` | `liquidity-hq-qa.onrender.com` | **Staging — the environment QA tests against.** `autoDeploy: no`, like the other two: merging `dev` → `qa` moves the branch, not the environment. Uses the **dev** Supabase project (free plan caps the account at 2 active projects, so it has none of its own). Free plan, so it sleeps when idle. |
 | `n8n-workflows` | `srv-d6e4fkq4d50c73b8dpk0` | starter | Singapore | n/a (Docker image `n8nio/n8n:latest`) | `n8n-workflows-6ig6.onrender.com` | Self-hosted n8n instance, 5GB persistent disk. Shared across projects, not LHQ-exclusive. |
 
-Both `liquidity-hq-prod` and `liquidity-hq-dev` have `autoDeploy: no` — pushing to `main`/`dev` does **not** auto-deploy. Deploys are triggered manually (via Render dashboard, the `mcp__render__trigger_deploy` tool, or `git push` if that ever changes).
+All three LHQ services have `autoDeploy: no` — pushing to `main`/`dev` does **not** auto-deploy. Deploys are triggered manually (via Render dashboard, the `mcp__render__trigger_deploy` tool, or `git push` if that ever changes).
+
+`liquidity-hq-qa` is the same: `autoDeploy: no`. **No service in this project auto-deploys.** Whoever merges `dev` → `qa` triggers the qa deploy — normally dev, as part of handing the build to QA. CI runs on `qa` as well (`.github/workflows/ci.yml`), so a merge is checked even though it does not ship by itself.
 
 `render.yaml` in this repo has **no cron job definitions** — Render's own Cron Jobs feature is not used anywhere for this project (it has no free tier, unlike the alternatives below).
 

@@ -124,7 +124,8 @@ back and rewrite them; match the current form going forward.
 
 ## 3. Pull request template
 
-Every PR description uses this structure:
+This lives in `.github/pull_request_template.md`, so GitHub fills it in for you
+on every PR — you edit rather than remember. The structure:
 
 ```markdown
 ## Summary
@@ -146,6 +147,11 @@ Low / Medium / High — <one line on what could break if this goes wrong>
 ## Screenshots (if UI change)
 <before/after>
 ```
+
+The file also carries a **checklist** the prose version never had: the four
+build gates, plus the two questions that cause silent production failures —
+does this add a migration, and does this add an environment variable. Both are
+covered in §7.
 
 **Rules**
 
@@ -179,14 +185,50 @@ dev is done. Dev does **not** merge to `main` and does **not** deploy — see
 
 ### QA folder — when testing a PR
 
-1. ```
-   git fetch && git checkout <branch-name>
+1. **Test on the `qa` staging environment, not a local checkout.**
+
+   https://liquidity-hq-qa.onrender.com
+
+   That is the point of the `qa` branch: dev merges `dev` → `qa`, deploys it,
+   and QA gets a real running build with no setup. Testing a branch you built
+   locally tests your machine as much as the change.
+
+   Confirm you are looking at the right build before reporting anything — the
+   commit `qa` is on should contain the change under test. If it does not, say
+   so and stop; that is a finding about the handoff, not about the code.
+
+   **Never test on `main`.** The change is not there yet, so it will silently
+   pass.
+
+   **Testing locally is equally valid — as long as the QA folder is on the
+   `qa` branch:**
+
    ```
-   The **exact branch from the PR**. Never assume "latest `main`" — the change
-   under test is not on `main` yet, and testing `main` will silently pass.
+   git fetch && git checkout qa && git pull
+   npm install && npm run build && npm start
+   ```
+
+   Same code, no cold start, and the browser devtools are right there. Use it
+   whenever the staging service is asleep or the test needs the Network tab, a
+   throttled connection, or a device emulator. What matters is **which branch
+   you are on**, not which URL you point at — a local run on `qa` and the
+   staging URL are the same build.
+
+   Say which one a result came from when reporting. "Fails on localhost, passes
+   on staging" is itself a finding worth having.
+
+   *Also fine on a feature branch directly:* a change that has not reached `qa`
+   yet, or QA's own test tooling, still gets
+   `git fetch && git checkout <branch-name>` — the exact branch from the PR.
 2. Run the "How to test" steps **literally, in order**. Do not improvise a
    different path; if the steps are wrong or impossible, that itself is the
    finding and belongs in the report.
+
+   Two things about this environment will otherwise be reported as bugs and are
+   not: it runs on Render's **free plan**, so the first request after it has
+   been idle is slow and can time out — retry once. And it shares the **dev**
+   database, so data you did not create may already be there, and dev may
+   change it underneath you mid-test.
 3. Report as a PR comment (or directly to the user) in **plain pass/fail per
    step**:
 
@@ -198,29 +240,50 @@ dev is done. Dev does **not** merge to `main` and does **not** deploy — see
 4. If the QA folder has no `CLAUDE.md` / `CONTRIBUTING.md`, it has not pulled
    since this convention landed. **Pull `main` first**, then check out the
    feature branch, so both folders are working to the same standard.
-5. **When every step passes, QA merges the branch into `main`** and then
-   deploys — both steps, in that order. See below.
+5. **When every step passes, QA merges `qa` into `main`** and then deploys —
+   both steps, in that order. See below.
+
+   `qa` → `main`, not the feature branch → `main`. By the time QA is testing,
+   the change is already on `dev` and `qa`; merging the original feature branch
+   straight into `main` would skip whatever else `qa` was validated with, and
+   ship a combination nobody tested.
 
 ### Who merges and deploys
 
-**QA owns the merge to `main` and the deploy. Dev never does either.**
+**QA is the only one who merges `qa` → `main`, and the only one who deploys
+production. Dev never does either.** Not with permission, not "just this once",
+not when QA is busy. If production needs to move and QA is unavailable, that is
+a scheduling problem, not a reason to route around the rule — the whole value
+of the gate is that it is never the person who wrote the code.
 
-Merging is not the deploy. Both Render services are configured
+Dev's authority stops at `dev` and `qa`. Dev may merge its own feature branches
+into `dev`, may merge `dev` → `qa`, and may deploy nothing.
+
+Merging is not the deploy. **No** Render service auto-deploys; all three are
 `autoDeploy: "no"` / `autoDeployTrigger: "off"`:
 
-| Service | Branch | Auto-deploy |
-|---|---|---|
-| `liquidity-hq-prod` → liquidity-hq.com | `main` | **no** |
-| `liquidity-hq-dev` → liquidity-hq-dev.onrender.com | `dev` | **no** |
+| Service | Branch | Auto-deploy | Who deploys |
+|---|---|---|---|
+| `liquidity-hq-prod` → liquidity-hq.com | `main` | **no** | **QA only** |
+| `liquidity-hq-qa` → liquidity-hq-qa.onrender.com | `qa` | **no** | whoever merged `dev` → `qa` |
+| `liquidity-hq-dev` → liquidity-hq-dev.onrender.com | `dev` | **no** | dev, ask first |
 
 So **merging to `main` ships nothing on its own.** Production keeps serving the
 previous build until someone triggers a deploy. QA must do both:
 
-1. Merge the approved branch into `main` and push.
+1. Merge **`qa`** into `main` and push — not the original feature branch.
 2. **Trigger the deploy manually** — Render dashboard → `liquidity-hq-prod` →
    *Manual Deploy* → *Deploy latest commit*.
 3. Confirm the deploy reaches `live` and re-check the "How to test" steps
    against production, not just the branch.
+
+**None of this is enforced by GitHub.** Branch protection needs GitHub Pro on a
+private repo, and this repo has neither, so nothing technically stops anyone
+pushing straight to `main` or merging their own work. Checked, not assumed - the
+API returns *"Upgrade to GitHub Pro or make this repository public to enable
+this feature"* for `main`, `qa` and `dev` alike. Every rule here is therefore a
+convention people choose to follow, which is worth knowing: the cost of
+breaking one is paid later and by someone else, not caught at push time.
 
 This is a deliberate safety property, not an oversight: a merge can be reviewed
 and corrected before it reaches users. Do not turn auto-deploy on without
@@ -297,16 +360,61 @@ When in doubt: would a QA person need to look at this? If yes, write the body.
 
 ## 6. Branches and environments
 
+The flow is `dev` → `qa` → `main`.
+
 | Branch | Environment | Who pushes | Deploys automatically? |
 |---|---|---|---|
 | `<type>/<description>` | none | dev | n/a |
 | `dev` | liquidity-hq-dev.onrender.com | dev | **no** — trigger manually |
+| `qa` | **liquidity-hq-qa.onrender.com** | dev merges `dev` → `qa` | **no** — trigger manually |
 | `main` | liquidity-hq.com (production) | **QA only** | **no** — trigger manually |
 
 - Feature branches are cut from `dev` and merged back into `dev` via PR.
   **Dev merges its own feature branches into `dev`** — QA ownership starts at
   `main`, not here. Merging a feature branch into `dev` needs no permission
   and no QA pass.
+
+### The `qa` staging environment
+
+Merging `dev` → `qa` does **not** deploy. Like prod and dev, this service is
+`autoDeploy: no`, so the branch moving and the environment moving are two
+separate acts. **Whoever merges `dev` → `qa` also triggers the deploy** —
+normally dev, since getting a build in front of QA is part of the handoff. QA
+may trigger it too, for a re-deploy or after a config change.
+
+Render dashboard → `liquidity-hq-qa` → *Manual Deploy* → *Deploy latest
+commit*. Say in the PR or the handoff message that you have done it, otherwise
+QA tests the previous build and neither of you finds out for a while.
+
+| | |
+|---|---|
+| **URL** | https://liquidity-hq-qa.onrender.com |
+| **Render service** | `liquidity-hq-qa` (`srv-d9p42ke1egvs73f8car0`), free plan, Singapore |
+| **Database** | Supabase `liquidity-hq-dev` (`wdtjhrilakoitfcezxpx`) |
+| **Auto-deploy** | **no** — merge, then trigger manually |
+
+**It shares the dev database, and that is a known compromise, not the design.**
+The intent was a separate `liquidity-hq-qa` Supabase project. Supabase's free
+plan caps a *user* at two active projects across every org they own, and
+`liquidity-hq-dev` and `liquidity-hq-prod` already use both. Deleting two
+unrelated paused projects did not free a slot — the cap counts active projects
+only — and a new org does not help either, because the limit follows the
+account, not the org. Revisit when the org moves to Pro; a separate project or
+a real Supabase branch is the right answer and this is the stopgap.
+
+What that costs you in practice: QA test accounts and dev's own data live in
+the same database, so each can see and overwrite the other's rows. Do not read
+a clean QA run as proof the data path is clean.
+
+**What it must never do is point at production Supabase**
+(`qdpwhnvmhqgzijuwopso`). That is a hard rule. A staging environment that can
+write to production data is worse than having no staging environment, because
+it looks safe.
+
+**Free plan means it sleeps.** The service spins down after inactivity, so the
+first request after an idle period is slow and can time out. That is the tier,
+not a bug — retry once before reporting it. It also shares the ~500
+build-hour/month cap noted above.
 
 ### Cut a branch from wherever it is going to land
 
@@ -322,9 +430,42 @@ was cut from `dev` and merged to `main` to bootstrap the convention, and it
 silently carried 13 unrelated QA-scaffolding files onto `main` with it.
 
 - Normal work → cut from `dev`, merge back to `dev`. Reaches `main` later, as
-  part of a reviewed `dev` → `main` release.
-- Hotfix or anything that must land on `main` **now** → cut from `main`, and
-  merge it back into `dev` afterwards so the two do not drift.
+  part of a reviewed `dev` → `qa` → `main` release.
+- Hotfix or anything that must land on `main` **now** → cut from `main`, then
+  merge it back into **both `dev` and `qa`** afterwards, or the next release
+  silently reverts it. Merging into `dev` alone is not enough now that `qa`
+  exists.
+
+**A hotfix skips `qa`, which means it skips testing.** That is the trade you
+are making by calling something a hotfix, so make it deliberately: test it
+locally, keep it as small as you can defend, and say in the PR what was *not*
+verified. "Urgent" is a reason to shorten the queue, not a reason to pretend
+the risk is lower than it is.
+
+### `qa` is fast-forward only
+
+**Never commit directly to `qa`, and never open a PR against it from a feature
+branch.** The only thing that goes into `qa` is `dev`:
+
+```
+git checkout qa && git merge --ff-only dev && git push
+```
+
+If that command fails, `qa` has diverged and something has gone in the wrong
+way. Fix the divergence rather than forcing the merge — a `qa` that is not a
+prefix of `dev` means "tested on qa" no longer tells you anything about what is
+on `dev`, and the whole `dev` → `qa` → `main` model stops meaning what it says.
+
+After a release lands on `main`, `qa` keeps whatever it had; the next promotion
+fast-forwards it again from `dev`. Nothing needs resetting.
+
+### Delete the branch when it merges
+
+Once a feature branch is merged, delete it locally and on the remote. A branch
+list that still shows a dozen merged branches makes the two or three that
+matter impossible to find, and it is not obvious from the name which are live.
+`main`, `dev`, `qa` and anything with an open PR are the only branches that
+should exist.
 
 **If a merge to `main` is ever reverted**, note that the reverted commits stay
 in `main`'s history. Git treats them as already merged, so a later `dev` →
@@ -341,5 +482,125 @@ a cherry-pick, not another merge.
 - `main` is **release only, and QA-owned**. Dev never merges into it. QA merges
   after every "How to test" step passes, then triggers the production deploy
   as a separate manual action (§4, "Who merges and deploys").
-- Neither service auto-deploys. A merge is not a release; the deploy is always
+- **No** service auto-deploys. A merge is not a release; the deploy is always
   a deliberate second step.
+
+---
+
+## 7. Promoting a release
+
+The two merges that actually reach users — `dev` → `qa` and `qa` → `main` — get
+a PR like everything else. They are the merges with the highest blast radius,
+so they are the wrong place to skip the paper trail. A promotion PR needs no
+essay: a title, a list of what is going out, and the checklist below.
+
+### Before `dev` → `qa`
+
+1. CI green on `dev`.
+2. **Migrations applied.** See below — this is the one that takes prod down.
+3. Merge fast-forward only: `git checkout qa && git merge --ff-only dev`.
+4. **Trigger the qa deploy** and say you have. Merging does not deploy.
+
+### Before `qa` → `main`
+
+1. Every "How to test" step passed, on `qa` — not on a feature branch, not on
+   `dev`.
+2. CI green on `qa`.
+3. **Migrations already applied to production.** Before the deploy, never after.
+4. **Every environment variable the release needs exists on
+   `liquidity-hq-prod`.** Check, do not assume.
+5. Nothing unresolved that you would not want a user to find first.
+
+Then merge, deploy, and re-check the steps against production rather than
+against `qa`. A pass on staging is evidence, not proof: prod has different data,
+different environment variables and a different Supabase project.
+
+### Database migrations
+
+142 migration files exist and **nothing in this workflow used to mention them**,
+which is how a deploy ships code that reads a column the database does not have.
+Rules:
+
+- **Apply the migration before the deploy that needs it, never after.** New code
+  against an old schema is an outage; old code against a new schema is usually
+  fine. That asymmetry is why the order is fixed.
+- **Prefer additive migrations.** Add a column, backfill, then switch the code
+  over. Dropping or renaming in the same release as the code change leaves no
+  safe moment to roll back to.
+- A migration is **High risk** in §3 terms, always. It gets the full PR body and
+  the file named in it.
+- **`qa` shares the dev database.** Applying a migration "to qa" applies it to
+  dev, for everyone, immediately. There is no isolated place to try one — the
+  closest thing is a local Supabase, and if you are about to do something
+  destructive, that is where to do it.
+- Applied through the Supabase MCP (`apply_migration`), per
+  `docs/HANDOVER.md` §5.
+
+### Environment variables
+
+A variable that exists on one service and not another is a deploy that builds
+and then fails at runtime, usually in a way that fails soft and goes unnoticed.
+It has already happened here twice, with `CRON_SECRET` and
+`NEXT_PUBLIC_SENTRY_DSN`.
+
+- If a PR adds or renames a variable, **the PR says so**, and lists which
+  services still need it. That is a checklist item in the PR template.
+- Set it on `liquidity-hq-prod` **before** the release deploy, not after.
+- `NEXT_PUBLIC_*` variables are **inlined at build time**. Setting one after a
+  build does nothing until the next build — a rebuild is required, not a
+  restart.
+- Never copy a production secret onto `qa` or `dev`. If staging needs a key,
+  provision a separate one.
+
+### Tagging
+
+Tag `main` after a successful production deploy:
+
+```
+git tag -a v2026.08.05 -m "RSI aggregation, arena + scanner CLS, WebSocket fallback"
+git push origin v2026.08.05
+```
+
+Date-based, because this ships continuously and has no versioned API for semver
+to describe. There are **no tags at all** right now, which means the only way to
+answer "what is in production?" is to read the commit hash off the Render
+dashboard and hope it matches something. One command per release fixes that.
+
+---
+
+## 8. When production breaks
+
+**Roll back first, diagnose second.** A production incident is not the moment to
+work out what went wrong — get users onto something that works, then find out.
+
+### Rolling back a deploy
+
+Render keeps previous deploys. Dashboard → `liquidity-hq-prod` → **Deploys** →
+find the last known-good one → **Rollback to this deploy**. It redeploys that
+build; it does not touch git, so `main` still has the bad commit and someone
+must revert or fix it forward afterwards.
+
+This is fast and safe **as long as no migration shipped with the bad release.**
+
+### Rolling back when a migration shipped
+
+You mostly cannot, and this is worth understanding before you need it.
+
+Rolling the *code* back is easy. Rolling the *schema* back is not: a dropped
+column has taken its data with it, and **the production Supabase project is on
+the free plan, so there are no backups to restore from.** Not "backups we have
+not tested" — none.
+
+So the recovery path for a destructive migration is currently: there isn't one.
+That is the single strongest argument for Supabase Pro, and it is why §7 says
+prefer additive migrations. An additive migration is nearly always safe to leave
+in place while you roll the code back.
+
+### Afterwards
+
+- Say what happened in `pendings/PENDING.md`, including what was tried and did
+  not work. A fix nobody can find is a fix that gets re-invented.
+- If the release passed QA and still broke production, the interesting question
+  is what `qa` could not have caught — different data, a missing environment
+  variable, a cold start, real traffic. That gap is the actual finding, and it
+  belongs in the QA test plan so it is covered next time.

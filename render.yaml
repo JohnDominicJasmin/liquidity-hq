@@ -1,5 +1,14 @@
+# NOT the source of truth. All three services were created and are configured
+# through the Render dashboard/API, and this file is not applied as a Blueprint.
+# Two things it says are already false of the live services:
+#   - the "auto-deploys" comments below are wrong. liquidity-hq and
+#     liquidity-hq-dev both have autoDeploy: no; deploys are manual.
+#   - liquidity-hq-qa (branch `qa`, the staging environment QA tests against)
+#     is missing entirely.
+# Kept as a rough record of build/start commands. Read docs/INFRASTRUCTURE.md
+# section 1 for what is really deployed.
 services:
-  # ── Production - auto-deploys from main ─────────────────────────────────────
+  # ── Production - deploys from main (MANUAL trigger, not automatic) ──────────
   - type: web
     name: liquidity-hq
     runtime: node
