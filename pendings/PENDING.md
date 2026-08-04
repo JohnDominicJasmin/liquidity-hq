@@ -835,3 +835,50 @@ translations in either project, so choosing one silently rendered English.
 stays complete: it is the validation list, so a preference already saved as
 `tr` still resolves to English instead of erroring. Re-adding a language is a
 one-line change to `AVAILABLE_LOCALES` once its rows land.
+
+---
+
+## Binance request fan-out per page load — 46% addressed, rest outstanding
+
+**Partially fixed 2026-08-04** — PR #2, `refactor/server-side-rsi-aggregation`.
+
+The dashboard fired ~495 Binance requests from the visitor's own IP on every
+page load. Priced against Binance's 6000-weight-per-minute per-IP budget:
+
+| Call | Weight each | Count | Total | Status |
+|---|---|---|---|---|
+| RSI klines (5m/1h/4h/1d/1w/1M) | 2 | 276 | 552 | ✅ moved server-side |
+| `depth` limit=50 (`fetchOrderBook`) | 5 | 45 | 225 | ⬜ outstanding |
+| `aggTrades` limit=200 (`fetchCVD`) | 4 | 45 | 180 | ⬜ outstanding |
+| `ticker/24hr` (45 symbols) | 80 | 2 | 160 | ⬜ outstanding |
+| klines 15m (`fetchKlines`) | 2 | 45 | 90 | ⬜ outstanding |
+| `globalLongShortAccountRatio` + `topLongShortPositionRatio` | — | 90 | — | ⬜ outstanding (futures bucket) |
+
+≈**1207 weight per page load** before the fix, so roughly five loads in a
+minute earns an IP ban, after which Binance returns 418 to *every* request from
+that IP — including the ones the chart needs. **This is the blank-chart cause
+and it was reproduced**: this machine's IP was banned mid-development with
+`"Way too much request weight used; IP banned until ..."`.
+
+Now ≈655 weight per load. Still only ~5x headroom on a shared IP.
+
+**Three things worth knowing before doing the rest:**
+
+- **Spot and futures are separate limit buckets.** `api.binance.com` was banned
+  while `fapi.binance.com` answered normally throughout. That is what let the
+  new route finish via its fallback, and it is a useful diagnostic: if one
+  works and the other 418s, it is a weight ban, not an outage.
+- **Pinging while banned extends the ban.** A poll loop waiting for it to lift
+  kept it alive well past its stated expiry. Wait it out; do not poll.
+- **`fetchOrderBook` and `fetchCVD` are the next best targets** — 405 weight
+  combined, and both return per-coin data that is identical for every visitor,
+  so they cache exactly like the RSI group did. `fetchKlines` is harder: it
+  feeds VWAP/POC/value-area maths that would have to move server-side with it.
+
+**Separate issue found while measuring, not fixed:** `restPoll` polls
+`ticker/24hr` for all 45 symbols **every 5 seconds** once the WebSocket has
+failed 5 reconnects (`components/MarketProvider.tsx`, `startWS` `onclose`).
+That is weight 80 x 12/min = **960 weight/min, per tab, indefinitely** — it is
+only cleared on unmount. A user who leaves a tab open in fallback mode will ban
+their own IP within about six minutes. Worth fixing independently of the
+fan-out work; the fix is probably a slower fallback interval plus a cap.
