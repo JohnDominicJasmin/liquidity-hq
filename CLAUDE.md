@@ -36,8 +36,14 @@ for someone in the QA folder, so step 1 says which branch to pull.
 handoff. QA does `git fetch && git checkout <branch>` from the PR, never
 "latest main", and reports plain pass/fail per step. Never test on the dev
 folder; never develop on the QA folder. **If this session is running in the QA
-folder and is asked to write code — rather than test, report, merge or deploy,
-which are all its job — say so instead of doing it.**
+folder and is asked to write *application* code — anything under `app/`,
+`components/` or `lib/` — say so instead of doing it.**
+
+**QA-authored code — the reverse handoff.** QA owns its own tooling and may
+write it: `qa/`, `playwright.config.ts`, test CI workflows, QA docs. Never app
+code. QA opens a PR **into `dev`** (not `main`), **dev reviews it**, dev
+merges. This is the one case where review runs QA → dev. If a fix needs an
+app-code change, QA reports it as a finding — dev writes it.
 
 **Who merges and deploys — QA, never dev.**
 Dev's job ends when the PR is open and ready for review. Dev does **not** merge
