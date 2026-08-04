@@ -1,15 +1,20 @@
 name: CI
 
 on:
+  # qa matters most of the three. It is the only branch that deploys itself
+  # (Render auto-deploy is on for liquidity-hq-qa), so before this it was also
+  # the only branch that could ship to a live environment with nothing checked
+  # first - the exact inverse of what you want. A push to qa now has to pass
+  # lint, typecheck, unit tests and a build like everywhere else.
   push:
-    branches: [dev, main]
+    branches: [dev, qa, main]
   # Also on PRs, or CI only ever runs AFTER a merge - which is the one moment
   # it cannot help. The convention makes the PR the review point (CONTRIBUTING
   # section 4), so the checks have to be green before the merge button, not
   # after. Covers PRs from any branch, including QA-authored ones, which a
   # push trigger limited to [dev, main] never sees.
   pull_request:
-    branches: [dev, main]
+    branches: [dev, qa, main]
 
 jobs:
   build:
