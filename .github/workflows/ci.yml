@@ -1,11 +1,11 @@
 name: CI
 
 on:
-  # qa matters most of the three. It is the only branch that deploys itself
-  # (Render auto-deploy is on for liquidity-hq-qa), so before this it was also
-  # the only branch that could ship to a live environment with nothing checked
-  # first - the exact inverse of what you want. A push to qa now has to pass
-  # lint, typecheck, unit tests and a build like everywhere else.
+  # qa is the branch QA tests against, so a broken merge into it costs QA a
+  # wasted test run and a false bug report before anyone looks at CI. Checking
+  # it here is cheaper than that. Note the qa Render service does NOT
+  # auto-deploy - a merge into qa is not live until someone triggers it - so
+  # this is a gate on the branch, not a last line of defence before users.
   push:
     branches: [dev, qa, main]
   # Also on PRs, or CI only ever runs AFTER a merge - which is the one moment
