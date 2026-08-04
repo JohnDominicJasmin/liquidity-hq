@@ -835,3 +835,29 @@ translations in either project, so choosing one silently rendered English.
 stays complete: it is the validation list, so a preference already saved as
 `tr` still resolves to English instead of erroring. Re-adding a language is a
 one-line change to `AVAILABLE_LOCALES` once its rows land.
+
+---
+
+## ⛔ OPEN — `/api/ath` is rate-limited by CoinGecko on the QA service
+
+**Found 2026-08-05** while verifying the new `qa` staging environment.
+
+| Host | `/api/ath` |
+|---|---|
+| liquidity-hq.com (prod) | **200** |
+| liquidity-hq-qa.onrender.com | **502** — `{"error":"CoinGecko 429"}`, three attempts |
+
+`app/api/ath/route.ts` calls CoinGecko's keyless public API, which rate-limits
+per IP. The QA service is a new Render instance sharing the same egress pool, so
+it arrives at a bucket that is already close to spent.
+
+**Same shape as the Binance fan-out**: a keyless public upstream, a per-IP
+limit, and no server-side cache in front of it. `lib/apiCache.ts` already exists
+and is used by `/api/funding` and `/api/proxy`; `/api/ath` does not use it. A
+`cached()` wrapper with a long TTL is the obvious fix - all-time-high prices are
+about as slow-moving as data gets, so a multi-hour cache costs nothing and
+removes almost all the requests.
+
+Not blocking QA: the ATH figure is one number on the page and it fails soft.
+Worth fixing because a third environment makes every keyless per-IP upstream in
+this app one step closer to its limit, and ATH is just the first one to show it.
