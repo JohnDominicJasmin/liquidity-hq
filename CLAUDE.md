@@ -33,9 +33,13 @@ One logical change per commit. Never `fix bug` / `update stuff` / `wip`.
 for someone in the QA folder, so step 1 says which branch to pull.
 
 **Two folders** — dev folder writes code, QA folder tests it; the PR is the
-handoff. QA does `git fetch && git checkout <branch>` from the PR, never
-"latest main", and reports plain pass/fail per step. Never test on the dev
-folder; never develop on the QA folder. **If this session is running in the QA
+handoff. **QA tests on the `qa` staging environment —
+https://liquidity-hq-qa.onrender.com — not a local checkout**, and reports plain
+pass/fail per step. Never test on `main`; it does not have the change yet.
+Local checkout (`git fetch && git checkout <branch>` from the PR) is the
+exception, for changes not yet on `qa` and for QA's own test tooling. When every
+step passes, **QA merges `qa` → `main`**, not the feature branch. Never test on
+the dev folder; never develop on the QA folder. **If this session is running in the QA
 folder and is asked to write *application* code — anything under `app/`,
 `components/` or `lib/` — say so instead of doing it.**
 

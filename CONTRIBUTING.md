@@ -179,14 +179,33 @@ dev is done. Dev does **not** merge to `main` and does **not** deploy — see
 
 ### QA folder — when testing a PR
 
-1. ```
-   git fetch && git checkout <branch-name>
-   ```
-   The **exact branch from the PR**. Never assume "latest `main`" — the change
-   under test is not on `main` yet, and testing `main` will silently pass.
+1. **Test on the `qa` staging environment, not a local checkout.**
+
+   https://liquidity-hq-qa.onrender.com
+
+   That is the point of the `qa` branch: dev merges `dev` → `qa`, it deploys
+   itself, and QA gets a real running build with no setup. Testing a branch you
+   built locally tests your machine as much as the change.
+
+   Confirm you are looking at the right build before reporting anything — the
+   commit `qa` is on should contain the change under test. If it does not, say
+   so and stop; that is a finding about the handoff, not about the code.
+
+   **Never test on `main`.** The change is not there yet, so it will silently
+   pass.
+
+   *Exception:* a change that has not reached `qa` yet, or QA's own test
+   tooling, still gets the local route —
+   `git fetch && git checkout <branch-name>`, the exact branch from the PR.
 2. Run the "How to test" steps **literally, in order**. Do not improvise a
    different path; if the steps are wrong or impossible, that itself is the
    finding and belongs in the report.
+
+   Two things about this environment will otherwise be reported as bugs and are
+   not: it runs on Render's **free plan**, so the first request after it has
+   been idle is slow and can time out — retry once. And it shares the **dev**
+   database, so data you did not create may already be there, and dev may
+   change it underneath you mid-test.
 3. Report as a PR comment (or directly to the user) in **plain pass/fail per
    step**:
 
@@ -198,8 +217,13 @@ dev is done. Dev does **not** merge to `main` and does **not** deploy — see
 4. If the QA folder has no `CLAUDE.md` / `CONTRIBUTING.md`, it has not pulled
    since this convention landed. **Pull `main` first**, then check out the
    feature branch, so both folders are working to the same standard.
-5. **When every step passes, QA merges the branch into `main`** and then
-   deploys — both steps, in that order. See below.
+5. **When every step passes, QA merges `qa` into `main`** and then deploys —
+   both steps, in that order. See below.
+
+   `qa` → `main`, not the feature branch → `main`. By the time QA is testing,
+   the change is already on `dev` and `qa`; merging the original feature branch
+   straight into `main` would skip whatever else `qa` was validated with, and
+   ship a combination nobody tested.
 
 ### Who merges and deploys
 
@@ -216,7 +240,7 @@ Merging is not the deploy. Both Render services are configured
 So **merging to `main` ships nothing on its own.** Production keeps serving the
 previous build until someone triggers a deploy. QA must do both:
 
-1. Merge the approved branch into `main` and push.
+1. Merge **`qa`** into `main` and push — not the original feature branch.
 2. **Trigger the deploy manually** — Render dashboard → `liquidity-hq-prod` →
    *Manual Deploy* → *Deploy latest commit*.
 3. Confirm the deploy reaches `live` and re-check the "How to test" steps
