@@ -89,7 +89,14 @@ test.describe('seo', () => {
 
   test('/ops/login is not indexable', async ({ page, request }) => {
     await settle(page, '/ops/login');
-    const robotsMeta = await page.getAttribute('meta[name="robots"]', 'content');
+    // count() first, then read. page.getAttribute() WAITS for the locator, so
+    // on a page with no robots meta - which is precisely the known gap this
+    // test documents - it does not return null, it hangs until the 120s test
+    // timeout and reports as a failure. Absent must be a value, not a stall.
+    const hasRobotsMeta = (await page.locator('meta[name="robots"]').count()) > 0;
+    const robotsMeta = hasRobotsMeta
+      ? await page.getAttribute('meta[name="robots"]', 'content')
+      : null;
     const robotsTxt = await (await request.get('/robots.txt')).text();
     const blocked = /noindex/i.test(robotsMeta ?? '') || /Disallow:\s*\/ops/i.test(robotsTxt);
     // Known gap as of the audit - internal admin login is currently crawlable.
