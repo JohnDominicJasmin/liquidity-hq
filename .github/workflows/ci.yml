@@ -1,15 +1,20 @@
 name: CI
 
 on:
+  # qa is the branch QA tests against, so a broken merge into it costs QA a
+  # wasted test run and a false bug report before anyone looks at CI. Checking
+  # it here is cheaper than that. Note the qa Render service does NOT
+  # auto-deploy - a merge into qa is not live until someone triggers it - so
+  # this is a gate on the branch, not a last line of defence before users.
   push:
-    branches: [dev, main]
+    branches: [dev, qa, main]
   # Also on PRs, or CI only ever runs AFTER a merge - which is the one moment
   # it cannot help. The convention makes the PR the review point (CONTRIBUTING
   # section 4), so the checks have to be green before the merge button, not
   # after. Covers PRs from any branch, including QA-authored ones, which a
   # push trigger limited to [dev, main] never sees.
   pull_request:
-    branches: [dev, main]
+    branches: [dev, qa, main]
 
 jobs:
   build:
