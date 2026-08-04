@@ -1634,6 +1634,19 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
   background: var(--bg2); border: 0.5px solid var(--bdr); color: var(--txt3);
   cursor: pointer; white-space: nowrap; transition: all 0.12s;
 }
+/* Scale badge for PEPE/BONK - see the comment at its JSX in KLineProChart.
+   Deliberately amber rather than styled like the neighbouring buttons: it is a
+   statement of fact about the axis, not a control, and it needs to read as a
+   caveat. Sits first in the toolbar so it is seen before the chart. */
+.klc-scale-badge {
+  padding: 3px 8px; border-radius: 5px;
+  font-size: var(--fs-caption); font-weight: 700; letter-spacing: .02em;
+  font-family: var(--font-mono), monospace;
+  background: var(--amber-bg, rgba(251,191,36,0.10));
+  border: 0.5px solid var(--amber-bdr, rgba(251,191,36,0.30));
+  color: var(--amber, #fbbf24);
+  white-space: nowrap; cursor: help; flex-shrink: 0;
+}
 .klc-tool-btn:hover { border-color: var(--purple); color: var(--txt2); }
 .klc-tool-btn.on    { background: var(--purple-bg); border-color: var(--purple); color: #5aa3ff; }
 .klc-fullscreen-btn { color: var(--txt3) !important; margin-left: 4px; }
