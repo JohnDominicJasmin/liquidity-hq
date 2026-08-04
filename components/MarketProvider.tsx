@@ -150,6 +150,19 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   }, [updateCoin]);
 
   /* ── Binance WebSocket ── */
+  // The reconnect below re-enters this function, so it cannot reference the
+  // `startWS` binding directly - that is a const being read before its own
+  // initialiser completes, which is what react-hooks/immutability flags.
+  //
+  // It was also a real staleness bug, not only a lint complaint. `startWS` is a
+  // useCallback over [restPoll, updateCoin]; when either changes, a NEW startWS
+  // exists, but a socket opened by the previous one still has the previous
+  // closure wired into its onclose. A drop after that point would reconnect
+  // using the stale restPoll/updateCoin - so the backup REST poll and the store
+  // writes could be the ones from an earlier render. Going through a ref means
+  // a retry always runs whatever the current startWS is.
+  const startWSRef = useRef<() => void>(() => {});
+
   const startWS = useCallback(() => {
     if (wsRef.current) { try { wsRef.current.close(); } catch { /* */ } }
     const url = WS_URLS[urlIdxRef.current % WS_URLS.length];
@@ -181,7 +194,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       retriesRef.current++;
       urlIdxRef.current++;
       if (retriesRef.current <= 5) {
-        setTimeout(startWS, 2000 * retriesRef.current);
+        setTimeout(() => startWSRef.current(), 2000 * retriesRef.current);
       } else {
         setStore(s => ({ ...s, wsStatus: 'Live · backup feed' }));
         restPoll();
@@ -189,6 +202,13 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       }
     };
   }, [restPoll, updateCoin]);
+
+  // Kept current in an effect rather than assigned during render - a ref write
+  // during render is its own violation (react-hooks/refs) and would just trade
+  // one warning for another. Declared here, above the effect that first calls
+  // startWS(), so React runs this assignment first and the ref is never the
+  // initial no-op by the time a reconnect can fire.
+  useEffect(() => { startWSRef.current = startWS; }, [startWS]);
 
   /* ── Bybit: all coins - single bulk fetch instead of per-symbol calls ── */
   const fetchBybit = useCallback(async () => {
