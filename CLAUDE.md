@@ -83,6 +83,36 @@ run as proof the data path is clean.
 
 `main` → liquidity-hq.com — QA only, merge and deploy both.
 
+**`qa` is fast-forward only.** Never commit to it directly, never PR a feature
+branch into it. Only `dev` goes in: `git checkout qa && git merge --ff-only dev`.
+If that fails, `qa` has diverged — fix it, do not force. Delete feature branches
+once merged; only `main`, `dev`, `qa` and open-PR branches should exist.
+
+**A hotfix skips `qa`, so it skips testing.** Cut from `main`, then merge back
+into **both `dev` and `qa`** or the next release reverts it. Say in the PR what
+was not verified.
+
+**Migrations — the thing that takes prod down.** Apply the migration *before*
+the deploy that needs it, never after. Prefer additive (add, backfill, then
+switch code); dropping in the same release as the code change leaves no safe
+rollback. Always High risk. **`qa` shares the dev database, so applying a
+migration "to qa" applies it to dev for everyone** — there is no isolated place
+to try one.
+
+**Environment variables.** If a PR adds one, the PR says so and lists which
+services still need it. Set it on prod *before* the release deploy.
+`NEXT_PUBLIC_*` are inlined at build time — setting one after a build does
+nothing until the next build. Never copy a prod secret to `qa`/`dev`.
+
+**When prod breaks — roll back first, diagnose second.** Render dashboard →
+`liquidity-hq-prod` → Deploys → *Rollback to this deploy*. That reverts the
+build, not git. **If a destructive migration shipped, there is no recovery
+path** — prod Supabase is on the free plan and has no backups.
+
+**Tag `main` after a successful prod deploy** — `git tag -a v2026.08.05 -m "..."`.
+Date-based. Without it, "what is in production?" is only answerable from the
+Render dashboard.
+
 **Low ceremony** — small internal chores (dep bumps, formatting, comments) may
 skip the commit body and screenshots. Branch naming and the `type(scope):`
 prefix are non-negotiable on everything.

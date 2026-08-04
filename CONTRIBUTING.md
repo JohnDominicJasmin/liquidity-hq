@@ -124,7 +124,8 @@ back and rewrite them; match the current form going forward.
 
 ## 3. Pull request template
 
-Every PR description uses this structure:
+This lives in `.github/pull_request_template.md`, so GitHub fills it in for you
+on every PR — you edit rather than remember. The structure:
 
 ```markdown
 ## Summary
@@ -146,6 +147,11 @@ Low / Medium / High — <one line on what could break if this goes wrong>
 ## Screenshots (if UI change)
 <before/after>
 ```
+
+The file also carries a **checklist** the prose version never had: the four
+build gates, plus the two questions that cause silent production failures —
+does this add a migration, and does this add an environment variable. Both are
+covered in §7.
 
 **Rules**
 
@@ -183,9 +189,9 @@ dev is done. Dev does **not** merge to `main` and does **not** deploy — see
 
    https://liquidity-hq-qa.onrender.com
 
-   That is the point of the `qa` branch: dev merges `dev` → `qa`, it deploys
-   itself, and QA gets a real running build with no setup. Testing a branch you
-   built locally tests your machine as much as the change.
+   That is the point of the `qa` branch: dev merges `dev` → `qa`, deploys it,
+   and QA gets a real running build with no setup. Testing a branch you built
+   locally tests your machine as much as the change.
 
    Confirm you are looking at the right build before reporting anything — the
    commit `qa` is on should contain the change under test. If it does not, say
@@ -424,9 +430,42 @@ was cut from `dev` and merged to `main` to bootstrap the convention, and it
 silently carried 13 unrelated QA-scaffolding files onto `main` with it.
 
 - Normal work → cut from `dev`, merge back to `dev`. Reaches `main` later, as
-  part of a reviewed `dev` → `main` release.
-- Hotfix or anything that must land on `main` **now** → cut from `main`, and
-  merge it back into `dev` afterwards so the two do not drift.
+  part of a reviewed `dev` → `qa` → `main` release.
+- Hotfix or anything that must land on `main` **now** → cut from `main`, then
+  merge it back into **both `dev` and `qa`** afterwards, or the next release
+  silently reverts it. Merging into `dev` alone is not enough now that `qa`
+  exists.
+
+**A hotfix skips `qa`, which means it skips testing.** That is the trade you
+are making by calling something a hotfix, so make it deliberately: test it
+locally, keep it as small as you can defend, and say in the PR what was *not*
+verified. "Urgent" is a reason to shorten the queue, not a reason to pretend
+the risk is lower than it is.
+
+### `qa` is fast-forward only
+
+**Never commit directly to `qa`, and never open a PR against it from a feature
+branch.** The only thing that goes into `qa` is `dev`:
+
+```
+git checkout qa && git merge --ff-only dev && git push
+```
+
+If that command fails, `qa` has diverged and something has gone in the wrong
+way. Fix the divergence rather than forcing the merge — a `qa` that is not a
+prefix of `dev` means "tested on qa" no longer tells you anything about what is
+on `dev`, and the whole `dev` → `qa` → `main` model stops meaning what it says.
+
+After a release lands on `main`, `qa` keeps whatever it had; the next promotion
+fast-forwards it again from `dev`. Nothing needs resetting.
+
+### Delete the branch when it merges
+
+Once a feature branch is merged, delete it locally and on the remote. A branch
+list that still shows a dozen merged branches makes the two or three that
+matter impossible to find, and it is not obvious from the name which are live.
+`main`, `dev`, `qa` and anything with an open PR are the only branches that
+should exist.
 
 **If a merge to `main` is ever reverted**, note that the reverted commits stay
 in `main`'s history. Git treats them as already merged, so a later `dev` →
@@ -443,5 +482,125 @@ a cherry-pick, not another merge.
 - `main` is **release only, and QA-owned**. Dev never merges into it. QA merges
   after every "How to test" step passes, then triggers the production deploy
   as a separate manual action (§4, "Who merges and deploys").
-- Neither service auto-deploys. A merge is not a release; the deploy is always
+- **No** service auto-deploys. A merge is not a release; the deploy is always
   a deliberate second step.
+
+---
+
+## 7. Promoting a release
+
+The two merges that actually reach users — `dev` → `qa` and `qa` → `main` — get
+a PR like everything else. They are the merges with the highest blast radius,
+so they are the wrong place to skip the paper trail. A promotion PR needs no
+essay: a title, a list of what is going out, and the checklist below.
+
+### Before `dev` → `qa`
+
+1. CI green on `dev`.
+2. **Migrations applied.** See below — this is the one that takes prod down.
+3. Merge fast-forward only: `git checkout qa && git merge --ff-only dev`.
+4. **Trigger the qa deploy** and say you have. Merging does not deploy.
+
+### Before `qa` → `main`
+
+1. Every "How to test" step passed, on `qa` — not on a feature branch, not on
+   `dev`.
+2. CI green on `qa`.
+3. **Migrations already applied to production.** Before the deploy, never after.
+4. **Every environment variable the release needs exists on
+   `liquidity-hq-prod`.** Check, do not assume.
+5. Nothing unresolved that you would not want a user to find first.
+
+Then merge, deploy, and re-check the steps against production rather than
+against `qa`. A pass on staging is evidence, not proof: prod has different data,
+different environment variables and a different Supabase project.
+
+### Database migrations
+
+142 migration files exist and **nothing in this workflow used to mention them**,
+which is how a deploy ships code that reads a column the database does not have.
+Rules:
+
+- **Apply the migration before the deploy that needs it, never after.** New code
+  against an old schema is an outage; old code against a new schema is usually
+  fine. That asymmetry is why the order is fixed.
+- **Prefer additive migrations.** Add a column, backfill, then switch the code
+  over. Dropping or renaming in the same release as the code change leaves no
+  safe moment to roll back to.
+- A migration is **High risk** in §3 terms, always. It gets the full PR body and
+  the file named in it.
+- **`qa` shares the dev database.** Applying a migration "to qa" applies it to
+  dev, for everyone, immediately. There is no isolated place to try one — the
+  closest thing is a local Supabase, and if you are about to do something
+  destructive, that is where to do it.
+- Applied through the Supabase MCP (`apply_migration`), per
+  `docs/HANDOVER.md` §5.
+
+### Environment variables
+
+A variable that exists on one service and not another is a deploy that builds
+and then fails at runtime, usually in a way that fails soft and goes unnoticed.
+It has already happened here twice, with `CRON_SECRET` and
+`NEXT_PUBLIC_SENTRY_DSN`.
+
+- If a PR adds or renames a variable, **the PR says so**, and lists which
+  services still need it. That is a checklist item in the PR template.
+- Set it on `liquidity-hq-prod` **before** the release deploy, not after.
+- `NEXT_PUBLIC_*` variables are **inlined at build time**. Setting one after a
+  build does nothing until the next build — a rebuild is required, not a
+  restart.
+- Never copy a production secret onto `qa` or `dev`. If staging needs a key,
+  provision a separate one.
+
+### Tagging
+
+Tag `main` after a successful production deploy:
+
+```
+git tag -a v2026.08.05 -m "RSI aggregation, arena + scanner CLS, WebSocket fallback"
+git push origin v2026.08.05
+```
+
+Date-based, because this ships continuously and has no versioned API for semver
+to describe. There are **no tags at all** right now, which means the only way to
+answer "what is in production?" is to read the commit hash off the Render
+dashboard and hope it matches something. One command per release fixes that.
+
+---
+
+## 8. When production breaks
+
+**Roll back first, diagnose second.** A production incident is not the moment to
+work out what went wrong — get users onto something that works, then find out.
+
+### Rolling back a deploy
+
+Render keeps previous deploys. Dashboard → `liquidity-hq-prod` → **Deploys** →
+find the last known-good one → **Rollback to this deploy**. It redeploys that
+build; it does not touch git, so `main` still has the bad commit and someone
+must revert or fix it forward afterwards.
+
+This is fast and safe **as long as no migration shipped with the bad release.**
+
+### Rolling back when a migration shipped
+
+You mostly cannot, and this is worth understanding before you need it.
+
+Rolling the *code* back is easy. Rolling the *schema* back is not: a dropped
+column has taken its data with it, and **the production Supabase project is on
+the free plan, so there are no backups to restore from.** Not "backups we have
+not tested" — none.
+
+So the recovery path for a destructive migration is currently: there isn't one.
+That is the single strongest argument for Supabase Pro, and it is why §7 says
+prefer additive migrations. An additive migration is nearly always safe to leave
+in place while you roll the code back.
+
+### Afterwards
+
+- Say what happened in `pendings/PENDING.md`, including what was tried and did
+  not work. A fix nobody can find is a fix that gets re-invented.
+- If the release passed QA and still broke production, the interesting question
+  is what `qa` could not have caught — different data, a missing environment
+  variable, a cold start, real traffic. That gap is the actual finding, and it
+  belongs in the QA test plan so it is covered next time.
