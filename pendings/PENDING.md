@@ -835,3 +835,51 @@ translations in either project, so choosing one silently rendered English.
 stays complete: it is the validation list, so a preference already saved as
 `tr` still resolves to English instead of erroring. Re-adding a language is a
 one-line change to `AVAILABLE_LOCALES` once its rows land.
+
+---
+
+## ⛔ OPEN — /scanner has ~0.98 CLS, and the audit's 0.000 figure is wrong
+
+**Found 2026-08-05** while fixing `/arena`'s layout shift (PR #5).
+
+`pendings/QA_AUDIT_2026-08-04.md` §0 and §3.2 report **"Cumulative Layout Shift
+0.000 on every page measured"**. That is not true of at least three routes.
+Measured on a production build, `.next` deleted, one server, three runs each,
+with a gate asserting the page actually rendered first:
+
+| Route | Measured CLS | Google's threshold |
+|---|---|---|
+| `/scanner` | **0.79 – 1.25** (median ~0.98) | poor above 0.25 |
+| `/arena` | 0.365 | fixed to 0.068 in PR #5 |
+| `/briefing` | 0.16 | needs improvement |
+| `/dashboard` | 0.006 | good |
+| `/privacy` | 0.005 | good |
+
+`/scanner` is roughly **10x the "poor" threshold** on a core feature page, and
+it is the one route nobody has reported. It is **not** caused by the `/arena`
+footer fix - baseline and fixed builds both measure ~1.0.
+
+Its shape is different from `/arena`'s, which is why the same fix will not
+work. `/arena` was one dominant jump (82% from a single element). `/scanner`
+produces **23 to 34 separate shifts per load**, and the run-to-run spread
+(0.79 to 1.25) is itself a signal: the page's layout depends on how much
+market data has arrived, so the shifts are data-dependent rather than a single
+fixed mistake.
+
+**Do not plan from audit §8's ordering until §3.2 is corrected** - that
+priority list was built on the assumption that layout stability was already
+perfect, so it ranks SEO and contrast work above a route that is currently the
+worst Core Web Vital in the product.
+
+**Two measurement traps found the hard way, worth repeating:**
+
+- **A stale `npm start` serving an old `.next` against newly-built chunk hashes
+  returns HTTP 500, renders an empty page, and reports a perfect CLS 0.000.**
+  Any CLS measurement without a "did the page actually render" assertion can
+  produce a beautiful, meaningless zero. Kill the old server and delete
+  `.next` between configurations.
+- **Attribution beats intuition.** `/arena`'s shift was blamed on the Ask AI
+  FAB by two separate readings, including mine. Per-source attribution put the
+  FAB at **0.1%** and the footer at 82%. Separately, the textbook fix -
+  reserving space with `min-height` - measured *double* the baseline. Measure
+  before and after every attempt; do not reason about which is likely.
