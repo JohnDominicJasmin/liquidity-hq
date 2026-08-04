@@ -302,28 +302,11 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     ]);
   }, [updateCoin]);
 
-  /* ── Binance volume + klines ── */
-  const fetchVolume = useCallback(async () => {
-    const binanceCoins = Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype');
-    const syms = binanceCoins.map(([, s]) => s);
-    try {
-      const batch = encodeURIComponent(JSON.stringify(syms));
-      const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${batch}`);
-      const arr = await res.json();
-      if (!Array.isArray(arr)) return;
-      arr.forEach((d: Record<string, string>) => {
-        const id = SYM_MAP[d.symbol];
-        if (!id) return;
-        updateCoin(id, { vol24: parseFloat(d.quoteVolume || '0') });
-        fetchKlines(id, d.symbol);
-      });
-    } catch {
-      binanceCoins.forEach(([coin, sym], i) => {
-        setTimeout(() => fetchKlines(coin as CoinId, sym), i * 300);
-      });
-    }
-  }, [updateCoin]); // eslint-disable-line react-hooks/exhaustive-deps
-
+  /* fetchKlines is declared before fetchVolume, which calls it. It used to sit
+     after, so fetchVolume closed over a const declared later - what
+     react-hooks/immutability means by "accessed before it is declared". Safe only
+     because fetchVolume is never invoked during render; moving it earlier removes
+     the dependency on that being true. */
   const fetchKlines = useCallback(async (coin: CoinId, sym: string) => {
     try {
       // Use futures klines (fapi) - more accurate taker buy/sell for perp traders
@@ -419,6 +402,29 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       updateCoin(coin, { volRatio: avg > 0 ? current / avg : 1, ma20, rsi14, poc, vah, val, vwap, takerBuyRatio, chartPattern });
     } catch { /* */ }
   }, [updateCoin]);
+
+  /* ── Binance volume + klines ── */
+  const fetchVolume = useCallback(async () => {
+    const binanceCoins = Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype');
+    const syms = binanceCoins.map(([, s]) => s);
+    try {
+      const batch = encodeURIComponent(JSON.stringify(syms));
+      const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${batch}`);
+      const arr = await res.json();
+      if (!Array.isArray(arr)) return;
+      arr.forEach((d: Record<string, string>) => {
+        const id = SYM_MAP[d.symbol];
+        if (!id) return;
+        updateCoin(id, { vol24: parseFloat(d.quoteVolume || '0') });
+        fetchKlines(id, d.symbol);
+      });
+    } catch {
+      binanceCoins.forEach(([coin, sym], i) => {
+        setTimeout(() => fetchKlines(coin as CoinId, sym), i * 300);
+      });
+    }
+  }, [updateCoin]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   /* ── Bybit klines for Bybit-only coins (HYPE, PEPE, BONK, XAU, SPX, …) ── */
   // Bybit kline format (newest-first): [startTime, open, high, low, close, volume, turnover]
