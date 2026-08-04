@@ -34,10 +34,10 @@ calculators, trade journal, and an internal-only `/ops` admin console.
 | Local checkout | `C:\Users\Dominic\Documents\VS code\liquidity-hunter-hq\liquidity-hq` |
 | Prod site | https://liquidity-hq.com (also `liquidity-hq.onrender.com`) |
 | Dev site | https://liquidity-hq-dev.onrender.com |
-| **QA / staging site** | **https://liquidity-hq-qa.onrender.com** — branch `qa`, **auto-deploys** |
+| **QA / staging site** | **https://liquidity-hq-qa.onrender.com** — branch `qa`, deploy manually |
 | Render prod service | `srv-d8aluf6l51nc73e1ijp0` — branch `main` |
 | Render dev service | `srv-d8prs6po3t8c739aepdg` — branch `dev` |
-| Render **qa** service | `srv-d9p42ke1egvs73f8car0` — branch `qa`, free plan, auto-deploy ON |
+| Render **qa** service | `srv-d9p42ke1egvs73f8car0` — branch `qa`, free plan, auto-deploy OFF |
 | Supabase **prod** | project `liquidity-hq-prod`, ref `qdpwhnvmhqgzijuwopso` — tables `lhq_*` |
 | Supabase **dev** | project `liquidity-hq-dev`, ref `wdtjhrilakoitfcezxpx` — tables `lhq_dev_*` |
 | Supabase **qa** | none of its own — the qa service shares the **dev** project. Free plan caps the account at 2 active projects |

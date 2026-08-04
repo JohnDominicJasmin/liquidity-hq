@@ -3,8 +3,8 @@
 # Two things it says are already false of the live services:
 #   - the "auto-deploys" comments below are wrong. liquidity-hq and
 #     liquidity-hq-dev both have autoDeploy: no; deploys are manual.
-#   - liquidity-hq-qa (branch `qa`, the staging environment QA tests against,
-#     and the only service with auto-deploy actually ON) is missing entirely.
+#   - liquidity-hq-qa (branch `qa`, the staging environment QA tests against)
+#     is missing entirely.
 # Kept as a rough record of build/start commands. Read docs/INFRASTRUCTURE.md
 # section 1 for what is really deployed.
 services:

@@ -71,9 +71,10 @@ permission needed. **Deploying the `liquidity-hq-dev` service is different —
 ask first**, it has a ~500 build-hour/month cap prod does not. Verify locally
 by default.
 
-`qa` branch → **liquidity-hq-qa.onrender.com, the only branch that
-auto-deploys.** Merge `dev` → `qa` and a build starts, no dashboard step. Free
-plan, so it sleeps when idle and the first request after that is slow. Uses the
+`qa` branch → liquidity-hq-qa.onrender.com, the staging environment QA tests
+against. **Does not auto-deploy** — merge `dev` → `qa`, then trigger the deploy
+manually, and say you have done it. Whoever merges also deploys. Free plan, so
+it sleeps when idle and the first request after that is slow. Uses the
 **dev** Supabase (`wdtjhrilakoitfcezxpx`) — a known compromise, since Supabase's
 free plan caps the account at two active projects and dev + prod already take
 both. **It must never point at prod Supabase (`qdpwhnvmhqgzijuwopso`) — hard

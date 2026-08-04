@@ -253,13 +253,13 @@ of the gate is that it is never the person who wrote the code.
 Dev's authority stops at `dev` and `qa`. Dev may merge its own feature branches
 into `dev`, may merge `dev` → `qa`, and may deploy nothing.
 
-Merging is not the deploy. Both permanent Render services are configured
+Merging is not the deploy. **No** Render service auto-deploys; all three are
 `autoDeploy: "no"` / `autoDeployTrigger: "off"`:
 
 | Service | Branch | Auto-deploy | Who deploys |
 |---|---|---|---|
 | `liquidity-hq-prod` → liquidity-hq.com | `main` | **no** | **QA only** |
-| `liquidity-hq-qa` → liquidity-hq-qa.onrender.com | `qa` | **yes** | nobody — it deploys itself |
+| `liquidity-hq-qa` → liquidity-hq-qa.onrender.com | `qa` | **no** | whoever merged `dev` → `qa` |
 | `liquidity-hq-dev` → liquidity-hq-dev.onrender.com | `dev` | **no** | dev, ask first |
 
 So **merging to `main` ships nothing on its own.** Production keeps serving the
@@ -360,7 +360,7 @@ The flow is `dev` → `qa` → `main`.
 |---|---|---|---|
 | `<type>/<description>` | none | dev | n/a |
 | `dev` | liquidity-hq-dev.onrender.com | dev | **no** — trigger manually |
-| `qa` | **liquidity-hq-qa.onrender.com** | dev merges `dev` → `qa` | **yes** — on every push |
+| `qa` | **liquidity-hq-qa.onrender.com** | dev merges `dev` → `qa` | **no** — trigger manually |
 | `main` | liquidity-hq.com (production) | **QA only** | **no** — trigger manually |
 
 - Feature branches are cut from `dev` and merged back into `dev` via PR.
@@ -370,17 +370,22 @@ The flow is `dev` → `qa` → `main`.
 
 ### The `qa` staging environment
 
-`qa` is the only branch that deploys on its own. Merge `dev` → `qa` and a
-build starts; no dashboard step. That is deliberate — QA should be able to get
-a testable environment without waiting on dev, which is the whole reason the
-branch exists.
+Merging `dev` → `qa` does **not** deploy. Like prod and dev, this service is
+`autoDeploy: no`, so the branch moving and the environment moving are two
+separate acts. **Whoever merges `dev` → `qa` also triggers the deploy** —
+normally dev, since getting a build in front of QA is part of the handoff. QA
+may trigger it too, for a re-deploy or after a config change.
+
+Render dashboard → `liquidity-hq-qa` → *Manual Deploy* → *Deploy latest
+commit*. Say in the PR or the handoff message that you have done it, otherwise
+QA tests the previous build and neither of you finds out for a while.
 
 | | |
 |---|---|
 | **URL** | https://liquidity-hq-qa.onrender.com |
 | **Render service** | `liquidity-hq-qa` (`srv-d9p42ke1egvs73f8car0`), free plan, Singapore |
 | **Database** | Supabase `liquidity-hq-dev` (`wdtjhrilakoitfcezxpx`) |
-| **Auto-deploy** | **yes**, on every push to `qa` |
+| **Auto-deploy** | **no** — merge, then trigger manually |
 
 **It shares the dev database, and that is a known compromise, not the design.**
 The intent was a separate `liquidity-hq-qa` Supabase project. Supabase's free
