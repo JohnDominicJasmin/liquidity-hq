@@ -1,18 +1,41 @@
 ﻿import type { Metadata, Viewport } from 'next';
-import { Figtree, IBM_Plex_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import Script from 'next/script';
 import './globals.css';
 import AppShell from '@/components/AppShell';
 
-const figtree = Figtree({
-  subsets: ['latin'],
+// Self-hosted, previously next/font/google.
+//
+// next/font/google downloads the font files from fonts.gstatic.com AT BUILD
+// TIME, which quietly made every build - including CI and every Render deploy -
+// dependent on Google being reachable. It bit twice on 2026-08-04, both times
+// failing the whole build with "Failed to fetch `Figtree` from Google Fonts"
+// and both times passing on a retry. A deploy that fails for reasons unrelated
+// to the code is worth removing outright, and CI has no retry.
+//
+// The files in app/fonts are the exact latin-subset woff2s next/font/google was
+// fetching (Figtree v9 variable 300-900, IBM Plex Mono v20 at 400/500/600/700),
+// pulled from the same gstatic URLs its CSS resolves to. Both families are
+// OFL-licensed, so redistribution here is permitted. Only the latin subset is
+// included, matching the previous `subsets: ['latin']`.
+//
+// display: 'swap' matches next/font/google's default, so first-paint behaviour
+// is unchanged.
+const figtree = localFont({
+  src: [{ path: './fonts/figtree-latin-var.woff2', weight: '300 900', style: 'normal' }],
   variable: '--font-sans',
+  display: 'swap',
 });
 
-const plexMono = IBM_Plex_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+const plexMono = localFont({
+  src: [
+    { path: './fonts/plex-mono-latin-400.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/plex-mono-latin-500.woff2', weight: '500', style: 'normal' },
+    { path: './fonts/plex-mono-latin-600.woff2', weight: '600', style: 'normal' },
+    { path: './fonts/plex-mono-latin-700.woff2', weight: '700', style: 'normal' },
+  ],
   variable: '--font-mono',
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
