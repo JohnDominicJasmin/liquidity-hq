@@ -58,9 +58,11 @@ type CalEvent = {
 
 async function fetchUpcomingEvents(): Promise<CalEvent[]> {
   try {
-    const base = process.env.NEXT_PUBLIC_APP_URL
-      ?? process.env.VERCEL_URL
-      ?? 'http://localhost:3000';
+    /* This app is hosted on Render, so VERCEL_URL used to sit here and never
+       resolved. Worse than dead: Vercel sets it as a bare hostname with no
+       scheme, so had it ever been present the template below would have built
+       `myapp.vercel.app/api/econ-calendar` and thrown on fetch. */
+    const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
     const url = `${base}/api/econ-calendar`;
     const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
     if (!res.ok) return [];
