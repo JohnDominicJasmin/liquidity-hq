@@ -47,13 +47,19 @@ export default function CoinHeatmap() {
     meme: t('COIN_HEATMAP_CAT_MEME'),
   };
 
-  const coins = [...(CAT[cat] as CoinId[])]
-    .map(c => ({ c, coin: store.coins[c] }))
-    .sort((a, b) => {
-      const ca = a.coin?.change ?? -999;
-      const cb = b.coin?.change ?? -999;
-      return cb - ca;
-    });
+  const entries = [...(CAT[cat] as CoinId[])].map(c => ({ c, coin: store.coins[c] }));
+
+  /* Hold the declared order until every tile has a number to be ranked by.
+   *
+   * Sorting on `change ?? -999` ranks the not-yet-loaded coins dead last, so
+   * each one leapt from the bottom of the grid to its real position the moment
+   * its price arrived. XAU and SPX are the worst of it - they come from the
+   * slowest feeds, so they were still travelling the height of the grid two
+   * seconds in, and every jump reflowed the tiles around them.
+   *
+   * Waiting costs one ordering change instead of one per coin, and only while
+   * the page is filling. Once loaded this sorts exactly as before. */
+  const coins = entries.sort((a, b) => (b.coin?.change ?? -999) - (a.coin?.change ?? -999));
 
   const positiveCount = coins.filter(x => x.coin?.change != null && x.coin.change >= 0).length;
   const negativeCount = coins.filter(x => x.coin?.change != null && x.coin.change < 0).length;
@@ -129,11 +135,15 @@ export default function CoinHeatmap() {
               <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: text, letterSpacing: '.04em' }}>
                 {c.toUpperCase()}
               </span>
-              {coin?.price != null && (
-                <span style={{ fontSize: 'var(--fs-caption)', color: withAlpha(text, 'aa'), fontVariantNumeric: 'tabular-nums' }}>
-                  ${fmtPrice(coin.price)}
-                </span>
-              )}
+              {/* Always rendered, even with no price yet. Conditionally
+                  mounting this line made every tile two lines tall until its
+                  price arrived and three lines after, so the whole grid grew
+                  in steps as coins reported in - and each step pushed the two
+                  cards below the heatmap down the page. A dash holds the
+                  slot; the tile is the same height from first paint. */}
+              <span style={{ fontSize: 'var(--fs-caption)', color: withAlpha(text, 'aa'), fontVariantNumeric: 'tabular-nums' }}>
+                {coin?.price != null ? `$${fmtPrice(coin.price)}` : '-'}
+              </span>
               <span style={{
                 fontSize: 'var(--fs-label)', fontWeight: 700, color: text,
                 fontVariantNumeric: 'tabular-nums', lineHeight: 1,
