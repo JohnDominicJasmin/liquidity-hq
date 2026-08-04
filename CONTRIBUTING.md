@@ -194,9 +194,26 @@ dev is done. Dev does **not** merge to `main` and does **not** deploy — see
    **Never test on `main`.** The change is not there yet, so it will silently
    pass.
 
-   *Exception:* a change that has not reached `qa` yet, or QA's own test
-   tooling, still gets the local route —
-   `git fetch && git checkout <branch-name>`, the exact branch from the PR.
+   **Testing locally is equally valid — as long as the QA folder is on the
+   `qa` branch:**
+
+   ```
+   git fetch && git checkout qa && git pull
+   npm install && npm run build && npm start
+   ```
+
+   Same code, no cold start, and the browser devtools are right there. Use it
+   whenever the staging service is asleep or the test needs the Network tab, a
+   throttled connection, or a device emulator. What matters is **which branch
+   you are on**, not which URL you point at — a local run on `qa` and the
+   staging URL are the same build.
+
+   Say which one a result came from when reporting. "Fails on localhost, passes
+   on staging" is itself a finding worth having.
+
+   *Also fine on a feature branch directly:* a change that has not reached `qa`
+   yet, or QA's own test tooling, still gets
+   `git fetch && git checkout <branch-name>` — the exact branch from the PR.
 2. Run the "How to test" steps **literally, in order**. Do not improvise a
    different path; if the steps are wrong or impossible, that itself is the
    finding and belongs in the report.
@@ -227,15 +244,23 @@ dev is done. Dev does **not** merge to `main` and does **not** deploy — see
 
 ### Who merges and deploys
 
-**QA owns the merge to `main` and the deploy. Dev never does either.**
+**QA is the only one who merges `qa` → `main`, and the only one who deploys
+production. Dev never does either.** Not with permission, not "just this once",
+not when QA is busy. If production needs to move and QA is unavailable, that is
+a scheduling problem, not a reason to route around the rule — the whole value
+of the gate is that it is never the person who wrote the code.
 
-Merging is not the deploy. Both Render services are configured
+Dev's authority stops at `dev` and `qa`. Dev may merge its own feature branches
+into `dev`, may merge `dev` → `qa`, and may deploy nothing.
+
+Merging is not the deploy. Both permanent Render services are configured
 `autoDeploy: "no"` / `autoDeployTrigger: "off"`:
 
-| Service | Branch | Auto-deploy |
-|---|---|---|
-| `liquidity-hq-prod` → liquidity-hq.com | `main` | **no** |
-| `liquidity-hq-dev` → liquidity-hq-dev.onrender.com | `dev` | **no** |
+| Service | Branch | Auto-deploy | Who deploys |
+|---|---|---|---|
+| `liquidity-hq-prod` → liquidity-hq.com | `main` | **no** | **QA only** |
+| `liquidity-hq-qa` → liquidity-hq-qa.onrender.com | `qa` | **yes** | nobody — it deploys itself |
+| `liquidity-hq-dev` → liquidity-hq-dev.onrender.com | `dev` | **no** | dev, ask first |
 
 So **merging to `main` ships nothing on its own.** Production keeps serving the
 previous build until someone triggers a deploy. QA must do both:

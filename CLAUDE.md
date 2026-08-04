@@ -33,13 +33,14 @@ One logical change per commit. Never `fix bug` / `update stuff` / `wip`.
 for someone in the QA folder, so step 1 says which branch to pull.
 
 **Two folders** — dev folder writes code, QA folder tests it; the PR is the
-handoff. **QA tests on the `qa` staging environment —
-https://liquidity-hq-qa.onrender.com — not a local checkout**, and reports plain
-pass/fail per step. Never test on `main`; it does not have the change yet.
-Local checkout (`git fetch && git checkout <branch>` from the PR) is the
-exception, for changes not yet on `qa` and for QA's own test tooling. When every
-step passes, **QA merges `qa` → `main`**, not the feature branch. Never test on
-the dev folder; never develop on the QA folder. **If this session is running in the QA
+handoff. **QA tests the `qa` branch** — either on the staging URL
+(https://liquidity-hq-qa.onrender.com) or on **localhost, provided the QA folder
+is checked out on `qa`**. Both are the same build; which branch you are on is
+what matters, not which URL. Say which one a result came from. Never test on
+`main` — it does not have the change yet. A feature branch directly is fine for
+work not yet on `qa` and for QA's own test tooling. Reports are plain pass/fail
+per step. When every step passes, **QA merges `qa` → `main`**, not the feature
+branch. Never test on the dev folder; never develop on the QA folder. **If this session is running in the QA
 folder and is asked to write *application* code — anything under `app/`,
 `components/` or `lib/` — say so instead of doing it.**
 
@@ -50,9 +51,13 @@ merges. This is the one case where review runs QA → dev. If a fix needs an
 app-code change, QA reports it as a finding — dev writes it.
 
 **Who merges and deploys — QA, never dev.**
-Dev's job ends when the PR is open and ready for review. Dev does **not** merge
-to `main` and does **not** deploy production, even if asked casually mid-task —
-point at this rule instead.
+**QA is the only one who merges `qa` → `main`, and the only one who deploys
+production.** Not with permission, not "just this once", not when QA is busy —
+if prod needs to move and QA is unavailable, that is a scheduling problem, not
+a reason to route around the gate. Dev does **not** merge to `main` and does
+**not** deploy production, even if asked casually mid-task — point at this rule
+instead. Dev's authority stops at `dev` and `qa`: it may merge its own feature
+branches into `dev`, may merge `dev` → `qa`, and may deploy nothing.
 
 Merging is **not** the deploy. Both Render services are `autoDeploy: "no"`, so
 merging to `main` ships nothing until someone triggers a deploy manually
