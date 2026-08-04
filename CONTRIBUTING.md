@@ -297,16 +297,56 @@ When in doubt: would a QA person need to look at this? If yes, write the body.
 
 ## 6. Branches and environments
 
+The flow is `dev` → `qa` → `main`.
+
 | Branch | Environment | Who pushes | Deploys automatically? |
 |---|---|---|---|
 | `<type>/<description>` | none | dev | n/a |
 | `dev` | liquidity-hq-dev.onrender.com | dev | **no** — trigger manually |
+| `qa` | **liquidity-hq-qa.onrender.com** | dev merges `dev` → `qa` | **yes** — on every push |
 | `main` | liquidity-hq.com (production) | **QA only** | **no** — trigger manually |
 
 - Feature branches are cut from `dev` and merged back into `dev` via PR.
   **Dev merges its own feature branches into `dev`** — QA ownership starts at
   `main`, not here. Merging a feature branch into `dev` needs no permission
   and no QA pass.
+
+### The `qa` staging environment
+
+`qa` is the only branch that deploys on its own. Merge `dev` → `qa` and a
+build starts; no dashboard step. That is deliberate — QA should be able to get
+a testable environment without waiting on dev, which is the whole reason the
+branch exists.
+
+| | |
+|---|---|
+| **URL** | https://liquidity-hq-qa.onrender.com |
+| **Render service** | `liquidity-hq-qa` (`srv-d9p42ke1egvs73f8car0`), free plan, Singapore |
+| **Database** | Supabase `liquidity-hq-dev` (`wdtjhrilakoitfcezxpx`) |
+| **Auto-deploy** | **yes**, on every push to `qa` |
+
+**It shares the dev database, and that is a known compromise, not the design.**
+The intent was a separate `liquidity-hq-qa` Supabase project. Supabase's free
+plan caps a *user* at two active projects across every org they own, and
+`liquidity-hq-dev` and `liquidity-hq-prod` already use both. Deleting two
+unrelated paused projects did not free a slot — the cap counts active projects
+only — and a new org does not help either, because the limit follows the
+account, not the org. Revisit when the org moves to Pro; a separate project or
+a real Supabase branch is the right answer and this is the stopgap.
+
+What that costs you in practice: QA test accounts and dev's own data live in
+the same database, so each can see and overwrite the other's rows. Do not read
+a clean QA run as proof the data path is clean.
+
+**What it must never do is point at production Supabase**
+(`qdpwhnvmhqgzijuwopso`). That is a hard rule. A staging environment that can
+write to production data is worse than having no staging environment, because
+it looks safe.
+
+**Free plan means it sleeps.** The service spins down after inactivity, so the
+first request after an idle period is slow and can time out. That is the tier,
+not a bug — retry once before reporting it. It also shares the ~500
+build-hour/month cap noted above.
 
 ### Cut a branch from wherever it is going to land
 
