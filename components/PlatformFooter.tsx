@@ -3,6 +3,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from '@/lib/theme';
+import { useAuth } from '@/components/AuthProvider';
 import BrandMark from '@/components/BrandMark';
 
 const DISCLOSURES = [
@@ -40,7 +41,30 @@ export default function PlatformFooter() {
   // .pf-footer), so its mark must track the real theme rather than a fixed
   // tone - the one surface in this rollout where that's actually true.
   const { theme } = useTheme();
+  const { loading: authLoading } = useAuth();
   if (pathname === '/' || pathname === '/login') return null;
+
+  /* Do not paint the page's closing chrome before the page body exists.
+   *
+   * Most routes render nothing but a small header stub until auth resolves,
+   * which takes roughly 800ms. During that window this footer - 296px, the
+   * tallest single element on the page - sat at y=132 in a 900px viewport,
+   * fully visible. The moment the real content mounted it was thrown below
+   * the fold in one frame, and because CLS scores impact fraction times
+   * distance moved, that one move was 82% of /arena's 0.365 total.
+   *
+   * Returning null here is the whole fix: with no footer in the pending
+   * window there is nothing to move, and once auth settles the footer mounts
+   * already below the fold. Mounting an element is not a layout shift, and
+   * nothing renders after the footer for its arrival to push around.
+   *
+   * Tried and rejected first: min-height on .app-content to reserve a
+   * viewport of space. It made things worse, not better - measured 0.76,
+   * roughly double the baseline - because it turned .app-content itself into
+   * a shifting element. Reserving space is the textbook CLS fix and it was
+   * the wrong one here; the problem was never missing space, it was painting
+   * the footer too early. */
+  if (authLoading) return null;
 
   return (
     <footer className="pf-footer">
