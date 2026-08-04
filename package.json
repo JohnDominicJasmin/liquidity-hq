@@ -7,6 +7,9 @@
     "build": "next build",
     "start": "next start",
     "test": "node --test __tests__/*.test.mts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report qa/e2e-report",
     "lint": "eslint .",
     "labels:regen": "node scripts/regen-label-defaults.mjs"
   },
@@ -27,6 +30,7 @@
     "@capacitor/android": "^8.4.0",
     "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.4.0",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
