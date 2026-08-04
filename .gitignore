@@ -43,3 +43,7 @@ next-env.d.ts
 
 # codegraph (local index)
 /.codegraph/
+
+# Playwright E2E
+qa/e2e-report/
+test-results/
