@@ -1614,6 +1614,26 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     <div className="klc-wrap" ref={wrapRef}>
       {/* Toolbar */}
       <div className="klc-toolbar">
+        {/* Scale badge for the 1000-denominated meme perps (PEPE, BONK).
+            Those two plot Bybit's raw 1000-token contract price, because
+            klinecharts cannot render a ~2e-8 axis without collapsing it - see
+            chartDisplaySymbol in lib/coins. So the chart shows ~0.0029 while the
+            rest of the app correctly shows ~0.0000029, a 1000x difference on the
+            same screen.
+
+            That was supposed to be stated by the "1000" prefix in setSymbol's
+            ticker, but klinecharts only paints the symbol inside its OHLC
+            tooltip, and that tooltip is deliberately set to follow_cross so it
+            does not cover the candles on a short mobile pane. Net effect: the
+            prefix only appeared while actively dragging a crosshair, so in
+            normal use nothing told the user the axis was per-1000-tokens - on a
+            trading app, where people read entries and stops straight off the
+            chart. Rendering it as real DOM here makes it unconditional. */}
+        {chartDisplaySymbol(coin).startsWith('1000') && (
+          <span className="klc-scale-badge" title="Bybit quotes this perp per 1000 tokens, so the chart axis is 1000x the per-token price shown elsewhere in the app">
+            {chartDisplaySymbol(coin)}
+          </span>
+        )}
         {/* TF selector */}
         {TFS.map(t => (
           <button
