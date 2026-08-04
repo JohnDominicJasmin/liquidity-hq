@@ -234,10 +234,40 @@ agreeing it first — several rules here assume the gap exists.
   Dev stops at "PR is open".
 - **Never develop on the QA folder.** It exists to reproduce what a fresh clone
   of that branch actually does.
-- If a Claude Code session **in the QA folder** is asked to write code changes —
-  as opposed to testing, reporting, merging or deploying, all of which are its
-  job — it must **flag that as outside the QA folder's role** instead of quietly
-  doing it.
+- If a Claude Code session **in the QA folder** is asked to write **application**
+  code — anything under `app/`, `components/` or `lib/` — it must **flag that as
+  outside the QA folder's role** instead of quietly doing it. Its own test
+  tooling is a different matter, see below.
+
+### When QA writes code — the reverse handoff
+
+QA owns its own tooling and may write it:
+
+| QA may author | QA may not author |
+|---|---|
+| `qa/` — specs, plans, fixtures | `app/`, `components/`, `lib/` |
+| `playwright.config.ts` | Anything shipped to users |
+| `.github/workflows/` test jobs | API routes, migrations |
+| QA docs and findings | |
+
+Everything else about the flow **reverses**, and that is the point — the author
+never verifies their own work:
+
+1. QA pushes a branch named per §1 and opens a PR **into `dev`**, using the
+   full template in §3. Not into `main`: test tooling reaches `main` the same
+   way everything else does, as part of a reviewed `dev` → `main` release.
+2. **Dev reviews it.** This is the only case where review runs QA → dev rather
+   than dev → QA.
+3. Dev merges it into `dev` once it passes.
+
+If QA finds that a fix needs an application-code change, that goes back to dev
+as a **finding**, not as a commit. Describe the defect and where it lives; let
+dev write it. A QA folder that starts fixing app code is no longer an
+independent check on it.
+
+This section exists because it was missing and the gap produced a real wrong
+answer: with no rule for QA-authored code, the dev session simply asserted that
+it would review such a branch — a role the document never gave it.
 
 ---
 
