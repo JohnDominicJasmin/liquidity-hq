@@ -33,24 +33,85 @@ One logical change per commit. Never `fix bug` / `update stuff` / `wip`.
 for someone in the QA folder, so step 1 says which branch to pull.
 
 **Two folders** — dev folder writes code, QA folder tests it; the PR is the
-handoff. QA does `git fetch && git checkout <branch>` from the PR, never
-"latest main", and reports plain pass/fail per step. Never test on the dev
-folder; never develop on the QA folder. **If this session is running in the QA
-folder and is asked to write code — rather than test, report, merge or deploy,
-which are all its job — say so instead of doing it.**
+handoff. **QA tests the `qa` branch** — either on the staging URL
+(https://liquidity-hq-qa.onrender.com) or on **localhost, provided the QA folder
+is checked out on `qa`**. Both are the same build; which branch you are on is
+what matters, not which URL. Say which one a result came from. Never test on
+`main` — it does not have the change yet. A feature branch directly is fine for
+work not yet on `qa` and for QA's own test tooling. Reports are plain pass/fail
+per step. When every step passes, **QA merges `qa` → `main`**, not the feature
+branch. Never test on the dev folder; never develop on the QA folder. **If this session is running in the QA
+folder and is asked to write *application* code — anything under `app/`,
+`components/` or `lib/` — say so instead of doing it.**
+
+**QA-authored code — the reverse handoff.** QA owns its own tooling and may
+write it: `qa/`, `playwright.config.ts`, test CI workflows, QA docs. Never app
+code. QA opens a PR **into `dev`** (not `main`), **dev reviews it**, dev
+merges. This is the one case where review runs QA → dev. If a fix needs an
+app-code change, QA reports it as a finding — dev writes it.
 
 **Who merges and deploys — QA, never dev.**
-Dev's job ends when the PR is open and ready for review. Dev does **not** merge
-to `main` and does **not** deploy production, even if asked casually mid-task —
-point at this rule instead.
+**QA is the only one who merges `qa` → `main`, and the only one who deploys
+production.** Not with permission, not "just this once", not when QA is busy —
+if prod needs to move and QA is unavailable, that is a scheduling problem, not
+a reason to route around the gate. Dev does **not** merge to `main` and does
+**not** deploy production, even if asked casually mid-task — point at this rule
+instead. Dev's authority stops at `dev` and `qa`: it may merge its own feature
+branches into `dev`, may merge `dev` → `qa`, and may deploy nothing.
 
 Merging is **not** the deploy. Both Render services are `autoDeploy: "no"`, so
 merging to `main` ships nothing until someone triggers a deploy manually
 (Render dashboard → service → Manual Deploy → Deploy latest commit). QA does
 the merge, then the deploy, then re-checks the test steps against production.
 
-`dev` branch → liquidity-hq-dev.onrender.com — dev may push and deploy this
-freely. `main` → liquidity-hq.com — QA only.
+**Flow is `dev` → `qa` → `main`.**
+
+`dev` branch → dev merges its own feature branches in and pushes freely, no
+permission needed. **Deploying the `liquidity-hq-dev` service is different —
+ask first**, it has a ~500 build-hour/month cap prod does not. Verify locally
+by default.
+
+`qa` branch → liquidity-hq-qa.onrender.com, the staging environment QA tests
+against. **Does not auto-deploy** — merge `dev` → `qa`, then trigger the deploy
+manually, and say you have done it. Whoever merges also deploys. Free plan, so
+it sleeps when idle and the first request after that is slow. Uses the
+**dev** Supabase (`wdtjhrilakoitfcezxpx`) — a known compromise, since Supabase's
+free plan caps the account at two active projects and dev + prod already take
+both. **It must never point at prod Supabase (`qdpwhnvmhqgzijuwopso`) — hard
+rule.** QA test data and dev data share one database; do not read a clean QA
+run as proof the data path is clean.
+
+`main` → liquidity-hq.com — QA only, merge and deploy both.
+
+**`qa` is fast-forward only.** Never commit to it directly, never PR a feature
+branch into it. Only `dev` goes in: `git checkout qa && git merge --ff-only dev`.
+If that fails, `qa` has diverged — fix it, do not force. Delete feature branches
+once merged; only `main`, `dev`, `qa` and open-PR branches should exist.
+
+**A hotfix skips `qa`, so it skips testing.** Cut from `main`, then merge back
+into **both `dev` and `qa`** or the next release reverts it. Say in the PR what
+was not verified.
+
+**Migrations — the thing that takes prod down.** Apply the migration *before*
+the deploy that needs it, never after. Prefer additive (add, backfill, then
+switch code); dropping in the same release as the code change leaves no safe
+rollback. Always High risk. **`qa` shares the dev database, so applying a
+migration "to qa" applies it to dev for everyone** — there is no isolated place
+to try one.
+
+**Environment variables.** If a PR adds one, the PR says so and lists which
+services still need it. Set it on prod *before* the release deploy.
+`NEXT_PUBLIC_*` are inlined at build time — setting one after a build does
+nothing until the next build. Never copy a prod secret to `qa`/`dev`.
+
+**When prod breaks — roll back first, diagnose second.** Render dashboard →
+`liquidity-hq-prod` → Deploys → *Rollback to this deploy*. That reverts the
+build, not git. **If a destructive migration shipped, there is no recovery
+path** — prod Supabase is on the free plan and has no backups.
+
+**Tag `main` after a successful prod deploy** — `git tag -a v2026.08.05 -m "..."`.
+Date-based. Without it, "what is in production?" is only answerable from the
+Render dashboard.
 
 **Low ceremony** — small internal chores (dep bumps, formatting, comments) may
 skip the commit body and screenshots. Branch naming and the `type(scope):`
