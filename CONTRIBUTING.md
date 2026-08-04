@@ -93,6 +93,24 @@ the timeframe buttons. Same on ?coin=bonk. Switch to ?coin=btc — the badge
 should disappear entirely.
 ```
 
+### Trailers
+
+Commits authored with AI assistance carry these two trailers, after a blank
+line at the very end of the message:
+
+```
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_<id>
+```
+
+They are attribution and provenance, not part of the `What changed / Why /
+Test` body. Documented here because every commit in this repo already has
+them while this file described the format without them — leaving the written
+convention and the actual history disagreeing about what a commit looks like.
+
+Older commits show `Claude Opus 5 (1M context)` in the same slot. Do not go
+back and rewrite them; match the current form going forward.
+
 **Rules**
 
 - **One logical change per commit.** Do not bundle unrelated fixes. If the
@@ -256,6 +274,9 @@ When in doubt: would a QA person need to look at this? If yes, write the body.
 | `main` | liquidity-hq.com (production) | **QA only** | **no** — trigger manually |
 
 - Feature branches are cut from `dev` and merged back into `dev` via PR.
+  **Dev merges its own feature branches into `dev`** — QA ownership starts at
+  `main`, not here. Merging a feature branch into `dev` needs no permission
+  and no QA pass.
 
 ### Cut a branch from wherever it is going to land
 
@@ -280,8 +301,13 @@ in `main`'s history. Git treats them as already merged, so a later `dev` →
 `main` merge will **not** bring their changes back — it will look like a clean
 merge that silently does nothing. Recover them with `git revert <the-revert>` or
 a cherry-pick, not another merge.
-- `dev` is the integration branch. Dev may push and deploy the dev environment
-  freely — that is what it is for.
+- `dev` is the integration branch. **Pushing to the `dev` branch is always
+  fine, no need to ask. Deploying the `liquidity-hq-dev` *service* is not** —
+  ask first. That service carries a ~500 build-hour/month cap that prod does
+  not have, so a deploy spends a shared, exhaustible budget. Default to local
+  verification (`npx tsc --noEmit`, `npm run build`, `localhost:3000`) and
+  deploy dev only when something genuinely cannot be checked locally — an
+  origin IP, a real Render environment variable, a cold start.
 - `main` is **release only, and QA-owned**. Dev never merges into it. QA merges
   after every "How to test" step passes, then triggers the production deploy
   as a separate manual action (§4, "Who merges and deploys").

@@ -49,8 +49,10 @@ merging to `main` ships nothing until someone triggers a deploy manually
 (Render dashboard → service → Manual Deploy → Deploy latest commit). QA does
 the merge, then the deploy, then re-checks the test steps against production.
 
-`dev` branch → liquidity-hq-dev.onrender.com — dev may push and deploy this
-freely. `main` → liquidity-hq.com — QA only.
+`dev` branch → dev merges its own feature branches in and pushes freely, no
+permission needed. **Deploying the `liquidity-hq-dev` service is different —
+ask first**, it has a ~500 build-hour/month cap prod does not. Verify locally
+by default. `main` → liquidity-hq.com — QA only, merge and deploy both.
 
 **Low ceremony** — small internal chores (dep bumps, formatting, comments) may
 skip the commit body and screenshots. Branch naming and the `type(scope):`
