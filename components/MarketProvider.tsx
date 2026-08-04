@@ -150,6 +150,19 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   }, [updateCoin]);
 
   /* ── Binance WebSocket ── */
+  // The reconnect below re-enters this function, so it cannot reference the
+  // `startWS` binding directly - that is a const being read before its own
+  // initialiser completes, which is what react-hooks/immutability flags.
+  //
+  // It was also a real staleness bug, not only a lint complaint. `startWS` is a
+  // useCallback over [restPoll, updateCoin]; when either changes, a NEW startWS
+  // exists, but a socket opened by the previous one still has the previous
+  // closure wired into its onclose. A drop after that point would reconnect
+  // using the stale restPoll/updateCoin - so the backup REST poll and the store
+  // writes could be the ones from an earlier render. Going through a ref means
+  // a retry always runs whatever the current startWS is.
+  const startWSRef = useRef<() => void>(() => {});
+
   const startWS = useCallback(() => {
     if (wsRef.current) { try { wsRef.current.close(); } catch { /* */ } }
     const url = WS_URLS[urlIdxRef.current % WS_URLS.length];
@@ -181,7 +194,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       retriesRef.current++;
       urlIdxRef.current++;
       if (retriesRef.current <= 5) {
-        setTimeout(startWS, 2000 * retriesRef.current);
+        setTimeout(() => startWSRef.current(), 2000 * retriesRef.current);
       } else {
         setStore(s => ({ ...s, wsStatus: 'Live · backup feed' }));
         restPoll();
@@ -189,6 +202,13 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       }
     };
   }, [restPoll, updateCoin]);
+
+  // Kept current in an effect rather than assigned during render - a ref write
+  // during render is its own violation (react-hooks/refs) and would just trade
+  // one warning for another. Declared here, above the effect that first calls
+  // startWS(), so React runs this assignment first and the ref is never the
+  // initial no-op by the time a reconnect can fire.
+  useEffect(() => { startWSRef.current = startWS; }, [startWS]);
 
   /* ── Bybit: all coins - single bulk fetch instead of per-symbol calls ── */
   const fetchBybit = useCallback(async () => {
@@ -302,28 +322,11 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     ]);
   }, [updateCoin]);
 
-  /* ── Binance volume + klines ── */
-  const fetchVolume = useCallback(async () => {
-    const binanceCoins = Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype');
-    const syms = binanceCoins.map(([, s]) => s);
-    try {
-      const batch = encodeURIComponent(JSON.stringify(syms));
-      const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${batch}`);
-      const arr = await res.json();
-      if (!Array.isArray(arr)) return;
-      arr.forEach((d: Record<string, string>) => {
-        const id = SYM_MAP[d.symbol];
-        if (!id) return;
-        updateCoin(id, { vol24: parseFloat(d.quoteVolume || '0') });
-        fetchKlines(id, d.symbol);
-      });
-    } catch {
-      binanceCoins.forEach(([coin, sym], i) => {
-        setTimeout(() => fetchKlines(coin as CoinId, sym), i * 300);
-      });
-    }
-  }, [updateCoin]); // eslint-disable-line react-hooks/exhaustive-deps
-
+  /* fetchKlines is declared before fetchVolume, which calls it. It used to sit
+     after, so fetchVolume closed over a const declared later - what
+     react-hooks/immutability means by "accessed before it is declared". Safe only
+     because fetchVolume is never invoked during render; moving it earlier removes
+     the dependency on that being true. */
   const fetchKlines = useCallback(async (coin: CoinId, sym: string) => {
     try {
       // Use futures klines (fapi) - more accurate taker buy/sell for perp traders
@@ -419,6 +422,29 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       updateCoin(coin, { volRatio: avg > 0 ? current / avg : 1, ma20, rsi14, poc, vah, val, vwap, takerBuyRatio, chartPattern });
     } catch { /* */ }
   }, [updateCoin]);
+
+  /* ── Binance volume + klines ── */
+  const fetchVolume = useCallback(async () => {
+    const binanceCoins = Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype');
+    const syms = binanceCoins.map(([, s]) => s);
+    try {
+      const batch = encodeURIComponent(JSON.stringify(syms));
+      const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${batch}`);
+      const arr = await res.json();
+      if (!Array.isArray(arr)) return;
+      arr.forEach((d: Record<string, string>) => {
+        const id = SYM_MAP[d.symbol];
+        if (!id) return;
+        updateCoin(id, { vol24: parseFloat(d.quoteVolume || '0') });
+        fetchKlines(id, d.symbol);
+      });
+    } catch {
+      binanceCoins.forEach(([coin, sym], i) => {
+        setTimeout(() => fetchKlines(coin as CoinId, sym), i * 300);
+      });
+    }
+  }, [updateCoin]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   /* ── Bybit klines for Bybit-only coins (HYPE, PEPE, BONK, XAU, SPX, …) ── */
   // Bybit kline format (newest-first): [startTime, open, high, low, close, volume, turnover]

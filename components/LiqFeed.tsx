@@ -183,6 +183,13 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
   }, [rebuild, saveToStorage]);
 
   /* ── Binance forceOrder WebSocket (individual symbol streams - all-market @arr is deprecated) ── */
+  // Reconnect goes through a ref for the same reason as MarketProvider's
+  // startWS: a function cannot reference its own binding from inside its own
+  // initialiser, and the stale-closure risk is real - connectBN is a useCallback
+  // over [onLiq], so a socket that drops after onLiq changes would otherwise
+  // reconnect wired to the previous onLiq and write liquidations through a
+  // stale rebuild/saveToStorage pair.
+  const connectBNRef = useRef<() => void>(() => {});
   const BN_SYMBOLS = Object.values(BINANCE_SYMS).map(s => s.toLowerCase());
   const connectBN = useCallback(() => {
     try { bnWsRef.current?.close(); } catch { /* */ }
@@ -192,7 +199,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
     bnWsRef.current = ws;
     ws.onopen  = () => setBnStatus('live');
     ws.onerror = () => setBnStatus('error');
-    ws.onclose = () => { setBnStatus('error'); setTimeout(connectBN, 5000); };
+    ws.onclose = () => { setBnStatus('error'); setTimeout(() => connectBNRef.current(), 5000); };
     ws.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data as string);
@@ -211,8 +218,15 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onLiq]);
 
+  // Kept current in an effect, not assigned during render (a render-time ref
+  // write is its own violation). Declared above the effect that first calls
+  // connectBN(), so React runs it first and the ref is never the initial no-op
+  // by the time a reconnect can fire.
+  useEffect(() => { connectBNRef.current = connectBN; }, [connectBN]);
+
   /* ── Bybit liquidation WebSocket (try primary, fall back to bytick.com mirror) ── */
   const bbRetriesRef2 = useRef(0);
+  const connectBBRef = useRef<() => void>(() => {});
   const connectBB = useCallback(() => {
     try { bbWsRef.current?.close(); } catch { /* */ }
     // bytick.com is Bybit's alternative domain - less likely to be blocked by extensions
@@ -233,7 +247,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
     ws.onclose = () => {
       setBbStatus('error');
       bbRetriesRef2.current++;
-      setTimeout(connectBB, 5000);
+      setTimeout(() => connectBBRef.current(), 5000);
     };
     ws.onmessage = (ev) => {
       try {
@@ -252,6 +266,10 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
       } catch { /* */ }
     };
   }, [onLiq]);
+
+  // Same as connectBN's above, and declared before the effect that first calls
+  // connectBB() so the ref is populated before any reconnect can run.
+  useEffect(() => { connectBBRef.current = connectBB; }, [connectBB]);
 
   useEffect(() => {
     // ── Seed from localStorage (fast, synchronous) ───────────────────────

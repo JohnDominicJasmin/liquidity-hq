@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useAuth } from './AuthProvider';
 import { getSupabase } from '@/lib/supabase';
 import {
@@ -16,6 +16,39 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef  = useRef<Partial<UserSettings> | null>(null);
+
+  // ── Debounced Supabase upsert ─────────────────────────────────────────────
+  // Declared before the effects, not after them. The sign-in effect below calls
+  // flushToDb from inside its anti-chop migration branch, and this used to sit
+  // further down the file - so that effect closed over a const declared later.
+  // It worked, because effects run after the whole component body has, but it is
+  // what react-hooks/immutability flags as "cannot access variable before it is
+  // declared", and it is only safe by accident: move that call anywhere that
+  // runs during render and it becomes a real TDZ crash. Ordering it properly
+  // costs nothing - it depends on `user`, which is already available here.
+  const flushToDb = useCallback(async (partial: Partial<UserSettings>) => {
+    if (!user) return;
+    const sb = getSupabase();
+    if (!sb) return;
+    setSaveStatus('saving');
+    try {
+      const session = await sb.auth.getSession();
+      const token   = session.data.session?.access_token;
+      if (!token) throw new Error('no token');
+
+      const res = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(partial),
+      });
+      if (!res.ok) throw new Error('save failed');
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch {
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
+  }, [user]);
 
   // ── Initialise from localStorage immediately (no flash of defaults) ──────
   useEffect(() => {
@@ -88,31 +121,6 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     saveLocalSettings(s);
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Debounced Supabase upsert ─────────────────────────────────────────────
-  const flushToDb = useCallback(async (partial: Partial<UserSettings>) => {
-    if (!user) return;
-    const sb = getSupabase();
-    if (!sb) return;
-    setSaveStatus('saving');
-    try {
-      const session = await sb.auth.getSession();
-      const token   = session.data.session?.access_token;
-      if (!token) throw new Error('no token');
-
-      const res = await fetch('/api/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(partial),
-      });
-      if (!res.ok) throw new Error('save failed');
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 2000);
-    } catch {
-      setSaveStatus('error');
-      setTimeout(() => setSaveStatus('idle'), 3000);
-    }
-  }, [user]);
-
   const update = useCallback((partial: Partial<UserSettings>) => {
     // 1. Update local state immediately
     setSettings(prev => {
@@ -132,8 +140,18 @@ export default function SettingsProvider({ children }: { children: React.ReactNo
     }, 800);
   }, [flushToDb]);
 
+  // Memoized for the same reason LabelsProvider's is: this provider wraps the
+  // whole app, so a fresh object literal here re-rendered every useSettings()
+  // consumer on every render of this component, regardless of whether any
+  // setting actually changed. update/refresh/flushToDb are already useCallback'd,
+  // so the identity is stable until the values genuinely move.
+  const value = useMemo(
+    () => ({ settings, loading, saveStatus, update, refresh }),
+    [settings, loading, saveStatus, update, refresh],
+  );
+
   return (
-    <SettingsContext.Provider value={{ settings, loading, saveStatus, update, refresh }}>
+    <SettingsContext.Provider value={value}>
       {children}
     </SettingsContext.Provider>
   );

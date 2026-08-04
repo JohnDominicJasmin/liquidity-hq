@@ -130,6 +130,19 @@ export default function AlertsPage() {
   const [paAdding, setPaAdding]       = useState(false);
   const [paError, setPaError]         = useState('');
 
+  // Declared before the effects that call it. It used to live further down, so
+  // the mount effect below closed over a const declared later - what
+  // react-hooks/immutability means by "accessed before it is declared". It only
+  // worked because effects run after the component body has finished; nothing
+  // about the code said so. It closes over nothing but the imported
+  // getSupabase, so hoisting it is free.
+  const getAuthToken = async (): Promise<string | null> => {
+    const sb = getSupabase();
+    if (!sb) return null;
+    const { data } = await sb.auth.getSession();
+    return data.session?.access_token ?? null;
+  };
+
   useEffect(() => {
     fetch('/api/telegram/bot-info').then(r => r.json())
       .then(d => { setBotUsername(d.username ?? null); setWebhookOk(d.webhook_ok !== false); })
@@ -245,13 +258,6 @@ export default function AlertsPage() {
       setLinkSecondsLeft(0);
     }
   }, [isConnected, linkCode]);
-
-  const getAuthToken = async (): Promise<string | null> => {
-    const sb = getSupabase();
-    if (!sb) return null;
-    const { data } = await sb.auth.getSession();
-    return data.session?.access_token ?? null;
-  };
 
   const toggleMute = async (key: string) => {
     const willMute = !muted.has(key);
