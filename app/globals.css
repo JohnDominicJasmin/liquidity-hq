@@ -138,8 +138,20 @@
    zoomed in. Most of this app's inputs use --fs-body/--fs-label (14px/13px)
    for visual consistency with the rest of the UI, which is fine on desktop
    (no focus-zoom there) - this just overrides the effective size on mobile,
-   without changing any input's declared font-size or desktop appearance. */
-@media (max-width: 640px) {
+   without changing any input's declared font-size or desktop appearance.
+   ---
+   Keyed on POINTER TYPE, not width. This was `@media (max-width: 640px)`, which
+   silently stopped applying in the exact places the zoom still happens: a phone
+   in LANDSCAPE is wider than 640 CSS px (iPhone 15 Pro Max is ~932), and so is
+   every tablet. Both are touch devices, both auto-zoom on a sub-16px input, and
+   both were getting 13px inputs. Reported as "mobile view is zoomed in
+   automatically".
+   `hover: none` + `pointer: coarse` is the capability this actually depends on -
+   a device driven by a finger - so it holds through rotation and on tablets,
+   and still never touches a desktop with a mouse. The width query is kept
+   alongside it for any touch browser that does not report pointer media
+   correctly; either one matching is enough. */
+@media (max-width: 640px), (hover: none) and (pointer: coarse) {
   input, select, textarea { font-size: 16px !important; }
 }
 
