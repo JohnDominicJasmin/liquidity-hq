@@ -5,6 +5,7 @@ import {
   BINANCE_SYMS, BYBIT_SYMS,
 } from '@/lib/marketStore';
 import { bybitPriceFactor } from '@/lib/coins';
+import { computeRSI14 } from '@/lib/rsi';
 import { detectPatterns } from '@/lib/patterns';
 import { getAuthToken } from '@/lib/supabase';
 
@@ -86,16 +87,8 @@ const SYM_MAP: Record<string, CoinId> = Object.fromEntries(
   Object.entries(BINANCE_SYMS).map(([id, sym]) => [sym, id as CoinId])
 );
 
-/* Helper: compute RSI14 from an array of close prices */
-function computeRSI14(closes: number[]): number | null {
-  if (closes.length < 15) return null;
-  const changes = closes.slice(1).map((c, i) => c - closes[i]);
-  const gains   = changes.slice(-14).map(c => Math.max(c, 0));
-  const losses  = changes.slice(-14).map(c => Math.max(-c, 0));
-  const avgGain = gains.reduce((a, b) => a + b, 0) / 14;
-  const avgLoss = losses.reduce((a, b) => a + b, 0) / 14;
-  return avgLoss === 0 ? 100 : Math.round(100 - (100 / (1 + avgGain / avgLoss)));
-}
+/* computeRSI14 moved to lib/rsi so app/api/market/rsi computes the identical
+   number - see that file for why two copies would drift silently. */
 
 export default function MarketProvider({ children }: { children: React.ReactNode }) {
   const [store, setStore] = useState<MarketStore>(defaultStore);
@@ -546,157 +539,44 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     }));
   }, [updateCoin]);
 
-  /* ── Bybit multi-TF RSI for HYPE (1h + 4h) ── */
-  const fetchBybitMultiTFRSI = useCallback(async () => {
-    const bybitOnly = (['hype'] as CoinId[]).filter(c => BYBIT_SYMS[c] && !BINANCE_SYMS[c]);
-    await Promise.allSettled(
-      bybitOnly.flatMap(coin => {
-        const sym = BYBIT_SYMS[coin];
-        return (['60', '240'] as const).map(async (interval) => {
-          try {
-            const res = await fetch(
-              `https://api.bybit.com/v5/market/kline?category=linear&symbol=${sym}&interval=${interval}&limit=16`
-            );
-            const d = await res.json();
-            const klines: string[][] = [...(d?.result?.list ?? [])].reverse();
-            if (klines.length < 15) return;
-            const closes = klines.map(k => parseFloat(k[4]));
-            const rsi = computeRSI14(closes);
-            if (rsi === null) return;
-            updateCoin(coin, interval === '60' ? { rsi1h: rsi } : { rsi4h: rsi });
-          } catch { /* */ }
-        });
-      })
-    );
-  }, [updateCoin]);
+  /* ── RSI for every coin and timeframe, in one server call ──
+     Replaces five separate pollers - fetch5mRSI, fetchMultiTFRSI,
+     fetchBybitMultiTFRSI, fetchDailyRSI and fetchWeeklyMonthlyRSI - each of
+     which looped the whole coin list and fired one kline request per coin per
+     timeframe. That was 276 requests from the visitor's own IP on every page
+     load, all returning data identical for every visitor: a weekly RSI does
+     not differ per user.
 
-  /* ── 5-minute RSI (all coins, matches the chart's fastest timeframe) ── */
-  const fetch5mRSI = useCallback(async () => {
-    await Promise.allSettled([
-      // Binance coins
-      ...Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype').map(async ([coin, sym]) => {
-        try {
-          const res = await fetch(
-            `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=5m&limit=16`
-          );
-          const klines = await res.json();
-          if (!Array.isArray(klines) || klines.length < 15) return;
-          const closes = klines.map((k: string[]) => parseFloat(k[4]));
-          const rsi = computeRSI14(closes);
-          if (rsi !== null) updateCoin(coin as CoinId, { rsi5m: rsi });
-        } catch { /* */ }
-      }),
-      // HYPE via Bybit (5 = 5-minute interval)
-      (async () => {
-        try {
-          const res = await fetch(
-            `https://api.bybit.com/v5/market/kline?category=linear&symbol=HYPEUSDT&interval=5&limit=16`
-          );
-          const d = await res.json();
-          const klines: string[][] = [...(d?.result?.list ?? [])].reverse();
-          if (klines.length < 15) return;
-          const closes = klines.map(k => parseFloat(k[4]));
-          const rsi = computeRSI14(closes);
-          if (rsi !== null) updateCoin('hype', { rsi5m: rsi });
-        } catch { /* */ }
-      })(),
-    ]);
-  }, [updateCoin]);
+     app/api/market/rsi does that fan-out once per cache window on the server
+     and serves everyone from the one result, so this is a single request. See
+     that route for why the burst mattered - it is the suspected cause of the
+     intermittent blank chart, since tripping Binance's per-IP limit makes
+     unrelated kline calls start returning 429.
 
-  /* ── Multi-timeframe RSI (1h + 4h) ── */
-  const fetchMultiTFRSI = useCallback(async () => {
-    const binanceCoins = Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype');
-    await Promise.allSettled(
-      binanceCoins.flatMap(([coin, sym]) =>
-        (['1h', '4h'] as const).map(async (tf) => {
-          try {
-            const res = await fetch(
-              `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${tf}&limit=16`
-            );
-            const klines = await res.json();
-            if (!Array.isArray(klines) || klines.length < 15) return;
-            const closes = klines.map((k: string[]) => parseFloat(k[4]));
-            const rsi = computeRSI14(closes);
-            if (rsi === null) return;
-            updateCoin(coin as CoinId, tf === '1h' ? { rsi1h: rsi } : { rsi4h: rsi });
-          } catch { /* */ }
-        })
-      )
-    );
-  }, [updateCoin]);
+     Polled at the old 5m cadence. The slower timeframes are cached server-side
+     at their own 15-minute TTL, so calling this every 3 minutes does not
+     re-fetch weekly and monthly candles - it just serves them warm.
 
-  /* ── Daily RSI (1D candles - all coins, runs every 15 min) ── */
-  const fetchDailyRSI = useCallback(async () => {
-    await Promise.allSettled([
-      // Binance coins
-      ...Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype').map(async ([coin, sym]) => {
-        try {
-          const res = await fetch(
-            `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1d&limit=20`,
-            { cache: 'no-store' }
-          );
-          const klines = await res.json();
-          if (!Array.isArray(klines) || klines.length < 15) return;
-          const closes = klines.map((k: string[]) => parseFloat(k[4]));
-          const rsi = computeRSI14(closes);
-          if (rsi !== null) updateCoin(coin as CoinId, { rsiDaily: rsi });
-        } catch { /* */ }
-      }),
-      // HYPE via Bybit (D = daily interval)
-      (async () => {
-        try {
-          const res = await fetch(
-            `https://api.bybit.com/v5/market/kline?category=linear&symbol=HYPEUSDT&interval=D&limit=20`,
-            { cache: 'no-store' }
-          );
-          const d = await res.json();
-          const klines: string[][] = [...(d?.result?.list ?? [])].reverse();
-          if (klines.length < 15) return;
-          const closes = klines.map(k => parseFloat(k[4]));
-          const rsi = computeRSI14(closes);
-          if (rsi !== null) updateCoin('hype', { rsiDaily: rsi });
-        } catch { /* */ }
-      })(),
-    ]);
-  }, [updateCoin]);
-
-  /* ── Weekly + Monthly RSI (1W/1M candles - all coins, slow-moving, runs every 15 min) ── */
-  const fetchWeeklyMonthlyRSI = useCallback(async () => {
-    await Promise.allSettled([
-      // Binance coins
-      ...Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype').flatMap(([coin, sym]) =>
-        (['1w', '1M'] as const).map(async (tf) => {
-          try {
-            const res = await fetch(
-              `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=${tf}&limit=20`,
-              { cache: 'no-store' }
-            );
-            const klines = await res.json();
-            if (!Array.isArray(klines) || klines.length < 15) return;
-            const closes = klines.map((k: string[]) => parseFloat(k[4]));
-            const rsi = computeRSI14(closes);
-            if (rsi === null) return;
-            updateCoin(coin as CoinId, tf === '1w' ? { rsiWeekly: rsi } : { rsiMonthly: rsi });
-          } catch { /* */ }
-        })
-      ),
-      // HYPE via Bybit (W = weekly, M = monthly interval)
-      ...(['W', 'M'] as const).map(async (interval) => {
-        try {
-          const res = await fetch(
-            `https://api.bybit.com/v5/market/kline?category=linear&symbol=HYPEUSDT&interval=${interval}&limit=20`,
-            { cache: 'no-store' }
-          );
-          const d = await res.json();
-          const klines: string[][] = [...(d?.result?.list ?? [])].reverse();
-          if (klines.length < 15) return;
-          const closes = klines.map(k => parseFloat(k[4]));
-          const rsi = computeRSI14(closes);
-          if (rsi === null) return;
-          updateCoin('hype', interval === 'W' ? { rsiWeekly: rsi } : { rsiMonthly: rsi });
-        } catch { /* */ }
-      }),
-    ]);
+     Failure is silent and non-destructive by design: updateCoin runs only for
+     coins the response actually carried, so a partial or missing response
+     leaves the previous RSI values on screen instead of blanking the badges.
+     That matches how the per-coin version behaved when one symbol was rate
+     limited. */
+  const fetchRSI = useCallback(async () => {
+    try {
+      const res = await fetch('/api/market/rsi');
+      if (!res.ok) return;
+      const body = await res.json() as {
+        rsi?: Record<string, Partial<Record<
+          'rsi5m' | 'rsi1h' | 'rsi4h' | 'rsiDaily' | 'rsiWeekly' | 'rsiMonthly', number
+        >>>;
+      };
+      for (const [coin, fields] of Object.entries(body.rsi ?? {})) {
+        if (fields && Object.keys(fields).length > 0) {
+          updateCoin(coin as CoinId, fields);
+        }
+      }
+    } catch { /* */ }
   }, [updateCoin]);
 
   /* ── CVD + Divergence + Whale detection (all Binance coins + HYPE via Bybit) ── */
@@ -1400,16 +1280,12 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     fetchLSR();
     fetchVolume();
     fetchBybitKlines();       // RSI/MA20/VWAP/POC for HYPE
-    fetchBybitMultiTFRSI();   // 1h + 4h RSI for HYPE
     fetchFNG();
     fetchCMCGlobal();
     fetchAltSeason();
     fetchMacro();
     fetchETF();
-    fetch5mRSI();
-    fetchMultiTFRSI();
-    fetchDailyRSI();
-    fetchWeeklyMonthlyRSI();
+    fetchRSI();               // all timeframes, all coins - one server call
     fetchCVD();
     fetchOrderBook();
     fetchPremiumIndex();
@@ -1428,16 +1304,14 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       setInterval(fetchLSR,               5  * 60 * 1000),
       setInterval(fetchVolume,            3  * 60 * 1000),
       setInterval(fetchBybitKlines,       3  * 60 * 1000),  // same cadence as Binance klines
-      setInterval(fetchBybitMultiTFRSI,  15  * 60 * 1000),  // same as Binance multi-TF
       setInterval(fetchFNG,             24  * 60 * 60 * 1000),
       setInterval(fetchCMCGlobal,         5  * 60 * 1000),   // BTC/ETH dom - CMC, every 5m
       setInterval(fetchAltSeason,        15  * 60 * 1000),   // 90d score - slow-moving, every 15m
       setInterval(fetchMacro,            10  * 60 * 1000),
       setInterval(fetchETF,              30  * 60 * 1000),
-      setInterval(fetch5mRSI,             3  * 60 * 1000),  // same cadence as Binance klines
-      setInterval(fetchMultiTFRSI,       15  * 60 * 1000),
-      setInterval(fetchDailyRSI,         15  * 60 * 1000),  // 1D RSI - slow-moving, every 15m
-      setInterval(fetchWeeklyMonthlyRSI, 15  * 60 * 1000),  // 1W/1M RSI - slow-moving, every 15m
+      // 5m RSI's old cadence. The 1h/4h/1d/1w/1M values are cached server-side
+      // at their own 15m TTL, so this does not re-fetch them every 3 minutes.
+      setInterval(fetchRSI,               3  * 60 * 1000),
       setInterval(fetchCVD,               5  * 60 * 1000),
       setInterval(fetchOrderBook,         2  * 60 * 1000),
       setInterval(fetchPremiumIndex,     30  * 1000),        // every 30s - premium changes frequently
