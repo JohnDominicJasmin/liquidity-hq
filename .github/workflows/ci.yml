@@ -3,6 +3,13 @@ name: CI
 on:
   push:
     branches: [dev, main]
+  # Also on PRs, or CI only ever runs AFTER a merge - which is the one moment
+  # it cannot help. The convention makes the PR the review point (CONTRIBUTING
+  # section 4), so the checks have to be green before the merge button, not
+  # after. Covers PRs from any branch, including QA-authored ones, which a
+  # push trigger limited to [dev, main] never sees.
+  pull_request:
+    branches: [dev, main]
 
 jobs:
   build:
@@ -24,7 +31,7 @@ jobs:
       # Runs first because it is the fastest of the four steps.
       #
       # Fails on errors only. Warnings are printed but do not block - there are
-      # ~131 of them, a pre-existing React Compiler backlog documented in
+      # 93 of them, a pre-existing React Compiler backlog documented in
       # eslint.config.mjs. Deliberately no --max-warnings=0: it would either
       # force a 67-file refactor of live code today, or be set to a number
       # nobody maintains.

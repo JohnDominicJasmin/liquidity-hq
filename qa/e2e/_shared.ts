@@ -89,7 +89,15 @@ export const BASELINE = {
  * entirely so it falls back to the strict threshold.
  */
 export const CLS_BUDGET: Record<string, number> = {
-  '/arena': 0.40,     // worst observed 0.367
+  /* /arena was here at 0.40. Removed 2026-08-05, per the rule above: the shift
+     was fixed, so the route goes back to the strict threshold rather than
+     keeping a budget it now passes by 6x.
+     PlatformFooter was painting before the page body existed - main.app-content
+     rendered 460px tall while auth resolved, so the 296px footer sat at y=132
+     in a 900px viewport and was thrown off screen when .arena-ws finally
+     mounted. Holding the footer back until auth settles took the route from
+     0.365 to 0.068 over three runs. Note it was the footer, not gchat-fab:
+     per-source attribution put the FAB at 0.1% of the shift. */
   '/briefing': 0.20,  // observed 0.148, 0.153, 0.176
 };
 
