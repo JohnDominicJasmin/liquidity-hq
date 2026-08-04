@@ -255,7 +255,31 @@ When in doubt: would a QA person need to look at this? If yes, write the body.
 | `dev` | liquidity-hq-dev.onrender.com | dev | **no** — trigger manually |
 | `main` | liquidity-hq.com (production) | **QA only** | **no** — trigger manually |
 
-- Feature branches are cut from `dev` and merged back via PR.
+- Feature branches are cut from `dev` and merged back into `dev` via PR.
+
+### Cut a branch from wherever it is going to land
+
+**A branch destined for `main` must be cut from `main`, not from `dev`.**
+
+Branching off `dev` and then merging that branch into `main` does not merge
+your commit — it merges *everything currently on `dev`*, including work that was
+deliberately being held back. The diff looks right locally, so nothing warns
+you.
+
+This is not hypothetical: it happened while writing this file. A `docs/` branch
+was cut from `dev` and merged to `main` to bootstrap the convention, and it
+silently carried 13 unrelated QA-scaffolding files onto `main` with it.
+
+- Normal work → cut from `dev`, merge back to `dev`. Reaches `main` later, as
+  part of a reviewed `dev` → `main` release.
+- Hotfix or anything that must land on `main` **now** → cut from `main`, and
+  merge it back into `dev` afterwards so the two do not drift.
+
+**If a merge to `main` is ever reverted**, note that the reverted commits stay
+in `main`'s history. Git treats them as already merged, so a later `dev` →
+`main` merge will **not** bring their changes back — it will look like a clean
+merge that silently does nothing. Recover them with `git revert <the-revert>` or
+a cherry-pick, not another merge.
 - `dev` is the integration branch. Dev may push and deploy the dev environment
   freely — that is what it is for.
 - `main` is **release only, and QA-owned**. Dev never merges into it. QA merges
