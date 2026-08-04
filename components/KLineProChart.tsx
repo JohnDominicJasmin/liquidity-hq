@@ -581,6 +581,25 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
         const id = chart.createOverlay({
           name: 'emaRibbonLine',
           points,
+          // Locked, like every other non-drawing overlay on this chart
+          // (emaSignal, reversalWarning, srLevelLine, gexLevelLine,
+          // analysisLevelLine all set this). Without it klinecharts treats the
+          // ribbon as a user-editable drawing: grabbing an EMA line dragged it
+          // off the price data, and since each line carries hundreds of points
+          // there was no way to put it back short of switching coin or
+          // timeframe to force a rebuild.
+          //
+          // This is the cost of drawing the ribbon as an overlay rather than an
+          // indicator - see the EMA_PERIODS comment for why that trade was made.
+          // Indicators are inert; overlays are interactive by default, so every
+          // overlay that represents DATA rather than a user drawing has to opt
+          // out explicitly.
+          //
+          // lock only gates mouse-down and pressed-move (klinecharts
+          // index.esm.js: `if (overlay.lock) return false` in
+          // _figureMouseDownEvent, plus the `!overlay.lock` guard on
+          // onPressedMoving), so hover and tooltips are unaffected.
+          lock: true,
           extendData: { color: cfg.color, size: cfg.size },
           // Higher zLevel paints on top. EMA_PERIODS is ordered fast-to-slow
           // (9, 20, 50, 200), so EMA200 (idx 3, thickest) ends up on top and
