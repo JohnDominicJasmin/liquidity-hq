@@ -88,10 +88,13 @@ export default function SignalAccuracy() {
 
       {/* Loading / error */}
       {!data && !err && (
-        <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 10 }} role="status" aria-live="polite">
+        /* Four thin bars reserved ~90px where the loaded card needs ~420, so it
+           grew by 270px on arrival and pushed everything below it. Taller bars
+           at the real row count reserve roughly the right space instead. */
+        <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 9 }} role="status" aria-live="polite">
           <span className="sr-only">{t('SIGNAL_ACCURACY_SR_COMPUTING')}</span>
-          {[0, 1, 2, 3].map(i => (
-            <SkeletonBar key={i} height={14} radius={4} style={{ opacity: 1 - i * 0.15 }} />
+          {Array.from({ length: 8 }).map((_, i) => (
+            <SkeletonBar key={i} height={36} radius={6} style={{ opacity: Math.max(0.25, 1 - i * 0.09) }} />
           ))}
         </div>
       )}

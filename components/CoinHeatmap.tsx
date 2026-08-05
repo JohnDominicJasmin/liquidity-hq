@@ -1,9 +1,14 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMarket, COINS, CoinId } from '@/lib/marketStore';
 import { withAlpha } from '@/lib/color';
 import Tip from '@/components/Tip';
 import { useLabels } from '@/lib/labels';
+
+/* How often the heatmap re-ranks itself. See the effect in the component. */
+const RERANK_MS = 60_000;
+/* If a feed never reports, rank anyway rather than sitting in declared order. */
+const FIRST_RANK_TIMEOUT_MS = 12_000;
 
 type Cat = 'all' | 'majors' | 'alts' | 'defi' | 'meme';
 
@@ -38,6 +43,8 @@ export default function CoinHeatmap() {
   const { t } = useLabels();
   const { store } = useMarket();
   const [cat, setCat] = useState<Cat>('all');
+  /* Frozen tile order per category - see the comment above the effect below. */
+  const [order, setOrder] = useState<Partial<Record<Cat, CoinId[]>>>({});
 
   const CAT_LABELS: Record<Cat, string> = {
     all: t('COIN_HEATMAP_CAT_ALL'),
@@ -49,20 +56,72 @@ export default function CoinHeatmap() {
 
   const entries = [...(CAT[cat] as CoinId[])].map(c => ({ c, coin: store.coins[c] }));
 
-  /* Hold the declared order until every tile has a number to be ranked by.
+  /* Rank on a schedule, never on a price tick.
    *
-   * Sorting on `change ?? -999` ranks the not-yet-loaded coins dead last, so
-   * each one leapt from the bottom of the grid to its real position the moment
-   * its price arrived. XAU and SPX are the worst of it - they come from the
-   * slowest feeds, so they were still travelling the height of the grid two
-   * seconds in, and every jump reflowed the tiles around them.
+   * This grid used to re-sort every time any price moved. Prices arrive
+   * continuously, so tiles swapped places continuously - 63% of /scanner's
+   * layout shift came from this one component reordering itself, and it never
+   * settled, because there is always another tick. It is also unpleasant to
+   * use: tiles move under the cursor while you are reading them.
    *
-   * Waiting costs one ordering change instead of one per coin, and only while
-   * the page is filling. Once loaded this sorts exactly as before. */
-  const coins = entries.sort((a, b) => (b.coin?.change ?? -999) - (a.coin?.change ?? -999));
+   * Two rules replace it. Rank once the category has data for every coin (or
+   * after FIRST_RANK_TIMEOUT_MS, so a permanently-missing feed cannot stop it
+   * forever), then re-rank every RERANK_MS. Between those moments the ORDER is
+   * frozen while prices, colours and percentages keep updating live inside
+   * each tile.
+   *
+   * Waiting for complete data before the first rank is the part that took two
+   * attempts. Ranking at 80% coverage put the late-arriving 20% wherever their
+   * missing value sorted them and then held that for a full minute - measured
+   * a coin sitting 16.7% out of position. Partial data ranked confidently is
+   * worse than no ranking at all, because it looks authoritative. */
+  const withData = entries.filter(e => e.coin?.change != null).length;
+  const complete = withData === entries.length;
 
-  const positiveCount = coins.filter(x => x.coin?.change != null && x.coin.change >= 0).length;
-  const negativeCount = coins.filter(x => x.coin?.change != null && x.coin.change < 0).length;
+  const [rankTick, setRankTick] = useState(0);
+  const [rankedOnce, setRankedOnce] = useState(false);
+
+  /* Fallback so an incomplete category still ranks eventually. */
+  useEffect(() => {
+    if (rankedOnce) return;
+    const id = setTimeout(() => setRankedOnce(true), FIRST_RANK_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, [rankedOnce]);
+
+  useEffect(() => {
+    const id = setInterval(() => setRankTick(n => n + 1), RERANK_MS);
+    return () => clearInterval(id);
+  }, []);
+
+  /* Recomputes when the category changes, when the data first becomes complete
+     (or times out), and on the timer - never simply because a price moved. */
+  useEffect(() => {
+    if (!complete && !rankedOnce) return;
+    if (complete) setRankedOnce(true);
+    setOrder(prev => ({
+      ...prev,
+      [cat]: [...(CAT[cat] as CoinId[])]
+        .map(c => ({ c, coin: store.coins[c] }))
+        .sort((x, y) => (y.coin?.change ?? -999) - (x.coin?.change ?? -999))
+        .map(e => e.c),
+    }));
+    // store.coins is read inside but is deliberately not a dependency -
+    // reacting to it is the jitter this exists to prevent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [complete, rankedOnce, cat, rankTick]);
+
+  /* Until the ranking exists, render placeholders rather than the unranked
+     tiles. Showing real tiles in declared order and then re-ordering them is a
+     genuine layout shift - it was 51% of what remained. Placeholders are keyed
+     by index, so when the ranking lands React replaces them outright instead of
+     moving 50 identified nodes around, and the real tiles mount already in
+     their final position. Same geometry, so nothing around the grid moves
+     either. Costs about a second of dashes on a cold load, which is honest -
+     the ranking genuinely is not known yet. */
+  const ranked = order[cat];
+  const coins  = ranked ? ranked.map(c => ({ c, coin: store.coins[c] })) : null;
+  const positiveCount = coins?.filter(x => x.coin?.change != null && x.coin.change >= 0).length ?? 0;
+  const negativeCount = coins?.filter(x => x.coin?.change != null && x.coin.change < 0).length ?? 0;
 
   return (
     <div style={{
@@ -115,7 +174,18 @@ export default function CoinHeatmap() {
         gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
         gap: 4, padding: '0 12px 12px',
       }}>
-        {coins.map(({ c, coin }) => {
+        {!coins && Array.from({ length: entries.length }).map((_, i) => (
+          <div key={`ph-${i}`} aria-hidden="true" style={{
+            background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '10px 8px',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+            border: '0.5px solid rgba(255,255,255,0.04)',
+          }}>
+            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: '#333' }}>-</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: '#2a2a2a' }}>-</span>
+            <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: '#333', lineHeight: 1 }}>-</span>
+          </div>
+        ))}
+        {coins?.map(({ c, coin }) => {
           const chg = coin?.change ?? null;
           const { bg, text } = changeColor(chg);
           const sign = chg == null ? '' : chg >= 0 ? '+' : '';
