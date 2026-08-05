@@ -113,7 +113,7 @@ export function FullPageUpgradeGate({ title, description }: { title: string; des
           {t('UPGRADE_GATE_CTA')}
         </a>
         <div style={{ textAlign: 'center', marginTop: 14 }}>
-          <Link href="/upgrade" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+          <Link href="/upgrade" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2, display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
             {t('UPGRADE_GATE_COMPARE_LINK')}
           </Link>
         </div>
@@ -217,7 +217,7 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
         </a>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
-          <Link href="/upgrade" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+          <Link href="/upgrade" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2, display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
             {t('UPGRADE_GATE_COMPARE_LINK')}
           </Link>
           <button
