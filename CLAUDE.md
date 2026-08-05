@@ -30,7 +30,8 @@ One logical change per commit. Never `fix bug` / `update stuff` / `wip`.
 **PRs** — always these sections: Summary · What changed · Why · **How to test
 (QA)** · Risk level (Low/Med/High) · Screenshots if UI.
 "How to test" is **mandatory on every PR** — it is the dev→QA handoff. Write it
-for someone in the QA folder, so step 1 says which branch to pull.
+for someone on the `qa` staging environment: name the page and what to look at,
+not a branch. Only name a branch when the change is not on `qa` yet.
 
 **Two folders** — dev folder writes code, QA folder tests it; the PR is the
 handoff. **QA tests the `qa` branch** — either on the staging URL
