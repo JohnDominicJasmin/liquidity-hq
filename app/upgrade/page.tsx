@@ -90,7 +90,9 @@ export default function UpgradePage() {
 
       {/* Nav */}
       <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: 'var(--bg)', borderBottom: '0.5px solid var(--bdr)', padding: '0 24px', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Link href="/arena" style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+        {/* minHeight for WCAG 2.2 SC 2.5.8 - a standalone back link, not one
+            inside a sentence, so the inline exception does not apply. Was 44x20. */}
+        <Link href="/arena" style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6, minHeight: 24 }}>
           {t('UPGRADE_BACK_LABEL')}
         </Link>
         <span style={{ fontSize: 'var(--fs-card-title)', fontWeight: 800, letterSpacing: '-.02em', color: 'var(--txt)' }}>
@@ -188,7 +190,17 @@ export default function UpgradePage() {
                   {t('UPGRADE_COMING_SOON_SIGNED_OUT_POST')}</>
                 )}
               </p>
-              <Link href="/arena" style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', textDecoration: 'underline' }}>
+              {/* inline-flex + minHeight, not padding: this is a standalone
+                  link rather than one inside a sentence, so WCAG 2.2 SC 2.5.8's
+                  inline exception does not cover it and it needs the real 24px.
+                  Measured 81x15 before. */}
+              <Link
+                href="/arena"
+                style={{
+                  fontSize: 'var(--fs-label)', color: 'var(--txt3)', textDecoration: 'underline',
+                  display: 'inline-flex', alignItems: 'center', minHeight: 24,
+                }}
+              >
                 {t('UPGRADE_BACK_TO_ARENA_LINK')}
               </Link>
             </div>

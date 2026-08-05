@@ -1222,6 +1222,12 @@ function ArenaContent() {
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); enableNotifications(); } }}
             title={notifEnabled ? t('ARENA_ALERTS_ON_TITLE') : t('ARENA_ALERTS_ENABLE_TITLE')}
             style={{
+              /* 28x20 before - WCAG 2.2 SC 2.5.8 wants 24 in both axes, and a
+                 notification toggle is a standalone control so the inline
+                 exception does not apply. Grown via minHeight and centring so
+                 the bell glyph and the pill border look unchanged. */
+              minWidth: 24, minHeight: 24,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               padding: '3px 7px', borderRadius: 7, border: '0.5px solid',
               background: notifEnabled ? '#152b1e' : 'transparent',
               borderColor: notifEnabled ? '#266038' : 'rgba(255,255,255,0.08)',

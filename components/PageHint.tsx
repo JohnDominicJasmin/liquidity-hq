@@ -74,6 +74,15 @@ export default function PageHint({ pageKey, title, body }: Props) {
           padding: '0 2px',
           flexShrink: 0,
           opacity: 0.6,
+          /* WCAG 2.2 SC 2.5.8: 24x24 minimum. The glyph alone measured 14x16,
+             and this button renders on every page carrying a hint - it was 5 of
+             the app's remaining tap-target failures by itself. Centred rather
+             than enlarged so the x looks identical; only the hit area grows. */
+          minWidth: 24,
+          minHeight: 24,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
         aria-label={t('PAGE_HINT_DISMISS_LABEL')}
       >×</button>
