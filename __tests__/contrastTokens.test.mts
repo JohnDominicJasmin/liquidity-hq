@@ -72,9 +72,34 @@ test('design token contrast', async (t) => {
   await t.test('sanity: the ratio maths matches known WCAG values', () => {
     assert.equal(Math.round(ratio('#ffffff', '#000000')), 21);
     assert.equal(Math.round(ratio('#000000', '#000000')), 1);
-    // The brand blue pair this branch deliberately leaves failing.
+    // The pair that forced --accent-solid to exist.
     assert.ok(Math.abs(ratio('#ffffff', '#1a7aff') - 3.98) < 0.02,
-      'white on --accent should still measure ~3.98:1');
+      'white on the undarkened brand blue should measure ~3.98:1');
+  });
+
+  await t.test('the two accent tokens each cover their own direction', () => {
+    /* The whole reason there are two. A single blue cannot do both jobs on a
+       dark theme: darkening enough for white text to pass ON it drops it below
+       AA when used AS text on the near-black backgrounds. Assert both ends so
+       nobody "simplifies" this back into one token. */
+    const accent = token('accent');
+    const solid = token('accent-solid');
+
+    const onSolid = ratio('#ffffff', solid);
+    assert.ok(onSolid >= AA,
+      `white on --accent-solid ${solid} = ${onSolid.toFixed(2)}:1, needs ${AA}:1`);
+
+    for (const [surface, bg] of Object.entries(SURFACES)) {
+      const r = ratio(accent, bg);
+      assert.ok(r >= AA,
+        `--accent ${accent} as TEXT on ${surface} ${bg} = ${r.toFixed(2)}:1`);
+    }
+
+    /* And the trap itself: --accent-solid must NOT be used as text on --bg0.
+       If this ever stops holding, the two tokens have converged and one of the
+       two directions is silently failing again. */
+    assert.ok(ratio(solid, SURFACES['--bg0']) < AA,
+      'if --accent-solid passes as text too, re-check whether both tokens are still needed');
   });
 
   for (const name of ['txt', 'txt2', 'txt3', 'txt-dim']) {

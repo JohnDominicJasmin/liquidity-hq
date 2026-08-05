@@ -54,6 +54,18 @@
 
   /* Electric blue - CTAs and interactive elements only */
   --accent:     #1a7aff;
+  /* The SAME brand blue, darkened, for one job: a filled surface carrying white
+     text. White on #1a7aff is 3.98:1 and fails AA - it was the last 20 contrast
+     failures in the app (primary CTA, active nav pill, consent Accept, plan
+     badges). #1668e3 takes that pair to 5.09:1.
+     A second token rather than a darker --accent, because darkening the token
+     itself trades one failure for another: --accent is also used AS TEXT on the
+     near-black backgrounds (links, funding badges, .reasoning-link), where
+     #1a7aff is 5.06:1 and #1668e3 would be 3.95:1. One value cannot satisfy
+     both directions on a dark theme.
+     Rule: --accent for text, borders, glows and rgba tints; --accent-solid
+     wherever the blue is the background under white text. */
+  --accent-solid: #1668e3;
   --accent-2:   #5aa3ff;
   --accent-dim: rgba(26,122,255,0.12);
   --accent-bg:  rgba(26,122,255,0.07);
@@ -813,7 +825,7 @@ body[data-rpm-level="high"]::before {
   border: 0.5px solid transparent; white-space: nowrap;
 }
 .desktop-nav-item:hover { color: var(--txt); background: rgba(90,150,255,0.07); }
-.desktop-nav-item.on { color: #ffffff; background: var(--accent); font-weight: 600; }
+.desktop-nav-item.on { color: #ffffff; background: var(--accent-solid); font-weight: 600; }
 
 @media (min-width: 768px) {
   .hamburger   { display: none !important; }
@@ -1505,7 +1517,7 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
   min-height: 30px; letter-spacing: 0; white-space: nowrap;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.ncard-ask-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: none; }
+.ncard-ask-btn:hover { background: var(--accent-solid); border-color: var(--accent); color: #fff; box-shadow: none; }
 .ncard-ask-spark { font-size: 0.8em; line-height: 1; }
 /* Secondary action - neutral, not accent-colored, so it doesn't compete with
    Ask LiquidityAI for attention as the primary CTA. */
@@ -3566,7 +3578,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 
 /* Chat FAB - solid accent in light mode so it's visible */
 [data-theme="light"] .gchat-fab {
-  background: var(--accent);
+  background: var(--accent-solid);
   border-color: transparent;
   box-shadow: 0 4px 20px rgba(0,82,204,0.22), 0 1px 4px rgba(0,0,0,0.10);
   color: #fff;
@@ -3655,7 +3667,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .login-email-input:focus { border-color: var(--purple-bdr); }
 .login-email-btn {
   width: 100%; padding: 11px 16px; border-radius: 12px;
-  background: var(--accent); border: 0.5px solid var(--accent);
+  background: var(--accent-solid); border: 0.5px solid var(--accent);
   color: #fff; font-size: var(--fs-label); font-weight: 600; cursor: pointer;
   transition: all 0.15s; font-family: inherit; letter-spacing: -0.1px;
   display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -3831,7 +3843,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   display: inline-flex; align-items: center; justify-content: center;
   transition: filter 0.15s, background 0.15s;
 }
-.consent-accept  { background: var(--accent); border: 0.5px solid var(--accent); color: #fff; }
+.consent-accept  { background: var(--accent-solid); border: 0.5px solid var(--accent); color: #fff; }
 .consent-decline { background: var(--bg4); border: 0.5px solid var(--txt3); color: var(--txt); }
 .consent-accept:hover  { filter: brightness(1.08); }
 .consent-decline:hover { filter: brightness(1.25); }
@@ -4138,6 +4150,7 @@ body.landing {
   --bdr2: rgba(255,255,255,0.14);
 
   --accent:     #1a7aff;
+  --accent-solid: #1668e3; /* AA fix, mirrors :root - see note there */
   --accent-2:   #5aa3ff;
   --accent-dim: rgba(26,122,255,0.12);
   --accent-bg:  rgba(26,122,255,0.07);
@@ -4263,7 +4276,7 @@ body.landing {
 .lp-nav-actions { display: flex; align-items: center; gap: 10px; }
 .lp-btn-ghost  { font-size: var(--fs-label); font-weight: 500; color: var(--txt2); padding: 6px 14px; border-radius: var(--radius-chip); text-decoration: none; transition: color .15s, background .15s; min-height: 36px; display: inline-flex; align-items: center; }
 .lp-btn-ghost:hover { color: var(--txt); background: rgba(255,255,255,.05); }
-.lp-btn-primary { font-size: var(--fs-label); font-weight: 600; color: #fff; background: var(--accent); padding: 7px 16px; border-radius: var(--radius-chip); text-decoration: none; transition: opacity .15s; min-height: 36px; display: inline-flex; align-items: center; }
+.lp-btn-primary { font-size: var(--fs-label); font-weight: 600; color: #fff; background: var(--accent-solid); padding: 7px 16px; border-radius: var(--radius-chip); text-decoration: none; transition: opacity .15s; min-height: 36px; display: inline-flex; align-items: center; }
 .lp-btn-primary:hover { opacity: .85; }
 .lp-lang-short { display: none; }
 
@@ -4302,7 +4315,7 @@ body.landing {
 .lp-h1-accent   { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 400; color: var(--accent-2); }
 .lp-hero-sub    { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.65; max-width: 520px; margin: 0; }
 .lp-hero-ctas   { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-.lp-cta-primary { font-size: var(--fs-card-title); font-weight: 700; color: #fff; background: var(--accent); padding: 13px 28px; border-radius: var(--radius-card); text-decoration: none; transition: opacity .15s; }
+.lp-cta-primary { font-size: var(--fs-card-title); font-weight: 700; color: #fff; background: var(--accent-solid); padding: 13px 28px; border-radius: var(--radius-card); text-decoration: none; transition: opacity .15s; }
 .lp-cta-primary:hover { opacity: .88; }
 .lp-cta-ghost   { font-size: var(--fs-card-title); font-weight: 600; color: var(--txt2); background: rgba(255,255,255,.06); border: 1px solid var(--bdr); padding: 13px 28px; border-radius: var(--radius-card); text-decoration: none; transition: background .15s, color .15s; }
 .lp-cta-ghost:hover { background: rgba(255,255,255,.1); color: var(--txt); }
@@ -4343,7 +4356,7 @@ body.landing {
 .lp-step          { flex: 1; padding: 0 28px; text-align: center; }
 .lp-step:first-child { padding-left: 0; }
 .lp-step:last-child  { padding-right: 0; }
-.lp-step-num      { width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: #fff; font-size: var(--fs-data); font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+.lp-step-num      { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-solid); color: #fff; font-size: var(--fs-data); font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
 .lp-step h3       { font-size: var(--fs-card-title); font-weight: 700; margin: 0 0 8px; }
 .lp-step p        { font-size: var(--fs-label); color: var(--txt2); line-height: 1.6; margin: 0; }
 .lp-step-arrow    { font-size: 1.25rem; color: var(--txt3); margin-top: 10px; flex-shrink: 0; align-self: center; }
@@ -4352,7 +4365,7 @@ body.landing {
 .lp-pricing         { display: flex; gap: 20px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
 .lp-plan            { flex: 1; min-width: 280px; max-width: 380px; border-radius: var(--radius-card); padding: 28px; border: 1px solid var(--bdr); background: var(--bg2); position: relative; }
 .lp-plan-pro        { border-color: rgba(26,122,255,.3); background: var(--bg2); }
-.lp-plan-badge      { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: var(--accent); color: #fff; padding: 3px 14px; border-radius: var(--radius-chip); white-space: nowrap; }
+.lp-plan-badge      { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: var(--accent-solid); color: #fff; padding: 3px 14px; border-radius: var(--radius-chip); white-space: nowrap; }
 .lp-plan-header     { margin-bottom: 24px; }
 .lp-plan-name       { font-size: var(--fs-label); font-weight: 700; color: var(--txt2); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px; }
 .lp-plan-price      { font-size: 3rem; font-weight: 900; letter-spacing: -.04em; line-height: 1; margin-bottom: 6px; }
@@ -4366,7 +4379,7 @@ body.landing {
 .lp-plan-cta        { display: block; text-align: center; padding: 12px; border-radius: var(--radius-card); font-size: var(--fs-label); font-weight: 700; text-decoration: none; transition: opacity .15s; }
 .lp-plan-cta-free   { background: rgba(255,255,255,.07); border: 0.5px solid var(--bdr); color: var(--txt); }
 .lp-plan-cta-free:hover { background: rgba(255,255,255,.12); }
-.lp-plan-cta-pro    { background: var(--accent); color: #fff; }
+.lp-plan-cta-pro    { background: var(--accent-solid); color: #fff; }
 .lp-plan-cta-pro:hover { opacity: .85; }
 
 /* ── LP FINAL CTA ────────────────────────────────────────────────────── */
@@ -4605,7 +4618,7 @@ html[lang="ar"] .lp-h1-accent {
 .obw-seg-track { height: 3px; background: var(--bdr); overflow: hidden; }
 .obw-seg-fill {
   display: block; height: 100%; width: 0;
-  background: var(--accent);
+  background: var(--accent-solid);
   transition: width 0.45s cubic-bezier(0.16,1,0.3,1);
 }
 .obw-seg.is-done .obw-seg-fill   { width: 100%; opacity: 0.45; }
@@ -4688,7 +4701,7 @@ html[lang="ar"] .lp-h1-accent {
   display: flex; align-items: center; justify-content: center; transition: all 0.15s;
 }
 .obw-row.is-selected .obw-ind,
-.obw-tile.is-selected .obw-ind { border-color: var(--accent); background: var(--accent); }
+.obw-tile.is-selected .obw-ind { border-color: var(--accent); background: var(--accent-solid); }
 
 /* Account-size 2x2 grid tiles */
 .obw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
@@ -4751,7 +4764,7 @@ html[lang="ar"] .lp-h1-accent {
 }
 .obw-btn-back { flex-shrink: 0; background: transparent; border: 1px solid var(--bdr); color: var(--txt2); }
 .obw-btn-back:hover { border-color: var(--bdr2); color: var(--txt); }
-.obw-btn-next { flex: 1; border: 1px solid var(--accent); background: var(--accent); color: #fff; }
+.obw-btn-next { flex: 1; border: 1px solid var(--accent); background: var(--accent-solid); color: #fff; }
 .obw-btn-next:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
 .obw-btn-next:disabled { background: var(--bg2); border-color: var(--bdr); color: var(--txt3); cursor: not-allowed; }
 .obw-skip {
