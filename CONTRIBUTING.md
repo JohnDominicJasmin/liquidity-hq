@@ -178,8 +178,9 @@ the handoff point between them.**
 
 1. Push the branch, named per §1.
 2. Open a PR using the full template in §3.
-3. Write "How to test" assuming the reader is in the **QA folder** — so it
-   includes *which branch to pull*, not only what to click.
+3. Write "How to test" assuming the reader is on the **`qa` staging
+   environment** — name the page and what to look at. Only name a branch when
+   the change is not on `qa` yet.
 
 **Dev is not done when the PR is open.** Dev also merges its own feature branch
 into `dev`, promotes `dev` → `qa`, deploys the qa service, and opens the release
