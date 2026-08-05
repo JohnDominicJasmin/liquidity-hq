@@ -81,7 +81,9 @@ both. **It must never point at prod Supabase (`qdpwhnvmhqgzijuwopso`) — hard
 rule.** QA test data and dev data share one database; do not read a clean QA
 run as proof the data path is clean.
 
-`main` → liquidity-hq.com — QA only, merge and deploy both.
+`main` → liquidity-hq.com — **QA merges and deploys, and normally should**;
+the owner may too. **Never dev.** Whoever merges is asserting the test steps
+passed.
 
 **Dev QAs its own work first — QA is the second check, not the first.** A
 change reaches `qa` already verified, and the PR says how. Before opening a PR:
