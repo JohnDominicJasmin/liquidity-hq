@@ -83,6 +83,21 @@ run as proof the data path is clean.
 
 `main` → liquidity-hq.com — QA only, merge and deploy both.
 
+**Dev QAs its own work first — QA is the second check, not the first.** A
+change reaches `qa` already verified, and the PR says how. Before opening a PR:
+run all four gates (lint 0 errors, tsc, test, build); exercise the change rather
+than reason about it, reproducing the original failure first if it is a fix;
+measure anything numeric before and after; sweep the whole area, not the one
+symptom; and name whatever is still unverified in the PR Risk level. Test to
+apply: *if QA finds nothing, was this finished?* Finding a second defect after
+saying "done" is the same failure as not finding it.
+
+**Ask QA before promoting `dev` → `qa`.** A timing check, not a review — QA
+owns that environment and a promotion mid-test-run changes the build under the
+tester. "Ok to push?" / "hold" or "go". No answer means go; it is a courtesy,
+not a lock. QA is not reviewing the code — nothing dev writes is independently
+reviewed until QA tests the staging build.
+
 **`qa` is fast-forward only.** Never commit to it directly, never PR a feature
 branch into it. Only `dev` goes in: `git checkout qa && git merge --ff-only dev`.
 If that fails, `qa` has diverged — fix it, do not force. Delete feature branches

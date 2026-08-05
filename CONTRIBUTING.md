@@ -496,10 +496,79 @@ essay: a title, a list of what is going out, and the checklist below.
 
 ### Before `dev` → `qa`
 
-1. CI green on `dev`.
-2. **Migrations applied.** See below — this is the one that takes prod down.
-3. Merge fast-forward only: `git checkout qa && git merge --ff-only dev`.
-4. **Trigger the qa deploy** and say you have. Merging does not deploy.
+1. **Ask QA whether now is a good time.** See below — this is a timing check,
+   not a review.
+2. CI green on `dev`.
+3. **Migrations applied.** See below — this is the one that takes prod down.
+4. Merge fast-forward only: `git checkout qa && git merge --ff-only dev`.
+5. **Trigger the qa deploy** and say you have. Merging does not deploy.
+
+### QA controls *when* `dev` → `qa` happens
+
+**Dev asks before promoting. QA answers "go" or "hold".** That is the whole
+rule.
+
+QA owns the `qa` environment because QA is the only one using it. Without this,
+dev can promote and redeploy in the middle of a test run and change the thing
+being tested underneath the tester — and the resulting bug report describes a
+build that no longer exists. Two people both being careful does not prevent
+that; only asking does.
+
+**This is a timing gate, not an approval gate, and the distinction matters.**
+QA is not being asked to review the code. The whole convention is built around
+QA being someone who cannot read it (see the top of this file), and QA cannot
+test the change either, because it is not on `qa` yet. Asking for approval here
+would produce a signature, not a check — a gate that looks like oversight and
+supplies none.
+
+So the question is only ever *"are you mid-run?"*:
+
+> **dev:** Ready to promote #16 to qa — ok to push?
+> **QA:** Hold, 10 minutes, finishing the alerts sweep.
+> *...later...*
+> **QA:** Go.
+
+QA does not need a reason to say hold, and dev does not need to justify the
+promotion. If QA does not answer, dev promotes — this is a courtesy that
+prevents wasted test runs, not a lock that stalls the pipeline waiting on
+someone who has gone home.
+
+**Worth being honest about what this does and does not fix.** It stops
+collisions. It does **not** put a second pair of eyes on the code: everything
+from a feature branch through to `main` is written, merged and promoted by dev.
+That is a deliberate trade for a two-person team, but it should be a known one
+rather than an assumed safety net.
+
+### Dev QAs its own work first. QA is the second check, not the first.
+
+Having a QA folder does not move responsibility for quality onto it. **A change
+arrives at `qa` already verified**, and the PR says how it was verified. QA
+exists to catch what dev could not see — a different machine, a real
+environment, a user's path through the product — not to be the first person who
+looks.
+
+Before opening a PR, dev has:
+
+- **Run the gates.** `npm run lint` (0 errors), `npx tsc --noEmit`, `npm test`,
+  `npm run build`. All four, not the fast one.
+- **Exercised the change**, not reasoned about it. Load the page. Call the
+  route. If it is a fix, reproduce the original failure first and then confirm
+  it is gone — a fix that was never seen failing is a guess.
+- **Measured anything numeric, before and after.** "Feels faster" is not a
+  result. This has repeatedly mattered: the obvious suspect for `/arena`'s
+  layout shift turned out to be 0.1% of it, and the textbook fix measured twice
+  as bad as the baseline. Neither was discoverable by reading the code.
+- **Swept the whole area, not the one symptom.** If one card on a page shifts,
+  check every card on that page. If one route lacks a cache, check the sibling
+  routes with the same shape. Finding a second defect after saying "done" is
+  the same failure as not finding it.
+- **Written down what is still unverified**, in the PR's Risk level. Something
+  that genuinely cannot be checked locally — a production IP, a cold start, a
+  real environment variable — is named there, not left for QA to trip over.
+
+The test to apply before handing over: *if QA finds nothing, was this PR
+finished?* If the honest answer is "no, they would have found the obvious
+thing", it was not ready.
 
 ### Before `qa` → `main`
 
