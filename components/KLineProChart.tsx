@@ -1087,8 +1087,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               // the US, and crypto-exchange API hosts are on common ad/privacy
               // blocklists, so a whole class of users would only ever see an
               // empty chart. Meanwhile the app already had the right answer
-              // elsewhere: MarketProvider's fetchKlines tries futures then spot.
-              // The chart just never got the same treatment.
+              // elsewhere: app/api/market/snapshot tries futures then spot (this
+              // used to live in MarketProvider.fetchKlines). The chart just never
+              // got the same treatment.
               //
               // Futures is also the better default on its own merits - this is a
               // perp-trading app, and fapi's candles are the ones the funding,
