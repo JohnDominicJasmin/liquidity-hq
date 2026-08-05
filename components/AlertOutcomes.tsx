@@ -1,10 +1,11 @@
 'use client';
 // Tier 2 #10 - honest track record for the directional alert types (squeeze,
-// EMA cross, distribution, RSI, whales). Reads lhq_alert_fires directly with
+// EMA cross, distribution, RSI, whales). Reads T.alert_fires directly with
 // the anon client (public SELECT policy, same pattern as live-tracking's read
 // of lhq_live_signals) - writes only ever happen server-side via the alert cron.
 import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
+import { T } from '@/lib/tables';
 import { StatRow } from '@/components/BacktestStatsUI';
 import Tip from '@/components/Tip';
 import EmptyState from '@/components/EmptyState';
@@ -48,8 +49,21 @@ export default function AlertOutcomes() {
     (async () => {
       const sb = getSupabase();
       if (!sb) { setError('Not configured'); return; }
+      /* T.alert_fires, not the literal 'lhq_alert_fires' this used to hardcode.
+         That literal is the PRODUCTION table name, so this component queried
+         prod's table name against whatever project it was pointed at - which
+         works on prod by coincidence and 404s everywhere else. It is the only
+         place in the codebase that bypassed lib/tables; the other six consumers
+         of this table all use T.alert_fires.
+         Consequence while it stood: the panel has never rendered on dev or
+         staging, so every QA pass over /alerts was passing over a feature that
+         could not load. Found while verifying the signed-out /alerts page for
+         an unrelated 401 change.
+         Note this does NOT make the panel work on dev by itself - see the
+         alert_fires table drift below. It stops the code lying about which
+         environment it is in, which is the part that is a code defect. */
       const { data, error: err } = await sb
-        .from('lhq_alert_fires')
+        .from(T.alert_fires)
         .select('rule_key, coin, dir, label, fired_at, outcome_pct_24h, resolved_24h, outcome_pct_48h, resolved_48h')
         .order('fired_at', { ascending: false })
         .limit(500);
