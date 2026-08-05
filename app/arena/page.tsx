@@ -208,6 +208,10 @@ function ArenaContent() {
   const [jpyUsd, setJpyUsd]                 = useState<number | null>(null);
   const scannerRef      = useRef<HTMLDivElement>(null);
   const hoverOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /* Whether the scanner was opened by hover rather than by a click. Only a
+     hover-opened panel closes again on mouse-out - closing a click-opened one
+     the moment the pointer drifts off would make it unusable. */
+  const openedByHover   = useRef(false);
 
   /* ── Price alert mini-form ── */
   const [alertFormOpen, setAlertFormOpen] = useState(false);
@@ -303,14 +307,54 @@ function ArenaContent() {
     }).catch(() => {});
   }
 
-  // Hover over trigger → auto-open; moving away cancels the timer
+  /* Hover over the trigger auto-opens the scanner after 800ms.
+   *
+   * That behaviour is deliberate and is kept. What was missing is everything
+   * WCAG 2.1 SC 1.4.13 (Content on Hover or Focus, AA) requires of content
+   * triggered by pointer hover. Measured before this change: Escape did nothing
+   * and moving the pointer away left the panel open indefinitely, so a user who
+   * merely passed over the bar on the way somewhere else was left with a panel
+   * covering the page and no way to dismiss it without clicking. QA filed it as
+   * issue #31 after we established it predates PR #29.
+   *
+   * The three requirements, and where each is now met:
+   *   Dismissable - Escape closes it, without moving the pointer. See the
+   *                 keydown effect below.
+   *   Hoverable   - the mouseleave lives on the wrapper that contains BOTH the
+   *                 bar and the flyout, so moving the pointer from one into the
+   *                 other never fires it. The panel survives being hovered.
+   *   Persistent  - it stays until the pointer leaves the whole widget, Escape,
+   *                 or a click outside. Nothing times it out from under you.
+   *
+   * A click-opened panel is deliberately NOT closed by mouse-out; only a
+   * hover-opened one is, which is what openedByHover tracks. */
   const handleScannerHoverEnter = () => {
     if (scannerOpen) return;
-    hoverOpenTimer.current = setTimeout(() => setScannerOpen(true), 800);
+    hoverOpenTimer.current = setTimeout(() => {
+      openedByHover.current = true;
+      setScannerOpen(true);
+    }, 800);
   };
   const handleScannerHoverLeave = () => {
     if (hoverOpenTimer.current) { clearTimeout(hoverOpenTimer.current); hoverOpenTimer.current = null; }
+    if (openedByHover.current) {
+      openedByHover.current = false;
+      setScannerOpen(false);
+    }
   };
+
+  // SC 1.4.13 "Dismissable": Escape must close it without moving the pointer.
+  useEffect(() => {
+    if (!scannerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        openedByHover.current = false;
+        setScannerOpen(false);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [scannerOpen]);
 
   // Close scanner when clicking anywhere outside the scanner widget
   useEffect(() => {
@@ -1172,7 +1216,16 @@ function ArenaContent() {
             whose Enter/Space fires a click that bubbles up to this handler -
             which is why that button needs no onClick of its own. */}
         <div
-          onClick={() => { setScannerOpen(v => { if (v) setScannerSearch(''); return !v; }); if (!scannerOpen) setTimeout(() => scannerSearchRef.current?.focus(), 60); }}
+          onClick={() => {
+            /* A deliberate click takes ownership of the panel: clear the
+               hover flag so drifting the pointer away no longer closes it,
+               and cancel any pending hover-open so it cannot reopen behind
+               a click that just closed it. */
+            openedByHover.current = false;
+            if (hoverOpenTimer.current) { clearTimeout(hoverOpenTimer.current); hoverOpenTimer.current = null; }
+            setScannerOpen(v => { if (v) setScannerSearch(''); return !v; });
+            if (!scannerOpen) setTimeout(() => scannerSearchRef.current?.focus(), 60);
+          }}
           style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 8,
             padding: '7px 12px', borderRadius: 8,
