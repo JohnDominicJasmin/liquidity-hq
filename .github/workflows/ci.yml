@@ -64,6 +64,11 @@ jobs:
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
+    # A full run is ~31 minutes. Without a cap, a genuinely hung run burns to
+    # GitHub's 6-hour default, and a stuck run looks identical to a slow one -
+    # which happened while this suite was being brought up. 45 leaves headroom
+    # for a cold runner without hiding a hang.
+    timeout-minutes: 45
     # Only after lint/typecheck/unit/build are green. A broken build would
     # produce 216 browser failures that all say "the build is broken", which
     # buries the one line that actually explains it.
@@ -108,6 +113,32 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ secrets.E2E_TURNSTILE_SITE_KEY }}
+
+          # Authenticated fixtures for qa/e2e/bola.spec.ts - BOLA/IDOR, the one
+          # spec that signs in. Two seeded accounts on the DEV Supabase project
+          # only. A holds one row per table under test; B is deliberately empty,
+          # because the test is "B asks for A's rows by id and must be refused".
+          #
+          # Passwords rather than tokens on purpose: a Supabase access token
+          # expires in about an hour, so a pasted token passes once and then
+          # fails CI the next day. The spec mints a fresh token per run.
+          #
+          # These are ordinary user-level accounts. The service-role key is NOT
+          # here and must never be - it bypasses RLS entirely, which is exactly
+          # what this spec exists to verify.
+          #
+          # Absent, bola.spec.ts SKIPS with a stated reason rather than passing.
+          # A BOLA test that runs without fixtures proves nothing, and a vacuous
+          # pass is indistinguishable from a real one.
+          E2E_USER_A_EMAIL: ${{ secrets.E2E_USER_A_EMAIL }}
+          E2E_USER_A_PASSWORD: ${{ secrets.E2E_USER_A_PASSWORD }}
+          E2E_USER_A_ID: ${{ secrets.E2E_USER_A_ID }}
+          E2E_USER_B_EMAIL: ${{ secrets.E2E_USER_B_EMAIL }}
+          E2E_USER_B_PASSWORD: ${{ secrets.E2E_USER_B_PASSWORD }}
+          E2E_USER_B_ID: ${{ secrets.E2E_USER_B_ID }}
+          E2E_A_TRADE_ID: ${{ secrets.E2E_A_TRADE_ID }}
+          E2E_A_HYPOTHESIS_ID: ${{ secrets.E2E_A_HYPOTHESIS_ID }}
+          E2E_A_PRICE_ALERT_ID: ${{ secrets.E2E_A_PRICE_ALERT_ID }}
 
       # Uploaded on failure too - that is the run you actually need to read.
       - uses: actions/upload-artifact@v4
