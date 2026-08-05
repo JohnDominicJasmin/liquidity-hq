@@ -142,7 +142,7 @@ export default function WhaleTradesFeed() {
           <span className="wf-stat-lbl">{t('WHALE_TRADES_FEED_STAT_NET_FLOW')}</span>
           <span className="wf-stat-val" style={{ color: netFlow >= 0 ? '#22d3ee' : '#f97316' }}>
             {netFlow >= 0 ? '+' : ''}{fmtUSD(Math.abs(netFlow))}
-            <span style={{ fontSize: 'var(--fs-caption)', color: '#444', marginLeft: 3 }}>
+            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', marginLeft: 3 }}>
               {netFlow >= 0 ? '↑' : '↓'}
             </span>
           </span>

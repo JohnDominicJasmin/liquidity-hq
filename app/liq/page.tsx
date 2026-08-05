@@ -254,7 +254,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
         })}
       </div>
 
-      <div style={{ padding: '6px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)', fontSize: 'var(--fs-caption)', color: '#444' }}>
+      <div style={{ padding: '6px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)', fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
         {t('LIQ_CLUSTERS_FOOTER_LEGEND')}
       </div>
     </div>
@@ -341,7 +341,7 @@ export default function LiqPage() {
       ? { txt: t('LIQ_BIAS_LONG_HEAVY'), sub: t('LIQ_BIAS_LONG_HEAVY_SUB'), col: '#f87171' }
       : bands.totalShortM > bands.totalLongM * 1.15
       ? { txt: t('LIQ_BIAS_SHORT_HEAVY'), sub: t('LIQ_BIAS_SHORT_HEAVY_SUB'), col: '#34d399' }
-      : { txt: t('LIQ_BIAS_BALANCED'), sub: t('LIQ_BIAS_BALANCED_SUB'), col: '#606060' }
+      : { txt: t('LIQ_BIAS_BALANCED'), sub: t('LIQ_BIAS_BALANCED_SUB'), col: 'var(--txt-dim)' }
     : null;
 
   return (
@@ -405,7 +405,7 @@ export default function LiqPage() {
       <div className="liq-range-hint">
         {t(rangeConf.hintKey)}
         {cd?.price && (
-          <span style={{ color: '#555', marginLeft: 8 }}>
+          <span style={{ color: 'var(--txt-dim)', marginLeft: 8 }}>
             · {fmtP(cd.price * (1 - rangeConf.maxDist))} – {fmtP(cd.price * (1 + rangeConf.maxDist))}
           </span>
         )}
@@ -418,7 +418,7 @@ export default function LiqPage() {
         </div>
       )}
       {cd?.price && !cd?.oi && (
-        <div className="card" style={{ textAlign: 'center', color: '#444', padding: '2rem' }}>
+        <div className="card" style={{ textAlign: 'center', color: 'var(--txt-dim)', padding: '2rem' }}>
           {t('LIQ_NO_OI_DATA', { coin: coin.toUpperCase() })}
         </div>
       )}

@@ -145,7 +145,7 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
   const tp   = stop ? computeTP(d, bias, stop) : null;
   const rr   = stop && tp ? (tp.distPct / stop.distPct) : null;
 
-  const biasCol = bias === 'long' ? '#34d399' : bias === 'short' ? '#f87171' : '#6b7280';
+  const biasCol = bias === 'long' ? '#34d399' : bias === 'short' ? '#f87171' : 'var(--txt-dim)';
 
   // Conflict: technical indicator bias vs Grok AI signal
   const grokUp = grokSignal?.toUpperCase() ?? '';

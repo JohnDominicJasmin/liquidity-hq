@@ -84,7 +84,7 @@ export default function DrawdownChart() {
             {t('DRAWDOWN_CHART_NEAR_ATH_BADGE', { count: nearAth })}
           </span>
         )}
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#333' }}>{t('DRAWDOWN_CHART_SOURCE')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{t('DRAWDOWN_CHART_SOURCE')}</span>
       </div>
 
       {/* Loading / error states */}
@@ -112,7 +112,7 @@ export default function DrawdownChart() {
 
       {/* Bar chart rows */}
       {ath && rows.length === 0 && (
-        <div style={{ padding: '20px 14px', fontSize: 'var(--fs-caption)', color: '#444' }}>{t('DRAWDOWN_CHART_EMPTY')}</div>
+        <div style={{ padding: '20px 14px', fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{t('DRAWDOWN_CHART_EMPTY')}</div>
       )}
 
       {ath && rows.length > 0 && (
@@ -133,17 +133,17 @@ export default function DrawdownChart() {
                     {drawdown!.toFixed(1)}%
                   </span>
                   {curPrice != null && (
-                    <span style={{ fontSize: 'var(--fs-caption)', color: '#555', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', fontVariantNumeric: 'tabular-nums' }}>
                       {fmtPrice(curPrice)}
                     </span>
                   )}
                   {athPrice != null && (
-                    <span style={{ fontSize: 'var(--fs-caption)', color: '#444', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', fontVariantNumeric: 'tabular-nums' }}>
                       {t('DRAWDOWN_CHART_ATH_PRICE', { price: fmtPrice(athPrice) })}
                     </span>
                   )}
                   {athDate && (
-                    <span style={{ fontSize: 'var(--fs-caption)', color: '#333', marginLeft: 'auto' }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', marginLeft: 'auto' }}>
                       {fmtDate(athDate)}
                     </span>
                   )}

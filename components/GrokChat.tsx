@@ -812,7 +812,7 @@ export default function GrokChat() {
                       <div style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: '#5aa3ff', margin: '2px 0 6px' }}>
                         {coin.toUpperCase()}/USDT
                       </div>
-                      <div style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>
+                      <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
                         {liveSearch ? 'Live search ON' : 'Fast mode · toggle Live for web search'}
                       </div>
                     </>

@@ -318,7 +318,11 @@ export default function LandingContent({ dict, locale, dir }: Props) {
             {dict.footer.copyright}{' '}
             <Link href="/disclaimer" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>{dict.footer.fullDisclaimer}</Link>
           </p>
-          <p style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6, opacity: 0.7 }}>
+          {/* opacity 0.7 on --txt3 computed to #58585d = 2.88:1, and the two
+              legal links inside inherited it. Fifth site of the same pattern -
+              see the --txt3 note in globals.css. Caption size carries the
+              de-emphasis; alpha on a token tuned to the AA line does not. */}
+          <p style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', margin: 0, lineHeight: 1.6 }}>
             By using LiquidityHQ, you acknowledge that you understand and agree to our{' '}
             <Link href="/disclaimer" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Disclaimer</Link>,{' '}
             <Link href="/terms" style={{ color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Terms of Use</Link>,{' '}
