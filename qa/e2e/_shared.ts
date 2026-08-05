@@ -24,10 +24,33 @@ export const ROUTES = [
  */
 export const BASELINE = {
   /**
-   * §4.1 - tap targets under the WCAG 2.2 AA 24px floor, mobile, all routes.
+   * Interactive elements whose rendered box is under 24x24 CSS px, mobile, all
+   * routes.
    *
-   * 217, CORRECTED UP from 159 on 2026-08-05. This is NOT a ratchet violation
-   * and is NOT precedent for raising a baseline - read this before citing it.
+   * READ THIS BEFORE CALLING IT A WCAG NUMBER. It is not one. Earlier versions
+   * of this comment, and audit §4.1, described it as "tap targets below the
+   * WCAG 2.2 AA 24px floor". That framing is wrong and was corrected
+   * 2026-08-05. WCAG 2.2 SC 2.5.8 has exceptions a getBoundingClientRect()
+   * sweep cannot model:
+   *
+   *   - Spacing: an undersized target conforms if a 24px-diameter circle
+   *     centred on it does not intersect another target's circle.
+   *   - Inline: targets inside a sentence or block of text are exempt outright.
+   *     That covers a.pf-footer-bottom-link, the largest single contributor.
+   *
+   * axe-core's `target-size` rule, run at this exact viewport, reports
+   * violations=0 / incomplete=0 / passes=156 on /playbook alone. So this metric
+   * tracks something real and worth reducing - small touch targets on a PWA,
+   * against the 44px Apple HIG comfort target - but it is NOT a conformance
+   * failure count, and it must not be cited as one.
+   *
+   * 122, RATCHETED DOWN from 217 on 2026-08-05 after PR #23
+   * (fix/tap-target-sizes) cleared button.pb-star (55) and
+   * button.pf-footer-expand (28). Remaining: 84 a.pf-footer-bottom-link,
+   * 31 a.consent-link, 7 bare <a>.
+   *
+   * 217 itself was CORRECTED UP from the audit's 159 - which was not a ratchet
+   * violation and is not precedent for raising a baseline.
    *
    * The number must match the viewport THIS SUITE runs at: the mobile project
    * is devices['iPhone 13'], which is 390x844. At the audit's 375x812 the count
@@ -53,7 +76,7 @@ export const BASELINE = {
    * The only legitimate reason to change this number again is DOWNWARD, when a
    * fix lands.
    */
-  tapTargetsUnder24: 217,
+  tapTargetsUnder24: 122,
   /** §4.2 - controls whose only label is a placeholder. */
   controlsWithoutName: 4,
   /** §6.4 - pages with no <h1>, desktop. */

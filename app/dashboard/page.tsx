@@ -322,7 +322,7 @@ function EdgeSignals() {
 
   // ── Squeeze score ──
   const sq = computeSqueezeScore(d);
-  const sqCol = sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : '#606060';
+  const sqCol = sq.dir === 'SHORT_SQ' ? 'var(--green)' : sq.dir === 'LONG_LIQ' ? 'var(--red)' : 'var(--txt-dim)';
 
   const vwapCard = (
     <div className="edge-card">

@@ -222,7 +222,7 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
   label: string;
   color: string;
 } {
-  if (!coin) return { score: 0, dir: 'NEUTRAL', label: 'No data', color: '#444' };
+  if (!coin) return { score: 0, dir: 'NEUTRAL', label: 'No data', color: 'var(--txt-dim)' };
 
   let longRisk = 0;    // longs overleveraged → price dump incoming
   let shortRisk = 0;   // shorts overleveraged → price pump incoming
@@ -273,7 +273,7 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
     return { score, dir: 'LONG_LIQ', label: 'Long liquidation risk ↓', color: '#ff9a92' };
   if (shortRisk > longRisk && shortSignals >= 2)
     return { score, dir: 'SHORT_SQ', label: 'Short squeeze ↑', color: '#7de0a4' };
-  return { score, dir: 'NEUTRAL', label: 'Balanced', color: '#606060' };
+  return { score, dir: 'NEUTRAL', label: 'Balanced', color: 'var(--txt-dim)' };
 }
 
 /* ── Coin Health Score ─────────────────────────────────────────────────────

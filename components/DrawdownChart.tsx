@@ -35,6 +35,12 @@ function fmtPrice(p: number): string {
   return '$' + p.toFixed(7);
 }
 
+/* /api/ath covers 17 coins (CG_IDS in app/api/ath/route.ts), and every one of
+   them ends up as a row here, so the loading skeleton renders the same count.
+   Kept as a constant rather than inlined so the link between the two is
+   visible: if that map grows, this follows. */
+const SKELETON_ROWS = 17;
+
 export default function DrawdownChart() {
   const { t } = useLabels();
   const { store } = useMarket();
@@ -78,15 +84,25 @@ export default function DrawdownChart() {
             {t('DRAWDOWN_CHART_NEAR_ATH_BADGE', { count: nearAth })}
           </span>
         )}
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#333' }}>{t('DRAWDOWN_CHART_SOURCE')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{t('DRAWDOWN_CHART_SOURCE')}</span>
       </div>
 
       {/* Loading / error states */}
       {!ath && !err && (
-        <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 10 }} role="status" aria-live="polite">
+        /* One skeleton row per coin this card will actually show, shaped like a
+           real row (label line + bar). Five generic bars reserved ~120px where
+           the loaded card needs ~650, so the card grew by 454px the moment the
+           data landed and shoved everything below it down the page - the
+           single largest card-growth on /scanner. A skeleton that does not
+           match the shape it is standing in for is decoration, not a
+           placeholder. */
+        <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 7 }} role="status" aria-live="polite">
           <span className="sr-only">{t('DRAWDOWN_CHART_LOADING_SR')}</span>
-          {[0, 1, 2, 3, 4].map(i => (
-            <SkeletonBar key={i} height={12} radius={4} style={{ opacity: 1 - i * 0.12 }} />
+          {Array.from({ length: SKELETON_ROWS }).map((_, i) => (
+            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 3, opacity: Math.max(0.25, 1 - i * 0.05) }}>
+              <SkeletonBar width="45%" height={11} radius={4} />
+              <SkeletonBar height={10} radius={4} />
+            </div>
           ))}
         </div>
       )}
@@ -96,7 +112,7 @@ export default function DrawdownChart() {
 
       {/* Bar chart rows */}
       {ath && rows.length === 0 && (
-        <div style={{ padding: '20px 14px', fontSize: 'var(--fs-caption)', color: '#444' }}>{t('DRAWDOWN_CHART_EMPTY')}</div>
+        <div style={{ padding: '20px 14px', fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{t('DRAWDOWN_CHART_EMPTY')}</div>
       )}
 
       {ath && rows.length > 0 && (
@@ -117,17 +133,17 @@ export default function DrawdownChart() {
                     {drawdown!.toFixed(1)}%
                   </span>
                   {curPrice != null && (
-                    <span style={{ fontSize: 'var(--fs-caption)', color: '#555', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', fontVariantNumeric: 'tabular-nums' }}>
                       {fmtPrice(curPrice)}
                     </span>
                   )}
                   {athPrice != null && (
-                    <span style={{ fontSize: 'var(--fs-caption)', color: '#444', fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', fontVariantNumeric: 'tabular-nums' }}>
                       {t('DRAWDOWN_CHART_ATH_PRICE', { price: fmtPrice(athPrice) })}
                     </span>
                   )}
                   {athDate && (
-                    <span style={{ fontSize: 'var(--fs-caption)', color: '#333', marginLeft: 'auto' }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', marginLeft: 'auto' }}>
                       {fmtDate(athDate)}
                     </span>
                   )}

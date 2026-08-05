@@ -81,17 +81,20 @@ export default function SignalAccuracy() {
           <Tip width={260} text={t('SIGNAL_ACCURACY_TOOLTIP')}>{t('SIGNAL_ACCURACY_TITLE')}</Tip>
         </span>
         {data?.candles && (
-          <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>{t('SIGNAL_ACCURACY_CANDLES_INFO', { candles: data.candles })}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{t('SIGNAL_ACCURACY_CANDLES_INFO', { candles: data.candles })}</span>
         )}
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>{t('SIGNAL_ACCURACY_CACHE_NOTE')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{t('SIGNAL_ACCURACY_CACHE_NOTE')}</span>
       </div>
 
       {/* Loading / error */}
       {!data && !err && (
-        <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 10 }} role="status" aria-live="polite">
+        /* Four thin bars reserved ~90px where the loaded card needs ~420, so it
+           grew by 270px on arrival and pushed everything below it. Taller bars
+           at the real row count reserve roughly the right space instead. */
+        <div style={{ padding: '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 9 }} role="status" aria-live="polite">
           <span className="sr-only">{t('SIGNAL_ACCURACY_SR_COMPUTING')}</span>
-          {[0, 1, 2, 3].map(i => (
-            <SkeletonBar key={i} height={14} radius={4} style={{ opacity: 1 - i * 0.15 }} />
+          {Array.from({ length: 8 }).map((_, i) => (
+            <SkeletonBar key={i} height={36} radius={6} style={{ opacity: Math.max(0.25, 1 - i * 0.09) }} />
           ))}
         </div>
       )}
@@ -114,7 +117,7 @@ export default function SignalAccuracy() {
               ({ labelKey, align, tipKey }) => (
                 <span key={labelKey} style={{
                   fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '.07em',
-                  textTransform: 'uppercase', color: '#333', textAlign: align,
+                  textTransform: 'uppercase', color: 'var(--txt-dim)', textAlign: align,
                 }}>
                   {tipKey ? <Tip width={200} text={t(tipKey)}>{t(labelKey)}</Tip> : t(labelKey)}
                 </span>
@@ -145,13 +148,13 @@ export default function SignalAccuracy() {
                     <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: dirColor }}>{dirIcon}</span>
                     <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt)' }}>{sig.label}</span>
                   </div>
-                  <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>
+                  <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
                     {t('SIGNAL_ACCURACY_AVG_RETURN', { sign: sig.direction === 'long' ? '+' : '', value: sig.avgReturn6.toFixed(2) })}
                   </span>
                 </div>
 
                 {/* Timeframe */}
-                <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: '#555', textAlign: 'right' }}>
+                <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, color: 'var(--txt-dim)', textAlign: 'right' }}>
                   {sig.timeframe}
                 </span>
 
@@ -168,7 +171,7 @@ export default function SignalAccuracy() {
                 </div>
 
                 {/* Signal count */}
-                <span style={{ fontSize: 'var(--fs-caption)', color: '#444', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                   {sig.count}×
                 </span>
               </div>
@@ -177,7 +180,7 @@ export default function SignalAccuracy() {
 
           {/* Footer */}
           <div style={{ padding: '6px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)' }}>
-            <span style={{ fontSize: 'var(--fs-caption)', color: '#333' }}>
+            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
               {t('SIGNAL_ACCURACY_FOOTER_NOTE')}
             </span>
           </div>

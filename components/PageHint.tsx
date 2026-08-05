@@ -10,24 +10,44 @@ interface Props {
 
 export default function PageHint({ pageKey, title, body }: Props) {
   const key = `lhq_hint_${pageKey}`;
-  const [show, setShow] = useState(false);
+  /* Three states, not two: 'pending' matters.
+   *
+   * This used to start at "hidden", then flip to "shown" after reading
+   * localStorage on mount. For a first-time visitor that inserted ~62px at the
+   * very top of the page a beat after paint, pushing every card below it down
+   * - about 7% of /scanner's layout shift, and it applied to every page this
+   * component is on.
+   *
+   * Rendering an invisible spacer during 'pending' means the space is already
+   * reserved when the answer arrives: the hint fades in where the gap was, or
+   * the gap collapses for a returning visitor who dismissed it. The collapse
+   * is a shift too, but it happens for people who have seen the hint before
+   * and are scrolling past it, and it is one frame rather than a reflow of
+   * everything below. */
+  const [state, setState] = useState<'pending' | 'show' | 'hide'>('pending');
   const { t } = useLabels();
 
   useEffect(() => {
     try {
-      if (!localStorage.getItem(key)) setShow(true);
-    } catch {}
+      setState(localStorage.getItem(key) ? 'hide' : 'show');
+    } catch {
+      setState('show');
+    }
   }, [key]);
 
-  if (!show) return null;
+  if (state === 'hide') return null;
 
   function dismiss() {
     try { localStorage.setItem(key, '1'); } catch {}
-    setShow(false);
+    setState('hide');
   }
 
   return (
     <div style={{
+      /* Invisible but occupying its full height until the localStorage read
+         resolves, so the hint arrives in space that was already reserved
+         rather than inserting itself and pushing the page down. */
+      visibility: state === 'pending' ? 'hidden' : 'visible',
       display: 'flex',
       alignItems: 'flex-start',
       gap: 10,
@@ -54,6 +74,15 @@ export default function PageHint({ pageKey, title, body }: Props) {
           padding: '0 2px',
           flexShrink: 0,
           opacity: 0.6,
+          /* WCAG 2.2 SC 2.5.8: 24x24 minimum. The glyph alone measured 14x16,
+             and this button renders on every page carrying a hint - it was 5 of
+             the app's remaining tap-target failures by itself. Centred rather
+             than enlarged so the x looks identical; only the hit area grows. */
+          minWidth: 24,
+          minHeight: 24,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
         aria-label={t('PAGE_HINT_DISMISS_LABEL')}
       >×</button>

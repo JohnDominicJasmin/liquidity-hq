@@ -10,8 +10,11 @@ const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; color: string; bg
   SHORT_SETUP:    { label: '▼ SHORT SETUP',    color: '#f87171', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.25)' },
   TRENDING_LONG:  { label: '↗ TRENDING LONG',  color: '#86efac', bg: 'rgba(134,239,172,0.06)', border: 'rgba(134,239,172,0.2)'  },
   TRENDING_SHORT: { label: '↘ TRENDING SHORT', color: '#fca5a5', bg: 'rgba(252,165,165,0.06)', border: 'rgba(252,165,165,0.2)'  },
-  FREEZE:         { label: '⏸ FREEZE',          color: '#6b7280', bg: 'rgba(107,114,128,0.06)', border: 'rgba(107,114,128,0.2)'  },
-  LOADING:        { label: '…',                 color: '#555',    bg: 'transparent',             border: 'transparent'            },
+  /* #6b7280 was 4.01:1 - the same grey-500 the econ calendar used for its
+     (never-reachable) LOW bucket. FREEZE is a live signal state, not a
+     placeholder, so it takes the AA-safe neutral. */
+  FREEZE:         { label: '⏸ FREEZE',          color: 'var(--txt-dim)', bg: 'rgba(107,114,128,0.06)', border: 'rgba(107,114,128,0.2)'  },
+  LOADING:        { label: '…',                 color: 'var(--txt-dim)',    bg: 'transparent',             border: 'transparent'            },
 };
 
 function fmt(n: number | null, decimals = 2): string {
@@ -102,7 +105,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
           <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--txt3)', marginBottom: 3 }}>
             EMA Ribbon Strategy
           </div>
-          <div style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
             3 moving averages (fast/mid/slow) · {tf.toUpperCase()} chart · daily trend filter
           </div>
         </div>
@@ -166,7 +169,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         }}>
           {signal.conditions.map((c, i) => {
             const pass = c.pass;
-            const col  = pass === true ? '#34d399' : pass === false ? '#f87171' : '#555';
+            const col  = pass === true ? '#34d399' : pass === false ? '#f87171' : 'var(--txt-dim)';
             const bg   = pass === true ? 'rgba(52,211,153,0.07)' : pass === false ? 'rgba(248,113,113,0.07)' : 'rgba(255,255,255,0.02)';
             const icon = pass === true ? '✓' : pass === false ? '✗' : '-';
             return (
@@ -185,7 +188,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
                 onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.opacity = '1'; }}
               >
                 <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: col, flexShrink: 0 }}>{icon}</span>
-                <span style={{ fontSize: 'var(--fs-caption)', color: pass === null ? '#444' : 'var(--txt2)', lineHeight: 1.2 }}>
+                <span style={{ fontSize: 'var(--fs-caption)', color: pass === null ? 'var(--txt-dim)' : 'var(--txt2)', lineHeight: 1.2 }}>
                   {c.label}
                 </span>
               </div>
@@ -207,11 +210,11 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#f87171' }}>
             SL ${fmt(signal.sl)}
           </span>
-          <span style={{ fontSize: '0.6875rem', color: '#333' }}>·</span>
+          <span style={{ fontSize: '0.6875rem', color: 'var(--txt-dim)' }}>·</span>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
             Entry ~${fmt(signal.ema20_4h)} (20 EMA)
           </span>
-          <span style={{ fontSize: '0.6875rem', color: '#333' }}>·</span>
+          <span style={{ fontSize: '0.6875rem', color: 'var(--txt-dim)' }}>·</span>
           <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#34d399' }}>
             TP ${fmt(signal.tp)} (2:1)
           </span>

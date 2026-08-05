@@ -158,7 +158,9 @@ covered in §7.
 - **"How to test" is mandatory on every PR, including small ones.** This is the
   dev→QA handoff, not optional documentation. A PR without it is not ready.
 - Write "How to test" for someone sitting in the **QA folder**, not the dev
-  folder. That means step 1 is almost always which branch to pull — see below.
+  folder. Assume they are on the `qa` staging environment (§4), so name the
+  page and what to look at — not which branch to pull. Only say "check out this
+  branch" when the change genuinely is not on `qa` yet.
 - **Risk level** is how QA budgets regression time. Be honest:
   - **Low** — isolated, no shared code, easy to eyeball.
   - **Medium** — touches a shared component or a data path used elsewhere.
@@ -176,12 +178,18 @@ the handoff point between them.**
 
 1. Push the branch, named per §1.
 2. Open a PR using the full template in §3.
-3. Write "How to test" assuming the reader is in the **QA folder** — so it
-   includes *which branch to pull*, not only what to click.
+3. Write "How to test" assuming the reader is on the **`qa` staging
+   environment** — name the page and what to look at. Only name a branch when
+   the change is not on `qa` yet.
 
-**Dev's responsibility ends here.** Once the PR is open and ready for review,
-dev is done. Dev does **not** merge to `main` and does **not** deploy — see
-"Who merges and deploys" below.
+**Dev is not done when the PR is open.** Dev also merges its own feature branch
+into `dev`, promotes `dev` → `qa`, deploys the qa service, and opens the release
+PR that tells QA there is something to test (§7). What dev never does is merge
+to `main` or deploy production — see "Who merges and deploys" below.
+
+This used to read "dev's responsibility ends here", which was true when there
+were two branches and is not now. Stopping at "PR is open" is how a change sits
+on `dev` for a day with nobody wondering why it never reached staging.
 
 ### QA folder — when testing a PR
 
@@ -250,21 +258,31 @@ dev is done. Dev does **not** merge to `main` and does **not** deploy — see
 
 ### Who merges and deploys
 
-**QA is the only one who merges `qa` → `main`, and the only one who deploys
-production. Dev never does either.** Not with permission, not "just this once",
-not when QA is busy. If production needs to move and QA is unavailable, that is
-a scheduling problem, not a reason to route around the rule — the whole value
-of the gate is that it is never the person who wrote the code.
+**Dev never merges `qa` → `main` and never deploys production.** Not with
+permission, not "just this once", not when QA is busy. The whole value of the
+gate is that it is never the person who wrote the code.
+
+**QA does the merge and the deploy — that is QA's job and the normal case.**
+The owner may also do it. Both are legitimate; the rule is about excluding dev,
+not about excluding everyone but QA. In practice QA should be doing it most of
+the time, because it is the natural end of the testing they just did: they know
+which steps passed, so they know whether it is ready.
+
+The owner stepping in is for when QA is genuinely unavailable and something
+needs to ship. It is not a way to skip the testing — whoever merges is
+asserting the "How to test" steps passed, and that assertion is worth the same
+whoever makes it.
 
 Dev's authority stops at `dev` and `qa`. Dev may merge its own feature branches
-into `dev`, may merge `dev` → `qa`, and may deploy nothing.
+into `dev`, may merge `dev` → `qa`, deploys the `qa` service, and deploys
+nothing else.
 
 Merging is not the deploy. **No** Render service auto-deploys; all three are
 `autoDeploy: "no"` / `autoDeployTrigger: "off"`:
 
 | Service | Branch | Auto-deploy | Who deploys |
 |---|---|---|---|
-| `liquidity-hq-prod` → liquidity-hq.com | `main` | **no** | **QA only** |
+| `liquidity-hq-prod` → liquidity-hq.com | `main` | **no** | **QA** (owner may) — never dev |
 | `liquidity-hq-qa` → liquidity-hq-qa.onrender.com | `qa` | **no** | whoever merged `dev` → `qa` |
 | `liquidity-hq-dev` → liquidity-hq-dev.onrender.com | `dev` | **no** | dev, ask first |
 
@@ -367,7 +385,7 @@ The flow is `dev` → `qa` → `main`.
 | `<type>/<description>` | none | dev | n/a |
 | `dev` | liquidity-hq-dev.onrender.com | dev | **no** — trigger manually |
 | `qa` | **liquidity-hq-qa.onrender.com** | dev merges `dev` → `qa` | **no** — trigger manually |
-| `main` | liquidity-hq.com (production) | **QA only** | **no** — trigger manually |
+| `main` | liquidity-hq.com (production) | **QA** (owner may), never dev | **no** — trigger manually |
 
 - Feature branches are cut from `dev` and merged back into `dev` via PR.
   **Dev merges its own feature branches into `dev`** — QA ownership starts at
@@ -496,10 +514,106 @@ essay: a title, a list of what is going out, and the checklist below.
 
 ### Before `dev` → `qa`
 
-1. CI green on `dev`.
-2. **Migrations applied.** See below — this is the one that takes prod down.
-3. Merge fast-forward only: `git checkout qa && git merge --ff-only dev`.
-4. **Trigger the qa deploy** and say you have. Merging does not deploy.
+1. **Ask QA whether now is a good time.** See below — this is a timing check,
+   not a review.
+2. CI green on `dev`.
+3. **Migrations applied.** See below — this is the one that takes prod down.
+4. Merge fast-forward only: `git checkout qa && git merge --ff-only dev`.
+5. **Trigger the qa deploy** and say you have. Merging does not deploy.
+
+### QA controls *when* `dev` → `qa` happens
+
+**Dev asks before promoting. QA answers "go" or "hold".** That is the whole
+rule.
+
+QA owns the `qa` environment because QA is the only one using it. Without this,
+dev can promote and redeploy in the middle of a test run and change the thing
+being tested underneath the tester — and the resulting bug report describes a
+build that no longer exists. Two people both being careful does not prevent
+that; only asking does.
+
+**This is a timing gate, not an approval gate, and the distinction matters.**
+QA is not being asked to review the code. The whole convention is built around
+QA being someone who cannot read it (see the top of this file), and QA cannot
+test the change either, because it is not on `qa` yet. Asking for approval here
+would produce a signature, not a check — a gate that looks like oversight and
+supplies none.
+
+So the question is only ever *"are you mid-run?"*:
+
+> **dev:** Ready to promote #16 to qa — ok to push?
+> **QA:** Hold, 10 minutes, finishing the alerts sweep.
+> *...later...*
+> **QA:** Go.
+
+QA does not need a reason to say hold, and dev does not need to justify the
+promotion. If QA does not answer, dev promotes — this is a courtesy that
+prevents wasted test runs, not a lock that stalls the pipeline waiting on
+someone who has gone home.
+
+**Worth being honest about what this does and does not fix.** It stops
+collisions. It does **not** put a second pair of eyes on the code: everything
+from a feature branch through to `main` is written, merged and promoted by dev.
+That is a deliberate trade for a two-person team, but it should be a known one
+rather than an assumed safety net.
+
+### Dev QAs its own work first. QA is the second check, not the first.
+
+Having a QA folder does not move responsibility for quality onto it. **A change
+arrives at `qa` already verified**, and the PR says how it was verified. QA
+exists to catch what dev could not see — a different machine, a real
+environment, a user's path through the product — not to be the first person who
+looks.
+
+Before opening a PR, dev has:
+
+- **Run the gates.** `npm run lint` (0 errors), `npx tsc --noEmit`, `npm test`,
+  `npm run build`. All four, not the fast one.
+- **Exercised the change**, not reasoned about it. Load the page. Call the
+  route. If it is a fix, reproduce the original failure first and then confirm
+  it is gone — a fix that was never seen failing is a guess.
+- **Measured anything numeric, before and after.** "Feels faster" is not a
+  result. This has repeatedly mattered: the obvious suspect for `/arena`'s
+  layout shift turned out to be 0.1% of it, and the textbook fix measured twice
+  as bad as the baseline. Neither was discoverable by reading the code.
+- **Swept the whole area, not the one symptom.** If one card on a page shifts,
+  check every card on that page. If one route lacks a cache, check the sibling
+  routes with the same shape. Finding a second defect after saying "done" is
+  the same failure as not finding it.
+- **Written down what is still unverified**, in the PR's Risk level. Something
+  that genuinely cannot be checked locally — a production IP, a cold start, a
+  real environment variable — is named there, not left for QA to trip over.
+
+The test to apply before handing over: *if QA finds nothing, was this PR
+finished?* If the honest answer is "no, they would have found the obvious
+thing", it was not ready.
+
+### The release PR is how QA finds out there is work
+
+**Immediately after promoting `dev` → `qa`, dev opens a `qa` → `main` PR.** Not
+later, not when the release feels big enough. That PR is the only thing that
+tells QA anything is waiting.
+
+This was missing and it silently broke the handoff. Five changes sat on the
+staging site — including the worst Core Web Vital in the product and a bug that
+was getting users' IPs banned — with nothing anywhere saying so. Every
+individual PR had already been merged and closed, `qa` had moved, staging had
+been redeployed, and QA had no way to know. Promoting without opening this PR is
+deploying into silence.
+
+The release PR is different from a feature PR in three ways:
+
+- **It aggregates.** One "How to test" section covering every change in the
+  release, grouped by area, not a link to five closed PRs. QA should be able to
+  work top to bottom without opening anything else.
+- **It ends with the release steps**, because merging it *is* the release:
+  merge, deploy production manually, re-check against liquidity-hq.com, tag.
+- **It carries the honest caveats in Risk level** — every "this could not be
+  verified locally" from every PR in the release, collected in one place.
+
+Keep it open while QA works. It is the thread: failures get reported as comments
+on it, and it stays open until the whole release either ships or is pulled
+apart.
 
 ### Before `qa` → `main`
 
@@ -514,6 +628,44 @@ essay: a title, a list of what is going out, and the checklist below.
 Then merge, deploy, and re-check the steps against production rather than
 against `qa`. A pass on staging is evidence, not proof: prod has different data,
 different environment variables and a different Supabase project.
+
+### When QA finds a failure
+
+QA reports it as a comment on the release PR — **which step, what was expected,
+what actually happened.** Not "looks broken".
+
+**Dev fixes it. QA does not.** A QA folder that fixes application code stops
+being an independent check on it, and the convention assumes QA cannot read code
+anyway (§4, "When QA writes code"). The only thing QA fixes is QA's own test
+tooling.
+
+The loop:
+
+1. Dev cuts a new `fix/` branch **from `dev`**, not from `qa`. `qa` is
+   fast-forward only (§6) and takes nothing but `dev`.
+2. Normal PR, self-QA'd first (above). The bug QA found is reproduced before it
+   is fixed — a fix for a bug you never saw fail is a guess.
+3. Merge to `dev`, promote to `qa`, redeploy staging, say so on the release PR.
+4. **QA re-tests the failed step, and anything the fix could plausibly have
+   touched.** Not the whole suite, not only the one step.
+
+The release PR stays open through all of this. Do not close and reopen it —
+the comment history is the record of what failed and what was done about it.
+
+### When part of a release fails
+
+`qa` is a single line, so there is no cherry-picking a good change out of it
+without rebuilding the branch. Two honest options:
+
+- **Fix forward.** The default. Everything waits for the fix, which is fine when
+  the fix is hours away and nothing already on `qa` is urgent.
+- **Pull the failing change out of `dev`**, then re-promote. Revert the merge on
+  `dev`, fast-forward `qa` again, redeploy, and tell QA the release changed
+  under them. Worth it only when something else in the release genuinely cannot
+  wait.
+
+Do not merge a release to `main` with a known failing step on the theory that it
+is unrelated. If it were unrelated, it would not have failed.
 
 ### Database migrations
 
@@ -553,6 +705,11 @@ It has already happened here twice, with `CRON_SECRET` and
   provision a separate one.
 
 ### Tagging
+
+**QA tags, as the last step of the release**, because QA is the one who merged
+and deployed and is therefore the only one who knows the deploy actually
+reached `live`. A tag pushed before that is a claim about production made by
+someone who did not deploy it.
 
 Tag `main` after a successful production deploy:
 

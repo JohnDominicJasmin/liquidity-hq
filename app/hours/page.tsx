@@ -167,7 +167,7 @@ export default function BestHours() {
                 <div style={{
                   position: 'absolute', top: -6, height: 56,
                   left: `${pct}%`, width: 2,
-                  background: 'var(--accent)',
+                  background: 'var(--accent-solid)',
                   borderRadius: 2,
                   transform: 'translateX(-1px)',
                   boxShadow: '0 0 6px var(--accent)',

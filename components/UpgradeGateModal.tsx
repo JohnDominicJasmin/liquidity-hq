@@ -44,7 +44,7 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
       <button
         onClick={onUnlock}
         style={{
-          background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer',
+          background: 'var(--accent-solid)', color: '#fff', border: 'none', cursor: 'pointer',
           fontSize: 'var(--fs-label)', fontWeight: 700, padding: '9px 16px', borderRadius: 8,
           flexShrink: 0,
         }}
@@ -104,7 +104,7 @@ export function FullPageUpgradeGate({ title, description }: { title: string; des
           href={ctaHref}
           style={{
             display: 'block', textAlign: 'center',
-            background: 'var(--accent)', color: '#fff',
+            background: 'var(--accent-solid)', color: '#fff',
             fontSize: 'var(--fs-body)', fontWeight: 700,
             padding: '12px 16px', borderRadius: 8,
             textDecoration: 'none',
@@ -113,7 +113,7 @@ export function FullPageUpgradeGate({ title, description }: { title: string; des
           {t('UPGRADE_GATE_CTA')}
         </a>
         <div style={{ textAlign: 'center', marginTop: 14 }}>
-          <Link href="/upgrade" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+          <Link href="/upgrade" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2, display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
             {t('UPGRADE_GATE_COMPARE_LINK')}
           </Link>
         </div>
@@ -207,7 +207,7 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
           href={ctaHref}
           style={{
             display: 'block', textAlign: 'center',
-            background: 'var(--accent)', color: '#fff',
+            background: 'var(--accent-solid)', color: '#fff',
             fontSize: 'var(--fs-body)', fontWeight: 700,
             padding: '12px 16px', borderRadius: 8,
             textDecoration: 'none',
@@ -217,7 +217,7 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
         </a>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
-          <Link href="/upgrade" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+          <Link href="/upgrade" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'underline', textUnderlineOffset: 2, display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
             {t('UPGRADE_GATE_COMPARE_LINK')}
           </Link>
           <button

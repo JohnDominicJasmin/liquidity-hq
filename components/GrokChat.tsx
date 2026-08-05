@@ -611,7 +611,18 @@ export default function GrokChat() {
       </button>
 
       {/* ── Chat panel ── */}
-      <div className={`gchat-panel${open ? ' gchat-open' : ''}${expanded ? ' gchat-expanded' : ''}`}>
+      {/* inert while closed. The panel is hidden with opacity:0 and
+          pointer-events:none, neither of which removes anything from the tab
+          order - so 65 focusable controls inside it sat ahead of the page's own
+          navigation. The first nine Tab presses on /dashboard landed on quick-
+          reply buttons in an invisible chat panel. inert removes the subtree
+          from both the tab order and the accessibility tree in one attribute,
+          which is exactly the semantics opacity:0 was being asked to imply. */}
+      <div
+        className={`gchat-panel${open ? ' gchat-open' : ''}${expanded ? ' gchat-expanded' : ''}`}
+        inert={!open}
+        aria-hidden={!open}
+      >
 
         {/* ── Login modal overlay (shown when unauthenticated user tries to use Grok) ── */}
         {showLoginModal && (
@@ -801,7 +812,7 @@ export default function GrokChat() {
                       <div style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: '#5aa3ff', margin: '2px 0 6px' }}>
                         {coin.toUpperCase()}/USDT
                       </div>
-                      <div style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>
+                      <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
                         {liveSearch ? 'Live search ON' : 'Fast mode · toggle Live for web search'}
                       </div>
                     </>

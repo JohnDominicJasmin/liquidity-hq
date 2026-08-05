@@ -91,7 +91,7 @@ export default function CycleChart() {
             {t('CYCLE_CHART_TITLE')}
           </span>
           {currentDay > 0 && (
-            <span style={{ fontSize: 'var(--fs-caption)', color: '#555', marginLeft: 8 }}>
+            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', marginLeft: 8 }}>
               {t('CYCLE_CHART_CURRENT_DAY', { day: currentDay })}
             </span>
           )}
@@ -197,8 +197,8 @@ export default function CycleChart() {
 
       {/* Footer */}
       <div style={{ padding: '4px 14px 8px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>{t('CYCLE_CHART_FOOTER_YAXIS')}</span>
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>{t('CYCLE_CHART_FOOTER_SOURCE')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{t('CYCLE_CHART_FOOTER_YAXIS')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{t('CYCLE_CHART_FOOTER_SOURCE')}</span>
       </div>
     </div>
   );

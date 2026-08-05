@@ -98,7 +98,21 @@ export default function AccumulationTracker() {
       </div>
 
       {rows.length === 0 ? (
-        <div style={{ padding: '10px 14px 12px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>
+        /* minHeight holds the space the rows will occupy.
+
+           Without it this card was 72px while prices were still arriving and
+           277px once they had, and all five cards below it moved 205px down
+           the page at that moment.
+
+           Measured rather than guessed: with the reservation the empty card
+           sat at 222px against a loaded 277px, so 245 closes the remaining
+           55px. Sized to the typical loaded height rather than a maximum -
+           over-reserving would leave a visible gap on a genuinely empty
+           result, which is a real state here (no coin scores >= 45). */
+        <div style={{
+          padding: '10px 14px 12px', fontSize: 'var(--fs-caption)', color: 'var(--txt3)',
+          minHeight: 245,
+        }}>
           {t('ACCUMULATION_TRACKER_EMPTY')}
         </div>
       ) : (

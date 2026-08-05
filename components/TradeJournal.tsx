@@ -797,7 +797,7 @@ function Inner() {
           {t('TRADE_JOURNAL_TAB_RULES')}{rules.filter(r => r.enabled).length > 0 && (
             <span style={{
               marginLeft: 5, fontSize: 'var(--fs-caption)', fontWeight: 700,
-              background: 'var(--accent)', color: '#fff',
+              background: 'var(--accent-solid)', color: '#fff',
               borderRadius: 10, padding: '1px 5px',
             }}>{rules.filter(r => r.enabled).length}</span>
           )}
@@ -806,7 +806,7 @@ function Inner() {
         <button className={`tj-tab${tab === 'bias' ? ' on' : ''}`} onClick={() => setTab('bias')}>{t('TRADE_JOURNAL_TAB_BIAS')}</button>
         <button className={`tj-tab${tab === 'thesis' ? ' on' : ''}`} onClick={() => setTab('thesis')} style={{ position: 'relative' }}>
           {t('TRADE_JOURNAL_TAB_THESIS')}{theses.length > 0 && (
-            <span style={{ marginLeft: 5, fontSize: 'var(--fs-caption)', fontWeight: 700, background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '1px 5px' }}>{theses.length}</span>
+            <span style={{ marginLeft: 5, fontSize: 'var(--fs-caption)', fontWeight: 700, background: 'var(--accent-solid)', color: '#fff', borderRadius: 10, padding: '1px 5px' }}>{theses.length}</span>
           )}
         </button>
       </div>
@@ -1021,7 +1021,7 @@ function Inner() {
               <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginBottom: 18, flexWrap: 'wrap' }}>
                 {(['TRADE_JOURNAL_HISTORY_EMPTY_BULLET_PNL', 'TRADE_JOURNAL_HISTORY_EMPTY_BULLET_WINRATE', 'TRADE_JOURNAL_HISTORY_EMPTY_BULLET_BIAS'] as const).map(bulletKey => (
                   <span key={bulletKey} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent)', display: 'inline-block', flexShrink: 0 }} />
+                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--accent-solid)', display: 'inline-block', flexShrink: 0 }} />
                     {t(bulletKey)}
                   </span>
                 ))}
