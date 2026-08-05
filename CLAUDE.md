@@ -30,7 +30,8 @@ One logical change per commit. Never `fix bug` / `update stuff` / `wip`.
 **PRs** — always these sections: Summary · What changed · Why · **How to test
 (QA)** · Risk level (Low/Med/High) · Screenshots if UI.
 "How to test" is **mandatory on every PR** — it is the dev→QA handoff. Write it
-for someone in the QA folder, so step 1 says which branch to pull.
+for someone on the `qa` staging environment: name the page and what to look at,
+not a branch. Only name a branch when the change is not on `qa` yet.
 
 **Two folders** — dev folder writes code, QA folder tests it; the PR is the
 handoff. **QA tests the `qa` branch** — either on the staging URL
@@ -81,7 +82,9 @@ both. **It must never point at prod Supabase (`qdpwhnvmhqgzijuwopso`) — hard
 rule.** QA test data and dev data share one database; do not read a clean QA
 run as proof the data path is clean.
 
-`main` → liquidity-hq.com — QA only, merge and deploy both.
+`main` → liquidity-hq.com — **QA merges and deploys, and normally should**;
+the owner may too. **Never dev.** Whoever merges is asserting the test steps
+passed.
 
 **Dev QAs its own work first — QA is the second check, not the first.** A
 change reaches `qa` already verified, and the PR says how. Before opening a PR:

@@ -178,8 +178,9 @@ the handoff point between them.**
 
 1. Push the branch, named per §1.
 2. Open a PR using the full template in §3.
-3. Write "How to test" assuming the reader is in the **QA folder** — so it
-   includes *which branch to pull*, not only what to click.
+3. Write "How to test" assuming the reader is on the **`qa` staging
+   environment** — name the page and what to look at. Only name a branch when
+   the change is not on `qa` yet.
 
 **Dev is not done when the PR is open.** Dev also merges its own feature branch
 into `dev`, promotes `dev` → `qa`, deploys the qa service, and opens the release
@@ -257,21 +258,31 @@ on `dev` for a day with nobody wondering why it never reached staging.
 
 ### Who merges and deploys
 
-**QA is the only one who merges `qa` → `main`, and the only one who deploys
-production. Dev never does either.** Not with permission, not "just this once",
-not when QA is busy. If production needs to move and QA is unavailable, that is
-a scheduling problem, not a reason to route around the rule — the whole value
-of the gate is that it is never the person who wrote the code.
+**Dev never merges `qa` → `main` and never deploys production.** Not with
+permission, not "just this once", not when QA is busy. The whole value of the
+gate is that it is never the person who wrote the code.
+
+**QA does the merge and the deploy — that is QA's job and the normal case.**
+The owner may also do it. Both are legitimate; the rule is about excluding dev,
+not about excluding everyone but QA. In practice QA should be doing it most of
+the time, because it is the natural end of the testing they just did: they know
+which steps passed, so they know whether it is ready.
+
+The owner stepping in is for when QA is genuinely unavailable and something
+needs to ship. It is not a way to skip the testing — whoever merges is
+asserting the "How to test" steps passed, and that assertion is worth the same
+whoever makes it.
 
 Dev's authority stops at `dev` and `qa`. Dev may merge its own feature branches
-into `dev`, may merge `dev` → `qa`, and may deploy nothing.
+into `dev`, may merge `dev` → `qa`, deploys the `qa` service, and deploys
+nothing else.
 
 Merging is not the deploy. **No** Render service auto-deploys; all three are
 `autoDeploy: "no"` / `autoDeployTrigger: "off"`:
 
 | Service | Branch | Auto-deploy | Who deploys |
 |---|---|---|---|
-| `liquidity-hq-prod` → liquidity-hq.com | `main` | **no** | **QA only** |
+| `liquidity-hq-prod` → liquidity-hq.com | `main` | **no** | **QA** (owner may) — never dev |
 | `liquidity-hq-qa` → liquidity-hq-qa.onrender.com | `qa` | **no** | whoever merged `dev` → `qa` |
 | `liquidity-hq-dev` → liquidity-hq-dev.onrender.com | `dev` | **no** | dev, ask first |
 
@@ -374,7 +385,7 @@ The flow is `dev` → `qa` → `main`.
 | `<type>/<description>` | none | dev | n/a |
 | `dev` | liquidity-hq-dev.onrender.com | dev | **no** — trigger manually |
 | `qa` | **liquidity-hq-qa.onrender.com** | dev merges `dev` → `qa` | **no** — trigger manually |
-| `main` | liquidity-hq.com (production) | **QA only** | **no** — trigger manually |
+| `main` | liquidity-hq.com (production) | **QA** (owner may), never dev | **no** — trigger manually |
 
 - Feature branches are cut from `dev` and merged back into `dev` via PR.
   **Dev merges its own feature branches into `dev`** — QA ownership starts at
