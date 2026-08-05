@@ -84,7 +84,7 @@ run as proof the data path is clean.
 `main` → liquidity-hq.com — QA only, merge and deploy both.
 
 **Dev QAs its own work first — QA is the second check, not the first.** A
-change reaches  already verified, and the PR says how. Before opening a PR:
+change reaches `qa` already verified, and the PR says how. Before opening a PR:
 run all four gates (lint 0 errors, tsc, test, build); exercise the change rather
 than reason about it, reproducing the original failure first if it is a fix;
 measure anything numeric before and after; sweep the whole area, not the one
