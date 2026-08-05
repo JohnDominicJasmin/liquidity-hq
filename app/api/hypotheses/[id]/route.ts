@@ -30,15 +30,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (k in body) update[k] = body[k];
   }
 
+  /* maybeSingle, not single. The .eq('user_id') above is the ownership filter,
+     so an update aimed at somebody else's row - or at an id that does not exist
+     - legitimately matches ZERO rows. single() treats that as the error
+     PGRST116 and apiError turned it into a 500, so every authorization denial
+     on this route looked identical to a genuine server fault. Found by QA's
+     BOLA suite: a PATCH against a UUID that exists nowhere returned 500 too,
+     which is what isolated it from anything to do with entitlements.
+     The data was never at risk - it failed closed - but you cannot alert on
+     500s when refusals are also 500s. */
   const { data, error } = await sb(token)
     .from(T.hypotheses)
     .update(update)
     .eq('id', id)
     .eq('user_id', authData.user.id)
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) return apiError('hypotheses/[id]', error);
+  /* 404, not 403. 403 would confirm the row exists and belongs to someone else,
+     which hands an attacker a working existence oracle for enumerating ids.
+     404 is the same answer for "no such row" and "not yours", so it leaks
+     nothing while still being an honest, alertable status code. */
+  if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json({ hypothesis: data });
 }
 
