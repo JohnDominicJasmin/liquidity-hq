@@ -122,10 +122,57 @@ export const CLS_BUDGET: Record<string, number> = {
      0.365 to 0.068 over three runs. Note it was the footer, not gchat-fab:
      per-source attribution put the FAB at 0.1% of the shift. */
   '/briefing': 0.20,  // observed 0.148, 0.153, 0.176
+
+  /* /scanner moved here from CLS_UNSTABLE on 2026-08-05, meeting the retirement
+     condition that entry set for itself ("fix the race, re-measure over >=10
+     runs, then give /scanner a real CLS_BUDGET").
+
+     The instability was real when measured, and it was measured on `dev`, which
+     had fix/scanner-layout-shift (the heatmap tile-height fix) but NOT
+     fix/scanner-card-layout-shift, which rewrote the heatmap ranking, three card
+     skeletons and PageHint. Both are now on main.
+
+     24 runs on the shipped build, production server, two batches:
+       cold  0.176 0.010 0.013 0.016 0.010 0.011 0.010 0.016 0.009 0.028 0.007 0.014
+       warm  0.008 0.007 0.007 0.008 0.012 0.010 0.028 0.007 0.011 0.012 0.016 0.011
+     Warm: min 0.007, median 0.011, mean 0.011, max 0.028.
+     The single 0.176 was run #1 against a just-started server; the second batch
+     was run to test exactly that, and reproduced nothing above 0.028. That is a
+     cold-start cost, not the ~3x race the old distribution showed.
+
+     Budget is 0.25 rather than deleting the route outright, even though the
+     median is well under CLS_GOOD, because CI always measures a cold server -
+     the webServer builds and starts immediately before the run - so 0.1 would
+     gate on the one number that legitimately varies. 0.25 clears the observed
+     cold worst case with headroom and is still ~9x tighter than the ~2.0 a
+     ceiling would have needed before the fix.
+     Lower it to CLS_GOOD (delete this line) if cold-start ever measures <0.1. */
+  '/scanner': 0.25,
 };
 
 /** The "good" CLS threshold every route not in CLS_BUDGET must meet. */
 export const CLS_GOOD = 0.1;
+
+/**
+ * Routes whose CLS is too UNSTABLE to assert any number against.
+ *
+ * Still measured and attached to the report on every run - the value stays
+ * visible, it just is not a pass/fail gate. Nothing here is "allowed"; it is
+ * unmeasurable-by-threshold, which is a WORSE state than a bad fixed number.
+ *
+ * EMPTY as of 2026-08-05. /scanner was the only entry and has been retired to
+ * CLS_BUDGET at 0.25 - see the note there for the 24-run distribution that
+ * justified it. The mechanism stays because the distinction it draws is a real
+ * one, and re-deriving it under pressure would be worse than keeping it.
+ *
+ * The bar for adding a route here, unchanged: an entry must carry a measured
+ * distribution (>=10 runs, not 3 - an earlier 3-run sample of /scanner read
+ * 0.432/0.691/0.454 and was reported as "fixed", which 10 runs disproved) AND
+ * a retirement condition saying what has to be true to remove it. Without both
+ * this becomes the place flaky tests go to be forgotten, which is the failure
+ * mode it exists to prevent.
+ */
+export const CLS_UNSTABLE = new Set<string>([]);
 
 /**
  * Settle a page: wait for hydration, then assert the stylesheet actually
