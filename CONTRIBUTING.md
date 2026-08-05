@@ -248,7 +248,17 @@ on `dev` for a day with nobody wondering why it never reached staging.
 4. If the QA folder has no `CLAUDE.md` / `CONTRIBUTING.md`, it has not pulled
    since this convention landed. **Pull `main` first**, then check out the
    feature branch, so both folders are working to the same standard.
-5. **When every step passes, QA merges `qa` into `main`** and then deploys —
+5. **On a `dev` → `qa` promotion PR, run the browser suite locally before the
+   promotion is merged.** This is QA's, and it is the only automated browser
+   check that change gets before staging — CI does not run the suite on that PR.
+   Full detail in §4b; the short version:
+
+   ```
+   npm run test:e2e
+   ```
+
+   ~30 minutes, 187 tests. Report pass/fail on the PR like any other step.
+6. **When every step passes, QA merges `qa` into `main`** and then deploys —
    both steps, in that order. See below.
 
    `qa` → `main`, not the feature branch → `main`. By the time QA is testing,
@@ -349,6 +359,79 @@ independent check on it.
 This section exists because it was missing and the gap produced a real wrong
 answer: with no rule for QA-authored code, the dev session simply asserted that
 it would review such a branch — a role the document never gave it.
+
+---
+
+## 4b. What CI runs, and what QA runs
+
+**CI does not run the browser suite on most pushes.** Actions minutes are metered
+on a private repo, and three days of unrestricted running burned 1,755 minutes —
+about $124/month annualised — and hard-stopped CI mid-release when the spending
+limit hit. Nothing was deleted to fix that. The expensive half moved to a person
+with a name.
+
+### What GitHub runs
+
+| Event | Lint · typecheck · unit · build | Playwright |
+|---|---|---|
+| Push to a feature branch | ✅ ~2 min | — |
+| PR into `dev` | ✅ | — |
+| PR into `qa` | ✅ | — |
+| Push to `dev` or `main` | ✅ | — |
+| **PR into `main`** (the release) | ✅ | ✅ **full, 187 tests, ~34 min** |
+| Manual run (Actions → CI → Run workflow) | ✅ | ✅ if you tick the box |
+
+One automated browser run per release, immediately before a production deploy.
+
+### What QA runs
+
+**On a `dev` → `qa` promotion PR, before merging it:**
+
+```bash
+npm run test:e2e                    # full suite, ~30 min, builds and serves on :3100
+E2E_PORT=3000 npx playwright test   # or reuse a server you already have running
+```
+
+`.env.e2e.local` supplies the BOLA fixtures. It is gitignored and already in both
+checkouts; if it is missing, `bola.spec.ts` **skips with a stated reason** rather
+than passing, so a green run without it is not a green run.
+
+Report pass/fail on the PR. **This is the gate.** Nothing else exercises a browser
+against that change before it reaches staging.
+
+### What dev runs
+
+Unchanged — the four fast gates before opening any PR: `npm run lint`,
+`npx tsc --noEmit`, `npm test`, `npm run build`. E2E was never on dev's list and is
+not being added to it.
+
+### Be honest about what a local run cannot catch
+
+A green local run is **not** equivalent to CI, and the gap has already produced two
+real defects:
+
+- **The labels defect (2026-08-05).** `/api/labels` answers `200 {}` on a DB error
+  and the client applied it, wiping all 2,570 seeded English labels so every page
+  rendered raw keys. It only reproduces **without** Supabase env — CI's situation,
+  never yours locally with `.env.local` present. It surfaced as `/arena` overflowing
+  28px and a `/login` smoke failure, and it was red on *every* branch, including a
+  documentation-only PR.
+- **The table-prefix gap (2026-08-05).** CI had no `NEXT_PUBLIC_APP_ENV`, so it
+  built with production table names and queried the dev project, which has none of
+  them. Every authenticated CI run before it was fixed asserted less than it looked
+  like it did. Locally the variable is set, so the bug is invisible.
+
+Both are *environment-difference* bugs, invisible on a developer machine by
+construction. That is the entire reason one CI run survives at the `main` gate
+rather than the suite moving completely onto laptops.
+
+### The trade being made
+
+A browser regression now surfaces on QA's machine, not on the PR that introduced
+it — and dev ships to QA with no browser verification at all. When QA's run fails
+it is a round trip: report, dev cuts a `fix/` branch, re-promotes, QA re-runs 30
+minutes. That cost is accepted in exchange for roughly $120/month and a clear
+division of labour, and it is bounded by the weekly release cadence in §7a.
 
 ---
 
@@ -511,6 +594,30 @@ The two merges that actually reach users — `dev` → `qa` and `qa` → `main` 
 a PR like everything else. They are the merges with the highest blast radius,
 so they are the wrong place to skip the paper trail. A promotion PR needs no
 essay: a title, a list of what is going out, and the checklist below.
+
+### 7a. How often a release goes out
+
+**Features batch to a weekly release. Bug fixes and hotfixes ship when they are
+ready.**
+
+| What | Cadence |
+|---|---|
+| New features, additions, refactors, docs | Batched into **one release a week** |
+| Bug fixes | As soon as they are verified — do not wait for the weekly slot |
+| Hotfixes (production is broken) | Immediately, and they skip `qa` — see §6 |
+
+Merging to `dev` is not affected — that stays continuous. What batches is the
+promotion out of `dev`.
+
+Two things follow from this, and both are the point rather than side effects:
+
+- **A regression found at the `qa` gate arrives with a week of changes attached**,
+  not one. That is the cost of batching, and it is why §4b puts a full browser run
+  in QA's hands before the promotion is merged rather than after.
+- **"It is not urgent" is a real answer.** A feature that misses the weekly slot
+  waits. Shipping a feature mid-week to production, outside the batch, is a
+  decision someone makes deliberately — not something that happens because a PR
+  merged.
 
 ### Before `dev` → `qa`
 
@@ -687,6 +794,23 @@ Rules:
   destructive, that is where to do it.
 - Applied through the Supabase MCP (`apply_migration`), per
   `docs/HANDOVER.md` §5.
+- **Check the project you actually hit.** After applying anything, run this
+  against **prod**:
+
+  ```sql
+  select relname from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public' and relname like 'lhq_dev_%';
+  -- must return zero rows on prod
+  ```
+
+  A dev-prefixed table on production means a migration meant for dev was applied
+  to prod. That happened **twice** and went unnoticed for weeks — `lhq_dev_alert_fires`
+  and `lhq_dev_user_settings` were both sitting on prod, empty, until a network
+  tab on `/alerts` surfaced the first one on 2026-08-05. Nothing broke, because
+  the app resolves table names through `lib/tables.ts` and never reads those, but
+  prod Supabase is on the free plan with **no backups** — the next one might not
+  be harmless. Two seconds of checking beats finding out later.
 
 ### Environment variables
 

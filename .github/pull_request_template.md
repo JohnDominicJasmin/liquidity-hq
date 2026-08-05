@@ -50,6 +50,14 @@
 - [ ] **New environment variable?** If yes, list it here and say which services still need it set. A var that exists only on dev is a broken deploy waiting to happen
 - [ ] Anything I could not verify is stated in the PR, not left for QA to discover
 
+### If this is a `dev` → `qa` promotion — QA fills this in
+
+CI does **not** run the browser suite on this PR. It runs on the `qa` → `main`
+release PR only, so this box is the browser check for everything going to staging.
+See CONTRIBUTING.md section 4b.
+
+- [ ] `npm run test:e2e` run locally — result posted as a comment (pass/fail, and the count)
+
 ## Screenshots (if UI change)
 
 *Before and after. "N/A - no visual change" is a valid answer; leaving it blank is not.*
