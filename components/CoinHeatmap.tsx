@@ -21,15 +21,26 @@ const CAT: Record<Cat, readonly CoinId[]> = {
 };
 
 function changeColor(chg: number | null): { bg: string; text: string } {
-  if (chg == null) return { bg: 'rgba(255,255,255,0.04)', text: '#444' };
+  if (chg == null) return { bg: 'rgba(255,255,255,0.04)', text: 'var(--txt-dim)' };
   if (chg >=  10) return { bg: 'rgba(52,211,153,0.30)',  text: '#34d399' };
   if (chg >=   5) return { bg: 'rgba(52,211,153,0.22)',  text: '#6ee7b7' };
   if (chg >=   2) return { bg: 'rgba(52,211,153,0.13)',  text: '#86efac' };
   if (chg >=   0) return { bg: 'rgba(52,211,153,0.07)',  text: '#4ade80' };
+  /* The red ramp used to darken the text (#fca5a5 -> #f87171 -> #ef4444 ->
+     #dc2626) at the same time as it made the tile background a more opaque red
+     (0.07 -> 0.38). Both moving together collapses the contrast exactly where
+     the number matters most: the -10% bucket measured 3.73:1 and the worst
+     bucket 2.43:1, so the biggest losers on the board were the hardest to read.
+     Text now LIGHTENS as the tile saturates - severity is carried by the tile,
+     which is the part that reads at a glance anyway - giving 8.6:1 to 9.6:1
+     across the whole ramp.
+     The green side has the same shape but does not fail (its worst bucket is
+     5.71:1) because green is inherently light; left as-is rather than churning
+     a passing palette, but the same rule applies if that ramp is ever extended. */
   if (chg >= -2)  return { bg: 'rgba(248,113,113,0.07)', text: '#fca5a5' };
-  if (chg >= -5)  return { bg: 'rgba(248,113,113,0.15)', text: '#f87171' };
-  if (chg >= -10) return { bg: 'rgba(248,113,113,0.25)', text: '#ef4444' };
-  return              { bg: 'rgba(248,113,113,0.38)',     text: '#dc2626' };
+  if (chg >= -5)  return { bg: 'rgba(248,113,113,0.15)', text: '#fcbcbc' };
+  if (chg >= -10) return { bg: 'rgba(248,113,113,0.25)', text: '#fecaca' };
+  return              { bg: 'rgba(248,113,113,0.38)',     text: '#fee2e2' };
 }
 
 function fmtPrice(p: number): string {
@@ -159,7 +170,7 @@ export default function CoinHeatmap() {
               fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px', borderRadius: 20, cursor: 'pointer',
               border: `0.5px solid ${cat === c ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.07)'}`,
               background: cat === c ? 'rgba(255,255,255,0.1)' : 'transparent',
-              color: cat === c ? 'var(--txt)' : '#444',
+              color: cat === c ? 'var(--txt)' : 'var(--txt-dim)',
               transition: 'all .15s',
             }}
           >
@@ -180,9 +191,9 @@ export default function CoinHeatmap() {
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
             border: '0.5px solid rgba(255,255,255,0.04)',
           }}>
-            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: '#333' }}>-</span>
+            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: 'var(--txt-dim)' }}>-</span>
             <span style={{ fontSize: 'var(--fs-caption)', color: '#2a2a2a' }}>-</span>
-            <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: '#333', lineHeight: 1 }}>-</span>
+            <span style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color: 'var(--txt-dim)', lineHeight: 1 }}>-</span>
           </div>
         ))}
         {coins?.map(({ c, coin }) => {
@@ -211,7 +222,11 @@ export default function CoinHeatmap() {
                   in steps as coins reported in - and each step pushed the two
                   cards below the heatmap down the page. A dash holds the
                   slot; the tile is the same height from first paint. */}
-              <span style={{ fontSize: 'var(--fs-caption)', color: withAlpha(text, 'aa'), fontVariantNumeric: 'tabular-nums' }}>
+              {/* withAlpha(text, 'aa') = 67%, which knocked this price down to
+                  as little as 2.43:1 on the redder tiles. It is a live price,
+                  not decoration. The caption size already sets it apart from
+                  the percentage above it, so it takes the tile colour flat. */}
+              <span style={{ fontSize: 'var(--fs-caption)', color: text, fontVariantNumeric: 'tabular-nums' }}>
                 {coin?.price != null ? `$${fmtPrice(coin.price)}` : '-'}
               </span>
               <span style={{
@@ -230,12 +245,12 @@ export default function CoinHeatmap() {
         padding: '5px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)',
         display: 'flex', alignItems: 'center', gap: 3,
       }}>
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#333', marginRight: 4 }}>{t('COIN_HEATMAP_SCALE_LABEL')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', marginRight: 4 }}>{t('COIN_HEATMAP_SCALE_LABEL')}</span>
         {[
           { label: '>+10%', c: '#34d399' }, { label: '+5%', c: '#6ee7b7' },
-          { label: '+2%', c: '#86efac' },   { label: '0', c: '#555' },
-          { label: '-2%', c: '#fca5a5' },   { label: '-5%', c: '#f87171' },
-          { label: '<-10%', c: '#dc2626' },
+          { label: '+2%', c: '#86efac' },   { label: '0', c: 'var(--txt-dim)' },
+          { label: '-2%', c: '#fca5a5' },   { label: '-5%', c: '#fcbcbc' },
+          { label: '<-10%', c: '#fee2e2' },
         ].map(({ label, c }) => (
           <span key={label} style={{ fontSize: 'var(--fs-caption)', color: c, fontWeight: 600 }}>{label}</span>
         ))}

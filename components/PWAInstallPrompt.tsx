@@ -91,7 +91,7 @@ export default function PWAInstallPrompt() {
         <button
           onClick={install}
           style={{
-            background: 'var(--accent)',
+            background: 'var(--accent-solid)',
             border: 'none',
             borderRadius: 6,
             padding: '5px 11px',

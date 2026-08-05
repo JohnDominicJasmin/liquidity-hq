@@ -506,7 +506,7 @@ export default function AlertsPage() {
 
   const stepStyle: React.CSSProperties = { display: 'flex', gap: 12, marginBottom: 16 };
   const numStyle: React.CSSProperties = {
-    width: 24, height: 24, borderRadius: '50%', background: 'var(--accent)',
+    width: 24, height: 24, borderRadius: '50%', background: 'var(--accent-solid)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#fff', flexShrink: 0, marginTop: 1,
   };

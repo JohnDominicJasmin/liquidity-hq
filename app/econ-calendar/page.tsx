@@ -4,6 +4,7 @@ import { useNow } from '@/lib/useNow';
 import LoadingState from '@/components/LoadingState';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import { econImpactKey, type EconImpact } from '@/lib/classify';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
@@ -59,10 +60,14 @@ function calcDelta(actual?: string, estimate?: string): { text: string; positive
   return { text: (d >= 0 ? '+' : '') + d.toFixed(2) + unit, positive: d >= 0 };
 }
 
-const IMPACT_CFG = {
+/* Keyed by econImpactKey, never by the raw feed string - the feed says 'high'
+   and 'med' in lowercase, so indexing this map directly missed on every row and
+   painted the whole calendar in the LOW style. See lib/classify.ts.
+   LOW's colour also failed AA on its own (#6b7280 = 3.77:1). */
+const IMPACT_CFG: Record<EconImpact, { color: string; bg: string; border: string; accent: string }> = {
   HIGH:   { color: '#f87171', bg: 'rgba(248,113,113,0.14)', border: 'rgba(248,113,113,0.35)', accent: '#f87171' },
   MEDIUM: { color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  border: 'rgba(251,191,36,0.3)',   accent: '#fbbf24' },
-  LOW:    { color: '#6b7280', bg: 'rgba(107,114,128,0.10)', border: 'rgba(107,114,128,0.25)', accent: 'rgba(107,114,128,0.4)' },
+  LOW:    { color: 'var(--txt-dim)', bg: 'rgba(107,114,128,0.10)', border: 'rgba(107,114,128,0.25)', accent: 'rgba(107,114,128,0.4)' },
 };
 
 const COLS = '68px 72px 1fr 90px 95px 82px 72px 70px';
@@ -120,7 +125,7 @@ export default function EconCalendarPage() {
 
       {/* Next event banner */}
       {next && (() => {
-        const ic  = IMPACT_CFG[next.impact as keyof typeof IMPACT_CFG] ?? IMPACT_CFG.LOW;
+        const ic  = IMPACT_CFG[econImpactKey(next.impact)];
         const ctObj = countdown(next.isoDate);
         const ct  = formatCountdown(ctObj, t);
         const released = ctObj.released;
@@ -185,7 +190,7 @@ export default function EconCalendarPage() {
 
               {/* Rows */}
               {dayEvents.map((e, i) => {
-                const ic      = IMPACT_CFG[e.impact as keyof typeof IMPACT_CFG] ?? IMPACT_CFG.LOW;
+                const ic      = IMPACT_CFG[econImpactKey(e.impact)];
                 const isPast  = new Date(e.isoDate).getTime() < now;
                 const isNext  = next?.isoDate === e.isoDate && next?.name === e.name;
                 const delta   = calcDelta(e.actual, e.estimate);

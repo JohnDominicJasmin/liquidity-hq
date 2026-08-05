@@ -90,7 +90,9 @@ export default function UpgradePage() {
 
       {/* Nav */}
       <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: 'var(--bg)', borderBottom: '0.5px solid var(--bdr)', padding: '0 24px', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Link href="/arena" style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+        {/* minHeight for WCAG 2.2 SC 2.5.8 - a standalone back link, not one
+            inside a sentence, so the inline exception does not apply. Was 44x20. */}
+        <Link href="/arena" style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6, minHeight: 24 }}>
           {t('UPGRADE_BACK_LABEL')}
         </Link>
         <span style={{ fontSize: 'var(--fs-card-title)', fontWeight: 800, letterSpacing: '-.02em', color: 'var(--txt)' }}>
@@ -134,7 +136,7 @@ export default function UpgradePage() {
 
           {/* Pro card */}
           <div style={{ borderRadius: 16, padding: '24px 28px', border: '0.5px solid var(--accent-bdr)', background: 'linear-gradient(160deg, var(--accent-bg) 0%, var(--bg1) 60%)', position: 'relative' }}>
-            <div style={{ position: 'absolute', top: -11, left: '50%', transform: 'translateX(-50%)', fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', background: 'var(--accent)', color: '#fff', padding: '3px 14px', borderRadius: 20, whiteSpace: 'nowrap' }}>
+            <div style={{ position: 'absolute', top: -11, left: '50%', transform: 'translateX(-50%)', fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', background: 'var(--accent-solid)', color: '#fff', padding: '3px 14px', borderRadius: 20, whiteSpace: 'nowrap' }}>
               {t('UPGRADE_PRO_CARD_BADGE')}
             </div>
             <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 6 }}>{t('UPGRADE_PRO_CARD_EYEBROW')}</div>
@@ -157,7 +159,7 @@ export default function UpgradePage() {
               <button
                 onClick={handleCheckout}
                 disabled={redirecting}
-                style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: '#fff', background: 'var(--accent)', padding: '14px 40px', borderRadius: 12, border: 'none', cursor: redirecting ? 'default' : 'pointer', opacity: redirecting ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)' }}
+                style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: '#fff', background: 'var(--accent-solid)', padding: '14px 40px', borderRadius: 12, border: 'none', cursor: redirecting ? 'default' : 'pointer', opacity: redirecting ? 0.7 : 1, transition: 'opacity .15s, transform .15s', transform: 'translateY(0)' }}
                 onMouseEnter={e => { if (!redirecting) (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)'; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
               >
@@ -188,7 +190,17 @@ export default function UpgradePage() {
                   {t('UPGRADE_COMING_SOON_SIGNED_OUT_POST')}</>
                 )}
               </p>
-              <Link href="/arena" style={{ fontSize: 'var(--fs-label)', color: 'var(--txt3)', textDecoration: 'underline' }}>
+              {/* inline-flex + minHeight, not padding: this is a standalone
+                  link rather than one inside a sentence, so WCAG 2.2 SC 2.5.8's
+                  inline exception does not cover it and it needs the real 24px.
+                  Measured 81x15 before. */}
+              <Link
+                href="/arena"
+                style={{
+                  fontSize: 'var(--fs-label)', color: 'var(--txt3)', textDecoration: 'underline',
+                  display: 'inline-flex', alignItems: 'center', minHeight: 24,
+                }}
+              >
                 {t('UPGRADE_BACK_TO_ARENA_LINK')}
               </Link>
             </div>

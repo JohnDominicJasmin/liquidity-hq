@@ -24,8 +24,29 @@
      uppercase micro-labels (.mr-factor-k / .dash-section / .edge-card-label
      / .csb-header-row) actually sit on. Sits close to --txt2 by necessity - on a
      near-black bg, AA-passing muted text can't stay much dimmer than secondary
-     text; differentiate those two tiers by weight/size/tracking, not color. */
-  --txt3: #767d92;
+     text; differentiate those two tiers by weight/size/tracking, not color.
+     Nudged again to #7b8297. #767d92 cleared AA on --bg0/--bg1/--bg2 but not on
+     the lighter card surfaces it also lands on: 4.46:1 on --bg4 (#14161a,
+     .av-rail-panel) and 4.32:1 on #191b1e (.csb2-sig). Both measured, not
+     assumed - the earlier value was picked against --bg1/--bg2 only, which is
+     how it shipped under AA on two surfaces nobody checked. #7b8297 is 4.56:1
+     on the worst of them and higher everywhere else. Visually a few points of
+     lightness; if a new surface lighter than #191b1e appears, re-measure rather
+     than trusting this comment. */
+  --txt3: #7b8297;
+
+  /* Dimmed body text, AA-safe. Exists because ~54 call sites had hardcoded
+     #333 / #444 / #555 / #606060 inline - four arbitrary greys used
+     interchangeably for the same "de-emphasised caption" job, none of them
+     legible: they measured 1.54:1 to 3.20:1 and accounted for 152 of the app's
+     265 contrast failures. That included real data (prices, scores, funding
+     rates) and table column headers, not just decoration.
+     #8a8a8a is 5.80:1 on --bg0 and 5.23:1 on --bg4, so it clears AA on every
+     surface in the app. Deliberately neutral grey rather than reusing --txt3's
+     blue-grey, because these sites also carry the "neutral / no signal"
+     semantic that sits beside --green and --red (squeeze direction, funding
+     bias, EMA pass state) and should not read as tinted. */
+  --txt-dim: #8a8a8a;
 
   /* Borders - neutral white hairline, no indigo tint */
   --bdr:  rgba(255,255,255,0.08);
@@ -33,6 +54,18 @@
 
   /* Electric blue - CTAs and interactive elements only */
   --accent:     #1a7aff;
+  /* The SAME brand blue, darkened, for one job: a filled surface carrying white
+     text. White on #1a7aff is 3.98:1 and fails AA - it was the last 20 contrast
+     failures in the app (primary CTA, active nav pill, consent Accept, plan
+     badges). #1668e3 takes that pair to 5.09:1.
+     A second token rather than a darker --accent, because darkening the token
+     itself trades one failure for another: --accent is also used AS TEXT on the
+     near-black backgrounds (links, funding badges, .reasoning-link), where
+     #1a7aff is 5.06:1 and #1668e3 would be 3.95:1. One value cannot satisfy
+     both directions on a dark theme.
+     Rule: --accent for text, borders, glows and rgba tints; --accent-solid
+     wherever the blue is the background under white text. */
+  --accent-solid: #1668e3;
   --accent-2:   #5aa3ff;
   --accent-dim: rgba(26,122,255,0.12);
   --accent-bg:  rgba(26,122,255,0.07);
@@ -601,7 +634,11 @@ body::after {
   background: var(--txt3); opacity: 0.5; }
 .mr-scale { display: flex; justify-content: space-between; margin-top: 4px;
   font-family: var(--font-mono), monospace; font-size: var(--fs-micro); color: var(--txt3); }
-.mr-scale-good { opacity: 0.85; }
+/* No opacity here. --txt3 is tuned to sit just above the 4.5:1 line, so any
+   multiplier on top of it lands under - 0.85 blended this to #656b7e = 3.79:1.
+   Same trap as .pf-footer-bottom-note and .st-locked-list; if this label needs
+   to read as secondary, do it with weight or size, not alpha. */
+.mr-scale-good { font-weight: 600; }
 .mr-factors { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
 .mr-factor { border: 0.5px solid var(--bdr); border-radius: 8px; padding: 8px 9px; background: var(--bg2);
   min-width: 0; }
@@ -788,7 +825,7 @@ body[data-rpm-level="high"]::before {
   border: 0.5px solid transparent; white-space: nowrap;
 }
 .desktop-nav-item:hover { color: var(--txt); background: rgba(90,150,255,0.07); }
-.desktop-nav-item.on { color: #ffffff; background: var(--accent); font-weight: 600; }
+.desktop-nav-item.on { color: #ffffff; background: var(--accent-solid); font-weight: 600; }
 
 @media (min-width: 768px) {
   .hamburger   { display: none !important; }
@@ -1167,7 +1204,15 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
 .cat-time  { background: var(--green-bg);  color: var(--green); }
 .cat-trap  { background: var(--red-bg);    color: var(--red); }
 .cat-psych { background: var(--amber-bg);  color: var(--amber); }
-.pb-star   { background: none; border: none; cursor: pointer; font-size: var(--fs-label); color: var(--txt3); padding: 0 2px; line-height: 1; }
+/* 24x24 minimum is WCAG 2.2 AA (SC 2.5.8 Target Size). This was 16x13 - the
+   glyph's own size, with 2px of side padding and nothing vertical - and there
+   are 55 of them on /playbook, which made it the single largest accessibility
+   failure in the app by count.
+   Sized with min-width/min-height and centred rather than by growing the font,
+   so the star looks identical and only its hit area changes. */
+.pb-star   { background: none; border: none; cursor: pointer; font-size: var(--fs-label); color: var(--txt3); line-height: 1;
+             min-width: 24px; min-height: 24px; padding: 0 2px;
+             display: inline-flex; align-items: center; justify-content: center; }
 .pb-star.on { color: #fbbf24; }
 
 /* ── CLUSTER TRACKER (legacy) ── */
@@ -1201,18 +1246,24 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
 .arena-quick-btn { background: rgba(52,211,153,0.08) !important; border-color: rgba(52,211,153,0.3) !important; color: #34d399 !important; }
 .arena-quick-btn:not(:disabled):hover { box-shadow: 0 4px 20px rgba(52,211,153,0.15) !important; border-color: #34d399 !important; }
 /* Deep button - locked state (not signed in) */
+/* "Locked" styling for the Quick/Deep Research buttons when signed out.
+   Was #8a6020 under opacity 0.75, which computed to #694a1b = 2.4:1 - the
+   worst-contrast interactive control in the app. It gets no exemption either:
+   the button is NOT disabled when signed out (see app/arena - `disabled` is
+   only set for loading and quota), it is a live control that navigates to
+   /login, so WCAG 1.4.3's carve-out for inactive components does not apply.
+   Locked-ness is carried by the amber hue, the dimmer background and the
+   padlock, none of which need alpha to read. #c8891e is 6.42:1. */
 .arena-deep-locked {
-  opacity: 0.75 !important;
   background: rgba(217, 119, 6, 0.06) !important;
   border-color: rgba(217, 119, 6, 0.28) !important;
-  color: #8a6020 !important; box-shadow: none !important; cursor: pointer !important;
+  color: #c8891e !important; box-shadow: none !important; cursor: pointer !important;
 }
 .arena-deep-locked:not(:disabled):hover {
-  opacity: 1 !important;
   background: rgba(217, 119, 6, 0.1) !important;
   border-color: rgba(217, 119, 6, 0.5) !important;
   box-shadow: 0 4px 16px rgba(217, 119, 6, 0.12) !important;
-  color: #c8891e !important;
+  color: #e8a838 !important;
 }
 /* Cache banner */
 
@@ -1466,7 +1517,7 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
   min-height: 30px; letter-spacing: 0; white-space: nowrap;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.ncard-ask-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: none; }
+.ncard-ask-btn:hover { background: var(--accent-solid); border-color: var(--accent); color: #fff; box-shadow: none; }
 .ncard-ask-spark { font-size: 0.8em; line-height: 1; }
 /* Secondary action - neutral, not accent-colored, so it doesn't compete with
    Ask LiquidityAI for attention as the primary CTA. */
@@ -3204,14 +3255,35 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 }
 .st-checkbox-item:last-child { border-bottom: none; padding-bottom: 0; }
 .st-toggle-label { font-size: var(--fs-label); color: var(--txt2); font-weight: 500; }
+/* The visible track stays 38x21 - it is a switch and looks wrong taller.
+   The 24px minimum is met with a transparent vertical border, which grows the
+   hit box without moving a pixel on screen. background-clip keeps the track
+   colour off the padding so the switch still reads as 21px tall. */
+/* The BUTTON is 38x24 so it satisfies WCAG 2.2 SC 2.5.8 as measured. The
+   painted track is a 21px ::before inside it, because a 24px-tall track stops
+   reading as a switch.
+   Two earlier attempts were worse and are worth recording. Padding on the
+   button grew the border box, so the visible rounded rect went 38x21 -> 40x27:
+   it measured as passing while looking different. A transparent ::after
+   overlay kept the appearance and did extend the clickable area, but
+   getBoundingClientRect still reported 21px, so every audit tool - including
+   qa/e2e - would go on flagging it forever. A fix only the author can see is
+   not a fix. */
 .st-toggle {
-  width: 38px; height: 21px; border-radius: 11px; padding: 0; flex-shrink: 0;
-  background: rgba(255,255,255,0.08); border: 0.5px solid var(--bdr2);
-  position: relative; cursor: pointer; transition: background 0.15s, border-color 0.15s;
+  width: 38px; height: 24px; flex-shrink: 0;
+  background: none; border: none; padding: 0;
+  position: relative; cursor: pointer;
 }
-.st-toggle.on { background: var(--purple); border-color: var(--purple); }
+.st-toggle::before {
+  content: '';
+  position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 38px; height: 21px; border-radius: 11px; box-sizing: border-box;
+  background: rgba(255,255,255,0.08); border: 0.5px solid var(--bdr2);
+  transition: background 0.15s, border-color 0.15s;
+}
+.st-toggle.on::before { background: var(--purple); border-color: var(--purple); }
 .st-toggle-thumb {
-  position: absolute; top: 3px; left: 3px;
+  position: absolute; top: 50%; transform: translateY(-50%); left: 3px;
   width: 13px; height: 13px; border-radius: 50%; display: block; pointer-events: none;
   background: rgba(255,255,255,0.35); transition: left 0.15s, background 0.15s;
 }
@@ -3273,10 +3345,18 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 
 /* Locked "Sign in to continue" feature list - opacity alone conveys the
    disabled state, but 0.35 over a light card blends var(--txt2) down to
-   near-invisible grey-on-white (AUTH note in AUDIT.md item #11). Dark
-   theme's near-white --txt2 survives the same opacity fine, so only the
-   light-theme value needs raising. */
-.st-locked-list { opacity: 0.35; }
+   near-invisible grey-on-white (AUTH note in AUDIT.md item #11).
+   The rest of that note - "dark theme's near-white --txt2 survives the same
+   opacity fine" - was wrong, and measurement is why: --txt2 is #7a7e94, not
+   near-white, and 0.35 of it over --bg0 computes to #2f313a = 1.55:1. It read
+   as fine because the text is short and the reader already knew what it said.
+   No alpha fixes it either: --txt2 at FULL opacity is only 5.05:1, so any
+   multiplier at all drops it under AA. Hence colour, not opacity, in dark.
+   These are feature names telling a signed-out visitor what they get by
+   signing in - the pitch, not a disabled control, so the 1.4.3 exemption for
+   inactive components does not apply. Light theme keeps its 0.6 over a white
+   card, where the base colour has the headroom to absorb it. */
+.st-locked-list { color: var(--txt2); }
 [data-theme="light"] .st-locked-list { opacity: 0.6; }
 
 /* ── Coin multi-select dropdown (replaces the full chip-grid watchlist picker) ── */
@@ -3498,7 +3578,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 
 /* Chat FAB - solid accent in light mode so it's visible */
 [data-theme="light"] .gchat-fab {
-  background: var(--accent);
+  background: var(--accent-solid);
   border-color: transparent;
   box-shadow: 0 4px 20px rgba(0,82,204,0.22), 0 1px 4px rgba(0,0,0,0.10);
   color: #fff;
@@ -3587,7 +3667,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .login-email-input:focus { border-color: var(--purple-bdr); }
 .login-email-btn {
   width: 100%; padding: 11px 16px; border-radius: 12px;
-  background: var(--accent); border: 0.5px solid var(--accent);
+  background: var(--accent-solid); border: 0.5px solid var(--accent);
   color: #fff; font-size: var(--fs-label); font-weight: 600; cursor: pointer;
   transition: all 0.15s; font-family: inherit; letter-spacing: -0.1px;
   display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -3763,7 +3843,7 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   display: inline-flex; align-items: center; justify-content: center;
   transition: filter 0.15s, background 0.15s;
 }
-.consent-accept  { background: var(--accent); border: 0.5px solid var(--accent); color: #fff; }
+.consent-accept  { background: var(--accent-solid); border: 0.5px solid var(--accent); color: #fff; }
 .consent-decline { background: var(--bg4); border: 0.5px solid var(--txt3); color: var(--txt); }
 .consent-accept:hover  { filter: brightness(1.08); }
 .consent-decline:hover { filter: brightness(1.25); }
@@ -4064,12 +4144,13 @@ body.landing {
 
   --txt:  #e8eaf0;
   --txt2: #7a7e94;
-  --txt3: #767d92; /* AA fix, mirrors :root - see note there (audit P2-1) */
+  --txt3: #7b8297; /* AA fix, mirrors :root - see note there (audit P2-1) */
 
   --bdr:  rgba(255,255,255,0.08);
   --bdr2: rgba(255,255,255,0.14);
 
   --accent:     #1a7aff;
+  --accent-solid: #1668e3; /* AA fix, mirrors :root - see note there */
   --accent-2:   #5aa3ff;
   --accent-dim: rgba(26,122,255,0.12);
   --accent-bg:  rgba(26,122,255,0.07);
@@ -4162,7 +4243,14 @@ body.landing {
   --bg1:    #0e0e12;
   --txt:    #f2f2f7;
   --txt2:   #8e8e93;
-  --txt3:   #48484a;
+  /* Was #48484a = 2.23:1 on this block's own --bg0 (#050505) and 2.14:1 on the
+     pricing cards. This scope re-declares --txt3 to force the dark palette
+     regardless of saved theme, and in doing so it silently reverted the :root
+     AA fix for every visitor on the landing page - the first page anyone sees.
+     17 of the app's contrast failures came from this one line: the footer
+     brand copy, all four footer column titles, and the plan price/sub text.
+     #7c7c82 is 4.92:1 on #050505 and 4.73:1 on the #0a0c10 plan cards. */
+  --txt3:   #7c7c82;
   --bdr:    rgba(255,255,255,0.07);
   --accent: #1a7aff;
   display: flex; flex-direction: column; min-height: 100vh; color: var(--txt); background: var(--bg0); font-family: inherit;
@@ -4188,7 +4276,7 @@ body.landing {
 .lp-nav-actions { display: flex; align-items: center; gap: 10px; }
 .lp-btn-ghost  { font-size: var(--fs-label); font-weight: 500; color: var(--txt2); padding: 6px 14px; border-radius: var(--radius-chip); text-decoration: none; transition: color .15s, background .15s; min-height: 36px; display: inline-flex; align-items: center; }
 .lp-btn-ghost:hover { color: var(--txt); background: rgba(255,255,255,.05); }
-.lp-btn-primary { font-size: var(--fs-label); font-weight: 600; color: #fff; background: var(--accent); padding: 7px 16px; border-radius: var(--radius-chip); text-decoration: none; transition: opacity .15s; min-height: 36px; display: inline-flex; align-items: center; }
+.lp-btn-primary { font-size: var(--fs-label); font-weight: 600; color: #fff; background: var(--accent-solid); padding: 7px 16px; border-radius: var(--radius-chip); text-decoration: none; transition: opacity .15s; min-height: 36px; display: inline-flex; align-items: center; }
 .lp-btn-primary:hover { opacity: .85; }
 .lp-lang-short { display: none; }
 
@@ -4227,7 +4315,7 @@ body.landing {
 .lp-h1-accent   { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 400; color: var(--accent-2); }
 .lp-hero-sub    { font-size: var(--fs-caption); color: var(--txt2); line-height: 1.65; max-width: 520px; margin: 0; }
 .lp-hero-ctas   { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-.lp-cta-primary { font-size: var(--fs-card-title); font-weight: 700; color: #fff; background: var(--accent); padding: 13px 28px; border-radius: var(--radius-card); text-decoration: none; transition: opacity .15s; }
+.lp-cta-primary { font-size: var(--fs-card-title); font-weight: 700; color: #fff; background: var(--accent-solid); padding: 13px 28px; border-radius: var(--radius-card); text-decoration: none; transition: opacity .15s; }
 .lp-cta-primary:hover { opacity: .88; }
 .lp-cta-ghost   { font-size: var(--fs-card-title); font-weight: 600; color: var(--txt2); background: rgba(255,255,255,.06); border: 1px solid var(--bdr); padding: 13px 28px; border-radius: var(--radius-card); text-decoration: none; transition: background .15s, color .15s; }
 .lp-cta-ghost:hover { background: rgba(255,255,255,.1); color: var(--txt); }
@@ -4268,7 +4356,7 @@ body.landing {
 .lp-step          { flex: 1; padding: 0 28px; text-align: center; }
 .lp-step:first-child { padding-left: 0; }
 .lp-step:last-child  { padding-right: 0; }
-.lp-step-num      { width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: #fff; font-size: var(--fs-data); font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+.lp-step-num      { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-solid); color: #fff; font-size: var(--fs-data); font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
 .lp-step h3       { font-size: var(--fs-card-title); font-weight: 700; margin: 0 0 8px; }
 .lp-step p        { font-size: var(--fs-label); color: var(--txt2); line-height: 1.6; margin: 0; }
 .lp-step-arrow    { font-size: 1.25rem; color: var(--txt3); margin-top: 10px; flex-shrink: 0; align-self: center; }
@@ -4277,7 +4365,7 @@ body.landing {
 .lp-pricing         { display: flex; gap: 20px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
 .lp-plan            { flex: 1; min-width: 280px; max-width: 380px; border-radius: var(--radius-card); padding: 28px; border: 1px solid var(--bdr); background: var(--bg2); position: relative; }
 .lp-plan-pro        { border-color: rgba(26,122,255,.3); background: var(--bg2); }
-.lp-plan-badge      { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: var(--accent); color: #fff; padding: 3px 14px; border-radius: var(--radius-chip); white-space: nowrap; }
+.lp-plan-badge      { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; background: var(--accent-solid); color: #fff; padding: 3px 14px; border-radius: var(--radius-chip); white-space: nowrap; }
 .lp-plan-header     { margin-bottom: 24px; }
 .lp-plan-name       { font-size: var(--fs-label); font-weight: 700; color: var(--txt2); letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px; }
 .lp-plan-price      { font-size: 3rem; font-weight: 900; letter-spacing: -.04em; line-height: 1; margin-bottom: 6px; }
@@ -4291,7 +4379,7 @@ body.landing {
 .lp-plan-cta        { display: block; text-align: center; padding: 12px; border-radius: var(--radius-card); font-size: var(--fs-label); font-weight: 700; text-decoration: none; transition: opacity .15s; }
 .lp-plan-cta-free   { background: rgba(255,255,255,.07); border: 0.5px solid var(--bdr); color: var(--txt); }
 .lp-plan-cta-free:hover { background: rgba(255,255,255,.12); }
-.lp-plan-cta-pro    { background: var(--accent); color: #fff; }
+.lp-plan-cta-pro    { background: var(--accent-solid); color: #fff; }
 .lp-plan-cta-pro:hover { opacity: .85; }
 
 /* ── LP FINAL CTA ────────────────────────────────────────────────────── */
@@ -4371,16 +4459,24 @@ body.landing {
 .pf-footer-divider-label {
   font-family: var(--font-mono, monospace);
   font-size: var(--fs-label); font-weight: 600; letter-spacing: 0.12em;
-  color: var(--accent); opacity: 0.6; white-space: nowrap;
+  /* --accent at 0.6 alpha computed to #124c9d = 2.44:1. --accent-2 is the
+     lighter tint of the same blue and needs no alpha to sit back: 7.89:1. */
+  color: var(--accent-2); white-space: nowrap;
 }
 .pf-footer-divider-line { flex: 1; height: 1px; background: var(--bdr); }
 .pf-footer-disclaimer {
   font-size: var(--fs-caption); font-weight: 700; color: var(--txt);
   line-height: 1.6; margin: 0 0 24px; max-width: 780px;
 }
+/* Was 154x18. Height came straight from the line-box with zero vertical
+   padding, so it failed WCAG 2.2 SC 2.5.8 on every route that renders the
+   footer - 26 of them, which made this the second-largest tap-target failure
+   after .pb-star. Vertical padding rather than min-height so the text sits
+   optically centred instead of top-aligned in a taller box. */
 .pf-footer-expand {
   display: inline-flex; align-items: center; gap: 5px;
-  background: none; border: none; cursor: pointer; padding: 0;
+  background: none; border: none; cursor: pointer; padding: 3px 0;
+  min-height: 24px;
   font-size: var(--fs-caption); font-weight: 600; color: var(--accent);
   margin-bottom: 24px;
 }
@@ -4402,7 +4498,12 @@ body.landing {
   padding-top: 18px; border-top: 1px solid var(--bdr);
   font-size: var(--fs-caption); color: var(--txt3);
 }
-.pf-footer-bottom-note { opacity: 0.8; font-style: italic; max-width: 700px; text-align: right; }
+/* opacity: 0.8 removed - it blended --txt3 down to #606577 = 3.47:1, and the
+   Disclaimer / Terms / Privacy links nested inside inherited it, so one
+   declaration cost 24 failures across all six app routes. This is the site's
+   legal notice; it is the last text that should be hard to read. Italic and
+   the smaller caption size already carry the de-emphasis. */
+.pf-footer-bottom-note { font-style: italic; max-width: 700px; text-align: right; }
 .pf-footer-bottom-link { color: var(--txt3); text-decoration: underline; text-underline-offset: 2px; }
 .pf-footer-bottom-link:hover { color: var(--txt); }
 @media (max-width: 900px) { .pf-footer-grid { grid-template-columns: repeat(2, 1fr); } }
@@ -4425,7 +4526,11 @@ body.landing {
 .lp-footer-col a:hover { color: var(--accent-2); }
 .lp-footer-bottom   { max-width: 1100px; margin: 36px auto 0; padding-top: 20px; border-top: 0.5px solid var(--bdr); display: flex; flex-direction: column; gap: 10px; }
 .lp-footer-copy     { font-size: var(--fs-caption); color: var(--txt3); }
-.lp-footer-ack      { font-size: var(--fs-caption); color: var(--txt3); opacity: 0.75; line-height: 1.65; }
+/* Third instance of the same trap (see .pf-footer-bottom-note, .mr-scale-good,
+   .st-locked-list): opacity multiplied on top of a --txt3 that is already tuned
+   to sit just above 4.5:1. 0.75 computed to #58585d = 2.88:1 on the landing
+   footer, and this is the risk-acknowledgement copy. */
+.lp-footer-ack      { font-size: var(--fs-caption); color: var(--txt3); line-height: 1.65; }
 
 /* ── LP RESPONSIVE ───────────────────────────────────────────────────── */
 @media (max-width: 900px) {
@@ -4513,7 +4618,7 @@ html[lang="ar"] .lp-h1-accent {
 .obw-seg-track { height: 3px; background: var(--bdr); overflow: hidden; }
 .obw-seg-fill {
   display: block; height: 100%; width: 0;
-  background: var(--accent);
+  background: var(--accent-solid);
   transition: width 0.45s cubic-bezier(0.16,1,0.3,1);
 }
 .obw-seg.is-done .obw-seg-fill   { width: 100%; opacity: 0.45; }
@@ -4596,7 +4701,7 @@ html[lang="ar"] .lp-h1-accent {
   display: flex; align-items: center; justify-content: center; transition: all 0.15s;
 }
 .obw-row.is-selected .obw-ind,
-.obw-tile.is-selected .obw-ind { border-color: var(--accent); background: var(--accent); }
+.obw-tile.is-selected .obw-ind { border-color: var(--accent); background: var(--accent-solid); }
 
 /* Account-size 2x2 grid tiles */
 .obw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
@@ -4659,7 +4764,7 @@ html[lang="ar"] .lp-h1-accent {
 }
 .obw-btn-back { flex-shrink: 0; background: transparent; border: 1px solid var(--bdr); color: var(--txt2); }
 .obw-btn-back:hover { border-color: var(--bdr2); color: var(--txt); }
-.obw-btn-next { flex: 1; border: 1px solid var(--accent); background: var(--accent); color: #fff; }
+.obw-btn-next { flex: 1; border: 1px solid var(--accent); background: var(--accent-solid); color: #fff; }
 .obw-btn-next:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
 .obw-btn-next:disabled { background: var(--bg2); border-color: var(--bdr); color: var(--txt3); cursor: not-allowed; }
 .obw-skip {

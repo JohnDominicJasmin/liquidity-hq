@@ -384,7 +384,7 @@ export default function MorningBriefing() {
       <div className="card" style={{ marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div className="lbl" style={{ margin: 0 }}>{t('BRIEFING_TOP3_TITLE')}</div>
-          <Link href="/arena" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'none' }}>
+          <Link href="/arena" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
             {t('BRIEFING_SEE_ALL_ARENA')}
           </Link>
         </div>
@@ -697,7 +697,7 @@ export default function MorningBriefing() {
           <div className="card" style={{ marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: shown.length > 0 ? 10 : 0 }}>
               <div className="lbl" style={{ margin: 0 }}>{t('BRIEFING_NOTABLE_SIGNALS_TITLE')}</div>
-              <Link href="/scanner" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'none' }}>
+              <Link href="/scanner" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
                 {t('BRIEFING_FULL_SCANNER_LINK')}
               </Link>
             </div>

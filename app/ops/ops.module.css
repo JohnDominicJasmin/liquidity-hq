@@ -282,7 +282,9 @@
 .loginInput:focus { border-color: var(--accent-bdr); }
 .loginBtn {
   margin-top: 4px;
-  background: var(--accent);
+  /* White text on a filled blue - see the --accent-solid note in globals.css.
+     Border stays --accent: it is a graphic edge, not a text background. */
+  background: var(--accent-solid);
   border: 1px solid var(--accent);
   border-radius: var(--radius-data);
   color: #fff;

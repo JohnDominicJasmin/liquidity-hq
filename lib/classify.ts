@@ -196,6 +196,25 @@ export function getCoinsInHeadline(headline: string): string[] {
 
 interface EconEntry { name: string; type: string; impact: string; }
 
+/* Producers here emit lowercase 'high' / 'med'; app/api/econ-calendar emits
+   lowercase 'high' too, and filters everything else out upstream. Both UI
+   consumers (components/EconCalendarWidget, app/econ-calendar) keyed their
+   colour maps on 'HIGH' / 'MEDIUM' / 'LOW', so every lookup missed and every
+   row fell through to the LOW grey - FOMC, CPI and NFP rendered identically to
+   a filler event, which is the entire point of the impact column. Found while
+   measuring contrast: the grey it fell back to was also failing AA at 3.77:1.
+   Normalising lives next to the values it normalises so the two can't drift
+   apart again. 'med' is deliberate - that is the literal the classifier emits,
+   not 'medium'. */
+export type EconImpact = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export function econImpactKey(raw: string | null | undefined): EconImpact {
+  const s = String(raw ?? '').trim().toUpperCase();
+  if (s === 'HIGH') return 'HIGH';
+  if (s === 'MED' || s === 'MEDIUM') return 'MEDIUM';
+  return 'LOW';
+}
+
 export function classifyEcon(name: string): EconEntry | null {
   const n = name.toLowerCase();
   if (/fomc|federal open|rate decision|fed decision|federal funds rate/.test(n)) return { name, type: 'FOMC', impact: 'high' };

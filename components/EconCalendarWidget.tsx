@@ -5,6 +5,7 @@ import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import { getAuthToken } from '@/lib/supabase';
+import { econImpactKey, type EconImpact } from '@/lib/classify';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
@@ -13,8 +14,10 @@ type CalEvent = {
 
 type TFn = (key: LabelKey, vars?: Record<string, string | number>) => string;
 
-const IMPACT_COLOR: Record<string, string> = {
-  HIGH: '#f87171', MEDIUM: '#fbbf24', LOW: '#6b7280',
+/* LOW was #6b7280 = 3.77:1 on the rail card - and since econImpactKey did not
+   exist, EVERY row used it regardless of real impact. See lib/classify.ts. */
+const IMPACT_COLOR: Record<EconImpact, string> = {
+  HIGH: '#f87171', MEDIUM: '#fbbf24', LOW: 'var(--txt-dim)',
 };
 
 const MAX_ROWS = 5;
@@ -102,7 +105,7 @@ export default function EconCalendarWidget() {
       )}
 
       {rows.map(({ e, dateKey, showDateHeader }, i) => {
-        const col = IMPACT_COLOR[e.impact] ?? IMPACT_COLOR.LOW;
+        const col = IMPACT_COLOR[econImpactKey(e.impact)];
         return (
           <div key={i}>
             {showDateHeader && (

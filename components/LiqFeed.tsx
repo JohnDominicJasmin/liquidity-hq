@@ -446,7 +446,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
           <div className="liq-clusters">
             <div className="liq-clusters-title">
               {t('LIQ_FEED_CLUSTERS_TITLE')}
-              <span style={{ color: '#444', fontWeight: 400, marginLeft: 6 }}>{t('LIQ_FEED_CLUSTERS_SUBTITLE')}</span>
+              <span style={{ color: 'var(--txt-dim)', fontWeight: 400, marginLeft: 6 }}>{t('LIQ_FEED_CLUSTERS_SUBTITLE')}</span>
             </div>
             {filtered.map(c => (
               <div key={`${c.coin}::${c.price}`} className="liq-cluster-row">

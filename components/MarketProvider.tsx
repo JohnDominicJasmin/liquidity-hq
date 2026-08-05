@@ -99,6 +99,13 @@ const SYM_MAP: Record<string, CoinId> = Object.fromEntries(
 
 export default function MarketProvider({ children }: { children: React.ReactNode }) {
   const [store, setStore] = useState<MarketStore>(defaultStore);
+  /* Mirror of `store` for callbacks that must read the CURRENT value without
+     depending on it. fetchSnapshot needs to know whether a coin already has a
+     price before deciding to seed one; depending on `store` would rebuild the
+     callback on every price tick and re-arm its interval. Written in the effect
+     below rather than during render - a ref write during render is its own
+     violation (react-hooks/refs). */
+  const storeRef = useRef<MarketStore>(defaultStore);
   const wsRef = useRef<WebSocket | null>(null);
   const retriesRef = useRef(0);
   const urlIdxRef = useRef(0);
@@ -118,6 +125,8 @@ export default function MarketProvider({ children }: { children: React.ReactNode
   /* Liquidation cascade: rolling event buffer + per-coin cooldown */
   const liqBufferRef    = useRef<Array<{ coin: string; side: 'LONG' | 'SHORT'; usd: number; ts: number }>>([]);
   const cascadeCooldown = useRef<Record<string, number>>({});
+
+  useEffect(() => { storeRef.current = store; }, [store]);
 
   const updateCoin = useCallback((id: CoinId, patch: Partial<MarketStore['coins'][CoinId]>) => {
     setStore(s => ({
@@ -333,150 +342,75 @@ export default function MarketProvider({ children }: { children: React.ReactNode
           });
         } catch { /* */ }
       }),
-      // Binance global account ratio (5m) + top trader position ratio - Binance-listed coins only
-      ...Object.entries(BINANCE_SYMS).map(async ([coin, sym]) => {
-        try {
-          const [globalRes, whaleRes] = await Promise.all([
-            fetch(`https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=5m&limit=1`),
-            fetch(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${sym}&period=5m&limit=1`),
-          ]);
-          const [globalArr, whaleArr] = await Promise.all([globalRes.json(), whaleRes.json()]);
-          const g = Array.isArray(globalArr) ? globalArr[0] : null;
-          const w = Array.isArray(whaleArr)  ? whaleArr[0]  : null;
-          updateCoin(coin as CoinId, {
-            ...(g ? { bnLongRatio:       parseFloat(g.longAccount  || '0.5'),
-                       bnShortRatio:      parseFloat(g.shortAccount || '0.5') } : {}),
-            ...(w ? { bnWhaleLongRatio:  parseFloat(w.longAccount  || '0.5'),
-                       bnWhaleShortRatio: parseFloat(w.shortAccount || '0.5') } : {}),
-          });
-        } catch { /* */ }
-      }),
+      // The Binance half of this - two ratio requests per coin, 91 requests
+      // in total - moved to app/api/market/snapshot. Bybit stays here: it is
+      // one request per coin against a different provider with its own limit,
+      // and it is the only source for the Bybit-only coins.
     ]);
   }, [updateCoin]);
 
-  /* fetchKlines is declared before fetchVolume, which calls it. It used to sit
-     after, so fetchVolume closed over a const declared later - what
-     react-hooks/immutability means by "accessed before it is declared". Safe only
-     because fetchVolume is never invoked during render; moving it earlier removes
-     the dependency on that being true. */
-  const fetchKlines = useCallback(async (coin: CoinId, sym: string) => {
+  /* ── 24h ticker, 15m kline metrics and long/short ratios, in one call ──
+     Replaces fetchKlines (one kline request per coin), fetchVolume (a
+     45-symbol ticker/24hr batch plus a fetchKlines per coin) and the Binance
+     half of fetchLSR (two ratio requests per coin).
+
+     Measured on a real /dashboard load, those were 138 of the 193 Binance
+     requests the browser made, and 341 of the 554 request-weight. Every one
+     returned data identical for every visitor. Now one request.
+
+     app/api/market/snapshot fans out once per cache window on the server and
+     serves everyone from the result, so the upstream cost is fixed rather
+     than per-visitor. See that route for why that mattered: Binance limits by
+     IP, and a limited IP gets 418 on everything including the chart.
+
+     Polled at fetchVolume's old 3-minute cadence. The ratios are cached
+     server-side at their own 5-minute TTL, so this does not re-fetch them
+     more often than before.
+
+     Failure is silent and non-destructive: updateCoin runs only for coins the
+     response actually carried, so a partial or missing response leaves the
+     previous values on screen rather than blanking them. */
+  const fetchSnapshot = useCallback(async () => {
     try {
-      // Use futures klines (fapi) - more accurate taker buy/sell for perp traders
-      // Falls back to spot if futures endpoint fails (e.g. no perp for that symbol)
-      const futuresUrl = `https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=15m&limit=100`;
-      const spotUrl    = `https://api.binance.com/api/v3/klines?symbol=${sym}&interval=15m&limit=100`;
-      let raw = await fetch(futuresUrl);
-      if (!raw.ok) raw = await fetch(spotUrl);
-      const klines = await raw.json();
-      if (!Array.isArray(klines) || klines.length < 15) return;
+      const res = await fetch('/api/market/snapshot');
+      if (!res.ok) return;
+      const body = await res.json() as {
+        ticker?: Record<string, { price: number; change: number; high: number; low: number; vol24: number }>;
+        klines?: Record<string, Record<string, unknown>>;
+        lsr?: Record<string, Record<string, number>>;
+      };
+      /* vol24 always; price only as a FIRST paint.
 
-      const closes = klines.map((k: string[]) => parseFloat(k[4]));
-      const highs  = klines.map((k: string[]) => parseFloat(k[2]));
-      const lows   = klines.map((k: string[]) => parseFloat(k[3]));
-      const vols   = klines.map((k: string[]) => parseFloat(k[7])); // quote volume
+         The socket owns price, change, high and low - they arrive live and are
+         correct to the second. Applying the cached ticker on every poll would
+         overwrite a live price with one up to three minutes old, which on
+         screen is a visible tick backwards.
 
-      /* Volume ratio */
-      const current = vols[vols.length - 2];
-      const avg = vols.slice(0, -1).reduce((a: number, b: number) => a + b, 0) / (vols.length - 1);
-
-      /* MA20 */
-      const ma20Slice = closes.slice(-20);
-      const ma20 = ma20Slice.reduce((a: number, b: number) => a + b, 0) / ma20Slice.length;
-
-      /* RSI14 */
-      const rsi14 = computeRSI14(closes);
-
-      /* ── Volume Profile / POC ── */
-      const allPrices = [...highs, ...lows];
-      const minP = Math.min(...allPrices);
-      const maxP = Math.max(...allPrices);
-      const range = maxP - minP;
-      const BUCKETS = 60;
-      const bSize = range / BUCKETS;
-      const buckets = new Array<number>(BUCKETS).fill(0);
-
-      klines.forEach((k: string[], i: number) => {
-        const h = highs[i], l = lows[i], v = vols[i];
-        const lo = Math.max(0, Math.floor((l - minP) / bSize));
-        const hi = Math.min(BUCKETS - 1, Math.floor((h - minP) / bSize));
-        const span = Math.max(1, hi - lo + 1);
-        for (let b = lo; b <= hi; b++) buckets[b] += v / span;
-      });
-
-      // POC = bucket with max volume
-      let maxVol = 0, pocBucket = 0;
-      buckets.forEach((v, i) => { if (v > maxVol) { maxVol = v; pocBucket = i; } });
-      const poc = minP + (pocBucket + 0.5) * bSize;
-
-      // Value Area: expand from POC to capture 70% of total volume
-      const totalVol = buckets.reduce((a, b) => a + b, 0);
-      let lo = pocBucket, hi = pocBucket, captured = buckets[pocBucket];
-      while (captured < totalVol * 0.70 && (lo > 0 || hi < BUCKETS - 1)) {
-        const addLo = lo > 0 ? buckets[lo - 1] : 0;
-        const addHi = hi < BUCKETS - 1 ? buckets[hi + 1] : 0;
-        if (addLo >= addHi && lo > 0) { lo--; captured += buckets[lo]; }
-        else if (hi < BUCKETS - 1)    { hi++; captured += buckets[hi]; }
-        else                           { lo--; captured += buckets[lo]; }
+         But before the socket connects there is no price at all, which is what
+         restPoll() was doing on mount: one ticker/24hr call for 45 symbols,
+         request weight 80, purely to fill the gap for a second or two. Seeding
+         from data already in this response removes that call entirely. The
+         null check is what keeps it a seed rather than a stomp - once a coin
+         has any price, the socket owns it and this never touches it again.
+         restPoll still exists for the socket-down fallback path. */
+      for (const [coin, v] of Object.entries(body.ticker ?? {})) {
+        if (!v) continue;
+        const id = coin as CoinId;
+        const patch: Partial<CoinData> = {};
+        if (v.vol24 != null) patch.vol24 = v.vol24;
+        if (storeRef.current.coins[id]?.price == null && v.price) {
+          patch.price = v.price; patch.change = v.change; patch.high = v.high; patch.low = v.low;
+        }
+        if (Object.keys(patch).length) updateCoin(id, patch);
       }
-      const val = minP + lo * bSize;
-      const vah = minP + (hi + 1) * bSize;
-
-      /* ── Taker Buy/Sell ratio (last 8 candles ≈ 2h) ──
-         k[9] = taker buy base volume, k[5] = total base volume
-         Smaller window = reacts faster to recent momentum shifts
-         takerBuyRatio > 0.55 = buyers hitting asks (aggression = bullish)
-         takerBuyRatio < 0.45 = sellers hitting bids (aggression = bearish) */
-      let totalBuyVol = 0, totalBaseVol = 0;
-      klines.slice(-8).forEach((k: string[]) => {
-        totalBuyVol  += parseFloat(k[9]);   // taker buy base vol
-        totalBaseVol += parseFloat(k[5]);   // total base vol
-      });
-      const takerBuyRatio = totalBaseVol > 0 ? totalBuyVol / totalBaseVol : null;
-
-      /* ── VWAP - use BASE volume (k[5]) for standard formula ── */
-      // quoteVol (k[7]) biases the average; base vol gives true VWAP
-      let sumTPV = 0, sumVol = 0;
-      klines.forEach((k: string[], i: number) => {
-        const tp       = (highs[i] + lows[i] + closes[i]) / 3;
-        const baseVol  = parseFloat(k[5]);                      // BTC (base) volume
-        sumTPV += tp * baseVol;
-        sumVol += baseVol;
-      });
-      const vwap = sumVol > 0 ? sumTPV / sumVol : null;
-
-      // Chart pattern detection from last 25 candles OHLC
-      const patternCandles = klines.slice(-25).map((k: string[]) => ({
-        o: parseFloat(k[1]), h: parseFloat(k[2]), l: parseFloat(k[3]), c: parseFloat(k[4]),
-      }));
-      const patterns = detectPatterns(patternCandles);
-      const chartPattern = patterns.length > 0 ? patterns.join('; ') : null;
-
-      updateCoin(coin, { volRatio: avg > 0 ? current / avg : 1, ma20, rsi14, poc, vah, val, vwap, takerBuyRatio, chartPattern });
+      for (const [coin, m] of Object.entries(body.klines ?? {})) {
+        if (m && Object.keys(m).length) updateCoin(coin as CoinId, m as Partial<CoinData>);
+      }
+      for (const [coin, r] of Object.entries(body.lsr ?? {})) {
+        if (r && Object.keys(r).length) updateCoin(coin as CoinId, r as Partial<CoinData>);
+      }
     } catch { /* */ }
   }, [updateCoin]);
-
-  /* ── Binance volume + klines ── */
-  const fetchVolume = useCallback(async () => {
-    const binanceCoins = Object.entries(BINANCE_SYMS).filter(([c]) => c !== 'hype');
-    const syms = binanceCoins.map(([, s]) => s);
-    try {
-      const batch = encodeURIComponent(JSON.stringify(syms));
-      const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${batch}`);
-      const arr = await res.json();
-      if (!Array.isArray(arr)) return;
-      arr.forEach((d: Record<string, string>) => {
-        const id = SYM_MAP[d.symbol];
-        if (!id) return;
-        updateCoin(id, { vol24: parseFloat(d.quoteVolume || '0') });
-        fetchKlines(id, d.symbol);
-      });
-    } catch {
-      binanceCoins.forEach(([coin, sym], i) => {
-        setTimeout(() => fetchKlines(coin as CoinId, sym), i * 300);
-      });
-    }
-  }, [updateCoin]); // eslint-disable-line react-hooks/exhaustive-deps
-
 
   /* ── Bybit klines for Bybit-only coins (HYPE, PEPE, BONK, XAU, SPX, …) ── */
   // Bybit kline format (newest-first): [startTime, open, high, low, close, volume, turnover]
@@ -1313,11 +1247,10 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
   /* ── Initialise on mount ── */
   useEffect(() => {
-    restPoll(); // immediate prices before WS connects
     startWS();
     fetchBybit();
     fetchLSR();
-    fetchVolume();
+    fetchSnapshot();
     fetchBybitKlines();       // RSI/MA20/VWAP/POC for HYPE
     fetchFNG();
     fetchCMCGlobal();
@@ -1341,7 +1274,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
     const intervals = [
       setInterval(fetchBybit,             8  * 60 * 1000),
       setInterval(fetchLSR,               5  * 60 * 1000),
-      setInterval(fetchVolume,            3  * 60 * 1000),
+      setInterval(fetchSnapshot,          3  * 60 * 1000),
       setInterval(fetchBybitKlines,       3  * 60 * 1000),  // same cadence as Binance klines
       setInterval(fetchFNG,             24  * 60 * 60 * 1000),
       setInterval(fetchCMCGlobal,         5  * 60 * 1000),   // BTC/ETH dom - CMC, every 5m
