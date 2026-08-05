@@ -196,6 +196,37 @@ rather than to keys.
 **Not introduced by the 2026-08-05 release** — `LabelsProvider.tsx` is not in
 that diff. Pre-existing and unrelated to it.
 
+#### This is also what is keeping CI red — fixing it fixes both
+
+Established after the owner added the three `E2E_*` repo secrets. They worked:
+
+```
+"supabaseUrl is required"     →   0 occurrences
+"Missing Supabase admin env"  → 464 occurrences
+```
+
+The `NEXT_PUBLIC_*` values are now present. What is still missing is
+`SUPABASE_SERVICE_ROLE_KEY`, which `/api/labels` needs because it reads through
+`getSupabaseAdmin()`. **That key should not be added to CI** — it bypasses RLS
+entirely, and putting it in a CI environment is a materially worse trade than
+leaving four tests red.
+
+All four remaining `e2e` failures are downstream of this one defect:
+
+| Failing test | Why |
+|---|---|
+| `/login renders its form` (desktop + mobile) | the spec matches the text "Sign in to your account", which is **itself a label** — it renders as a raw key |
+| `/arena has no horizontal overflow` | raw keys are longer than their English strings, widening the layout by 28px |
+| `/markets CLS 0.255` | the same raw-key text reflowing during load |
+
+If `LabelsProvider` kept its English seed when the response is empty, CI would
+render English and all four would pass **without any service-role key**.
+
+So this one small fix does three things: removes a latent production failure
+mode, turns four red CI tests green, and avoids putting the most dangerous key
+in the project into a CI environment. It is the highest value-per-line change
+currently on the list.
+
 ---
 
 ## 2. ⚠️ Correction to our own finding — the tap-target number is mislabelled
