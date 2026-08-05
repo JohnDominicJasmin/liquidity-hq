@@ -462,7 +462,15 @@ export default function NavDrawer() {
         </button>
       </nav>
 
-      <div id="nav-drawer" className={`nav-drawer${drawerOpen ? ' open' : ''}`}>
+      {/* inert while closed - see the same fix in GrokChat. The drawer is
+          hidden with a transform and pointer-events:none, so its 23 focusable
+          controls stayed in the tab order behind an invisible panel. */}
+      <div
+        id="nav-drawer"
+        className={`nav-drawer${drawerOpen ? ' open' : ''}`}
+        inert={!drawerOpen}
+        aria-hidden={!drawerOpen}
+      >
         <div className="nav-overlay" onClick={() => setDrawerOpen(false)} />
         <div className="nav-menu">
           <div className="nav-search-bar">
