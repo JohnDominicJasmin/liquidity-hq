@@ -535,11 +535,40 @@ someone who has gone home.
 
 **Worth being honest about what this does and does not fix.** It stops
 collisions. It does **not** put a second pair of eyes on the code: everything
-from a feature branch through to `main` is written, merged and promoted by dev,
-so nothing is independently reviewed until QA tests the staging build. The
-first real check on any change is QA running the "How to test" steps. That is a
-deliberate trade for a two-person team, but it should be a known one rather
-than an assumed safety net.
+from a feature branch through to `main` is written, merged and promoted by dev.
+That is a deliberate trade for a two-person team, but it should be a known one
+rather than an assumed safety net.
+
+### Dev QAs its own work first. QA is the second check, not the first.
+
+Having a QA folder does not move responsibility for quality onto it. **A change
+arrives at `qa` already verified**, and the PR says how it was verified. QA
+exists to catch what dev could not see — a different machine, a real
+environment, a user's path through the product — not to be the first person who
+looks.
+
+Before opening a PR, dev has:
+
+- **Run the gates.** `npm run lint` (0 errors), `npx tsc --noEmit`, `npm test`,
+  `npm run build`. All four, not the fast one.
+- **Exercised the change**, not reasoned about it. Load the page. Call the
+  route. If it is a fix, reproduce the original failure first and then confirm
+  it is gone — a fix that was never seen failing is a guess.
+- **Measured anything numeric, before and after.** "Feels faster" is not a
+  result. This has repeatedly mattered: the obvious suspect for `/arena`'s
+  layout shift turned out to be 0.1% of it, and the textbook fix measured twice
+  as bad as the baseline. Neither was discoverable by reading the code.
+- **Swept the whole area, not the one symptom.** If one card on a page shifts,
+  check every card on that page. If one route lacks a cache, check the sibling
+  routes with the same shape. Finding a second defect after saying "done" is
+  the same failure as not finding it.
+- **Written down what is still unverified**, in the PR's Risk level. Something
+  that genuinely cannot be checked locally — a production IP, a cold start, a
+  real environment variable — is named there, not left for QA to trip over.
+
+The test to apply before handing over: *if QA finds nothing, was this PR
+finished?* If the honest answer is "no, they would have found the obvious
+thing", it was not ready.
 
 ### Before `qa` → `main`
 

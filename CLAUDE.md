@@ -83,6 +83,15 @@ run as proof the data path is clean.
 
 `main` → liquidity-hq.com — QA only, merge and deploy both.
 
+**Dev QAs its own work first — QA is the second check, not the first.** A
+change reaches  already verified, and the PR says how. Before opening a PR:
+run all four gates (lint 0 errors, tsc, test, build); exercise the change rather
+than reason about it, reproducing the original failure first if it is a fix;
+measure anything numeric before and after; sweep the whole area, not the one
+symptom; and name whatever is still unverified in the PR Risk level. Test to
+apply: *if QA finds nothing, was this finished?* Finding a second defect after
+saying "done" is the same failure as not finding it.
+
 **Ask QA before promoting `dev` → `qa`.** A timing check, not a review — QA
 owns that environment and a promotion mid-test-run changes the build under the
 tester. "Ok to push?" / "hold" or "go". No answer means go; it is a courtesy,
