@@ -124,6 +124,91 @@ Table naming convention (enforced in code, see `docs/ARCHITECTURE.md` §8): alwa
 
 ---
 
+## 4b. `NEXT_PUBLIC_APP_ENV` — a switch, not a label
+
+**It has exactly two states: `dev`, and everything else. Anything that is not
+the literal string `dev` selects production behaviour.**
+
+```ts
+// lib/tables.ts
+const p = process.env.NEXT_PUBLIC_APP_ENV === 'dev' ? 'lhq_dev_' : 'lhq_';
+```
+
+Same test in `app/api/lemonsqueezy/webhook/route.ts` (`!== 'dev'` means treat as
+production), `lib/apiHealth.ts`, and `app/api/auth/ban-reason/route.ts`.
+
+So setting it to a plausible-looking environment name — `qa`, `staging`,
+`test`, `preview` — silently gives that deployment **production table names and
+production webhook handling**. Nothing errors. It is a value that looks correct
+and is not.
+
+This is not hypothetical: the `liquidity-hq-qa` service was first created with
+`NEXT_PUBLIC_APP_ENV=qa`, which pointed it at `lhq_*` tables. Corrected to `dev`
+on 2026-08-05.
+
+**Rule: any non-production deployment sets it to `dev`, whatever the service is
+called.** It names the *data set*, not the environment. If a third value is ever
+genuinely needed, change the comparisons in all four files first — a new value
+without that is a silent switch to production.
+
+It is a `NEXT_PUBLIC_*` variable, so it is **inlined at build time**. Changing it
+requires a rebuild, not a restart.
+
+---
+
+## 4c. QA service environment variables
+
+`liquidity-hq-qa` is configured from `liquidity-hq-dev`'s values, with
+deliberate exceptions. Set as of 2026-08-05:
+
+| Variable | Value | Why |
+|---|---|---|
+| `NEXT_PUBLIC_APP_ENV` | `dev` | **Not `qa`** — see §4b |
+| `NEXT_PUBLIC_APP_URL` | `https://liquidity-hq-qa.onrender.com` | Its own URL, never dev's. Telegram webhook registration and email links build absolute URLs from this |
+| `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` | dev project `wdtjhrilakoitfcezxpx` | Shares the dev database — see §1 |
+| `SUPABASE_SERVICE_ROLE_KEY` | dev project's | Server routes return empty results without it. `/api/labels` answered `{}` until it was set |
+| `AI_GLOBAL_DAILY_MAX` | `25` | Low cap. QA testing spends real xAI credit |
+| `CMC_API_KEY`, `FINNHUB_KEY`, `GROK_API_KEY` | copied from dev | Shares dev's quota |
+
+**Deliberately unset, do not "fix" these:**
+
+| Variable | Why not |
+|---|---|
+| `NEXT_PUBLIC_POSTHOG_KEY` | QA test runs would land in product analytics and corrupt the numbers |
+| `LEMONSQUEEZY_WEBHOOK_SECRET` etc. | Payments. Staging has no business holding these |
+| `CRON_SECRET` | Cron routes fail **closed** without it (`lib/cronAuth.ts`), which is the desired state on staging |
+
+### Telegram on QA — currently dev's bot, safe only by accident
+
+**`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` and `TELEGRAM_WEBHOOK_SECRET` on the
+qa service are copies of dev's.** That is not the intended end state.
+
+Why it has not broken anything yet: registering a webhook goes through
+`/api/telegram/setup-webhook`, which is gated by `checkCronAuth`, and
+`CRON_SECRET` is **unset** on qa. `checkCronAuth` fails **closed** with no secret
+configured, so the route answers 401 and qa cannot re-register the webhook.
+Verified 2026-08-05: `GET /api/telegram/setup-webhook` on qa returns
+`{"error":"Unauthorized"}`.
+
+**So the safety property is: qa must not have `CRON_SECRET` while it shares
+dev's bot token.** Setting `CRON_SECRET` on qa without first giving it its own
+bot hands qa the ability to point dev's bot at itself, silently stealing every
+alert. That is the bug that already cost a day on this project.
+
+What qa can still do today: send outbound messages into the real dev chat during
+test runs. Noisy, not destructive. It cannot receive anything - the webhook
+points at dev - so `/start`, account linking and bot commands are untestable on
+qa either way.
+
+The fix is a dedicated QA bot; see `pendings/PENDING.md`. Until then, treat
+`CRON_SECRET` on qa as forbidden rather than merely absent.
+
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` is domain-locked. Copying dev's value is not
+enough — add `liquidity-hq-qa.onrender.com` to that widget's allowed domains in
+Cloudflare, or the login captcha fails on the qa host only.
+
+---
+
 ## 5. Third-Party APIs
 
 From `.env.example` — the authoritative list of what needs a key. Whether each key is actually *set* on Render (prod/dev) is not visible to an assistant; only that the app expects it.

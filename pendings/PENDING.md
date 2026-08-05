@@ -835,3 +835,74 @@ translations in either project, so choosing one silently rendered English.
 stays complete: it is the validation list, so a preference already saved as
 `tr` still resolves to English instead of erroring. Re-adding a language is a
 one-line change to `AVAILABLE_LOCALES` once its rows land.
+
+---
+
+## ⛔ OPEN — `/api/ath` is rate-limited by CoinGecko on the QA service
+
+**Found 2026-08-05** while verifying the new `qa` staging environment.
+
+| Host | `/api/ath` |
+|---|---|
+| liquidity-hq.com (prod) | **200** |
+| liquidity-hq-qa.onrender.com | **502** — `{"error":"CoinGecko 429"}`, three attempts |
+
+`app/api/ath/route.ts` calls CoinGecko's keyless public API, which rate-limits
+per IP. The QA service is a new Render instance sharing the same egress pool, so
+it arrives at a bucket that is already close to spent.
+
+**Same shape as the Binance fan-out**: a keyless public upstream, a per-IP
+limit, and no server-side cache in front of it. `lib/apiCache.ts` already exists
+and is used by `/api/funding` and `/api/proxy`; `/api/ath` does not use it. A
+`cached()` wrapper with a long TTL is the obvious fix - all-time-high prices are
+about as slow-moving as data gets, so a multi-hour cache costs nothing and
+removes almost all the requests.
+
+Not blocking QA: the ATH figure is one number on the page and it fails soft.
+Worth fixing because a third environment makes every keyless per-IP upstream in
+this app one step closer to its limit, and ATH is just the first one to show it.
+
+---
+
+## ⛔ OPEN — QA needs its own Telegram bot (owner decided option B, parked)
+
+**Decided 2026-08-05, deferred to when QA needs it.**
+
+`liquidity-hq-qa` currently holds **dev's** `TELEGRAM_BOT_TOKEN`,
+`TELEGRAM_CHAT_ID` and `TELEGRAM_WEBHOOK_SECRET`, copied over when the service
+was configured from dev's environment.
+
+**It is safe today only because `CRON_SECRET` is unset on qa.** Registering a
+webhook goes through `/api/telegram/setup-webhook`, gated by `checkCronAuth`,
+which fails **closed** with no secret configured. Verified: that route returns
+`401 {"error":"Unauthorized"}` on qa.
+
+**So: do not set `CRON_SECRET` on qa until it has its own bot.** Doing so hands
+qa the ability to point dev's bot at itself and silently steal every alert —
+the same failure that already cost a day on this project (see the webhook
+hijack section above).
+
+### What option B needs, when it is picked up
+
+1. **BotFather → `/newbot`**, named `Liquidity_hq_qa_bot` to match the dev
+   naming (`Liquidity_hq_dev_bot`).
+2. On `liquidity-hq-qa`, set **all three fresh, none copied**:
+   - `TELEGRAM_BOT_TOKEN` — the new bot's
+   - `TELEGRAM_WEBHOOK_SECRET` — new random string
+   - `CRON_SECRET` — new random string, **different from dev's and prod's**.
+     Safe at this point, and required: it is what unlocks
+     `/api/telegram/setup-webhook`.
+   `TELEGRAM_CHAT_ID` can stay — it only says where alerts land, and messages
+   will visibly come from the new bot.
+3. After the redeploy, register the webhook:
+   `GET /api/telegram/setup-webhook?secret=<the new CRON_SECRET>` — expect
+   `webhook_ok: true`.
+
+**Consequence to accept deliberately:** giving qa a `CRON_SECRET` also makes
+`/api/telegram/alert`, `/api/macro-alert` and `/api/signals/track` triggerable
+there, so QA runs can fire real alerts into the chat. That is the point of
+option B, but it is a change in what a QA session can set off.
+
+**Until then**, Telegram is only half-testable on qa: outbound messages reach
+the real dev chat, inbound (`/start`, account linking, bot commands) never
+arrives because the webhook belongs to dev.
