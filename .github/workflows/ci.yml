@@ -114,6 +114,26 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ secrets.E2E_TURNSTILE_SITE_KEY }}
 
+          # Selects the lhq_dev_ table prefix. NOT optional, and not a nicety:
+          # lib/tables.ts reads
+          #     NEXT_PUBLIC_APP_ENV === 'dev' ? 'lhq_dev_' : 'lhq_'
+          # so anything that is not exactly 'dev' - INCLUDING undefined, which is
+          # what CI had - selects the PRODUCTION table names. CI then queried
+          # lhq_hypotheses / lhq_price_alerts against the dev project, which has
+          # neither (only lhq_dev_* exist there, plus lhq_signup_ip_log). Every
+          # such query errored and apiError mapped it to a 500.
+          #
+          # That is why bola.spec.ts saw GET /api/hypotheses return 500 to
+          # account A for A's OWN rows - nothing to do with authorization. It
+          # also means every authenticated CI run before this line existed was
+          # querying tables that were not there, so those runs asserted less
+          # than they appeared to.
+          #
+          # Belongs in THIS step, not the build step: NEXT_PUBLIC_* is inlined at
+          # build time, and playwright.config.ts's webServer runs
+          # `npm run build && npm start` as a child of this step, inheriting env.
+          NEXT_PUBLIC_APP_ENV: dev
+
           # Authenticated fixtures for qa/e2e/bola.spec.ts - BOLA/IDOR, the one
           # spec that signs in. Two seeded accounts on the DEV Supabase project
           # only. A holds one row per table under test; B is deliberately empty,
