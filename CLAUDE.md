@@ -83,6 +83,12 @@ run as proof the data path is clean.
 
 `main` → liquidity-hq.com — QA only, merge and deploy both.
 
+**Ask QA before promoting `dev` → `qa`.** A timing check, not a review — QA
+owns that environment and a promotion mid-test-run changes the build under the
+tester. "Ok to push?" / "hold" or "go". No answer means go; it is a courtesy,
+not a lock. QA is not reviewing the code — nothing dev writes is independently
+reviewed until QA tests the staging build.
+
 **`qa` is fast-forward only.** Never commit to it directly, never PR a feature
 branch into it. Only `dev` goes in: `git checkout qa && git merge --ff-only dev`.
 If that fails, `qa` has diverged — fix it, do not force. Delete feature branches
