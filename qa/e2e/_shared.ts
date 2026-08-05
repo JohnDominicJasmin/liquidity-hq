@@ -24,10 +24,33 @@ export const ROUTES = [
  */
 export const BASELINE = {
   /**
-   * §4.1 - tap targets under the WCAG 2.2 AA 24px floor, mobile, all routes.
+   * Interactive elements whose rendered box is under 24x24 CSS px, mobile, all
+   * routes.
    *
-   * 217, CORRECTED UP from 159 on 2026-08-05. This is NOT a ratchet violation
-   * and is NOT precedent for raising a baseline - read this before citing it.
+   * READ THIS BEFORE CALLING IT A WCAG NUMBER. It is not one. Earlier versions
+   * of this comment, and audit §4.1, described it as "tap targets below the
+   * WCAG 2.2 AA 24px floor". That framing is wrong and was corrected
+   * 2026-08-05. WCAG 2.2 SC 2.5.8 has exceptions a getBoundingClientRect()
+   * sweep cannot model:
+   *
+   *   - Spacing: an undersized target conforms if a 24px-diameter circle
+   *     centred on it does not intersect another target's circle.
+   *   - Inline: targets inside a sentence or block of text are exempt outright.
+   *     That covers a.pf-footer-bottom-link, the largest single contributor.
+   *
+   * axe-core's `target-size` rule, run at this exact viewport, reports
+   * violations=0 / incomplete=0 / passes=156 on /playbook alone. So this metric
+   * tracks something real and worth reducing - small touch targets on a PWA,
+   * against the 44px Apple HIG comfort target - but it is NOT a conformance
+   * failure count, and it must not be cited as one.
+   *
+   * 122, RATCHETED DOWN from 217 on 2026-08-05 after PR #23
+   * (fix/tap-target-sizes) cleared button.pb-star (55) and
+   * button.pf-footer-expand (28). Remaining: 84 a.pf-footer-bottom-link,
+   * 31 a.consent-link, 7 bare <a>.
+   *
+   * 217 itself was CORRECTED UP from the audit's 159 - which was not a ratchet
+   * violation and is not precedent for raising a baseline.
    *
    * The number must match the viewport THIS SUITE runs at: the mobile project
    * is devices['iPhone 13'], which is 390x844. At the audit's 375x812 the count
@@ -53,7 +76,7 @@ export const BASELINE = {
    * The only legitimate reason to change this number again is DOWNWARD, when a
    * fix lands.
    */
-  tapTargetsUnder24: 217,
+  tapTargetsUnder24: 122,
   /** §4.2 - controls whose only label is a placeholder. */
   controlsWithoutName: 4,
   /** §6.4 - pages with no <h1>, desktop. */
@@ -99,10 +122,57 @@ export const CLS_BUDGET: Record<string, number> = {
      0.365 to 0.068 over three runs. Note it was the footer, not gchat-fab:
      per-source attribution put the FAB at 0.1% of the shift. */
   '/briefing': 0.20,  // observed 0.148, 0.153, 0.176
+
+  /* /scanner moved here from CLS_UNSTABLE on 2026-08-05, meeting the retirement
+     condition that entry set for itself ("fix the race, re-measure over >=10
+     runs, then give /scanner a real CLS_BUDGET").
+
+     The instability was real when measured, and it was measured on `dev`, which
+     had fix/scanner-layout-shift (the heatmap tile-height fix) but NOT
+     fix/scanner-card-layout-shift, which rewrote the heatmap ranking, three card
+     skeletons and PageHint. Both are now on main.
+
+     24 runs on the shipped build, production server, two batches:
+       cold  0.176 0.010 0.013 0.016 0.010 0.011 0.010 0.016 0.009 0.028 0.007 0.014
+       warm  0.008 0.007 0.007 0.008 0.012 0.010 0.028 0.007 0.011 0.012 0.016 0.011
+     Warm: min 0.007, median 0.011, mean 0.011, max 0.028.
+     The single 0.176 was run #1 against a just-started server; the second batch
+     was run to test exactly that, and reproduced nothing above 0.028. That is a
+     cold-start cost, not the ~3x race the old distribution showed.
+
+     Budget is 0.25 rather than deleting the route outright, even though the
+     median is well under CLS_GOOD, because CI always measures a cold server -
+     the webServer builds and starts immediately before the run - so 0.1 would
+     gate on the one number that legitimately varies. 0.25 clears the observed
+     cold worst case with headroom and is still ~9x tighter than the ~2.0 a
+     ceiling would have needed before the fix.
+     Lower it to CLS_GOOD (delete this line) if cold-start ever measures <0.1. */
+  '/scanner': 0.25,
 };
 
 /** The "good" CLS threshold every route not in CLS_BUDGET must meet. */
 export const CLS_GOOD = 0.1;
+
+/**
+ * Routes whose CLS is too UNSTABLE to assert any number against.
+ *
+ * Still measured and attached to the report on every run - the value stays
+ * visible, it just is not a pass/fail gate. Nothing here is "allowed"; it is
+ * unmeasurable-by-threshold, which is a WORSE state than a bad fixed number.
+ *
+ * EMPTY as of 2026-08-05. /scanner was the only entry and has been retired to
+ * CLS_BUDGET at 0.25 - see the note there for the 24-run distribution that
+ * justified it. The mechanism stays because the distinction it draws is a real
+ * one, and re-deriving it under pressure would be worse than keeping it.
+ *
+ * The bar for adding a route here, unchanged: an entry must carry a measured
+ * distribution (>=10 runs, not 3 - an earlier 3-run sample of /scanner read
+ * 0.432/0.691/0.454 and was reported as "fixed", which 10 runs disproved) AND
+ * a retirement condition saying what has to be true to remove it. Without both
+ * this becomes the place flaky tests go to be forgotten, which is the failure
+ * mode it exists to prevent.
+ */
+export const CLS_UNSTABLE = new Set<string>([]);
 
 /**
  * Settle a page: wait for hydration, then assert the stylesheet actually

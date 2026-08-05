@@ -117,17 +117,17 @@ test.describe('api security', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────
-  // NOT COVERED - the single biggest gap in this suite.
+  // BOLA / IDOR (OWASP API #1) used to be a test.fixme here - the single
+  // biggest gap in this suite, and the one thing every other spec left
+  // unanswered, because everything else tests the signed-out surface where
+  // the answer is always 401.
   //
-  // BOLA / IDOR (OWASP API #1) needs two real signed-in accounts to prove
-  // user B cannot read user A's journal entries, alerts, settings or
-  // subscription row. HANDOVER.md §1 says two test accounts exist.
+  // It now lives in qa/e2e/bola.spec.ts, which authenticates as two seeded
+  // accounts and proves B cannot read or mutate A's rows. It is a separate
+  // file because it is the only spec that signs in, and the only one whose
+  // failure means "user data is exposed".
   //
-  // To enable: set E2E_TOKEN_A and E2E_TOKEN_B (Supabase access tokens) as
-  // repo secrets, then write the cross-account reads here. Until then this is
-  // UNVERIFIED, not passing.
+  // It skips - loudly, never passes - when the fixtures are absent. See
+  // qa/e2e/_auth.ts for what it needs.
   // ─────────────────────────────────────────────────────────────────────
-  test.fixme('BOLA: user B cannot read user A resources', async () => {
-    // Blocked on E2E_TOKEN_A / E2E_TOKEN_B. See audit intro.
-  });
 });
