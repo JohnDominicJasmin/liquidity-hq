@@ -332,6 +332,35 @@ independently: `components/BeamsBackground.tsx` runs an uncapped
 `prefers-reduced-motion` check anywhere in the file. That is WCAG 2.2.2 Pause,
 Stop, Hide at **Level A**, on the public marketing homepage.
 
+### How much to trust that source-level audit
+
+Enough to investigate every item. Not enough to action any of them unchecked.
+Its own severity ratings did not survive contact with a browser:
+
+| Its claim | What running it showed |
+|---|---|
+| A11Y-10 (tab order), Critical | **Confirmed — and understated.** It estimated ~40 phantom tab stops; the real figure is 86 of 106 focusable controls, more than double |
+| A11Y-7 (`Tip.tsx`), Critical | **Confirmed exactly.** 8 triggers on `/dashboard`, 0 focusable |
+| A11Y-14 (Settings labels), Critical | **Could not be tested at all.** `/settings` renders zero form controls signed out |
+
+That third row is the one to keep in mind. Its scorecard rates A11Y-14 as
+**Critical** — a runtime severity — for a surface it never executed, because a
+static reader cannot tell the difference between "this input has no label" and
+"this input does not render for you". The finding may well be correct. The
+*confidence* attached to it is not earned, and the scorecard presents both
+kinds of claim identically.
+
+So: treat the source-level items as **leads with file:line attached**, which is
+genuinely valuable, and let the runtime check set the severity. Two of three
+Critical claims held up, which is a decent hit rate — but the one that did not
+is indistinguishable from the others by looking at the report alone.
+
+This is the same failure mode QA hit twice today from the other direction: a
+harness reporting 217 "WCAG failures" that axe passes, and a 3-run `/scanner`
+sample that reversed at 10 runs. Static analysis over-asserts about runtime;
+undersampled measurement over-asserts about stability. Both need the other to
+check them.
+
 ---
 
 ## 5. Blocking asks
