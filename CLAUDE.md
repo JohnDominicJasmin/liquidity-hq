@@ -30,7 +30,8 @@ One logical change per commit. Never `fix bug` / `update stuff` / `wip`.
 **PRs** — always these sections: Summary · What changed · Why · **How to test
 (QA)** · Risk level (Low/Med/High) · Screenshots if UI.
 "How to test" is **mandatory on every PR** — it is the dev→QA handoff. Write it
-for someone in the QA folder, so step 1 says which branch to pull.
+for someone on the `qa` staging environment: name the page and what to look at,
+not a branch. Only name a branch when the change is not on `qa` yet.
 
 **Two folders** — dev folder writes code, QA folder tests it; the PR is the
 handoff. **QA tests the `qa` branch** — either on the staging URL
@@ -81,7 +82,41 @@ both. **It must never point at prod Supabase (`qdpwhnvmhqgzijuwopso`) — hard
 rule.** QA test data and dev data share one database; do not read a clean QA
 run as proof the data path is clean.
 
-`main` → liquidity-hq.com — QA only, merge and deploy both.
+`main` → liquidity-hq.com — **QA merges and deploys, and normally should**;
+the owner may too. **Never dev.** Whoever merges is asserting the test steps
+passed.
+
+**Dev QAs its own work first — QA is the second check, not the first.** A
+change reaches `qa` already verified, and the PR says how. Before opening a PR:
+run all four gates (lint 0 errors, tsc, test, build); exercise the change rather
+than reason about it, reproducing the original failure first if it is a fix;
+measure anything numeric before and after; sweep the whole area, not the one
+symptom; and name whatever is still unverified in the PR Risk level. Test to
+apply: *if QA finds nothing, was this finished?* Finding a second defect after
+saying "done" is the same failure as not finding it.
+
+**Ask QA before promoting `dev` → `qa`.** A timing check, not a review — QA
+owns that environment and a promotion mid-test-run changes the build under the
+tester. "Ok to push?" / "hold" or "go". No answer means go; it is a courtesy,
+not a lock. QA is not reviewing the code — nothing dev writes is independently
+reviewed until QA tests the staging build.
+
+**Open the `qa` → `main` release PR immediately after promoting.** It is the
+only thing that tells QA there is anything to test — every feature PR is already
+closed by then. It aggregates the "How to test" steps for the whole release,
+ends with merge/deploy/re-check/tag, and collects every "could not verify
+locally" caveat in Risk level. Promoting without it is deploying into silence.
+Keep it open while QA works; failures are reported as comments on it.
+
+**When QA finds a failure: dev fixes it, never QA.** New `fix/` branch cut from
+`dev` (never from `qa`), reproduce the bug before fixing it, merge to `dev`,
+re-promote, say so on the release PR. QA then re-tests the failed step plus
+anything the fix could have touched. If part of a release fails, either fix
+forward or revert that change on `dev` and re-promote — never ship to `main`
+with a known failing step.
+
+**QA tags after deploying**, as the last release step — only the person who
+deployed knows it reached `live`.
 
 **`qa` is fast-forward only.** Never commit to it directly, never PR a feature
 branch into it. Only `dev` goes in: `git checkout qa && git merge --ff-only dev`.
