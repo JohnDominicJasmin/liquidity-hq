@@ -71,7 +71,7 @@ function computeTFSignal(
 }
 
 function cellColors(sig: TFSignal): { bg: string; text: string; border: string } {
-  if (sig.dir === 'NEUTRAL') return { bg: 'transparent', text: '#444', border: 'transparent' };
+  if (sig.dir === 'NEUTRAL') return { bg: 'transparent', text: 'var(--txt-dim)', border: 'transparent' };
   const isFlush = sig.dir === 'FLUSH';
   const base    = isFlush ? '#f87171' : '#34d399';
   const alpha   = sig.strength >= 70 ? '28' : sig.strength >= 40 ? '16' : '0c';
@@ -216,7 +216,7 @@ export default function MultiTFSqueezeView() {
               fontSize: 'var(--fs-caption)', fontWeight: 700,
               color: rowActive
                 ? (dominantDir === 'SQUEEZE' ? '#34d399' : '#f87171')
-                : '#555',
+                : 'var(--txt-dim)',
               letterSpacing: '.03em',
             }}>
               {c.toUpperCase()}
@@ -239,7 +239,7 @@ export default function MultiTFSqueezeView() {
                       {icon}
                     </span>
                     <span style={{
-                      fontSize: 'var(--fs-caption)', fontWeight: 600, color: sig.rsi != null ? cols.text : '#333',
+                      fontSize: 'var(--fs-caption)', fontWeight: 600, color: sig.rsi != null ? cols.text : 'var(--txt-dim)',
                       fontVariantNumeric: 'tabular-nums',
                     }}>
                       {sig.rsi != null ? Math.round(sig.rsi) : '-'}
@@ -252,14 +252,14 @@ export default function MultiTFSqueezeView() {
             {/* Global squeeze score */}
             <span style={{
               fontSize: 'var(--fs-caption)', fontWeight: 700, textAlign: 'right',
-              color: sq.dir !== 'NEUTRAL' ? sq.color : '#333',
+              color: sq.dir !== 'NEUTRAL' ? sq.color : 'var(--txt-dim)',
               fontVariantNumeric: 'tabular-nums',
             }}>
               {sq.score > 0 ? sq.score : '-'}
             </span>
           </div>
         );
-        }) : <div style={{ padding: '10px 12px', fontSize: 'var(--fs-caption)', color: '#444' }}>{t('MULTI_TF_SQUEEZE_VIEW_NO_MATCH', { search })}</div>;
+        }) : <div style={{ padding: '10px 12px', fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{t('MULTI_TF_SQUEEZE_VIEW_NO_MATCH', { search })}</div>;
       })()}
       </div>
 
@@ -276,11 +276,11 @@ export default function MultiTFSqueezeView() {
         style={{
           width: '100%', padding: '9px 0', background: 'none', border: 'none',
           borderTop: '0.5px solid rgba(255,255,255,0.05)', cursor: 'pointer',
-          fontSize: 'var(--fs-caption)', color: '#444', fontWeight: 600, letterSpacing: '.03em',
+          fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', fontWeight: 600, letterSpacing: '.03em',
           transition: 'color 0.15s',
         }}
         onMouseEnter={e => (e.currentTarget.style.color = '#888')}
-        onMouseLeave={e => (e.currentTarget.style.color = '#444')}
+        onMouseLeave={e => (e.currentTarget.style.color = 'var(--txt-dim)')}
       >
         {expanded ? t('MULTI_TF_SQUEEZE_VIEW_SHOW_LESS') : t('MULTI_TF_SQUEEZE_VIEW_SHOW_ALL', { count: rows.length })}
       </button>
@@ -289,7 +289,7 @@ export default function MultiTFSqueezeView() {
       <div style={{ padding: '6px 14px', borderTop: '0.5px solid rgba(255,255,255,0.05)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 'var(--fs-caption)', color: '#34d399' }}>{t('MULTI_TF_SQUEEZE_VIEW_LEGEND_SQUEEZE')}</span>
         <span style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>{t('MULTI_TF_SQUEEZE_VIEW_LEGEND_FLUSH')}</span>
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>{t('MULTI_TF_SQUEEZE_VIEW_LEGEND_FORMULA')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{t('MULTI_TF_SQUEEZE_VIEW_LEGEND_FORMULA')}</span>
       </div>
     </div>
   );
@@ -297,5 +297,5 @@ export default function MultiTFSqueezeView() {
 
 const hdrStyle: React.CSSProperties = {
   fontSize: 'var(--fs-caption)', fontWeight: 600, letterSpacing: '.07em',
-  textTransform: 'uppercase', color: '#333',
+  textTransform: 'uppercase', color: 'var(--txt-dim)',
 };

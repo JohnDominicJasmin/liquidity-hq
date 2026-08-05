@@ -1198,7 +1198,7 @@ function ArenaContent() {
             </span>
           )}
           {sqzCount === 0 && flushCount === 0 && (
-            <span style={{ fontSize: 'var(--fs-caption)', color: '#333' }}>All neutral</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>All neutral</span>
           )}
           {/* Coin Health grade badge */}
           {(() => {
@@ -1231,7 +1231,7 @@ function ArenaContent() {
               padding: '3px 7px', borderRadius: 7, border: '0.5px solid',
               background: notifEnabled ? '#152b1e' : 'transparent',
               borderColor: notifEnabled ? '#266038' : 'rgba(255,255,255,0.08)',
-              color: notifEnabled ? '#7de0a4' : '#444',
+              color: notifEnabled ? '#7de0a4' : 'var(--txt-dim)',
               fontSize: 'var(--fs-caption)', cursor: 'pointer', flexShrink: 0, lineHeight: 1,
             }}
           >
@@ -1241,7 +1241,7 @@ function ArenaContent() {
               {!notifEnabled && <line x1="2" y1="2" x2="22" y2="22" />}
             </svg>
           </div>
-          <span style={{ fontSize: 'var(--fs-caption)', color: '#333', flexShrink: 0 }}>{scannerOpen ? '▲' : '▼'}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', flexShrink: 0 }}>{scannerOpen ? '▲' : '▼'}</span>
         </button>
 
         {/* ── Flyout panel (appears on hover / click) ── */}
@@ -1577,7 +1577,7 @@ function ArenaContent() {
                 disabled={alertSaving || !alertPrice}
                 style={{
                   width: '100%', fontSize: 'var(--fs-body)', fontWeight: 700, color: '#fff',
-                  background: 'var(--accent)', border: 'none', borderRadius: 10, padding: '12px 18px',
+                  background: 'var(--accent-solid)', border: 'none', borderRadius: 10, padding: '12px 18px',
                   cursor: alertSaving || !alertPrice ? 'default' : 'pointer',
                   opacity: alertSaving || !alertPrice ? 0.5 : 1, transition: 'opacity .15s',
                 }}
@@ -1920,7 +1920,10 @@ function ArenaContent() {
             <span style={{ opacity: 0.8, letterSpacing: '0.01em' }}>{t('ARENA_ANTICHOP_LABEL')}</span>
           </Tip>
         </button>
-        <span style={{ fontSize: 'var(--fs-caption)', opacity: 0.35 }}>
+        {/* opacity 0.35 computed to #55565b = 2.75:1. This hint explains what
+            the anti-chop toggle beside it actually does, so it has to be
+            readable; --txt-dim carries the same de-emphasis at 5.80:1. */}
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
           {antiChopEnabled
             ? t('ARENA_ANTICHOP_ON_HINT')
             : t('ARENA_ANTICHOP_OFF_HINT')}
@@ -2048,10 +2051,10 @@ function ArenaContent() {
       {history.length > 0 && (
         <div style={{ marginTop: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: '#444' }}>{t('ARENA_SESSION_HISTORY_HEADER')}</div>
+            <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--txt-dim)' }}>{t('ARENA_SESSION_HISTORY_HEADER')}</div>
             <button
               onClick={() => { setHistory([]); setDetailIdx(null); try { sessionStorage.removeItem(ARENA_HIST_KEY); } catch {} }}
-              style={{ fontSize: 'var(--fs-caption)', color: '#444', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+              style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
             >{t('ARENA_SESSION_HISTORY_CLEAR_BUTTON')}</button>
           </div>
 
@@ -2073,7 +2076,7 @@ function ArenaContent() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div className="arena-hist-conf">{h.confidence}%</div>
-                  <span style={{ fontSize: 'var(--fs-caption)', color: '#444' }}>{detailIdx === i ? '▲' : '▼'}</span>
+                  <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{detailIdx === i ? '▲' : '▼'}</span>
                 </div>
               </div>
 

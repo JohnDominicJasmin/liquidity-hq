@@ -19,7 +19,7 @@ import type { PASignal } from '@/lib/priceAction';
 const VERDICT_CONFIG: Record<string, { labelKey: LabelKey; color: string }> = {
   STRONG_BULL:  { labelKey: 'CONFLUENCE_SCORE_VERDICT_STRONG_BULL',  color: '#34d399' },
   LEANING_BULL: { labelKey: 'CONFLUENCE_SCORE_VERDICT_LEANING_BULL', color: '#86efac' },
-  MIXED:        { labelKey: 'CONFLUENCE_SCORE_VERDICT_MIXED',        color: '#6b7280' },
+  MIXED:        { labelKey: 'CONFLUENCE_SCORE_VERDICT_MIXED',        color: 'var(--txt-dim)' },
   LEANING_BEAR: { labelKey: 'CONFLUENCE_SCORE_VERDICT_LEANING_BEAR', color: '#fca5a5' },
   STRONG_BEAR:  { labelKey: 'CONFLUENCE_SCORE_VERDICT_STRONG_BEAR',  color: '#f87171' },
 };

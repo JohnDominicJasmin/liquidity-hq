@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 
 interface TipProps {
@@ -15,6 +15,7 @@ export default function Tip({ text, children, width = 230, iconColor = 'var(--tx
   const [coords, setCoords] = useState({ top: 0, bottom: 0, left: 0 });
   const ref   = useRef<HTMLSpanElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const tipId = useId();
 
   const show = useCallback(() => {
     if (!ref.current) return;
@@ -46,15 +47,58 @@ export default function Tip({ text, children, width = 230, iconColor = 'var(--tx
         style={{ display: 'inline-flex', alignItems: 'center', gap: 3, cursor: 'default' }}
       >
         {children}
-        <span style={{
-          fontSize: 'var(--fs-caption)',
-          color: iconColor,
-          fontWeight: 400,
-          lineHeight: 1,
-          flexShrink: 0,
-          userSelect: 'none',
-          transition: 'color 0.15s',
-        }}
+        {/* The icon carries the interactive semantics, not the wrapper.
+         *
+         * This was a bare <span> with only mouse handlers: not focusable, not
+         * announced as anything, no way to open or dismiss it from a keyboard.
+         * QA measured 0 of 8 focusable across the page, and this one component
+         * has 55 call sites, so every one of them was a keyboard dead end.
+         *
+         * role="button" on a span rather than a real <button> on purpose - Tip
+         * wraps arbitrary children and is used inside headings, labels and
+         * clickable cards, so a nested <button> would be invalid HTML in an
+         * unknown number of those places. Same reasoning as the notification
+         * bell in app/arena, which documents it too.
+         *
+         * aria-describedby points at the portalled panel: screen readers then
+         * announce the tooltip text on focus without it needing to be in the
+         * tab order itself. */}
+        <span
+          role="button"
+          tabIndex={0}
+          aria-label={text}
+          aria-expanded={open}
+          aria-describedby={open ? tipId : undefined}
+          onFocus={() => { cancelHide(); show(); }}
+          onBlur={scheduleHide}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault(); e.stopPropagation();
+              open ? setOpen(false) : show();
+            } else if (e.key === 'Escape' && open) {
+              /* Escape has to work or a keyboard user who opens one has no way
+                 to close it without moving focus away. */
+              e.stopPropagation();
+              setOpen(false);
+            }
+          }}
+          style={{
+            fontSize: 'var(--fs-caption)',
+            color: iconColor,
+            fontWeight: 400,
+            lineHeight: 1,
+            flexShrink: 0,
+            userSelect: 'none',
+            transition: 'color 0.15s',
+            cursor: 'pointer',
+            /* 24px minimum so the icon is a real target for touch as well as
+               keyboard. Centred, so the glyph itself looks unchanged. */
+            minWidth: 24,
+            minHeight: 24,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
           onMouseEnter={e => { (e.currentTarget as HTMLSpanElement).style.color = 'var(--accent)'; }}
           onMouseLeave={e => { (e.currentTarget as HTMLSpanElement).style.color = iconColor; }}
         >ⓘ</span>
@@ -70,6 +114,8 @@ export default function Tip({ text, children, width = 230, iconColor = 'var(--tx
         // off-screen. Portalling out to body-level sidesteps the whole class
         // of bug regardless of what card this Tip ends up inside.
         <span
+          id={tipId}
+          role="tooltip"
           onMouseEnter={cancelHide}
           onMouseLeave={scheduleHide}
           style={{

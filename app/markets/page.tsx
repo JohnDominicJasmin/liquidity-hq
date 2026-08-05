@@ -15,7 +15,7 @@ import type { LabelKey } from '@/lib/labelKeys';
 type SortKey = 'volume' | 'change' | 'grade' | 'signal' | 'name';
 
 function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): { key: LabelKey | null; col: string } {
-  if (!d) return { key: null, col: '#333' };
+  if (!d) return { key: null, col: 'var(--txt-dim)' };
   if (d.fundingRate != null) {
     const fr = d.fundingRate * 100;
     if (fr >= 0.04) return { key: 'MARKETS_SIGNAL_LONGS_OVERCROWDED', col: '#f87171' };
@@ -27,7 +27,7 @@ function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): {
   if (d.oiTrend === 'strong_down') return { key: 'MARKETS_SIGNAL_NEW_SELLERS', col: '#f87171' };
   if (d.oiTrend === 'weak_up')     return { key: 'MARKETS_SIGNAL_SHORT_COVERING', col: '#fbbf24' };
   if (d.oiTrend === 'weak_down')   return { key: 'MARKETS_SIGNAL_LONGS_EXITING', col: '#94a3b8' };
-  return { key: 'MARKETS_SIGNAL_NONE', col: '#333' };
+  return { key: 'MARKETS_SIGNAL_NONE', col: 'var(--txt-dim)' };
 }
 
 const SORT_LABEL_KEYS: Record<SortKey, LabelKey> = {
@@ -298,7 +298,7 @@ export default function MarketsPage() {
               {/* Signal */}
               <div className="mkt-signal" style={{
                 paddingLeft: 12, fontSize: 'var(--fs-caption)',
-                color: sig.col === '#333' ? 'var(--txt3)' : sig.col,
+                color: sig.col === 'var(--txt-dim)' ? 'var(--txt3)' : sig.col,
                 whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
               }}>
                 {sig.key ? t(sig.key) : '-'}

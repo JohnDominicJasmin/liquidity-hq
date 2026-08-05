@@ -22,7 +22,7 @@ export default function GlobalError({
           <p style={{ color: '#9ca3af', marginBottom: '1.5rem' }}>An unexpected error occurred.</p>
           <button
             onClick={reset}
-            style={{ padding: '0.5rem 1.5rem', background: '#1a7aff', color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontSize: 'var(--fs-card-title)' }}
+            style={{ padding: '0.5rem 1.5rem', background: 'var(--accent-solid)', color: '#fff', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontSize: 'var(--fs-card-title)' }}
           >
             Try again
           </button>

@@ -86,7 +86,7 @@ function CoinCard({ row, rank }: { row: ScanRow; rank: number }) {
   const { t } = useLabels();
   const cd = row.coin;
   const fr = classifyFunding(cd.fundingRate ?? 0);
-  const frColor = fr.rpm === 'pos' ? '#f87171' : fr.rpm === 'neg' ? '#34d399' : '#606060';
+  const frColor = fr.rpm === 'pos' ? '#f87171' : fr.rpm === 'neg' ? '#34d399' : 'var(--txt-dim)';
   const dirBg = row.dir === 'LONG_LIQ'
     ? 'rgba(248,113,113,0.06)' : row.dir === 'SHORT_SQ'
     ? 'rgba(52,211,153,0.06)' : 'transparent';

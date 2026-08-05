@@ -108,7 +108,7 @@ export default function DcaCalc({ coin }: { coin: CoinId | '' }) {
                 disabled={entries.length <= 2}
                 style={{
                   width: 26, height: 34, borderRadius: 6, border: '0.5px solid var(--bdr)',
-                  background: 'transparent', color: entries.length <= 2 ? '#333' : 'var(--txt3)',
+                  background: 'transparent', color: entries.length <= 2 ? 'var(--txt-dim)' : 'var(--txt3)',
                   cursor: entries.length <= 2 ? 'not-allowed' : 'pointer', fontSize: '1rem', lineHeight: 1,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}

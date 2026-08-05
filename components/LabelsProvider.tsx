@@ -60,7 +60,35 @@ export default function LabelsProvider({ children }: { children: React.ReactNode
       .then(r => r.json())
       .then(data => {
         if (reqId.current !== id) return; // a newer locale switch has since started
-        setMap(data);
+
+        /* Two guards, and neither is paranoia - both failure modes are live.
+         *
+         * 1. EMPTY PAYLOAD. app/api/labels deliberately answers `200 {}` on any
+         *    DB error, trusting the client to fall back. This used to call
+         *    setMap(data) unconditionally, which replaced all 2,570 seeded
+         *    English defaults with nothing - and since t() is `map[key] ?? key`,
+         *    every string on every page became its raw key: NAV_SIGN_IN,
+         *    NAV_DASHBOARD, and so on. The .catch below covers a network
+         *    failure but not a SUCCESSFUL response carrying an empty object.
+         *    Each half was defensible alone; together they defeated the seed.
+         *    Note saveCachedMap already refused to cache an empty map - the
+         *    same suspicion, one line further down, never applied here.
+         *
+         * 2. PARTIAL PAYLOAD. Merging over the defaults rather than replacing
+         *    them means a truncated response degrades to English instead of to
+         *    raw keys. app/api/labels warns about PostgREST's db-max-rows cap
+         *    for exactly this reason, and a locale that is only half-translated
+         *    hits it too - missing keys now show English, which is a normal
+         *    i18n fallback rather than a broken page.
+         *
+         * Found by QA, and found sideways: the e2e job running without Supabase
+         * env produced an /arena overflow and /markets CLS 0.255, which read as
+         * two layout bugs. The cause was raw keys being longer than their
+         * English strings and widening the layout. */
+        if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).length === 0) {
+          return; // keep whatever is on screen - defaults, or the last good map
+        }
+        setMap({ ...DEFAULT_EN_LABELS, ...data });
         saveCachedMap(l, data);
       })
       .catch(() => { /* keep last-known map on transient failure */ })
@@ -76,7 +104,11 @@ export default function LabelsProvider({ children }: { children: React.ReactNode
     const real = loadLocalLocale();
     setLocaleState(real);
     const cached = loadCachedMap(real);
-    if (cached) { setMap(cached); setLoading(false); }
+    /* Merged over the defaults, not substituted for them - a cache written
+       by an older build, or for a locale that is only partly translated, would
+       otherwise render its missing keys raw. Same reasoning as the fetch path
+       above. */
+    if (cached) { setMap({ ...DEFAULT_EN_LABELS, ...cached }); setLoading(false); }
     fetchLabels(real);
   }, [fetchLabels]);
 
@@ -84,7 +116,7 @@ export default function LabelsProvider({ children }: { children: React.ReactNode
     setLocaleState(l);
     saveLocalLocale(l);
     const cached = loadCachedMap(l);
-    if (cached) setMap(cached);
+    if (cached) setMap({ ...DEFAULT_EN_LABELS, ...cached });
     fetchLabels(l);
   }, [fetchLabels]);
 
