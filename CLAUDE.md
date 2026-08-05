@@ -98,6 +98,23 @@ tester. "Ok to push?" / "hold" or "go". No answer means go; it is a courtesy,
 not a lock. QA is not reviewing the code — nothing dev writes is independently
 reviewed until QA tests the staging build.
 
+**Open the `qa` → `main` release PR immediately after promoting.** It is the
+only thing that tells QA there is anything to test — every feature PR is already
+closed by then. It aggregates the "How to test" steps for the whole release,
+ends with merge/deploy/re-check/tag, and collects every "could not verify
+locally" caveat in Risk level. Promoting without it is deploying into silence.
+Keep it open while QA works; failures are reported as comments on it.
+
+**When QA finds a failure: dev fixes it, never QA.** New `fix/` branch cut from
+`dev` (never from `qa`), reproduce the bug before fixing it, merge to `dev`,
+re-promote, say so on the release PR. QA then re-tests the failed step plus
+anything the fix could have touched. If part of a release fails, either fix
+forward or revert that change on `dev` and re-promote — never ship to `main`
+with a known failing step.
+
+**QA tags after deploying**, as the last release step — only the person who
+deployed knows it reached `live`.
+
 **`qa` is fast-forward only.** Never commit to it directly, never PR a feature
 branch into it. Only `dev` goes in: `git checkout qa && git merge --ff-only dev`.
 If that fails, `qa` has diverged — fix it, do not force. Delete feature branches
