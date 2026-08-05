@@ -16,6 +16,61 @@ installed **outside** the project so `package.json` is untouched.
 
 ---
 
+## 0a. RESOLUTION — added by dev, 2026-08-05
+
+**All four confirmed defects in section 1 are fixed**, merged to `dev` via PR #27
+(`31de814`..`e516406`) and promoted to `qa`. QA's findings below are left exactly
+as written; this section records what closed them, so the record shows the
+finding and the fix separately rather than a doc that quietly agrees with itself.
+
+| # | Finding | Status | Fix |
+|---|---|---|---|
+| 1.1 | 86 focusable controls inside closed panels | ✅ Fixed | `inert` + `aria-hidden` on `.gchat-panel` (65 controls) and `.nav-drawer` (23) |
+| 1.2 | `Tip.tsx` "ⓘ" unreachable by keyboard, 55 call sites | ✅ Fixed | focusable `role="button"`, opens on focus, Enter/Space toggles, Escape dismisses, `role="tooltip"` + `aria-describedby`, 24×24 hit area |
+| 1.3 | `#1A7AFF` + white = 3.98:1 | ✅ Fixed | new `--accent-solid` `#1668e3` = 5.09:1, applied to 27 filled-accent surfaces |
+| 1.4 | Failed labels fetch wipes the English fallback | ✅ Fixed | empty/malformed payload guarded; real payloads merged **over** the defaults so a partial response degrades to English, not to raw keys. 6 tests in `__tests__/labelsFallback.test.mts` |
+| 2 | Tap-target number is mislabelled | ✅ Accepted | baseline 217 → 122 and the metric renamed (PR #26). Independently reproduced: 122, all of them `<a>`, i.e. 100% SC 2.5.8 inline-exempt. **Real WCAG failures: 0** |
+| 3 | `/scanner` CLS | ✅ Closed | retired from `CLS_UNSTABLE` to a real `CLS_BUDGET` of 0.25 (PR #22). 24 runs on the shipped build: warm min 0.007, median 0.011, max 0.028 |
+
+### Two things QA got right that dev did not
+
+**§1.4 was found sideways, and that is the point.** It surfaced as two failures
+that looked like unrelated product bugs — `/arena` overflowing 28px and a
+`/login` smoke failure. Both were raw i18n keys being longer than their English
+strings: `HOURS_WIN_LONDON_BADGE` (22 chars) rendering instead of `LONDON OPEN`
+(11) *is* the 28px, and `LOGIN_SUBTITLE_SIGNIN` instead of "Sign in to your
+account" is why `getByText` matched nothing. Fixing labels took CI from
+**4 failed / 173 passed** to **177 passed**. Neither was ever a responsive
+defect or an auth defect.
+
+**QA's escalation was the diagnostic.** The observation that all three open PRs
+failed identically — *including a documentation-only PR with zero code* — is
+what proved it was environmental rather than any branch's content. That reframed
+a latent bug into a blocker on every future PR in the repo.
+
+### One correction dev owes this document
+
+§1.3 was the only correct contrast figure anyone had. Audit §4.3 put the total
+at **32** failures and blamed the brand blue. Measured with axe across 8 routes
+on a production build it was **270**, of which the brand blue was 20. Three
+systemic causes did the rest: ~57 hardcoded greys bypassing the token system,
+five `opacity` multipliers stacked on a `--txt3` already tuned to the AA line,
+and `.lp-root` re-declaring `--txt3` and silently reverting an earlier AA fix on
+the landing page. Now **0**, verified against staging itself.
+
+Dev also posted a wrong tap-target count on PR #25 (93 "genuine failures") from
+a sweep that modelled neither SC 2.5.8 exception — the same class of error as
+the audit's 159. QA's correction in section 2 stands.
+
+### Still open from this document
+
+- **§4 — the authenticated surface has never been tested.** Unchanged. None of
+  the above touches it.
+- **§5.1 — two seeded test accounts.** Still the blocking ask, still owner/dev.
+  This is the single highest-value unblock on the board.
+
+---
+
 ## 0. Status summary
 
 | | |
