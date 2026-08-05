@@ -69,10 +69,15 @@ directory genuinely exists and is populated — it is not a dead reference.
 **npm scripts** (that's all of them):
 
 ```bash
-npm run dev            # next dev
-npm run build          # next build
-npm start              # next start
-npm run labels:regen   # refresh lib/labelDefaults.en.json from a running dev server
+npm run dev              # next dev
+npm run build            # next build
+npm start                # next start
+npm run lint             # eslint . - 0 errors, ~93 warnings (documented backlog)
+npm test                 # node --test __tests__/*.test.mts - 44 assertions
+npm run test:e2e         # playwright test - builds + boots the app on port 3100 itself
+npm run test:e2e:ui      # same, in Playwright's UI mode
+npm run test:e2e:report  # open the HTML report from the last e2e run
+npm run labels:regen     # refresh lib/labelDefaults.en.json from a running dev server
 ```
 
 **MCP servers wired up and used regularly:**
@@ -89,8 +94,33 @@ live logged-in session, and it has been crashing.
 **Plugins/skills present** in `.claude/skills` (design, frontend, security, testing
 helpers) and a `caveman` output-style plugin. Skills are directory-scoped to the project.
 
-**No CI. No test runner.** No `.github/workflows`, no Jest/Vitest/Playwright. All
-verification is manual and rigor-tiered per `docs/QA_TEST_PLAN.md`.
+**Testing & CI** — corrected 2026-08-05. This section previously read *"No CI. No test
+runner. No `.github/workflows`, no Jest/Vitest/Playwright."* All three of those now exist;
+the claim was already stale when written up as audit §7.2.
+
+| Layer | What | Where |
+|---|---|---|
+| CI | GitHub Actions, on push to `dev` and `main`. Job `build`: lint → typecheck → test → build. Job `e2e`: Playwright, `needs: build` | `.github/workflows/ci.yml` |
+| Unit | `node --test`, 4 files, 44 assertions | `__tests__/*.test.mts` |
+| E2E | Playwright, 216 tests × desktop 1440×900 + iPhone 13, against a **production** build on port 3100 | `qa/e2e/*.spec.ts`, `playwright.config.ts` |
+| Lint | ESLint via CLI — `next lint` no longer exists in Next 16, and `next build` stopped linting | `eslint.config.mjs` |
+
+Two things about the E2E suite that will bite otherwise:
+
+- **It needs `.env.local`.** `NEXT_PUBLIC_*` is inlined at build time and the config builds
+  the app itself, so without `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` the login specs fail
+  and `/api/ops/*` returns 500 instead of 401 — which reads as a security regression and
+  is not.
+- **Baselines only ratchet down.** `qa/e2e/_shared.ts` holds known-failing counts so CI is
+  green on today's code while still blocking regressions. Never raise one to make a build
+  pass.
+
+Manual verification is still rigor-tiered per `qa/QA_TEST_PLAN.md` (**moved from `docs/`
+on 2026-08-04** — §4's table below still points at the old path).
+
+Current state: `pendings/QA_AUDIT_2026-08-04.md` (the sweep) and
+`pendings/QA_E2E_FINDINGS_2026-08-05.md` (first execution of the suite, and **two
+corrections to that audit** — its CLS and tap-target numbers are both wrong).
 
 ---
 

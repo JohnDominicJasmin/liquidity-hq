@@ -72,6 +72,14 @@ const eslintConfig = defineConfig([
     'node_modules/**',
     'public/**',
     'supabase/**',
+    // Playwright's generated HTML report and per-test artefacts. Both are
+    // gitignored, so CI's fresh checkout never sees them - but locally, one
+    // `npm run test:e2e` leaves a bundled copy of Playwright's own report UI on
+    // disk, and the next `npm run lint` fails inside it with
+    // `React Hook "T.useState" is called in function "te"`. That is a lint
+    // error in vendored, minified third-party code that no one can act on.
+    'qa/e2e-report/**',
+    'test-results/**',
   ]),
 ]);
 

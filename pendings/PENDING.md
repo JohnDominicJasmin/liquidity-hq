@@ -838,9 +838,14 @@ one-line change to `AVAILABLE_LOCALES` once its rows land.
 
 ---
 
-## ⛔ OPEN — `/api/ath` is rate-limited by CoinGecko on the QA service
+## ✅ FIXED — `/api/ath` was rate-limited by CoinGecko on the QA service
 
 **Found 2026-08-05** while verifying the new `qa` staging environment.
+**Fixed the same day** by `91338a2 fix(api): serve the last good ATH when
+CoinGecko rate-limits us`, shipped in the 2026-08-05 release. The analysis
+below is kept deliberately: the *shape* recurs. It is the same problem as the
+Binance fan-out further down, and `/api/ath` was simply the first keyless
+per-IP upstream to show it.
 
 | Host | `/api/ath` |
 |---|---|
@@ -906,3 +911,95 @@ option B, but it is a change in what a QA session can set off.
 **Until then**, Telegram is only half-testable on qa: outbound messages reach
 the real dev chat, inbound (`/start`, account linking, bot commands) never
 arrives because the webhook belongs to dev.
+---
+
+## Binance request fan-out per page load — 46% addressed, rest outstanding
+
+**Partially fixed 2026-08-04** — PR #2, `refactor/server-side-rsi-aggregation`.
+
+The dashboard fired ~495 Binance requests from the visitor's own IP on every
+page load. Priced against Binance's 6000-weight-per-minute per-IP budget:
+
+| Call | Weight each | Count | Total | Status |
+|---|---|---|---|---|
+| RSI klines (5m/1h/4h/1d/1w/1M) | 2 | 276 | 552 | ✅ moved server-side |
+| `depth` limit=50 (`fetchOrderBook`) | 5 | 45 | 225 | ⬜ outstanding |
+| `aggTrades` limit=200 (`fetchCVD`) | 4 | 45 | 180 | ⬜ outstanding |
+| `ticker/24hr` (45 symbols) | 80 | 2 | 160 | ⬜ outstanding |
+| klines 15m (`fetchKlines`) | 2 | 45 | 90 | ⬜ outstanding |
+| `globalLongShortAccountRatio` + `topLongShortPositionRatio` | — | 90 | — | ⬜ outstanding (futures bucket) |
+
+≈**1207 weight per page load** before the fix, so roughly five loads in a
+minute earns an IP ban, after which Binance returns 418 to *every* request from
+that IP — including the ones the chart needs. **This is the blank-chart cause
+and it was reproduced**: this machine's IP was banned mid-development with
+`"Way too much request weight used; IP banned until ..."`.
+
+Now ≈655 weight per load. Still only ~5x headroom on a shared IP.
+
+**Three things worth knowing before doing the rest:**
+
+- **Spot and futures are separate limit buckets.** `api.binance.com` was banned
+  while `fapi.binance.com` answered normally throughout. That is what let the
+  new route finish via its fallback, and it is a useful diagnostic: if one
+  works and the other 418s, it is a weight ban, not an outage.
+- **Pinging while banned extends the ban.** A poll loop waiting for it to lift
+  kept it alive well past its stated expiry. Wait it out; do not poll.
+- **`fetchOrderBook` and `fetchCVD` are the next best targets** — 405 weight
+  combined, and both return per-coin data that is identical for every visitor,
+  so they cache exactly like the RSI group did. `fetchKlines` is harder: it
+  feeds VWAP/POC/value-area maths that would have to move server-side with it.
+
+**Separate issue found while measuring, not fixed:** `restPoll` polls
+`ticker/24hr` for all 45 symbols **every 5 seconds** once the WebSocket has
+failed 5 reconnects (`components/MarketProvider.tsx`, `startWS` `onclose`).
+That is weight 80 x 12/min = **960 weight/min, per tab, indefinitely** — it is
+only cleared on unmount. A user who leaves a tab open in fallback mode will ban
+their own IP within about six minutes. Worth fixing independently of the
+fan-out work; the fix is probably a slower fallback interval plus a cap.
+
+## ⛔ OPEN — /scanner has ~0.98 CLS, and the audit's 0.000 figure is wrong
+
+**Found 2026-08-05** while fixing `/arena`'s layout shift (PR #5).
+
+`pendings/QA_AUDIT_2026-08-04.md` §0 and §3.2 report **"Cumulative Layout Shift
+0.000 on every page measured"**. That is not true of at least three routes.
+Measured on a production build, `.next` deleted, one server, three runs each,
+with a gate asserting the page actually rendered first:
+
+| Route | Measured CLS | Google's threshold |
+|---|---|---|
+| `/scanner` | **0.79 – 1.25** (median ~0.98) | poor above 0.25 |
+| `/arena` | 0.365 | fixed to 0.068 in PR #5 |
+| `/briefing` | 0.16 | needs improvement |
+| `/dashboard` | 0.006 | good |
+| `/privacy` | 0.005 | good |
+
+`/scanner` is roughly **10x the "poor" threshold** on a core feature page, and
+it is the one route nobody has reported. It is **not** caused by the `/arena`
+footer fix - baseline and fixed builds both measure ~1.0.
+
+Its shape is different from `/arena`'s, which is why the same fix will not
+work. `/arena` was one dominant jump (82% from a single element). `/scanner`
+produces **23 to 34 separate shifts per load**, and the run-to-run spread
+(0.79 to 1.25) is itself a signal: the page's layout depends on how much
+market data has arrived, so the shifts are data-dependent rather than a single
+fixed mistake.
+
+**Do not plan from audit §8's ordering until §3.2 is corrected** - that
+priority list was built on the assumption that layout stability was already
+perfect, so it ranks SEO and contrast work above a route that is currently the
+worst Core Web Vital in the product.
+
+**Two measurement traps found the hard way, worth repeating:**
+
+- **A stale `npm start` serving an old `.next` against newly-built chunk hashes
+  returns HTTP 500, renders an empty page, and reports a perfect CLS 0.000.**
+  Any CLS measurement without a "did the page actually render" assertion can
+  produce a beautiful, meaningless zero. Kill the old server and delete
+  `.next` between configurations.
+- **Attribution beats intuition.** `/arena`'s shift was blamed on the Ask AI
+  FAB by two separate readings, including mine. Per-source attribution put the
+  FAB at **0.1%** and the footer at 82%. Separately, the textbook fix -
+  reserving space with `min-height` - measured *double* the baseline. Measure
+  before and after every attempt; do not reason about which is likely.
