@@ -1156,8 +1156,22 @@ function ArenaContent() {
         onMouseEnter={handleScannerHoverEnter}
         onMouseLeave={handleScannerHoverLeave}
       >
-        {/* ── Compact trigger bar ── */}
-        <button
+        {/* ── Compact trigger bar ──
+            The bar itself is a plain <div>, not a <button>. It used to be a
+            button, which made the notification bell further down a control
+            nested inside a control - axe's nested-interactive rule, and the
+            reason the bell was already a div[role=button] rather than a
+            <button>. That earlier change only dodged the invalid-HTML half of
+            the problem; the accessibility tree still saw a control inside a
+            control, so screen readers announce one thing and expose two.
+
+            This div carries the onClick so clicking anywhere on the bar still
+            toggles, but deliberately has NO role and NO tabIndex: axe only
+            treats focusable or role-bearing ancestors as interactive, so a bare
+            div is not one. Keyboard access comes from the real <button> inside,
+            whose Enter/Space fires a click that bubbles up to this handler -
+            which is why that button needs no onClick of its own. */}
+        <div
           onClick={() => { setScannerOpen(v => { if (v) setScannerSearch(''); return !v; }); if (!scannerOpen) setTimeout(() => scannerSearchRef.current?.focus(), 60); }}
           style={{
             width: '100%', display: 'flex', alignItems: 'center', gap: 8,
@@ -1167,6 +1181,16 @@ function ArenaContent() {
             cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s, border-color 0.15s',
           }}
         >
+          {/* The actual control: carries the accessible name and aria-expanded,
+              and fills the bar so the click target is unchanged. */}
+          <button
+            aria-expanded={scannerOpen}
+            style={{
+              flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8,
+              background: 'none', border: 'none', padding: 0, margin: 0,
+              color: 'inherit', font: 'inherit', textAlign: 'left', cursor: 'pointer',
+            }}
+          >
           {/* Dot indicator */}
           <span style={{
             width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
@@ -1214,7 +1238,15 @@ function ArenaContent() {
               </span>
             );
           })()}
-          {/* Notification bell - div to avoid button-in-button invalid HTML */}
+          </button>
+
+          {/* Notification bell - now a SIBLING of the trigger button, not a
+              child of it. Kept as div[role=button] rather than reverted to a
+              real <button> only because the surrounding markup has not changed
+              otherwise; either is valid here now that it is not nested.
+              stopPropagation matters more than before: this sits inside the
+              bar's onClick, so without it enabling notifications would also
+              toggle the scanner panel. */}
           <div
             role="button"
             tabIndex={0}
@@ -1241,8 +1273,10 @@ function ArenaContent() {
               {!notifEnabled && <line x1="2" y1="2" x2="22" y2="22" />}
             </svg>
           </div>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', flexShrink: 0 }}>{scannerOpen ? '▲' : '▼'}</span>
-        </button>
+          {/* Decorative: aria-expanded on the trigger button already conveys
+              this state, so announcing an arrow glyph on top of it is noise. */}
+          <span aria-hidden="true" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', flexShrink: 0 }}>{scannerOpen ? '▲' : '▼'}</span>
+        </div>
 
         {/* ── Flyout panel (appears on hover / click) ── */}
         {scannerOpen && (
@@ -1912,14 +1946,20 @@ function ArenaContent() {
               transition: 'left 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
             }} />
           </span>
-          <Tip
-            width={260}
-            iconColor="rgba(255,255,255,0.6)"
-            text={t('ARENA_ANTICHOP_TIP')}
-          >
-            <span style={{ opacity: 0.8, letterSpacing: '0.01em' }}>{t('ARENA_ANTICHOP_LABEL')}</span>
-          </Tip>
+          <span style={{ opacity: 0.8, letterSpacing: '0.01em' }}>{t('ARENA_ANTICHOP_LABEL')}</span>
         </button>
+        {/* Tip sits OUTSIDE the button, not wrapped around its label.
+            Tip's trigger became a real focusable control when it was made
+            keyboard operable, so nesting it inside this button produced a
+            control inside a control - axe nested-interactive. It is the only
+            constraint that component carries: Tip must never be rendered inside
+            a <button>, <a>, or anything with an interactive role.
+            The label stays inside the button so clicking it still toggles. */}
+        <Tip
+          width={260}
+          iconColor="rgba(255,255,255,0.6)"
+          text={t('ARENA_ANTICHOP_TIP')}
+        />
         {/* opacity 0.35 computed to #55565b = 2.75:1. This hint explains what
             the anti-chop toggle beside it actually does, so it has to be
             readable; --txt-dim carries the same de-emphasis at 5.80:1. */}

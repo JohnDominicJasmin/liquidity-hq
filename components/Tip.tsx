@@ -4,7 +4,13 @@ import { createPortal } from 'react-dom';
 
 interface TipProps {
   text: string;
-  children: React.ReactNode;
+  /* Optional. Tip usually wraps the label it explains, but where that label
+     lives inside a <button> the Tip has to sit outside it - its trigger is a
+     real focusable control, and a control inside a control is an
+     axe nested-interactive violation. Rendering <Tip text={...} /> with no
+     children gives a standalone ⓘ for exactly that case. See the anti-chop
+     toggle in app/arena. */
+  children?: React.ReactNode;
   width?: number;
   iconColor?: string;
 }
