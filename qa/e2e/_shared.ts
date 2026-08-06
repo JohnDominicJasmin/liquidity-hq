@@ -75,10 +75,100 @@ export const BASELINE = {
    *
    * The only legitimate reason to change this number again is DOWNWARD, when a
    * fix lands.
+   *
+   * THIS NUMBER CANNOT DETECT THE REGRESSION IT LOOKS LIKE IT DETECTS.
+   * Re-measured 2026-08-06 (issue #46): all 122 are <a>, none is a control -
+   * 84 a.pf-footer-bottom-link, 31 a.consent-link, 7 bare a. Every one is a link
+   * inside a block of text, which SC 2.5.8 exempts outright, so the real count
+   * of WCAG failures here is ZERO. A genuine 16x16 button appearing anywhere
+   * moves this 122 -> 123, a 0.8% change in a number that already drifts when a
+   * footer link is added. Deleting footer links moves it DOWN, which reads as an
+   * improvement while conformance is unchanged.
+   *
+   * So this stays as the loose "small touch targets on a PWA" signal it actually
+   * is, and axeTargetSizeViolations below is what guards conformance.
    */
   tapTargetsUnder24: 122,
+  /**
+   * SC 2.5.8 failures per axe-core's own `target-size` rule, which models BOTH
+   * exceptions (spacing and inline) rather than re-deriving them by hand.
+   *
+   * Hand-rolling the exceptions is how tapTargetsUnder24 came to be quoted as a
+   * conformance count twice - 159, then 217, then 122, none of them a number of
+   * WCAG failures. axe reported 0 violations / 0 incomplete / 156 passes on
+   * /playbook alone, so this starts at the true value.
+   *
+   * Asserted with toBe(0), not a ratchet. Zero is the target and the only
+   * acceptable value; one real failure is 0 -> 1, which is unmissable. If this
+   * ever goes non-zero, that is a defect to file, not a baseline to raise.
+   */
+  axeTargetSizeViolations: 0,
   /** §4.2 - controls whose only label is a placeholder. */
   controlsWithoutName: 4,
+
+  /**
+   * SIGNED-IN controls with no accessible name by ANY route - not aria-label,
+   * aria-labelledby, label[for], a wrapping label, or title.
+   *
+   * Every number here was measured in the browser on 2026-08-06, signed in as
+   * the seeded account A, against the six claims in
+   * pendings/QA_A11Y_FINDINGS_2026-08-05.md §4. Those claims came from a source
+   * read and had sat unverifiable since 2026-08-05 because nothing automated
+   * could reach past the onboarding gate.
+   *
+   * These are WCAG 2.2 SC 4.1.2 Name, Role, Value failures at Level A. A screen
+   * reader announces "edit text, blank" and nothing else; voice control has no
+   * phrase to match. Ratchet DOWN as fixes land.
+   */
+  authUnnamedControls: {
+    /**
+     * components/SettingsModal.tsx, opened from the nav drawer's Settings tile.
+     * 9 controls unnamed, and 12 <label> elements that carry the visible text
+     * but have no for= and wrap nothing, so they name nothing.
+     *
+     * The claim that produced this said "~24 inputs". The real figure is 9.
+     *
+     * Note the split this exposes: app/settings/page.tsx renders the same
+     * settings UI with aria-label on every st-input (13 of 14 named), while the
+     * MODAL has none. Two implementations, one fixed and one not. Whoever fixes
+     * the modal should check they are not fixing the page a second time.
+     */
+    settingsModal: 9,
+    /** components/TradeJournal.tsx .tj-edit-form - the inline edit on a history
+     *  row. select.tj-edit-select, two input.tj-inp, textarea.tj-notes. The
+     *  original claim said 4 and 4 is exactly right. */
+    journalInlineEdit: 4,
+    /** TradeJournal rule builder, behind Rules -> "+ Custom Rule". Three bare
+     *  <select> with inline styles, no class, no id, no label of any kind. */
+    journalRuleBuilder: 3,
+  },
+
+  /**
+   * Status messages that render visibly but are never announced - WCAG 2.2
+   * SC 4.1.3 Status Messages, Level AA.
+   *
+   * These are BASELINES, not acceptance. They exist for the same reason every
+   * other number in this file does: CI has to be green on today's code or the
+   * gate stops meaning anything, and a red suite here would block unrelated
+   * releases. Both target ZERO and both are filed as defects.
+   */
+  unannouncedStatus: {
+    /**
+     * 3 - the .login-error container on the /login password form, the /login
+     * magic-link form, and /forgot-password. All three render
+     * `<div className="login-error">` with no role and no aria-live, and there
+     * is no live region anywhere else on those pages, so a screen reader user
+     * submits, hears nothing, and cannot tell whether anything happened.
+     * The original claim named /login only.
+     */
+    authForms: 3,
+    /**
+     * 1 - .gchat-msgs in components/GrokChat.tsx has neither aria-live nor
+     * role, and the whole .gchat-panel contains zero live regions. A reply
+     * streams in silently.
+     */
+    grokChat: 1,
+  },
   /** §6.4 - pages with no <h1>, desktop. */
   pagesWithoutH1: 13,
   /** §6.2 - pages emitting <link rel="canonical">. Target is ALL of them. */
@@ -213,3 +303,32 @@ export async function settle(page: Page, path: string): Promise<void> {
 export const INTERACTIVE_SELECTOR =
   'a[href],button,input:not([type=hidden]),select,textarea,' +
   '[role=button],[role=link],[role=tab],[role=switch],[tabindex]:not([tabindex="-1"])';
+
+/**
+ * Inject axe-core into the page and run it.
+ *
+ * axe-core is already installed (a transitive dependency of
+ * eslint-plugin-jsx-a11y) but is declared explicitly in devDependencies so a
+ * lint-config change cannot silently remove the test suite's dependency.
+ *
+ * Loaded from node_modules rather than a CDN: the suite must run offline and in
+ * CI without a network round-trip, and a CDN version bump would change results
+ * under us.
+ */
+export async function runAxe(
+  page: Page,
+  opts: { runOnly?: string[]; rules?: Record<string, { enabled: boolean }> } = {},
+): Promise<{ id: string; nodes: string[] }[]> {
+  await page.addScriptTag({ path: require.resolve('axe-core/axe.min.js') });
+  return page.evaluate(async (o) => {
+    const cfg: Record<string, unknown> = {};
+    if (o.runOnly) cfg.runOnly = { type: 'rule', values: o.runOnly };
+    if (o.rules) cfg.rules = o.rules;
+    // @ts-expect-error injected at runtime
+    const res = await window.axe.run(document, cfg);
+    return res.violations.map((v: { id: string; nodes: { target: string[] }[] }) => ({
+      id: v.id,
+      nodes: v.nodes.map((n) => n.target.join(' ')),
+    }));
+  }, opts);
+}
