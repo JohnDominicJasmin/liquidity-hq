@@ -376,7 +376,47 @@ first stated.
 
 ---
 
-## 4. 🔴 The authenticated surface has never been tested
+## 4. ✅ RESOLVED 2026-08-06 — the authenticated surface is now tested
+
+**All six U-findings below have been verified in a real browser, signed in.**
+Five confirmed, one refuted. `qa/e2e/a11y-auth.spec.ts` now runs them every
+suite, so they are re-checked rather than re-argued. The verdicts:
+
+| # | Claim | Verdict | Measured |
+|---|---|---|---|
+| U1 | ~24 Settings inputs unlabelled | ✅ **Confirmed, count wrong** | **9** unnamed controls, not ~24 — and in `SettingsModal.tsx` only. 12 `<label>` elements have no `for=` and wrap nothing, so they name nothing. `app/settings/page.tsx` is **fine** (13 of 14 named). |
+| U2 | `aria-label` drift, "Entry \*" vs "Entry" | ❌ **Refuted** | All 4 fields have accessible names. The `*` is a required marker, not label text. Only "Position Size ($)" differs from its `aria-label`, and the name a voice user speaks still matches. |
+| U3 | 4 inline-edit controls with no name | ✅ **Confirmed exactly** | 4 — `select.tj-edit-select`, 2× `input.tj-inp`, `textarea.tj-notes` |
+| U4 | Rule-builder selects unlabelled | ✅ **Confirmed** | 3 bare `<select>`: inline styles, no class, no id, no label of any kind |
+| U5 | Auth errors lack `role="alert"` | ✅ **Confirmed, wider than claimed** | **3** forms, not 1 — `/login` password, `/login` magic-link, **and `/forgot-password`**. `.login-error` has `role=null`, `aria-live=null`, and there are **zero** live regions anywhere on those pages. |
+| U6 | GrokChat replies not announced | ✅ **Confirmed** | `.gchat-msgs` has neither `aria-live` nor `role`; **0** live regions in the entire `.gchat-panel` |
+
+**Severity, now that they have been executed rather than read:** U1, U3 and U4
+are WCAG 2.2 **SC 4.1.2 Name, Role, Value, Level A** — a screen reader announces
+these as "edit text, blank". U5 and U6 are **SC 4.1.3 Status Messages, Level
+AA**. All five are real. None is as large as the source review implied, and one
+did not exist at all.
+
+**A defect found beyond the six, while verifying U1:** `app/settings/page.tsx`
+and `components/SettingsModal.tsx` are two implementations of the same settings
+UI, both reachable by users, with different accessibility. The page has
+`aria-label` on every `st-input`; the modal has none. Whoever fixes the modal
+should check they are not fixing the page a second time. Separately,
+`button.st-toggle` for Push Notifications on the page has no accessible name
+while the Analytics toggle directly below it does.
+
+**One harness note worth keeping.** The first pass of this verification scored
+U3 as *zero findings*. The journal had not rendered — but the page still had
+112 visible controls at that moment, all of them nav chrome and footer, so a
+"did the page load" guard based on counting controls passed cleanly. Every wait
+in the committed spec is scoped to an element the feature itself owns, and its
+absence now fails the test instead of quietly scoring zero. This is the same
+vacuous-pass failure mode described immediately below, reached from a third
+direction.
+
+The original section follows unchanged, for the record.
+
+---
 
 Measured signed-out against the release build:
 
@@ -396,7 +436,10 @@ vacuous pass is indistinguishable from a genuine one.
 A source-level review produced 28 findings. Three were runtime-testable: §1.1
 and §1.2 above were confirmed (§1.1 was *understated* by 2×), one was
 untestable. The rest touch surfaces behind auth. Recorded here so they are not
-lost, and explicitly marked **UNVERIFIED — do not action yet**:
+lost, and explicitly marked **UNVERIFIED — do not action yet**.
+*(Superseded 2026-08-06 — every row below has since been executed in a browser;
+see the verdict table at the top of this section. U2 in particular was refuted,
+so do not action it from this table.)*
 
 | # | Claim | File |
 |---|---|---|
