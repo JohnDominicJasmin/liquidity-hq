@@ -11,16 +11,22 @@ name: CI
 # suite runs on exactly ONE automatic trigger - a PR into `main`, which is the
 # release, immediately before a production deploy.
 #
-# What replaces it everywhere else is QA running the suite LOCALLY when a
-# dev -> qa PR arrives (CONTRIBUTING section 4b). That is a real gate with a
-# named owner, not a hope.
+# NOBODY runs it by hand - not dev, not QA. An earlier draft had QA running it
+# locally on the dev -> qa PR; that was dropped because ordering it correctly
+# (manual testing first, suite last) put it minutes before this run, on the same
+# commit, differing only in environment. Between the two, keep the stricter one
+# that costs nobody an afternoon. See CONTRIBUTING section 4b.
 #
-# Why one CI run survives at all: QA's local run is one machine with .env.local
-# present. CI is the only place the app builds WITHOUT developer env, and that
-# difference has produced two real defects - the labels bug (only reproduces
-# when /api/labels returns {}, which never happens locally) and the
-# NEXT_PUBLIC_APP_ENV table-prefix gap. ~136 min/month for the last check
-# between a green laptop and production.
+# Why THIS run is the stricter one: it is the only place the app builds WITHOUT
+# developer env, and that difference has produced two real defects - the labels
+# bug (only reproduces when /api/labels returns {}, which never happens on a
+# machine with .env.local present) and the NEXT_PUBLIC_APP_ENV table-prefix gap.
+# ~136 min/month for the last automated check before production.
+#
+# What is given up, stated so nobody is surprised: between a feature merging
+# into dev and the release PR opening, nothing exercises a browser. A regression
+# surfaces here, with the whole batch attached, rather than on the PR that caused
+# it. Bounded by the weekly release cadence in CONTRIBUTING section 7a.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -273,7 +279,33 @@ jobs:
   # and checks are evaluated per-SHA.
   # ───────────────────────────────────────────────────────────────────────────
   gate:
-    name: CI Gate
+    # The NAME is computed, and that is the whole point - it is what makes the
+    # required check un-forgeable. QA found the hole on release PR #38.
+    #
+    # The bug: `CI Gate` was a fixed name, so EVERY event that touched a commit
+    # published a check by that name. dev -> qa is fast-forward, so the merge
+    # commit on dev, the head of qa, and the head of the qa -> main release PR
+    # are all the SAME SHA. A push to dev published `CI Gate: success` on it -
+    # successful with E2E SKIPPED, because base_ref is empty on a push. GitHub
+    # evaluates required checks per commit, so the release PR showed
+    # `mergeable: true` while its own 34-minute suite was still running. A pass
+    # from a run that never opened a browser could green-light a production
+    # merge.
+    #
+    # Deleting the `push: [dev]` trigger would have fixed that one path and left
+    # the hole open: a dev -> qa promotion PR publishes checks against the same
+    # SHA too, also with E2E skipped. The fix has to be that the name itself
+    # cannot appear except on a release PR.
+    #
+    # A job `if:` cannot do this. A job skipped by `if:` still creates a check
+    # run, and branch protection counts a skipped check as SUCCESS - which is the
+    # same trap this job exists to close, one level up.
+    #
+    # So: PRs into main publish `CI Gate`, the required context. Everything else
+    # publishes `CI Gate (advisory)`, which no ruleset requires and which
+    # therefore cannot satisfy anything. Same logic runs either way, so the
+    # advisory result is still worth reading.
+    name: ${{ github.base_ref == 'main' && 'CI Gate' || 'CI Gate (advisory)' }}
     if: ${{ always() }}
     needs: [build, e2e]
     runs-on: ubuntu-latest
