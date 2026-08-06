@@ -100,9 +100,9 @@ the claim was already stale when written up as audit §7.2.
 
 | Layer | What | Where |
 |---|---|---|
-| CI | GitHub Actions, on push to `dev` and `main`. Job `build`: lint → typecheck → test → build. Job `e2e`: Playwright, `needs: build` | `.github/workflows/ci.yml` |
-| Unit | `node --test`, 4 files, 44 assertions | `__tests__/*.test.mts` |
-| E2E | Playwright, 216 tests × desktop 1440×900 + iPhone 13, against a **production** build on port 3100 | `qa/e2e/*.spec.ts`, `playwright.config.ts` |
+| CI | GitHub Actions. Job `build` (lint → typecheck → test → build, ~2 min) on every push and PR. Job `e2e` (Playwright, ~34 min) **only on a PR into `main`** — see `CONTRIBUTING.md` §4b. Job `CI Gate` is the one required status check | `.github/workflows/ci.yml` |
+| Unit | `node --test`, 6 files, 75 assertions | `__tests__/*.test.mts` |
+| E2E | Playwright, 187 passing + 47 skipped × desktop 1440×900 + iPhone 13, against a **production** build on port 3100 | `qa/e2e/*.spec.ts`, `playwright.config.ts` |
 | Lint | ESLint via CLI — `next lint` no longer exists in Next 16, and `next build` stopped linting | `eslint.config.mjs` |
 
 Two things about the E2E suite that will bite otherwise:
@@ -345,9 +345,11 @@ auth email delivery that has not been exercised once. Treat as the top priority.
 
 ### Backlog (not urgent, nothing blocking)
 
-- **CI/CD pipeline** — logged in `PENDING.md` today. No CI exists; deploys are manual. A
-  build/typecheck gate at minimum, auto-deploy on merge to `main`, tests once any exist.
-  GitHub Actions is the obvious default. No scope decided.
+- ~~**CI/CD pipeline**~~ — **DONE.** Shipped 2026-08-01, restructured 2026-08-06. The text
+  here used to say *"No CI exists; deploys are manual"*, which stopped being true within a
+  day and sat stale for five. See the Testing & CI table above. Deploys are **still
+  manual and deliberately so** — `autoDeploy: "no"` on all three Render services, because
+  merging to `main` should not be able to ship on its own.
 - **Confluence Score validation** — `agree_count`/`agree_net` are recording correctly in
   prod, but **do not read the data yet.** Every row so far is `agree_count: 1` (a solo fire
   has no agreement to measure). Needs weeks of accumulation plus 24h resolution. A small

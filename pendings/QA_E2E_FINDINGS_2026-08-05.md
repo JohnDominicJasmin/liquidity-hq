@@ -187,6 +187,26 @@ regressions and are not. This was observed directly during run 1.
 
 ## 5. Still open
 
+> **⚠️ Reconciled 2026-08-06 — most of this table is now closed.** Statuses below
+> are as of 2026-08-05 and were not updated as things shipped. Current position:
+>
+> | Item | Now |
+> |---|---|
+> | **BOLA / IDOR** | ✅ **Closed.** Two seeded accounts, 9 tests in `qa/e2e/bola.spec.ts`, running in CI. No hole found — every route scopes by `user_id` *and* queries with the user's token, so RLS is a second layer. The `test.fixme` in `security.spec.ts` is replaced with a pointer |
+> | 3 CI secrets | ✅ Set. Plus 9 more for the BOLA fixtures |
+> | Leaked-password protection | ⛔ Still open — owner, 2 Supabase toggles |
+> | Stray `C:\Users\Dominic\package-lock.json` | ⛔ **Still there**, still hijacking Next's workspace root. Outside the repo, so it needs deleting by hand |
+> | `/arena` CLS | ✅ 0.365 → 0.068 |
+> | `/briefing` CLS | ⛔ Still open — carries a `CLS_BUDGET` of 0.20 |
+> | `/playbook` `button.pb-star` | ✅ Cleared — 55 targets fixed |
+> | Audit §3.2 and §4.1 text | ✅ Corrected in place, see the banner on `QA_AUDIT_2026-08-04.md` |
+> | `HANDOVER.md` §3 | ✅ Corrected — and corrected **again** 2026-08-06, because the CI restructure made the first correction stale |
+>
+> That last row is the pattern worth noticing: a doc corrected once still goes
+> stale. `PENDING.md` now carries a reconciled index at the top for this reason.
+
+### Original table, 2026-08-05
+
 | Item | Owner | Note |
 |---|---|---|
 | **BOLA / IDOR** | **owner + QA** | Unchanged since the audit. `security.spec.ts` still carries a `test.fixme`. Needs `E2E_TOKEN_A` / `E2E_TOKEN_B` for the two test accounts. **The largest untested area in the product.** |

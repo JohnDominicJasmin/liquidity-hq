@@ -76,3 +76,102 @@ export async function signIn(email: string, password: string): Promise<string> {
   }
   return body.access_token as string;
 }
+
+/**
+ * Sign a Playwright context in as one of the seeded accounts.
+ *
+ * Everything automated in this suite before 2026-08-06 tested the SIGNED-OUT
+ * surface. Settings, TradeJournal, Alerts and the chat panel had been reached
+ * exactly once, by hand. This helper is what makes them reachable from a spec.
+ *
+ * Two things make it less obvious than "log in through the form":
+ *
+ * 1. It seeds the session into localStorage rather than driving /login. The
+ *    login form renders a Cloudflare Turnstile widget, and a spec that tries to
+ *    solve it either fails or teaches someone to bypass a bot check. Minting a
+ *    token and installing it is the same end state without touching Turnstile.
+ *
+ * 2. OnboardingGate blocks EVERY route - not just /dashboard - for a signed-in
+ *    user whose profile_complete is false, so a seeded session alone still lands
+ *    on the 5-step wizard and no app content renders. Both accounts now have
+ *    profile_complete and tour_seen set on the dev project, but this asserts the
+ *    app actually rendered rather than trusting that, because the failure looks
+ *    exactly like a broken page.
+ */
+export async function signedInContext(
+  browser: import('@playwright/test').Browser,
+  who: 'a' | 'b' = 'a',
+  opts: { viewport?: { width: number; height: number } } = {},
+) {
+  const email = who === 'a' ? FIXTURES.aEmail : FIXTURES.bEmail;
+  const password = who === 'a' ? FIXTURES.aPassword : FIXTURES.bPassword;
+
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { apikey: SUPABASE_ANON, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const session = await res.json().catch(() => ({}));
+  if (!session.access_token) {
+    throw new Error(`signedInContext: sign-in failed for ${email}: HTTP ${res.status}`);
+  }
+
+  // supabase-js v2 reads sb-<projectRef>-auth-token from localStorage.
+  const projectRef = new URL(SUPABASE_URL).hostname.split('.')[0];
+  const ctx = await browser.newContext({ viewport: opts.viewport ?? { width: 1440, height: 900 } });
+  await ctx.addInitScript(
+    ([ref, s]: [string, Record<string, unknown>]) => {
+      localStorage.setItem(`sb-${ref}-auth-token`, JSON.stringify({
+        access_token: s.access_token,
+        refresh_token: s.refresh_token,
+        expires_in: s.expires_in,
+        expires_at: Math.floor(Date.now() / 1000) + (s.expires_in as number),
+        token_type: 'bearer',
+        user: s.user,
+      }));
+    },
+    [projectRef, session] as [string, Record<string, unknown>],
+  );
+  return ctx;
+}
+
+/**
+ * Navigate a signed-in page and assert app content actually rendered.
+ *
+ * Throws rather than returning a bad page. A spec that measures the onboarding
+ * wizard, or Render's cold-start placeholder, reports confident numbers about
+ * the wrong document - the failure mode `settle()` exists to prevent for the
+ * signed-out suite, and the reason a whole audit run once reported 3,315
+ * sub-24px tap targets against an unstyled page.
+ */
+export async function gotoSignedIn(
+  page: import('@playwright/test').Page,
+  path: string,
+): Promise<void> {
+  await page.goto(path, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(4000);
+
+  const state = await page.evaluate(() => {
+    const text = document.body.innerText || '';
+    return {
+      onboarding: /step\s*0?1\s*\/\s*0?5|set up your\s*profile/i.test(text),
+      signedOut: /sign in to your account/i.test(text),
+      placeholder: /start building on render/i.test(text),
+      styled: document.styleSheets.length > 0,
+      controls: document.querySelectorAll('a[href],button,input,select,textarea').length,
+    };
+  });
+
+  if (state.onboarding) {
+    throw new Error(
+      `${path} rendered the ONBOARDING WIZARD, not the page. The account's ` +
+      `profile_complete is false, so OnboardingGate is blocking every route. ` +
+      `Set it on the dev project before measuring anything here.`,
+    );
+  }
+  if (state.signedOut) throw new Error(`${path} rendered signed-out - the seeded session did not take.`);
+  if (state.placeholder) throw new Error(`${path} returned Render's cold-start placeholder, not the app.`);
+  if (!state.styled || state.controls < 4) {
+    throw new Error(`${path} rendered without styles or controls (${state.controls}) - measurements would be meaningless.`);
+  }
+}
