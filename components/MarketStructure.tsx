@@ -106,8 +106,8 @@ function fmtP(n: number): string {
 /* ── Event colour helpers ── */
 function evCol(ev: StructureEvent): string {
   return ev.type === 'CHoCH'
-    ? (ev.dir === 'bullish' ? '#1a7aff' : '#f87171')
-    : (ev.dir === 'bullish' ? '#34d399' : '#f87171');
+    ? (ev.dir === 'bullish' ? '#1a7aff' : 'var(--red)')
+    : (ev.dir === 'bullish' ? 'var(--green-2)' : 'var(--red)');
 }
 function evBg(ev: StructureEvent): string {
   return ev.type === 'CHoCH'
@@ -198,7 +198,7 @@ export default function MarketStructure({ coin, onData }: Props) {
       <div className="ms-card">
         <div className="ms-header">
           <span className="ms-title">{t('MARKET_STRUCTURE_TITLE')}</span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>{t('MARKET_STRUCTURE_FAILED')}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>{t('MARKET_STRUCTURE_FAILED')}</span>
         </div>
       </div>
     );
@@ -206,7 +206,7 @@ export default function MarketStructure({ coin, onData }: Props) {
 
   const d  = data!;
   const le = d.lastEvent;
-  const biasCol = d.bias === 'BULLISH' ? '#34d399' : d.bias === 'BEARISH' ? '#f87171' : '#9ca3af';
+  const biasCol = d.bias === 'BULLISH' ? 'var(--green-2)' : d.bias === 'BEARISH' ? 'var(--red)' : '#9ca3af';
 
   return (
     <div className="ms-card">
@@ -236,13 +236,13 @@ export default function MarketStructure({ coin, onData }: Props) {
         {d.lastSwingHigh != null && (
           <div className="ms-level">
             <span className="ms-level-lbl">{t('MARKET_STRUCTURE_SWING_HIGH_LABEL')}</span>
-            <span className="ms-level-val" style={{ color: '#f87171' }}>${fmtP(d.lastSwingHigh)}</span>
+            <span className="ms-level-val" style={{ color: 'var(--red)' }}>${fmtP(d.lastSwingHigh)}</span>
           </div>
         )}
         {d.lastSwingLow != null && (
           <div className="ms-level">
             <span className="ms-level-lbl">{t('MARKET_STRUCTURE_SWING_LOW_LABEL')}</span>
-            <span className="ms-level-val" style={{ color: '#34d399' }}>${fmtP(d.lastSwingLow)}</span>
+            <span className="ms-level-val" style={{ color: 'var(--green-2)' }}>${fmtP(d.lastSwingLow)}</span>
           </div>
         )}
       </div>

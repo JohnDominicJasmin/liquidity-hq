@@ -133,7 +133,7 @@ const DARK: Record<string, unknown> = {
     },
   },
   overlay: {
-    line: { color: '#5aa3ff', size: 1 },
+    line: { color: 'var(--accent-2)', size: 1 },
   },
   indicator: {
     tooltip: { showRule: 'follow_cross' },
@@ -248,10 +248,10 @@ let structureOverlayRegistered = false;
    fast timeframes for volatile coins (PEPE/BONK 15m, where EMA200's 200-bar
    lookback still reaches a real multi-day-old price level). */
 const EMA_PERIODS = [
-  { period: 9,   color: '#fbbf24', size: 1   },  // gold
+  { period: 9,   color: 'var(--amber)', size: 1   },  // gold
   { period: 20,  color: '#60a5fa', size: 1.5 },  // blue
   { period: 50,  color: '#f97316', size: 1.5 },  // orange
-  { period: 200, color: '#1a7aff', size: 2   },  // blue (thicker)
+  { period: 200, color: 'var(--accent)', size: 2   },  // blue (thicker)
 ] as const;
 
 interface EmaPoint { timestamp: number; value: number; }
@@ -651,7 +651,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       // in the app (marketStore rsi14/rsi1h/rsi4h/rsiDaily), instead of the
       // built-in indicator's default 3-line [6,12,24] preset.
       chart.createIndicator(
-        { name: 'RSI', calcParams: [14], styles: { lines: [{ color: '#5aa3ff', size: 1.5 }] } },
+        { name: 'RSI', calcParams: [14], styles: { lines: [{ color: 'var(--accent-2)', size: 1.5 }] } },
         { pane: { id: 'rsi_pane', height: 110, minHeight: 30 } }
       );
 
@@ -912,7 +912,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               // Crisp amber ring
               { type: 'polygon', attrs: { coordinates: ring(9) }, styles: { style: 'stroke', borderColor: '#f59e0b', borderSize: 1.5 } },
               // Center diamond accent
-              { type: 'polygon', attrs: { coordinates: [{ x: cx, y: cy - 3 }, { x: cx + 3, y: cy }, { x: cx, y: cy + 3 }, { x: cx - 3, y: cy }] }, styles: { style: 'fill', color: '#fcd34d' } },
+              { type: 'polygon', attrs: { coordinates: [{ x: cx, y: cy - 3 }, { x: cx + 3, y: cy }, { x: cx, y: cy + 3 }, { x: cx - 3, y: cy }] }, styles: { style: 'fill', color: 'var(--amber-2)' } },
               // Directional chevron (two line segments)
               { type: 'line', attrs: { coordinates: [v[0], v[1]] }, styles: { color: '#fde68a', size: 1.5 } },
               { type: 'line', attrs: { coordinates: [v[1], v[2]] }, styles: { color: '#fde68a', size: 1.5 } },
@@ -1601,13 +1601,13 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
       explanation: nearSR.type === 'support'
         ? "Squeeze + support confluence (separate from the chart's own Buy/Sell signal). Price is sitting on a tested support level while shorts are being squeezed out. High-probability long zone - watch for a confirmation candle before entering."
         : "Squeeze + resistance confluence (separate from the chart's own Buy/Sell signal). Price is pressing against tested resistance while longs are getting flushed. High-probability short zone - watch for a rejection candle before entering.",
-      color: '#fbbf24', bg: 'rgba(251,191,36,0.10)', bdr: 'rgba(251,191,36,0.28)',
+      color: 'var(--amber)', bg: 'rgba(251,191,36,0.10)', bdr: 'rgba(251,191,36,0.28)',
     };
     return {
       label: 'Setup Forming',
       detail: `Near ${nearSR.type} (${nearSR.touches} touches) · Squeeze ${sq.score}/100`,
       explanation: `Squeeze + ${nearSR.type} confluence (separate from the chart's own Buy/Sell signal) - the squeeze and the ${nearSR.type} level aren't lined up yet. Watch for direction confirmation - don't jump in early.`,
-      color: '#1a7aff', bg: 'rgba(26,122,255,0.10)', bdr: 'rgba(26,122,255,0.28)',
+      color: 'var(--accent)', bg: 'rgba(26,122,255,0.10)', bdr: 'rgba(26,122,255,0.28)',
     };
   })();
 

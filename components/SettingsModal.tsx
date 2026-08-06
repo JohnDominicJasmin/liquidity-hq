@@ -143,7 +143,7 @@ export default function SettingsModal({ open, onClose }: Props) {
             </div>
             {settings.account_size > 0 && settings.risk_pct > 0 && (
               <div className="st-at-risk">
-                {t('SETTINGS_AT_RISK_PREFIX')} <strong style={{ color: '#f87171' }}>
+                {t('SETTINGS_AT_RISK_PREFIX')} <strong style={{ color: 'var(--red)' }}>
                   ${(settings.account_size * settings.risk_pct / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </strong>
               </div>

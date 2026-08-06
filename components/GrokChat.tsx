@@ -672,7 +672,7 @@ export default function GrokChat() {
                   {searchRemaining !== null && (
                     <span style={{
                       fontSize: 'var(--fs-caption)',
-                      color: searchRemaining === 0 ? '#ff9a92' : searchRemaining === 1 ? '#f59e0b' : '#666',
+                      color: searchRemaining === 0 ? 'var(--red-soft)' : searchRemaining === 1 ? '#f59e0b' : '#666',
                       opacity: liveSearch ? 1 : 0.5,
                       fontVariantNumeric: 'tabular-nums',
                     }}>
@@ -787,9 +787,9 @@ export default function GrokChat() {
             {/* Rate-limit / error status bar - sits between coins and messages, not in chat stream */}
             {error && (
               <div style={{ padding: '6px 14px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(255,154,146,0.06)', lineHeight: 1.6 }}>
-                <div style={{ fontSize: 'var(--fs-caption)', color: '#ff9a92', display: 'flex', alignItems: 'center', gap: 5 }}><Warn size={12} /> {error}</div>
+                <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red-soft)', display: 'flex', alignItems: 'center', gap: 5 }}><Warn size={12} /> {error}</div>
                 {rateLimited && (
-                  <Link href="/upgrade" style={{ fontSize: 'var(--fs-caption)', color: '#5aa3ff', textDecoration: 'underline' }}>
+                  <Link href="/upgrade" style={{ fontSize: 'var(--fs-caption)', color: 'var(--accent-2)', textDecoration: 'underline' }}>
                     Upgrade to Pro for higher limits →
                   </Link>
                 )}
@@ -808,8 +808,8 @@ export default function GrokChat() {
                   </div>
                   {user ? (
                     <>
-                      <div style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: '#a0a0a0' }}>Ask anything about</div>
-                      <div style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: '#5aa3ff', margin: '2px 0 6px' }}>
+                      <div style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--txt-dim)' }}>Ask anything about</div>
+                      <div style={{ fontSize: 'var(--fs-card-title)', fontWeight: 700, color: 'var(--accent-2)', margin: '2px 0 6px' }}>
                         {coin.toUpperCase()}/USDT
                       </div>
                       <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
@@ -820,7 +820,7 @@ export default function GrokChat() {
                     <>
                       <div style={{ fontSize: 'var(--fs-label)', fontWeight: 600, color: 'var(--txt3)' }}>Sign in to use LiquidityAI</div>
                       <button
-                        style={{ marginTop: 10, fontSize: 'var(--fs-caption)', color: '#5aa3ff', background: 'none', border: '0.5px solid #5aa3ff44', borderRadius: 8, padding: '6px 16px', cursor: 'pointer' }}
+                        style={{ marginTop: 10, fontSize: 'var(--fs-caption)', color: 'var(--accent-2)', background: 'none', border: '0.5px solid #5aa3ff44', borderRadius: 8, padding: '6px 16px', cursor: 'pointer' }}
                         onClick={() => setShowLoginModal(true)}
                       >
                         Sign In →

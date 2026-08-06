@@ -60,7 +60,7 @@ export default function HigherTfMoveBadge({ coin, tf, signalDir }: Props) {
 
   const pumped = changePct > 0;
   const agrees = signalDir != null && ((pumped && signalDir === 'long') || (!pumped && signalDir === 'short'));
-  const col = '#fbbf24';
+  const col = 'var(--amber)';
 
   return (
     <div style={{

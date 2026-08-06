@@ -6,10 +6,10 @@ import { withAlpha } from '@/lib/color';
 import { SkeletonBar } from '@/components/Skeleton';
 
 const VERDICT_CONFIG: Record<StrategyVerdict, { label: string; color: string; bg: string; border: string }> = {
-  LONG_SETUP:     { label: '▲ LONG SETUP',     color: '#34d399', bg: 'rgba(52,211,153,0.08)',  border: 'rgba(52,211,153,0.25)'  },
-  SHORT_SETUP:    { label: '▼ SHORT SETUP',    color: '#f87171', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.25)' },
-  TRENDING_LONG:  { label: '↗ TRENDING LONG',  color: '#86efac', bg: 'rgba(134,239,172,0.06)', border: 'rgba(134,239,172,0.2)'  },
-  TRENDING_SHORT: { label: '↘ TRENDING SHORT', color: '#fca5a5', bg: 'rgba(252,165,165,0.06)', border: 'rgba(252,165,165,0.2)'  },
+  LONG_SETUP:     { label: '▲ LONG SETUP',     color: 'var(--green-2)', bg: 'rgba(52,211,153,0.08)',  border: 'rgba(52,211,153,0.25)'  },
+  SHORT_SETUP:    { label: '▼ SHORT SETUP',    color: 'var(--red)', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.25)' },
+  TRENDING_LONG:  { label: '↗ TRENDING LONG',  color: 'var(--green-soft)', bg: 'rgba(134,239,172,0.06)', border: 'rgba(134,239,172,0.2)'  },
+  TRENDING_SHORT: { label: '↘ TRENDING SHORT', color: 'var(--red-soft)', bg: 'rgba(252,165,165,0.06)', border: 'rgba(252,165,165,0.2)'  },
   /* #6b7280 was 4.01:1 - the same grey-500 the econ calendar used for its
      (never-reachable) LOW bucket. FREEZE is a live signal state, not a
      placeholder, so it takes the AA-safe neutral. */
@@ -87,7 +87,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
   // than it's won.
   const weak = isSetup && signal.weakEdge;
   const cfg = weak
-    ? { label: `${VERDICT_CONFIG[v].label} · WEAK EDGE`, color: '#fbbf24', bg: 'rgba(251,191,36,0.08)', border: 'rgba(251,191,36,0.25)' }
+    ? { label: `${VERDICT_CONFIG[v].label} · WEAK EDGE`, color: 'var(--amber)', bg: 'rgba(251,191,36,0.08)', border: 'rgba(251,191,36,0.25)' }
     : VERDICT_CONFIG[v];
   const canExplain = coin && !signal.loading && signal.verdict !== 'LOADING';
 
@@ -111,7 +111,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           {!signal.loading && signal.chopRegime && (() => {
-            const col = signal.chopRegime === 'choppy' ? '#fbbf24' : signal.chopRegime === 'trending' ? '#34d399' : '#8e8e93';
+            const col = signal.chopRegime === 'choppy' ? 'var(--amber)' : signal.chopRegime === 'trending' ? 'var(--green-2)' : 'var(--txt-dim)';
             const label = signal.chopRegime === 'choppy' ? 'CHOPPY' : signal.chopRegime === 'trending' ? 'TRENDING' : 'MIXED';
             return (
               <span
@@ -169,7 +169,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
         }}>
           {signal.conditions.map((c, i) => {
             const pass = c.pass;
-            const col  = pass === true ? '#34d399' : pass === false ? '#f87171' : 'var(--txt-dim)';
+            const col  = pass === true ? 'var(--green-2)' : pass === false ? 'var(--red)' : 'var(--txt-dim)';
             const bg   = pass === true ? 'rgba(52,211,153,0.07)' : pass === false ? 'rgba(248,113,113,0.07)' : 'rgba(255,255,255,0.02)';
             const icon = pass === true ? '✓' : pass === false ? '✗' : '-';
             return (
@@ -207,7 +207,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
           borderRadius: 7,
         }}>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginRight: 4 }}>Levels:</span>
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#f87171' }}>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--red)' }}>
             SL ${fmt(signal.sl)}
           </span>
           <span style={{ fontSize: '0.6875rem', color: 'var(--txt-dim)' }}>·</span>
@@ -215,7 +215,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
             Entry ~${fmt(signal.ema20_4h)} (20 EMA)
           </span>
           <span style={{ fontSize: '0.6875rem', color: 'var(--txt-dim)' }}>·</span>
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#34d399' }}>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--green-2)' }}>
             TP ${fmt(signal.tp)} (2:1)
           </span>
         </div>
@@ -229,8 +229,8 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
           paddingTop: 8,
           borderTop: '0.5px solid var(--bdr)',
         }}>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fast avg <b style={{ color: '#fbbf24' }}>${fmt(signal.ema9_4h)}</b></span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Mid avg <b style={{ color: '#60a5fa' }}>${fmt(signal.ema20_4h ?? null)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Fast avg <b style={{ color: 'var(--amber)' }}>${fmt(signal.ema9_4h)}</b></span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Mid avg <b style={{ color: 'var(--accent-2)' }}>${fmt(signal.ema20_4h ?? null)}</b></span>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Slow avg <b style={{ color: '#f97316' }}>${fmt(signal.ema50_4h ?? null)}</b></span>
           <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>Daily trend <b style={{ color: 'var(--accent)' }}>${fmt(signal.sma200_1d ?? null)}</b></span>
         </div>
@@ -247,7 +247,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
             {signal.recentStats.wins} wins / {signal.recentStats.losses} losses
           </b>
           {' · '}
-          <b style={{ color: signal.recentStats.netR >= 0 ? '#34d399' : '#f87171' }}>
+          <b style={{ color: signal.recentStats.netR >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
             {signal.recentStats.netR >= 0 ? '+' : ''}{signal.recentStats.netR.toFixed(1)}R
           </b>
           {signal.recentStats.open > 0 ? ` · ${signal.recentStats.open} open` : ''}
@@ -267,7 +267,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
             borderRadius: 7,
             fontSize: 'var(--fs-caption)',
             fontWeight: 600,
-            color: '#5aa3ff',
+            color: 'var(--accent-2)',
             cursor: 'pointer',
             letterSpacing: '.02em',
             transition: 'background 0.15s',
@@ -283,7 +283,7 @@ export default function EMASignal({ signal, tf = '4h', coin }: Props) {
       )}
 
       {signal.error && (
-        <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginTop: 6 }}>{signal.error}</div>
+        <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 6 }}>{signal.error}</div>
       )}
     </div>
   );

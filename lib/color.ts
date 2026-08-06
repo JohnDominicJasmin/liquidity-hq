@@ -1,4 +1,4 @@
-/** Applies alpha to any CSS color - a hex literal ('#34d399') or a custom
+/** Applies alpha to any CSS color - a hex literal ('var(--green-2)') or a custom
     property (`var(--green)`) - via color-mix. String concatenation like
     `color + '44'` only works when color is a bare hex literal; it silently
     breaks (invalid CSS) the moment that literal is swapped for a var().

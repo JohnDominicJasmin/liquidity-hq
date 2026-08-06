@@ -24,16 +24,16 @@ interface ApiResponse {
 }
 
 function accColor(pct: number): string {
-  if (pct >= 70) return '#34d399';
-  if (pct >= 55) return '#fbbf24';
-  return '#f87171';
+  if (pct >= 70) return 'var(--green-2)';
+  if (pct >= 55) return 'var(--amber)';
+  return 'var(--red)';
 }
 
 function retColor(r: number): string {
-  if (r > 0.5)  return '#34d399';
-  if (r > 0)    return '#6ee7b7';
-  if (r > -0.5) return '#fca5a5';
-  return '#f87171';
+  if (r > 0.5)  return 'var(--green-2)';
+  if (r > 0)    return 'var(--green-soft)';
+  if (r > -0.5) return 'var(--red-soft)';
+  return 'var(--red)';
 }
 
 function accBar(pct: number, color: string) {
@@ -99,7 +99,7 @@ export default function SignalAccuracy() {
         </div>
       )}
       {err && (
-        <div style={{ padding: '16px 14px', fontSize: 'var(--fs-caption)', color: '#f87171' }}>{t('SIGNAL_ACCURACY_LOAD_ERROR')} {err}</div>
+        <div style={{ padding: '16px 14px', fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>{t('SIGNAL_ACCURACY_LOAD_ERROR')} {err}</div>
       )}
 
       {/* Column headers */}
@@ -129,7 +129,7 @@ export default function SignalAccuracy() {
             const col3 = accColor(sig.accuracy3);
             const col6 = accColor(sig.accuracy6);
             const dirIcon = sig.direction === 'long' ? '↑' : '↓';
-            const dirColor = sig.direction === 'long' ? '#34d399' : '#f87171';
+            const dirColor = sig.direction === 'long' ? 'var(--green-2)' : 'var(--red)';
             return (
               <div
                 key={sig.name}

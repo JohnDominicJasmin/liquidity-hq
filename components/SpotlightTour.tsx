@@ -15,7 +15,7 @@ const SANS = "var(--font-sans, 'Figtree', system-ui, sans-serif)";
 // [data-theme="light"] at all. Values below match the app's real light-theme
 // tokens (app/globals.css's [data-theme="light"] block), not guesses.
 const DARK = {
-  ACCENT: '#1a7aff', GREEN: '#4ade80', RED: '#f87171', ORANGE: '#f97316',
+  ACCENT: '#1a7aff', GREEN: 'var(--green)', RED: 'var(--red)', ORANGE: '#f97316',
   BG0: '#07090f', BG1: '#0c0f1c', BG2: '#101324',
   TXT1: '#eef0fa', TXT2: '#9296b5', TXT3: '#4e5374',
   BDR: 'rgba(26,122,255,0.1)', TRACK_BG: 'rgba(26,122,255,0.06)', GRID: 'rgba(26,122,255,0.05)',

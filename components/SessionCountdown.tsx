@@ -77,7 +77,7 @@ export default function SessionCountdown() {
   }, [nowMs]);
 
   /* colours */
-  const statusCol = current?.color ?? (dead ? '#f87171' : '#48484a');
+  const statusCol = current?.color ?? (dead ? 'var(--red)' : '#48484a');
   const statusBg  = current?.bg    ?? (dead ? 'rgba(248,113,113,0.08)' : 'transparent');
 
   return (
@@ -124,7 +124,7 @@ export default function SessionCountdown() {
       {/* Row 3 - active market holidays (NY/London/Asia/China) - reduced liquidity heads-up */}
       {mounted && holidays.length > 0 && (
         <div className="sc-row-next" style={{ marginTop: 4 }}>
-          <span className="sc-next-label" style={{ color: '#fbbf24' }}>{t('SESSION_COUNTDOWN_HOLIDAY')}</span>
+          <span className="sc-next-label" style={{ color: 'var(--amber)' }}>{t('SESSION_COUNTDOWN_HOLIDAY')}</span>
           <span suppressHydrationWarning style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
             {holidays.map(h => t('SESSION_COUNTDOWN_HOLIDAY_ITEM', { region: h.region, name: h.name })).join(' · ')}
           </span>

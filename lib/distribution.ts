@@ -83,5 +83,5 @@ export function computeDistributionScore(d: DistributionInputs): DistributionSco
 }
 
 export function distributionColor(score: number): string {
-  return score >= 75 ? '#f87171' : score >= 60 ? '#fb923c' : '#fbbf24';
+  return score >= 75 ? 'var(--red)' : score >= 60 ? 'var(--orange)' : 'var(--amber)';
 }

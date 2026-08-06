@@ -483,24 +483,24 @@ export default function AlertsPage() {
 
   const ALERT_GROUPS: { section: string; items: { key: string; dot: string; title: string; desc: string }[] }[] = [
     { section: t('ALERTS_SECTION_MOMENTUM'), items: [
-      { key: 'rsi',        dot: '#fbbf24', title: t('ALERTS_RSI_TITLE'), desc: t('ALERTS_RSI_DESC') },
-      { key: 'rapid_move', dot: '#fb923c', title: t('ALERTS_RAPID_MOVES_TITLE'),     desc: t('ALERTS_RAPID_MOVES_DESC') },
+      { key: 'rsi',        dot: 'var(--amber)', title: t('ALERTS_RSI_TITLE'), desc: t('ALERTS_RSI_DESC') },
+      { key: 'rapid_move', dot: 'var(--orange)', title: t('ALERTS_RAPID_MOVES_TITLE'),     desc: t('ALERTS_RAPID_MOVES_DESC') },
     ]},
     { section: t('ALERTS_SECTION_FLOW'), items: [
       { key: 'whales',   dot: '#1a7aff', title: t('ALERTS_WHALES_TITLE'),        desc: t('ALERTS_WHALES_DESC') },
-      { key: 'oi_spike', dot: '#fbbf24', title: t('ALERTS_OI_SPIKE_TITLE'), desc: t('ALERTS_OI_SPIKE_DESC') },
-      { key: 'cvd',      dot: '#34d399', title: t('ALERTS_CVD_TITLE'),      desc: t('ALERTS_CVD_DESC') },
+      { key: 'oi_spike', dot: 'var(--amber)', title: t('ALERTS_OI_SPIKE_TITLE'), desc: t('ALERTS_OI_SPIKE_DESC') },
+      { key: 'cvd',      dot: 'var(--green-2)', title: t('ALERTS_CVD_TITLE'),      desc: t('ALERTS_CVD_DESC') },
       { key: 'squeeze',  dot: '#f43f5e', title: t('ALERTS_SQUEEZE_TITLE'), desc: t('ALERTS_SQUEEZE_DESC') },
       { key: 'distribution', dot: '#f97316', title: t('ALERTS_DISTRIBUTION_TITLE'), desc: t('ALERTS_DISTRIBUTION_DESC') },
     ]},
     { section: t('ALERTS_SECTION_NEWS_SENTIMENT'), items: [
-      { key: 'news',               dot: '#f87171', title: t('ALERTS_NEWS_TITLE'),         desc: t('ALERTS_NEWS_DESC') },
+      { key: 'news',               dot: 'var(--red)', title: t('ALERTS_NEWS_TITLE'),         desc: t('ALERTS_NEWS_DESC') },
       { key: 'fear_greed',         dot: '#f97316', title: t('ALERTS_FEAR_GREED_TITLE'), desc: t('ALERTS_FEAR_GREED_DESC') },
       { key: 'sentiment_extremes', dot: '#f43f5e', title: t('ALERTS_SENTIMENT_EXTREMES_TITLE'),    desc: t('ALERTS_SENTIMENT_EXTREMES_DESC') },
     ]},
     { section: t('ALERTS_SECTION_PRICE_SUMMARY'), items: [
       { key: 'price_alerts',  dot: '#9ba4ff', title: t('ALERTS_PRICE_LEVEL_TITLE'), desc: t('ALERTS_PRICE_LEVEL_DESC') },
-      { key: 'daily_summary', dot: '#fbbf24', title: t('ALERTS_DAILY_SUMMARY_TITLE', { time: dailySummaryLocalTime }), desc: t('ALERTS_DAILY_SUMMARY_DESC', { time: dailySummaryLocalTime }) },
+      { key: 'daily_summary', dot: 'var(--amber)', title: t('ALERTS_DAILY_SUMMARY_TITLE', { time: dailySummaryLocalTime }), desc: t('ALERTS_DAILY_SUMMARY_DESC', { time: dailySummaryLocalTime }) },
     ]},
   ];
 
@@ -548,7 +548,7 @@ export default function AlertsPage() {
           ) : isConnected ? (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 'var(--fs-caption)', fontWeight: 700,
-              padding: '3px 9px', borderRadius: 20, color: '#34d399',
+              padding: '3px 9px', borderRadius: 20, color: 'var(--green-2)',
               background: '#34d39914', border: '0.5px solid #34d39944',
             }}>
               <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#34d399', boxShadow: '0 0 5px #34d399' }} />
@@ -557,7 +557,7 @@ export default function AlertsPage() {
           ) : (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 'var(--fs-caption)', fontWeight: 700,
-              padding: '3px 9px', borderRadius: 20, color: '#f87171',
+              padding: '3px 9px', borderRadius: 20, color: 'var(--red)',
               background: 'transparent', border: '0.5px solid var(--bdr)',
             }}>
               <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#f87171' }} />
@@ -603,7 +603,7 @@ export default function AlertsPage() {
 
             {!webhookOk && (
               <div style={{
-                fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 14, padding: '8px 12px',
+                fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 14, padding: '8px 12px',
                 background: '#f8717114', borderRadius: 6, border: '0.5px solid #f8717144',
               }}>
                 <Warn /> {t('ALERTS_CONNECT_WEBHOOK_WARNING')}
@@ -720,7 +720,7 @@ export default function AlertsPage() {
                       })}
                     </div>
                   ) : (
-                    <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>
+                    <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>
                       {t('ALERTS_CONNECT_CODE_EXPIRED')}
                     </div>
                   )}
@@ -894,7 +894,7 @@ export default function AlertsPage() {
             {t('ALERTS_COIN_SELECTION_DESC')}
           </div>
           {coinCapMsg && (
-            <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 8 }}>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 8 }}>
               {coinCapMsg}
             </div>
           )}
@@ -938,7 +938,7 @@ export default function AlertsPage() {
             })()}
           </div>
           {tfCapMsg && (
-            <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 8, paddingLeft: 14 }}>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 8, paddingLeft: 14 }}>
               {tfCapMsg}
             </div>
           )}
@@ -1072,7 +1072,7 @@ export default function AlertsPage() {
             {t('ALERTS_SIGNAL_DIRECTION_DESC')}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {([['dir:long', t('ALERTS_DIR_LONG_LABEL'), '#4ade80'], ['dir:short', t('ALERTS_DIR_SHORT_LABEL'), '#f87171']] as const).map(([key, label, col]) => {
+            {([['dir:long', t('ALERTS_DIR_LONG_LABEL'), 'var(--green)'], ['dir:short', t('ALERTS_DIR_SHORT_LABEL'), 'var(--red)']] as const).map(([key, label, col]) => {
               const off = muted.has(key);
               return (
                 <button

@@ -7,10 +7,10 @@ const R = 21; // ring radius
 const C = 2 * Math.PI * R; // arc circumference
 
 const RINGS = [
-  { id: 'quick',    labelKey: 'USAGE_RINGS_QUICK',    color: '#34d399', used: 'quick_used',     limit: 'quick_limit'     },
-  { id: 'deep',     labelKey: 'USAGE_RINGS_DEEP',     color: '#5aa3ff', used: 'deep_used',      limit: 'deep_limit'      },
-  { id: 'chat',     labelKey: 'USAGE_RINGS_CHAT',     color: '#60a5fa', used: 'chat_used',      limit: 'chat_limit'      },
-  { id: 'search',   labelKey: 'USAGE_RINGS_SEARCH',   color: '#1a7aff', used: 'search_used',    limit: 'search_limit'    },
+  { id: 'quick',    labelKey: 'USAGE_RINGS_QUICK',    color: 'var(--green-2)', used: 'quick_used',     limit: 'quick_limit'     },
+  { id: 'deep',     labelKey: 'USAGE_RINGS_DEEP',     color: 'var(--accent-2)', used: 'deep_used',      limit: 'deep_limit'      },
+  { id: 'chat',     labelKey: 'USAGE_RINGS_CHAT',     color: 'var(--accent-2)', used: 'chat_used',      limit: 'chat_limit'      },
+  { id: 'search',   labelKey: 'USAGE_RINGS_SEARCH',   color: 'var(--accent)', used: 'search_used',    limit: 'search_limit'    },
   { id: 'briefing', labelKey: 'USAGE_RINGS_BRIEFING', color: '#f59e0b', used: 'briefing_used',  limit: 'briefing_limit'  },
   // Shared budget across all 11 one-shot tools. Pro-only, so this ring is
   // filtered out below when the limit is 0 - free is capped per tool and has
@@ -32,7 +32,7 @@ export default function UsageRings({ usage }: { usage: GrokUsageInfo }) {
           const limit     = usage[limitKey] ?? 0;
           const remaining = limit - used;
           const pct       = limit > 0 ? used / limit : 0;
-          const col       = pct >= 0.9 ? '#f87171' : pct >= 0.7 ? '#fbbf24' : color;
+          const col       = pct >= 0.9 ? 'var(--red)' : pct >= 0.7 ? 'var(--amber)' : color;
           const offset    = C * (1 - pct);
           return (
             <div key={id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>

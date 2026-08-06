@@ -77,7 +77,7 @@ export default function AccumulationTracker() {
       .slice(0, MAX_ROWS);
   }, [store.coins]);
 
-  const scoreCol = (s: number) => s >= 75 ? '#4ade80' : s >= 60 ? '#a3e635' : '#fbbf24';
+  const scoreCol = (s: number) => s >= 75 ? 'var(--green)' : s >= 60 ? '#a3e635' : 'var(--amber)';
 
   return (
     <div style={{
@@ -165,7 +165,7 @@ export default function AccumulationTracker() {
               </span>
               <span className="at-change" style={{
                 fontSize: 'var(--fs-caption)', fontWeight: 600, flexShrink: 0, width: 48, textAlign: 'right',
-                color: r.change >= 0 ? '#4ade80' : '#f87171', fontVariantNumeric: 'tabular-nums',
+                color: r.change >= 0 ? 'var(--green)' : 'var(--red)', fontVariantNumeric: 'tabular-nums',
               }}>
                 {r.change >= 0 ? '+' : ''}{r.change.toFixed(2)}%
               </span>

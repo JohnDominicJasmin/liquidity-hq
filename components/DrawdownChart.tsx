@@ -13,11 +13,11 @@ interface AthEntry {
 
 function drawdownColor(pct: number): string {
   const abs = Math.abs(pct);
-  if (abs >= 80) return '#ef4444';
-  if (abs >= 60) return '#f87171';
-  if (abs >= 40) return '#fb923c';
-  if (abs >= 20) return '#fbbf24';
-  return '#34d399';
+  if (abs >= 80) return 'var(--red)';
+  if (abs >= 60) return 'var(--red)';
+  if (abs >= 40) return 'var(--orange)';
+  if (abs >= 20) return 'var(--amber)';
+  return 'var(--green-2)';
 }
 
 function fmtDate(iso: string): string {
@@ -80,7 +80,7 @@ export default function DrawdownChart() {
           <Tip text={t('DRAWDOWN_CHART_TOOLTIP')}>{t('DRAWDOWN_CHART_TITLE')}</Tip>
         </span>
         {nearAth > 0 && (
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: 'var(--green-2)', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
             {t('DRAWDOWN_CHART_NEAR_ATH_BADGE', { count: nearAth })}
           </span>
         )}
@@ -107,7 +107,7 @@ export default function DrawdownChart() {
         </div>
       )}
       {err && (
-        <div style={{ padding: '16px 14px', fontSize: 'var(--fs-caption)', color: '#f87171' }}>{t('DRAWDOWN_CHART_ERROR', { error: err })}</div>
+        <div style={{ padding: '16px 14px', fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>{t('DRAWDOWN_CHART_ERROR', { error: err })}</div>
       )}
 
       {/* Bar chart rows */}
@@ -126,7 +126,7 @@ export default function DrawdownChart() {
               <div key={c}>
                 {/* Coin label + values */}
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 3 }}>
-                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isNear ? '#34d399' : 'var(--txt)', width: 40, flexShrink: 0 }}>
+                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isNear ? 'var(--green-2)' : 'var(--txt)', width: 40, flexShrink: 0 }}>
                     {c.toUpperCase()}
                   </span>
                   <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, color: col, fontVariantNumeric: 'tabular-nums', minWidth: 52 }}>
@@ -166,11 +166,11 @@ export default function DrawdownChart() {
       {/* Footer */}
       <div style={{ padding: '5px 14px 8px', borderTop: '0.5px solid rgba(255,255,255,0.05)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         {([
-          { labelKey: 'DRAWDOWN_CHART_LEGEND_UNDER_20', col: '#34d399' },
-          { labelKey: 'DRAWDOWN_CHART_LEGEND_20_40', col: '#fbbf24' },
-          { labelKey: 'DRAWDOWN_CHART_LEGEND_40_60', col: '#fb923c' },
-          { labelKey: 'DRAWDOWN_CHART_LEGEND_60_80', col: '#f87171' },
-          { labelKey: 'DRAWDOWN_CHART_LEGEND_OVER_80', col: '#ef4444' },
+          { labelKey: 'DRAWDOWN_CHART_LEGEND_UNDER_20', col: 'var(--green-2)' },
+          { labelKey: 'DRAWDOWN_CHART_LEGEND_20_40', col: 'var(--amber)' },
+          { labelKey: 'DRAWDOWN_CHART_LEGEND_40_60', col: 'var(--orange)' },
+          { labelKey: 'DRAWDOWN_CHART_LEGEND_60_80', col: 'var(--red)' },
+          { labelKey: 'DRAWDOWN_CHART_LEGEND_OVER_80', col: 'var(--red)' },
         ] as const).map(({ labelKey, col }) => (
           <span key={labelKey} style={{ fontSize: 'var(--fs-caption)', color: col, fontWeight: 600 }}>{t(labelKey)}</span>
         ))}

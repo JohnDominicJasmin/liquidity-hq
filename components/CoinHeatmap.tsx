@@ -22,10 +22,10 @@ const CAT: Record<Cat, readonly CoinId[]> = {
 
 function changeColor(chg: number | null): { bg: string; text: string } {
   if (chg == null) return { bg: 'rgba(255,255,255,0.04)', text: 'var(--txt-dim)' };
-  if (chg >=  10) return { bg: 'rgba(52,211,153,0.30)',  text: '#34d399' };
-  if (chg >=   5) return { bg: 'rgba(52,211,153,0.22)',  text: '#6ee7b7' };
-  if (chg >=   2) return { bg: 'rgba(52,211,153,0.13)',  text: '#86efac' };
-  if (chg >=   0) return { bg: 'rgba(52,211,153,0.07)',  text: '#4ade80' };
+  if (chg >=  10) return { bg: 'rgba(52,211,153,0.30)',  text: 'var(--green-2)' };
+  if (chg >=   5) return { bg: 'rgba(52,211,153,0.22)',  text: 'var(--green-soft)' };
+  if (chg >=   2) return { bg: 'rgba(52,211,153,0.13)',  text: 'var(--green-soft)' };
+  if (chg >=   0) return { bg: 'rgba(52,211,153,0.07)',  text: 'var(--green)' };
   /* The red ramp used to darken the text (#fca5a5 -> #f87171 -> #ef4444 ->
      #dc2626) at the same time as it made the tile background a more opaque red
      (0.07 -> 0.38). Both moving together collapses the contrast exactly where
@@ -37,9 +37,9 @@ function changeColor(chg: number | null): { bg: string; text: string } {
      The green side has the same shape but does not fail (its worst bucket is
      5.71:1) because green is inherently light; left as-is rather than churning
      a passing palette, but the same rule applies if that ramp is ever extended. */
-  if (chg >= -2)  return { bg: 'rgba(248,113,113,0.07)', text: '#fca5a5' };
-  if (chg >= -5)  return { bg: 'rgba(248,113,113,0.15)', text: '#fcbcbc' };
-  if (chg >= -10) return { bg: 'rgba(248,113,113,0.25)', text: '#fecaca' };
+  if (chg >= -2)  return { bg: 'rgba(248,113,113,0.07)', text: 'var(--red-soft)' };
+  if (chg >= -5)  return { bg: 'rgba(248,113,113,0.15)', text: 'var(--red-soft)' };
+  if (chg >= -10) return { bg: 'rgba(248,113,113,0.25)', text: 'var(--red-soft)' };
   return              { bg: 'rgba(248,113,113,0.38)',     text: '#fee2e2' };
 }
 
@@ -149,12 +149,12 @@ export default function CoinHeatmap() {
           <Tip text={t('COIN_HEATMAP_TOOLTIP')}>{t('COIN_HEATMAP_TITLE')}</Tip>
         </span>
         {positiveCount > 0 && (
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: 'var(--green-2)', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)' }}>
             ↑ {positiveCount}
           </span>
         )}
         {negativeCount > 0 && (
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '0.5px solid rgba(248,113,113,0.25)' }}>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20, color: 'var(--red)', background: 'rgba(248,113,113,0.1)', border: '0.5px solid rgba(248,113,113,0.25)' }}>
             ↓ {negativeCount}
           </span>
         )}
@@ -247,9 +247,9 @@ export default function CoinHeatmap() {
       }}>
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)', marginRight: 4 }}>{t('COIN_HEATMAP_SCALE_LABEL')}</span>
         {[
-          { label: '>+10%', c: '#34d399' }, { label: '+5%', c: '#6ee7b7' },
-          { label: '+2%', c: '#86efac' },   { label: '0', c: 'var(--txt-dim)' },
-          { label: '-2%', c: '#fca5a5' },   { label: '-5%', c: '#fcbcbc' },
+          { label: '>+10%', c: 'var(--green-2)' }, { label: '+5%', c: 'var(--green-soft)' },
+          { label: '+2%', c: 'var(--green-soft)' },   { label: '0', c: 'var(--txt-dim)' },
+          { label: '-2%', c: 'var(--red-soft)' },   { label: '-5%', c: 'var(--red-soft)' },
           { label: '<-10%', c: '#fee2e2' },
         ].map(({ label, c }) => (
           <span key={label} style={{ fontSize: 'var(--fs-caption)', color: c, fontWeight: 600 }}>{label}</span>

@@ -24,9 +24,9 @@ const CACHE_TTL = 4 * 60 * 60 * 1000;
 type LoadState = DPData | null | 'loading' | 'error' | 'unauth' | 'locked';
 
 const SIGNAL_META: Record<string, { col: string; bg: string; bdr: string; icon: string }> = {
-  EXPANDING:   { col: '#34d399', bg: 'rgba(52,211,153,0.10)',  bdr: 'rgba(52,211,153,0.3)',  icon: '↑' },
-  CONTRACTING: { col: '#f87171', bg: 'rgba(248,113,113,0.10)', bdr: 'rgba(248,113,113,0.3)', icon: '↓' },
-  NEUTRAL:     { col: '#fbbf24', bg: 'rgba(251,191,36,0.10)',  bdr: 'rgba(251,191,36,0.3)',  icon: '→' },
+  EXPANDING:   { col: 'var(--green-2)', bg: 'rgba(52,211,153,0.10)',  bdr: 'rgba(52,211,153,0.3)',  icon: '↑' },
+  CONTRACTING: { col: 'var(--red)', bg: 'rgba(248,113,113,0.10)', bdr: 'rgba(248,113,113,0.3)', icon: '↓' },
+  NEUTRAL:     { col: 'var(--amber)', bg: 'rgba(251,191,36,0.10)',  bdr: 'rgba(251,191,36,0.3)',  icon: '→' },
 };
 
 function parseDPSection(text: string, key: string): string {
@@ -56,7 +56,7 @@ function Sparkline({ series }: { series: number[] }) {
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(' ');
   const rising = series[series.length - 1] >= series[0];
-  const col    = rising ? '#34d399' : '#f87171';
+  const col    = rising ? 'var(--green-2)' : 'var(--red)';
   return (
     <svg width={W} height={H} style={{ display: 'block', flexShrink: 0 }}>
       <polyline points={pts} fill="none" stroke={col} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
@@ -173,7 +173,7 @@ export default function DryPowder() {
               callback keeps `t` out of that callback's dependencies - it had to
               be omitted there, which froze the message to first-render's
               language and left it stale after a locale switch. */}
-          <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 6 }}>{errMsg || t('DRY_POWDER_FETCH_FAILED')}</div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 6 }}>{errMsg || t('DRY_POWDER_FETCH_FAILED')}</div>
           <button
             onClick={fetchData}
             style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}
@@ -198,7 +198,7 @@ export default function DryPowder() {
                   </span>
                   <span style={{
                     fontSize: 'var(--fs-caption)', fontWeight: 700, fontFamily: 'var(--font-mono), monospace',
-                    color: chg30Up ? '#34d399' : '#f87171',
+                    color: chg30Up ? 'var(--green-2)' : 'var(--red)',
                   }}>
                     {t('DRY_POWDER_30D_CHANGE', { pct: chg30 })}
                   </span>

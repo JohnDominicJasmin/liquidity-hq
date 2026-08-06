@@ -28,9 +28,9 @@ const CACHE_TTL = 2 * 60 * 60 * 1000; // 2 hours
 type LoadState = MacroData | null | 'loading' | 'error' | 'unauth';
 
 const SIGNAL_META: Record<string, { col: string; bg: string; bdr: string; labelKey: LabelKey }> = {
-  RISK_ON:  { col: '#34d399', bg: 'rgba(52,211,153,0.10)',  bdr: 'rgba(52,211,153,0.3)',  labelKey: 'GLOBAL_MACRO_CONTEXT_SIGNAL_RISK_ON'  },
-  RISK_OFF: { col: '#f87171', bg: 'rgba(248,113,113,0.10)', bdr: 'rgba(248,113,113,0.3)', labelKey: 'GLOBAL_MACRO_CONTEXT_SIGNAL_RISK_OFF' },
-  NEUTRAL:  { col: '#fbbf24', bg: 'rgba(251,191,36,0.10)',  bdr: 'rgba(251,191,36,0.3)',  labelKey: 'GLOBAL_MACRO_CONTEXT_SIGNAL_NEUTRAL'  },
+  RISK_ON:  { col: 'var(--green-2)', bg: 'rgba(52,211,153,0.10)',  bdr: 'rgba(52,211,153,0.3)',  labelKey: 'GLOBAL_MACRO_CONTEXT_SIGNAL_RISK_ON'  },
+  RISK_OFF: { col: 'var(--red)', bg: 'rgba(248,113,113,0.10)', bdr: 'rgba(248,113,113,0.3)', labelKey: 'GLOBAL_MACRO_CONTEXT_SIGNAL_RISK_OFF' },
+  NEUTRAL:  { col: 'var(--amber)', bg: 'rgba(251,191,36,0.10)',  bdr: 'rgba(251,191,36,0.3)',  labelKey: 'GLOBAL_MACRO_CONTEXT_SIGNAL_NEUTRAL'  },
 };
 
 function parseMacroSection(text: string, key: string): string {
@@ -42,7 +42,7 @@ function parseMacroSection(text: string, key: string): string {
 function chgColor(chg: number, invertBullish = false) {
   const pos = invertBullish ? chg < 0 : chg > 0;
   if (Math.abs(chg) < 0.05) return 'var(--txt3)';
-  return pos ? '#34d399' : '#f87171';
+  return pos ? 'var(--green-2)' : 'var(--red)';
 }
 
 function chgStr(chg: number) {
@@ -155,7 +155,7 @@ export default function GlobalMacroContext() {
               callback keeps `t` out of that callback's dependencies - it had to
               be omitted there, which froze the message to first-render's
               language and left it stale after a locale switch. */}
-          <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 6 }}>{errMsg || t('GLOBAL_MACRO_CONTEXT_FETCH_FAILED')}</div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 6 }}>{errMsg || t('GLOBAL_MACRO_CONTEXT_FETCH_FAILED')}</div>
           <button onClick={fetchData} style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', background: 'transparent', border: '0.5px solid var(--bdr)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}>{t('GLOBAL_MACRO_CONTEXT_RETRY')}</button>
         </div>
       )}

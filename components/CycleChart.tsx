@@ -15,8 +15,8 @@ interface CycleData {
 
 const CYCLES: { key: '2016' | '2020' | '2024'; color: string }[] = [
   { key: '2016', color: 'var(--orange)' },
-  { key: '2020', color: '#fbbf24' },
-  { key: '2024', color: '#34d399' },
+  { key: '2020', color: 'var(--amber)' },
+  { key: '2024', color: 'var(--green-2)' },
 ];
 
 const CYCLE_LEGEND_KEY: Record<'2016' | '2020' | '2024', LabelKey> = {
@@ -115,7 +115,7 @@ export default function CycleChart() {
         </div>
       )}
       {err && (
-        <div style={{ padding: '20px 14px', fontSize: 'var(--fs-caption)', color: '#f87171' }}>{t('CYCLE_CHART_LOAD_ERROR', { err })}</div>
+        <div style={{ padding: '20px 14px', fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>{t('CYCLE_CHART_LOAD_ERROR', { err })}</div>
       )}
 
       {/* SVG chart */}

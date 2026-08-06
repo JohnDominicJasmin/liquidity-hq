@@ -46,7 +46,7 @@ function saveCache(data: OnChainData) {
 }
 
 function ScoreBar({ value, label, weight }: { value: number; label: string; weight: string }) {
-  const col = value >= 65 ? '#34d399' : value <= 40 ? '#f87171' : '#fbbf24';
+  const col = value >= 65 ? 'var(--green-2)' : value <= 40 ? 'var(--red)' : 'var(--amber)';
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
@@ -121,11 +121,11 @@ export default function OnChainScore() {
     }
   }, [user, btcPrice]);
 
-  const verdictCol = data?.verdict === 'BULLISH' ? '#34d399' : data?.verdict === 'BEARISH' ? '#f87171' : '#fbbf24';
-  const compositeCol = (data?.composite_score ?? 50) >= 65 ? '#34d399' : (data?.composite_score ?? 50) <= 40 ? '#f87171' : '#fbbf24';
+  const verdictCol = data?.verdict === 'BULLISH' ? 'var(--green-2)' : data?.verdict === 'BEARISH' ? 'var(--red)' : 'var(--amber)';
+  const compositeCol = (data?.composite_score ?? 50) >= 65 ? 'var(--green-2)' : (data?.composite_score ?? 50) <= 40 ? 'var(--red)' : 'var(--amber)';
 
   const flowIcon = data?.exchange_flow === 'OUTFLOW' ? '↓' : data?.exchange_flow === 'INFLOW' ? '↑' : '→';
-  const flowCol = data?.exchange_flow === 'OUTFLOW' ? '#34d399' : data?.exchange_flow === 'INFLOW' ? '#f87171' : '#fbbf24';
+  const flowCol = data?.exchange_flow === 'OUTFLOW' ? 'var(--green-2)' : data?.exchange_flow === 'INFLOW' ? 'var(--red)' : 'var(--amber)';
 
   return (
     <div style={{
@@ -183,7 +183,7 @@ export default function OnChainScore() {
 
       {/* Error */}
       {error && (
-        <div style={{ padding: '8px 14px', fontSize: 'var(--fs-caption)', color: '#f87171', background: 'rgba(248,113,113,0.06)' }}>
+        <div style={{ padding: '8px 14px', fontSize: 'var(--fs-caption)', color: 'var(--red)', background: 'rgba(248,113,113,0.06)' }}>
           {/* The two sentinels set by the fetch above resolve to labels here;
               anything else is a real message from the server and is shown as-is. */}
           {error === 'REQUEST_FAILED' ? t('ON_CHAIN_SCORE_REQUEST_FAILED')

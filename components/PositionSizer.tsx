@@ -179,7 +179,7 @@ export default function PositionSizer({ coin }: { coin: CoinId | '' }) {
         </div>
         {account && riskPct && (
           <div className="ps-risk-line">
-            {t('CALC_SIZER_AT_RISK_PREFIX')} <strong style={{ color: '#f87171' }}>{fmtUSD((parseFloat(account) || 0) * ((parseFloat(riskPct) || 0) / 100))}</strong>
+            {t('CALC_SIZER_AT_RISK_PREFIX')} <strong style={{ color: 'var(--red)' }}>{fmtUSD((parseFloat(account) || 0) * ((parseFloat(riskPct) || 0) / 100))}</strong>
           </div>
         )}
       </div>

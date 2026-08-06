@@ -59,7 +59,7 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
       : ((currentPrice - l.price)  / currentPrice * 100);
     const barW = Math.round((l.amount / maxAmt) * 100);
     // above = short liq = green (bulls squeeze up); below = long liq = red (bears dump)
-    const color = side === 'above' ? '#34d399' : '#f87171';
+    const color = side === 'above' ? 'var(--green-2)' : 'var(--red)';
     const bg    = side === 'above' ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)';
 
     return (
@@ -92,7 +92,7 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
       {/* Short liq clusters - above price */}
       {above.length > 0 && (
         <>
-          <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: '#34d399', letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 4 }}>
+          <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--green-2)', letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 4 }}>
             {t('LIQ_HEATMAP_SHORT_SECTION_LABEL')}
           </div>
           {above.map((l, i) => <Row key={i} l={l} side="above" />)}
@@ -115,7 +115,7 @@ export default function LiqHeatmap({ levels, currentPrice }: Props) {
       {below.length > 0 && (
         <>
           {below.map((l, i) => <Row key={i} l={l} side="below" />)}
-          <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: '#f87171', letterSpacing: '.06em', textTransform: 'uppercase', marginTop: 4 }}>
+          <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, color: 'var(--red)', letterSpacing: '.06em', textTransform: 'uppercase', marginTop: 4 }}>
             {t('LIQ_HEATMAP_LONG_SECTION_LABEL')}
           </div>
         </>
