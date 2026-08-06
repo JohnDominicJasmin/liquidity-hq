@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { motion } from 'motion/react';
 
 interface Beam {
@@ -34,10 +34,46 @@ function createBeam(width: number, height: number): Beam {
 
 const OPACITY_MAP = { subtle: 0.6, medium: 0.8, strong: 1 };
 
+/* WCAG 2.2.2 Pause, Stop, Hide is Level A, and this component paints the FIRST
+   thing a visitor sees on the public marketing homepage.
+   Two things here ran forever with no way to stop them: the requestAnimationFrame
+   loop below, and the Motion opacity pulse at the bottom of this file. Neither
+   checked prefers-reduced-motion, so someone who had asked their operating system
+   to reduce motion got both anyway.
+   Not a deliberate exception - the app honours the setting in four other places
+   (globals.css, SpotlightTour.tsx). This file was missed.
+
+   Read through useSyncExternalStore rather than useState + useEffect because a
+   media query IS an external store, and the setState-in-an-effect version trips
+   the React Compiler's cascading-render rule. It also gives a defined value on
+   the very first render instead of a frame of "unknown". */
+const REDUCE_MOTION = '(prefers-reduced-motion: reduce)';
+
+function subscribeReduceMotion(onChange: () => void) {
+  // Subscribed, not read once: the setting can change mid-session, and a user
+  // toggling it is the clearest statement of intent there is.
+  const mq = window.matchMedia(REDUCE_MOTION);
+  mq.addEventListener('change', onChange);
+  return () => mq.removeEventListener('change', onChange);
+}
+
+const readReduceMotion = () => window.matchMedia(REDUCE_MOTION).matches;
+
+/* Server-side there is no media query to read, so assume reduced. Erring toward
+   "still" means the worst case is one static frame before hydration corrects it,
+   rather than motion reaching someone who asked for none. */
+const readReduceMotionOnServer = () => true;
+
 export function BeamsBackground({ intensity = 'strong' }: { intensity?: 'subtle' | 'medium' | 'strong' }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const beamsRef = useRef<Beam[]>([]);
   const rafRef = useRef<number>(0);
+
+  const reduceMotion = useSyncExternalStore(
+    subscribeReduceMotion,
+    readReduceMotion,
+    readReduceMotionOnServer,
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -92,29 +128,39 @@ export function BeamsBackground({ intensity = 'strong' }: { intensity?: 'subtle'
       ctx.restore();
     };
 
+    /* Draws exactly one frame. Advancing the beams and scheduling the next frame
+       are both skipped under reduced motion, so the artwork still paints - it
+       just never moves.
+       Deliberately not "render nothing": 2.2.2 objects to movement, not to the
+       image, and a blank hero would punish someone for setting the preference.
+       The still frame is the same composition, frozen. */
     const animate = () => {
       const { w, h } = getSize();
       ctx.clearRect(0, 0, w, h);
       ctx.filter = 'blur(35px)';
       const total = beamsRef.current.length;
       beamsRef.current.forEach((beam, i) => {
-        beam.y -= beam.speed;
-        beam.pulse += beam.pulseSpeed;
-        if (beam.y + beam.length < -100) resetBeam(beam, i, total);
+        if (!reduceMotion) {
+          beam.y -= beam.speed;
+          beam.pulse += beam.pulseSpeed;
+          if (beam.y + beam.length < -100) resetBeam(beam, i, total);
+        }
         drawBeam(beam);
       });
-      rafRef.current = requestAnimationFrame(animate);
+      if (!reduceMotion) rafRef.current = requestAnimationFrame(animate);
     };
 
     setup();
-    window.addEventListener('resize', setup);
+    // Still repaints on resize when frozen, or the frame stretches.
+    const onResize = () => { setup(); if (reduceMotion) animate(); };
+    window.addEventListener('resize', onResize);
     animate();
 
     return () => {
-      window.removeEventListener('resize', setup);
+      window.removeEventListener('resize', onResize);
       cancelAnimationFrame(rafRef.current);
     };
-  }, [intensity]);
+  }, [intensity, reduceMotion]);
 
   return (
     <>
@@ -140,8 +186,14 @@ export function BeamsBackground({ intensity = 'strong' }: { intensity?: 'subtle'
           pointerEvents: 'none',
           zIndex: 1,
         }}
-        animate={{ opacity: [0.05, 0.2, 0.05] }}
-        transition={{ duration: 10, ease: 'easeInOut', repeat: Infinity }}
+        /* The second half of the 2.2.2 fix. This pulsed forever via
+           repeat: Infinity regardless of the user's preference. Under reduced
+           motion it holds a fixed opacity at the midpoint of the range it used
+           to travel, so the depth effect survives without the movement. */
+        animate={reduceMotion ? { opacity: 0.125 } : { opacity: [0.05, 0.2, 0.05] }}
+        transition={reduceMotion
+          ? { duration: 0 }
+          : { duration: 10, ease: 'easeInOut', repeat: Infinity }}
       />
     </>
   );
