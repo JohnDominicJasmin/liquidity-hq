@@ -1,25 +1,75 @@
 name: CI
 
+# ─────────────────────────────────────────────────────────────────────────────
+# WHERE THE BROWSER SUITE RUNS. Read this before adding a trigger.
+#
+# Aug 3-5 2026 burned 1,755 Actions minutes in three days on a private repo with
+# a 2,000 min/month allowance - roughly $124/month annualised, and it hard-
+# stopped CI mid-release when the spending limit was hit.
+#
+# The rule now: the ~2 minute job runs on everything. The ~34 minute Playwright
+# suite runs on exactly ONE automatic trigger - a PR into `main`, which is the
+# release, immediately before a production deploy.
+#
+# What replaces it everywhere else is QA running the suite LOCALLY when a
+# dev -> qa PR arrives (CONTRIBUTING section 4b). That is a real gate with a
+# named owner, not a hope.
+#
+# Why one CI run survives at all: QA's local run is one machine with .env.local
+# present. CI is the only place the app builds WITHOUT developer env, and that
+# difference has produced two real defects - the labels bug (only reproduces
+# when /api/labels returns {}, which never happens locally) and the
+# NEXT_PUBLIC_APP_ENV table-prefix gap. ~136 min/month for the last check
+# between a green laptop and production.
+# ─────────────────────────────────────────────────────────────────────────────
+
 on:
-  # qa is the branch QA tests against, so a broken merge into it costs QA a
-  # wasted test run and a false bug report before anyone looks at CI. Checking
-  # it here is cheaper than that. Note the qa Render service does NOT
-  # auto-deploy - a merge into qa is not live until someone triggers it - so
-  # this is a gate on the branch, not a last line of defence before users.
-  push:
-    branches: [dev, qa, main]
-  # Also on PRs, or CI only ever runs AFTER a merge - which is the one moment
-  # it cannot help. The convention makes the PR the review point (CONTRIBUTING
-  # section 4), so the checks have to be green before the merge button, not
-  # after. Covers PRs from any branch, including QA-authored ones, which a
-  # push trigger limited to [dev, main] never sees.
+  # The PR is the review point (CONTRIBUTING section 4), so the gate has to be
+  # here - CI that only runs after a merge runs at the one moment it cannot
+  # help. `types` is explicit so a label or a title edit can never spend 34
+  # minutes; `synchronize` is the one that fires on each push to an open PR.
   pull_request:
     branches: [dev, qa, main]
+    types: [opened, reopened, synchronize, ready_for_review]
+
+  push:
+    # `qa` is deliberately ABSENT. CONTRIBUTING section 6 makes dev -> qa
+    # fast-forward only, so the commit landing on qa is bit-identical to one
+    # already tested on dev. Worse, the qa->main release PR stays open for the
+    # whole cycle, so each ff-push to qa ALSO fired `synchronize` on it - one
+    # promotion used to bill three full runs.
+    branches: [dev, main]
+
+  # For running the browser suite on demand: re-checking after a flake, or
+  # proving a fix without opening a release PR first.
+  workflow_dispatch:
+    inputs:
+      e2e:
+        description: Run the full browser suite
+        type: boolean
+        default: true
+
+# Without this, every push to a PR stacked another run and the superseded one
+# carried on to completion. Nothing was ever cancelled. Costs no coverage.
+#
+# event_name is in the group so a dispatch and a push never share a lane.
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref_name }}
+  # PRs and dev cancel freely - only the tip matters. main NEVER cancels
+  # mid-flight; a second push queues behind the first. On a pull_request event
+  # ref_name is "33/merge", not a branch, so the dev comparison cannot
+  # false-positive there.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref_name == 'dev' }}
+
+permissions:
+  contents: read
 
 jobs:
   build:
     name: Lint + typecheck + test + build
     runs-on: ubuntu-latest
+    # Had no cap at all, so a hung npm ci billed toward GitHub's 6-hour default.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -36,7 +86,7 @@ jobs:
       # Runs first because it is the fastest of the four steps.
       #
       # Fails on errors only. Warnings are printed but do not block - there are
-      # 93 of them, a pre-existing React Compiler backlog documented in
+      # 94 of them, a pre-existing React Compiler backlog documented in
       # eslint.config.mjs. Deliberately no --max-warnings=0: it would either
       # force a 67-file refactor of live code today, or be set to a number
       # nobody maintains.
@@ -64,15 +114,28 @@ jobs:
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
+    # Only after lint/typecheck/unit/build are green. A broken build would
+    # produce 216 browser failures that all say "the build is broken", which
+    # buries the one line that actually explains it.
+    needs: build
+    # THE COST DECISION, in one expression. A PR into `main` is the release, and
+    # the production deploy is the next manual step after it merges. Nothing
+    # else triggers this automatically.
+    #
+    # base_ref, not ref_name - on a pull_request event ref_name is "33/merge".
+    # base_ref is empty on push and on dispatch, so both fall through.
+    #
+    # PRs into `dev` and into `qa` deliberately get the 2-minute job only. What
+    # covers them is QA running this same suite locally when the dev -> qa PR
+    # arrives. See CONTRIBUTING 4b.
+    if: >-
+      github.base_ref == 'main' ||
+      (github.event_name == 'workflow_dispatch' && inputs.e2e)
     # A full run is ~31 minutes. Without a cap, a genuinely hung run burns to
     # GitHub's 6-hour default, and a stuck run looks identical to a slow one -
     # which happened while this suite was being brought up. 45 leaves headroom
     # for a cold runner without hiding a hang.
     timeout-minutes: 45
-    # Only after lint/typecheck/unit/build are green. A broken build would
-    # produce 216 browser failures that all say "the build is broken", which
-    # buries the one line that actually explains it.
-    needs: build
     steps:
       - uses: actions/checkout@v4
 
@@ -91,8 +154,30 @@ jobs:
       # project. devices['iPhone 13'] defaults to WebKit, and without that pin
       # every mobile test fails here with "Executable doesn't exist at
       # .../webkit-2336" - which is what happened the first time this suite ran.
+      #
+      # Cached on the Playwright VERSION, not the lockfile hash: a dependency
+      # bump elsewhere should not evict a 120MB browser download that was
+      # otherwise re-fetched on every single run.
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "v=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        id: pwcache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ steps.pw.outputs.v }}
+
       - name: Install Chromium
+        if: steps.pwcache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+
+      # The browser binary is cached but its apt system libraries are not -
+      # those live outside ~/.cache. ~5s.
+      - name: Install Chromium system deps
+        if: steps.pwcache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
 
       # playwright.config.ts's webServer runs `npm run build && npm start` on
       # port 3100, so CI and local exercise the same production build.
@@ -160,10 +245,63 @@ jobs:
           E2E_A_HYPOTHESIS_ID: ${{ secrets.E2E_A_HYPOTHESIS_ID }}
           E2E_A_PRICE_ALERT_ID: ${{ secrets.E2E_A_PRICE_ALERT_ID }}
 
-      # Uploaded on failure too - that is the run you actually need to read.
+      # failure() only. This used to upload on every green run too - ~15s and
+      # storage for a report nobody opens. failure() still excludes
+      # cancellations, so a concurrency-cancelled run uploads nothing.
       - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
+        if: ${{ failure() }}
         with:
-          name: playwright-report
+          name: playwright-report-${{ github.run_attempt }}
           path: qa/e2e-report/
           retention-days: 14
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # THE ONLY REQUIRED STATUS CHECK. Do not require `build` or `e2e` directly.
+  #
+  # GitHub's behaviour here is unintuitive and both halves are traps:
+  #
+  #   * A job skipped by its own `if:` reports SUCCESS to branch protection. So
+  #     requiring `E2E (Playwright)` would be satisfied by it NOT running - which
+  #     is now the normal case on every PR that is not a release.
+  #   * A job skipped because `needs:` FAILED also reports SUCCESS. So requiring
+  #     `e2e` while `build` is not required would let a broken build merge on a
+  #     green tick.
+  #
+  # This job therefore asserts the REASON for a skip, not merely the absence of
+  # a failure. always() rather than !cancelled() so a cancelled run still ends
+  # red - harmless, because cancellation only happens when a newer SHA arrives
+  # and checks are evaluated per-SHA.
+  # ───────────────────────────────────────────────────────────────────────────
+  gate:
+    name: CI Gate
+    if: ${{ always() }}
+    needs: [build, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every job that should have run, ran and passed
+        env:
+          BUILD: ${{ needs.build.result }}
+          E2E: ${{ needs.e2e.result }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          set -uo pipefail
+          echo "build=$BUILD  e2e=$E2E  base=$BASE"
+          fail=0
+          # build carries no `if:`, so anything other than success is real.
+          [ "$BUILD" = success ] || { echo "::error::build job: $BUILD"; fail=1; }
+          if [ "$BASE" = main ]; then
+            # A release PR. E2E was supposed to run. `skipped` here means build
+            # died - and GitHub would otherwise report that skip as a green
+            # check. This branch is what closes that hole.
+            [ "$E2E" = success ] \
+              || { echo "::error::e2e job: $E2E - required for a PR into main"; fail=1; }
+          else
+            # Not a release. E2E is expected to skip, but if it somehow ran and
+            # failed, that is still a failure.
+            case "$E2E" in
+              success|skipped) ;;
+              *) echo "::error::e2e job: $E2E"; fail=1 ;;
+            esac
+          fi
+          exit $fail
