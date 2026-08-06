@@ -154,6 +154,26 @@ without that is a silent switch to production.
 It is a `NEXT_PUBLIC_*` variable, so it is **inlined at build time**. Changing it
 requires a rebuild, not a restart.
 
+### Consequence: the error tracker needs its own variable
+
+Because `qa` must run with `NEXT_PUBLIC_APP_ENV=dev`, everything that reads that
+variable as a *label* reports qa as dev. GlitchTip did exactly this — qa's errors
+and dev's errors arrived under the same `dev` environment, and since the two
+services also share one Supabase project, nothing else distinguished them.
+
+The fix is **not** to change `NEXT_PUBLIC_APP_ENV`. It is
+`NEXT_PUBLIC_SENTRY_ENV`, read by `lib/monitoring.ts`, falling back to
+`NEXT_PUBLIC_APP_ENV` and then `production`:
+
+| Service | `NEXT_PUBLIC_APP_ENV` | `NEXT_PUBLIC_SENTRY_ENV` | Reports as |
+|---|---|---|---|
+| `liquidity-hq-prod` | `prod` | unset | `prod` |
+| `liquidity-hq-qa` | `dev` (required) | **`qa`** | `qa` |
+| `liquidity-hq-dev` | `dev` | unset | `dev` |
+
+The same rule applies to anything else that ever wants an environment *name*:
+add a variable, do not reuse the switch.
+
 ---
 
 ## 4c. QA service environment variables
@@ -164,6 +184,7 @@ deliberate exceptions. Set as of 2026-08-05:
 | Variable | Value | Why |
 |---|---|---|
 | `NEXT_PUBLIC_APP_ENV` | `dev` | **Not `qa`** — see §4b |
+| `NEXT_PUBLIC_SENTRY_ENV` | `qa` | The one place qa may call itself qa. Separates its errors from dev's in GlitchTip without touching table selection — see §4b. **Not yet set; needs adding on the qa service** |
 | `NEXT_PUBLIC_APP_URL` | `https://liquidity-hq-qa.onrender.com` | Its own URL, never dev's. Telegram webhook registration and email links build absolute URLs from this |
 | `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` | dev project `wdtjhrilakoitfcezxpx` | Shares the dev database — see §1 |
 | `SUPABASE_SERVICE_ROLE_KEY` | dev project's | Server routes return empty results without it. `/api/labels` answered `{}` until it was set |
