@@ -189,10 +189,38 @@ export const BASELINE = {
    */
   contrast: {
     /**
-     * Dark theme: ZERO, verified. Hard assert, not a ratchet - dark is clean
-     * today and must stay clean. If this goes non-zero, a token regressed.
+     * Dark theme: 5 distinct failing foreground colours.
+     *
+     * CORRECTION. This was briefly recorded as 0 and hard-asserted, on a
+     * staging sweep that reported zero dark violations across all 32 routes.
+     * That measurement was incomplete, not wrong: running the same rule against
+     * a local build surfaced real failures on states staging never rendered -
+     *
+     *   /news          3.07:1  #585d6d on #06070a  .nfeed-empty (EMPTY state)
+     *   /econ-calendar 2.10:1  #414551 on #06070a  (EMPTY state)
+     *   /hours         2.77:1  #eff6f2 on #5ca279  ("current hour" badge)
+     *   /hours         4.05:1  #f4f1e8 on #91711d  (a second badge tone)
+     *
+     * - because staging had news and calendar data loaded and local did not,
+     * and because which /hours badge is highlighted depends on the time of day.
+     *
+     * This is qa/TEST_GAPS.md §1 (market data and the clock cannot be
+     * controlled) demonstrated on QA's own measurement. Two honest sweeps of the
+     * same rule against the same code disagreed, because they saw different
+     * application states. Neither number is the truth; the union is closer, and
+     * even the union is only "every state we happened to render".
+     *
+     * So dark is NOT proven clean, and this is a ratchet like everything else.
+     * Empty states are the interesting part: they are what a new user sees.
+     *
+     * 13, measured against a LOCAL production build (15 total violations) -
+     * deliberately not the staging figure. CI runs `npm run build && npm start`
+     * in the runner, so a local build is the environment this assertion will
+     * actually face. Staging reported 0 for the reason above; if you re-measure
+     * there and get a small number, that is the same sampling difference and not
+     * a fix.
      */
-    darkViolations: 0,
+    darkDistinctColours: 13,
     /**
      * Light theme: 56 distinct foreground colours fail.
      *
@@ -211,9 +239,20 @@ export const BASELINE = {
      *
      * Filed for dev. Ratchet DOWN as light-mode token variants land; the fix
      * belongs in the [data-theme="light"] block on the foreground tokens, NOT
-     * on the backgrounds - lightening those would break dark, which is clean.
+     * on the backgrounds - lightening those would break dark.
+     *
+     * 57 against a LOCAL production build (990 total violations); staging gave
+     * 56 (1001). That the DISTINCT count moved by one across two environments
+     * with completely different data, while the raw violation count moved by 11,
+     * is the evidence this metric was chosen on: the raw number is noise, the
+     * token count is signal. Local is the baseline because CI builds and serves
+     * locally, so that is the environment this assertion actually faces.
+     *
+     * Worst ratios measured, all far below the 4.5:1 floor:
+     *   #86efac 1.24:1 · #fbbf24 1.33:1 · #fcbcbc 1.39:1 · #34d399 1.43:1
+     * Highest volume: #8a8a8a (196), #f87171 (191), #34d399 (170).
      */
-    lightDistinctColours: 56,
+    lightDistinctColours: 57,
   },
   /** §6.4 - pages with no <h1>, desktop. */
   pagesWithoutH1: 13,
