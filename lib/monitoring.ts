@@ -49,6 +49,63 @@ export function monitoringEnvironment(): string {
 }
 
 /**
+ * The DSN, but only where reporting is actually wanted - production.
+ *
+ * WHY THIS IS A CODE GUARD AND NOT JUST A DASHBOARD SETTING.
+ *
+ * All three services pointed at ONE GlitchTip project (25983) sharing ONE
+ * 1,000-event/month free quota, and dev plus qa spent it. Measured on
+ * 2026-08-06: a forced error from prod AND from staging both returned HTTP 429.
+ * So production error reporting was dead - not "noisy", dead - and nothing said
+ * so. QA found it (issue #57), and a Playwright run against staging is part of
+ * what filled it. QA doing its job should never be able to switch production
+ * monitoring off.
+ *
+ * `environment` does not fix this. It is a TAG: it makes events filterable after
+ * they arrive. It does not stop them arriving and it does not give them separate
+ * quotas.
+ *
+ * Unsetting the DSN on the two non-prod services fixes it too, and should also
+ * be done. This guard exists because that config is one dashboard edit away from
+ * regressing, and the regression is SILENT - nobody discovers monitoring is off
+ * until they need it, which is exactly when they cannot afford it to be off.
+ *
+ * ON THE PREDICATE. Issue #57 suggested `=== 'prod'`. This uses `!== 'dev'`
+ * instead, deliberately, to match the one switch the rest of the app already
+ * turns on (lib/tables.ts, lib/apiHealth.ts, the LemonSqueezy webhook):
+ *
+ *     NEXT_PUBLIC_APP_ENV === 'dev' ? <non-prod> : <prod>
+ *
+ * Both predicates exclude qa and dev, because qa is REQUIRED to run as 'dev'
+ * (see monitoringEnvironment above). They differ only if the variable goes
+ * missing on prod: `=== 'prod'` would then silently kill the monitoring this
+ * issue exists to restore, while `!== 'dev'` keeps it on. A stray service that
+ * forgets the variable and starts reporting is noisy but visible; that same
+ * service would also be reading PRODUCTION tables, which is a far louder alarm
+ * than a few extra error events.
+ *
+ * Neither case is silent now: a DSN that is present but suppressed logs once at
+ * startup, so "why is nothing arriving" is answerable from the logs.
+ */
+export function monitoringDsn(): string | undefined {
+  const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+  if (!dsn) return undefined;
+
+  if (process.env.NEXT_PUBLIC_APP_ENV === 'dev') {
+    // Deliberately not silent. The whole failure mode being fixed here is
+    // "monitoring is off and nothing said so" - suppressing quietly would just
+    // move that failure rather than remove it.
+    console.info(
+      '[monitoring] DSN present but suppressed: NEXT_PUBLIC_APP_ENV=dev. ' +
+      'Non-production services do not report, so they cannot spend production\'s ' +
+      'shared GlitchTip quota (issue #57). Unset the DSN here to silence this.',
+    );
+    return undefined;
+  }
+  return dsn;
+}
+
+/**
  * The deployed commit, or undefined when it cannot be known.
  *
  * Render exposes `RENDER_GIT_COMMIT` at build time. `next.config.ts` copies it to
@@ -229,7 +286,10 @@ export function scrubEvent<T>(event: T): T {
  */
 export function monitoringOptions() {
   return {
-    dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    // Undefined outside production - see monitoringDsn. Sentry.init treats an
+    // absent DSN as "off", which is the documented behaviour .env.example:95
+    // already relies on, so nothing else needs a branch.
+    dsn: monitoringDsn(),
     environment: monitoringEnvironment(),
     release: monitoringRelease(),
     // See the file header - this is a quota decision, not an oversight.

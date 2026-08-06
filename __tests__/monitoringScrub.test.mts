@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { scrubUrl, scrubText, scrubEvent, monitoringEnvironment } from '../lib/monitoring.ts';
+import { scrubUrl, scrubText, scrubEvent, monitoringEnvironment, monitoringDsn } from '../lib/monitoring.ts';
 
 /* The PII scrubber runs on every event leaving the app for GlitchTip. It is the
    last thing between a user's id or email and a third-party dashboard, and it
@@ -182,4 +182,65 @@ test('monitoring environment resolution', async (t) => {
   });
 
   set(saved.sentry, saved.app);
+});
+
+test('reporting is restricted to production', async (t) => {
+  /* Issue #57. All three services pointed at one GlitchTip project sharing one
+     1,000-event/month quota, and dev + qa spent it: a forced error from BOTH
+     prod and staging returned HTTP 429, so production monitoring was dead.
+
+     These assertions exist because the config-only version of this fix
+     (unset the DSN on two dashboards) regresses silently. */
+  const savedDsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+  const savedApp = process.env.NEXT_PUBLIC_APP_ENV;
+  const DSN = 'https://key@app.glitchtip.com/25983';
+
+  const set = (dsn?: string, app?: string) => {
+    if (dsn === undefined) delete process.env.NEXT_PUBLIC_SENTRY_DSN;
+    else process.env.NEXT_PUBLIC_SENTRY_DSN = dsn;
+    if (app === undefined) delete process.env.NEXT_PUBLIC_APP_ENV;
+    else process.env.NEXT_PUBLIC_APP_ENV = app;
+  };
+
+  await t.test('production reports', () => {
+    set(DSN, 'prod');
+    assert.equal(monitoringDsn(), DSN);
+  });
+
+  await t.test('dev does not', () => {
+    set(DSN, 'dev');
+    assert.equal(monitoringDsn(), undefined);
+  });
+
+  await t.test('qa does not - it runs as dev, which is the whole point', () => {
+    /* qa CANNOT be given its own NEXT_PUBLIC_APP_ENV: lib/tables.ts treats
+       anything that is not 'dev' as production table names. So the only thing
+       that can exclude qa is the same 'dev' value that keeps it on the dev
+       database - and a qa-specific label must never be allowed to re-enable
+       reporting. */
+    set(DSN, 'dev');
+    process.env.NEXT_PUBLIC_SENTRY_ENV = 'qa';
+    assert.equal(monitoringDsn(), undefined,
+      'setting SENTRY_ENV=qa must not turn reporting back on');
+    delete process.env.NEXT_PUBLIC_SENTRY_ENV;
+  });
+
+  await t.test('a missing APP_ENV still reports, rather than silently going dark', () => {
+    /* The deliberate difference from issue #57's suggested `=== "prod"`. If the
+       variable goes missing on prod, that predicate would switch monitoring off
+       with no signal - re-creating the exact failure this fixes. Such a service
+       would also be reading production tables, so erring toward "report" is the
+       safer of the two wrong answers. */
+    set(DSN, undefined);
+    assert.equal(monitoringDsn(), DSN);
+  });
+
+  await t.test('no DSN configured means off, everywhere', () => {
+    set(undefined, 'prod');
+    assert.equal(monitoringDsn(), undefined);
+    set('', 'prod');
+    assert.equal(monitoringDsn(), undefined);
+  });
+
+  set(savedDsn, savedApp);
 });

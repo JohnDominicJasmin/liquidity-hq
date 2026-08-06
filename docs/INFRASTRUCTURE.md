@@ -174,6 +174,50 @@ The fix is **not** to change `NEXT_PUBLIC_APP_ENV`. It is
 The same rule applies to anything else that ever wants an environment *name*:
 add a variable, do not reuse the switch.
 
+**Note as of 2026-08-06: that label is currently inert**, because only production
+reports at all — see §4c below. Keep it; it becomes live the day non-prod gets its
+own GlitchTip project.
+
+---
+
+## 4b-2. Error reporting is production-only — and why a tag was not enough
+
+All three services pointed at **one** GlitchTip project (`25983`) sharing **one**
+1,000-event/month free quota. Dev and qa spent it. Measured 2026-08-06: a forced
+error from **both** `liquidity-hq.com` and `liquidity-hq-qa.onrender.com`
+returned **HTTP 429**, so *production* error reporting was dead — and nothing
+said so.
+
+`environment` does not solve this. It is a **tag**: it makes events filterable
+after they arrive. It does not stop them arriving and it does not give them
+separate quotas.
+
+Structurally the same compromise as qa and dev sharing one Supabase project, and
+it fails the same way — the noisy environments starve the one that matters. The
+difference is that the Supabase one is documented and consciously accepted, and
+this one just looked like it worked.
+
+Two layers, on purpose:
+
+| | |
+|---|---|
+| **Config** | `NEXT_PUBLIC_SENTRY_DSN` set on `liquidity-hq-prod` only |
+| **Code** | `lib/monitoring.ts` returns no DSN when `NEXT_PUBLIC_APP_ENV === 'dev'` |
+
+The code layer exists because config alone is one dashboard edit from
+regressing, and the regression is **silent** — nobody discovers monitoring is off
+until they need it, which is precisely when they cannot afford it to be off. A
+DSN that is present but suppressed logs once at startup, so it is answerable from
+the logs either way.
+
+Because both variables are `NEXT_PUBLIC_*` and therefore inlined at build time,
+the guard resolves during the build: on a non-prod build the DSN is **not in the
+bundle at all**, not merely unused.
+
+**⚠️ Clearing the variable in the dashboard does nothing to an existing build.**
+Each service needs a **rebuild**, or it keeps posting from the bundle it already
+has.
+
 ---
 
 ## 4c. QA service environment variables
