@@ -50,6 +50,13 @@
 - [ ] **New environment variable?** If yes, list it here and say which services still need it set. A var that exists only on dev is a broken deploy waiting to happen
 - [ ] Anything I could not verify is stated in the PR, not left for QA to discover
 
+> **Note on the browser suite.** CI runs Playwright on a PR into `main` only — the
+> release. Feature PRs and `dev` → `qa` promotions get the four fast gates above and
+> nothing more, so **the first automated browser check any change gets is at the
+> release gate**. If this PR is risky enough that you want it sooner, run
+> `npm run test:e2e` locally or use Actions → CI → Run workflow, and say so here.
+> See CONTRIBUTING.md §4b.
+
 ## Screenshots (if UI change)
 
 *Before and after. "N/A - no visual change" is a valid answer; leaving it blank is not.*
