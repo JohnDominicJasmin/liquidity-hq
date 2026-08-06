@@ -248,18 +248,13 @@ on `dev` for a day with nobody wondering why it never reached staging.
 4. If the QA folder has no `CLAUDE.md` / `CONTRIBUTING.md`, it has not pulled
    since this convention landed. **Pull `main` first**, then check out the
    feature branch, so both folders are working to the same standard.
-5. **On a `dev` → `qa` promotion PR, run the browser suite locally before the
-   promotion is merged.** This is QA's, and it is the only automated browser
-   check that change gets before staging — CI does not run the suite on that PR.
-   Full detail in §4b; the short version:
-
-   ```
-   npm run test:e2e
-   ```
-
-   ~30 minutes, 187 tests. Report pass/fail on the PR like any other step.
-6. **When every step passes, QA merges `qa` into `main`** and then deploys —
+5. **When every step passes, QA merges `qa` into `main`** and then deploys —
    both steps, in that order. See below.
+
+   Merging opens the release PR's final CI run: **the full browser suite, 187
+   tests, ~34 minutes** (§4b). It is the only place that suite runs
+   automatically. Wait for it. A red run there means something QA's manual pass
+   did not reach, and it blocks the production deploy.
 
    `qa` → `main`, not the feature branch → `main`. By the time QA is testing,
    the change is already on `dev` and `qa`; merging the original feature branch
@@ -362,13 +357,13 @@ it would review such a branch — a role the document never gave it.
 
 ---
 
-## 4b. What CI runs, and what QA runs
+## 4b. Where the browser suite runs
 
-**CI does not run the browser suite on most pushes.** Actions minutes are metered
-on a private repo, and three days of unrestricted running burned 1,755 minutes —
-about $124/month annualised — and hard-stopped CI mid-release when the spending
-limit hit. Nothing was deleted to fix that. The expensive half moved to a person
-with a name.
+**CI does not run the Playwright suite on most pushes.** Actions minutes are
+metered on a private repo, and three days of unrestricted running burned 1,755
+minutes — about $124/month annualised — and hard-stopped CI mid-release when the
+spending limit was hit. Nothing was deleted to fix that. It was moved to the one
+place it is worth 34 minutes.
 
 ### What GitHub runs
 
@@ -378,62 +373,65 @@ with a name.
 | PR into `dev` | ✅ | — |
 | PR into `qa` | ✅ | — |
 | Push to `dev` or `main` | ✅ | — |
-| **PR into `main`** (the release) | ✅ | ✅ **full, 187 tests, ~34 min** |
+| **PR into `main`** (the release) | ✅ | ✅ **187 tests, ~34 min** |
 | Manual run (Actions → CI → Run workflow) | ✅ | ✅ if you tick the box |
 
-One automated browser run per release, immediately before a production deploy.
+**One automated browser run per release, immediately before production.**
 
-### What QA runs
+### Nobody runs it by hand
 
-**On a `dev` → `qa` promotion PR, before merging it:**
+Not dev, not QA. Dev's pre-PR gates are the four fast ones — `npm run lint`,
+`npx tsc --noEmit`, `npm test`, `npm run build`. QA's job is manual testing on
+staging, following the PR's "How to test" steps.
+
+This was deliberated and changed twice. An earlier draft had QA running
+`npm run test:e2e` locally on the promotion PR. It was dropped because it landed
+minutes before the release PR's CI run — **the same 187 tests, on the same
+commit, twice**, differing only in environment. Between the two, CI is the
+stricter one and costs nobody's afternoon, so the human run went.
+
+If you *want* it before then — a risky release, a big refactor — run it:
 
 ```bash
 npm run test:e2e                    # full suite, ~30 min, builds and serves on :3100
-E2E_PORT=3000 npx playwright test   # or reuse a server you already have running
+E2E_PORT=3000 npx playwright test   # or reuse a server already running
 ```
 
-`.env.e2e.local` supplies the BOLA fixtures. It is gitignored and already in both
-checkouts; if it is missing, `bola.spec.ts` **skips with a stated reason** rather
-than passing, so a green run without it is not a green run.
+`.env.e2e.local` supplies the BOLA fixtures. Without it `bola.spec.ts` **skips
+with a stated reason** rather than passing, so a green run missing that file is
+not a green run. There is also a manual trigger in Actions → CI → Run workflow.
 
-Report pass/fail on the PR. **This is the gate.** Nothing else exercises a browser
-against that change before it reaches staging.
+### What that means for the gap
 
-### What dev runs
+Between a feature merging into `dev` and the release PR opening, **nothing
+exercises a browser automatically**. Staging catches it instead: QA tests by hand
+on a real deployed build, which is a different and in some ways better check —
+a machine cannot tell you a layout looks wrong.
 
-Unchanged — the four fast gates before opening any PR: `npm run lint`,
-`npx tsc --noEmit`, `npm test`, `npm run build`. E2E was never on dev's list and is
-not being added to it.
+The cost is honest and worth stating: a browser-level regression surfaces at the
+release gate with a week of changes attached, not on the PR that caused it. That
+is bounded by the weekly cadence in §7a, and it is the trade made in exchange for
+roughly $120/month.
 
-### Be honest about what a local run cannot catch
+### Why the release run cannot be dropped too
 
-A green local run is **not** equivalent to CI, and the gap has already produced two
-real defects:
+CI is the only place the app builds **without** developer environment variables,
+and that difference has produced two real defects:
 
-- **The labels defect (2026-08-05).** `/api/labels` answers `200 {}` on a DB error
-  and the client applied it, wiping all 2,570 seeded English labels so every page
-  rendered raw keys. It only reproduces **without** Supabase env — CI's situation,
-  never yours locally with `.env.local` present. It surfaced as `/arena` overflowing
-  28px and a `/login` smoke failure, and it was red on *every* branch, including a
-  documentation-only PR.
+- **The labels defect (2026-08-05).** `/api/labels` answers `200 {}` on a DB
+  error and the client applied it, wiping all 2,570 seeded English labels so
+  every page rendered raw keys. It only reproduces **without** Supabase env — CI's
+  situation, never a developer machine with `.env.local` present. It surfaced as
+  `/arena` overflowing 28px and a `/login` smoke failure, and it was red on
+  *every* branch, including a documentation-only PR.
 - **The table-prefix gap (2026-08-05).** CI had no `NEXT_PUBLIC_APP_ENV`, so it
-  built with production table names and queried the dev project, which has none of
-  them. Every authenticated CI run before it was fixed asserted less than it looked
-  like it did. Locally the variable is set, so the bug is invisible.
+  built with production table names and queried the dev project, which has none
+  of them. Every authenticated CI run before it was fixed asserted less than it
+  looked like it did. Locally the variable is set, so the bug is invisible.
 
 Both are *environment-difference* bugs, invisible on a developer machine by
-construction. That is the entire reason one CI run survives at the `main` gate
-rather than the suite moving completely onto laptops.
-
-### The trade being made
-
-A browser regression now surfaces on QA's machine, not on the PR that introduced
-it — and dev ships to QA with no browser verification at all. When QA's run fails
-it is a round trip: report, dev cuts a `fix/` branch, re-promotes, QA re-runs 30
-minutes. That cost is accepted in exchange for roughly $120/month and a clear
-division of labour, and it is bounded by the weekly release cadence in §7a.
-
----
+construction. A local run is not a substitute for this one; it is a different,
+weaker check.
 
 ## 5. Solo / low-ceremony work
 
