@@ -219,17 +219,44 @@ Recorded here rather than hidden, because the suite is code and has defects too.
 
 ---
 
-## 🟢 10. No production error monitoring
+## 🔴 10. Error monitoring is installed and capturing nothing
 
-Not a test gap, but it belongs on the same list because it is the only item here
-that catches bugs **nobody thought to look for**.
+**CORRECTED 2026-08-06.** This section previously said "There is no Sentry, no
+error aggregation, no alert." That was **wrong**, and written without reading
+`pendings/OPS_ROADMAP.md:46`, which documents the opposite.
 
-Today, if production breaks, the owner notices. There is no Sentry, no error
-aggregation, no alert. Every other line in this file describes something QA
-imagined; this one covers everything QA did not.
+Error monitoring exists: `@sentry/nextjs` 10.67.0, wired through
+`instrumentation.ts` (server + edge) and `instrumentation-client.ts` (client),
+pointed at **GlitchTip**, environment-tagged from `NEXT_PUBLIC_APP_ENV`, with
+`tracesSampleRate: 0` set deliberately after traces ate 99% of the free quota.
 
-**To close:** Sentry free tier, one afternoon. **Value per hour spent: the
-highest on this page.**
+The real finding is worse than the gap that was imagined:
+
+```
+POST https://app.glitchtip.com/api/25983/envelope/   ->  429 Too Many Requests
+```
+
+Measured on staging across four page loads — **every request, no exceptions**.
+The event quota is exhausted, so every error the app reports is rejected and
+dropped.
+
+That is worse than having none, because none is at least honest. This appears in
+the dependency list, in the ops doc, and in the network tab, and captures
+nothing. Anyone asking "do we have error monitoring?" gets *yes*.
+
+Likely cause: `NEXT_PUBLIC_SENTRY_DSN` is one variable and `environment` is a
+tag, not a separate quota — so if `dev`, `qa` and `prod` share a DSN, dev noise
+and QA traffic spend production's 1,000 events a month. Structurally the same
+trap as §7, and with the same consequence: the noisy environments starve the one
+that matters.
+
+**To close:** a separate DSN for prod, or `beforeSend` dropping non-prod events
+before they spend quota. Filed as issue #51.
+
+**The lesson, recorded because it is the more useful part:** this file's job is
+to say what is *not* covered, and its first version asserted a gap that did not
+exist. A claim about the absence of something needs the same evidence as a claim
+about its presence — check the repo before writing "there is no X".
 
 ---
 
@@ -239,7 +266,7 @@ Ranked by value per unit of effort, not by severity:
 
 | | Item | Effort | Why this order |
 |---|---|---|---|
-| 1 | §10 error monitoring | hours | Free, and it catches unknown unknowns |
+| 1 | §10 GlitchTip 429 | hours | Monitoring exists but drops every event — it is the only thing here that catches bugs nobody predicted, and right now it catches none |
 | 2 | §3 light theme | hours | Harness exists, runs once, just needs a second pass |
 | 3 | §8 offline/PWA | ½ day | Self-contained, no fixtures needed |
 | 4 | §2 visual, static routes only | 1 day | Immediate value, not blocked on §1 |
