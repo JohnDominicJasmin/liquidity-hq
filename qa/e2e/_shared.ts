@@ -169,6 +169,52 @@ export const BASELINE = {
      */
     grokChat: 1,
   },
+
+  /**
+   * Colour contrast, WCAG 2.2 SC 1.4.3, Level AA, per axe's `color-contrast`
+   * rule. Measured on staging (57a6766) 2026-08-06, all 32 routes, 1440x900.
+   *
+   * WHY THIS TRACKS DISTINCT COLOURS AND NOT VIOLATION COUNT.
+   * Two full runs an hour apart gave 938 and 1001 raw violations - the same
+   * build, the same routes. The difference is market data: /scanner alone
+   * contributed 539, and how many rows of coloured numbers render depends on
+   * what the market is doing. A baseline that drifts by 60 on its own cannot
+   * detect a regression, which is the exact failure issue #46 identified in
+   * tapTargetsUnder24.
+   *
+   * Distinct failing foreground colours is stable across both runs at 56,
+   * because 500 rows of the same unreadable green is still one token to fix.
+   * It also matches what a fix actually looks like: nobody fixes 1001 elements,
+   * they fix a handful of tokens.
+   */
+  contrast: {
+    /**
+     * Dark theme: ZERO, verified. Hard assert, not a ratchet - dark is clean
+     * today and must stay clean. If this goes non-zero, a token regressed.
+     */
+    darkViolations: 0,
+    /**
+     * Light theme: 56 distinct foreground colours fail.
+     *
+     * Light had NEVER been measured in a browser before 2026-08-06 - it was
+     * carried as "not verified" in every release note since 2026-08-05. It is
+     * badly broken, and it is one story rather than 56: the semantic green
+     * (#34d399, #4ade80, #6ee7b7...), the semantic red (#f87171, #fca5a5,
+     * #fcbcbc...) and the muted greys (#8a8a8a, #8e8e93, #a0a0a0...) were
+     * chosen against the near-black dark background and reused unchanged on
+     * light. Worst measured: 1.39:1 against a 4.5:1 floor.
+     *
+     * That matters more than a normal contrast bug on this product, because
+     * green and red ARE how price direction is communicated - and the four
+     * worst routes (/scanner, /funding, /liq, /markets) are the dense numeric
+     * screens where those colours carry the meaning.
+     *
+     * Filed for dev. Ratchet DOWN as light-mode token variants land; the fix
+     * belongs in the [data-theme="light"] block on the foreground tokens, NOT
+     * on the backgrounds - lightening those would break dark, which is clean.
+     */
+    lightDistinctColours: 56,
+  },
   /** §6.4 - pages with no <h1>, desktop. */
   pagesWithoutH1: 13,
   /** §6.2 - pages emitting <link rel="canonical">. Target is ALL of them. */
