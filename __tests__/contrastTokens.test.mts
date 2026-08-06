@@ -56,16 +56,18 @@ const SURFACES: Record<string, string> = {
 };
 
 /* Surfaces that are NOT tokens - one-off card backgrounds found by running axe
-   against the built app. Only asserted for the tokens actually observed on
-   them, because that is all the measurement established.
-   Known gap, recorded rather than papered over: --txt2 is 4.31:1 on #191b1e.
-   Nothing renders --txt2 there today, so it is not a live defect, but moving
-   any secondary text onto that card would create one. Fixing it means
-   relightening --txt2 app-wide, which is a visible typography change and the
-   owner's call - not something to slip into a contrast pass. If that surface
-   ever gains secondary text, raise --txt2 to >= #7e8298 and add it below. */
+   against the built app.
+   #14161a is the .csb2-sig chip: 2% white over --bg3. It used to be 4% white,
+   which computed to #191b1e and left --txt2 at 4.31:1 and --txt3 at 4.32:1 -
+   the only surface in the app where the muted tokens fell short.
+   That was recorded here as a known gap rather than fixed, on the reasoning
+   that clearing it meant relightening --txt2 across all 215 of its call sites.
+   Wrong framing: halving one overlay fixes the same pair and moves nothing
+   else. Owner picked that when it was put as a choice rather than a mechanism.
+   ALL FOUR text tokens are now asserted against it, --txt2 included, so the
+   overlay cannot drift back up without failing here. */
 const MEASURED_PAIRS: { surface: string; tokens: string[] }[] = [
-  { surface: '#191b1e', tokens: ['txt', 'txt3', 'txt-dim'] },
+  { surface: '#14161a', tokens: ['txt', 'txt2', 'txt3', 'txt-dim'] },
 ];
 
 test('design token contrast', async (t) => {

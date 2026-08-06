@@ -405,7 +405,18 @@ body::after {
 .csb2-price     { font-size: var(--fs-data); font-weight: 700; color: var(--txt); font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; }
 .csb2-bottom    { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .csb2-chg       { font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; }
-.csb2-sig       { font-size: var(--fs-caption); font-weight: 700; padding: 1px 5px; border-radius: 4px; max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(255,255,255,0.04); }
+/* 0.04 -> 0.02. This chip is the one surface in the app where the muted text
+   tokens land short: 4% white over --bg3 computes to #191b1e, and on that
+   --txt2 measured 4.31:1 against the 4.5:1 floor. --txt3 was 4.32:1 here too
+   until it was nudged to #7b8297.
+   Darkening the chip rather than lightening --txt2 is the deliberate choice:
+   --txt2 is used in 215 places, so raising it would relighten every caption,
+   label and timestamp in the app to fix one element. Halving one overlay moves
+   nothing else. At 2% both tokens clear - --txt2 4.52:1, --txt3 4.73:1 - and
+   the chip is still visibly a chip.
+   If this ever goes back up, re-measure both tokens against the result; the
+   assertion in __tests__/contrastTokens.test.mts pins the pair. */
+.csb2-sig       { font-size: var(--fs-caption); font-weight: 700; padding: 1px 5px; border-radius: 4px; max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(255,255,255,0.02); }
 .csb2-bar-track { height: 3px; background: rgba(255,255,255,0.06); border-radius: 0 0 var(--radius-data) var(--radius-data); margin: 0 -10px; }
 .csb2-bar-fill  { height: 100%; border-radius: 0 0 var(--radius-data) var(--radius-data); transition: width 0.8s ease, background 0.3s; }
 
