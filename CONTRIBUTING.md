@@ -609,9 +609,11 @@ promotion out of `dev`.
 
 Two things follow from this, and both are the point rather than side effects:
 
-- **A regression found at the `qa` gate arrives with a week of changes attached**,
-  not one. That is the cost of batching, and it is why §4b puts a full browser run
-  in QA's hands before the promotion is merged rather than after.
+- **A regression found at the release gate arrives with a week of changes
+  attached**, not one. That is the cost of batching, and it is why §4b keeps the
+  full browser suite on the `qa` → `main` PR — the last automated check before a
+  production deploy — rather than dropping it entirely once it came off feature
+  PRs.
 - **"It is not urgent" is a real answer.** A feature that misses the weekly slot
   waits. Shipping a feature mid-week to production, outside the batch, is a
   decision someone makes deliberately — not something that happens because a PR
