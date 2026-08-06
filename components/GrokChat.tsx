@@ -797,7 +797,27 @@ export default function GrokChat() {
             )}
 
             {/* Messages */}
-            <div className="gchat-msgs" ref={msgsRef}>
+            {/* WCAG 2.2 SC 4.1.3 Status Messages (AA). A reply streams in here
+                and was never announced - a screen reader user asked a question
+                and had no way to know an answer had arrived, or whether the
+                model was still thinking.
+
+                `polite`, not `assertive`: the reply arrives token by token, and
+                assertive would interrupt the user on every chunk. Polite waits
+                for a pause, which is what you want for a streaming answer.
+
+                aria-atomic="false" so only the newly added text is read rather
+                than the whole conversation being re-announced on each update -
+                the difference between "here is the new sentence" and "here is
+                everything again" once a thread is a few messages long. */}
+            <div
+              className="gchat-msgs"
+              ref={msgsRef}
+              role="log"
+              aria-live="polite"
+              aria-atomic="false"
+              aria-relevant="additions text"
+            >
               {msgs.length === 0 && (
                 <div className="gchat-empty">
                   <div style={{ marginBottom: 8, lineHeight: 0, color: 'var(--accent)' }}>

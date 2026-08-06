@@ -295,7 +295,19 @@ function LoginInner() {
                 />
               )}
 
-              {error && <div className="login-error">{error}</div>}
+              {/* Rendered unconditionally, empty until there is an error.
+                  WCAG 2.2 SC 4.1.3 Status Messages (AA): this used to be
+                  `{error && <div className="login-error">}` with no role, so a
+                  screen reader user submitted, heard nothing, and had no way to
+                  tell whether anything had happened.
+                  The container must be in the DOM BEFORE the text arrives - a
+                  live region inserted at the same moment as its content is
+                  unreliably announced, which is why this is not simply
+                  `role="alert"` bolted onto the conditional version.
+                  `.login-error:empty` collapses it visually without
+                  `display: none`, which would remove it from the accessibility
+                  tree and reintroduce the bug. */}
+              <div className="login-error" role="alert">{error}</div>
 
               <button
                 className="login-back-btn"
@@ -398,7 +410,9 @@ function LoginInner() {
                 />
               )}
 
-              {pwError && <div className="login-error">{pwError}</div>}
+              {/* Same as the magic-link form above - always present, empty
+                  until it has something to say. See that comment. */}
+              <div className="login-error" role="alert">{pwError}</div>
 
               <button
                 className="login-back-btn"

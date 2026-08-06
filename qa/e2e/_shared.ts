@@ -161,13 +161,17 @@ export const BASELINE = {
      * submits, hears nothing, and cannot tell whether anything happened.
      * The original claim named /login only.
      */
-    authForms: 3,
+    authForms: 0,   /* was 3. Fixed: all three containers are now rendered
+                       unconditionally with role="alert", so the live region
+                       exists before the text arrives. Lowered in the same
+                       commit as the fix, per the instruction above. */
     /**
      * 1 - .gchat-msgs in components/GrokChat.tsx has neither aria-live nor
      * role, and the whole .gchat-panel contains zero live regions. A reply
      * streams in silently.
      */
-    grokChat: 1,
+    grokChat: 0,    /* was 1. Fixed: .gchat-msgs carries role="log" +
+                       aria-live="polite". */
   },
 
   /**
