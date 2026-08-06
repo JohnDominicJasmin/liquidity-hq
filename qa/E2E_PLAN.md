@@ -202,6 +202,11 @@ production key. Do not attempt to bypass the widget.
 
 ## 5. The gap this suite does not close
 
+> **SUPERSEDED 2026-08-06.** The BOLA gap below was closed by
+> `qa/e2e/bola.spec.ts` — 9 cross-account tests against both seeded accounts, no
+> hole found. The standing list of what the suite does *not* cover now lives in
+> [`TEST_GAPS.md`](TEST_GAPS.md); this section is kept for the record.
+
 **BOLA / IDOR — OWASP API #1 — remains UNVERIFIED.** There is no test proving
 user B cannot read user A's journal entries, alerts, settings, or subscription
 row. `security.spec.ts` has a `test.fixme` placeholder marking it.

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ROUTES, BASELINE, settle, INTERACTIVE_SELECTOR } from './_shared';
+import { ROUTES, BASELINE, settle, runAxe, INTERACTIVE_SELECTOR } from './_shared';
 
 // Accessibility. Mixed strategy on purpose:
 //   - things that currently pass (alt text, duplicate ids, lang) -> hard assert
@@ -75,6 +75,31 @@ test.describe('accessibility', () => {
       `(${BASELINE.tapTargetsUnder24} -> ${found.length}). If DOWN, lower BASELINE.tapTargetsUnder24 ` +
       `in qa/e2e/_shared.ts in this same commit. If UP, you added a control that fails WCAG 2.2 AA.`,
     ).toBeLessThanOrEqual(BASELINE.tapTargetsUnder24);
+  });
+
+  // The conformance half of the test above. Issue #46: all 122 elements the
+  // ratchet tracks are <a> inside text blocks, which SC 2.5.8 exempts, so a real
+  // 16x16 button appearing would move that number 122 -> 123 and go unnoticed.
+  // axe-core's target-size rule models both the spacing and the inline exception
+  // properly, so a real failure here is 0 -> 1. Hard assert, not a ratchet.
+  test('no WCAG 2.2 SC 2.5.8 target-size violations', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'touch target sizing is a mobile concern');
+
+    const violations: string[] = [];
+    for (const route of ROUTES) {
+      await settle(page, route);
+      const found = await runAxe(page, { runOnly: ['target-size'] });
+      for (const v of found) violations.push(...v.nodes.map(n => `${route}  ${n}`));
+    }
+
+    testInfo.attach('axe-target-size.txt', { body: violations.join('\n') || '(none)', contentType: 'text/plain' });
+    expect(
+      violations.length,
+      `axe target-size violations: ${BASELINE.axeTargetSizeViolations} -> ${violations.length}.\n` +
+      `Unlike tapTargetsUnder24, these are REAL SC 2.5.8 AA failures - axe has already ` +
+      `applied the spacing and inline exceptions. Do not raise the baseline; file the defect.\n` +
+      violations.slice(0, 10).join('\n'),
+    ).toBe(BASELINE.axeTargetSizeViolations);
   });
 
   // Placeholder text is not an accessible name (WCAG 4.1.2).

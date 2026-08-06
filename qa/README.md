@@ -2,10 +2,16 @@
 
 Testing and quality-assurance workspace for LiquidityHQ.
 
+> **Before quoting a green CI run as evidence, read
+> [`TEST_GAPS.md`](TEST_GAPS.md).** It is the standing list of what the suite
+> does *not* cover. "187 tests passed" reads like "the product works", and it
+> does not.
+
 ## What lives where
 
 | File | What it is | Status |
 |---|---|---|
+| [`TEST_GAPS.md`](TEST_GAPS.md) | **What a green suite does not mean** — every known coverage gap, ranked by value per unit of effort, with what closing each would take. The answer to "what is still untested?" | Living list, updated as gaps close |
 | [`QA_TEST_PLAN.md`](QA_TEST_PLAN.md) | Manual test approach + rigor tiers, plus the RLS deny-all gotcha. Pre-existing — **moved here from `docs/` on 2026-08-04**, so `HANDOVER.md` §4's doc table still points at the old path. | Plan, largely unexecuted |
 | [`../pendings/QA_AUDIT_2026-08-04.md`](../pendings/QA_AUDIT_2026-08-04.md) | Full automated sweep, 2026-08-04 — build gates, 65-route API security, responsiveness at 1440/375, a11y, SEO, CWV, tech debt | Executed, findings unfixed |
 | [`E2E_PLAN.md`](E2E_PLAN.md) | Playwright suite + CI job — what's built, the 3 remaining shared-file changes, and 2 decisions needed | Scaffolded, not wired up |
