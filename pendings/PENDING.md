@@ -1,5 +1,43 @@
 # Pending Work
 
+## STATUS INDEX — reconciled 2026-08-06
+
+**Read this table before anything below it.** This file is append-mostly and had
+grown four `⛔ OPEN` headings describing problems that were already solved, each
+superseded by a `✅` section further down that never went back to update the
+original. Grepping for `⛔` and reporting the hit — without reading the whole
+file — produced four wrong "still open" claims in a single session. Hence this
+index, and hence the rule below it.
+
+**Genuinely open:**
+
+| What | Owner | Where |
+|---|---|---|
+| Supabase Pro before real payments — still Free, still **zero backups** | owner | §"YOUR decision", top |
+| `qa` holds **dev's** Telegram token. Safe only while `CRON_SECRET` is unset there | owner, parked | §"QA needs its own Telegram bot" |
+| Coinglass v4 — deferred until revenue, **do not re-raise** | decided | §"OPEN — code (mine)" |
+| LemonSqueezy payments | deferred | `pendings/LEMONSQUEEZY.md` |
+
+**Resolved, kept for history — the heading was corrected in place:**
+
+| What | Resolved |
+|---|---|
+| dev and prod sharing one Telegram bot | 2026-08-04 — dev runs `@Liquidity_hq_dev_bot`, prod runs `LiquidityHQ_bot` |
+| dev RLS drift | 2026-08-04, re-swept 2026-08-06 — **0 tables with RLS off on dev or prod** |
+| `/scanner` CLS ~0.98 | 2026-08-05/06 — now 0.007–0.028 warm, carries a real `CLS_BUDGET` of 0.25 |
+| BOLA/IDOR unverified | 2026-08-06 — 9 tests in CI, no hole found |
+| Colour contrast (§4.3, §4.1) | 2026-08-06 — 270 → **0** violations across 8 routes |
+
+**The rule, so this does not recur:** when something is fixed, edit the heading
+that claims it is broken. Do not only append a `✅` section below it. A reader
+who greps will find the oldest marker, and that is what happened here four times.
+
+The intro below predates all of the above and describes the 2026-08-04 audit as
+a fresh handoff list. Most of it has since shipped — the index is authoritative
+where the two disagree.
+
+---
+
 Single source of truth. The original security audit (stop untraceable
 API-cost abuse, signup/trial abuse, any exploit that breaches system/keys/logs)
 is **fully resolved** - every finding fixed and live on prod, including the
@@ -273,7 +311,22 @@ dev `false` is correct, not a bug** — the bot belongs to prod and dev can no
 longer take it. Dev's `/alerts` will show its bot-unhealthy warning banner
 permanently until dev gets its own bot.
 
-### ⛔ Root cause still open — dev and prod share one bot (YOUR action)
+### ✅ RESOLVED 2026-08-04 — dev got its own bot (was: "dev and prod share one bot")
+
+**Fixed. See "Environments finally isolated" further down for what actually
+happened.** dev runs `@Liquidity_hq_dev_bot`, prod runs `LiquidityHQ_bot`, and
+both report `webhook_ok: true` at the same time — which was structurally
+impossible while they shared one.
+
+The heading here said `⛔ Root cause still open` until 2026-08-06 and was the
+single most misleading line in this file: it is near the top, it is emphatic, and
+the section that resolves it sits ~340 lines below with no back-reference. It
+produced a wrong "dev and prod share a bot" claim as recently as today.
+
+**The pairing that IS still real is dev ↔ qa, not dev ↔ prod** — `liquidity-hq-qa`
+holds *dev's* token. See "QA needs its own Telegram bot" near the end.
+
+The original text follows, for the history of why it mattered:
 
 Dev can no longer *steal* the webhook by accident, but whichever environment
 registered last still owns it, and two consequences remain:
@@ -328,7 +381,15 @@ rows are left in both projects — never looked up, so harmless. Consequence for
 the i18n bookkeeping below: the seeded row count now **exceeds** the registry
 count by 9 per locale. Do not treat that gap as missing work.
 
-## ⛔ OPEN — code (mine)
+## 🔭 MIXED — mostly shipped, one deferred decision (heading corrected 2026-08-06)
+
+This heading said `⛔ OPEN — code (mine)` and covered ~200 lines in which almost
+everything is now marked `✅ FIXED` or `✅ SHIPPED` in its own sub-heading. The
+only thing still outstanding is the Coinglass deferral immediately below, and
+that is a decision, not work.
+
+Read the sub-headings, not this one. Kept rather than deleted because the
+sub-sections explain *why* several fixes look the way they do.
 
 ### Coinglass v4 migration — DEFERRED until there is revenue (decided 2026-07-30)
 
@@ -640,7 +701,28 @@ Two things worth remembering from that:
 - `?force=1` matters: a plain call short-circuits when the URL already matches
   and would skip re-applying `TELEGRAM_WEBHOOK_SECRET`.
 
-## ⛔ OPEN — dev RLS drift, one table fixed, worth a periodic re-check
+## ✅ RESOLVED — dev RLS drift (re-swept 2026-08-06, still clean)
+
+**Not open.** Fixed 2026-08-04 and re-verified 2026-08-06 against both projects:
+
+```
+dev   0 tables with RLS off   29 lhq_dev_* tables   10 RLS-on-zero-policies
+prod  0 tables with RLS off   30 lhq_*     tables   11 RLS-on-zero-policies
+```
+
+The zero-policy counts track each other, which is the intended shape — those are
+server-only tables where deny-all is correct and service-role bypasses RLS.
+
+One genuinely new gap was found and fixed on 2026-08-06, a *different* table:
+`public.lhq_signup_ip_log` had RLS **disabled** on dev while prod had it enabled,
+so anyone with the dev anon key — which is in CI, in `.env.local`, and inlined
+into the QA staging build — could read or modify every signup IP record. Enabled
+with zero policies, matching prod exactly; the `hook_restrict_signup_velocity`
+SECURITY DEFINER hook still fires, verified with a real signup.
+
+The standing advice below is still worth following. The original text follows:
+
+### Original finding, 2026-08-04
 
 `lhq_dev_user_settings` had RLS **enabled with zero policies** - deny-all, not
 allow-all. Service-role clients (webhooks, cron, `/api/*`) bypass RLS, so writes
@@ -668,15 +750,36 @@ re-running after any schema work on dev, since this drift was silent.
 Still Free, still zero backups. Parked until revenue by your call; listed here
 only so it is not mistaken for handled.
 
-### 2. Nothing else is blocking
+### 2. `qa` holds dev's Telegram token — parked by your call
 
-The dev-bot item that used to sit here is done (above). No QA item is waiting on
-you.
+See "QA needs its own Telegram bot" near the end of this file. Safe today only
+because `CRON_SECRET` is unset on `qa`, which makes `setup-webhook` fail closed —
+re-verified 2026-08-06, it returns 401. **Do not set `CRON_SECRET` on `qa`** until
+it has its own bot; doing so would let `qa` point dev's bot at itself and silently
+take every alert.
 
-### Branch/deploy state (2026-08-04)
+### 3. Nothing else is blocking
 
-`dev` = `32b2e86`, `main` = `40a5096` (a merge of the same content), nothing
-unmerged. Prod live on `40a5096`, dev on `32b2e86`, CI green on both.
+The dev-bot item that used to sit here is done. No QA item is waiting on you.
+
+### Branch/deploy state
+
+**Do not trust a snapshot in this file.** It said `dev` = `32b2e86`,
+`main` = `40a5096` from 2026-08-04, which was four releases stale by 2026-08-06
+and is exactly the kind of line that gets read as current.
+
+Check it instead — it takes two seconds and cannot go stale:
+
+```
+git fetch --prune origin
+git log --oneline -1 origin/main
+git rev-list --count origin/main..origin/qa   # unreleased on qa
+git rev-list --count origin/qa..origin/dev    # unpromoted on dev
+git tag --sort=-v:refname | head -1           # what production claims to be
+```
+
+Production is whatever the newest tag points at, and the tag is only pushed after
+a deploy reaches `live` (§Tagging in `CONTRIBUTING.md`).
 
 ## 🔭 DEFERRED — tied to unfinished payment feature
 
@@ -958,7 +1061,33 @@ only cleared on unmount. A user who leaves a tab open in fallback mode will ban
 their own IP within about six minutes. Worth fixing independently of the
 fan-out work; the fix is probably a slower fallback interval plus a cap.
 
-## ⛔ OPEN — /scanner has ~0.98 CLS, and the audit's 0.000 figure is wrong
+## ✅ RESOLVED 2026-08-06 — /scanner CLS (was: "~0.98, and the audit's 0.000 is wrong")
+
+**Both halves of that heading are now history.** The audit's 0.000 claim was
+indeed wrong — that part stands as a finding about the audit. But `/scanner` is
+no longer ~0.98.
+
+Measured over 24 runs on the shipped build, production server, two batches:
+
+```
+warm   min 0.007   median 0.011   mean 0.011   max 0.028
+```
+
+A single 0.176 appeared on the first run against a just-started server; a second
+batch was run specifically to test whether that was cold-start or the tail of the
+old race, and reproduced nothing above 0.028.
+
+It has been retired from `CLS_UNSTABLE` (measured but ungated) to a real
+`CLS_BUDGET` of **0.25** in `qa/e2e/_shared.ts`, so it is now asserted like every
+other route. `CLS_UNSTABLE` is empty as a result; the mechanism stays, with its
+entry bar documented — a distribution over ≥10 runs *and* a retirement condition.
+
+What actually fixed it was `fix/scanner-card-layout-shift` (heatmap ranking,
+three card skeletons, `PageHint`), not the earlier tile-height fix. The
+distribution below was measured on a build that had only the latter, which is why
+it read as non-deterministic.
+
+The original finding follows:
 
 **Found 2026-08-05** while fixing `/arena`'s layout shift (PR #5).
 
