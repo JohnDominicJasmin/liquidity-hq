@@ -63,11 +63,24 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!authData.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
-  const { error } = await sb(token)
+  /* .select() so we can tell "deleted a row" from "matched nothing".
+     Without it this answered `{ ok: true }` to a delete aimed at someone else's
+     hypothesis, and to an id that exists nowhere - PostgREST reports success for
+     a DELETE matching zero rows. The ownership filter held and nothing was ever
+     removed, so no data was at risk, but a UI that optimistically drops a row on
+     2xx would have shown it vanish and then reappear on reload.
+     Found by QA on the 2026-08-06 release. It is the same defect fixed on
+     /api/price-alerts in that release, one file over - the sweep that produced
+     that fix stopped at the file it started in. */
+  const { data, error } = await sb(token)
     .from(T.hypotheses)
     .delete()
     .eq('id', id)
-    .eq('user_id', authData.user.id);
+    .eq('user_id', authData.user.id)
+    .select('id');
   if (error) return apiError('hypotheses/[id]', error);
+  // 404, not 403 - a 403 would confirm the row exists and belongs to somebody
+  // else, which is an existence oracle for enumerating ids. Matches PATCH above.
+  if (!data?.length) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

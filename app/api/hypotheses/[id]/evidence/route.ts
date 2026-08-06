@@ -94,11 +94,17 @@ export async function DELETE(req: NextRequest) {
   const evidenceId = req.nextUrl.searchParams.get('evidenceId');
   if (!evidenceId) return NextResponse.json({ error: 'evidenceId required' }, { status: 400 });
 
-  const { error } = await sb(token)
+  /* Same fix as the parent route's DELETE, found by the same sweep. .eq('user_id')
+     is the ownership filter, so deleting somebody else's evidence row matches
+     zero rows - and PostgREST calls that success. Not reported by QA; found by
+     grepping every .delete() in app/api after they caught the hypotheses one. */
+  const { data, error } = await sb(token)
     .from(T.hypothesis_evidence)
     .delete()
     .eq('id', evidenceId)
-    .eq('user_id', authData.user.id);
+    .eq('user_id', authData.user.id)
+    .select('id');
   if (error) return apiError('hypotheses/[id]/evidence', error);
+  if (!data?.length) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json({ ok: true });
 }
