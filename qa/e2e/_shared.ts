@@ -252,7 +252,21 @@ export const BASELINE = {
      *   #86efac 1.24:1 · #fbbf24 1.33:1 · #fcbcbc 1.39:1 · #34d399 1.43:1
      * Highest volume: #8a8a8a (196), #f87171 (191), #34d399 (170).
      */
-    lightDistinctColours: 57,
+    /* 57 -> 38, lowered by the fix in #58 rather than by a re-measurement.
+       Verified by running THIS spec with that change merged in, all 32 routes:
+       990 total violations -> 65, and 57 distinct colours -> 38. Dark measured
+       13 on the same sweep, identical to the baseline above, which is what
+       proves a 58-file change left dark alone.
+
+       Worth noting the ratio, because it is this metric working rather than a
+       contradiction: violations fell 93% while distinct colours fell 33%. The
+       high-volume families (#f87171 191, #8a8a8a 196, #34d399 170) collapsed to
+       zero; what remains is a long tail where each colour appears 1-7 times -
+       brand colours (#627eea Ethereum, #f3ba2f Binance), chart accents, and
+       near-white text on near-white panels. Each needs its own decision, not a
+       token mapping. The count is the harder number to move, which is exactly
+       why it is the one asserted. */
+    lightDistinctColours: 38,
   },
   /** §6.4 - pages with no <h1>, desktop. */
   pagesWithoutH1: 13,
