@@ -124,7 +124,7 @@ function fmtUsd(v: number): string {
 /* ─── Estimated band row ───────────────────────────────────────────────────── */
 function BandRow({ b }: { b: Band }) {
   const isLong = b.side === 'long';
-  const accent = isLong ? '#f87171' : '#34d399';
+  const accent = isLong ? 'var(--red)' : 'var(--green-2)';
   return (
     <div className={`liq-row${b.isMagnet ? ' liq-row-magnet' : ''}`} role="row">
       <span className="liq-row-price">{fmtP(b.price)}</span>
@@ -197,7 +197,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
           <span style={{
             fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.06em',
             padding: '2px 7px', borderRadius: 10,
-            background: 'rgba(52,211,153,0.12)', color: '#34d399',
+            background: 'rgba(52,211,153,0.12)', color: 'var(--green-2)',
             border: '0.5px solid rgba(52,211,153,0.25)',
           }}>{t('LIQ_CLUSTERS_LIVE_BADGE')}</span>
         </div>
@@ -221,7 +221,7 @@ function RealClusters({ clusters, currentPrice }: { clusters: Bucket[]; currentP
           const longPct  = maxTotal > 0 ? (c.longUsd  / maxTotal) * 100 : 0;
           const shortPct = maxTotal > 0 ? (c.shortUsd / maxTotal) * 100 : 0;
           const isAbove  = c.price > currentPrice;
-          const domCol   = c.longUsd > c.shortUsd ? '#f87171' : '#34d399';
+          const domCol   = c.longUsd > c.shortUsd ? 'var(--red)' : 'var(--green-2)';
           const distUsd  = currentPrice > 0 ? Math.abs(c.price - currentPrice) : 0;
           return (
             <div key={c.price} style={{
@@ -338,9 +338,9 @@ export default function LiqPage() {
   /* Bias */
   const bias = bands
     ? bands.totalLongM > bands.totalShortM * 1.15
-      ? { txt: t('LIQ_BIAS_LONG_HEAVY'), sub: t('LIQ_BIAS_LONG_HEAVY_SUB'), col: '#f87171' }
+      ? { txt: t('LIQ_BIAS_LONG_HEAVY'), sub: t('LIQ_BIAS_LONG_HEAVY_SUB'), col: 'var(--red)' }
       : bands.totalShortM > bands.totalLongM * 1.15
-      ? { txt: t('LIQ_BIAS_SHORT_HEAVY'), sub: t('LIQ_BIAS_SHORT_HEAVY_SUB'), col: '#34d399' }
+      ? { txt: t('LIQ_BIAS_SHORT_HEAVY'), sub: t('LIQ_BIAS_SHORT_HEAVY_SUB'), col: 'var(--green-2)' }
       : { txt: t('LIQ_BIAS_BALANCED'), sub: t('LIQ_BIAS_BALANCED_SUB'), col: 'var(--txt-dim)' }
     : null;
 
@@ -444,7 +444,7 @@ export default function LiqPage() {
               <div className="liq-stat-label">{t('LIQ_STAT_LONG_ACCOUNTS')}</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 2 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                  <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--red)', fontVariantNumeric: 'tabular-nums' }}>
                     {((bybitPos?.longRatio ?? cd.longRatio ?? 0.5) * 100).toFixed(0)}%
                   </span>
                   <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BYBIT_PERIOD', { period: bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h' })}</span>
@@ -479,7 +479,7 @@ export default function LiqPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', marginTop: 2 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('LIQ_STAT_BYBIT_PERIOD', { period: bybitPos ? RANGE_TO_BYBIT_PERIOD[range] : '1h' })}</span>
-                  <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--green-2)', fontVariantNumeric: 'tabular-nums' }}>
                     {((bybitPos?.shortRatio ?? cd.shortRatio ?? 0.5) * 100).toFixed(0)}%
                   </span>
                 </div>
@@ -497,7 +497,7 @@ export default function LiqPage() {
 
           {/* ══ LIQUIDATION DELTA - net long vs short liquidation $ (15min window) ══ */}
           {cd.liqDelta != null && cd.liqLongUsd != null && cd.liqShortUsd != null ? (() => {
-            const netCol = cd.liqDelta! > 0 ? '#f87171' : cd.liqDelta! < 0 ? '#34d399' : 'var(--txt3)';
+            const netCol = cd.liqDelta! > 0 ? 'var(--red)' : cd.liqDelta! < 0 ? 'var(--green-2)' : 'var(--txt3)';
             const netTxt = cd.liqDelta! > 0
               ? t('LIQ_DELTA_NET_LONGS')
               : cd.liqDelta! < 0
@@ -533,7 +533,7 @@ export default function LiqPage() {
             const hasDivergence    = longSqueezeRisk || shortSqueezeRisk;
 
             const whaleSide = whaleLong > whaleShort ? 'long' : 'short';
-            const accentW   = whaleSide === 'long' ? '#f87171' : '#34d399';
+            const accentW   = whaleSide === 'long' ? 'var(--red)' : 'var(--green-2)';
 
             return (
               <div style={{
@@ -574,14 +574,14 @@ export default function LiqPage() {
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <div>
-                      <span style={{ fontSize: '1.125rem', fontWeight: 800, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>
+                      <span style={{ fontSize: '1.125rem', fontWeight: 800, color: 'var(--red)', fontVariantNumeric: 'tabular-nums' }}>
                         {(whaleLong * 100).toFixed(0)}%
                       </span>
                       <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginLeft: 5 }}>{t('LIQ_WHALE_LONG_SUFFIX')}</span>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginRight: 5 }}>{t('LIQ_WHALE_SHORT_SUFFIX')}</span>
-                      <span style={{ fontSize: '1.125rem', fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>
+                      <span style={{ fontSize: '1.125rem', fontWeight: 800, color: 'var(--green-2)', fontVariantNumeric: 'tabular-nums' }}>
                         {(whaleShort * 100).toFixed(0)}%
                       </span>
                     </div>
@@ -637,7 +637,7 @@ export default function LiqPage() {
             <div className="liq-current-bar">
               <span className="liq-current-dot" />
               <span className="liq-current-price">{fmtP(cd.price)}</span>
-              <span className="liq-current-chg" style={{ color: (cd.change ?? 0) >= 0 ? '#34d399' : '#f87171' }}>
+              <span className="liq-current-chg" style={{ color: (cd.change ?? 0) >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
                 {(cd.change ?? 0) >= 0 ? '▲' : '▼'}{Math.abs(cd.change ?? 0).toFixed(2)}%
               </span>
               <span className="liq-current-tag">{t('LIQ_HEATMAP_LIVE_TAG')}</span>
@@ -658,11 +658,11 @@ export default function LiqPage() {
             <div className="liq-howto-title">{t('LIQ_LEGEND_TITLE')}</div>
             <div className="liq-howto-row">
               <span className="liq-howto-dot" style={{ background: '#34d399' }} />
-              <span><strong style={{ color: '#34d399' }}>{t('LIQ_LEGEND_SHORT_BOLD')}</strong> - {t('LIQ_LEGEND_SHORT_TEXT')}</span>
+              <span><strong style={{ color: 'var(--green-2)' }}>{t('LIQ_LEGEND_SHORT_BOLD')}</strong> - {t('LIQ_LEGEND_SHORT_TEXT')}</span>
             </div>
             <div className="liq-howto-row">
               <span className="liq-howto-dot" style={{ background: '#f87171' }} />
-              <span><strong style={{ color: '#f87171' }}>{t('LIQ_LEGEND_LONG_BOLD')}</strong> - {t('LIQ_LEGEND_LONG_TEXT')}</span>
+              <span><strong style={{ color: 'var(--red)' }}>{t('LIQ_LEGEND_LONG_BOLD')}</strong> - {t('LIQ_LEGEND_LONG_TEXT')}</span>
             </div>
             <div className="liq-howto-row">
               <span style={{ flexShrink: 0 }}>◆</span>

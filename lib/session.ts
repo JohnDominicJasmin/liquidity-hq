@@ -164,7 +164,17 @@ export function isDead(d: Date): boolean {
   return mins >= 240 && mins < 420;
 }
 
-// Priority order matters - first match wins
+/* Priority order matters - first match wins.
+ *
+ * The colours below are deliberately hardcoded and deliberately NOT theme
+ * tokens. Each row pairs a foreground with its OWN explicit dark background,
+ * and .session-pill applies both together. Because the background is fixed, the
+ * pair is already correct in BOTH themes.
+ *
+ * Swapping the foreground for a token breaks that: the light-theme token is a
+ * dark colour and the background stays dark. Measured during the issue #53 sweep
+ * - .session-pill dropped to 2.30:1 before this was reverted. If a colour here
+ * needs to change, change the pair. */
 export function getCurrentWindow(d: Date): Window | null {
   if (isGodTier(d))    return { name: 'God Tier',     label: 'Sun 15:00–19:00 UTC',    color: '#f0c070', bg: '#3d2e00' };
   if (isPrime(d))      return { name: 'Prime',        label: 'Daily 18:00–21:00 UTC',   color: '#7de0a4', bg: '#152b1e' };

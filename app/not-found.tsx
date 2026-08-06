@@ -33,7 +33,7 @@ export default function NotFound() {
         </Link>
         <Link href="/liq" style={{
           padding: '9px 18px', borderRadius: 10, fontSize: 'var(--fs-label)', fontWeight: 700,
-          color: '#34d399', background: 'rgba(52,211,153,0.08)',
+          color: 'var(--green-2)', background: 'rgba(52,211,153,0.08)',
           border: '0.5px solid rgba(52,211,153,0.3)', textDecoration: 'none',
         }}>
           {t('NOT_FOUND_LIQUIDATION_MAP_LINK')}

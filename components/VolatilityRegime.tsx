@@ -13,9 +13,9 @@ interface HVData {
 }
 
 const REGIME_META: Record<'low' | 'neutral' | 'high', { labelKey: LabelKey; col: string; bg: string; bdr: string; hintKey: LabelKey }> = {
-  low:     { labelKey: 'VOLATILITY_REGIME_LABEL_LOW',     col: '#34d399', bg: 'rgba(52,211,153,0.10)',  bdr: 'rgba(52,211,153,0.3)',  hintKey: 'VOLATILITY_REGIME_HINT_LOW' },
-  neutral: { labelKey: 'VOLATILITY_REGIME_LABEL_NEUTRAL', col: '#fbbf24', bg: 'rgba(251,191,36,0.10)',  bdr: 'rgba(251,191,36,0.3)',  hintKey: 'VOLATILITY_REGIME_HINT_NEUTRAL' },
-  high:    { labelKey: 'VOLATILITY_REGIME_LABEL_HIGH',    col: '#f87171', bg: 'rgba(248,113,113,0.10)', bdr: 'rgba(248,113,113,0.3)', hintKey: 'VOLATILITY_REGIME_HINT_HIGH' },
+  low:     { labelKey: 'VOLATILITY_REGIME_LABEL_LOW',     col: 'var(--green-2)', bg: 'rgba(52,211,153,0.10)',  bdr: 'rgba(52,211,153,0.3)',  hintKey: 'VOLATILITY_REGIME_HINT_LOW' },
+  neutral: { labelKey: 'VOLATILITY_REGIME_LABEL_NEUTRAL', col: 'var(--amber)', bg: 'rgba(251,191,36,0.10)',  bdr: 'rgba(251,191,36,0.3)',  hintKey: 'VOLATILITY_REGIME_HINT_NEUTRAL' },
+  high:    { labelKey: 'VOLATILITY_REGIME_LABEL_HIGH',    col: 'var(--red)', bg: 'rgba(248,113,113,0.10)', bdr: 'rgba(248,113,113,0.3)', hintKey: 'VOLATILITY_REGIME_HINT_HIGH' },
 };
 
 const CACHE_KEY = 'lhq_vol_regime';

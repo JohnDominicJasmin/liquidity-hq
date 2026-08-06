@@ -8,7 +8,7 @@ export default function Sparkline({ points, width = 44, height = 16 }: { points:
   const max = Math.max(...points);
   const span = max - min || 1;
   const up = points[points.length - 1] >= points[0];
-  const col = up ? '#4ade80' : '#f87171';
+  const col = up ? 'var(--green)' : 'var(--red)';
   const step = width / (points.length - 1);
   const coords = points.map((p, i) => {
     const x = i * step;

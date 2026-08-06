@@ -145,7 +145,7 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
   const tp   = stop ? computeTP(d, bias, stop) : null;
   const rr   = stop && tp ? (tp.distPct / stop.distPct) : null;
 
-  const biasCol = bias === 'long' ? '#34d399' : bias === 'short' ? '#f87171' : 'var(--txt-dim)';
+  const biasCol = bias === 'long' ? 'var(--green-2)' : bias === 'short' ? 'var(--red)' : 'var(--txt-dim)';
 
   // Conflict: technical indicator bias vs Grok AI signal
   const grokUp = grokSignal?.toUpperCase() ?? '';
@@ -165,7 +165,7 @@ export default function StopLossZone({ coin, grokSignal }: { coin: CoinId; grokS
     rows.push(...all.sort((a, b) => b.price - a.price));
   }
 
-  const roleCol   = (role: Row['role']) => role === 'sl' ? '#f87171' : role === 'tp' ? '#34d399' : 'var(--txt)';
+  const roleCol   = (role: Row['role']) => role === 'sl' ? 'var(--red)' : role === 'tp' ? 'var(--green-2)' : 'var(--txt)';
   const roleTint  = (role: Row['role']) => role === 'tp' ? 'rgba(52,211,153,0.07)' : role === 'sl' ? 'rgba(248,113,113,0.07)' : 'transparent';
   const roleLabel = (role: Row['role']) => role === 'sl' ? t('STOP_LOSS_ZONE_ROLE_SL') : role === 'tp' ? t('STOP_LOSS_ZONE_ROLE_TP') : t('STOP_LOSS_ZONE_ROLE_ENTRY');
 

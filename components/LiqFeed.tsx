@@ -406,7 +406,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
       <div className="liqfeed-stats">
         <div className="liqfeed-stat">
           <span className="liqfeed-stat-lbl">{t('LIQ_FEED_STAT_LONGS')}</span>
-          <span className="liqfeed-stat-val" style={{ color: '#f87171' }}>{fmtUSD(stats.longUsd)}</span>
+          <span className="liqfeed-stat-val" style={{ color: 'var(--red)' }}>{fmtUSD(stats.longUsd)}</span>
         </div>
         <div className="liqfeed-stat-sep" />
         <div className="liqfeed-stat" style={{ textAlign: 'center' }}>
@@ -416,7 +416,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
         <div className="liqfeed-stat-sep" />
         <div className="liqfeed-stat" style={{ textAlign: 'right' }}>
           <span className="liqfeed-stat-lbl">{t('LIQ_FEED_STAT_SHORTS')}</span>
-          <span className="liqfeed-stat-val" style={{ color: '#34d399' }}>{fmtUSD(stats.shortUsd)}</span>
+          <span className="liqfeed-stat-val" style={{ color: 'var(--green-2)' }}>{fmtUSD(stats.shortUsd)}</span>
         </div>
       </div>
 
@@ -428,8 +428,8 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
             <div className="liqfeed-bias-bar liqfeed-bias-short" style={{ width: `${(stats.shortUsd / totalUsd) * 100}%` }} />
           </div>
           <div className="liqfeed-bias-label">
-            {longDom  && <span style={{ color: '#f87171', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Warn /> {t('LIQ_FEED_BIAS_LONG_DOM')}</span>}
-            {shortDom && <span style={{ color: '#34d399' }}>{t('LIQ_FEED_BIAS_SHORT_DOM')}</span>}
+            {longDom  && <span style={{ color: 'var(--red)', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Warn /> {t('LIQ_FEED_BIAS_LONG_DOM')}</span>}
+            {shortDom && <span style={{ color: 'var(--green-2)' }}>{t('LIQ_FEED_BIAS_SHORT_DOM')}</span>}
             {!longDom && !shortDom && <span style={{ color: 'var(--txt3)' }}>{t('LIQ_FEED_BIAS_BALANCED')}</span>}
           </div>
         </>
@@ -469,7 +469,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
                 <span className="liq-cluster-amt">{fmtUSD(c.total)}</span>
                 <span
                   className="liq-cluster-dom"
-                  style={{ color: c.longUsd > c.shortUsd ? '#f87171' : '#34d399' }}
+                  style={{ color: c.longUsd > c.shortUsd ? 'var(--red)' : 'var(--green-2)' }}
                 >
                   {c.longUsd > c.shortUsd ? t('LIQ_FEED_DOM_LONG_ABBR') : t('LIQ_FEED_DOM_SHORT_ABBR')}
                 </span>
@@ -497,7 +497,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
         {displayed.map(ev => {
           const isLong = ev.side === 'LONG';
           const isBig  = ev.usd >= MIN_ALERT;
-          const accent = isLong ? '#f87171' : '#34d399';
+          const accent = isLong ? 'var(--red)' : 'var(--green-2)';
           return (
             <div
               key={ev.id}
@@ -508,7 +508,7 @@ export default function LiqFeed({ onClusters, coinFilter }: { onClusters?: (clus
               <span className={`liqfeed-row-side liqfeed-row-side-${isLong ? 'long' : 'short'}`}>
                 {isLong ? t('LIQ_FEED_ROW_LONG') : t('LIQ_FEED_ROW_SHORT')}
               </span>
-              <span className="liqfeed-row-usd" style={{ color: isBig ? accent : '#8e8e93' }}>
+              <span className="liqfeed-row-usd" style={{ color: isBig ? accent : 'var(--txt-dim)' }}>
                 {fmtUSD(ev.usd)}
               </span>
               <span className="liqfeed-row-price">{fmtEventPrice(ev.price)}</span>

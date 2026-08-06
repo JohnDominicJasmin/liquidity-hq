@@ -129,7 +129,7 @@ export default function DistributionTracker() {
               </span>
               <span style={{
                 fontSize: 'var(--fs-caption)', fontWeight: 600, flexShrink: 0, width: 48, textAlign: 'right',
-                color: r.change >= 0 ? '#4ade80' : '#f87171', fontVariantNumeric: 'tabular-nums',
+                color: r.change >= 0 ? 'var(--green)' : 'var(--red)', fontVariantNumeric: 'tabular-nums',
               }}>
                 {r.change >= 0 ? '+' : ''}{r.change.toFixed(2)}%
               </span>

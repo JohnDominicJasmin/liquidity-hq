@@ -1168,7 +1168,7 @@ function ArenaContent() {
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', letterSpacing: '-0.3px' }}>{t('ARENA_PAGE_TITLE')}</div>
-          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#12233f', color: '#5aa3ff', border: '0.5px solid #2a4a7a', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: '#12233f', color: 'var(--accent-2)', border: '0.5px solid #2a4a7a', letterSpacing: '.05em' }}>{t('ARENA_LIVE_BADGE')}</span>
         </div>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('ARENA_PAGE_SUBTITLE')}</div>
       </div>
@@ -1253,7 +1253,7 @@ function ArenaContent() {
           {/* Selected coin chip - left side */}
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 5,
-            fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#5aa3ff',
+            fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--accent-2)',
             background: 'rgba(90,163,255,0.1)', padding: '2px 9px 2px 5px',
             borderRadius: 20, border: '0.5px solid rgba(90,163,255,0.2)',
             flexShrink: 0,
@@ -1265,12 +1265,12 @@ function ArenaContent() {
           <span style={{ flex: 1 }} />
           {/* Active signal chips */}
           {sqzCount > 0 && (
-            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid rgba(52,211,153,0.2)' }}>
+            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--green-2)', background: 'rgba(52,211,153,0.1)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid rgba(52,211,153,0.2)' }}>
               ↑ {sqzCount}
             </span>
           )}
           {flushCount > 0 && (
-            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#f87171', background: 'rgba(248,113,113,0.1)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid rgba(248,113,113,0.2)' }}>
+            <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--red)', background: 'rgba(248,113,113,0.1)', padding: '1px 7px', borderRadius: 20, border: '0.5px solid rgba(248,113,113,0.2)' }}>
               ↓ {flushCount}
             </span>
           )}
@@ -1316,7 +1316,7 @@ function ArenaContent() {
               padding: '3px 7px', borderRadius: 7, border: '0.5px solid',
               background: notifEnabled ? '#152b1e' : 'transparent',
               borderColor: notifEnabled ? '#266038' : 'rgba(255,255,255,0.08)',
-              color: notifEnabled ? '#7de0a4' : 'var(--txt-dim)',
+              color: notifEnabled ? 'var(--green-soft)' : 'var(--txt-dim)',
               fontSize: 'var(--fs-caption)', cursor: 'pointer', flexShrink: 0, lineHeight: 1,
             }}
           >
@@ -1391,7 +1391,7 @@ function ArenaContent() {
               const isActive    = rowSq.dir !== 'NEUTRAL' && rowSq.score >= 30;
               const icon        = rowSq.dir === 'SHORT_SQ' ? '↑' : rowSq.dir === 'LONG_LIQ' ? '↓' : '';
               const statusLabel = rowSq.dir === 'SHORT_SQ' ? t('ARENA_SCANNER_STATUS_SQUEEZE') : rowSq.dir === 'LONG_LIQ' ? t('ARENA_SCANNER_STATUS_FLUSH') : t('ARENA_SCANNER_STATUS_NEUTRAL');
-              const vsBtcColor  = vsBtc == null ? 'var(--txt3)' : vsBtc >= 2 ? '#34d399' : vsBtc <= -2 ? '#f87171' : 'var(--txt3)';
+              const vsBtcColor  = vsBtc == null ? 'var(--txt3)' : vsBtc >= 2 ? 'var(--green-2)' : vsBtc <= -2 ? 'var(--red)' : 'var(--txt3)';
               return (
                 <button
                   key={c}
@@ -1420,13 +1420,13 @@ function ArenaContent() {
                       bg={isActive ? withAlpha(rowSq.color, '1a') : undefined}
                     />
                     <div>
-                      <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isSelected ? '#5aa3ff' : isActive ? 'var(--txt)' : 'var(--txt3)', lineHeight: 1.2 }}>
+                      <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: isSelected ? 'var(--accent-2)' : isActive ? 'var(--txt)' : 'var(--txt3)', lineHeight: 1.2 }}>
                         {c.toUpperCase()}
                       </div>
                       {badges.length > 0 ? (
                         <div style={{ display: 'flex', gap: 3, marginTop: 2, flexWrap: 'wrap' }}>
                           {badges.map(b => {
-                            const col = b.tone === 'good' ? '#34d399' : '#f87171';
+                            const col = b.tone === 'good' ? 'var(--green-2)' : 'var(--red)';
                             return (
                               <span key={b.key} style={{
                                 fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.04em',
@@ -1446,7 +1446,7 @@ function ArenaContent() {
                     {price ? '$' + fmtPrice(price) : '-'}
                   </span>
                   {/* 24h % */}
-                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: change == null ? 'var(--txt3)' : change >= 0 ? '#34d399' : '#f87171' }}>
+                  <span style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: change == null ? 'var(--txt3)' : change >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
                     {change != null ? (change >= 0 ? '+' : '') + change.toFixed(1) + '%' : '-'}
                   </span>
                   {/* vs BTC */}
@@ -1608,7 +1608,7 @@ function ArenaContent() {
                       flex: 1, padding: '7px 12px', fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '.02em',
                       border: 'none', borderRadius: 8, cursor: 'pointer', transition: 'background .15s, color .15s',
                       background: alertDir === d ? (d === 'above' ? 'var(--green-bg)' : 'var(--red-bg)') : 'transparent',
-                      color: alertDir === d ? (d === 'above' ? '#4ade80' : '#f87171') : 'var(--txt3)',
+                      color: alertDir === d ? (d === 'above' ? 'var(--green)' : 'var(--red)') : 'var(--txt3)',
                     }}
                   >
                     {d === 'above' ? t('ARENA_ALERT_DIR_ABOVE') : t('ARENA_ALERT_DIR_BELOW')}
@@ -1703,7 +1703,7 @@ function ArenaContent() {
       {readError && <div className="arena-err">{readError}</div>}
 
       {result && !dismissedResults.has(selectedCoin) && nowMs - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
-        const sigCol = result.signal === 'LONG' ? '#34d399' : result.signal === 'LEAN LONG' ? '#86efac' : result.signal === 'SHORT' ? '#f87171' : result.signal === 'LEAN SHORT' ? '#fca5a5' : '#9ca3af';
+        const sigCol = result.signal === 'LONG' ? 'var(--green-2)' : result.signal === 'LEAN LONG' ? 'var(--green-soft)' : result.signal === 'SHORT' ? 'var(--red)' : result.signal === 'LEAN SHORT' ? 'var(--red-soft)' : '#9ca3af';
         const verdictWord = result.signal === 'LONG' ? t('ARENA_VERDICT_LONG') : result.signal === 'LEAN LONG' ? t('ARENA_VERDICT_LEAN_LONG') : result.signal === 'SHORT' ? t('ARENA_VERDICT_SHORT') : result.signal === 'LEAN SHORT' ? t('ARENA_VERDICT_LEAN_SHORT') : t('ARENA_VERDICT_WAIT');
         const sigGrad = result.signal.includes('LONG') ? 'linear-gradient(160deg,#5ff0b0,#34d399)'
           : result.signal.includes('SHORT') ? 'linear-gradient(160deg,#ff9d9d,#f87171)'
@@ -1713,7 +1713,7 @@ function ArenaContent() {
         const rr = entryMid && result.sl && result.tp ? Math.abs((result.tp - entryMid) / (entryMid - result.sl)) : null;
         const coinD = store.coins[selectedCoin];
         const frPct = coinD?.fundingRate != null ? coinD.fundingRate * 100 : null;
-        const GC = '#34d399', RC = '#f87171', NC = 'var(--txt3)';
+        const GC = 'var(--green-2)', RC = 'var(--red)', NC = 'var(--txt3)';
         // Multi-TF: RSI bias across 15m/1h/4h (same math as the MultiTFAlignment card)
         const tfBias = (r: number | null | undefined) => r == null ? 0 : r > 57 ? 1 : r < 43 ? -1 : 0;
         const tfArr = [coinD?.rsi14, coinD?.rsi1h, coinD?.rsi4h].map(tfBias);
@@ -1852,7 +1852,7 @@ function ArenaContent() {
               }}>
                 <span aria-hidden="true" style={{ fontSize: 16, flexShrink: 0 }}>⚠</span>
                 <div>
-                  <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: '#f87171' }}>
+                  <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--red)' }}>
                     {t('ARENA_STOP_HIT_HEADER')}
                   </div>
                   <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
@@ -1869,7 +1869,7 @@ function ArenaContent() {
               }}>
                 <span aria-hidden="true" style={{ fontSize: 16, flexShrink: 0 }}>✓</span>
                 <div>
-                  <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: '#34d399' }}>
+                  <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--green-2)' }}>
                     {t('ARENA_TARGET_HIT_HEADER')}
                   </div>
                   <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
@@ -1890,7 +1890,7 @@ function ArenaContent() {
                     <span style={{
                       marginLeft: 6, fontSize: 'var(--fs-micro)', fontWeight: 800, letterSpacing: '.06em',
                       textTransform: 'uppercase',
-                      color: result.bias === 'BEARISH' ? '#f87171' : '#34d399',
+                      color: result.bias === 'BEARISH' ? 'var(--red)' : 'var(--green-2)',
                     }}>
                       · {result.bias === 'BEARISH' ? t('ARENA_LEANING_BEARISH_ARROW') : t('ARENA_LEANING_BULLISH_ARROW')}
                     </span>
@@ -1911,7 +1911,7 @@ function ArenaContent() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 12px 6px', borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}>
                   <span style={{
                     fontSize: 'var(--fs-caption)', fontWeight: 800, letterSpacing: '.05em',
-                    color: result.raidSetup === 'SHORT SQUEEZE' ? '#34d399' : '#f87171',
+                    color: result.raidSetup === 'SHORT SQUEEZE' ? 'var(--green-2)' : 'var(--red)',
                   }}>
                     {t('ARENA_RAID_HEADER', { setup: result.raidSetup })}
                   </span>
@@ -2124,7 +2124,7 @@ function ArenaContent() {
                 {result.patterns.map((p, i) => {
                   const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
                   const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
-                  const col = isBull ? '#34d399' : isBear ? '#f87171' : '#1a7aff';
+                  const col = isBull ? 'var(--green-2)' : isBear ? 'var(--red)' : '#1a7aff';
                   const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
                   const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
                   return (
@@ -2179,7 +2179,7 @@ function ArenaContent() {
                     <span className={`arena-sig-badge badge-${h.signal.toLowerCase().replace(' ', '-')}`} style={{ fontSize: 'var(--fs-caption)' }}>
                       {h.signal === 'LONG' ? t('ARENA_HIST_BADGE_LONG') : h.signal === 'LEAN LONG' ? t('ARENA_HIST_BADGE_LEAN_LONG') : h.signal === 'SHORT' ? t('ARENA_HIST_BADGE_SHORT') : h.signal === 'LEAN SHORT' ? t('ARENA_HIST_BADGE_LEAN_SHORT') : t('ARENA_HIST_BADGE_FLAT')}
                     </span>
-                    <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#5aa3ff' }}>{t('ARENA_HIST_CONFIDENCE_PCT', { pct: h.confidence })}</div>
+                    <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--accent-2)' }}>{t('ARENA_HIST_CONFIDENCE_PCT', { pct: h.confidence })}</div>
                   </div>
                   {h.entry && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>

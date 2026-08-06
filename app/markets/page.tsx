@@ -18,15 +18,15 @@ function topSignal(d: ReturnType<typeof useMarket>['store']['coins'][CoinId]): {
   if (!d) return { key: null, col: 'var(--txt-dim)' };
   if (d.fundingRate != null) {
     const fr = d.fundingRate * 100;
-    if (fr >= 0.04) return { key: 'MARKETS_SIGNAL_LONGS_OVERCROWDED', col: '#f87171' };
-    if (fr <= -0.02) return { key: 'MARKETS_SIGNAL_SHORTS_SQUEEZED', col: '#34d399' };
+    if (fr >= 0.04) return { key: 'MARKETS_SIGNAL_LONGS_OVERCROWDED', col: 'var(--red)' };
+    if (fr <= -0.02) return { key: 'MARKETS_SIGNAL_SHORTS_SQUEEZED', col: 'var(--green-2)' };
   }
-  if (d.cvdDivergence === 'bullish') return { key: 'MARKETS_SIGNAL_SMART_BUYERS', col: '#34d399' };
-  if (d.cvdDivergence === 'bearish') return { key: 'MARKETS_SIGNAL_SMART_SELLERS', col: '#f87171' };
-  if (d.oiTrend === 'strong_up')   return { key: 'MARKETS_SIGNAL_NEW_BUYERS', col: '#34d399' };
-  if (d.oiTrend === 'strong_down') return { key: 'MARKETS_SIGNAL_NEW_SELLERS', col: '#f87171' };
-  if (d.oiTrend === 'weak_up')     return { key: 'MARKETS_SIGNAL_SHORT_COVERING', col: '#fbbf24' };
-  if (d.oiTrend === 'weak_down')   return { key: 'MARKETS_SIGNAL_LONGS_EXITING', col: '#94a3b8' };
+  if (d.cvdDivergence === 'bullish') return { key: 'MARKETS_SIGNAL_SMART_BUYERS', col: 'var(--green-2)' };
+  if (d.cvdDivergence === 'bearish') return { key: 'MARKETS_SIGNAL_SMART_SELLERS', col: 'var(--red)' };
+  if (d.oiTrend === 'strong_up')   return { key: 'MARKETS_SIGNAL_NEW_BUYERS', col: 'var(--green-2)' };
+  if (d.oiTrend === 'strong_down') return { key: 'MARKETS_SIGNAL_NEW_SELLERS', col: 'var(--red)' };
+  if (d.oiTrend === 'weak_up')     return { key: 'MARKETS_SIGNAL_SHORT_COVERING', col: 'var(--amber)' };
+  if (d.oiTrend === 'weak_down')   return { key: 'MARKETS_SIGNAL_LONGS_EXITING', col: 'var(--txt-dim)' };
   return { key: 'MARKETS_SIGNAL_NONE', col: 'var(--txt-dim)' };
 }
 
@@ -69,8 +69,8 @@ export default function MarketsPage() {
         cmp = (GRADE_ORDER[ga] ?? 5) - (GRADE_ORDER[gb] ?? 5);
       }
       if (sort === 'signal') {
-        const sa = topSignal(da).col === '#34d399' ? 0 : topSignal(da).col === '#f87171' ? 2 : 1;
-        const sb = topSignal(db).col === '#34d399' ? 0 : topSignal(db).col === '#f87171' ? 2 : 1;
+        const sa = topSignal(da).col === 'var(--green-2)' ? 0 : topSignal(da).col === 'var(--red)' ? 2 : 1;
+        const sb = topSignal(db).col === 'var(--green-2)' ? 0 : topSignal(db).col === 'var(--red)' ? 2 : 1;
         cmp = sa - sb;
       }
       return sortAsc ? cmp : -cmp;
@@ -86,8 +86,8 @@ export default function MarketsPage() {
   const rangeStart = rows.length === 0 ? 0 : pageSafe * PAGE_SIZE + 1;
   const rangeEnd   = Math.min(rows.length, pageSafe * PAGE_SIZE + PAGE_SIZE);
 
-  const bullCount = COINS.filter(id => topSignal(store.coins[id]).col === '#34d399').length;
-  const bearCount = COINS.filter(id => topSignal(store.coins[id]).col === '#f87171').length;
+  const bullCount = COINS.filter(id => topSignal(store.coins[id]).col === 'var(--green-2)').length;
+  const bearCount = COINS.filter(id => topSignal(store.coins[id]).col === 'var(--red)').length;
 
   function handleSort(key: SortKey) {
     if (sort === key) setSortAsc(v => !v);
@@ -105,11 +105,11 @@ export default function MarketsPage() {
   }
 
   const GRADE_STYLE: Record<string, { bg: string; col: string }> = {
-    A: { bg: 'rgba(52,211,153,0.15)',  col: '#34d399' },
-    B: { bg: 'rgba(96,165,250,0.15)',  col: '#60a5fa' },
+    A: { bg: 'rgba(52,211,153,0.15)',  col: 'var(--green-2)' },
+    B: { bg: 'rgba(96,165,250,0.15)',  col: 'var(--accent-2)' },
     C: { bg: 'rgba(245,158,11,0.15)',  col: '#f59e0b' },
-    D: { bg: 'rgba(248,113,113,0.15)', col: '#f87171' },
-    F: { bg: 'rgba(239,68,68,0.15)',   col: '#ef4444' },
+    D: { bg: 'rgba(248,113,113,0.15)', col: 'var(--red)' },
+    F: { bg: 'rgba(239,68,68,0.15)',   col: 'var(--red)' },
   };
 
   return (
@@ -151,8 +151,8 @@ export default function MarketsPage() {
             </div>
           </div>
           <div className="mkt-mono" style={{ marginLeft: 'auto', display: 'flex', gap: 14, fontSize: 'var(--fs-caption)' }}>
-            <span style={{ color: '#34d399' }}>{t('MARKETS_BULLISH_COUNT', { count: bullCount })}</span>
-            <span style={{ color: '#f87171' }}>{t('MARKETS_BEARISH_COUNT', { count: bearCount })}</span>
+            <span style={{ color: 'var(--green-2)' }}>{t('MARKETS_BULLISH_COUNT', { count: bullCount })}</span>
+            <span style={{ color: 'var(--red)' }}>{t('MARKETS_BEARISH_COUNT', { count: bearCount })}</span>
             <span style={{ color: 'var(--txt3)' }}>{t('MARKETS_NEUTRAL_COUNT', { count: COINS.length - bullCount - bearCount })}</span>
           </div>
         </div>
@@ -230,7 +230,7 @@ export default function MarketsPage() {
           const sig    = topSignal(d);
           const tbp    = d?.takerBuyRatio != null ? Math.round(d.takerBuyRatio * 100) : 50;
           const gradeStyle = GRADE_STYLE[health.grade] ?? GRADE_STYLE.F;
-          const barCol = tbp >= 55 ? '#34d399' : tbp <= 45 ? '#f87171' : '#555';
+          const barCol = tbp >= 55 ? 'var(--green-2)' : tbp <= 45 ? 'var(--red)' : '#555';
           const badgeCol = coinBadgeColor(id);
 
           return (
@@ -280,7 +280,7 @@ export default function MarketsPage() {
               {/* Change */}
               <div className="mkt-mono" style={{
                 textAlign: 'right', fontSize: 'var(--fs-caption)', fontWeight: 700,
-                color: up ? '#34d399' : '#f87171',
+                color: up ? 'var(--green-2)' : 'var(--red)',
               }}>
                 {up ? '+' : ''}{chg.toFixed(2)}%
               </div>

@@ -73,7 +73,7 @@ function computeTFSignal(
 function cellColors(sig: TFSignal): { bg: string; text: string; border: string } {
   if (sig.dir === 'NEUTRAL') return { bg: 'transparent', text: 'var(--txt-dim)', border: 'transparent' };
   const isFlush = sig.dir === 'FLUSH';
-  const base    = isFlush ? '#f87171' : '#34d399';
+  const base    = isFlush ? 'var(--red)' : 'var(--green-2)';
   const alpha   = sig.strength >= 70 ? '28' : sig.strength >= 40 ? '16' : '0c';
   return {
     bg:     withAlpha(base, alpha),
@@ -141,13 +141,13 @@ export default function MultiTFSqueezeView() {
         {totalSqz > 0 && (
           <span style={{
             fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20,
-            color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)',
+            color: 'var(--green-2)', background: 'rgba(52,211,153,0.1)', border: '0.5px solid rgba(52,211,153,0.25)',
           }}>{t('MULTI_TF_SQUEEZE_VIEW_SQUEEZE_BADGE', { count: totalSqz })}</span>
         )}
         {totalFlush > 0 && (
           <span style={{
             fontSize: 'var(--fs-caption)', fontWeight: 700, padding: '2px 7px', borderRadius: 20,
-            color: '#f87171', background: 'rgba(248,113,113,0.1)', border: '0.5px solid rgba(248,113,113,0.25)',
+            color: 'var(--red)', background: 'rgba(248,113,113,0.1)', border: '0.5px solid rgba(248,113,113,0.25)',
           }}>{t('MULTI_TF_SQUEEZE_VIEW_FLUSH_BADGE', { count: totalFlush })}</span>
         )}
       </div>
@@ -215,7 +215,7 @@ export default function MultiTFSqueezeView() {
             <span style={{
               fontSize: 'var(--fs-caption)', fontWeight: 700,
               color: rowActive
-                ? (dominantDir === 'SQUEEZE' ? '#34d399' : '#f87171')
+                ? (dominantDir === 'SQUEEZE' ? 'var(--green-2)' : 'var(--red)')
                 : 'var(--txt-dim)',
               letterSpacing: '.03em',
             }}>
@@ -287,8 +287,8 @@ export default function MultiTFSqueezeView() {
 
       {/* Footer legend */}
       <div style={{ padding: '6px 14px', borderTop: '0.5px solid rgba(255,255,255,0.05)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#34d399' }}>{t('MULTI_TF_SQUEEZE_VIEW_LEGEND_SQUEEZE')}</span>
-        <span style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>{t('MULTI_TF_SQUEEZE_VIEW_LEGEND_FLUSH')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--green-2)' }}>{t('MULTI_TF_SQUEEZE_VIEW_LEGEND_SQUEEZE')}</span>
+        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>{t('MULTI_TF_SQUEEZE_VIEW_LEGEND_FLUSH')}</span>
         <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>{t('MULTI_TF_SQUEEZE_VIEW_LEGEND_FORMULA')}</span>
       </div>
     </div>

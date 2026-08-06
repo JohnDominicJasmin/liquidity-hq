@@ -270,9 +270,9 @@ export function computeSqueezeScore(coin: CoinData | undefined): {
 
   // ── Gate: ≥2 independent signals required to label as Flush / Squeeze ─────
   if (longRisk > shortRisk && longSignals >= 2)
-    return { score, dir: 'LONG_LIQ', label: 'Long liquidation risk ↓', color: '#ff9a92' };
+    return { score, dir: 'LONG_LIQ', label: 'Long liquidation risk ↓', color: 'var(--red-soft)' };
   if (shortRisk > longRisk && shortSignals >= 2)
-    return { score, dir: 'SHORT_SQ', label: 'Short squeeze ↑', color: '#7de0a4' };
+    return { score, dir: 'SHORT_SQ', label: 'Short squeeze ↑', color: 'var(--green-soft)' };
   return { score, dir: 'NEUTRAL', label: 'Balanced', color: 'var(--txt-dim)' };
 }
 
@@ -321,9 +321,9 @@ export function computeCoinHealth(coin: CoinData | undefined): {
 
   const color =
     grade === 'A' ? '#f0c070' :   // gold
-    grade === 'B' ? '#34d399' :   // green
-    grade === 'C' ? '#94a3b8' :   // gray
-    grade === 'D' ? '#fb923c' :   // orange
+    grade === 'B' ? 'var(--green-2)' :   // green
+    grade === 'C' ? 'var(--txt-dim)' :   // gray
+    grade === 'D' ? 'var(--orange)' :   // orange
                     '#475569';    // muted (F)
 
   const label =

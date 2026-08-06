@@ -37,21 +37,21 @@ interface Evidence {
 
 const STATUS_META: Record<string, { labelKey: LabelKey; col: string; bg: string }> = {
   active:        { labelKey: 'HYPOTHESIS_TRACKER_STATUS_ACTIVE',       col: '#1a7aff', bg: 'rgba(26,122,255,0.12)' },
-  confirmed:     { labelKey: 'HYPOTHESIS_TRACKER_STATUS_CONFIRMED',    col: '#34d399', bg: 'rgba(52,211,153,0.12)' },
-  disconfirmed:  { labelKey: 'HYPOTHESIS_TRACKER_STATUS_DISCONFIRMED', col: '#f87171', bg: 'rgba(248,113,113,0.12)' },
-  expired:       { labelKey: 'HYPOTHESIS_TRACKER_STATUS_EXPIRED',      col: '#94a3b8', bg: 'rgba(148,163,184,0.10)' },
+  confirmed:     { labelKey: 'HYPOTHESIS_TRACKER_STATUS_CONFIRMED',    col: 'var(--green-2)', bg: 'rgba(52,211,153,0.12)' },
+  disconfirmed:  { labelKey: 'HYPOTHESIS_TRACKER_STATUS_DISCONFIRMED', col: 'var(--red)', bg: 'rgba(248,113,113,0.12)' },
+  expired:       { labelKey: 'HYPOTHESIS_TRACKER_STATUS_EXPIRED',      col: 'var(--txt-dim)', bg: 'rgba(148,163,184,0.10)' },
 };
 
 const VERDICT_META: Record<string, { col: string }> = {
-  CONFIRMED:    { col: '#34d399' },
-  DISCONFIRMED: { col: '#f87171' },
-  UNCLEAR:      { col: '#fbbf24' },
+  CONFIRMED:    { col: 'var(--green-2)' },
+  DISCONFIRMED: { col: 'var(--red)' },
+  UNCLEAR:      { col: 'var(--amber)' },
 };
 
 const EV_META: Record<string, { icon: string; col: string; labelKey: LabelKey }> = {
-  supporting: { icon: '↑', col: '#34d399', labelKey: 'HYPOTHESIS_TRACKER_EV_SUPPORTING' },
-  against:    { icon: '↓', col: '#f87171', labelKey: 'HYPOTHESIS_TRACKER_EV_AGAINST' },
-  neutral:    { icon: '→', col: '#94a3b8', labelKey: 'HYPOTHESIS_TRACKER_EV_NEUTRAL' },
+  supporting: { icon: '↑', col: 'var(--green-2)', labelKey: 'HYPOTHESIS_TRACKER_EV_SUPPORTING' },
+  against:    { icon: '↓', col: 'var(--red)', labelKey: 'HYPOTHESIS_TRACKER_EV_AGAINST' },
+  neutral:    { icon: '→', col: 'var(--txt-dim)', labelKey: 'HYPOTHESIS_TRACKER_EV_NEUTRAL' },
 };
 
 function fmtDate(iso: string) {
@@ -325,7 +325,7 @@ export default function HypothesisTracker() {
           </div>
 
           {cfError && (
-            <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginBottom: 8 }}>{cfError}</div>
+            <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginBottom: 8 }}>{cfError}</div>
           )}
           <button
             onClick={createHypothesis}
@@ -598,7 +598,7 @@ export default function HypothesisTracker() {
                     ))}
                     <button
                       onClick={() => deleteHypothesis(h.id)}
-                      style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', fontSize: 'var(--fs-caption)', opacity: 0.6, padding: '3px 0' }}
+                      style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', fontSize: 'var(--fs-caption)', opacity: 0.6, padding: '3px 0' }}
                     >
                       {t('HYPOTHESIS_TRACKER_DELETE_BUTTON')}
                     </button>

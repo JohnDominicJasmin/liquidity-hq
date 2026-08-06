@@ -17,7 +17,7 @@ type TFn = (key: LabelKey, vars?: Record<string, string | number>) => string;
 /* LOW was #6b7280 = 3.77:1 on the rail card - and since econImpactKey did not
    exist, EVERY row used it regardless of real impact. See lib/classify.ts. */
 const IMPACT_COLOR: Record<EconImpact, string> = {
-  HIGH: '#f87171', MEDIUM: '#fbbf24', LOW: 'var(--txt-dim)',
+  HIGH: 'var(--red)', MEDIUM: 'var(--amber)', LOW: 'var(--txt-dim)',
 };
 
 const MAX_ROWS = 5;

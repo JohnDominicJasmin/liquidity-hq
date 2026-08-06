@@ -86,7 +86,7 @@ function CoinCard({ row, rank }: { row: ScanRow; rank: number }) {
   const { t } = useLabels();
   const cd = row.coin;
   const fr = classifyFunding(cd.fundingRate ?? 0);
-  const frColor = fr.rpm === 'pos' ? '#f87171' : fr.rpm === 'neg' ? '#34d399' : 'var(--txt-dim)';
+  const frColor = fr.rpm === 'pos' ? 'var(--red)' : fr.rpm === 'neg' ? 'var(--green-2)' : 'var(--txt-dim)';
   const dirBg = row.dir === 'LONG_LIQ'
     ? 'rgba(248,113,113,0.06)' : row.dir === 'SHORT_SQ'
     ? 'rgba(52,211,153,0.06)' : 'transparent';
@@ -123,13 +123,13 @@ function CoinCard({ row, rank }: { row: ScanRow; rank: number }) {
         </div>
         <div className="scan-stat">
           <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_LONG_PCT')}</span>
-          <span className="scan-stat-val" style={{ color: (cd.longRatio ?? 0) >= 0.6 ? '#f87171' : '#8e8e93' }}>
+          <span className="scan-stat-val" style={{ color: (cd.longRatio ?? 0) >= 0.6 ? 'var(--red)' : 'var(--txt-dim)' }}>
             {fmtRatio(cd.longRatio)}
           </span>
         </div>
         <div className="scan-stat">
           <span className="scan-stat-lbl">{t('SETUP_SCANNER_STAT_SHORT_PCT')}</span>
-          <span className="scan-stat-val" style={{ color: (cd.shortRatio ?? 0) >= 0.6 ? '#34d399' : '#8e8e93' }}>
+          <span className="scan-stat-val" style={{ color: (cd.shortRatio ?? 0) >= 0.6 ? 'var(--green-2)' : 'var(--txt-dim)' }}>
             {fmtRatio(cd.shortRatio)}
           </span>
         </div>
@@ -236,7 +236,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
             <div className="scan-alert scan-alert-bear">
               <span className="scan-alert-icon" style={{ lineHeight: 0 }}><Warn size={14} /></span>
               <span>
-                <strong style={{ color: '#f87171' }}>{highestLongLiq.id.toUpperCase()}</strong>
+                <strong style={{ color: 'var(--red)' }}>{highestLongLiq.id.toUpperCase()}</strong>
                 {' '}{t('SETUP_SCANNER_ALERT_LONG_LIQ', { score: highestLongLiq.score })}
               </span>
             </div>
@@ -245,7 +245,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
             <div className="scan-alert scan-alert-bull">
               
               <span>
-                <strong style={{ color: '#34d399' }}>{highestShortSq.id.toUpperCase()}</strong>
+                <strong style={{ color: 'var(--green-2)' }}>{highestShortSq.id.toUpperCase()}</strong>
                 {' '}{t('SETUP_SCANNER_ALERT_SHORT_SQ', { score: highestShortSq.score })}
               </span>
             </div>
@@ -276,7 +276,7 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
           style={strongOnly ? {
             background: 'rgba(251,191,36,0.10)',
             borderColor: 'rgba(251,191,36,0.35)',
-            color: '#fbbf24',
+            color: 'var(--amber)',
           } : {}}
           aria-pressed={strongOnly}
           onClick={() => setStrongOnly(v => !v)}
@@ -330,11 +330,11 @@ export default function SetupScanner({ coin: coinProp }: { coin?: CoinId }) {
         <div className="scan-legend-title">{t('SETUP_SCANNER_LEGEND_TITLE')}</div>
         <div className="scan-legend-row">
           <span className="scan-legend-dot" style={{ background: '#f87171' }} />
-          <span><strong style={{ color: '#f87171' }}>{t('SETUP_SCANNER_LEGEND_LONG_LABEL')}</strong> - {t('SETUP_SCANNER_LEGEND_LONG_DESC')}</span>
+          <span><strong style={{ color: 'var(--red)' }}>{t('SETUP_SCANNER_LEGEND_LONG_LABEL')}</strong> - {t('SETUP_SCANNER_LEGEND_LONG_DESC')}</span>
         </div>
         <div className="scan-legend-row">
           <span className="scan-legend-dot" style={{ background: '#34d399' }} />
-          <span><strong style={{ color: '#34d399' }}>{t('SETUP_SCANNER_LEGEND_SHORT_LABEL')}</strong> - {t('SETUP_SCANNER_LEGEND_SHORT_DESC')}</span>
+          <span><strong style={{ color: 'var(--green-2)' }}>{t('SETUP_SCANNER_LEGEND_SHORT_LABEL')}</strong> - {t('SETUP_SCANNER_LEGEND_SHORT_DESC')}</span>
         </div>
         <div className="scan-legend-row">
           <span className="scan-legend-dot" style={{ background: '#606060' }} />

@@ -65,8 +65,8 @@ function calcDelta(actual?: string, estimate?: string): { text: string; positive
    painted the whole calendar in the LOW style. See lib/classify.ts.
    LOW's colour also failed AA on its own (#6b7280 = 3.77:1). */
 const IMPACT_CFG: Record<EconImpact, { color: string; bg: string; border: string; accent: string }> = {
-  HIGH:   { color: '#f87171', bg: 'rgba(248,113,113,0.14)', border: 'rgba(248,113,113,0.35)', accent: '#f87171' },
-  MEDIUM: { color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  border: 'rgba(251,191,36,0.3)',   accent: '#fbbf24' },
+  HIGH:   { color: 'var(--red)', bg: 'rgba(248,113,113,0.14)', border: 'rgba(248,113,113,0.35)', accent: 'var(--red)' },
+  MEDIUM: { color: 'var(--amber)', bg: 'rgba(251,191,36,0.12)',  border: 'rgba(251,191,36,0.3)',   accent: 'var(--amber)' },
   LOW:    { color: 'var(--txt-dim)', bg: 'rgba(107,114,128,0.10)', border: 'rgba(107,114,128,0.25)', accent: 'rgba(107,114,128,0.4)' },
 };
 
@@ -153,7 +153,7 @@ export default function EconCalendarPage() {
 
       {loading && <LoadingState message={t('ECON_CALENDAR_LOADING')} />}
       {failed && (
-        <div style={{ color: '#f87171', fontSize: 'var(--fs-label)', padding: '20px 0', textAlign: 'center' }}>{t('ECON_CALENDAR_LOAD_ERROR')}</div>
+        <div style={{ color: 'var(--red)', fontSize: 'var(--fs-label)', padding: '20px 0', textAlign: 'center' }}>{t('ECON_CALENDAR_LOAD_ERROR')}</div>
       )}
       {!loading && !failed && sorted.length === 0 && (
         <div style={{ color: 'var(--txt3)', fontSize: 'var(--fs-label)', padding: '40px 0', textAlign: 'center' }}>{t('ECON_CALENDAR_NO_EVENTS')}</div>
@@ -237,7 +237,7 @@ export default function EconCalendarPage() {
                     </div>
 
                     {/* CONSENSUS */}
-                    <div style={{ fontSize: 'var(--fs-caption)', color: e.estimate ? '#fbbf24' : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', fontWeight: e.estimate ? 500 : 400 }}>
+                    <div style={{ fontSize: 'var(--fs-caption)', color: e.estimate ? 'var(--amber)' : 'var(--txt3)', fontVariantNumeric: 'tabular-nums', fontWeight: e.estimate ? 500 : 400 }}>
                       {e.estimate || '-'}
                     </div>
 
@@ -245,7 +245,7 @@ export default function EconCalendarPage() {
                     <div style={{
                       fontSize: 'var(--fs-caption)', fontWeight: 700, fontVariantNumeric: 'tabular-nums',
                       color: e.actual
-                        ? (delta ? (delta.positive ? '#34d399' : '#f87171') : '#34d399')
+                        ? (delta ? (delta.positive ? 'var(--green-2)' : 'var(--red)') : 'var(--green-2)')
                         : 'var(--txt3)',
                     }}>
                       {e.actual || '-'}
@@ -254,7 +254,7 @@ export default function EconCalendarPage() {
                     {/* DELTA */}
                     <div style={{
                       fontSize: 'var(--fs-caption)', fontWeight: 600, fontVariantNumeric: 'tabular-nums',
-                      color: delta ? (delta.positive ? '#34d399' : '#f87171') : 'var(--txt3)',
+                      color: delta ? (delta.positive ? 'var(--green-2)' : 'var(--red)') : 'var(--txt3)',
                     }}>
                       {delta?.text || '-'}
                     </div>
