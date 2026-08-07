@@ -124,10 +124,46 @@ back and rewrite them; match the current form going forward.
 
 ## 3. Pull request template
 
+### Say which team you are — first line, every time
+
+**Both roles share one GitHub account.** Dev and QA post from
+`JohnDominicJasmin`, so GitHub shows the same author on a QA finding, a dev fix,
+and a release signoff. A thread reads as one person arguing with themselves.
+
+So **every PR body, every issue, and every comment starts with the team name on
+its own line**, before anything else:
+
+```markdown
+**Dev Team**
+```
+
+or
+
+```markdown
+**QA Team**
+```
+
+This is not ceremony. It has already caused real confusion: two PRs opened
+thirteen minutes apart — one dev's, one QA's — were indistinguishable, and the
+owner had to ask which was which. It matters more, not less, when someone reads
+the thread cold in three months trying to work out who signed off on what.
+
+Commit messages do **not** need it — the branch name and the `type(scope):`
+prefix already carry that, and the convention in §2 has no room for it.
+
+**Use `gh ... --body-file`, never `--body` with inline markdown.** Backticks
+inside a double-quoted shell string get executed as commands. A review comment on
+#66 lost a sentence to `qa: command not found` and had to be re-posted. Write the
+body to a file and pass the file — it also removes every quote-escaping problem.
+
+### The structure
+
 This lives in `.github/pull_request_template.md`, so GitHub fills it in for you
 on every PR — you edit rather than remember. The structure:
 
 ```markdown
+**Dev Team** / **QA Team**
+
 ## Summary
 <one or two sentences, plain language>
 

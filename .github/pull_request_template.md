@@ -2,7 +2,13 @@
   Auto-filled on every PR. Full rules: CONTRIBUTING.md section 3.
   Delete the italic prompts as you replace them. Do not delete the headings -
   "How to test (QA)" in particular is the dev to QA handoff, not documentation.
+
+  FIRST LINE: delete whichever team you are not. Both roles post from the same
+  GitHub account, so without this the author tells you nothing about who wrote
+  it - and dev reviews QA's PRs while QA signs off dev's releases.
 -->
+
+**Dev Team** / **QA Team**
 
 ## Summary
 
