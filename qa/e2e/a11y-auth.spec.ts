@@ -258,52 +258,107 @@ test.describe('accessibility (signed in)', () => {
    * handler's own captcha branch then renders the SAME element the credential
    * failure renders. The message differs; the element under test does not.
    */
-  test('U5: auth error messages are announced', async ({ page }) => {
-    const forms: { path: string; act: () => Promise<void> }[] = [
-      { path: '/login', act: async () => {
-          await page.evaluate(() => {
-            const b = [...document.querySelectorAll('button')]
-              .find(x => /use password/i.test((x as HTMLElement).innerText || ''));
-            (b as HTMLElement | undefined)?.click();
-          });
-          await page.waitForSelector('input[type=password]', { state: 'visible', timeout: 20_000 });
+  test('U5: the auth error live region exists BEFORE the error does', async ({ page }) => {
+    /*
+     * This test used to be wrong, in the most dangerous way a test can be.
+     *
+     * It collected `.login-error` elements carrying neither `role` nor
+     * `aria-live` and asserted the count did not rise. A conditionally-rendered
+     * `<div role="alert">` produces ZERO such elements - so the test went green
+     * while a screen-reader user still heard nothing. A live region inserted
+     * together with its content has no change to announce against.
+     *
+     * It would have certified the broken version of the exact fix that shipped
+     * in release 2026-08-06.4. Dev Team caught it in review, not the suite.
+     *
+     * So it now checks the two things that actually make announcement work:
+     *   1. the container is present, empty, and in the accessibility tree
+     *      BEFORE anything is submitted, and
+     *   2. the error text lands in THAT SAME NODE rather than a new one.
+     *
+     * (2) is enforced by stamping the pre-existing node and checking the stamp
+     * survives. If the implementation regresses to inserting a fresh element
+     * with the text in it, React mounts a different node, the stamp is gone,
+     * and this fails - which is the whole point.
+     */
+    const missing: string[] = [];
+
+    const forms: { label: string; path: string; toPassword: boolean; act: () => Promise<void> }[] = [
+      { label: '/login password', path: '/login', toPassword: true, act: async () => {
           await page.fill('input.login-email-input', 'qa-nonexistent@example.com');
           await page.fill('input[type=password]', 'wrong-password-123');
           await page.press('input[type=password]', 'Enter');
         } },
-      { path: '/login', act: async () => {
+      { label: '/login magic link', path: '/login', toPassword: false, act: async () => {
           await page.fill('input.login-email-input', 'qa-nonexistent@example.com');
           await page.press('input.login-email-input', 'Enter');
         } },
-      { path: '/forgot-password', act: async () => {
+      { label: '/forgot-password', path: '/forgot-password', toPassword: false, act: async () => {
           await page.fill('input.login-email-input', 'qa-nonexistent@example.com');
           await page.press('input.login-email-input', 'Enter');
         } },
     ];
 
-    const notAnnounced: string[] = [];
-    for (const { path, act } of forms) {
+    for (const { label, path, toPassword, act } of forms) {
       await page.goto(path, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('input.login-email-input', { state: 'visible', timeout: 40_000 });
+      if (toPassword) {
+        await page.evaluate(() => {
+          const b = [...document.querySelectorAll('button')]
+            .find(x => /use password/i.test((x as HTMLElement).innerText || ''));
+          (b as HTMLElement | undefined)?.click();
+        });
+        await page.waitForSelector('input[type=password]', { state: 'visible', timeout: 20_000 });
+      }
+
+      // (1) present, announced and EMPTY before the error exists. Stamp it.
+      const before = await page.evaluate(() => {
+        const el = document.querySelector('.login-error');
+        if (!el) return { present: false, announced: false, empty: false, inTree: false };
+        el.setAttribute('data-qa-preexisting', '1');
+        return {
+          present: true,
+          announced: el.getAttribute('role') === 'alert' || !!el.getAttribute('aria-live'),
+          empty: !((el as HTMLElement).innerText || '').trim(),
+          // display:none would remove it from the accessibility tree, making a
+          // permanent container permanently invisible to the thing it exists for.
+          inTree: getComputedStyle(el).display !== 'none',
+        };
+      });
+      if (!before.present)  missing.push(`${label}: no .login-error container before the error - it is created WITH the message, so nothing announces`);
+      if (!before.announced) missing.push(`${label}: container exists but carries neither role="alert" nor aria-live`);
+      if (!before.inTree)   missing.push(`${label}: container is display:none, so it is not in the accessibility tree`);
+      if (!before.empty)    missing.push(`${label}: container already had text before submitting - cannot tell an announcement from a static string`);
+
       await act();
-      await page.waitForSelector('.login-error', { state: 'visible', timeout: 20_000 });
-      const bad = await page.evaluate(() =>
-        [...document.querySelectorAll('.login-error')]
-          .filter(el => !el.getAttribute('role') && !el.getAttribute('aria-live'))
-          .map(el => `${location.pathname}: "${((el as HTMLElement).innerText || '').trim().slice(0, 60)}"`));
-      notAnnounced.push(...bad);
+      await page.waitForFunction(
+        () => [...document.querySelectorAll('.login-error')].some(e => ((e as HTMLElement).innerText || '').trim()),
+        undefined, { timeout: 25_000 },
+      ).catch(() => missing.push(`${label}: no error message ever appeared - cannot verify it is announced`));
+
+      // (2) the text is in the node that was already announced.
+      const after = await page.evaluate(() => {
+        const withText = [...document.querySelectorAll('.login-error')]
+          .find(e => ((e as HTMLElement).innerText || '').trim());
+        return withText
+          ? { stamped: withText.getAttribute('data-qa-preexisting') === '1',
+              role: withText.getAttribute('role'),
+              text: ((withText as HTMLElement).innerText || '').trim().slice(0, 60) }
+          : null;
+      });
+      if (after && !after.stamped) {
+        missing.push(`${label}: the message appeared in a DIFFERENT element than the one that was announced - "${after.text}"`);
+      }
     }
 
-    // Ratchet, not a hard assert - all 3 fail today. See BASELINE.unannouncedStatus
-    // for why this is a baseline rather than a red build.
     expect(
-      notAnnounced.length,
-      `Auth errors that render visibly but are not announced: ` +
-      `${BASELINE.unannouncedStatus.authForms} -> ${notAnnounced.length}. ` +
-      `WCAG 2.2 SC 4.1.3 Status Messages, Level AA. Add role="alert" to the ` +
-      `.login-error container in app/login/page.tsx and app/forgot-password/page.tsx, ` +
-      `then lower this baseline in the same commit. Target is 0.\n` + notAnnounced.join('\n'),
-    ).toBeLessThanOrEqual(BASELINE.unannouncedStatus.authForms);
+      missing,
+      `WCAG 2.2 SC 4.1.3 Status Messages, Level AA.\n` +
+      `A live region only announces a change if it EXISTED before the change. ` +
+      `Adding role="alert" to a conditionally-rendered element satisfies a naive ` +
+      `check and still announces nothing - which is what this test used to miss.\n` +
+      missing.join('\n'),
+    ).toEqual([]);
   });
 
   // ── U6 ──────────────────────────────────────────────────────────────────
@@ -337,7 +392,15 @@ test.describe('accessibility (signed in)', () => {
       });
 
       const missing = (live.onMsgs === null && live.insidePanel === 0) ? 1 : 0;
-      // Ratchet, not a hard assert - this fails today. See BASELINE.unannouncedStatus.
+      /* Baseline is 0 since release 2026-08-06.4 fixed it - .gchat-msgs now
+         carries role="log" + aria-live="polite". Kept as <= 0 rather than
+         rewritten as toBe(0) so the failure message keeps naming the baseline
+         it is measured against.
+         NOTE this container does NOT have U5's pre-existence problem: it is
+         part of the panel's structure and is mounted empty when the panel
+         opens, so a reply arriving later is genuinely a change WITHIN an
+         existing region. Checking the attribute is sufficient here in a way it
+         was not for .login-error. */
       expect(
         missing,
         `The Grok chat message list has no live region: ` +
