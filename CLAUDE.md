@@ -133,10 +133,17 @@ tester. "Ok to push?" / "hold" or "go". No answer means go; it is a courtesy,
 not a lock. QA is not reviewing the code — nothing dev writes is independently
 reviewed until QA tests the build on the qa environment.
 
+**Announcing the promotion afterwards is automatic — do not rely on remembering
+it.** Pushing to `qa` opens or updates a **"Ready for QA" issue**
+(`.github/workflows/ready-for-qa.yml`) listing every PR on `qa` but not yet on
+`staging`, with each one's "How to test (QA)" section pulled through verbatim.
+Pushing to `staging` closes it. Computed from the `staging..qa` range rather
+than the push event, so it survives force-pushes, re-runs and several
+promotions in a row.
+
 **Open the `staging` → `main` release PR immediately after promoting to
-`staging`.** QA does this, since QA owns that promotion. It is the
-only thing that tells QA there is anything to test — every feature PR is already
-closed by then. It aggregates the "How to test" steps for the whole release,
+`staging`.** QA does this, since QA owns that promotion. It aggregates the
+"How to test" steps for the whole release,
 ends with merge/deploy/re-check/tag, and collects every "could not verify
 locally" caveat in Risk level. Promoting without it is deploying into silence.
 Keep it open while QA works; failures are reported as comments on it.

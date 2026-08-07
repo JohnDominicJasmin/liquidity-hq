@@ -804,9 +804,32 @@ thing", it was not ready.
 
 ### Two PRs, and who opens which
 
-**Dev, immediately after promoting `dev` → `qa`: open a `dev` → `qa` PR**, or
-say so on the release thread. That PR is the only thing that tells QA anything
-is waiting. Not later, not when the release feels big enough.
+**Nobody has to remember to announce a promotion.** Pushing to `qa` opens or
+updates a **"Ready for QA" issue** automatically —
+`.github/workflows/ready-for-qa.yml`. It lists every PR that is on `qa` and not
+yet on `staging`, and pulls each one's **"How to test (QA)" section through
+verbatim**, which is otherwise buried in a PR that closed days earlier. Pushing
+to `staging` closes it, because QA taking the work is the signal that it is no
+longer waiting.
+
+This replaced a rule that told dev to open a `dev` → `qa` PR "immediately after
+promoting". That rule was the only thing telling QA anything was waiting, and it
+depended entirely on a human remembering — which is not a mechanism. It was
+missed, and #78 existed partly to paper over the result.
+
+Two properties worth knowing, because they decide whether you can trust it:
+
+- **It is computed from the branch range `staging..qa`, not from the push
+  event.** That range *is* the definition of "work QA has not taken yet", so the
+  issue stays correct after a force-push, a re-run, a revert, or three
+  promotions in a row that nobody looked at. A push-event version would report
+  one hop and silently under-report all of those.
+- **It edits the existing issue rather than piling on comments**, so the issue
+  always shows the current pending set rather than a stack of superseded
+  snapshots. A short comment marks each update so the thread still shows movement.
+
+Dev still asks before promoting (below). That is a *timing* check — it stops a
+promotion landing mid-test-run. The announcement afterwards is now automatic.
 
 **QA, when a batch is approved and ready to park: promote `qa` → `staging` and
 open the `staging` → `main` release PR.** Dev does not open this one and does
