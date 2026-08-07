@@ -462,10 +462,18 @@ export default function SettingsPage() {
                 {pushEnabled ? t('SETTINGS_PUSH_ACTIVE') : t('SETTINGS_PUSH_INACTIVE')}
               </div>
             </div>
+            {/* aria-label was missing here while the Analytics toggle directly
+                below had one - Chrome computed this switch's accessible name as
+                the empty string, so a screen reader announced "switch, not
+                pressed" with no indication of what it switches, and voice
+                control had no phrase to match. WCAG 2.2 SC 4.1.2, Level A.
+                Spotted by QA while verifying issue #48 and easy to miss: the
+                visible text sits in a sibling <div>, which names nothing. */}
             <button
               className={`st-toggle${pushEnabled ? ' on' : ''}`}
               role="switch"
               aria-checked={pushEnabled}
+              aria-label={t('SETTINGS_FIELD_PUSH_NOTIFICATIONS')}
               disabled={pushWorking}
               onClick={handlePushToggle}
               style={{ opacity: pushWorking ? 0.5 : 1 }}

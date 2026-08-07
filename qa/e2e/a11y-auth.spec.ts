@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { BASELINE } from './_shared';
-import { AUTH_READY, AUTH_SKIP_REASON, signedInContext } from './_auth';
+import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 
 /**
  * Accessibility of the SIGNED-IN surface.
@@ -81,42 +81,58 @@ test.describe('accessibility (signed in)', () => {
   const CONTROLS = 'input:not([type=hidden]), select, textarea, button, [role=button]';
 
   // ── U1 ──────────────────────────────────────────────────────────────────
-  test('U1: SettingsModal controls have accessible names', async ({ browser }, testInfo) => {
+  /**
+   * REPOINTED at the settings PAGE. `components/SettingsModal.tsx` is deleted.
+   *
+   * This test used to open the nav drawer's Settings tile and measure
+   * `.smod-panel`. That tile named /settings as its path but carried
+   * `modal: true`, which intercepted it and opened a modal instead - a second,
+   * worse implementation of the same screen, missing password change, push
+   * notifications and the analytics opt-out (issue #50). It was also the one on
+   * the primary navigation path, so most users only ever saw the worse one.
+   *
+   * The modal is gone and every entry point now navigates here, so the nine
+   * unnamed controls this test was pinned to no longer exist anywhere. Left
+   * unchanged, `waitForSelector('.smod-panel')` would have hung for 40s and
+   * failed - a red release suite caused by the fix, not by a defect.
+   *
+   * Note `.smod-*` styles are NOT orphaned: UsageModal still uses them.
+   */
+  test('U1: settings page controls have accessible names', async ({ browser }, testInfo) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
-      await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('button.nav-tile', { state: 'visible', timeout: 40_000 });
-      await page.evaluate(() => {
-        const b = [...document.querySelectorAll('button.nav-tile')]
-          .find(x => /settings/i.test((x as HTMLElement).innerText || ''));
-        (b as HTMLElement | undefined)?.click();
-      });
-      // Absence fails the test. The modal not opening is not "zero findings".
-      await page.waitForSelector('.smod-panel', { state: 'visible', timeout: 40_000 });
+      await gotoSignedIn(page, '/settings');
+      // Absence fails the test. A settings page that did not render is not
+      // "zero findings" - the same vacuous-pass trap the rest of this file guards.
+      await page.waitForSelector('.st-page', { state: 'visible', timeout: 40_000 });
+      // The push-notification row renders only after the browser permission
+      // query resolves, and it is one of the controls under test - measuring
+      // before it exists silently under-counts.
+      await page.waitForSelector('button.st-toggle', { state: 'visible', timeout: 40_000 });
+      await page.waitForTimeout(1500);
 
-      const unnamed = await unnamedIn(page, `.smod-panel ${CONTROLS}`);
-      // The other half of U1: the visible text IS there, it just names nothing.
+      const unnamed = await unnamedIn(page, `.st-page ${CONTROLS}`);
       const orphanLabels = await page.evaluate(() =>
-        [...document.querySelectorAll('.smod-panel label')]
+        [...document.querySelectorAll('.st-page label')]
           .filter(l => !l.getAttribute('for') && !l.querySelector('input,select,textarea'))
           .map(l => ((l as HTMLElement).innerText || '').trim().slice(0, 40)));
 
-      testInfo.attach('settings-modal-unnamed.txt', {
+      testInfo.attach('settings-page-unnamed.txt', {
         body: `unnamed controls:\n${unnamed.join('\n')}\n\nlabels naming nothing:\n${orphanLabels.join('\n')}`,
         contentType: 'text/plain',
       });
 
       expect(
         unnamed.length,
-        `SettingsModal controls with no accessible name: ` +
-        `${BASELINE.authUnnamedControls.settingsModal} -> ${unnamed.length}.\n` +
-        `${orphanLabels.length} <label> elements in this modal carry the visible text but have ` +
-        `no for= and wrap no control, so they name nothing: ${orphanLabels.join(', ')}.\n` +
-        `Fix by adding id/htmlFor pairs. Do NOT add aria-label alongside the visible <label> - ` +
+        `Settings page controls with no accessible name: ` +
+        `${BASELINE.authUnnamedControls.settingsPage} -> ${unnamed.length}.\n` +
+        `${orphanLabels.length} <label> elements carry visible text but have no for= and wrap ` +
+        `no control, so they name nothing: ${orphanLabels.join(', ')}.\n` +
+        `Fix by adding id/htmlFor pairs. Do NOT add aria-label alongside a visible <label> - ` +
         `that overrides the visible text and breaks voice control (docs/HANDOVER.md §14).\n` +
         unnamed.join('\n'),
-      ).toBeLessThanOrEqual(BASELINE.authUnnamedControls.settingsModal);
+      ).toBeLessThanOrEqual(BASELINE.authUnnamedControls.settingsPage);
     } finally { await ctx.close(); }
   });
 
