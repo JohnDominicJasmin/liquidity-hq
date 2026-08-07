@@ -50,16 +50,62 @@ services:
       # TELEGRAM_CHAT_ID
       # LEMONSQUEEZY_WEBHOOK_SECRET
 
-  # ── QA test environment - liquidity-hq-qa.onrender.com. MANUAL trigger. ─────
+  # ── Staging - the release candidate. liquidity-hq-staging.onrender.com ─────
   #
-  # Was missing from this file entirely, which is part of why its configuration
-  # kept surprising people.
+  # Created 2026-08-07 as part of the four-branch change (CONTRIBUTING.md §6).
+  # This is the site QA tests, and it serves `staging` - so what they test IS
+  # the release candidate, rather than a branch dev keeps advancing.
   #
-  # BRANCH: `qa` today. The four-branch change (CONTRIBUTING.md section 6) moves
-  # this to `staging`, so the site QA tests always shows exactly the release
-  # candidate rather than a branch dev keeps advancing. Not switched yet -
-  # `staging` does not exist until the current release ships. When it does, the
-  # change is a dashboard edit, and this line should follow it.
+  # Why a NEW service rather than repointing the old one: Render derives the
+  # hostname from the service SLUG, which is fixed at creation and is not the
+  # display name. The qa service was renamed to liquidity-hq-staging first and
+  # kept serving liquidity-hq-qa.onrender.com - name and URL disagreeing is the
+  # same class of ambiguity the four-branch change existed to remove. Only a new
+  # service gets a matching hostname.
+  - type: web
+    name: liquidity-hq-staging
+    runtime: node
+    plan: free
+    region: singapore
+    branch: staging
+    autoDeploy: false
+    buildCommand: npm install; npm run build
+    startCommand: npm start
+    envVars:
+      # NOT 'staging'. lib/tables.ts treats this as a SWITCH, not a label -
+      # anything that is not exactly 'dev' selects PRODUCTION table names.
+      - key: NEXT_PUBLIC_APP_ENV
+        value: dev
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://liquidity-hq-staging.onrender.com
+      - key: AI_GLOBAL_DAILY_MAX
+        value: "25"
+      # Set in the dashboard, copied from liquidity-hq-qa (DEV Supabase project):
+      # NEXT_PUBLIC_SUPABASE_URL
+      # NEXT_PUBLIC_SUPABASE_ANON_KEY
+      # SUPABASE_SERVICE_ROLE_KEY        (/api/labels answers {} without it)
+      # NEXT_PUBLIC_TURNSTILE_SITE_KEY   <- MISSED on first setup. Without it the
+      #                                     login form renders NO captcha and
+      #                                     sign-in silently succeeds, so the
+      #                                     flow under test is not the one prod
+      #                                     runs. Build-time - needs a rebuild.
+      # CMC_API_KEY  FINNHUB_KEY  GROK_API_KEY
+      #
+      # DELIBERATELY UNSET: NEXT_PUBLIC_SENTRY_DSN (prod only), CRON_SECRET
+      # (the only thing stopping Telegram webhook hijack while non-prod shares
+      # dev's bot token).
+      #
+      # External settings that had to be updated for this hostname:
+      #   Cloudflare Turnstile allowed domains
+      #   Supabase auth redirect URLs
+      # Both fail SILENTLY if missed - page loads, one flow broken, that host
+      # only. Both were also missing for liquidity-hq-qa.onrender.com entirely,
+      # since 2026-08-04; fixed at the same time.
+
+  # ── QA integration test site - liquidity-hq-qa.onrender.com. MANUAL. ───────
+  #
+  # Serves `qa`, which dev promotes into freely. Gives dev somewhere to confirm
+  # a promotion before QA sees it; QA's own testing happens on staging above.
   #
   # Free plan, so it sleeps when idle and the first request after that is slow.
   - type: web
@@ -72,24 +118,12 @@ services:
     buildCommand: npm install; npm run build
     startCommand: npm start
     envVars:
-      # NOT 'qa'. lib/tables.ts treats this as a SWITCH, not a label - anything
-      # that is not exactly 'dev' selects PRODUCTION table names. This service
-      # was created with 'qa' once and pointed at the live tables.
-      # See docs/INFRASTRUCTURE.md section 4b.
+      # NOT 'qa' - see the note on the staging service. This was created with
+      # 'qa' once and pointed at the live production tables.
       - key: NEXT_PUBLIC_APP_ENV
         value: dev
-      # Uses the DEV Supabase project - the free plan caps the account at two
-      # active projects and dev + prod already take both. Set in the dashboard:
-      # NEXT_PUBLIC_SUPABASE_URL          (dev project wdtjhrilakoitfcezxpx)
-      # NEXT_PUBLIC_SUPABASE_ANON_KEY     (dev project, anon key only)
-      # SUPABASE_SERVICE_ROLE_KEY         (dev project - /api/labels answers {} without it)
-      # NEXT_PUBLIC_APP_URL               (its own URL, never dev's)
-      #
-      # DELIBERATELY UNSET, do not "fix" these:
-      # NEXT_PUBLIC_SENTRY_DSN  - prod only, see the note on the prod service
-      # CRON_SECRET             - this service shares DEV's Telegram bot token,
-      #                           and an unset CRON_SECRET is the only thing
-      #                           stopping the webhook being hijackable
+      # Same dev Supabase project and the same deliberately-unset vars as
+      # staging. Set in the dashboard.
 
   # ── Dev integration - liquidity-hq-dev.onrender.com. MANUAL trigger. ────────
   # Carries a ~500 build-hour/month cap that prod does not, so deploying this
