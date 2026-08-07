@@ -30,7 +30,7 @@ One logical change per commit. Never `fix bug` / `update stuff` / `wip`.
 **PRs** — always these sections: Summary · What changed · Why · **How to test
 (QA)** · Risk level (Low/Med/High) · Screenshots if UI.
 "How to test" is **mandatory on every PR** — it is the dev→QA handoff. Write it
-for someone on the `qa` staging environment: name the page and what to look at,
+for someone on the `qa` test environment: name the page and what to look at,
 not a branch. Only name a branch when the change is not on `qa` yet.
 
 **Two folders** — dev folder writes code, QA folder tests it; the PR is the
@@ -40,8 +40,8 @@ is checked out on `qa`**. Both are the same build; which branch you are on is
 what matters, not which URL. Say which one a result came from. Never test on
 `main` — it does not have the change yet. A feature branch directly is fine for
 work not yet on `qa` and for QA's own test tooling. Reports are plain pass/fail
-per step. When every step passes, **QA merges `qa` → `main`**, not the feature
-branch. Never test on the dev folder; never develop on the QA folder. **If this session is running in the QA
+per step. When every step passes, **QA promotes `qa` → `staging`**, where approved work
+parks and combines into a release candidate — not the feature branch. Never test on the dev folder; never develop on the QA folder. **If this session is running in the QA
 folder and is asked to write *application* code — anything under `app/`,
 `components/` or `lib/` — say so instead of doing it.**
 
@@ -52,28 +52,46 @@ merges. This is the one case where review runs QA → dev. If a fix needs an
 app-code change, QA reports it as a finding — dev writes it.
 
 **Who merges and deploys — QA, never dev.**
-**QA is the only one who merges `qa` → `main`, and the only one who deploys
-production.** Not with permission, not "just this once", not when QA is busy —
+**QA owns the whole path from `qa` onward: `qa` → `staging` → `main`, and the
+production deploy.** Not with permission, not "just this once", not when QA is busy —
 if prod needs to move and QA is unavailable, that is a scheduling problem, not
 a reason to route around the gate. Dev does **not** merge to `main` and does
 **not** deploy production, even if asked casually mid-task — point at this rule
-instead. Dev's authority stops at `dev` and `qa`: it may merge its own feature
-branches into `dev`, may merge `dev` → `qa`, and may deploy nothing.
+instead. Dev's authority stops at `qa`: it may merge its own feature branches into
+`dev`, may promote `dev` → `qa`, and may deploy nothing. Dev does not touch
+`staging` at all.
 
 Merging is **not** the deploy. Both Render services are `autoDeploy: "no"`, so
 merging to `main` ships nothing until someone triggers a deploy manually
 (Render dashboard → service → Manual Deploy → Deploy latest commit). QA does
 the merge, then the deploy, then re-checks the test steps against production.
 
-**Flow is `dev` → `qa` → `main`.**
+**Flow is `dev` → `qa` → `staging` → `main`.**
+
+Four branches, three deployed sites. `staging` is a branch, not a place — it
+holds the frozen release candidate and has no service of its own.
+
+| Branch | Who promotes into it | What it is for |
+|---|---|---|
+| `dev` | dev | integration; features merge here |
+| `qa` | **dev** | what QA tests and signs off, on liquidity-hq-qa.onrender.com |
+| `staging` | **QA** | approved work parks here and combines into one release |
+| `main` | **QA** | production |
+
+**Why `staging` exists.** `qa` was doing two jobs — rolling integration *and*
+release candidate. Because a release PR's head IS its base branch, every
+promotion silently grew a release QA had already signed off. That happened
+three times on 2026-08-06. Freezing the candidate on its own branch is the fix,
+and it is why dev must never promote into `staging`.
 
 `dev` branch → dev merges its own feature branches in and pushes freely, no
 permission needed. **Deploying the `liquidity-hq-dev` service is different —
 ask first**, it has a ~500 build-hour/month cap prod does not. Verify locally
 by default.
 
-`qa` branch → liquidity-hq-qa.onrender.com, the staging environment QA tests
-against. **Does not auto-deploy** — merge `dev` → `qa`, then trigger the deploy
+`qa` branch → liquidity-hq-qa.onrender.com, the QA test environment. This is
+the only deployed non-production site; `staging` has no service of its own.
+QA tests **Does not auto-deploy** — merge `dev` → `qa`, then trigger the deploy
 manually, and say you have done it. Whoever merges also deploys. Free plan, so
 it sleeps when idle and the first request after that is slow. Uses the
 **dev** Supabase (`wdtjhrilakoitfcezxpx`) — a known compromise, since Supabase's
@@ -99,9 +117,10 @@ saying "done" is the same failure as not finding it.
 owns that environment and a promotion mid-test-run changes the build under the
 tester. "Ok to push?" / "hold" or "go". No answer means go; it is a courtesy,
 not a lock. QA is not reviewing the code — nothing dev writes is independently
-reviewed until QA tests the staging build.
+reviewed until QA tests the build on the qa environment.
 
-**Open the `qa` → `main` release PR immediately after promoting.** It is the
+**Open the `staging` → `main` release PR immediately after promoting to
+`staging`.** QA does this, since QA owns that promotion. It is the
 only thing that tells QA there is anything to test — every feature PR is already
 closed by then. It aggregates the "How to test" steps for the whole release,
 ends with merge/deploy/re-check/tag, and collects every "could not verify

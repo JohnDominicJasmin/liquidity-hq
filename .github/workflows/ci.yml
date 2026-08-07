@@ -7,9 +7,27 @@ name: CI
 # a 2,000 min/month allowance - roughly $124/month annualised, and it hard-
 # stopped CI mid-release when the spending limit was hit.
 #
-# The rule now: the ~2 minute job runs on everything. The ~34 minute Playwright
+# The rule now: the ~2 minute job runs on everything. The ~53 minute Playwright
 # suite runs on exactly ONE automatic trigger - a PR into `main`, which is the
 # release, immediately before a production deploy.
+#
+# THE BRANCH FLOW IS FOUR-STAGE as of 2026-08-07:
+#
+#   dev  ->  qa  ->  staging  ->  main
+#    |        |         |           |
+#    |        |         |           production
+#    |        |         release candidate: approved work PARKS here and
+#    |        |         combines into one batch. No deployment of its own.
+#    |        where QA tests and signs off
+#    integration
+#
+# `staging` exists because `qa` was doing two jobs at once - rolling integration
+# AND release candidate. Since the release PR's head IS its base branch, every
+# promotion grew a release QA had already signed off. That happened three times
+# on 2026-08-06 alone. Freezing the candidate on its own branch is the fix.
+#
+# The e2e condition below did not need changing for this: the release PR is now
+# `staging -> main` rather than `qa -> main`, and `base_ref` is `main` either way.
 #
 # NOBODY runs it by hand - not dev, not QA. An earlier draft had QA running it
 # locally on the dev -> qa PR; that was dropped because ordering it correctly
@@ -35,15 +53,15 @@ on:
   # help. `types` is explicit so a label or a title edit can never spend 34
   # minutes; `synchronize` is the one that fires on each push to an open PR.
   pull_request:
-    branches: [dev, qa, main]
+    branches: [dev, qa, staging, main]
     types: [opened, reopened, synchronize, ready_for_review]
 
   push:
-    # `qa` is deliberately ABSENT. CONTRIBUTING section 6 makes dev -> qa
-    # fast-forward only, so the commit landing on qa is bit-identical to one
-    # already tested on dev. Worse, the qa->main release PR stays open for the
-    # whole cycle, so each ff-push to qa ALSO fired `synchronize` on it - one
-    # promotion used to bill three full runs.
+    # `qa` and `staging` are deliberately ABSENT. CONTRIBUTING section 6 makes
+    # every promotion fast-forward only, so the commit landing on either is
+    # bit-identical to one already tested on dev. Worse, the release PR stays
+    # open for the whole cycle, so each ff-push to its base ALSO fired
+    # `synchronize` on it - one promotion used to bill three full runs.
     branches: [dev, main]
 
   # For running the browser suite on demand: re-checking after a flake, or
@@ -131,9 +149,9 @@ jobs:
     # base_ref, not ref_name - on a pull_request event ref_name is "33/merge".
     # base_ref is empty on push and on dispatch, so both fall through.
     #
-    # PRs into `dev` and into `qa` deliberately get the 2-minute job only. What
-    # covers them is QA running this same suite locally when the dev -> qa PR
-    # arrives. See CONTRIBUTING 4b.
+    # PRs into `dev`, `qa` and `staging` deliberately get the 2-minute job only.
+    # The release PR is `staging -> main`, so `base_ref == 'main'` still selects
+    # exactly one gate after the four-branch change. See CONTRIBUTING 4b.
     if: >-
       github.base_ref == 'main' ||
       (github.event_name == 'workflow_dispatch' && inputs.e2e)
@@ -322,8 +340,9 @@ jobs:
     # required check un-forgeable. QA found the hole on release PR #38.
     #
     # The bug: `CI Gate` was a fixed name, so EVERY event that touched a commit
-    # published a check by that name. dev -> qa is fast-forward, so the merge
-    # commit on dev, the head of qa, and the head of the qa -> main release PR
+    # published a check by that name. Every promotion is fast-forward, so the
+    # merge commit on dev, the head of qa, the head of staging and the head of
+    # the staging -> main release PR
     # are all the SAME SHA. A push to dev published `CI Gate: success` on it -
     # successful with E2E SKIPPED, because base_ref is empty on a push. GitHub
     # evaluates required checks per commit, so the release PR showed
@@ -332,7 +351,7 @@ jobs:
     # merge.
     #
     # Deleting the `push: [dev]` trigger would have fixed that one path and left
-    # the hole open: a dev -> qa promotion PR publishes checks against the same
+    # the hole open: a promotion PR publishes checks against the same
     # SHA too, also with E2E skipped. The fix has to be that the name itself
     # cannot appear except on a release PR.
     #
