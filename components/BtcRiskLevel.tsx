@@ -24,14 +24,14 @@ export default function BtcRiskLevel() {
   if (fng != null) {
     const s = (fng / 100) * 33;
     total += s; maxPossible += 33;
-    const c = fng > 70 ? '#f87171' : fng < 30 ? '#34d399' : '#fbbf24';
+    const c = fng > 70 ? 'var(--red)' : fng < 30 ? 'var(--green-2)' : 'var(--amber)';
     signals.push({ id: 'fng', label: t('BTC_RISK_LEVEL_FNG_LABEL'), value: String(fng), score: s, max: 33, color: c });
   }
 
   if (btcRsi != null) {
     const s = clamp((btcRsi - 30) / 50, 0, 1) * 33;
     total += s; maxPossible += 33;
-    const c = btcRsi > 70 ? '#f87171' : btcRsi < 30 ? '#34d399' : '#fbbf24';
+    const c = btcRsi > 70 ? 'var(--red)' : btcRsi < 30 ? 'var(--green-2)' : 'var(--amber)';
     signals.push({ id: 'rsi', label: t('BTC_RISK_LEVEL_RSI_LABEL'), value: btcRsi.toFixed(1), score: s, max: 33, color: c });
   }
 
@@ -40,7 +40,7 @@ export default function BtcRiskLevel() {
     // Positive funding = longs overcrowded = dump risk. Negative = shorts paying = not dump risk.
     const s = pct > 0 ? clamp(btcFr / 0.001, 0, 1) * 34 : 0;
     total += s; maxPossible += 34;
-    const c = pct > 0.05 ? '#f87171' : pct < -0.02 ? '#34d399' : '#fbbf24';
+    const c = pct > 0.05 ? 'var(--red)' : pct < -0.02 ? 'var(--green-2)' : 'var(--amber)';
     const sign = pct >= 0 ? '+' : '';
     signals.push({ id: 'funding', label: t('BTC_RISK_LEVEL_FUNDING_LABEL'), value: `${sign}${pct.toFixed(4)}%`, score: s, max: 34, color: c });
   }
@@ -49,10 +49,10 @@ export default function BtcRiskLevel() {
 
   const { label, color } = score == null
     ? { label: t('BTC_RISK_LEVEL_UNKNOWN'), color: 'var(--txt3)' }
-    : score <= 30 ? { label: t('BTC_RISK_LEVEL_LOW'),      color: '#34d399' }
-    : score <= 55 ? { label: t('BTC_RISK_LEVEL_MODERATE'), color: '#fbbf24' }
-    : score <= 75 ? { label: t('BTC_RISK_LEVEL_HIGH'),     color: '#fb923c' }
-    :               { label: t('BTC_RISK_LEVEL_EXTREME'),  color: '#f87171' };
+    : score <= 30 ? { label: t('BTC_RISK_LEVEL_LOW'),      color: 'var(--green-2)' }
+    : score <= 55 ? { label: t('BTC_RISK_LEVEL_MODERATE'), color: 'var(--amber)' }
+    : score <= 75 ? { label: t('BTC_RISK_LEVEL_HIGH'),     color: 'var(--orange)' }
+    :               { label: t('BTC_RISK_LEVEL_EXTREME'),  color: 'var(--red)' };
 
   return (
     <div style={{
@@ -93,10 +93,10 @@ export default function BtcRiskLevel() {
             <div style={{ height: '100%', borderRadius: 99, width: score + '%', background: color, transition: 'width .4s' }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-            <span style={{ fontSize: 'var(--fs-caption)', color: '#34d399' }}>{t('BTC_RISK_LEVEL_BAR_LOW')}</span>
-            <span style={{ fontSize: 'var(--fs-caption)', color: '#fbbf24' }}>{t('BTC_RISK_LEVEL_BAR_MODERATE')}</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--green-2)' }}>{t('BTC_RISK_LEVEL_BAR_LOW')}</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--amber)' }}>{t('BTC_RISK_LEVEL_BAR_MODERATE')}</span>
             <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--orange)' }}>{t('BTC_RISK_LEVEL_BAR_HIGH')}</span>
-            <span style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>{t('BTC_RISK_LEVEL_BAR_EXTREME')}</span>
+            <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>{t('BTC_RISK_LEVEL_BAR_EXTREME')}</span>
           </div>
         </div>
       )}

@@ -54,9 +54,9 @@ async function fetchBybitFR(sym: string): Promise<FRPoint[]> {
 
 /* ── formatting ── */
 function frColor(r: number): string {
-  if (r >= 0.0005) return '#f87171';
-  if (r <= -0.0003) return '#34d399';
-  return '#a0a0a0';
+  if (r >= 0.0005) return 'var(--red)';
+  if (r <= -0.0003) return 'var(--green-2)';
+  return 'var(--txt-dim)';
 }
 function frFmt(r: number): string {
   return (r >= 0 ? '+' : '') + (r * 100).toFixed(4) + '%';
@@ -76,7 +76,7 @@ function frSignal(r: number): FRSignal {
     id: 'longs_overcrowded',
     crowdKey: 'FUNDING_SIG_LONGS_OVERCROWDED_CROWD', hintKey: 'FUNDING_SIG_LONGS_OVERCROWDED_HINT',
     labelKey: 'FUNDING_SIG_LONGS_OVERCROWDED_LABEL',
-    color: '#f87171', bg: 'rgba(248,113,113,0.09)',
+    color: 'var(--red)', bg: 'rgba(248,113,113,0.09)',
     actionKey: 'FUNDING_SIG_LONGS_OVERCROWDED_ACTION',
     descKey: 'FUNDING_SIG_LONGS_OVERCROWDED_DESC',
   };
@@ -84,7 +84,7 @@ function frSignal(r: number): FRSignal {
     id: 'longs_heavy',
     crowdKey: 'FUNDING_SIG_LONGS_HEAVY_CROWD', hintKey: 'FUNDING_SIG_LONGS_HEAVY_HINT',
     labelKey: 'FUNDING_SIG_LONGS_HEAVY_LABEL',
-    color: '#fb923c', bg: 'rgba(251,146,60,0.08)',
+    color: 'var(--orange)', bg: 'rgba(251,146,60,0.08)',
     actionKey: 'FUNDING_SIG_LONGS_HEAVY_ACTION',
     descKey: 'FUNDING_SIG_LONGS_HEAVY_DESC',
   };
@@ -92,7 +92,7 @@ function frSignal(r: number): FRSignal {
     id: 'longs_dominant',
     crowdKey: 'FUNDING_SIG_LONGS_DOMINANT_CROWD', hintKey: 'FUNDING_SIG_LONGS_DOMINANT_HINT',
     labelKey: 'FUNDING_SIG_LONGS_DOMINANT_LABEL',
-    color: '#fbbf24', bg: 'rgba(251,191,36,0.07)',
+    color: 'var(--amber)', bg: 'rgba(251,191,36,0.07)',
     actionKey: 'FUNDING_SIG_LONGS_DOMINANT_ACTION',
     descKey: 'FUNDING_SIG_LONGS_DOMINANT_DESC',
   };
@@ -108,7 +108,7 @@ function frSignal(r: number): FRSignal {
     id: 'balanced',
     crowdKey: 'FUNDING_SIG_BALANCED_CROWD', hintKey: 'FUNDING_SIG_BALANCED_HINT',
     labelKey: 'FUNDING_SIG_BALANCED_LABEL',
-    color: '#a0a0a0', bg: 'rgba(255,255,255,0.04)',
+    color: 'var(--txt-dim)', bg: 'rgba(255,255,255,0.04)',
     actionKey: 'FUNDING_SIG_BALANCED_ACTION',
     descKey: 'FUNDING_SIG_BALANCED_DESC',
   };
@@ -116,7 +116,7 @@ function frSignal(r: number): FRSignal {
     id: 'shorts_dominant',
     crowdKey: 'FUNDING_SIG_SHORTS_DOMINANT_CROWD', hintKey: 'FUNDING_SIG_SHORTS_DOMINANT_HINT',
     labelKey: 'FUNDING_SIG_SHORTS_DOMINANT_LABEL',
-    color: '#86efac', bg: 'rgba(134,239,172,0.07)',
+    color: 'var(--green-soft)', bg: 'rgba(134,239,172,0.07)',
     actionKey: 'FUNDING_SIG_SHORTS_DOMINANT_ACTION',
     descKey: 'FUNDING_SIG_SHORTS_DOMINANT_DESC',
   };
@@ -124,7 +124,7 @@ function frSignal(r: number): FRSignal {
     id: 'shorts_crowded',
     crowdKey: 'FUNDING_SIG_SHORTS_CROWDED_CROWD', hintKey: 'FUNDING_SIG_SHORTS_CROWDED_HINT',
     labelKey: 'FUNDING_SIG_SHORTS_CROWDED_LABEL',
-    color: '#34d399', bg: 'rgba(52,211,153,0.09)',
+    color: 'var(--green-2)', bg: 'rgba(52,211,153,0.09)',
     actionKey: 'FUNDING_SIG_SHORTS_CROWDED_ACTION',
     descKey: 'FUNDING_SIG_SHORTS_CROWDED_DESC',
   };
@@ -132,7 +132,7 @@ function frSignal(r: number): FRSignal {
     id: 'shorts_overcrowded',
     crowdKey: 'FUNDING_SIG_SHORTS_OVERCROWDED_CROWD', hintKey: 'FUNDING_SIG_SHORTS_OVERCROWDED_HINT',
     labelKey: 'FUNDING_SIG_SHORTS_OVERCROWDED_LABEL',
-    color: '#34d399', bg: 'rgba(52,211,153,0.13)',
+    color: 'var(--green-2)', bg: 'rgba(52,211,153,0.13)',
     actionKey: 'FUNDING_SIG_SHORTS_OVERCROWDED_ACTION',
     descKey: 'FUNDING_SIG_SHORTS_OVERCROWDED_DESC',
   };
@@ -410,17 +410,17 @@ export default function FundingHistory() {
 
             {/* Summary chips */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(248,113,113,0.10)', color: '#f87171', border: '0.5px solid rgba(248,113,113,0.25)', fontWeight: 700 }}>
-                <Tip iconColor="#f87171" text={t('FUNDING_CONTRARIAN_SHORT_TIP')}>
+              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(248,113,113,0.10)', color: 'var(--red)', border: '0.5px solid rgba(248,113,113,0.25)', fontWeight: 700 }}>
+                <Tip iconColor="var(--red)" text={t('FUNDING_CONTRARIAN_SHORT_TIP')}>
                   {t('FUNDING_CONTRARIAN_SHORT_COUNT', { count: shortSignals.length, plural: shortSignals.length !== 1 ? 's' : '' })}
                 </Tip>
               </span>
-              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(52,211,153,0.10)', color: '#34d399', border: '0.5px solid rgba(52,211,153,0.25)', fontWeight: 700 }}>
-                <Tip iconColor="#34d399" text={t('FUNDING_CONTRARIAN_LONG_TIP')}>
+              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(52,211,153,0.10)', color: 'var(--green-2)', border: '0.5px solid rgba(52,211,153,0.25)', fontWeight: 700 }}>
+                <Tip iconColor="var(--green-2)" text={t('FUNDING_CONTRARIAN_LONG_TIP')}>
                   {t('FUNDING_CONTRARIAN_LONG_COUNT', { count: longSignals.length, plural: longSignals.length !== 1 ? 's' : '' })}
                 </Tip>
               </span>
-              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(26,122,255,0.10)', color: '#1a7aff', border: '0.5px solid rgba(26,122,255,0.25)', fontWeight: 700 }}>
+              <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 7px', borderRadius: 10, background: 'rgba(26,122,255,0.10)', color: 'var(--accent)', border: '0.5px solid rgba(26,122,255,0.25)', fontWeight: 700 }}>
                 <Tip iconColor="#1a7aff" text={t('FUNDING_CARRY_ARB_TIP')}>
                   {t('FUNDING_CARRY_ARB_COUNT', { count: arbs.length })}
                 </Tip>
@@ -442,17 +442,17 @@ export default function FundingHistory() {
                   </span>
                   <span style={{ flex: 1 }} />
                   {contraShort && (
-                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 3, background: 'rgba(248,113,113,0.12)', color: '#f87171', fontWeight: 700, flexShrink: 0 }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 3, background: 'rgba(248,113,113,0.12)', color: 'var(--red)', fontWeight: 700, flexShrink: 0 }}>
                       {t('FUNDING_BADGE_SHORT_LABEL')}
                     </span>
                   )}
                   {contraLong && (
-                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 3, background: 'rgba(52,211,153,0.12)', color: '#34d399', fontWeight: 700, flexShrink: 0 }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 3, background: 'rgba(52,211,153,0.12)', color: 'var(--green-2)', fontWeight: 700, flexShrink: 0 }}>
                       {t('FUNDING_BADGE_LONG_LABEL')}
                     </span>
                   )}
                   {carryArb && (
-                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 3, background: 'rgba(26,122,255,0.10)', color: '#1a7aff', fontWeight: 600, flexShrink: 0 }}>
+                    <span style={{ fontSize: 'var(--fs-caption)', padding: '1px 5px', borderRadius: 3, background: 'rgba(26,122,255,0.10)', color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>
                       {t('FUNDING_BADGE_ARB_LABEL')}
                     </span>
                   )}
@@ -503,11 +503,11 @@ export default function FundingHistory() {
           {/* Market lean summary */}
           <div className="frh-summary-bar">
             <span className="frh-summary-heading">{t('FUNDING_MARKET_LEAN_HEADING')}</span>
-            <span className="frh-summary-item" style={{ color: '#f87171' }}>
+            <span className="frh-summary-item" style={{ color: 'var(--red)' }}>
               <span className="frh-summary-count">{longCnt}</span> {t('FUNDING_LONG_HEAVY_LABEL')}
             </span>
             <span className="frh-summary-sep">·</span>
-            <span className="frh-summary-item" style={{ color: '#34d399' }}>
+            <span className="frh-summary-item" style={{ color: 'var(--green-2)' }}>
               <span className="frh-summary-count">{shortCnt}</span> {t('FUNDING_SHORT_HEAVY_LABEL')}
             </span>
             <span className="frh-summary-sep">·</span>
@@ -621,7 +621,7 @@ export default function FundingHistory() {
                     {(() => {
                       const s = getStats(selected);
                       return s?.extremes ? (
-                        <span style={{ fontSize: 'var(--fs-caption)', color: '#fbbf24', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--amber)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                           <Warn size={12} /> {t('FUNDING_EXTREME_COUNT', { count: s.extremes, plural: s.extremes > 1 ? 's' : '' })}
                         </span>
                       ) : null;
@@ -652,8 +652,8 @@ export default function FundingHistory() {
                     </div>
                 }
                 <div className="frh-legend">
-                  <span style={{ color: '#f87171' }}>{t('FUNDING_LEGEND_POSITIVE_LABEL')}</span> = {t('FUNDING_LEGEND_POSITIVE_DESC')} &nbsp;·&nbsp;
-                  <span style={{ color: '#34d399' }}>{t('FUNDING_LEGEND_NEGATIVE_LABEL')}</span> = {t('FUNDING_LEGEND_NEGATIVE_DESC')}
+                  <span style={{ color: 'var(--red)' }}>{t('FUNDING_LEGEND_POSITIVE_LABEL')}</span> = {t('FUNDING_LEGEND_POSITIVE_DESC')} &nbsp;·&nbsp;
+                  <span style={{ color: 'var(--green-2)' }}>{t('FUNDING_LEGEND_NEGATIVE_LABEL')}</span> = {t('FUNDING_LEGEND_NEGATIVE_DESC')}
                 </div>
               </div>
             </div>

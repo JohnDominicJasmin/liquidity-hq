@@ -36,7 +36,7 @@ function FngGauge({ value }: { value: number | null }) {
     <svg width={168} height={92} viewBox="0 0 200 108" style={{ flexShrink: 0 }}>
       <defs>
         <linearGradient id="fngGaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%"   stopColor="#ef4444" />
+          <stop offset="0%"   stopColor="var(--red)" />
           <stop offset="25%"  stopColor="#f97316" />
           <stop offset="50%"  stopColor="#facc15" />
           <stop offset="75%"  stopColor="#a3e635" />
@@ -118,7 +118,7 @@ export default function MarketConditionsWidget() {
 
   const delta = fng != null && fngPrev != null ? fng - fngPrev : null;
 
-  const rsiCol   = rsi == null ? 'var(--txt3)' : rsi >= 70 ? '#f87171' : rsi <= 30 ? '#34d399' : '#fbbf24';
+  const rsiCol   = rsi == null ? 'var(--txt3)' : rsi >= 70 ? 'var(--red)' : rsi <= 30 ? 'var(--green-2)' : 'var(--amber)';
   const rsiLabel = rsi == null ? '-' : rsi >= 70 ? t('MARKET_CONDITIONS_WIDGET_RSI_OVERBOUGHT') : rsi <= 30 ? t('MARKET_CONDITIONS_WIDGET_RSI_OVERSOLD') : t('MARKET_CONDITIONS_WIDGET_RSI_NEUTRAL');
 
   return (
@@ -186,8 +186,8 @@ export default function MarketConditionsWidget() {
                 <div style={{ width: `${shortPct}%`, background: '#f87171' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-caption)' }}>
-                <span style={{ color: '#34d399', fontWeight: 600 }}>{t('MARKET_CONDITIONS_WIDGET_LONG_PCT', { pct: longPct.toFixed(1) })}</span>
-                <span style={{ color: '#f87171', fontWeight: 600 }}>{t('MARKET_CONDITIONS_WIDGET_SHORT_PCT', { pct: shortPct.toFixed(1) })}</span>
+                <span style={{ color: 'var(--green-2)', fontWeight: 600 }}>{t('MARKET_CONDITIONS_WIDGET_LONG_PCT', { pct: longPct.toFixed(1) })}</span>
+                <span style={{ color: 'var(--red)', fontWeight: 600 }}>{t('MARKET_CONDITIONS_WIDGET_SHORT_PCT', { pct: shortPct.toFixed(1) })}</span>
               </div>
             </>
           );

@@ -208,7 +208,7 @@ export default function WhaleTradesFeed() {
             >
               <span className="wf-row-coin"  style={{ color: accent }}>{trade.coin}</span>
               <span className={`wf-row-side wf-row-side-${isBuy ? 'buy' : 'sell'}`}>{badge}</span>
-              <span className="wf-row-usd"   style={{ color: isBig ? accent : '#8e8e93' }}>
+              <span className="wf-row-usd"   style={{ color: isBig ? accent : 'var(--txt-dim)' }}>
                 {fmtUSD(trade.usd)}
               </span>
               <span className="wf-row-price">${trade.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}</span>

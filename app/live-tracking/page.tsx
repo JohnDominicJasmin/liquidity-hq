@@ -94,7 +94,7 @@ export default function LiveTrackingPage() {
 
       {loading && <LoadingState message={t('LIVE_TRACKING_LOADING')} />}
       {error && (
-        <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)' }}>
+        <div style={{ color: 'var(--red)', fontSize: 'var(--fs-caption)' }}>
           {t('LIVE_TRACKING_ERROR', {
             message: error.kind === 'not-configured'
               ? t('LIVE_TRACKING_ERROR_SUPABASE_NOT_CONFIGURED')
@@ -113,7 +113,7 @@ export default function LiveTrackingPage() {
       {!loading && !error && rows && rows.length > 0 && (
         <>
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 24 }}>
-            <SideCard title={t('LIVE_TRACKING_LIVE_SIDECARD_TITLE')} stats={stats} color="#34d399" />
+            <SideCard title={t('LIVE_TRACKING_LIVE_SIDECARD_TITLE')} stats={stats} color="var(--green-2)" />
           </div>
 
           <h2 className="mb-title" style={{ fontSize: 'var(--fs-card-title)', marginBottom: 8 }}>{t('LIVE_TRACKING_PER_COIN_BREAKDOWN')}</h2>
@@ -133,8 +133,8 @@ export default function LiveTrackingPage() {
                     <tr key={coin}>
                       <td style={{ fontWeight: 600 }}>{coin.toUpperCase()}</td>
                       <td>{s.totalTrades} ({s.wins}W/{s.losses}L/{s.open} open)</td>
-                      <td style={{ color: s.winRate >= 0.5 ? '#34d399' : '#f87171' }}>{fmtPct(s.winRate)}</td>
-                      <td style={{ color: s.avgR >= 0 ? '#34d399' : '#f87171' }}>{fmtR(s.avgR)}</td>
+                      <td style={{ color: s.winRate >= 0.5 ? 'var(--green-2)' : 'var(--red)' }}>{fmtPct(s.winRate)}</td>
+                      <td style={{ color: s.avgR >= 0 ? 'var(--green-2)' : 'var(--red)' }}>{fmtR(s.avgR)}</td>
                       <td>{isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}</td>
                     </tr>
                   );
@@ -153,7 +153,7 @@ export default function LiveTrackingPage() {
               </thead>
               <tbody>
                 {recent.map(r => {
-                  const statusCol = r.outcome === 'win' ? '#34d399' : r.outcome === 'loss' ? '#f87171' : 'var(--txt3)';
+                  const statusCol = r.outcome === 'win' ? 'var(--green-2)' : r.outcome === 'loss' ? 'var(--red)' : 'var(--txt3)';
                   const statusLabel = r.outcome === 'win' ? t('LIVE_TRACKING_STATUS_WIN', { multiple: r.r_multiple != null ? '+' + r.r_multiple.toFixed(2) + 'R' : '' })
                     : r.outcome === 'loss' ? t('LIVE_TRACKING_STATUS_LOSS')
                     : t('LIVE_TRACKING_STATUS_OPEN');
@@ -161,7 +161,7 @@ export default function LiveTrackingPage() {
                     <tr key={r.id}>
                       <td style={{ fontWeight: 600 }}>{r.coin.toUpperCase()}</td>
                       <td>{r.tf.toUpperCase()}</td>
-                      <td style={{ color: r.dir === 'long' ? '#34d399' : '#f87171' }}>{r.dir.toUpperCase()}</td>
+                      <td style={{ color: r.dir === 'long' ? 'var(--green-2)' : 'var(--red)' }}>{r.dir.toUpperCase()}</td>
                       <td>${r.entry_price.toLocaleString(undefined, { maximumFractionDigits: 4 })}</td>
                       <td style={{ fontSize: 'var(--fs-caption)', opacity: 0.6 }}>{new Date(r.signal_time).toLocaleString()}</td>
                       <td style={{ color: statusCol, fontWeight: 600 }}>{statusLabel}</td>

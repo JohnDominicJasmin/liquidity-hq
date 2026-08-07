@@ -119,7 +119,7 @@ export default function AlertOutcomes() {
               key={r.key}
               label={`${r.label} (${r.count})`}
               value={`${(r.winRate * 100).toFixed(0)}% · ${fmtPct(r.avgPct)}`}
-              color={r.winRate >= 0.5 ? '#34d399' : '#f87171'}
+              color={r.winRate >= 0.5 ? 'var(--green-2)' : 'var(--red)'}
             />
           ))}
         </div>

@@ -277,21 +277,21 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
       <div className="abs-card">
         <div className="abs-header">
           <span className="abs-title">{t('ABSORPTION_DETECTOR_TITLE')}</span>
-          <span style={{ fontSize: 'var(--fs-caption)', color: '#f87171' }}>{t('ABSORPTION_DETECTOR_FAILED')}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)' }}>{t('ABSORPTION_DETECTOR_FAILED')}</span>
         </div>
       </div>
     );
   }
 
   const d       = data!;
-  const typeCol = d.type === 'accumulation' ? '#34d399'
-                : d.type === 'distribution' ? '#f87171'
+  const typeCol = d.type === 'accumulation' ? 'var(--green-2)'
+                : d.type === 'distribution' ? 'var(--red)'
                 : '#9ca3af';
   const typeBg  = d.type === 'accumulation' ? 'rgba(52,211,153,0.10)'
                 : d.type === 'distribution' ? 'rgba(248,113,113,0.10)'
                 : 'rgba(156,163,175,0.06)';
   const barCol  = d.score >= 70 ? typeCol
-                : d.score >= 45 ? '#fbbf24'
+                : d.score >= 45 ? 'var(--amber)'
                 : '#4b5563';
 
   return (

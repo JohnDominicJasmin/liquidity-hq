@@ -34,6 +34,27 @@ interface TradingRule {
   enabled:  boolean;
 }
 
+/**
+ * An accessible name that degrades to readable English rather than to a raw key.
+ *
+ * `t()` returns the KEY ITSELF when no row exists (lib/labels.ts: "key => key as
+ * the ultimate fallback"). That is the right call for visible text - a legible
+ * placeholder beats a blank page - but it is the wrong outcome for an
+ * aria-label, where nobody would ever SEE the problem and a screen reader would
+ * simply read "TRADE_JOURNAL_RULES_FIELD_ARIA" aloud.
+ *
+ * So these three names are decoupled from migration timing: if
+ * 20260807m_labels_seed_rule_builder_names.sql has not been applied yet, or the
+ * labels fetch is still in flight, the user hears English instead of a constant.
+ *
+ * Only used for names that are invisible by design. Visible text must NOT use
+ * this - it would hide a missing translation instead of surfacing it.
+ */
+function ariaName(t: (k: LabelKey) => string, key: LabelKey, english: string): string {
+  const value = t(key);
+  return value === key ? english : value;
+}
+
 const RULE_FIELD_LABEL_KEYS: Record<RuleField, LabelKey> = {
   coin:       'TRADE_JOURNAL_RULES_FIELD_COIN',
   direction:  'TRADE_JOURNAL_RULES_FIELD_DIRECTION',
@@ -884,7 +905,7 @@ function Inner() {
 
           {/* Leverage */}
           {(() => {
-            const levColor = leverage >= 25 ? '#f87171' : leverage >= 10 ? '#fbbf24' : '#34d399';
+            const levColor = leverage >= 25 ? 'var(--red)' : leverage >= 10 ? 'var(--amber)' : 'var(--green-2)';
             const levPct   = ((leverage - 1) / (125 - 1)) * 100;
             const trackBg  = `linear-gradient(to right, ${levColor} 0%, ${levColor} ${levPct}%, rgba(255,255,255,0.08) ${levPct}%, rgba(255,255,255,0.08) 100%)`;
             return (
@@ -982,11 +1003,11 @@ function Inner() {
               background: 'rgba(248,113,113,0.08)', border: '0.5px solid rgba(248,113,113,0.3)',
               borderRadius: 8, padding: '10px 12px', marginBottom: 12,
             }}>
-              <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: '#f87171', marginBottom: 6 }}>
+              <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--red)', marginBottom: 6 }}>
                 {t('TRADE_JOURNAL_LOG_RULE_VIOLATION_TITLE', { plural: activeViolations.length > 1 ? 's' : '' })}
               </div>
               {activeViolations.map(r => (
-                <div key={r.id} style={{ fontSize: 'var(--fs-caption)', color: '#f87171', opacity: 0.85, lineHeight: 1.5 }}>
+                <div key={r.id} style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', opacity: 0.85, lineHeight: 1.5 }}>
                   · {r.name} ({ruleLabel(r, t)})
                 </div>
               ))}
@@ -1052,7 +1073,7 @@ function Inner() {
                   </span>
                   {trade.leverage != null && trade.leverage > 1 && (
                     <span className="tj-lev-tag" style={{
-                      color:       trade.leverage >= 25 ? '#f87171' : trade.leverage >= 10 ? '#fbbf24' : '#34d399',
+                      color:       trade.leverage >= 25 ? 'var(--red)' : trade.leverage >= 10 ? 'var(--amber)' : 'var(--green-2)',
                       background:  withAlpha(trade.leverage >= 25 ? '#f87171' : trade.leverage >= 10 ? '#fbbf24' : '#34d399', '14'),
                       borderColor: withAlpha(trade.leverage >= 25 ? '#f87171' : trade.leverage >= 10 ? '#fbbf24' : '#34d399', '40'),
                     }}>
@@ -1066,7 +1087,7 @@ function Inner() {
                   {trade.id && violatingTradeIds.has(trade.id) && (
                     <span title={t('TRADE_JOURNAL_HISTORY_RULE_VIOLATION_TITLE')} style={{
                       fontSize: 'var(--fs-caption)', fontWeight: 700, letterSpacing: '0.05em',
-                      background: 'rgba(248,113,113,0.12)', color: '#f87171',
+                      background: 'rgba(248,113,113,0.12)', color: 'var(--red)',
                       border: '0.5px solid rgba(248,113,113,0.3)',
                       borderRadius: 4, padding: '2px 5px',
                     }}>{t('TRADE_JOURNAL_HISTORY_RULE_BADGE')}</span>
@@ -1078,9 +1099,9 @@ function Inner() {
 
               <div className="tj-trade-prices">
                 <div className="tj-tp"><span className="tj-tp-lbl">{t('TRADE_JOURNAL_HISTORY_TP_ENTRY_LABEL')}</span><span className="tj-tp-val">${trade.entry_price.toLocaleString()}</span></div>
-                <div className="tj-tp"><span className="tj-tp-lbl">{t('TRADE_JOURNAL_HISTORY_TP_STOP_LABEL')}</span><span className="tj-tp-val" style={{ color: '#f87171' }}>${trade.stop_loss.toLocaleString()}</span></div>
+                <div className="tj-tp"><span className="tj-tp-lbl">{t('TRADE_JOURNAL_HISTORY_TP_STOP_LABEL')}</span><span className="tj-tp-val" style={{ color: 'var(--red)' }}>${trade.stop_loss.toLocaleString()}</span></div>
                 {trade.take_profit != null && (
-                  <div className="tj-tp"><span className="tj-tp-lbl">{t('TRADE_JOURNAL_HISTORY_TP_TP_LABEL')}</span><span className="tj-tp-val" style={{ color: '#34d399' }}>${trade.take_profit.toLocaleString()}</span></div>
+                  <div className="tj-tp"><span className="tj-tp-lbl">{t('TRADE_JOURNAL_HISTORY_TP_TP_LABEL')}</span><span className="tj-tp-val" style={{ color: 'var(--green-2)' }}>${trade.take_profit.toLocaleString()}</span></div>
                 )}
                 {trade.exit_price != null && (
                   <div className="tj-tp"><span className="tj-tp-lbl">{t('TRADE_JOURNAL_HISTORY_TP_EXIT_LABEL')}</span><span className="tj-tp-val">${trade.exit_price.toLocaleString()}</span></div>
@@ -1088,7 +1109,7 @@ function Inner() {
                 {trade.pnl_usd != null && (
                   <div className="tj-tp">
                     <span className="tj-tp-lbl">{t('TRADE_JOURNAL_HISTORY_TP_PNL_LABEL')}</span>
-                    <span className="tj-tp-val" style={{ color: trade.pnl_usd >= 0 ? '#34d399' : '#f87171' }}>
+                    <span className="tj-tp-val" style={{ color: trade.pnl_usd >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
                       {fmtUSD(trade.pnl_usd)}
                     </span>
                   </div>
@@ -1099,7 +1120,7 @@ function Inner() {
                   return (
                     <div className="tj-tp">
                       <span className="tj-tp-lbl">{t('TRADE_JOURNAL_HISTORY_TP_R_LABEL')}</span>
-                      <span className="tj-tp-val" style={{ color: r >= 0 ? '#34d399' : '#f87171' }}>
+                      <span className="tj-tp-val" style={{ color: r >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
                         {r >= 0 ? '+' : ''}{r.toFixed(2)}R
                       </span>
                     </div>
@@ -1143,10 +1164,28 @@ function Inner() {
               {/* Inline edit form */}
               {editingId === trade.id && (
                 <div className="tj-edit-form">
+                  {/* WCAG 2.2 SC 4.1.2 Name, Role, Value (Level A), issue #48.
+                      The visible labels were already here - they just named
+                      nothing: no htmlFor, wrapping no control. A screen reader
+                      announced each of these as "edit text, blank", and voice
+                      control had no phrase to match, so they could not be
+                      operated by voice at all.
+
+                      Fixed with id/htmlFor pairs and NOT with aria-label. Adding
+                      aria-label alongside a real association overrides it, so
+                      the visible text stops being the accessible name - that is
+                      the docs/HANDOVER.md section 14 defect, and QA's U2 test
+                      asserts no field ends up carrying both.
+
+                      ids are scoped by trade.id because this block renders
+                      inside a map over trades; a static id would produce
+                      duplicates the moment two rows exist, and a duplicate id
+                      makes htmlFor resolve to whichever comes first. */}
                   <div className="tj-edit-row">
                     <div className="tj-edit-field">
-                      <label className="tj-lbl">{t('TRADE_JOURNAL_HISTORY_EDIT_RESULT_LABEL')}</label>
+                      <label className="tj-lbl" htmlFor={`tj-edit-result-${trade.id}`}>{t('TRADE_JOURNAL_HISTORY_EDIT_RESULT_LABEL')}</label>
                       <select
+                        id={`tj-edit-result-${trade.id}`}
                         className="tj-edit-select"
                         value={editDraft.result}
                         onChange={e => setEditDraft(p => ({ ...p, result: e.target.value as TradeResult }))}
@@ -1162,25 +1201,29 @@ function Inner() {
                       </select>
                     </div>
                     <div className="tj-edit-field">
-                      <label className="tj-lbl">{t('TRADE_JOURNAL_HISTORY_EDIT_EXIT_PRICE_LABEL')}</label>
+                      <label className="tj-lbl" htmlFor={`tj-edit-exit-${trade.id}`}>{t('TRADE_JOURNAL_HISTORY_EDIT_EXIT_PRICE_LABEL')}</label>
                       <div className="tj-irow"><span className="tj-affix">$</span>
-                        <input className="tj-inp" type="number" placeholder="0.00"
+                        <input id={`tj-edit-exit-${trade.id}`} className="tj-inp" type="number" placeholder="0.00"
                           value={editDraft.exit_price}
                           onChange={e => setEditDraft(p => ({ ...p, exit_price: e.target.value }))} />
                       </div>
                     </div>
                     <div className="tj-edit-field">
-                      <label className="tj-lbl">{t('TRADE_JOURNAL_HISTORY_EDIT_PNL_LABEL')}</label>
+                      <label className="tj-lbl" htmlFor={`tj-edit-pnl-${trade.id}`}>{t('TRADE_JOURNAL_HISTORY_EDIT_PNL_LABEL')}</label>
                       <div className="tj-irow"><span className="tj-affix">$</span>
-                        <input className="tj-inp" type="number" placeholder="0.00"
+                        <input id={`tj-edit-pnl-${trade.id}`} className="tj-inp" type="number" placeholder="0.00"
                           value={editDraft.pnl_usd}
                           onChange={e => setEditDraft(p => ({ ...p, pnl_usd: e.target.value }))} />
                       </div>
                     </div>
                   </div>
                   <div className="tj-edit-field" style={{ marginTop: 8 }}>
-                    <label className="tj-lbl">{t('TRADE_JOURNAL_HISTORY_EDIT_NOTES_LABEL')}</label>
-                    <textarea className="tj-notes" rows={2}
+                    {/* A textarea's text is its VALUE, not its name. An earlier
+                        verification pass scored this as labelled because it read
+                        the content back - and the fixture trade has notes in it.
+                        Worth knowing if anyone checks this by eye. */}
+                    <label className="tj-lbl" htmlFor={`tj-edit-notes-${trade.id}`}>{t('TRADE_JOURNAL_HISTORY_EDIT_NOTES_LABEL')}</label>
+                    <textarea id={`tj-edit-notes-${trade.id}`} className="tj-notes" rows={2}
                       value={editDraft.notes}
                       onChange={e => setEditDraft(p => ({ ...p, notes: e.target.value }))} />
                   </div>
@@ -1357,8 +1400,21 @@ function Inner() {
               <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 10 }}>{t('TRADE_JOURNAL_RULES_FORM_TITLE')}</div>
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                {/* Field */}
+                {/* Field.
+                    These three selects are a sentence-shaped row -
+                    [field] [condition] [value] - with no visible label of any
+                    kind, no class and no id. A screen reader announced each as
+                    "combo box" and nothing else; voice control had no phrase to
+                    match, so they could not be operated by voice at all.
+                    WCAG 2.2 SC 4.1.2, Level A. Issue #48.
+
+                    aria-label is correct HERE precisely because there is no
+                    visible label to override. The inline-edit fields fixed in
+                    the same commit had visible labels, so they got id/htmlFor
+                    instead - adding aria-label there would have overridden the
+                    visible text and broken voice control (HANDOVER section 14). */}
                 <select
+                  aria-label={ariaName(t, 'TRADE_JOURNAL_RULES_FIELD_ARIA', 'Rule field')}
                   value={ruleField}
                   onChange={e => { setRuleField(e.target.value as RuleField); setRuleValue(''); }}
                   style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
@@ -1370,6 +1426,7 @@ function Inner() {
 
                 {/* Operator */}
                 <select
+                  aria-label={ariaName(t, 'TRADE_JOURNAL_RULES_OPERATOR_ARIA', 'Rule condition')}
                   value={ruleOp}
                   onChange={e => setRuleOp(e.target.value as RuleOperator)}
                   style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
@@ -1385,6 +1442,7 @@ function Inner() {
                 {/* Value - context-sensitive */}
                 {ruleField === 'coin' && (
                   <select
+                    aria-label={ariaName(t, 'TRADE_JOURNAL_RULES_VALUE_ARIA', 'Rule value')}
                     value={ruleValue}
                     onChange={e => setRuleValue(e.target.value)}
                     style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
@@ -1395,6 +1453,7 @@ function Inner() {
                 )}
                 {ruleField === 'direction' && (
                   <select
+                    aria-label={ariaName(t, 'TRADE_JOURNAL_RULES_VALUE_ARIA', 'Rule value')}
                     value={ruleValue}
                     onChange={e => setRuleValue(e.target.value)}
                     style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
@@ -1406,6 +1465,7 @@ function Inner() {
                 )}
                 {ruleField === 'setup_type' && (
                   <select
+                    aria-label={ariaName(t, 'TRADE_JOURNAL_RULES_VALUE_ARIA', 'Rule value')}
                     value={ruleValue}
                     onChange={e => setRuleValue(e.target.value)}
                     style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
@@ -1416,6 +1476,7 @@ function Inner() {
                 )}
                 {ruleField === 'session' && (
                   <select
+                    aria-label={ariaName(t, 'TRADE_JOURNAL_RULES_VALUE_ARIA', 'Rule value')}
                     value={ruleValue}
                     onChange={e => setRuleValue(e.target.value)}
                     style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
@@ -1425,8 +1486,15 @@ function Inner() {
                   </select>
                 )}
                 {ruleField === 'leverage' && (
+                  /* Not in issue #48's count - QA's U4 sweep looked at <select>
+                     only, and this variant renders in place of one. Same defect
+                     though: a placeholder is the accessible name until the user
+                     types, and then the field has no name at all.
+                     Reuses the placeholder's own key rather than adding another
+                     seeded row - the text already describes the field. */
                   <input
                     type="number" min={1} max={125}
+                    aria-label={t('TRADE_JOURNAL_RULES_LEVERAGE_PLACEHOLDER')}
                     value={ruleValue}
                     onChange={e => setRuleValue(e.target.value)}
                     placeholder={t('TRADE_JOURNAL_RULES_LEVERAGE_PLACEHOLDER')}
@@ -1435,8 +1503,10 @@ function Inner() {
                 )}
               </div>
 
+              {/* Same again - placeholder-only naming. Also outside #48's count. */}
               <input
                 type="text"
+                aria-label={t('TRADE_JOURNAL_RULES_NAME_PLACEHOLDER')}
                 placeholder={t('TRADE_JOURNAL_RULES_NAME_PLACEHOLDER')}
                 value={ruleName}
                 onChange={e => setRuleName(e.target.value)}
@@ -1487,7 +1557,7 @@ function Inner() {
                 disabled={shadowLoading}
                 style={{
                   background: shadowLoading ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
-                  color: shadowLoading ? 'var(--txt3)' : '#1a7aff',
+                  color: shadowLoading ? 'var(--txt3)' : 'var(--accent)',
                   border: `1px solid ${shadowLoading ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
                   borderRadius: 8, padding: '10px 20px', fontSize: 'var(--fs-label)', fontWeight: 700,
                   cursor: shadowLoading ? 'default' : 'pointer',
@@ -1509,7 +1579,7 @@ function Inner() {
               </button>
             )}
             {shadowError && (
-              <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginTop: 8 }}>{shadowError}</div>
+              <div style={{ color: 'var(--red)', fontSize: 'var(--fs-caption)', marginTop: 8 }}>{shadowError}</div>
             )}
           </div>
 
@@ -1541,7 +1611,7 @@ function Inner() {
                 disabled={biasLoading}
                 style={{
                   background: biasLoading ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
-                  color: biasLoading ? 'var(--txt3)' : '#1a7aff',
+                  color: biasLoading ? 'var(--txt3)' : 'var(--accent)',
                   border: `1px solid ${biasLoading ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
                   borderRadius: 8, padding: '10px 20px', fontSize: 'var(--fs-label)', fontWeight: 700,
                   cursor: biasLoading ? 'default' : 'pointer',
@@ -1559,7 +1629,7 @@ function Inner() {
               </button>
             )}
             {biasError && (
-              <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginTop: 8 }}>{biasError}</div>
+              <div style={{ color: 'var(--red)', fontSize: 'var(--fs-caption)', marginTop: 8 }}>{biasError}</div>
             )}
           </div>
           {biasAnalysis && <BiasResult text={biasAnalysis} />}
@@ -1590,7 +1660,7 @@ function Inner() {
               onClick={() => setShowThesisForm(v => !v)}
               style={{
                 background: showThesisForm ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
-                color: showThesisForm ? 'var(--txt3)' : '#1a7aff',
+                color: showThesisForm ? 'var(--txt3)' : 'var(--accent)',
                 border: `1px solid ${showThesisForm ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
                 borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-caption)', fontWeight: 700, cursor: 'pointer', flexShrink: 0,
               }}
@@ -1653,7 +1723,7 @@ function Inner() {
                 {thesisFormAssumptions.length < 5 && (
                   <button
                     onClick={() => setThesisFormAssumptions(a => [...a, ''])}
-                    style={{ fontSize: 'var(--fs-caption)', color: '#1a7aff', background: 'transparent', border: '0.5px solid rgba(26,122,255,0.3)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
+                    style={{ fontSize: 'var(--fs-caption)', color: 'var(--accent)', background: 'transparent', border: '0.5px solid rgba(26,122,255,0.3)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}
                   >
                     {t('TRADE_JOURNAL_THESIS_ADD_ASSUMPTION_BUTTON')}
                   </button>
@@ -1672,7 +1742,7 @@ function Inner() {
                 disabled={!thesisFormSymbol.trim() || !thesisFormText.trim() || !thesisFormAssumptions.some(a => a.trim())}
                 style={{
                   display: 'block', marginTop: 14, width: '100%',
-                  background: 'rgba(26,122,255,0.12)', color: '#1a7aff',
+                  background: 'rgba(26,122,255,0.12)', color: 'var(--accent)',
                   border: '1px solid rgba(26,122,255,0.35)', borderRadius: 8,
                   padding: '10px', fontSize: 'var(--fs-label)', fontWeight: 700, cursor: 'pointer',
                 }}
@@ -1690,7 +1760,7 @@ function Inner() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
             {theses.map(thesis => {
               const score     = thesis.lastScore;
-              const scoreCol  = score == null ? 'var(--txt3)' : score >= 8 ? '#34d399' : score >= 5 ? '#fbbf24' : '#f87171';
+              const scoreCol  = score == null ? 'var(--txt3)' : score >= 8 ? 'var(--green-2)' : score >= 5 ? 'var(--amber)' : 'var(--red)';
               const isChecking = checkingThesisId === thesis.id;
               return (
                 <div key={thesis.id} style={{ background: 'var(--bg1)', border: '0.5px solid var(--bdr)', borderRadius: 'var(--radius-card)', padding: '12px 14px' }}>
@@ -1700,7 +1770,7 @@ function Inner() {
                     <span style={{
                       fontSize: 'var(--fs-caption)', padding: '2px 6px', borderRadius: 10, fontWeight: 700,
                       background: thesis.direction === 'LONG' ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)',
-                      color: thesis.direction === 'LONG' ? '#34d399' : '#f87171',
+                      color: thesis.direction === 'LONG' ? 'var(--green-2)' : 'var(--red)',
                       border: `0.5px solid ${thesis.direction === 'LONG' ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
                     }}>
                       {thesis.direction}
@@ -1752,7 +1822,7 @@ function Inner() {
                       disabled={isChecking}
                       style={{
                         background: isChecking ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.10)',
-                        color: isChecking ? 'var(--txt3)' : '#1a7aff',
+                        color: isChecking ? 'var(--txt3)' : 'var(--accent)',
                         border: `0.5px solid ${isChecking ? 'var(--bdr)' : 'rgba(26,122,255,0.3)'}`,
                         borderRadius: 6, padding: '5px 12px', fontSize: 'var(--fs-caption)', fontWeight: 700, cursor: isChecking ? 'default' : 'pointer',
                       }}
@@ -1794,7 +1864,7 @@ function Inner() {
                   </div>
                   <div style={{
                     fontSize: '1.625rem', fontWeight: 800, fontFamily: 'var(--font-mono), monospace',
-                    color: complianceScore.pct >= 80 ? '#34d399' : complianceScore.pct >= 60 ? '#fbbf24' : '#f87171',
+                    color: complianceScore.pct >= 80 ? 'var(--green-2)' : complianceScore.pct >= 60 ? 'var(--amber)' : 'var(--red)',
                   }}>
                     {complianceScore.pct}%
                   </div>
@@ -1804,39 +1874,39 @@ function Inner() {
               <div className="tj-stats-grid">
                 <div className="tj-stat">
                   <div className="tj-stat-lbl"><Tip width={230} text={t('TRADE_JOURNAL_STATS_WIN_RATE_TOOLTIP')}>{t('TRADE_JOURNAL_STATS_WIN_RATE_LABEL')}</Tip></div>
-                  <div className="tj-stat-val" style={{ color: stats.winRate >= 50 ? '#34d399' : '#f87171' }}>
+                  <div className="tj-stat-val" style={{ color: stats.winRate >= 50 ? 'var(--green-2)' : 'var(--red)' }}>
                     {stats.winRate.toFixed(0)}%
                   </div>
                 </div>
                 <div className="tj-stat">
                   <div className="tj-stat-lbl">{t('TRADE_JOURNAL_STATS_TOTAL_PNL_LABEL')}</div>
-                  <div className="tj-stat-val" style={{ color: stats.totalPnL >= 0 ? '#34d399' : '#f87171' }}>
+                  <div className="tj-stat-val" style={{ color: stats.totalPnL >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
                     {fmtUSD(stats.totalPnL)}
                   </div>
                 </div>
                 <div className="tj-stat">
                   <div className="tj-stat-lbl"><Tip width={230} text={t('TRADE_JOURNAL_STATS_AVG_R_TOOLTIP')}>{t('TRADE_JOURNAL_STATS_AVG_R_LABEL')}</Tip></div>
-                  <div className="tj-stat-val" style={{ color: stats.avgR >= 0 ? '#34d399' : '#f87171' }}>
+                  <div className="tj-stat-val" style={{ color: stats.avgR >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
                     {stats.avgR >= 0 ? '+' : ''}{stats.avgR.toFixed(2)}R
                   </div>
                 </div>
                 <div className="tj-stat">
                   <div className="tj-stat-lbl">{t('TRADE_JOURNAL_STATS_RECORD_LABEL')}</div>
                   <div className="tj-stat-val">
-                    <span style={{ color: '#34d399' }}>{stats.wins}W</span>
+                    <span style={{ color: 'var(--green-2)' }}>{stats.wins}W</span>
                     <span style={{ color: 'var(--txt3)' }}> · </span>
-                    <span style={{ color: '#f87171' }}>{stats.losses}L</span>
+                    <span style={{ color: 'var(--red)' }}>{stats.losses}L</span>
                   </div>
                 </div>
                 <div className="tj-stat">
                   <div className="tj-stat-lbl">{t('TRADE_JOURNAL_STATS_CURRENT_STREAK_LABEL')}</div>
-                  <div className="tj-stat-val" style={{ color: stats.streak.dir === 'W' ? '#34d399' : stats.streak.dir === 'L' ? '#f87171' : 'var(--txt3)' }}>
+                  <div className="tj-stat-val" style={{ color: stats.streak.dir === 'W' ? 'var(--green-2)' : stats.streak.dir === 'L' ? 'var(--red)' : 'var(--txt3)' }}>
                     {stats.streak.dir === 'W' ? `${stats.streak.current}W` : stats.streak.dir === 'L' ? `${stats.streak.current}L` : '-'}
                   </div>
                 </div>
                 <div className="tj-stat">
                   <div className="tj-stat-lbl">{t('TRADE_JOURNAL_STATS_BEST_WIN_STREAK_LABEL')}</div>
-                  <div className="tj-stat-val" style={{ color: stats.streak.bestWin > 0 ? '#34d399' : 'var(--txt3)' }}>
+                  <div className="tj-stat-val" style={{ color: stats.streak.bestWin > 0 ? 'var(--green-2)' : 'var(--txt3)' }}>
                     {stats.streak.bestWin > 0 ? `${stats.streak.bestWin}W` : '-'}
                   </div>
                 </div>
@@ -1853,13 +1923,13 @@ function Inner() {
                 const y = (v: number) => H - PAD - ((v - minV) / range) * (H - PAD * 2);
                 const polyline = pts.map((p, i) => `${x(i)},${y(p.value)}`).join(' ');
                 const lastV    = pts[pts.length - 1].value;
-                const lineCol  = lastV >= 0 ? '#34d399' : '#f87171';
+                const lineCol  = lastV >= 0 ? 'var(--green-2)' : 'var(--red)';
                 const zeroY    = y(0);
                 return (
                   <div className="tj-breakdown" style={{ marginBottom: 0 }}>
                     <div className="tj-breakdown-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>{t('TRADE_JOURNAL_STATS_EQUITY_CURVE_LABEL')}</span>
-                      <span style={{ color: lastV >= 0 ? '#34d399' : '#f87171', fontWeight: 700 }}>
+                      <span style={{ color: lastV >= 0 ? 'var(--green-2)' : 'var(--red)', fontWeight: 700 }}>
                         {lastV >= 0 ? '+' : ''}{lastV.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
@@ -1890,7 +1960,7 @@ function Inner() {
                         <div className="tj-breakdown-bar" style={{ width: `${wr}%` }} />
                       </div>
                       <span className="tj-breakdown-sub">{wr.toFixed(0)}% · {d.wins}/{d.total}</span>
-                      <span className="tj-breakdown-pnl" style={{ color: d.pnl >= 0 ? '#34d399' : '#f87171' }}>{fmtUSD(d.pnl)}</span>
+                      <span className="tj-breakdown-pnl" style={{ color: d.pnl >= 0 ? 'var(--green-2)' : 'var(--red)' }}>{fmtUSD(d.pnl)}</span>
                     </div>
                     );
                   })}
@@ -1904,7 +1974,7 @@ function Inner() {
                     <div key={s} className="tj-breakdown-row">
                       <span className="tj-breakdown-name">{s}</span>
                       <span className="tj-breakdown-sub">{t('TRADE_JOURNAL_STATS_TRADES_COUNT', { wins: d.wins, total: d.total })}</span>
-                      <span className="tj-breakdown-pnl" style={{ color: (d.wins/d.total) >= 0.5 ? '#34d399' : '#f87171' }}>
+                      <span className="tj-breakdown-pnl" style={{ color: (d.wins/d.total) >= 0.5 ? 'var(--green-2)' : 'var(--red)' }}>
                         {((d.wins/d.total)*100).toFixed(0)}% WR
                       </span>
                     </div>

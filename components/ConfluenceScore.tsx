@@ -17,11 +17,11 @@ import { computeSectorRotation, isAlt } from '@/lib/sectorRotation';
 import type { PASignal } from '@/lib/priceAction';
 
 const VERDICT_CONFIG: Record<string, { labelKey: LabelKey; color: string }> = {
-  STRONG_BULL:  { labelKey: 'CONFLUENCE_SCORE_VERDICT_STRONG_BULL',  color: '#34d399' },
-  LEANING_BULL: { labelKey: 'CONFLUENCE_SCORE_VERDICT_LEANING_BULL', color: '#86efac' },
+  STRONG_BULL:  { labelKey: 'CONFLUENCE_SCORE_VERDICT_STRONG_BULL',  color: 'var(--green-2)' },
+  LEANING_BULL: { labelKey: 'CONFLUENCE_SCORE_VERDICT_LEANING_BULL', color: 'var(--green-soft)' },
   MIXED:        { labelKey: 'CONFLUENCE_SCORE_VERDICT_MIXED',        color: 'var(--txt-dim)' },
-  LEANING_BEAR: { labelKey: 'CONFLUENCE_SCORE_VERDICT_LEANING_BEAR', color: '#fca5a5' },
-  STRONG_BEAR:  { labelKey: 'CONFLUENCE_SCORE_VERDICT_STRONG_BEAR',  color: '#f87171' },
+  LEANING_BEAR: { labelKey: 'CONFLUENCE_SCORE_VERDICT_LEANING_BEAR', color: 'var(--red-soft)' },
+  STRONG_BEAR:  { labelKey: 'CONFLUENCE_SCORE_VERDICT_STRONG_BEAR',  color: 'var(--red)' },
 };
 
 export default function ConfluenceScore(
@@ -135,7 +135,7 @@ export default function ConfluenceScore(
   const result = computeConfluence(factors);
   const cfg = VERDICT_CONFIG[result.verdict];
   const macro = computeMacroRisk(econEvents, jpyUsd);
-  const macroCol = macro.level === 'danger' ? '#f87171' : macro.level === 'caution' ? '#fbbf24' : null;
+  const macroCol = macro.level === 'danger' ? 'var(--red)' : macro.level === 'caution' ? 'var(--amber)' : null;
 
   return (
     <div className="sms-card">
@@ -176,8 +176,8 @@ export default function ConfluenceScore(
         {factors.map((f, i) => {
           const isPenalty = f.kind === 'penalty';
           const active = isPenalty ? f.active : f.dir !== 'neutral';
-          const col = isPenalty ? (f.active ? '#fbbf24' : 'var(--txt3)')
-            : f.dir === 'bull' ? '#34d399' : f.dir === 'bear' ? '#f87171' : 'var(--txt3)';
+          const col = isPenalty ? (f.active ? 'var(--amber)' : 'var(--txt3)')
+            : f.dir === 'bull' ? 'var(--green-2)' : f.dir === 'bear' ? 'var(--red)' : 'var(--txt3)';
           const valueText = isPenalty
             ? (f.active ? t('CONFLUENCE_SCORE_PENALTY_ACTIVE', { weight: f.weight }) : t('CONFLUENCE_SCORE_PENALTY_CLEAR'))
             : (f.dir === 'neutral' ? '-' : `${f.dir === 'bull' ? '▲' : '▼'} ${f.weight}`);

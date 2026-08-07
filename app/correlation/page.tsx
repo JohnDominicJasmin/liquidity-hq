@@ -103,15 +103,15 @@ function cellColor(r: number | null, diag: boolean): string {
 /* ── alt season signal ── */
 interface AltSig { labelKey: LabelKey; descKey: LabelKey | null; avg: number | null; color: string; bg: string; }
 function altSignal(avg: number | null): AltSig {
-  if (avg == null) return { labelKey: 'CORRELATION_ALT_SIG_LOADING_LABEL', descKey: null, avg, color: '#a0a0a0', bg: 'transparent' };
+  if (avg == null) return { labelKey: 'CORRELATION_ALT_SIG_LOADING_LABEL', descKey: null, avg, color: 'var(--txt-dim)', bg: 'transparent' };
   if (avg < 0.30)  return {
     labelKey: 'CORRELATION_ALT_SIG_ALT_SEASON_LABEL',
-    color: '#34d399', bg: 'rgba(52,211,153,0.08)',
+    color: 'var(--green-2)', bg: 'rgba(52,211,153,0.08)',
     descKey: 'CORRELATION_ALT_SIG_ALT_SEASON_DESC', avg,
   };
   if (avg < 0.55)  return {
     labelKey: 'CORRELATION_ALT_SIG_MIXED_LABEL',
-    color: '#fbbf24', bg: 'rgba(251,191,36,0.07)',
+    color: 'var(--amber)', bg: 'rgba(251,191,36,0.07)',
     descKey: 'CORRELATION_ALT_SIG_MIXED_DESC', avg,
   };
   if (avg < 0.75)  return {
@@ -121,7 +121,7 @@ function altSignal(avg: number | null): AltSig {
   };
   return {
     labelKey: 'CORRELATION_ALT_SIG_LOCKSTEP_LABEL',
-    color: '#f87171', bg: 'rgba(248,113,113,0.07)',
+    color: 'var(--red)', bg: 'rgba(248,113,113,0.07)',
     descKey: 'CORRELATION_ALT_SIG_LOCKSTEP_DESC', avg,
   };
 }
@@ -311,8 +311,8 @@ export default function CorrelationHeatmap() {
             </div>
             <div className="corr-scroll-hint">{t('CORRELATION_SCROLL_HINT')}</div>
             <div className="corr-legend">
-              <span style={{ color: '#34d399' }}>{t('CORRELATION_LEGEND_GREEN_LABEL')}</span> = {t('CORRELATION_LEGEND_GREEN_DESC')} &nbsp;·&nbsp;
-              <span style={{ color: '#f87171' }}>{t('CORRELATION_LEGEND_RED_LABEL')}</span> = {t('CORRELATION_LEGEND_RED_DESC')} &nbsp;·&nbsp;
+              <span style={{ color: 'var(--green-2)' }}>{t('CORRELATION_LEGEND_GREEN_LABEL')}</span> = {t('CORRELATION_LEGEND_GREEN_DESC')} &nbsp;·&nbsp;
+              <span style={{ color: 'var(--red)' }}>{t('CORRELATION_LEGEND_RED_LABEL')}</span> = {t('CORRELATION_LEGEND_RED_DESC')} &nbsp;·&nbsp;
               {t('CORRELATION_LEGEND_BRIGHTNESS_HINT')}
             </div>
           </div>
@@ -332,7 +332,7 @@ export default function CorrelationHeatmap() {
                     }}
                   />
                 </div>
-                <span className="corr-pair-val" style={{ color: r >= 0 ? '#34d399' : '#f87171' }}>
+                <span className="corr-pair-val" style={{ color: r >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
                   {r >= 0 ? '+' : ''}{r.toFixed(2)}
                 </span>
               </div>
@@ -359,7 +359,7 @@ export default function CorrelationHeatmap() {
                     }}
                   />
                 </div>
-                <span className="corr-pair-val" style={{ color: r >= 0 ? '#34d399' : '#f87171' }}>
+                <span className="corr-pair-val" style={{ color: r >= 0 ? 'var(--green-2)' : 'var(--red)' }}>
                   {r >= 0 ? '+' : ''}{r.toFixed(2)}
                 </span>
               </div>

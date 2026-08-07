@@ -108,8 +108,8 @@ function SentimentBadge({ headline }: { headline: string }) {
   const coins = getCoinsInHeadline(headline);
   const prefix = coins.length === 1 ? `${coins[0]}: ` : '';
   const cfg = s === 'bullish'
-    ? { bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)',   color: '#34d399', label: t('NEWS_SENTIMENT_BULLISH', { prefix }) }
-    : { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)',  color: '#f87171', label: t('NEWS_SENTIMENT_BEARISH', { prefix }) };
+    ? { bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)',   color: 'var(--green-2)', label: t('NEWS_SENTIMENT_BULLISH', { prefix }) }
+    : { bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)',  color: 'var(--red)', label: t('NEWS_SENTIMENT_BEARISH', { prefix }) };
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center',
@@ -143,7 +143,7 @@ function CoinBuzzBar({ mentions }: { mentions: { symbol: string; total: number; 
         const pctBull = m.total > 0 ? m.bullish / m.total : 0;
         const pctBear = m.total > 0 ? m.bearish / m.total : 0;
         const sentiment = pctBull >= 0.55 ? 'bull' : pctBear >= 0.55 ? 'bear' : 'mix';
-        const col = sentiment === 'bull' ? '#34d399' : sentiment === 'bear' ? '#f87171' : '#94a3b8';
+        const col = sentiment === 'bull' ? 'var(--green-2)' : sentiment === 'bear' ? 'var(--red)' : 'var(--txt-dim)';
         const arrow = sentiment === 'bull' ? ' ↗' : sentiment === 'bear' ? ' ↘' : '';
         return (
           <span key={m.symbol} style={{
@@ -170,23 +170,23 @@ const SOURCE_COLORS: Record<string, string> = {
   'Reuters':          '#f59e0b',
   'Reuters World':    '#f59e0b',
   'Reuters Business': '#f59e0b',
-  'AP News':          '#60a5fa',
-  'AP Business':      '#60a5fa',
+  'AP News':          'var(--accent-2)',
+  'AP Business':      'var(--accent-2)',
   'BBC World':        '#e11d48',
   'BBC Business':     '#e11d48',
   'CoinDesk':         '#1a7aff',
-  'CoinTelegraph':    '#34d399',
-  'Decrypt':          '#fb923c',
+  'CoinTelegraph':    'var(--green-2)',
+  'Decrypt':          'var(--orange)',
   'The Block':        '#38bdf8',
   'CryptoSlate':      '#818cf8',
-  'Bitcoin Magazine': '#fbbf24',
-  'Finnhub':          '#94a3b8',
+  'Bitcoin Magazine': 'var(--amber)',
+  'Finnhub':          'var(--txt-dim)',
 };
 
 /* ── Card type config ── */
 const TYPE_CFG: Record<'red' | 'amber' | 'purple', { dot: string; labelKey: LabelKey; accentBg: string }> = {
-  red:    { dot: '#f87171', labelKey: 'NEWS_TYPE_BADGE_BREAKING', accentBg: 'rgba(248,113,113,0.08)'  },
-  amber:  { dot: '#fbbf24', labelKey: 'NEWS_TYPE_BADGE_MACRO',    accentBg: 'rgba(251,191,36,0.07)'  },
+  red:    { dot: 'var(--red)', labelKey: 'NEWS_TYPE_BADGE_BREAKING', accentBg: 'rgba(248,113,113,0.08)'  },
+  amber:  { dot: 'var(--amber)', labelKey: 'NEWS_TYPE_BADGE_MACRO',    accentBg: 'rgba(251,191,36,0.07)'  },
   purple: { dot: '#1a7aff', labelKey: 'NEWS_TYPE_BADGE_CRYPTO',   accentBg: 'rgba(26,122,255,0.07)' },
 };
 
@@ -610,7 +610,7 @@ export default function NewsPage() {
                   const past = e.h < 0;
                   const timeLocal = e.dt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
                   const note = ECON_NOTES[e.type];
-                  const borderColor = urgent ? '#f87171' : soon ? '#fbbf24' : 'var(--purple)';
+                  const borderColor = urgent ? 'var(--red)' : soon ? 'var(--amber)' : 'var(--purple)';
                   return (
                     <div key={ei} style={{
                       display: 'grid', gridTemplateColumns: '70px 1fr 72px 72px 72px 52px',
@@ -620,7 +620,7 @@ export default function NewsPage() {
                       opacity: past && !urgent ? 0.55 : 1,
                       alignItems: 'start',
                     }}>
-                      <span style={{ fontSize: 'var(--fs-caption)', color: urgent ? '#f87171' : soon ? '#fbbf24' : 'var(--txt2)', fontWeight: 600, paddingTop: 1 }}>
+                      <span style={{ fontSize: 'var(--fs-caption)', color: urgent ? 'var(--red)' : soon ? 'var(--amber)' : 'var(--txt2)', fontWeight: 600, paddingTop: 1 }}>
                         {urgent ? t('NEWS_EVENTS_NOW_BADGE') : timeLocal}
                       </span>
                       <div>
@@ -631,7 +631,7 @@ export default function NewsPage() {
                       <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', textAlign: 'right', paddingTop: 1 }}>{e.estimate ?? '-'}</span>
                       <span style={{ fontSize: 'var(--fs-caption)', fontWeight: e.actual ? 700 : 400, color: e.actual ? 'var(--green)' : 'var(--txt3)', textAlign: 'right', paddingTop: 1 }}>{e.actual ?? '-'}</span>
                       <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 1 }}>
-                        <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.15)', color: '#f87171', fontWeight: 700, letterSpacing: '0.03em' }}>{t('NEWS_EVENTS_IMPACT_HIGH')}</span>
+                        <span style={{ fontSize: 'var(--fs-caption)', padding: '2px 6px', borderRadius: 4, background: 'rgba(239,68,68,0.15)', color: 'var(--red)', fontWeight: 700, letterSpacing: '0.03em' }}>{t('NEWS_EVENTS_IMPACT_HIGH')}</span>
                       </div>
                     </div>
                   );

@@ -79,9 +79,26 @@ const securityHeaders = [
   { key: "Content-Security-Policy", value: csp },
 ];
 
+// Release tag for GlitchTip. Render sets RENDER_GIT_COMMIT during the build; it
+// is not NEXT_PUBLIC_-prefixed, so without this it reaches the server runtime and
+// never the browser bundle - which would tag server errors and leave client
+// errors unversioned. Half-tagged is worse than untagged: it looks like it works.
+//
+// Empty string rather than undefined when absent (local builds, CI) so
+// lib/monitoring.ts's `|| undefined` turns it into "no release" rather than the
+// literal string "undefined" appearing as a release name in the dashboard.
+const release = process.env.RENDER_GIT_COMMIT ?? '';
+
 const nextConfig: NextConfig = {
   // Remove X-Powered-By: Next.js header (don't leak stack info)
   poweredByHeader: false,
+
+  // Values here are ALWAYS inlined into the bundle regardless of prefix - that is
+  // the documented behaviour of this key, and the reason it works for a variable
+  // Render does not prefix for us.
+  env: {
+    NEXT_PUBLIC_RELEASE: release,
+  },
 
   async headers() {
     return [

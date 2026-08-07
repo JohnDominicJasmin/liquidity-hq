@@ -25,8 +25,8 @@ const OI_ICONS: Record<string, string> = {
   strong_up: '▲', strong_down: '▼', weak_up: '△', weak_down: '▽',
 };
 const OI_COLORS: Record<string, string> = {
-  strong_up: '#34d399', strong_down: '#f87171',
-  weak_up: '#fbbf24', weak_down: '#94a3b8',
+  strong_up: 'var(--green-2)', strong_down: 'var(--red)',
+  weak_up: 'var(--amber)', weak_down: 'var(--txt-dim)',
 };
 
 /* Convert decimal hours → "Xh Ym" */
@@ -52,18 +52,18 @@ function tsAgo(ts: number): string {
 
 function rsiColor(rsi: number | null): string {
   if (rsi == null) return 'var(--txt3)';
-  if (rsi >= 70) return '#f87171';
-  if (rsi >= 60) return '#fbbf24';
-  if (rsi <= 30) return '#34d399';
-  if (rsi <= 40) return '#86efac';
+  if (rsi >= 70) return 'var(--red)';
+  if (rsi >= 60) return 'var(--amber)';
+  if (rsi <= 30) return 'var(--green-2)';
+  if (rsi <= 40) return 'var(--green-soft)';
   return 'var(--txt2)';
 }
 
 function volRatioColor(vr: number | null): string {
   if (vr == null) return 'var(--txt3)';
-  if (vr >= 2)   return '#f87171';
-  if (vr >= 1.5) return '#fbbf24';
-  if (vr >= 1.2) return '#86efac';
+  if (vr >= 2)   return 'var(--red)';
+  if (vr >= 1.5) return 'var(--amber)';
+  if (vr >= 1.2) return 'var(--green-soft)';
   return 'var(--txt3)';
 }
 
@@ -320,14 +320,14 @@ export default function MorningBriefing() {
   /* Macro colors */
   const fng      = store.fng;
   const fngColor = fng == null ? 'var(--txt3)'
-    : fng >= 75 ? '#f87171'
-    : fng >= 55 ? '#fbbf24'
-    : fng <= 25 ? '#34d399'
-    : fng <= 45 ? '#86efac'
+    : fng >= 75 ? 'var(--red)'
+    : fng >= 55 ? 'var(--amber)'
+    : fng <= 25 ? 'var(--green-2)'
+    : fng <= 45 ? 'var(--green-soft)'
     : 'var(--txt2)';
 
   const etfFlow  = store.etfNetFlow;
-  const etfColor = etfFlow == null ? 'var(--txt3)' : etfFlow > 0 ? '#34d399' : '#f87171';
+  const etfColor = etfFlow == null ? 'var(--txt3)' : etfFlow > 0 ? 'var(--green-2)' : 'var(--red)';
 
   const dxyChg    = store.dxyChg;
   const dxySig    = dxyChg == null    ? '-'
@@ -335,15 +335,15 @@ export default function MorningBriefing() {
     : dxyChg < -0.2 ? t('BRIEFING_DXY_TAILWIND')
     : t('BRIEFING_DXY_NEUTRAL');
   const dxyColor  = dxyChg == null    ? 'var(--txt3)'
-    : dxyChg > 0.2  ? '#f87171'
-    : dxyChg < -0.2 ? '#34d399'
+    : dxyChg > 0.2  ? 'var(--red)'
+    : dxyChg < -0.2 ? 'var(--green-2)'
     : 'var(--txt3)';
 
   const btcDomHistory = store.btcDomHistory;
   const domTrend = btcDomHistory.length >= 2
     ? btcDomHistory[btcDomHistory.length - 1] > btcDomHistory[0]
-      ? { txt: t('BRIEFING_DOM_ALTS_WEAK'), col: '#fbbf24' }
-      : { txt: t('BRIEFING_DOM_ALTS_ACTIVE'), col: '#34d399' }
+      ? { txt: t('BRIEFING_DOM_ALTS_WEAK'), col: 'var(--amber)' }
+      : { txt: t('BRIEFING_DOM_ALTS_ACTIVE'), col: 'var(--green-2)' }
     : null;
 
   const futureEcon = urgentEcon.filter(e => e.dt.getTime() > nowMs);
@@ -352,12 +352,12 @@ export default function MorningBriefing() {
   /* Yen Watch */
   const jpyStatus = jpyUsd == null ? null
     : jpyUsd >= 160
-      ? { label: t('BRIEFING_YEN_DANGER'), color: '#f87171', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.25)',
+      ? { label: t('BRIEFING_YEN_DANGER'), color: 'var(--red)', bg: 'rgba(248,113,113,0.08)', border: 'rgba(248,113,113,0.25)',
           desc: t('BRIEFING_YEN_DANGER_DESC') }
     : jpyUsd >= 158
-      ? { label: t('BRIEFING_YEN_WARNING'), color: '#fbbf24', bg: 'rgba(251,191,36,0.06)', border: 'rgba(251,191,36,0.2)',
+      ? { label: t('BRIEFING_YEN_WARNING'), color: 'var(--amber)', bg: 'rgba(251,191,36,0.06)', border: 'rgba(251,191,36,0.2)',
           desc: t('BRIEFING_YEN_WARNING_DESC') }
-      : { label: t('BRIEFING_YEN_SAFE'), color: '#34d399', bg: 'rgba(52,211,153,0.06)', border: 'rgba(52,211,153,0.2)',
+      : { label: t('BRIEFING_YEN_SAFE'), color: 'var(--green-2)', bg: 'rgba(52,211,153,0.06)', border: 'rgba(52,211,153,0.2)',
           desc: t('BRIEFING_YEN_SAFE_DESC') };
   // progress bar: 140 = left edge, 165 = right edge
   const jpyPct        = jpyUsd != null ? Math.max(0, Math.min(100, ((jpyUsd - 140) / 25) * 100)) : 0;
@@ -402,7 +402,7 @@ export default function MorningBriefing() {
         ) : (
           top3Setups.map(({ id, c, sq }, i) => {
             const isLong    = sq.dir === 'SHORT_SQ';
-            const dirColor  = isLong ? '#34d399' : '#f87171';
+            const dirColor  = isLong ? 'var(--green-2)' : 'var(--red)';
             const dirLabel  = isLong ? t('BRIEFING_DIR_LONG') : t('BRIEFING_DIR_SHORT');
             const tags      = c ? getSignalTags(c, sq.dir as 'LONG_LIQ' | 'SHORT_SQ', t) : [];
             const isLast    = i === top3Setups.length - 1;
@@ -484,7 +484,7 @@ export default function MorningBriefing() {
         )}
 
         {briefErr && (
-          <div style={{ fontSize: 'var(--fs-caption)', color: '#f87171', marginTop: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Warn /> {briefErr}</div>
+          <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--red)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Warn /> {briefErr}</div>
         )}
 
         {brief && !generating && (
@@ -518,7 +518,7 @@ export default function MorningBriefing() {
                 key={id}
                 className="mb-cvd-chip"
                 style={{
-                  color:       div === 'bullish' ? '#34d399' : '#f87171',
+                  color:       div === 'bullish' ? 'var(--green-2)' : 'var(--red)',
                   borderColor: div === 'bullish' ? 'rgba(52,211,153,0.4)' : 'rgba(248,113,113,0.4)',
                   background:  div === 'bullish' ? 'rgba(52,211,153,0.08)' : 'rgba(248,113,113,0.08)',
                 }}
@@ -641,11 +641,11 @@ export default function MorningBriefing() {
               <span style={{ position: 'absolute', bottom: 0, left: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>140</span>
               <span style={{
                 position: 'absolute', bottom: 0, left: `${warn158Pct}%`, transform: 'translateX(-50%)',
-                fontSize: 'var(--fs-caption)', color: '#fbbf24', fontWeight: 600,
+                fontSize: 'var(--fs-caption)', color: 'var(--amber)', fontWeight: 600,
               }}>158<Warn size={9} style={{ verticalAlign: '-1px', marginLeft: 1 }} /></span>
               <span style={{
                 position: 'absolute', bottom: 0, left: `${danger160Pct}%`, transform: 'translateX(-50%)',
-                fontSize: 'var(--fs-caption)', color: '#f87171', fontWeight: 600,
+                fontSize: 'var(--fs-caption)', color: 'var(--red)', fontWeight: 600,
               }}>160</span>
               <span style={{ position: 'absolute', bottom: 0, right: 0, fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>165</span>
             </div>
@@ -672,20 +672,20 @@ export default function MorningBriefing() {
           if (!c?.price) continue;
           const chips: Chip[] = [];
           if (c.rsi14 != null) {
-            if (c.rsi14 >= 70)      chips.push({ text: t('BRIEFING_TAG_RSI', { value: Math.round(c.rsi14) }), color: '#f87171' });
-            else if (c.rsi14 <= 30) chips.push({ text: t('BRIEFING_TAG_RSI', { value: Math.round(c.rsi14) }), color: '#34d399' });
+            if (c.rsi14 >= 70)      chips.push({ text: t('BRIEFING_TAG_RSI', { value: Math.round(c.rsi14) }), color: 'var(--red)' });
+            else if (c.rsi14 <= 30) chips.push({ text: t('BRIEFING_TAG_RSI', { value: Math.round(c.rsi14) }), color: 'var(--green-2)' });
           }
           if (c.fundingRate != null) {
             const fr = c.fundingRate * 100;
-            if (fr >= 0.05)       chips.push({ text: t('BRIEFING_TAG_FR_POS', { value: fr.toFixed(3) }), color: '#f87171' });
-            else if (fr <= -0.03) chips.push({ text: t('BRIEFING_TAG_FR_NEG_VALUE', { value: fr.toFixed(3) }),  color: '#34d399' });
+            if (fr >= 0.05)       chips.push({ text: t('BRIEFING_TAG_FR_POS', { value: fr.toFixed(3) }), color: 'var(--red)' });
+            else if (fr <= -0.03) chips.push({ text: t('BRIEFING_TAG_FR_NEG_VALUE', { value: fr.toFixed(3) }),  color: 'var(--green-2)' });
           }
           if (c.volRatio != null && c.volRatio >= 1.5)
             chips.push({ text: t('BRIEFING_TAG_VOL', { x: c.volRatio.toFixed(1) }), color: 'var(--accent)' });
-          if (c.oiTrend === 'strong_up')        chips.push({ text: t('BRIEFING_TAG_OI_STRONG_UP'),    color: '#34d399' });
-          else if (c.oiTrend === 'strong_down') chips.push({ text: t('BRIEFING_TAG_OI_STRONG_DOWN'),    color: '#f87171' });
-          if (c.cvdDivergence === 'bullish')    chips.push({ text: t('BRIEFING_TAG_CVD_BULL'), color: '#34d399' });
-          else if (c.cvdDivergence === 'bearish') chips.push({ text: t('BRIEFING_TAG_CVD_BEAR'), color: '#f87171' });
+          if (c.oiTrend === 'strong_up')        chips.push({ text: t('BRIEFING_TAG_OI_STRONG_UP'),    color: 'var(--green-2)' });
+          else if (c.oiTrend === 'strong_down') chips.push({ text: t('BRIEFING_TAG_OI_STRONG_DOWN'),    color: 'var(--red)' });
+          if (c.cvdDivergence === 'bullish')    chips.push({ text: t('BRIEFING_TAG_CVD_BULL'), color: 'var(--green-2)' });
+          else if (c.cvdDivergence === 'bearish') chips.push({ text: t('BRIEFING_TAG_CVD_BEAR'), color: 'var(--red)' });
           if (chips.length > 0) byCoins.push({ id, label: COIN_LABELS[id], chips });
         }
 
@@ -762,13 +762,13 @@ export default function MorningBriefing() {
           <div key={i} className="mb-event-row">
             <div className="mb-event-tag" style={{
               background: isPast ? 'rgba(100,100,100,0.15)' : lh < 2 ? 'rgba(248,113,113,0.15)' : 'rgba(251,191,36,0.1)',
-              color: isPast ? 'var(--txt3)' : lh < 2 ? '#f87171' : '#fbbf24',
+              color: isPast ? 'var(--txt3)' : lh < 2 ? 'var(--red)' : 'var(--amber)',
             }}>
               {isPast ? '✓ ' : ''}{e.type}
             </div>
             <div className="mb-event-name">{e.name}</div>
             <div className="mb-event-time" style={{
-              color: isPast ? 'var(--txt3)' : lh < 1 ? '#f87171' : lh < 6 ? '#fbbf24' : 'var(--txt3)',
+              color: isPast ? 'var(--txt3)' : lh < 1 ? 'var(--red)' : lh < 6 ? 'var(--amber)' : 'var(--txt3)',
             }}>
               {isPast ? `${Math.round(-lh * 60)}m ago` : lh < 0.017 ? 'NOW' : `in ${hToHM(lh)}`}
             </div>
@@ -784,7 +784,7 @@ export default function MorningBriefing() {
                 : e.style === 'speech'
                 ? 'rgba(96,165,250,0.1)'
                 : 'var(--accent-bg)',
-              color: e.style === 'crypto' ? '#34d399' : e.style === 'speech' ? '#60a5fa' : 'var(--accent)',
+              color: e.style === 'crypto' ? 'var(--green-2)' : e.style === 'speech' ? 'var(--accent-2)' : 'var(--accent)',
             }}>
               {e.tag}
             </div>
@@ -797,7 +797,7 @@ export default function MorningBriefing() {
           <div key={i} className="mb-event-row">
             <div className="mb-event-tag" style={{
               background: w.side === 'BUY' ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)',
-              color: w.side === 'BUY' ? '#34d399' : '#f87171',
+              color: w.side === 'BUY' ? 'var(--green-2)' : 'var(--red)',
             }}>
               {t('BRIEFING_WHALE_PREFIX', { side: w.side })}
             </div>

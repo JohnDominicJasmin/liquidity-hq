@@ -35,7 +35,7 @@ export default function CycleDayCounter() {
   const pastPeak     = day > PEAK_WINDOW.end;
   const prePeak      = day < PEAK_WINDOW.start;
 
-  const dotColor = inPeakWindow ? '#fbbf24' : pastPeak ? '#f87171' : '#34d399';
+  const dotColor = inPeakWindow ? 'var(--amber)' : pastPeak ? 'var(--red)' : 'var(--green-2)';
   const label    = inPeakWindow ? t('CYCLE_DAY_COUNTER_ZONE_IN_PEAK') : pastPeak ? t('CYCLE_DAY_COUNTER_ZONE_POST_PEAK') : t('CYCLE_DAY_COUNTER_ZONE_PRE_PEAK');
   const phasePct = Math.min(Math.max((day / PEAK_WINDOW.end) * 100, 0), 100);
 
@@ -85,7 +85,7 @@ export default function CycleDayCounter() {
             background: inPeakWindow
               ? 'linear-gradient(90deg, #34d399, #fbbf24)'
               : pastPeak
-                ? '#f87171'
+                ? 'var(--red)'
                 : 'linear-gradient(90deg, #34d399, #34d399cc)',
             transition: 'width .4s',
           }} />
@@ -93,7 +93,7 @@ export default function CycleDayCounter() {
         {/* Peak window markers */}
         <div style={{ position: 'relative', height: 12, marginTop: 2 }}>
           <span style={{
-            position: 'absolute', fontSize: '0.6875rem', color: '#fbbf24',
+            position: 'absolute', fontSize: '0.6875rem', color: 'var(--amber)',
             left: `${(PEAK_WINDOW.start / PEAK_WINDOW.end) * 100}%`,
             transform: 'translateX(-50%)',
           }}>▲</span>
@@ -105,19 +105,19 @@ export default function CycleDayCounter() {
         {prePeak && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>{t('CYCLE_DAY_COUNTER_DAYS_TO_PEAK_LABEL')}</span>
-            <span suppressHydrationWarning style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>{PEAK_WINDOW.start - day}</span>
+            <span suppressHydrationWarning style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--green-2)', fontVariantNumeric: 'tabular-nums' }}>{PEAK_WINDOW.start - day}</span>
           </div>
         )}
         {inPeakWindow && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>{t('CYCLE_DAY_COUNTER_DAYS_IN_PEAK_LABEL')}</span>
-            <span suppressHydrationWarning style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: '#fbbf24', fontVariantNumeric: 'tabular-nums' }}>{day - PEAK_WINDOW.start}</span>
+            <span suppressHydrationWarning style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--amber)', fontVariantNumeric: 'tabular-nums' }}>{day - PEAK_WINDOW.start}</span>
           </div>
         )}
         {pastPeak && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--txt3)', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 600 }}>{t('CYCLE_DAY_COUNTER_DAYS_PAST_PEAK_LABEL')}</span>
-            <span suppressHydrationWarning style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: '#f87171', fontVariantNumeric: 'tabular-nums' }}>{day - PEAK_WINDOW.end}</span>
+            <span suppressHydrationWarning style={{ fontSize: 'var(--fs-data)', fontWeight: 700, color: 'var(--red)', fontVariantNumeric: 'tabular-nums' }}>{day - PEAK_WINDOW.end}</span>
           </div>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>

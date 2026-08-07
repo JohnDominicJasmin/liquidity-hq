@@ -19,7 +19,7 @@ export default function GexTable() {
   const gexLoaded = btcNetGex !== null && btcGexLevels.length > 0;
   const isLongGamma = (btcNetGex ?? 0) >= 0;
 
-  const gexCol     = isLongGamma ? '#34d399' : '#f87171';
+  const gexCol     = isLongGamma ? 'var(--green-2)' : 'var(--red)';
   const gexBg      = isLongGamma ? 'rgba(52,211,153,0.12)' : 'rgba(248,113,113,0.12)';
   const gexBorder  = isLongGamma ? 'rgba(52,211,153,0.3)'  : 'rgba(248,113,113,0.3)';
 
@@ -84,10 +84,10 @@ export default function GexTable() {
             }
           }
 
-          const leanColor = lean === 'bull' ? '#34d399' : lean === 'bear' ? '#f87171' : '#9ca3af';
+          const leanColor = lean === 'bull' ? 'var(--green-2)' : lean === 'bear' ? 'var(--red)' : '#9ca3af';
           const leanLabel = lean === 'bull' ? t('GEX_TABLE_LEAN_BULLISH') : lean === 'bear' ? t('GEX_TABLE_LEAN_BEARISH') : t('GEX_TABLE_LEAN_NEUTRAL');
           const regimeLabel = isLongGamma ? t('GEX_TABLE_REGIME_RANGING') : t('GEX_TABLE_REGIME_TRENDING');
-          const regimeColor = isLongGamma ? '#34d399' : '#f87171';
+          const regimeColor = isLongGamma ? 'var(--green-2)' : 'var(--red)';
           const regimeDesc  = isLongGamma
             ? t('GEX_TABLE_REGIME_DESC_RANGING')
             : t('GEX_TABLE_REGIME_DESC_TRENDING');
@@ -149,7 +149,7 @@ export default function GexTable() {
           {btcGexLevels.map(({ strike, gex }) => {
             const pct   = maxAbsGex > 0 ? Math.abs(gex) / maxAbsGex * 100 : 0;
             const col   = gex >= 0 ? 'rgba(52,211,153,0.65)' : 'rgba(248,113,113,0.65)';
-            const vcol  = gex >= 0 ? '#34d399' : '#f87171';
+            const vcol  = gex >= 0 ? 'var(--green-2)' : 'var(--red)';
             const isAtm = spotPrice > 0 && Math.abs(strike - spotPrice) / spotPrice < 0.005;
             return (
               <div key={strike} className={`gex-row${isAtm ? ' gex-row-atm' : ''}`}>

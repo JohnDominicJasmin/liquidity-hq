@@ -326,7 +326,7 @@ export default function BacktestPage() {
       </button>
 
       {error && (
-        <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>{t('BACKTEST_ERROR_PREFIX', { error })}</div>
+        <div style={{ color: 'var(--red)', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>{t('BACKTEST_ERROR_PREFIX', { error })}</div>
       )}
 
       {!result && !srResult && !smcResult && !ulResult && !running && !srRunning && !smcRunning && !ulRunning && (
@@ -338,8 +338,8 @@ export default function BacktestPage() {
             {([
               { dot: '#1a7aff', labelKey: 'BACKTEST_TOOL_BACKTEST_LABEL',   descKey: 'BACKTEST_TOOL_BACKTEST_DESC' },
               { dot: '#5aa3ff', labelKey: 'BACKTEST_TOOL_RESEARCH_LABEL',   descKey: 'BACKTEST_TOOL_RESEARCH_DESC' },
-              { dot: '#fbbf24', labelKey: 'BACKTEST_TOOL_SMC_LABEL',        descKey: 'BACKTEST_TOOL_SMC_DESC' },
-              { dot: '#f87171', labelKey: 'BACKTEST_TOOL_UNLOCK_LABEL',     descKey: 'BACKTEST_TOOL_UNLOCK_DESC' },
+              { dot: 'var(--amber)', labelKey: 'BACKTEST_TOOL_SMC_LABEL',        descKey: 'BACKTEST_TOOL_SMC_DESC' },
+              { dot: 'var(--red)', labelKey: 'BACKTEST_TOOL_UNLOCK_LABEL',     descKey: 'BACKTEST_TOOL_UNLOCK_DESC' },
             ] as const).map(tool => (
               <div key={tool.labelKey} style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.02)', border: '0.5px solid var(--bdr)', borderRadius: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
@@ -362,8 +362,8 @@ export default function BacktestPage() {
           )}
 
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 24 }}>
-            <SideCard title={t('BACKTEST_SIDECARD_ANTICHOP_ON')} stats={result.antiChopOn.stats} color="#34d399" />
-            <SideCard title={t('BACKTEST_SIDECARD_ANTICHOP_OFF')} stats={result.antiChopOff.stats} color="#f87171" />
+            <SideCard title={t('BACKTEST_SIDECARD_ANTICHOP_ON')} stats={result.antiChopOn.stats} color="var(--green-2)" />
+            <SideCard title={t('BACKTEST_SIDECARD_ANTICHOP_OFF')} stats={result.antiChopOff.stats} color="var(--red)" />
           </div>
 
           <h2 className="mb-title" style={{ fontSize: 'var(--fs-card-title)', marginBottom: 4 }}>{t('BACKTEST_WT_TUNING_TITLE')}</h2>
@@ -387,11 +387,11 @@ export default function BacktestPage() {
                   const beatsBaseline = isFinite(s.profitFactor) && s.profitFactor > result.antiChopOn.stats.profitFactor;
                   return (
                     <tr key={name}>
-                      <td style={{ fontWeight: 600 }}>{WT_VARIANT_LABEL_KEYS[name] ? t(WT_VARIANT_LABEL_KEYS[name]) : name}{beatsBaseline ? <span style={{ color: '#4ade80' }}> ▲</span> : ''}</td>
+                      <td style={{ fontWeight: 600 }}>{WT_VARIANT_LABEL_KEYS[name] ? t(WT_VARIANT_LABEL_KEYS[name]) : name}{beatsBaseline ? <span style={{ color: 'var(--green)' }}> ▲</span> : ''}</td>
                       <td>{s.totalTrades} ({s.wins}W/{s.losses}L)</td>
-                      <td style={{ color: s.winRate >= 0.5 ? '#34d399' : '#f87171' }}>{fmtPct(s.winRate)}</td>
-                      <td style={{ color: s.avgR >= 0 ? '#34d399' : '#f87171' }}>{fmtR(s.avgR)}</td>
-                      <td style={{ color: beatsBaseline ? '#34d399' : 'var(--txt)' }}>{isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}</td>
+                      <td style={{ color: s.winRate >= 0.5 ? 'var(--green-2)' : 'var(--red)' }}>{fmtPct(s.winRate)}</td>
+                      <td style={{ color: s.avgR >= 0 ? 'var(--green-2)' : 'var(--red)' }}>{fmtR(s.avgR)}</td>
+                      <td style={{ color: beatsBaseline ? 'var(--green-2)' : 'var(--txt)' }}>{isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}</td>
                       <td>-{s.maxDrawdownR.toFixed(2)}R</td>
                     </tr>
                   );
@@ -415,8 +415,8 @@ export default function BacktestPage() {
                     <tr key={c}>
                       <td style={{ fontWeight: 600 }}>{c.toUpperCase()}</td>
                       <td>{s.totalTrades} ({s.wins}W/{s.losses}L)</td>
-                      <td style={{ color: s.winRate >= 0.5 ? '#34d399' : '#f87171' }}>{fmtPct(s.winRate)}</td>
-                      <td style={{ color: s.avgR >= 0 ? '#34d399' : '#f87171' }}>{fmtR(s.avgR)}</td>
+                      <td style={{ color: s.winRate >= 0.5 ? 'var(--green-2)' : 'var(--red)' }}>{fmtPct(s.winRate)}</td>
+                      <td style={{ color: s.avgR >= 0 ? 'var(--green-2)' : 'var(--red)' }}>{fmtR(s.avgR)}</td>
                       <td>{isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}</td>
                     </tr>
                   );
@@ -462,7 +462,7 @@ export default function BacktestPage() {
       </button>
 
       {ofError && (
-        <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>{t('BACKTEST_OF_ERROR_PREFIX', { error: ofError })}</div>
+        <div style={{ color: 'var(--red)', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>{t('BACKTEST_OF_ERROR_PREFIX', { error: ofError })}</div>
       )}
 
       {ofResult && (
@@ -492,8 +492,8 @@ export default function BacktestPage() {
                     <tr key={c}>
                       <td style={{ fontWeight: 600 }}>{c.toUpperCase()}</td>
                       <td>{s.totalTrades} ({s.wins}W/{s.losses}L)</td>
-                      <td style={{ color: s.winRate >= 0.5 ? '#34d399' : '#f87171' }}>{fmtPct(s.winRate)}</td>
-                      <td style={{ color: s.avgR >= 0 ? '#34d399' : '#f87171' }}>{fmtR(s.avgR)}</td>
+                      <td style={{ color: s.winRate >= 0.5 ? 'var(--green-2)' : 'var(--red)' }}>{fmtPct(s.winRate)}</td>
+                      <td style={{ color: s.avgR >= 0 ? 'var(--green-2)' : 'var(--red)' }}>{fmtR(s.avgR)}</td>
                       <td>{isFinite(s.profitFactor) ? s.profitFactor.toFixed(2) : '∞'}</td>
                     </tr>
                   );
@@ -536,7 +536,7 @@ export default function BacktestPage() {
           disabled={srRunning || !srPrompt.trim()}
           style={{
             background: srRunning || !srPrompt.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
-            color: srRunning || !srPrompt.trim() ? 'var(--txt3)' : '#1a7aff',
+            color: srRunning || !srPrompt.trim() ? 'var(--txt3)' : 'var(--accent)',
             border: `1px solid ${srRunning || !srPrompt.trim() ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
             borderRadius: 8, padding: '10px 20px', fontSize: 'var(--fs-label)', fontWeight: 700,
             cursor: srRunning || !srPrompt.trim() ? 'default' : 'pointer',
@@ -558,7 +558,7 @@ export default function BacktestPage() {
         )}
       </div>
 
-      {srError && <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>{srError}</div>}
+      {srError && <div style={{ color: 'var(--red)', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>{srError}</div>}
 
       {srResult && (
         <>
@@ -597,7 +597,7 @@ export default function BacktestPage() {
                   disabled={psRunning}
                   style={{
                     background: psRunning ? 'rgba(255,255,255,0.06)' : 'rgba(52,211,153,0.10)',
-                    color: psRunning ? 'var(--txt3)' : '#34d399',
+                    color: psRunning ? 'var(--txt3)' : 'var(--green-2)',
                     border: `1px solid ${psRunning ? 'var(--bdr)' : 'rgba(52,211,153,0.3)'}`,
                     borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-caption)', fontWeight: 700,
                     cursor: psRunning ? 'default' : 'pointer',
@@ -617,7 +617,7 @@ export default function BacktestPage() {
                     }}
                     style={{
                       background: psCopied ? 'rgba(52,211,153,0.12)' : 'rgba(26,122,255,0.10)',
-                      color: psCopied ? '#34d399' : '#1a7aff',
+                      color: psCopied ? 'var(--green-2)' : 'var(--accent)',
                       border: `1px solid ${psCopied ? 'rgba(52,211,153,0.3)' : 'rgba(26,122,255,0.3)'}`,
                       borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-caption)', fontWeight: 700, cursor: 'pointer',
                     }}
@@ -633,14 +633,14 @@ export default function BacktestPage() {
                 </>
               )}
             </div>
-            {psError && <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginBottom: 10 }}>{psError}</div>}
+            {psError && <div style={{ color: 'var(--red)', fontSize: 'var(--fs-caption)', marginBottom: 10 }}>{psError}</div>}
             {psResult && (
               <div style={{
                 background: 'rgba(0,0,0,0.3)', border: '0.5px solid var(--bdr)',
                 borderRadius: 8, padding: '12px 14px', overflowX: 'auto',
               }}>
                 <pre style={{
-                  margin: 0, fontSize: 'var(--fs-caption)', color: '#34d399',
+                  margin: 0, fontSize: 'var(--fs-caption)', color: 'var(--green-2)',
                   fontFamily: 'var(--font-mono), monospace', lineHeight: 1.5,
                   whiteSpace: 'pre', overflowX: 'auto',
                 }}>{psResult}</pre>
@@ -688,7 +688,7 @@ export default function BacktestPage() {
           disabled={smcRunning || !smcAsset.trim()}
           style={{
             background: smcRunning || !smcAsset.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
-            color: smcRunning || !smcAsset.trim() ? 'var(--txt3)' : '#1a7aff',
+            color: smcRunning || !smcAsset.trim() ? 'var(--txt3)' : 'var(--accent)',
             border: `1px solid ${smcRunning || !smcAsset.trim() ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
             borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-label)', fontWeight: 700,
             cursor: smcRunning || !smcAsset.trim() ? 'default' : 'pointer',
@@ -706,7 +706,7 @@ export default function BacktestPage() {
         )}
       </div>
 
-      {smcError && <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>{smcError}</div>}
+      {smcError && <div style={{ color: 'var(--red)', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>{smcError}</div>}
 
       {smcResult && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 8 }}>
@@ -764,7 +764,7 @@ export default function BacktestPage() {
           disabled={ulRunning || !ulSymbol.trim()}
           style={{
             background: ulRunning || !ulSymbol.trim() ? 'rgba(255,255,255,0.06)' : 'rgba(26,122,255,0.12)',
-            color: ulRunning || !ulSymbol.trim() ? 'var(--txt3)' : '#1a7aff',
+            color: ulRunning || !ulSymbol.trim() ? 'var(--txt3)' : 'var(--accent)',
             border: `1px solid ${ulRunning || !ulSymbol.trim() ? 'var(--bdr)' : 'rgba(26,122,255,0.35)'}`,
             borderRadius: 8, padding: '8px 16px', fontSize: 'var(--fs-label)', fontWeight: 700,
             cursor: ulRunning || !ulSymbol.trim() ? 'default' : 'pointer',
@@ -782,7 +782,7 @@ export default function BacktestPage() {
         )}
       </div>
 
-      {ulError && <div style={{ color: '#f87171', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>{ulError}</div>}
+      {ulError && <div style={{ color: 'var(--red)', fontSize: 'var(--fs-caption)', marginBottom: 14 }}>{ulError}</div>}
 
       {ulResult && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

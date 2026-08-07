@@ -65,11 +65,11 @@ export function SideCard({ title, stats, color }: { title: string; stats: Displa
       <div style={{ fontSize: 'var(--fs-label)', fontWeight: 700, color, marginBottom: 10, letterSpacing: '0.02em' }}>{title}</div>
       <EquityCurve data={stats.equityCurve} color={color} />
       <div style={{ marginTop: 10 }}>
-        <StatRow label={t('BACKTEST_STATS_UI_LABEL_WIN_RATE')} tip={t('BACKTEST_STATS_UI_TIP_WIN_RATE')} value={fmtPct(stats.winRate)} color={stats.winRate >= 0.5 ? '#34d399' : '#f87171'} />
+        <StatRow label={t('BACKTEST_STATS_UI_LABEL_WIN_RATE')} tip={t('BACKTEST_STATS_UI_TIP_WIN_RATE')} value={fmtPct(stats.winRate)} color={stats.winRate >= 0.5 ? 'var(--green-2)' : 'var(--red)'} />
         <StatRow label={t('BACKTEST_STATS_UI_LABEL_TRADES')} value={t('BACKTEST_STATS_UI_TRADES_VALUE', { total: String(stats.totalTrades), wins: String(stats.wins), losses: String(stats.losses), open: String(stats.open) })} />
         <StatRow label={t('BACKTEST_STATS_UI_LABEL_PROFIT_FACTOR')} tip={t('BACKTEST_STATS_UI_TIP_PROFIT_FACTOR')} value={isFinite(stats.profitFactor) ? stats.profitFactor.toFixed(2) : '∞'} />
-        <StatRow label={t('BACKTEST_STATS_UI_LABEL_AVG_R')} tip={t('BACKTEST_STATS_UI_TIP_AVG_R')} value={fmtR(stats.avgR)} color={stats.avgR >= 0 ? '#34d399' : '#f87171'} />
-        <StatRow label={t('BACKTEST_STATS_UI_LABEL_MAX_DRAWDOWN')} tip={t('BACKTEST_STATS_UI_TIP_MAX_DRAWDOWN')} value={`-${stats.maxDrawdownR.toFixed(2)}R`} color="#f87171" />
+        <StatRow label={t('BACKTEST_STATS_UI_LABEL_AVG_R')} tip={t('BACKTEST_STATS_UI_TIP_AVG_R')} value={fmtR(stats.avgR)} color={stats.avgR >= 0 ? 'var(--green-2)' : 'var(--red)'} />
+        <StatRow label={t('BACKTEST_STATS_UI_LABEL_MAX_DRAWDOWN')} tip={t('BACKTEST_STATS_UI_TIP_MAX_DRAWDOWN')} value={`-${stats.maxDrawdownR.toFixed(2)}R`} color="var(--red)" />
       </div>
     </div>
   );

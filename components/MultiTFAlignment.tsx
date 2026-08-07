@@ -13,14 +13,14 @@ function getBias(rsi: number | null): Bias {
 }
 
 function barFill(bias: Bias): string {
-  if (bias === 'bullish') return '#34d399';
-  if (bias === 'bearish') return '#f87171';
+  if (bias === 'bullish') return 'var(--green-2)';
+  if (bias === 'bearish') return 'var(--red)';
   return 'rgba(255,255,255,0.18)';
 }
 
 function valColor(bias: Bias): string {
-  if (bias === 'bullish') return '#34d399';
-  if (bias === 'bearish') return '#f87171';
+  if (bias === 'bullish') return 'var(--green-2)';
+  if (bias === 'bearish') return 'var(--red)';
   return 'var(--txt2)';
 }
 
@@ -28,7 +28,7 @@ function BiasBadge({ bias }: { bias: Bias }) {
   const { t } = useLabels();
   const icon = bias === 'bullish' ? '▲' : bias === 'bearish' ? '▼' : '→';
   const label = bias === 'bullish' ? t('MULTI_TF_ALIGNMENT_BIAS_BULLISH') : bias === 'bearish' ? t('MULTI_TF_ALIGNMENT_BIAS_BEARISH') : t('MULTI_TF_ALIGNMENT_BIAS_NEUTRAL');
-  const color = bias === 'bullish' ? '#34d399' : bias === 'bearish' ? '#f87171' : 'var(--txt3)';
+  const color = bias === 'bullish' ? 'var(--green-2)' : bias === 'bearish' ? 'var(--red)' : 'var(--txt3)';
   const border = bias === 'bullish' ? 'rgba(52,211,153,0.4)' : bias === 'bearish' ? 'rgba(248,113,113,0.4)' : 'rgba(255,255,255,0.15)';
   const bg = bias === 'bullish' ? 'rgba(52,211,153,0.12)' : bias === 'bearish' ? 'rgba(248,113,113,0.12)' : 'transparent';
   return (
@@ -117,7 +117,7 @@ export default function MultiTFAlignment({ coin: coinProp }: { coin?: string }) 
     : 'mixed';
 
   const verdictLabel = verdict === 'bullish' ? t('MULTI_TF_ALIGNMENT_VERDICT_BULLISH') : verdict === 'bearish' ? t('MULTI_TF_ALIGNMENT_VERDICT_BEARISH') : verdict === 'conflicting' ? t('MULTI_TF_ALIGNMENT_VERDICT_CONFLICTING') : t('MULTI_TF_ALIGNMENT_VERDICT_MIXED');
-  const verdictColor = verdict === 'bullish' ? '#34d399' : verdict === 'bearish' ? '#f87171' : verdict === 'conflicting' ? '#fbbf24' : 'var(--txt3)';
+  const verdictColor = verdict === 'bullish' ? 'var(--green-2)' : verdict === 'bearish' ? 'var(--red)' : verdict === 'conflicting' ? 'var(--amber)' : 'var(--txt3)';
   const verdictBorder = verdict === 'bullish' ? 'rgba(52,211,153,0.4)' : verdict === 'bearish' ? 'rgba(248,113,113,0.4)' : verdict === 'conflicting' ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.18)';
   const verdictBg = verdict === 'bullish' ? 'rgba(52,211,153,0.1)' : verdict === 'bearish' ? 'rgba(248,113,113,0.1)' : verdict === 'conflicting' ? 'rgba(251,191,36,0.1)' : 'transparent';
 
