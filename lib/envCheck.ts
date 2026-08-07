@@ -124,11 +124,22 @@ export function checkEnv(env: Record<string, string | undefined> = process.env):
   }
 
   // ── 5. Cron secret on a host that borrows another environment's bot ─────
-  // dev legitimately holds one: it owns @Liquidity_hq_dev_bot, its own database
-  // and its own secret, so anything it triggers lands in its own chat. qa and
-  // staging do not own a bot, so the same variable there is a key to somebody
-  // else's house. Keyed off the URL because that is the only signal in-process
-  // that distinguishes them.
+  // The rule is ownership, not environment. A host that owns its bot can only
+  // ever re-point its own webhook - a no-op. A host holding SOMEONE ELSE'S
+  // token can re-point that bot at itself and silently swallow every alert.
+  //
+  // dev owns @Liquidity_hq_dev_bot; staging got its own bot on 2026-08-08.
+  // Both therefore qualify. qa does not - it still holds dev's token - which is
+  // why CRON_SECRET was removed from it the same day.
+  //
+  // Keyed off the URL because that is the only signal available in-process.
+  // The trailing `\.` matters: without it, `liquidity-hq-staging` would also
+  // match a prefix check against `liquidity-hq-stagingsomething`, and more to
+  // the point `liquidity-hq-qa.` must never match either alternative here.
+  //
+  // WHEN THIS NEEDS EDITING AGAIN: the moment any environment is given its own
+  // bot, or has one taken away. There is no way to detect bot ownership from
+  // inside the process, so this list is the fact - keep it next to the reason.
   //
   // localhost is excluded. Every developer's .env.local carries CRON_SECRET so
   // cron routes can be exercised, and Telegram will not register a webhook
@@ -137,7 +148,7 @@ export function checkEnv(env: Record<string, string | undefined> = process.env):
   // which is how a check stops being read.
   const isLocal = /localhost|127\.0\.0\.1|\[::1\]/.test(appUrl);
   if (env.CRON_SECRET && !isProd && !isLocal) {
-    const ownsItsBot = /liquidity-hq-dev\./.test(appUrl);
+    const ownsItsBot = /liquidity-hq-(dev|staging)\./.test(appUrl);
     if (!ownsItsBot) {
       findings.push({
         level: 'error', key: 'CRON_SECRET',
