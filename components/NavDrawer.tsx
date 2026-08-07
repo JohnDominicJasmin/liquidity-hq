@@ -5,7 +5,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useMarket } from '@/lib/marketStore';
 import { useAuth } from './AuthProvider';
 import { track } from '@/lib/analytics';
-import SettingsModal from './SettingsModal';
 import UsageModal from './UsageModal';
 import LanguageNavSwitcher from './LanguageNavSwitcher';
 import { getCurrentWindow } from '@/lib/session';
@@ -152,7 +151,7 @@ const TAIL = [
 ];
 
 type NavIcon = ComponentType<{ size?: number }>;
-type NavDest = { path: string; labelKey: LabelKey; Icon: NavIcon; modal?: boolean };
+type NavDest = { path: string; labelKey: LabelKey; Icon: NavIcon };
 type NavSection = { headerKey: LabelKey; items: NavDest[] };
 
 const NAV_SECTIONS: NavSection[] = [
@@ -184,7 +183,10 @@ const NAV_SECTIONS: NavSection[] = [
     { path: '/playbook', labelKey: 'NAV_PLAYBOOK',       Icon: NavPlaybook },
   ] },
   { headerKey: 'NAV_SECTION_ACCOUNT', items: [
-    { path: '/settings', labelKey: 'NAV_SETTINGS_LABEL', Icon: NavSettings, modal: true },
+    /* Was `modal: true`, which intercepted this entry and opened SettingsModal
+       instead of navigating - so the tile named /settings and went somewhere
+       else. That component is deleted; see the note on renderTile below. */
+    { path: '/settings', labelKey: 'NAV_SETTINGS_LABEL', Icon: NavSettings },
     { path: '/about',    labelKey: 'NAV_ABOUT',          Icon: NavAbout },
   ] },
 ];
@@ -246,7 +248,6 @@ export default function NavDrawer() {
   const [navQuery, setNavQuery]         = useState('');
   const [openDrop, setOpenDrop]         = useState<DropKey | null>(null);
   const [authOpen, setAuthOpen]         = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const { theme, toggleTheme }          = useTheme();
   const pathname = usePathname();
@@ -379,13 +380,14 @@ export default function NavDrawer() {
                       >
                         {t('NAV_VIEW_USAGE')}
                       </button>
-                      <button
+                      <Link
+                        href="/settings"
                         className="auth-dropdown-usage"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%', padding: 0 }}
-                        onClick={() => { setAuthOpen(false); setSettingsOpen(true); }}
+                        style={{ display: 'block', textAlign: 'left', width: '100%', padding: 0, textDecoration: 'none' }}
+                        onClick={() => setAuthOpen(false)}
                       >
                         {t('NAV_SETTINGS_LABEL')}
-                      </button>
+                      </Link>
                       <button
                         className="auth-signout-btn"
                         onClick={async () => {
@@ -414,7 +416,6 @@ export default function NavDrawer() {
         </div>
       </div>
 
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <UsageModal open={usageOpen} onClose={() => setUsageOpen(false)} />
 
       {/* Mobile bottom tab bar - 4 direct one-tap destinations plus a "More"
@@ -510,16 +511,12 @@ export default function NavDrawer() {
                   <span className="nav-tile-label">{t(d.labelKey)}</span>
                 </>
               );
-              return d.modal ? (
-                <button
-                  key={d.path}
-                  type="button"
-                  className={`nav-tile${on ? ' on' : ''}`}
-                  onClick={() => { setDrawerOpen(false); setSettingsOpen(true); }}
-                >
-                  {inner}
-                </button>
-              ) : (
+              /* Every destination is a real link now. The one exception was
+                 Settings, which rendered a <button> that opened a modal while
+                 naming /settings as its path - so it had no href, could not be
+                 opened in a new tab, middle-clicked or bookmarked, and gave a
+                 screen reader "button" where every sibling said "link". */
+              return (
                 <Link
                   key={d.path}
                   href={d.path}

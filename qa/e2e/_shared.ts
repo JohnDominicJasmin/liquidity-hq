@@ -133,7 +133,18 @@ export const BASELINE = {
      * MODAL has none. Two implementations, one fixed and one not. Whoever fixes
      * the modal should check they are not fixing the page a second time.
      */
-    settingsModal: 9,
+    /* Was `settingsModal: 9`. components/SettingsModal.tsx is DELETED (issue
+       #50) - it was a second, worse implementation of this screen that sat on
+       the primary navigation path while missing password change, push
+       notifications and the analytics opt-out. Every entry point now navigates
+       to /settings, so those nine controls do not exist anywhere.
+
+       This tracks the surviving page instead. 0 is not an aspiration here: the
+       page already named 13 of its 14 controls, and the one that did not - the
+       Push Notifications switch, which Chrome computed an empty name for - was
+       fixed in the same commit. Starts at the true value, so any regression is
+       0 -> 1 and unmissable. */
+    settingsPage: 0,
     /** components/TradeJournal.tsx .tj-edit-form - the inline edit on a history
      *  row. select.tj-edit-select, two input.tj-inp, textarea.tj-notes. The
      *  original claim said 4 and 4 is exactly right. */

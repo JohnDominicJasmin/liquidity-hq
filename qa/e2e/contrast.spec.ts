@@ -105,7 +105,23 @@ test.describe('colour contrast', () => {
    * before any data arrives.
    */
   test('dark theme failing colours do not increase', async ({ browser }, testInfo) => {
-    test.setTimeout(600_000);
+    // 20 minutes, not the 600_000 this used to be.
+    //
+    // Each sweep measures 9-10 minutes IN CI (5.4-5.7 local; the runner is
+    // ~1.6x slower). A 10-minute per-test cap therefore sat directly on the
+    // measured runtime, and on 2026-08-07 the light sweep hit it, retried, and
+    // passed on the retry in 9.0m - so the FIRST attempt failed on the clock
+    // rather than on a finding, and the retry then re-ran the slowest test in
+    // the suite. That single flake put ~9 extra minutes on the critical path
+    // and is what actually blew the job cap, not the job cap being too small.
+    //
+    // Raising the job total alone would only have absorbed the flake, not
+    // stopped it. Found by Dev Team reading the run log; the setting is here,
+    // so the fix is here.
+    //
+    // 20 gives ~2x the measured CI time. Size it from a CI number, never a
+    // local one - that is the mistake that produced both the 90 and this 10.
+    test.setTimeout(1_200_000);
     const { page, close } = await themedPage(browser, 'dark');
     const all: Violation[] = [];
     const skipped: string[] = [];
@@ -153,7 +169,23 @@ test.describe('colour contrast', () => {
    * the actual fix, since nobody repaints 1001 elements, they retune a token.
    */
   test('light theme failing colours do not increase', async ({ browser }, testInfo) => {
-    test.setTimeout(600_000);
+    // 20 minutes, not the 600_000 this used to be.
+    //
+    // Each sweep measures 9-10 minutes IN CI (5.4-5.7 local; the runner is
+    // ~1.6x slower). A 10-minute per-test cap therefore sat directly on the
+    // measured runtime, and on 2026-08-07 the light sweep hit it, retried, and
+    // passed on the retry in 9.0m - so the FIRST attempt failed on the clock
+    // rather than on a finding, and the retry then re-ran the slowest test in
+    // the suite. That single flake put ~9 extra minutes on the critical path
+    // and is what actually blew the job cap, not the job cap being too small.
+    //
+    // Raising the job total alone would only have absorbed the flake, not
+    // stopped it. Found by Dev Team reading the run log; the setting is here,
+    // so the fix is here.
+    //
+    // 20 gives ~2x the measured CI time. Size it from a CI number, never a
+    // local one - that is the mistake that produced both the 90 and this 10.
+    test.setTimeout(1_200_000);
     const { page, close } = await themedPage(browser, 'light');
     const all: Violation[] = [];
     const skipped: string[] = [];
