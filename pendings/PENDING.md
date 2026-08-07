@@ -14,7 +14,7 @@ index, and hence the rule below it.
 | What | Owner | Where |
 |---|---|---|
 | Supabase Pro before real payments — still Free, still **zero backups** | owner | §"YOUR decision", top |
-| `qa` holds **dev's** Telegram token — and `CRON_SECRET` **is set there**, which the guard assumed it was not. **Remove it from the qa service** | owner, action needed | §"QA needs its own Telegram bot" |
+| `qa` holds **dev's** Telegram token. `CRON_SECRET` was wrongly set there and has been **removed** (2026-08-08), so the guard holds again | owner, parked | §"QA needs its own Telegram bot" |
 | Coinglass v4 — deferred until revenue, **do not re-raise** | decided | §"OPEN — code (mine)" |
 | LemonSqueezy payments | deferred | `pendings/LEMONSQUEEZY.md` |
 
@@ -752,12 +752,11 @@ only so it is not mistaken for handled.
 
 ### 2. `qa` holds dev's Telegram token — parked by your call
 
-See "QA needs its own Telegram bot" near the end of this file. **⚠️ `CRON_SECRET`
-IS set on `qa` — corrected 2026-08-08.** This entry said it was unset, and called
-that the reason qa was safe. `setup-webhook` still returns 401 without the header
-and qa's value differs from prod's, so the exposure is low — but the stated safety
-property was not holding. **Remove `CRON_SECRET` from the qa service**; nothing is
-scheduled against that host, so it costs nothing and does not need the bot first.
+See "QA needs its own Telegram bot" near the end of this file. **`CRON_SECRET`
+had been set on `qa` — this entry claimed it was unset and called that the reason
+qa was safe. Removed 2026-08-08**, confirmed absent in the Render dashboard after
+the redeploy, so the guard holds again. The bot itself is still dev's, so this
+stays parked rather than resolved.
 
 ### 3. Nothing else is blocking
 

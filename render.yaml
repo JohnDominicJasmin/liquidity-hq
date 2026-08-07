@@ -124,14 +124,14 @@ services:
       # 'qa' once and pointed at the live production tables.
       - key: NEXT_PUBLIC_APP_ENV
         value: dev
-      # Same dev Supabase project as staging. Set in the dashboard.
+      # Same dev Supabase project and the same deliberately-unset vars as
+      # staging. Set in the dashboard.
       #
-      # NOT the same deliberately-unset vars, as of 2026-08-08: qa HAS
-      # CRON_SECRET set, which docs/INFRASTRUCTURE.md 4c assumed it did not and
-      # built a safety property on. qa also still holds DEV's Telegram bot token,
-      # so the two together are what that section warns about. Removal is the
-      # agreed action - nothing is scheduled against the qa host in either
-      # cron-job.org or n8n, verified 2026-08-08. Delete this note once it is off.
+      # CRON_SECRET was wrongly set here 2026-08-05 to 2026-08-08 while
+      # docs/INFRASTRUCTURE.md 4c asserted it was unset and built a safety
+      # property on that. Removed. It matters more on qa than on dev because qa
+      # holds DEV's Telegram bot token - it does not own the bot it could
+      # re-point. Keep it unset until qa has its own bot.
 
   # ── Dev integration - liquidity-hq-dev.onrender.com. MANUAL trigger. ────────
   # Carries a ~500 build-hour/month cap that prod does not, so deploying this

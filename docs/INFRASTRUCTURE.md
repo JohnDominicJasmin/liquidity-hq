@@ -277,7 +277,7 @@ deliberate exceptions. Set as of 2026-08-05:
 |---|---|
 | `NEXT_PUBLIC_POSTHOG_KEY` | QA test runs would land in product analytics and corrupt the numbers |
 | `LEMONSQUEEZY_WEBHOOK_SECRET` etc. | Payments. Staging has no business holding these |
-| `CRON_SECRET` | Cron routes fail **closed** without it (`lib/cronAuth.ts`), which is the desired state on any non-prod host. ⚠️ **Currently SET on qa — see below. It should not be.** |
+| `CRON_SECRET` | Cron routes fail **closed** without it (`lib/cronAuth.ts`), which is the desired state on any non-prod host. Was wrongly set on qa 2026-08-05 → 2026-08-08; removed, see below |
 
 ### Telegram on QA — currently dev's bot, safe only by accident
 
@@ -300,21 +300,24 @@ an unauthenticated GET fired by every `/alerts` page load able to repoint where
 Telegram delivers updates; that was the 2026-08-03 hijack. Registration lives in
 `setup-webhook` behind the secret precisely so this route does not need it.
 
-> ### ⚠️ `CRON_SECRET` is currently SET on qa. It should be removed.
+> ### ✅ Resolved 2026-08-08 — `CRON_SECRET` removed from qa
 >
-> This section said "unset" from 2026-08-05 until 2026-08-08, and the whole
-> safety argument below rested on that. It was wrong — read from the Render
-> dashboard 2026-08-08. Nobody recalls setting it.
+> It had been **set** on qa while this section claimed it was unset, from
+> 2026-08-05 until 2026-08-08. The whole safety argument below rested on that
+> claim. Removed by the owner and redeployed (`dep-d9r0mvn40ujc73986dfg`, live
+> 16:46 UTC); confirmed absent in the Render dashboard afterwards — 22 variables
+> where there were 23, with Telegram, VAPID and Brevo untouched.
 >
-> **Severity is low, not zero.** The routes still answer 401 to a caller without
-> the header (verified on qa the same day), and the owner confirmed qa's value
-> **differs** from prod's — so prod's schedulers cannot reach qa's routes. It
-> needs someone who knows qa's specific value. But the property the doc claimed
-> was not holding, and nobody noticed for three days.
+> **How it was found, since the same trap will recur.** Not by a test and not by
+> the app — by reading the dashboard directly after two external probes of mine
+> returned confident nonsense. There is no automated check that any environment's
+> variables match what this file says, which is the gap issue #78 exists to close.
 >
-> **Remove it from the qa service in Render.** Nothing is scheduled against the
-> qa host in either cron-job.org or n8n — verified 2026-08-08, see §2 — so
-> removal costs nothing and needs no dedicated bot first.
+> **Why the route could not tell us.** `checkCronAuth` fails closed, so
+> `/api/telegram/setup-webhook` answers `401` whether the secret is absent, wrong,
+> or the wrong length. Before and after removal look identical from outside. Any
+> future check of this has to read the dashboard — probing the endpoint proves
+> nothing in either direction.
 
 **The rule, stated so it does not need re-deriving.** An environment should have
 `CRON_SECRET` only when **both** hold:
