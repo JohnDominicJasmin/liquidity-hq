@@ -154,11 +154,33 @@ jobs:
     # per-IP rate limiter into 429s that look like product bugs. Parallelising
     # the contrast file was tried and changed nothing for exactly that reason.
     #
-    # 90 is roughly 2x the current local runtime. A GitHub runner is slower than
-    # the machine that measured ~46, so the headroom is smaller than it looks -
-    # but it is still comfortably below "a hang could hide here for hours".
-    # If the suite grows again, move this WITH the change that grows it.
-    timeout-minutes: 90
+    # 90 -> 120, same day, because 90 was set from LOCAL timings and CI is much
+    # slower. Measured from the cancelled run's own log rather than estimated:
+    #
+    #   contrast.spec.ts   11.6m local   ->   18.6m in CI    (1.6x)
+    #
+    # At the 45-minute cut-off that run had reached test 95 of ~249 and had not
+    # started the mobile project at all, which is the slower half. Extrapolated,
+    # a full CI run is ~80-90 minutes - so 90 would have been a cap the suite
+    # lands exactly on, and the next release would have failed the same way for
+    # the same reason. 120 leaves real headroom instead of nominal headroom.
+    #
+    # Where the time goes, measured per route rather than guessed: the sweep
+    # waits for `networkidle` on every page, which costs ~8s on almost every
+    # route - 8.1 minutes across the 58 loads contrast.spec.ts does. Only ONE
+    # route (/login, whose Turnstile widget never settles) actually hits the 30s
+    # timeout, so this is a steady tax and not a pathological case.
+    #
+    # That 8 minutes is recoverable by replacing the idle wait with a bounded
+    # settle, and it is deliberately NOT done here. Measuring a page before it
+    # has finished rendering silently under-counts violations, which reads as an
+    # improvement and ratchets a baseline down onto a number that was never
+    # true. That change needs a "did it actually render" guard and its own
+    # verification - not a slot on the critical path of a blocked release.
+    #
+    # If the suite grows again, move this WITH the change that grows it, and
+    # size it from a CI measurement rather than a local one.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 
