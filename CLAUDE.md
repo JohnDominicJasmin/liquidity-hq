@@ -69,7 +69,7 @@ the merge, then the deploy, then re-checks the test steps against production.
 **Flow is `dev` → `qa` → `staging` → `main`.**
 
 Four branches, three deployed sites. `staging` is a branch, not a place — it
-holds the frozen release candidate and has no service of its own.
+holds the release candidate and has no service of its own.
 
 | Branch | Who promotes into it | What it is for |
 |---|---|---|
@@ -81,8 +81,18 @@ holds the frozen release candidate and has no service of its own.
 **Why `staging` exists.** `qa` was doing two jobs — rolling integration *and*
 release candidate. Because a release PR's head IS its base branch, every
 promotion silently grew a release QA had already signed off. That happened
-three times on 2026-08-06. Freezing the candidate on its own branch is the fix,
+three times on 2026-08-06. Putting the candidate on its own branch is the fix,
 and it is why dev must never promote into `staging`.
+
+**Be precise about what this guarantees.** It is *single-owner*, not immutable.
+`staging` can still move — only QA can move it. So:
+
+> **Do not promote `qa` → `staging` while a `staging` → `main` PR is open.**
+> Ship the open release first, or close it.
+
+No branch rule enforces that; it is the one step the flow still depends on
+remembering. Named explicitly rather than left implied, because calling it
+"frozen" invites exactly the assumption that caused the original problem.
 
 `dev` branch → dev merges its own feature branches in and pushes freely, no
 permission needed. **Deploying the `liquidity-hq-dev` service is different —

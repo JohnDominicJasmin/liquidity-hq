@@ -507,14 +507,14 @@ When in doubt: would a QA person need to look at this? If yes, write the body.
 The flow is `dev` → `qa` → `staging` → `main`.
 
 **Four branches, three deployed sites.** `staging` is a branch, not a place: it
-holds the frozen release candidate and has no service of its own.
+holds the release candidate and has no service of its own.
 
 | Branch | Environment | Who promotes into it | Deploys automatically? |
 |---|---|---|---|
 | `<type>/<description>` | none | dev | n/a |
 | `dev` | liquidity-hq-dev.onrender.com | dev | **no** — trigger manually |
 | `qa` | **liquidity-hq-qa.onrender.com** | **dev** merges `dev` → `qa` | **no** — trigger manually |
-| `staging` | none — a frozen pointer | **QA** merges `qa` → `staging` | n/a |
+| `staging` | none — a branch, not a place | **QA** merges `qa` → `staging` | n/a |
 | `main` | liquidity-hq.com (production) | **QA** merges `staging` → `main` | **no** — trigger manually |
 
 ### Why `staging` exists
@@ -534,7 +534,32 @@ remembering to ask first:
   park. Nothing dev does can change what is sitting in a release.
 
 This is also why **dev must never promote into `staging`**. If dev can move it,
-the freeze is not a freeze.
+the guarantee is gone.
+
+#### What this does and does not guarantee
+
+Be precise, because the imprecise version is what caused the original problem.
+
+**It guarantees:** nothing *dev* does can change what is in a release. Every one
+of the three incidents on 2026-08-06 was dev promoting under QA's signoff, and
+that route is closed.
+
+**It does not guarantee immutability.** A release PR's head is still its base
+branch, so if QA promotes `qa` → `staging` while a `staging` → `main` PR is open,
+that release still grows. The change is *single-owner*, not frozen.
+
+So one rule the branches cannot enforce:
+
+> **Do not promote `qa` → `staging` while a `staging` → `main` PR is open.**
+> Ship the open release first, or close it.
+
+This is the one remaining step that depends on remembering. It is written down
+rather than assumed, and it is deliberately the *only* one.
+
+If that is not enough, the version that would be genuinely immutable is a dated
+`release/YYYY-MM-DD` branch cut per release, which nothing ever promotes into.
+It costs a branch per release and more churn; raise it if this rule ever gets
+broken in practice.
 
 - Feature branches are cut from `dev` and merged back into `dev` via PR.
   **Dev merges its own feature branches into `dev`** — QA ownership starts at
@@ -775,7 +800,7 @@ is waiting. Not later, not when the release feels big enough.
 **QA, when a batch is approved and ready to park: promote `qa` → `staging` and
 open the `staging` → `main` release PR.** Dev does not open this one and does
 not promote into `staging` — that is the whole point of the branch. If dev can
-move the release candidate, it is not frozen.
+move the release candidate, the guarantee is gone.
 
 This was missing and it silently broke the handoff. Five changes sat on the
 `qa` site — including the worst Core Web Vital in the product and a bug that
