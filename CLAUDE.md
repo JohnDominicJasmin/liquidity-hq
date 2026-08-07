@@ -141,8 +141,10 @@ Pushing to `staging` closes it. Computed from the `staging..qa` range rather
 than the push event, so it survives force-pushes, re-runs and several
 promotions in a row.
 
-**Open the `staging` → `main` release PR immediately after promoting to
-`staging`.** QA does this, since QA owns that promotion. It aggregates the
+**The `staging` → `main` release PR opens itself** on any push to `staging`
+(`.github/workflows/release-signals.yml`) — QA no longer has to remember. If one
+is already open it is commented on, never rewritten, since QA reports failures
+in that thread. It aggregates the
 "How to test" steps for the whole release,
 ends with merge/deploy/re-check/tag, and collects every "could not verify
 locally" caveat in Risk level. Promoting without it is deploying into silence.
@@ -187,6 +189,13 @@ path** — prod Supabase is on the free plan and has no backups.
 **Tag `main` after a successful prod deploy** — `git tag -a v2026.08.05 -m "..."`.
 Date-based. Without it, "what is in production?" is only answerable from the
 Render dashboard.
+
+**A drift check enforces both halves of that** — on every push to `main`, daily
+on a schedule, and on demand. It reads `/api/version` on liquidity-hq.com, so it
+compares what production is *serving* against `main`, not what was merged, and
+opens a `release-drift` issue if they differ or if the deployed commit is
+untagged. It closes itself when both are right. If the endpoint is unreachable
+it reports **nothing** — a failed measurement is not evidence of drift.
 
 **Low ceremony** — small internal chores (dep bumps, formatting, comments) may
 skip the commit body and screenshots. Branch naming and the `type(scope):`

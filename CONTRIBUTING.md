@@ -831,17 +831,48 @@ Two properties worth knowing, because they decide whether you can trust it:
 Dev still asks before promoting (below). That is a *timing* check — it stops a
 promotion landing mid-test-run. The announcement afterwards is now automatic.
 
-**QA, when a batch is approved and ready to park: promote `qa` → `staging` and
-open the `staging` → `main` release PR.** Dev does not open this one and does
-not promote into `staging` — that is the whole point of the branch. If dev can
-move the release candidate, the guarantee is gone.
+**QA, when a batch is approved and ready to park: promote `qa` → `staging`.**
+Dev does not promote into `staging` — that is the whole point of the branch. If
+dev can move the release candidate, the guarantee is gone.
+
+**The `staging` → `main` release PR now opens itself**
+(`.github/workflows/release-signals.yml`), aggregating each PR's "How to test
+(QA)" *and* "Risk level" sections verbatim from `main..staging`. If one is
+already open it is **commented on, never rewritten** — QA reports failures in
+that thread and replacing the body underneath them would destroy the record.
 
 This was missing and it silently broke the handoff. Five changes sat on the
 `qa` site — including the worst Core Web Vital in the product and a bug that
 was getting users' IPs banned — with nothing anywhere saying so. Every
-individual PR had already been merged and closed, `qa` had moved, the qa service had
-been redeployed, and QA had no way to know. Promoting without opening this PR is
-deploying into silence.
+individual PR had already been merged and closed, `qa` had moved, the qa service
+had been redeployed, and QA had no way to know.
+
+That is why none of these three signals is an instruction any more. Each one was
+written down as a rule, each rule was followed most of the time, and the times
+it was not are the only times it mattered.
+
+### Merging to `main` is not the deploy, and something now checks
+
+Every Render service is `autoDeploy: no`. `main` can move and production keeps
+serving the previous build indefinitely, with a green PR and a closed release
+thread saying otherwise.
+
+A drift check runs on every push to `main`, **daily on a schedule**, and on
+demand. It reads `https://liquidity-hq.com/api/version` — what production is
+actually serving, not what was merged — and raises a `release-drift` issue when:
+
+- production's commit does not match `main`, or
+- production matches `main` but the commit carries **no tag**, which is what
+  makes "what is in production?" answerable without opening a dashboard.
+
+It closes itself once both hold. The schedule matters more than the push
+trigger: this class of failure happens *after* everyone has stopped watching, so
+"merged Friday, never deployed" is exactly what it is for.
+
+**If it cannot read the version endpoint it reports nothing at all.** An
+unreachable host means the check could not measure, and calling that "production
+is behind" would be a confident claim built on a failed measurement — the
+specific mistake this whole set of signals exists to stop.
 
 The release PR is different from a feature PR in three ways:
 
