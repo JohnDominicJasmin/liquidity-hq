@@ -506,15 +506,18 @@ When in doubt: would a QA person need to look at this? If yes, write the body.
 
 The flow is `dev` → `qa` → `staging` → `main`.
 
-**Four branches, three deployed sites.** `staging` is a branch, not a place: it
-holds the release candidate and has no service of its own.
+**Four branches, four deployed sites — one each.** Since 2026-08-07 the hostname
+tells you the branch, so there is no longer a name to memorise. This section said
+"three deployed sites: `staging` is a branch, not a place" until 2026-08-08; that
+was true for roughly six hours on the 7th, and reading it afterwards put the
+wrong host in front of a test plan.
 
 | Branch | Environment | Who promotes into it | Deploys automatically? |
 |---|---|---|---|
 | `<type>/<description>` | none | dev | n/a |
 | `dev` | liquidity-hq-dev.onrender.com | dev | **no** — trigger manually |
 | `qa` | **liquidity-hq-qa.onrender.com** | **dev** merges `dev` → `qa` | **no** — trigger manually |
-| `staging` | none — a branch, not a place | **QA** merges `qa` → `staging` | n/a |
+| `staging` | **liquidity-hq-staging.onrender.com** | **QA** merges `qa` → `staging` | **no** — trigger manually |
 | `main` | liquidity-hq.com (production) | **QA** merges `staging` → `main` | **no** — trigger manually |
 
 ### Why `staging` exists
@@ -566,10 +569,18 @@ broken in practice.
   `main`, not here. Merging a feature branch into `dev` needs no permission
   and no QA pass.
 
-### The `qa` test environment
+### The `qa` and `staging` environments
 
-This is the only deployed non-production site. `staging` has no environment of
-its own — QA tests here, then parks approved work on `staging`.
+**`staging` is where QA tests** — liquidity-hq-staging.onrender.com, serving the
+`staging` branch, so what QA signs off IS the release candidate rather than a
+branch dev keeps advancing.
+
+**`qa` is dev's** — liquidity-hq-qa.onrender.com, serving `qa`, so dev can
+confirm a promotion before QA sees it.
+
+Both are free-plan and both are `autoDeploy: no`. Everything below about the
+branch moving and the environment moving being two separate acts applies to
+each.
 
 Merging `dev` → `qa` does **not** deploy. Like prod and dev, this service is
 `autoDeploy: no`, so the branch moving and the environment moving are two

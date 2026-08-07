@@ -68,8 +68,9 @@ the merge, then the deploy, then re-checks the test steps against production.
 
 **Flow is `dev` → `qa` → `staging` → `main`.**
 
-Four branches, three deployed sites. `staging` is a branch, not a place — it
-holds the release candidate and has no service of its own.
+Four branches, four deployed sites, one each. Since 2026-08-07 the hostname
+tells you the branch. This file said "three deployed sites — `staging` is a
+branch, not a place" until 2026-08-08, which was true for about six hours.
 
 | Branch | Who promotes into it | What it is for |
 |---|---|---|
@@ -99,11 +100,14 @@ permission needed. **Deploying the `liquidity-hq-dev` service is different —
 ask first**, it has a ~500 build-hour/month cap prod does not. Verify locally
 by default.
 
-`qa` branch → liquidity-hq-qa.onrender.com, the QA test environment. This is
-the only deployed non-production site; `staging` has no service of its own.
-QA tests **Does not auto-deploy** — merge `dev` → `qa`, then trigger the deploy
-manually, and say you have done it. Whoever merges also deploys. Free plan, so
-it sleeps when idle and the first request after that is slow. Uses the
+`qa` branch → liquidity-hq-qa.onrender.com — **dev's** integration site, where
+dev confirms a promotion before QA sees it. **Does not auto-deploy** — merge
+`dev` → `qa`, then trigger the deploy manually, and say you have done it.
+Whoever merges also deploys.
+
+`staging` branch → liquidity-hq-staging.onrender.com — **the site QA tests and
+signs off on.** QA promotes `qa` → `staging` and deploys it. Also manual. Free
+plan, so it sleeps when idle and the first request after that is slow. Uses the
 **dev** Supabase (`wdtjhrilakoitfcezxpx`) — a known compromise, since Supabase's
 free plan caps the account at two active projects and dev + prod already take
 both. **It must never point at prod Supabase (`qdpwhnvmhqgzijuwopso`) — hard

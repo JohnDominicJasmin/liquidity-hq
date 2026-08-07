@@ -8,13 +8,25 @@ This file exists because the codebase alone doesn't tell the whole story. `docs/
 
 ## 1. Hosting — Render
 
-Four services, one Render account, org workspace shared with unrelated projects (`n8n workflows` is also used by other automations, not exclusive to LHQ).
+Five services, one Render account, org workspace shared with unrelated projects (`n8n workflows` is also used by other automations, not exclusive to LHQ).
+
+**Four branches, four LHQ services, and since 2026-08-07 the hostname finally
+tells you the branch** — `dev`, `qa`, `staging` and `main` each have their own.
+This table said the opposite until 2026-08-08: it claimed `staging` was "a
+release-candidate branch with no environment of its own" and called
+`liquidity-hq-qa` "the QA test environment". Both were true for about six hours
+on 2026-08-07 and were corrected in `render.yaml` the same day but not here — so
+this table, which is where people actually look, kept asserting it. QA wrote a
+doc from it on 2026-08-08 and put the wrong host in front of the test plan.
+Anything created outside this repo has to be recorded in THIS table, not only in
+`render.yaml`.
 
 | Service | Render ID | Plan | Region | Branch | URL | Purpose |
 |---|---|---|---|---|---|---|
 | `liquidity-hq-prod` | `srv-d8aluf6l51nc73e1ijp0` | starter | Singapore | `main` | `liquidity-hq.onrender.com` | Production. `npm install; npm run build` → `npm start`. |
 | `liquidity-hq-dev` | `srv-d8prs6po3t8c739aepdg` | free | Singapore | `dev` | `liquidity-hq-dev.onrender.com` | Dev integration. Free plan — spins down after inactivity, first request after idle is slow/can fail. |
-| `liquidity-hq-qa` | `srv-d9p42ke1egvs73f8car0` | free | Singapore | `qa` | `liquidity-hq-qa.onrender.com` | **The QA test environment.** Note the branch flow gained a fourth branch on 2026-08-07 (`dev` → `qa` → `staging` → `main`) but NOT a fourth service: `staging` is a release-candidate branch with no environment of its own, so this stays the only deployed non-production site. `autoDeploy: no`, like the other two: merging `dev` → `qa` moves the branch, not the environment. Uses the **dev** Supabase project (free plan caps the account at 2 active projects, so it has none of its own). Free plan, so it sleeps when idle. |
+| `liquidity-hq-staging` | `srv-d9qskniju40c73brtqgg` | free | Singapore | `staging` | `liquidity-hq-staging.onrender.com` | **The environment QA tests and signs off on.** Created 2026-08-07 12:06. Serves the release candidate, so what QA tests IS the release rather than a branch dev keeps advancing. `autoDeploy: no` — QA promotes `qa` → `staging` and triggers the deploy. Uses the **dev** Supabase project. Free plan, sleeps when idle. |
+| `liquidity-hq-qa` | `srv-d9p42ke1egvs73f8car0` | free | Singapore | `qa` | `liquidity-hq-qa.onrender.com` | **Dev's integration site, not QA's.** Serves `qa`, which dev promotes into freely; it exists so dev can confirm a promotion before QA sees it. `autoDeploy: no` — whoever merges `dev` → `qa` triggers the deploy. Uses the **dev** Supabase project (free plan caps the account at 2 active projects, so neither non-prod service has one of its own). Free plan, sleeps when idle. |
 | `n8n-workflows` | `srv-d6e4fkq4d50c73b8dpk0` | starter | Singapore | n/a (Docker image `n8nio/n8n:latest`) | `n8n-workflows-6ig6.onrender.com` | Self-hosted n8n instance, 5GB persistent disk. Shared across projects, not LHQ-exclusive. |
 
 All three LHQ services have `autoDeploy: no` — pushing to `main`/`dev` does **not** auto-deploy. Deploys are triggered manually (via Render dashboard, the `mcp__render__trigger_deploy` tool, or `git push` if that ever changes).
