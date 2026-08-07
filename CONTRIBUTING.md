@@ -167,6 +167,40 @@ covered in §7.
   - **High** — auth, payments, alert delivery, migrations, anything that fails
     silently or affects money or user data.
 
+### 3a. Say which side you are — one account, two roles
+
+**Open every PR body, issue and comment with `**Dev Team**` or `**QA Team**`.**
+Address the other side by name when you are asking them for something.
+
+Dev and QA push from the **same GitHub account**. Every PR, issue, comment and
+commit therefore shows the identical author, and nothing in the interface
+distinguishes a QA finding from a dev fix.
+
+That matters more than it looks, because this whole document is built on knowing
+who is asking whom:
+
+- §4 makes the PR the dev→QA handoff. "How to test" is written *by* dev *for* QA.
+- §4's reverse handoff has QA opening PRs into `dev` for **dev** to review and
+  merge — the one case where review runs QA→dev.
+- §7 gives merge and deploy to QA and to nobody else.
+
+Read a thread six weeks later with no labels and none of that is recoverable. A
+comment saying "merge this, then promote" is an instruction in one direction and
+an overstep in the other, and the timeline cannot tell you which.
+
+Put it at the **top**, not the bottom — comments get truncated in notifications
+and in the PR list, and the attribution is the part you least want cut.
+
+```markdown
+**QA Team**
+
+Verified on staging. Steps 1–3 pass, step 4 fails — detail below.
+```
+
+Commit messages are exempt: the `type(scope):` prefix already carries intent and
+the bodies are detailed enough to place. Say "QA" in the body anyway when a
+commit *is* a handoff or a request rather than just work.
+
 ---
 
 ## 4. Two-workspace handoff (dev folder ↔ QA folder)
