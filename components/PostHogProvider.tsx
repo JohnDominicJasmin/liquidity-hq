@@ -3,8 +3,27 @@ import posthog from 'posthog-js';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, Suspense } from 'react';
 import { readConsent, onConsentChange, type ConsentState } from '@/lib/consent';
+import { analyticsKey } from '@/lib/analytics';
 
-const PH_KEY  = process.env.NEXT_PUBLIC_POSTHOG_KEY  ?? '';
+// analyticsKey() also returns '' on any non-production environment, so a
+// dev/qa/staging build cannot write into production's single PostHog project
+// even if it is handed the key. See lib/analytics.ts.
+//
+// THE TWO VALUES MUST BE SPELLED OUT AS STATIC `process.env.NEXT_PUBLIC_*`
+// MEMBER ACCESSES, exactly as below. Next.js inlines only that literal form at
+// build time; passing `process.env` as an object and reading properties off it
+// inside the function is a runtime lookup, and `process.env` is empty in the
+// browser - so the key came back '' in EVERY environment, production included.
+// That is how the first version of this shipped-in-thirty-seconds change would
+// have silently switched analytics off for real users. Caught by building twice
+// and checking the key was present in a prod build, not only absent in a dev one.
+//
+// NEXT_PUBLIC_* are inlined at build time, so this is resolved per build - a
+// service that changes NEXT_PUBLIC_APP_ENV needs a rebuild, not a restart.
+const PH_KEY  = analyticsKey({
+  NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
+  NEXT_PUBLIC_APP_ENV:     process.env.NEXT_PUBLIC_APP_ENV,
+});
 const PH_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com';
 
 function PageViewTracker() {
