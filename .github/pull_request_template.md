@@ -2,7 +2,13 @@
   Auto-filled on every PR. Full rules: CONTRIBUTING.md section 3.
   Delete the italic prompts as you replace them. Do not delete the headings -
   "How to test (QA)" in particular is the dev to QA handoff, not documentation.
+
+  Replace the line below with **Dev Team** or **QA Team**. Dev and QA push from
+  the same GitHub account, so without it nobody reading this later can tell a
+  finding from a fix, or a request from an overstep. CONTRIBUTING.md section 3a.
 -->
+
+**Dev Team / QA Team** — *delete one*
 
 ## Summary
 
