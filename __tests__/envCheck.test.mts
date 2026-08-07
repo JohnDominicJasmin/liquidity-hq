@@ -137,33 +137,35 @@ test('startup environment check', async (t) => {
     }
   });
 
-  /* CRON_SECRET is judged by whether the host owns the bot it could re-point,
-     not by whether it is non-prod - dev legitimately holds one. */
-  await t.test('CRON_SECRET is flagged on qa and staging but not on dev', () => {
-    const onQa = checkEnv(base({
-      CRON_SECRET: 'x', NEXT_PUBLIC_APP_URL: 'https://liquidity-hq-qa.onrender.com',
-    }));
-    assert.equal(levelFor(onQa, 'CRON_SECRET'), 'error');
-
-    const onStaging = checkEnv(base({
-      CRON_SECRET: 'x', NEXT_PUBLIC_APP_URL: 'https://liquidity-hq-staging.onrender.com',
-    }));
-    assert.equal(levelFor(onStaging, 'CRON_SECRET'), 'error');
-
-    const onDev = checkEnv(base({
-      CRON_SECRET: 'x', NEXT_PUBLIC_APP_URL: 'https://liquidity-hq-dev.onrender.com',
-    }));
-    assert.equal(levelFor(onDev, 'CRON_SECRET'), undefined);
+  /* The rule is bot OWNERSHIP, not environment. A host that owns its bot can
+     only re-point its own webhook, which is a no-op. dev has owned one since
+     2026-08-04; staging got its own on 2026-08-08. qa still holds dev's token,
+     which is why CRON_SECRET was removed from it. */
+  await t.test('CRON_SECRET is allowed on hosts that own their bot', () => {
+    for (const url of [
+      'https://liquidity-hq-dev.onrender.com',
+      'https://liquidity-hq-staging.onrender.com',
+    ]) {
+      const f = checkEnv(base({ CRON_SECRET: 'x', NEXT_PUBLIC_APP_URL: url }));
+      assert.equal(levelFor(f, 'CRON_SECRET'), undefined, `${url} owns its bot — should be quiet`);
+    }
   });
 
-  /* liquidity-hq-qa.onrender.com contains the string "liquidity-hq-", so a
-     sloppier match than the one in envCheck.ts would clear qa as though it were
-     dev - which is the exact host the rule exists for. */
-  await t.test('the dev-host match does not accidentally clear qa or staging', () => {
+  await t.test('CRON_SECRET is still flagged on qa, which holds dev\'s token', () => {
+    const f = checkEnv(base({
+      CRON_SECRET: 'x', NEXT_PUBLIC_APP_URL: 'https://liquidity-hq-qa.onrender.com',
+    }));
+    assert.equal(levelFor(f, 'CRON_SECRET'), 'error');
+  });
+
+  /* The trailing dot in the pattern is load-bearing. Without it, a host whose
+     name merely STARTS with an owning environment's name would be cleared -
+     and `liquidity-hq-qa` is the one host that must never be. */
+  await t.test('lookalike hostnames are not cleared by the owner match', () => {
     for (const url of [
       'https://liquidity-hq-qa.onrender.com',
-      'https://liquidity-hq-staging.onrender.com',
-      'https://liquidity-hq.com',
+      'https://liquidity-hq-staging-old.onrender.com',
+      'https://liquidity-hq-devious.example.com',
     ]) {
       const f = checkEnv(base({ CRON_SECRET: 'x', NEXT_PUBLIC_APP_URL: url }));
       assert.equal(levelFor(f, 'CRON_SECRET'), 'error', `${url} should still be flagged`);
