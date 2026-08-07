@@ -137,10 +137,16 @@ export const BASELINE = {
     /** components/TradeJournal.tsx .tj-edit-form - the inline edit on a history
      *  row. select.tj-edit-select, two input.tj-inp, textarea.tj-notes. The
      *  original claim said 4 and 4 is exactly right. */
-    journalInlineEdit: 4,
+    journalInlineEdit: 0,  /* was 4. Fixed with id/htmlFor pairs on the labels
+                              that were already there - NOT aria-label, which
+                              would have overridden the visible text. */
     /** TradeJournal rule builder, behind Rules -> "+ Custom Rule". Three bare
      *  <select> with inline styles, no class, no id, no label of any kind. */
-    journalRuleBuilder: 3,
+    journalRuleBuilder: 0, /* was 3. These have no visible label at all, so
+                              aria-label is correct here. Two placeholder-only
+                              inputs in the same form were fixed at the same
+                              time; they were outside this count because the
+                              sweep looks at <select> only. */
   },
 
   /**
@@ -161,13 +167,17 @@ export const BASELINE = {
      * submits, hears nothing, and cannot tell whether anything happened.
      * The original claim named /login only.
      */
-    authForms: 3,
+    authForms: 0,   /* was 3. Fixed: all three containers are now rendered
+                       unconditionally with role="alert", so the live region
+                       exists before the text arrives. Lowered in the same
+                       commit as the fix, per the instruction above. */
     /**
      * 1 - .gchat-msgs in components/GrokChat.tsx has neither aria-live nor
      * role, and the whole .gchat-panel contains zero live regions. A reply
      * streams in silently.
      */
-    grokChat: 1,
+    grokChat: 0,    /* was 1. Fixed: .gchat-msgs carries role="log" +
+                       aria-live="polite". */
   },
 
   /**

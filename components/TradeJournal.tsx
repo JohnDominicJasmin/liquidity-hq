@@ -34,6 +34,27 @@ interface TradingRule {
   enabled:  boolean;
 }
 
+/**
+ * An accessible name that degrades to readable English rather than to a raw key.
+ *
+ * `t()` returns the KEY ITSELF when no row exists (lib/labels.ts: "key => key as
+ * the ultimate fallback"). That is the right call for visible text - a legible
+ * placeholder beats a blank page - but it is the wrong outcome for an
+ * aria-label, where nobody would ever SEE the problem and a screen reader would
+ * simply read "TRADE_JOURNAL_RULES_FIELD_ARIA" aloud.
+ *
+ * So these three names are decoupled from migration timing: if
+ * 20260807m_labels_seed_rule_builder_names.sql has not been applied yet, or the
+ * labels fetch is still in flight, the user hears English instead of a constant.
+ *
+ * Only used for names that are invisible by design. Visible text must NOT use
+ * this - it would hide a missing translation instead of surfacing it.
+ */
+function ariaName(t: (k: LabelKey) => string, key: LabelKey, english: string): string {
+  const value = t(key);
+  return value === key ? english : value;
+}
+
 const RULE_FIELD_LABEL_KEYS: Record<RuleField, LabelKey> = {
   coin:       'TRADE_JOURNAL_RULES_FIELD_COIN',
   direction:  'TRADE_JOURNAL_RULES_FIELD_DIRECTION',
@@ -1143,10 +1164,28 @@ function Inner() {
               {/* Inline edit form */}
               {editingId === trade.id && (
                 <div className="tj-edit-form">
+                  {/* WCAG 2.2 SC 4.1.2 Name, Role, Value (Level A), issue #48.
+                      The visible labels were already here - they just named
+                      nothing: no htmlFor, wrapping no control. A screen reader
+                      announced each of these as "edit text, blank", and voice
+                      control had no phrase to match, so they could not be
+                      operated by voice at all.
+
+                      Fixed with id/htmlFor pairs and NOT with aria-label. Adding
+                      aria-label alongside a real association overrides it, so
+                      the visible text stops being the accessible name - that is
+                      the docs/HANDOVER.md section 14 defect, and QA's U2 test
+                      asserts no field ends up carrying both.
+
+                      ids are scoped by trade.id because this block renders
+                      inside a map over trades; a static id would produce
+                      duplicates the moment two rows exist, and a duplicate id
+                      makes htmlFor resolve to whichever comes first. */}
                   <div className="tj-edit-row">
                     <div className="tj-edit-field">
-                      <label className="tj-lbl">{t('TRADE_JOURNAL_HISTORY_EDIT_RESULT_LABEL')}</label>
+                      <label className="tj-lbl" htmlFor={`tj-edit-result-${trade.id}`}>{t('TRADE_JOURNAL_HISTORY_EDIT_RESULT_LABEL')}</label>
                       <select
+                        id={`tj-edit-result-${trade.id}`}
                         className="tj-edit-select"
                         value={editDraft.result}
                         onChange={e => setEditDraft(p => ({ ...p, result: e.target.value as TradeResult }))}
@@ -1162,25 +1201,29 @@ function Inner() {
                       </select>
                     </div>
                     <div className="tj-edit-field">
-                      <label className="tj-lbl">{t('TRADE_JOURNAL_HISTORY_EDIT_EXIT_PRICE_LABEL')}</label>
+                      <label className="tj-lbl" htmlFor={`tj-edit-exit-${trade.id}`}>{t('TRADE_JOURNAL_HISTORY_EDIT_EXIT_PRICE_LABEL')}</label>
                       <div className="tj-irow"><span className="tj-affix">$</span>
-                        <input className="tj-inp" type="number" placeholder="0.00"
+                        <input id={`tj-edit-exit-${trade.id}`} className="tj-inp" type="number" placeholder="0.00"
                           value={editDraft.exit_price}
                           onChange={e => setEditDraft(p => ({ ...p, exit_price: e.target.value }))} />
                       </div>
                     </div>
                     <div className="tj-edit-field">
-                      <label className="tj-lbl">{t('TRADE_JOURNAL_HISTORY_EDIT_PNL_LABEL')}</label>
+                      <label className="tj-lbl" htmlFor={`tj-edit-pnl-${trade.id}`}>{t('TRADE_JOURNAL_HISTORY_EDIT_PNL_LABEL')}</label>
                       <div className="tj-irow"><span className="tj-affix">$</span>
-                        <input className="tj-inp" type="number" placeholder="0.00"
+                        <input id={`tj-edit-pnl-${trade.id}`} className="tj-inp" type="number" placeholder="0.00"
                           value={editDraft.pnl_usd}
                           onChange={e => setEditDraft(p => ({ ...p, pnl_usd: e.target.value }))} />
                       </div>
                     </div>
                   </div>
                   <div className="tj-edit-field" style={{ marginTop: 8 }}>
-                    <label className="tj-lbl">{t('TRADE_JOURNAL_HISTORY_EDIT_NOTES_LABEL')}</label>
-                    <textarea className="tj-notes" rows={2}
+                    {/* A textarea's text is its VALUE, not its name. An earlier
+                        verification pass scored this as labelled because it read
+                        the content back - and the fixture trade has notes in it.
+                        Worth knowing if anyone checks this by eye. */}
+                    <label className="tj-lbl" htmlFor={`tj-edit-notes-${trade.id}`}>{t('TRADE_JOURNAL_HISTORY_EDIT_NOTES_LABEL')}</label>
+                    <textarea id={`tj-edit-notes-${trade.id}`} className="tj-notes" rows={2}
                       value={editDraft.notes}
                       onChange={e => setEditDraft(p => ({ ...p, notes: e.target.value }))} />
                   </div>
@@ -1357,8 +1400,21 @@ function Inner() {
               <div style={{ fontSize: 'var(--fs-micro)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--txt3)', marginBottom: 10 }}>{t('TRADE_JOURNAL_RULES_FORM_TITLE')}</div>
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                {/* Field */}
+                {/* Field.
+                    These three selects are a sentence-shaped row -
+                    [field] [condition] [value] - with no visible label of any
+                    kind, no class and no id. A screen reader announced each as
+                    "combo box" and nothing else; voice control had no phrase to
+                    match, so they could not be operated by voice at all.
+                    WCAG 2.2 SC 4.1.2, Level A. Issue #48.
+
+                    aria-label is correct HERE precisely because there is no
+                    visible label to override. The inline-edit fields fixed in
+                    the same commit had visible labels, so they got id/htmlFor
+                    instead - adding aria-label there would have overridden the
+                    visible text and broken voice control (HANDOVER section 14). */}
                 <select
+                  aria-label={ariaName(t, 'TRADE_JOURNAL_RULES_FIELD_ARIA', 'Rule field')}
                   value={ruleField}
                   onChange={e => { setRuleField(e.target.value as RuleField); setRuleValue(''); }}
                   style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
@@ -1370,6 +1426,7 @@ function Inner() {
 
                 {/* Operator */}
                 <select
+                  aria-label={ariaName(t, 'TRADE_JOURNAL_RULES_OPERATOR_ARIA', 'Rule condition')}
                   value={ruleOp}
                   onChange={e => setRuleOp(e.target.value as RuleOperator)}
                   style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
@@ -1385,6 +1442,7 @@ function Inner() {
                 {/* Value - context-sensitive */}
                 {ruleField === 'coin' && (
                   <select
+                    aria-label={ariaName(t, 'TRADE_JOURNAL_RULES_VALUE_ARIA', 'Rule value')}
                     value={ruleValue}
                     onChange={e => setRuleValue(e.target.value)}
                     style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
@@ -1395,6 +1453,7 @@ function Inner() {
                 )}
                 {ruleField === 'direction' && (
                   <select
+                    aria-label={ariaName(t, 'TRADE_JOURNAL_RULES_VALUE_ARIA', 'Rule value')}
                     value={ruleValue}
                     onChange={e => setRuleValue(e.target.value)}
                     style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
@@ -1406,6 +1465,7 @@ function Inner() {
                 )}
                 {ruleField === 'setup_type' && (
                   <select
+                    aria-label={ariaName(t, 'TRADE_JOURNAL_RULES_VALUE_ARIA', 'Rule value')}
                     value={ruleValue}
                     onChange={e => setRuleValue(e.target.value)}
                     style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
@@ -1416,6 +1476,7 @@ function Inner() {
                 )}
                 {ruleField === 'session' && (
                   <select
+                    aria-label={ariaName(t, 'TRADE_JOURNAL_RULES_VALUE_ARIA', 'Rule value')}
                     value={ruleValue}
                     onChange={e => setRuleValue(e.target.value)}
                     style={{ padding: '6px 8px', borderRadius: 6, border: '0.5px solid var(--bdr)', background: 'var(--bg2)', color: 'var(--txt)', fontSize: 'var(--fs-caption)', cursor: 'pointer' }}
@@ -1425,8 +1486,15 @@ function Inner() {
                   </select>
                 )}
                 {ruleField === 'leverage' && (
+                  /* Not in issue #48's count - QA's U4 sweep looked at <select>
+                     only, and this variant renders in place of one. Same defect
+                     though: a placeholder is the accessible name until the user
+                     types, and then the field has no name at all.
+                     Reuses the placeholder's own key rather than adding another
+                     seeded row - the text already describes the field. */
                   <input
                     type="number" min={1} max={125}
+                    aria-label={t('TRADE_JOURNAL_RULES_LEVERAGE_PLACEHOLDER')}
                     value={ruleValue}
                     onChange={e => setRuleValue(e.target.value)}
                     placeholder={t('TRADE_JOURNAL_RULES_LEVERAGE_PLACEHOLDER')}
@@ -1435,8 +1503,10 @@ function Inner() {
                 )}
               </div>
 
+              {/* Same again - placeholder-only naming. Also outside #48's count. */}
               <input
                 type="text"
+                aria-label={t('TRADE_JOURNAL_RULES_NAME_PLACEHOLDER')}
                 placeholder={t('TRADE_JOURNAL_RULES_NAME_PLACEHOLDER')}
                 value={ruleName}
                 onChange={e => setRuleName(e.target.value)}

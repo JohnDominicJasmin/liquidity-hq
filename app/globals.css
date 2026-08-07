@@ -3806,6 +3806,16 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   background: var(--red-bg); border: 0.5px solid var(--red-bdr);
   border-radius: 8px; padding: 8px 12px; margin-top: 12px; line-height: 1.5;
 }
+/* The container is now rendered ALWAYS, carrying role="alert", and is empty
+   until there is an error - see the comment in app/login/page.tsx.
+   Hidden by collapsing it rather than by `display: none`, deliberately:
+   display:none removes a node from the accessibility tree entirely, so the live
+   region would not exist at the moment the error arrives, which is the exact
+   problem being fixed. Zero-size with no paint is invisible to sighted users
+   and still present for assistive tech. */
+.login-error:empty {
+  padding: 0; margin: 0; border: 0; background: none;
+}
 
 /* Magic link sent success */
 .login-success { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 8px 0; }
