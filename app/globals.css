@@ -3139,13 +3139,33 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 }
 .auth-gate-title { font-size: var(--fs-card-title); font-weight: 700; color: var(--txt); }
 .auth-gate-desc  { font-size: var(--fs-caption); color: var(--txt3); line-height: 1.6; max-width: 280px; }
+/* Issue #56. White on --purple (which aliases --accent, #1a7aff) measured
+   3.98:1 against the 4.5:1 floor - the primary call to action on the signed-out
+   auth gate was the least readable thing on the page.
+
+   --accent-solid exists for exactly this: --accent is for text, borders and
+   glows; --accent-solid is for a filled surface UNDER white text. Same rule as
+   .lp-btn-primary, .consent-accept and .desktop-nav-item.on already follow.
+   White on #1668e3 = 5.09:1.
+
+   The hover was the half the issue did not catch, and fixing only the base
+   colour would have left it failing: brightness(1.15) on #1668e3 lands on
+   #1978ff = 4.06:1, still under the floor. axe measures the resting state only,
+   so a hover that fails is invisible to the sweep that found this.
+   Darkening instead of brightening keeps it passing (#135cc8 = 6.19:1) and is
+   the more conventional direction for a filled button anyway.
+
+   Light theme does not redefine --accent-solid, so it inherits #1668e3 there -
+   5.09:1, which passes. Deliberately not adding a light-theme override in this
+   change: several other elements already render --accent-solid in light mode
+   and altering it would move all of them for a one-button fix. */
 .auth-gate-btn {
   margin-top: 6px; padding: 9px 26px; border-radius: 10px;
-  background: var(--purple); color: #fff;
+  background: var(--accent-solid); color: #fff;
   font-size: var(--fs-label); font-weight: 600; text-decoration: none; letter-spacing: -0.1px;
   transition: filter 0.15s; display: inline-block;
 }
-.auth-gate-btn:hover { filter: brightness(1.15); }
+.auth-gate-btn:hover { filter: brightness(0.88); }
 
 /* ── SETTINGS MODAL ──────────────────────────────────────────────────────── */
 .smod-backdrop {
@@ -3339,7 +3359,11 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   background: var(--purple-bg); border: 0.5px solid var(--purple);
   color: var(--accent-2); font-size: var(--fs-caption); font-weight: 600; cursor: pointer;
 }
-.st-save-btn:hover { background: var(--purple); color: #fff; }
+/* Same defect as .auth-gate-btn, found by sweeping for the pattern rather than
+   fixing the one element issue #56 named: white text on --purple (= --accent,
+   #1a7aff) is 3.98:1. Only on hover, so axe's resting-state sweep never saw it.
+   --accent-solid is the filled-surface token: 5.09:1. */
+.st-save-btn:hover { background: var(--accent-solid); color: #fff; }
 .st-save-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* Sign out */
