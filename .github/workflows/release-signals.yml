@@ -1,0 +1,216 @@
+# The three release-stage signals that still depended on somebody remembering.
+#
+# `ready-for-qa.yml` closed the dev -> qa hop. These are the rest of the chain:
+#
+#   qa -> staging      the release PR was opened BY HAND, and it is the only
+#                      thing that tells QA what a release contains. Same
+#                      "remember to" wording that had already failed once.
+#   staging -> main    merging is NOT the deploy. Every Render service is
+#                      autoDeploy: no, so main can move and production keeps
+#                      serving the old build indefinitely with nothing to say so.
+#   after deploying    CONTRIBUTING says tag main. Nothing checked, so "what is
+#                      in production?" stayed answerable only from a dashboard.
+#
+# The last two fail SILENTLY AFTER a release looks finished, which is why they
+# are on a schedule as well as on push: nobody is watching a workflow run at
+# that point.
+name: Release signals
+
+on:
+  push:
+    branches: [staging, main]
+  schedule:
+    # 08:00 Asia/Manila. Catches "merged on Friday, never deployed" without
+    # anyone having to look.
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: release-signals
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  # ── qa -> staging: open the release PR, do not wait to be asked ───────────
+  release-pr:
+    if: github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Open the staging -> main release PR if there is not one
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$(git log --format=%H origin/main..origin/staging)" ]; then
+            echo "staging has nothing main does not - no release PR needed"
+            exit 0
+          fi
+
+          EXISTING=$(gh pr list --repo "$REPO" --base main --head staging --state open \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            # Do NOT rewrite the body. QA works in that PR and reports failures
+            # as comments; replacing it under them would destroy their notes.
+            gh pr comment "$EXISTING" --repo "$REPO" \
+              --body "\`staging\` moved again — this release now contains more than it did. Re-check anything already signed off."
+            echo "commented on existing #$EXISTING"
+            exit 0
+          fi
+
+          git log --format=%s origin/main..origin/staging > /tmp/subjects.txt
+          grep -oE 'Merge pull request #[0-9]+' /tmp/subjects.txt \
+            | grep -oE '[0-9]+' | sort -u > /tmp/prs.txt || true
+
+          {
+            echo "**QA Team** — opened automatically when \`staging\` moved."
+            echo
+            echo "## Summary"
+            echo
+            echo "Release candidate. Everything below is on \`staging\` and not yet in production."
+            echo
+            echo "## How to test (QA)"
+            echo
+            echo "Test on **liquidity-hq-staging.onrender.com**, which serves \`staging\`."
+            echo "Each section below is the PR author's own steps, carried through verbatim."
+            echo
+          } > /tmp/body.md
+
+          while read -r N; do
+            [ -n "$N" ] || continue
+            TITLE=$(gh pr view "$N" --repo "$REPO" --json title --jq .title 2>/dev/null || echo "(unreadable)")
+            echo "### #$N — $TITLE" >> /tmp/body.md
+            echo >> /tmp/body.md
+            gh pr view "$N" --repo "$REPO" --json body --jq .body 2>/dev/null \
+              | awk '/^#+ *How to test/{f=1; next} /^#+ /{if(f) exit} f' \
+              | sed '/^[[:space:]]*$/d' > /tmp/howto.md || true
+            if [ -s /tmp/howto.md ]; then cat /tmp/howto.md >> /tmp/body.md
+            else echo "_No \"How to test (QA)\" section — ask dev before signing this off._" >> /tmp/body.md; fi
+            echo >> /tmp/body.md
+          done < /tmp/prs.txt
+
+          # Risk level is collected the same way: the caveats a PR author flagged
+          # are exactly what a release reviewer needs and never sees otherwise.
+          {
+            echo "## Risk level"
+            echo
+            echo "Per-PR risk, verbatim:"
+            echo
+          } >> /tmp/body.md
+          while read -r N; do
+            [ -n "$N" ] || continue
+            gh pr view "$N" --repo "$REPO" --json body --jq .body 2>/dev/null \
+              | awk '/^#+ *Risk level/{f=1; next} /^#+ /{if(f) exit} f' \
+              | sed '/^[[:space:]]*$/d' | sed "s/^/- #$N: /" >> /tmp/body.md || true
+          done < /tmp/prs.txt
+
+          {
+            echo
+            echo "## Release steps — QA owns all four"
+            echo
+            echo "1. Test every section above on staging."
+            echo "2. Merge this PR."
+            echo "3. **Deploy production manually.** Merging is not the deploy —"
+            echo "   \`liquidity-hq-prod\` is \`autoDeploy: no\`. A drift check raises an"
+            echo "   issue if main moves and production does not follow."
+            echo "4. Re-check the steps against production, then tag:"
+            echo "   \`git tag -a v\$(date +%Y.%m.%d) -m \"...\" && git push --tags\`"
+          } >> /tmp/body.md
+
+          gh pr create --repo "$REPO" --base main --head staging \
+            --title "Release $(date +%Y-%m-%d): $(wc -l < /tmp/prs.txt | tr -d ' ') PR(s)" \
+            --body-file /tmp/body.md
+
+  # ── main merged but production still serving the old build ───────────────
+  prod-drift:
+    if: github.ref == 'refs/heads/main' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare production against main, and check main is tagged
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          MAIN=$(git rev-parse origin/main)
+          MAIN_SHORT=${MAIN:0:7}
+
+          # A cold free-tier host can take a while; prod is on starter, but be
+          # generous rather than raise a false alarm on a slow response.
+          LIVE=$(curl -s --max-time 60 https://liquidity-hq.com/api/version | jq -r '.commit // "unreachable"' || echo unreachable)
+          TAG=$(git tag --points-at origin/main | head -1)
+
+          echo "main=$MAIN_SHORT live=$LIVE tag=${TAG:-none}"
+
+          # Accumulated in a file rather than a shell variable: a multi-line
+          # string assignment inside a YAML block scalar has to close at column
+          # 0, which dedents out of the block and breaks the workflow parse.
+          : > /tmp/problems.md
+
+          if [ "$LIVE" = "unreachable" ] || [ "$LIVE" = "unknown" ]; then
+            # Deliberately NOT treated as drift. An unreachable endpoint means
+            # the check could not measure, and reporting that as "production is
+            # behind" would be a confident claim from a failed measurement.
+            echo "could not read production version - reporting nothing rather than guessing"
+            exit 0
+          fi
+
+          if [ "$LIVE" != "$MAIN_SHORT" ]; then
+            printf -- '- **Production is serving `%s`, but `main` is `%s`.** Merging is not the deploy: `liquidity-hq-prod` is `autoDeploy: no`. Render dashboard -> liquidity-hq-prod -> Manual Deploy.\n' \
+              "$LIVE" "$MAIN_SHORT" >> /tmp/problems.md
+          fi
+          if [ -z "$TAG" ] && [ "$LIVE" = "$MAIN_SHORT" ]; then
+            printf -- '- **Production matches `main` but `main` carries no tag.** Without one, "what is in production?" is only answerable from the Render dashboard. Tag it with `git tag -a vYYYY.MM.DD -m "..." && git push --tags`.\n' \
+              >> /tmp/problems.md
+          fi
+
+          gh label create release-drift --repo "$REPO" --color B60205 \
+            --description "main and production disagree, or a release is untagged" 2>/dev/null || true
+          OPEN=$(gh issue list --repo "$REPO" --label release-drift --state open \
+                   --json number --jq '.[0].number // empty' 2>/dev/null || true)
+
+          if [ ! -s /tmp/problems.md ]; then
+            if [ -n "$OPEN" ]; then
+              gh issue close "$OPEN" --repo "$REPO" \
+                --comment "Production now matches \`main\` (\`$MAIN_SHORT\`) and the commit is tagged. Closing automatically."
+            fi
+            echo "production is current and tagged"
+            exit 0
+          fi
+
+          {
+            echo "**Automated check** — production and \`main\` disagree."
+            echo
+            cat /tmp/problems.md
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| \`main\` | \`$MAIN_SHORT\` |"
+            echo "| production is serving | \`$LIVE\` |"
+            echo "| tag on \`main\` | ${TAG:-**none**} |"
+            echo
+            echo "Read from https://liquidity-hq.com/api/version, so it reflects what is"
+            echo "actually running rather than what was merged."
+            echo
+            echo "Closes itself once production matches \`main\` and the commit is tagged."
+          } > /tmp/drift.md
+
+          if [ -n "$OPEN" ]; then
+            gh issue edit "$OPEN" --repo "$REPO" --body-file /tmp/drift.md
+          else
+            gh issue create --repo "$REPO" --label release-drift \
+              --title "Production is not running \`main\`" --body-file /tmp/drift.md
+          fi
