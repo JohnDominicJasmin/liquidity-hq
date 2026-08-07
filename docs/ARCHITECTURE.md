@@ -17,7 +17,7 @@ Defined in `render.yaml`. Two Render web services, same codebase:
 | `liquidity-hq-dev` | `dev` | `dev` | `lhq_dev_*` |
 
 **Three services, four branches.** `staging` sits between `qa` and `main` and has
-no service — it is the frozen release candidate, not a place. See
+no service — it is the release candidate, not a place. See
 `CONTRIBUTING.md` §6.
 
 **Correction 2026-08-01:** this previously said both services share one Supabase project - wrong, corrected in `docs/INFRASTRUCTURE.md` §4 after direct confirmation with the owner. There are **two separate Supabase projects**: prod (`liquidity-hq-prod`, ref `qdpwhnvmhqgzijuwopso`) uses unprefixed `lhq_*` tables, dev (`liquidity-hq-dev`, ref `wdtjhrilakoitfcezxpx`) uses `lhq_dev_*`. Every migration is written to run against both. Isolation still comes from the table-name prefix either way, switched in one place: `lib/tables.ts` exports a `T` registry (`T.trades`, `T.user_subscriptions`, ...) that every query goes through. **Never hardcode a table name - always import `T`.**

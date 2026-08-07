@@ -24,7 +24,11 @@ name: CI
 # `staging` exists because `qa` was doing two jobs at once - rolling integration
 # AND release candidate. Since the release PR's head IS its base branch, every
 # promotion grew a release QA had already signed off. That happened three times
-# on 2026-08-06 alone. Freezing the candidate on its own branch is the fix.
+# on 2026-08-06 alone. Putting the candidate on its own branch is the fix.
+#
+# Precisely: this is SINGLE-OWNER, not immutable. `staging` can still move, but
+# only QA can move it. The rule the branches cannot enforce - do not promote
+# qa -> staging while a staging -> main PR is open - is in CONTRIBUTING 6.
 #
 # The e2e condition below did not need changing for this: the release PR is now
 # `staging -> main` rather than `qa -> main`, and `base_ref` is `main` either way.
