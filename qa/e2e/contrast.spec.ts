@@ -64,6 +64,26 @@ async function measure(page: Page, theme: string, route: string): Promise<Violat
 }
 
 test.describe('colour contrast', () => {
+  /*
+   * NOT parallelised, deliberately, and this note exists so nobody tries it
+   * again as an obvious speed-up.
+   *
+   * This file is the slowest in the suite: two sweeps of 32 routes with an axe
+   * pass each, ~11 minutes. It is what pushed the E2E job to 45.3 minutes
+   * against `timeout-minutes: 45` on release 2026-08-06.4, cancelling the job
+   * mid-run.
+   *
+   * `test.describe.configure({ mode: 'parallel' })` was the first thing tried
+   * and it changes nothing: playwright.config.ts pins `workers: 1`, so the
+   * runner reported "Running 2 tests using 1 worker" and the file still took
+   * 12.1 minutes. That pin is not an oversight - parallel specs multiply
+   * traffic to Binance/Bybit and trip the app's own per-IP rate limiter,
+   * producing 429s that read as product bugs. Buying six minutes by
+   * manufacturing fake failures is a bad trade.
+   *
+   * The cap was raised instead. See the E2E job in .github/workflows/ci.yml.
+   */
+
   test.beforeEach(({ }, testInfo) => {
     test.skip(testInfo.project.name === 'mobile', 'same tokens as desktop; mobile doubles runtime for no extra signal');
   });
