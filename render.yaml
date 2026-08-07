@@ -91,9 +91,11 @@ services:
       #                                     runs. Build-time - needs a rebuild.
       # CMC_API_KEY  FINNHUB_KEY  GROK_API_KEY
       #
-      # DELIBERATELY UNSET: NEXT_PUBLIC_SENTRY_DSN (prod only), CRON_SECRET
-      # (the only thing stopping Telegram webhook hijack while non-prod shares
-      # dev's bot token).
+      # DELIBERATELY UNSET: NEXT_PUBLIC_SENTRY_DSN (prod only), CRON_SECRET.
+      # Set CRON_SECRET only where BOTH hold: something on that host legitimately
+      # needs to call a cron-guarded route, AND the environment owns its own
+      # side-effect credentials (bot, database, mail sender). staging has
+      # neither. Full rule and the one exception: docs/INFRASTRUCTURE.md 4c.
       #
       # External settings that had to be updated for this hostname:
       #   Cloudflare Turnstile allowed domains
@@ -122,8 +124,14 @@ services:
       # 'qa' once and pointed at the live production tables.
       - key: NEXT_PUBLIC_APP_ENV
         value: dev
-      # Same dev Supabase project and the same deliberately-unset vars as
-      # staging. Set in the dashboard.
+      # Same dev Supabase project as staging. Set in the dashboard.
+      #
+      # NOT the same deliberately-unset vars, as of 2026-08-08: qa HAS
+      # CRON_SECRET set, which docs/INFRASTRUCTURE.md 4c assumed it did not and
+      # built a safety property on. qa also still holds DEV's Telegram bot token,
+      # so the two together are what that section warns about. Removal is the
+      # agreed action - nothing is scheduled against the qa host in either
+      # cron-job.org or n8n, verified 2026-08-08. Delete this note once it is off.
 
   # ── Dev integration - liquidity-hq-dev.onrender.com. MANUAL trigger. ────────
   # Carries a ~500 build-hour/month cap that prod does not, so deploying this
