@@ -1,0 +1,33 @@
+{
+ "_recorded": "production, 2026-08-08",
+ "_url": "https://api.bybit.com/v5/market/open-interest?category=linear&symbol=ENAUSDT&intervalTime=1h&limit=3",
+ "_status": 200,
+ "body": {
+  "retCode": 0,
+  "retMsg": "OK",
+  "result": {
+   "symbol": "ENAUSDT",
+   "category": "linear",
+   "list": [
+    {
+     "openInterest": "483745554.00000000",
+     "singleOpenInterest": "241872777",
+     "timestamp": "1786194000000"
+    },
+    {
+     "openInterest": "483742112.00000000",
+     "singleOpenInterest": "241871056",
+     "timestamp": "1786190400000"
+    },
+    {
+     "openInterest": "484242567.00000000",
+     "singleOpenInterest": "242121284",
+     "timestamp": "1786186800000"
+    }
+   ],
+   "nextPageCursor": "lastid%3D13559007%26lasttime%3D1786186800"
+  },
+  "retExtInfo": {},
+  "time": 1786194826952
+ }
+}

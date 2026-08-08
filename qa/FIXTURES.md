@@ -104,7 +104,7 @@ in public.
 | | Step | State |
 |---|---|---|
 | 1 | Enumerate every intercepted endpoint | **done — this file** |
-| 2 | Record one representative payload per endpoint | next |
+| 2 | Record one representative payload per endpoint | **6 of 7 recorded**, see below |
 | 3 | `qa/e2e/_fixtures.ts` — `page.route` layer, one scenario per file | |
 | 4 | First scenarios: negative funding, RSI extremes, upstream 500 | |
 | 5 | Fake clock for the time-dependent paths | last, and separable |
@@ -116,3 +116,51 @@ are the payoff and are small once the payloads exist.
 the audit harness in `pendings/QA_AUDIT_2026-08-04.md` §9. The enumeration above
 is the durable part; the script that produced it is twenty lines of Playwright
 response listener and is cheaper to rewrite than to maintain.
+
+
+---
+
+## Step 2, and what recording actually taught us
+
+Six payloads recorded from production (64 KB total, in `qa/fixtures/`):
+`binance-fundingRate`, `bybit-kline`, `bybit-open-interest`, `lhq-funding`,
+`lhq-market-rsi`, `lhq-market-snapshot`.
+
+**`fapi/v1/premiumIndex` was skipped — 190 KB, every symbol.** It needs trimming
+to the symbols under test before it belongs in git. That shortcut turned out to
+matter, see below.
+
+`qa/e2e/_fixtures.ts` serves them via `page.route`, and
+`qa/e2e/market-scenarios.spec.ts` has the two assertions that are currently
+honest: interception genuinely happens, and an upstream 500 does not blank the
+page. Both run locally with no auth fixtures.
+
+### The funding scenario is written and NOT asserted on
+
+Three controls killed three versions of it, and the third is the useful one:
+
+| | Assertion | Result |
+|---|---|---|
+| 1 | page contains `/-\s?\d/` | **Passed on POSITIVE data** — the page already renders 18 strings like `"-0"` |
+| 2 | no positive funding percentage rendered | **Passed on unmodified data** — the recorded Binance payload has 9 of 42 rows already negative |
+| 3 | force every Binance row positive, expect positives on screen | **Failed** — all 18 rendered rates stayed negative |
+
+**(3) is the finding.** The rates on `/funding` do not come from
+`fapi/v1/fundingRate`, which is intercepted. They come from something that is
+not — almost certainly `premiumIndex`, the one endpoint skipped in step 2 for
+size.
+
+So the gap is exactly where the shortcut was taken, and none of the three
+versions would have revealed it. Each passed. Only deliberately trying to make
+the test fail did.
+
+**The transferable part:** `served.count > 0` is not a sufficient interception
+guard. It was satisfied by an unrelated route while the values under test still
+came from live data. `_fixtures.ts` now returns `byKey` so a spec can assert the
+*specific* endpoint was intercepted.
+
+### What closes it
+
+Record `premiumIndex` trimmed to the tested symbols, confirm the rendered rates
+follow it, then the `funding-positive` / `funding-negative` pair becomes a real
+test with a working control in both directions.
