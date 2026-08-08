@@ -88,6 +88,27 @@ on:
     #     required check.
     #
     # So: pushes skip, pull requests always run. Issue #114 sibling item.
+    #
+    # ── WHAT IS DELIBERATELY *NOT* ON THIS LIST ────────────────────────────
+    # QA's wording from the duplicate PR #115, kept because it is the better
+    # argument and because this is the line someone will be tempted to edit:
+    #
+    #   `qa/**` and `.github/**` are deliberately NOT in the ignore list. Test
+    #   code and workflow definitions are exactly the things that need CI to
+    #   run; excluding them is how a broken spec or a broken workflow ships
+    #   without anyone noticing.
+    #
+    # Adding them roughly TRIPLES the saving, which is precisely why it looks
+    # attractive - and it removes the gate from the QA suite while doing it.
+    # The two `.github/` entries below are individual files that cannot affect a
+    # build; the directory as a whole stays covered.
+    #
+    # Sized honestly so nobody re-litigates it expecting more: only **1 of 31**
+    # recent commits touches documentation alone, so this saves ~60 min/month.
+    # QA's first count was 7 of 21 and included `.github/` and `qa/` changes;
+    # filtering to true documentation left one in thirty-one. It is worth doing
+    # because it is correct and free, not because it moves the number. The item
+    # that moves the number is `workers: 1` - issue #114.
     paths-ignore:
       - '**.md'
       - 'docs/**'
