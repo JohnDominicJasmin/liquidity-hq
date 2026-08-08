@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
 import { ROUTES, BASELINE } from './_shared';
+import { installMarketFixtures } from './_fixtures';
 
 /**
  * Colour contrast — WCAG 2.2 SC 1.4.3, Level AA — on BOTH themes.
@@ -105,6 +106,25 @@ async function settleForMeasurement(page: Page): Promise<void> {
 }
 
 async function measure(page: Page, theme: string, route: string): Promise<Violation[] | null> {
+  /* Serve recorded market data instead of the live market.
+   *
+   * This sweep visits 32 routes in two themes, and 29 of those routes call a
+   * third-party API - MarketProvider mounts on every page, so /about is as
+   * chatty as /arena. Measured: ~6,000 third-party requests per pass.
+   *
+   * Two things that buys, and the second is why this landed:
+   *
+   *   1. `workers: 1` exists because parallel runs trip Binance and Bybit
+   *      per-IP limits and the 429s look like product bugs (#114).
+   *   2. THE SWEEP STOPS DEPENDING ON WHAT THE MARKET DID TODAY. #48484a hid on
+   *      /hours until a specific session window rendered; #9ca3af sits in
+   *      neutral branches that need the market to be neither bullish nor
+   *      bearish. Three release gates failed in one day on colours that were
+   *      always there and only sometimes on screen.
+   *
+   * Installed per page rather than once, because each measurement runs in its
+   * own context. */
+  await installMarketFixtures(page);
   await page.goto(route, { waitUntil: 'domcontentloaded' });
   await settleForMeasurement(page);
 

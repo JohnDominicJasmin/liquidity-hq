@@ -246,3 +246,57 @@ commit message.
 broken interception fails both — which is what happened when the route pattern
 did not match, and the `byKey['bybit-tickers']` guard reported it precisely
 rather than passing quietly.
+
+
+---
+
+## Wiring the contrast sweep to fixtures: tried, reverted, and why
+
+All 17 endpoints are now recorded (20 payloads, 299 KB). `contrast.spec.ts` was
+wired to `installMarketFixtures` and **both themes passed**.
+
+**The wiring is reverted anyway.** It passed for the wrong reason.
+
+| | dark tokens |
+|---|---|
+| baseline (live data) | **16** |
+| measured with fixtures | **11** |
+| never rendered | `#3a3d48` `#3b3e49` `#6c6d72` `#733738` `#745a16` |
+
+The spec fails when a **new** token appears. A token *disappearing* is
+indistinguishable from someone genuinely fixing it, so five surfaces silently
+stopped being measured and the run went green.
+
+**That is a worse outcome than the flakiness it was meant to fix**: the sweep
+would have looked more stable while covering less, and the tokens it stopped
+seeing are exactly the data-dependent ones — `#733738` and `#745a16` were first
+seen on `/econ-calendar`, `#3a3d48`/`#3b3e49` on the same route.
+
+### Why they stopped rendering
+
+The fixtures cover the **third-party** boundary. `/econ-calendar` and several
+other surfaces are fed by our own `/api/*` routes — `econ-calendar`, `cmc`,
+`macro`, `labels`, `news` — which are served from route handlers, so the browser
+never issues the upstream call and there is nothing for `page.route` to
+intercept at that boundary.
+
+Serving a stale or empty `/api/econ-calendar` means the calendar renders empty,
+and an empty calendar has no coloured rows to fail contrast on.
+
+### What closing it needs
+
+Recording the app's own `/api/*` responses as well, and accepting that those are
+shapes we control and change — which is the exact coupling `FIXTURES.md` argued
+against at the start. That argument was about *assertions*; for *rendering* it
+does not apply, because a route that renders nothing measures nothing.
+
+### The check that caught it
+
+Comparing the measured token set against `BASELINE.contrast.darkTokens` by hand
+after the run went green. Nothing in the suite does that automatically, and if I
+had trusted the green I would have shipped a sweep that covers two thirds of
+what it used to and reports the same.
+
+**Worth adding to the spec regardless of fixtures:** when a token disappears,
+say so loudly rather than silently. A real fix and a surface that stopped
+rendering look identical today.

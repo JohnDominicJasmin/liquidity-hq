@@ -1,0 +1,22 @@
+{
+ "_recorded": "production, 2026-08-08",
+ "_url": "https://api.bybit.com/v5/market/account-ratio",
+ "_status": 200,
+ "body": {
+  "retCode": 0,
+  "retMsg": "OK",
+  "result": {
+   "list": [
+    {
+     "symbol": "XAUUSDT",
+     "buyRatio": "0.5231",
+     "sellRatio": "0.4769",
+     "timestamp": "1786208400000"
+    }
+   ],
+   "nextPageCursor": "lastid%3D0%26lasttime%3D1786208400"
+  },
+  "retExtInfo": {},
+  "time": 1786208587394
+ }
+}

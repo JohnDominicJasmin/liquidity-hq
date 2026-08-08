@@ -167,6 +167,27 @@ export async function installMarketFixtures(page: Page, scenario: Scenario = 'as
   await page.route('**api.bybit.com/v5/market/kline**', r => fulfil(r, 'bybit-kline'));
   await page.route('**api.bybit.com/v5/market/open-interest**', r => fulfil(r, 'bybit-open-interest'));
 
+  /* The remaining third-party surface. Enumerated by measuring all 32 routes in
+   * ROUTES: 17 distinct endpoints, and 29 of 32 routes call at least one -
+   * MarketProvider mounts on every page, so /about and /privacy are as chatty as
+   * /arena. There is no "static routes only" subset.
+   *
+   * Pass-through, no transform: these exist so the contrast sweep stops
+   * depending on live market state, not to assert anything about their values.
+   * Large payloads are trimmed to the first 40-60 entries - shape is what the
+   * app parses, volume is not. */
+  await page.route('**/v5/market/account-ratio**', r => fulfil(r, 'bybit-account-ratio'));
+  await page.route('**/v5/market/recent-trade**', r => fulfil(r, 'bybit-recent-trade'));
+  await page.route('**api.binance.com/api/v3/aggTrades**', r => fulfil(r, 'binance-aggTrades'));
+  await page.route('**api.binance.com/api/v3/klines**', r => fulfil(r, 'binance-klines'));
+  await page.route('**api.binance.com/api/v3/depth**', r => fulfil(r, 'binance-depth'));
+  await page.route('**fapi.binance.com/fapi/v1/klines**', r => fulfil(r, 'binance-fapi-klines'));
+  await page.route('**futures/data/openInterestHist**', r => fulfil(r, 'binance-oi-hist'));
+  await page.route('**futures/data/globalLongShortAccountRatio**', r => fulfil(r, 'binance-global-lsr'));
+  await page.route('**futures/data/topLongShortPositionRatio**', r => fulfil(r, 'binance-top-lsr'));
+  await page.route('**alternative.me/fng**', r => fulfil(r, 'alternative-fng'));
+  await page.route('**deribit.com/api/v2/public/get_book_summary_by_currency**', r => fulfil(r, 'deribit-book-summary'));
+
   return served;
 }
 
