@@ -29,6 +29,28 @@ release candidate and stops moving once QA promotes into it. See
 Say **"verified on `staging`"** and name the branch. "Verified on qa" was
 ambiguous for most of 2026-08-07 and should not be written.
 
+## Seeded accounts — do not reset these
+
+Four accounts exist in the **dev** Supabase (`wdtjhrilakoitfcezxpx`), which `qa`
+and `staging` also read. They are test fixtures, not real users. **Nothing should
+delete them, change their role, or give them a trial.**
+
+| Account | State | Used by |
+|---|---|---|
+| `E2E_USER_A_*` | the owner's own account; **trial ends 2026-08-19** | `bola.spec.ts`, `a11y-auth.spec.ts` |
+| `E2E_USER_B_*` | second account, for cross-account checks | `bola.spec.ts` |
+| `E2E_USER_FREE_*` | `role='free'`, **`trial_ends_at` NULL** | `entitlements.spec.ts` |
+| `E2E_USER_PRO_*` | `role='pro'`, `trial_ends_at` NULL | `entitlements.spec.ts` |
+
+**Why the last two exist rather than reusing A.** A is on a trial, and a trial
+grants Pro *features*. Any entitlement assertion through A therefore means one
+thing before 2026-08-19 and the opposite after it — the same spec, the same green
+result, a different claim. `entitlements.spec.ts` now **fails** if either fixture
+has drifted from the state above, rather than adapting to it.
+
+`trial_ends_at` must be **NULL**, not a past date. A past date is something
+someone can renew by accident; NULL is a state.
+
 ## What lives where
 
 | File | What it is | Status |
