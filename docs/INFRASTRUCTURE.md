@@ -41,6 +41,28 @@ That applies to each hop, and the person differs:
 
 **A promotion into `qa` or `staging` fires no CI at all**, and that is deliberate — `.github/workflows/ci.yml` lists `push` branches as `[dev, main]` only. Both promotions are fast-forward, so the commit landing is bit-identical to one already tested on `dev`, and re-running would bill a second full suite for the same tree. Do not read a quiet Actions tab after a promotion as a failure to run.
 
+### Credentials with an expiry date
+
+| Secret | Purpose | **Expires** |
+|---|---|---|
+| `RELEASE_PAT` | Lets `release-signals.yml` open the `staging` → `main` release PR | **2027-08-09** |
+
+**Why a PAT rather than the built-in token.** GitHub does not trigger workflows
+on events created by `GITHUB_TOKEN` — a deliberate loop-breaker. A release PR
+opened by the bot therefore never fires `pull_request`, so `CI Gate` is **absent
+rather than failing**, and `main` requires it. The PR sits unmergeable with
+nothing red to explain why. Diagnosed on 2026-08-08 (issue #126) after a
+promotion looked entirely successful and the checks never queued.
+
+**What happens when it expires.** The release PR stops opening. `.github/workflows/release-signals.yml`
+falls back rather than failing hard, so the run raises an issue carrying the
+release body it had already built — but **the symptom is "the release PR did not
+appear", and this table is the only place that connects that to a date.**
+
+Fine-grained, scoped to this repository only: contents read, pull requests
+read+write, issues read+write. Issues write is load-bearing — it is what lets the
+fallback announce itself.
+
 ### The URL is fixed at creation and a rename cannot change it
 
 **Render derives a service's hostname from its slug when the service is created, and renaming the service afterwards does not move the URL.** A renamed service keeps serving on its original hostname indefinitely.
