@@ -802,7 +802,9 @@ function Inner() {
   );
 
   return (
-    <div>
+    // lhq-private: every rendered figure below is this user's own trading data.
+    // Masked wholesale in session replay - see lib/sessionRecording.ts.
+    <div className="lhq-private">
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('TRADE_JOURNAL_PAGE_TITLE')}</h1>
@@ -1783,7 +1785,8 @@ function Inner() {
                     )}
                   </div>
 
-                  {/* Thesis text - tj-thesis-text is masked in session replay, see PostHogProvider.tsx */}
+                  {/* Thesis text - masked because it is inside lhq-private, not
+                      because of its own class. See lib/sessionRecording.ts. */}
                   <div className="tj-thesis-text" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.5, marginBottom: 8 }}>{thesis.thesisText}</div>
 
                   {/* Assumptions */}

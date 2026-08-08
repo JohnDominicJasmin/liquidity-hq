@@ -146,7 +146,9 @@ export default function PositionSizer({ coin }: { coin: CoinId | '' }) {
   };
 
   return (
-    <div>
+    // lhq-private: account size and risk are entered, but the sizing result is
+    // rendered text. Masked in session replay, see lib/sessionRecording.ts.
+    <div className="lhq-private">
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <h2 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('CALC_SIZER_TITLE')}</h2>
