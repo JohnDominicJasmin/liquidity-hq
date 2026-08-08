@@ -73,3 +73,50 @@ test('telegram/test does not answer an unauthenticated caller', () => {
     'anonymous caller can again learn whether the server has a bot configured',
   );
 });
+
+/* Every Pro-gated route must emit the SAME error code, because `PRO_REQUIRED`
+ * is a contract three components branch on:
+ *
+ *   components/DryPowder.tsx:90        if (res.status === 403 && json.error === 'PRO_REQUIRED')
+ *   components/HypothesisTracker.tsx:214
+ *   components/TradeJournal.tsx:496,533
+ *
+ * `alerts/preview` returned 'Pro required' - gated correctly, labelled
+ * differently - so no client could recognise it and /alerts rendered the raw
+ * string to the user. Found by QA's entitlements.spec.ts on its first real run,
+ * which is the run #120 existed to wait for.
+ *
+ * The list comes from the spec's own GATED array rather than a copy, so a route
+ * added there is covered here without anyone remembering this file.
+ *
+ * COMMENTS ARE STRIPPED FIRST, and this test proved why. Written without it, it
+ * passed a mutation that reverted the route's label - because the comment ABOVE
+ * the fix, explaining the contract, contains the word it was searching for. It
+ * was asserting that the route talks about PRO_REQUIRED, not that it returns it.
+ * Fourth time in one session a source-scanning test has read prose as code. */
+test('every Pro gate speaks the same error code', () => {
+  const specSrc = readFileSync(
+    new URL('../qa/e2e/entitlements.spec.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+
+  const paths = [...specSrc.matchAll(/path:\s*'\/api\/([^']+)'/g)].map(m => m[1]);
+  assert.ok(paths.length > 5, `expected the GATED list, found ${paths.length} paths`);
+
+  const missing: string[] = [];
+  for (const p of new Set(paths)) {
+    const file = fileURLToPath(new URL(`../app/api/${p}/route.ts`, import.meta.url));
+    let src: string;
+    try {
+      src = readFileSync(file, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\/.*$/gm, '');
+    } catch { continue; } // dynamic segment
+    // Only routes that actually gate on entitlement - push/test verifies via the
+    // admin client and is excluded from the spec for that reason.
+    if (!/hasProFeatures/.test(src)) continue;
+    if (!/PRO_REQUIRED/.test(src)) missing.push(p);
+  }
+
+  assert.deepEqual(missing, [],
+    `these Pro-gated routes do not emit PRO_REQUIRED, so no client can detect the ` +
+    `lock and the raw error text reaches the user: ${missing.join(', ')}`);
+});
