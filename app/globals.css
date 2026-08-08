@@ -1072,6 +1072,23 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
 }
 .sc-next-label { font-size: var(--fs-micro); color: var(--txt3); font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
 .sc-next-name  { font-size: var(--fs-caption); font-weight: 700; }
+
+/* Session-window colours (lib/session.ts) are dark-theme-tuned PAIRS - a
+   foreground plus its own dark chip background. `.sc-badge` applies both, so it
+   passes in either theme. These two apply only the foreground, inline, so the
+   colour lands on the page background - and in light theme that fails hard:
+   God Tier's #f0c070 is 1.68:1 on white, Asia's #fbbf24 is no better.
+
+   Fixed HERE rather than in session.ts on purpose. The comment above
+   getCurrentWindow() records that swapping those pairs for tokens was tried
+   during the issue #53 sweep and dropped .session-pill to 2.30:1, because the
+   light-theme token is dark and the paired background stays dark. Measured
+   again 2026-08-08 before touching it: var(--amber) on #3d2e00 would be 1.90:1.
+   The pair is correct; the two consumers that used half of it were not.
+
+   !important because the colour arrives as an inline style. */
+[data-theme="light"] .sc-timer,
+[data-theme="light"] .sc-next-name { color: var(--txt) !important; }
 .sc-next-sep   { font-size: var(--fs-caption); color: var(--txt3); }
 .sc-next-timer { font-size: var(--fs-data); font-weight: 700; color: var(--txt2); font-variant-numeric: tabular-nums; }
 

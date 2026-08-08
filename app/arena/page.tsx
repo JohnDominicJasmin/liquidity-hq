@@ -1703,7 +1703,7 @@ function ArenaContent() {
       {readError && <div className="arena-err">{readError}</div>}
 
       {result && !dismissedResults.has(selectedCoin) && nowMs - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
-        const sigCol = result.signal === 'LONG' ? 'var(--green-2)' : result.signal === 'LEAN LONG' ? 'var(--green-soft)' : result.signal === 'SHORT' ? 'var(--red)' : result.signal === 'LEAN SHORT' ? 'var(--red-soft)' : '#9ca3af';
+        const sigCol = result.signal === 'LONG' ? 'var(--green-2)' : result.signal === 'LEAN LONG' ? 'var(--green-soft)' : result.signal === 'SHORT' ? 'var(--red)' : result.signal === 'LEAN SHORT' ? 'var(--red-soft)' : 'var(--txt3)';
         const verdictWord = result.signal === 'LONG' ? t('ARENA_VERDICT_LONG') : result.signal === 'LEAN LONG' ? t('ARENA_VERDICT_LEAN_LONG') : result.signal === 'SHORT' ? t('ARENA_VERDICT_SHORT') : result.signal === 'LEAN SHORT' ? t('ARENA_VERDICT_LEAN_SHORT') : t('ARENA_VERDICT_WAIT');
         const sigGrad = result.signal.includes('LONG') ? 'linear-gradient(160deg,#5ff0b0,#34d399)'
           : result.signal.includes('SHORT') ? 'linear-gradient(160deg,#ff9d9d,#f87171)'
