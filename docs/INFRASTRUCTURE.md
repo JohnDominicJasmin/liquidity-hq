@@ -54,10 +54,16 @@ rather than failing**, and `main` requires it. The PR sits unmergeable with
 nothing red to explain why. Diagnosed on 2026-08-08 (issue #126) after a
 promotion looked entirely successful and the checks never queued.
 
-**What happens when it expires.** The release PR stops opening. `.github/workflows/release-signals.yml`
-falls back rather than failing hard, so the run raises an issue carrying the
-release body it had already built — but **the symptom is "the release PR did not
-appear", and this table is the only place that connects that to a date.**
+**What happens when it expires.** The release PR stops opening. The step **fails
+rather than falling back** — `release-pr-failed` then opens an issue carrying the
+release body it had already built, on a **different credential** (`github.token`)
+so one expiry cannot silence the primary and the announcement together. That
+separation is deliberate and load-bearing; see the comment on that job before
+"tidying" the PAT up to a workflow-level `env:`.
+
+Loud, and non-blocking: QA opens the PR by hand from that issue while the token is
+rotated. But **the symptom is "the release PR did not appear", and this table is
+the only place that connects that to a date.**
 
 Fine-grained, scoped to this repository only: contents read, pull requests
 read+write, issues read+write. Issues write is load-bearing — it is what lets the
