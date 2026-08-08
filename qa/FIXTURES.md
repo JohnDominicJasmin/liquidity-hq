@@ -126,9 +126,9 @@ Six payloads recorded from production (64 KB total, in `qa/fixtures/`):
 `binance-fundingRate`, `bybit-kline`, `bybit-open-interest`, `lhq-funding`,
 `lhq-market-rsi`, `lhq-market-snapshot`.
 
-**`fapi/v1/premiumIndex` was skipped — 190 KB, every symbol.** It needs trimming
-to the symbols under test before it belongs in git. That shortcut turned out to
-matter, see below.
+**`fapi/v1/premiumIndex` is now recorded**, trimmed from 857 symbols to the 48
+the app displays — 10 KB instead of 190 KB. `bybit/v5/market/funding/history` too.
+Eight payloads, 78 KB total.
 
 `qa/e2e/_fixtures.ts` serves them via `page.route`, and
 `qa/e2e/market-scenarios.spec.ts` has the two assertions that are currently
@@ -164,3 +164,41 @@ came from live data. `_fixtures.ts` now returns `byKey` so a spec can assert the
 Record `premiumIndex` trimmed to the tested symbols, confirm the rendered rates
 follow it, then the `funding-positive` / `funding-negative` pair becomes a real
 test with a working control in both directions.
+
+
+---
+
+## Five attempts at the funding scenario, and why it is still not asserted on
+
+Recorded, wired, and **deliberately left without an assertion.**
+
+| | Attempt | Result |
+|---|---|---|
+| 1 | assert the page contains a negative number | passed on POSITIVE data — the page renders 18 strings like `"-0"` |
+| 2 | narrow to funding percentages | passed on unmodified data — the recorded Binance payload had 9 of 42 rows already negative |
+| 3 | force `fapi/v1/fundingRate` positive | screen unchanged |
+| 4 | add `premiumIndex`, trimmed | screen unchanged |
+| 5 | add `bybit/v5/market/funding/history`, found by tracing every request | screen unchanged |
+
+**The tell, present throughout and noticed too late: the rendered values shift
+between runs.** Fixtures are static. Anything that moves is live. Four of those
+five attempts could have been skipped by checking that first.
+
+Attempt 5 is the only one that used a method rather than a guess — logging every
+request the page makes and diffing against what was intercepted. That found
+`bybit/v5/market/funding/history` in one run, and also showed that
+**`/api/funding` is never requested by this page at all**, so intercepting it was
+dead weight from the start.
+
+**What remains unknown:** which source the number on screen is derived from. The
+interception layer is sound and its accounting (`byKey`) is trustworthy; the gap
+is knowledge of the data flow, not tooling.
+
+**What would close it:** trace with every intercepted route *blocked* rather than
+fulfilled. Whatever still renders is coming from somewhere unlisted, and the
+absence will be louder than the presence.
+
+**Why it is not shipped green.** `funding-negative` passes today — every rendered
+rate is negative. It would pass just as well against the live market on a day
+when funding happens to be negative, which is most days. That is a test asserting
+the weather.

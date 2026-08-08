@@ -35,18 +35,33 @@ type FundingBody = { data: Array<{ coin: string; binance: number; bybit: number;
  *
  *  Magnitude is preserved deliberately: a scenario that also changes how LARGE
  *  the number is tests two things at once, and a failure would not say which. */
-function fundingNegative(body: FundingBody): FundingBody {
+function fundingSigned(body: FundingBody, sign: -1 | 1): FundingBody {
   return {
     ...body,
     data: body.data.map(d => ({
       ...d,
-      binance: -Math.abs(d.binance),
-      bybit: -Math.abs(d.bybit),
+      binance: sign * (Math.abs(d.binance) || 0.0001),
+      bybit: sign * (Math.abs(d.bybit) || 0.0001),
     })),
   };
 }
 
 type BinanceFundingRow = { symbol: string; fundingTime: number; fundingRate: string; markPrice: string; rateType: string };
+type PremiumIndexRow = { symbol: string; markPrice: string; lastFundingRate: string; nextFundingTime: number };
+
+/* premiumIndex is what actually reaches the screen.
+ *
+ * Three controls proved it: transforming `/api/funding` changed nothing, and
+ * even forcing every `fapi/v1/fundingRate` row positive left all 18 rendered
+ * rates negative. This endpoint was the one skipped during recording because it
+ * returns 857 symbols at 190KB - so the gap sat exactly where the shortcut was
+ * taken. Trimmed to the 48 symbols the app displays: 10KB. */
+function premiumIndexSigned(rows: PremiumIndexRow[], sign: -1 | 1): PremiumIndexRow[] {
+  return rows.map(r => {
+    const mag = Math.abs(parseFloat(r.lastFundingRate)) || 0.0001;
+    return { ...r, lastFundingRate: (sign * mag).toFixed(8) };
+  });
+}
 
 /** Binance's own funding history, negated.
  *
@@ -60,6 +75,29 @@ function binanceFundingSigned(rows: BinanceFundingRow[], sign: -1 | 1): BinanceF
     const mag = Math.abs(parseFloat(r.fundingRate)) || 0.0001; // never 0: sign must be observable
     return { ...r, fundingRate: (sign * mag).toFixed(8) };
   });
+}
+
+type BybitFundingBody = { retCode: number; retMsg: string; result: { category: string; list: Array<{ symbol: string; fundingRate: string; fundingRateTimestamp: string }> } };
+
+/* THE endpoint the /funding page actually renders. Found by tracing every
+ * request the page makes and diffing against what was intercepted — after four
+ * wrong guesses (`/api/funding`, `fapi/v1/fundingRate`, `premiumIndex`, and a
+ * non-symmetric transform). `/api/funding` is not even requested by this page.
+ *
+ * The lesson is cheaper than the four attempts: when a controlled input does not
+ * reach the screen, enumerate what the page requests. Do not reason about which
+ * endpoint it "should" be. */
+function bybitFundingSigned(body: BybitFundingBody, sign: -1 | 1): BybitFundingBody {
+  return {
+    ...body,
+    result: {
+      ...body.result,
+      list: body.result.list.map(r => {
+        const mag = Math.abs(parseFloat(r.fundingRate)) || 0.0001;
+        return { ...r, fundingRate: (sign * mag).toFixed(8) };
+      }),
+    },
+  };
 }
 
 /** Serve recorded market data instead of the live market.
@@ -87,23 +125,21 @@ export async function installMarketFixtures(page: Page, scenario: Scenario = 'as
 
   const sign: -1 | 1 | null =
     scenario === 'funding-negative' ? -1 : scenario === 'funding-positive' ? 1 : null;
-  const neg = scenario === 'funding-negative';
 
   await page.route('**/api/funding**', r =>
-    fulfil(r, 'lhq-funding', neg ? (b) => fundingNegative(b as FundingBody) : undefined));
+    fulfil(r, 'lhq-funding', sign ? (b) => fundingSigned(b as FundingBody, sign) : undefined));
   await page.route('**/api/market/rsi**', r => fulfil(r, 'lhq-market-rsi'));
   await page.route('**/api/market/snapshot**', r => fulfil(r, 'lhq-market-snapshot'));
   await page.route('**fapi.binance.com/fapi/v1/fundingRate**', r =>
     fulfil(r, 'binance-fundingRate', sign ? (b) => binanceFundingSigned(b as BinanceFundingRow[], sign) : undefined));
+  await page.route('**fapi.binance.com/fapi/v1/premiumIndex**', r =>
+    fulfil(r, 'binance-premiumIndex', sign ? (b) => premiumIndexSigned(b as PremiumIndexRow[], sign) : undefined));
+  await page.route('**api.bybit.com/v5/market/funding/history**', r =>
+    fulfil(r, 'bybit-funding-history', sign ? (b) => bybitFundingSigned(b as BybitFundingBody, sign) : undefined));
   await page.route('**api.bybit.com/v5/market/kline**', r => fulfil(r, 'bybit-kline'));
   await page.route('**api.bybit.com/v5/market/open-interest**', r => fulfil(r, 'bybit-open-interest'));
 
   return served;
 }
 
-/** The funding values a `funding-negative` run should put on screen, so a spec
- *  asserts against the fixture rather than against a hardcoded guess. */
-export function expectedNegativeFunding(): { coin: string; binance: number }[] {
-  const fx = load('lhq-funding').body as FundingBody;
-  return fundingNegative(fx).data.map(d => ({ coin: d.coin, binance: d.binance }));
-}
+

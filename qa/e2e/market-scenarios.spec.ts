@@ -33,26 +33,30 @@ test.describe('market data scenarios', () => {
     expect(served.count, 'no fixture route was hit — the specs below would be testing live data').toBeGreaterThan(0);
   });
 
-  /* THE FUNDING SCENARIOS ARE NOT HERE YET, DELIBERATELY.
+  /* THE FUNDING SCENARIOS ARE STILL NOT ASSERTED ON. Five attempts, documented
+   * so the next person does not repeat them.
    *
-   * `funding-negative` / `funding-positive` exist in `_fixtures.ts` and are not
-   * asserted on, because three successive controls showed the assertion would
-   * have been vacuous:
+   *   1. Assert the page contains a negative number -> passed on POSITIVE data.
+   *      The page already renders 18 strings like "-0".
+   *   2. Narrow to funding percentages -> passed on unmodified data. The
+   *      recorded Binance payload already had 9 of 42 rows negative.
+   *   3. Force `fapi/v1/fundingRate` positive -> screen unchanged.
+   *   4. Add `premiumIndex` (the 190KB endpoint skipped in recording, trimmed to
+   *      48 symbols) -> screen unchanged.
+   *   5. Add `bybit/v5/market/funding/history`, found by TRACING every request
+   *      the page makes rather than reasoning about it -> screen unchanged.
    *
-   *   1. First version asserted the page contained /-\s?\d/. It passed against
-   *      POSITIVE data - the page already renders 18 strings like "-0".
-   *   2. Narrowed to funding percentages only. Still passed on unmodified data:
-   *      the recorded Binance payload has 9 of 42 rows already negative.
-   *   3. Forced every Binance row positive. The 18 rendered rates were STILL all
-   *      negative - so they do not come from `fapi/v1/fundingRate` at all.
+   * The tell throughout: the rendered values SHIFT BETWEEN RUNS. Fixtures are
+   * static, so whatever produces them is still live. `/api/funding` is not even
+   * requested by this page.
    *
-   * (3) is the finding: the endpoint feeding the rates on screen is not yet
-   * intercepted. `fapi/v1/premiumIndex` is the likely source and is the one
-   * endpoint `qa/FIXTURES.md` records as too large to capture (190KB, all
-   * symbols) - so the gap is exactly where the shortcut was taken.
+   * `funding-positive` / `funding-negative` work in `_fixtures.ts` and both
+   * endpoints are recorded — what is missing is knowing which source the number
+   * on screen is derived from. Until that is known, an assertion here would only
+   * report what the market did today.
    *
-   * Shipping a green "funding is negative" test now would assert that the market
-   * was negative today. See qa/FIXTURES.md.
+   * Deliberately left failing-by-absence rather than shipped green. See
+   * qa/FIXTURES.md.
    */
 
   test('an upstream 500 does not blank the page', async ({ page }) => {
