@@ -51,7 +51,7 @@ function CallbackInner() {
       <div className="login-wrap">
         <div className="login-card">
           <div className="login-logo">Liquidity<span>HQ</span></div>
-          <div className="login-error" style={{ marginTop: 24, textAlign: 'left' }}>
+          <div className="login-error" data-testid="login-error" style={{ marginTop: 24, textAlign: 'left' }}>
             Sign-in failed: {errMsg}
           </div>
           {/*

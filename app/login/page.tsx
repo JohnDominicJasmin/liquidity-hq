@@ -307,7 +307,7 @@ function LoginInner() {
                   `.login-error:empty` collapses it visually without
                   `display: none`, which would remove it from the accessibility
                   tree and reintroduce the bug. */}
-              <div className="login-error" role="alert">{error}</div>
+              <div className="login-error" data-testid="login-error" role="alert">{error}</div>
 
               <button
                 className="login-back-btn"
@@ -412,7 +412,7 @@ function LoginInner() {
 
               {/* Same as the magic-link form above - always present, empty
                   until it has something to say. See that comment. */}
-              <div className="login-error" role="alert">{pwError}</div>
+              <div className="login-error" data-testid="login-error" role="alert">{pwError}</div>
 
               <button
                 className="login-back-btn"

@@ -82,7 +82,7 @@ export default function ResetPasswordPage() {
       <div className="login-wrap">
         <div className="login-card">
           <div className="login-logo">Liquidity<span>HQ</span></div>
-          <div className="login-error" style={{ marginTop: 16 }}>{t('RESET_PASSWORD_INVALID_LINK')}</div>
+          <div className="login-error" data-testid="login-error" style={{ marginTop: 16 }}>{t('RESET_PASSWORD_INVALID_LINK')}</div>
           <Link href="/forgot-password" className="login-back-btn" style={{ display: 'block', marginTop: 14 }}>
             {t('RESET_PASSWORD_REQUEST_NEW_LINK')}
           </Link>
@@ -131,7 +131,7 @@ export default function ResetPasswordPage() {
               </button>
             </div>
 
-            {error && <div className="login-error">{error}</div>}
+            {error && <div className="login-error" data-testid="login-error">{error}</div>}
           </>
         )}
       </div>

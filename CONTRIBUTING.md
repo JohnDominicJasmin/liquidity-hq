@@ -207,6 +207,29 @@ Commit messages are exempt: the `type(scope):` prefix already carries intent and
 the bodies are detailed enough to place. Say "QA" in the body anyway when a
 commit *is* a handoff or a request rather than just work.
 
+**One account also means no PR here can ever be approved.** GitHub refuses:
+
+```
+Review Can not approve your own pull request
+```
+
+The author is always the reviewer, so the button is unavailable on every PR —
+dev's, QA's, and the release PR. Review still happens; it lands as a comment.
+
+> **Do not add an approval requirement to any ruleset while dev and QA share one
+> GitHub account.** It cannot be satisfied by anyone, and it fails as an absent
+> check rather than a failing one.
+
+That is written as a prohibition because requiring an approval on `main` is the
+most obvious hardening anyone would reach for on a production branch, and it
+reads as unambiguously good practice. It would deadlock every release
+permanently, and the release PR would sit unmergeable with **nothing red to
+explain why**.
+
+Same signature as the bot-PR problem: automation blocked by a permission that
+reports nothing. Both were found by trying the thing, not by reading the config —
+which is the general lesson, and the reason neither was predicted.
+
 ---
 
 ### 3b. QA also tracks the project, and that pulls against being the gate
