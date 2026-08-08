@@ -329,11 +329,25 @@ qa service are copies of dev's.** That is not the intended end state.
 Registering a webhook goes through `/api/telegram/setup-webhook`, which is gated
 by `checkCronAuth`. That guard is **all-or-nothing**: `lib/cronAuth.ts` returns
 false when `CRON_SECRET` is unset, so the variable's presence unlocks **all
-ten** cron-guarded routes at once, not just this one —
-`telegram/{setup-webhook,webhook,alert}`, `alert-outcomes/resolve`,
+nine** `CRON_SECRET`-guarded routes at once, not just this one —
+`telegram/{setup-webhook,alert}`, `alert-outcomes/resolve`,
 `econ-calendar/ingest`, `macro-alert`, `news/ingest`, `ops/spike-alert`,
-`signals/track`, `trial-reminder`. Counted from the source
-(`grep -rl checkCronAuth app/api`), not from memory.
+`signals/track`, `trial-reminder`. Count it with
+`grep -rln "checkCronAuth(" app/api --include=route.ts` — **with the paren.**
+
+**`api/telegram/webhook` is guarded, but not by this secret.** It checks
+`TELEGRAM_WEBHOOK_SECRET` against the `x-telegram-bot-api-secret-token` header
+Telegram echoes back. Different secret, different rotation story: rotating an
+environment's `CRON_SECRET` changes what nine routes accept, rotating its
+`TELEGRAM_WEBHOOK_SECRET` changes one and only after `setup-webhook` is called
+again. Worth keeping straight now that staging has its own of both.
+
+**This number was wrong twice before it was right.** Eleven (counted from a
+too-loose grep), then ten. The ten came from `grep -rl checkCronAuth` without the
+paren, which matched a **comment** in `telegram/webhook/route.ts` reading "same
+as checkCronAuth". A grep that matches prose looks exactly like a grep that
+matches code — which is also how `api/version/route.ts` gets miscounted, since
+its comment mentions gating it behind `checkCronAuth` if it ever grows.
 
 `api/telegram/bot-info` is **not** in that set and should not be added to it. It
 is public and rate-limited, and deliberately **read-only** — it reports a webhook
