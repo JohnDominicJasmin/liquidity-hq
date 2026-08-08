@@ -45,35 +45,8 @@ export const FIXTURES = {
   hypothesisId: process.env.E2E_A_HYPOTHESIS_ID ?? '',
   priceAlertId: process.env.E2E_A_PRICE_ALERT_ID ?? '',
 
-  /* Entitlement fixtures, deliberately separate from A and B.
-   *
-   * A is on a trial that ends 2026-08-19. Anything asserting on entitlement
-   * through A therefore means one thing before that date and the opposite after
-   * it, with nothing announcing the change - a test whose result depends on the
-   * calendar. These two exist so the entitlement specs can PIN the state instead
-   * of reading whatever it happens to be.
-   *
-   * Neither carries a date. `freeEmail` must have `trial_ends_at` NULL, not a
-   * past date, so there is nothing to expire or be renewed by accident. */
-  freeEmail: process.env.E2E_USER_FREE_EMAIL ?? '',
-  freePassword: process.env.E2E_USER_FREE_PASSWORD ?? '',
-  freeId: process.env.E2E_USER_FREE_ID ?? '',
-  proEmail: process.env.E2E_USER_PRO_EMAIL ?? '',
-  proPassword: process.env.E2E_USER_PRO_PASSWORD ?? '',
-  proId: process.env.E2E_USER_PRO_ID ?? '',
 } as const;
 
-/** The entitlement specs need their own fixtures and must skip without them -
- *  running them against A would assert whatever the trial happens to be. */
-export const ENTITLEMENT_READY =
-  !!(SUPABASE_URL && SUPABASE_ANON &&
-     FIXTURES.freeEmail && FIXTURES.freePassword && FIXTURES.freeId &&
-     FIXTURES.proEmail && FIXTURES.proPassword && FIXTURES.proId);
-
-export const ENTITLEMENT_SKIP_REASON =
-  'entitlement fixtures absent - set E2E_USER_FREE_* and E2E_USER_PRO_* (see ' +
-  'qa/README.md "Seeded accounts"). Skipping rather than falling back to user A, ' +
-  'whose trial expires 2026-08-19 and would silently flip what this spec asserts.';
 
 /** Everything the authenticated specs need, or they must skip rather than pass. */
 export const AUTH_READY =
@@ -85,6 +58,29 @@ export const AUTH_SKIP_REASON =
   'authenticated fixtures absent - set E2E_USER_A_* / E2E_USER_B_* / E2E_A_*_ID ' +
   '(see the issue "QA unblocked: two seeded test accounts"). Skipping rather than ' +
   'passing: a BOLA test that runs without fixtures proves nothing.';
+
+/* ENTITLEMENT FIXTURES ARE A AND B, PINNED.
+ *
+ *   A -> role='pro',  trial_ends_at NULL
+ *   B -> role='free', trial_ends_at NULL
+ *
+ * No third account, and no dates. Both were previously `free` with a trial
+ * running to 2026-08-19, which meant BOTH got Pro features - so B as a "free"
+ * fixture would have proven nothing about the free boundary while the trial ran,
+ * then started proving it silently on the 20th, mid-launch-week.
+ *
+ * `trial_ends_at` is NULL rather than a past date on purpose. A past date is
+ * something that can be renewed by accident; NULL is a state.
+ *
+ * `entitlements.spec.ts` FAILS if either has drifted from the above rather than
+ * adapting to what it finds - the previous version derived its expectation from
+ * whatever the account happened to be, which is how a spec ends up meaning one
+ * thing in July and the opposite in August while reporting green throughout.
+ */
+export const ENTITLEMENT_READY = AUTH_READY;
+
+export const ENTITLEMENT_SKIP_REASON =
+  'entitlement fixtures absent - ' + AUTH_SKIP_REASON;
 
 /** Password grant against the dev project. Throws loudly - a silent auth failure
  *  would make every cross-account assertion trivially "pass". */

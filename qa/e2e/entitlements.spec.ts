@@ -85,20 +85,22 @@ test.describe('Pro entitlement boundary', () => {
    * These fixtures are seeded to a fixed state and this hook FAILS if they have
    * drifted, rather than quietly testing the other direction. */
   test.beforeAll(async () => {
-    freeToken = await signIn(FIXTURES.freeEmail, FIXTURES.freePassword);
-    proToken = await signIn(FIXTURES.proEmail, FIXTURES.proPassword);
+    /* A is the PRO fixture, B is the FREE one - set that way in
+     * `lhq_dev_user_subscriptions` rather than by seeding new accounts. */
+    proToken = await signIn(FIXTURES.aEmail, FIXTURES.aPassword);
+    freeToken = await signIn(FIXTURES.bEmail, FIXTURES.bPassword);
 
-    const free = await readRow(freeToken, FIXTURES.freeId);
-    const pro = await readRow(proToken, FIXTURES.proId);
+    const pro = await readRow(proToken, FIXTURES.aId);
+    const free = await readRow(freeToken, FIXTURES.bId);
 
     expect(free.role ?? 'free',
-      `free fixture drifted: role=${free.role}. It must be 'free' or this spec cannot prove the gate blocks anyone.`,
+      `fixture B drifted: role=${free.role}. It must be 'free' or this spec cannot prove the gate blocks anyone.`,
     ).toBe('free');
     expect(free.trial_ends_at ?? null,
-      `free fixture has a trial (${free.trial_ends_at}). A trial grants Pro FEATURES, so the gate would let it through and this spec would assert the opposite of what it claims.`,
+      `fixture B has a trial (${free.trial_ends_at}). A trial grants Pro FEATURES, so the gate lets it through and this spec would assert the opposite of what it claims. Both fixtures ran a trial to 2026-08-19 until it was nulled.`,
     ).toBeNull();
     expect(pro.role,
-      `pro fixture drifted: role=${pro.role}. It must be 'pro'.`,
+      `fixture A drifted: role=${pro.role}. It must be 'pro' - nothing in the dev database was pro before 2026-08-08, so this direction has never been exercised by anything else.`,
     ).toBe('pro');
   });
 

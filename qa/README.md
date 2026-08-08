@@ -37,19 +37,24 @@ delete them, change their role, or give them a trial.**
 
 | Account | State | Used by |
 |---|---|---|
-| `E2E_USER_A_*` | the owner's own account; **trial ends 2026-08-19** | `bola.spec.ts`, `a11y-auth.spec.ts` |
-| `E2E_USER_B_*` | second account, for cross-account checks | `bola.spec.ts` |
-| `E2E_USER_FREE_*` | `role='free'`, **`trial_ends_at` NULL** | `entitlements.spec.ts` |
-| `E2E_USER_PRO_*` | `role='pro'`, `trial_ends_at` NULL | `entitlements.spec.ts` |
+| `E2E_USER_A_*` | **`role='pro'`**, `trial_ends_at` NULL | `bola.spec.ts`, `a11y-auth.spec.ts`, `entitlements.spec.ts` |
+| `E2E_USER_B_*` | **`role='free'`**, `trial_ends_at` NULL | `bola.spec.ts`, `entitlements.spec.ts` |
 
-**Why the last two exist rather than reusing A.** A is on a trial, and a trial
-grants Pro *features*. Any entitlement assertion through A therefore means one
-thing before 2026-08-19 and the opposite after it — the same spec, the same green
-result, a different claim. `entitlements.spec.ts` now **fails** if either fixture
-has drifted from the state above, rather than adapting to it.
+**Why the roles are pinned.** Both accounts were `free` with a trial running to
+2026-08-19, and a trial grants Pro *features* — so both behaved as Pro. Any
+entitlement assertion would have meant one thing before that date and the
+opposite after it: same spec, same green result, different claim.
+`entitlements.spec.ts` **fails** if either has drifted, rather than adapting to
+what it finds.
 
-`trial_ends_at` must be **NULL**, not a past date. A past date is something
-someone can renew by accident; NULL is a state.
+`trial_ends_at` is **NULL**, not a past date. A past date is something that can
+be renewed by accident; NULL is a state.
+
+**Consequence to know before changing B back.** `price-alerts` checks entitlement
+at `route.ts:89` and ownership at `:111`. With B free, `bola.spec.ts`'s
+"B cannot modify A's price alert" is refused by the *Pro gate* and never reaches
+the ownership check — the assertion still passes and no longer tests
+cross-account access. The data check after it is what still has teeth.
 
 ## What lives where
 
