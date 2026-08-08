@@ -15,7 +15,7 @@ worse than none, because it reads as current.
 | | |
 |---|---|
 | **Live in production** | `v2026.08.07` |
-| **Waiting to ship** | **35 commits / 14 PRs** on `qa`, not yet promoted |
+| **Waiting to ship** | **37 commits / 15 PRs** on `qa`, not yet promoted |
 | **Blocked by** | PR **#90** — needs Dev Team review |
 | **Blocking** | everything in the row above |
 
@@ -66,8 +66,10 @@ sat finished for **2 days**, and nothing surfaced that until someone asked.
 So the release process is **three days old**. It is being debugged in public, and
 that is what the last two days of work mostly were.
 
-**Target: keep the promotion queue under ~5 PRs.** A 14-PR batch is not one
-release, it is fourteen changes whose interactions nobody has reasoned about.
+**Target: keep the promotion queue under ~5 PRs.** A 15-PR batch is not one
+release, it is fifteen changes whose interactions nobody has reasoned about.
+This is now a written rule — `CONTRIBUTING.md` §7b, with the commands to
+measure it.
 
 ---
 
