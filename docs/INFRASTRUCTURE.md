@@ -287,9 +287,39 @@ deliberate exceptions. Set as of 2026-08-05:
 
 | Variable | Why not |
 |---|---|
-| `NEXT_PUBLIC_POSTHOG_KEY` | QA test runs would land in product analytics and corrupt the numbers |
+| `NEXT_PUBLIC_POSTHOG_KEY` | QA test runs would land in product analytics and corrupt the numbers. **Also enforced in code since 2026-08-08** — `analyticsKey()` in `lib/analytics.ts` returns `''` whenever `NEXT_PUBLIC_APP_ENV` is `dev`, so a non-prod build cannot write into the single shared PostHog project even if someone sets the variable. dev and prod were found serving the *same* key that day |
+| `NEXT_PUBLIC_SENTRY_DSN` | Prod only. All environments share one GlitchTip project on the free tier; non-prod traffic exhausted the quota once and production reported nothing at all — every envelope came back 429 |
 | `LEMONSQUEEZY_WEBHOOK_SECRET` etc. | Payments. Staging has no business holding these |
 | `CRON_SECRET` | Cron routes fail **closed** without it (`lib/cronAuth.ts`), which is the desired state on any non-prod host. Was wrongly set on qa 2026-08-05 → 2026-08-08; removed, see below |
+
+### Brevo is set on EVERY environment, on purpose
+
+`BREVO_API_KEY` and `BREVO_SENDER_EMAIL` are on prod, dev, qa **and** staging.
+Decided 2026-08-08. That is a deliberate exception to the usual "non-prod holds
+as little as possible" rule, and the reason is worth keeping:
+
+**`lib/email.ts` fails silently.** Every sender returns `false` when the keys are
+missing rather than throwing, so an unconfigured environment is indistinguishable
+from "nobody was due". QA hit exactly this: the trial-reminder path could only be
+proven on a deployed environment, because local `.env.local` has no Brevo keys
+and the route reported success while sending nothing.
+
+So an environment without the keys cannot test email *and cannot tell that it is
+not testing email*. Dev needs them to verify its own work before promoting;
+staging needs them because that is where QA signs off. qa keeps them because
+removing them buys nothing once the other three have them.
+
+**What this costs, stated so it is not a surprise:** one Brevo account, one
+sending quota, one sender reputation, shared by all four. Test-run bounces would
+count against the reputation production depends on. If prod email ever starts
+landing in spam, check what non-prod has been sending before looking anywhere
+else.
+
+**What limits the blast radius:** of the six senders, four go to the owner or
+admins (`sendSpikeAlertEmail`, `sendHealthAlertEmail`, `sendAdminAddedEmail`, and
+`sendBanEmail` in practice). Only welcome, ban and trial-ending reach ordinary
+users — and on dev, qa and staging those tables are the **dev** Supabase project,
+so the recipients are test accounts rather than real customers.
 
 ### Telegram on QA — currently dev's bot, safe only by accident
 

@@ -90,12 +90,29 @@ services:
       #                                     flow under test is not the one prod
       #                                     runs. Build-time - needs a rebuild.
       # CMC_API_KEY  FINNHUB_KEY  GROK_API_KEY
+      # ADMIN_EMAILS  VAPID_EMAIL  VAPID_PRIVATE_KEY  NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      # BREVO_API_KEY  BREVO_SENDER_EMAIL
+      # NEXT_PUBLIC_SENTRY_ENV = "staging"   (not copied from qa, which says "qa")
       #
-      # DELIBERATELY UNSET: NEXT_PUBLIC_SENTRY_DSN (prod only), CRON_SECRET.
-      # Set CRON_SECRET only where BOTH hold: something on that host legitimately
-      # needs to call a cron-guarded route, AND the environment owns its own
-      # side-effect credentials (bot, database, mail sender). staging has
-      # neither. Full rule and the one exception: docs/INFRASTRUCTURE.md 4c.
+      # TELEGRAM_BOT_TOKEN / _CHAT_ID / _WEBHOOK_SECRET  <- staging's OWN bot,
+      #   created 2026-08-08. Do NOT copy qa's: those are dev's bot, and a host
+      #   holding another environment's token can re-point that bot at itself.
+      #
+      # CRON_SECRET is SET here, and legitimately. The rule is that BOTH must
+      # hold: something on the host needs to call a cron-guarded route (staging
+      # registers its own Telegram webhook), AND the environment owns its own
+      # side-effect credentials. Staging owns its bot, so both do. qa owns
+      # neither and must stay without one. Full rule: docs/INFRASTRUCTURE.md 4c.
+      #
+      # DELIBERATELY UNSET: NEXT_PUBLIC_SENTRY_DSN (prod only - shared GlitchTip
+      # quota), NEXT_PUBLIC_POSTHOG_KEY (prod only, and now also blocked in code
+      # by analyticsKey() in lib/analytics.ts), LEMONSQUEEZY_* (payments).
+      #
+      # Brevo IS set here even though it is a real external side effect - see
+      # docs/INFRASTRUCTURE.md 4c, "Brevo is set on EVERY environment". Short
+      # version: lib/email.ts returns false rather than throwing when the keys
+      # are absent, so an environment without them cannot test email AND cannot
+      # tell that it is not testing email.
       #
       # External settings that had to be updated for this hostname:
       #   Cloudflare Turnstile allowed domains
@@ -124,14 +141,21 @@ services:
       # 'qa' once and pointed at the live production tables.
       - key: NEXT_PUBLIC_APP_ENV
         value: dev
-      # Same dev Supabase project and the same deliberately-unset vars as
-      # staging. Set in the dashboard.
+      # Same dev Supabase project as staging. Set in the dashboard, including
+      # BREVO_API_KEY / BREVO_SENDER_EMAIL - Brevo is on every environment on
+      # purpose, see the staging block above and docs/INFRASTRUCTURE.md 4c.
       #
-      # CRON_SECRET was wrongly set here 2026-08-05 to 2026-08-08 while
+      # DIFFERENT FROM STAGING IN TWO WAYS:
+      #
+      # 1. TELEGRAM_* here are DEV's bot, not qa's own. qa does not have one.
+      # 2. CRON_SECRET must stay UNSET, precisely because of (1). Setting it
+      #    would let qa re-point dev's bot at itself and silently swallow every
+      #    alert. Staging may hold one only because it owns its bot.
+      #
+      # It was wrongly set here 2026-08-05 to 2026-08-08 while
       # docs/INFRASTRUCTURE.md 4c asserted it was unset and built a safety
-      # property on that. Removed. It matters more on qa than on dev because qa
-      # holds DEV's Telegram bot token - it does not own the bot it could
-      # re-point. Keep it unset until qa has its own bot.
+      # property on that claim. Removed 2026-08-08. Keep it unset until qa has
+      # its own bot. lib/envCheck.ts flags it at boot if it ever returns.
 
   # ── Dev integration - liquidity-hq-dev.onrender.com. MANUAL trigger. ────────
   # Carries a ~500 build-hour/month cap that prod does not, so deploying this
