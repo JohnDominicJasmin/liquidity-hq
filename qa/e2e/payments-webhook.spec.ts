@@ -129,6 +129,33 @@ test.describe('LemonSqueezy webhook', () => {
       'LEMONSQUEEZY_WEBHOOK_SECRET is not set, so no correctly-signed payload can be built. ' +
       'Skipping rather than passing: a signed-payload test that never signs anything proves nothing.');
 
+    /* AND the handler needs SUPABASE_SERVICE_ROLE_KEY, which CI does not have.
+     *
+     * Both branches these tests target run through `getSupabaseAdmin()`:
+     * the replay guard inserts into `ls_webhook_events`, and the ownership check
+     * calls `sb.auth.admin.getUserById`. Without the admin client the route
+     * errors before reaching either, so the test fails on the environment rather
+     * than on the behaviour.
+     *
+     * This is the SAME wall that keeps `/api/push/test` out of
+     * `entitlements.spec.ts`, documented there hours before this spec was
+     * written - and I walked into it anyway, because I reasoned about which
+     * branch answers first and never checked what it needed to get there.
+     *
+     * `ci.yml`'s header argues deliberately against putting developer env in
+     * CI: building without it has caught two real defects. So this is a real
+     * trade, not an oversight to fix quietly - and the honest position is that
+     * **the ownership check and replay guard are verified by nothing in CI.**
+     *
+     * Skipping loudly rather than asserting something weaker. A test that
+     * passes by lowering its own standard is worse than one that says it did
+     * not run. */
+    test.skip(!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      'SUPABASE_SERVICE_ROLE_KEY is absent, so the handler cannot reach the replay guard or the ' +
+      'ownership check - it errors first. Same limitation as /api/push/test. These two assertions ' +
+      'are therefore verified by NOTHING in CI; covering them needs the admin key, which ci.yml ' +
+      'deliberately withholds. Owner decision, tracked on #78.');
+
     /* THE BOLA OF PAYMENTS, and it has never run.
      *
      * `user_id` arrives in `custom_data`, which `lib/checkout.ts` writes into a
