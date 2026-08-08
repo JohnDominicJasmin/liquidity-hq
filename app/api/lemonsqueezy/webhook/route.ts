@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { apiError } from '@/lib/apiError';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
+import { patchForEvent } from '@/lib/lemonsqueezy';
 
 const SECRET = process.env.LEMONSQUEEZY_WEBHOOK_SECRET ?? '';
 
@@ -81,34 +82,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true, ignored: 'email_mismatch' });
   }
 
-  const isActive = attrs.status === 'active';
+  // The decision lives in lib/lemonsqueezy.ts so it can be tested without a
+  // database, a signature or a LemonSqueezy account - see the comment there.
+  // null means an event we do not act on, which must stay distinguishable from
+  // "act, and the result is no change".
+  const patch = patchForEvent(eventName, attrs, String(event.data?.id ?? ''));
+  if (!patch) return NextResponse.json({ received: true, ignored: 'unhandled_event' });
 
-  switch (eventName) {
-    case 'subscription_created':
-    case 'subscription_updated':
-    case 'subscription_payment_success': {
-      await sb.from(T.user_subscriptions).upsert({
-        user_id:            userId,
-        role:               isActive ? 'pro' : 'free',
-        ls_subscription_id: String(event.data?.id ?? ''),
-        ls_customer_id:     String(attrs.customer_id ?? ''),
-        ls_status:          attrs.status ?? '',
-        current_period_end: attrs.renews_at ?? attrs.ends_at ?? null,
-        updated_at:         new Date().toISOString(),
-      }, { onConflict: 'user_id' });
-      break;
-    }
-    case 'subscription_cancelled':
-    case 'subscription_expired': {
-      await sb.from(T.user_subscriptions).upsert({
-        user_id:    userId,
-        role:       'free',
-        ls_status:  attrs.status ?? eventName.replace('subscription_', ''),
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
-      break;
-    }
-  }
+  await sb.from(T.user_subscriptions).upsert({
+    user_id:    userId,
+    ...patch,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'user_id' });
 
   return NextResponse.json({ received: true });
 }
