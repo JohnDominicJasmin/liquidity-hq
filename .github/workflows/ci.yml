@@ -310,7 +310,24 @@ jobs:
           E2E_USER_B_ID: ${{ secrets.E2E_USER_B_ID }}
           E2E_A_TRADE_ID: ${{ secrets.E2E_A_TRADE_ID }}
           E2E_A_HYPOTHESIS_ID: ${{ secrets.E2E_A_HYPOTHESIS_ID }}
-          E2E_A_PRICE_ALERT_ID: ${{ secrets.E2E_A_PRICE_ALERT_ID }}
+          # A VARIABLE, not a secret, and deliberately. lhq_dev_price_alerts
+          # uses an integer primary key where trades and hypotheses use UUIDs,
+          # and this fixture is the only row in the table - so the value is the
+          # literal string "1".
+          #
+          # GitHub redacts every occurrence of a secret's value anywhere in a
+          # log. As a secret, this one turned EVERY literal 1 in CI output into
+          # ***: "SC 1.4.3" printed as "SC ***.4.3" and a "2.20:1" contrast
+          # ratio as "2.20:***". QA lost time reading a contrast failure through
+          # that on 2026-08-08 (issue #107).
+          #
+          # It was never sensitive - it is a row id in the dev database, created
+          # alongside genuinely secret things and classified with them by
+          # proximity rather than by need. As a variable it prints normally.
+          #
+          # If a future fixture id is genuinely sensitive, make it a secret AND
+          # give it a value that cannot collide with ordinary text.
+          E2E_A_PRICE_ALERT_ID: ${{ vars.E2E_A_PRICE_ALERT_ID }}
 
       # failure() only. This used to upload on every green run too - ~15s and
       # storage for a report nobody opens. failure() still excludes
