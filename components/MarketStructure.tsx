@@ -206,7 +206,7 @@ export default function MarketStructure({ coin, onData }: Props) {
 
   const d  = data!;
   const le = d.lastEvent;
-  const biasCol = d.bias === 'BULLISH' ? 'var(--green-2)' : d.bias === 'BEARISH' ? 'var(--red)' : '#9ca3af';
+  const biasCol = d.bias === 'BULLISH' ? 'var(--green-2)' : d.bias === 'BEARISH' ? 'var(--red)' : 'var(--txt3)';
 
   return (
     <div className="ms-card">

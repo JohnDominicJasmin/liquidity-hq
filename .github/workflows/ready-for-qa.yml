@@ -1,0 +1,171 @@
+# Tells QA there is work waiting, without anyone having to remember to say so.
+#
+# THE GAP THIS CLOSES. Dev promotes `dev` -> `qa`. Nothing announced it.
+# CONTRIBUTING said "ask QA before promoting", which is a courtesy BEFORE the
+# fact; the feature PRs carrying "How to test (QA)" are all closed by then; and
+# the release PR that aggregates them is opened by QA themselves, after they
+# have already decided to look. So the only thing telling QA work was waiting
+# was a human remembering to mention it.
+#
+# HOW THE SIGNAL IS COMPUTED. From `staging..qa`, not from the push event.
+# That range is the definition of the thing we want - commits on qa that QA has
+# not yet taken into staging - so it is correct after a force-push, a re-run, a
+# revert, or several promotions in a row with no one looking in between. Push
+# events describe one hop and would silently under-report all of those.
+#
+# THE LOOP CLOSES ITSELF. A push to `staging` means QA has taken the work, so
+# the issue closes. Nothing to tidy up by hand, and the next promotion opens a
+# fresh one rather than appending to a stale thread.
+name: Ready for QA
+
+on:
+  push:
+    branches: [qa, staging]
+
+# A promotion is often two pushes seconds apart. Without this they race and
+# both try to create the issue. Never cancel in progress: the second push is
+# the one with the complete range, so losing it would under-report.
+concurrency:
+  group: ready-for-qa
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  announce:
+    if: github.ref == 'refs/heads/qa'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Work out what is on qa but not yet on staging
+        id: pending
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # staging may not exist on a fresh clone of this workflow; main is the
+          # honest fallback since it is the only other branch QA has signed off.
+          BASE=origin/staging
+          git rev-parse --verify --quiet "$BASE" >/dev/null || BASE=origin/main
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+
+          git log --format=%s "$BASE..origin/qa" > /tmp/subjects.txt || true
+          COUNT=$(wc -l < /tmp/subjects.txt | tr -d ' ')
+          echo "commits=$COUNT" >> "$GITHUB_OUTPUT"
+
+          grep -oE 'Merge pull request #[0-9]+' /tmp/subjects.txt \
+            | grep -oE '[0-9]+' | sort -u > /tmp/prs.txt || true
+          echo "prs=$(wc -l < /tmp/prs.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+
+      - name: Build the issue body
+        if: steps.pending.outputs.commits != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          {
+            echo "**Dev Team** -> **QA Team** (posted automatically on every promotion to \`qa\`)"
+            echo
+            echo "\`qa\` has moved. These are on \`qa\` and **not yet on \`staging\`** - so they are"
+            echo "waiting for you to promote and test."
+            echo
+            echo "Promote with \`git checkout staging && git merge --ff-only qa\`, deploy"
+            echo "\`liquidity-hq-staging\`, then open the \`staging\` -> \`main\` release PR."
+            echo "**This issue closes itself** when \`staging\` moves."
+            echo
+          } > /tmp/body.md
+
+          if [ -s /tmp/prs.txt ]; then
+            echo "## What is waiting" >> /tmp/body.md
+            echo >> /tmp/body.md
+            while read -r N; do
+              [ -n "$N" ] || continue
+              TITLE=$(gh pr view "$N" --repo "$REPO" --json title --jq .title 2>/dev/null || echo "(could not read PR)")
+              echo "### #$N — $TITLE" >> /tmp/body.md
+              echo >> /tmp/body.md
+              # Pull the PR's own "How to test (QA)" section through verbatim.
+              # That section is the dev->QA handoff and it is otherwise buried in
+              # a closed PR by the time the work reaches you.
+              gh pr view "$N" --repo "$REPO" --json body --jq .body 2>/dev/null \
+                | awk '/^#+ *How to test/{f=1; next} /^#+ /{if(f) exit} f' \
+                | sed '/^[[:space:]]*$/d' > /tmp/howto.md || true
+              if [ -s /tmp/howto.md ]; then
+                cat /tmp/howto.md >> /tmp/body.md
+              else
+                echo "_No \"How to test (QA)\" section in that PR — ask dev before testing it._" >> /tmp/body.md
+              fi
+              echo >> /tmp/body.md
+            done < /tmp/prs.txt
+          fi
+
+          # Commits that arrived without a PR are the ones most worth surfacing:
+          # nothing else records them anywhere QA would look.
+          if ! [ -s /tmp/prs.txt ]; then
+            echo "## Commits on \`qa\` (no merge commits found — direct pushes?)" >> /tmp/body.md
+            echo >> /tmp/body.md
+            sed 's/^/- /' /tmp/subjects.txt >> /tmp/body.md
+            echo >> /tmp/body.md
+          fi
+
+          {
+            echo "---"
+            echo
+            echo "Range: \`${{ steps.pending.outputs.base }}..origin/qa\` — "
+            echo "${{ steps.pending.outputs.commits }} commit(s), ${{ steps.pending.outputs.prs }} PR(s)."
+            echo "Computed from the branch range rather than the push event, so it stays"
+            echo "correct across force-pushes, re-runs and several promotions in a row."
+          } >> /tmp/body.md
+
+      - name: Open or update the Ready-for-QA issue
+        if: steps.pending.outputs.commits != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh label create ready-for-qa --repo "$REPO" --color 0E8A16 \
+            --description "Work is on qa and waiting for QA to promote and test" 2>/dev/null || true
+
+          TITLE="Ready for QA: ${{ steps.pending.outputs.prs }} PR(s) on \`qa\` awaiting promotion"
+          EXISTING=$(gh issue list --repo "$REPO" --label ready-for-qa --state open \
+            --json number --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            # Edit rather than comment: the issue should always show the CURRENT
+            # pending set, not a pile of superseded snapshots.
+            gh issue edit "$EXISTING" --repo "$REPO" --title "$TITLE" --body-file /tmp/body.md
+            gh issue comment "$EXISTING" --repo "$REPO" \
+              --body "\`qa\` moved again — the list above now reflects everything still waiting."
+            echo "updated #$EXISTING"
+          else
+            gh issue create --repo "$REPO" --title "$TITLE" --body-file /tmp/body.md --label ready-for-qa
+          fi
+
+  close:
+    # staging moving means QA has taken the work.
+    if: github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close the Ready-for-QA issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Tolerate the label not existing yet: `gh issue list --label` errors
+          # on an unknown label, and staging can legitimately move before the
+          # first promotion ever created one. Nothing to close in that case.
+          OPEN=$(gh issue list --repo "$REPO" --label ready-for-qa --state open \
+                   --json number --jq '.[].number' 2>/dev/null || true)
+          for N in $OPEN; do
+            gh issue close "$N" --repo "$REPO" \
+              --comment "\`staging\` has moved — QA has taken this work. Closing automatically. The next promotion to \`qa\` opens a fresh one."
+          done

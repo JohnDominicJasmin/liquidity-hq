@@ -9,6 +9,12 @@ check.** Everything below exists to serve that. Where a rule would slow down
 solo work without helping QA, it is explicitly relaxed — see
 [Solo / low-ceremony work](#solo--low-ceremony-work).
 
+**This file is the rules. It is not the current state.** For what is live, what
+is waiting to ship, and what is blocked on whom, read
+[`qa/STATUS.md`](qa/STATUS.md) — one page, kept current by QA, dated at the top.
+Picking work back up after a break starts there; this file is where you come
+back for how to move it.
+
 ---
 
 ## 1. Branch naming
@@ -217,7 +223,7 @@ the handoff point between them.**
    the change is not on `qa` yet.
 
 **Dev is not done when the PR is open.** Dev also merges its own feature branch
-into `dev`, promotes `dev` → `qa`, deploys the qa service, and opens the release
+into `dev`, promotes `dev` → `qa`, and deploys the qa service. QA opens the release
 PR that tells QA there is something to test (§7). What dev never does is merge
 to `main` or deploy production — see "Who merges and deploys" below.
 
@@ -290,14 +296,15 @@ on `dev` for a day with nobody wondering why it never reached staging.
    automatically. Wait for it. A red run there means something QA's manual pass
    did not reach, and it blocks the production deploy.
 
-   `qa` → `main`, not the feature branch → `main`. By the time QA is testing,
+   `staging` → `main`, not the feature branch → `main`. By the time QA is testing,
    the change is already on `dev` and `qa`; merging the original feature branch
    straight into `main` would skip whatever else `qa` was validated with, and
    ship a combination nobody tested.
 
 ### Who merges and deploys
 
-**Dev never merges `qa` → `main` and never deploys production.** Not with
+**Dev never promotes into `staging`, never merges to `main`, and never deploys
+production.** Not with
 permission, not "just this once", not when QA is busy. The whole value of the
 gate is that it is never the person who wrote the code.
 
@@ -313,7 +320,7 @@ asserting the "How to test" steps passed, and that assertion is worth the same
 whoever makes it.
 
 Dev's authority stops at `dev` and `qa`. Dev may merge its own feature branches
-into `dev`, may merge `dev` → `qa`, deploys the `qa` service, and deploys
+into `dev`, may promote `dev` → `qa`, deploys the `qa` service, and deploys
 nothing else.
 
 Merging is not the deploy. **No** Render service auto-deploys; all three are
@@ -406,17 +413,27 @@ place it is worth 34 minutes.
 | Push to a feature branch | ✅ ~2 min | — |
 | PR into `dev` | ✅ | — |
 | PR into `qa` | ✅ | — |
+| PR into `staging` | ✅ | — |
 | Push to `dev` or `main` | ✅ | — |
-| **PR into `main`** (the release) | ✅ | ✅ **187 tests, ~34 min** |
+| **PR `staging` → `main`** (the release) | ✅ | ✅ **the full suite, ~53 min** |
 | Manual run (Actions → CI → Run workflow) | ✅ | ✅ if you tick the box |
 
 **One automated browser run per release, immediately before production.**
 
+The four-branch change did not move this gate. The release PR became
+`staging` → `main` instead of `qa` → `main`, and the workflow selects on the
+*base* being `main`, which is true either way.
+
+Measured, so the cost is not a guess: the suite ran **53 minutes with no
+retries** on release 2026-08-06.4, and across the 40 workflow runs around it the
+browser job executed **exactly once**. At one to two releases a week that is
+roughly 200–400 minutes a month against a 2,000 minute allowance.
+
 ### Nobody runs it by hand
 
 Not dev, not QA. Dev's pre-PR gates are the four fast ones — `npm run lint`,
-`npx tsc --noEmit`, `npm test`, `npm run build`. QA's job is manual testing on
-staging, following the PR's "How to test" steps.
+`npx tsc --noEmit`, `npm test`, `npm run build`. QA's job is manual testing on the
+`qa` environment, following the PR's "How to test" steps.
 
 This was deliberated and changed twice. An earlier draft had QA running
 `npm run test:e2e` locally on the promotion PR. It was dropped because it landed
@@ -493,21 +510,83 @@ When in doubt: would a QA person need to look at this? If yes, write the body.
 
 ## 6. Branches and environments
 
-The flow is `dev` → `qa` → `main`.
+The flow is `dev` → `qa` → `staging` → `main`.
 
-| Branch | Environment | Who pushes | Deploys automatically? |
+**Four branches, four deployed sites — one each.** Since 2026-08-07 the hostname
+tells you the branch, so there is no longer a name to memorise. This section said
+"three deployed sites: `staging` is a branch, not a place" until 2026-08-08; that
+was true for roughly six hours on the 7th, and reading it afterwards put the
+wrong host in front of a test plan.
+
+| Branch | Environment | Who promotes into it | Deploys automatically? |
 |---|---|---|---|
 | `<type>/<description>` | none | dev | n/a |
 | `dev` | liquidity-hq-dev.onrender.com | dev | **no** — trigger manually |
-| `qa` | **liquidity-hq-qa.onrender.com** | dev merges `dev` → `qa` | **no** — trigger manually |
-| `main` | liquidity-hq.com (production) | **QA** (owner may), never dev | **no** — trigger manually |
+| `qa` | **liquidity-hq-qa.onrender.com** | **dev** merges `dev` → `qa` | **no** — trigger manually |
+| `staging` | **liquidity-hq-staging.onrender.com** | **QA** merges `qa` → `staging` | **no** — trigger manually |
+| `main` | liquidity-hq.com (production) | **QA** merges `staging` → `main` | **no** — trigger manually |
+
+### Why `staging` exists
+
+`qa` was doing two jobs at once: rolling integration **and** release candidate.
+
+A release PR's head **is** its base branch, so every `dev` → `qa` promotion
+silently changed what an open release PR contained. QA would sign off on a set
+of commits and the release would grow underneath them. That happened **three
+times on 2026-08-06**, once after QA had already completed a full manual pass.
+
+Splitting the two jobs fixes it structurally rather than by everyone
+remembering to ask first:
+
+- `qa` keeps moving. Dev promotes into it whenever work is ready.
+- `staging` only moves when **QA** decides a batch is approved and ready to
+  park. Nothing dev does can change what is sitting in a release.
+
+This is also why **dev must never promote into `staging`**. If dev can move it,
+the guarantee is gone.
+
+#### What this does and does not guarantee
+
+Be precise, because the imprecise version is what caused the original problem.
+
+**It guarantees:** nothing *dev* does can change what is in a release. Every one
+of the three incidents on 2026-08-06 was dev promoting under QA's signoff, and
+that route is closed.
+
+**It does not guarantee immutability.** A release PR's head is still its base
+branch, so if QA promotes `qa` → `staging` while a `staging` → `main` PR is open,
+that release still grows. The change is *single-owner*, not frozen.
+
+So one rule the branches cannot enforce:
+
+> **Do not promote `qa` → `staging` while a `staging` → `main` PR is open.**
+> Ship the open release first, or close it.
+
+This is the one remaining step that depends on remembering. It is written down
+rather than assumed, and it is deliberately the *only* one.
+
+If that is not enough, the version that would be genuinely immutable is a dated
+`release/YYYY-MM-DD` branch cut per release, which nothing ever promotes into.
+It costs a branch per release and more churn; raise it if this rule ever gets
+broken in practice.
 
 - Feature branches are cut from `dev` and merged back into `dev` via PR.
   **Dev merges its own feature branches into `dev`** — QA ownership starts at
   `main`, not here. Merging a feature branch into `dev` needs no permission
   and no QA pass.
 
-### The `qa` staging environment
+### The `qa` and `staging` environments
+
+**`staging` is where QA tests** — liquidity-hq-staging.onrender.com, serving the
+`staging` branch, so what QA signs off IS the release candidate rather than a
+branch dev keeps advancing.
+
+**`qa` is dev's** — liquidity-hq-qa.onrender.com, serving `qa`, so dev can
+confirm a promotion before QA sees it.
+
+Both are free-plan and both are `autoDeploy: no`. Everything below about the
+branch moving and the environment moving being two separate acts applies to
+each.
 
 Merging `dev` → `qa` does **not** deploy. Like prod and dev, this service is
 `autoDeploy: no`, so the branch moving and the environment moving are two
@@ -563,7 +642,7 @@ was cut from `dev` and merged to `main` to bootstrap the convention, and it
 silently carried 13 unrelated QA-scaffolding files onto `main` with it.
 
 - Normal work → cut from `dev`, merge back to `dev`. Reaches `main` later, as
-  part of a reviewed `dev` → `qa` → `main` release.
+  part of a reviewed `dev` → `qa` → `staging` → `main` release.
 - Hotfix or anything that must land on `main` **now** → cut from `main`, then
   merge it back into **both `dev` and `qa`** afterwards, or the next release
   silently reverts it. Merging into `dev` alone is not enough now that `qa`
@@ -587,7 +666,7 @@ git checkout qa && git merge --ff-only dev && git push
 If that command fails, `qa` has diverged and something has gone in the wrong
 way. Fix the divergence rather than forcing the merge — a `qa` that is not a
 prefix of `dev` means "tested on qa" no longer tells you anything about what is
-on `dev`, and the whole `dev` → `qa` → `main` model stops meaning what it says.
+on `dev`, and the whole `dev` → `qa` → `staging` → `main` model stops meaning what it says.
 
 After a release lands on `main`, `qa` keeps whatever it had; the next promotion
 fast-forwards it again from `dev`. Nothing needs resetting.
@@ -597,8 +676,8 @@ fast-forwards it again from `dev`. Nothing needs resetting.
 Once a feature branch is merged, delete it locally and on the remote. A branch
 list that still shows a dozen merged branches makes the two or three that
 matter impossible to find, and it is not obvious from the name which are live.
-`main`, `dev`, `qa` and anything with an open PR are the only branches that
-should exist.
+`main`, `dev`, `qa`, `staging` and anything with an open PR are the only
+branches that should exist.
 
 **If a merge to `main` is ever reverted**, note that the reverted commits stay
 in `main`'s history. Git treats them as already merged, so a later `dev` →
@@ -622,8 +701,8 @@ a cherry-pick, not another merge.
 
 ## 7. Promoting a release
 
-The two merges that actually reach users — `dev` → `qa` and `qa` → `main` — get
-a PR like everything else. They are the merges with the highest blast radius,
+The three merges that carry work forward — `dev` → `qa`, `qa` → `staging` and
+`staging` → `main` — get a PR like everything else. They are the merges with the highest blast radius,
 so they are the wrong place to skip the paper trail. A promotion PR needs no
 essay: a title, a list of what is going out, and the checklist below.
 
@@ -636,7 +715,7 @@ ready.**
 |---|---|
 | New features, additions, refactors, docs | Batched into **one release a week** |
 | Bug fixes | As soon as they are verified — do not wait for the weekly slot |
-| Hotfixes (production is broken) | Immediately, and they skip `qa` — see §6 |
+| Hotfixes (production is broken) | Immediately, and they skip `qa` and `staging` — see §6 |
 
 Merging to `dev` is not affected — that stays continuous. What batches is the
 promotion out of `dev`.
@@ -645,13 +724,43 @@ Two things follow from this, and both are the point rather than side effects:
 
 - **A regression found at the release gate arrives with a week of changes
   attached**, not one. That is the cost of batching, and it is why §4b keeps the
-  full browser suite on the `qa` → `main` PR — the last automated check before a
+  full browser suite on the `staging` → `main` PR — the last automated check before a
   production deploy — rather than dropping it entirely once it came off feature
   PRs.
 - **"It is not urgent" is a real answer.** A feature that misses the weekly slot
   waits. Shipping a feature mid-week to production, outside the batch, is a
   decision someone makes deliberately — not something that happens because a PR
   merged.
+
+### 7b. The queue has a depth limit
+
+Batching to a weekly release and letting the queue grow without limit are not
+the same thing. **Target: fewer than ~5 PRs waiting on `qa` at any time.**
+
+Measure it rather than estimating it:
+
+```bash
+git fetch origin
+git rev-list --count origin/staging..origin/qa              # commits waiting
+git log origin/staging..origin/qa --format=%s \
+  | grep -c "^Merge pull request"                           # PRs waiting
+```
+
+A batch of fifteen PRs is not one release. It is fifteen changes whose
+interactions nobody has reasoned about, arriving at the gate together — and if a
+regression shows up there, the bisect surface is the whole batch rather than one
+change.
+
+This is not hypothetical. On **2026-08-08 the queue reached 37 commits / 15
+PRs**, finished and unshipped, and nothing surfaced it until someone asked where
+the project was. Depth is invisible unless something measures it, which is why
+the number lives in [`qa/STATUS.md`](qa/STATUS.md) and is updated rather than
+remembered.
+
+**Over the limit, promoting takes priority over merging more into `dev`.** That
+is the only lever — `dev` merging continuously is otherwise correct and stays
+that way. The thing to watch is not how fast work is finished; it is how long
+finished work waits.
 
 ### Before `dev` → `qa`
 
@@ -729,18 +838,77 @@ The test to apply before handing over: *if QA finds nothing, was this PR
 finished?* If the honest answer is "no, they would have found the obvious
 thing", it was not ready.
 
-### The release PR is how QA finds out there is work
+### Two PRs, and who opens which
 
-**Immediately after promoting `dev` → `qa`, dev opens a `qa` → `main` PR.** Not
-later, not when the release feels big enough. That PR is the only thing that
-tells QA anything is waiting.
+**Nobody has to remember to announce a promotion.** Pushing to `qa` opens or
+updates a **"Ready for QA" issue** automatically —
+`.github/workflows/ready-for-qa.yml`. It lists every PR that is on `qa` and not
+yet on `staging`, and pulls each one's **"How to test (QA)" section through
+verbatim**, which is otherwise buried in a PR that closed days earlier. Pushing
+to `staging` closes it, because QA taking the work is the signal that it is no
+longer waiting.
+
+This replaced a rule that told dev to open a `dev` → `qa` PR "immediately after
+promoting". That rule was the only thing telling QA anything was waiting, and it
+depended entirely on a human remembering — which is not a mechanism. It was
+missed, and #78 existed partly to paper over the result.
+
+Two properties worth knowing, because they decide whether you can trust it:
+
+- **It is computed from the branch range `staging..qa`, not from the push
+  event.** That range *is* the definition of "work QA has not taken yet", so the
+  issue stays correct after a force-push, a re-run, a revert, or three
+  promotions in a row that nobody looked at. A push-event version would report
+  one hop and silently under-report all of those.
+- **It edits the existing issue rather than piling on comments**, so the issue
+  always shows the current pending set rather than a stack of superseded
+  snapshots. A short comment marks each update so the thread still shows movement.
+
+Dev still asks before promoting (below). That is a *timing* check — it stops a
+promotion landing mid-test-run. The announcement afterwards is now automatic.
+
+**QA, when a batch is approved and ready to park: promote `qa` → `staging`.**
+Dev does not promote into `staging` — that is the whole point of the branch. If
+dev can move the release candidate, the guarantee is gone.
+
+**The `staging` → `main` release PR now opens itself**
+(`.github/workflows/release-signals.yml`), aggregating each PR's "How to test
+(QA)" *and* "Risk level" sections verbatim from `main..staging`. If one is
+already open it is **commented on, never rewritten** — QA reports failures in
+that thread and replacing the body underneath them would destroy the record.
 
 This was missing and it silently broke the handoff. Five changes sat on the
-staging site — including the worst Core Web Vital in the product and a bug that
+`qa` site — including the worst Core Web Vital in the product and a bug that
 was getting users' IPs banned — with nothing anywhere saying so. Every
-individual PR had already been merged and closed, `qa` had moved, staging had
-been redeployed, and QA had no way to know. Promoting without opening this PR is
-deploying into silence.
+individual PR had already been merged and closed, `qa` had moved, the qa service
+had been redeployed, and QA had no way to know.
+
+That is why none of these three signals is an instruction any more. Each one was
+written down as a rule, each rule was followed most of the time, and the times
+it was not are the only times it mattered.
+
+### Merging to `main` is not the deploy, and something now checks
+
+Every Render service is `autoDeploy: no`. `main` can move and production keeps
+serving the previous build indefinitely, with a green PR and a closed release
+thread saying otherwise.
+
+A drift check runs on every push to `main`, **daily on a schedule**, and on
+demand. It reads `https://liquidity-hq.com/api/version` — what production is
+actually serving, not what was merged — and raises a `release-drift` issue when:
+
+- production's commit does not match `main`, or
+- production matches `main` but the commit carries **no tag**, which is what
+  makes "what is in production?" answerable without opening a dashboard.
+
+It closes itself once both hold. The schedule matters more than the push
+trigger: this class of failure happens *after* everyone has stopped watching, so
+"merged Friday, never deployed" is exactly what it is for.
+
+**If it cannot read the version endpoint it reports nothing at all.** An
+unreachable host means the check could not measure, and calling that "production
+is behind" would be a confident claim built on a failed measurement — the
+specific mistake this whole set of signals exists to stop.
 
 The release PR is different from a feature PR in three ways:
 
@@ -756,11 +924,13 @@ Keep it open while QA works. It is the thread: failures get reported as comments
 on it, and it stays open until the whole release either ships or is pulled
 apart.
 
-### Before `qa` → `main`
+### Before `staging` → `main`
 
-1. Every "How to test" step passed, on `qa` — not on a feature branch, not on
-   `dev`.
-2. CI green on `qa`.
+0. The candidate is parked: QA has promoted `qa` → `staging`, so what is in the
+   release stopped moving. Nothing dev does can change it from here.
+1. Every "How to test" step passed, on the `qa` environment — not on a feature
+   branch, not on `dev`.
+2. CI green.
 3. **Migrations already applied to production.** Before the deploy, never after.
 4. **Every environment variable the release needs exists on
    `liquidity-hq-prod`.** Check, do not assume.

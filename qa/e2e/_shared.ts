@@ -210,84 +210,75 @@ export const BASELINE = {
    */
   contrast: {
     /**
-     * Dark theme: 5 distinct failing foreground colours.
+     * WHICH foreground tokens fail SC 1.4.3, not how many.
      *
-     * CORRECTION. This was briefly recorded as 0 and hard-asserted, on a
-     * staging sweep that reported zero dark violations across all 32 routes.
-     * That measurement was incomplete, not wrong: running the same rule against
-     * a local build surfaced real failures on states staging never rendered -
+     * This was a count, and the count did not survive contact with real data.
+     * It moved 13 -> 17 (dark) and 38 -> 43 (light) between two runs whose only
+     * app-code difference was a server-side log line in
+     * app/api/telegram/alert/route.ts - which cannot change a rendered colour.
+     * The sweep sees whichever application states happened to render, and a
+     * count over a varying sample is not a number a ratchet can hold.
      *
-     *   /news          3.07:1  #585d6d on #06070a  .nfeed-empty (EMPTY state)
-     *   /econ-calendar 2.10:1  #414551 on #06070a  (EMPTY state)
-     *   /hours         2.77:1  #eff6f2 on #5ca279  ("current hour" badge)
-     *   /hours         4.05:1  #f4f1e8 on #91711d  (a second badge tone)
+     * I had claimed the opposite on PR #76 - "the DISTINCT colour count moved by
+     * one across two environments" - and generalised that from two samples. It
+     * was thin evidence and the claim was wrong.
      *
-     * - because staging had news and calendar data loaded and local did not,
-     * and because which /hours badge is highlighted depends on the time of day.
+     * A SET fixes the part a count cannot, independently of the drift: a count
+     * hides substitution. One token fixed and another broken reads as no change.
+     * A set names both.
      *
-     * This is qa/TEST_GAPS.md §1 (market data and the clock cannot be
-     * controlled) demonstrated on QA's own measurement. Two honest sweeps of the
-     * same rule against the same code disagreed, because they saw different
-     * application states. Neither number is the truth; the union is closer, and
-     * even the union is only "every state we happened to render".
+     * How to read a failure:
+     *   - a token here that no longer fails      -> good, remove it from the list
+     *   - a token NOT here that now fails        -> triage, see below
      *
-     * So dark is NOT proven clean, and this is a ratchet like everything else.
-     * Empty states are the interesting part: they are what a new user sees.
+     * A new token is not automatically a regression. It is either
+     *   (a) a state that had never rendered during a sweep before - add it with
+     *       a note saying where it was seen, or
+     *   (b) a token that actually changed - which IS a regression, and the diff
+     *       will show it in app/globals.css or a component's inline style.
      *
-     * 13, measured against a LOCAL production build (15 total violations) -
-     * deliberately not the staging figure. CI runs `npm run build && npm start`
-     * in the runner, so a local build is the environment this assertion will
-     * actually face. Staging reported 0 for the reason above; if you re-measure
-     * there and get a small number, that is the same sampling difference and not
-     * a fix.
+     * Telling those apart takes one look at the diff. That is the cost of the
+     * design, and it is deliberate: the alternative is a number that goes green
+     * while a real substitution hides inside it.
+     *
+     * Measured 2026-08-08 against a local production build at c3a7571, all 32
+     * routes, 1440x900 - the same shape of environment CI runs.
      */
-    darkDistinctColours: 13,
-    /**
-     * Light theme: 56 distinct foreground colours fail.
-     *
-     * Light had NEVER been measured in a browser before 2026-08-06 - it was
-     * carried as "not verified" in every release note since 2026-08-05. It is
-     * badly broken, and it is one story rather than 56: the semantic green
-     * (#34d399, #4ade80, #6ee7b7...), the semantic red (#f87171, #fca5a5,
-     * #fcbcbc...) and the muted greys (#8a8a8a, #8e8e93, #a0a0a0...) were
-     * chosen against the near-black dark background and reused unchanged on
-     * light. Worst measured: 1.39:1 against a 4.5:1 floor.
-     *
-     * That matters more than a normal contrast bug on this product, because
-     * green and red ARE how price direction is communicated - and the four
-     * worst routes (/scanner, /funding, /liq, /markets) are the dense numeric
-     * screens where those colours carry the meaning.
-     *
-     * Filed for dev. Ratchet DOWN as light-mode token variants land; the fix
-     * belongs in the [data-theme="light"] block on the foreground tokens, NOT
-     * on the backgrounds - lightening those would break dark.
-     *
-     * 57 against a LOCAL production build (990 total violations); staging gave
-     * 56 (1001). That the DISTINCT count moved by one across two environments
-     * with completely different data, while the raw violation count moved by 11,
-     * is the evidence this metric was chosen on: the raw number is noise, the
-     * token count is signal. Local is the baseline because CI builds and serves
-     * locally, so that is the environment this assertion actually faces.
-     *
-     * Worst ratios measured, all far below the 4.5:1 floor:
-     *   #86efac 1.24:1 · #fbbf24 1.33:1 · #fcbcbc 1.39:1 · #34d399 1.43:1
-     * Highest volume: #8a8a8a (196), #f87171 (191), #34d399 (170).
-     */
-    /* 57 -> 38, lowered by the fix in #58 rather than by a re-measurement.
-       Verified by running THIS spec with that change merged in, all 32 routes:
-       990 total violations -> 65, and 57 distinct colours -> 38. Dark measured
-       13 on the same sweep, identical to the baseline above, which is what
-       proves a 58-file change left dark alone.
+    darkTokens: [
+      // Near-white foregrounds collapse to one bucket - see bucket() in
+      // contrast.spec.ts. In dark that is the /hours session badges, white-ish
+      // text on mid-tone green and amber fills; in light it is the /funding
+      // chips. Same defect shape, and the exact hex varies with the data.
+      'near-white',
+      '#1a7aff', '#3a3d48', '#3b3e49', '#414551', '#434754', '#4c4e5d',
+      '#4c515f', '#4e5361', '#585d6d', '#63656a', '#6c6d72', '#733738',
+      '#745a16', '#a54e4f', '#c0595a', 
+    ] as readonly string[],
 
-       Worth noting the ratio, because it is this metric working rather than a
-       contradiction: violations fell 93% while distinct colours fell 33%. The
-       high-volume families (#f87171 191, #8a8a8a 196, #34d399 170) collapsed to
-       zero; what remains is a long tail where each colour appears 1-7 times -
-       brand colours (#627eea Ethereum, #f3ba2f Binance), chart accents, and
-       near-white text on near-white panels. Each needs its own decision, not a
-       token mapping. The count is the harder number to move, which is exactly
-       why it is the one asserted. */
-    lightDistinctColours: 38,
+    /**
+     * Light is known-broken and being fixed; this holds the line meanwhile.
+     *
+     * The three families are still the story: semantic green (#4ade80,
+     * #7de0a4, #77deb9), semantic red (#f87171, #f69f9f, #e09999) and the muted
+     * greys (#8f919c, #949597, #98999d) were chosen against the near-black dark
+     * background and reused on light. Worst here is 1.09:1 against a 4.5:1
+     * floor - not "hard to read", effectively invisible.
+     *
+     * These carry price direction on /scanner, /funding, /liq and /markets,
+     * which is why it matters more than a normal contrast bug.
+     */
+    lightTokens: [
+      // Computed near-white blends on /funding chips collapse to one bucket -
+      // see bucket() in contrast.spec.ts. It is one defect, not N hexes.
+      'near-white',
+      '#0052cc', '#22d3ee', '#3d8d76', '#4ade80', '#60a5fa', '#627eea',
+      '#76787b', '#77deb9', '#7de0a4', '#868890', '#868895', '#8f919c',
+      '#949597', '#94969d', '#98999d', '#989aa0', '#a2a4ab', '#a7a9af',
+      '#abacb5', '#b6b7bb', '#c75050', '#c8891e', '#cdab90', '#d4b483',
+      '#e09999', '#f3ba2f', '#f472b6', '#f69f9f',
+      '#f87171', '#f97316', '#fbbf24', '#fdf7f7',
+      '#fefaf2',
+    ] as readonly string[],
   },
   /** §6.4 - pages with no <h1>, desktop. */
   pagesWithoutH1: 13,

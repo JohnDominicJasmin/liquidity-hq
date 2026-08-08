@@ -14,7 +14,7 @@ index, and hence the rule below it.
 | What | Owner | Where |
 |---|---|---|
 | Supabase Pro before real payments — still Free, still **zero backups** | owner | §"YOUR decision", top |
-| `qa` holds **dev's** Telegram token. Safe only while `CRON_SECRET` is unset there | owner, parked | §"QA needs its own Telegram bot" |
+| `qa` holds **dev's** Telegram token. `CRON_SECRET` was wrongly set there and has been **removed** (2026-08-08), so the guard holds again | owner, parked | §"QA needs its own Telegram bot" |
 | Coinglass v4 — deferred until revenue, **do not re-raise** | decided | §"OPEN — code (mine)" |
 | LemonSqueezy payments | deferred | `pendings/LEMONSQUEEZY.md` |
 
@@ -752,11 +752,11 @@ only so it is not mistaken for handled.
 
 ### 2. `qa` holds dev's Telegram token — parked by your call
 
-See "QA needs its own Telegram bot" near the end of this file. Safe today only
-because `CRON_SECRET` is unset on `qa`, which makes `setup-webhook` fail closed —
-re-verified 2026-08-06, it returns 401. **Do not set `CRON_SECRET` on `qa`** until
-it has its own bot; doing so would let `qa` point dev's bot at itself and silently
-take every alert.
+See "QA needs its own Telegram bot" near the end of this file. **`CRON_SECRET`
+had been set on `qa` — this entry claimed it was unset and called that the reason
+qa was safe. Removed 2026-08-08**, confirmed absent in the Render dashboard after
+the redeploy, so the guard holds again. The bot itself is still dev's, so this
+stays parked rather than resolved.
 
 ### 3. Nothing else is blocking
 
@@ -980,15 +980,24 @@ this app one step closer to its limit, and ATH is just the first one to show it.
 `TELEGRAM_CHAT_ID` and `TELEGRAM_WEBHOOK_SECRET`, copied over when the service
 was configured from dev's environment.
 
-**It is safe today only because `CRON_SECRET` is unset on qa.** Registering a
-webhook goes through `/api/telegram/setup-webhook`, gated by `checkCronAuth`,
-which fails **closed** with no secret configured. Verified: that route returns
-`401 {"error":"Unauthorized"}` on qa.
+**⚠️ Corrected 2026-08-08: `CRON_SECRET` IS set on qa.** This section previously
+said it was unset and called that the reason qa was safe. Read from the Render
+dashboard 2026-08-08; nobody recalls setting it.
 
-**So: do not set `CRON_SECRET` on qa until it has its own bot.** Doing so hands
-qa the ability to point dev's bot at itself and silently steal every alert —
+Registering a webhook goes through `/api/telegram/setup-webhook`, gated by
+`checkCronAuth`, which fails **closed** with no secret configured — so the
+"unset" reasoning was sound, it just stopped describing reality. What still
+holds: that route returns `401 {"error":"Unauthorized"}` to a caller without the
+header, re-verified on qa 2026-08-08, and the owner confirmed qa's value
+**differs** from prod's. So the exposure needs someone who knows qa's specific
+value. Low, not zero.
+
+**So: remove `CRON_SECRET` from qa.** Leaving it set hands anyone who knows that
+value the ability to point dev's bot at itself and silently steal every alert —
 the same failure that already cost a day on this project (see the webhook
-hijack section above).
+hijack section above). Nothing is scheduled against the qa host in either
+cron-job.org or n8n (verified 2026-08-08, `docs/INFRASTRUCTURE.md` §2), so
+removal breaks nothing and does not need the bot below to happen first.
 
 ### What option B needs, when it is picked up
 

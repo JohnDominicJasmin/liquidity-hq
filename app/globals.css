@@ -1072,6 +1072,41 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
 }
 .sc-next-label { font-size: var(--fs-micro); color: var(--txt3); font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
 .sc-next-name  { font-size: var(--fs-caption); font-weight: 700; }
+
+/* Session-window colours (lib/session.ts) are dark-theme-tuned PAIRS - a
+   foreground plus its own dark chip background. `.sc-badge` applies both, so it
+   passes in either theme. These two apply only the foreground, inline, so the
+   colour lands on the page background - and in light theme that fails hard:
+   God Tier's #f0c070 is 1.68:1 on white, Asia's #fbbf24 is no better.
+
+   Fixed HERE rather than in session.ts on purpose. The comment above
+   getCurrentWindow() records that swapping those pairs for tokens was tried
+   during the issue #53 sweep and dropped .session-pill to 2.30:1, because the
+   light-theme token is dark and the paired background stays dark. Measured
+   again 2026-08-08 before touching it: var(--amber) on #3d2e00 would be 1.90:1.
+   The pair is correct; the two consumers that used half of it were not.
+
+   !important because the colour arrives as an inline style. */
+[data-theme="light"] .sc-timer,
+[data-theme="light"] .sc-next-name,
+[data-theme="light"] .nw-name,
+[data-theme="light"] .nw-countdown,
+[data-theme="light"] .hours-now-win { color: var(--txt) !important; }
+
+/* THE FULL LIST, because the first version of this rule named only the two
+   .sc-* classes and shipped - /hours renders the same session colours through
+   .nw-name and .nw-countdown, which the rule never mentioned, and the gate
+   failed a second time on exactly those. 39 minutes to learn that.
+   .hours-now-win did not exist: that span applied win.color inline with NO
+   class at all, so no selector could have reached it. It was given one here.
+
+   If a new surface shows a session colour as bare text, it belongs in this list.
+   Everything NOT in it applies the colour with its paired background and is
+   correct as-is: .window-pill, .session-pill (both set background: win.bg), and
+   .session-pill-dot (a decorative dot, background not text).
+
+   Enumerated by grepping every consumer rather than fixing the ones a failing
+   test named - which is what produced the second failure. */
 .sc-next-sep   { font-size: var(--fs-caption); color: var(--txt3); }
 .sc-next-timer { font-size: var(--fs-data); font-weight: 700; color: var(--txt2); font-variant-numeric: tabular-nums; }
 

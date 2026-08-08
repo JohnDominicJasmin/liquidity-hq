@@ -356,8 +356,12 @@ async function flushSignals(
   thresholdsByUser: Map<string, UserThresholds>,
   stamp: string,
   queue: SignalEntry[],
-): Promise<void> {
-  if (queue.length === 0 || recipients.length === 0) return;
+): Promise<number> {
+  // Returns how many queued entries were eligible for at least one recipient,
+  // for the run's log line. Computed HERE rather than re-derived at the call
+  // site so there is one filter, not two that can drift apart - the whole point
+  // of the number is to be trustworthy when sent=0.
+  if (queue.length === 0 || recipients.length === 0) return 0;
 
   // Group by coin
   const byCoin = new Map<string, SignalEntry[]>();
@@ -367,6 +371,10 @@ async function flushSignals(
     byCoin.set(e.coin, arr);
   }
 
+  // Entries eligible for at least one recipient, deduped across coins and
+  // recipients - two users eligible for the same entry is one entry, not two.
+  const eligibleEntries = new Set<SignalEntry>();
+
   await Promise.all([...byCoin.entries()].map(async ([coin, entries]) => {
     // Group recipients by the exact subset of this coin's entries they're
     // eligible for (identical mute config + threshold -> identical subset ->
@@ -375,6 +383,7 @@ async function flushSignals(
     for (const r of recipients) {
       const eligible = entries.filter(e =>
         isEligibleFor(mutedByUser, r.userId, e) && passesThreshold(e, thresholdsByUser.get(r.userId)));
+      for (const e of eligible) eligibleEntries.add(e);
       if (eligible.length === 0) continue;
       const sig = eligible.map(e => e.ruleKey + '_' + (e.dir ?? '')).join('|');
       if (!groups.has(sig)) groups.set(sig, { entries: eligible, chatIds: [] });
@@ -399,6 +408,8 @@ async function flushSignals(
       );
     }));
   }));
+
+  return eligibleEntries.size;
 }
 
 /* ════════════════════════════════════════
@@ -1942,7 +1953,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
 
   // Flush: single signals → send as-is, 2+ same coin → confluence alert.
   // Per-recipient coin:/dir:/ruleKey eligibility is decided inside.
-  await flushSignals(token, recipients, mutedByUser, thresholdsByUser, stamp, signalQueue);
+  const eligible = await flushSignals(token, recipients, mutedByUser, thresholdsByUser, stamp, signalQueue);
 
   // Web Push - fire-and-forget, never let it block or throw
   void dispatchPush(signalQueue, mutedByUser, thresholdsByUser, proUserIds).catch(() => {});
@@ -2032,8 +2043,27 @@ async function runAlerts(token: string): Promise<NextResponse> {
   // One line per run, so Render logs can answer "did it fire, did it land"
   // without a database query. Deliberately includes the rule keys - that is
   // what makes a structure alert visible here at all.
+  //
+  // `queued`/`eligible` exist because `fired=7 sent=0 failed=0` is ambiguous and
+  // was read as an outage during an investigation on 2026-08-08 (issue #82). The
+  // three numbers count different populations and now say so:
+  //
+  //   fired    - every rule that fired, INCLUDING the direct-send checks (news,
+  //              fear/greed, daily summary, sentiment) that never enter the
+  //              queue, and counting each EMA signal twice, once per Anti-Chop
+  //              variant, since only the one matching a recipient's setting is
+  //              ever delivered.
+  //   queued   - the subset subject to per-recipient eligibility in flushSignals.
+  //   eligible - of those, how many survived that recipient's mutes and
+  //              thresholds. Deduped: two recipients eligible for one entry is 1.
+  //   sent     - Telegram messages actually dispatched, after entries are grouped
+  //              by coin into one message each. So sent < eligible is normal.
+  //
+  // Read it as: eligible=0 with fired>0 is correct filtering, nothing is wrong.
+  // eligible>0 with sent=0 is a real bug. Before this, both looked identical.
   console.log(
     `[alert] fired=${fired.length}${fired.length ? ` (${fired.join(',')})` : ''} ` +
+    `queued=${signalQueue.length} eligible=${eligible} ` +
     `sent=${sendTally.ok} failed=${sendTally.failed} recipients=${recipients.length}`
   );
 
@@ -2041,7 +2071,7 @@ async function runAlerts(token: string): Promise<NextResponse> {
     ok: true, fired,
     recipients: recipients.length,
     mutedUsers: mutedByUser.size,
-    delivery: { sent: sendTally.ok, failed: sendTally.failed, reasons: [...sendTally.reasons] },
+    delivery: { queued: signalQueue.length, eligible, sent: sendTally.ok, failed: sendTally.failed, reasons: [...sendTally.reasons] },
     checked: [
       'RSI', 'Rapid move', 'Whales', 'News', 'Fear & Greed', 'Daily summary', 'OI spike', 'CVD',
       'Price alerts', 'Sentiment extremes', 'Squeeze/Flush threshold', 'Distribution',

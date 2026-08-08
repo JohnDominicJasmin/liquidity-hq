@@ -29,9 +29,21 @@ export interface Entitlement {
   trialActive: boolean; // inside the 14-day signup trial window
   // Whether Pro FEATURES are unlocked (paid Pro OR active trial). This is the
   // gate for feature access - fast timeframes, backtest, on-chain/macro, etc.
-  // The daily AI usage caps are deliberately NOT included: they key on `role`
-  // (via getUserRole), so a trial user keeps Free-tier AI limits - Pro tools,
-  // Free AI spend. See lib/tables.ts / the add_signup_trial migration.
+  //
+  // The daily AI usage caps are deliberately NOT keyed off this. They key off
+  // `usageTierOf()` below, which has THREE values - a trial user is billed
+  // against the `trial` row in AI_LIMITS, not the `free` one.
+  //
+  // This comment said "a trial user keeps Free-tier AI limits" until 2026-08-08.
+  // That was the behaviour before the trial row existed and it survived the fix
+  // that removed it, four lines above the function that disproves it. QA read it
+  // and was about to assert `limits === FREE_LIMITS` for a trial user - an
+  // assertion that passes only if the old bug comes back, so the test would have
+  // defended the regression instead of catching it.
+  //
+  // The rows differ where it counts: `free` has toolPool null and every extra
+  // tool at 0; `trial` has toolPool 8 and every extra tool at 8. Same headline
+  // quick/deep/chat numbers, which is what makes the two easy to confuse.
   proFeatures: boolean;
 }
 

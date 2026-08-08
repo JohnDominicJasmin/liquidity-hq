@@ -77,7 +77,12 @@ export default function SessionCountdown() {
   }, [nowMs]);
 
   /* colours */
-  const statusCol = current?.color ?? (dead ? 'var(--red)' : '#48484a');
+  /* --txt3, not a literal. This fallback renders on `transparent` (below), so it
+     sits on the page background rather than on a paired chip colour - #48484a
+     was 2.23:1 there. globals.css had already replaced this exact literal in the
+     landing-page scope and left the component copy behind, which is why a
+     stylesheet sweep never caught it. */
+  const statusCol = current?.color ?? (dead ? 'var(--red)' : 'var(--txt3)');
   const statusBg  = current?.bg    ?? (dead ? 'rgba(248,113,113,0.08)' : 'transparent');
 
   return (

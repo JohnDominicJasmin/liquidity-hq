@@ -13,11 +13,18 @@ Defined in `render.yaml`. Two Render web services, same codebase:
 | Service | Branch | `NEXT_PUBLIC_APP_ENV` | Database tables |
 |---|---|---|---|
 | `liquidity-hq` (production) | `main` | `prod` | `lhq_*` |
+| `liquidity-hq-qa` | `qa` | `dev` | `lhq_dev_*` |
 | `liquidity-hq-dev` | `dev` | `dev` | `lhq_dev_*` |
+
+**Three services, four branches.** `staging` sits between `qa` and `main` and has
+no service — it is the release candidate, not a place. See
+`CONTRIBUTING.md` §6.
 
 **Correction 2026-08-01:** this previously said both services share one Supabase project - wrong, corrected in `docs/INFRASTRUCTURE.md` §4 after direct confirmation with the owner. There are **two separate Supabase projects**: prod (`liquidity-hq-prod`, ref `qdpwhnvmhqgzijuwopso`) uses unprefixed `lhq_*` tables, dev (`liquidity-hq-dev`, ref `wdtjhrilakoitfcezxpx`) uses `lhq_dev_*`. Every migration is written to run against both. Isolation still comes from the table-name prefix either way, switched in one place: `lib/tables.ts` exports a `T` registry (`T.trades`, `T.user_subscriptions`, ...) that every query goes through. **Never hardcode a table name - always import `T`.**
 
-Workflow rule: all commits land on `dev` (auto-deploys to the dev service), `main` is release-only.
+Workflow rule: all commits land on `dev`, `main` is release-only. Nothing
+auto-deploys — every service is `autoDeploy: no`. Flow is
+`dev` → `qa` → `staging` → `main`; see `CONTRIBUTING.md` §6.
 
 Secrets (`GROK_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `LEMONSQUEEZY_WEBHOOK_SECRET`, `TELEGRAM_BOT_TOKEN`, VAPID keys) live in the Render dashboard and `.env.local` - server-side only, never `NEXT_PUBLIC_`. The only intentionally public env vars are the Supabase URL + anon key (safe under RLS), the PostHog key, the VAPID public key, and the Lemon Squeezy checkout URL.
 

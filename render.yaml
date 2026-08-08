@@ -1,18 +1,35 @@
-# NOT the source of truth. All three services were created and are configured
-# through the Render dashboard/API, and this file is not applied as a Blueprint.
-# Two things it says are already false of the live services:
-#   - the "auto-deploys" comments below are wrong. liquidity-hq and
-#     liquidity-hq-dev both have autoDeploy: no; deploys are manual.
-#   - liquidity-hq-qa (branch `qa`, the staging environment QA tests against)
-#     is missing entirely.
-# Kept as a rough record of build/start commands. Read docs/INFRASTRUCTURE.md
-# section 1 for what is really deployed.
+# NOT the source of truth, and read this before trusting it.
+#
+# All three services were created and are configured through the Render
+# dashboard/API. **This file is not applied as a Blueprint**, so editing it
+# changes nothing about what is deployed. It is a record, and the only reason it
+# is worth keeping accurate is that people read it expecting it to be one.
+#
+# What that means in practice: changing `branch:` here does NOT repoint a
+# service. That is Render → the service → Settings → Build & Deploy → Branch.
+# There is no API or MCP tool for it either - `create_web_service` and
+# `update_environment_variables` exist, nothing that edits an existing service's
+# branch.
+#
+# Corrected 2026-08-07:
+#   - liquidity-hq-qa was missing entirely. Added below.
+#   - the "auto-deploys" comments were wrong. NO service in this project
+#     auto-deploys; all three are autoDeploy: false and every deploy is manual.
+#     That is stated explicitly per service now rather than in a comment that
+#     said the opposite.
+#
+# Read docs/INFRASTRUCTURE.md section 1 for what is really deployed, including
+# service IDs, plans and regions.
 services:
-  # ── Production - deploys from main (MANUAL trigger, not automatic) ──────────
+  # ── Production - liquidity-hq.com. Deploys from main, MANUAL trigger. ───────
+  # QA merges staging -> main and triggers this deploy. Never dev.
   - type: web
     name: liquidity-hq
     runtime: node
+    plan: starter
+    region: singapore
     branch: main
+    autoDeploy: false
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
@@ -23,23 +40,139 @@ services:
       # Set the following in the Render dashboard (Secrets):
       # NEXT_PUBLIC_SUPABASE_URL
       # NEXT_PUBLIC_SUPABASE_ANON_KEY
+      # NEXT_PUBLIC_SENTRY_DSN     <- PROD ONLY. See docs/INFRASTRUCTURE.md 4b-2:
+      #                               all three services shared one GlitchTip
+      #                               project and the two non-prod ones spent the
+      #                               quota, so production was reporting nothing.
       # GROK_API_KEY
       # FINNHUB_API_KEY
       # TELEGRAM_BOT_TOKEN
       # TELEGRAM_CHAT_ID
       # LEMONSQUEEZY_WEBHOOK_SECRET
 
-  # ── Development - auto-deploys from dev ─────────────────────────────────────
+  # ── Staging - the release candidate. liquidity-hq-staging.onrender.com ─────
+  #
+  # Created 2026-08-07 as part of the four-branch change (CONTRIBUTING.md §6).
+  # This is the site QA tests, and it serves `staging` - so what they test IS
+  # the release candidate, rather than a branch dev keeps advancing.
+  #
+  # Why a NEW service rather than repointing the old one: Render derives the
+  # hostname from the service SLUG, which is fixed at creation and is not the
+  # display name. The qa service was renamed to liquidity-hq-staging first and
+  # kept serving liquidity-hq-qa.onrender.com - name and URL disagreeing is the
+  # same class of ambiguity the four-branch change existed to remove. Only a new
+  # service gets a matching hostname.
+  - type: web
+    name: liquidity-hq-staging
+    runtime: node
+    plan: free
+    region: singapore
+    branch: staging
+    autoDeploy: false
+    buildCommand: npm install; npm run build
+    startCommand: npm start
+    envVars:
+      # NOT 'staging'. lib/tables.ts treats this as a SWITCH, not a label -
+      # anything that is not exactly 'dev' selects PRODUCTION table names.
+      - key: NEXT_PUBLIC_APP_ENV
+        value: dev
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://liquidity-hq-staging.onrender.com
+      - key: AI_GLOBAL_DAILY_MAX
+        value: "25"
+      # Set in the dashboard, copied from liquidity-hq-qa (DEV Supabase project):
+      # NEXT_PUBLIC_SUPABASE_URL
+      # NEXT_PUBLIC_SUPABASE_ANON_KEY
+      # SUPABASE_SERVICE_ROLE_KEY        (/api/labels answers {} without it)
+      # NEXT_PUBLIC_TURNSTILE_SITE_KEY   <- MISSED on first setup. Without it the
+      #                                     login form renders NO captcha and
+      #                                     sign-in silently succeeds, so the
+      #                                     flow under test is not the one prod
+      #                                     runs. Build-time - needs a rebuild.
+      # CMC_API_KEY  FINNHUB_KEY  GROK_API_KEY
+      # ADMIN_EMAILS  VAPID_EMAIL  VAPID_PRIVATE_KEY  NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      # BREVO_API_KEY  BREVO_SENDER_EMAIL
+      # NEXT_PUBLIC_SENTRY_ENV = "staging"   (not copied from qa, which says "qa")
+      #
+      # TELEGRAM_BOT_TOKEN / _CHAT_ID / _WEBHOOK_SECRET  <- staging's OWN bot,
+      #   created 2026-08-08. Do NOT copy qa's: those are dev's bot, and a host
+      #   holding another environment's token can re-point that bot at itself.
+      #
+      # CRON_SECRET is SET here, and legitimately. The rule is that BOTH must
+      # hold: something on the host needs to call a cron-guarded route (staging
+      # registers its own Telegram webhook), AND the environment owns its own
+      # side-effect credentials. Staging owns its bot, so both do. qa owns
+      # neither and must stay without one. Full rule: docs/INFRASTRUCTURE.md 4c.
+      #
+      # DELIBERATELY UNSET: NEXT_PUBLIC_SENTRY_DSN (prod only - shared GlitchTip
+      # quota), NEXT_PUBLIC_POSTHOG_KEY (prod only, and now also blocked in code
+      # by analyticsKey() in lib/analytics.ts), LEMONSQUEEZY_* (payments).
+      #
+      # Brevo IS set here even though it is a real external side effect - see
+      # docs/INFRASTRUCTURE.md 4c, "Brevo is set on EVERY environment". Short
+      # version: lib/email.ts returns false rather than throwing when the keys
+      # are absent, so an environment without them cannot test email AND cannot
+      # tell that it is not testing email.
+      #
+      # External settings that had to be updated for this hostname:
+      #   Cloudflare Turnstile allowed domains
+      #   Supabase auth redirect URLs
+      # Both fail SILENTLY if missed - page loads, one flow broken, that host
+      # only. Both were also missing for liquidity-hq-qa.onrender.com entirely,
+      # since 2026-08-04; fixed at the same time.
+
+  # ── QA integration test site - liquidity-hq-qa.onrender.com. MANUAL. ───────
+  #
+  # Serves `qa`, which dev promotes into freely. Gives dev somewhere to confirm
+  # a promotion before QA sees it; QA's own testing happens on staging above.
+  #
+  # Free plan, so it sleeps when idle and the first request after that is slow.
+  - type: web
+    name: liquidity-hq-qa
+    runtime: node
+    plan: free
+    region: singapore
+    branch: qa
+    autoDeploy: false
+    buildCommand: npm install; npm run build
+    startCommand: npm start
+    envVars:
+      # NOT 'qa' - see the note on the staging service. This was created with
+      # 'qa' once and pointed at the live production tables.
+      - key: NEXT_PUBLIC_APP_ENV
+        value: dev
+      # Same dev Supabase project as staging. Set in the dashboard, including
+      # BREVO_API_KEY / BREVO_SENDER_EMAIL - Brevo is on every environment on
+      # purpose, see the staging block above and docs/INFRASTRUCTURE.md 4c.
+      #
+      # DIFFERENT FROM STAGING IN TWO WAYS:
+      #
+      # 1. TELEGRAM_* here are DEV's bot, not qa's own. qa does not have one.
+      # 2. CRON_SECRET must stay UNSET, precisely because of (1). Setting it
+      #    would let qa re-point dev's bot at itself and silently swallow every
+      #    alert. Staging may hold one only because it owns its bot.
+      #
+      # It was wrongly set here 2026-08-05 to 2026-08-08 while
+      # docs/INFRASTRUCTURE.md 4c asserted it was unset and built a safety
+      # property on that claim. Removed 2026-08-08. Keep it unset until qa has
+      # its own bot. lib/envCheck.ts flags it at boot if it ever returns.
+
+  # ── Dev integration - liquidity-hq-dev.onrender.com. MANUAL trigger. ────────
+  # Carries a ~500 build-hour/month cap that prod does not, so deploying this
+  # spends a shared exhaustible budget - ask before triggering it.
   - type: web
     name: liquidity-hq-dev
     runtime: node
+    plan: free
+    region: singapore
     branch: dev
+    autoDeploy: false
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
       - key: NEXT_PUBLIC_APP_ENV
         value: dev
-      # Same Supabase project as prod - set these in the Render dashboard:
+      # Same Supabase project as qa - set these in the Render dashboard:
       # NEXT_PUBLIC_SUPABASE_URL
       # NEXT_PUBLIC_SUPABASE_ANON_KEY
       # GROK_API_KEY
@@ -47,3 +180,5 @@ services:
       # TELEGRAM_BOT_TOKEN       (use a separate test bot if you want isolated alerts)
       # TELEGRAM_CHAT_ID
       # LEMONSQUEEZY_WEBHOOK_SECRET
+      #
+      # NEXT_PUBLIC_SENTRY_DSN deliberately unset - prod only.

@@ -286,7 +286,7 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
   const d       = data!;
   const typeCol = d.type === 'accumulation' ? 'var(--green-2)'
                 : d.type === 'distribution' ? 'var(--red)'
-                : '#9ca3af';
+                : 'var(--txt3)';
   const typeBg  = d.type === 'accumulation' ? 'rgba(52,211,153,0.10)'
                 : d.type === 'distribution' ? 'rgba(248,113,113,0.10)'
                 : 'rgba(156,163,175,0.06)';
