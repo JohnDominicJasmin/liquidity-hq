@@ -35,9 +35,34 @@ function sign(body: string, secret = SECRET): string {
   return crypto.createHmac('sha256', secret).update(body).digest('hex');
 }
 
+/* EVERY PAYLOAD CARRIES A NONCE, and that is load-bearing.
+ *
+ * The route hashes the raw body and inserts it into `ls_webhook_events` BEFORE
+ * the ownership check (route.ts:51 vs :72). A byte-identical payload therefore
+ * takes the replay path on every run after the first — the request never
+ * reaches the branch the test is about.
+ *
+ * Without this, the two signed tests fail in opposite directions:
+ *
+ *   ownership test -> passes on run 1, FAILS on every run after, during a
+ *                     release, which is the worst place to read a red run
+ *   replay test    -> passes forever and stops meaning anything from run 2,
+ *                     because both POSTs take the replay path and it can no
+ *                     longer tell a working guard from one that answers
+ *                     "replay" to everything
+ *
+ * Caught by dev on review. It is the same shape as every other defect found
+ * today: a test that reports the same result whether or not the thing it
+ * covers works.
+ *
+ * The nonce goes in `custom_data`, which the handler reads but does not
+ * validate, so it changes the hash without changing any behaviour under test. */
 function payload(eventName: string, userId: string, payerEmail: string, id = 'sub_test_1') {
   return JSON.stringify({
-    meta: { event_name: eventName, custom_data: { user_id: userId } },
+    meta: {
+      event_name: eventName,
+      custom_data: { user_id: userId, qa_nonce: crypto.randomUUID() },
+    },
     data: {
       id,
       attributes: {
@@ -129,6 +154,9 @@ test.describe('LemonSqueezy webhook', () => {
      * what stops the next non-idempotent thing added here becoming a billing
      * bug. Same payload twice: the second must be recognised, not re-applied. */
     test('a replayed payload is recognised and not re-applied', async ({ request }) => {
+      /* One body, posted twice. The nonce makes it unique to THIS run, so the
+       * first POST is genuinely first and the second is genuinely a replay -
+       * which is the only arrangement where this assertion means anything. */
       const body = payload('subscription_created', '00000000-0000-4000-8000-000000000001', 'replay@example.test', 'sub_replay_probe');
       const opts = {
         headers: { 'Content-Type': 'application/json', 'x-signature': sign(body) },
