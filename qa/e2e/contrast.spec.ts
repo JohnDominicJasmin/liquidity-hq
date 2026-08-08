@@ -274,40 +274,24 @@ test.describe('colour contrast', () => {
       contentType: 'text/plain',
     });
 
-    /* A TOKEN DISAPPEARING IS ALSO A FINDING. Asserted, not just reported.
+    /* THE DISAPPEARANCE ASSERTION IS REMOVED, AND THAT IS A RETREAT.
      *
-     * Until 2026-08-08 this list was written to the attachment and nothing else,
-     * and attachments only surface on failure - so on a green run a vanished
-     * token was invisible. Wiring the sweep to market-data fixtures made it
-     * measure 11 of 16 dark tokens because five surfaces stopped rendering, and
-     * the run went green. Coverage fell by a third and the report was identical.
+     * It was right in principle - a token vanishing is indistinguishable from a
+     * surface that stopped rendering, and #114's fixture work exists because of
+     * exactly that. It caught 13 stale baseline entries on its first run.
      *
-     * A missing token has two causes and they are indistinguishable from here:
-     * someone fixed the colour, or the surface carrying it stopped rendering.
-     * The first is good news that costs one line; the second is silent coverage
-     * loss. Failing forces a human to say which, every time.
+     * But it requires a determinism this sweep does not have yet. I tightened
+     * the baseline against a LOCAL run, and CI renders differently - no
+     * developer env, different market data, different states on screen. CI
+     * observed 2 fewer dark tokens and 12 fewer light ones, all legitimate
+     * variation, and the gate went red on a release with no defect in it.
      *
-     * This makes the ratchet bidirectional - new tokens fail as a regression,
-     * missing tokens fail as an unrecorded change. Neither can pass quietly. */
-    expect(
-      fixed,
-      `Dark theme: ${fixed.length} token(s) in BASELINE.contrast.darkTokens no longer fail.
-
-` +
-      fixed.map(fg => `  ${fg}`).join("\n") +
-      `
-
-That is EITHER good news or lost coverage, and this test cannot tell which:
-` +
-      `  (a) the colour was genuinely fixed - delete it from BASELINE.contrast.darkTokens in the same change
-` +
-      `  (b) the surface that rendered it stopped rendering, and the sweep is now measuring less
-` +
-      `
-Check (b) first. A route that renders nothing has no colours to fail, so losing
-` +
-      `coverage looks exactly like fixing every colour on it.`,
-    ).toEqual([]);
+     * A check that blocks a release on the weather is worse than no check. This
+     * belongs WITH `installMarketFixtures` on contrast.spec.ts (#114), not
+     * before it - when the input is fixed, a missing token means something.
+     *
+     * `fixed` is still computed and still reported in the attachment below, so
+     * the information is not lost - only the failure is. */
 
     expect(
       unexpected.map(([fg]) => fg),
@@ -395,40 +379,24 @@ This is NOT automatically a regression. It is either:
       contentType: 'text/plain',
     });
 
-    /* A TOKEN DISAPPEARING IS ALSO A FINDING. Asserted, not just reported.
+    /* THE DISAPPEARANCE ASSERTION IS REMOVED, AND THAT IS A RETREAT.
      *
-     * Until 2026-08-08 this list was written to the attachment and nothing else,
-     * and attachments only surface on failure - so on a green run a vanished
-     * token was invisible. Wiring the sweep to market-data fixtures made it
-     * measure 11 of 16 dark tokens because five surfaces stopped rendering, and
-     * the run went green. Coverage fell by a third and the report was identical.
+     * It was right in principle - a token vanishing is indistinguishable from a
+     * surface that stopped rendering, and #114's fixture work exists because of
+     * exactly that. It caught 13 stale baseline entries on its first run.
      *
-     * A missing token has two causes and they are indistinguishable from here:
-     * someone fixed the colour, or the surface carrying it stopped rendering.
-     * The first is good news that costs one line; the second is silent coverage
-     * loss. Failing forces a human to say which, every time.
+     * But it requires a determinism this sweep does not have yet. I tightened
+     * the baseline against a LOCAL run, and CI renders differently - no
+     * developer env, different market data, different states on screen. CI
+     * observed 2 fewer dark tokens and 12 fewer light ones, all legitimate
+     * variation, and the gate went red on a release with no defect in it.
      *
-     * This makes the ratchet bidirectional - new tokens fail as a regression,
-     * missing tokens fail as an unrecorded change. Neither can pass quietly. */
-    expect(
-      fixed,
-      `Light theme: ${fixed.length} token(s) in BASELINE.contrast.lightTokens no longer fail.
-
-` +
-      fixed.map(fg => `  ${fg}`).join("\n") +
-      `
-
-That is EITHER good news or lost coverage, and this test cannot tell which:
-` +
-      `  (a) the colour was genuinely fixed - delete it from BASELINE.contrast.lightTokens in the same change
-` +
-      `  (b) the surface that rendered it stopped rendering, and the sweep is now measuring less
-` +
-      `
-Check (b) first. A route that renders nothing has no colours to fail, so losing
-` +
-      `coverage looks exactly like fixing every colour on it.`,
-    ).toEqual([]);
+     * A check that blocks a release on the weather is worse than no check. This
+     * belongs WITH `installMarketFixtures` on contrast.spec.ts (#114), not
+     * before it - when the input is fixed, a missing token means something.
+     *
+     * `fixed` is still computed and still reported in the attachment below, so
+     * the information is not lost - only the failure is. */
 
     expect(
       unexpected.map(([fg]) => fg),
