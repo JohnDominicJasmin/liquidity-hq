@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
 import { ROUTES, BASELINE } from './_shared';
-import { installMarketFixtures } from './_fixtures';
 
 /**
  * Colour contrast — WCAG 2.2 SC 1.4.3, Level AA — on BOTH themes.
@@ -124,7 +123,6 @@ async function measure(page: Page, theme: string, route: string): Promise<Violat
    *
    * Installed per page rather than once, because each measurement runs in its
    * own context. */
-  await installMarketFixtures(page);
   await page.goto(route, { waitUntil: 'domcontentloaded' });
   await settleForMeasurement(page);
 
@@ -276,6 +274,41 @@ test.describe('colour contrast', () => {
       contentType: 'text/plain',
     });
 
+    /* A TOKEN DISAPPEARING IS ALSO A FINDING. Asserted, not just reported.
+     *
+     * Until 2026-08-08 this list was written to the attachment and nothing else,
+     * and attachments only surface on failure - so on a green run a vanished
+     * token was invisible. Wiring the sweep to market-data fixtures made it
+     * measure 11 of 16 dark tokens because five surfaces stopped rendering, and
+     * the run went green. Coverage fell by a third and the report was identical.
+     *
+     * A missing token has two causes and they are indistinguishable from here:
+     * someone fixed the colour, or the surface carrying it stopped rendering.
+     * The first is good news that costs one line; the second is silent coverage
+     * loss. Failing forces a human to say which, every time.
+     *
+     * This makes the ratchet bidirectional - new tokens fail as a regression,
+     * missing tokens fail as an unrecorded change. Neither can pass quietly. */
+    expect(
+      fixed,
+      `Dark theme: ${fixed.length} token(s) in BASELINE.contrast.darkTokens no longer fail.
+
+` +
+      fixed.map(fg => `  ${fg}`).join("\n") +
+      `
+
+That is EITHER good news or lost coverage, and this test cannot tell which:
+` +
+      `  (a) the colour was genuinely fixed - delete it from BASELINE.contrast.darkTokens in the same change
+` +
+      `  (b) the surface that rendered it stopped rendering, and the sweep is now measuring less
+` +
+      `
+Check (b) first. A route that renders nothing has no colours to fail, so losing
+` +
+      `coverage looks exactly like fixing every colour on it.`,
+    ).toEqual([]);
+
     expect(
       unexpected.map(([fg]) => fg),
       `Dark theme: ${unexpected.length} foreground token(s) failing SC 1.4.3 that are not in ` +
@@ -361,6 +394,41 @@ This is NOT automatically a regression. It is either:
         + (fixed.length ? `\n\nno longer failing (remove from BASELINE.contrast.lightTokens):\n${fixed.join('\n')}` : ''),
       contentType: 'text/plain',
     });
+
+    /* A TOKEN DISAPPEARING IS ALSO A FINDING. Asserted, not just reported.
+     *
+     * Until 2026-08-08 this list was written to the attachment and nothing else,
+     * and attachments only surface on failure - so on a green run a vanished
+     * token was invisible. Wiring the sweep to market-data fixtures made it
+     * measure 11 of 16 dark tokens because five surfaces stopped rendering, and
+     * the run went green. Coverage fell by a third and the report was identical.
+     *
+     * A missing token has two causes and they are indistinguishable from here:
+     * someone fixed the colour, or the surface carrying it stopped rendering.
+     * The first is good news that costs one line; the second is silent coverage
+     * loss. Failing forces a human to say which, every time.
+     *
+     * This makes the ratchet bidirectional - new tokens fail as a regression,
+     * missing tokens fail as an unrecorded change. Neither can pass quietly. */
+    expect(
+      fixed,
+      `Light theme: ${fixed.length} token(s) in BASELINE.contrast.lightTokens no longer fail.
+
+` +
+      fixed.map(fg => `  ${fg}`).join("\n") +
+      `
+
+That is EITHER good news or lost coverage, and this test cannot tell which:
+` +
+      `  (a) the colour was genuinely fixed - delete it from BASELINE.contrast.lightTokens in the same change
+` +
+      `  (b) the surface that rendered it stopped rendering, and the sweep is now measuring less
+` +
+      `
+Check (b) first. A route that renders nothing has no colours to fail, so losing
+` +
+      `coverage looks exactly like fixing every colour on it.`,
+    ).toEqual([]);
 
     expect(
       unexpected.map(([fg]) => fg),

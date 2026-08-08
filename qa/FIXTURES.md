@@ -300,3 +300,55 @@ what it used to and reports the same.
 **Worth adding to the spec regardless of fixtures:** when a token disappears,
 say so loudly rather than silently. A real fix and a surface that stopped
 rendering look identical today.
+
+
+---
+
+## CORRECTION: the fixtures did not lose coverage. I was wrong.
+
+The section above says wiring `contrast.spec.ts` to fixtures dropped the dark
+sweep from 16 tokens to 11, and that five surfaces stopped rendering as a result.
+**That attribution is wrong**, and the bidirectional assertion added in the same
+change is what disproved it.
+
+Ran the sweep on **live data** with a synthetic token added to the baseline, to
+prove the new assertion fires. It fired — and reported **six** missing tokens,
+not one:
+
+```
+#3a3d48  #3b3e49  #6c6d72  #733738  #745a16  #deadbe(synthetic)
+```
+
+Those five are exactly the five I blamed on the fixtures.
+
+| run | dark tokens observed |
+|---|---|
+| live data | **11** of 16 |
+| with fixtures | **11** of 16 |
+
+**Identical.** The fixtures changed nothing. Those five tokens are data-dependent
+surfaces that were present when the baseline was measured and are not rendering
+now — `#733738` and `#745a16` were first seen on `/econ-calendar`, which has no
+events to render today.
+
+### What actually happened
+
+I measured a token count, compared it to the baseline, found it short, and
+attributed the shortfall to the change I had just made. The change was the most
+recent thing, not the cause. **I never ran the control — the same measurement
+without the fixtures — which is the one comparison that would have separated
+them, and it is the discipline I have applied to everyone else's work all week.**
+
+The fixture wiring was reverted for no reason and should go back.
+
+### What the assertion is really telling us
+
+The baseline has **five entries that a live run does not observe**. That is not a
+fixture problem and never was — it is the data-dependence the fixtures were meant
+to fix, showing up as stale baseline entries nobody could see before.
+
+So the new assertion is doing exactly its job on its first real run, and its
+first finding is that the baseline has been quietly wrong for some time.
+
+**It will be noisy until those surfaces are deterministic**, which is the
+argument for fixtures rather than against them.
