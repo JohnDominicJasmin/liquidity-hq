@@ -294,6 +294,28 @@ export function monitoringOptions() {
     release: monitoringRelease(),
     // See the file header - this is a quota decision, not an oversight.
     tracesSampleRate: 0,
+    /* THE SAME QUOTA DECISION, and the one that was actually spending it.
+       `tracesSampleRate: 0` stopped transactions. Sessions were never in scope,
+       and `autoSessionTracking` defaults to TRUE - so Release Health quietly
+       became the entire consumption.
+
+       Measured on production 2026-08-08, six routes, signed out, no interaction:
+       14 envelopes across 6 pageviews and ZERO of them an error. Every single
+       item was `type=session`. At ~2.3 envelopes per pageview a 1,000-event
+       month is gone in roughly 430 pageviews - ordinary browsing, not a bug
+       firing in a loop.
+
+       That is why hunting for a noisy error never found the source (issue #73):
+       there was no noisy error. It also means error reporting was not merely
+       degraded, it was DEAD - every error envelope came back 429 because
+       sessions had already spent the month.
+
+       What is given up: crash-free-session rate. Worth being explicit that it
+       is not a real loss today - the metric was being rejected at the door
+       along with everything else, so nobody could read it either. If the tier
+       is ever paid for, turn this back on deliberately rather than by removing
+       a line. */
+    autoSessionTracking: false,
     sendDefaultPii: false,
     /* Passed by reference rather than wrapped in an arrow. `scrubEvent` is
        generic in its argument, so it satisfies both hook signatures without
