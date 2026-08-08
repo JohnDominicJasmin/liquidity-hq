@@ -320,11 +320,11 @@ export function computeCoinHealth(coin: CoinData | undefined): {
     score >= 25 ? 'D' : 'F';
 
   const color =
-    grade === 'A' ? '#f0c070' :   // gold
+    grade === 'A' ? 'var(--amber)' :   // gold
     grade === 'B' ? 'var(--green-2)' :   // green
     grade === 'C' ? 'var(--txt-dim)' :   // gray
     grade === 'D' ? 'var(--orange)' :   // orange
-                    '#475569';    // muted (F)
+                    'var(--txt3)';  // muted (F)
 
   const label =
     grade === 'A' ? 'Strong setup' :
