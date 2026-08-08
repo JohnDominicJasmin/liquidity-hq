@@ -111,27 +111,54 @@ harness already exists; it just runs once.
 
 ---
 
-## 🟠 4. Five languages ship; one is tested
+## 🔴 4. Four locales ship; one is tested, and Arabic is not implemented
 
-The app has English, 한국어, 中文, العربية, Русский. Every test asserts against
-**English** strings and English layout.
+**CORRECTED 2026-08-08.** This section said "five languages … English, 한국어,
+中文, العربية, Русский". `SUPPORTED_LOCALES` in `lib/i18n/dictionaries.ts` is
+`['ko', 'zh', 'ar']` plus English — **four**. Русский is not shipped. I repeated
+"five" from this file several times in one day without checking it, which is the
+same failure this file exists to prevent: a confident claim nobody re-measured.
 
-**العربية is right-to-left.** An RTL layout is not a translation of an LTR one —
-it is a mirrored layout, and it breaks in ways nothing here would catch: icons
-pointing the wrong way, text overflowing the wrong edge, charts and number
-formatting reading backwards, `margin-left` where `margin-inline-start` was
-meant.
+Every test asserts against **English** strings and English layout.
+
+**Raised from 🟠 to 🔴, because Arabic turned out not to be a testing gap.**
+Measured on production 2026-08-08:
+
+```
+GET /ar          -> <html lang="en">   no dir attribute
+GET /dashboard   -> <html lang="en">   no dir attribute
+```
+
+`dirForLocale()` exists and is correct, and is applied to **one div** inside
+`LandingContent`. The authenticated app never sets `dir` at all, while
+`LabelsProvider` serves Arabic strings app-wide — so an Arabic user gets Arabic
+text in a permanently left-to-right layout.
+
+Two defects, tracked on **#138**:
+
+1. **`lang="en"` on Arabic content** — WCAG 2.2 SC 3.1.1, **Level A**. A screen
+   reader applies English pronunciation to Arabic, which is unintelligible rather
+   than accented. Wrong for Korean and Chinese too.
+2. **`dir` never reaches the document.** Anything portalled to `<body>` — modals,
+   toasts, the consent banner — is outside `.lp-root` and stays LTR even on the
+   landing page.
+
+**Writing an RTL spec would have proven nothing**, because the feature is not
+there to fail. `dirForLocale` existing made it look implemented from the inside,
+which is why reading the layout beat testing it.
 
 Related and already burned: `LabelsProvider` overwrote 2,570 seeded English
-labels when `/api/labels` returned `200 {}` (found 2026-08-05, fixed). That
-defect was found by accident in a degraded CI environment. Nothing routinely
-checks that the label layer is intact in **any** language.
+labels when `/api/labels` returned `200 {}` (found 2026-08-05, fixed). Found by
+accident in a degraded CI environment. Nothing routinely checks the label layer
+is intact in **any** locale.
 
-**To close:** run the smoke + a11y sweep under each locale; add an RTL-specific
-layout check for Arabic.
+**To close:** the owner decides whether Arabic is supported at launch (#138). If
+yes, `lang` and `dir` become dynamic and the app needs a logical-properties pass;
+then the spec asserts both on `<html>` per locale. If no, Arabic comes out of the
+picker — a selector that produces a broken layout is worse than not offering it.
 
-**Cost:** ~1 day. **Value:** high — one of these five is a different layout, not
-different words.
+**`lang` should be fixed either way.** One attribute, Level A, currently wrong on
+every page in production.
 
 ---
 
