@@ -67,6 +67,17 @@ on:
     # open for the whole cycle, so each ff-push to its base ALSO fired
     # `synchronize` on it - one promotion used to bill three full runs.
     branches: [dev, main]
+    # Documentation cannot change what a build produces, so it should not spend
+    # a build. Measured before adding: only 1 of 31 recent commits qualifies, so
+    # this is worth ~60 min/month - correct rather than significant.
+    #
+    # `qa/**` and `.github/**` are deliberately NOT here. Test code and workflow
+    # definitions are precisely the things that need CI to run; excluding them is
+    # how a broken spec or a broken workflow ships without anyone noticing.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'pendings/**'
 
   # For running the browser suite on demand: re-checking after a flake, or
   # proving a fix without opening a release PR first.
