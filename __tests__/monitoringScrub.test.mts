@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { scrubUrl, scrubText, scrubEvent, monitoringEnvironment, monitoringDsn } from '../lib/monitoring.ts';
+import { scrubUrl, scrubText, scrubEvent, monitoringEnvironment, monitoringDsn, monitoringOptions } from '../lib/monitoring.ts';
 
 /* The PII scrubber runs on every event leaving the app for GlitchTip. It is the
    last thing between a user's id or email and a third-party dashboard, and it
@@ -243,4 +243,49 @@ test('reporting is restricted to production', async (t) => {
   });
 
   set(savedDsn, savedApp);
+});
+
+/* The quota settings, guarded because both are one line and neither has a
+   visible symptom when removed.
+
+   `autoSessionTracking: false` was added 2026-08-08 after a production probe
+   found 14 envelopes across 6 pageviews and ZERO of them an error - every item
+   was type=session. Release Health was spending the entire free-tier month, so
+   every real error came back 429. Deleting that line does not break a test, does
+   not warn, and does not fail a build; it just silently stops error reporting
+   again a few hundred pageviews later.
+
+   `tracesSampleRate: 0` is the same shape of decision and was already load
+   bearing, so it is asserted here too rather than left to the file comment. */
+test('monitoring quota settings', async (t) => {
+  const savedDsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+  const savedApp = process.env.NEXT_PUBLIC_APP_ENV;
+  process.env.NEXT_PUBLIC_SENTRY_DSN = 'https://key@glitchtip.example/1';
+  process.env.NEXT_PUBLIC_APP_ENV = 'prod';
+
+  await t.test('session tracking is OFF - it consumed the whole free-tier quota', () => {
+    assert.equal(monitoringOptions().autoSessionTracking, false);
+  });
+
+  await t.test('transaction sampling stays at 0', () => {
+    assert.equal(monitoringOptions().tracesSampleRate, 0);
+  });
+
+  await t.test('PII is not sent by default', () => {
+    assert.equal(monitoringOptions().sendDefaultPii, false);
+  });
+
+  /* Both scrub hooks must stay wired. beforeSend is what makes PII scrubbing
+     verifiable client-side at all (issue #72) - it runs before transmission, so
+     a 429 rejects delivery without affecting whether scrubbing happened. */
+  await t.test('both scrub hooks are wired', () => {
+    const o = monitoringOptions();
+    assert.equal(typeof o.beforeSend, 'function');
+    assert.equal(typeof o.beforeSendTransaction, 'function');
+  });
+
+  if (savedDsn === undefined) delete process.env.NEXT_PUBLIC_SENTRY_DSN;
+  else process.env.NEXT_PUBLIC_SENTRY_DSN = savedDsn;
+  if (savedApp === undefined) delete process.env.NEXT_PUBLIC_APP_ENV;
+  else process.env.NEXT_PUBLIC_APP_ENV = savedApp;
 });
