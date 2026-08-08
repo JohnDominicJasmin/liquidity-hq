@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import Script from 'next/script';
 import './globals.css';
 import AppShell from '@/components/AppShell';
+import HtmlLangSync from '@/components/HtmlLangSync';
 
 // Self-hosted, previously next/font/google.
 //
@@ -94,6 +95,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           and displaced it - which is how it got reported as "the FAB
           disappears". See body.consent-pending in globals.css. */}
       <body className="consent-pending">
+        {/* Corrects lang/dir on <html> once the route is known. The attribute
+            above is the server default and is wrong on /ko and /zh - see the
+            component for why this cannot be done server-side without making
+            every route dynamic. */}
+        <HtmlLangSync />
         {/* beforeInteractive - injected into the initial server HTML and
             runs before hydration, so data-theme is correct before first
             paint (no flash of the wrong theme). Mirrors lib/theme.ts's
