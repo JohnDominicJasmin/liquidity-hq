@@ -29,9 +29,25 @@ Anything created outside this repo has to be recorded in THIS table, not only in
 | `liquidity-hq-qa` | `srv-d9p42ke1egvs73f8car0` | free | Singapore | `qa` | `liquidity-hq-qa.onrender.com` | **Dev's integration site, not QA's.** Serves `qa`, which dev promotes into freely; it exists so dev can confirm a promotion before QA sees it. `autoDeploy: no` — whoever merges `dev` → `qa` triggers the deploy. Uses the **dev** Supabase project (free plan caps the account at 2 active projects, so neither non-prod service has one of its own). Free plan, sleeps when idle. |
 | `n8n-workflows` | `srv-d6e4fkq4d50c73b8dpk0` | starter | Singapore | n/a (Docker image `n8nio/n8n:latest`) | `n8n-workflows-6ig6.onrender.com` | Self-hosted n8n instance, 5GB persistent disk. Shared across projects, not LHQ-exclusive. |
 
-All three LHQ services have `autoDeploy: no` — pushing to `main`/`dev` does **not** auto-deploy. Deploys are triggered manually (via Render dashboard, the `mcp__render__trigger_deploy` tool, or `git push` if that ever changes).
+**All four LHQ services have `autoDeploy: no`. No service in this project auto-deploys.** Pushing to any branch deploys nothing; every deploy is triggered by a person (Render dashboard, or the `mcp__render__trigger_deploy` tool).
 
-`liquidity-hq-qa` is the same: `autoDeploy: no`. **No service in this project auto-deploys.** Whoever merges `dev` → `qa` triggers the qa deploy — normally dev, as part of handing the build to QA. Promoting `qa` → `staging` deploys nothing, because `staging` has no service; it only fixes what the release contains, and only QA can change it. CI runs on `qa` as well (`.github/workflows/ci.yml`), so a merge is checked even though it does not ship by itself.
+That applies to each hop, and the person differs:
+
+| Promotion | Who deploys | Which service |
+|---|---|---|
+| `dev` → `qa` | dev, as part of handing the build over | `liquidity-hq-qa` |
+| `qa` → `staging` | **QA** | `liquidity-hq-staging` |
+| `staging` → `main` | **QA** | `liquidity-hq-prod` |
+
+**A promotion into `qa` or `staging` fires no CI at all**, and that is deliberate — `.github/workflows/ci.yml` lists `push` branches as `[dev, main]` only. Both promotions are fast-forward, so the commit landing is bit-identical to one already tested on `dev`, and re-running would bill a second full suite for the same tree. Do not read a quiet Actions tab after a promotion as a failure to run.
+
+### The URL is fixed at creation and a rename cannot change it
+
+**Render derives a service's hostname from its slug when the service is created, and renaming the service afterwards does not move the URL.** A renamed service keeps serving on its original hostname indefinitely.
+
+This is recorded because acting on the opposite belief cost real time on 2026-08-07: `liquidity-hq-qa` was renamed rather than replaced, the rename was assumed to have moved the hostname with it, and `NEXT_PUBLIC_APP_URL` was pointed at a host that returned 404. The fix was a new service — `liquidity-hq-staging`, created 2026-08-07 12:06 — because that is the only way to get a different hostname.
+
+So when a hostname and a service name disagree, **the hostname is the older fact.** Read the URL column of the table above, never the service name, and never infer either from the branch.
 
 `render.yaml` in this repo has **no cron job definitions** — Render's own Cron Jobs feature is not used anywhere for this project (it has no free tier, unlike the alternatives below).
 
