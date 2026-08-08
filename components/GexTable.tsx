@@ -84,7 +84,7 @@ export default function GexTable() {
             }
           }
 
-          const leanColor = lean === 'bull' ? 'var(--green-2)' : lean === 'bear' ? 'var(--red)' : '#9ca3af';
+          const leanColor = lean === 'bull' ? 'var(--green-2)' : lean === 'bear' ? 'var(--red)' : 'var(--txt3)';
           const leanLabel = lean === 'bull' ? t('GEX_TABLE_LEAN_BULLISH') : lean === 'bear' ? t('GEX_TABLE_LEAN_BEARISH') : t('GEX_TABLE_LEAN_NEUTRAL');
           const regimeLabel = isLongGamma ? t('GEX_TABLE_REGIME_RANGING') : t('GEX_TABLE_REGIME_TRENDING');
           const regimeColor = isLongGamma ? 'var(--green-2)' : 'var(--red)';

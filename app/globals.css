@@ -1088,7 +1088,25 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
 
    !important because the colour arrives as an inline style. */
 [data-theme="light"] .sc-timer,
-[data-theme="light"] .sc-next-name { color: var(--txt) !important; }
+[data-theme="light"] .sc-next-name,
+[data-theme="light"] .nw-name,
+[data-theme="light"] .nw-countdown,
+[data-theme="light"] .hours-now-win { color: var(--txt) !important; }
+
+/* THE FULL LIST, because the first version of this rule named only the two
+   .sc-* classes and shipped - /hours renders the same session colours through
+   .nw-name and .nw-countdown, which the rule never mentioned, and the gate
+   failed a second time on exactly those. 39 minutes to learn that.
+   .hours-now-win did not exist: that span applied win.color inline with NO
+   class at all, so no selector could have reached it. It was given one here.
+
+   If a new surface shows a session colour as bare text, it belongs in this list.
+   Everything NOT in it applies the colour with its paired background and is
+   correct as-is: .window-pill, .session-pill (both set background: win.bg), and
+   .session-pill-dot (a decorative dot, background not text).
+
+   Enumerated by grepping every consumer rather than fixing the ones a failing
+   test named - which is what produced the second failure. */
 .sc-next-sep   { font-size: var(--fs-caption); color: var(--txt3); }
 .sc-next-timer { font-size: var(--fs-data); font-weight: 700; color: var(--txt2); font-variant-numeric: tabular-nums; }
 
