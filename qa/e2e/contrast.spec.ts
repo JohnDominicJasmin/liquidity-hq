@@ -33,6 +33,31 @@ async function themedPage(browser: Browser, theme: 'dark' | 'light'): Promise<{ 
   return { page, close: () => ctx.close() };
 }
 
+/**
+ * Collapse computed near-white blends into ONE bucket.
+ *
+ * /funding renders a signal chip per row whose background is a tint blended
+ * against the page, and its text is near-white. The resulting pair is COMPUTED,
+ * not a design token - which coins happen to render decides the exact hex. Two
+ * sweeps minutes apart produced #f9f9f8, #fafafb, #faf9f5, #f7faf9, #f3f9f8 and
+ * #f3f5f7, all between 1.06:1 and 1.15:1.
+ *
+ * Enumerating those is unbounded and pointless: it is ONE defect - near-white
+ * text on a near-white chip - wearing a different hex each run. So anything with
+ * every channel above 0xE0 collapses to `near-white`, and the set tracks the
+ * defect rather than the sample.
+ *
+ * Deliberately narrow. It only merges colours that are already almost white, so
+ * a genuine token regression cannot hide inside it - a readable foreground is
+ * never 0xE0+ on all three channels against a light background.
+ */
+function bucket(fg: string): string {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(fg);
+  if (!m) return fg;
+  const [r, g, b] = m.slice(1).map(h => parseInt(h, 16));
+  return (r > 0xE0 && g > 0xE0 && b > 0xE0) ? 'near-white' : fg;
+}
+
 interface Violation { route: string; fg: string; bg: string; ratio: number; target: string }
 
 /**
@@ -214,25 +239,42 @@ test.describe('colour contrast', () => {
 
     const colours = new Map<string, { n: number; worst: number; where: string }>();
     for (const v of all) {
-      const e = colours.get(v.fg) ?? { n: 0, worst: Infinity, where: v.route };
-      colours.set(v.fg, { n: e.n + 1, worst: Math.min(e.worst, v.ratio), where: e.where });
+      const key = bucket(v.fg);
+      const e = colours.get(key) ?? { n: 0, worst: Infinity, where: v.route };
+      colours.set(key, { n: e.n + 1, worst: Math.min(e.worst, v.ratio), where: e.where });
     }
 
+    const known = new Set(BASELINE.contrast.darkTokens);
+    const unexpected = [...colours].filter(([fg]) => !known.has(fg));
+    const fixed = BASELINE.contrast.darkTokens.filter(fg => !colours.has(fg));
+
     testInfo.attach('contrast-dark.txt', {
-      body: `${all.length} violations across ${colours.size} distinct colours\n\n`
-        + all.map(v => `${v.route}  ${v.ratio}:1  ${v.fg} on ${v.bg}  ${v.target}`).join('\n'),
+      body: `${all.length} violations across ${colours.size} tokens\n\n`
+        + [...colours].sort((a, b) => a[1].worst - b[1].worst)
+            .map(([fg, e]) => `${fg}  worst ${e.worst.toFixed(2)}:1  x${e.n}  first seen ${e.where}`).join('\n')
+        + (fixed.length ? `\n\nno longer failing (remove from BASELINE.contrast.darkTokens):\n${fixed.join('\n')}` : ''),
       contentType: 'text/plain',
     });
 
     expect(
-      colours.size,
-      `Dark theme: ${BASELINE.contrast.darkDistinctColours} -> ${colours.size} distinct failing colours ` +
-      `(${all.length} total violations).\n` +
-      `Known at baseline: empty-state text on /news and /econ-calendar, and the /hours badges. ` +
-      `If this went UP, check whether a new application STATE rendered rather than assuming a token ` +
-      `changed — this sweep only ever sees the states that happened to render.\n` +
-      [...colours].map(([fg, e]) => `  ${String(e.n).padStart(3)}  ${fg}  worst ${e.worst.toFixed(2)}:1`).join('\n'),
-    ).toBeLessThanOrEqual(BASELINE.contrast.darkDistinctColours);
+      unexpected.map(([fg]) => fg),
+      `Dark theme: ${unexpected.length} foreground token(s) failing SC 1.4.3 that are not in ` +
+      `BASELINE.contrast.darkTokens.
+
+` +
+      unexpected.map(([fg, e]) => `  ${fg}  worst ${e.worst.toFixed(2)}:1  on ${e.where}`).join('\n') +
+      `
+
+This is NOT automatically a regression. It is either:
+` +
+      `  (a) a state that had not rendered during a sweep before - add the token to the list ` +
+      `with a note saying where, or
+` +
+      `  (b) a token that actually changed - a real regression, and the diff will show it in ` +
+      `app/globals.css or a component's inline style.
+` +
+      `Check the diff before doing either. Do not add a token just to go green.`,
+    ).toEqual([]);
   });
 
   /**
@@ -283,24 +325,37 @@ test.describe('colour contrast', () => {
 
     const byColour = new Map<string, { n: number; worst: number }>();
     for (const v of all) {
-      const e = byColour.get(v.fg) ?? { n: 0, worst: Infinity };
-      byColour.set(v.fg, { n: e.n + 1, worst: Math.min(e.worst, v.ratio) });
+      const key = bucket(v.fg);
+      const e = byColour.get(key) ?? { n: 0, worst: Infinity };
+      byColour.set(key, { n: e.n + 1, worst: Math.min(e.worst, v.ratio) });
     }
-    const ranked = [...byColour].sort((a, b) => b[1].n - a[1].n);
+
+    const known = new Set(BASELINE.contrast.lightTokens);
+    const unexpected = [...byColour].filter(([fg]) => !known.has(fg));
+    const fixed = BASELINE.contrast.lightTokens.filter(fg => !byColour.has(fg));
 
     testInfo.attach('contrast-light.txt', {
-      body: `${all.length} violations across ${byColour.size} distinct foreground colours\n\n`
-        + ranked.map(([fg, e]) => `${String(e.n).padStart(4)}  ${fg}  worst ${e.worst.toFixed(2)}:1`).join('\n'),
+      body: `${all.length} violations across ${byColour.size} tokens\n\n`
+        + [...byColour].sort((a, b) => a[1].worst - b[1].worst)
+            .map(([fg, e]) => `${fg}  worst ${e.worst.toFixed(2)}:1  x${e.n}`).join('\n')
+        + (fixed.length ? `\n\nno longer failing (remove from BASELINE.contrast.lightTokens):\n${fixed.join('\n')}` : ''),
       contentType: 'text/plain',
     });
 
     expect(
-      byColour.size,
-      `Light theme: ${BASELINE.contrast.lightDistinctColours} -> ${byColour.size} distinct failing colours ` +
-      `(${all.length} total violations — that raw number drifts with market data, which is why it is not asserted).\n` +
-      `Fix belongs in the [data-theme="light"] block on the FOREGROUND tokens. Do not lighten the ` +
-      `backgrounds — dark is clean and that would break it.\n` +
-      ranked.slice(0, 12).map(([fg, e]) => `  ${String(e.n).padStart(4)}  ${fg}  worst ${e.worst.toFixed(2)}:1`).join('\n'),
-    ).toBeLessThanOrEqual(BASELINE.contrast.lightDistinctColours);
+      unexpected.map(([fg]) => fg),
+      `Light theme: ${unexpected.length} foreground token(s) failing that are not in ` +
+      `BASELINE.contrast.lightTokens.
+
+` +
+      unexpected.map(([fg, e]) => `  ${fg}  worst ${e.worst.toFixed(2)}:1  x${e.n}`).join('\n') +
+      `
+
+Same triage as the dark test: a state that had not rendered before (add it, with a ` +
+      `note) or a token that changed (a regression - check app/globals.css and inline styles).
+` +
+      `The fix for this family belongs in the [data-theme="light"] block on the FOREGROUND ` +
+      `tokens. Do not lighten the backgrounds - that breaks dark.`,
+    ).toEqual([]);
   });
 });
