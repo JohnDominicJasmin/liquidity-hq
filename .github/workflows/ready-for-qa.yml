@@ -169,3 +169,71 @@ jobs:
             gh issue close "$N" --repo "$REPO" \
               --comment "\`staging\` has moved — QA has taken this work. Closing automatically. The next promotion to \`qa\` opens a fresh one."
           done
+
+  # ── If the announcement itself fails, say so LOUDLY ────────────────────────
+  #
+  # The whole point of this workflow is that a promotion cannot go unannounced.
+  # Without this job, a failure in `announce` leaves `qa` moved and NOTHING
+  # telling QA - which is the exact failure it exists to prevent, one level up.
+  #
+  # That is not hypothetical. `release-signals.yml` failed on its first real run
+  # (issue #99): the promotion succeeded, the ready-for-QA issue closed
+  # correctly, and no release PR appeared. Nothing announced the failure. QA
+  # found it by going to look for a PR that was not there.
+  #
+  # WHY THIS CANNOT FAIL THE SAME WAY. The primary path calls `gh issue
+  # create`/`edit`, which needs `issues: write` - declared at the top of this
+  # file and exercised on every run since. The thing that broke release-signals
+  # was `gh pr create`, which needs a REPO SETTING ("Allow GitHub Actions to
+  # create and approve pull requests") that was off for the entire life of that
+  # workflow. This job opens an issue, so it depends only on a permission the
+  # workflow already holds and has already used.
+  #
+  # `if: failure()` runs when a needed job failed. It does not run if the
+  # workflow never starts at all - a YAML parse error or a runner outage is
+  # still silent, and nothing inside a workflow can cover that case.
+  announce-failed:
+    needs: announce
+    if: failure() && github.ref == 'refs/heads/qa'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Open an issue saying the promotion was not announced
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          BASE=origin/staging
+          git rev-parse --verify --quiet "$BASE" >/dev/null || BASE=origin/main
+
+          {
+            echo "**Automated** - the Ready-for-QA announcement failed, so this promotion"
+            echo "was not announced by the usual route."
+            echo
+            echo "\`qa\` is at \`$(git rev-parse --short=7 origin/qa)\` and has moved."
+            echo "**Treat this as the notification** and check the range by hand."
+            echo
+            echo "Failed run: $RUN"
+            echo
+            echo "## What is on \`qa\` and not on \`staging\`"
+            echo
+            echo '```'
+            git log --format='%h %s' "$BASE..origin/qa" 2>/dev/null | head -40 || echo "(range unavailable)"
+            echo '```'
+            echo
+            echo "This issue is a fallback, so it is deliberately cruder than the real one -"
+            echo "no per-PR \"How to test\" sections. Fix the workflow, then re-push \`qa\` to"
+            echo "regenerate the proper list."
+          } > /tmp/fail.md
+
+          gh label create announcement-failed --repo "$REPO" --color D93F0B \
+            --description "A promotion happened but the automated announcement did not" 2>/dev/null || true
+
+          gh issue create --repo "$REPO" --label announcement-failed \
+            --title "Promotion to \`qa\` was NOT announced - ready-for-qa.yml failed" \
+            --body-file /tmp/fail.md
