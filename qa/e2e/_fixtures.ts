@@ -100,6 +100,32 @@ function bybitFundingSigned(body: BybitFundingBody, sign: -1 | 1): BybitFundingB
   };
 }
 
+type BybitTickersBody = { result: { list: Array<{ symbol: string; fundingRate: string }> } };
+
+/* THE funding source. `components/MarketProvider.tsx` `fetchBybit()` calls this
+ * endpoint and sets `fundingRate` from each ticker; `useMarket()` serves that to
+ * /funding.
+ *
+ * Skipped during recording for size (805 symbols, 600KB). Trimmed to the 49 the
+ * app uses it is 37KB - and the trim is complete: all 49 symbols `BYBIT_SYMS`
+ * expects are present, none missing.
+ *
+ * Found by blocking all 200 intercepted requests and observing the page was
+ * unchanged, which ruled out every intercepted route at once. Five prior guesses
+ * at "which endpoint" each cost a run and proved nothing. */
+function bybitTickersSigned(body: BybitTickersBody, sign: -1 | 1): BybitTickersBody {
+  return {
+    ...body,
+    result: {
+      ...body.result,
+      list: body.result.list.map(r => {
+        const mag = Math.abs(parseFloat(r.fundingRate)) || 0.0001;
+        return { ...r, fundingRate: (sign * mag).toFixed(8) };
+      }),
+    },
+  };
+}
+
 /** Serve recorded market data instead of the live market.
  *
  *  Returns `count` (routes fulfilled) and `byKey` (which ones), so a spec can
@@ -136,6 +162,8 @@ export async function installMarketFixtures(page: Page, scenario: Scenario = 'as
     fulfil(r, 'binance-premiumIndex', sign ? (b) => premiumIndexSigned(b as PremiumIndexRow[], sign) : undefined));
   await page.route('**api.bybit.com/v5/market/funding/history**', r =>
     fulfil(r, 'bybit-funding-history', sign ? (b) => bybitFundingSigned(b as BybitFundingBody, sign) : undefined));
+  await page.route('**/v5/market/tickers**', r =>
+    fulfil(r, 'bybit-tickers', sign ? (b) => bybitTickersSigned(b as BybitTickersBody, sign) : undefined));
   await page.route('**api.bybit.com/v5/market/kline**', r => fulfil(r, 'bybit-kline'));
   await page.route('**api.bybit.com/v5/market/open-interest**', r => fulfil(r, 'bybit-open-interest'));
 

@@ -33,31 +33,61 @@ test.describe('market data scenarios', () => {
     expect(served.count, 'no fixture route was hit — the specs below would be testing live data').toBeGreaterThan(0);
   });
 
-  /* THE FUNDING SCENARIOS ARE STILL NOT ASSERTED ON. Five attempts, documented
-   * so the next person does not repeat them.
+  /** Every funding percentage on screen, signed.
    *
-   *   1. Assert the page contains a negative number -> passed on POSITIVE data.
-   *      The page already renders 18 strings like "-0".
-   *   2. Narrow to funding percentages -> passed on unmodified data. The
-   *      recorded Binance payload already had 9 of 42 rows negative.
-   *   3. Force `fapi/v1/fundingRate` positive -> screen unchanged.
-   *   4. Add `premiumIndex` (the 190KB endpoint skipped in recording, trimmed to
-   *      48 symbols) -> screen unchanged.
-   *   5. Add `bybit/v5/market/funding/history`, found by TRACING every request
-   *      the page makes rather than reasoning about it -> screen unchanged.
+   *  The character class is `[+-]?`, not `-?`. The page renders positive rates
+   *  as "+0.0027%" with an explicit plus, and an earlier version of this helper
+   *  matched only a minus - so every positive rate was invisible to the
+   *  collector, and `funding-positive` reported "no rates rendered at all".
    *
-   * The tell throughout: the rendered values SHIFT BETWEEN RUNS. Fixtures are
-   * static, so whatever produces them is still live. `/api/funding` is not even
-   * requested by this page.
-   *
-   * `funding-positive` / `funding-negative` work in `_fixtures.ts` and both
-   * endpoints are recorded — what is missing is knowing which source the number
-   * on screen is derived from. Until that is known, an assertion here would only
-   * report what the market did today.
-   *
-   * Deliberately left failing-by-absence rather than shipped green. See
-   * qa/FIXTURES.md.
-   */
+   *  Six attempts went into hunting the data source. The final failure was not
+   *  the source at all - it was this regex. */
+  async function renderedRates(page: import('@playwright/test').Page): Promise<number[]> {
+    return page.evaluate(() => {
+      const out: number[] = [];
+      for (const el of Array.from(document.querySelectorAll('*'))) {
+        if (el.children.length) continue;
+        const t = (el as HTMLElement).innerText?.trim() ?? '';
+        if (/^[+-]?\d+\.\d{3,4}\s*%$/.test(t)) out.push(parseFloat(t.replace('+', '')));
+      }
+      return out;
+    });
+  }
+
+  /* POSITIVE CONTROL. Every earlier version of the pair below passed while
+   * proving nothing - either the transformed endpoint did not feed the page, or
+   * the collector could not see the values it asserted on. This fails if either
+   * is ever true again. */
+  test('funding-positive puts POSITIVE rates on screen', async ({ page }) => {
+    const served = await installMarketFixtures(page, 'funding-positive');
+    await page.goto('/funding', { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(10000);
+
+    expect(served.byKey['bybit-tickers'] ?? 0,
+      'bybit tickers was not intercepted - the rates on screen are live data').toBeGreaterThan(0);
+
+    const rates = await renderedRates(page);
+    expect(rates.length, 'no funding percentages rendered at all').toBeGreaterThan(0);
+    expect(rates.some(r => r > 0),
+      `every rate positive upstream, yet none rendered positive (${rates.length} values: ${rates.slice(0, 8).join(', ')})`,
+    ).toBe(true);
+  });
+
+  test('funding-negative puts NO positive rate on screen', async ({ page }) => {
+    const served = await installMarketFixtures(page, 'funding-negative');
+    await page.goto('/funding', { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(10000);
+
+    expect(served.byKey['bybit-tickers'] ?? 0, 'bybit tickers was not intercepted').toBeGreaterThan(0);
+
+    const rates = await renderedRates(page);
+    expect(rates.length, 'no funding percentages rendered').toBeGreaterThan(0);
+
+    const positives = rates.filter(r => r > 0);
+    expect(positives,
+      `funding is negative everywhere upstream, but ${positives.length} positive rate(s) rendered: ${positives.join(', ')}`,
+    ).toEqual([]);
+  });
 
   test('an upstream 500 does not blank the page', async ({ page }) => {
     const served = await installMarketFixtures(page, 'upstream-500');
