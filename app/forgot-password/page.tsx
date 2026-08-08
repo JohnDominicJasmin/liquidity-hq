@@ -105,7 +105,7 @@ export default function ForgotPasswordPage() {
                 region exists before the text arrives. WCAG 2.2 SC 4.1.3.
                 The original claim in the audit named /login only; this page
                 does the same thing and has no live region either. */}
-            <div className="login-error" role="alert">{error}</div>
+            <div className="login-error" data-testid="login-error" role="alert">{error}</div>
 
             {/* No display override here - .login-back-btn centres its own text
                 via inline-flex, and `display: block` would defeat that. */}
