@@ -44,9 +44,31 @@ jobs:
         with:
           fetch-depth: 0
 
+      # WHY A PAT AND NOT github.token, because the next person will assume it
+      # is unnecessary and remove it:
+      #
+      # GitHub does not trigger workflows on events created by GITHUB_TOKEN.
+      # It is deliberate anti-recursion, and it has no opt-out. So a release PR
+      # opened by this job never fired `pull_request`, CI never ran, and the
+      # required `CI Gate` check was ABSENT rather than failing - a PR blocked
+      # forever with nothing red to explain why. That is #126, and it was caused
+      # by the automation added in #99.
+      #
+      # A PAT is a different actor, so the PR it opens triggers CI normally.
+      #
+      # RELEASE_PAT is fine-grained, this repo only, contents:read +
+      # pull-requests:write + issues:write. Expiry is recorded in
+      # docs/INFRASTRUCTURE.md §1 - when it lapses the release PR simply stops
+      # appearing, and the symptom carries no hint of the cause.
+      #
+      # NO FALLBACK TO github.token, on purpose. A fallback would mean an absent
+      # or expired secret quietly restores exactly the bug above. Instead the
+      # step fails, the job fails, and `release-pr-failed` below opens an issue
+      # carrying the release body - loud, and the release is not even blocked
+      # while someone rotates the token.
       - name: Open the staging -> main release PR if there is not one
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -244,6 +266,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      # THIS MUST KEEP github.token. Do not "tidy" RELEASE_PAT up to a
+      # workflow-level env: - the whole reason the PAT is safe to adopt is that
+      # this job runs on a DIFFERENT credential. Share one and an expired token
+      # kills the fallback and the primary together, which is the silence both
+      # were built to remove.
+      #
+      # Issues do not need to trigger workflows, so github.token's anti-recursion
+      # rule costs nothing here. It is the release PR that needed a real actor.
       - name: Open an issue carrying the release list
         env:
           GH_TOKEN: ${{ github.token }}
