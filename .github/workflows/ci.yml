@@ -67,6 +67,34 @@ on:
     # open for the whole cycle, so each ff-push to its base ALSO fired
     # `synchronize` on it - one promotion used to bill three full runs.
     branches: [dev, main]
+    # Docs-only pushes do not need a build. Every path here is either not
+    # compiled or not shipped, so a run over them proves nothing that the
+    # PR-side run had not already proved.
+    #
+    # DELIBERATELY ON `push` ONLY, not on `pull_request`, and the reason matters
+    # more than the saving:
+    #
+    #   - `main` is the only branch with a required status check (`CI Gate`).
+    #     Required checks are evaluated on the PULL REQUEST. A required check
+    #     that never runs never reports, and GitHub treats "never reported" as
+    #     pending forever - so a docs-only release PR would be unmergeable with
+    #     no way to force it short of an admin override. That is a worse failure
+    #     than the minutes are worth.
+    #   - The alternative - keep the workflow running and skip the expensive
+    #     jobs with an `if:` - is worse still. The `gate` job below rests on
+    #     "build carries no `if:`, so anything other than success is real".
+    #     Teaching it to accept `skipped` reopens the hole it was hardened to
+    #     close after release PR #38, where a skipped job read as a green
+    #     required check.
+    #
+    # So: pushes skip, pull requests always run. Issue #114 sibling item.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'pendings/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+      - 'LICENSE'
 
   # For running the browser suite on demand: re-checking after a flake, or
   # proving a fix without opening a release PR first.
