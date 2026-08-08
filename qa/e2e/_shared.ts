@@ -250,9 +250,9 @@ export const BASELINE = {
       // text on mid-tone green and amber fills; in light it is the /funding
       // chips. Same defect shape, and the exact hex varies with the data.
       'near-white',
-      '#1a7aff', '#3a3d48', '#3b3e49', '#414551', '#434754', '#4c4e5d',
-      '#4c515f', '#4e5361', '#585d6d', '#63656a', '#6c6d72', '#733738',
-      '#745a16', '#a54e4f', '#c0595a', 
+      '#1a7aff', '#414551', '#434754', '#4c4e5d',
+      '#4c515f', '#4e5361', '#585d6d', '#63656a',
+      '#a54e4f', '#c0595a', 
     ] as readonly string[],
 
     /**
@@ -272,12 +272,11 @@ export const BASELINE = {
       // see bucket() in contrast.spec.ts. It is one defect, not N hexes.
       'near-white',
       '#0052cc', '#22d3ee', '#3d8d76', '#4ade80', '#60a5fa', '#627eea',
-      '#76787b', '#77deb9', '#7de0a4', '#868890', '#868895', '#8f919c',
-      '#949597', '#94969d', '#98999d', '#989aa0', '#a2a4ab', '#a7a9af',
-      '#abacb5', '#b6b7bb', '#c75050', '#c8891e', '#cdab90', '#d4b483',
-      '#e09999', '#f3ba2f', '#f472b6', '#f69f9f',
-      '#f87171', '#f97316', '#fbbf24', '#fdf7f7',
-      '#fefaf2',
+      '#76787b', '#77deb9', '#868890', '#868895', '#8f919c',
+      '#94969d', '#98999d', '#989aa0', '#a2a4ab', '#a7a9af',
+      '#c75050', '#c8891e', '#d4b483',
+      '#f3ba2f', '#f472b6', '#f69f9f',
+      '#f87171', '#f97316', '#fbbf24',
     ] as readonly string[],
   },
   /** §6.4 - pages with no <h1>, desktop. */
