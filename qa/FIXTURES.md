@@ -202,3 +202,47 @@ absence will be louder than the presence.
 rate is negative. It would pass just as well against the live market on a day
 when funding happens to be negative, which is most days. That is a test asserting
 the weather.
+
+
+---
+
+## Working. Both directions, with a control.
+
+```
+✓ fixtures are actually served (guards against a vacuous pass)
+✓ funding-positive puts POSITIVE rates on screen
+✓ funding-negative puts NO positive rate on screen
+✓ an upstream 500 does not blank the page
+```
+
+**The first tests in this suite that assert the product against a known market
+input.** `TEST_GAPS.md` §1 has said since it was written that this was
+impossible; it is no longer.
+
+### The last bug was mine, not the app's
+
+After six attempts hunting the data source, the final failure —
+`funding-positive` reporting "no rates rendered at all" — was **the collector's
+regex**:
+
+```diff
+- if (/^-?\d+\.\d{3,4}\s*%$/.test(t))
++ if (/^[+-]?\d+\.\d{3,4}\s*%$/.test(t))
+```
+
+The page renders positive funding as **`+0.0027%`**, with an explicit plus. A
+`-?` class cannot see that, so every positive rate was invisible to the thing
+asserting on positive rates.
+
+Which also retires the theory that preceded it: the symbol mapping was never
+wrong. All 49 symbols `BYBIT_SYMS` expects are present in the trimmed fixture,
+none missing — checked rather than assumed, after assuming it in the previous
+commit message.
+
+### Why the pair is not vacuous
+
+`funding-positive` requires at least one positive rate on screen;
+`funding-negative` requires none. Same fixture, same symbols, opposite sign. A
+broken interception fails both — which is what happened when the route pattern
+did not match, and the `byKey['bybit-tickers']` guard reported it precisely
+rather than passing quietly.
