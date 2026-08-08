@@ -296,8 +296,7 @@ export function monitoringOptions() {
     tracesSampleRate: 0,
     /* THE SAME QUOTA DECISION, and the one that was actually spending it.
        `tracesSampleRate: 0` stopped transactions. Sessions were never in scope,
-       and `autoSessionTracking` defaults to TRUE - so Release Health quietly
-       became the entire consumption.
+       so Release Health quietly became the entire consumption.
 
        Measured on production 2026-08-08, six routes, signed out, no interaction:
        14 envelopes across 6 pageviews and ZERO of them an error. Every single
@@ -306,16 +305,27 @@ export function monitoringOptions() {
        firing in a loop.
 
        That is why hunting for a noisy error never found the source (issue #73):
-       there was no noisy error. It also means error reporting was not merely
-       degraded, it was DEAD - every error envelope came back 429 because
-       sessions had already spent the month.
+       there was no noisy error. Error reporting was not merely degraded, it was
+       DEAD - every error envelope came back 429 because sessions had already
+       spent the month.
 
-       What is given up: crash-free-session rate. Worth being explicit that it
-       is not a real loss today - the metric was being rejected at the door
-       along with everything else, so nobody could read it either. If the tier
-       is ever paid for, turn this back on deliberately rather than by removing
-       a line. */
-    autoSessionTracking: false,
+       WHY AN INTEGRATION FILTER AND NOT `autoSessionTracking: false`. That
+       option was removed in SDK v10; this project is on 10.67.0. Setting it does
+       NOTHING - and nothing complains, because these options are passed to
+       Sentry.init() as a plain object literal, so TypeScript's excess-property
+       check never runs on them. The first attempt at this fix set that option,
+       shipped green, and changed no behaviour whatsoever. Sessions come from the
+       `BrowserSession` integration, which IS in getDefaultIntegrations().
+
+       Harmless on server and edge, where BrowserSession is not in the defaults
+       and the filter simply matches nothing.
+
+       What is given up: crash-free-session rate. Not a real loss today - the
+       metric was being rejected at the door with everything else, so nobody
+       could read it either. If the tier is ever paid for, drop this filter
+       deliberately rather than by accident. */
+    integrations: (defaults: { name: string }[]) =>
+      defaults.filter(i => i.name !== 'BrowserSession'),
     sendDefaultPii: false,
     /* Passed by reference rather than wrapped in an arrow. `scrubEvent` is
        generic in its argument, so it satisfies both hook signatures without
