@@ -44,6 +44,11 @@ export const FIXTURES = {
   tradeId: process.env.E2E_A_TRADE_ID ?? '',
   hypothesisId: process.env.E2E_A_HYPOTHESIS_ID ?? '',
   priceAlertId: process.env.E2E_A_PRICE_ALERT_ID ?? '',
+  /** B's own price alert, seeded 2026-08-08 so a PRO caller has something it
+   *  does not own to attempt. Before it existed the whole table held one row,
+   *  A's - which is also why E2E_A_PRICE_ALERT_ID was `1` and redacted every
+   *  digit `1` from CI logs (#107). */
+  bPriceAlertId: process.env.E2E_B_PRICE_ALERT_ID ?? '',
 
 } as const;
 
@@ -52,10 +57,11 @@ export const FIXTURES = {
 export const AUTH_READY =
   !!(SUPABASE_URL && SUPABASE_ANON &&
      FIXTURES.aEmail && FIXTURES.aPassword && FIXTURES.bEmail && FIXTURES.bPassword &&
-     FIXTURES.tradeId && FIXTURES.hypothesisId && FIXTURES.priceAlertId);
+     FIXTURES.tradeId && FIXTURES.hypothesisId && FIXTURES.priceAlertId &&
+     FIXTURES.bPriceAlertId);
 
 export const AUTH_SKIP_REASON =
-  'authenticated fixtures absent - set E2E_USER_A_* / E2E_USER_B_* / E2E_A_*_ID ' +
+  'authenticated fixtures absent - set E2E_USER_A_* / E2E_USER_B_* / E2E_A_*_ID / E2E_B_PRICE_ALERT_ID ' +
   '(see the issue "QA unblocked: two seeded test accounts"). Skipping rather than ' +
   'passing: a BOLA test that runs without fixtures proves nothing.';
 
