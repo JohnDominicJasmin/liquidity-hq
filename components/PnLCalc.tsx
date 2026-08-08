@@ -63,7 +63,9 @@ export default function PnLCalc({ coin }: { coin: CoinId | '' }) {
   const isProfit = result ? result.pnl >= 0 : null;
 
   return (
-    <div>
+    // lhq-private: maskAllInputs covers what is typed in; the computed P&L is
+    // rendered TEXT and was never covered. See lib/sessionRecording.ts.
+    <div className="lhq-private">
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <h2 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('CALC_PNL_TITLE')}</h2>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('CALC_PNL_SUBTITLE')}</div>
