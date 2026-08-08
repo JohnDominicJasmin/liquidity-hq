@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { getDefaultIntegrations } from '@sentry/browser';
 import { scrubUrl, scrubText, scrubEvent, monitoringEnvironment, monitoringDsn, monitoringOptions } from '../lib/monitoring.ts';
 
 /* The PII scrubber runs on every event leaving the app for GlitchTip. It is the
@@ -263,8 +264,33 @@ test('monitoring quota settings', async (t) => {
   process.env.NEXT_PUBLIC_SENTRY_DSN = 'https://key@glitchtip.example/1';
   process.env.NEXT_PUBLIC_APP_ENV = 'prod';
 
-  await t.test('session tracking is OFF - it consumed the whole free-tier quota', () => {
-    assert.equal(monitoringOptions().autoSessionTracking, false);
+  /* Asserted against the SDK's OWN default integration list, not against our
+     options object. The previous version of this test read
+     `monitoringOptions().autoSessionTracking === false` - which passed because
+     we had just set that property, and proved nothing: `autoSessionTracking`
+     was removed in SDK v10 and setting it does nothing at all. The fix shipped
+     green and changed no behaviour.
+
+     The positive control below is the part that matters. If Sentry renames
+     BrowserSession, the filter silently stops matching and sessions come back -
+     and a test that only checked "not present in the output" would still pass,
+     because the name it is looking for would be absent for the wrong reason. */
+  await t.test('BrowserSession is in the SDK defaults - the control this test needs', () => {
+    const names = getDefaultIntegrations({}).map(i => i.name);
+    assert.ok(
+      names.includes('BrowserSession'),
+      `BrowserSession is no longer a default integration (got: ${names.join(', ')}). ` +
+      'Either the SDK renamed it - in which case the filter in monitoringOptions() ' +
+      'is now a no-op and sessions are being sent again - or it stopped being a ' +
+      'default. Check before changing this assertion.',
+    );
+  });
+
+  await t.test('the integrations filter removes BrowserSession', () => {
+    const filter = monitoringOptions().integrations as (d: { name: string }[]) => { name: string }[];
+    const kept = filter(getDefaultIntegrations({})).map(i => i.name);
+    assert.ok(!kept.includes('BrowserSession'), 'session tracking would still be on');
+    assert.ok(kept.includes('InboundFilters'), 'the filter removed more than it should have');
   });
 
   await t.test('transaction sampling stays at 0', () => {
