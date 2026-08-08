@@ -8,8 +8,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Rate limit exceeded' }, { status: 429 });
   }
 
+  // Public on purpose - /alerts calls this before sign-in - so this stays
+  // unauthenticated. It only gains a status: `ok: false` with 200 read as
+  // success to anything checking res.ok.
+  //
+  // The BODY is deliberately unchanged, webhook_ok: true included. The UI
+  // surfaces webhook_ok: false as a warning banner, and an environment with no
+  // bot has no webhook to be wrong about - flipping it would raise a fault
+  // where there is none.
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) return NextResponse.json({ ok: false, username: null, first_name: null, webhook_ok: true });
+  if (!token) {
+    return NextResponse.json(
+      { ok: false, username: null, first_name: null, webhook_ok: true },
+      { status: 503 },
+    );
+  }
 
   const [meRes, webhookRes] = await Promise.all([
     fetch(`https://api.telegram.org/bot${token}/getMe`, { cache: 'no-store', signal: AbortSignal.timeout(7_000) }),

@@ -15,8 +15,15 @@ function makeSb(token: string) {
 }
 
 export async function GET(req: NextRequest) {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  if (!botToken) return NextResponse.json({ ok: false, error: 'Bot not configured on server' });
+  // The server-config check used to live HERE, above the auth check, and
+  // answered 200. So on any environment without TELEGRAM_BOT_TOKEN this route
+  // was both unauthenticated and successful-looking, and an anonymous caller
+  // could learn whether the server had a bot configured. It now sits below the
+  // entitlement gate - see there.
+  //
+  // Production has the variable set, so it never fired there. It fired on CI
+  // and on staging until 2026-08-08 - the environments we test on, behaving
+  // differently from the one we ship.
 
   // Previously an anonymous caller (no Authorization header at all) fell
   // through to the global TELEGRAM_CHAT_ID env var below with no auth check
@@ -48,6 +55,17 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Entitlement outranks server state: a free user is told they are not
+  // entitled, not what this server does or does not have configured.
+  // 503 matches push/test:34, which does the same thing for missing VAPID keys.
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) {
+    return NextResponse.json(
+      { ok: false, error: 'Bot not configured on server' },
+      { status: 503 },
+    );
+  }
+
   const { data: settingsData } = await sb
     .from(T.user_settings)
     .select('telegram_chat_id')
@@ -57,8 +75,14 @@ export async function GET(req: NextRequest) {
   // authenticated, rate-limited Pro user, not an anonymous caller.
   const chatId = settingsData?.telegram_chat_id?.trim() || process.env.TELEGRAM_CHAT_ID || null;
 
+  // 409, not 400: the request is well-formed and authorised. What is not ready
+  // is the caller's own account state - they have not connected Telegram yet -
+  // and 400 would tell them they sent something wrong when they did not.
   if (!chatId) {
-    return NextResponse.json({ ok: false, error: 'No Chat ID configured. Connect Telegram first.' });
+    return NextResponse.json(
+      { ok: false, error: 'No Chat ID configured. Connect Telegram first.' },
+      { status: 409 },
+    );
   }
 
   const now = new Date().toLocaleString('en-GB', {
@@ -84,6 +108,10 @@ export async function GET(req: NextRequest) {
   });
 
   const data = await res.json();
-  if (!data.ok) return NextResponse.json({ ok: false, error: data.description });
+  // 502: Telegram rejected the send. Nothing the caller did and nothing they
+  // can fix, so it must not read as success to anything checking the status.
+  if (!data.ok) {
+    return NextResponse.json({ ok: false, error: data.description }, { status: 502 });
+  }
   return NextResponse.json({ ok: true });
 }
