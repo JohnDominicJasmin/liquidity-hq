@@ -105,6 +105,24 @@ async function settleForMeasurement(page: Page): Promise<void> {
 }
 
 async function measure(page: Page, theme: string, route: string): Promise<Violation[] | null> {
+  /* Serve recorded market data instead of the live market.
+   *
+   * This sweep visits 32 routes in two themes, and 29 of those routes call a
+   * third-party API - MarketProvider mounts on every page, so /about is as
+   * chatty as /arena. Measured: ~6,000 third-party requests per pass.
+   *
+   * Two things that buys, and the second is why this landed:
+   *
+   *   1. `workers: 1` exists because parallel runs trip Binance and Bybit
+   *      per-IP limits and the 429s look like product bugs (#114).
+   *   2. THE SWEEP STOPS DEPENDING ON WHAT THE MARKET DID TODAY. #48484a hid on
+   *      /hours until a specific session window rendered; #9ca3af sits in
+   *      neutral branches that need the market to be neither bullish nor
+   *      bearish. Three release gates failed in one day on colours that were
+   *      always there and only sometimes on screen.
+   *
+   * Installed per page rather than once, because each measurement runs in its
+   * own context. */
   await page.goto(route, { waitUntil: 'domcontentloaded' });
   await settleForMeasurement(page);
 
@@ -256,6 +274,41 @@ test.describe('colour contrast', () => {
       contentType: 'text/plain',
     });
 
+    /* A TOKEN DISAPPEARING IS ALSO A FINDING. Asserted, not just reported.
+     *
+     * Until 2026-08-08 this list was written to the attachment and nothing else,
+     * and attachments only surface on failure - so on a green run a vanished
+     * token was invisible. Wiring the sweep to market-data fixtures made it
+     * measure 11 of 16 dark tokens because five surfaces stopped rendering, and
+     * the run went green. Coverage fell by a third and the report was identical.
+     *
+     * A missing token has two causes and they are indistinguishable from here:
+     * someone fixed the colour, or the surface carrying it stopped rendering.
+     * The first is good news that costs one line; the second is silent coverage
+     * loss. Failing forces a human to say which, every time.
+     *
+     * This makes the ratchet bidirectional - new tokens fail as a regression,
+     * missing tokens fail as an unrecorded change. Neither can pass quietly. */
+    expect(
+      fixed,
+      `Dark theme: ${fixed.length} token(s) in BASELINE.contrast.darkTokens no longer fail.
+
+` +
+      fixed.map(fg => `  ${fg}`).join("\n") +
+      `
+
+That is EITHER good news or lost coverage, and this test cannot tell which:
+` +
+      `  (a) the colour was genuinely fixed - delete it from BASELINE.contrast.darkTokens in the same change
+` +
+      `  (b) the surface that rendered it stopped rendering, and the sweep is now measuring less
+` +
+      `
+Check (b) first. A route that renders nothing has no colours to fail, so losing
+` +
+      `coverage looks exactly like fixing every colour on it.`,
+    ).toEqual([]);
+
     expect(
       unexpected.map(([fg]) => fg),
       `Dark theme: ${unexpected.length} foreground token(s) failing SC 1.4.3 that are not in ` +
@@ -341,6 +394,41 @@ This is NOT automatically a regression. It is either:
         + (fixed.length ? `\n\nno longer failing (remove from BASELINE.contrast.lightTokens):\n${fixed.join('\n')}` : ''),
       contentType: 'text/plain',
     });
+
+    /* A TOKEN DISAPPEARING IS ALSO A FINDING. Asserted, not just reported.
+     *
+     * Until 2026-08-08 this list was written to the attachment and nothing else,
+     * and attachments only surface on failure - so on a green run a vanished
+     * token was invisible. Wiring the sweep to market-data fixtures made it
+     * measure 11 of 16 dark tokens because five surfaces stopped rendering, and
+     * the run went green. Coverage fell by a third and the report was identical.
+     *
+     * A missing token has two causes and they are indistinguishable from here:
+     * someone fixed the colour, or the surface carrying it stopped rendering.
+     * The first is good news that costs one line; the second is silent coverage
+     * loss. Failing forces a human to say which, every time.
+     *
+     * This makes the ratchet bidirectional - new tokens fail as a regression,
+     * missing tokens fail as an unrecorded change. Neither can pass quietly. */
+    expect(
+      fixed,
+      `Light theme: ${fixed.length} token(s) in BASELINE.contrast.lightTokens no longer fail.
+
+` +
+      fixed.map(fg => `  ${fg}`).join("\n") +
+      `
+
+That is EITHER good news or lost coverage, and this test cannot tell which:
+` +
+      `  (a) the colour was genuinely fixed - delete it from BASELINE.contrast.lightTokens in the same change
+` +
+      `  (b) the surface that rendered it stopped rendering, and the sweep is now measuring less
+` +
+      `
+Check (b) first. A route that renders nothing has no colours to fail, so losing
+` +
+      `coverage looks exactly like fixing every colour on it.`,
+    ).toEqual([]);
 
     expect(
       unexpected.map(([fg]) => fg),

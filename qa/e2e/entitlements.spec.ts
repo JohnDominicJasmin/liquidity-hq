@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { AUTH_READY, AUTH_SKIP_REASON, FIXTURES, SUPABASE_URL, SUPABASE_ANON, signIn } from './_auth';
+import { ENTITLEMENT_READY, ENTITLEMENT_SKIP_REASON, FIXTURES, SUPABASE_URL, SUPABASE_ANON, signIn } from './_auth';
 
 /* The Pro boundary — 15 routes, HTTP level.
  *
@@ -33,6 +33,22 @@ const P = process.env.NEXT_PUBLIC_APP_ENV === 'dev' ? 'lhq_dev_' : 'lhq_';
  *  `price-alerts` appears twice on purpose — its GET is deliberately NOT gated
  *  (a free user may read alerts, not create them), so only POST and PATCH are
  *  listed. Asserting 403 on the GET would be asserting a bug. */
+/* `/api/push/test` is Pro-gated and is NOT in this list, deliberately.
+ *
+ * It verifies the caller with `getSupabaseAdmin()` rather than the anon client,
+ * so it needs SUPABASE_SERVICE_ROLE_KEY. The CI build deliberately runs without
+ * developer env (`ci.yml` header: that difference has produced two real
+ * defects), so the admin client throws, `getUser` catches and returns null, and
+ * the route answers 401 to a perfectly good token.
+ *
+ * Asserting on it here would fail the release gate for an environment gap and
+ * teach everyone to ignore a red entitlements run. Excluding it silently would
+ * be worse - so it is excluded loudly, and the coverage gap is real:
+ * **push/test's Pro gate is not verified by anything.**
+ *
+ * To cover it, CI needs the admin key, which is a deliberate trade against the
+ * reason CI runs without developer env at all. Owner's call, not a QA one.
+ */
 const GATED: Array<{ method: 'GET' | 'POST' | 'PATCH'; path: string }> = [
   { method: 'POST',  path: '/api/alerts/preview' },
   { method: 'POST',  path: '/api/behavioral-bias' },
@@ -42,7 +58,6 @@ const GATED: Array<{ method: 'GET' | 'POST' | 'PATCH'; path: string }> = [
   { method: 'POST',  path: '/api/pine-script' },
   { method: 'POST',  path: '/api/price-alerts' },
   { method: 'PATCH', path: '/api/price-alerts' },
-  { method: 'POST',  path: '/api/push/test' },
   { method: 'POST',  path: '/api/shadow-account' },
   { method: 'POST',  path: '/api/smc-snapshot' },
   { method: 'POST',  path: '/api/strategy-research' },
@@ -52,41 +67,56 @@ const GATED: Array<{ method: 'GET' | 'POST' | 'PATCH'; path: string }> = [
 ];
 
 test.describe('Pro entitlement boundary', () => {
-  test.skip(!AUTH_READY, AUTH_SKIP_REASON);
+  test.skip(!ENTITLEMENT_READY, ENTITLEMENT_SKIP_REASON);
   // HTTP level — running both viewport projects would just double the requests.
   test.beforeEach(({}, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'HTTP-level, viewport irrelevant');
   });
 
-  let token = '';
-  let expectPro = false;
-  let why = '';
+  let freeToken = '';
+  let proToken = '';
 
-  test.beforeAll(async () => {
-    token = await signIn(FIXTURES.aEmail, FIXTURES.aPassword);
-
-    // The account's own row. RLS restricts this to the caller's user_id, which
-    // is the same read `getEntitlement()` performs server-side.
+  /** Read an account's own subscription row. RLS restricts this to the caller,
+   *  which is the same read `getEntitlement()` performs server-side. */
+  async function readRow(token: string, userId: string) {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/${P}user_subscriptions?user_id=eq.${FIXTURES.aId}&select=role,trial_ends_at`,
+      `${SUPABASE_URL}/rest/v1/${P}user_subscriptions?user_id=eq.${userId}&select=role,trial_ends_at`,
       { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` } },
     );
-    if (!res.ok) {
-      throw new Error(
-        `could not read ${P}user_subscriptions for the fixture (HTTP ${res.status}). ` +
-        'Refusing to continue: without the row this spec cannot know which direction ' +
-        'to assert, and would be guessing.',
-      );
-    }
-    const rows = (await res.json()) as Array<{ role?: string; trial_ends_at?: string }>;
-    const row = rows[0];
-    const role = row?.role === 'pro' ? 'pro' : 'free';
-    const trialEnds = row?.trial_ends_at ? new Date(row.trial_ends_at).getTime() : 0;
-    const trialActive = role !== 'pro' && trialEnds > Date.now();
+    if (!res.ok) throw new Error(`could not read ${P}user_subscriptions (HTTP ${res.status})`);
+    const rows = (await res.json()) as Array<{ role?: string; trial_ends_at?: string | null }>;
+    return rows[0] ?? {};
+  }
 
-    expectPro = role === 'pro' || trialActive;
-    why = `role=${role} trialActive=${trialActive} (trial_ends_at=${row?.trial_ends_at ?? 'null'})`;
-    console.log(`[entitlements] fixture A: ${why} -> expect Pro access: ${expectPro}`);
+  /* PIN the state, do not read it and adapt.
+   *
+   * The previous version derived its expectation from whatever the account
+   * happened to be. That sounds safer than hardcoding and is not: user A is on a
+   * trial ending 2026-08-19, so the same spec asserted "Pro access allowed"
+   * before that date and "free access blocked" after it, with nothing
+   * announcing the switch. A test whose meaning depends on the calendar reports
+   * green either way.
+   *
+   * These fixtures are seeded to a fixed state and this hook FAILS if they have
+   * drifted, rather than quietly testing the other direction. */
+  test.beforeAll(async () => {
+    /* A is the PRO fixture, B is the FREE one - set that way in
+     * `lhq_dev_user_subscriptions` rather than by seeding new accounts. */
+    proToken = await signIn(FIXTURES.aEmail, FIXTURES.aPassword);
+    freeToken = await signIn(FIXTURES.bEmail, FIXTURES.bPassword);
+
+    const pro = await readRow(proToken, FIXTURES.aId);
+    const free = await readRow(freeToken, FIXTURES.bId);
+
+    expect(free.role ?? 'free',
+      `fixture B drifted: role=${free.role}. It must be 'free' or this spec cannot prove the gate blocks anyone.`,
+    ).toBe('free');
+    expect(free.trial_ends_at ?? null,
+      `fixture B has a trial (${free.trial_ends_at}). A trial grants Pro FEATURES, so the gate lets it through and this spec would assert the opposite of what it claims. Both fixtures ran a trial to 2026-08-19 until it was nulled.`,
+    ).toBeNull();
+    expect(pro.role,
+      `fixture A drifted: role=${pro.role}. It must be 'pro' - nothing in the dev database was pro before 2026-08-08, so this direction has never been exercised by anything else.`,
+    ).toBe('pro');
   });
 
   /* Guard against a vacuous pass. If the token were rejected, every route below
@@ -95,42 +125,49 @@ test.describe('Pro entitlement boundary', () => {
    * concluded from a status code. */
   test('the fixture token actually authenticates (guards against a vacuous pass)', async ({ request }) => {
     const r = await request.get('/api/price-alerts', {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${freeToken}` },
       failOnStatusCode: false,
     });
     expect(r.status(), 'GET /api/price-alerts is not Pro-gated, so a valid token must be accepted').toBe(200);
   });
 
   for (const { method, path } of GATED) {
-    test(`${method} ${path} respects the Pro boundary`, async ({ request }) => {
+    test(`${method} ${path} refuses a FREE account`, async ({ request }) => {
       const opts = {
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${freeToken}`, 'Content-Type': 'application/json' },
         data: {},
         failOnStatusCode: false,
       };
-      const r = method === 'GET'    ? await request.get(path, opts)
-              : method === 'PATCH'  ? await request.patch(path, opts)
-              :                       await request.post(path, opts);
-
+      const r = method === 'GET'   ? await request.get(path, opts)
+              : method === 'PATCH' ? await request.patch(path, opts)
+              :                      await request.post(path, opts);
       const status = r.status();
-      const body = await r.text();
 
-      /* 405 or 404 means this entry names the wrong method or path, not that the
-       * product is wrong. Fail loudly rather than let it read as "refused". */
-      expect(status, `${method} ${path} returned ${status} — this spec has the wrong method/path, not a finding`)
-        .not.toBe(405);
-      expect(status, `${method} ${path} returned 404 — route moved or renamed`).not.toBe(404);
-      expect(status, `${method} ${path} returned 401 — the token stopped working mid-run`).not.toBe(401);
+      /* 404/405/401 mean this entry names the wrong method or path, or the token
+       * stopped working - a fault in the spec, not a finding about the product. */
+      expect(status, `${method} ${path} -> ${status}: wrong method/path in this spec, not a finding`).not.toBe(405);
+      expect(status, `${method} ${path} -> 404: route moved or renamed`).not.toBe(404);
+      expect(status, `${method} ${path} -> 401. The token works elsewhere in this run, so this route authenticates differently - check whether it uses getSupabaseAdmin(), which needs env CI does not have.`).not.toBe(401);
 
-      if (expectPro) {
-        // Trial or paid: the gate must NOT refuse. Anything else about the
-        // response (400 for an empty body, 500 from an upstream) is not this
-        // test's business — only that it was not refused for entitlement.
-        expect(status, `${path} refused a Pro-entitled account (${why})`).not.toBe(403);
-      } else {
-        expect(status, `${path} did NOT refuse a free account (${why}) — Pro feature reachable without Pro`).toBe(403);
-        expect(body, `${path} returned 403 without PRO_REQUIRED — refused for some other reason`).toContain('PRO_REQUIRED');
-      }
+      expect(status, `${path} did NOT refuse a free account — a Pro feature is reachable without Pro`).toBe(403);
+      expect(await r.text(), `${path} returned 403 without PRO_REQUIRED — refused for some other reason`).toContain('PRO_REQUIRED');
+    });
+
+    test(`${method} ${path} admits a PRO account`, async ({ request }) => {
+      const opts = {
+        headers: { Authorization: `Bearer ${proToken}`, 'Content-Type': 'application/json' },
+        data: {},
+        failOnStatusCode: false,
+      };
+      const r = method === 'GET'   ? await request.get(path, opts)
+              : method === 'PATCH' ? await request.patch(path, opts)
+              :                      await request.post(path, opts);
+
+      /* The control for the test above. Without it, a route that returns 403 to
+       * EVERYONE - broken, not gated - reads as a pass. Anything else about the
+       * response (400 for an empty body, 500 upstream) is not this test's
+       * business; only that it was not refused for entitlement. */
+      expect(r.status(), `${path} refused a PRO account — the gate is not gating, it is broken`).not.toBe(403);
     });
   }
 

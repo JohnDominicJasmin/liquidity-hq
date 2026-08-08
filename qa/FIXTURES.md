@@ -246,3 +246,109 @@ commit message.
 broken interception fails both — which is what happened when the route pattern
 did not match, and the `byKey['bybit-tickers']` guard reported it precisely
 rather than passing quietly.
+
+
+---
+
+## Wiring the contrast sweep to fixtures: tried, reverted, and why
+
+All 17 endpoints are now recorded (20 payloads, 299 KB). `contrast.spec.ts` was
+wired to `installMarketFixtures` and **both themes passed**.
+
+**The wiring is reverted anyway.** It passed for the wrong reason.
+
+| | dark tokens |
+|---|---|
+| baseline (live data) | **16** |
+| measured with fixtures | **11** |
+| never rendered | `#3a3d48` `#3b3e49` `#6c6d72` `#733738` `#745a16` |
+
+The spec fails when a **new** token appears. A token *disappearing* is
+indistinguishable from someone genuinely fixing it, so five surfaces silently
+stopped being measured and the run went green.
+
+**That is a worse outcome than the flakiness it was meant to fix**: the sweep
+would have looked more stable while covering less, and the tokens it stopped
+seeing are exactly the data-dependent ones — `#733738` and `#745a16` were first
+seen on `/econ-calendar`, `#3a3d48`/`#3b3e49` on the same route.
+
+### Why they stopped rendering
+
+The fixtures cover the **third-party** boundary. `/econ-calendar` and several
+other surfaces are fed by our own `/api/*` routes — `econ-calendar`, `cmc`,
+`macro`, `labels`, `news` — which are served from route handlers, so the browser
+never issues the upstream call and there is nothing for `page.route` to
+intercept at that boundary.
+
+Serving a stale or empty `/api/econ-calendar` means the calendar renders empty,
+and an empty calendar has no coloured rows to fail contrast on.
+
+### What closing it needs
+
+Recording the app's own `/api/*` responses as well, and accepting that those are
+shapes we control and change — which is the exact coupling `FIXTURES.md` argued
+against at the start. That argument was about *assertions*; for *rendering* it
+does not apply, because a route that renders nothing measures nothing.
+
+### The check that caught it
+
+Comparing the measured token set against `BASELINE.contrast.darkTokens` by hand
+after the run went green. Nothing in the suite does that automatically, and if I
+had trusted the green I would have shipped a sweep that covers two thirds of
+what it used to and reports the same.
+
+**Worth adding to the spec regardless of fixtures:** when a token disappears,
+say so loudly rather than silently. A real fix and a surface that stopped
+rendering look identical today.
+
+
+---
+
+## CORRECTION: the fixtures did not lose coverage. I was wrong.
+
+The section above says wiring `contrast.spec.ts` to fixtures dropped the dark
+sweep from 16 tokens to 11, and that five surfaces stopped rendering as a result.
+**That attribution is wrong**, and the bidirectional assertion added in the same
+change is what disproved it.
+
+Ran the sweep on **live data** with a synthetic token added to the baseline, to
+prove the new assertion fires. It fired — and reported **six** missing tokens,
+not one:
+
+```
+#3a3d48  #3b3e49  #6c6d72  #733738  #745a16  #deadbe(synthetic)
+```
+
+Those five are exactly the five I blamed on the fixtures.
+
+| run | dark tokens observed |
+|---|---|
+| live data | **11** of 16 |
+| with fixtures | **11** of 16 |
+
+**Identical.** The fixtures changed nothing. Those five tokens are data-dependent
+surfaces that were present when the baseline was measured and are not rendering
+now — `#733738` and `#745a16` were first seen on `/econ-calendar`, which has no
+events to render today.
+
+### What actually happened
+
+I measured a token count, compared it to the baseline, found it short, and
+attributed the shortfall to the change I had just made. The change was the most
+recent thing, not the cause. **I never ran the control — the same measurement
+without the fixtures — which is the one comparison that would have separated
+them, and it is the discipline I have applied to everyone else's work all week.**
+
+The fixture wiring was reverted for no reason and should go back.
+
+### What the assertion is really telling us
+
+The baseline has **five entries that a live run does not observe**. That is not a
+fixture problem and never was — it is the data-dependence the fixtures were meant
+to fix, showing up as stale baseline entries nobody could see before.
+
+So the new assertion is doing exactly its job on its first real run, and its
+first finding is that the baseline has been quietly wrong for some time.
+
+**It will be noisy until those surfaces are deterministic**, which is the
+argument for fixtures rather than against them.
