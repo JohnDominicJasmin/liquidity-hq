@@ -1,0 +1,301 @@
+{
+ "_recorded": "production, 2026-08-08",
+ "_url": "https://fapi.binance.com/fapi/v1/fundingRate?symbol=STXUSDT&limit=42",
+ "_status": 200,
+ "body": [
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1784995200000,
+   "fundingRate": "-0.00040545",
+   "markPrice": "0.13615829",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785024000000,
+   "fundingRate": "-0.00054569",
+   "markPrice": "0.13660000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785052800002,
+   "fundingRate": "-0.00026605",
+   "markPrice": "0.14023541",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785081600000,
+   "fundingRate": "-0.00006941",
+   "markPrice": "0.13945000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785110400010,
+   "fundingRate": "-0.00022786",
+   "markPrice": "0.14674153",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785139200000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.14185000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785168000001,
+   "fundingRate": "0.00002126",
+   "markPrice": "0.13800000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785196800000,
+   "fundingRate": "-0.00003645",
+   "markPrice": "0.13424946",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785225600000,
+   "fundingRate": "0.00009535",
+   "markPrice": "0.13150000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785254400000,
+   "fundingRate": "0.00003919",
+   "markPrice": "0.13965969",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785283200000,
+   "fundingRate": "-0.00001797",
+   "markPrice": "0.13795000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785312000002,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13655000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785340800000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13331432",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785369600000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13485000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785398400000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13410000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785427200000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13745000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785456000003,
+   "fundingRate": "0.00001328",
+   "markPrice": "0.14010000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785484800000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13853000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785513600000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13743919",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785542400001,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13755000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785571200000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13695000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785600000000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13644667",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785628800000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13940000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785657600000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13866297",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785686400000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.14070000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785715200000,
+   "fundingRate": "-0.00002151",
+   "markPrice": "0.13890000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785744000000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13590000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785772800000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13810000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785801600004,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13835000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785830400002,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13830000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785859200000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13541216",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785888000003,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13474189",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785916800004,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13533784",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785945600000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13264946",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1785974400002,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13370667",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1786003200000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13370000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1786032000000,
+   "fundingRate": "0.00000469",
+   "markPrice": "0.13253820",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1786060800000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13001613",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1786089600000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13055000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1786118400000,
+   "fundingRate": "0.00008325",
+   "markPrice": "0.13095000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1786147200001,
+   "fundingRate": "-0.00012091",
+   "markPrice": "0.12920000",
+   "rateType": "Regular"
+  },
+  {
+   "symbol": "STXUSDT",
+   "fundingTime": 1786176000000,
+   "fundingRate": "0.00010000",
+   "markPrice": "0.13055000",
+   "rateType": "Regular"
+  }
+ ]
+}
