@@ -13,9 +13,15 @@
 
 export type SubscriptionRole = 'pro' | 'free';
 
-/** The columns an event implies. `user_id` and `updated_at` are the caller's. */
+/** The columns an event implies. `user_id` and `updated_at` are the caller's.
+ *
+ *  `role` is OPTIONAL, and its absence is meaningful: it means "record what
+ *  happened, do not change entitlement". Omitting a column from a Supabase
+ *  upsert leaves it out of the ON CONFLICT update set, so an existing row keeps
+ *  its role. (A row that does not exist gets the column default, `'free'` -
+ *  which is the right answer for someone with no subscription row anyway.) */
 export interface SubscriptionPatch {
-  role: SubscriptionRole;
+  role?: SubscriptionRole;
   ls_status: string;
   ls_subscription_id?: string;
   ls_customer_id?: string;
@@ -38,32 +44,52 @@ const SUBSCRIPTION_EVENTS = new Set([
   'subscription_payment_success',
 ]);
 
-/* Events that end access immediately.
+/* TWO OWNER DECISIONS, DELIBERATELY OPPOSITE. Both dated 2026-08-08.
  *
- * `subscription_payment_failed` is here by an owner decision on 2026-08-08:
- * immediate downgrade, no grace period. LemonSqueezy retries a failed renewal
- * for several days before giving up, so a user whose card declines loses Pro on
- * the first failure and regains it if a retry succeeds. That flapping is the
- * accepted cost of the decision, not an oversight.
+ *   subscription_payment_failed  -> they did NOT pay -> end access immediately
+ *   subscription_cancelled       -> they DID pay     -> keep access to ends_at
+ *
+ * The two branches look interchangeable and the second used to share a branch
+ * with `subscription_expired`, which is exactly how issue #134 happened. If you
+ * are about to merge them back together, this comment is why not.
+ *
+ * Events that end access immediately:
+ *
+ * `subscription_payment_failed` - LemonSqueezy retries a failed renewal for
+ * several days before giving up, so a declining card loses Pro on the FIRST
+ * failure and regains it if a retry succeeds. That flapping is the accepted
+ * cost of "no grace period", not an oversight.
  *
  * The refund events are here under a STATED ASSUMPTION rather than a decision:
- * the money has been returned, so the customer is not one. Reverse this if the
- * owner disagrees - it is one line and the tests name it explicitly.
+ * the money has been returned, so the customer is not one. One line to reverse,
+ * and the tests name it explicitly.
  *
- * `subscription_expired` is the genuine end of a paid period.
- *
- * `subscription_cancelled` is NOT here and its presence in the same branch as
- * `expired` in the route is a defect - see issue #134. Cancellation means
- * auto-renew off, not access ended, and downgrading on it takes back a period
- * the user has already paid for. Left alone deliberately: fixing it needs
- * getEntitlement() to end access at current_period_end, which is not this
- * change. */
+ * `subscription_expired` is the genuine end of a paid period - and it is the
+ * ONLY event that ends a cancelled subscription. Verified against LemonSqueezy's
+ * documentation 2026-08-08: a cancelled subscription stays valid on a grace
+ * period until `ends_at`, then expires and fires this event. So removing
+ * `subscription_cancelled` from this set does not strand anyone as `pro` -
+ * that was the risk QA raised on #134, and it is the fact the whole fix rests
+ * on. */
 const ENDS_ACCESS = new Set([
   'subscription_payment_failed',
   'subscription_payment_refunded',
   'order_refunded',
-  'subscription_cancelled',
   'subscription_expired',
+]);
+
+/* Events worth RECORDING that must not change entitlement.
+ *
+ * Cancellation in LemonSqueezy means auto-renew was turned off. The user has
+ * paid through `ends_at` and keeps access until then. Downgrading here took
+ * back a period they had already bought (#134).
+ *
+ * It is not simply ignored, because the row should carry `ls_status:
+ * 'cancelled'` and the date access actually ends - that is what support and
+ * `/ops` read, and dropping the event would leave a cancelled subscription
+ * indistinguishable from an active one until it expired. */
+const RECORD_ONLY = new Set([
+  'subscription_cancelled',
 ]);
 
 /**
@@ -106,6 +132,16 @@ export function patchForEvent(
       // 'refunded'), not the subscription - so fall back to the event name,
       // which is the more truthful record of why the row changed.
       ls_status: status || eventName.replace('subscription_', ''),
+    };
+  }
+
+  if (RECORD_ONLY.has(eventName)) {
+    // No `role`. The user keeps what they have until `subscription_expired`.
+    return {
+      ls_status: status || eventName.replace('subscription_', ''),
+      // ends_at is when access actually stops. renews_at is null on a cancelled
+      // subscription - there is no renewal - so this is the only date left.
+      current_period_end: pickDate(attrs.ends_at) ?? null,
     };
   }
 

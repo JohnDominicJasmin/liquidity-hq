@@ -68,12 +68,33 @@ test('LemonSqueezy event -> subscription row', async (t) => {
     assert.equal(patchForEvent('subscription_expired', { status: 'expired' })?.role, 'free');
   });
 
-  /* Records today's behaviour, which issue #134 says is wrong: LemonSqueezy
-     "cancelled" means auto-renew off, and the user keeps access until ends_at.
-     Asserting it keeps the defect visible instead of letting it read as
-     intended. When #134 is decided this test changes with the code. */
-  await t.test('cancellation downgrades immediately - see #134, this is the defect', () => {
-    assert.equal(patchForEvent('subscription_cancelled', { status: 'cancelled' })?.role, 'free');
+  /* #134. The two decisions are deliberately opposite and the branches look
+     interchangeable, which is how they came to share one in the first place:
+
+       payment_failed -> they did NOT pay -> end access now
+       cancelled      -> they DID pay     -> keep access until ends_at
+
+     `role` must be ABSENT, not 'pro'. Absent leaves the column out of the
+     upsert's update set, so the row keeps whatever it had. Writing 'pro' would
+     GRANT Pro to someone cancelling a subscription they never had - the
+     opposite bug, one line away. */
+  await t.test('cancellation does not touch entitlement (#134)', () => {
+    const p = patchForEvent('subscription_cancelled', {
+      status: 'cancelled', ends_at: '2026-09-08T00:00:00Z',
+    }, 'sub_1');
+    assert.ok(p, 'cancellation must still be recorded, not ignored');
+    assert.equal('role' in p, false, 'cancellation must not set role at all');
+    assert.equal(p.ls_status, 'cancelled');
+    assert.equal(p.current_period_end, '2026-09-08T00:00:00Z');
+  });
+
+  /* The event that DOES end a cancelled subscription. Verified against
+     LemonSqueezy's docs 2026-08-08: a cancelled subscription stays valid on a
+     grace period until ends_at, then expires and fires this. If that were not
+     true, removing cancellation from ENDS_ACCESS would strand users as `pro`
+     forever - which is the risk QA raised, and the fact this fix rests on. */
+  await t.test('expiry is what ends a cancelled subscription', () => {
+    assert.equal(patchForEvent('subscription_expired', { status: 'expired' })?.role, 'free');
   });
 
   /* null, not an empty patch. The caller skips the database write entirely on
