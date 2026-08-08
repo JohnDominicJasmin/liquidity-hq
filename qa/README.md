@@ -7,10 +7,33 @@ Testing and quality-assurance workspace for LiquidityHQ.
 > does *not* cover. "187 tests passed" reads like "the product works", and it
 > does not.
 
+> **Lost track of where things are? Read [`STATUS.md`](STATUS.md).** One page:
+> what is live, what is waiting, what is blocked and on whom.
+
+## Where QA tests
+
+**Four branches, four services, one each.** Nothing auto-deploys — moving a
+branch does not move an environment.
+
+| Branch | Deployed at | Who promotes into it |
+|---|---|---|
+| `dev` | `liquidity-hq-dev.onrender.com` | Dev Team |
+| `qa` | `liquidity-hq-qa.onrender.com` | Dev Team |
+| `staging` | **`liquidity-hq-staging.onrender.com`** | **QA** — this is the freeze |
+| `main` | `liquidity-hq.com` | **QA** |
+
+**QA signs off on `staging`.** `qa` is dev's integration site; `staging` is the
+release candidate and stops moving once QA promotes into it. See
+`CONTRIBUTING.md` §6 and issue #78.
+
+Say **"verified on `staging`"** and name the branch. "Verified on qa" was
+ambiguous for most of 2026-08-07 and should not be written.
+
 ## What lives where
 
 | File | What it is | Status |
 |---|---|---|
+| [`STATUS.md`](STATUS.md) | **Where the project is** — live version, what is waiting, blockers and owners. Updated by QA; check the date before trusting it. | Living |
 | [`TEST_GAPS.md`](TEST_GAPS.md) | **What a green suite does not mean** — every known coverage gap, ranked by value per unit of effort, with what closing each would take. The answer to "what is still untested?" | Living list, updated as gaps close |
 | [`QA_TEST_PLAN.md`](QA_TEST_PLAN.md) | Manual test approach + rigor tiers, plus the RLS deny-all gotcha. Pre-existing — **moved here from `docs/` on 2026-08-04**, so `HANDOVER.md` §4's doc table still points at the old path. | Plan, largely unexecuted |
 | [`../pendings/QA_AUDIT_2026-08-04.md`](../pendings/QA_AUDIT_2026-08-04.md) | Full automated sweep, 2026-08-04 — build gates, 65-route API security, responsiveness at 1440/375, a11y, SEO, CWV, tech debt | Executed, findings unfixed |
