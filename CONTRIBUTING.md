@@ -9,6 +9,12 @@ check.** Everything below exists to serve that. Where a rule would slow down
 solo work without helping QA, it is explicitly relaxed — see
 [Solo / low-ceremony work](#solo--low-ceremony-work).
 
+**This file is the rules. It is not the current state.** For what is live, what
+is waiting to ship, and what is blocked on whom, read
+[`qa/STATUS.md`](qa/STATUS.md) — one page, kept current by QA, dated at the top.
+Picking work back up after a break starts there; this file is where you come
+back for how to move it.
+
 ---
 
 ## 1. Branch naming
@@ -725,6 +731,36 @@ Two things follow from this, and both are the point rather than side effects:
   waits. Shipping a feature mid-week to production, outside the batch, is a
   decision someone makes deliberately — not something that happens because a PR
   merged.
+
+### 7b. The queue has a depth limit
+
+Batching to a weekly release and letting the queue grow without limit are not
+the same thing. **Target: fewer than ~5 PRs waiting on `qa` at any time.**
+
+Measure it rather than estimating it:
+
+```bash
+git fetch origin
+git rev-list --count origin/staging..origin/qa              # commits waiting
+git log origin/staging..origin/qa --format=%s \
+  | grep -c "^Merge pull request"                           # PRs waiting
+```
+
+A batch of fifteen PRs is not one release. It is fifteen changes whose
+interactions nobody has reasoned about, arriving at the gate together — and if a
+regression shows up there, the bisect surface is the whole batch rather than one
+change.
+
+This is not hypothetical. On **2026-08-08 the queue reached 37 commits / 15
+PRs**, finished and unshipped, and nothing surfaced it until someone asked where
+the project was. Depth is invisible unless something measures it, which is why
+the number lives in [`qa/STATUS.md`](qa/STATUS.md) and is updated rather than
+remembered.
+
+**Over the limit, promoting takes priority over merging more into `dev`.** That
+is the only lever — `dev` merging continuously is otherwise correct and stays
+that way. The thing to watch is not how fast work is finished; it is how long
+finished work waits.
 
 ### Before `dev` → `qa`
 

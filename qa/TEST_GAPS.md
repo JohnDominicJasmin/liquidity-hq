@@ -1,6 +1,6 @@
 # What a green suite does not mean
 
-**Owner: QA. Last measured 2026-08-06.**
+**Owner: QA. Last measured 2026-08-08.** Status and blockers live in [`STATUS.md`](STATUS.md); this file is only about coverage.
 
 This file exists because "187 tests passed" reads like "the product works", and it
 does not. It is the standing list of what is **not** covered, why it matters, and
@@ -190,7 +190,7 @@ offline: whether cached routes serve, whether the offline page appears, whether
 queued actions replay on reconnect, or whether a stale service worker serves an
 old build after a deploy.
 
-That last one bites in production and is invisible in staging.
+That last one bites in production and is invisible on the qa and staging test environments.
 
 **To close:** `context.setOffline(true)` plus service-worker lifecycle
 assertions. Playwright supports both.
@@ -236,7 +236,7 @@ The real finding is worse than the gap that was imagined:
 POST https://app.glitchtip.com/api/25983/envelope/   ->  429 Too Many Requests
 ```
 
-Measured on staging across four page loads — **every request, no exceptions**.
+Measured on the qa test environment across four page loads — **every request, no exceptions**.
 The event quota is exhausted, so every error the app reports is rejected and
 dropped.
 
