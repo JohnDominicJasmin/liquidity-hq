@@ -124,6 +124,61 @@ export function monitoringRelease(): string | undefined {
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 const EMAIL = /[^\s/?&=]+@[^\s/?&=]+\.[a-z]{2,}/gi;
 
+/* CREDENTIALS. Added 2026-08-08 after QA's pipeline test captured a real
+ * envelope carrying a session token in the clear (#72):
+ *
+ *   "checkout failed for :email with sb-abcdef-auth-token"
+ *
+ * The email was redacted. The token was not, because until now this file only
+ * knew about UUIDs and emails. Error messages are exactly where credentials
+ * land - a failing request tends to include what it authenticated with.
+ *
+ * These are deliberately SPECIFIC patterns rather than one "long random string"
+ * rule. A generic rule redacts ids, hashes and stack frames, and a scrubber
+ * that mangles ordinary output gets weakened by the next person who has to read
+ * through it.
+ */
+
+/* A JWT: three base64url segments, the first starting `eyJ` because that is
+   base64 for `{"`. Supabase access and refresh tokens are JWTs, and so is the
+   legacy anon/service-role key - so this one pattern covers the credential that
+   matters most and the one that must never appear at all. Nothing else in this
+   app's output has this shape. */
+const JWT = /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+/g;
+
+/* `Authorization: Bearer <token>` reproduced inside a message body. The header
+   itself is dropped by DROP_HEADERS; this catches the copy that ends up in
+   prose, which is the path DROP_HEADERS cannot see. */
+const BEARER = /\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi;
+
+/* Supabase's newer key format, which is not a JWT: sb_secret_… is the
+   service-role replacement and bypasses RLS entirely. sb_publishable_… is safe
+   by design, but a reader who finds one in a bug report cannot tell which kind
+   it is - the same reasoning `apikey` is in DROP_HEADERS. */
+const SB_KEY = /\bsb_(?:secret|publishable)_[A-Za-z0-9_-]{8,}/g;
+
+/* The browser's session storage key, `sb-<project-ref>-auth-token`. The NAME is
+   not a credential, but it carries the project ref, and its VALUE is a JSON
+   blob holding the tokens above - so a message quoting the key is usually a
+   message about to quote the value. */
+const SB_STORAGE_KEY = /\bsb-[a-z0-9-]{4,}-auth-token\b/gi;
+
+/**
+ * Credentials first, then identifiers.
+ *
+ * Order is load-bearing: a token can contain a UUID-shaped substring, and if
+ * UUID ran first it would rewrite part of the token to `:id` and leave the rest
+ * - producing something that no longer matches JWT and survives as a partial
+ * credential. Most specific to least, always.
+ */
+function scrubSecrets(text: string): string {
+  return text
+    .replace(JWT, ':jwt')
+    .replace(BEARER, 'Bearer :token')
+    .replace(SB_KEY, ':supabase-key')
+    .replace(SB_STORAGE_KEY, ':supabase-token-key');
+}
+
 /**
  * Header names dropped outright. Lowercased before comparison - Next normalises
  * incoming headers but `onRequestError` hands them through as received, so both
@@ -153,17 +208,38 @@ const DROP_HEADERS = new Set([
  */
 export function scrubUrl(url: string): string {
   if (!url) return url;
-  const [path, query] = url.split('?');
-  const cleanPath = path.replace(UUID, ':id').replace(EMAIL, ':email');
+
+  /* THE FRAGMENT GOES FIRST, and it is the reason this function was wrong.
+   *
+   * This app uses Supabase's IMPLICIT OAuth flow deliberately - PKCE was tried
+   * and reverted on 2026-07-20 because it broke real mobile Google logins. The
+   * implicit flow returns the session in the URL FRAGMENT:
+   *
+   *   /auth/callback#access_token=eyJ…&refresh_token=…
+   *
+   * A fragment is never sent to a server, so nothing on the API side could ever
+   * see it. But the browser SDK reports `window.location.href`, which has it -
+   * and this function split on `?` only, so a live access token passed through
+   * untouched. Verified before the fix by running the real function against a
+   * real-shaped callback URL.
+   *
+   * Dropped whole rather than scrubbed. A fragment on this app's URLs carries
+   * auth material or nothing worth keeping. */
+  const [beforeHash, hash] = url.split('#');
+  const hadFragment = hash !== undefined && hash.length > 0;
+
+  const [path, query] = beforeHash.split('?');
+  const cleanPath = scrubSecrets(path).replace(UUID, ':id').replace(EMAIL, ':email')
+    + (hadFragment ? '#<redacted>' : '');
   // The query string goes entirely. Nothing in this app puts anything in a query
   // parameter that is worth the risk of keeping - and "keep the safe ones" needs
   // an allowlist that some future route will forget to update.
   return query ? `${cleanPath}?<redacted>` : cleanPath;
 }
 
-/** Redact identifiers in free text - error messages, breadcrumb strings. */
+/** Redact credentials and identifiers in free text - error messages, breadcrumbs. */
 export function scrubText(text: string): string {
-  return text.replace(UUID, ':id').replace(EMAIL, ':email');
+  return scrubSecrets(text).replace(UUID, ':id').replace(EMAIL, ':email');
 }
 
 /** `Array.prototype.map` passes (value, index, array); scrubText's second
