@@ -7,7 +7,10 @@ const OPTIONS: Array<{ code: Locale; label: string; href: string }> = [
   { code: 'en', label: 'English',  href: '/' },
   { code: 'ko', label: '한국어',    href: '/ko' },
   { code: 'zh', label: '中文',      href: '/zh' },
-  { code: 'ar', label: 'العربية',  href: '/ar' },
+  // العربية was here. Removed 2026-08-08 (#138): the translation is complete
+  // but the layout does not mirror, so choosing it produced Arabic text in a
+  // left-to-right layout. The dictionary is kept in lib/i18n/dictionaries.ts -
+  // see the comment there for what putting it back needs.
 ];
 
 export default function LanguageSwitcher({ locale }: { locale: Locale }) {

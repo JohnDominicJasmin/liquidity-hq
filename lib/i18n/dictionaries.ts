@@ -1,15 +1,42 @@
 ﻿// Landing-page translation dictionaries. Only the landing page is localized
 // for now - the rest of the app (dashboard, Arena, etc.) stays English-only.
 
-export const SUPPORTED_LOCALES = ['ko', 'zh', 'ar'] as const;
+/* ARABIC WAS REMOVED 2026-08-08, and the dictionary below was deliberately kept.
+ *
+ * `ar` shipped in this list and in the picker, but RTL was never implemented.
+ * Measured on production: /ar served `<html lang="en">` with no `dir` at all,
+ * and `dirForLocale` reached exactly one div inside LandingContent - so an
+ * Arabic reader got Arabic text in a permanently left-to-right layout, with
+ * anything portalled to <body> (modals, toasts, the consent banner) outside
+ * even that one div.
+ *
+ * Implementing it properly is ~597 physical positioning sites (`left:`,
+ * `margin-left`, `text-align`, `border-left`) against ZERO logical properties
+ * in the codebase today. That is not a three-weeks-before-launch job, and
+ * offering a language that renders wrong reads as neglect rather than scope.
+ *
+ * So the OFFER is withdrawn and the WORK is preserved: `ar` is out of
+ * SUPPORTED_LOCALES, out of the picker and out of generateStaticParams, while
+ * the translated dictionary and `dirForLocale` stay exactly as they are. When
+ * the layout uses logical properties, putting it back is one entry in this
+ * array. Deleting the dictionary would have thrown away the only part that was
+ * finished. See issue #138.
+ */
+export const SUPPORTED_LOCALES = ['ko', 'zh'] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number] | 'en';
 
 export function isSupportedLocale(v: string): v is (typeof SUPPORTED_LOCALES)[number] {
   return (SUPPORTED_LOCALES as readonly string[]).includes(v);
 }
 
-export function dirForLocale(locale: Locale): 'ltr' | 'rtl' {
-  return locale === 'ar' ? 'rtl' : 'ltr';
+/* Kept, and takes a plain string on purpose. `ar` is no longer in `Locale`, so
+   a typed parameter would make `locale === 'ar'` a compile error against a
+   non-overlapping type - and "fixing" that by deleting the branch would quietly
+   delete the RTL knowledge this function exists to hold. */
+const RTL_LOCALES = new Set(['ar', 'he', 'fa', 'ur']);
+
+export function dirForLocale(locale: string): 'ltr' | 'rtl' {
+  return RTL_LOCALES.has(locale) ? 'rtl' : 'ltr';
 }
 
 export interface LandingDict {
@@ -348,7 +375,11 @@ export const ar: LandingDict = {
   },
 };
 
-export const dictionaries: Record<Locale, LandingDict> = { en, ko, zh, ar };
+/* `ar` is deliberately absent, and the type is what enforces that: this is
+   keyed by `Locale`, so re-adding the translation here without also adding
+   'ar' back to SUPPORTED_LOCALES is a compile error rather than a half-restored
+   language. The dictionary itself is exported above and untouched - see #138. */
+export const dictionaries: Record<Locale, LandingDict> = { en, ko, zh };
 
 export function getDictionary(locale: string): LandingDict {
   return isSupportedLocale(locale) ? dictionaries[locale] : dictionaries.en;
