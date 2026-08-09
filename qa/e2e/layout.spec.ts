@@ -40,6 +40,41 @@ import { installMarketFixtures } from './_fixtures';
 
 interface LayoutDefects { obscured: string[]; zeroSized: string[] }
 
+/* Wait until the rendered DOM stops changing before measuring GEOMETRY.
+ *
+ * A fixed `waitForTimeout(2000)` is not good enough here and the failure was
+ * measured, not theorised: mobile returned 11 distinct defects on two runs, then
+ * 12, then 26 and 28 on the first-visit sweep - on identical builds. Desktop was
+ * stable at 0 and 4 throughout.
+ *
+ * Position is the thing this file asserts on, and position moves while content is
+ * still arriving. A late-rendering row pushes a control into or out of the band
+ * under the tab bar, and the count moves with it. On a narrow viewport far more
+ * elements sit near that boundary, which is why only mobile was unstable.
+ *
+ * Same shape as `settleForMeasurement` in contrast.spec.ts, and for the same
+ * reason: sample a signature until it repeats, with a time floor so a gap
+ * between two bursts of the same render cannot be mistaken for the end of it.
+ * The signature includes rendered TEXT length, because a row can change height
+ * without changing the element count.
+ *
+ * Raising the baselines instead would have been the easy fix and the wrong one -
+ * it converts "we cannot measure this reliably" into "this is the new normal".
+ */
+async function settleForGeometry(page: Page): Promise<void> {
+  const started = Date.now();
+  await page.waitForFunction(() => {
+    const w = window as unknown as { __lay?: { last: string; stable: number } };
+    const sig = document.querySelectorAll('*').length + ':' + (document.body.innerText || '').length;
+    w.__lay = w.__lay || { last: '', stable: 0 };
+    if (sig === w.__lay.last) w.__lay.stable++; else { w.__lay.last = sig; w.__lay.stable = 0; }
+    return w.__lay.stable >= 6;
+  }, undefined, { timeout: 20_000, polling: 300 }).catch(() => { /* fall through to the floor */ });
+
+  const elapsed = Date.now() - started;
+  if (elapsed < 3_000) await page.waitForTimeout(3_000 - elapsed);
+}
+
 /** Geometry only, evaluated in the page. No screenshots, no baselines. */
 async function findLayoutDefects(page: Page): Promise<LayoutDefects> {
   return page.evaluate(() => {
@@ -99,6 +134,24 @@ async function findLayoutDefects(page: Page): Promise<LayoutDefects> {
   });
 }
 
+const KNOWN_OBSCURED: Record<string, string[]> = {
+    desktop: [],
+    mobile: [
+      '/backtest: a.pf-footer-link is covered by a.mobile-tab-item',
+      '/backtest: a.pf-footer-link is covered by button.mobile-tab-item',
+      '/briefing: a is covered by a.mobile-tab-item',
+      '/calc: input.ps-inp is covered by span.mobile-tab-label',
+      '/dashboard: button.sotd-refresh is covered by a.mobile-tab-item',
+      '/faq: button is covered by a.mobile-tab-item',
+      '/funding: input is covered by a.mobile-tab-item',
+      '/journal: a.pf-footer-link is covered by button.gchat-fab',
+      '/news: a.pf-footer-link is covered by span',
+      '/offline: button.pf-footer-expand is covered by a.mobile-tab-item',
+      '/playbook: button.pb-star is covered by span',
+      '/scanner: button is covered by a.mobile-tab-item',
+    ],
+  };
+
 test.describe('layout', () => {
   /* Runs on BOTH projects, unlike the HTTP-level specs which skip mobile. That
    * is the whole point here - layout is the one thing that genuinely differs
@@ -108,11 +161,17 @@ test.describe('layout', () => {
   /** Consent denied rather than granted: it dismisses the banner without
    *  starting PostHog, and an undismissed banner legitimately covers the page,
    *  which reads as every route having obscured controls. */
-  async function preparedPage(browser: import('@playwright/test').Browser, viewport: { width: number; height: number }) {
+  async function preparedPage(
+    browser: import('@playwright/test').Browser,
+    viewport: { width: number; height: number },
+    consent: 'denied' | 'first-visit' = 'denied',
+  ) {
     const ctx = await browser.newContext({ viewport });
-    await ctx.addInitScript(() => {
-      try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
-    });
+    if (consent === 'denied') {
+      await ctx.addInitScript(() => {
+        try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
+      });
+    }
     const page = await ctx.newPage();
     page.on('dialog', d => d.dismiss());
     // Fixed market data: a chart's size must not depend on what BTC did today.
@@ -133,7 +192,7 @@ test.describe('layout', () => {
     const { page, close } = await preparedPage(browser, testInfo.project.use.viewport ?? { width: 1440, height: 900 });
     try {
       await page.goto('/', { waitUntil: 'domcontentloaded' });
-      await page.waitForTimeout(1500);
+      await settleForGeometry(page);
 
       const clean = await findLayoutDefects(page);
       expect(clean.obscured, `/ already has obscured controls: ${clean.obscured.join(', ')}`).toEqual([]);
@@ -165,7 +224,19 @@ test.describe('layout', () => {
     } finally { await close(); }
   });
 
-  test('no interactive control is covered by an unrelated element', async ({ browser }, testInfo) => {
+  /* ONE SWEEP, BOTH MEASURES, and the reason is cost rather than tidiness.
+   *
+   * `findLayoutDefects` returns obscured AND zero-size from a single evaluate,
+   * but this file originally asserted them in two tests - so it walked all 32
+   * routes twice for data it already had. With `settleForGeometry` costing a 3s
+   * floor per route, that second sweep was ~1.6 minutes per project of pure
+   * waiting, and the file timed out at 10 minutes on its first run after the
+   * settle landed.
+   *
+   * `expect.soft` on both, so a zero-size regression is still reported when the
+   * obscured count fails. A hard assert on the first would hide the second,
+   * which is the thing this file exists to stop happening elsewhere. */
+  test('no interactive control is covered, and no graphic renders at zero size', async ({ browser }, testInfo) => {
     const { page, close } = await preparedPage(browser, testInfo.project.use.viewport ?? { width: 1440, height: 900 });
     /* DEDUPED to distinct route + control-kind pairs, and the reason is
      * measured rather than tidy-minded.
@@ -179,13 +250,16 @@ test.describe('layout', () => {
      * The DISTINCT set is what a person would act on anyway: "on /calc, an input
      * is under the tab bar" is one defect whether it fires once or four times. */
     const found = new Set<string>();
+    const zero: string[] = [];
     try {
       for (const route of ROUTES) {
         await page.goto(route, { waitUntil: 'domcontentloaded' });
-        await page.waitForTimeout(2000);
-        const { obscured } = await findLayoutDefects(page);
+        await settleForGeometry(page);
+        const { obscured, zeroSized } = await findLayoutDefects(page);
         for (const o of obscured) found.add(`${route}: ${o}`);
+        for (const z of zeroSized) zero.push(`${route}: ${z}`);
       }
+      testInfo.attach('zero-size-graphics.txt', { body: zero.join('\n') || '(none)', contentType: 'text/plain' });
       testInfo.attach('obscured-controls.txt', {
         body: [...found].sort().join('\n') || '(none)',
         contentType: 'text/plain',
@@ -212,41 +286,137 @@ test.describe('layout', () => {
        * Baselined instead of set to 0 so the suite reports the truth today and
        * still fails if it gets worse. Lower this number as they are fixed - do
        * NOT raise it. */
-      /* 11, measured twice on 2026-08-09 and identical both times. The raw
-       * instance count was 13 then 14 on the same build, which is what forced
-       * the dedupe above - I had written 12 here as a guess before measuring,
-       * which is the habit this whole file exists to catch. */
-      const MOBILE_OBSCURED_BASELINE = 11;
-      const limit = testInfo.project.name === 'mobile' ? MOBILE_OBSCURED_BASELINE : 0;
+      /* NAMED SET, NOT A COUNT - and the count was tried first and failed.
+       *
+       * A baseline of 11 flaked to 12, then a DOM-settle wait fixed the
+       * first-visit sweep but not this one. Dev said it plainly on #173: a
+       * positional count is a blunt instrument. They were right.
+       *
+       * The instability is ONE entry drifting in and out near the fold, while
+       * the other eleven are identical every run. A count cannot tell those
+       * apart. A set can: an entry that DISAPPEARS is reported and does not
+       * fail, because disappearance is usually timing; an entry that APPEARS
+       * fails, because that is a new control pushed under something.
+       *
+       * Same shape contrast.spec.ts already uses for colour tokens - unexpected
+       * fails, `fixed` is reported - so this is the house pattern rather than a
+       * new one.
+       *
+       * Nine of the twelve are the fixed tab bar (#173). The other three are not
+       * and are worth naming rather than burying in a total:
+       *   /journal  a.pf-footer-link covered by button.gchat-fab
+       *   /news     a.pf-footer-link covered by span
+       *   /playbook button.pb-star   covered by span
+       */
 
-      expect(found.size,
-        `A visible, interactive control has another element at its own centre point, so a user ` +
-        `cannot click it. Limit for ${testInfo.project.name} is ${limit}, found ${found.size}.\n` +
-        (limit > 0
-          ? 'Mobile carries a baseline because the fixed bottom tab bar overlays content. ' +
-            'Lower it as they are fixed; never raise it.\n'
-          : 'Desktop is strict - zero was measured on 2026-08-09 and zero is correct.\n') +
-        [...found].sort().join('\n'),
-      ).toBeLessThanOrEqual(limit);
-    } finally { await close(); }
-  });
+      const known = new Set(KNOWN_OBSCURED[testInfo.project.name] ?? []);
+      const unexpected = [...found].filter(f => !known.has(f)).sort();
+      const gone = [...known].filter(k => !found.has(k)).sort();
 
-  test('no visible chart or icon renders at zero size', async ({ browser }, testInfo) => {
-    const { page, close } = await preparedPage(browser, testInfo.project.use.viewport ?? { width: 1440, height: 900 });
-    const found: string[] = [];
-    try {
-      for (const route of ROUTES) {
-        await page.goto(route, { waitUntil: 'domcontentloaded' });
-        await page.waitForTimeout(2000);
-        const { zeroSized } = await findLayoutDefects(page);
-        for (const z of zeroSized) found.push(`${route}: ${z}`);
+      if (gone.length) {
+        console.log(`[layout] ${testInfo.project.name}: ${gone.length} known entr(ies) not seen this run - possibly fixed, possibly timing: ${gone.join(' | ')}`);
       }
-      testInfo.attach('zero-size-graphics.txt', { body: found.join('\n') || '(none)', contentType: 'text/plain' });
-      expect(found,
-        'A canvas or svg is visible per checkVisibility() but has no area. A chart that failed to ' +
-        'size is invisible to every other check in this suite - contrast finds no colours in it, ' +
-        'and axe finds no violations.\n' + found.join('\n'),
+
+      expect.soft(unexpected,
+        `A control is covered by something that was NOT covered before. Every entry here is new ` +
+        `since 2026-08-09.
+
+` +
+        `Nine of the known twelve are the fixed mobile tab bar (#173). If your change added a ` +
+        `fixed overlay, the fix is to reserve space for it, not to add the entry to KNOWN.
+
+` +
+        unexpected.join('\n'),
+      ).toEqual([]);
+
+      /* Soft, so this still reports when the obscured count above fails. */
+      expect.soft(zero,
+        'A canvas or svg is visible per checkVisibility() but has no area. A chart that failed ' +
+        'to size is invisible to every other check in this suite - contrast finds no colours in ' +
+        'it, and axe finds no violations.\n' + zero.join('\n'),
       ).toEqual([]);
     } finally { await close(); }
   });
+
+  /* THE CONDITION THIS FILE WAS STRUCTURALLY BLIND TO.
+   *
+   * Every other test here seeds `lhq_analytics_consent_v1 = 'denied'` so the
+   * cookie banner does not sit over the page. That was the right call for
+   * measuring layout - an undismissed banner reads as every route having
+   * obscured controls - but it made the spec incapable of ever seeing a
+   * first-visit defect. Dev found one I could not (#174) precisely there.
+   *
+   * So the banner gets its own test rather than being excluded everywhere. This
+   * is the state EVERY new user sees, once, before they have clicked anything -
+   * which makes it the highest-traffic state the app has.
+   *
+   * Measured 2026-08-09, fixtures installed: desktop 4, mobile 26. Mobile's
+   * ordinary count is 11, so the banner alone accounts for 15 more.
+   *
+   * `/login` is the one to look at first: `a <- button.consent-btn`. A control
+   * on the sign-in page, covered, on a first visit. */
+  test('first visit: the consent banner does not cover controls', async ({ browser }, testInfo) => {
+    const { page, close } = await preparedPage(
+      browser, testInfo.project.use.viewport ?? { width: 1440, height: 900 }, 'first-visit',
+    );
+    const found = new Set<string>();
+    try {
+      for (const route of ROUTES) {
+        await page.goto(route, { waitUntil: 'domcontentloaded' });
+        await settleForGeometry(page);
+        const { obscured } = await findLayoutDefects(page);
+        for (const o of obscured) found.add(`${route}: ${o}`);
+      }
+      testInfo.attach('first-visit-obscured.txt', {
+        body: [...found].sort().join('\n') || '(none)',
+        contentType: 'text/plain',
+      });
+      console.log(`[layout] ${testInfo.project.name} FIRST VISIT: ${found.size} distinct obscured control(s)`);
+
+      /* CATEGORICAL, not a count - for the same reason as the sweep above.
+       * Counted, this was 4 then 3 on desktop and 28 then 26 on mobile, on
+       * identical builds. The DOM-settle wait narrowed the drift; it did not
+       * remove it, because these positions genuinely move with content height.
+       *
+       * What does NOT move is WHAT is doing the covering. On a first visit every
+       * obscured control should be covered either by the consent banner - the
+       * thing this test is about, tracked as #174 - or by something already
+       * known from the ordinary sweep, since the banner is additive.
+       *
+       * Anything else is a control newly pushed under something, in the state
+       * every single new user sees. That is worth failing for; a count that
+       * wobbles by one is not. */
+      /* The banner also SHIFTS content, so the floating chat button lands over
+       * different things than it does once the banner is gone. Measured: these
+       * two, and only these two.
+       *
+       * Named individually rather than allowlisting `gchat-fab` as a category.
+       * A category rule would also swallow a NEW control pushed under the
+       * button - which is exactly the failure dev warned about on #173, where
+       * lowering a number would have hidden the `/calc` input. */
+      const KNOWN_FIRST_VISIT: Record<string, string[]> = {
+        desktop: [],
+        mobile: [
+          '/offline: a.pf-footer-link is covered by button.gchat-fab',
+          '/playbook: button.pb-star is covered by button.gchat-fab',
+        ],
+      };
+
+      const isConsent = (entry: string) => /covered by \S*\.?consent-/.test(entry);
+      const knownOrdinary = new Set(KNOWN_OBSCURED[testInfo.project.name] ?? []);
+      const knownShift = new Set(KNOWN_FIRST_VISIT[testInfo.project.name] ?? []);
+      const unexpected = [...found]
+        .filter(f => !isConsent(f) && !knownOrdinary.has(f) && !knownShift.has(f))
+        .sort();
+
+      console.log(`[layout] ${testInfo.project.name} FIRST VISIT: ${[...found].filter(isConsent).length} covered by the consent banner`);
+
+      expect(unexpected,
+        `On a FIRST VISIT - the state every new user sees - these controls are covered by ` +
+        `something that is neither the consent banner (#174) nor already known from the ordinary ` +
+        `sweep. Each one is new.\n\n` + unexpected.join('\n'),
+      ).toEqual([]);
+    } finally { await close(); }
+  });
+
 });

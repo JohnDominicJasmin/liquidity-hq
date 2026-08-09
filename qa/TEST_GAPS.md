@@ -73,29 +73,47 @@ through. **Cost:** days. **Value:** still the highest here.
 
 ---
 
-## 🟠 2. Nothing has ever looked at the pages
+## 🟡 2. Geometry is checked now; APPEARANCE still is not
 
-**Unchanged, and now the top item.** Contrast ratios are computed from CSS values
-and the DOM is read programmatically. **No test has ever compared what a page
-looks like.**
+**Downgraded from 🟠 on 2026-08-09.** `qa/e2e/layout.spec.ts` closed the half of
+this that could be closed deterministically.
 
-All of these still pass every check in the suite:
+**What is covered now**, on both viewports, no baseline files:
+
+- a control rendered underneath something else → **obscured** check, via
+  `elementFromPoint` on each control's own centre
+- a chart drawing at zero height → **zero-size** check on every visible
+  `canvas`/`svg`
+- the **first-visit** state, where the consent banner sits over the page
+
+It found real defects immediately: two `/calc` inputs under the fixed mobile tab
+bar (#173), and 4 desktop / 26 mobile controls covered by the consent banner on a
+first visit (#174).
+
+**What is still NOT covered, and it is the original wording of this section:**
 
 - text rendered in a colour that happens to match its background
-- two elements overlapping
-- a chart drawing at zero height
+- two elements overlapping **without** either one's centre landing on the other
 - a modal opening off-screen
-- a layout collapsing at one specific width
+- anything that is simply *ugly* — spacing, alignment, wrapping
 
-**The blocker moved.** This used to be blocked on §1 for data-heavy routes.
-Fixtures now make those routes deterministic, so screenshot baselines are viable
-for far more than the static pages.
+Geometry catches "unusable". It does not catch "wrong".
 
-**To close:** `toHaveScreenshot()` per route per viewport per theme. Built into
-Playwright, no new dependency.
+**Why not `toHaveScreenshot()`, which is the obvious answer to the rest.**
+Playwright suffixes snapshots per platform, so baselines generated on a developer
+machine are never compared against a Linux CI run — CI silently generates its own
+and compares a build against itself. **Pixel baselines have to be produced on the
+platform that judges them**, which makes this a CI-side job: generate on a runner,
+commit, then diff.
 
-**Cost:** ~1 day. **Value:** highest value-per-day on this list now that §1's
-determinism problem is partly solved.
+**Two cautions for whoever does it.** The counts in `layout.spec.ts` proved
+unstable until a DOM-settle wait was added — pixels will be worse, because a
+one-pixel scrollbar or font-rendering difference fails a diff that a geometry
+check ignores. And the mobile obscured count moves with content height, so
+screenshots of data-heavy routes will need the fixtures that already exist.
+
+**Cost:** ~1 day, most of it CI plumbing rather than test code.
+**Value:** high, but no longer the highest — the unusable cases are caught.
 
 ---
 
@@ -110,39 +128,32 @@ repeated from this file for weeks after it stopped being true.
 
 ---
 
-## 🔴 4. `lang` is wrong on 30 of 32 routes
+## ✅ 4. Page language — CLOSED 2026-08-09
 
-**Arabic is resolved. The Level A failure is not.**
+Arabic was withdrawn rather than implemented (#147, owner's Option B), `/ar`
+returns a real 404 (#163), and `lang`/`dir` now come from `LabelsProvider` — the
+component that owns the locale — so they follow the locale a user actually
+selected on every route, not just the three with a locale in the URL (#165).
 
-`/ar` is out of `SUPPORTED_LOCALES` and out of the picker (#147), `/ar` returns a
-real 404 (#163), and `qa/e2e/i18n.spec.ts` guards the offering and the `lang`
-attribute on `/`, `/ko` and `/zh`.
+Guarded by `qa/e2e/i18n.spec.ts`, including the assertion that was missing: `lang`
+on a route with **no locale in its URL**, driven by stored selection, for `ko`,
+`zh` and `ru`. Plus the withdrawn-locale case, where `lang`, `dir` and rendered
+text must all agree.
 
-**But #164, reproduced 2026-08-09:**
+**Kept as a heading for the lesson, not the fix.** This section was closed once
+before, on 2026-08-08, and was wrong:
 
-```
-localStorage.lhq_lang_v1 = 'ko'
+- Arabic was still selectable in **two other pickers** — a second locale system
+  nobody had looked at
+- QA's production sign-off ran nine checks and passed nine, having only visited
+  routes the fix had touched. Thirty of thirty-two routes were serving Korean
+  copy under `lang="en"` at that moment
+- the first attempted fix was a **no-op**: the component was mounted outside the
+  provider it read from, so its hook returned the context default forever
 
-/ko        lang="ko"   Korean on page = true
-/upgrade   lang="en"   Korean on page = true    <-- SC 3.1.1, Level A
-/login     lang="en"   Korean on page = true
-```
-
-There are **two sources of locale truth**. `HtmlLangSync` reads the path;
-`LabelsProvider` reads `localStorage` and serves translated copy app-wide. A
-Korean user gets Korean UI on every route, declared as English.
-
-**How this survived a 9/9 sign-off:** the verification only loaded routes the fix
-touched — `/`, `/ko`, `/zh`, `/ar`. A check that visits only the covered routes
-confirms any fix. That is the vacuous-pass shape, and it happened in QA's own
-release sign-off.
-
-Also still open, and dev's own note: the **server-rendered** HTML says `lang="en"`
-until hydration, so a crawler reading the first response sees English. Needs the
-root-layout restructure.
-
-**To close:** #164, then extend `i18n.spec.ts` to assert `lang` against the
-*selected* locale on a non-landing route — the assertion that would have caught it.
+Three verifications in a row that could not observe what they claimed to check.
+That is why the spec now asserts against the *selected* locale rather than the
+route, and why it runs in a browser rather than over source.
 
 ---
 
@@ -262,19 +273,21 @@ quota. It does not prove prod capture works end to end.
 
 ## Suggested order
 
-Ranked by value per unit of effort. Four of the previous eight are closed.
+Ranked by value per unit of effort. **Five of the original eight are now closed
+or half-closed**, so this list is shorter than the section numbering suggests.
 
 | | Item | Effort | Why this order |
 |---|---|---|---|
-| 1 | **§4 — #164 `lang`** | hours | A live Level A failure on 30 of 32 routes, already reproduced. Dev assigned |
-| 2 | **§2 visual baselines** | ~1 day | The only never-touched gap, and fixtures just made most routes deterministic |
-| 3 | §1 fake clock | days | Unblocks Best Hours, DST, alert resolution — none of which any test can reach |
-| 4 | §1 server-side interception | days | Also what #114 needs before `workers` can be unpinned |
-| 5 | §5 real purchase | days | Blocked on owner-supplied test-mode keys |
-| 6 | §10 prod capture check | hours | Cheap, but needs a deliberate error in production |
-| 7 | §6 screen reader | manual | Book a session; do not pretend CI covers it |
+| 1 | **§1 fake clock** | days | The largest thing no test can reach at all: Best Hours, the economic calendar, DST, and 24h/48h alert resolution |
+| 2 | **§1 server-side interception** | days | Also what #114 needs before `workers` goes past 2 — `page.route` cannot touch the app's own outbound calls |
+| 3 | §2 pixel baselines | ~1 day | Mostly CI plumbing: baselines must be generated on the platform that judges them |
+| 4 | §5 real purchase | days | Blocked on owner-supplied LemonSqueezy test-mode keys |
+| 5 | §10 prod capture check | hours | Cheap, but needs a deliberate error raised in production |
+| 6 | §6 screen reader | manual | Book a session; do not pretend CI covers it |
 
----
+**Removed from this list since 2026-08-09:** §4 (`lang`, closed by #165), and §2's
+geometry half (closed by `layout.spec.ts`). Both were ranked 1 and 2 here
+yesterday.
 
 ## Also see
 
