@@ -2,11 +2,30 @@
 
 **One page. If you only read one thing, read this.**
 
-Kept current by QA. Last updated **2026-08-08**.
+Kept current by QA. Last updated **2026-08-09**.
 
-If the date above is more than a day old, treat every number below as stale and
-check the branches yourself — a status doc nobody updates is worse than none,
-because it reads as current.
+## Read this before you trust anything below
+
+The first version of this file was reviewed with one caveat, and the caveat was
+right: **it went stale while the PR was open.** Five lines were wrong within a
+day, and its own opening sentence was the standard it failed.
+
+So it has been rebuilt around what actually changes slowly. **Counts and branch
+positions are not written down here** — they are wrong within the hour, and a
+wrong number that looks authoritative is worse than no number. What is written
+down is the part that does not move: decisions, who is blocked on whom, and the
+risks nobody has retired.
+
+**Measure the volatile things yourself. Two commands:**
+
+```bash
+git fetch --all && for b in dev qa staging main; do echo "$b $(git rev-parse --short origin/$b)"; done
+gh pr list --state open --json number,title,baseRefName -q '.[] | "#\(.number) -> \(.baseRefName)  \(.title)"'
+```
+
+Production's *actual* served commit is `/api/version` on liquidity-hq.com — not
+`main`, not the last merge. The drift check reads that endpoint for exactly this
+reason.
 
 ---
 
@@ -15,93 +34,77 @@ because it reads as current.
 | | |
 |---|---|
 | **Live in production** | `ec171db`, tagged `v2026.08.08`, verified on the live build |
-| **Production deploys** | 🛑 **HALTED by the owner.** Nothing merges to `main` or deploys until they lift it |
-| **Parked on `staging`** | 17 commits — release PR **#121**, gate red until #130 + #124 land |
-| **Waiting on `qa`** | 6 commits / 3 PRs |
+| **Production deploys** | Running normally. The owner's halt was lifted 2026-08-08 |
+| **In flight** | Release PR **#150**, `staging` → `main`. Gate running |
+| **Flow** | `dev` → `qa` → `staging` → `main`, four services, one per branch |
 
-**One-line version:** production is healthy and frozen on purpose. The queue is
-growing because the freeze stops promotion, which is the expected cost, not a
-fault.
+**One-line version:** production is healthy, a release is in its gate, and the
+board is down to six open issues from twelve.
 
 ---
 
 ## Waiting on the OWNER — nothing moves on these without them
 
-| | What | Blocks |
+| What | Blocks | State |
 |---|---|---|
-| **#126** | PAT, or drop the auto-opened release PR. A bot-created PR never runs CI — the check is **absent, not failing**, so the PR is unmergeable with nothing red to explain why | every release after the halt |
-| — | **LemonSqueezy test-mode keys.** Not needed to start the webhook harness; needed to prove we are wired to the right store | payments integration proof |
-| — | **Lift the halt, or not.** #121 contains no app code | 17 commits |
-| — | **Dunning behaviour.** When a renewal card fails, nothing tells the user — they lose access one day with no warning. Product decision | one payments branch |
+| **Add repo secret `E2E_SUPABASE_SERVICE_ROLE_KEY`** (the **dev** project's key, never prod's) | three Pro-gated surfaces stay verified by nothing | decided 2026-08-09, secret not yet added |
+| **Remove `CRON_SECRET`** from the `liquidity-hq-qa` Render service | closing #78 | agreed 2026-08-09 |
+| **Deploy `staging`, then production** after #150 merges | the release | Render is `autoDeploy: "no"` — merging ships nothing |
+| **LemonSqueezy test-mode keys** | proving we are wired to the right store | not needed for the harness, which now runs |
 
 ---
 
-## Dev Team
+## Decisions already made — do not re-litigate these
 
-| | What | State |
+| Decision | Date | Where the reasoning lives |
 |---|---|---|
-| **#52** | six `data-testid` attributes, `components/` only | cleared to start |
-| — | **Lapsed-Pro:** does a cancelled user's price alert keep firing? They cannot disable it — PATCH refuses free accounts | reading `dispatchPush` |
-| — | The two unhandled webhook events (`payment_failed`, refunds) | after the owner decides |
-| — | CONTRIBUTING note: **never require PR approvals** while dev and QA share one account — it cannot be satisfied by anyone | agreed, not written |
-
----
-
-## QA — in order
-
-| | What | Why it matters |
-|---|---|---|
-| 1 | **Contrast baseline decision** | 5 entries a live run does not observe. Fixed, or not rendering? The sweep now FAILS until someone says which |
-| 2 | **Arabic RTL** | five languages ship, one is tested. RTL is a mirrored layout, not translated words |
-| 3 | **Payments webhook harness** | 114 lines decide who is a paying customer, never run against a payload in any environment. Needs nothing from anyone |
-| 4 | **BOLA fix** | B's alert seeded (`id=2`). Re-run as A-against-B so the caller clears the Pro gate and reaches the ownership check |
-| 5 | **#127** trigger test | signup creates the trial row via a DB trigger. Drop it and users silently lose 14 days of Pro |
-| 6 | **#72** PII scrubbing | never verified on a real event. No longer blocked — `beforeSend` runs client-side, and the quota is free now |
-| 7 | **Visual regression** | nothing has ever compared what a page looks like |
-| 8 | **#120** | confirm the entitlements spec RUNS on the next release, and which direction it asserted |
+| **Arabic is pulled from the picker**, `lang`/`dir` set from the route. Option B, not an RTL implementation | 2026-08-08 | #138, shipped in #147 |
+| **The service-role key IS allowed in CI**, dev project only, E2E job only. Reverses `ci.yml`'s former "must never be" | 2026-08-09 | beside the variable in `ci.yml`; #153 |
+| **`staging` exists so a signed-off release stops growing.** Only QA promotes into it, and never while a release PR is open | 2026-08-07 | `CONTRIBUTING.md` §6 |
+| **Never require PR approvals.** Dev and QA share one GitHub account, so `Can not approve your own pull request` would deadlock every release permanently | 2026-08-08 | `CONTRIBUTING.md` §3a |
+| **The signup trial trigger is fine.** Measured, not assumed — the three rowless accounts predate it and every signup since 2026-08-01 has a row | 2026-08-09 | #127, closed |
 
 ---
 
 ## Open issues and what closes each
 
-| # | Closes when |
-|---|---|
-| #129 | #130 deploys and a live check returns 401 |
-| #127 | a spec asserts the signup trigger still exists |
-| #126 | a release PR opens **and its CI queues** unattended |
-| #125 | `staging` moves (auto) |
-| #120 | the spec runs, not skips, on a release PR |
-| #114 | every spec touching market data installs fixtures, then `workers` unpins with zero 429s |
-| #109 | #111 reaches production and is re-checked |
-| #103 | the DOM test lands — the runtime fix (#128) is already merged |
-| #82 | the release deploys and dev confirms the log line in prod |
-| #78 | the workflow change is settled; kept open deliberately as the coordination thread |
-| #72 | a spec asserts PII is scrubbed from a real outgoing envelope |
-| #52 | six attributes land and the specs are re-anchored |
+| # | Closes when | Whose |
+|---|---|---|
+| #138 | #147 reaches production and `/ar` 404s there | QA verify |
+| #120 | `entitlements.spec.ts` is observed **executing**, not skipping, in a release gate log | QA verify |
+| #114 | every spec touching market data installs fixtures, then `workers` unpins with zero 429s | QA |
+| #82 | the log line distinguishes filtering from a delivery outage, with a test pinning it | Dev |
+| #78 | `CRON_SECRET` comes off the qa service | Owner |
+| #52 | the testids land and the specs are re-anchored to them | Dev, then QA |
 
 ---
 
 ## Standing risks
 
-- **Payments have never been exercised.** No purchase has granted Pro, no lapsed
-  subscription has been shown to re-lock, and the webhook handler has never seen
-  a real payload. Highest launch risk.
-- **Arabic is a mirrored layout nobody has loaded.** One of five shipped locales.
-- **Nothing has ever looked at a rendered page** — `TEST_GAPS.md` §2.
-- **`push/test`'s Pro gate is verified by nothing** — CI has no admin key, so the
-  route 401s regardless of entitlement. Stated, not solved.
+- **Payments have never been exercised end to end.** No real purchase has granted
+  Pro and no lapsed subscription has been shown to re-lock. The webhook handler
+  is now covered against forged, replayed and cross-account payloads — **but only
+  synthetic ones.** Highest launch risk.
+- **Nothing has ever looked at a rendered page** — `TEST_GAPS.md` §2. Contrast,
+  labels and structure are measured; appearance is not.
 - **The contrast sweep is data-dependent.** Fixtures exist for 17 third-party
-  endpoints but our own `/api/*` routes still feed several surfaces.
-- **`qa` and `dev` share one Supabase project.** A clean QA run is not proof the
-  data path is clean.
-- **No PR in this repo can ever be approved** — one shared account. Adding an
-  approval requirement to any ruleset would deadlock releases permanently.
+  endpoints, but our own `/api/*` routes still feed several surfaces, so a route
+  that renders nothing measures clean.
+- **`staging` and `dev` share one Supabase project.** A clean run on the staging
+  site is not proof the data path is clean, and a migration applied "to qa"
+  applies it to dev for everyone.
+- **No PR in this repo can ever be approved** — one shared account. See the
+  decisions table.
+- **A skip is not a pass, and this suite has several.** Every one names its reason
+  in the skip message. Read them; some are accepted limits and some are findings.
 
 ---
 
 ## Keeping this honest
 
-- Update the date on every change. A stale status doc is a liability.
-- Numbers come from `git` and the GitHub API, not memory.
+- **Do not add a number that git or `gh` can answer.** That is what made the first
+  version stale in a day.
+- Update the date on every change.
 - When a blocker clears, move it out the same day. A list that only grows stops
   being read.
+- Decisions move to the decisions table so they are not re-argued from memory.
