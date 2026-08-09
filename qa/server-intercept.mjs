@@ -1,3 +1,6 @@
+import { writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 /* Intercept the SERVER's outbound fetch, which `page.route` cannot reach.
  *
  * WHY THIS EXISTS. `qa/e2e/_fixtures.ts` intercepts what the BROWSER requests,
@@ -97,6 +100,63 @@ if (ENABLED) {
   /** host -> call count, so the report says WHERE the traffic goes. */
   const byHost = new Map();
 
+  /* The tally file is the only record that survives SIGKILL, so it is written
+   * DURING the run rather than at the end.
+   *
+   * Throttled to once a second: without that, a sweep making thousands of calls
+   * would do a synchronous write per call and change the timing of the thing it
+   * is measuring. Once a second means the worst case is losing the final <1s of
+   * counts to a hard kill, which cannot change any conclusion drawn from a run
+   * that lasts minutes.
+   *
+   * writeFileSync and not a stream: a stream buffers, and a buffer is exactly
+   * what SIGKILL discards. */
+  /* fileURLToPath, NOT `.pathname`. This repo lives under "VS code" - a path
+   * with a space - and `.pathname` percent-encodes it, so the first version
+   * wrote to `.../VS%20code/...`, which does not exist. The write threw, the
+   * catch below swallowed it exactly as designed, and the file simply never
+   * appeared. Caught by testing the SIGKILL case rather than assuming it. */
+  const TALLY_PATH = process.env.QA_INTERCEPT_OUT
+    ?? fileURLToPath(new URL('./.intercept-tally.json', import.meta.url));
+  let lastFlush = 0;
+  let trailing = null;
+
+  const flushTally = (force = false) => {
+    const now = Date.now();
+
+    /* LEADING + TRAILING, not leading only.
+     *
+     * A leading-only throttle writes the first call in each window and silently
+     * drops the rest, so the file records whatever happened to land on a window
+     * boundary. First test of this wrote `total: 1` after three calls - the two
+     * that followed within the same second were dropped and nothing ever wrote
+     * again, because the process then sat idle.
+     *
+     * The trailing timer guarantees the last state is always written once the
+     * window closes. `unref()` so an idle timer never holds the process open -
+     * this module must not change when the server is allowed to exit. */
+    if (!force && now - lastFlush < 1000) {
+      if (!trailing) {
+        trailing = setTimeout(() => { trailing = null; flushTally(true); }, 1000);
+        if (typeof trailing.unref === 'function') trailing.unref();
+      }
+      return;
+    }
+
+    lastFlush = now;
+    try {
+      writeFileSync(TALLY_PATH, JSON.stringify({
+        mode: MODE,
+        pid: process.pid,
+        updatedAt: new Date(now).toISOString(),
+        total: [...byHost.values()].reduce((n, c) => n + c, 0),
+        served,
+        passed,
+        byHost: Object.fromEntries([...byHost.entries()].sort((a, b) => b[1] - a[1])),
+      }, null, 2));
+    } catch { /* never break the app to record a measurement */ }
+  };
+
   globalThis.fetch = async function qaInterceptingFetch(input, init) {
     let url = '';
     try {
@@ -123,6 +183,8 @@ if (ENABLED) {
       const n = byHost.get(host);
       if (n === 1 || n % 25 === 0) log(`[intercept] ${host}: ${n}`);
     }
+
+    if (host) flushTally();
 
     /* count mode never stubs - it only observes. A measurement that alters the
      * thing being measured would answer a different question than #114 asks. */
@@ -151,12 +213,42 @@ if (ENABLED) {
     });
   };
 
-  process.on('exit', () => {
+  const report = (why) => {
     const rows = [...byHost.entries()].sort((a, b) => b[1] - a[1]);
     const total = rows.reduce((n, [, c]) => n + c, 0);
-    log(`[intercept] TOTAL outbound: ${total} (${served} stubbed, ${passed} passed through)`);
+    log(`[intercept] TOTAL outbound: ${total} (${served} stubbed, ${passed} passed through) [${why}]`);
     for (const [h, c] of rows) log(`[intercept]   ${String(c).padStart(5)}  ${h}`);
-  });
+  };
+
+  /* THREE WAYS OUT, because a measurement that only survives a graceful exit is
+   * not a measurement of anything that gets killed.
+   *
+   * Dev hit this on #201: they killed the server, the tally never printed, and
+   * they were left inferring the total from the `n % 25` progress lines above -
+   * enough to prove "fewer than 25", not enough to distinguish 1 from 24. My
+   * bug, reported by the person it cost time.
+   *
+   *   exit             - graceful, and the only one that fired before
+   *   SIGTERM/SIGINT   - how Playwright and Ctrl-C actually stop this process
+   *   the tally file   - the only thing that survives SIGKILL, which no handler
+   *                      can intercept by definition
+   *
+   * The signal handlers re-raise rather than calling process.exit() with a made
+   * up code: re-raising after removing the handler lets the process die of the
+   * signal it was sent, so the exit status still tells the truth about how it
+   * ended. */
+  process.on('exit', () => report('exit'));
+
+  for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
+    process.on(sig, () => {
+      report(sig);
+      flushTally();
+      process.removeAllListeners(sig);
+      process.kill(process.pid, sig);
+    });
+  }
+
+  log(`[intercept] tally file: ${TALLY_PATH} (survives SIGKILL)`);
 
   log(MODE === 'count'
     ? '[intercept] COUNT MODE - every call passes through untouched, tallied by host'
