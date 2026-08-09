@@ -33,21 +33,26 @@ const P = process.env.NEXT_PUBLIC_APP_ENV === 'dev' ? 'lhq_dev_' : 'lhq_';
  *  `price-alerts` appears twice on purpose — its GET is deliberately NOT gated
  *  (a free user may read alerts, not create them), so only POST and PATCH are
  *  listed. Asserting 403 on the GET would be asserting a bug. */
-/* `/api/push/test` is Pro-gated and is NOT in this list, deliberately.
+/* `/api/push/test` was excluded from this list until 2026-08-09, and now is not.
  *
  * It verifies the caller with `getSupabaseAdmin()` rather than the anon client,
- * so it needs SUPABASE_SERVICE_ROLE_KEY. The CI build deliberately runs without
- * developer env (`ci.yml` header: that difference has produced two real
- * defects), so the admin client throws, `getUser` catches and returns null, and
- * the route answers 401 to a perfectly good token.
+ * so without SUPABASE_SERVICE_ROLE_KEY the admin client throws, `getUser`
+ * catches and returns null, and the route answers 401 to a perfectly good
+ * token. Asserting on it then would have failed the release gate for an
+ * environment gap, so it was excluded LOUDLY and the gap recorded: push/test's
+ * Pro gate was verified by nothing.
  *
- * Asserting on it here would fail the release gate for an environment gap and
- * teach everyone to ignore a red entitlements run. Excluding it silently would
- * be worse - so it is excluded loudly, and the coverage gap is real:
- * **push/test's Pro gate is not verified by anything.**
+ * The owner supplied the key to the E2E job (see the long block in `ci.yml`),
+ * so the exclusion no longer has a reason and the route is in GATED below.
  *
- * To cover it, CI needs the admin key, which is a deliberate trade against the
- * reason CI runs without developer env at all. Owner's call, not a QA one.
+ * What it does in CI, checked against the route rather than assumed:
+ *   free -> 403 `PRO_REQUIRED`, which is what this spec asserts
+ *   pro  -> 503 `VAPID not configured`, because CI has no VAPID keys. That is
+ *           not 403, which is all the PRO direction claims - and it means
+ *           **no real push is sent**, so this adds no side effect.
+ *
+ * If the 503 ever becomes a 200, someone has put VAPID credentials in CI and
+ * this route now messages real devices on every release run. Worth noticing.
  */
 const GATED: Array<{ method: 'GET' | 'POST' | 'PATCH'; path: string }> = [
   { method: 'POST',  path: '/api/alerts/preview' },
@@ -58,6 +63,7 @@ const GATED: Array<{ method: 'GET' | 'POST' | 'PATCH'; path: string }> = [
   { method: 'POST',  path: '/api/pine-script' },
   { method: 'POST',  path: '/api/price-alerts' },
   { method: 'PATCH', path: '/api/price-alerts' },
+  { method: 'POST',  path: '/api/push/test' },
   { method: 'POST',  path: '/api/shadow-account' },
   { method: 'POST',  path: '/api/smc-snapshot' },
   { method: 'POST',  path: '/api/strategy-research' },
