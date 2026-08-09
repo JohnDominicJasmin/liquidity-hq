@@ -6,51 +6,37 @@ Kept current by QA. Last updated **2026-08-09**.
 
 ## Read this before you trust anything below
 
-The first version of this file was reviewed with one caveat, and the caveat was
-right: **it went stale while the PR was open.** Five lines were wrong within a
-day, and its own opening sentence was the standard it failed.
+This file has now gone stale **twice**, and the second time is the useful one.
 
-So it has been rebuilt around what actually changes slowly. **Counts and branch
-positions are not written down here** — they are wrong within the hour, and a
-wrong number that looks authoritative is worse than no number. What is written
-down is the part that does not move: decisions, who is blocked on whom, and the
-risks nobody has retired.
+Version one restated commit counts and branch positions; they were wrong within a
+day. So version two removed the counts — and went stale in **four hours**,
+because it still recorded *state*: which commit production served, which release
+was in flight, which owner actions were outstanding. All four were wrong by the
+same evening.
 
-**Measure the volatile things yourself. Two commands:**
+**Counts were never the problem. Anything that changes is.**
+
+So this file no longer records state at all. What survived a full release day
+unchanged were the two sections below: **decisions**, and **risks**. Those are
+what a status file is actually for — the things that are expensive to re-derive
+and cheap to forget.
+
+**For anything current, run these. They cannot be stale:**
 
 ```bash
+gh pr list --state open
+gh issue list --state open
 git fetch --all && for b in dev qa staging main; do echo "$b $(git rev-parse --short origin/$b)"; done
-gh pr list --state open --json number,title,baseRefName -q '.[] | "#\(.number) -> \(.baseRefName)  \(.title)"'
+curl -s https://liquidity-hq.com/api/version          # what prod SERVES, not what merged
+git describe --tags --abbrev=0 origin/main            # what it was tagged
 ```
 
-Production's *actual* served commit is `/api/version` on liquidity-hq.com — not
-`main`, not the last merge. The drift check reads that endpoint for exactly this
-reason.
+The last two matter together. `main` moving is not a deploy — both Render
+services are `autoDeploy: "no"`, so merging ships nothing until someone triggers
+one. The drift check exists because those two answers diverge on every release.
 
----
-
-## Right now
-
-| | |
-|---|---|
-| **Live in production** | `ec171db`, tagged `v2026.08.08`, verified on the live build |
-| **Production deploys** | Running normally. The owner's halt was lifted 2026-08-08 |
-| **In flight** | Release PR **#150**, `staging` → `main`. Gate running |
-| **Flow** | `dev` → `qa` → `staging` → `main`, four services, one per branch |
-
-**One-line version:** production is healthy, a release is in its gate, and the
-board is down to six open issues from twelve.
-
----
-
-## Waiting on the OWNER — nothing moves on these without them
-
-| What | Blocks | State |
-|---|---|---|
-| **Add repo secret `E2E_SUPABASE_SERVICE_ROLE_KEY`** (the **dev** project's key, never prod's) | three Pro-gated surfaces stay verified by nothing | decided 2026-08-09, secret not yet added |
-| **Remove `CRON_SECRET`** from the `liquidity-hq-qa` Render service | closing #78 | agreed 2026-08-09 |
-| **Deploy `staging`, then production** after #150 merges | the release | Render is `autoDeploy: "no"` — merging ships nothing |
-| **LemonSqueezy test-mode keys** | proving we are wired to the right store | not needed for the harness, which now runs |
+**Owner actions** are not listed here either; they were outstanding for one
+morning and done by lunchtime. They live on the issue that needs them.
 
 ---
 
@@ -66,16 +52,23 @@ board is down to six open issues from twelve.
 
 ---
 
-## Open issues and what closes each
+## Open issues — how to read them, not what they are
 
-| # | Closes when | Whose |
-|---|---|---|
-| #138 | #147 reaches production and `/ar` 404s there | QA verify |
-| #120 | `entitlements.spec.ts` is observed **executing**, not skipping, in a release gate log | QA verify |
-| #114 | every spec touching market data installs fixtures, then `workers` unpins with zero 429s | QA |
-| #82 | the log line distinguishes filtering from a delivery outage, with a test pinning it | Dev |
-| #78 | `CRON_SECRET` comes off the qa service | Owner |
-| #52 | the testids land and the specs are re-anchored to them | Dev, then QA |
+Listing issues here was the third thing that went stale. Six were listed this
+morning; five closed the same day.
+
+```bash
+gh issue list --state open
+```
+
+**What is worth writing down is the shape**, because it repeats:
+
+- **"QA verify"** items close on *evidence from a release gate log or production*,
+  never on a merge. #120 existed purely because a merged spec had never executed.
+- **"Dev, then QA"** items need two PRs in order — app change first, spec
+  re-anchor second. Reversing that leaves the suite broken in between.
+- **Owner items** are usually a dashboard click and a sentence. They are only
+  slow when nobody names which dashboard.
 
 ---
 
