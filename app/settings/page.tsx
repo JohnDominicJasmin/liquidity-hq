@@ -56,6 +56,11 @@ function AnalyticsConsentToggle() {
         </div>
         <button
           className={`st-toggle${on ? ' on' : ''}`}
+          /* Only the settings toggle carries this. `.st-toggle` is also on
+             /alerts (page.tsx:1054), which is a different control that happens
+             to share the styling - so the class is not the thing the spec
+             means, and that ambiguity is what a testid removes. */
+          data-testid="settings-toggle"
           role="switch"
           aria-checked={on}
           aria-label={t('SETTINGS_ANALYTICS_TITLE')}

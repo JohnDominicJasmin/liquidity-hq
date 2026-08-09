@@ -263,7 +263,7 @@ function LoginInner() {
                   <input
                     id="magic-email"
                     type="email"
-                    className="login-email-input"
+                    className="login-email-input" data-testid="login-email"
                     placeholder={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
                     value={email}
                     onChange={e => setEmail(e.target.value)}
@@ -358,7 +358,7 @@ function LoginInner() {
                   <input
                     id="pw-email"
                     type="email"
-                    className="login-email-input"
+                    className="login-email-input" data-testid="login-email"
                     placeholder={t('LOGIN_EMAIL_INPUT_PLACEHOLDER')}
                     value={pwEmail}
                     onChange={e => setPwEmail(e.target.value)}
