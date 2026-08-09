@@ -1,7 +1,7 @@
 'use client';
 import { useEffect } from 'react';
 import { useSettings } from '@/lib/settings';
-import { useLabels, isSupportedLocale } from '@/lib/labels';
+import { useLabels, resolveOfferedLocale } from '@/lib/labels';
 
 // One-way sync: a signed-in user's saved language (user_settings.language)
 // applies to the label system on load/login, so the choice follows them
@@ -14,8 +14,12 @@ export default function LanguageSync() {
   const { locale, setLocale } = useLabels();
 
   useEffect(() => {
-    if (settings.language && isSupportedLocale(settings.language) && settings.language !== locale) {
-      setLocale(settings.language);
+    /* Clamped the same way as the localStorage path: a saved user_settings
+       .language that is no longer offered resolves to English rather than
+       reinstating a language with no picker entry (#165). */
+    const wanted = resolveOfferedLocale(settings.language);
+    if (settings.language && wanted !== locale) {
+      setLocale(wanted);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.language]);
