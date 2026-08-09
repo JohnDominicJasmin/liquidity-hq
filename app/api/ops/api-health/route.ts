@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { deriveHealthStatus, knownBlockedReason, STATUS_RANK } from '@/lib/apiHealthStatus';
 import { withAdmin } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { T } from '@/lib/tables';
@@ -48,17 +49,18 @@ export const GET = withAdmin(async () => {
     const rate = samples > 0 ? (successes / samples) * 100 : null;
     const stale = now - new Date(r.updated_at).getTime() > STALE_MS;
 
-    // Three consecutive failures is the "this is not a blip" line - a single
-    // timeout on a flaky feed should not read the same as a retired endpoint.
-    // Staleness outranks the last outcome: a source whose last write was a
-    // success but which stopped being reported half an hour ago is not
-    // healthy, it is unmonitored.
-    const status: 'ok' | 'warn' | 'down' =
-      stale                        ? 'warn'
-      : r.consecutive_failures >= 3 ? 'down'
-      : !r.ok                       ? 'warn'
-      : rate != null && rate < 80   ? 'warn'
-      :                               'ok';
+    /* Status derivation and the known-blocked registry live in
+       lib/apiHealthStatus.ts so both are testable without a database, and so
+       the REASON a source is expected to fail sits next to the list rather
+       than in a code comment three files away. See #176. */
+    const status = deriveHealthStatus({
+      source: r.source,
+      ok: r.ok,
+      consecutiveFailures: r.consecutive_failures,
+      stale,
+      successRate: rate,
+    });
+    const knownReason = knownBlockedReason(r.source);
 
     return {
       source: r.source,
@@ -66,6 +68,10 @@ export const GET = withAdmin(async () => {
       status,
       ok: r.ok,
       detail: stale ? `no report in ${Math.round((now - new Date(r.updated_at).getTime()) / 60000)}m` : r.detail,
+      /* Sent for every known source, not only failing ones - a known-blocked
+         feed that starts succeeding means their WAF changed, and the reader
+         needs the context to recognise that as news. */
+      knownReason,
       items: r.items,
       lastOkAt: r.last_ok_at,
       lastFailAt: r.last_fail_at,
@@ -78,8 +84,11 @@ export const GET = withAdmin(async () => {
 
   // Worst first - the point of opening this card is to see what is broken,
   // not to scroll a healthy list looking for the one red row.
-  const rank = { down: 0, warn: 1, ok: 2 } as const;
-  sources.sort((a, b) => rank[a.status] - rank[b.status] || a.source.localeCompare(b.source));
+  /* `known` sorts between warn and ok: visible, but never above something
+     that might need action. Before this, CryptoSlate's 14,234 failures held
+     the top row permanently and anything that broke today appeared beneath
+     it (#176). */
+  sources.sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || a.source.localeCompare(b.source));
 
   return NextResponse.json({
     sources,
@@ -87,6 +96,7 @@ export const GET = withAdmin(async () => {
       total: sources.length,
       down: sources.filter(s => s.status === 'down').length,
       warn: sources.filter(s => s.status === 'warn').length,
+      known: sources.filter(s => s.status === 'known').length,
       ok: sources.filter(s => s.status === 'ok').length,
     },
     generatedAt: new Date(now).toISOString(),
