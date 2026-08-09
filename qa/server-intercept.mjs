@@ -44,7 +44,22 @@
  * reported separately. Using ESM with `--import` (Node 20.6+) sidesteps it
  * without touching shared lint config, which is not QA's to change.
  */
-const ENABLED = process.env.QA_INTERCEPT_UPSTREAM === '1';
+/* Three states, and the middle one is the useful one for #114.
+ *
+ *   unset    do nothing at all. The default, and the only safe default.
+ *   'count'  pass EVERY call through untouched, but tally it by host. Measures
+ *            real egress without changing a single response, so a suite run in
+ *            this mode is exactly as valid as one without the preload.
+ *   '1'      stub the known hosts. Removes egress entirely; changes behaviour.
+ *
+ * 'count' exists because #114 needs a number nobody has: how many outbound calls
+ * the FULL suite makes. ~159 was measured for the contrast sweep alone, by
+ * grepping route-handler log lines - which counts route invocations, not
+ * upstream requests, and misses every host that does not log. */
+const MODE = process.env.QA_INTERCEPT_UPSTREAM === '1' ? 'stub'
+  : process.env.QA_INTERCEPT_UPSTREAM === 'count' ? 'count'
+  : 'off';
+const ENABLED = MODE !== 'off';
 
 /* STDERR, never stdout, and this was measured the hard way.
  *
@@ -79,6 +94,8 @@ if (ENABLED) {
 
   let served = 0;
   let passed = 0;
+  /** host -> call count, so the report says WHERE the traffic goes. */
+  const byHost = new Map();
 
   globalThis.fetch = async function qaInterceptingFetch(input, init) {
     let url = '';
@@ -89,7 +106,27 @@ if (ENABLED) {
     let host = '';
     try { host = new URL(url).host; } catch { host = ''; }
 
-    if (!host || !STUBBED.includes(host)) {
+    if (host) byHost.set(host, (byHost.get(host) ?? 0) + 1);
+
+    /* Report as we go, not only at exit.
+     *
+     * The first full-suite run reported 14 outbound calls, all to
+     * telemetry.nextjs.org, and zero to Binance - which contradicted a direct
+     * test where /api/funding alone made three. The tally was not wrong; it was
+     * never printed. `process.on('exit')` does not run when Playwright tears the
+     * webServer down, so the long-lived server's totals died with it and the
+     * only numbers that survived came from short-lived build processes.
+     *
+     * A measurement that is only emitted on a graceful exit is not a
+     * measurement of anything that gets killed. */
+    if (MODE === 'count' && host) {
+      const n = byHost.get(host);
+      if (n === 1 || n % 25 === 0) log(`[intercept] ${host}: ${n}`);
+    }
+
+    /* count mode never stubs - it only observes. A measurement that alters the
+     * thing being measured would answer a different question than #114 asks. */
+    if (MODE === 'count' || !host || !STUBBED.includes(host)) {
       passed++;
       return realFetch(input, init);
     }
@@ -115,8 +152,13 @@ if (ENABLED) {
   };
 
   process.on('exit', () => {
-    log(`[intercept] final: ${served} stubbed, ${passed} passed through`);
+    const rows = [...byHost.entries()].sort((a, b) => b[1] - a[1]);
+    const total = rows.reduce((n, [, c]) => n + c, 0);
+    log(`[intercept] TOTAL outbound: ${total} (${served} stubbed, ${passed} passed through)`);
+    for (const [h, c] of rows) log(`[intercept]   ${String(c).padStart(5)}  ${h}`);
   });
 
-  log(`[intercept] ACTIVE - ${STUBBED.length} hosts stubbed, everything else passes through`);
+  log(MODE === 'count'
+    ? '[intercept] COUNT MODE - every call passes through untouched, tallied by host'
+    : `[intercept] STUB MODE - ${STUBBED.length} hosts stubbed, everything else passes through`);
 }
