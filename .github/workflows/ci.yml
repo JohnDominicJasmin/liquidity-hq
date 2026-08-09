@@ -344,9 +344,11 @@ jobs:
           # expires in about an hour, so a pasted token passes once and then
           # fails CI the next day. The spec mints a fresh token per run.
           #
-          # These are ordinary user-level accounts. The service-role key is NOT
-          # here and must never be - it bypasses RLS entirely, which is exactly
-          # what this spec exists to verify.
+          # These are ordinary user-level accounts, and bola.spec.ts must keep
+          # using them. It exists to prove RLS refuses B's request for A's rows;
+          # signing in as the service role would bypass RLS and make it pass
+          # while proving nothing. See the SUPABASE_SERVICE_ROLE_KEY block below
+          # for why the key being present on the job does not change that.
           #
           # Absent, bola.spec.ts SKIPS with a stated reason rather than passing.
           # A BOLA test that runs without fixtures proves nothing, and a vacuous
@@ -405,6 +407,50 @@ jobs:
           # `liquidity-hq-prod`. Copying it here would let anyone who can read
           # this repository forge a webhook that grants Pro.
           LEMONSQUEEZY_WEBHOOK_SECRET: ci-fake-not-a-real-lemonsqueezy-secret
+
+          # ── THIS FILE USED TO SAY THE SERVICE-ROLE KEY "must never be" HERE ──
+          #
+          # Reversed 2026-08-09 by an explicit owner decision, and written out
+          # rather than quietly deleted: an absolute rule that softens with no
+          # record is how the next person re-derives the wrong conclusion.
+          #
+          # WHAT THE OLD RULE COST. Three Pro-gated surfaces were verified by
+          # nothing at all, because every one of them authenticates through
+          # `getSupabaseAdmin()` and so errored before reaching the branch under
+          # test:
+          #
+          #   1. the payments OWNERSHIP check - the payer supplies `user_id` in
+          #      `custom_data`, which `lib/checkout.ts` writes into a
+          #      client-side URL. Whether a payer can grant Pro to an account
+          #      they do not own is the BOLA of payments, and it had never run.
+          #   2. the payments REPLAY guard (`ls_webhook_events`).
+          #   3. `/api/push/test`'s Pro gate - excluded from entitlements.spec.ts
+          #      for this exact reason.
+          #
+          # WHY IT IS ACCEPTABLE. The two arguments the old rule rested on both
+          # survive:
+          #
+          #   * "CI builds without developer env, which caught two real defects"
+          #     - those were the labels bug and the NEXT_PUBLIC_APP_ENV prefix
+          #     gap, and both are about a variable being ABSENT in CI while
+          #     PRESENT in production. This key is present in production. Adding
+          #     it moves CI toward the production configuration, not away from
+          #     it. The env-absence guard is unaffected.
+          #   * "it bypasses RLS, which bola.spec.ts exists to verify" - true of
+          #     a TEST that authenticates with it. No spec does; bola.spec.ts
+          #     signs in as A and B with passwords. What changes here is only
+          #     that the SERVER can build its admin client, exactly as the
+          #     server does in production.
+          #
+          # BLAST RADIUS, stated rather than assumed: this is the DEV project's
+          # key. That project holds nine test accounts and no real user data,
+          # and `staging` shares it. It is NOT prod's key and must never be -
+          # prod's holds real customers and the free plan has no backups.
+          #
+          # IF THE SECRET IS ABSENT the three tests SKIP with a stated reason
+          # rather than pass. That is deliberate and it is the part to preserve:
+          # a skip is legible, a vacuous pass is not.
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
 
       # failure() only. This used to upload on every green run too - ~15s and
       # storage for a report nobody opens. failure() still excludes
