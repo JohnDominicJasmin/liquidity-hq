@@ -111,13 +111,34 @@ if (ENABLED) {
    *
    * writeFileSync and not a stream: a stream buffers, and a buffer is exactly
    * what SIGKILL discards. */
-  /* fileURLToPath, NOT `.pathname`. This repo lives under "VS code" - a path
-   * with a space - and `.pathname` percent-encodes it, so the first version
-   * wrote to `.../VS%20code/...`, which does not exist. The write threw, the
-   * catch below swallowed it exactly as designed, and the file simply never
-   * appeared. Caught by testing the SIGKILL case rather than assuming it. */
+  /* ONE FILE PER PROCESS, and the pid in the name is the whole point.
+   *
+   * `NODE_OPTIONS` applies to EVERY node process in the tree - the npm wrapper,
+   * the build, the Next server, each Playwright worker. Every one of them loads
+   * this module and gets its OWN `byHost` map.
+   *
+   * The first version wrote them all to a single path, so they overwrote each
+   * other and the last writer won. In CI that was a short-lived process with
+   * nothing to report, and the run ended with:
+   *
+   *     [intercept] TOTAL outbound: 0 (0 stubbed, 0 passed through) [exit]
+   *
+   * while a worker in the same run had already logged
+   * `TOTAL outbound: 8 ... 8 wdtjhrilakoitfcezxpx.supabase.co`. The tally was
+   * never wrong, it was destroyed - which is the same failure as the original
+   * `process.on('exit')` bug wearing a different hat, and I shipped it in the
+   * fix for that bug.
+   *
+   * Per-pid files cannot collide. The reader sums them; ci.yml aggregates the
+   * glob and reports both the total and the process count, because "12 processes
+   * reported" is itself the signal that this is working.
+   *
+   * fileURLToPath, NOT `.pathname`: this repo lives under "VS code" and
+   * `.pathname` percent-encodes the space, so the first version wrote to
+   * `.../VS%20code/...`, threw, and was swallowed by the catch exactly as
+   * designed. Caught by testing the SIGKILL case rather than assuming it. */
   const TALLY_PATH = process.env.QA_INTERCEPT_OUT
-    ?? fileURLToPath(new URL('./.intercept-tally.json', import.meta.url));
+    ?? fileURLToPath(new URL(`./.intercept-tally.${process.pid}.json`, import.meta.url));
   let lastFlush = 0;
   let trailing = null;
 
