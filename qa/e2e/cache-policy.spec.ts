@@ -64,8 +64,25 @@ const SHIPPED: Array<{ path: string; expect: RegExp; note: string }> = [
   { path: '/api/funding',         expect: /s-maxage=60\b/,   note: 'Binance + Bybit, #198' },
   { path: '/api/cycle',           expect: /s-maxage=300\b/,  note: 'slow signal, #198' },
   { path: '/api/signal-accuracy', expect: /s-maxage=3600\b/, note: 'historical stats, #198' },
-  { path: '/api/cmc',             expect: /s-maxage=300\b/,  note: 'CoinMarketCap is credit-metered, #198' },
-  { path: '/api/proxy',           expect: /s-maxage=300\b/,  note: 'Coinglass + trends, #198' },
+  /* THE QUERY PARAMETER IS LOAD-BEARING. Do not "tidy" it away.
+   *
+   * Both routes dispatch on `?type=` and return 400 to a bare request BY
+   * DESIGN, on every service. Measured on qa and production:
+   *
+   *   /api/proxy           400      /api/proxy?type=etf      200
+   *   /api/cmc             400      /api/cmc?type=global     200
+   *
+   * Without the parameter they hit the skip guard below on EVERY run on EVERY
+   * environment, forever - so two of the six routes #198 changed would have
+   * been pinned by nothing while the file reported ten green tests.
+   *
+   * That is the same shape as the `/briefing` exemption removed in #196:
+   * invisible in a green run, reads as covered, asserts nothing. Different
+   * cause, identical effect on the report. Caught by dev on review of #203,
+   * after I promoted these two straight from PROPOSED without noticing that a
+   * bare request had never been a valid one. */
+  { path: '/api/cmc?type=global', expect: /s-maxage=300\b/,  note: 'CoinMarketCap is credit-metered, #198' },
+  { path: '/api/proxy?type=etf',  expect: /s-maxage=300\b/,  note: 'Coinglass + trends, #198' },
   /* Was the `max-age` case below - a per-browser cache that did nothing for the
    * second visitor. #198 changed it to `s-maxage`, which is the fix. */
   { path: '/api/forex/jpy',       expect: /s-maxage=300\b/,  note: 'was per-browser max-age, #198' },
@@ -107,12 +124,48 @@ test.describe('API cache policy', () => {
        * KNOWN condition that fails the day qa starts succeeding. So the outage
        * is still tracked, by a test whose subject it actually is, and this file
        * goes back to only ever reporting on cache policy. */
+      /* A 4xx and a 5xx mean OPPOSITE things here, and conflating them is how
+       * two routes ended up permanently skipped in #203.
+       *
+       *   5xx  the upstream is down or the IP is rate-limited. Environmental,
+       *        recovers on its own, and the route itself is fine. /api/ath.
+       *   4xx  WE asked wrong. The route is healthy and rejected the request,
+       *        which almost always means the path in the table above is missing
+       *        a required query parameter. A spec bug, and one that never
+       *        recovers on its own - it skips on every run on every service
+       *        forever while the file reports green.
+       *
+       * Both still skip rather than fail, because neither says anything about a
+       * cache policy. But the message has to name which one it is, or the next
+       * person reads a permanent spec bug as a passing upstream blip. */
+      const body = await res.text().catch(() => '');
+      const unconfigured = /not configured/i.test(body);
+
       test.skip(res.status() >= 400,
         `${path} returned ${res.status()}, so there is nothing to judge here - a failing route ` +
-        'carries no cache policy either way. This is NOT a silent pass: the failure itself is ' +
-        'asserted in cache-effective.spec.ts, which fails when the route recovers. If you are ' +
-        'seeing this for a route other than /api/ath, that is a new upstream outage - check it ' +
-        'there rather than treating this skip as the finding.');
+        'carries no cache policy either way.\n\n' +
+        (res.status() < 500
+          ? `A 4xx means THIS SPEC ASKED WRONG, not that anything is broken. Check whether ${path} ` +
+            'needs a query parameter: /api/cmc and /api/proxy both dispatch on `?type=` and return ' +
+            '400 to a bare request by design, on every environment. A skip from this cause is ' +
+            'PERMANENT - it will never recover, and the route is pinned by nothing until the path ' +
+            'is fixed. Same shape as the /briefing exemption removed in #196.'
+          : unconfigured
+            ? 'A MISSING API KEY, which is permanent in this environment rather than a passing ' +
+              'outage. The route answers 500 "not configured" on every run here and will never ' +
+              'recover on its own, so this assertion is pinned by nothing LOCALLY and IN CI.\n\n' +
+              'Known and accepted: /api/cmc needs CMC_API_KEY, which CI deliberately does not ' +
+              'carry. It is not left unverified - run this spec against a deployed service, where ' +
+              'the key exists and the route answers 200:\n\n' +
+              '    E2E_BASE_URL=https://liquidity-hq-staging.onrender.com npx playwright test ' +
+              'qa/e2e/cache-policy.spec.ts --project=desktop\n\n' +
+              'If a NEW route starts skipping for this reason, it is not covered anywhere until ' +
+              'someone runs it remotely. Say so rather than letting the green count imply otherwise.'
+            : 'A 5xx with no "not configured" is environmental - the upstream is down or this IP ' +
+              'is rate-limited, and it recovers on its own. Known case: /api/ath, where CoinGecko ' +
+              'limits per IP and both non-prod services have spent their budget while production ' +
+              'is fine. Not a silent pass: cache-effective.spec.ts asserts that 502 as a KNOWN ' +
+              'condition and fails when the route recovers.'));
 
       const cc = res.headers()['cache-control'] ?? '';
       expect(cc,
