@@ -3995,6 +3995,51 @@ body.consent-open .login-wrap {
   padding-bottom: calc(var(--consent-top, 0px) + 16px);
 }
 
+/* WHAT IS LEFT OF #174 IS NOT FIXABLE BY RESERVING SPACE, AND THE MEASUREMENT
+   SAYS SO. Recorded here because the obvious next patch is to shrink the box
+   that `.login-wrap` centres in, and that provably does nothing.
+
+   Measured at 390x664 - Playwright's iPhone 13 viewport, and the only one where
+   this reproduces; at 390x844 /login is clear either way:
+
+     .login-wrap   height 877px    <- content-driven
+                   min-height 478px (72vh)   <- never the binding constraint
+     viewport      664px
+
+   The login content is already TALLER than the screen, so `justify-content:
+   center` is not centring anything and reducing min-height moves nothing. Tried
+   it, measured it, count did not change.
+
+   The rule above is still the fix that mattered. With it, /login scrolls 213px
+   against a 189px bar and all three legal links can be brought into the clear.
+   Without it, /login scrolls 24px and those three are UNREACHABLE AT EVERY
+   SCROLL POSITION - measured both ways.
+
+   What remains is that they START under the bar on first visit. Three ways to
+   fix that were tried and measured against a stable baseline of 22 controls
+   covered across 10 routes. All three are recorded because each one is the
+   obvious next idea:
+
+     1. Shrink the box `.login-wrap` centres in.  NO CHANGE.
+        min-height is not the binding constraint - see above.
+
+     2. Move the bar over the tab bar (`bottom: 0`, saving its 56px).
+        22 -> 57, and the four `.mobile-tab-item` links become UNREACHABLE AT
+        EVERY SCROLL POSITION. A fixed element cannot be scrolled out from under
+        another fixed element, so this trades a first-visit annoyance for losing
+        the whole nav until consent is answered. Strictly worse.
+
+     3. Shorten the consent copy. ~18px at best - the text is 54px over 3 lines
+        at 178 characters, and 12px padding + 44px buttons are a touch-target
+        floor, not a style choice. Moves the bar top 475 -> 493 while the
+        contested band is 477..524, so the count does not move.
+
+   So the bar occupies the bottom 189px of a 664px viewport and content in that
+   band starts covered. That is what a bottom sheet does. It is one tap to
+   dismiss, permanently, and the banner carries its own Privacy Policy link
+   (`components/CookieConsent.tsx`) - so the covered legal links are duplicates
+   of one that is not covered. */
+
 /* These two stay hidden. Unlike the FAB they are nags rather than controls the
    user might be reaching for, and stacking three floating things above a
    consent prompt is worse than deferring them until it is answered. */
