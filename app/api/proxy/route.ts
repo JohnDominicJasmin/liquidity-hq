@@ -44,6 +44,17 @@ async function attributedUser(req: NextRequest): Promise<string> {
   }
 }
 
+/* Shared edge cache (#177) - this route fans out to several third-party APIs
+   and was calling them again for every visitor.
+
+   `ok` is a parameter rather than assumed because two of the paths below can
+   return a 200 that is really a failure: Coinglass forwards its error bodies
+   verbatim, and the trends path deliberately converts an upstream block into an
+   empty 200 so the page degrades quietly. Caching either would hold a dead
+   response at the edge for five minutes. Only genuine payloads get the header. */
+const PROXY_CACHE = { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' };
+const proxyCache = (ok: boolean) => (ok ? PROXY_CACHE : undefined);
+
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
   if (!rateLimit(`proxy:${ip}`, 20, 60_000)) {
@@ -79,7 +90,7 @@ export async function GET(req: NextRequest) {
         'https://open-api.coinglass.com/public/v2/exchange_amount_chart?symbol=BTC&time_type=h24',
         { next: { revalidate: 300 }, headers: cgKey ? { 'coinglassSecret': cgKey } : {} }
       );
-      return NextResponse.json(await r.json());
+      return NextResponse.json(await r.json(), { headers: proxyCache(r.ok) });
     }
 
     /* ── Coinglass: BTC liquidation levels ── */
@@ -89,7 +100,7 @@ export async function GET(req: NextRequest) {
         'https://open-api.coinglass.com/public/v2/liquidation_chart?symbol=BTC&time_type=h4',
         { next: { revalidate: 300 }, headers: cgKey ? { 'coinglassSecret': cgKey } : {} }
       );
-      return NextResponse.json(await r.json());
+      return NextResponse.json(await r.json(), { headers: proxyCache(r.ok) });
     }
 
     /* ── Google Trends: bitcoin 7-day search score (2-step) ── */
@@ -154,7 +165,7 @@ export async function GET(req: NextRequest) {
             return { ok: n > 0, detail: n > 0 ? `${n} points` : 'no timeline data', items: n };
           },
         ));
-        return NextResponse.json(json);
+        return NextResponse.json(json, { headers: PROXY_CACHE });
       } catch {
         // Google Trends blocked / timed out - return empty, never 500, never cached
         return NextResponse.json(EMPTY);
@@ -245,7 +256,7 @@ export async function GET(req: NextRequest) {
          is undefined on a number, so the store would silently never have been
          set and the panel would have stayed exactly as broken as before, with
          the health table now green. Updated alongside this. */
-      return NextResponse.json({ btc, eth });
+      return NextResponse.json({ btc, eth }, { headers: PROXY_CACHE });
     }
 
     return NextResponse.json({ error: 'Unknown type' }, { status: 400 });
