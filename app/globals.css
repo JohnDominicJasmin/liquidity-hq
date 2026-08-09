@@ -3972,6 +3972,29 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 body.consent-open .gchat-fab {
   bottom: calc(var(--consent-top, 0px) + 12px) !important;
 }
+/* AND THE PAGE ITSELF RESERVES THE BAND (#174).
+
+   --consent-top has existed since the FAB fix above, but the FAB was its only
+   consumer: the bar is `position: fixed` and out of flow, so page CONTENT sat
+   underneath it with nothing reserving the space. On a phone the bar stacks to
+   ~190px starting at bottom:56, which is a third of the screen.
+
+   Measured on mobile, first visit: 15 controls covered, including /calc's three
+   position-size inputs and - the one that matters - the PRIVACY POLICY link on
+   /login. A consent prompt that covers the document explaining what is being
+   consented to is a compliance problem, not a layout one. `a.login-skip`
+   ("Continue without signing in") was covered too, at the exact moment someone
+   decides whether to bother.
+
+   Same variable, same fallback: harmless before the measurement lands, and it
+   collapses to 0 the moment consent is answered and .consent-open is removed.
+   Desktop was clear at both viewports before this and stays clear - the rule is
+   keyed on the measurement, not on a breakpoint. */
+body.consent-open .app-content,
+body.consent-open .login-wrap {
+  padding-bottom: calc(var(--consent-top, 0px) + 16px);
+}
+
 /* These two stay hidden. Unlike the FAB they are nags rather than controls the
    user might be reaching for, and stacking three floating things above a
    consent prompt is worse than deferring them until it is answered. */
