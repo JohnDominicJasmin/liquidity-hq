@@ -128,6 +128,27 @@ export default defineConfig({
   // reuseExistingServer locally means a server you already have on 3100 is used
   // as-is; CI always starts its own.
   //
+  // ⚠ DO NOT RUN TWO SUITES AT ONCE LOCALLY. The port is fixed, so a second
+  // invocation attaches to the first one's server and then tears it down when it
+  // finishes - the still-running suite starts getting
+  // `net::ERR_CONNECTION_REFUSED at http://localhost:3100/` partway through.
+  //
+  // Hit on 2026-08-10 while a 19-minute contrast sweep ran in the background and
+  // I ran cache-policy tests alongside it. All three contrast tests failed, which
+  // read as a broken refactor for a few minutes and was nothing of the kind.
+  //
+  // It did not become a WRONG result, only a lost one, because contrast.spec.ts
+  // asserts every route was actually measured and said so:
+  //
+  //     These routes were NOT measured, so this run is invalid rather than clean:
+  //     /privacy, /terms, /refund, ...
+  //
+  // That guard is the reason a half-measured sweep cannot report green. Any spec
+  // that sweeps routes should have the equivalent - without it this exact
+  // accident produces a clean-looking run over a fraction of the surface.
+  //
+  // If you need concurrency, give the second run its own port: `E2E_PORT=3101`.
+  //
   // Omitted entirely when E2E_BASE_URL is set - building and booting a local app
   // we are not going to address would waste ~4 minutes and, worse, could make a
   // remote run look like it passed against something it never touched.
