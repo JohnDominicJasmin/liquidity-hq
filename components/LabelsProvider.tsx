@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { usePathname } from 'next/navigation';
+import { htmlLangFor } from '@/lib/htmlLang';
 import { LabelsContext, Locale, loadLocalLocale, saveLocalLocale, interpolate } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 import DEFAULT_EN_LABELS from '@/lib/labelDefaults.en.json';
@@ -112,6 +114,24 @@ export default function LabelsProvider({ children }: { children: React.ReactNode
     fetchLabels(real);
   }, [fetchLabels]);
 
+  /* <html lang> and dir, set from HERE because this is the component that owns
+     the locale (#164).
+
+     It lived in a separate <HtmlLangSync /> mounted next to <AppShell> in the
+     root layout, which is OUTSIDE LabelsProvider - so its useLabels() returned
+     the context default and lang stayed 'en' on every route while the page
+     rendered Korean. QA measured that in a browser; no source-level test could
+     see it, because the hook really was being called.
+
+     AppShell has four branches and every one of them wraps in LabelsProvider,
+     so putting it here covers every route and cannot drift when a fifth branch
+     is added - which mounting the component in each branch would not. */
+  const pathname = usePathname();
+  useEffect(() => {
+    const { lang, dir } = htmlLangFor(pathname, locale);
+    document.documentElement.lang = lang;
+    document.documentElement.dir = dir;
+  }, [pathname, locale]);
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
     saveLocalLocale(l);

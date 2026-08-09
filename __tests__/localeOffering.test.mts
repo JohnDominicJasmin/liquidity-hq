@@ -171,26 +171,55 @@ test('Arabic is not offered by ANY picker', async (t) => {
   }
 });
 
-/* #164. `lang` must follow the locale the USER is actually reading, which on
-   every non-landing route comes from the labels layer, not the URL. */
-test('html lang follows the labels locale, not just the path', async (t) => {
-  const src = read('components/HtmlLangSync.tsx');
+/* #164, second attempt. The first one called useLabels() from a component
+ * mounted OUTSIDE LabelsProvider, so the hook returned the context default and
+ * `lang` stayed 'en' on every route while the page rendered Korean. My test
+ * asserted the hook was CALLED - it was. QA caught it in a browser.
+ *
+ * So the decision is now a pure function, testable without a provider, and the
+ * effect lives in the component that owns the locale. What a source test still
+ * cannot prove is that the caller is mounted correctly; that assertion belongs
+ * in qa/e2e and QA is adding it. */
+test('html lang and dir follow path first, then the labels locale', async (t) => {
+  const { htmlLangFor } = await import('../lib/htmlLang.ts');
 
-  await t.test('it reads the live labels locale', () => {
-    assert.match(src, /useLabels\(\)/,
-      'HtmlLangSync reads only the path again - every route without a locale ' +
-      'segment goes back to claiming English (#164)');
+  await t.test('a locale path wins over a stored preference', () => {
+    assert.deepEqual(htmlLangFor('/ko', 'zh'), { lang: 'ko', dir: 'ltr' });
   });
 
-  /* Order is the whole correctness question: /ko is an explicit request and
-     must not lose to a stale stored preference. */
-  await t.test('the path still wins where a path exists', () => {
-    assert.match(src, /fromPath\s*\?\?\s*locale/,
-      'the precedence flipped - a stored preference would now override /ko');
+  /* The case #164 is about: no locale in the URL, so the labels layer is the
+     only thing that knows what the user is reading. */
+  await t.test('a route with no locale segment follows the labels locale', () => {
+    assert.deepEqual(htmlLangFor('/upgrade', 'ko'), { lang: 'ko', dir: 'ltr' });
+    assert.deepEqual(htmlLangFor('/dashboard', 'zh'), { lang: 'zh', dir: 'ltr' });
   });
 
-  await t.test('lang and dir are set from the same value', () => {
-    assert.match(src, /documentElement\.lang\s*=\s*active/);
-    assert.match(src, /documentElement\.dir\s*=\s*dirForLocale\(active\)/);
+  /* A stored preference for a locale that is not a landing ROUTE must not be
+     read out of the path - /russia-page is not Russian. */
+  await t.test('only real locale routes count as a path locale', () => {
+    assert.equal(htmlLangFor('/russia-page', 'ru').lang, 'ru');
+    assert.equal(htmlLangFor('/nope', 'en').lang, 'en');
   });
+
+  /* Arabic is no longer offered, but a preference stored before that shipped
+     still resolves - and if it does, dir must follow it. */
+  await t.test('a stored Arabic preference still sets rtl', () => {
+    assert.deepEqual(htmlLangFor('/upgrade', 'ar'), { lang: 'ar', dir: 'rtl' });
+  });
+
+  await t.test('an unknown path before hydration falls back to English', () => {
+    assert.deepEqual(htmlLangFor(null, 'en'), { lang: 'en', dir: 'ltr' });
+  });
+});
+
+/* The mount is the part that broke, so it is asserted explicitly: the effect
+   must live in LabelsProvider, which is the only component wrapped around every
+   route by all four AppShell branches. */
+test('the lang effect lives inside the provider that owns the locale', () => {
+  const src = read('components/LabelsProvider.tsx');
+  assert.match(src, /htmlLangFor\(pathname, locale\)/,
+    'LabelsProvider no longer sets lang. Moved back outside the provider, ' +
+    'useLabels() returns the context default and lang is en everywhere (#164)');
+  assert.match(src, /documentElement\.lang/);
+  assert.match(src, /documentElement\.dir/);
 });

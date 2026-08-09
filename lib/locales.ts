@@ -43,8 +43,15 @@ export const SUPPORTED_LOCALES: Locale[] = ['en', 'ko', 'zh', 'ar', 'vi', 'pt-BR
 //
 // It REMAINS in SUPPORTED_LOCALES above on purpose. That list is validation,
 // not an offer: a preference already stored as 'ar' by someone who picked it
-// before this shipped must still resolve, and fall back to English labels,
-// rather than failing.
+// before this shipped must still RESOLVE rather than fail.
+//
+// Measured, because I first wrote "and fall back to English" here and that is
+// wrong: a stored 'ar' still renders Arabic labels, because the 2,416 rows are
+// still in the table and this list still validates the code. What changed is
+// that the document now also carries dir="rtl", so the text at least flows the
+// right way on an unmirrored layout. Nobody NEW can reach that state - it is
+// out of every picker - but the people already in it keep the language they
+// chose.
 export const AVAILABLE_LOCALES: Locale[] = ['en', 'ko', 'zh', 'ru'];
 
 export function isSupportedLocale(v: string): v is Locale {
