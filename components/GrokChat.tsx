@@ -596,6 +596,7 @@ export default function GrokChat() {
           for the mini-panel case, but the button is unclickable (and
           invisible) while open, so that path is effectively unreachable. */}
       <button
+        data-testid="grok-launcher"
         className={`gchat-fab${open ? ' gchat-fab-open' : ''}${!fabVisible ? ' gchat-fab-scrolling' : ''}`}
         onClick={() => { setOpen(v => !v); if (open) { setExpanded(false); setShowLoginModal(false); } }}
         title="Ask Grok"

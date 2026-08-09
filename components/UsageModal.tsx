@@ -30,7 +30,7 @@ export default function UsageModal({ open, onClose }: Props) {
           alone onto a second row and read as an afterthought rather than one
           of the budgets. Still collapses to the viewport on mobile, where
           wrapping is expected. */}
-      <div className="smod-panel" role="dialog" aria-modal="true" aria-label={t('USAGE_MODAL_TITLE')} style={{ maxHeight: 'none', width: 'min(460px, calc(100vw - 24px))' }}>
+      <div className="smod-panel" data-testid="settings-modal" role="dialog" aria-modal="true" aria-label={t('USAGE_MODAL_TITLE')} style={{ maxHeight: 'none', width: 'min(460px, calc(100vw - 24px))' }}>
         <div className="smod-header">
           <span className="smod-title">{t('USAGE_MODAL_TITLE')}</span>
           <button className="smod-close" onClick={onClose} aria-label="Close">✕</button>

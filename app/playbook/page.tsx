@@ -73,6 +73,7 @@ export default function LiquidityPlaybook() {
                 <span className="s-num-right">
                   <span className={`cat-badge ${CAT_CLS[s.cat]}`}>{t(CAT_LABEL_KEYS[s.cat])}</span>
                   <button
+                    data-testid="playbook-star"
                     className={`pb-star${isFav ? ' on' : ''}`}
                     onClick={() => toggleFav(s.n)}
                     title={isFav ? t('PLAYBOOK_UNSAVE_TITLE') : t('PLAYBOOK_SAVE_TITLE')}
