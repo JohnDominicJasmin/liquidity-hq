@@ -1,0 +1,167 @@
+import { test, expect } from '@playwright/test';
+import type { Browser } from '@playwright/test';
+import { installMarketFixtures } from './_fixtures';
+
+/* Time-dependent behaviour, with the clock pinned.
+ *
+ * `qa/TEST_GAPS.md` §1 listed these as untestable: "Best Hours and the economic
+ * calendar across timezones, including DST" and "24h/48h alert outcome
+ * resolution - a test would have to wait 24 hours". The first half is testable
+ * now; the second still is not, and the difference matters.
+ *
+ * WHAT MADE IT POSSIBLE. Playwright's `page.clock` fakes the browser's clock,
+ * so nothing in the app has to change. That mattered: the app makes 146
+ * `Date.now()` and 71 `new Date()` calls with no abstraction between them and
+ * the platform, so injecting a clock through app code would have been a
+ * 217-site refactor - and app code is not QA's to write.
+ *
+ * 🔴 WHAT THIS DOES NOT FAKE, stated up front because it is easy to over-read:
+ *
+ *   - SERVER time. Anything rendered server-side, and every cron path, still
+ *     runs on the real clock. The 24h/48h alert outcome resolution is a cron,
+ *     so it stays untestable here.
+ *   - The USER's timezone. `page.clock` moves the instant, not the zone. These
+ *     run at the project's default locale; a real DST/zone matrix needs
+ *     `timezoneId` contexts and is a separate piece of work.
+ *
+ * So §1 goes from "untestable" to "half testable", and the file says so rather
+ * than claiming the gap is closed.
+ */
+
+/** A page with the clock pinned, fixtures served, and the banner dismissed. */
+async function pinnedTo(browser: Browser, iso: string) {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await ctx.addInitScript(() => {
+    try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
+  });
+  const page = await ctx.newPage();
+  /* BEFORE navigation, and before fixtures. The app reads the clock during
+   * hydration, so installing it after a goto measures the real time on first
+   * paint and the fake one afterwards - which is worse than not faking at all,
+   * because it looks like it worked. */
+  await page.clock.install({ time: new Date(iso) });
+  await installMarketFixtures(page, 'as-recorded');
+  return { page, close: () => ctx.close() };
+}
+
+async function bodyTextOf(browser: Browser, iso: string, route = '/hours') {
+  const { page, close } = await pinnedTo(browser, iso);
+  try {
+    await page.goto(route, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2500);
+    return (await page.evaluate(() => document.body.innerText || '')).replace(/\s+/g, ' ');
+  } finally { await close(); }
+}
+
+test.describe('clock-dependent behaviour', () => {
+  // DOM-level; the mobile project would assert identical strings.
+  test.beforeEach(({}, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'clock behaviour is viewport-independent');
+  });
+
+  /* POSITIVE CONTROL, first. Every assertion below reads text off a page at a
+   * pinned time. If `page.clock` silently failed to install, the page would
+   * render at the REAL time and some of these would still pass by luck.
+   *
+   * This proves the fake clock is actually in effect before anything is
+   * concluded from what the page says. */
+  test('the fake clock is actually installed (guards against a vacuous pass)', async ({ browser }) => {
+    const { page, close } = await pinnedTo(browser, '2026-08-10T02:00:00Z');
+    try {
+      await page.goto('/hours', { waitUntil: 'domcontentloaded' });
+      const seen = await page.evaluate(() => new Date().toISOString());
+      expect(seen.slice(0, 13),
+        `the page reported ${seen} - page.clock did not take effect, so every assertion in this ` +
+        'file would be measuring the real time and passing or failing by accident',
+      ).toBe('2026-08-10T02');
+    } finally { await close(); }
+  });
+
+  /* SESSION WINDOWS. lib/session.ts defines these as UTC ranges; /hours renders
+   * whichever is active. Three pinned instants, three different answers - which
+   * is the behaviour no test could reach before. */
+  /* Reads `div.session-pill`, NOT the page text.
+   *
+   * The first version of this test asserted against `document.body.innerText`
+   * and failed on its own negative case: /hours renders a session MAP listing
+   * every window, so "MON EVENING" appears at 02:00 UTC as a label in the map
+   * rather than as the active session. The page was right and the assertion was
+   * reading the wrong thing.
+   *
+   * `.session-pill` is the single element that names the CURRENTLY active
+   * window, which is the thing that actually depends on the clock. */
+  async function sessionPill(browser: Browser, iso: string): Promise<string> {
+    const { page, close } = await pinnedTo(browser, iso);
+    try {
+      await page.goto('/hours', { waitUntil: 'domcontentloaded' });
+      const pill = page.locator('div.session-pill');
+      await expect(pill, 'the session pill never rendered - nothing can be concluded from its text')
+        .toBeVisible({ timeout: 20_000 });
+      return ((await pill.innerText()) || '').replace(/\s+/g, ' ').trim();
+    } finally { await close(); }
+  }
+
+  test('the active session window follows the clock', async ({ browser }) => {
+    const asia = await sessionPill(browser, '2026-08-10T02:00:00Z');
+    expect(asia, 'Monday 02:00 UTC is inside the Asia window').toMatch(/ASIA SESSION/i);
+
+    const monEvening = await sessionPill(browser, '2026-08-10T14:00:00Z');
+    expect(monEvening, 'Monday 14:00 UTC is the Monday-evening window').toMatch(/MON EVENING/i);
+
+    /* The negative cases are what make the two above mean anything: a pill that
+     * says the same thing at every instant would satisfy both otherwise. */
+    expect(monEvening, '14:00 UTC must NOT also claim the Asia session').not.toMatch(/ASIA SESSION/i);
+    expect(asia, '02:00 UTC must NOT also claim the Monday-evening window').not.toMatch(/MON EVENING/i);
+  });
+
+  /* MARKET HOLIDAYS. Verified against two real entries rather than one, so a
+   * single mis-typed date cannot make this pass. */
+  test('market holidays are recognised', async ({ browser }) => {
+    const christmas = await bodyTextOf(browser, '2026-12-25T15:00:00Z');
+    expect(christmas, 'NY and London are both closed on 2026-12-25').toMatch(/NY closed - Christmas Day/i);
+    expect(christmas).toMatch(/London closed - Christmas Day/i);
+
+    const thanksgiving = await bodyTextOf(browser, '2026-11-26T15:00:00Z');
+    expect(thanksgiving, 'NY is closed on 2026-11-26; London is not').toMatch(/NY closed - Thanksgiving Day/i);
+    expect(thanksgiving, 'Thanksgiving is not a London holiday - a blanket "closed" would be wrong')
+      .not.toMatch(/London closed - Thanksgiving/i);
+  });
+
+  /* 🔴 THE ONE THIS FILE EXISTS FOR.
+   *
+   * `lib/session.ts` holds a single hardcoded table, `HOLIDAYS_2026`, and
+   * `getHoliday()` does `HOLIDAYS_2026[region] ?? []`. The file says "Update
+   * this table at the start of each year" - and nothing enforces it.
+   *
+   * Measured with the clock pinned:
+   *   2026-12-25  ->  "NY closed - Christmas Day · London closed - Christmas Day"
+   *   2027-12-25  ->  nothing at all
+   *
+   * So on 2027-01-01 every market holiday silently becomes an ordinary trading
+   * day. No error, no warning, no log line - the app just says the market is
+   * open on Christmas.
+   *
+   * THIS TEST IS DELIBERATELY EARLY. It checks the table covers the year that
+   * will contain "sixty days from now", not the year it is now. So it turns red
+   * in early November 2026, while there is time to act, instead of on New
+   * Year's Day when it is already wrong in production.
+   *
+   * If you are reading this because it just failed: add next year's holidays to
+   * `HOLIDAYS_2026` (and rename it), then update the two dates above. Do not
+   * widen this test - the lead time IS the feature. */
+  test('the holiday table still covers the near future', async ({ browser }) => {
+    const soon = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
+    const year = soon.getUTCFullYear();
+
+    // New Year's Day is a holiday for both NY and London in every table so far,
+    // which makes it the safest probe for "is this year present at all".
+    const text = await bodyTextOf(browser, `${year}-01-01T15:00:00Z`);
+
+    expect(text,
+      `${year}-01-01 produced no holiday. lib/session.ts holds a single hardcoded HOLIDAYS_2026 ` +
+      `table and getHoliday() falls back to [] for any other year, so from ${year}-01-01 every ` +
+      `market holiday silently becomes a normal trading day. This test fires 60 days early on ` +
+      `purpose - there is still time. Add ${year}'s holidays to lib/session.ts.`,
+    ).toMatch(/closed - New Year/i);
+  });
+});
