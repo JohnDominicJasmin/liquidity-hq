@@ -126,3 +126,71 @@ test('an unknown locale is refused at routing, not while rendering', async (t) =
     assert.match(src, /notFound\(\)/);
   });
 });
+
+/* #138 REOPENED, then fixed properly.
+ *
+ * The first fix removed `ar` from lib/i18n/dictionaries.ts and the landing
+ * picker. It missed that this app has TWO independent locale systems, and the
+ * other one - lib/locales.ts, driving LanguageNavSwitcher and LanguageSelect -
+ * still offered العربية app-wide. A user could pick it from the nav or from
+ * /settings and get Arabic labels in a left-to-right layout: the exact state
+ * #138 was filed about, still reachable after #138 "closed".
+ *
+ * My original test asserted the file I had edited. It could not fail on the
+ * list I did not know existed. So this one enumerates the pickers from BOTH
+ * sources rather than naming either.
+ */
+test('Arabic is not offered by ANY picker', async (t) => {
+  const { AVAILABLE_LOCALES, SUPPORTED_LOCALES: APP_LOCALES } =
+    await import('../lib/locales.ts');
+
+  await t.test('not in the app-wide offer list', () => {
+    assert.equal(AVAILABLE_LOCALES.includes('ar' as never), false,
+      'ar is offered app-wide again - LanguageNavSwitcher and LanguageSelect ' +
+      'both render AVAILABLE_LOCALES, so this is selectable from the nav');
+  });
+
+  /* Deliberately still in the VALIDATION list. Someone who chose Arabic before
+     it was withdrawn has 'ar' in localStorage; it must resolve and fall back to
+     English labels, not fail. Asserting this stops a tidy-up removing it. */
+  await t.test('still in the validation list, so a stored preference resolves', () => {
+    assert.ok(APP_LOCALES.includes('ar' as never),
+      'ar was removed from SUPPORTED_LOCALES too - a preference already stored ' +
+      'as ar now fails validation instead of falling back');
+  });
+
+  /* Both pickers read AVAILABLE_LOCALES rather than hardcoding, which is what
+     makes the one-line removal sufficient. If either grows its own list, the
+     assertion above stops covering it. */
+  for (const f of ['components/LanguageNavSwitcher.tsx', 'components/LanguageSelect.tsx']) {
+    await t.test(`${f} still derives from AVAILABLE_LOCALES`, () => {
+      assert.match(read(f), /AVAILABLE_LOCALES/,
+        `${f} no longer derives its options from AVAILABLE_LOCALES - removing a ` +
+        `locale centrally would no longer remove it from this picker`);
+    });
+  }
+});
+
+/* #164. `lang` must follow the locale the USER is actually reading, which on
+   every non-landing route comes from the labels layer, not the URL. */
+test('html lang follows the labels locale, not just the path', async (t) => {
+  const src = read('components/HtmlLangSync.tsx');
+
+  await t.test('it reads the live labels locale', () => {
+    assert.match(src, /useLabels\(\)/,
+      'HtmlLangSync reads only the path again - every route without a locale ' +
+      'segment goes back to claiming English (#164)');
+  });
+
+  /* Order is the whole correctness question: /ko is an explicit request and
+     must not lose to a stale stored preference. */
+  await t.test('the path still wins where a path exists', () => {
+    assert.match(src, /fromPath\s*\?\?\s*locale/,
+      'the precedence flipped - a stored preference would now override /ko');
+  });
+
+  await t.test('lang and dir are set from the same value', () => {
+    assert.match(src, /documentElement\.lang\s*=\s*active/);
+    assert.match(src, /documentElement\.dir\s*=\s*dirForLocale\(active\)/);
+  });
+});

@@ -29,7 +29,23 @@ export const SUPPORTED_LOCALES: Locale[] = ['en', 'ko', 'zh', 'ar', 'vi', 'pt-BR
 //
 // Add a locale back here the moment its rows land; nothing else needs to
 // change. See the i18n section of pendings/PENDING.md.
-export const AVAILABLE_LOCALES: Locale[] = ['en', 'ko', 'zh', 'ar', 'ru'];
+//
+// `ar` is NOT here, and it is the one exception to "add it back when the rows
+// land" - its rows landed long ago. Arabic is fully translated (2,416 label
+// rows) and deliberately not offered, because RTL is unimplemented: ~597
+// physical positioning sites against zero logical properties, so choosing it
+// produced Arabic text in a left-to-right layout. Owner decision, #138.
+//
+// It stayed here after #147 removed it from the LANDING picker, because these
+// are two separate systems and that PR only knew about one. So Arabic remained
+// selectable from the nav and from /settings for the whole app - the exact
+// state #138 was filed about. Removing it here is the other 80% of that fix.
+//
+// It REMAINS in SUPPORTED_LOCALES above on purpose. That list is validation,
+// not an offer: a preference already stored as 'ar' by someone who picked it
+// before this shipped must still resolve, and fall back to English labels,
+// rather than failing.
+export const AVAILABLE_LOCALES: Locale[] = ['en', 'ko', 'zh', 'ru'];
 
 export function isSupportedLocale(v: string): v is Locale {
   return (SUPPORTED_LOCALES as string[]).includes(v);
