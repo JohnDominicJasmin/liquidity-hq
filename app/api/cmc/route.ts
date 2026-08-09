@@ -56,6 +56,17 @@ async function attributedUser(req: NextRequest): Promise<string> {
   }
 }
 
+/* Shared edge cache (#177). CMC is CREDIT-METERED, so an uncached call is
+   not just latency, it is money - this route was calling upstream on every
+   page load.
+
+   `r.ok` gates it deliberately: CMC returns its error bodies as JSON and this
+   route forwards them verbatim, so caching unconditionally would pin a
+   "rate limit exceeded" payload at the edge for five minutes and take the
+   feature down for everyone. Errors stay uncached and retry immediately. */
+const CMC_CACHE = (ok: boolean) =>
+  ok ? { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } : undefined;
+
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
   if (!rateLimit(`cmc:${ip}`, 20, 60_000)) {
@@ -82,7 +93,7 @@ export async function GET(req: NextRequest) {
       clearTimeout(timer);
       const d = await r.json();
       reportCmc('cmc:global-metrics', r, d);
-      return NextResponse.json(d);
+      return NextResponse.json(d, { headers: CMC_CACHE(r.ok) });
     }
 
     if (type === 'altseason') {
@@ -96,7 +107,7 @@ export async function GET(req: NextRequest) {
       );
       const d = await r.json();
       reportCmc('cmc:listings', r, d, (d as CmcBody)?.data?.length);
-      return NextResponse.json(d);
+      return NextResponse.json(d, { headers: CMC_CACHE(r.ok) });
     }
 
     return NextResponse.json({ error: 'Unknown type' }, { status: 400 });

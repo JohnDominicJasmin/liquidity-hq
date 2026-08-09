@@ -92,12 +92,17 @@ export async function GET(req: NextRequest) {
 
   try {
     const cycle2024 = await fetchCycle2024();
+    /* Cycle position is a slow signal - `currentDay` moves once a day and the
+       2016/2020 curves are constants. Five minutes changes nobody's decision.
+       Success only; the 429 and 500 paths stay uncached (#177). */
     return NextResponse.json({
       '2016': CYCLE_2016,
       '2020': CYCLE_2020,
       '2024': cycle2024,
       currentDay,
-    } satisfies CycleData);
+    } satisfies CycleData, {
+      headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' },
+    });
   } catch (e) {
     return apiError('cycle', e, 500, 'Request failed');
   }
