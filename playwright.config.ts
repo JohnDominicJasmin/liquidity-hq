@@ -29,10 +29,37 @@ export default defineConfig({
   // A flaky pass is worse than a fail - it teaches everyone to re-run until
   // green. Retries only in CI, and only to absorb genuine cold-start noise.
   retries: process.env.CI ? 1 : 0,
-  // Market data comes from shared third-party APIs (Binance/Bybit). Running
-  // specs in parallel multiplies that traffic and can trip the app's own
-  // per-IP rate limiter, producing 429s that look like product bugs.
-  workers: 1,
+  // WAS `workers: 1` until 2026-08-09, for a reason that has been measured and
+  // turned out to be much smaller than stated. Issue #114.
+  //
+  // The old comment said: market data comes from shared third-party APIs
+  // (Binance/Bybit), parallel specs multiply that traffic and trip the app's own
+  // per-IP rate limiter, and the resulting 429s look like product bugs. That was
+  // sized at ~11,000 third-party requests per sweep.
+  //
+  // THAT NUMBER COUNTED BROWSER REQUESTS, and `qa/e2e/_fixtures.ts` now
+  // intercepts those (#161). Measured on a full contrast sweep with fixtures
+  // installed, what actually leaves the machine is the app's OWN server-side
+  // calls:
+  //
+  //     101 [cmc] · 58 [proxy] · 4 [econ-calendar]  =  ~159 per sweep, ~25/min
+  //
+  // Two orders of magnitude below the figure the pin was justified with. A local
+  // run at `--workers=2` produced ZERO 429s or rate-limit errors.
+  //
+  // STEPPED TO 2, NOT 4, DELIBERATELY. Rate limits are per-IP and the
+  // measurement above is from one developer machine, not CI's shared egress. A
+  // clean local number proves the volume is low; it does not prove CI is under
+  // the threshold. Two is the smallest step that tests the theory in the place
+  // that matters. Raise it only after a green gate at 2.
+  //
+  // DO NOT EXPECT THE SAVING #114 CLAIMS. With `fullyParallel: false` Playwright
+  // parallelises by FILE, and `contrast.spec.ts` is 2 tests in one file taking
+  // ~19 of the gate's 41 minutes. It runs on a single worker whatever this
+  // number says, so it is the floor. Realistically 41 -> ~20 min, not ~10.
+  // Going below that needs contrast split into more files, which is its own
+  // change and moves how its baselines are grouped.
+  workers: 2,
   fullyParallel: false,
 
   forbidOnly: !!process.env.CI,
