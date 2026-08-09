@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
 import { ROUTES, BASELINE } from './_shared';
+import { installMarketFixtures } from './_fixtures';
 
 /**
  * Colour contrast — WCAG 2.2 SC 1.4.3, Level AA — on BOTH themes.
@@ -30,6 +31,49 @@ async function themedPage(browser: Browser, theme: 'dark' | 'light'): Promise<{ 
   await ctx.addInitScript((t) => { try { localStorage.setItem('theme', t); } catch { /* private mode */ } }, theme);
   const page = await ctx.newPage();
   page.on('dialog', d => d.dismiss());
+
+  /* SERVE RECORDED MARKET DATA (#114).
+   *
+   * Two reasons, and the second is the one that matters.
+   *
+   * COST: this sweep loads 58 pages, and `qa/FIXTURES.md` measures roughly 1,000
+   * third-party requests per five pageviews - so a live sweep is on the order of
+   * 11,000 requests to Binance and Bybit. That volume is why
+   * `playwright.config.ts` pins `workers: 1`: parallel specs trip their per-IP
+   * rate limits, and the resulting 429s render as contrast violations that look
+   * exactly like product defects.
+   *
+   * CORRECTNESS: a contrast baseline measured against live prices is measured
+   * against the weather. A token can vanish because it was fixed, or because the
+   * surface that showed it had no data that minute, and nothing distinguishes
+   * those. That is precisely why the "a known token disappeared" assertion had
+   * to be removed on 2026-08-08 - see the long comment below. With fixed input
+   * it can come back, and a missing token means something again.
+   *
+   * MEASURED, not assumed. Two identical sweeps on 2026-08-09:
+   *
+   *   live      dark 12 violations / 10 tokens   light 61 / 26 tokens
+   *   fixtures  dark 13 violations / 11 tokens   light 60 / 26 tokens
+   *
+   * Coverage went UP, not down. Dark reached 11 of 11 baseline tokens with
+   * fixtures and only 10 without - the eleventh needs a surface that live data
+   * did not populate that minute. That is the data-dependence this exists to
+   * remove, visible in a single pair of runs.
+   *
+   * I predicted identical numbers and wrote that here before running it. Wrong
+   * in both directions, and left on the record because "I expected no change"
+   * is exactly the reasoning that makes a coverage drop invisible.
+   *
+   * WHAT THIS DOES NOT FIX, and it is the important half. `page.route`
+   * intercepts requests the BROWSER makes. It cannot touch `fetch` inside a
+   * route handler, and this app's `/api/*` routes call Binance, Bybit, Yahoo and
+   * er-api server-side - the webServer log during the fixtures run is full of
+   * outbound calls to api.bybit.com and query1.finance.yahoo.com that these
+   * fixtures never saw. So the third-party volume behind `workers: 1` is only
+   * PARTLY removed here, and unpinning still needs its own measurement rather
+   * than an inference from this file. See #114. */
+  await installMarketFixtures(page, 'as-recorded');
+
   return { page, close: () => ctx.close() };
 }
 
@@ -266,6 +310,13 @@ test.describe('colour contrast', () => {
     const unexpected = [...colours].filter(([fg]) => !known.has(fg));
     const fixed = BASELINE.contrast.darkTokens.filter(fg => !colours.has(fg));
 
+    /* Printed as well as attached. Attachments are only uploaded on failure
+     * (`ci.yml` uses `if: failure()`), so on a GREEN run these numbers exist
+     * nowhere a reader can reach them - which is how "did the sweep get weaker?"
+     * became unanswerable without re-running it locally. One line costs
+     * nothing and makes the measurement legible in the gate log itself. */
+    console.log(`[contrast] dark: ${all.length} violations across ${colours.size} tokens (baseline ${BASELINE.contrast.darkTokens.length})`);
+
     testInfo.attach('contrast-dark.txt', {
       body: `${all.length} violations across ${colours.size} tokens\n\n`
         + [...colours].sort((a, b) => a[1].worst - b[1].worst)
@@ -370,6 +421,8 @@ This is NOT automatically a regression. It is either:
     const known = new Set(BASELINE.contrast.lightTokens);
     const unexpected = [...byColour].filter(([fg]) => !known.has(fg));
     const fixed = BASELINE.contrast.lightTokens.filter(fg => !byColour.has(fg));
+
+    console.log(`[contrast] light: ${all.length} violations across ${byColour.size} tokens (baseline ${BASELINE.contrast.lightTokens.length})`);
 
     testInfo.attach('contrast-light.txt', {
       body: `${all.length} violations across ${byColour.size} tokens\n\n`
