@@ -13,18 +13,27 @@ test.describe('smoke', () => {
       // settle() throws on HTTP >=400 and on an unstyled render.
       await settle(page, route);
 
-      // A hydration mismatch surfaces here as React error #418/#423/#425.
-      // /briefing currently trips #418 - see audit §5.1. That one is a known
-      // bug with a known cause, so it is skipped rather than silently allowed:
-      // delete this branch the moment page.tsx:194 is fixed.
-      if (route === '/briefing') {
-        test.info().annotations.push({
-          type: 'known-issue',
-          description: 'React #418 hydration mismatch - audit §5.1, briefing/page.tsx:194',
-        });
-      } else {
-        expect(pageErrors, `uncaught JS on ${route}`).toEqual([]);
-      }
+      /* THE /briefing EXEMPTION IS GONE, and removing it is the point.
+       *
+       * This branch exempted /briefing from the uncaught-JS assertion because it
+       * trips React #418, citing briefing/page.tsx:194 - the correct line, known
+       * since the audit. The annotation was honest and the exemption was not:
+       * an annotation is invisible in a green run, so the suite reported clean
+       * while that route threw on every single load.
+       *
+       * It cost 75 events in production and was the most frequent error in
+       * GlitchTip - found by reading the dashboard, not by this suite, which had
+       * the line number written down the whole time. Filed as #193.
+       *
+       * SEQUENCING, and dev raised it before I did: this assertion only proves
+       * something if it goes RED while the bug is still present. Landing it after
+       * the fix would assert a green state it had never seen fail. So it is
+       * committed failing, deliberately, and #195 turns it green.
+       *
+       * If you are reading this because /briefing failed again: the cause is a
+       * value that differs between server render and hydration - `useState(new
+       * Date())` or equivalent - not something to exempt. */
+      expect(pageErrors, `uncaught JS on ${route}`).toEqual([]);
     });
   }
 
