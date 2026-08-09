@@ -43,33 +43,33 @@ Everything below is outside that.
 
 ---
 
-## 🟠 1. Market data is controllable; the CLOCK is not
+## 🟡 1. Data and clock are controllable; SERVER time is not
 
-**Downgraded from 🔴 on 2026-08-09, and only half.**
+**Downgraded twice on 2026-08-09.** Two of the three original blockers are gone.
 
-`qa/e2e/_fixtures.ts` records 20 third-party endpoints and serves them through
-`page.route`. `market-scenarios.spec.ts` uses them to pin funding-rate sign and
-upstream-500 behaviour, and `contrast.spec.ts` now measures every route against
-them rather than against the live market.
+**Market data** — `qa/e2e/_fixtures.ts` serves 20 recorded endpoints to the
+browser; `contrast.spec.ts` measures against them.
 
-**What that closed:** the contrast sweep no longer depends on what the market did
-that minute. Measured 2026-08-09 — with fixtures the dark sweep observes **11 of
-11** baseline tokens; without them, 10. The missing one needed a surface live
-data had not populated.
+**The clock** — `qa/e2e/clock.spec.ts` pins it with `page.clock`, no app change.
+Three fixed instants produce three different renders on `/hours`. It found a
+dated defect: `HOLIDAYS_2026` is hardcoded and `getHoliday()` falls back to `[]`,
+so from 2027-01-01 every market holiday silently becomes a trading day. The guard
+fires in **November**, not on New Year's Day.
 
-**Still open, and it is most of the original section:**
+**Server-side calls** — `qa/server-intercept.mjs` wraps the Node process's own
+`fetch`. Off unless `QA_INTERCEPT_UPSTREAM` is set; `count` tallies without
+altering anything, `1` stubs. That measurement retired #114: Binance **0**,
+Bybit **<25**, Supabase 100+ per contrast sweep — the constraint the `workers`
+pin was built around barely exists.
 
-- **The clock.** "Best Hours", the economic calendar, DST, and 24h/48h alert
-  outcome resolution are all untestable. A fake clock is not installed.
-- **Server-side calls are not intercepted.** `page.route` only sees requests the
-  BROWSER makes. The app's own `/api/*` handlers call Binance, Bybit, Yahoo and
-  er-api from the server, and those go out live in every run. This is why #114
-  cannot be closed by inference from the fixture work.
-- RSI thresholds, squeeze/flush alert boundaries and liquidation-map extremes
-  have fixtures available but **no spec asserts against them**.
+**Still open:**
 
-**To close:** a fake clock, and interception at a layer the server also passes
-through. **Cost:** days. **Value:** still the highest here.
+- **SERVER time.** `page.clock` fakes the browser only, so the 24h/48h alert
+  outcome resolution — a cron — remains untestable.
+- **The user's timezone.** `page.clock` moves the instant, not the zone. A real
+  DST matrix needs `timezoneId` contexts.
+- RSI thresholds and squeeze/flush boundaries have fixtures but no spec asserts
+  against them.
 
 ---
 
@@ -157,28 +157,34 @@ route, and why it runs in a browser rather than over source.
 
 ---
 
-## 🟡 5. A purchase has never granted Pro
+## 🟡 5. A REAL purchase has never granted Pro
 
-**Half closed.** `qa/e2e/payments-webhook.spec.ts` covers what the handler does
-with a payload: an absent, forged or malformed signature is rejected; a replayed
-payload is not re-applied; a payer cannot grant Pro to an account they do not own.
-That last one is the BOLA of payments — `user_id` arrives in `custom_data`, which
-`lib/checkout.ts` writes into a client-side URL — and it first executed on
-2026-08-09.
+**Narrowed on 2026-08-09, and the remaining gap is one sentence long.**
 
-**Every one of those payloads is synthetic.** The suite signs them itself. So:
+Three files now cover the payments path:
 
-- no real LemonSqueezy event has ever reached this handler
-- no purchase has ever granted Pro
-- no lapsed subscription has been shown to re-lock
-- whether we are pointed at the right store is unverified
+| file | asserts |
+|---|---|
+| `__tests__/checkoutUrl.test.mts` | what the checkout URL contains |
+| `qa/e2e/checkout.spec.ts` | that the button actually sends it |
+| `qa/e2e/payments-webhook.spec.ts` | that the server does not trust it |
 
-`entitlements.spec.ts` does now prove the Pro **boundary** holds in both
-directions across 15 routes. What is untested is everything that *changes* which
-side of that boundary an account is on.
+Together: the URL carries the signed-in user's own id, the button really hands it
+off, a signed-out visitor reaches no checkout, and a forged, replayed or
+cross-account payload is refused.
 
-**To close:** LemonSqueezy test-mode keys — owner action — plus one real
-end-to-end purchase against a seeded account.
+**None of that needed a LemonSqueezy account.** I had reported this section as
+blocked on owner-supplied keys; that was wrong.
+
+**What is still untested:** a real purchase granting Pro, a lapsed subscription
+re-locking, and whether we are pointed at the right store. That needs approval,
+keys and a sandbox — and it is a once-before-launch check, not a per-commit one.
+
+**Production risk worth naming:** `NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL` is
+inlined at build time. If it is unset on prod, `getCheckoutUrl` returns
+`/login?signup=1` and the upgrade button silently sends buyers to a signup page.
+`checkout.spec.ts` fails loudly when it is absent rather than testing the
+fallback while claiming to test checkout.
 
 ---
 
@@ -255,39 +261,49 @@ Recorded here rather than hidden, because the suite is code and has defects too.
 
 ---
 
-## ✅ 10. Error monitoring — CLOSED 2026-08-08, with one caveat
+## 🟡 10. Monitoring is wired in production; DELIVERY is unconfirmed
 
-The 429 finding is resolved. `lib/monitoring.ts` now suppresses non-prod events
-before they spend quota (`NEXT_PUBLIC_APP_ENV === 'dev'`), session envelopes went
-14 → 0, and `__tests__/monitoringPipeline.test.mts` proves the scrubber runs
-**inside the real SDK** against a stub transport — email, IP and username
-stripped, the error message preserved, and an OAuth `access_token` in a
-breadcrumb URL fragment removed while the path survives.
+**Was ✅ with a caveat. The caveat is the whole of what is left, so it is amber
+again** — a section marked closed with an untested claim inside it is how this
+file went wrong before.
 
-**The caveat, because it is the part nobody has measured:** no error raised on
-**production** has been observed arriving in GlitchTip. Everything above proves
-the pipeline is correct in a test harness and that non-prod no longer spends
-quota. It does not prove prod capture works end to end.
+**Confirmed 2026-08-09, measured against the production bundle:** the GlitchTip
+DSN is compiled in and points at project `25983`. Monitoring is genuinely present
+in prod, not just in the repo.
+
+**Confirmed earlier:** `lib/monitoring.ts` suppresses non-prod events before they
+spend quota, session envelopes went 14 → 0, and
+`__tests__/monitoringPipeline.test.mts` proves the scrubber runs inside the real
+SDK — email, IP and username stripped, an OAuth `access_token` in a breadcrumb
+fragment removed while the path survives.
+
+**Still unconfirmed:** that an error raised on production actually ARRIVES. Every
+proof above is a harness or a bundle inspection. The original finding on this
+section was a 429 quota rejection, which is invisible from outside.
+
+**To close:** raise one deliberate error in production and confirm it appears in
+GlitchTip. It needs the owner's say-so, because it means breaking something on
+purpose on the live site.
 
 ---
 
 ## Suggested order
 
-Ranked by value per unit of effort. **Five of the original eight are now closed
-or half-closed**, so this list is shorter than the section numbering suggests.
+Rewritten 2026-08-09. **Three of ten closed, five half-closed.** Nothing here is
+blocked on code any more - the top three all need a person, not a keyboard.
 
-| | Item | Effort | Why this order |
+| | Item | Needs | Why this order |
 |---|---|---|---|
-| 1 | **§1 fake clock** | days | The largest thing no test can reach at all: Best Hours, the economic calendar, DST, and 24h/48h alert resolution |
-| 2 | **§1 server-side interception** | days | Also what #114 needs before `workers` goes past 2 — `page.route` cannot touch the app's own outbound calls |
-| 3 | §2 pixel baselines | ~1 day | Mostly CI plumbing: baselines must be generated on the platform that judges them |
-| 4 | §5 real purchase | days | Blocked on owner-supplied LemonSqueezy test-mode keys |
-| 5 | §10 prod capture check | hours | Cheap, but needs a deliberate error raised in production |
-| 6 | §6 screen reader | manual | Book a session; do not pretend CI covers it |
+| 1 | **§5 real purchase** | owner: LemonSqueezy approval + keys | The only untested thing that touches money. Approval has a lead time nobody controls, so it is the item where waiting costs calendar rather than effort |
+| 2 | **§10 prod capture** | owner: permission to break something live | One deliberate error, once. Everything else about monitoring is proven; this is the only unmeasured link |
+| 3 | **§6 screen reader** | a person + NVDA/VoiceOver | `lang` was PRESENT and wrong on every page for the project's life. Attribute checks cannot find that class of defect |
+| 4 | §1 server time / fake cron | QA | The 24h/48h alert resolution is still unreachable |
+| 5 | §2 pixel baselines | QA + CI | Mostly plumbing: baselines must be generated on the platform that judges them |
+| 6 | §1 DST / timezone matrix | QA | `timezoneId` contexts; the clock moves the instant, not the zone |
 
-**Removed from this list since 2026-08-09:** §4 (`lang`, closed by #165), and §2's
-geometry half (closed by `layout.spec.ts`). Both were ranked 1 and 2 here
-yesterday.
+**Removed since this list was last written:** §4 (closed by #165), §2's geometry
+half (`layout.spec.ts`), §1's data and clock halves, and #114 - whose premise was
+measured wrong and which is now closed rather than carried.
 
 ## Also see
 
