@@ -7,6 +7,28 @@
 
 const store = new Map<string, { ts: number; data: unknown }>();
 
+/* IN-FLIGHT REQUESTS, so N concurrent callers produce ONE upstream call (#199).
+ *
+ * Without this, a TTL cache still stampedes. Checking the store and then
+ * awaiting the fetcher is not atomic, so every caller that arrives while the
+ * first fetch is in the air sees a miss and starts its own. Measured against
+ * the previous implementation:
+ *
+ *   cached()      20 concurrent cold callers -> 20 upstream calls
+ *   cachedStale() 20 concurrent cold callers -> 20 upstream calls
+ *   cached()      20 concurrent AT EXPIRY    -> 21 upstream calls
+ *
+ * Expiry is the worst moment for this: the cache exists because traffic is
+ * concentrated, and it dumps that entire concentration on the upstream once per
+ * TTL. For /api/funding at a 20s TTL that is three stampedes a minute at
+ * Binance, from a cache whose stated purpose is to prevent exactly that.
+ *
+ * The map is keyed identically to `store` and cleared in a `finally`, so a
+ * rejected fetcher does not wedge the key - the next caller retries rather than
+ * awaiting a promise that has already failed.
+ */
+const inflight = new Map<string, Promise<unknown>>();
+
 // Returns the cached value for `key` if it's younger than `ttlMs`, otherwise
 // calls `fetcher()`, caches the result, and returns it. Only successful
 // results are cached - a throwing fetcher leaves the previous entry (or none)
@@ -14,9 +36,21 @@ const store = new Map<string, { ts: number; data: unknown }>();
 export async function cached<T>(key: string, ttlMs: number, fetcher: () => Promise<T>): Promise<T> {
   const hit = store.get(key);
   if (hit && Date.now() - hit.ts < ttlMs) return hit.data as T;
-  const data = await fetcher();
-  store.set(key, { ts: Date.now(), data });
-  return data;
+
+  /* Note the key namespace: `cached` and `cachedStale` share `store`, so they
+     share `inflight` too. That is correct - two callers asking for the same key
+     want the same upstream call regardless of which helper they used. */
+  const existing = inflight.get(key) as Promise<T> | undefined;
+  if (existing) return existing;
+
+  const p = (async () => {
+    const data = await fetcher();
+    store.set(key, { ts: Date.now(), data });
+    return data;
+  })().finally(() => { inflight.delete(key); });
+
+  inflight.set(key, p);
+  return p;
 }
 
 /* Same as `cached`, but keeps serving the last good value when the fetcher
@@ -46,8 +80,22 @@ export async function cachedStale<T>(
   if (hit && age < ttlMs) return { data: hit.data, stale: false, ageMs: age };
 
   try {
-    const data = await fetcher();
-    store.set(key, { ts: Date.now(), data });
+    /* Same single-flight as `cached`, and deliberately the SAME map. The
+       in-flight promise always resolves to the raw fetcher value rather than
+       this function's `{ data, stale, ageMs }` wrapper, so either helper can
+       await a promise the other one started. Wrapping happens per caller,
+       after the shared await, because `stale` and `ageMs` are properties of
+       the CALLER's moment, not of the upstream request. */
+    const existing = inflight.get(key) as Promise<T> | undefined;
+    const data = existing ? await existing : await (() => {
+      const p = (async () => {
+        const d = await fetcher();
+        store.set(key, { ts: Date.now(), data: d });
+        return d;
+      })().finally(() => { inflight.delete(key); });
+      inflight.set(key, p);
+      return p;
+    })();
     return { data, stale: false, ageMs: 0 };
   } catch (e) {
     /* Deliberately does NOT refresh the timestamp. Every subsequent request
