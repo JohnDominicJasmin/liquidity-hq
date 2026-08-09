@@ -125,6 +125,22 @@ on:
         description: Run the full browser suite
         type: boolean
         default: true
+      # DISPATCH-ONLY, and off by default. This changes what the run measures,
+      # so it must never be the thing that happens on an ordinary push.
+      #
+      # #114 wants `workers` above 2. The blocker is not the theory - a local
+      # run at 2 produced zero 429s - it is that rate limits are PER IP and the
+      # only measurement anyone has is from one developer machine. A clean local
+      # number proves the volume is low; it does not prove GitHub's shared
+      # egress is under the threshold, and that is the IP that would get banned.
+      #
+      # count mode passes every call through untouched and only tallies it, so a
+      # run with this on is exactly as valid as one without. It answers the one
+      # question #114 has been stuck on since it was filed.
+      count_egress:
+        description: 'Tally outbound third-party calls (does not change behaviour; artifact: egress-tally)'
+        type: boolean
+        default: false
 
 # Without this, every push to a PR stacked another run and the superseded one
 # carried on to completion. Nothing was ever cancelled. Costs no coverage.
@@ -311,6 +327,21 @@ jobs:
         run: npm run test:e2e
         env:
           CI: true
+
+          # ── EGRESS COUNTING, dispatch-only and off unless asked for ────────
+          #
+          # Empty on every ordinary run, so the preload is not loaded at all and
+          # this step behaves exactly as it did before.
+          #
+          # NODE_OPTIONS applies to EVERY node process in the tree, including the
+          # `npm` wrapper and the `npm run build` that playwright.config.ts's
+          # webServer runs as a child. That is intended - build-time fetches are
+          # real egress from this IP and belong in the tally - but it is also why
+          # qa/server-intercept.mjs writes exclusively to stderr: npm parses its
+          # own stdout while resolving npm-prefix.js, and one console.log there
+          # stopped the server from starting at all.
+          NODE_OPTIONS: ${{ (github.event_name == 'workflow_dispatch' && inputs.count_egress) && '--import ./qa/server-intercept.mjs' || '' }}
+          QA_INTERCEPT_UPSTREAM: ${{ (github.event_name == 'workflow_dispatch' && inputs.count_egress) && 'count' || '' }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ secrets.E2E_TURNSTILE_SITE_KEY }}
@@ -477,6 +508,50 @@ jobs:
           name: playwright-report-${{ github.run_attempt }}
           path: qa/e2e-report/
           retention-days: 14
+
+      # always(), NOT success(). The number is most interesting precisely when
+      # the run went badly - a suite that tripped a rate limit is the case #114
+      # needs to see, and that run fails.
+      #
+      # The file is written DURING the run, once a second, so it survives the
+      # webServer being killed. `process.on('exit')` does not fire on a kill,
+      # which is how the first attempt at this measurement produced a tally of
+      # zero calls to Binance while /api/funding alone was making three.
+      - name: Upload egress tally
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.count_egress }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: egress-tally-${{ github.run_attempt }}
+          path: qa/.intercept-tally.json
+          retention-days: 30
+          if-no-files-found: warn
+
+      # Printed as well as uploaded: #114 is answered by one number, and making
+      # someone download an artifact to read it is how a measurement stops being
+      # consulted.
+      - name: Summarise egress
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.count_egress }}
+        run: |
+          if [ ! -f qa/.intercept-tally.json ]; then
+            echo "No tally written. The preload did not load, or no outbound call was made." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # grep, not require() - playwright.config.ts is TypeScript and node
+          # cannot load it here. The number is what the tally must be read
+          # against: N calls at 2 workers says nothing about 4 on its own.
+          WORKERS=$(grep -oE '^\s*workers:\s*[0-9]+' playwright.config.ts | grep -oE '[0-9]+' | head -1)
+          {
+            echo "## Outbound third-party calls"
+            echo ""
+            echo "Measured at \`workers: ${WORKERS:-unknown}\`."
+            echo ""
+            echo '```json'
+            cat qa/.intercept-tally.json
+            echo '```'
+            echo ""
+            echo "Per-IP rate limits apply to this runner's egress, not to a developer machine."
+            echo "This is the measurement #114 needs before \`workers\` goes above 2."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ───────────────────────────────────────────────────────────────────────────
   # THE ONLY REQUIRED STATUS CHECK. Do not require `build` or `e2e` directly.
