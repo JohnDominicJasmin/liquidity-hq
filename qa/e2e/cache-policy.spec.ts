@@ -38,15 +38,46 @@ const SHIPPED: Array<{ path: string; expect: RegExp; note: string }> = [
   { path: '/api/macro',           expect: /s-maxage=300\b/,  note: 'Yahoo, er-api' },
   { path: '/api/econ-calendar',   expect: /s-maxage=3600\b/, note: 'ForexFactory, Fed' },
   { path: '/api/ath',             expect: /s-maxage=3600\b/, note: 'CoinGecko' },
+
+  /* ── PROMOTED FROM `PROPOSED` when #198 merged, 2026-08-10 ────────────────
+   *
+   * These five were the KNOWN group. #198 applied a policy to each, those
+   * inverting assertions failed exactly as designed, and this is the move they
+   * were written to trigger. Values read off `origin/dev` after the merge
+   * rather than copied from the PR description.
+   *
+   * READ THIS BEFORE CONCLUDING ANYTHING ABOUT COST. A policy here does NOT
+   * currently save an upstream call. Measured on prod and qa the same day:
+   * `age` is absent from every response, `x-render-origin-server: Render` is on
+   * every repeat, and a `_next/static` chunk with `max-age=31536000, immutable`
+   * is `cf-cache-status: DYNAMIC` too. Nothing in front of this app caches
+   * anything, so `s-maxage` has no consumer.
+   *
+   * What actually collapses upstream calls is server-side: `cached()` in
+   * `lib/apiCache.ts` and `next: { revalidate: N }`. That was already working
+   * before #198, which is why the real numbers never moved.
+   *
+   * So these assertions guard a header that is CORRECT and currently INERT.
+   * Worth keeping - it starts working the day a CDN appears and costs nothing -
+   * but `cache-effective.spec.ts` is the file that measures whether callers are
+   * actually served, and this one must not be mistaken for it again. */
+  { path: '/api/funding',         expect: /s-maxage=60\b/,   note: 'Binance + Bybit, #198' },
+  { path: '/api/cycle',           expect: /s-maxage=300\b/,  note: 'slow signal, #198' },
+  { path: '/api/signal-accuracy', expect: /s-maxage=3600\b/, note: 'historical stats, #198' },
+  { path: '/api/cmc',             expect: /s-maxage=300\b/,  note: 'CoinMarketCap is credit-metered, #198' },
+  { path: '/api/proxy',           expect: /s-maxage=300\b/,  note: 'Coinglass + trends, #198' },
+  /* Was the `max-age` case below - a per-browser cache that did nothing for the
+   * second visitor. #198 changed it to `s-maxage`, which is the fix. */
+  { path: '/api/forex/jpy',       expect: /s-maxage=300\b/,  note: 'was per-browser max-age, #198' },
 ];
 
-/** Uncached today. Proposed values are in the failure message, not asserted. */
-const PROPOSED: Array<{ path: string; proposed: string; why: string }> = [
-  { path: '/api/funding',         proposed: 's-maxage=60, swr=600',   why: 'funding settles on a fixed 8-hour schedule' },
-  { path: '/api/cycle',           proposed: 's-maxage=300, swr=600',  why: 'a slow signal; 5 minutes changes nobody\'s decision' },
-  { path: '/api/signal-accuracy', proposed: 's-maxage=3600, swr=7200', why: 'historical stats, change when outcomes resolve' },
-  { path: '/api/cmc',             proposed: 's-maxage=300, swr=600',  why: 'CoinMarketCap is credit-metered - longer is strictly cheaper' },
-];
+/** Uncached today. Proposed values are in the failure message, not asserted.
+ *
+ *  EMPTY since #198 - every route that was here now carries a policy and has
+ *  moved into SHIPPED above. Kept rather than deleted because the audit in
+ *  `qa/API_CACHE_AUDIT.md` covers 37 third-party routes and only 11 are
+ *  asserted here, so the next batch has somewhere to go. */
+const PROPOSED: Array<{ path: string; proposed: string; why: string }> = [];
 
 test.describe('API cache policy', () => {
   // HTTP-level; the mobile project would fetch identical headers.
@@ -113,18 +144,16 @@ test.describe('API cache policy', () => {
     });
   }
 
-  /* Not in either list: /api/forex/jpy uses `max-age`, which caches per-browser
-   * and does nothing for the second visitor. Recorded as its own case because
-   * "has a header" and "has a USEFUL header" are different claims, and the audit
-   * found this one had been mistaken for the first. */
-  test('KNOWN: /api/forex/jpy caches per-browser, not at the edge', async ({ request }) => {
-    const res = await request.get('/api/forex/jpy');
-    const cc = res.headers()['cache-control'] ?? '';
-
-    expect(cc, '/api/forex/jpy lost its Cache-Control entirely').toContain('max-age');
-    expect(cc,
-      '/api/forex/jpy now sends s-maxage - it caches at the shared edge and this KNOWN test is ' +
-      'obsolete. Move it into SHIPPED and delete this test.',
-    ).not.toContain('s-maxage');
-  });
+  /* `/api/forex/jpy` HAD ITS OWN TEST HERE UNTIL #198, and the reason is worth
+   * keeping even though the test is gone.
+   *
+   * It sent `max-age=300`, which caches in ONE browser and does nothing for the
+   * second visitor. It was in neither list because "has a header" and "has a
+   * USEFUL header" are different claims, and the audit found this route had been
+   * mistaken for the first. #198 changed it to `s-maxage` and it moved into
+   * SHIPPED above.
+   *
+   * The distinction it was written to make is the same one this whole file got
+   * wrong at a larger scale: a `Cache-Control` header being present says nothing
+   * about whether any cache honours it. See `cache-effective.spec.ts`. */
 });
