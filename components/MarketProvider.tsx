@@ -1068,20 +1068,15 @@ export default function MarketProvider({ children }: { children: React.ReactNode
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       const { btc, eth } = await res.json();
-      if (btc) {
-        const raw = btc?.data?.list?.[0]?.totalNetInflow
-          ?? btc?.data?.totalNetInflow
-          ?? btc?.list?.[0]?.totalNetInflow
-          ?? btc?.totalNetInflow;
-        if (raw != null) setStore(s => ({ ...s, etfNetFlow: parseFloat(String(raw)) }));
-      }
-      if (eth) {
-        const raw = eth?.data?.list?.[0]?.totalNetInflow
-          ?? eth?.data?.totalNetInflow
-          ?? eth?.list?.[0]?.totalNetInflow
-          ?? eth?.totalNetInflow;
-        if (raw != null) setStore(s => ({ ...s, ethEtfNetFlow: parseFloat(String(raw)) }));
-      }
+      /* Plain numbers in MILLIONS since #175. The route used to hand back
+         SoSoValue's raw payload and this read four possible nesting shapes out
+         of it; the authenticated API returns one documented field, so the route
+         now extracts and converts it and this just stores it.
+
+         `!= null` rather than a truthiness check on purpose: a zero-flow day is
+         real data and `if (btc)` would discard it. */
+      if (btc != null && Number.isFinite(btc)) setStore(s => ({ ...s, etfNetFlow: btc as number }));
+      if (eth != null && Number.isFinite(eth)) setStore(s => ({ ...s, ethEtfNetFlow: eth as number }));
     } catch { /* fail silently */ }
   }, []);
 

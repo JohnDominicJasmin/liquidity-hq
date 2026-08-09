@@ -5045,6 +5045,27 @@ html[lang="ar"] .lp-h1-accent {
 body.nav-drawer-open .mobile-tab-bar { display: none !important; }
 @media (max-width: 640px) {
   .mobile-tab-bar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 997; height: 56px; background: #0a0a0e; border-top: 0.5px solid var(--bdr); }
+
+  /* RESERVE THE BAND THE TAB BAR SITS OVER (#173).
+
+     The bar is `position: fixed`, so it is out of flow and takes up no space in
+     the document. `.app-content` ends with `padding-bottom: 2rem` = 32px, and
+     the bar owns the last 56px - so the final 24px of EVERY page on a phone was
+     underneath it, unreachable.
+
+     Mostly that landed on footer links, which is why it read as cosmetic for so
+     long. On /calc it landed on `input.ps-inp`, a position-size field: tapping
+     it hits the tab bar instead. Found by qa/e2e/layout.spec.ts, which measures
+     what is at each control's own centre point rather than whether it exists.
+
+     Components have been clearing this by hand one at a time - `.gchat-fab`
+     at 76px, `.consent-bar` at 56px - which works for fixed overlays and does
+     nothing for page content. This is the reservation that was missing.
+
+     env(safe-area-inset-bottom) on top, because on a phone with a home
+     indicator the bar's own 56px starts above the inset. Falls back to 0px
+     everywhere else, so it costs nothing on Android or in a desktop viewport. */
+  .app-content { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 1rem); }
   [data-theme="light"] .mobile-tab-bar { background: #ffffff; border-top-color: rgba(0,0,0,0.10); }
   /* On phones the bottom bar owns navigation; the top hamburger would just be
      a redundant second opener for the same drawer, so hide it here. Tablet

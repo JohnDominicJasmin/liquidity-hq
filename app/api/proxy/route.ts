@@ -13,6 +13,7 @@ import { createClient } from '@supabase/supabase-js';
 import { apiError } from '@/lib/apiError';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { cached } from '@/lib/apiCache';
+import { etfFlowMillions } from '@/lib/etfFlows';
 import { trackHealth, reportHealth } from '@/lib/apiHealth';
 
 // Google Trends' 7-day bitcoin score barely moves hour to hour, and the
@@ -162,50 +163,88 @@ export async function GET(req: NextRequest) {
 
     /* ── SoSoValue: BTC + ETH spot ETF net flows ── */
     if (type === 'etf') {
-      /* sosovalue.xyz is dead - try sosovalue.com with browser headers.
-         Server-side (Render) requests often bypass 403 blocks that hit headless clients. */
-      const SSV_HEADERS = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Origin': 'https://sosovalue.com',
-        'Referer': 'https://sosovalue.com/',
-      };
+      /* REWRITTEN 2026-08-10 (#175). The previous version scraped an
+         unauthenticated JSON path and had NEVER succeeded - 301 consecutive
+         failures with last_ok_at NULL in prod's health table. Measured before
+         rewriting rather than assumed:
 
-      async function fetchSoSo(path: string) {
-        // Try .com first, fall back to .xyz (dead but harmless to retry)
-        const urls = [
-          `https://sosovalue.com/api/etf/${path}?language=en`,
-          `https://api.sosovalue.com/etf/${path}?language=en`,
-        ];
-        for (const url of urls) {
-          try {
-            const r = await fetch(url, {
-              headers: SSV_HEADERS,
-              signal: AbortSignal.timeout(8000),
-              next: { revalidate: 1800 },
-            } as RequestInit);
-            if (r.ok) return await r.json();
-          } catch { /* try next */ }
-        }
-        return null;
+             https://sosovalue.com/api/etf/us-btc-spot   -> HTTP 404
+             https://api.sosovalue.com/etf/us-btc-spot   -> DNS does not resolve
+
+         So it was not a 403 or a region block, which is what the old comment
+         theorised and what its browser-headers workaround was solving for. The
+         endpoint was gone, and its `.xyz -> .com` migration had never been
+         verified against a live response.
+
+         SoSoValue now runs an authenticated API:
+           GET https://openapi.sosovalue.com/openapi/v1/etfs/summary-history
+           header  x-soso-api-key
+           params  symbol=BTC|ETH, country_code=US, limit
+
+         QUOTA IS THE CONSTRAINT, and it is why this caches aggressively.
+         The account is on the Demo plan: 10,000 calls/month and 10/min. Two
+         calls per refresh (BTC + ETH) at one refresh per hour is 48/day, about
+         1,460/month - roughly 15% of the allowance, leaving room for the other
+         environments if a key is ever added to one.
+
+         An hour is generous for the data itself: `total_net_inflow` is a DAILY
+         figure and only changes after a US trading session closes. */
+      const ETF_TTL_MS = 60 * 60 * 1000;
+
+      async function fetchSoSoFlow(symbol: 'BTC' | 'ETH'): Promise<number | null> {
+        const apiKey = process.env.SOSOVALUE_API_KEY;
+        /* No key: make no call and report nothing. Reporting a failure here
+           would fill the health table on every environment that deliberately
+           has no key, which is the noise #176 is about. Not configured is not
+           unhealthy. */
+        if (!apiKey) return null;
+
+        return cached(`sosovalue:etf:${symbol}`, ETF_TTL_MS, async () => {
+          const url = 'https://openapi.sosovalue.com/openapi/v1/etfs/summary-history'
+            + `?symbol=${symbol}&country_code=US&limit=1`;
+          const r = await fetch(url, {
+            headers: { 'x-soso-api-key': apiKey, Accept: 'application/json' },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (!r.ok) throw new Error(`sosovalue ${symbol} HTTP ${r.status}`);
+          const body = await r.json();
+
+          /* Parsing and the unit conversion live in lib/etfFlows.ts so both are
+             testable without a key or a network call - see the comment there
+             for why the unit is the dangerous half. Throws on an unusable
+             payload, which the caller turns into a health failure rather than
+             a silent zero. */
+          return etfFlowMillions(body);
+        });
       }
 
-      const [btc, eth] = await Promise.all([
-        fetchSoSo('us-btc-spot'),
-        fetchSoSo('us-eth-spot'),
+      const [btcRes, ethRes] = await Promise.allSettled([
+        fetchSoSoFlow('BTC'),
+        fetchSoSoFlow('ETH'),
       ]);
+      const btc = btcRes.status === 'fulfilled' ? btcRes.value : null;
+      const eth = ethRes.status === 'fulfilled' ? ethRes.value : null;
 
-      // fetchSoSo returns null after exhausting both hosts, and this route then
-      // answers 200 with {btc:null, eth:null} - indistinguishable from a day
-      // with no ETF flows. One source for the provider rather than two: both
-      // paths go to the same host behind the same headers and fail together,
-      // and the useful question is whether SoSoValue is answering at all.
-      const got = [btc, eth].filter(Boolean).length;
-      reportHealth('sosovalue:etf-flows', 'market', got === 2,
-        got === 2 ? 'btc + eth' : got === 1 ? 'only one of btc/eth' : 'no response from either host',
-        got);
+      /* Only report health when a key exists. Otherwise every keyless
+         environment reports a failure for a call it never made. */
+      if (process.env.SOSOVALUE_API_KEY) {
+        const got = [btc, eth].filter(v => v != null).length;
+        const why = [btcRes, ethRes]
+          .filter((x): x is PromiseRejectedResult => x.status === 'rejected')
+          .map(x => String(x.reason?.message ?? x.reason)).join('; ');
+        reportHealth('sosovalue:etf-flows', 'market', got === 2,
+          got === 2 ? 'btc + eth' : why || (got === 1 ? 'only one of btc/eth' : 'no data'),
+          got);
+      }
 
+      /* btc/eth are now plain numbers in MILLIONS, or null.
+
+         This DID need a client change and my first comment here claimed it did
+         not. MarketProvider read four nested shapes off the raw payload
+         (`btc?.data?.list?.[0]?.totalNetInflow` and friends); every one of them
+         is undefined on a number, so the store would silently never have been
+         set and the panel would have stayed exactly as broken as before, with
+         the health table now green. Updated alongside this. */
       return NextResponse.json({ btc, eth });
     }
 
