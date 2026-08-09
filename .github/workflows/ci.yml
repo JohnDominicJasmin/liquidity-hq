@@ -408,6 +408,22 @@ jobs:
           # this repository forge a webhook that grants Pro.
           LEMONSQUEEZY_WEBHOOK_SECRET: ci-fake-not-a-real-lemonsqueezy-secret
 
+          # Same reasoning as the secret above, and the same deliberate fakeness.
+          # `qa/e2e/checkout.spec.ts` needs a checkout URL to exist so it can
+          # assert the button hands off the signed-in user's OWN id - the value
+          # the webhook then refuses to trust. It INTERCEPTS and ABORTS the
+          # navigation, so this host is never contacted.
+          #
+          # NEXT_PUBLIC_*, so it is inlined at BUILD time - it has to be on this
+          # step because playwright.config.ts's webServer runs `npm run build`
+          # as a child of it. Absent, getCheckoutUrl returns the signup fallback
+          # and the spec fails loudly rather than asserting the unconfigured path
+          # while claiming to test checkout.
+          #
+          # The real store URL belongs in Render's env for liquidity-hq-prod and
+          # nowhere else.
+          NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL: https://example.lemonsqueezy.com/checkout/buy/ci-fake-not-a-real-store
+
           # ── THIS FILE USED TO SAY THE SERVICE-ROLE KEY "must never be" HERE ──
           #
           # Reversed 2026-08-09 by an explicit owner decision, and written out
