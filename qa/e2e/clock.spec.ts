@@ -29,8 +29,8 @@ import { installMarketFixtures } from './_fixtures';
  */
 
 /** A page with the clock pinned, fixtures served, and the banner dismissed. */
-async function pinnedTo(browser: Browser, iso: string) {
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+async function pinnedTo(browser: Browser, iso: string, timezoneId?: string) {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, timezoneId });
   await ctx.addInitScript(() => {
     try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
   });
@@ -113,6 +113,42 @@ test.describe('clock-dependent behaviour', () => {
     expect(monEvening, '14:00 UTC must NOT also claim the Asia session').not.toMatch(/ASIA SESSION/i);
     expect(asia, '02:00 UTC must NOT also claim the Monday-evening window').not.toMatch(/MON EVENING/i);
   });
+
+  /* TIMEZONES, and the harness question had to be settled first.
+   *
+   * `page.clock` fakes the INSTANT; `timezoneId` sets the ZONE. Whether the two
+   * compose is not obvious - a faked Date that ignored the context timezone
+   * would make every assertion here an artefact of the harness rather than a
+   * fact about the app.
+   *
+   * Measured before writing this: at 2026-08-10T14:00:00Z,
+   *   America/New_York -> "10:00 AM EDT"     (UTC-4, and EDT not EST - DST)
+   *   Australia/Sydney -> "12:00 AM GMT+10"  (next calendar day)
+   * Both correct, so they do compose.
+   *
+   * DST is the part worth having. New York in August is EDT, not EST, and the
+   * only way that is wrong is if something formats against a fixed offset
+   * instead of a zone - which is exactly the bug class that makes a session
+   * window an hour out for half the year. */
+  for (const [zone, instant, expected] of [
+    ['America/New_York', '2026-08-10T14:00:00Z', '10:00'],   // summer, EDT, UTC-4
+    ['America/New_York', '2026-01-12T14:00:00Z', '9:00'],    // winter, EST,  UTC-5
+    ['Australia/Sydney', '2026-08-10T14:00:00Z', '12:00'],   // next day, UTC+10
+  ] as const) {
+    test(`${zone} at ${instant} renders local time, DST included`, async ({ browser }) => {
+      const { page, close } = await pinnedTo(browser, instant, zone);
+      try {
+        await page.goto('/hours', { waitUntil: 'domcontentloaded' });
+        const local = await page.evaluate(() =>
+          new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }));
+        expect(local,
+          `the page reported ${local} for ${instant} in ${zone}. If the hour is right but the ` +
+          'offset is wrong by exactly one, something is formatting against a fixed offset ' +
+          'rather than a zone, and every session window is an hour out for half the year.',
+        ).toContain(expected);
+      } finally { await close(); }
+    });
+  }
 
   /* MARKET HOLIDAYS. Verified against two real entries rather than one, so a
    * single mis-typed date cannot make this pass. */
