@@ -112,6 +112,24 @@ async function findLayoutDefects(page: Page): Promise<LayoutDefects> {
       // Deliberately non-interactive; being covered is irrelevant.
       if (getComputedStyle(el).pointerEvents === 'none') continue;
 
+      /* INERT, which checkVisibility() does NOT cover.
+       *
+       * `inert` removes an element from the tab order, from hit-testing and
+       * from the accessibility tree - but it is not a CSS visibility property,
+       * so `checkVisibility()` still reports it visible.
+       *
+       * Measured on /calc: GrokChat keeps 65 interactive elements in the DOM
+       * while its panel is closed, and the panel carries `inert` plus
+       * `aria-hidden="true"`. 60 Tab presses reached exactly one of them - the
+       * launcher, which is correct. So the app is right and counting the other
+       * 64 as "obscured" is meaningless: nobody can click or tab to them, so
+       * whether something covers them is not a question.
+       *
+       * Same shape as the 104 zero-size mobile icons this detector reported in
+       * its first draft - an element the user cannot reach is not a defect
+       * because something sits on top of it. */
+      if (el.closest('[inert]')) continue;
+
       const x = Math.min(Math.max(b.left + b.width / 2, 1), innerWidth - 1);
       const y = Math.min(Math.max(b.top + b.height / 2, 1), innerHeight - 1);
       const hit = document.elementFromPoint(x, y);
@@ -145,6 +163,13 @@ const KNOWN_OBSCURED: Record<string, string[]> = {
       '/faq: button is covered by a.mobile-tab-item',
       '/funding: input is covered by a.mobile-tab-item',
       '/journal: a.pf-footer-link is covered by button.gchat-fab',
+      /* Added 2026-08-09 after it appeared on a later run. It is the SAME defect
+       * as the /offline entry below - the tab bar over a footer control - and
+       * its absence earlier was the drift, not its presence now. Routes whose
+       * content ends near the fold flip in and out between runs; the set is the
+       * union of what has been observed, which is why entries are only ever
+       * added when a run names them. */
+      '/live-tracking: button.pf-footer-expand is covered by a.mobile-tab-item',
       '/news: a.pf-footer-link is covered by span',
       '/offline: button.pf-footer-expand is covered by a.mobile-tab-item',
       '/playbook: button.pb-star is covered by span',
