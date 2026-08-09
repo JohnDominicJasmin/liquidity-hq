@@ -36,8 +36,33 @@ permissions:
 
 jobs:
   # ── qa -> staging: open the release PR, do not wait to be asked ───────────
+  #
+  # PAUSE SWITCH — `vars.RELEASE_PR_PAUSED`.
+  #
+  # Set it to `1` to let `staging` ACCUMULATE without a release PR existing.
+  # Unset or delete it to resume; the next push to `staging` opens the PR for
+  # everything piled up since.
+  #
+  # Why this exists. Opening the PR automatically is deliberate (#133) - it is
+  # what stopped promotions going out unannounced. But it has a cost the author
+  # of that automation did not have to pay: the release PR's base is `main`, so
+  # every push to `staging` fires `synchronize` on it and re-runs the FULL
+  # 41-minute browser suite. Parking work on `staging` for a day therefore
+  # billed a gate run per promotion, for a release nobody intended to ship yet.
+  #
+  # Deliberately a repo VARIABLE, not a secret and not a file:
+  #   - it is not sensitive, and as a secret its value would be redacted from
+  #     every log, which is the last thing a switch like this needs
+  #   - it is visible in Settings -> Variables, so "why did no PR open?" has an
+  #     answer someone can find without reading this file
+  #   - changing it needs no commit, so resuming does not itself push to staging
+  #
+  # SCOPED TO THIS JOB ONLY. `prod-drift` below MUST keep running - it is what
+  # notices production and `main` have diverged, which is exactly the risk that
+  # grows while releases are parked. Disabling the whole workflow to get this
+  # effect would switch off the check that matters most while it is paused.
   release-pr:
-    if: github.ref == 'refs/heads/staging'
+    if: github.ref == 'refs/heads/staging' && vars.RELEASE_PR_PAUSED != '1'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -259,7 +284,10 @@ jobs:
   # up to the final API call had succeeded, which is why this stays useful.
   release-pr-failed:
     needs: release-pr
-    if: failure() && github.ref == 'refs/heads/staging'
+    # Same pause guard as the job it reports on. Without it, a paused run would
+    # report "the release PR could not be opened" every single promotion - an
+    # alarm for something nobody asked to happen.
+    if: failure() && github.ref == 'refs/heads/staging' && vars.RELEASE_PR_PAUSED != '1'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
