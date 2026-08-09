@@ -57,3 +57,29 @@ export const AVAILABLE_LOCALES: Locale[] = ['en', 'ko', 'zh', 'ru'];
 export function isSupportedLocale(v: string): v is Locale {
   return (SUPPORTED_LOCALES as string[]).includes(v);
 }
+
+/**
+ * The locale to actually USE for a stored or synced preference.
+ *
+ * `isSupportedLocale` answers "is this a code we recognise". That is the wrong
+ * question for a saved preference, and #165 is why: Arabic is recognised, fully
+ * translated, and no longer offered. A user who chose it before it was withdrawn
+ * kept getting Arabic, with no way back to English except clearing storage,
+ * because every picker had stopped listing it.
+ *
+ * QA measured the end state and it is the same defect as #164 with the operands
+ * swapped - a declared language that does not match the rendered one. Clamping
+ * `lang` alone would only move the mismatch: the labels would still resolve to
+ * Arabic while the document claimed English.
+ *
+ * So the clamp belongs to the LOCALE, once, here. A preference that is no longer
+ * offered resolves to English - labels, `lang`, `dir` and the nav chip all agree,
+ * and the user can pick again from a picker that lists what they get.
+ *
+ * Unrecognised values ('tr', junk, a future code) resolve to English too, which
+ * is what SUPPORTED_LOCALES was already for.
+ */
+export function resolveOfferedLocale(v: string | null | undefined): Locale {
+  if (!v) return 'en';
+  return (AVAILABLE_LOCALES as string[]).includes(v) ? (v as Locale) : 'en';
+}

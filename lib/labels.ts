@@ -4,8 +4,8 @@ import type { LabelKey } from './labelKeys';
 // The locale list lives in ./locales so server code can import it without
 // dragging this file's React imports across the client/server boundary.
 // Re-exported here so every existing `from '@/lib/labels'` import still works.
-export { SUPPORTED_LOCALES, AVAILABLE_LOCALES, isSupportedLocale, type Locale } from './locales';
-import { isSupportedLocale, type Locale } from './locales';
+export { SUPPORTED_LOCALES, AVAILABLE_LOCALES, isSupportedLocale, resolveOfferedLocale, type Locale } from './locales';
+import { resolveOfferedLocale, type Locale } from './locales';
 
 export interface LabelsContextValue {
   locale: Locale;
@@ -43,7 +43,10 @@ export function loadLocalLocale(): Locale {
   if (typeof window === 'undefined') return 'en';
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw && isSupportedLocale(raw)) return raw;
+    /* resolveOfferedLocale, not isSupportedLocale: a stored preference for a
+       language that is no longer OFFERED must come back as English, or the user
+       is stuck in it with no picker entry to change it (#165). */
+    return resolveOfferedLocale(raw);
   } catch { /* ignore */ }
   return 'en';
 }

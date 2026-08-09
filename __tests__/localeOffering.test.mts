@@ -223,3 +223,44 @@ test('the lang effect lives inside the provider that owns the locale', () => {
   assert.match(src, /documentElement\.lang/);
   assert.match(src, /documentElement\.dir/);
 });
+
+/* #165, found by QA exercising the case I asked them to.
+ *
+ * `ar` out of every picker left anyone who had already chosen it stuck: labels
+ * still Arabic, nav chip still AR, and no picker entry to change back. Measured
+ * end state was Arabic pronunciation announced over partly-English copy - the
+ * same mismatch as #164 with the operands swapped.
+ *
+ * Clamping `lang` alone would only move the mismatch, so the clamp belongs to
+ * the LOCALE: a preference that is no longer offered resolves to English, and
+ * labels, lang, dir and the nav chip then agree.
+ */
+test('a preference for a withdrawn language resolves to English', async (t) => {
+  const { resolveOfferedLocale } = await import('../lib/locales.ts');
+
+  await t.test('Arabic - recognised, translated, no longer offered', () => {
+    assert.equal(resolveOfferedLocale('ar'), 'en');
+  });
+
+  await t.test('offered languages are untouched', () => {
+    for (const l of ['en', 'ko', 'zh', 'ru']) assert.equal(resolveOfferedLocale(l), l);
+  });
+
+  /* Unrecognised codes resolved to English before this existed, and must keep
+     doing so - that is what SUPPORTED_LOCALES was already for. */
+  await t.test('unknown and empty values still resolve to English', () => {
+    for (const v of ['tr', 'klingon', '', null, undefined]) {
+      assert.equal(resolveOfferedLocale(v as string), 'en');
+    }
+  });
+
+  /* Both entry points must clamp. localStorage is the one QA measured; the
+     synced user_settings.language would otherwise reinstate Arabic on the next
+     sign-in for the same user, on a different device. */
+  await t.test('both stored and synced preferences are clamped', () => {
+    assert.match(read('lib/labels.ts'), /resolveOfferedLocale\(raw\)/,
+      'loadLocalLocale no longer clamps - a stored withdrawn locale comes back');
+    assert.match(read('components/LanguageSync.tsx'), /resolveOfferedLocale\(settings\.language\)/,
+      'LanguageSync no longer clamps - the server-side preference reinstates it');
+  });
+});
