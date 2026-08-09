@@ -26,9 +26,24 @@
  * ── IT LOGS WHAT IT DID, ALWAYS ────────────────────────────────────────────
  * Every decision prints `[intercept]`. A silent stub is indistinguishable from a
  * live call in a log, and that ambiguity is what this whole exercise is about.
+ *
+ * ── ESM AND `--import`, NOT CJS AND `--require` ────────────────────────────
+ * This was `.cjs` and loaded with `--require`. It worked, and it broke CI in a
+ * way worth recording: `npm run lint` failed with
+ *
+ *     A configuration object specifies rule "react-hooks/set-state-in-effect",
+ *     but could not find plugin "react-hooks"
+ *
+ * The config object in `eslint.config.mjs` that sets the react-hooks rules
+ * carries no `plugins` key and no `files` restriction, so it applies to every
+ * file - but the plugin itself is only registered for the patterns Next's
+ * config covers. Every file in the repo happened to be .ts/.tsx, so nothing had
+ * ever landed outside that. One .cjs file was enough.
+ *
+ * That is a latent config bug rather than something this file caused, and it is
+ * reported separately. Using ESM with `--import` (Node 20.6+) sidesteps it
+ * without touching shared lint config, which is not QA's to change.
  */
-'use strict';
-
 const ENABLED = process.env.QA_INTERCEPT_UPSTREAM === '1';
 
 /* STDERR, never stdout, and this was measured the hard way.
