@@ -76,3 +76,53 @@ test('the Arabic work is preserved, not deleted', async (t) => {
     assert.ok(getDictionary('klingon'));
   });
 });
+
+/* #157 — a bad URL answered HTTP 200.
+ *
+ * The site was not missing a 404 page. It had a CATCH-ALL in front of one:
+ * `app/[locale]/page.tsx` is a single-segment dynamic route, so /nope, /pricing
+ * and /admin-typo all matched it, reached `notFound()`, and answered 200 —
+ * because by then the response had started streaming and, per Next's own docs,
+ * "the status code of the response cannot be updated".
+ *
+ * Measured on a production build before and after:
+ *
+ *            before   after
+ *   /nope      200      404
+ *   /ar        200      404
+ *   /ko        200      200
+ *
+ * Multi-segment paths like /nope/deeper were genuinely unmatched and returned
+ * 404 all along, which is why the issue looked like "no 404 anywhere" from the
+ * outside while `app/not-found.tsx` was working correctly.
+ *
+ * `dynamicParams = false` moves the decision to routing, before anything
+ * renders. It only works BECAUSE generateStaticParams enumerates the locales -
+ * the two are one mechanism, so both are asserted together. Deriving that list
+ * from SUPPORTED_LOCALES is what stops a locale being removed from the picker
+ * and left reachable here.
+ */
+test('an unknown locale is refused at routing, not while rendering', async (t) => {
+  const src = read('app/[locale]/page.tsx');
+
+  await t.test('dynamicParams is disabled', () => {
+    assert.match(src, /export\s+const\s+dynamicParams\s*=\s*false/,
+      'without this a bad URL renders, streams, and answers 200 - see #157');
+  });
+
+  /* dynamicParams=false 404s anything generateStaticParams did not list, so an
+     empty or hardcoded list silently changes which URLs exist. */
+  await t.test('the generated list still derives from SUPPORTED_LOCALES', () => {
+    assert.match(src, /generateStaticParams[\s\S]{0,200}SUPPORTED_LOCALES/,
+      'generateStaticParams no longer derives from SUPPORTED_LOCALES - with ' +
+      'dynamicParams=false that decides which URLs return 404');
+  });
+
+  /* Kept as defence and now unreachable in production. Removing it is safe
+     today and unsafe the moment dynamicParams changes, which is exactly the
+     kind of coupling worth pinning. */
+  await t.test('the runtime guard is still there as a second line', () => {
+    assert.match(src, /isSupportedLocale\(locale\)/);
+    assert.match(src, /notFound\(\)/);
+  });
+});
