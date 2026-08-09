@@ -29,6 +29,33 @@ release candidate and stops moving once QA promotes into it. See
 Say **"verified on `staging`"** and name the branch. "Verified on qa" was
 ambiguous for most of 2026-08-07 and should not be written.
 
+## Seeded accounts — do not reset these
+
+Four accounts exist in the **dev** Supabase (`wdtjhrilakoitfcezxpx`), which `qa`
+and `staging` also read. They are test fixtures, not real users. **Nothing should
+delete them, change their role, or give them a trial.**
+
+| Account | State | Used by |
+|---|---|---|
+| `E2E_USER_A_*` | **`role='pro'`**, `trial_ends_at` NULL | `bola.spec.ts`, `a11y-auth.spec.ts`, `entitlements.spec.ts` |
+| `E2E_USER_B_*` | **`role='free'`**, `trial_ends_at` NULL | `bola.spec.ts`, `entitlements.spec.ts` |
+
+**Why the roles are pinned.** Both accounts were `free` with a trial running to
+2026-08-19, and a trial grants Pro *features* — so both behaved as Pro. Any
+entitlement assertion would have meant one thing before that date and the
+opposite after it: same spec, same green result, different claim.
+`entitlements.spec.ts` **fails** if either has drifted, rather than adapting to
+what it finds.
+
+`trial_ends_at` is **NULL**, not a past date. A past date is something that can
+be renewed by accident; NULL is a state.
+
+**Consequence to know before changing B back.** `price-alerts` checks entitlement
+at `route.ts:89` and ownership at `:111`. With B free, `bola.spec.ts`'s
+"B cannot modify A's price alert" is refused by the *Pro gate* and never reaches
+the ownership check — the assertion still passes and no longer tests
+cross-account access. The data check after it is what still has teeth.
+
 ## What lives where
 
 | File | What it is | Status |

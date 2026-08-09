@@ -226,7 +226,7 @@ export default function SettingsPage() {
       t('SETTINGS_SECTION_TELEGRAM'),
     ];
     return (
-      <div className="st-page">
+      <div className="st-page" data-testid="settings-page">
         <div className="st-header"><h1 className="st-header-title">{t('SETTINGS_PAGE_TITLE')}</h1></div>
 
         <Section title={t('SETTINGS_SECTION_APPEARANCE')}>
@@ -282,7 +282,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="st-page">
+    <div className="st-page" data-testid="settings-page">
 
       <SaveToast status={saveStatus} />
 
@@ -324,7 +324,7 @@ export default function SettingsPage() {
           >
             {pwLoading ? <span className="login-spinner" /> : t('SETTINGS_PASSWORD_SAVE_BUTTON')}
           </button>
-          {pwError && <div className="login-error">{pwError}</div>}
+          {pwError && <div className="login-error" data-testid="login-error">{pwError}</div>}
           {pwSaved && <div className="login-success-desc">{t('SETTINGS_PASSWORD_SAVED')}</div>}
         </div>
 

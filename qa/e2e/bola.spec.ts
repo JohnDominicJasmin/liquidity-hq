@@ -164,28 +164,58 @@ test.describe('BOLA / IDOR - cross-account access', () => {
     ).toBe(1);
   });
 
-  test("B cannot modify or deactivate A's price alert by id", async ({ request }) => {
-    const patch = await request.patch(`/api/price-alerts?id=${FIXTURES.priceAlertId}`, {
+  /* WHY THIS RUNS AS A, NOT B.
+   *
+   * `price-alerts` checks entitlement at route.ts:89 and ownership at :111. B is
+   * the FREE fixture, so it is refused by the Pro gate twenty lines before the
+   * ownership check is reached - the test passed and stopped testing ownership
+   * the moment B's role was pinned to free on 2026-08-08.
+   *
+   * A is PRO, so it clears the gate and the refusal it gets is the one this test
+   * is actually about. The B direction is kept below as its own test, because a
+   * free account being refused IS worth asserting - it just is not BOLA. */
+  test("A cannot modify or deactivate B's price alert by id", async ({ request }) => {
+    const patch = await request.patch(`/api/price-alerts?id=${FIXTURES.bPriceAlertId}`, {
+      headers: { ...auth(tokenA), 'Content-Type': 'application/json' },
+      data: { label: 'OWNED BY A', target_price: 1 },
+      failOnStatusCode: false,
+    });
+    expect(REFUSED).toContain(patch.status());
+    noteIf500(patch.status(), "PATCH /api/price-alerts as a non-owner (A on B's row)");
+
+    const del = await request.delete(`/api/price-alerts?id=${FIXTURES.bPriceAlertId}`, {
+      headers: auth(tokenA), failOnStatusCode: false,
+    });
+    expect(REFUSED).toContain(del.status());
+    noteIf500(del.status(), "DELETE /api/price-alerts as a non-owner (A on B's row)");
+
+    const after = await rest(tokenB, 'lhq_dev_price_alerts', `id=eq.${FIXTURES.bPriceAlertId}&select=*`);
+    expect(after.body?.length, "B's price alert must still exist").toBe(1);
+    const row = after.body?.[0] ?? {};
+    expect(JSON.stringify(row), "A renamed B's price alert").not.toContain('OWNED BY A');
+    // DELETE here is a soft delete (active:false). If B could reach it, the
+    // alert would silently stop firing for A - a data-loss bug that returns 200.
+    expect(row.active, "A deactivated B's price alert - it would silently stop firing").not.toBe(false);
+  });
+
+  /* The B direction, kept and renamed to what it actually proves.
+   *
+   * B is free, so `price-alerts` refuses it at the entitlement check before
+   * ownership is ever considered. That is worth asserting - a free account must
+   * not reach a Pro route - but it is an ENTITLEMENT test, and calling it BOLA
+   * is how a cross-account assertion silently stopped covering cross-account
+   * access when B's role was pinned. */
+  test("a FREE account is refused by the Pro gate, not by ownership", async ({ request }) => {
+    const r = await request.patch(`/api/price-alerts?id=${FIXTURES.priceAlertId}`, {
       headers: { ...auth(tokenB), 'Content-Type': 'application/json' },
       data: { label: 'OWNED BY B', target_price: 1 },
       failOnStatusCode: false,
     });
-    expect(REFUSED).toContain(patch.status());
-    noteIf500(patch.status(), "PATCH /api/price-alerts as a non-owner");
-
-    const del = await request.delete(`/api/price-alerts?id=${FIXTURES.priceAlertId}`, {
-      headers: auth(tokenB), failOnStatusCode: false,
-    });
-    expect(REFUSED).toContain(del.status());
-    noteIf500(del.status(), "DELETE /api/price-alerts as a non-owner");
+    expect(r.status(), 'a free account reached a Pro-gated route').toBe(403);
+    expect(await r.text(), 'refused, but not for entitlement').toContain('PRO_REQUIRED');
 
     const after = await rest(tokenA, 'lhq_dev_price_alerts', `id=eq.${FIXTURES.priceAlertId}&select=*`);
-    expect(after.body?.length, "A's price alert must still exist").toBe(1);
-    const row = after.body?.[0] ?? {};
-    expect(JSON.stringify(row), "B renamed A's price alert").not.toContain('OWNED BY B');
-    // DELETE here is a soft delete (active:false). If B could reach it, the
-    // alert would silently stop firing for A - a data-loss bug that returns 200.
-    expect(row.active, "B deactivated A's price alert - it would silently stop firing").not.toBe(false);
+    expect(JSON.stringify(after.body?.[0] ?? {}), "B renamed A's alert despite the 403").not.toContain('OWNED BY B');
   });
 
   test("B cannot overwrite A's settings", async ({ request }) => {

@@ -802,7 +802,9 @@ function Inner() {
   );
 
   return (
-    <div>
+    // lhq-private: every rendered figure below is this user's own trading data.
+    // Masked wholesale in session replay - see lib/sessionRecording.ts.
+    <div className="lhq-private">
       {/* Header */}
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <h1 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('TRADE_JOURNAL_PAGE_TITLE')}</h1>
@@ -871,25 +873,25 @@ function Inner() {
           <div className="tj-card">
             <div className="tj-card-lbl">{t('TRADE_JOURNAL_LOG_PRICE_LEVELS_LABEL')}</div>
             <div className="tj-price-grid">
-              <div className="tj-field">
+              <div className="tj-field" data-testid="tj-field">
                 <label className="tj-lbl">{t('TRADE_JOURNAL_LOG_ENTRY_LABEL')}</label>
                 <div className="tj-irow"><span className="tj-affix">$</span>
                   <input className="tj-inp" aria-label={t('TRADE_JOURNAL_LOG_ENTRY_ARIA')} type="number" placeholder="0.00" value={entry} onChange={e => setEntry(e.target.value)} />
                 </div>
               </div>
-              <div className="tj-field">
+              <div className="tj-field" data-testid="tj-field">
                 <label className="tj-lbl">{t('TRADE_JOURNAL_LOG_STOP_LOSS_LABEL')}</label>
                 <div className="tj-irow"><span className="tj-affix">$</span>
                   <input className="tj-inp tj-inp-stop" aria-label={t('TRADE_JOURNAL_LOG_STOP_LOSS_ARIA')} type="number" placeholder="0.00" value={stopLoss} onChange={e => setStopLoss(e.target.value)} />
                 </div>
               </div>
-              <div className="tj-field">
+              <div className="tj-field" data-testid="tj-field">
                 <label className="tj-lbl">{t('TRADE_JOURNAL_LOG_TAKE_PROFIT_LABEL')}</label>
                 <div className="tj-irow"><span className="tj-affix">$</span>
                   <input className="tj-inp tj-inp-tp" aria-label={t('TRADE_JOURNAL_LOG_TAKE_PROFIT_LABEL')} type="number" placeholder="0.00" value={tpPrice} onChange={e => setTpPrice(e.target.value)} />
                 </div>
               </div>
-              <div className="tj-field">
+              <div className="tj-field" data-testid="tj-field">
                 <label className="tj-lbl">{t('TRADE_JOURNAL_LOG_POSITION_SIZE_LABEL')}</label>
                 <div className="tj-irow"><span className="tj-affix">$</span>
                   <input className="tj-inp" aria-label={t('TRADE_JOURNAL_LOG_POSITION_SIZE_ARIA')} type="number" placeholder={t('TRADE_JOURNAL_LOG_POSITION_SIZE_PLACEHOLDER')} value={posUSD} onChange={e => setPosUSD(e.target.value)} />
@@ -1163,7 +1165,7 @@ function Inner() {
 
               {/* Inline edit form */}
               {editingId === trade.id && (
-                <div className="tj-edit-form">
+                <div className="tj-edit-form" data-testid="tj-edit-form">
                   {/* WCAG 2.2 SC 4.1.2 Name, Role, Value (Level A), issue #48.
                       The visible labels were already here - they just named
                       nothing: no htmlFor, wrapping no control. A screen reader
@@ -1783,7 +1785,8 @@ function Inner() {
                     )}
                   </div>
 
-                  {/* Thesis text - tj-thesis-text is masked in session replay, see PostHogProvider.tsx */}
+                  {/* Thesis text - masked because it is inside lhq-private, not
+                      because of its own class. See lib/sessionRecording.ts. */}
                   <div className="tj-thesis-text" style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', lineHeight: 1.5, marginBottom: 8 }}>{thesis.thesisText}</div>
 
                   {/* Assumptions */}

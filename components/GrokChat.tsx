@@ -620,6 +620,7 @@ export default function GrokChat() {
           which is exactly the semantics opacity:0 was being asked to imply. */}
       <div
         className={`gchat-panel${open ? ' gchat-open' : ''}${expanded ? ' gchat-expanded' : ''}`}
+        data-testid="grok-panel"
         inert={!open}
         aria-hidden={!open}
       >
@@ -812,6 +813,7 @@ export default function GrokChat() {
                 everything again" once a thread is a few messages long. */}
             <div
               className="gchat-msgs"
+              data-testid="grok-messages"
               ref={msgsRef}
               role="log"
               aria-live="polite"

@@ -44,9 +44,31 @@ jobs:
         with:
           fetch-depth: 0
 
+      # WHY A PAT AND NOT github.token, because the next person will assume it
+      # is unnecessary and remove it:
+      #
+      # GitHub does not trigger workflows on events created by GITHUB_TOKEN.
+      # It is deliberate anti-recursion, and it has no opt-out. So a release PR
+      # opened by this job never fired `pull_request`, CI never ran, and the
+      # required `CI Gate` check was ABSENT rather than failing - a PR blocked
+      # forever with nothing red to explain why. That is #126, and it was caused
+      # by the automation added in #99.
+      #
+      # A PAT is a different actor, so the PR it opens triggers CI normally.
+      #
+      # RELEASE_PAT is fine-grained, this repo only, contents:read +
+      # pull-requests:write + issues:write. Expiry is recorded in
+      # docs/INFRASTRUCTURE.md §1 - when it lapses the release PR simply stops
+      # appearing, and the symptom carries no hint of the cause.
+      #
+      # NO FALLBACK TO github.token, on purpose. A fallback would mean an absent
+      # or expired secret quietly restores exactly the bug above. Instead the
+      # step fails, the job fails, and `release-pr-failed` below opens an issue
+      # carrying the release body - loud, and the release is not even blocked
+      # while someone rotates the token.
       - name: Open the staging -> main release PR if there is not one
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -214,3 +236,77 @@ jobs:
             gh issue create --repo "$REPO" --label release-drift \
               --title "Production is not running \`main\`" --body-file /tmp/drift.md
           fi
+
+  # ── If the release PR could not be opened, do not fail into silence ────────
+  #
+  # This is the job that should have existed on 2026-08-08. `release-pr` failed
+  # on its first real run - the repo setting "Allow GitHub Actions to create and
+  # approve pull requests" was off - and the promotion looked completely normal:
+  # `qa` moved, the Ready-for-QA issue closed itself correctly, and no release PR
+  # appeared. Nothing said why. QA found it by going to look for a PR that was
+  # not there. Issue #99.
+  #
+  # QA's phrasing, kept because it is the requirement: "a workflow that exists to
+  # remove a manual step failed silently at the one moment it was needed".
+  #
+  # WHY THIS CANNOT FAIL THE SAME WAY: the primary needs `gh pr create`, gated by
+  # a REPO SETTING. This needs `gh issue create`, gated by `issues: write` -
+  # declared at the top of this file and already exercised. Different permission,
+  # and one the workflow has always held.
+  #
+  # The body the primary had already built is gone with its runner, so this
+  # rebuilds a cruder version rather than pretending to recover it. Everything
+  # up to the final API call had succeeded, which is why this stays useful.
+  release-pr-failed:
+    needs: release-pr
+    if: failure() && github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # THIS MUST KEEP github.token. Do not "tidy" RELEASE_PAT up to a
+      # workflow-level env: - the whole reason the PAT is safe to adopt is that
+      # this job runs on a DIFFERENT credential. Share one and an expired token
+      # kills the fallback and the primary together, which is the silence both
+      # were built to remove.
+      #
+      # Issues do not need to trigger workflows, so github.token's anti-recursion
+      # rule costs nothing here. It is the release PR that needed a real actor.
+      - name: Open an issue carrying the release list
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          {
+            echo "**Automated** - \`staging\` moved but the release PR could NOT be opened."
+            echo
+            echo "**Open it by hand:** \`staging\` -> \`main\`. The contents are below."
+            echo
+            echo "Failed run: $RUN"
+            echo
+            echo "First thing to check: Settings -> Actions -> General -> Workflow"
+            echo "permissions -> \"Allow GitHub Actions to create and approve pull"
+            echo "requests\". That was the cause on 2026-08-08 (#99), and the Save button"
+            echo "under that section is separate from the checkbox."
+            echo
+            echo "## In this release (\`main..staging\`)"
+            echo
+            echo '```'
+            git log --format='%h %s' origin/main..origin/staging 2>/dev/null | head -50 || echo "(range unavailable)"
+            echo '```'
+            echo
+            echo "Per-PR \"How to test\" sections are not aggregated here - open the PRs"
+            echo "listed above for those. Fix the workflow and re-push \`staging\` to get the"
+            echo "full body."
+          } > /tmp/relfail.md
+
+          gh label create announcement-failed --repo "$REPO" --color D93F0B \
+            --description "A promotion happened but the automated announcement did not" 2>/dev/null || true
+
+          gh issue create --repo "$REPO" --label announcement-failed \
+            --title "Release PR was NOT opened - release-signals.yml failed" \
+            --body-file /tmp/relfail.md

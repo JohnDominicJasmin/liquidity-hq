@@ -1,0 +1,14 @@
+{
+ "_recorded": "production, 2026-08-08",
+ "_url": "https://fapi.binance.com/futures/data/topLongShortPositionRatio",
+ "_status": 200,
+ "body": [
+  {
+   "symbol": "BTCUSDT",
+   "longAccount": "0.6072",
+   "longShortRatio": "1.5458",
+   "shortAccount": "0.3928",
+   "timestamp": 1786204800000
+  }
+ ]
+}

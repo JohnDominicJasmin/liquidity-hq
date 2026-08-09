@@ -67,6 +67,55 @@ on:
     # open for the whole cycle, so each ff-push to its base ALSO fired
     # `synchronize` on it - one promotion used to bill three full runs.
     branches: [dev, main]
+    # Docs-only pushes do not need a build. Every path here is either not
+    # compiled or not shipped, so a run over them proves nothing that the
+    # PR-side run had not already proved.
+    #
+    # DELIBERATELY ON `push` ONLY, not on `pull_request`, and the reason matters
+    # more than the saving:
+    #
+    #   - `main` is the only branch with a required status check (`CI Gate`).
+    #     Required checks are evaluated on the PULL REQUEST. A required check
+    #     that never runs never reports, and GitHub treats "never reported" as
+    #     pending forever - so a docs-only release PR would be unmergeable with
+    #     no way to force it short of an admin override. That is a worse failure
+    #     than the minutes are worth.
+    #   - The alternative - keep the workflow running and skip the expensive
+    #     jobs with an `if:` - is worse still. The `gate` job below rests on
+    #     "build carries no `if:`, so anything other than success is real".
+    #     Teaching it to accept `skipped` reopens the hole it was hardened to
+    #     close after release PR #38, where a skipped job read as a green
+    #     required check.
+    #
+    # So: pushes skip, pull requests always run. Issue #114 sibling item.
+    #
+    # ── WHAT IS DELIBERATELY *NOT* ON THIS LIST ────────────────────────────
+    # QA's wording from the duplicate PR #115, kept because it is the better
+    # argument and because this is the line someone will be tempted to edit:
+    #
+    #   `qa/**` and `.github/**` are deliberately NOT in the ignore list. Test
+    #   code and workflow definitions are exactly the things that need CI to
+    #   run; excluding them is how a broken spec or a broken workflow ships
+    #   without anyone noticing.
+    #
+    # Adding them roughly TRIPLES the saving, which is precisely why it looks
+    # attractive - and it removes the gate from the QA suite while doing it.
+    # The two `.github/` entries below are individual files that cannot affect a
+    # build; the directory as a whole stays covered.
+    #
+    # Sized honestly so nobody re-litigates it expecting more: only **1 of 31**
+    # recent commits touches documentation alone, so this saves ~60 min/month.
+    # QA's first count was 7 of 21 and included `.github/` and `qa/` changes;
+    # filtering to true documentation left one in thirty-one. It is worth doing
+    # because it is correct and free, not because it moves the number. The item
+    # that moves the number is `workers: 1` - issue #114.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'pendings/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+      - 'LICENSE'
 
   # For running the browser suite on demand: re-checking after a flake, or
   # proving a fix without opening a release PR first.
@@ -310,7 +359,52 @@ jobs:
           E2E_USER_B_ID: ${{ secrets.E2E_USER_B_ID }}
           E2E_A_TRADE_ID: ${{ secrets.E2E_A_TRADE_ID }}
           E2E_A_HYPOTHESIS_ID: ${{ secrets.E2E_A_HYPOTHESIS_ID }}
-          E2E_A_PRICE_ALERT_ID: ${{ secrets.E2E_A_PRICE_ALERT_ID }}
+          # A VARIABLE, not a secret, and deliberately. lhq_dev_price_alerts
+          # uses an integer primary key where trades and hypotheses use UUIDs,
+          # and this fixture is the only row in the table - so the value is the
+          # literal string "1".
+          #
+          # GitHub redacts every occurrence of a secret's value anywhere in a
+          # log. As a secret, this one turned EVERY literal 1 in CI output into
+          # ***: "SC 1.4.3" printed as "SC ***.4.3" and a "2.20:1" contrast
+          # ratio as "2.20:***". QA lost time reading a contrast failure through
+          # that on 2026-08-08 (issue #107).
+          #
+          # It was never sensitive - it is a row id in the dev database, created
+          # alongside genuinely secret things and classified with them by
+          # proximity rather than by need. As a variable it prints normally.
+          #
+          # If a future fixture id is genuinely sensitive, make it a secret AND
+          # give it a value that cannot collide with ordinary text.
+          E2E_A_PRICE_ALERT_ID: ${{ vars.E2E_A_PRICE_ALERT_ID }}
+          # B's own price alert, seeded 2026-08-08. A variable for the same
+          # reason as A's, and it is `2` - a second single digit, so as a secret
+          # it would redact every literal 2 in the log exactly as `1` did.
+          #
+          # It exists because the BOLA test stopped testing BOLA. price-alerts
+          # checks entitlement at route.ts:89 and ownership at :111, so once B
+          # was pinned to `free` the Pro gate refused it twenty lines before
+          # ownership was reached - the test passed and proved nothing. The
+          # cross-account attempt now runs as A, who is Pro, against a row A
+          # does not own.
+          E2E_B_PRICE_ALERT_ID: ${{ vars.E2E_B_PRICE_ALERT_ID }}
+
+          # NOT a real credential, and it must never be one. The webhook spec
+          # signs its own payloads with HMAC-SHA256 and the server verifies with
+          # the same value, so the two only have to MATCH - any string works.
+          #
+          # Written literally rather than stored as a secret, deliberately:
+          #   - it protects nothing. No LemonSqueezy store knows this value, so
+          #     leaking it grants nobody anything.
+          #   - as a secret it would be redacted from logs, and a signature
+          #     mismatch is diagnosed by reading them.
+          #   - the reader needs to know at a glance that it is fake. A masked
+          #     value invites someone to "fix" it by pasting the real one in.
+          #
+          # The production secret lives only in Render's environment for
+          # `liquidity-hq-prod`. Copying it here would let anyone who can read
+          # this repository forge a webhook that grants Pro.
+          LEMONSQUEEZY_WEBHOOK_SECRET: ci-fake-not-a-real-lemonsqueezy-secret
 
       # failure() only. This used to upload on every green run too - ~15s and
       # storage for a report nobody opens. failure() still excludes

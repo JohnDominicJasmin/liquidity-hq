@@ -1,0 +1,378 @@
+{
+ "_recorded": "production, 2026-08-08",
+ "_url": "https://liquidity-hq.com/api/market/rsi",
+ "_status": 200,
+ "body": {
+  "rsi": {
+   "btc": {
+    "rsi1h": 61,
+    "rsi4h": 56,
+    "rsiDaily": 54,
+    "rsiWeekly": 33,
+    "rsiMonthly": 29,
+    "rsi5m": 58
+   },
+   "eth": {
+    "rsi1h": 64,
+    "rsi4h": 59,
+    "rsiDaily": 56,
+    "rsiWeekly": 36,
+    "rsiMonthly": 45,
+    "rsi5m": 44
+   },
+   "sol": {
+    "rsi1h": 84,
+    "rsi4h": 65,
+    "rsiWeekly": 44,
+    "rsiDaily": 53,
+    "rsiMonthly": 29,
+    "rsi5m": 43
+   },
+   "xrp": {
+    "rsi4h": 45,
+    "rsiDaily": 37,
+    "rsi1h": 81,
+    "rsiMonthly": 30,
+    "rsiWeekly": 30,
+    "rsi5m": 62
+   },
+   "bnb": {
+    "rsi1h": 71,
+    "rsi4h": 52,
+    "rsiDaily": 67,
+    "rsiWeekly": 47,
+    "rsiMonthly": 48,
+    "rsi5m": 55
+   },
+   "near": {
+    "rsi1h": 65,
+    "rsi4h": 25,
+    "rsiDaily": 34,
+    "rsiWeekly": 56,
+    "rsiMonthly": 44,
+    "rsi5m": 60
+   },
+   "sui": {
+    "rsi1h": 81,
+    "rsi4h": 59,
+    "rsiDaily": 44,
+    "rsiWeekly": 41,
+    "rsiMonthly": 23,
+    "rsi5m": 68
+   },
+   "doge": {
+    "rsi1h": 73,
+    "rsi4h": 59,
+    "rsiDaily": 45,
+    "rsiWeekly": 20,
+    "rsiMonthly": 32,
+    "rsi5m": 52
+   },
+   "avax": {
+    "rsi1h": 66,
+    "rsi4h": 36,
+    "rsiDaily": 43,
+    "rsiWeekly": 32,
+    "rsiMonthly": 34,
+    "rsi5m": 25
+   },
+   "link": {
+    "rsi1h": 72,
+    "rsiDaily": 48,
+    "rsi4h": 60,
+    "rsiMonthly": 41,
+    "rsiWeekly": 45,
+    "rsi5m": 30
+   },
+   "ada": {
+    "rsi4h": 65,
+    "rsiDaily": 76,
+    "rsi1h": 36,
+    "rsiWeekly": 42,
+    "rsiMonthly": 31,
+    "rsi5m": 45
+   },
+   "dot": {
+    "rsi1h": 52,
+    "rsi4h": 35,
+    "rsiDaily": 51,
+    "rsiWeekly": 30,
+    "rsiMonthly": 17,
+    "rsi5m": 29
+   },
+   "atom": {
+    "rsi1h": 75,
+    "rsi4h": 66,
+    "rsiDaily": 51,
+    "rsiWeekly": 36,
+    "rsiMonthly": 19,
+    "rsi5m": 40
+   },
+   "wif": {
+    "rsi4h": 54,
+    "rsiDaily": 31,
+    "rsi1h": 75,
+    "rsiMonthly": 8,
+    "rsiWeekly": 39,
+    "rsi5m": 42
+   },
+   "ltc": {
+    "rsi1h": 60,
+    "rsi4h": 62,
+    "rsiWeekly": 38,
+    "rsiDaily": 44,
+    "rsiMonthly": 29,
+    "rsi5m": 66
+   },
+   "bch": {
+    "rsi1h": 76,
+    "rsiDaily": 58,
+    "rsiWeekly": 21,
+    "rsi4h": 58,
+    "rsiMonthly": 26,
+    "rsi5m": 67
+   },
+   "trx": {
+    "rsiDaily": 44,
+    "rsi4h": 62,
+    "rsiWeekly": 46,
+    "rsi1h": 71,
+    "rsiMonthly": 60,
+    "rsi5m": 42
+   },
+   "xlm": {
+    "rsi1h": 81,
+    "rsi4h": 61,
+    "rsiMonthly": 44,
+    "rsiDaily": 34,
+    "rsiWeekly": 51,
+    "rsi5m": 71
+   },
+   "etc": {
+    "rsi1h": 59,
+    "rsiWeekly": 34,
+    "rsi4h": 50,
+    "rsiMonthly": 23,
+    "rsiDaily": 43,
+    "rsi5m": 50
+   },
+   "fil": {
+    "rsi1h": 82,
+    "rsi4h": 50,
+    "rsiWeekly": 39,
+    "rsiDaily": 46,
+    "rsiMonthly": 12,
+    "rsi5m": 49
+   },
+   "arb": {
+    "rsi1h": 62,
+    "rsi4h": 48,
+    "rsiWeekly": 36,
+    "rsiMonthly": 29,
+    "rsiDaily": 44,
+    "rsi5m": 58
+   },
+   "op": {
+    "rsi1h": 80,
+    "rsi4h": 55,
+    "rsiDaily": 45,
+    "rsiWeekly": 39,
+    "rsiMonthly": 18,
+    "rsi5m": 62
+   },
+   "apt": {
+    "rsi1h": 82,
+    "rsi4h": 52,
+    "rsiWeekly": 31,
+    "rsiDaily": 47,
+    "rsiMonthly": 6,
+    "rsi5m": 36
+   },
+   "sei": {
+    "rsi1h": 83,
+    "rsi4h": 56,
+    "rsiDaily": 35,
+    "rsiWeekly": 39,
+    "rsiMonthly": 10,
+    "rsi5m": 54
+   },
+   "inj": {
+    "rsi1h": 32,
+    "rsi4h": 19,
+    "rsiDaily": 32,
+    "rsiMonthly": 33,
+    "rsiWeekly": 55,
+    "rsi5m": 58
+   },
+   "tia": {
+    "rsi1h": 61,
+    "rsi4h": 40,
+    "rsiDaily": 45,
+    "rsiWeekly": 48,
+    "rsiMonthly": 22,
+    "rsi5m": 69
+   },
+   "aave": {
+    "rsi1h": 62,
+    "rsi4h": 72,
+    "rsiDaily": 48,
+    "rsiWeekly": 49,
+    "rsiMonthly": 21,
+    "rsi5m": 68
+   },
+   "uni": {
+    "rsi1h": 44,
+    "rsi4h": 44,
+    "rsiDaily": 57,
+    "rsiWeekly": 59,
+    "rsiMonthly": 37,
+    "rsi5m": 38
+   },
+   "ldo": {
+    "rsi4h": 48,
+    "rsi1h": 66,
+    "rsiDaily": 29,
+    "rsiWeekly": 42,
+    "rsiMonthly": 37,
+    "rsi5m": 61
+   },
+   "rune": {
+    "rsi1h": 25,
+    "rsiDaily": 63,
+    "rsi4h": 46,
+    "rsiWeekly": 44,
+    "rsiMonthly": 13,
+    "rsi5m": 50
+   },
+   "gmx": {
+    "rsi1h": 48,
+    "rsi4h": 76,
+    "rsiDaily": 45,
+    "rsiWeekly": 45,
+    "rsiMonthly": 29,
+    "rsi5m": 43
+   },
+   "crv": {
+    "rsi1h": 80,
+    "rsi4h": 77,
+    "rsiDaily": 69,
+    "rsiWeekly": 49,
+    "rsiMonthly": 38,
+    "rsi5m": 73
+   },
+   "stx": {
+    "rsi1h": 79,
+    "rsi4h": 46,
+    "rsiDaily": 46,
+    "rsiWeekly": 30,
+    "rsiMonthly": 12,
+    "rsi5m": 44
+   },
+   "jup": {
+    "rsi1h": 69,
+    "rsi4h": 41,
+    "rsiDaily": 47,
+    "rsiWeekly": 51,
+    "rsiMonthly": 19,
+    "rsi5m": 52
+   },
+   "wld": {
+    "rsi1h": 60,
+    "rsi4h": 44,
+    "rsiDaily": 34,
+    "rsiWeekly": 55,
+    "rsiMonthly": 34,
+    "rsi5m": 57
+   },
+   "render": {
+    "rsi1h": 60,
+    "rsiDaily": 30,
+    "rsi4h": 43,
+    "rsiWeekly": 37,
+    "rsiMonthly": 31,
+    "rsi5m": 37
+   },
+   "tao": {
+    "rsi4h": 50,
+    "rsi1h": 69,
+    "rsiDaily": 55,
+    "rsiWeekly": 36,
+    "rsiMonthly": 41,
+    "rsi5m": 52
+   },
+   "fet": {
+    "rsi1h": 55,
+    "rsi4h": 45,
+    "rsiDaily": 32,
+    "rsiWeekly": 39,
+    "rsiMonthly": 19,
+    "rsi5m": 48
+   },
+   "ondo": {
+    "rsi1h": 62,
+    "rsiWeekly": 55,
+    "rsi4h": 24,
+    "rsiDaily": 41,
+    "rsiMonthly": 31,
+    "rsi5m": 39
+   },
+   "pyth": {
+    "rsi1h": 83,
+    "rsiDaily": 36,
+    "rsi4h": 44,
+    "rsiWeekly": 43,
+    "rsiMonthly": 37,
+    "rsi5m": 56
+   },
+   "ena": {
+    "rsi1h": 44,
+    "rsi4h": 46,
+    "rsiDaily": 56,
+    "rsiMonthly": 41,
+    "rsiWeekly": 46,
+    "rsi5m": 60
+   },
+   "dydx": {
+    "rsi1h": 82,
+    "rsi4h": 55,
+    "rsiWeekly": 45,
+    "rsiDaily": 40,
+    "rsiMonthly": 24,
+    "rsi5m": 61
+   },
+   "sand": {
+    "rsi1h": 56,
+    "rsi4h": 49,
+    "rsiDaily": 36,
+    "rsiWeekly": 27,
+    "rsiMonthly": 13,
+    "rsi5m": 43
+   },
+   "hype": {
+    "rsi1h": 65,
+    "rsi4h": 40,
+    "rsiDaily": 42,
+    "rsiWeekly": 58,
+    "rsiMonthly": 58,
+    "rsi5m": 82
+   },
+   "mana": {
+    "rsi1h": 47,
+    "rsi4h": 44,
+    "rsiDaily": 39,
+    "rsiWeekly": 35,
+    "rsiMonthly": 16,
+    "rsi5m": 40
+   },
+   "gmt": {
+    "rsi4h": 52,
+    "rsi1h": 55,
+    "rsiDaily": 38,
+    "rsiWeekly": 34,
+    "rsiMonthly": 4,
+    "rsi5m": 67
+   }
+  },
+  "ts": 1786194830259
+ }
+}

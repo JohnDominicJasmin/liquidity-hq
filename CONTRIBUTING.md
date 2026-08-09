@@ -207,6 +207,71 @@ Commit messages are exempt: the `type(scope):` prefix already carries intent and
 the bodies are detailed enough to place. Say "QA" in the body anyway when a
 commit *is* a handoff or a request rather than just work.
 
+**One account also means no PR here can ever be approved.** GitHub refuses:
+
+```
+Review Can not approve your own pull request
+```
+
+The author is always the reviewer, so the button is unavailable on every PR —
+dev's, QA's, and the release PR. Review still happens; it lands as a comment.
+
+> **Do not add an approval requirement to any ruleset while dev and QA share one
+> GitHub account.** It cannot be satisfied by anyone, and it fails as an absent
+> check rather than a failing one.
+
+That is written as a prohibition because requiring an approval on `main` is the
+most obvious hardening anyone would reach for on a production branch, and it
+reads as unambiguously good practice. It would deadlock every release
+permanently, and the release PR would sit unmergeable with **nothing red to
+explain why**.
+
+Same signature as the bot-PR problem: automation blocked by a permission that
+reports nothing. Both were found by trying the thing, not by reading the config —
+which is the general lesson, and the reason neither was predicted.
+
+---
+
+### 3b. QA also tracks the project, and that pulls against being the gate
+
+**QA holds two jobs: the quality gate, and knowing where the project is.** The
+second one lives in [`qa/STATUS.md`](qa/STATUS.md) — what is live, what is
+waiting to ship, what is blocked and on whom. QA owns that file and keeps it
+current; it carries a date at the top so a stale copy announces itself.
+
+It sits with QA rather than dev for a structural reason, not a preference. **QA
+is the only role that touches every hop from `qa` to production**, so it is the
+only one positioned to see the whole pipeline. Dev's view stops at `qa` by
+design (§4) — which means dev can do everything correctly and still have no
+vantage point from which the queue is visible. That is not hypothetical; it is
+what happened on 2026-08-08, and §7b is the rule that came out of it.
+
+**The two jobs pull opposite ways, and naming that is the point.** A gate says
+"not yet". A tracker says "this has been finished and unshipped for two days".
+One person holding both will, left unmanaged, settle that conflict in favour of
+shipping — because shipping is the half that produces visible progress and the
+other half only ever produces delay.
+
+So the rule is written down rather than left to judgement in the moment:
+
+> **QA judgement is never traded for schedule.** When the gate and the queue
+> disagree, it is said out loud on the release PR and the **owner** decides. It
+> is not settled quietly by the person holding both roles.
+
+Things that are **never** shortened because the queue is deep:
+
+- re-testing a failed step, plus anything the fix could have touched (§7)
+- the full browser suite on the `staging` → `main` PR (§4b)
+- writing down what could not be verified, under **Risk level**
+
+The correct response to a deep queue is in §7b and it is the opposite of testing
+less: **promote more often.** A batch too big to reason about is fixed by making
+batches smaller, never by reasoning about it less carefully.
+
+**What this does not change:** QA still writes no application code (§4), and
+still cannot merge its own PRs into `dev`. Tracking the project confers no
+authority over what goes into it.
+
 ---
 
 ## 4. Two-workspace handoff (dev folder ↔ QA folder)

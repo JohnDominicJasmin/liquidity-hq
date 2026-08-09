@@ -75,8 +75,18 @@ export async function POST(req: NextRequest) {
 
   // Alerts are a Pro feature - same gate the delivery paths apply, so a free
   // account cannot use this to get the signal stream the alerts would carry.
+  //
+  // The error code is a CONTRACT, not a message. Every other gated route emits
+  // the same one, and three components branch on it to show a locked state
+  // rather than an error (DryPowder:90, HypothesisTracker:214,
+  // TradeJournal:496). This route used to answer 'Pro required' - correctly
+  // gated, wrong label - so no client could recognise it and /alerts rendered
+  // the raw string to the user. Found by entitlements.spec.ts on its first run.
   if (!(await hasProFeatures(token, userId))) {
-    return NextResponse.json({ error: 'Pro required' }, { status: 403 });
+    return NextResponse.json(
+      { error: 'PRO_REQUIRED', message: 'Alert preview is a Pro feature.' },
+      { status: 403 },
+    );
   }
 
   if (!rateLimit(`alerts-preview:${userId}`, RATE_LIMIT, RATE_WINDOW_MS)) {

@@ -1,5 +1,8 @@
 import { defineConfig, globalIgnores } from 'eslint/config';
 import nextVitals from 'eslint-config-next/core-web-vitals';
+import noBareHexColour from './eslint-rules/no-bare-hex-colour.mjs';
+
+const local = { rules: { 'no-bare-hex-colour': noBareHexColour } };
 
 // Next 16 removed `next lint`, and `next build` no longer runs linting at all,
 // so nothing in this repo was linted until this file existed. Lint now runs
@@ -59,6 +62,50 @@ const eslintConfig = defineConfig([
       'react-hooks/preserve-manual-memoization': 'warn',
       'react-hooks/use-memo': 'warn',
     },
+  },
+
+  {
+    // ── No bare hex as a TEXT colour (issue #110) ──────────────────────────
+    // WARN, not error, and deliberately so: ~56 sites already violate this and
+    // making it an error fails the build immediately, so the four gates in
+    // CONTRIBUTING.md §7 stop being passable. As a warning it ships today and
+    // every NEW violation prints in CI from the first run - which is the whole
+    // point. Flip to 'error' once the backlog is burned down; that is issue
+    // #110 step 3 and blocks nothing.
+    //
+    // Scope is text colour only. See eslint-rules/no-bare-hex-colour.mjs for
+    // why background/border/fill/stroke are out.
+    plugins: { local },
+    rules: { 'local/no-bare-hex-colour': 'warn' },
+  },
+
+  {
+    // Genuine exceptions, allow-listed rather than argued with each time.
+    files: [
+      // Chart library config object, not DOM styling - these colours are passed
+      // to KLineCharts, which has no access to CSS variables.
+      'components/KLineProChart.tsx',
+      // Renders when the root layout has already failed, so it cannot rely on
+      // CSS variables existing. It carries its own #0d0d0d background and its
+      // text is 7.66:1 against it - verified 2026-08-08.
+      'app/global-error.tsx',
+      // Native shell config. No CSS, no variables.
+      'capacitor.config.ts',
+      // THE IMPORTANT ONE. session.ts returns foreground/background PAIRS
+      // ({ color: '#f0c070', bg: '#3d2e00' }) tuned for dark, and consumers
+      // apply both together. Tokenising the foreground was tried during the
+      // issue #53 sweep and dropped .session-pill to 2.30:1, because the light
+      // token is dark and the paired background stays dark; re-measured
+      // 2026-08-08 as var(--amber) on #3d2e00 = 1.90:1.
+      //
+      // Left warning, this rule would have told someone to make exactly that
+      // change - it would have caused the defect it exists to prevent. The
+      // colours here are correct; the failure mode is a CONSUMER applying the
+      // foreground without its background, which is a different bug and lives
+      // in the [data-theme="light"] block in globals.css.
+      'lib/session.ts',
+    ],
+    rules: { 'local/no-bare-hex-colour': 'off' },
   },
 
   globalIgnores([

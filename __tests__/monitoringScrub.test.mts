@@ -315,3 +315,67 @@ test('monitoring quota settings', async (t) => {
   if (savedApp === undefined) delete process.env.NEXT_PUBLIC_APP_ENV;
   else process.env.NEXT_PUBLIC_APP_ENV = savedApp;
 });
+
+/* CREDENTIALS. Added after QA's #72 pipeline test captured a real envelope with
+ * a session token in the clear - the email beside it was redacted, the token was
+ * not, because this file only knew about UUIDs and emails.
+ *
+ * The URL case is the one nothing would have found by reading: this app uses
+ * Supabase's IMPLICIT OAuth flow (PKCE was reverted 2026-07-20 for breaking
+ * mobile Google logins), which returns the session in the URL FRAGMENT. A
+ * fragment never reaches a server, so no API-side test could see it - but the
+ * browser SDK reports window.location.href, and scrubUrl split on `?` only.
+ */
+test('credentials never leave the process', async (t) => {
+  const JWT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVP';
+
+  await t.test('a JWT in a message is redacted', () => {
+    const out = scrubText(`refresh failed with ${JWT}`);
+    assert.equal(out, 'refresh failed with :jwt');
+    assert.ok(!out.includes('eyJ'), 'a JWT survived scrubbing');
+  });
+
+  await t.test('the exact envelope QA captured is clean', () => {
+    const out = scrubText('checkout failed for a@b.com with sb-abcdef-auth-token');
+    assert.equal(out, 'checkout failed for :email with :supabase-token-key');
+  });
+
+  await t.test('a Bearer header quoted in prose is redacted', () => {
+    assert.equal(scrubText('sent Bearer abc123def456ghi'), 'sent Bearer :token');
+  });
+
+  await t.test("Supabase's non-JWT keys are redacted", () => {
+    assert.equal(scrubText('used sb_secret_abcd1234efgh'), 'used :supabase-key');
+    assert.equal(scrubText('used sb_publishable_abcd1234'), 'used :supabase-key');
+  });
+
+  /* THE ONE THAT WAS ACTUALLY BROKEN. Implicit-flow callback, real shape. */
+  await t.test('an OAuth callback fragment is dropped entirely', () => {
+    const out = scrubUrl(`https://liquidity-hq.com/auth/callback#access_token=${JWT}&refresh_token=v1.MRq8`);
+    assert.equal(out, 'https://liquidity-hq.com/auth/callback#<redacted>');
+    assert.ok(!out.includes('eyJ'), 'an access token survived in the URL fragment');
+    assert.ok(!out.includes('refresh_token'), 'a refresh token survived in the URL fragment');
+  });
+
+  await t.test('a URL with no fragment is unchanged in that respect', () => {
+    assert.equal(scrubUrl('https://liquidity-hq.com/dashboard'), 'https://liquidity-hq.com/dashboard');
+    assert.equal(scrubUrl('https://liquidity-hq.com/x#'), 'https://liquidity-hq.com/x');
+  });
+
+  /* Order matters. A token can contain a UUID-shaped substring; if UUID ran
+     first it would rewrite part of the token and leave the rest, producing
+     something that no longer matches JWT and survives as a partial credential. */
+  await t.test('a credential containing an id is redacted whole, not in part', () => {
+    const out = scrubText('Bearer 550e8400-e29b-41d4-a716-446655440000-extra');
+    assert.equal(out, 'Bearer :token');
+    assert.ok(!out.includes('550e8400'), 'part of a credential survived');
+  });
+
+  /* The scrubber must not mangle ordinary output, or the next person to read
+     through it weakens it. */
+  await t.test('ordinary text is left alone', () => {
+    const plain = 'TypeError: cannot read property length of undefined at getBars';
+    assert.equal(scrubText(plain), plain);
+    assert.equal(scrubText('BTC funding rate 0.0123 on binance'), 'BTC funding rate 0.0123 on binance');
+  });
+});

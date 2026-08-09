@@ -229,7 +229,9 @@ export default function HypothesisTracker() {
   }
 
   return (
-    <div>
+    // lhq-private: the user's own written hypotheses - same class of content as
+    // a trade's notes. Masked in session replay, see lib/sessionRecording.ts.
+    <div className="lhq-private">
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div>

@@ -4,6 +4,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, Suspense } from 'react';
 import { readConsent, onConsentChange, type ConsentState } from '@/lib/consent';
 import { analyticsKey } from '@/lib/analytics';
+import { SESSION_RECORDING } from '@/lib/sessionRecording';
 
 // analyticsKey() also returns '' on any non-production environment, so a
 // dev/qa/staging build cannot write into production's single PostHog project
@@ -109,19 +110,12 @@ export default function PostHogProvider({ children }: { children: React.ReactNod
           capture_pageview:   false,
           capture_pageleave:  true,
           persistence:        'localStorage+cookie',
-          session_recording: {
-            maskAllInputs: true,
-            // maskAllInputs only covers form inputs. Rendered TEXT - a saved
-            // trade's notes, its thesis, and every dollar/R figure in
-            // TradeJournal - was captured in the clear, so a user's trade
-            // history and P&L landed in PostHog's recordings unmasked even
-            // though nothing was ever typed into a masked field during that
-            // capture. These are the only classes covered - PostHog masks
-            // exactly the matched elements' text, not the whole page, so
-            // anything added to TradeJournal later needs one of these classes
-            // (or a new one added here) to be covered too.
-            maskTextSelector: '.tj-trade-notes, .tj-tp-val, .tj-stat-val, .tj-breakdown-pnl, .tj-thesis-text',
-          },
+          // Deliberately not spelled out here. This used to be a list of five
+          // class names, which meant a field added to TradeJournal defaulted to
+          // captured in the clear. It is now a container mask with an opt-in
+          // exception - see lib/sessionRecording.ts for why, and for the one
+          // gap (PostHog's remote config) that no test here can catch.
+          session_recording: SESSION_RECORDING,
         });
         inited.current = true;
       } else {

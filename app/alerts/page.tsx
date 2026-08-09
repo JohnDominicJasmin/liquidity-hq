@@ -468,6 +468,16 @@ export default function AlertsPage() {
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
+        // Pro gate, not a failure. Without this the button reports the server's
+        // error code as if the request had broken - and fixing the route's
+        // label alone would have made that read "PRO_REQUIRED", which is worse
+        // than the "Pro required" it replaced. Same locked-state handling as
+        // DryPowder, HypothesisTracker and TradeJournal.
+        if (res.status === 403 && d.error === 'PRO_REQUIRED') {
+          setCheckState('idle');
+          setUpgradeGate(t('ALERTS_UPGRADE_GATE_FEATURE_LABEL'));
+          return;
+        }
         throw new Error(d.error ?? t('ALERTS_SERVER_ERROR', { status: res.status }));
       }
       setCheckResult(await res.json());

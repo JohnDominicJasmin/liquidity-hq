@@ -15,9 +15,9 @@ worse than none, because it reads as current.
 | | |
 |---|---|
 | **Live in production** | `v2026.08.07` |
-| **Waiting to ship** | **37 commits / 15 PRs** on `qa`, not yet promoted |
-| **Blocked by** | PR **#90** — needs Dev Team review |
-| **Blocking** | everything in the row above |
+| **Waiting to ship** | **42 commits / 17 PRs** on `qa`, not yet promoted |
+| **Blocked by** | nothing on Dev Team's side — #90 and #95 are merged |
+| **Next action** | **QA promotes `qa` → `staging`**, then deploys and tests it |
 
 **One-line version:** the product is fine, the queue is not. Work is being
 finished faster than it is being released.
@@ -77,11 +77,14 @@ measure it.
 
 | Priority | What | Owner | Blocks |
 |---|---|---|---|
-| 🔴 1 | **PR #90** — contrast baselines track tokens, not counts | Dev Team review | the whole queue |
-| 🔴 2 | **#89** — promote `qa` → `staging`, open release PR | QA | 35 commits reaching users |
-| 🟡 3 | **#78** — staging environment variables | Owner decisions + QA writeup | testing Telegram/push/email/payments on staging |
-| 🟡 4 | **PR #84** — QA doc corrections, now partly stale | QA to rebase | nothing |
-| 🟢 5 | #72 · #73 · #82 · #52 | quota reset / Dev Team | nothing |
+| 🔴 1 | **#89** — promote `qa` → `staging`, deploy, open the release PR | **QA** | 42 commits reaching users |
+| 🟡 2 | **#78** — LemonSqueezy test-mode keys for staging | **Owner** | checkout + webhook testing only |
+| 🟡 3 | **PR #84** — QA doc corrections, partly superseded by #87 | QA to rebase | nothing |
+| 🟢 4 | #72 · #73 · #82 · #52 | quota reset / Dev Team | nothing |
+
+Nothing is waiting on Dev Team. The environment audit that #78 opened is
+finished — all four services measured against the Render dashboard, `CRON_SECRET`
+off `qa`, staging on its own Telegram bot, Brevo on all four.
 
 ---
 
@@ -89,10 +92,15 @@ measure it.
 
 Not blockers. Things that are true and worth not forgetting.
 
-- **`staging` is the least-configured environment**, and it is the one QA now
-  signs off releases on — 10 variables against `qa`'s 23. Telegram, push, email,
-  payments and `/ops` all silently do nothing there, and "feature absent" looks
-  identical to "feature broken". This is #78.
+- **PostHog carried dev traffic into production's project**, roughly
+  2026-06-02 → 2026-08-08. Fixed in code (#93), but the fix does not undo the
+  data. Any retention, funnel or conversion figure quoted from that window
+  includes an unknown amount of dev traffic — heavier before 2026-08-03, when a
+  consent gate was added, thinner after.
+- **Brevo has no send cap of any kind**, and it is now shared by all four
+  environments. A careless QA run can spend production's quota and its sender
+  reputation, and neither is visible from the sending side. `trial-reminder` is
+  the one route that iterates users; keep it out of automated runs.
 - **Error monitoring captures nothing.** GlitchTip returns 429 on every event;
   the SDK honours it and drops events client-side. Installed, configured,
   capturing zero. #73.
@@ -122,9 +130,9 @@ merges**. That is the one place review runs QA → dev, and it is why QA cannot
 unblock its own PRs.
 
 **One tension worth naming:** QA is the gate and also tracks throughput. Those
-pull opposite ways. The rule is that **QA judgement is never traded for
-schedule** — when the two disagree, it gets said out loud and the owner decides.
-It is not resolved quietly in favour of shipping.
+pull opposite ways, and the rule for when they disagree — **QA judgement is
+never traded for schedule** — now lives in `CONTRIBUTING.md` **§3b** rather than
+here. It binds both sides, so a QA-owned file is the wrong home for it.
 
 ---
 

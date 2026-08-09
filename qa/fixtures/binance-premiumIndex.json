@@ -1,0 +1,488 @@
+{
+ "_recorded": "production, 2026-08-08",
+ "_url": "https://fapi.binance.com/fapi/v1/premiumIndex",
+ "_note": "trimmed from 857 symbols to the 48 the app displays",
+ "_status": 200,
+ "body": [
+  {
+   "symbol": "UNIUSDT",
+   "markPrice": "4.00300000",
+   "indexPrice": "4.00457204",
+   "estimatedSettlePrice": "3.98903963",
+   "lastFundingRate": "0.00009768",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "INJUSDT",
+   "markPrice": "4.40955092",
+   "indexPrice": "4.41241178",
+   "estimatedSettlePrice": "4.40621420",
+   "lastFundingRate": "-0.00007909",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "RUNEUSDT",
+   "markPrice": "0.44510000",
+   "indexPrice": "0.44584062",
+   "estimatedSettlePrice": "0.44545213",
+   "lastFundingRate": "0.00000257",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "DOTUSDT",
+   "markPrice": "0.81886406",
+   "indexPrice": "0.81898853",
+   "estimatedSettlePrice": "0.81838490",
+   "lastFundingRate": "0.00004143",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "ENAUSDT",
+   "markPrice": "0.09146000",
+   "indexPrice": "0.09151305",
+   "estimatedSettlePrice": "0.09139357",
+   "lastFundingRate": "-0.00004329",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "LTCUSDT",
+   "markPrice": "45.77000000",
+   "indexPrice": "45.79176471",
+   "estimatedSettlePrice": "45.73010114",
+   "lastFundingRate": "0.00004316",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "ADAUSDT",
+   "markPrice": "0.20026909",
+   "indexPrice": "0.20043740",
+   "estimatedSettlePrice": "0.20004494",
+   "lastFundingRate": "-0.00000982",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "ONDOUSDT",
+   "markPrice": "0.35620000",
+   "indexPrice": "0.35628575",
+   "estimatedSettlePrice": "0.35541018",
+   "lastFundingRate": "0.00005000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "STXUSDT",
+   "markPrice": "0.13284333",
+   "indexPrice": "0.13290000",
+   "estimatedSettlePrice": "0.13308266",
+   "lastFundingRate": "0.00010000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "XAUUSDT",
+   "markPrice": "4350.51000000",
+   "indexPrice": "4350.49058099",
+   "estimatedSettlePrice": "4350.16751134",
+   "lastFundingRate": "0.00000000",
+   "interestRate": "0.00000000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202144
+  },
+  {
+   "symbol": "JUPUSDT",
+   "markPrice": "0.18490000",
+   "indexPrice": "0.18513414",
+   "estimatedSettlePrice": "0.18452850",
+   "lastFundingRate": "-0.00000579",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "ARBUSDT",
+   "markPrice": "0.07970411",
+   "indexPrice": "0.07976744",
+   "estimatedSettlePrice": "0.07986235",
+   "lastFundingRate": "0.00010000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "SEIUSDT",
+   "markPrice": "0.04175206",
+   "indexPrice": "0.04177458",
+   "estimatedSettlePrice": "0.04180370",
+   "lastFundingRate": "0.00010000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "TRXUSDT",
+   "markPrice": "0.32846682",
+   "indexPrice": "0.32868235",
+   "estimatedSettlePrice": "0.32856797",
+   "lastFundingRate": "-0.00009717",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "MANAUSDT",
+   "markPrice": "0.06664000",
+   "indexPrice": "0.06677600",
+   "estimatedSettlePrice": "0.06678708",
+   "lastFundingRate": "-0.00003335",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "APTUSDT",
+   "markPrice": "0.60932011",
+   "indexPrice": "0.60931250",
+   "estimatedSettlePrice": "0.60720569",
+   "lastFundingRate": "0.00010000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "LINKUSDT",
+   "markPrice": "8.36000000",
+   "indexPrice": "8.36101919",
+   "estimatedSettlePrice": "8.36035030",
+   "lastFundingRate": "0.00010000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "GMXUSDT",
+   "markPrice": "6.48833333",
+   "indexPrice": "6.49746875",
+   "estimatedSettlePrice": "6.51298372",
+   "lastFundingRate": "-0.00006042",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "AVAXUSDT",
+   "markPrice": "6.54700000",
+   "indexPrice": "6.55144555",
+   "estimatedSettlePrice": "6.55228102",
+   "lastFundingRate": "0.00010000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "OPUSDT",
+   "markPrice": "0.08898825",
+   "indexPrice": "0.08898737",
+   "estimatedSettlePrice": "0.08891869",
+   "lastFundingRate": "0.00010000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "NEARUSDT",
+   "markPrice": "1.62067577",
+   "indexPrice": "1.62113514",
+   "estimatedSettlePrice": "1.61723011",
+   "lastFundingRate": "0.00010000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "BCHUSDT",
+   "markPrice": "217.96000000",
+   "indexPrice": "218.01339286",
+   "estimatedSettlePrice": "217.51076110",
+   "lastFundingRate": "0.00004893",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "SOLUSDT",
+   "markPrice": "76.49250947",
+   "indexPrice": "76.49155386",
+   "estimatedSettlePrice": "76.09424180",
+   "lastFundingRate": "0.00010000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "TIAUSDT",
+   "markPrice": "0.32940000",
+   "indexPrice": "0.32950000",
+   "estimatedSettlePrice": "0.32887483",
+   "lastFundingRate": "0.00002931",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "BNBUSDT",
+   "markPrice": "603.81898529",
+   "indexPrice": "603.46375890",
+   "estimatedSettlePrice": "609.07588443",
+   "lastFundingRate": "0.00006347",
+   "interestRate": "0.00000000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "SANDUSDT",
+   "markPrice": "0.04156090",
+   "indexPrice": "0.04161054",
+   "estimatedSettlePrice": "0.04160048",
+   "lastFundingRate": "0.00001664",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "ETCUSDT",
+   "markPrice": "6.53700000",
+   "indexPrice": "6.53932162",
+   "estimatedSettlePrice": "6.52858210",
+   "lastFundingRate": "0.00010000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "WIFUSDT",
+   "markPrice": "0.14329929",
+   "indexPrice": "0.14329750",
+   "estimatedSettlePrice": "0.14286708",
+   "lastFundingRate": "0.00005000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "DOGEUSDT",
+   "markPrice": "0.07128814",
+   "indexPrice": "0.07128732",
+   "estimatedSettlePrice": "0.07118380",
+   "lastFundingRate": "0.00010000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "TAOUSDT",
+   "markPrice": "197.19106730",
+   "indexPrice": "197.23789873",
+   "estimatedSettlePrice": "196.71795485",
+   "lastFundingRate": "0.00005000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "WLDUSDT",
+   "markPrice": "0.30690000",
+   "indexPrice": "0.30694758",
+   "estimatedSettlePrice": "0.30650063",
+   "lastFundingRate": "-0.00013413",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "SUIUSDT",
+   "markPrice": "0.70219384",
+   "indexPrice": "0.70218506",
+   "estimatedSettlePrice": "0.70027791",
+   "lastFundingRate": "0.00010000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "BTCUSDT",
+   "markPrice": "65100.05656522",
+   "indexPrice": "65127.80043478",
+   "estimatedSettlePrice": "65148.71278092",
+   "lastFundingRate": "0.00005632",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "ETHUSDT",
+   "markPrice": "1923.15000000",
+   "indexPrice": "1923.89162791",
+   "estimatedSettlePrice": "1924.03569832",
+   "lastFundingRate": "0.00007368",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "FETUSDT",
+   "markPrice": "0.13830000",
+   "indexPrice": "0.13841987",
+   "estimatedSettlePrice": "0.13837550",
+   "lastFundingRate": "0.00009705",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "GMTUSDT",
+   "markPrice": "0.00674600",
+   "indexPrice": "0.00675505",
+   "estimatedSettlePrice": "0.00676353",
+   "lastFundingRate": "0.00005000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "LDOUSDT",
+   "markPrice": "0.29300000",
+   "indexPrice": "0.29305676",
+   "estimatedSettlePrice": "0.29263089",
+   "lastFundingRate": "0.00010000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "RENDERUSDT",
+   "markPrice": "1.32550000",
+   "indexPrice": "1.32647812",
+   "estimatedSettlePrice": "1.32516066",
+   "lastFundingRate": "-0.00010803",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "ATOMUSDT",
+   "markPrice": "1.38976933",
+   "indexPrice": "1.39041714",
+   "estimatedSettlePrice": "1.38827723",
+   "lastFundingRate": "0.00002646",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "XLMUSDT",
+   "markPrice": "0.16612000",
+   "indexPrice": "0.16614213",
+   "estimatedSettlePrice": "0.16615231",
+   "lastFundingRate": "0.00004920",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "PYTHUSDT",
+   "markPrice": "0.03946277",
+   "indexPrice": "0.03953557",
+   "estimatedSettlePrice": "0.03941422",
+   "lastFundingRate": "0.00005000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "HYPEUSDT",
+   "markPrice": "54.64200000",
+   "indexPrice": "54.65535714",
+   "estimatedSettlePrice": "54.59000242",
+   "lastFundingRate": "0.00005000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "FILUSDT",
+   "markPrice": "0.71750000",
+   "indexPrice": "0.71772799",
+   "estimatedSettlePrice": "0.71641004",
+   "lastFundingRate": "0.00010000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "CRVUSDT",
+   "markPrice": "0.22640000",
+   "indexPrice": "0.22650167",
+   "estimatedSettlePrice": "0.22709456",
+   "lastFundingRate": "0.00010000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "AAVEUSDT",
+   "markPrice": "91.25717930",
+   "indexPrice": "91.29899275",
+   "estimatedSettlePrice": "91.36894835",
+   "lastFundingRate": "0.00007119",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "DYDXUSDT",
+   "markPrice": "0.11570000",
+   "indexPrice": "0.11577226",
+   "estimatedSettlePrice": "0.11597367",
+   "lastFundingRate": "0.00010000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "XRPUSDT",
+   "markPrice": "1.04440000",
+   "indexPrice": "1.04486331",
+   "estimatedSettlePrice": "1.04398911",
+   "lastFundingRate": "0.00007455",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  },
+  {
+   "symbol": "SPXUSDT",
+   "markPrice": "0.32566903",
+   "indexPrice": "0.32591781",
+   "estimatedSettlePrice": "0.32585536",
+   "lastFundingRate": "0.00005000",
+   "interestRate": "0.00010000",
+   "nextFundingTime": 1786204800000,
+   "time": 1786201202000
+  }
+ ]
+}

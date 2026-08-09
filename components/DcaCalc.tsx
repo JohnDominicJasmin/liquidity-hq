@@ -65,7 +65,9 @@ export default function DcaCalc({ coin }: { coin: CoinId | '' }) {
   }
 
   return (
-    <div>
+    // lhq-private: the entered ladder and its averages are the user's position.
+    // Rendered as text, so maskAllInputs does not reach it.
+    <div className="lhq-private">
       <div style={{ padding: '1rem 0 0.75rem' }}>
         <h2 style={{ fontSize: 'var(--fs-section)', fontWeight: 700, color: 'var(--txt)', marginBottom: 2 }}>{t('CALC_DCA_TITLE')}</h2>
         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)' }}>{t('CALC_DCA_SUBTITLE')}</div>
