@@ -79,21 +79,29 @@ test.describe('i18n: locale offering and page language', () => {
     ).toBe(false);
   });
 
-  /* KNOWN FAILURE, tracked as #157. Recorded rather than skipped: a skip is
-   * invisible in a passing run, and this is a live production defect.
+  /* THE KNOWN-FAILURE TEST THAT USED TO LIVE HERE HAS BEEN DELETED, AND THAT IS
+   * THE POINT OF IT.
    *
-   * When #157 is fixed this test FAILS, and that failure is the signal to move
-   * the assertion into seo.spec.ts as a strict "a bad URL must not answer 200"
-   * check across all routes - which is where it belonged in the first place. */
-  test('KNOWN (#157): /ar answers 200, because nothing on this site 404s', async ({ request }) => {
-    const ar = await request.get('/ar');
-    const junk = await request.get('/definitely-not-a-route');
-
-    expect(junk.status(),
-      'A nonexistent route now answers something other than 200 - #157 may be fixed. ' +
-      'If so, delete this test and add the check to seo.spec.ts for every route.',
-    ).toBe(200);
-    expect(ar.status(), '/ar diverged from the app-wide behaviour - re-measure before assuming').toBe(200);
+   * It asserted `/ar` answers 200 "because nothing on this site 404s" (#157),
+   * and it carried its own instruction: when #157 is fixed this test FAILS, and
+   * that failure is the signal to move the check into seo.spec.ts across all
+   * routes.
+   *
+   * #163 fixed it - `dynamicParams = false`, so an unmatched locale is refused
+   * at ROUTING rather than after the response has started streaming. The test
+   * failed on the next run, exactly as designed, and the strict check now lives
+   * in `seo.spec.ts` where it applies to every route rather than to /ar alone.
+   *
+   * Worth keeping the note: a known failure recorded as a passing test that
+   * inverts when fixed is the only form of "we know about this" that cannot rot.
+   * A skip would have stayed silent forever. */
+  test('/ar returns a real 404, not a 200 with a not-found page', async ({ request }) => {
+    const res = await request.get('/ar');
+    expect(res.status(),
+      '/ar must 404. It renders the not-found page either way, so a 200 here means ' +
+      '`dynamicParams = false` was removed from app/[locale]/page.tsx and every unknown ' +
+      'URL is a soft 404 again - see #157 and #163.',
+    ).toBe(404);
   });
 
   for (const [path, expected] of [['/', 'en'], ['/ko', 'ko'], ['/zh', 'zh']] as const) {
@@ -116,6 +124,77 @@ test.describe('i18n: locale offering and page language', () => {
       expect(dir, `${path} should be left-to-right while no RTL locale is offered`).toBe('ltr');
     });
   }
+
+  /* THE ASSERTION NEITHER SIDE HAD, AND THE REASON #164 SURVIVED A 9/9 SIGN-OFF.
+   *
+   * Everything above pins `lang` on the three routes that carry a locale in the
+   * URL - and those were the only routes ever checked. They were also the only
+   * routes that already worked. A verification that visits only the surface a
+   * fix touched will confirm any fix, which is what happened: 9 of 9 passed
+   * against production while 30 of 32 routes served Korean copy under
+   * `lang="en"`.
+   *
+   * The locale that actually decides the UI is the SELECTED one - stored in
+   * `lhq_lang_v1` by lib/labels.ts, and on the server in
+   * `user_settings.language`. `/upgrade` carries no locale segment, so it can
+   * only be right if the attribute follows the selection rather than the path.
+   *
+   * `ru` is in here because AVAILABLE_LOCALES offers Russian in the app pickers
+   * while the landing picker offers three - so Russian is reachable and had
+   * never once been asserted. */
+  for (const [stored, expected] of [['ko', 'ko'], ['zh', 'zh'], ['ru', 'ru']] as const) {
+    test(`a selected locale "${stored}" sets lang on a route with no locale in its URL`, async ({ browser }) => {
+      const ctx = await browser.newContext();
+      await ctx.addInitScript((v: string) => {
+        try { localStorage.setItem('lhq_lang_v1', v); } catch { /* private mode */ }
+      }, stored);
+      const page = await ctx.newPage();
+      try {
+        await page.goto('/upgrade', { waitUntil: 'domcontentloaded' });
+        await expect
+          .poll(() => page.evaluate(() => document.documentElement.lang), { timeout: 10_000 })
+          .toBe(expected);
+      } finally { await ctx.close(); }
+    });
+  }
+
+  /* A WITHDRAWN LOCALE MUST RESOLVE, NOT PERSIST.
+   *
+   * Arabic is still in SUPPORTED_LOCALES on purpose - that list answers "is this
+   * a code we recognise", and anyone who selected Arabic before it was withdrawn
+   * still has `ar` in storage. It must resolve to English rather than fail.
+   *
+   * Measured 2026-08-09, and it took two attempts to get right: the first fix
+   * fell back to English LABELS while `lang`/`dir` still followed the stored
+   * value, so the page rendered English declared as Arabic in a right-to-left
+   * layout - the same defect as #164 with the operands swapped. This asserts all
+   * three agree, because agreeing is the actual requirement. */
+  test('a withdrawn locale in storage resolves to English, in every signal', async ({ browser }) => {
+    const ctx = await browser.newContext();
+    await ctx.addInitScript(() => {
+      try { localStorage.setItem('lhq_lang_v1', 'ar'); } catch { /* private mode */ }
+    });
+    const page = await ctx.newPage();
+    try {
+      await page.goto('/upgrade', { waitUntil: 'domcontentloaded' });
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.lang), { timeout: 10_000 })
+        .toBe('en');
+
+      const state = await page.evaluate(() => ({
+        dir: document.documentElement.dir || 'ltr',
+        arabic: /[؀-ۿ]/.test(document.body.innerText),
+        len: document.body.innerText.length,
+      }));
+
+      expect(state.len, 'the page did not render, so nothing below is meaningful').toBeGreaterThan(200);
+      expect(state.dir, 'lang resolved to English but dir stayed rtl - the two disagree').toBe('ltr');
+      expect(state.arabic,
+        'lang says English and the page is rendering Arabic. That is #164 inverted: ' +
+        'a screen reader would apply English pronunciation to Arabic text.',
+      ).toBe(false);
+    } finally { await ctx.close(); }
+  });
 
   test('the language picker offers exactly English, Korean and Chinese', async ({ page }) => {
     await page.goto('/', { waitUntil: 'domcontentloaded' });
