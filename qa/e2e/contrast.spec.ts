@@ -204,8 +204,25 @@ async function measure(page: Page, theme: string, route: string): Promise<Violat
   }));
   if (rendered.elements < 30 || rendered.color === 'rgb(0, 0, 0)') return null;
 
+  const found = await detectContrastViolations(page);
+  return found.map(f => ({ ...f, route }));
+}
+
+/* EXTRACTED so the control test below can exercise THIS code, not a copy of it.
+ *
+ * A control that re-implements the detector proves the copy works. The whole
+ * value is that the sweep's real detector is the thing being checked, so if axe
+ * stops loading, the rule name changes, or the message format shifts, the
+ * control goes red for the same reason the sweep would go quietly green.
+ *
+ * The regex is the fragile part and the reason this matters. It parses a
+ * human-readable axe message, so an upstream wording change makes every match
+ * return null - `found` becomes empty, every route reports zero violations, and
+ * the sweep passes while measuring nothing. That failure is invisible: a green
+ * contrast run looks exactly like a clean one. */
+async function detectContrastViolations(page: Page): Promise<Omit<Violation, 'route'>[]> {
   await page.addScriptTag({ path: require.resolve('axe-core/axe.min.js') });
-  const found = await page.evaluate(async () => {
+  return await page.evaluate(async () => {
     // @ts-expect-error injected at runtime
     const res = await window.axe.run(document, { runOnly: { type: 'rule', values: ['color-contrast'] } });
     return res.violations.flatMap((v: { nodes: { target: string[]; any?: { message?: string }[] }[] }) =>
@@ -217,8 +234,6 @@ async function measure(page: Page, theme: string, route: string): Promise<Violat
           : null;
       }).filter(Boolean));
   }) as Omit<Violation, 'route'>[];
-
-  return found.map(f => ({ ...f, route }));
 }
 
 test.describe('colour contrast', () => {
@@ -466,5 +481,90 @@ Same triage as the dark test: a state that had not rendered before (add it, with
       `The fix for this family belongs in the [data-theme="light"] block on the FOREGROUND ` +
       `tokens. Do not lighten the backgrounds - that breaks dark.`,
     ).toEqual([]);
+  });
+
+  /* THE CONTROL. Read this before trusting either test above.
+   *
+   * Both of them assert `unexpected` is EMPTY. An empty array is also what a
+   * broken detector returns, and the two are indistinguishable from the result:
+   * a sweep that finds nothing because everything passes and a sweep that finds
+   * nothing because it stopped looking both print "0 unexpected" and go green.
+   *
+   * That is not hypothetical here. `detectContrastViolations` parses a
+   * HUMAN-READABLE axe message with a regex:
+   *
+   *     /contrast of ([\d.]+).*foreground color: (#[0-9a-f]{3,8}), .../i
+   *
+   * An axe-core upgrade that rewords that sentence makes every match return
+   * null. `found` becomes empty for every route in both themes, the baselines
+   * stop being checked against anything, and nothing anywhere goes red. The
+   * suite would keep reporting a clean contrast sweep indefinitely.
+   *
+   * So: inject a KNOWN failure and require the detector to find it. This is the
+   * same shape as the self-test in layout.spec.ts and the control in
+   * cache-effective.spec.ts, and it exists for the same reason - an assertion
+   * that something is absent is worthless without evidence the instrument can
+   * detect it when present.
+   *
+   * TWO-SIDED ON PURPOSE. Finding the bad element proves it is not blind;
+   * ignoring the good one proves it is not simply flagging everything. A
+   * detector that reported every element would also "catch" the injected div
+   * while making the baselines meaningless noise.
+   *
+   * Cheap: one page load against a static route, no market data, no sweep.
+   */
+  test('control: the detector still finds a contrast failure when one exists', async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await ctx.newPage();
+
+    try {
+      await page.goto('/offline', { waitUntil: 'domcontentloaded' });
+
+      /* #767676 on #808080 is ~1.1:1 - far below the 4.5:1 of SC 1.4.3, and not
+       * a colour this app uses, so it cannot collide with a real token in the
+       * baselines. Explicit background on the element itself so the result does
+       * not depend on what the page happens to render behind it. */
+      await page.evaluate(() => {
+        const el = document.createElement('p');
+        el.id = 'qa-contrast-control';
+        el.textContent = 'contrast control probe';
+        el.setAttribute('style',
+          'color:#767676;background:#808080;font-size:14px;padding:8px;position:fixed;top:0;left:0;z-index:99999');
+        document.body.appendChild(el);
+
+        /* And a PASSING sibling, for the second half of the assertion.
+         * #000000 on #ffffff is 21:1, the maximum possible. */
+        const ok = document.createElement('p');
+        ok.id = 'qa-contrast-control-pass';
+        ok.textContent = 'contrast control passing probe';
+        ok.setAttribute('style',
+          'color:#000000;background:#ffffff;font-size:14px;padding:8px;position:fixed;top:40px;left:0;z-index:99999');
+        document.body.appendChild(ok);
+      });
+
+      const found = await detectContrastViolations(page);
+
+      const hitBad = found.some(v => v.fg === '#767676');
+      expect(hitBad,
+        'The contrast detector did not report an element at ~1.1:1 that was injected specifically ' +
+        'for it to find.\n\n' +
+        'DO NOT SUPPRESS THIS. While it fails, BOTH sweeps above are meaningless - they assert an ' +
+        'empty result, and an empty result is exactly what a blind detector returns. A green ' +
+        'contrast run and a broken one look identical from the outside.\n\n' +
+        'Most likely cause: axe-core was upgraded and reworded its violation message, so the regex ' +
+        'in detectContrastViolations no longer matches and every parse returns null. Check the raw ' +
+        'message before changing anything else.\n\n' +
+        `Detector returned ${found.length} violation(s): ` +
+        (found.length ? found.map(v => `${v.fg} on ${v.bg} at ${v.ratio}:1`).join(', ') : '(none at all)'),
+      ).toBe(true);
+
+      expect(found.some(v => v.fg === '#000000' && v.bg === '#ffffff'),
+        'The detector reported black-on-white (21:1, the maximum possible ratio) as a contrast ' +
+        'failure. It is flagging elements that pass, so the baselines above are recording noise ' +
+        'rather than real failures and their counts cannot be trusted.',
+      ).toBe(false);
+    } finally {
+      await ctx.close();
+    }
   });
 });
