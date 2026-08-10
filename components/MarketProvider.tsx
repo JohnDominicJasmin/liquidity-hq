@@ -350,19 +350,25 @@ export default function MarketProvider(
   /* ── Bybit + Binance LSR ── */
   const fetchLSR = useCallback(async () => {
     await Promise.allSettled([
-      // Bybit account ratio (1h) - all coins
-      ...Object.entries(BYBIT_SYMS).map(async ([coin, sym]) => {
+      /* Bybit account ratio (1h) - ONE request for all coins (#200).
+         This was a loop of ~50 per-symbol fetches, 393 requests per visitor and
+         the largest single line left after batch 1. Bybit has no batch
+         parameter, so the fan-out moved server-side where one cache entry serves
+         every visitor - see lib/bybitFanout.ts. */
+      (async () => {
         try {
-          const res = await fetch(`https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${sym}&period=1h&limit=1`);
-          const d = await res.json();
-          const item = d.result?.list?.[0];
-          if (!item) return;
-          updateCoin(coin as CoinId, {
-            longRatio:  parseFloat(item.buyRatio  || '0.5'),
-            shortRatio: parseFloat(item.sellRatio || '0.5'),
-          });
+          const res = await fetch('/api/market/account-ratio?period=1h');
+          if (!res.ok) return;
+          const { data } = await res.json() as {
+            data: Record<string, { longRatio: number; shortRatio: number }>;
+          };
+          for (const [coin, sym] of Object.entries(BYBIT_SYMS)) {
+            const item = data?.[sym];
+            if (!item) continue;          // absent means not fetched, not zero
+            updateCoin(coin as CoinId, { longRatio: item.longRatio, shortRatio: item.shortRatio });
+          }
         } catch { /* */ }
-      }),
+      })(),
       // The Binance half of this - two ratio requests per coin, 91 requests
       // in total - moved to app/api/market/snapshot. Bybit stays here: it is
       // one request per coin against a different provider with its own limit,
@@ -941,18 +947,24 @@ export default function MarketProvider(
   /* ── OI Trend bootstrap - Bybit historical OI + klines ── */
   // Fires once on mount to populate OI trend without waiting for two 8-min Bybit polls
   const bootstrapOITrend = useCallback(async () => {
+    /* Open interest for every symbol in ONE request (#200), fetched before the
+       per-symbol work rather than inside it. This was ~50 fetches - 392 requests
+       per visitor. Klines stay per-symbol because they genuinely differ per
+       symbol, and they already go through the cached route from batch 1. */
+    let oiAll: Record<string, Array<{ openInterest: string }>> = {};
+    try {
+      const r = await fetch('/api/market/open-interest?intervalTime=1h&limit=3');
+      if (r.ok) oiAll = (await r.json()).data ?? {};
+    } catch { /* leave empty; the length guard below already handles no data */ }
+
     await Promise.allSettled(
       Object.entries(BYBIT_SYMS).map(async ([coin, sym]) => {
         try {
-          const [oiRes, klRes] = await Promise.all([
-            fetch(`https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${sym}&intervalTime=1h&limit=3`),
-            fetch(`/api/market/klines?source=bybit&symbol=${sym}&interval=60&limit=4`),
-          ]);
-          const oiData = await oiRes.json();
+          const klRes = await fetch(`/api/market/klines?source=bybit&symbol=${sym}&interval=60&limit=4`);
           const klData = await klRes.json();
 
           // Both are newest-first - reverse to oldest-first
-          const oiList: Array<{ openInterest: string }> = [...(oiData?.result?.list ?? [])].reverse();
+          const oiList: Array<{ openInterest: string }> = [...(oiAll[sym] ?? [])].reverse();
           const klList: string[][] = [...(klData?.result?.list ?? [])].reverse();
 
           if (oiList.length < 2 || klList.length < 2) return;
