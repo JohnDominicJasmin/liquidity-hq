@@ -55,9 +55,30 @@ export async function bybitFanout(
   buildUrl: (symbol: string) => string,
   pick: (body: unknown) => unknown,
 ): Promise<FanoutResult> {
+  return symbolFanout(SYMBOLS, key, ttlMs, buildUrl, pick);
+}
+
+/**
+ * The same collapse for any closed symbol list, not just Bybit's.
+ *
+ * Added for the Binance sweeps in #200 batch 3 - `aggTrades` (360 calls) and
+ * `fundingRate` (45). Both are the identical shape: one request per symbol over
+ * the app's own coin list, with no batch parameter upstream.
+ *
+ * `symbols` must be a CLOSED set for the same reason the Bybit version uses one:
+ * the cache key is per (endpoint, params), and the fan-out width is the symbol
+ * count, so free-text symbols would be both a key leak and an egress amplifier.
+ */
+export async function symbolFanout(
+  symbols: string[],
+  key: string,
+  ttlMs: number,
+  buildUrl: (symbol: string) => string,
+  pick: (body: unknown) => unknown,
+): Promise<FanoutResult> {
   return cached(key, ttlMs, async () => {
     const settled = await Promise.allSettled(
-      SYMBOLS.map(async (sym) => {
+      symbols.map(async (sym) => {
         const r = await fetch(buildUrl(sym), { cache: 'no-store' });
         if (!r.ok) throw new Error(`${sym} ${r.status}`);
         return [sym, pick(await r.json())] as const;
@@ -74,9 +95,9 @@ export async function bybitFanout(
        caller instead of being pinned for the TTL - and the route turns this into
        a non-2xx rather than an empty success. */
     if (Object.keys(data).length === 0) {
-      throw new Error(`bybit fan-out returned nothing for all ${SYMBOLS.length} symbols`);
+      throw new Error(`fan-out returned nothing for all ${symbols.length} symbols`);
     }
 
-    return { data, ok: Object.keys(data).length, total: SYMBOLS.length };
+    return { data, ok: Object.keys(data).length, total: symbols.length };
   });
 }

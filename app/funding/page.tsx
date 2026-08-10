@@ -30,14 +30,26 @@ const RANGE_LABEL_KEYS: Record<RangeKey, LabelKey> = {
 };
 
 /* ── data fetching ── */
-async function fetchBinanceFR(sym: string): Promise<FRPoint[]> {
+/* One request for every symbol (#200 batch 3), instead of one per symbol.
+ *
+ * This was 45 calls with identical params, and only on this page - QA measured
+ * it as the same sweep shape as account-ratio. The map is fetched once by the
+ * caller below and each coin reads its own entry; the parsing is unchanged. */
+async function fetchAllBinanceFR(): Promise<Record<string, FRPoint[]>> {
   try {
-    const res  = await fetch(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=${sym}&limit=42`);
-    const data = await res.json();
-    return (data as Array<{ fundingRate: string; fundingTime: number }>)
-      .map(d => ({ rate: parseFloat(d.fundingRate), ts: d.fundingTime }))
-      .sort((a, b) => a.ts - b.ts);
-  } catch { return []; }
+    const res = await fetch('/api/market/funding-rate?limit=42');
+    if (!res.ok) return {};
+    const { data } = await res.json() as {
+      data: Record<string, Array<{ fundingRate: string; fundingTime: number }>>;
+    };
+    const out: Record<string, FRPoint[]> = {};
+    for (const [sym, rows] of Object.entries(data ?? {})) {
+      out[sym] = rows
+        .map(d => ({ rate: parseFloat(d.fundingRate), ts: d.fundingTime }))
+        .sort((a, b) => a.ts - b.ts);
+    }
+    return out;
+  } catch { return {}; }
 }
 
 async function fetchBybitFR(sym: string): Promise<FRPoint[]> {
@@ -326,11 +338,16 @@ export default function FundingHistory() {
     let cancelled = false;
     (async () => {
       const result: FRHistory = {};
+      /* One request covering every Binance symbol, before the per-coin loop. */
+      const binanceAll = await fetchAllBinanceFR();
       await Promise.all(COINS.map(async id => {
         const binSym = (BINANCE_SYMS as Record<string, string>)[id];
         const bbSym  = (BYBIT_SYMS  as Record<string, string>)[id];
         let pts: FRPoint[] = [];
-        if (binSym) pts = await fetchBinanceFR(binSym);
+        /* Binance comes from the one batched map; Bybit stays per-symbol because
+           it is only the fallback for coins Binance does not list - a handful,
+           not a sweep. */
+        if (binSym) pts = binanceAll[binSym] ?? [];
         if (!pts.length && bbSym) pts = await fetchBybitFR(bbSym);
         if (pts.length) result[id] = pts;
       }));
