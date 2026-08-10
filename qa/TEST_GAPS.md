@@ -1,12 +1,16 @@
 # What a green suite does not mean
 
-**Owner: QA. Last measured 2026-08-09.** Status and blockers live in [`STATUS.md`](STATUS.md); this file is only about coverage.
+**Owner: QA. Last measured 2026-08-10.** Status and blockers live in [`STATUS.md`](STATUS.md); this file is only about coverage.
 
 This file exists because "250 tests passed" reads like "the product works", and it
 does not. It is the standing list of what is **not** covered, why it matters, and
 what closing it would take.
 
 Read it before quoting a green CI run as evidence of anything.
+
+**⚠ Read §11 first.** The browser suite has not been running in CI at all, so
+"250 tests passed" is currently a claim about the last time somebody ran them by
+hand — not about the last commit.
 
 Three rules for keeping it honest:
 
@@ -241,12 +245,32 @@ case, which bites in production and is invisible on the test environments.
 
 Recorded here rather than hidden, because the suite is code and has defects too.
 
+- **`perf.spec`'s LCP budget was calibrated on a laptop and fails in CI.**
+  `< 2500ms` was set against a local 84–720ms measurement — 3× headroom over a
+  dev machine and none over a GitHub runner. Measured 2026-08-10 on the same
+  commit: **8/8 pass locally, 5 fail in CI** (`/arena`, `/dashboard`,
+  `/markets`, `/briefing`, `/scanner`, at 2740–4456ms). It currently gates
+  nothing and would not be believed if it did. **Do not raise the number to make
+  it green** — decide first whether it asserts a user-facing target or catches
+  regressions, because those want different fixes.
 - **`perf.spec` does not warm a route before measuring it.** Two LCP failures on
   2026-08-06 were cold-start artefacts — 3460ms cold vs 676ms warm on the same
-  build. Still true. An LCP failure needs a warm re-run before it is believed.
+  build. Still true, and it compounds the budget problem above.
 - **`playwright.config.ts` sets `reuseExistingServer: !process.env.CI`.** Locally
   the suite silently reuses whatever is on port 3100, which may be another
   branch's build. Check what is being served before trusting a local run.
+- **Two local suites at once corrupt each other.** The port is fixed, so a second
+  invocation attaches to the first one's server and tears it down on exit; the
+  still-running suite starts getting `net::ERR_CONNECTION_REFUSED`. Hit
+  2026-08-10 and it read as a broken refactor for several minutes. `contrast.spec`
+  caught it only because it asserts every route was *measured* — without that
+  guard a half-measured sweep reports green. Use `E2E_PORT=3101` for the second
+  run.
+- **`qa/server-intercept.mjs` writes one tally file per PROCESS.** `NODE_OPTIONS`
+  loads it into every node process in the tree and each keeps its own counters.
+  They used to share one path and destroy each other — the first CI measurement
+  reported `TOTAL outbound: 0` while a worker in the same run had logged 8. Read
+  the aggregate, and treat a process count of 1 as a bug rather than a result.
 - **`a11y-auth.spec.ts` is desktop-only** — deliberate, but it means no
   signed-in mobile coverage exists at all.
 - **The trade journal has no API route**, so no API-level BOLA surface. Its data
@@ -287,10 +311,56 @@ purpose on the live site.
 
 ---
 
+## 🔴 11. The browser suite has not been running in CI — everything above is dated
+
+**Found 2026-08-10, issue #207. Read this before quoting any number in this file.**
+
+Across **60 consecutive CI runs**, the only completed `E2E (Playwright)` jobs were
+two dispatches QA triggered by hand. Every other one is `skipped` or `cancelled`.
+
+Two correct decisions that combine into a hole:
+
+1. **E2E runs only on a release PR.** Deliberate — the suite is ~38 minutes and
+   running it per push would burn the Actions budget that §`workers` / #114 exists
+   to protect.
+2. **`RELEASE_PR_PAUSED` is set**, on the owner's "park it, do not ship to prod"
+   call, so `release-signals.yml` opens no release PR at all.
+
+Each is right on its own. Together: **no release PR → no gate → nothing merged
+since the pause has had a browser near it in CI.**
+
+**What is still genuinely covered**, because QA has been running these against the
+deployed `qa` and `staging` services directly:
+
+| Spec | Covered where |
+|---|---|
+| `smoke` | deployed `qa` + `staging`, all 32 routes |
+| `cache-policy`, `cache-effective` | deployed `qa` + `staging`, 11 routes pinned |
+
+**What is covered nowhere:** `perf`, `a11y`, `a11y-auth`, `bola`, `contrast`,
+`i18n`, `layout`, `clock`, `payments-webhook`, `checkout`. The authenticated and
+accessibility surfaces have no recent evidence of any kind.
+
+**This is why the "250 passed / 41 minutes" figure at the top of this file is a
+historical measurement rather than a current one.** It has not been re-measured
+by CI since the pause.
+
+**Fix in flight:** PR #210 runs the suite on every push to `staging` — the release
+candidate, a few times a week, ~190 min/month. Not on `qa`, which was QA's first
+proposal and would have cost ~760 min/month and re-created the original overspend.
+
+**Closing this needs:** #210 merged, then one `qa` → `staging` promotion observed
+to fire a full run. Expect the five §9 perf LCP failures on that first run — they
+are a laptop-calibrated budget, not a regression, and they are exactly the kind of
+thing that has been invisible while this gap was open.
+
+---
+
 ## Suggested order
 
-Rewritten 2026-08-09. **Three of ten closed, five half-closed.** Nothing here is
-blocked on code any more - the top three all need a person, not a keyboard.
+Rewritten 2026-08-09, revised 2026-08-10. **Three of eleven closed, five
+half-closed.** §11 jumps the queue — it is not a coverage gap so much as the
+reason the rest of the list cannot currently be trusted.
 
 | | Item | Needs | Why this order |
 |---|---|---|---|
