@@ -9,6 +9,37 @@ file.**
 
 ---
 
+> ### ⚠️ This file records STATE, and state goes stale. Reviewed 2026-08-10.
+>
+> Sections **§7 (Current progress)**, **§8 (Testing status)** and **§9 (Current issues)**
+> are dated **2026-08-01** and describe a project that has moved a long way since. They
+> are kept for the reasoning and the war stories, which are still true and still worth
+> reading. **Do not quote their status claims.**
+>
+> `qa/STATUS.md` learned this lesson the hard way — it went stale twice, the second time
+> in four hours, and now records only *decisions* and *risks* because those are the parts
+> that survive. This banner exists so the same trap does not catch someone here.
+>
+> **For anything current, use the sources that cannot be stale:**
+>
+> | Question | Where |
+> |---|---|
+> | What is decided, what is risky | `qa/STATUS.md` |
+> | What a green suite does **not** mean | `qa/TEST_GAPS.md` |
+> | What is open | `gh issue list --state open` |
+> | Where each branch is | `git fetch --all && git rev-parse --short origin/{dev,qa,staging,main}` |
+> | What production is **serving** | `curl -s https://liquidity-hq.com/api/version` |
+>
+> **One correction that matters more than the rest**, because §8 is titled "TESTING
+> STATUS" and someone will read it as "CI covers this": since the release PR was paused,
+> **the browser suite stopped running in CI entirely** — 60 consecutive runs with no
+> completed E2E job. `perf`, `a11y`, `a11y-auth`, `bola`, `contrast`, `i18n`, `layout`,
+> `clock`, `payments-webhook` and `checkout` were covered **nowhere**. Fixed by #210,
+> which runs the suite on every push to `staging`; tracked on **#207** until a promotion
+> has been observed to actually fire one. `TEST_GAPS.md` §11 has the detail.
+
+---
+
 ## 1. What the product is
 
 **LiquidityHQ** (https://liquidity-hq.com) — a crypto trading intelligence PWA.
