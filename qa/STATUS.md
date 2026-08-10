@@ -93,20 +93,46 @@ gh issue list --state open
   decisions table.
 - **A skip is not a pass, and this suite has several.** Every one names its reason
   in the skip message. Read them; some are accepted limits and some are findings.
-- **The E2E gate is not currently running** — #207. E2E fires only on release PRs,
-  and `RELEASE_PR_PAUSED` stops those being opened, so across 60 CI runs the only
-  completed browser suites were two manual dispatches. `smoke`, `cache-policy` and
-  `cache-effective` are covered by QA running them against the deployed services;
-  **`perf`, `a11y`, `a11y-auth`, `bola`, `contrast`, `i18n`, `layout`, `clock`,
-  `payments-webhook` and `checkout` are covered nowhere** until this is fixed.
+- **ALL CI IS DISABLED**, on the owner's instruction, for cost — 2026-08-10.
+  `CI`, `Ready for QA` and `Release signals` are all `disabled_manually`. Nothing
+  was changed in any workflow file; `gh workflow enable <file>` restores each.
+
+  **What that removes:** lint, typecheck, unit tests and build on every push, the
+  browser-suite gate, the "Ready for QA" issue on promotion, and the production
+  drift check that compares what prod *serves* against `main`.
+
+  **What still works, and it is most of what was actually used:** every spec runs
+  against a deployed service via `E2E_BASE_URL` with no CI involved. The whole of
+  2026-08-10's verification was done that way.
+
+  **The one thing genuinely lost** is the keyless build environment. CI is the
+  only place the app compiles without developer env, and that difference has
+  produced three real defects — most recently the `/live-tracking` mobile footer
+  (#221), which is not reproducible on any deployed service because the footer
+  sits below the fold there.
+
+  Consequence: **the four gates in `CONTRIBUTING` are now entirely manual.** Run
+  `npm run lint && npx tsc --noEmit && npm test && npm run build` before every PR.
+  Nothing is underneath you.
 - **`perf.spec`'s LCP budget was calibrated on a laptop.** `< 2500ms` against a
   local 84–720ms measurement — 3× headroom over a dev machine and none over a
   GitHub runner, where the five heaviest routes land at 2740–4456ms. It fails in
   CI and passes locally on the same commit, so it currently gates nothing and
   would not be believed if it did. Do **not** raise the number to make it green;
   decide first whether it asserts a user-facing target or catches regressions.
+- **A probe must prove it reached the thing it is measuring.** Added after my own
+  measurement tool produced a false 48% improvement on 2026-08-10: `page.goto`
+  timed out on a sleeping free-plan service, the `catch` swallowed it, and the
+  counter stayed at zero. **Six routes reported 0 exchange calls because they
+  never loaded.** A failed navigation was indistinguishable from a page that
+  makes none.
+
+  Any probe that counts things must assert the navigation returned OK **and**
+  that the page rendered — and must *name* the routes it could not measure
+  rather than counting them as zero. The corrected run matched the previous
+  figure exactly, which is how the bug was confirmed rather than argued about.
 - **An empty result is not evidence unless something proves the instrument works.**
-  This bit **five** separate times on 2026-08-10 and is by a distance the most
+  This bit **seven** separate times on 2026-08-10 and is by a distance the most
   repeated defect in this suite: `cache-policy` asserted headers that cached
   nothing; `/api/cmc` and `/api/proxy` skipped permanently while reporting green;
   the contrast detector parses a human-readable axe message with a regex, so an
