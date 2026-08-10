@@ -387,6 +387,34 @@ This does not soften review. Dev still reviews QA's PRs into `dev` properly, and
 QA still tests dev's work properly; sequencing belonging to QA is not the same as
 approval belonging to QA.
 
+#### Nobody waits on the owner to merge into `dev`
+
+Added 2026-08-10, on the owner's instruction:
+
+> *"tell dev to merge both dont wait for me to say it"*
+> *"if there are PR's waiting from dev just review it and ask dev to merge it"*
+
+**An open dev PR is QA's queue, not dev's.** QA reviews it and says merge —
+unprompted, and without checking back with the owner first. Dev merges on that
+word rather than waiting for a third party who is not coming.
+
+**QA's blocker order when several things are open:**
+
+1. Whatever is blocking dev
+2. Review of dev's open PRs
+3. QA's own specs and tooling
+
+A blocked dev is a stopped project; a delayed spec is not. This is written down
+rather than assumed because the owner has objected to the waiting game four
+separate times — *"stop having this waiting game wtf"*, *"why are we stalling?"*,
+*"dont wait for my call next time just go"*, *"monitor each other make sure
+you're not on waiting game"*.
+
+**Three exceptions, unchanged and not negotiable:** merging to `main`, production
+deploys, and writes to the shared database. Those go to the owner directly, and
+dev confirms them with the owner even when QA relays them — see "Who merges and
+deploys". Everything else moves without a checkpoint.
+
 ### Who merges and deploys
 
 **Dev never promotes into `staging`, never merges to `main`, and never deploys
