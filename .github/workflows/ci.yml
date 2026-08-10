@@ -565,6 +565,20 @@ jobs:
           path: qa/.intercept-tally.*.json
           retention-days: 30
           if-no-files-found: warn
+          # REQUIRED, because the filename starts with a dot.
+          #
+          # actions/upload-artifact@v4 defaults `include-hidden-files: false`,
+          # and on Linux a leading dot makes the file hidden - so it matched the
+          # glob, was excluded, and the step reported success with no artifact.
+          # Two full 38-minute runs produced no tally this way and the only
+          # symptom was an artifact that quietly was not there.
+          #
+          # `if-no-files-found: warn` is what let it stay quiet. Left as `warn`
+          # rather than `error` on purpose: the tally genuinely can be absent
+          # when a run makes no outbound call at all, and failing the job over a
+          # missing measurement would be worse than the measurement being
+          # missing. The fix is to stop excluding it, not to shout about it.
+          include-hidden-files: true
 
       # Printed as well as uploaded: #114 is answered by one number, and making
       # someone download an artifact to read it is how a measurement stops being
