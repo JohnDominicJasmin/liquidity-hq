@@ -133,7 +133,44 @@ export default defineConfig({
   // measured 2026-08-10 it is 5.5 min for both themes plus the control, so the
   // floor is much lower than recorded but it is still a floor. Going below it
   // needs contrast split across files, which changes how its baselines group.
-  workers: 4,
+  // REVERTED FROM 4 TO 2 on 2026-08-10, by the criterion written before the
+  // change rather than argued after it. #114, #215.
+  //
+  // The egress case for 4 was sound and still is - CI makes 32 outbound calls a
+  // run, zero to any exchange, so there is no rate-limit argument left. That was
+  // never the failure mode to watch. THIS was, quoted from the comment that
+  // shipped with the raise:
+  //
+  //     "More workers means more concurrent browsers on one runner. Memory
+  //      pressure produces timeouts that read as product failures, which is the
+  //      failure mode to watch, not 429s. If a run at 4 times out where 2 did
+  //      not, drop it back to 2 and say so."
+  //
+  // Run 31373400708, the first gate at 4:
+  //
+  //     timeout of 240000ms exceeded                    x4   <- whole-test budget
+  //     browserContext.close: Target page, context or browser has been closed
+  //     12 failed, 2 flaky, 232 passed in 42.4 min
+  //
+  // Whole-test timeouts and browser contexts dying, in `layout` and `seo` - the
+  // two heaviest route sweeps, which is where memory pressure would land first.
+  // The run at 2 (31367427640) produced NEITHER, and was 41.3 min. So 4 bought
+  // no wall-clock and cost stability.
+  //
+  // ONE CONFOUND, NAMED HONESTLY: the dev Supabase auth endpoint was returning
+  // 504 on ~half of sign-ins during this run (#223), which accounts for the
+  // `bola`, `entitlements` and `payments-webhook` failures and for some of the
+  // elapsed time. It does NOT account for `layout` and `seo` - those never sign
+  // in - and it does not produce `browserContext ... has been closed`.
+  //
+  // So the revert is on the evidence that is not confounded, and it is
+  // deliberately the conservative reading: 2 is known good.
+  //
+  // BEFORE RAISING IT AGAIN, in this order: wait for #223 to clear, re-run the
+  // gate at 2 to confirm a clean baseline, then try 3 rather than 4. The step
+  // from 2 to 4 was too big to attribute, which is the same mistake as the
+  // original step from 1 to 2 being justified on a local measurement.
+  workers: 2,
   fullyParallel: false,
 
   forbidOnly: !!process.env.CI,
