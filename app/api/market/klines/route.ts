@@ -92,6 +92,37 @@ function ttlFor(interval: string): number {
   return 900_000;                                      // 4h and longer
 }
 
+/* Trim a bucketed response back to what the caller actually asked for.
+ *
+ * The bucket is what gets CACHED and fetched; this is what gets RETURNED. QA
+ * caught that the previous version documented "over-fetching slightly and
+ * slicing" and only implemented the over-fetching, so a caller asking for 20
+ * candles received 25 - and anything computing over "the last N" silently used a
+ * different N than it asked for.
+ *
+ * THE TWO UPSTREAMS ORDER CANDLES OPPOSITELY, measured rather than assumed:
+ *
+ *     bybit    NEWEST-first   -> the recent end is the HEAD, slice(0, n)
+ *     binance  OLDEST-first   -> the recent end is the TAIL, slice(-n)
+ *
+ * Getting that backwards returns the OLDEST n candles instead of the newest -
+ * a chart of the wrong period, rendered confidently, which is the same class of
+ * failure as serving stale candles and is why that was rejected on #228.
+ *
+ * Shape is otherwise preserved exactly: Bybit keeps its {retCode, result:{list}}
+ * envelope, Binance its bare array, so no client has to change how it reads a
+ * response. */
+function sliceToLimit(source: Source, body: unknown, n: number): unknown {
+  if (source === 'bybit') {
+    const b = body as { result?: { list?: unknown[] } };
+    const list = b?.result?.list;
+    if (!Array.isArray(list) || list.length <= n) return body;
+    return { ...b, result: { ...b.result, list: list.slice(0, n) } };
+  }
+  if (!Array.isArray(body) || body.length <= n) return body;
+  return body.slice(-n);
+}
+
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
   if (!rateLimit(`klines:${ip}`, 120, 60_000)) {
@@ -165,7 +196,12 @@ export async function GET(req: NextRequest) {
 
   try {
     const key = `klines:${source}:${symbol}:${interval}:${limit}`;
-    const body = isRange ? await fetchUpstream() : await cached(key, ttlFor(interval), fetchUpstream);
+    const raw = isRange ? await fetchUpstream() : await cached(key, ttlFor(interval), fetchUpstream);
+    /* Slice AFTER the cache read, using the caller's own limit. The cache holds
+       one bucket-sized copy that every caller in that bucket shares; each gets
+       back the length it asked for. Range requests are returned untouched -
+       the caller is paginating and set its own window. */
+    const body = isRange ? raw : sliceToLimit(source, raw, limitRaw);
 
     reportHealth(`${source}:klines-proxy`, 'market', true, `${symbol} ${interval}`);
     return NextResponse.json(body, {
