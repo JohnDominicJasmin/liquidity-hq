@@ -93,19 +93,47 @@ export default defineConfig({
   // Two orders of magnitude below the figure the pin was justified with. A local
   // run at `--workers=2` produced ZERO 429s or rate-limit errors.
   //
-  // STEPPED TO 2, NOT 4, DELIBERATELY. Rate limits are per-IP and the
-  // measurement above is from one developer machine, not CI's shared egress. A
-  // clean local number proves the volume is low; it does not prove CI is under
-  // the threshold. Two is the smallest step that tests the theory in the place
-  // that matters. Raise it only after a green gate at 2.
+  // WAS 2 until 2026-08-10, held there because "a clean LOCAL number does not
+  // prove CI is under the threshold". CI has now been measured directly, and the
+  // answer removes the argument entirely.
+  //
+  // Full suite, 38 minutes, GitHub runner, `count_egress=true`, run 31352612023:
+  //
+  //     processes reporting:  12
+  //     total outbound:       32
+  //           18  wdtjhrilakoitfcezxpx.supabase.co
+  //           14  telemetry.nextjs.org
+  //
+  // ZERO calls to Binance. ZERO to Bybit. ZERO to any rate-limited exchange.
+  // Against the ~11,000 the pin was originally justified with.
+  //
+  // BE PRECISE ABOUT WHY IT IS ZERO - it is not all fixtures, and the second
+  // reason bounds the claim:
+  //
+  //   1. `_fixtures.ts` stubs the browser side. Designed, and working.
+  //   2. CI HAS NO API KEYS for most upstreams. `/api/cmc` answers
+  //      `500 CMC_API_KEY not configured` before it reaches CoinMarketCap; the
+  //      Coinglass paths behave the same. Those routes cannot generate egress
+  //      here even when exercised.
+  //
+  // So the supported claim is narrow: CI cannot trip a per-IP rate limit,
+  // because CI barely talks to anything. It says nothing about a developer
+  // machine, which has keys and does reach those hosts. Do not quote this as
+  // "egress is solved".
+  //
+  // WHAT TO WATCH INSTEAD OF 429s. The failure mode at 4 is not rate limiting,
+  // it is memory: four concurrent browsers on one runner produce timeouts, and a
+  // timeout reads as a product failure. If a run at 4 times out where 2 did not,
+  // drop it back and say so on #114. That is the revert criterion, written down
+  // before the change rather than argued about after.
   //
   // DO NOT EXPECT THE SAVING #114 CLAIMS. With `fullyParallel: false` Playwright
-  // parallelises by FILE, and `contrast.spec.ts` is 2 tests in one file taking
-  // ~19 of the gate's 41 minutes. It runs on a single worker whatever this
-  // number says, so it is the floor. Realistically 41 -> ~20 min, not ~10.
-  // Going below that needs contrast split into more files, which is its own
-  // change and moves how its baselines are grouped.
-  workers: 2,
+  // parallelises by FILE, so `contrast.spec.ts` is a floor whatever this number
+  // says. The old comment sized that floor at "~19 of the gate's 41 minutes";
+  // measured 2026-08-10 it is 5.5 min for both themes plus the control, so the
+  // floor is much lower than recorded but it is still a floor. Going below it
+  // needs contrast split across files, which changes how its baselines group.
+  workers: 4,
   fullyParallel: false,
 
   forbidOnly: !!process.env.CI,
