@@ -124,8 +124,26 @@ function sliceToLimit(source: Source, body: unknown, n: number): unknown {
 }
 
 export async function GET(req: NextRequest) {
+  /* 1200/min, not the 120 this shipped with.
+   *
+   * 120 was copied from routes a page calls a handful of times. This one is
+   * called per symbol per panel: measured on a real page load, /markets issues
+   * ~150 kline requests and /correlation ~150, so 120 rejected 54-98 of them per
+   * visit with a 429 from OUR OWN route. The pages degraded, and the resulting
+   * drop in outbound traffic looked like the cache working - a rate limit
+   * masquerading as a saving is a worse outcome than no cache at all, because it
+   * reports success.
+   *
+   * 1200 leaves ~8x headroom over the heaviest measured page. It is deliberately
+   * generous: these responses are served from a module-level cache and cost
+   * nothing upstream, so the limit exists to stop a scripted flood, not to ration
+   * a page doing what it normally does.
+   *
+   * The real fix is fewer client calls - one request per symbol set rather than
+   * per symbol - and that is batch 2. Until then this must not be the thing that
+   * breaks a page. */
   const ip = getClientIp(req);
-  if (!rateLimit(`klines:${ip}`, 120, 60_000)) {
+  if (!rateLimit(`klines:${ip}`, 1200, 60_000)) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
 

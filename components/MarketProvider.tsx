@@ -441,7 +441,7 @@ export default function MarketProvider(
       const sym = BYBIT_SYMS[coin];
       try {
         const res = await fetch(
-          `https://api.bybit.com/v5/market/kline?category=linear&symbol=${sym}&interval=15&limit=100`
+          `/api/market/klines?source=bybit&symbol=${sym}&interval=15&limit=100`
         );
         const d = await res.json();
         // Bybit returns newest-first - reverse to oldest-first
@@ -946,7 +946,7 @@ export default function MarketProvider(
         try {
           const [oiRes, klRes] = await Promise.all([
             fetch(`https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${sym}&intervalTime=1h&limit=3`),
-            fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${sym}&interval=60&limit=4`),
+            fetch(`/api/market/klines?source=bybit&symbol=${sym}&interval=60&limit=4`),
           ]);
           const oiData = await oiRes.json();
           const klData = await klRes.json();

@@ -30,7 +30,7 @@ async function fetchCloses(id: CoinId, interval: string, limit: number): Promise
   if (binSym) {
     try {
       const res  = await fetch(
-        `https://api.binance.com/api/v3/klines?symbol=${binSym}&interval=${interval}&limit=${limit}`,
+        `/api/market/klines?source=binance&symbol=${binSym}&interval=${interval}&limit=${limit}`,
       );
       const data = await res.json() as Array<unknown[]>;
       return data.map(c => parseFloat(c[4] as string));
@@ -41,7 +41,7 @@ async function fetchCloses(id: CoinId, interval: string, limit: number): Promise
     try {
       const bbInt = interval === '1h' ? '60' : '240';
       const res   = await fetch(
-        `https://api.bybit.com/v5/market/kline?category=linear&symbol=${bbSym}&interval=${bbInt}&limit=${limit}`,
+        `/api/market/klines?source=bybit&symbol=${bbSym}&interval=${bbInt}&limit=${limit}`,
       );
       const data  = await res.json();
       return ((data?.result?.list ?? []) as string[][])

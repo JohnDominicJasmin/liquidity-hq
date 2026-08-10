@@ -345,11 +345,11 @@ export default function GrokChat() {
         const by = BYBIT_SYMS[coin] as string | undefined;
         let raw: (string | number)[][];
         if (bn) {
-          const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${bn}&interval=1h&limit=300`);
+          const r = await fetch(`/api/market/klines?source=binance&symbol=${bn}&interval=1h&limit=300`);
           if (!r.ok) throw new Error('binance');
           raw = await r.json();
         } else if (by) {
-          const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${by}&interval=60&limit=300`);
+          const r = await fetch(`/api/market/klines?source=bybit&symbol=${by}&interval=60&limit=300`);
           if (!r.ok) throw new Error('bybit');
           raw = [...((await r.json())?.result?.list ?? [])].reverse();
         } else return;

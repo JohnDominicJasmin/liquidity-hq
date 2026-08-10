@@ -22,7 +22,7 @@ const CACHE_KEY = 'lhq_vol_regime';
 const CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours - daily data barely changes
 
 function calcHV(symbol: string): Promise<HVData | null> {
-  return fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&limit=152`)
+  return fetch(`/api/market/klines?source=binance&symbol=${symbol}&interval=1d&limit=152`)
     .then(r => r.ok ? r.json() : null)
     .then((data: [number, string, string, string, string][] | null) => {
       if (!data || data.length < 32) return null;
