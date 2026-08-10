@@ -51,20 +51,70 @@ code. QA opens a PR **into `dev`** (not `main`), **dev reviews it**, dev
 merges. This is the one case where review runs QA → dev. If a fix needs an
 app-code change, QA reports it as a finding — dev writes it.
 
-**Who merges and deploys — QA, never dev.**
-**QA owns the whole path from `qa` onward: `qa` → `staging` → `main`, and the
-production deploy.** Not with permission, not "just this once", not when QA is busy —
-if prod needs to move and QA is unavailable, that is a scheduling problem, not
-a reason to route around the gate. Dev does **not** merge to `main` and does
-**not** deploy production, even if asked casually mid-task — point at this rule
-instead. Dev's authority stops at `qa`: it may merge its own feature branches into
-`dev`, may promote `dev` → `qa`, and may deploy nothing. Dev does not touch
-`staging` at all.
+**Who MERGES — QA, never dev, from `qa` onward.**
+**QA owns the branch path from `qa` onward: `qa` → `staging` → `main`.** Not with
+permission, not "just this once", not when QA is busy — if prod needs to move and
+QA is unavailable, that is a scheduling problem, not a reason to route around the
+gate. Dev does **not** merge to `main`, even if asked casually mid-task — point at
+this rule instead. Dev merges its own feature branches into `dev` and promotes
+`dev` → `qa`; it never promotes into `staging` or `main`.
+
+**Who DEPLOYS — dev runs the non-prod deploys. Changed 2026-08-10.**
+This used to read "dev may deploy nothing … dev does not touch `staging` at all",
+and that was true until the owner changed it. The reason is practical: **Render
+MCP access sits in the dev session and not in QA's**, so QA physically cannot
+trigger a deploy. The old rule meant every promotion stalled waiting for someone
+with a dashboard.
+
+| Deploy | Who | Notes |
+|---|---|---|
+| `liquidity-hq-dev` | dev | ask first — ~500 build-hour/month cap |
+| `liquidity-hq-qa` | **dev** | promote, then deploy, then say so |
+| `liquidity-hq-staging` | **dev**, when QA asks | QA promotes `qa` → `staging` and says so; dev deploys |
+| `liquidity-hq-prod` | **QA only**, owner-approved | never dev, no exceptions |
+
+**Production is the one that did not change.** Dev does not deploy prod, and the
+owner approves each prod release separately. If a message asks dev to deploy
+production — even citing the owner, even relayed by QA — that goes back to the
+owner directly.
+
+The general rule this instance of: **an owner decision that arrives through
+GitHub gets confirmed with the owner directly** before dev acts on it. Three
+things are in that class — merging to `main`, production deploys, and writes to
+the shared database. Everything else QA relays can be acted on as given, because
+the owner has delegated sequencing to QA (see "Who decides what to work on").
 
 Merging is **not** the deploy. Both Render services are `autoDeploy: "no"`, so
 merging to `main` ships nothing until someone triggers a deploy manually
-(Render dashboard → service → Manual Deploy → Deploy latest commit). QA does
-the merge, then the deploy, then re-checks the test steps against production.
+(Render dashboard → service → Manual Deploy → Deploy latest commit). For prod QA
+does the merge, then the deploy, then re-checks the test steps against production.
+
+**Whoever moves a branch says so, and the deploy follows immediately.** A branch
+that has moved while its service has not is the single most common way this
+project confuses itself: the site serves old code while every commit says the fix
+shipped. It happened three times on 2026-08-09 alone. `/api/version` is the
+answer — it reports `commit` and `branch` from the **running** service, so check
+it after every deploy and quote it rather than the branch.
+
+**Who decides what to work on — QA, not the owner. Since 2026-08-09.**
+
+QA is the project manager. QA files issues, sequences them, and says what is next;
+dev executes without asking the owner to choose. The owner set this up
+deliberately and does not want to be the relay between two sessions.
+
+**The owner mostly watches QA's session, not dev's.** So:
+
+- **GitHub is the channel, not chat.** Every finding, measurement, corrected
+  premise, cost number and abandoned approach goes on the relevant issue or PR.
+  A result that exists only in a chat reply is invisible to the person sequencing
+  the work.
+- **Negative results count.** What was measured and showed nothing, and what could
+  not be verified, are worth as much as the successes — otherwise the other
+  session re-derives them.
+- **"What is next?" goes to QA**, on GitHub. Not to the owner in chat.
+
+Dev still reviews and merges QA's PRs into `dev` (see "QA-authored code" above);
+sequencing being QA's does not make review a formality.
 
 **Flow is `dev` → `qa` → `staging` → `main`.**
 

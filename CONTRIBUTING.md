@@ -366,6 +366,27 @@ on `dev` for a day with nobody wondering why it never reached staging.
    straight into `main` would skip whatever else `qa` was validated with, and
    ship a combination nobody tested.
 
+### Who decides what to work on
+
+**QA is the project manager. QA sequences; dev executes.** Since 2026-08-09 the
+owner has delegated prioritisation to QA — QA files the issues, decides the order,
+and says what is next. Dev does not ask the owner to choose between work items.
+
+**The owner mostly watches QA's session, not dev's**, and has said so. That makes
+GitHub the channel rather than either chat window:
+
+- Findings go on the issue or PR — measurements, corrected premises, cost numbers,
+  and approaches tried and rejected. A result that lives only in a chat reply is
+  invisible to whoever is sequencing the work.
+- **Negative results are worth posting too.** "I measured this and it changed
+  nothing" and "I could not verify this locally" save the other session from
+  re-deriving them.
+- "What is next?" is a question for QA, on GitHub.
+
+This does not soften review. Dev still reviews QA's PRs into `dev` properly, and
+QA still tests dev's work properly; sequencing belonging to QA is not the same as
+approval belonging to QA.
+
 ### Who merges and deploys
 
 **Dev never promotes into `staging`, never merges to `main`, and never deploys
@@ -384,9 +405,31 @@ needs to ship. It is not a way to skip the testing — whoever merges is
 asserting the "How to test" steps passed, and that assertion is worth the same
 whoever makes it.
 
-Dev's authority stops at `dev` and `qa`. Dev may merge its own feature branches
-into `dev`, may promote `dev` → `qa`, deploys the `qa` service, and deploys
-nothing else.
+Dev's authority stops at `dev` and `qa` **for branches**. Dev may merge its own
+feature branches into `dev` and may promote `dev` → `qa`. It never promotes into
+`staging` and never merges to `main`.
+
+**Deploys are split differently from merges, and this changed on 2026-08-10.**
+This section used to say dev "deploys the `qa` service, and deploys nothing
+else". Dev now also deploys **`staging`**, on QA's request.
+
+The reason is access, not authority: **Render MCP lives in the dev session and
+not in QA's**, so QA cannot trigger a deploy at all. Under the old rule every
+`qa` → `staging` promotion stalled until someone opened the dashboard, and
+`staging` sat serving older code than its own branch for hours at a time.
+
+| Service | Deployed by |
+|---|---|
+| `liquidity-hq-dev` | dev — ask first, it has a build-hour cap prod does not |
+| `liquidity-hq-qa` | dev, straight after promoting |
+| `liquidity-hq-staging` | **dev, when QA asks** — QA promotes and says so |
+| `liquidity-hq-prod` | **QA, owner-approved. Never dev.** |
+
+Production is unchanged and is the point of the whole gate. If dev is asked to
+deploy production — even citing the owner, even relayed through GitHub by QA —
+that goes back to the owner directly before anything happens. Same for merging to
+`main` and for writes to the shared database. Everything else QA relays can be
+acted on as given.
 
 Merging is not the deploy. **No** Render service auto-deploys; all three are
 `autoDeploy: "no"` / `autoDeployTrigger: "off"`:
@@ -1021,7 +1064,8 @@ The loop:
    fast-forward only (§6) and takes nothing but `dev`.
 2. Normal PR, self-QA'd first (above). The bug QA found is reproduced before it
    is fixed — a fix for a bug you never saw fail is a guess.
-3. Merge to `dev`, promote to `qa`, redeploy staging, say so on the release PR.
+3. Merge to `dev`, promote to `qa`, deploy `qa`. QA re-promotes to `staging`
+   and asks dev to deploy it. Say so on the release PR.
 4. **QA re-tests the failed step, and anything the fix could plausibly have
    touched.** Not the whole suite, not only the one step.
 
