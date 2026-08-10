@@ -835,6 +835,10 @@ body[data-rpm-level="high"]::before {
 .dot-connecting { background: var(--amber); box-shadow: 0 0 6px var(--amber); animation: pulse 1s infinite; }
 .dot-rest       { background: var(--orange); box-shadow: 0 0 6px var(--orange); }
 .dot-error      { background: var(--red);   box-shadow: 0 0 6px var(--red);   animation: pulse 0.8s infinite; }
+/* Deliberately flat: no glow, no pulse. `Idle` is not a degraded feed, it is a
+   page that does not use one (#200), so it must not read as a warning. --txt3 is
+   the same dim grey used for inactive controls elsewhere. */
+.dot-idle       { background: var(--txt3); }
 
 /* ── DESKTOP NAV ── */
 .desktop-nav { display: none; align-items: center; gap: 2px; }
