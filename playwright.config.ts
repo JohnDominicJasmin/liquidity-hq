@@ -54,7 +54,23 @@ export default defineConfig({
   // The per-route cost is settle()'s deliberate 2500ms hydration wait; that
   // wait is load-bearing for measurement accuracy, so the budget moves, not it.
   timeout: 240_000,
-  expect: { timeout: 10_000 },
+  // 30s against a DEPLOYED service, 10s locally.
+  //
+  // Raising `navigationTimeout` alone was not enough and produced four false
+  // failures on `staging` on 2026-08-10: the i18n positive control, two clock
+  // holiday assertions and a session-window check all timed out waiting for
+  // content, on a service that was serving 200s the whole time. All 18 of those
+  // tests passed against a local build of the same commit minutes later.
+  //
+  // The gap: `navigationTimeout` covers `goto`, but the specs then wait on
+  // ELEMENTS, and those waits use this budget. Both Render non-prod services are
+  // free-plan and sleep when idle, so a wake-up page can take tens of seconds to
+  // become interactive after it has already responded.
+  //
+  // Local stays at 10s deliberately - a slow local render is a finding, not an
+  // environment, and raising it there would hide the thing this budget exists
+  // to catch.
+  expect: { timeout: process.env.E2E_BASE_URL ? 30_000 : 10_000 },
 
   // A flaky pass is worse than a fail - it teaches everyone to re-run until
   // green. Retries only in CI, and only to absorb genuine cold-start noise.
