@@ -116,6 +116,26 @@ deliberately and does not want to be the relay between two sessions.
 Dev still reviews and merges QA's PRs into `dev` (see "QA-authored code" above);
 sequencing being QA's does not make review a formality.
 
+**Nobody waits on the owner to merge into `dev`. Added 2026-08-10, on their
+instruction:**
+
+> *"tell dev to merge both dont wait for me to say it"*
+> *"if there are PR's waiting from dev just review it and ask dev to merge it"*
+
+So **an open dev PR is QA's queue, not dev's.** QA reviews it and says merge —
+without being asked, and without checking back first. Dev merges on that word.
+Neither session pauses for a message that is not coming.
+
+**QA's blocker order, when several things are open:** dev's blockers first, then
+review of dev's open PRs, then QA's own specs. A blocked dev is a stopped
+project; a delayed spec is not. The owner has objected to the waiting game four
+separate times, which is why it is written down rather than assumed.
+
+**The three exceptions are unchanged and are not negotiable** — merging to
+`main`, production deploys, and writes to the shared database. Those go to the
+owner directly, and per "Who DEPLOYS" above dev confirms them with the owner even
+when QA relays them. Everything else moves without a checkpoint.
+
 **Flow is `dev` → `qa` → `staging` → `main`.**
 
 Four branches, four deployed sites, one each. Since 2026-08-07 the hostname
