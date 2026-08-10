@@ -34,6 +34,19 @@ import { useAppConfig } from '@/lib/useAppConfig';
 // identical to any other 404.
 const isChromeless = (pathname: string) => pathname === '/ops' || pathname.startsWith('/ops/');
 
+/* Routes that render the full shell but no market data (#200).
+ *
+ * MarketProvider still MOUNTS on these - GrokChat and NavDrawer's status dot call
+ * useMarket() on every route and it throws without a provider - it just does not
+ * poll. Measured by QA against deployed staging: each of these makes 210 exchange
+ * requests per visit and renders byte-identically with every one of them blocked.
+ *
+ * Exact match, same reasoning as isChromeless above: a future /backtest/results
+ * should keep its data unless someone decides otherwise, rather than silently
+ * inheriting a decision made about a different page. */
+const isMarketDataFree = (pathname: string) =>
+  pathname === '/backtest' || pathname === '/live-tracking';
+
 /* Auth screens get the same treatment, for a different reason. /login used to
    render inside the full consumer shell, so a signed-OUT stranger arriving at
    the sign-in page was handed the nav drawer, the scrolling news ticker, the
@@ -123,7 +136,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <LabelsProvider>
         <AuthProvider>
           <SettingsProvider>
-            <MarketProvider>
+            <MarketProvider enabled={!isMarketDataFree(pathname)}>
               <NewsProvider>
                 <OnboardingProvider>
                   <GrokUsageProvider>

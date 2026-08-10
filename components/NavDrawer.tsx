@@ -197,6 +197,11 @@ const ALL_DESTS: NavDest[] = NAV_SECTIONS.flatMap(s => s.items);
 function useStatusDot() {
   const { store } = useMarket();
   const ws = store.wsStatus;
+  /* `Idle` means the provider is mounted but deliberately not polling, on routes
+     that render no market data (#200). Distinct from `Connecting...` on purpose:
+     this page is never going to connect, and a spinner that never resolves reads
+     as a broken feed rather than as a page that does not need one. */
+  if (ws === 'Idle') return { cls: 'dot-idle', title: 'Market feed off - this page shows no live market data' };
   if (!ws || ws === 'Connecting...') return { cls: 'dot-connecting', title: 'Connecting…' };
   if (ws.includes('backup')) return { cls: 'dot-rest', title: 'Live · backup feed' };
   if (ws === 'Live') return { cls: 'dot-live', title: 'Live' };

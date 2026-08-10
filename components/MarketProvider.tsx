@@ -97,7 +97,28 @@ const SYM_MAP: Record<string, CoinId> = Object.fromEntries(
 /* computeRSI14 moved to lib/rsi so app/api/market/rsi computes the identical
    number - see that file for why two copies would drift silently. */
 
-export default function MarketProvider({ children }: { children: React.ReactNode }) {
+/* `enabled` exists so a route can mount the provider WITHOUT the polling (#200).
+ *
+ * Not "do not mount the provider" - that was the obvious version and it crashes.
+ * `useMarket()` throws when there is no context, and two components inside the
+ * app shell consume it on EVERY route: GrokChat and NavDrawer's status dot. So
+ * removing the provider on a route kills the shell, not just the page.
+ *
+ * Measured by QA against deployed staging: /backtest and /live-tracking each make
+ * 210 exchange requests per visit and render BYTE-IDENTICALLY with all of them
+ * blocked - same element count, same text length, same graphics, no errors. The
+ * data is fetched and thrown away. /scanner was the control and loses 21% of its
+ * text when blocked, which is what makes the other two numbers mean something.
+ *
+ * Blocking the network and disabling the polling leave the store in the same
+ * shape, so that experiment is direct evidence for this switch rather than
+ * merely adjacent to it.
+ *
+ * Default is `true`: a route has to opt OUT deliberately, so adding a page never
+ * silently loses its market data. */
+export default function MarketProvider(
+  { children, enabled = true }: { children: React.ReactNode; enabled?: boolean },
+) {
   const [store, setStore] = useState<MarketStore>(defaultStore);
   /* Mirror of `store` for callbacks that must read the CURRENT value without
      depending on it. fetchSnapshot needs to know whether a coin already has a
@@ -1148,6 +1169,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
 
   /* ── Liquidation Cascade Detector - Binance futures all-symbols stream ── */
   useEffect(() => {
+    if (!enabled) return;          // #200 - no socket on data-free routes
     const FUTURES_MAP: Record<string, string> = {
       BTCUSDT: 'BTC', ETHUSDT: 'ETH', SOLUSDT: 'SOL',
       XRPUSDT: 'XRP', BNBUSDT: 'BNB', NEARUSDT: 'NEAR', SUIUSDT: 'SUI',
@@ -1238,10 +1260,19 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       if (reconnectTimer) clearTimeout(reconnectTimer);
       try { ws?.close(); } catch { /* */ }
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Initialise on mount ── */
   useEffect(() => {
+    /* #200: mount the context, skip the traffic. `Idle` rather than leaving
+       wsStatus undefined, because NavDrawer's dot treats undefined as
+       "Connecting..." and would spin forever on a page that is never going to
+       connect - a permanent spinner reads as broken, which is worse than the
+       210 requests it replaces. */
+    if (!enabled) {
+      setStore(s => ({ ...s, wsStatus: 'Idle' }));
+      return;
+    }
     startWS();
     fetchBybit();
     fetchLSR();
@@ -1297,7 +1328,7 @@ export default function MarketProvider({ children }: { children: React.ReactNode
       if (restTimerRef.current) clearInterval(restTimerRef.current);
       if (wsRetryRef.current)  clearInterval(wsRetryRef.current);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <MarketContext.Provider value={{ store, setStore, selectCoin }}>
