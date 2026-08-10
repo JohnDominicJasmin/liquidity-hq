@@ -279,3 +279,110 @@ test.describe('cache effectiveness', () => {
     ).toContain(status);
   });
 });
+
+/* ── /api/market/snapshot's PARTIAL contract (#228) ────────────────────────
+ *
+ * WHAT WENT WRONG. `snapshot` returned `klines: {}` with HTTP 200 on qa and
+ * staging for an unknown length of time, while production returned 45 symbols
+ * on the same commit. Binance had IP-banned the egress address for the kline
+ * endpoint specifically - `418`, which is a ban rather than a rate limit - and
+ * `buildKlines` returned `{}` rather than throwing, so `allSettled` saw
+ * `fulfilled` and the response looked clean.
+ *
+ * It was not unlogged: the health table recorded `binance:klines ok=false`
+ * throughout. But nothing reconciled the two, so the API contract said success
+ * while the health table said failure, and only one of those is visible to a
+ * caller. `staging` is the environment QA signs off, so a surface fed by
+ * `snapshot.klines` was reviewed with no data in it and nobody noticed.
+ *
+ * #229 added `partial: ['klines']`, omitted entirely when everything is healthy.
+ *
+ * WHY THIS IS AN IMPLICATION RATHER THAN A STATE CHECK. The ban lifted before I
+ * could write this - all three parts are full on every environment right now, so
+ * asserting "partial is present" would fail on a healthy service and asserting
+ * "partial is absent" would pass without testing anything.
+ *
+ * So the assertion is the INVARIANT, which holds in both states:
+ *
+ *     a part is empty  <->  that part is named in `partial`
+ *
+ * Today it passes because nothing is empty. The day an upstream refuses us
+ * again, it fails if the response does not say so - which is the exact scenario
+ * this issue exists for, and the one that produced no signal last time.
+ */
+test.describe('/api/market/snapshot partial contract', () => {
+  test.beforeEach(({}, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'HTTP-level, viewport irrelevant');
+  });
+
+  const PARTS = ['ticker', 'klines', 'lsr'] as const;
+
+  test('an empty part is named in `partial`, and a named part is empty', async ({ request }, testInfo) => {
+    const res = await request.get('/api/market/snapshot');
+    expect(res.status(), 'cannot judge the contract from a failing route').toBe(200);
+
+    const body = await res.json() as Record<string, unknown> & { partial?: string[] };
+    const named = new Set(body.partial ?? []);
+
+    const sizes = Object.fromEntries(
+      PARTS.map(p => [p, Object.keys((body[p] ?? {}) as object).length]),
+    ) as Record<typeof PARTS[number], number>;
+
+    testInfo.annotations.push({
+      type: 'known-issue',
+      description:
+        `snapshot on ${process.env.E2E_BASE_URL ?? 'localhost'}: ` +
+        PARTS.map(p => `${p}=${sizes[p]}`).join(' ') +
+        ` partial=${JSON.stringify(body.partial ?? null)}`,
+    });
+
+    /* THE #228 DIRECTION. An empty part that is not named is a silent hole -
+     * a caller sees HTTP 200 and an empty object and cannot tell whether the
+     * market has no data or the upstream refused us. */
+    const unnamed = PARTS.filter(p => sizes[p] === 0 && !named.has(p));
+    expect(unnamed,
+      `snapshot returned EMPTY ${unnamed.join(', ')} with HTTP 200 and did not name ` +
+      `${unnamed.length > 1 ? 'them' : 'it'} in \`partial\`. That is #228 recurring: the ` +
+      'response claims success while a part carries nothing, so a consumer renders empty ' +
+      'with no way to tell a refused upstream from a quiet market.\n\n' +
+      `Measured: ${PARTS.map(p => `${p}=${sizes[p]}`).join(' ')}, ` +
+      `partial=${JSON.stringify(body.partial ?? null)}.\n\n` +
+      'Check the health table for the source - last time it was `binance:klines ok=false, ' +
+      '418/429 after 0/45`, an IP ban on the egress address for that endpoint only.',
+    ).toEqual([]);
+
+    /* THE OTHER DIRECTION, so `partial` cannot become decorative. A name that is
+     * not empty means the field is being set for the wrong reason, which would
+     * make it noise and get it ignored. */
+    const lying = [...named].filter(p => (sizes as Record<string, number>)[p] > 0);
+    expect(lying,
+      `\`partial\` names ${lying.join(', ')} but ${lying.length > 1 ? 'those parts have' : 'that part has'} ` +
+      'data. A partial marker that fires on healthy parts is worse than none - it teaches ' +
+      'consumers to ignore the field.',
+    ).toEqual([]);
+  });
+
+  /* THE CONTROL, and this spec needs one more than most.
+   *
+   * The assertion above is "no unnamed empty parts". A snapshot route that
+   * returned `{}` for everything AND named all three would satisfy it. So would
+   * a probe pointed at the wrong URL, if the body happened to parse.
+   *
+   * Requiring at least one populated part means a green result cannot be
+   * produced by a totally dead endpoint. Five separate defects today were an
+   * absence reporting as normal; this is the sixth place that could have
+   * happened and the control is why it will not. */
+  test('control: at least one part carries data, so the assertion is not vacuous', async ({ request }) => {
+    const res = await request.get('/api/market/snapshot');
+    const body = await res.json() as Record<string, unknown>;
+    const sizes = PARTS.map(p => Object.keys((body[p] ?? {}) as object).length);
+
+    expect(Math.max(...sizes),
+      'EVERY part of snapshot is empty. The test above would pass if all three were also ' +
+      'named in `partial`, so without this control a fully dead endpoint reads as a ' +
+      'correctly-reported partial failure.\n\n' +
+      `Measured: ${PARTS.map((p, i) => `${p}=${sizes[i]}`).join(' ')}. Either every upstream ` +
+      'is refusing this IP at once, or the probe is not reaching the route it thinks it is.',
+    ).toBeGreaterThan(0);
+  });
+});
