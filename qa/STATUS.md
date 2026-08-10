@@ -2,7 +2,7 @@
 
 **One page. If you only read one thing, read this.**
 
-Kept current by QA. Last updated **2026-08-09**.
+Kept current by QA. Last updated **2026-08-10**.
 
 ## Read this before you trust anything below
 
@@ -49,6 +49,9 @@ morning and done by lunchtime. They live on the issue that needs them.
 | **`staging` exists so a signed-off release stops growing.** Only QA promotes into it, and never while a release PR is open | 2026-08-07 | `CONTRIBUTING.md` §6 |
 | **Never require PR approvals.** Dev and QA share one GitHub account, so `Can not approve your own pull request` would deadlock every release permanently | 2026-08-08 | `CONTRIBUTING.md` §3a |
 | **The signup trial trigger is fine.** Measured, not assumed — the three rowless accounts predate it and every signup since 2026-08-01 has a row | 2026-08-09 | #127, closed |
+| **`s-maxage` caches nothing here.** No shared cache fronts either service: `age` absent on every response, `x-render-origin-server` present on every repeat, and an `immutable` static chunk is `cf-cache-status: DYNAMIC` too. What collapses upstream calls is server-side — `cached()` in `lib/apiCache.ts` and `next: { revalidate }` | 2026-08-10 | #198, #197 closed with the measurement |
+| **The suite can address a deployed service.** `E2E_BASE_URL=https://…` sets `baseURL` and drops the `webServer`. Before this, every "verified on qa" claim was measured against a *local build of the same commit* | 2026-08-10 | #203; comment in `playwright.config.ts` |
+| **A cache assertion must measure the DATA, not a header and not a clock.** Both market routes stamp `ts: Date.now()`, so whole-body diffs vary however well the data is cached | 2026-08-10 | `qa/e2e/cache-effective.spec.ts` header |
 
 ---
 
@@ -90,6 +93,25 @@ gh issue list --state open
   decisions table.
 - **A skip is not a pass, and this suite has several.** Every one names its reason
   in the skip message. Read them; some are accepted limits and some are findings.
+- **The E2E gate is not currently running** — #207. E2E fires only on release PRs,
+  and `RELEASE_PR_PAUSED` stops those being opened, so across 60 CI runs the only
+  completed browser suites were two manual dispatches. `smoke`, `cache-policy` and
+  `cache-effective` are covered by QA running them against the deployed services;
+  **`perf`, `a11y`, `a11y-auth`, `bola`, `contrast`, `i18n`, `layout`, `clock`,
+  `payments-webhook` and `checkout` are covered nowhere** until this is fixed.
+- **`perf.spec`'s LCP budget was calibrated on a laptop.** `< 2500ms` against a
+  local 84–720ms measurement — 3× headroom over a dev machine and none over a
+  GitHub runner, where the five heaviest routes land at 2740–4456ms. It fails in
+  CI and passes locally on the same commit, so it currently gates nothing and
+  would not be believed if it did. Do **not** raise the number to make it green;
+  decide first whether it asserts a user-facing target or catches regressions.
+- **An empty result is not evidence unless something proves the instrument works.**
+  This bit three separate times on 2026-08-10 and is the single most repeated
+  defect in this suite: `cache-policy` asserted headers that cached nothing;
+  `/api/cmc` and `/api/proxy` skipped permanently while reporting green; the
+  contrast detector parses a human-readable axe message with a regex, so an
+  upstream reword would silently return zero violations forever. Each now carries
+  a control or a named cause. **Any spec asserting "no findings" needs one.**
 
 ---
 
