@@ -248,10 +248,52 @@ export async function GET(req: NextRequest) {
       return apiError('market-snapshot', t.reason, 502, 'Upstream unavailable');
     }
 
+    /* NAME THE PARTS THAT CAME BACK EMPTY (#228).
+     *
+     * `allSettled` above is right and stays: one dead upstream must not take the
+     * other two down. What was wrong is what the caller was told afterwards - a
+     * failed part became `{}` alongside HTTP 200, so the response asserted
+     * success while the health table recorded failure, and nothing reconciled
+     * them.
+     *
+     * Found when `klines` was empty on qa and staging for hours while prod served
+     * 45. The cause was upstream: `binance:klines` health read
+     * `418/429 after 0/45` - 418 is Binance's IP-ban code, so those two services
+     * were banned for that endpoint while ticker and lsr on the same host kept
+     * working. Nothing about the response said so.
+     *
+     * EMPTY COUNTS AS FAILED, not just rejected. `buildKlines` returns `{}`
+     * rather than throwing when no host is reachable, so a rejection check alone
+     * would still have missed this exact incident.
+     *
+     * SPECIFIC, NOT BOOLEAN: `['klines']` tells a caller what to hide. `true`
+     * only tells it that something is wrong, which leaves it guessing or hiding
+     * everything.
+     *
+     * AND DELIBERATELY NOT `cachedStale()`. That was my first instinct and QA
+     * talked me out of it, correctly: an all-time high six hours old is right to
+     * several decimals, but candles six hours old are a chart of the wrong six
+     * hours, drawn confidently. lib/apiCache.ts already draws this line - "only
+     * use this where stale is genuinely better than absent". An empty chart is
+     * visibly empty; a stale one is silently wrong, and people draw trendlines on
+     * these. */
+    const ticker = t.status === 'fulfilled' ? t.value : {};
+    const klines = k.status === 'fulfilled' ? k.value : {};
+    const lsr    = l.status === 'fulfilled' ? l.value : {};
+
+    const partial = [
+      ['ticker', ticker] as const,
+      ['klines', klines] as const,
+      ['lsr',    lsr]    as const,
+    ].filter(([, v]) => Object.keys(v).length === 0).map(([name]) => name);
+
     return NextResponse.json({
-      ticker: t.status === 'fulfilled' ? t.value : {},
-      klines: k.status === 'fulfilled' ? k.value : {},
-      lsr:    l.status === 'fulfilled' ? l.value : {},
+      ticker,
+      klines,
+      lsr,
+      /* Omitted entirely when everything is healthy, so the common response is
+         unchanged and `'partial' in body` is a valid check. */
+      ...(partial.length ? { partial } : {}),
       ts: Date.now(),
     }, {
       /* Public and visitor-independent, and already only as fresh as the
