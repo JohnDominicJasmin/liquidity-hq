@@ -61,12 +61,16 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
 
   push:
-    # `qa` and `staging` are deliberately ABSENT. CONTRIBUTING section 6 makes
-    # every promotion fast-forward only, so the commit landing on either is
-    # bit-identical to one already tested on dev. Worse, the release PR stays
-    # open for the whole cycle, so each ff-push to its base ALSO fired
-    # `synchronize` on it - one promotion used to bill three full runs.
-    branches: [dev, main]
+    # `qa` is deliberately ABSENT. CONTRIBUTING section 6 makes every promotion
+    # fast-forward only, so the commit landing on it is bit-identical to one
+    # already tested on dev.
+    #
+    # `staging` WAS absent for the same reason, and was added 2026-08-10 because
+    # the reason turned out not to cover the browser suite. See the e2e job's
+    # `if:` below - the argument was about the 2-minute job, and the 38-minute
+    # one was reaching `staging` through a release PR that has since stopped
+    # being opened. Issue #207.
+    branches: [dev, staging, main]
     # Docs-only pushes do not need a build. Every path here is either not
     # compiled or not shipped, so a run over them proves nothing that the
     # PR-side run had not already proved.
@@ -221,8 +225,39 @@ jobs:
     # PRs into `dev`, `qa` and `staging` deliberately get the 2-minute job only.
     # The release PR is `staging -> main`, so `base_ref == 'main'` still selects
     # exactly one gate after the four-branch change. See CONTRIBUTING 4b.
+    #
+    # ── PUSH TO `staging` ADDED 2026-08-10. Issue #207. ────────────────────────
+    #
+    # The release PR was the ONLY automatic trigger, and it stopped being opened:
+    # `RELEASE_PR_PAUSED` was set on the owner's "park it, do not ship" call, and
+    # `release-signals.yml` opens nothing while it is on. Both decisions were
+    # correct. Together they meant **the browser suite did not run at all** -
+    # measured across 60 consecutive CI runs, where the only completed E2E jobs
+    # were two manual dispatches.
+    #
+    # `smoke`, `cache-policy` and `cache-effective` were still covered, because QA
+    # runs those against the deployed services. `perf`, `a11y`, `a11y-auth`,
+    # `bola`, `contrast`, `i18n`, `layout`, `clock`, `payments-webhook` and
+    # `checkout` were covered NOWHERE.
+    #
+    # WHY `staging` AND NOT `qa`, which is where I first proposed it. `qa` moves
+    # several times a day, so at ~38 min a run that is roughly 760 min/month
+    # against a 2,000 min allowance - it would have re-created the overspend #114
+    # exists to fix. `staging` moves only when QA promotes a verified batch, a
+    # few times a week, so it costs ~190 min/month. Close to the ~136 the release
+    # PR used to cost, and it lands on the release candidate itself, which is
+    # exactly what the gate was for.
+    #
+    # THE DOUBLE-BILLING CASE, named rather than discovered: if a `staging ->
+    # main` PR is open, an ff-push to `staging` fires this push trigger AND
+    # `synchronize` on that PR - two full runs for one promotion. CONTRIBUTING 6
+    # already forbids promoting into `staging` while a release PR is open, so in
+    # the intended flow it cannot happen. It is accepted rather than guarded
+    # because the guard would have to ask GitHub whether a PR exists, and a
+    # gate that can be disabled by an API hiccup is worse than a rare duplicate.
     if: >-
       github.base_ref == 'main' ||
+      (github.event_name == 'push' && github.ref_name == 'staging') ||
       (github.event_name == 'workflow_dispatch' && inputs.e2e)
     # Without a cap, a genuinely hung run burns to GitHub's 6-hour default, and
     # a stuck run looks identical to a slow one - which happened while this
