@@ -584,14 +584,21 @@ export default function MarketProvider(
     // All Binance-listed coins
     const binanceCoins = (Object.keys(BINANCE_SYMS) as CoinId[]).filter(c => c !== 'hype');
     await Promise.allSettled([
-      // ── Binance aggTrades ──
-      ...binanceCoins.map(async (coin) => {
+      /* ── Binance aggTrades - ONE request for all coins (#200 batch 3) ──
+         This was a sweep of ~45 per-symbol fetches, 360 requests per visitor.
+         The map is fetched once here; each coin then reads its own entry, so the
+         per-coin CVD and whale logic below is unchanged. */
+      (async () => {
+        let aggAll: Record<string, Array<{ m: boolean; q: string; p: string; a: number }>> = {};
+        try {
+          const r = await fetch('/api/market/agg-trades?limit=200');
+          if (r.ok) aggAll = (await r.json()).data ?? {};
+        } catch { /* every coin below then sees no trades and returns early */ }
+
+        await Promise.allSettled(binanceCoins.map(async (coin) => {
         const sym = BINANCE_SYMS[coin];
         try {
-          const res = await fetch(
-            `https://api.binance.com/api/v3/aggTrades?symbol=${sym}&limit=200`
-          );
-          const trades = await res.json();
+          const trades = aggAll[sym];
           if (!Array.isArray(trades)) return;
 
           let buyVol = 0, sellVol = 0;
@@ -653,7 +660,8 @@ export default function MarketProvider(
           }
           cvdDivStateRef.current[coin] = _newDiv;
         } catch { /* */ }
-      }),
+        }));
+      })(),
       // ── HYPE via Bybit recent-trade (Bybit-only coin) ──
       (async () => {
         try {
