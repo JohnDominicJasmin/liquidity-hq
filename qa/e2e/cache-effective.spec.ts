@@ -221,19 +221,61 @@ test.describe('cache effectiveness', () => {
    * Asserted as KNOWN so it cannot be quietly forgotten, and so it FAILS the day
    * qa starts succeeding - at which point delete this and put /api/ath in
    * INCONCLUSIVE. */
-  test('KNOWN: /api/ath is rate-limited on non-prod and returns 502', async ({ request }) => {
-    const res = await request.get('/api/ath');
-
+  /* /api/ath: the STATUS VARIES BY SERVICE, and pinning it to one value was wrong.
+   *
+   * This asserted `502` because that is what qa and staging both returned when it
+   * was written. Measured a few hours later:
+   *
+   *     qa 502    staging 200    prod 200
+   *
+   * `staging`'s CoinGecko budget reset and `qa`'s did not - they are separate
+   * Render services with separate IPs, and the limit is per IP. So the test began
+   * failing on staging for the best possible reason, which is still a failing
+   * test that tells nobody anything useful.
+   *
+   * THIS IS THE SAME MISTAKE THREE TIMES NOW, and it is worth naming rather than
+   * quietly fixing: `navigationTimeout` without `expect.timeout`, `CI` without
+   * `E2E_BASE_URL`, and now one service's status pinned as if it were every
+   * service's. Each time I encoded the environment I had just looked at.
+   *
+   * WHAT IS ACTUALLY WORTH ASSERTING. Not the status - that is CoinGecko's
+   * decision and it changes hourly. What must hold is that a refused upstream
+   * degrades PREDICTABLY: a documented 502, or a served response. Never a 500,
+   * never a hang, never a partial body. That is a property of our code and it is
+   * true on every service.
+   *
+   * The status is recorded rather than gated, with the per-service split named,
+   * because "which IPs are currently rate-limited" is real information for #200 -
+   * it is the risk that issue warns about, observable today. */
+  test('/api/ath degrades predictably when CoinGecko refuses it', async ({ request }, testInfo) => {
     test.skip(
       !(process.env.E2E_BASE_URL ?? '').includes('onrender.com'),
       'the CoinGecko per-IP limit is specific to the deployed non-prod services',
     );
 
-    expect(res.status(),
-      '/api/ath now succeeds on this environment. THAT IS THE GOOD OUTCOME - either the ' +
-      'CoinGecko limit reset, a key was added, or cachedStale() finally has a last-good value ' +
-      'to serve. Delete this test and move /api/ath into INCONCLUSIVE.\n\n' +
-      'If it was a key, check prod still has its own - see #200 on one IP fronting every user.',
-    ).toBe(502);
+    const res = await request.get('/api/ath');
+    const status = res.status();
+    const body = await res.text().catch(() => '');
+
+    testInfo.annotations.push({
+      type: 'known-issue',
+      description:
+        `/api/ath returned ${status} on ${process.env.E2E_BASE_URL}. RECORDED, NOT GATED - ` +
+        'CoinGecko rate-limits per IP and each Render service has its own, so this differs ' +
+        'between qa, staging and prod and changes without any deploy. Measured 2026-08-10: ' +
+        'qa 502, staging 200, prod 200. A 502 here means cachedStale() had no last-good value ' +
+        'to serve on that instance - see lib/apiCache.ts, which was written for this route.',
+    });
+
+    /* The real assertion, and it holds on every service: a refused upstream must
+     * produce the documented failure, not an unhandled one. 500 would mean the
+     * error escaped apiError(); anything else means the contract moved. */
+    expect([200, 502],
+      `/api/ath returned ${status}, which is neither success nor the documented ` +
+      `"Upstream unavailable" 502. Body: ${body.slice(0, 120)}\n\n` +
+      'A 500 means the CoinGecko failure escaped its handler rather than being mapped. ' +
+      'A 429 forwarded verbatim would mean we are passing an upstream rate limit straight ' +
+      'through to the user. Both are defects; the 502 is not.',
+    ).toContain(status);
   });
 });
