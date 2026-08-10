@@ -121,16 +121,32 @@ test.describe('performance', () => {
        * RETIREMENT CONDITION: once ~10 CI runs exist - which #210 now produces,
        * one per push to `staging` - set a per-route CI budget from the observed
        * distribution the way CLS_BUDGET was set, and delete this branch. */
+      /* `E2E_BASE_URL` counts too, and I found that out the hard way AFTER
+       * writing the CI split. Run against deployed `staging`, the same routes
+       * report:
+       *
+       *     /login 22184ms   /arena 23404ms   /dashboard 23244ms
+       *     /markets 23288ms /briefing 22744ms /scanner 23612ms
+       *
+       * Twenty-two SECONDS, because both non-prod services are free plan and
+       * sleep when idle, so the first measurement after a wake-up is a cold
+       * container rather than the app. That is even further from a meaningful
+       * budget than a CI runner, and gating on it would have made every remote
+       * sign-off run red for a reason that has nothing to do with the code. */
+      const UNCALIBRATED_ENV = process.env.CI || process.env.E2E_BASE_URL;
+
       if (vitals.lcp > 0) {
-        if (process.env.CI) {
+        if (UNCALIBRATED_ENV) {
           testInfo.annotations.push({
             type: 'known-issue',
             description:
-              `${route} LCP ${vitals.lcp}ms - RECORDED, NOT GATED in CI. This is not a pass. ` +
-              'The 2500ms budget was calibrated on a developer machine and every CI run exceeds ' +
-              'it, so gating on it reports a failure that is about the runner rather than the ' +
-              'app. Collecting samples to set a real CI budget - see the comment above for the ' +
-              'retirement condition.',
+              `${route} LCP ${vitals.lcp}ms - RECORDED, NOT GATED ` +
+              `(${process.env.E2E_BASE_URL ? 'deployed service' : 'CI runner'}). This is not a pass. ` +
+              'The 2500ms budget was calibrated on a developer machine, where these routes measure ' +
+              '84-720ms. A CI runner lands them at 2740-4456ms and a woken free-plan Render service ' +
+              'at 22000-23600ms, so gating on that number reports a failure about the environment ' +
+              'rather than the app. Collecting samples to set real per-environment budgets - see ' +
+              'the comment above for the retirement condition.',
           });
         } else {
           /* Locally the 2500ms bar is meaningful: measured 84-720ms, so a route
