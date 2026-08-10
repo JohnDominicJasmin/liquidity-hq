@@ -106,12 +106,33 @@ gh issue list --state open
   would not be believed if it did. Do **not** raise the number to make it green;
   decide first whether it asserts a user-facing target or catches regressions.
 - **An empty result is not evidence unless something proves the instrument works.**
-  This bit three separate times on 2026-08-10 and is the single most repeated
-  defect in this suite: `cache-policy` asserted headers that cached nothing;
-  `/api/cmc` and `/api/proxy` skipped permanently while reporting green; the
-  contrast detector parses a human-readable axe message with a regex, so an
-  upstream reword would silently return zero violations forever. Each now carries
-  a control or a named cause. **Any spec asserting "no findings" needs one.**
+  This bit **five** separate times on 2026-08-10 and is by a distance the most
+  repeated defect in this suite: `cache-policy` asserted headers that cached
+  nothing; `/api/cmc` and `/api/proxy` skipped permanently while reporting green;
+  the contrast detector parses a human-readable axe message with a regex, so an
+  upstream reword would silently return zero violations forever; the egress tally
+  reported `0` while a worker in the same run had counted 8; and — the worst one —
+  **the entire BOLA/IDOR suite ran zero tests for want of one missing variable**,
+  reporting only `20 skipped`. Each now carries a control or a named cause.
+  **Any spec asserting "no findings" needs one.**
+- **`skipped` is the same trap as `passed`, and it hides better.** A skip is
+  designed to be unremarkable, so twenty of them scroll past where twenty
+  failures would not. On 2026-08-10 `E2E_B_PRICE_ALERT_ID` was absent from
+  `.env.e2e.local` — CI supplies it as a GitHub *variable* rather than a secret,
+  so it was never copied across — and that single absence skipped every
+  authenticated test: cross-account access, RLS, forged tokens, signed-in
+  accessibility. The browser suite was not running in CI at the same time, so the
+  authenticated security surface was verified by **nothing, anywhere**, and
+  neither half raised a hand.
+  **Every skip must name the specific thing that is missing**, not a category.
+  The old message listed `E2E_USER_A_* / E2E_USER_B_* / E2E_A_*_ID / ...`, which
+  reads as "QA has no test accounts" rather than "one id is missing".
+- **Production is currently emitting an uncaught error that monitoring drops.**
+  Measured on prod 2026-08-10: `/briefing` throws React #418 and the report to
+  GlitchTip comes back `429`. Both halves in one page load. The error is #193,
+  already fixed by #195 and verified absent on `staging` — it is simply not
+  shipped. **So GlitchTip reads zero errors and that zero is false**, which is
+  worse than reading nothing because zero looks like health. See #51, #193.
 
 ---
 
