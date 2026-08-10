@@ -557,7 +557,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: egress-tally-${{ github.run_attempt }}
-          path: qa/.intercept-tally.json
+          # A GLOB. Every node process in the tree loads the preload and writes
+          # its own pid-suffixed file - the npm wrapper, the build, the Next
+          # server, each Playwright worker. A single shared path made them
+          # overwrite each other and the last writer won, which in the first real
+          # run was a short-lived process reporting nothing.
+          path: qa/.intercept-tally.*.json
           retention-days: 30
           if-no-files-found: warn
 
@@ -567,21 +572,46 @@ jobs:
       - name: Summarise egress
         if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.count_egress }}
         run: |
-          if [ ! -f qa/.intercept-tally.json ]; then
+          shopt -s nullglob
+          FILES=(qa/.intercept-tally.*.json)
+          if [ ${#FILES[@]} -eq 0 ]; then
             echo "No tally written. The preload did not load, or no outbound call was made." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
+
           # grep, not require() - playwright.config.ts is TypeScript and node
           # cannot load it here. The number is what the tally must be read
           # against: N calls at 2 workers says nothing about 4 on its own.
           WORKERS=$(grep -oE '^\s*workers:\s*[0-9]+' playwright.config.ts | grep -oE '[0-9]+' | head -1)
+
+          # Sum across processes. The process COUNT is reported too, because it
+          # is the signal that aggregation is working at all - a single file
+          # would mean we are back to one process clobbering the rest.
+          node -e '
+            const fs = require("fs");
+            const files = process.argv.slice(1);
+            const byHost = {};
+            let total = 0;
+            for (const f of files) {
+              try {
+                const t = JSON.parse(fs.readFileSync(f, "utf8"));
+                for (const [h, n] of Object.entries(t.byHost || {})) {
+                  byHost[h] = (byHost[h] || 0) + n;
+                  total += n;
+                }
+              } catch { /* a half-written file is not worth failing the summary over */ }
+            }
+            const rows = Object.entries(byHost).sort((a, b) => b[1] - a[1]);
+            console.log(JSON.stringify({ processes: files.length, total, byHost: Object.fromEntries(rows) }, null, 2));
+          ' "${FILES[@]}" > /tmp/egress-summary.json
+
           {
             echo "## Outbound third-party calls"
             echo ""
-            echo "Measured at \`workers: ${WORKERS:-unknown}\`."
+            echo "Measured at \`workers: ${WORKERS:-unknown}\`, aggregated across ${#FILES[@]} node process(es)."
             echo ""
             echo '```json'
-            cat qa/.intercept-tally.json
+            cat /tmp/egress-summary.json
             echo '```'
             echo ""
             echo "Per-IP rate limits apply to this runner's egress, not to a developer machine."
