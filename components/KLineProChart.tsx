@@ -1103,8 +1103,8 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 } catch { return null; }
               };
               const raw =
-                await tryFetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${bnSym}&interval=${iv}&limit=1500`)
-                ?? await tryFetch(`https://api.binance.com/api/v3/klines?symbol=${bnSym}&interval=${iv}&limit=1500`)
+                await tryFetch(`/api/market/klines?source=binance-futures&symbol=${bnSym}&interval=${iv}&limit=1500`)
+                ?? await tryFetch(`/api/market/klines?source=binance&symbol=${bnSym}&interval=${iv}&limit=1500`)
                 ?? [];
               if (stale()) return; // superseded by a newer switch - drop it
               let bars = raw.map(k => ({
@@ -1116,7 +1116,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               if (!bars.length && bybitSym) {
                 const bIv = periodToBybitInterval(period);
                 try {
-                  const rb = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${bIv}&limit=1000`);
+                  const rb = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=${bIv}&limit=1000`);
                   const db = await rb.json() as { result?: { list?: string[][] } };
                   if (stale()) return;
                   bars = [...(db?.result?.list ?? [])].reverse().map(k => ({
@@ -1140,7 +1140,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               callback(bars, false);
             } else if (bybitSym) {
               const iv = periodToBybitInterval(period);
-              const r  = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${iv}&limit=1000`);
+              const r  = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=${iv}&limit=1000`);
               const d  = await r.json() as { result?: { list?: string[][] } };
               if (stale()) return; // superseded by a newer switch - drop it
               const list = [...(d?.result?.list ?? [])].reverse();
@@ -1199,7 +1199,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
             const iv = periodToBybitInterval(period);
             const timer = setInterval(async () => {
               try {
-                const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${iv}&limit=1`);
+                const r = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=${iv}&limit=1`);
                 const d = await r.json() as { result?: { list?: string[][] } };
                 const k = d?.result?.list?.[0];
                 if (k) {

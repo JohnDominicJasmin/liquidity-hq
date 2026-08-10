@@ -15,7 +15,7 @@ async function fetchKlines(coin: string): Promise<number[]> {
   const bbSym = BYBIT_SYMS[coin];
   try {
     if (bnSym) {
-      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${bnSym}&interval=1h&limit=24`, { cache: 'no-store' });
+      const res = await fetch(`/api/market/klines?source=binance&symbol=${bnSym}&interval=1h&limit=24`, { cache: 'no-store' });
       if (res.ok) {
         const raw = await res.json() as unknown[][];
         const closes = raw.map(k => parseFloat(k[4] as string)).filter(n => isFinite(n));
@@ -23,7 +23,7 @@ async function fetchKlines(coin: string): Promise<number[]> {
       }
     }
     if (bbSym) {
-      const res = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bbSym}&interval=60&limit=24`, { cache: 'no-store' });
+      const res = await fetch(`/api/market/klines?source=bybit&symbol=${bbSym}&interval=60&limit=24`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json() as { result?: { list?: string[][] } };
         const list = data.result?.list ?? [];

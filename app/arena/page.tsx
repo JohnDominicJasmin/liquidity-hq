@@ -1004,13 +1004,13 @@ function ArenaContent() {
       setReadStep('Reading chart…');
       let raw: (string|number)[][];
       if (binanceSym) {
-        const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=${readTf}&limit=300`);
+        const r = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=${readTf}&limit=300`);
         if (!r.ok) throw new Error(t('ARENA_ERROR_BINANCE_API'));
         raw = await r.json();
       } else {
         // Bybit klines: interval uses numbers (1, 5, 15, 30, 60, 240) or 'D'; response is newest-first
         const bybitInterval = readTf === '1m' ? '1' : readTf === '5m' ? '5' : readTf === '30m' ? '30' : readTf === '15m' ? '15' : readTf === '1h' ? '60' : readTf === '2h' ? '120' : readTf === '4h' ? '240' : 'D';
-        const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=${bybitInterval}&limit=300`);
+        const r = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=${bybitInterval}&limit=300`);
         if (!r.ok) throw new Error(t('ARENA_ERROR_BYBIT_API'));
         const data = await r.json();
         raw = [...(data?.result?.list ?? [])].reverse(); // oldest-first to match Binance
@@ -1045,13 +1045,13 @@ function ArenaContent() {
       let rsiDailyStr = '-';
       try {
         if (binanceSym) {
-          const dr = await fetch(`https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=1d&limit=20`);
+          const dr = await fetch(`/api/market/klines?source=binance&symbol=${binanceSym}&interval=1d&limit=20`);
           const dd = await dr.json() as (string|number)[][];
           const dc = dd.map(k => Number(k[4]));
           const dv = calcRSI(dc, 14).at(-1);
           if (dv != null) rsiDailyStr = dv.toFixed(1) + (dv >= 70 ? ' (Overbought)' : dv <= 30 ? ' (Oversold)' : ' (Neutral)');
         } else if (bybitSym) {
-          const dr = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bybitSym}&interval=D&limit=20`);
+          const dr = await fetch(`/api/market/klines?source=bybit&symbol=${bybitSym}&interval=D&limit=20`);
           const dd = await dr.json() as { result?: { list?: string[][] } };
           const dc = [...(dd?.result?.list ?? [])].reverse().map(k => parseFloat(k[4]));
           const dv = calcRSI(dc, 14).at(-1);

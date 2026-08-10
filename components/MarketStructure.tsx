@@ -134,12 +134,12 @@ export default function MarketStructure({ coin, onData }: Props) {
       let candles: Candle[];
 
       if (binSym) {
-        const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${binSym}&interval=4h&limit=100`);
+        const r = await fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=4h&limit=100`);
         if (!r.ok) throw new Error('Binance 4H fetch failed');
         const raw = await r.json() as (string | number)[][];
         candles = raw.map(k => ({ t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] }));
       } else if (bytSym) {
-        const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bytSym}&interval=240&limit=100`);
+        const r = await fetch(`/api/market/klines?source=bybit&symbol=${bytSym}&interval=240&limit=100`);
         if (!r.ok) throw new Error('Bybit 4H fetch failed');
         // Per-1000 quoting on 1000PEPEUSDT / 1000BONKUSDT. This card prints the
         // broken level and both swing levels as dollar prices, so without the

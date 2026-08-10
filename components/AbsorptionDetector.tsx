@@ -203,8 +203,8 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
 
       if (binSym) {
         const [r15, r1h] = await Promise.all([
-          fetch(`https://api.binance.com/api/v3/klines?symbol=${binSym}&interval=15m&limit=50`),
-          fetch(`https://api.binance.com/api/v3/klines?symbol=${binSym}&interval=1h&limit=20`),
+          fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=15m&limit=50`),
+          fetch(`/api/market/klines?source=binance&symbol=${binSym}&interval=1h&limit=20`),
         ]);
         if (!r15.ok || !r1h.ok) throw new Error('Binance fetch failed');
         const raw15 = await r15.json() as (string | number)[][];
@@ -215,8 +215,8 @@ export default function AbsorptionDetector({ coin, onData }: Props) {
         // Bybit klines don't include per-candle taker buy - use 50/50 split (still useful for body+vol)
         const toC = (k: string[]) => ({ t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5], takerBuy: +k[5] * 0.5 });
         const [r15, r1h] = await Promise.all([
-          fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bytSym}&interval=15&limit=50`),
-          fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${bytSym}&interval=60&limit=20`),
+          fetch(`/api/market/klines?source=bybit&symbol=${bytSym}&interval=15&limit=50`),
+          fetch(`/api/market/klines?source=bybit&symbol=${bytSym}&interval=60&limit=20`),
         ]);
         if (!r15.ok || !r1h.ok) throw new Error('Bybit fetch failed');
         const raw15 = await r15.json() as { result?: { list?: string[][] } };

@@ -38,11 +38,11 @@ export default function HigherTfMoveBadge({ coin, tf, signalDir }: Props) {
         const by = BYBIT_SYMS[coin];
         let closes: number[] = [];
         if (bn) {
-          const r = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${bn}&interval=4h&limit=${LOOKBACK_BARS + 1}`);
+          const r = await fetch(`/api/market/klines?source=binance-futures&symbol=${bn}&interval=4h&limit=${LOOKBACK_BARS + 1}`);
           const raw = await r.json() as (string | number)[][];
           closes = raw.map(k => +k[4]);
         } else if (by) {
-          const r = await fetch(`https://api.bybit.com/v5/market/kline?category=linear&symbol=${by}&interval=240&limit=${LOOKBACK_BARS + 1}`);
+          const r = await fetch(`/api/market/klines?source=bybit&symbol=${by}&interval=240&limit=${LOOKBACK_BARS + 1}`);
           const d = await r.json() as { result?: { list?: string[][] } };
           closes = [...(d?.result?.list ?? [])].reverse().map(k => +k[4]);
         }
