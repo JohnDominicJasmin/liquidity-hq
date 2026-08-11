@@ -155,6 +155,40 @@ export async function installMarketFixtures(page: Page, scenario: Scenario = 'as
   await page.route('**/api/funding**', r =>
     fulfil(r, 'lhq-funding', sign ? (b) => fundingSigned(b as FundingBody, sign) : undefined));
   await page.route('**/api/market/rsi**', r => fulfil(r, 'lhq-market-rsi'));
+
+  /* `/api/market/funding-rate` — the source /funding actually charts, and the
+   * one this file missed entirely until 2026-08-11.
+   *
+   * `app/funding/page.tsx:40` fetches it on mount and charts the result. It was
+   * invisible while the page ALSO called Bybit directly and that call dominated
+   * what rendered; #242 moved the direct call behind the proxy, and the moment it
+   * stopped competing, this route's LIVE data showed through untouched. The
+   * `funding-negative` scenario then rendered 39 positive rates and said so.
+   *
+   * The header of this file says our own `/api` shapes are ours to refactor and
+   * pinning to them turns internal changes into test failures. That still holds -
+   * which is why this does NOT serve a recorded fixture. It fetches the real
+   * response and negates every `fundingRate` in place, so the shape stays
+   * whatever the route currently returns and cannot drift.
+   *
+   * Only intercepted when a sign scenario is active. `as-recorded` wants real
+   * data and `upstream-500` is about third-party failure, not ours. */
+  if (sign) {
+    await page.route('**/api/market/funding-rate**', async (route) => {
+      const res = await route.fetch();
+      const json = await res.json() as { data?: Record<string, Array<{ fundingRate: string; fundingTime: number }>> };
+      const data: Record<string, Array<{ fundingRate: string; fundingTime: number }>> = {};
+      for (const [sym, rows] of Object.entries(json.data ?? {})) {
+        data[sym] = rows.map(r => {
+          const mag = Math.abs(parseFloat(r.fundingRate)) || 0.0001;  // never 0: the sign must be observable
+          return { ...r, fundingRate: (sign * mag).toFixed(8) };
+        });
+      }
+      served.count++;
+      served.byKey['lhq-market-funding-rate'] = (served.byKey['lhq-market-funding-rate'] ?? 0) + 1;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...json, data }) });
+    });
+  }
   await page.route('**/api/market/snapshot**', r => fulfil(r, 'lhq-market-snapshot'));
   await page.route('**fapi.binance.com/fapi/v1/fundingRate**', r =>
     fulfil(r, 'binance-fundingRate', sign ? (b) => binanceFundingSigned(b as BinanceFundingRow[], sign) : undefined));
@@ -187,6 +221,56 @@ export async function installMarketFixtures(page: Page, scenario: Scenario = 'as
   await page.route('**futures/data/topLongShortPositionRatio**', r => fulfil(r, 'binance-top-lsr'));
   await page.route('**alternative.me/fng**', r => fulfil(r, 'alternative-fng'));
   await page.route('**deribit.com/api/v2/public/get_book_summary_by_currency**', r => fulfil(r, 'deribit-book-summary'));
+
+  /* ── EVERY PATTERN ABOVE MATCHES A CALL THE BROWSER NO LONGER MAKES ─────────
+   *
+   * #238/#242 moved all of it behind `/api/proxy?type=...`, and the upstream
+   * fetch now happens SERVER-SIDE where `page.route` cannot reach. So the
+   * browser requests `/api/proxy?type=bybit-tickers`, nothing above matches, and
+   * the fixture never fires.
+   *
+   * That is how it surfaced: `market-scenarios` failed with
+   *
+   *     bybit tickers was not intercepted - the rates on screen are live data
+   *     served.byKey['bybit-tickers'] = 0
+   *
+   * The spec's own control caught it. Without that guard these would have gone
+   * on "passing" against whatever the live market happened to be doing, which is
+   * the failure this file exists to prevent.
+   *
+   * The patterns above are KEPT rather than replaced. They are now a tripwire: if
+   * any of them ever fires again, a direct browser->exchange call has come back
+   * and #238 has regressed. `byKey` names which one, so the regression arrives
+   * labelled.
+   *
+   * Fixture bodies need no change. `/api/proxy` is a passthrough - it returns
+   * `r.json()` from the upstream verbatim - so the recorded exchange payload is
+   * exactly what the proxy would have served. */
+  const PROXY_FIXTURES: Array<[type: string, key: string, transform?: (b: unknown) => unknown]> = [
+    ['bybit-tickers',   'bybit-tickers',         sign ? (b) => bybitTickersSigned(b as BybitTickersBody, sign) : undefined],
+    ['funding-history', 'bybit-funding-history', sign ? (b) => bybitFundingSigned(b as BybitFundingBody, sign) : undefined],
+    ['funding-rate-1',  'binance-fundingRate',   sign ? (b) => binanceFundingSigned(b as BinanceFundingRow[], sign) : undefined],
+    ['premium-index',   'binance-premiumIndex',  sign ? (b) => premiumIndexSigned(b as PremiumIndexRow[], sign) : undefined],
+    ['open-interest-1', 'bybit-open-interest'],
+    ['account-ratio-1', 'bybit-account-ratio'],
+    ['recent-trade',    'bybit-recent-trade'],
+    ['depth',           'binance-depth'],
+    ['oi-hist',         'binance-oi-hist'],
+    ['lsr-global',      'binance-global-lsr'],
+    ['lsr-top',         'binance-top-lsr'],
+    ['fng',             'alternative-fng'],
+    ['deribit-book',    'deribit-book-summary'],
+  ];
+
+  for (const [type, key, transform] of PROXY_FIXTURES) {
+    /* Anchored on a `&` or end-of-string so `type=funding-history` cannot be
+       satisfied by `type=funding-rate-1` or vice versa - the two share a prefix
+       and a loose pattern would silently serve the wrong fixture. */
+    await page.route(
+      new RegExp(`/api/proxy\\?(?:[^#]*&)?type=${type}(?:&|$)`),
+      r => fulfil(r, key, transform),
+    );
+  }
 
   return served;
 }
