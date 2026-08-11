@@ -14,7 +14,7 @@ import BrandMark from './BrandMark';
 import {
   IconSun, IconMoon,
   NavDashboard, NavBriefing, NavArena, NavMarkets, NavScanner,
-  NavLiqMap, NavFunding, NavCorrelation, NavBacktest, NavTracking, NavResearch,
+  NavLiqMap, NavFunding, NavCorrelation, NavResearch,
   NavNews, NavCalendar, NavJournal, NavCalc, NavAlerts, NavHours, NavPlaybook,
   NavSettings, NavAbout,
 } from './icons';
@@ -132,8 +132,6 @@ const SCANNERS = [
   { path: '/liq',           labelKey: 'NAV_LIQUIDATION_MAP' as const },
   { path: '/funding',       labelKey: 'NAV_FR_HISTORY'     as const },
   { path: '/correlation',   labelKey: 'NAV_CORRELATION'    as const },
-  { path: '/backtest',      labelKey: 'NAV_BACKTEST'       as const },
-  { path: '/live-tracking', labelKey: 'NAV_LIVE_TRACKING'  as const },
 ];
 
 const TOOLS = [
@@ -166,8 +164,6 @@ const NAV_SECTIONS: NavSection[] = [
     { path: '/liq',           labelKey: 'NAV_LIQUIDATION_MAP', Icon: NavLiqMap },
     { path: '/funding',       labelKey: 'NAV_FR_HISTORY',      Icon: NavFunding },
     { path: '/correlation',   labelKey: 'NAV_CORRELATION',     Icon: NavCorrelation },
-    { path: '/backtest',      labelKey: 'NAV_BACKTEST',        Icon: NavBacktest },
-    { path: '/live-tracking', labelKey: 'NAV_LIVE_TRACKING',   Icon: NavTracking },
   ] },
   { headerKey: 'NAV_SECTION_RESEARCH', items: [
     { path: '/research',      labelKey: 'NAV_RESEARCH',      Icon: NavResearch },
