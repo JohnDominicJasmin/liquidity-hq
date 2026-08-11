@@ -199,6 +199,41 @@ test.describe('LemonSqueezy write path (account C)', () => {
     test.skip(testInfo.project.name !== 'desktop',
       'single-row state machine, must not run in two projects at once');
 
+    /* DOES THE TARGET HOLD THE SAME SECRET WE SIGN WITH?
+     *
+     * Having a secret locally means nothing when `E2E_BASE_URL` points at a
+     * deployed service - it has its own, and if they differ every signed payload
+     * gets a 401 and every test here fails on the environment rather than on the
+     * write path.
+     *
+     * That is exactly what happened on the first full run against
+     * `liquidity-hq-qa`: `subscription_created` failed with a 401 that read as a
+     * broken write. I had added this guard to `payments-webhook.spec.ts` earlier
+     * the same day and did not carry it to its sibling - so the fix was half
+     * applied, which is worse than not applied, because one of the two files
+     * then looks trustworthy.
+     *
+     * A probe first, and NOT a failure: a mismatched secret is a fact about two
+     * environments, not a defect. */
+    const probeBody = JSON.stringify({
+      meta: { event_name: 'qa_secret_probe', custom_data: { qa_nonce: crypto.randomUUID() } },
+      data: { id: 'qa_secret_probe', attributes: {} },
+    });
+    const probe = await request.post(ENDPOINT, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-signature': crypto.createHmac('sha256', SECRET).update(probeBody).digest('hex'),
+      },
+      data: probeBody,
+      failOnStatusCode: false,
+    });
+    test.skip(probe.status() === 401,
+      'The target rejected a payload signed with our LEMONSQUEEZY_WEBHOOK_SECRET (401), so it holds ' +
+      'a DIFFERENT secret - or none. Every test here would fail on that rather than on the write ' +
+      'path. Set the same value locally as the target holds, or run against a service that shares ' +
+      'it.\n\nThis is a skip and not a failure on purpose. But it IS a real gap: the write path is ' +
+      'verified by nothing in this run, and that is the whole reason this file exists.');
+
     /* Ask the SERVICE which table set it is using, rather than deriving it from
      * this machine's environment. See the comment on TABLE. */
     const v = await request.get('/api/version', { failOnStatusCode: false });
