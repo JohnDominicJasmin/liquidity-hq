@@ -71,7 +71,7 @@ budget on the one tool they care about instead of being forced to sample.
 |---|---|---|---|---|
 | All 11 one-shot AI tools | No | Yes | Yes | `hasProFeatures` in each route, 403 `PRO_REQUIRED` |
 | Fast timeframes (1m/5m/15m) | No | Yes | Yes | `GATED_TFS` - **client-side only**, see §6 |
-| Backtesting | No | Yes | Yes | `/backtest` paywall |
+| Backtesting | — | — | — | **Not currently available** — `/backtest` is hidden (#264), so it is sold to nobody. Removed from the `/upgrade` Pro list in #273. Restore this row and the list entry together when the feature ships. |
 | Telegram + push alerts | No | Yes | Yes | `hasProFeatures` |
 | Creating price alerts | No | Yes | Yes | `hasProFeatures` on POST only - see §6 |
 | Dashboard, news, scanner, charts, briefing, quick/deep, chat | Yes | Yes | Yes | - |
