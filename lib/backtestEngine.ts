@@ -50,7 +50,7 @@ async function fetchBinanceFuturesKlinesRange(sym: string, interval: string, sta
   let guard = 0;
   while (cursor < endTime && guard < 500) {
     guard++;
-    const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${sym}&interval=${interval}&startTime=${cursor}&endTime=${endTime}&limit=${PAGE}`;
+    const url = `/api/market/klines?source=binance-futures&symbol=${sym}&interval=${interval}&startTime=${cursor}&endTime=${endTime}&limit=${PAGE}`;
     const r = await fetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!r.ok) throw new Error(`Binance futures klines ${r.status}`);
     const raw = await r.json() as (string | number)[][];
@@ -73,7 +73,7 @@ async function fetchBybitKlinesRange(sym: string, interval: string, startTime: n
   let guard = 0;
   while (cursor < endTime && guard < 500) {
     guard++;
-    const url = `https://api.bybit.com/v5/market/kline?category=linear&symbol=${sym}&interval=${interval}&start=${cursor}&end=${endTime}&limit=${PAGE}`;
+    const url = `/api/market/klines?source=bybit&symbol=${sym}&interval=${interval}&start=${cursor}&end=${endTime}&limit=${PAGE}`;
     const r = await fetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!r.ok) throw new Error(`Bybit klines ${r.status}`);
     const d = await r.json() as { result?: { list?: string[][] } };
@@ -100,7 +100,7 @@ async function fetchBinanceFundingRange(sym: string, startTime: number, endTime:
   let guard = 0;
   while (cursor < endTime && guard < 100) {
     guard++;
-    const url = `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${sym}&startTime=${cursor}&endTime=${endTime}&limit=${PAGE}`;
+    const url = `/api/proxy?type=funding-rate-1&symbol=${sym}&startTime=${cursor}&endTime=${endTime}&limit=${PAGE}`;
     const r = await fetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!r.ok) throw new Error(`Binance funding rate ${r.status}`);
     const raw = await r.json() as Array<{ fundingTime: number; fundingRate: string }>;
@@ -122,7 +122,7 @@ async function fetchBybitFundingRange(sym: string, startTime: number, endTime: n
   let guard = 0;
   while (cursor < endTime && guard < 200) {
     guard++;
-    const url = `https://api.bybit.com/v5/market/funding/history?category=linear&symbol=${sym}&startTime=${cursor}&endTime=${endTime}&limit=${PAGE}`;
+    const url = `/api/proxy?type=funding-history&symbol=${sym}&startTime=${cursor}&endTime=${endTime}&limit=${PAGE}`;
     const r = await fetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!r.ok) throw new Error(`Bybit funding rate ${r.status}`);
     const d = await r.json() as { result?: { list?: Array<{ fundingRateTimestamp: string; fundingRate: string }> } };

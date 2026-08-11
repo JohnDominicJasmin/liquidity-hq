@@ -279,7 +279,7 @@ export default function LiqPage() {
     if (!sym) { setWhalePos(null); return; }   // Bybit-only coin (HYPE etc.)
     const period = RANGE_TO_PERIOD[range];
     let cancelled = false;
-    fetch(`https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=${sym}&period=${period}&limit=1`)
+    fetch(`/api/proxy?type=lsr-top&symbol=${sym}&period=${period}&limit=1`)
       .then(r => r.json())
       .then((data: Array<{ longAccount: string; shortAccount: string }>) => {
         if (cancelled || !Array.isArray(data) || !data[0]) return;
@@ -297,7 +297,7 @@ export default function LiqPage() {
     if (!sym) { setRetailPos(null); return; }   // Bybit-only coin (HYPE etc.)
     const period = RANGE_TO_PERIOD[range];
     let cancelled = false;
-    fetch(`https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${sym}&period=${period}&limit=1`)
+    fetch(`/api/proxy?type=lsr-global&symbol=${sym}&period=${period}&limit=1`)
       .then(r => r.json())
       .then((data: Array<{ longAccount: string; shortAccount: string }>) => {
         if (cancelled || !Array.isArray(data) || !data[0]) return;
@@ -314,7 +314,7 @@ export default function LiqPage() {
     if (!sym) { setBybitPos(null); return; }
     const period = RANGE_TO_BYBIT_PERIOD[range];
     let cancelled = false;
-    fetch(`https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${sym}&period=${period}&limit=1`)
+    fetch(`/api/proxy?type=account-ratio-1&symbol=${sym}&period=${period}&limit=1`)
       .then(r => r.json())
       .then((d: { result?: { list?: Array<{ buyRatio: string; sellRatio: string }> } }) => {
         if (cancelled) return;

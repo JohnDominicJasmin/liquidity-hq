@@ -55,9 +55,85 @@ async function attributedUser(req: NextRequest): Promise<string> {
 const PROXY_CACHE = { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' };
 const proxyCache = (ok: boolean) => (ok ? PROXY_CACHE : undefined);
 
+/* PASSTHROUGH TYPES (#238).
+ *
+ * #200 moved every SWEEP - one request per symbol across the whole coin list -
+ * behind cached routes, and stopped at 117 calls on the grounds that the rest
+ * were too small to be worth a route each. QA corrected that framing and was
+ * right: the titled problem is "the browser calls Binance and Bybit directly",
+ * so 117 is a smaller instance of the same problem rather than a different one.
+ * The finish line is ZERO, not a lower number.
+ *
+ * These are not sweeps. Each is one call for one thing - a single symbol, or a
+ * global figure - so a fan-out is the wrong shape. What they need is a proxy,
+ * and this route already is one: allowlisted, cached, rate-limited, and carrying
+ * the proxyCache(ok) guard that refuses to cache an upstream error as a success.
+ *
+ * A TABLE RATHER THAN FIFTEEN BRANCHES, because fifteen near-identical if-blocks
+ * is where a copy-paste error hides.
+ *
+ * PARAMS ARE ALLOWLISTED PER ENTRY, which is a cache-key decision as much as a
+ * security one: an unbounded param space means unbounded keys in a Map that
+ * never evicts (#199), and a free-text passthrough would turn this route into an
+ * open proxy to two exchanges.
+ */
+interface PassEntry {
+  url: string;
+  params: readonly string[];
+  ttlMs: number;
+  fixed?: Record<string, string>;
+}
+
+const PASSTHROUGH: Record<string, PassEntry> = {
+  /* Bybit. Note for anyone slicing these later: Bybit returns NEWEST-first and
+     Binance OLDEST-first - the bug qa/e2e/klines-route.spec.ts now guards. */
+  'recent-trade':    { url: 'https://api.bybit.com/v5/market/recent-trade',
+                       params: ['symbol', 'limit'], fixed: { category: 'linear' }, ttlMs: 30_000 },
+  'bybit-tickers':   { url: 'https://api.bybit.com/v5/market/tickers',
+                       params: [], fixed: { category: 'linear' }, ttlMs: 30_000 },
+  'account-ratio-1': { url: 'https://api.bybit.com/v5/market/account-ratio',
+                       params: ['symbol', 'period', 'limit'], fixed: { category: 'linear' }, ttlMs: 120_000 },
+  'open-interest-1': { url: 'https://api.bybit.com/v5/market/open-interest',
+                       params: ['symbol', 'intervalTime', 'limit'], fixed: { category: 'linear' }, ttlMs: 120_000 },
+  'funding-history': { url: 'https://api.bybit.com/v5/market/funding/history',
+                       params: ['symbol', 'limit', 'startTime', 'endTime'], fixed: { category: 'linear' }, ttlMs: 900_000 },
+
+  /* Binance spot and futures */
+  'binance-24hr':    { url: 'https://api.binance.com/api/v3/ticker/24hr',
+                       params: ['symbols', 'symbol'], ttlMs: 30_000 },
+  'depth':           { url: 'https://api.binance.com/api/v3/depth',
+                       params: ['symbol', 'limit'], ttlMs: 15_000 },
+  'premium-index':   { url: 'https://fapi.binance.com/fapi/v1/premiumIndex',
+                       params: ['symbol'], ttlMs: 60_000 },
+  'oi-hist':         { url: 'https://fapi.binance.com/futures/data/openInterestHist',
+                       params: ['symbol', 'period', 'limit'], ttlMs: 120_000 },
+  'lsr-global':      { url: 'https://fapi.binance.com/futures/data/globalLongShortAccountRatio',
+                       params: ['symbol', 'period', 'limit'], ttlMs: 120_000 },
+  'lsr-top':         { url: 'https://fapi.binance.com/futures/data/topLongShortPositionRatio',
+                       params: ['symbol', 'period', 'limit'], ttlMs: 120_000 },
+  'funding-rate-1':  { url: 'https://fapi.binance.com/fapi/v1/fundingRate',
+                       params: ['symbol', 'limit', 'startTime', 'endTime'], ttlMs: 900_000 },
+
+  /* Not exchanges, but the same reasoning: still the browser talking to a third
+     party on every visit, and each is one global figure the whole app shares. */
+  'fng':             { url: 'https://api.alternative.me/fng/',
+                       params: ['limit'], ttlMs: 900_000 },
+  'deribit-book':    { url: 'https://www.deribit.com/api/v2/public/get_book_summary_by_currency',
+                       params: ['currency', 'kind'], ttlMs: 60_000 },
+  'llama-stables':   { url: 'https://stablecoins.llama.fi/stablecoins',
+                       params: ['includePrices'], ttlMs: 900_000 },
+};
+
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
-  if (!rateLimit(`proxy:${ip}`, 20, 60_000)) {
+  /* 600/min, not 20. The old figure suited a route four callers used a handful
+     of times; #238 adds fifteen passthrough types a single page load can hit many
+     times over. The same oversight on the klines route rejected 54-98 requests
+     per visit with a 429 from our OWN route, and the resulting drop in outbound
+     traffic looked exactly like the cache working - a rate limit masquerading as
+     a saving. These responses are cache reads and cost nothing upstream, so the
+     limit is there to stop a scripted flood, not to ration a normal page. */
+  if (!rateLimit(`proxy:${ip}`, 600, 60_000)) {
     return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
 
@@ -257,6 +333,47 @@ export async function GET(req: NextRequest) {
          set and the panel would have stayed exactly as broken as before, with
          the health table now green. Updated alongside this. */
       return NextResponse.json({ btc, eth }, { headers: PROXY_CACHE });
+    }
+
+    /* Table-driven passthrough (#238). Placed after the hand-written branches so
+       none of their behaviour changes. */
+    const entry = type ? PASSTHROUGH[type] : undefined;
+    if (entry) {
+      const u = new URL(entry.url);
+      for (const [k, v] of Object.entries(entry.fixed ?? {})) u.searchParams.set(k, v);
+      for (const k of entry.params) {
+        const v = req.nextUrl.searchParams.get(k);
+        if (v != null && v !== '') u.searchParams.set(k, v);
+      }
+
+      const go = async () => {
+        const r = await fetch(u, { cache: 'no-store' });
+        if (!r.ok) {
+          /* FAIL LOUDLY (#228). Throwing means cached() stores nothing, so a ban
+             is retried rather than pinned, and the caller gets a status instead
+             of a plausible-looking empty body. */
+          const err = new Error(`${type} upstream ${r.status}`);
+          (err as Error & { status?: number }).status = r.status;
+          throw err;
+        }
+        return r.json();
+      };
+
+      try {
+        /* Keyed on the FULL resolved query, so two callers with different params
+           cannot share an entry. ttlMs 0 skips the cache, for callers paginating
+           a time range - their cursors are timestamps and would make the key
+           space unbounded (#199). */
+        const body = entry.ttlMs > 0
+          ? await cached(`proxy:${type}:${u.search}`, entry.ttlMs, go)
+          : await go();
+        return NextResponse.json(body, { headers: entry.ttlMs > 0 ? PROXY_CACHE : undefined });
+      } catch (e) {
+        const status = (e as Error & { status?: number }).status;
+        return apiError('proxy', e, 502, status
+          ? `${type} upstream returned ${status}`
+          : 'Upstream unavailable');
+      }
     }
 
     return NextResponse.json({ error: 'Unknown type' }, { status: 400 });

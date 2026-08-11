@@ -71,7 +71,7 @@ function useFngHistory(): number[] {
       }
     } catch {}
     let cancelled = false;
-    fetch('https://api.alternative.me/fng/?limit=30&format=json')
+    fetch('/api/proxy?type=fng&?limit=30&format=json')
       .then(r => r.json())
       .then((d: { data?: { value: string }[] }) => {
         if (cancelled || !d.data) return;
@@ -89,7 +89,7 @@ function useBtcLongShort(): { long: number; short: number } | null {
   const [ratio, setRatio] = useState<{ long: number; short: number } | null>(null);
   useEffect(() => {
     let cancelled = false;
-    fetch(`https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${BINANCE_SYMS.btc}&period=1h&limit=1`)
+    fetch(`/api/proxy?type=lsr-global&symbol=${BINANCE_SYMS.btc}&period=1h&limit=1`)
       .then(r => r.json())
       .then((data: Array<{ longAccount: string; shortAccount: string }>) => {
         if (cancelled || !Array.isArray(data) || !data[0]) return;
