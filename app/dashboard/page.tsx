@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useOnboarding } from '@/components/OnboardingProvider';
-import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, classifyFunding, computeSqueezeScore } from '@/lib/marketStore';
+import { useMarket, COINS, COIN_DEC, fmtPrice, computeCoinHealth, classifyFunding, computeSqueezeScore, FUNDING_TIP_KEY } from '@/lib/marketStore';
 import type { CoinId } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import { useSettings } from '@/lib/settings';
@@ -366,7 +366,12 @@ function EdgeSignals() {
   const fundingCard = (
     <div className="edge-card">
       <div className="edge-card-label">
-        <Tip text={t('DASH_EDGE_FUNDING_TIP')}>{t('DASH_EDGE_FUNDING_LABEL', { coin: coin.toUpperCase() })}</Tip>
+        {/* Tooltip follows the SIGN (#244). The old key described the
+            strongly-positive case unconditionally, so a negative rate was
+            explained as its own inverse - wrong-direction trading guidance
+            delivered with the same confidence as right-direction guidance.
+            frInfo is classifyFunding, already computed above. */}
+        <Tip text={t(frInfo ? FUNDING_TIP_KEY[frInfo.band] : 'DASH_EDGE_FUNDING_TIP')}>{t('DASH_EDGE_FUNDING_LABEL', { coin: coin.toUpperCase() })}</Tip>
       </div>
       <div className="edge-card-value" style={{ color: frCol }}>
         {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '-'}
