@@ -79,9 +79,51 @@ test.describe('accessibility', () => {
      * warns about for perf.spec. */
     await installMarketFixtures(page, 'as-recorded');
 
+    /* CONSENT IS A THIRD UNCONTROLLED INPUT, and dev measured it before this
+     * merged: a run that starts with consent already stored scores ~32 LOWER
+     * than one that does not, with zero code change. `a.consent-link` is 73x14
+     * and appears on EVERY route while the banner is up.
+     *
+     * So without pinning this, the new baseline would silently encode "the
+     * cookie banner was showing", and the first run that started with consent
+     * stored would read as a 32-element improvement.
+     *
+     * Pinned to `denied` to match `layout.spec.ts`'s ordinary sweep. The
+     * first-visit state is not ignored - it has its own dedicated test over
+     * there, which is where banner-covers-control belongs. Measuring it here as
+     * well would count one known, accepted component (#174) 32 times and drown
+     * everything else. */
+    await page.addInitScript(() => {
+      try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
+    });
+
     const found: string[] = [];
+    const unmeasured: string[] = [];
     for (const route of ROUTES) {
       await settle(page, route);
+
+      /* A ROUTE THAT RENDERS NOTHING SCORES ZERO, and zero flatters the total.
+       * Dev hit exactly this while measuring. It is the same absence-reporting-
+       * as-normal defect this suite keeps finding, arriving inside the metric
+       * rather than the app - and it is invisible in a green run, because fewer
+       * violations always looks like good news. */
+      /* 50, CALIBRATED - not the 200 I first wrote.
+       *
+       * 200 came from the #238 exchange-call probe, where every route measured
+       * was a data-heavy dashboard. Applied here it flagged `/login` (104) and
+       * `/forgot-password` (88), which are simply small pages: a login form
+       * really does render about a hundred nodes once the shell is counted.
+       *
+       * A guard that fires on healthy pages gets deleted by the next person, so
+       * the number has to sit below the smallest LEGITIMATE page and above a
+       * blank one. Measured smallest real page: 88. A route that fails to render
+       * produces a near-empty body - single digits to low tens.
+       *
+       * 50 sits between the two with room either side. If a real page ever drops
+       * below it, that is worth knowing anyway. */
+      const rendered = await page.evaluate(() => document.querySelectorAll('*').length);
+      if (rendered < 50) { unmeasured.push(`${route} (${rendered} elements)`); continue; }
+
       const bad = await page.$$eval(INTERACTIVE_SELECTOR, els =>
         els.flatMap(el => {
           const r = el.getBoundingClientRect();
@@ -98,6 +140,16 @@ test.describe('accessibility', () => {
     }
 
     testInfo.attach('tap-targets-under-24px.txt', { body: found.join('\n'), contentType: 'text/plain' });
+
+    /* Named, and asserted BEFORE the count. A route that did not render
+     * contributes 0 violations, so an unmeasured sweep always looks better than
+     * a measured one - reporting the number first would hand over a flattering
+     * total with the caveat underneath it. */
+    expect(unmeasured,
+      'these routes rendered almost nothing, so their zero violations are about the probe ' +
+      'rather than the app. The count below is not comparable to the baseline until this is empty.')
+      .toEqual([]);
+
     expect(
       found.length,
       `Tap targets under 24px went ${found.length > BASELINE.tapTargetsUnder24 ? 'UP' : 'DOWN'} ` +
