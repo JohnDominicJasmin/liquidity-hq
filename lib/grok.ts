@@ -156,9 +156,8 @@ export interface GrokContext {
 }
 
 export interface GrokResult {
-  signal: 'LONG' | 'LEAN LONG' | 'FLAT' | 'LEAN SHORT' | 'SHORT';
+  signal: 'BULLISH' | 'LEAN BULLISH' | 'FLAT' | 'LEAN BEARISH' | 'BEARISH';
   confidence: number;
-  entry: string;
   reasoning: string;
 }
 
@@ -177,19 +176,19 @@ export function buildPrompt(ctx: GrokContext): string {
     '',
     '=== TECHNICALS (MULTI-TIMEFRAME) ===',
     `EMA Ribbon Strategy: ${ctx.emaStrategy}`,
-    '(VERDICT KEY - LONG_SETUP: bullish ribbon 9>20>50 + daily above 200 SMA + price pulled back to 20 EMA value zone = high-probability long entry. SHORT_SETUP: reverse = high-probability short entry. TRENDING_LONG/SHORT: ribbon aligned but price not yet in entry zone - directional bias, wait for pullback to value zone. FREEZE: ribbon is tangled (EMAs not stacked) or price broke through 50 EMA against trend = no clear bias, avoid new positions. SL = 0.5% beyond 50 EMA. TP = 2:1 R:R from entry.)',
+    '(VERDICT KEY - LONG_SETUP: bullish ribbon 9>20>50 + daily above 200 SMA + price pulled back to 20 EMA value zone = high-probability long entry. SHORT_SETUP: reverse = high-probability short entry. TRENDING_LONG/BEARISH: ribbon aligned but price not yet in entry zone - directional bias, wait for pullback to value zone. FREEZE: ribbon is tangled (EMAs not stacked) or price broke through 50 EMA against trend = no clear bias, avoid new positions.)',
     'EMA RIBBON DECISION WEIGHT - apply this BEFORE forming your final signal:',
-    '  • LONG_SETUP → strong bullish structural signal. Add +20 to bullish case. If 2+ other bullish signals confirm, upgrade LEAN LONG → LONG.',
-    '  • SHORT_SETUP → strong bearish structural signal. Add +20 to bearish case. If 2+ other bearish signals confirm, upgrade LEAN SHORT → SHORT.',
-    '  • TRENDING_LONG → mild bullish bias (+10). Do NOT call LONG - price not at entry zone. Confirms bullish regime only.',
-    '  • TRENDING_SHORT → mild bearish bias (+10). Do NOT call SHORT - not in entry zone. Confirms bearish regime only.',
+    '  • LONG_SETUP → strong bullish structural signal. Add +20 to bullish case. If 2+ other bullish signals confirm, upgrade LEAN BULLISH → BULLISH.',
+    '  • SHORT_SETUP → strong bearish structural signal. Add +20 to bearish case. If 2+ other bearish signals confirm, upgrade LEAN BEARISH → BEARISH.',
+    '  • TRENDING_LONG → mild bullish bias (+10). Do NOT call BULLISH - price not at entry zone. Confirms bullish regime only.',
+    '  • TRENDING_SHORT → mild bearish bias (+10). Do NOT call BEARISH - not in entry zone. Confirms bearish regime only.',
     '  • FREEZE → subtract 15 from confidence. Ribbon is in consolidation. Prefer FLAT unless 4+ other signals strongly align in one direction.',
     `EMA50 Slope (last 5 bars): ${ctx.ema50Slope}`,
     `ATR(14) buffer: ${ctx.emaATR}`,
     '(Anti-chop filters - ALL THREE must pass before treating any EMA signal as valid:',
     '  1. Slope: EMA50 must be sloping in the signal direction ≥ 0.1% over 5 bars. FLAT slope = ranging market = ignore the cross, call FREEZE.',
-    '  2. ATR buffer: price must close beyond EMA50 by ≥ 35% of ATR(14). A 1-tick graze of EMA50 is noise. If the buffer is not cleared, the confirmation is rejected - do NOT call LONG/SHORT on marginal EMA50 touches.',
-    '  3. Ribbon spread: EMA9 and EMA20 must be ≥ 0.3% of price apart at signal confirmation. Tangled EMAs (tight spread) = chop = no signal. If the ribbon is visually overlapping, the cross is noise - do NOT call LONG/SHORT, call FREEZE.)',
+    '  2. ATR buffer: price must close beyond EMA50 by ≥ 35% of ATR(14). A 1-tick graze of EMA50 is noise. If the buffer is not cleared, the confirmation is rejected - do NOT call BULLISH/BEARISH on marginal EMA50 touches.',
+    '  3. Ribbon spread: EMA9 and EMA20 must be ≥ 0.3% of price apart at signal confirmation. Tangled EMAs (tight spread) = chop = no signal. If the ribbon is visually overlapping, the cross is noise - do NOT call BULLISH/BEARISH, call FREEZE.)',
     `WaveTrend (Cipher B momentum): ${ctx.waveTrend}`,
     '(WaveTrend is a confirming layer, NOT a 4th mandatory anti-chop filter - it checks for a bullish/bearish divergence or a cross-from-oversold/overbought agreeing with the EMA signal direction. If it confirms, add +5 confidence. If it does not confirm, do not downgrade automatically - just note the momentum oscillator has not caught up yet.)',
     `Market Structure (4H): ${ctx.marketStructure}`,
@@ -301,10 +300,10 @@ export function buildPrompt(ctx: GrokContext): string {
     '',
     'IF IN BEARISH MOMENTUM REGIME:',
     '  • RSI oversold (< 30) = STRONG DOWNSIDE MOMENTUM - NOT a buy signal alone. Combine with exhaustion checklist.',
-    '  • CVD bullish divergence during selloff = absorption signal. Still require reversal candle confirmation before calling LONG.',
-    '  • Fibonacci support + 3+ exhaustion signals = valid LONG setup even in bearish regime.',
-    '  • Long/Short ratio > 1.8:1 during selloff = overleveraged longs at FLUSH RISK = lean SHORT not LONG.',
-    '  • Call SHORT when: 3+ continuation signals confirmed. Call LONG when: 3+ exhaustion signals + reversal candle visible.',
+    '  • CVD bullish divergence during selloff = absorption signal. Still require reversal candle confirmation before calling BULLISH.',
+    '  • Fibonacci support + 3+ exhaustion signals = valid BULLISH setup even in bearish regime.',
+    '  • Long/Short ratio > 1.8:1 during selloff = overleveraged longs at FLUSH RISK = lean BEARISH not BULLISH.',
+    '  • Call BEARISH when: 3+ continuation signals confirmed. Call BULLISH when: 3+ exhaustion signals + reversal candle visible.',
     '  • Call FLAT when: signals conflict OR exhaustion/continuation count is below 3.',
     '  • "Falling knife" rule: Never buy an asset down >8% in 24h and still accelerating lower - but 3+ exhaustion signals at key support overrides this.',
     '',
@@ -322,7 +321,7 @@ export function buildPrompt(ctx: GrokContext): string {
     'NEUTRAL REGIME: No clear momentum. Apply all signals equally.',
     '',
     '=== PULLBACK EXHAUSTION vs FALLING KNIFE CHECKLIST (Required in BEARISH REGIME) ===',
-    'You MUST determine whether selling is EXHAUSTING or CONTINUING before choosing LONG/SHORT/FLAT.',
+    'You MUST determine whether selling is EXHAUSTING or CONTINUING before choosing BULLISH/BEARISH/FLAT.',
     'Count how many of each apply using the candle data, volume, and derivatives provided:',
     '',
     'EXHAUSTION SIGNALS - selling may be ending, reversal likely forming:',
@@ -336,8 +335,8 @@ export function buildPrompt(ctx: GrokContext): string {
     '  ✓ Price held at a MAJOR FIB level (61.8%, 78.6%) for 2+ candles without breaking',
     '',
     '  1–2 EXHAUSTION signals → FLAT - wait for more confirmation.',
-    '  3+ EXHAUSTION signals → LONG is valid. Require a clean stop below the nearest support. Set ENTRY_LOW/ENTRY_HIGH.',
-    '  5+ EXHAUSTION signals → HIGH CONVICTION LONG. Strong reversal case - tighter entry, high confidence.',
+    '  3+ EXHAUSTION signals → BULLISH is valid.',
+    '  5+ EXHAUSTION signals → HIGH CONVICTION BULLISH. Strong reversal case, high confidence.',
     '',
     'CONTINUATION SIGNALS - selling is still in progress:',
     '  ✗ Volume INCREASING on down candles (new sellers entering, not exhaustion)',
@@ -349,8 +348,8 @@ export function buildPrompt(ctx: GrokContext): string {
     '  ✗ Price accelerating below key EMAs or supports without any pause candle',
     '',
     '  1–2 CONTINUATION signals → FLAT - unclear, wait.',
-    '  3+ CONTINUATION signals → SHORT is valid. Define the specific entry, stop above resistance, target at next support.',
-    '  5+ CONTINUATION signals → HIGH CONVICTION SHORT. Strong continuation case.',
+    '  3+ CONTINUATION signals → BEARISH is valid.',
+    '  5+ CONTINUATION signals → HIGH CONVICTION BEARISH. Strong continuation case.',
     '',
     '=== LIVE SEARCH TASK ===',
     `Search RIGHT NOW for WHY ${ctx.coin} and crypto markets are moving today. Use web_search and x_search for:`,
@@ -395,25 +394,24 @@ export function buildPrompt(ctx: GrokContext): string {
     '=== SIGNAL DECISION GUIDE ===',
     'Five tiers from bearish to bullish - pick the tier that matches your signal count and regime:',
     '',
-    'SHORT:      3+ continuation signals + bearish regime confirmed. Define entry, stop above resistance, target at next support.',
-    'LEAN SHORT: 2+ continuation signals OR bearish regime + at least 1 continuation signal. Direction clear - entry not confirmed yet. State what confirms to SHORT.',
+    'BEARISH:      3+ continuation signals + bearish regime confirmed.',
+    'LEAN BEARISH: 2+ continuation signals OR bearish regime + at least 1 continuation signal. Direction clear but not yet confirmed. State what would confirm BEARISH.',
     'FLAT:       Signals genuinely conflict OR count below 2 in both directions with no clear regime. No directional edge.',
-    'LEAN LONG:  2+ exhaustion signals OR bullish regime + at least 1 exhaustion signal. Direction clear - entry not confirmed yet. State what confirms to LONG.',
-    'LONG:       3+ exhaustion signals + reversal candle at support. Define entry, stop below support, target at resistance.',
+    'LEAN BULLISH:  2+ exhaustion signals OR bullish regime + at least 1 exhaustion signal. Direction clear but not yet confirmed. State what would confirm BULLISH.',
+    'BULLISH:       3+ exhaustion signals + reversal candle at support.',
     '',
     'SESSION WEIGHTING - session timing adjusts confidence only, NOT the signal tier:',
     '  • NY / London: standard confidence, all tiers available.',
-    '  • Pre-NY / Asia: subtract 10 from confidence. LEAN SHORT and LEAN LONG are fully valid.',
+    '  • Pre-NY / Asia: subtract 10 from confidence. LEAN BEARISH and LEAN BULLISH are fully valid.',
     '  "Pre-NY session" is NEVER a standalone reason for FLAT - reduce confidence, not tier.',
     '',
-    'FLAT is NOT the safe default - if 2+ signals align, call LEAN SHORT or LEAN LONG.',
+    'FLAT is NOT the safe default - if 2+ signals align, call LEAN BEARISH or LEAN BULLISH.',
     'FLAT means: no directional edge at all. Not "risky session" or "cautious".',
     'NEVER output FLAT just because you are uncertain - own the direction when signals support it.',
     '',
     'Output in EXACTLY this format - no extra text before or after:',
-    'SIGNAL: [LONG or SHORT or FLAT]',
+    'SIGNAL: [BULLISH or BEARISH or FLAT]',
     'CONFIDENCE: [0-100]',
-    'ENTRY_ZONE: [specific price level or range]',
     'REASONING:',
     '[2-4 sentence analysis citing the specific signals that drove your decision. Name which technicals, macro factors, and news items matter most right now.]',
   ].join('\n');
@@ -479,12 +477,8 @@ export interface ChartData {
 }
 
 export interface CombinedResult {
-  signal: 'LONG' | 'LEAN LONG' | 'FLAT' | 'LEAN SHORT' | 'SHORT';
+  signal: 'BULLISH' | 'LEAN BULLISH' | 'FLAT' | 'LEAN BEARISH' | 'BEARISH';
   confidence: number;
-  entryLow: number | null;
-  entryHigh: number | null;
-  tp: number | null;
-  sl: number | null;
   levels: { price: number; label: string; type: 'support' | 'resistance' }[];
   chartAnalysis: string;
   patterns: string[];   // detected chart patterns (e.g. "Bear flag", "H&S", etc.)
@@ -513,8 +507,8 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     `EMA 9:   ${chart.ema9   != null ? '$' + chart.ema9.toFixed(0)   : '-'}`,
     `SMA 200: ${chart.sma200 != null ? '$' + chart.sma200.toFixed(0) : '-'}`,
     `RSI(14): ${chart.rsi    != null ? chart.rsi.toFixed(1) + (chart.rsi >= 70 ? ' (Overbought)' : chart.rsi <= 30 ? ' (Oversold)' : ' (Neutral)') : '-'}`,
-    `EMA/SMA cross: ${chart.ema9 != null && chart.sma200 != null ? (chart.ema9 > chart.sma200 ? 'EMA 9 ABOVE SMA 200 - bullish structure, prefer LONG setups' : 'EMA 9 BELOW SMA 200 - bearish structure, prefer SHORT setups but LONG still valid on 3+ exhaustion signals') : '-'}`,
-    `Price vs SMA200: ${chart.sma200 != null ? (chart.lastClose > chart.sma200 ? `ABOVE SMA200 ($${chart.sma200.toFixed(2)}) - bullish` : `BELOW SMA200 ($${chart.sma200.toFixed(2)}) - bearish, do not call LONG without reversal catalyst`) : '-'}`,
+    `EMA/SMA cross: ${chart.ema9 != null && chart.sma200 != null ? (chart.ema9 > chart.sma200 ? 'EMA 9 ABOVE SMA 200 - bullish structure, prefer BULLISH setups' : 'EMA 9 BELOW SMA 200 - bearish structure, prefer BEARISH setups but BULLISH still valid on 3+ exhaustion signals') : '-'}`,
+    `Price vs SMA200: ${chart.sma200 != null ? (chart.lastClose > chart.sma200 ? `ABOVE SMA200 ($${chart.sma200.toFixed(2)}) - bullish` : `BELOW SMA200 ($${chart.sma200.toFixed(2)}) - bearish, do not call BULLISH without reversal catalyst`) : '-'}`,
     `Last 20 candles (OHLC): ${chart.recent20}`,
     chart.detectedPatterns ? `Pre-detected basic patterns: ${chart.detectedPatterns}` : '',
     '',
@@ -532,27 +526,23 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
             : chart.tf === '1h'
               ? 'WEIGHTING: Technicals 75% | Macro 25% - 1-hour. Technicals lead but macro context must align. If macro and technicals conflict, lean with macro for the bias and use a tighter confirmation trigger from technicals before entering.'
               : chart.tf === '4h'
-                ? 'WEIGHTING: Technicals 55% | Macro 45% - 4-hour swing. Macro is a near-equal co-driver. Fed stance, DXY direction, BOJ carry risk, and geopolitical regime each carry real weight at this timeframe. Do not call a 4h LONG against a hawkish macro backdrop without 3+ strong technical confirmations.'
+                ? 'WEIGHTING: Technicals 55% | Macro 45% - 4-hour swing. Macro is a near-equal co-driver. Fed stance, DXY direction, BOJ carry risk, and geopolitical regime each carry real weight at this timeframe. Do not call a 4h BULLISH against a hawkish macro backdrop without 3+ strong technical confirmations.'
                 : 'WEIGHTING: Technicals 50% | Macro 50% - daily timeframe. Equal weight. Central bank stance, DXY trend, BOJ policy, geopolitical risk, and ETF flows are as important as chart structure. A daily technical setup that contradicts the macro regime requires exceptional confirmation to act on.',
-    'REMINDER: Apply the MOMENTUM REGIME FILTER above before deciding direction. If bearish regime is confirmed, SHORT or FLAT is the default - do not override with oscillators alone.',
+    'REMINDER: Apply the MOMENTUM REGIME FILTER above before deciding direction. If bearish regime is confirmed, BEARISH or FLAT is the default - do not override with oscillators alone.',
     '',
     '=== SIGNAL TIERS: WHEN TO USE LEAN vs FLAT ===',
-    'LEAN SHORT (55–75% confidence): bearish regime confirmed but < 3 continuation signals. Direction is clear - one confirmation away from SHORT.',
-    'LEAN LONG  (55–75% confidence): exhaustion signals visible but < 3 confirmed. Direction leaning long - one reversal candle away from LONG.',
+    'LEAN BEARISH (55–75% confidence): bearish regime confirmed but < 3 continuation signals. Direction is clear - one confirmation away from BEARISH.',
+    'LEAN BULLISH  (55–75% confidence): exhaustion signals visible but < 3 confirmed. Direction leaning long - one reversal candle away from BULLISH.',
     'FLAT       (65–85% confidence): signals directly conflict, count < 2 in either direction, no identifiable regime.',
-    'LEAN / FLAT REASONING must say: exactly which signals were counted, what price level triggers the upgrade to SHORT or LONG.',
+    'LEAN / FLAT REASONING must say: exactly which signals were counted, what price level triggers the upgrade to BEARISH or BULLISH.',
     '',
     'CRITICAL: Output ONLY these exact lines, no markdown, no bold (**), no extra text:',
-    'SIGNAL: [SHORT or LEAN SHORT or FLAT or LEAN LONG or LONG]',
+    'SIGNAL: [BEARISH or LEAN BEARISH or FLAT or LEAN BULLISH or BULLISH]',
     'BIAS_LEAN: [Required ONLY when SIGNAL is FLAT - write BULLISH, BEARISH, or NEUTRAL to show your lean. Write N/A for all other signals.]',
     'CONFIDENCE: [0-100]',
-    'ENTRY_LOW: [number]',
-    'ENTRY_HIGH: [number]',
     'RAID_SETUP: [Analyze the liquidation clusters, long/short crowding, funding rate, and order walls to determine IF a liquidity raid is likely. Output one of: SHORT SQUEEZE (shorts overcrowded + upside liquidation cluster reachable) | LONG FLUSH (longs overcrowded + downside liquidation cluster reachable) | NONE. A raid is likely when: one side is heavily crowded AND there is a visible liquidation cluster within 2-5% of current price AND funding confirms the crowding direction.]',
     'RAID_TARGET: [The specific price level or range where the liquidation cluster sits - this is where price would hunt before reversing. Format: "$X.XX" or "$X.XX – $X.XX". Write N/A if RAID_SETUP is NONE.]',
     'RAID_TRIGGER: [One sentence: the specific price action, volume, or candle pattern that would CONFIRM the raid is starting. E.g. "Break and hold above $2.05 on the 15m with volume spike triggers short liquidation cascade." Write N/A if RAID_SETUP is NONE.]',
-    'TAKE_PROFIT: [number - Combine chart structure AND raid context: (1) Find the nearest significant chart level in the trade direction (support for SHORT, resistance for LONG) - Fib, EMA, order wall, or key swing level. (2) If RAID_SETUP is active, the raid zone is the CEILING of how far to hold - price reverses after sweeping the cluster, so TP must be AT or WITHIN the raid zone, never beyond it. (3) Set TP at whichever is closer: the chart level OR the near edge of the raid zone. Example: SHORT trade, chart support at $1,638, raid zone $1,640–$1,635 → TP = $1,638 (chart level inside the raid zone). If chart level is $1,605 but raid zone is $1,640–$1,635 → TP = $1,636 (raid zone governs, $1,605 is past the reversal point). If RAID_SETUP is NONE, use the chart level only.]',
-    'STOP_LOSS: [number]',
     'LEVELS:',
     '- [price]: [label] | [support or resistance]',
     '- [price]: [label] | [support or resistance]',
@@ -564,7 +554,7 @@ export function buildCombinedPrompt(ctx: GrokContext, chart: ChartData): string 
     'CHART_ANALYSIS: [1-2 sentences on candles and indicators only - no mention of macro here]',
     'PATTERNS:',
     '- [identify chart patterns from the candle data: e.g. "Bear flag", "Bull flag", "Head and shoulders", "Double top", "Double bottom", "Ascending triangle", "Descending triangle", "Rising wedge", "Falling wedge", "Bullish engulfing", "Bearish engulfing", "Doji reversal", "Higher highs / higher lows", "Lower highs / lower lows" - be specific with price context. Write "None detected" if no clear pattern]',
-    'WAIT_FOR: [REQUIRED when SIGNAL is FLAT, LEAN LONG, or LEAN SHORT. Write exactly: (1) which signals you counted and which direction they lean, (2) the specific price level to watch, (3) what candle/volume pattern would upgrade to SHORT or LONG, (4) what derivative condition (funding, L/S ratio, taker ratio) would confirm the signal. Example (LEAN SHORT): "2 continuation signals: rising OI + taker sell 63%. Watch $64,200 for a breakdown candle with volume spike. Taker sell above 65% + L/S above 1.5 → SHORT. Bounce above $65,500 with CVD flip cancels bearish bias." Write N/A if SIGNAL is LONG or SHORT.]',
+    'WAIT_FOR: [REQUIRED when SIGNAL is FLAT, LEAN BULLISH, or LEAN BEARISH. Write exactly: (1) which signals you counted and which direction they lean, (2) the specific price level to watch, (3) what candle/volume pattern would upgrade to BEARISH or BULLISH, (4) what derivative condition (funding, L/S ratio, taker ratio) would confirm the signal. Example (LEAN BEARISH): "2 continuation signals: rising OI + taker sell 63%. Watch $64,200 for a breakdown candle with volume spike. Taker sell above 65% + L/S above 1.5 → BEARISH. Bounce above $65,500 with CVD flip cancels bearish bias." Write N/A if SIGNAL is BULLISH or BEARISH.]',
     'REASONING: [3-4 sentences combining chart + derivatives + macro + news into one directional thesis. If FLAT, state whether selling is EXHAUSTING or CONTINUING and why.]',
   ].join('\n');
 
@@ -598,17 +588,13 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
 
   const pn = (s?: string): number | null => { const v = parseFloat((s ?? '').replace(/[,$]/g, '')); return isNaN(v) || v <= 0 ? null : v; };
 
-  const signal     = (clean.match(/SIGNAL:\s*(LEAN LONG|LEAN SHORT|LONG|SHORT|FLAT)/i)?.[1]?.toUpperCase() ?? 'FLAT') as CombinedResult['signal'];
+  const signal     = (clean.match(/SIGNAL:\s*(LEAN BULLISH|LEAN BEARISH|BULLISH|BEARISH|FLAT)/i)?.[1]?.toUpperCase() ?? 'FLAT') as CombinedResult['signal'];
   const biasRaw    = clean.match(/BIAS_LEAN:\s*(BULLISH|BEARISH|NEUTRAL)/i)?.[1]?.toUpperCase();
-  const bias: CombinedResult['bias'] = signal === 'LEAN LONG' ? 'BULLISH'
-    : signal === 'LEAN SHORT' ? 'BEARISH'
+  const bias: CombinedResult['bias'] = signal === 'LEAN BULLISH' ? 'BULLISH'
+    : signal === 'LEAN BEARISH' ? 'BEARISH'
     : (biasRaw === 'BULLISH' || biasRaw === 'BEARISH' || biasRaw === 'NEUTRAL') ? biasRaw as CombinedResult['bias']
     : null;
   const confidence = parseInt(clean.match(/CONFIDENCE:\s*(\d+)/i)?.[1] ?? '0');
-  const entryLow   = pn(clean.match(/ENTRY_LOW:\s*([\d,.]+)/i)?.[1]);
-  const entryHigh  = pn(clean.match(/ENTRY_HIGH:\s*([\d,.]+)/i)?.[1]);
-  const tp         = pn(clean.match(/TAKE_PROFIT:\s*([\d,.]+)/i)?.[1]);
-  const sl         = pn(clean.match(/STOP_LOSS:\s*([\d,.]+)/i)?.[1]);
 
   const levels: CombinedResult['levels'] = [];
   const levSect = clean.match(/LEVELS:\s*\n([\s\S]*?)(?=CATALYSTS:|CHART_ANALYSIS:|REASONING:|$)/i)?.[1] ?? '';
@@ -668,7 +654,7 @@ export function parseCombinedResponse(text: string, tf: string, session: string)
     clean.match(/\*{0,2}REASONING\*{0,2}:\s*([\s\S]+)/i)?.[1] ?? ''
   );
 
-  return { signal, confidence, bias, entryLow, entryHigh, tp, sl, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, analyzedAt: Date.now(), tf, session };
+  return { signal, confidence, bias, levels, catalysts, chartAnalysis, patterns, waitFor: waitForFinal ?? waitFor, raidSetup: raidSetup as CombinedResult['raidSetup'], raidTarget, raidTrigger, reasoning, analyzedAt: Date.now(), tf, session };
 }
 
 /* ── Quick prompt - strips the LIVE SEARCH TASK block (no web search needed) ── */

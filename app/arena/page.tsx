@@ -108,6 +108,29 @@ interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'q
 const PRICE_MOVE_PCT    = 0.5;             // re-analyze when price moves >0.5%
 const ARENA_RESULTS_KEY = 'arena-results-v2';
 const CACHE_MAX_AGE_MS  = 4 * 60 * 60 * 1000; // 4 hours - older results are discarded
+
+/* LEGACY SIGNAL VOCABULARY (#260).
+ *
+ * Results and history are persisted in the browser, so a user who ran an
+ * analysis before the rename still has LONG / LEAN LONG / SHORT / LEAN SHORT
+ * sitting in sessionStorage and localStorage. Every comparison in this file now
+ * tests the new words, and each of those chains ends in a fallback - so an
+ * un-migrated row does not error, it renders as FLAT and goes grey. A bullish
+ * call the user made an hour ago silently becomes "no opinion", which is worse
+ * than a crash because nothing anywhere says it happened.
+ *
+ * Normalising on READ rather than migrating the stored blob is deliberate: the
+ * blob is rewritten on the next change anyway, and a read-side map keeps working
+ * for anyone whose tab has been open across the deploy. */
+const LEGACY_SIGNALS: Record<string, string> = {
+  'LONG': 'BULLISH',
+  'LEAN LONG': 'LEAN BULLISH',
+  'SHORT': 'BEARISH',
+  'LEAN SHORT': 'LEAN BEARISH',
+};
+function normalizeSignal<T extends string>(signal: T): T {
+  return (LEGACY_SIGNALS[signal] ?? signal) as T;
+}
 /** Dynamic TTL: tighter during NY/pre-NY session (volatile), relaxed off-hours */
 function getCacheTTL(): number {
   const utcHour = new Date().getUTCHours();
@@ -455,7 +478,9 @@ function ArenaContent() {
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem(ARENA_HIST_KEY);
-      if (saved) setHistory(JSON.parse(saved));
+      // Rows stored before the #260 rename carry LONG/SHORT and would render as
+      // FLAT-and-grey, turning a directional call the user made into "no view".
+      if (saved) setHistory((JSON.parse(saved) as HistItem[]).map(h => ({ ...h, signal: normalizeSignal(h.signal) })));
     } catch { /* ignore */ }
   }, []);
   useEffect(() => {
@@ -471,7 +496,13 @@ function ArenaContent() {
         const now = Date.now();
         const fresh: Partial<Record<CoinId, CacheEntry>> = {};
         Object.entries(parsed).forEach(([k, v]) => {
-          if (v && now - v.result.analyzedAt < CACHE_MAX_AGE_MS) fresh[k as CoinId] = v;
+          // Same #260 migration as the history above, and it matters more here:
+          // this is the main result card, so a pre-rename cached result would
+          // show the wrong verdict word and the wrong colour on the page's most
+          // prominent element.
+          if (v && now - v.result.analyzedAt < CACHE_MAX_AGE_MS) {
+            fresh[k as CoinId] = { ...v, result: { ...v.result, signal: normalizeSignal(v.result.signal) } };
+          }
         });
         setResultsCache(fresh);
       }
@@ -1132,18 +1163,15 @@ function ArenaContent() {
       // Track Quick signals separately so Deep can show an override notice when they disagree
       if (mode === 'quick') setQuickSignals(prev => ({ ...prev, [selectedCoin]: res.signal }));
       setDetailIdx(null);
-      const entryStr = res.entryLow && res.entryHigh
-        ? `$${fmtPrice(res.entryLow)} – $${fmtPrice(res.entryHigh)}`
-        : '-';
       setHistory(h => [{
         signal: res.signal, confidence: res.confidence,
         coin: ctx.coin, time: new Date().toLocaleTimeString(),
-        entry: entryStr, reasoning: res.reasoning, session: ctx.session,
+        reasoning: res.reasoning, session: ctx.session,
       }, ...h].slice(0, 10));
       if (user && process.env.NEXT_PUBLIC_SUPABASE_URL) {
         getSupabase()!.from(T.signals).insert({
           coin: ctx.coin, signal: res.signal, confidence: res.confidence,
-          entry_zone: entryStr, reasoning: res.reasoning, session: ctx.session,
+          reasoning: res.reasoning, session: ctx.session,
         }).then(() => {});
       }
     } catch (e: unknown) {
@@ -1608,7 +1636,7 @@ function ArenaContent() {
               prompt: result
                 ? t('ARENA_CHAT_PROMPT_WITH_RESULT', {
                     coin: selectedCoin.toUpperCase(), signal: result.signal, confidence: result.confidence,
-                    entryZone: result.entryLow && result.entryHigh ? `$${fmtPrice(result.entryLow)} – $${fmtPrice(result.entryHigh)}` : '-',
+                    entryZone: '-',  // #260: no levels; ARENA_CHAT_PROMPT_WITH_RESULT still names one - needs a DB row edit
                     reasoning: result.reasoning,
                   })
                 : t('ARENA_CHAT_PROMPT_NO_RESULT', { coin: selectedCoin.toUpperCase() }),
@@ -1758,14 +1786,12 @@ function ArenaContent() {
           read is running", and the two have opposite endings: one persists, the
           other must not. */}
       {result && !readLoading && !dismissedResults.has(selectedCoin) && nowMs - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
-        const sigCol = result.signal === 'LONG' ? 'var(--green-2)' : result.signal === 'LEAN LONG' ? 'var(--green-soft)' : result.signal === 'SHORT' ? 'var(--red)' : result.signal === 'LEAN SHORT' ? 'var(--red-soft)' : 'var(--txt3)';
-        const verdictWord = result.signal === 'LONG' ? t('ARENA_VERDICT_LONG') : result.signal === 'LEAN LONG' ? t('ARENA_VERDICT_LEAN_LONG') : result.signal === 'SHORT' ? t('ARENA_VERDICT_SHORT') : result.signal === 'LEAN SHORT' ? t('ARENA_VERDICT_LEAN_SHORT') : t('ARENA_VERDICT_WAIT');
-        const sigGrad = result.signal.includes('LONG') ? 'linear-gradient(160deg,#5ff0b0,#34d399)'
-          : result.signal.includes('SHORT') ? 'linear-gradient(160deg,#ff9d9d,#f87171)'
+        const sigCol = result.signal === 'BULLISH' ? 'var(--green-2)' : result.signal === 'LEAN BULLISH' ? 'var(--green-soft)' : result.signal === 'BEARISH' ? 'var(--red)' : result.signal === 'LEAN BEARISH' ? 'var(--red-soft)' : 'var(--txt3)';
+        const verdictWord = result.signal === 'BULLISH' ? t('ARENA_VERDICT_LONG') : result.signal === 'LEAN BULLISH' ? t('ARENA_VERDICT_LEAN_LONG') : result.signal === 'BEARISH' ? t('ARENA_VERDICT_SHORT') : result.signal === 'LEAN BEARISH' ? t('ARENA_VERDICT_LEAN_SHORT') : t('ARENA_VERDICT_WAIT');
+        const sigGrad = result.signal.includes('BULLISH') ? 'linear-gradient(160deg,#5ff0b0,#34d399)'
+          : result.signal.includes('BEARISH') ? 'linear-gradient(160deg,#ff9d9d,#f87171)'
           : 'linear-gradient(160deg,#d8dee9,#9ca3af)';
         const whyLine = (result.reasoning || '').split(/(?<=[.!?])\s+/).slice(0, 2).join(' ');
-        const entryMid = result.entryLow && result.entryHigh ? (result.entryLow + result.entryHigh) / 2 : null;
-        const rr = entryMid && result.sl && result.tp ? Math.abs((result.tp - entryMid) / (entryMid - result.sl)) : null;
         const coinD = store.coins[selectedCoin];
         const frPct = coinD?.fundingRate != null ? coinD.fundingRate * 100 : null;
         const GC = 'var(--green-2)', RC = 'var(--red)', NC = 'var(--txt3)';
@@ -1777,7 +1803,7 @@ function ArenaContent() {
         // own absolute up/down claim - "Trend down" next to a LONG verdict read like the
         // page was contradicting itself, when really it's one input the AI weighed against
         // the others and still called LONG anyway.
-        const verdictDir = result.signal.includes('LONG') ? 'long' : result.signal.includes('SHORT') ? 'short' : null;
+        const verdictDir = result.signal.includes('BULLISH') ? 'long' : result.signal.includes('BEARISH') ? 'short' : null;
         const ribbonRel = !verdictDir || !emaSignal.signalDir ? 'neutral'
           : emaSignal.signalDir === verdictDir ? 'agrees' : 'opposes';
         const factors = [
@@ -1805,15 +1831,8 @@ function ArenaContent() {
         // Checked in this priority order (stop first) so a candle that gaps past both
         // levels in one move is reported as invalidated, not as a win.
         const currentPrice = store.coins[selectedCoin]?.price ?? null;
-        const isLongDir  = result.signal === 'LONG' || result.signal === 'LEAN LONG';
-        const isShortDir = result.signal === 'SHORT' || result.signal === 'LEAN SHORT';
-        const levelStatus: 'stopped' | 'target' | null =
-          currentPrice == null || (!isLongDir && !isShortDir) ? null
-          : isLongDir  && result.sl != null && currentPrice <= result.sl ? 'stopped'
-          : isShortDir && result.sl != null && currentPrice >= result.sl ? 'stopped'
-          : isLongDir  && result.tp != null && currentPrice >= result.tp ? 'target'
-          : isShortDir && result.tp != null && currentPrice <= result.tp ? 'target'
-          : null;
+        const isLongDir  = result.signal === 'BULLISH' || result.signal === 'LEAN BULLISH';
+        const isShortDir = result.signal === 'BEARISH' || result.signal === 'LEAN BEARISH';
         return (
           <div className={`arena-signal-card sig-${result.signal.toLowerCase().replace(' ', '-')}`}>
             <button
@@ -1863,83 +1882,14 @@ function ArenaContent() {
               ))}
             </div>
 
-            {/* Entry / Stop / Targets / R:R grid (click any cell to copy) */}
-            <div className="av-levels">
-              <button className="av-lv" title={t('ARENA_COPY_ENTRY_TITLE')} onClick={() => {
-                if (!(result.entryLow && result.entryHigh)) return;
-                navigator.clipboard.writeText(`${fmtPrice(result.entryLow)}–${fmtPrice(result.entryHigh)}`).catch(() => {});
-                setCopiedKey('entry'); setTimeout(() => setCopiedKey(null), 1500);
-              }}>
-                <div className="av-lv-k">{t('ARENA_ENTRY_ZONE_LABEL')}</div>
-                <div className="av-lv-v">{copiedKey === 'entry' ? t('ARENA_COPIED_LONG') : (result.entryLow && result.entryHigh ? `${fmtPrice(result.entryLow)}–${fmtPrice(result.entryHigh)}` : '-')}</div>
-              </button>
-              <button className="av-lv" title={t('ARENA_COPY_STOP_TITLE')} onClick={() => {
-                if (!result.sl) return;
-                navigator.clipboard.writeText(fmtPrice(result.sl)).catch(() => {});
-                setCopiedKey('sl'); setTimeout(() => setCopiedKey(null), 1500);
-              }}>
-                <div className="av-lv-k">{t('ARENA_STOP_LABEL')}</div>
-                <div className="av-lv-v rd">{copiedKey === 'sl' ? t('ARENA_COPIED_SHORT') : (result.sl ? fmtPrice(result.sl) : '-')}</div>
-              </button>
-              <button className="av-lv" title={t('ARENA_COPY_TARGET_TITLE')} onClick={() => {
-                if (!result.tp) return;
-                navigator.clipboard.writeText(fmtPrice(result.tp)).catch(() => {});
-                setCopiedKey('tp'); setTimeout(() => setCopiedKey(null), 1500);
-              }}>
-                <div className="av-lv-k">{t('ARENA_TARGETS_LABEL')}</div>
-                <div className="av-lv-v gr">{copiedKey === 'tp' ? t('ARENA_COPIED_SHORT') : (result.tp ? fmtPrice(result.tp) : '-')}</div>
-              </button>
-              <div className="av-lv" style={{ cursor: 'default' }}>
-                <div className="av-lv-k">{t('ARENA_RR_LABEL')}</div>
-                <div className="av-lv-v">{rr ? rr.toFixed(1) : '-'}</div>
-              </div>
-            </div>
 
-            {/* Live invalidation/target-hit - price has already moved past this
-                thesis's stop or target since the analysis ran. Same visual
-                treatment as the raid block below (colored border+bg card) so it
-                reads as the same family of "important state" callout. */}
-            {levelStatus === 'stopped' && (
-              <div style={{
-                marginTop: 8, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8,
-                border: '0.5px solid rgba(248,113,113,0.35)', background: 'rgba(248,113,113,0.09)',
-                padding: '9px 12px',
-              }}>
-                <span aria-hidden="true" style={{ fontSize: 16, flexShrink: 0 }}>⚠</span>
-                <div>
-                  <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--red)' }}>
-                    {t('ARENA_STOP_HIT_HEADER')}
-                  </div>
-                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
-                    {t('ARENA_STOP_HIT_BODY', { price: fmtPrice(result.sl!) })}
-                  </div>
-                </div>
-              </div>
-            )}
-            {levelStatus === 'target' && (
-              <div style={{
-                marginTop: 8, borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8,
-                border: '0.5px solid rgba(52,211,153,0.35)', background: 'rgba(52,211,153,0.09)',
-                padding: '9px 12px',
-              }}>
-                <span aria-hidden="true" style={{ fontSize: 16, flexShrink: 0 }}>✓</span>
-                <div>
-                  <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 800, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--green-2)' }}>
-                    {t('ARENA_TARGET_HIT_HEADER')}
-                  </div>
-                  <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)' }}>
-                    {t('ARENA_TARGET_HIT_BODY', { price: fmtPrice(result.tp!) })}
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Wait-for - single inline row matching the mockup's .waitfor style */}
             {result.waitFor && (
               <div className="av-waitfor">
                 <span>⏳</span>
                 <div>
-                  <b>{result.signal === 'LEAN SHORT' ? t('ARENA_CONFIRMS_TO_SHORT') : result.signal === 'LEAN LONG' ? t('ARENA_CONFIRMS_TO_LONG') : t('ARENA_WAIT_FOR')}</b>{' '}
+                  <b>{result.signal === 'LEAN BEARISH' ? t('ARENA_CONFIRMS_TO_SHORT') : result.signal === 'LEAN BULLISH' ? t('ARENA_CONFIRMS_TO_LONG') : t('ARENA_WAIT_FOR')}</b>{' '}
                   {result.waitFor}
                   {result.signal === 'FLAT' && result.bias && result.bias !== 'NEUTRAL' && (
                     <span style={{
@@ -2214,8 +2164,8 @@ function ArenaContent() {
                 style={{ cursor: 'pointer' }}
               >
                 <div className="arena-hist-left">
-                  <span className={`arena-hist-badge tag ${h.signal === 'LONG' || h.signal === 'LEAN LONG' ? 'tg' : h.signal === 'SHORT' || h.signal === 'LEAN SHORT' ? 'tr' : 'tp'}`}>
-                    {h.signal === 'LONG' ? t('ARENA_HIST_BADGE_LONG') : h.signal === 'LEAN LONG' ? t('ARENA_HIST_BADGE_LEAN_LONG') : h.signal === 'SHORT' ? t('ARENA_HIST_BADGE_SHORT') : h.signal === 'LEAN SHORT' ? t('ARENA_HIST_BADGE_LEAN_SHORT') : t('ARENA_HIST_BADGE_FLAT')}
+                  <span className={`arena-hist-badge tag ${h.signal === 'BULLISH' || h.signal === 'LEAN BULLISH' ? 'tg' : h.signal === 'BEARISH' || h.signal === 'LEAN BEARISH' ? 'tr' : 'tp'}`}>
+                    {h.signal === 'BULLISH' ? t('ARENA_HIST_BADGE_LONG') : h.signal === 'LEAN BULLISH' ? t('ARENA_HIST_BADGE_LEAN_LONG') : h.signal === 'BEARISH' ? t('ARENA_HIST_BADGE_SHORT') : h.signal === 'LEAN BEARISH' ? t('ARENA_HIST_BADGE_LEAN_SHORT') : t('ARENA_HIST_BADGE_FLAT')}
                   </span>
                   <div>
                     <div className="arena-hist-pair">{h.coin}</div>
@@ -2232,7 +2182,7 @@ function ArenaContent() {
                 <div className={`arena-hist-detail sig-${h.signal.toLowerCase().replace(' ', '-')}`}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <span className={`arena-sig-badge badge-${h.signal.toLowerCase().replace(' ', '-')}`} style={{ fontSize: 'var(--fs-caption)' }}>
-                      {h.signal === 'LONG' ? t('ARENA_HIST_BADGE_LONG') : h.signal === 'LEAN LONG' ? t('ARENA_HIST_BADGE_LEAN_LONG') : h.signal === 'SHORT' ? t('ARENA_HIST_BADGE_SHORT') : h.signal === 'LEAN SHORT' ? t('ARENA_HIST_BADGE_LEAN_SHORT') : t('ARENA_HIST_BADGE_FLAT')}
+                      {h.signal === 'BULLISH' ? t('ARENA_HIST_BADGE_LONG') : h.signal === 'LEAN BULLISH' ? t('ARENA_HIST_BADGE_LEAN_LONG') : h.signal === 'BEARISH' ? t('ARENA_HIST_BADGE_SHORT') : h.signal === 'LEAN BEARISH' ? t('ARENA_HIST_BADGE_LEAN_SHORT') : t('ARENA_HIST_BADGE_FLAT')}
                     </span>
                     <div style={{ fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--accent-2)' }}>{t('ARENA_HIST_CONFIDENCE_PCT', { pct: h.confidence })}</div>
                   </div>
@@ -2245,7 +2195,7 @@ function ArenaContent() {
                   <div className="arena-conf-bar" style={{ marginBottom: 10 }}>
                     <div className="arena-conf-fill" style={{
                       width: h.confidence + '%',
-                      background: h.signal === 'LONG' ? '#7de0a4' : h.signal === 'LEAN LONG' ? '#86efac' : h.signal === 'SHORT' ? '#ff9a92' : h.signal === 'LEAN SHORT' ? '#fca5a5' : '#606060',
+                      background: h.signal === 'BULLISH' ? '#7de0a4' : h.signal === 'LEAN BULLISH' ? '#86efac' : h.signal === 'BEARISH' ? '#ff9a92' : h.signal === 'LEAN BEARISH' ? '#fca5a5' : '#606060',
                     }} />
                   </div>
                   {h.reasoning && (
