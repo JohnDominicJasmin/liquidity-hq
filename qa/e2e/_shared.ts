@@ -106,8 +106,38 @@ export const BASELINE = {
    *
    * So this stays as the loose "small touch targets on a PWA" signal it actually
    * is, and axeTargetSizeViolations below is what guards conformance.
+   *
+   * ── 122 -> 84, 2026-08-11 (#263). The first REPRODUCIBLE number this has had ──
+   *
+   * 122 was recorded against uncontrolled inputs, so it drifted: the same commit
+   * measured 148 locally and 149 on the release build, and the PRE-release build
+   * measured 148 too - proving the gap was never a regression, just drift nobody
+   * caught while CI was off.
+   *
+   * Three inputs are now pinned (#268, #270): market data via
+   * `installMarketFixtures`, browser consent state, and routes that render
+   * almost nothing are named rather than counted as zero violations.
+   *
+   * The new number is not an improvement in the app. It is the same surface,
+   * measured without the noise - and the composition above says exactly what it
+   * is:
+   *
+   *     122 = 84 a.pf-footer-bottom-link + 31 a.consent-link + 7 bare <a>
+   *      84 = a.pf-footer-bottom-link
+   *
+   * **84 is the shared footer component and nothing else.** The 31 consent links
+   * disappear because consent is now pinned to `denied`; the 7 bare anchors were
+   * data-dependent. So this metric now measures ONE component, which is both its
+   * honest scope and the reason it will barely move again.
+   *
+   * MEASURED TWICE, identically, against deployed `staging` at `714af38`, with
+   * zero unmeasured routes both times. One measurement is not a baseline.
+   *
+   * The environment belongs beside the number: **mobile project, deployed
+   * service, consent denied, market fixtures installed.** A local run or a
+   * first-visit run is NOT comparable and should not be used to move this.
    */
-  tapTargetsUnder24: 122,
+  tapTargetsUnder24: 84,
   /**
    * SC 2.5.8 failures per axe-core's own `target-size` rule, which models BOTH
    * exceptions (spacing and inline) rather than re-deriving them by hand.
