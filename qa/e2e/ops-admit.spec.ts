@@ -46,9 +46,22 @@ const ADMIN_SKIP  = MISSING.length
     `dev project (see #280); the password is owner-set and belongs in .env.e2e.local.`
   : AUTH_SKIP_REASON;
 
-/* `/api/ops/spike-alert` is deliberately NOT here: it is guarded by
-   checkCronAuth, not by the admin resolver, so it answers to a different
-   credential and belongs with the cron routes. */
+/* `/api/ops/spike-alert` is DELIBERATELY NOT IN THIS LIST. Do not add it.
+ *
+ * `app/api/ops` has ten route directories; this covers nine. The tenth is a cron
+ * route that happens to live under /ops - `app/api/ops/spike-alert/route.ts:20`
+ * calls `checkCronAuth(req)`, not the admin resolver - so it answers to
+ * CRON_SECRET and an admin token is refused there, correctly.
+ *
+ * Putting it in OPS_ROUTES would produce a spec asserting that an admin can
+ * reach a cron endpoint, which is the opposite of what we want to be true.
+ *
+ * "Nine of ten routes covered" is exactly the kind of thing someone helpfully
+ * fixes later, so the exclusion is pinned by the test at the bottom of this file
+ * rather than left to this comment. A comment can be overruled by a confident
+ * reader; a red test cannot. */
+const CRON_GUARDED_UNDER_OPS = '/api/ops/spike-alert';
+
 const OPS_ROUTES = [
   '/api/ops/overview', '/api/ops/users', '/api/ops/team', '/api/ops/config',
   '/api/ops/accuracy', '/api/ops/ai-cost', '/api/ops/api-health',
@@ -96,6 +109,23 @@ test.describe('/ops admit path', () => {
         `the ops console`).toContain(res.status());
     });
   }
+
+  test(`CONTROL: ${CRON_GUARDED_UNDER_OPS} REFUSES an admin - it is a cron route`, async ({ request }) => {
+    /* The executable form of the comment above OPS_ROUTES. It is under /ops and
+       it is NOT admin-guarded, and the only thing stopping someone adding it to
+       the list "for completeness" is this failing when they do.
+       Also worth having in its own right: if this ever starts returning 200 to a
+       user token, a route that fires alerts became reachable by anyone signed
+       in. */
+    const res = await request.get(CRON_GUARDED_UNDER_OPS, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect([401, 403],
+      `${CRON_GUARDED_UNDER_OPS} admitted an admin token. It is guarded by checkCronAuth ` +
+      `(CRON_SECRET), not the admin resolver - if this is now admin-guarded that is a ` +
+      `behaviour change, and it belongs in OPS_ROUTES above with a note saying why.`)
+      .toContain(res.status());
+  });
 
   test('CONTROL: the two tokens are actually different sessions', async () => {
     /* If both helpers somehow minted the same token, "admin gets 200" and
