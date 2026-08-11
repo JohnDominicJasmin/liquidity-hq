@@ -189,9 +189,16 @@ function ArenaContent() {
   const [readError, setReadError]     = useState('');
   const [readMode,  setReadMode]      = useState<'quick' | 'deep'>('deep');
   const [resultsCache, setResultsCache] = useState<Partial<Record<CoinId, CacheEntry>>>({});
-  // Per-coin dismiss for the AI Read card - a UI-only "hide for now", not a
-  // data delete. Cleared automatically the next time this coin gets a fresh
-  // read, so dismissing never blocks the user from seeing the next real result.
+  // Per-coin "the AI Read card is hidden" - a UI-only hide, not a data delete.
+  // Set either by the user dismissing the card OR by starting a read (the old
+  // card closes for the duration), and cleared when that read finishes,
+  // whatever the outcome.
+  //
+  // This comment used to say "cleared the next time this coin gets a fresh
+  // read", which described the intent correctly and the code incorrectly: the
+  // clear ran when the read STARTED, so a dismiss during the load survived into
+  // the result and suppressed it. The user spent a Grok call and saw nothing
+  // (#278). Clearing on finish is what makes the sentence true.
   const [dismissedResults, setDismissedResults] = useState<Set<CoinId>>(new Set());
   const [history, setHistory]         = useState<HistItem[]>([]);
   const [detailIdx, setDetailIdx]     = useState<number | null>(null);
@@ -973,6 +980,31 @@ function ArenaContent() {
       return;
     }
 
+    /* UN-HIDE FIRST, BEFORE THE CACHE CHECK (#278).
+     *
+     * Dismiss means "hide this one now", not "stop showing me results", so ANY
+     * new analysis brings the card back - including one served from cache.
+     *
+     * The position is the entire fix. This clear used to live below the cache
+     * check and below the early return, which broke it twice over:
+     *
+     *   - a CACHE HIT returned before ever reaching it, so asking for a fresh
+     *     read on a dismissed coin appeared to do nothing at all;
+     *   - a dismiss landing AFTER this point was never undone, so a result the
+     *     user was waiting for arrived and rendered nothing. They spent a Grok
+     *     call and saw no output.
+     *
+     * The early return above it is correct and stays - serving a fresh cached
+     * result without a Grok call is the right behaviour. The bug was reading
+     * "serve cache silently" as "change nothing", when exactly one thing had to
+     * change. */
+    setDismissedResults(prev => {
+      if (!prev.has(selectedCoin)) return prev;
+      const next = new Set(prev);
+      next.delete(selectedCoin);
+      return next;
+    });
+
     // ── Cache check - skip API call if result is fresh and price hasn't moved >0.5% ──
     // Quick accepts any cached result (Quick or Deep).
     // Deep only accepts a cached Deep result - clicking Deep always re-fetches if last was Quick.
@@ -992,12 +1024,6 @@ function ArenaContent() {
 
     setReadMode(mode);
     setReadLoading(true); setReadError('');
-    setDismissedResults(prev => {
-      if (!prev.has(selectedCoin)) return prev;
-      const next = new Set(prev);
-      next.delete(selectedCoin);
-      return next;
-    });
 
     try {
       // Step 1 - fetch candles (Binance preferred; fall back to Bybit for HYPE etc.)
@@ -1128,6 +1154,25 @@ function ArenaContent() {
       if (usageFromErr) setGrokUsage(usageFromErr);
     } finally {
       setReadLoading(false); setReadStep('');
+
+      /* REVEAL, on every exit path (#278).
+       *
+       * `finally`, not the success branch, and that is deliberate. On success
+       * there is a new result to show. On FAILURE there is not - and leaving the
+       * coin dismissed would hide the previous card too, so a failed read would
+       * silently cost the user the result they already had, on top of the one
+       * that did not arrive. Restoring it puts them back where they started with
+       * an error banner explaining why, which is the honest outcome.
+       *
+       * `selectedCoin` is the closure value from when the read began, so a user
+       * who switches coins mid-read un-dismisses the coin they actually ran -
+       * not whichever one they are looking at now. */
+      setDismissedResults(prev => {
+        if (!prev.has(selectedCoin)) return prev;
+        const next = new Set(prev);
+        next.delete(selectedCoin);
+        return next;
+      });
     }
   }, [selectedCoin, readTf, store, latestHeadlines, econEvents, fundingData, resultsCache]);
 
@@ -1702,7 +1747,17 @@ function ArenaContent() {
 
       {readError && <div className="arena-err">{readError}</div>}
 
-      {result && !dismissedResults.has(selectedCoin) && nowMs - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
+      {/* `!readLoading`: the card closes the moment Quick or Deep is clicked and
+          the loading indicator above takes its place (#278). Leaving the old
+          verdict on screen while its replacement computes shows a call that is
+          about to change, under an "Updated just now" label that is already
+          wrong - and it is why a user reaches for the dismiss button mid-read in
+          the first place.
+          This is deliberately the LOADING flag and not `dismissedResults`.
+          Hiding via the dismiss set would conflate "the user hid this" with "a
+          read is running", and the two have opposite endings: one persists, the
+          other must not. */}
+      {result && !readLoading && !dismissedResults.has(selectedCoin) && nowMs - result.analyzedAt < CACHE_MAX_AGE_MS && (() => {
         const sigCol = result.signal === 'LONG' ? 'var(--green-2)' : result.signal === 'LEAN LONG' ? 'var(--green-soft)' : result.signal === 'SHORT' ? 'var(--red)' : result.signal === 'LEAN SHORT' ? 'var(--red-soft)' : 'var(--txt3)';
         const verdictWord = result.signal === 'LONG' ? t('ARENA_VERDICT_LONG') : result.signal === 'LEAN LONG' ? t('ARENA_VERDICT_LEAN_LONG') : result.signal === 'SHORT' ? t('ARENA_VERDICT_SHORT') : result.signal === 'LEAN SHORT' ? t('ARENA_VERDICT_LEAN_SHORT') : t('ARENA_VERDICT_WAIT');
         const sigGrad = result.signal.includes('LONG') ? 'linear-gradient(160deg,#5ff0b0,#34d399)'
