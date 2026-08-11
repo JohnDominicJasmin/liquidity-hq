@@ -84,6 +84,26 @@ interface PassEntry {
   fixed?: Record<string, string>;
 }
 
+/* Params whose presence makes a request UNCACHEABLE, whatever the entry says.
+ *
+ * These are cursors. QA found that /api/proxy?type=funding-history&startTime=1&
+ * endTime=2 returned 200 and was therefore cached under a key containing those
+ * timestamps - and lib/apiCache.ts holds a Map with no eviction, no cap and no
+ * TTL sweep, so every distinct pair is a permanent allocation for the life of
+ * the instance. Unbounded keys, exactly the leak #199 warns about.
+ *
+ * The comment below already promised this and no entry implemented it. Third
+ * time today a comment of mine described a defence the code did not have, so it
+ * is enforced HERE, in one place, rather than as a per-entry field somebody has
+ * to remember to set.
+ *
+ * PER-REQUEST, NOT PER-ENTRY, and that distinction matters: /funding calls
+ * funding-history with just symbol+limit and SHOULD stay cached - it is the same
+ * request for every visitor. Only the paginating caller passes cursors. Marking
+ * the whole entry uncacheable would throw away the cache for the common case to
+ * fix the rare one. */
+const CURSOR_PARAMS = ['startTime', 'endTime', 'start', 'end'] as const;
+
 const PASSTHROUGH: Record<string, PassEntry> = {
   /* Bybit. Note for anyone slicing these later: Bybit returns NEWEST-first and
      Binance OLDEST-first - the bug qa/e2e/klines-route.spec.ts now guards. */
@@ -364,10 +384,16 @@ export async function GET(req: NextRequest) {
            cannot share an entry. ttlMs 0 skips the cache, for callers paginating
            a time range - their cursors are timestamps and would make the key
            space unbounded (#199). */
-        const body = entry.ttlMs > 0
+        /* A cursor in the REQUEST disables caching for that request only. */
+        const paginating = CURSOR_PARAMS.some(k => {
+          const v = req.nextUrl.searchParams.get(k);
+          return v != null && v !== '';
+        });
+        const cacheable = entry.ttlMs > 0 && !paginating;
+        const body = cacheable
           ? await cached(`proxy:${type}:${u.search}`, entry.ttlMs, go)
           : await go();
-        return NextResponse.json(body, { headers: entry.ttlMs > 0 ? PROXY_CACHE : undefined });
+        return NextResponse.json(body, { headers: cacheable ? PROXY_CACHE : undefined });
       } catch (e) {
         const status = (e as Error & { status?: number }).status;
         return apiError('proxy', e, 502, status
