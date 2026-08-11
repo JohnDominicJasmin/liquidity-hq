@@ -1342,32 +1342,25 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
     }
   };
 
-  // ── Auto-draw Entry / SL / TP after analysis ─────────────────────────
+  /* ── Entry / SL / TP lines removed (#260) ──────────────────────────────
+     The research output is a directional read now and no longer issues trade
+     levels, so there is nothing left for this effect to draw.
+
+     The CLEANUP is kept deliberately. Any overlay this effect created before
+     the change still has to be removed when `result` changes, and a stale
+     ENTRY line left floating on the chart after a new analysis would be worse
+     than the old behaviour - it would be a price level attached to nothing.
+     Dropping the effect entirely would have left that dangling for anyone whose
+     chart was already showing them.
+
+     Support/resistance is a separate mechanism and is unaffected: those are
+     observations about the chart, not instructions about a position, and only
+     the second kind was removed. */
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
     analysisIds.current.forEach(id => chart.removeOverlay({ id }));
     analysisIds.current = [];
-    if (!result) return;
-
-    const draw = (price: number, color: string, label: string) => {
-      const id = chart.createOverlay({
-        name: 'analysisLevelLine',
-        groupId: 'analysis',
-        lock: true,
-        points: [{ value: price }],
-        extendData: { label, price, color },
-      } as OverlayCreate);
-      if (typeof id === 'string') analysisIds.current.push(id);
-    };
-
-    // Both entry bounds are labeled "ENTRY" (not "ENTRY LOW"/"ENTRY HIGH") - two
-    // same-colored, same-labeled lines read as one zone's edges; splitting the
-    // label would suggest two different things to watch instead of one range.
-    if (result.entryLow)  draw(result.entryLow,  '#34d399', 'ENTRY');
-    if (result.entryHigh) draw(result.entryHigh, '#34d399', 'ENTRY');
-    if (result.sl)        draw(result.sl,        '#f87171', 'STOP');
-    if (result.tp)        draw(result.tp,        '#5aa3ff', 'TARGET');
   }, [result]);
 
   // ── EMA signal markers - all significant crosses in the loaded data ──────────────
