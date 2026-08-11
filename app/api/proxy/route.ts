@@ -390,6 +390,27 @@ export async function GET(req: NextRequest) {
           return v != null && v !== '';
         });
         const cacheable = entry.ttlMs > 0 && !paginating;
+
+        /* AND AN UNCACHED PATH NEEDS ITS OWN, TIGHTER LIMIT.
+         *
+         * Skipping the cache to avoid unbounded keys creates the opposite
+         * problem: every cursor request reaches the upstream, so an attacker can
+         * walk arbitrary timestamps and turn this route into an amplifier
+         * pointed at Binance and Bybit FROM OUR SERVER IP. That is not
+         * hypothetical - #228 was Binance returning 418 (their ban code) to the
+         * qa and staging egress IP for exactly this kind of volume, and it took
+         * hours to clear on its own.
+         *
+         * The main 600/min limit is sized for cache READS, which cost nothing
+         * upstream. This path costs a real upstream call every time, so it gets a
+         * separate budget two orders of magnitude smaller. The only legitimate
+         * caller is backtestEngine walking a backfill, which is a handful of
+         * windows per run, not hundreds per minute. */
+        if (paginating && !rateLimit(`proxy-cursor:${ip}`, 30, 60_000)) {
+          return NextResponse.json(
+            { error: 'Rate limit exceeded for paginated requests' }, { status: 429 },
+          );
+        }
         const body = cacheable
           ? await cached(`proxy:${type}:${u.search}`, entry.ttlMs, go)
           : await go();
