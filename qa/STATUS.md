@@ -2,7 +2,7 @@
 
 **One page. If you only read one thing, read this.**
 
-Kept current by QA. Last updated **2026-08-10**.
+Kept current by QA. Last updated **2026-08-11**.
 
 ## Read this before you trust anything below
 
@@ -52,6 +52,8 @@ morning and done by lunchtime. They live on the issue that needs them.
 | **`s-maxage` caches nothing here.** No shared cache fronts either service: `age` absent on every response, `x-render-origin-server` present on every repeat, and an `immutable` static chunk is `cf-cache-status: DYNAMIC` too. What collapses upstream calls is server-side — `cached()` in `lib/apiCache.ts` and `next: { revalidate }` | 2026-08-10 | #198, #197 closed with the measurement |
 | **The suite can address a deployed service.** `E2E_BASE_URL=https://…` sets `baseURL` and drops the `webServer`. Before this, every "verified on qa" claim was measured against a *local build of the same commit* | 2026-08-10 | #203; comment in `playwright.config.ts` |
 | **A cache assertion must measure the DATA, not a header and not a clock.** Both market routes stamp `ts: Date.now()`, so whole-body diffs vary however well the data is cached | 2026-08-10 | `qa/e2e/cache-effective.spec.ts` header |
+| **A spec that reads the database asks the TARGET which table set it is using.** `lib/tables.ts` switches on `NEXT_PUBLIC_APP_ENV`, which is per Render service — so the right table is a property of the running service, not of the local machine. `/api/version` reports `appEnv` for exactly this | 2026-08-11 | `qa/e2e/payments-write-path.spec.ts`; PR #240 |
+| **Account C is the sacrificial entitlement fixture.** A and B stay pinned (`pro` / `free`) and `entitlements.spec.ts` fails if either drifts, so anything that flips a role uses C | 2026-08-11 | #239, closed |
 
 ---
 
@@ -77,10 +79,26 @@ gh issue list --state open
 
 ## Standing risks
 
-- **Payments have never been exercised end to end.** No real purchase has granted
-  Pro and no lapsed subscription has been shown to re-lock. The webhook handler
-  is now covered against forged, replayed and cross-account payloads — **but only
-  synthetic ones.** Highest launch risk.
+- **No REAL PURCHASE has ever granted Pro.** Still the highest launch risk, and
+  narrowed on 2026-08-11 rather than cleared — be precise about which half is
+  which, because "payments are tested" is now half true and that is the dangerous
+  kind of true:
+
+  ```
+  is the caller allowed to reach the decision   payments-webhook.spec.ts      covered
+  is the decision right                         lemonsqueezyEvents.test.mts   covered
+  does the decision reach the database          payments-write-path.spec.ts   covered 2026-08-11
+  does a real purchase produce the event        nothing, anywhere             NOT COVERED
+  ```
+
+  All three covered halves use **synthetic payloads signed with a local secret**.
+  No LemonSqueezy account is involved in any of them. Closing the last row needs a
+  test-mode store, a product, and a sandbox checkout — not just a key, and there is
+  no workaround that makes a signed payload into evidence about a purchase.
+
+  The write path runs against account C only (#239). It has **never run against
+  `qa` or `staging`** — neither service has a `LEMONSQUEEZY_WEBHOOK_SECRET` to sign
+  with, so it is currently verified on a local production build alone.
 - **Nothing has ever looked at a rendered page** — `TEST_GAPS.md` §2. Contrast,
   labels and structure are measured; appearance is not.
 - **The contrast sweep is data-dependent.** Fixtures exist for 17 third-party
