@@ -174,9 +174,15 @@ export default defineConfig({
   fullyParallel: false,
 
   forbidOnly: !!process.env.CI,
+  /* `./qa/triage-reporter.mjs` groups failures by CAUSE and prints the distinct
+     cause count. It exists because the note telling me to do that by hand was
+     not enough: I wrote "count the failures before you read them" into
+     qa/STATUS.md on 2026-08-11, and on 2026-08-12 triaged the same run as
+     "7 environmental, 3 real" and filed the eighth timeout as a WCAG defect.
+     It never suppresses a failure or changes exit status - it only prints. */
   reporter: process.env.CI
-    ? [['github'], ['html', { outputFolder: 'qa/e2e-report', open: 'never' }], ['list']]
-    : [['list'], ['html', { outputFolder: 'qa/e2e-report', open: 'never' }]],
+    ? [['github'], ['html', { outputFolder: 'qa/e2e-report', open: 'never' }], ['list'], ['./qa/triage-reporter.mjs']]
+    : [['list'], ['html', { outputFolder: 'qa/e2e-report', open: 'never' }], ['./qa/triage-reporter.mjs']],
 
   use: {
     baseURL: BASE_URL ?? `http://localhost:${PORT}`,
