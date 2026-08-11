@@ -337,22 +337,79 @@ deployed `qa` and `staging` services directly:
 | `smoke` | deployed `qa` + `staging`, all 32 routes |
 | `cache-policy`, `cache-effective` | deployed `qa` + `staging`, 11 routes pinned |
 
-**What is covered nowhere:** `perf`, `a11y`, `a11y-auth`, `bola`, `contrast`,
-`i18n`, `layout`, `clock`, `payments-webhook`, `checkout`. The authenticated and
-accessibility surfaces have no recent evidence of any kind.
+### UPDATED 2026-08-12 — the premise changed, and the gap narrowed by hand
 
-**This is why the "250 passed / 41 minutes" figure at the top of this file is a
-historical measurement rather than a current one.** It has not been re-measured
-by CI since the pause.
+**CI is not coming back for this.** All three workflows are now
+`disabled_manually` and `RELEASE_PR_PAUSED = 1`, and both are the owner's
+deliberate cost control on a private repo where every Actions minute is billed to
+them personally. PR #210's mechanism exists and is switched off. Treat "no CI ran"
+as the normal state, not as a defect — it was filed as one (#285) on a wrong guess
+about billing quota and closed as not-a-defect.
 
-**Fix in flight:** PR #210 runs the suite on every push to `staging` — the release
-candidate, a few times a week, ~190 min/month. Not on `qa`, which was QA's first
-proposal and would have cost ~760 min/month and re-created the original overspend.
+**What replaced it:** QA runs the suite locally against the **deployed** `qa` and
+`staging` services with `E2E_BASE_URL`, which costs nothing and is stronger
+evidence than CI's own ephemeral build. Measured against `0ab7034` on both hosts
+on 2026-08-12:
 
-**Closing this needs:** #210 merged, then one `qa` → `staging` promotion observed
-to fire a full run. Expect the five §9 perf LCP failures on that first run — they
-are a laptop-calibrated budget, not a regression, and they are exactly the kind of
-thing that has been invisible while this gap was open.
+| Spec | Result | Host |
+|---|---|---|
+| `smoke` | 12/12 | staging |
+| `econ-calendar` | 7/7 | qa + staging |
+| `hidden-routes` | 4/4 | qa + staging |
+| `no-selling-hidden-features` | 3/3 | qa + staging |
+| `ops-admit` | 20/20 | staging |
+| `version-configured` | 2 passed, 2 skipped (host predates #283) | staging + **production** |
+| `arena-read-card` | 5/5 | staging |
+| `arena-legacy-signals` | 5 skipped (host predates #277) | staging |
+| `a11y` tap targets | 3 consecutive passes | staging, **mobile project only** |
+| `a11y-auth` U5 | 3 passes across both hosts | qa + staging |
+| `cache-policy`, `cache-effective` | as before | qa + staging |
+
+**The rest were then run rather than listed as a gap** — same session, same host,
+`--project=desktop`:
+
+| Spec | Result |
+|---|---|
+| `bola` + `payments-webhook` + `i18n` + `clock` | 32 passed, 3 skipped |
+| `checkout` | 2/2 — **after a fix, see below** |
+| `layout` + `perf` | 11 passed |
+| `a11y` + `a11y-auth` | 10 passed, 2 skipped |
+| `contrast` | 3 passed, both themes |
+
+**`checkout` had never once run against a deployed host, and nobody knew.** It
+intercepted `example.lemonsqueezy.com` — the deliberately fake value `ci.yml`
+inlines at build time. Against a real store URL the interception never fired, and
+the failure read *"nothing navigated … either the button is not wired to
+getCheckoutUrl, or the env var was absent at BUILD time"*. That message sends the
+reader hunting a product defect or a build problem. Now matched on LemonSqueezy's
+`/checkout/buy/` path shape, which the CI fake and every real store share.
+
+Same family as the hardcoded `localhost` in `security.spec` and `perf.spec`
+(#266): **anything holding a URL constant is a spec that silently only ever tests
+one environment.** Two found this way now; worth grepping for a third.
+
+**What genuinely remains uncovered:**
+
+- **the `mobile` project** for everything above — these were desktop-only runs.
+  `a11y`'s tap-target test is mobile-only and was run separately; the rest were
+  not.
+- **a REAL purchase granting Pro** (§5). Unchanged, and no amount of local running
+  closes it.
+- **`perf`'s LCP budget**, which passed here but is laptop-calibrated and has
+  never been meaningful on a slower machine — see §9.
+
+**The "250 passed / 41 minutes" figure at the top of this file remains a
+historical measurement.** The table above is a set of targeted runs, not a sweep,
+and it does not add up to one.
+
+**A targeted run is preferred over a sweep even though both are free.** A
+40-minute suite wakes the free-plan Render services and, more importantly,
+produces the failure volume that caused the #284 misfile — ten failures where
+eight shared one cause. `qa/triage-reporter.mjs` now prints the distinct cause
+count on every run for exactly that reason.
+
+**Closing this gap now means** running the uncovered specs against a deployed host
+and recording the result here — not waiting for a pipeline that is off on purpose.
 
 ---
 

@@ -28,7 +28,24 @@ import { AUTH_READY, AUTH_SKIP_REASON, FIXTURES, signedInContext, gotoSignedIn }
  * test-mode keys and a live sandbox. §5 stays open on that alone.
  */
 
-const CHECKOUT_HOST = 'example.lemonsqueezy.com';
+/* Matched on the PATH SHAPE, not on a hostname.
+ *
+ * This was `example.lemonsqueezy.com` - the deliberately fake value `ci.yml`
+ * inlines at build time. That works for a local build and silently breaks on a
+ * DEPLOYED host, where the store URL is real and different, so the interception
+ * never fires and the failure reads "nothing navigated to
+ * example.lemonsqueezy.com. Either the button is not wired to getCheckoutUrl,
+ * or the env var was absent at BUILD time" - a message that sends the reader
+ * looking for a product defect or a build problem, when the spec was aimed at a
+ * host that was never going to be contacted.
+ *
+ * Found 2026-08-12 running this against deployed `staging`. Same family as the
+ * hardcoded `localhost` in security.spec and perf.spec (#266): anything holding
+ * a URL constant is a spec that silently only ever tests one environment.
+ *
+ * `/checkout/buy/<id>` is LemonSqueezy's own path shape and is shared by the CI
+ * fake and every real store, so this matches both without knowing the host. */
+const CHECKOUT_PATH = '**/checkout/buy/**';
 
 test.describe('checkout hand-off', () => {
   test.skip(!AUTH_READY, AUTH_SKIP_REASON);
@@ -63,7 +80,7 @@ test.describe('checkout hand-off', () => {
     /* Capture the hand-off and STOP it. Aborting means the fake host is never
      * contacted, so this test makes no third-party request at all. */
     let handoff = '';
-    await page.route(`**${CHECKOUT_HOST}**`, route => {
+    await page.route(CHECKOUT_PATH, route => {
       handoff = route.request().url();
       return route.abort();
     });
@@ -86,7 +103,7 @@ test.describe('checkout hand-off', () => {
         .poll(() => handoff, {
           timeout: 15_000,
           message:
-            `nothing navigated to ${CHECKOUT_HOST}. Either the button is not wired to ` +
+            'nothing navigated to a /checkout/buy/ URL. Either the button is not wired to ' +
             'getCheckoutUrl, or NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL was absent at BUILD time ' +
             'and the page fell back to /login?signup=1 - check the webServer build env before ' +
             'reading this as a product defect.',
@@ -115,7 +132,7 @@ test.describe('checkout hand-off', () => {
     const page = await ctx.newPage();
 
     let reachedCheckout = false;
-    await page.route(`**${CHECKOUT_HOST}**`, route => { reachedCheckout = true; return route.abort(); });
+    await page.route(CHECKOUT_PATH, route => { reachedCheckout = true; return route.abort(); });
 
     try {
       await gotoGuarded(page, '/upgrade', { waitUntil: 'domcontentloaded' });
