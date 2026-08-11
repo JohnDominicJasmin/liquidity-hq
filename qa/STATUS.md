@@ -2,7 +2,7 @@
 
 **One page. If you only read one thing, read this.**
 
-Kept current by QA. Last updated **2026-08-11**.
+Kept current by QA. Last updated **2026-08-12**.
 
 ## Read this before you trust anything below
 
@@ -225,6 +225,36 @@ gh issue list --state open
   NOT re-set in the same change**: picking a number in the commit that first makes
   it measurable means the baseline comes from a run nobody has looked at twice.
   #263 holds that.
+- **A timeout in a sweeping spec is not a finding — count the failures before you
+  read them.** Added 2026-08-11. A full suite run against deployed `qa` came back
+  **214 passed, 10 failed**, and the ten looked like four separate problem areas:
+
+  ```
+  seo/canonical    -> /calc        TimeoutError: page.goto: Timeout 90000ms exceeded
+  seo/title        -> /playbook    same
+  seo/meta-desc    -> /news        same
+  seo/h1           -> /ops/login   same
+  a11y/unnamed     -> /research    same
+  a11y/html-lang   -> /news        same
+  a11y/duplicate-id-> /terms       same
+  ```
+
+  **Seven of the ten were one navigation timeout wearing seven names.** A spec
+  that walks every route reports one slow response once per assertion, so a single
+  environmental hiccup multiplies by however many things that spec checks. Free-plan
+  Render, cold containers, forty minutes of continuous load.
+
+  Two failure modes, and the second is the expensive one. **I guessed first** —
+  said the four `seo` failures were "almost certainly baselines needing
+  re-derivation" because `ROUTES` had lost two entries in #267. Plausible, and
+  wrong. Reporting it would have sent someone to re-derive four baselines that
+  were fine. **A plausible explanation for a red run is also how a real
+  regression gets waved through.**
+
+  Read the error class before the test name. Group by root cause, not by spec
+  file, and say how many *distinct* causes there are — "10 failures" and "3
+  problems, one of them environmental" are different reports and only the second
+  is actionable.
 - **An empty result is not evidence unless something proves the instrument works.**
   This bit **seven** separate times on 2026-08-10 and is by a distance the most
   repeated defect in this suite: `cache-policy` asserted headers that cached
