@@ -53,7 +53,19 @@ Core surfaces: AI Arena (EMA ribbon signal engine + confluence scoring), backtes
 scanners, 11 Grok-powered research tools, Telegram + Web Push alerts, news/sentiment,
 calculators, trade journal, and an internal-only `/ops` admin console.
 
-**Business state:** pre-revenue. Two test accounts, no real users, payments not switched on.
+> **`/backtest` and `/live-tracking` are HIDDEN as of 2026-08-11** (#264, shipped in
+> #265). `proxy.ts` redirects both to `/dashboard`, and their nav entries are gone.
+> The pages are hidden, **not deleted** — everything under `app/backtest/` and
+> `app/live-tracking/` still exists and still builds, so the backtest engine above is
+> live code, not dead code, and `lib/backtestEngine.ts` is still what the Arena chart
+> and the signal tracker share their fill rules with. Reversing this is deleting two
+> strings from `BLOCKED` in `proxy.ts` — but the route list in `qa/e2e/_shared.ts` and
+> `HIDDEN_ROUTES` have to move with it in both directions, or the sweeping specs
+> silently measure `/dashboard` twice instead of failing.
+
+**Business state:** pre-revenue. Two test accounts, no real users, payments not switched
+on in production — a **test-mode** checkout is live on staging as of 2026-08-11 (see
+"Turning on payments" below).
 
 ---
 
@@ -436,6 +448,12 @@ Deliberately deferred while there are zero real users — nothing of value would
 today. But do it **before** flipping payments on, not after the first paying signup.
 
 ### Turning on payments — 4 steps, in this order
+
+**Status 2026-08-11: steps 1, 3 and 4 are done on STAGING in test mode; step 2 is not.
+All four are still outstanding for PRODUCTION** — test and live webhooks are separate
+objects, secrets never cross environments, and `NEXT_PUBLIC_*` is inlined per build, so
+nothing configured on staging carries over. Detail and the staging verification method
+in `pendings/LEMONSQUEEZY.md`.
 
 The code is finished and verified (webhook signature check, `custom_data.user_id` bound to
 the payer's real email, replay protection via `lhq_ls_webhook_events`, test-mode rejection
