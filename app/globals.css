@@ -2142,7 +2142,18 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .edge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin-bottom: 8px; }
 .edge-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 10px; padding: 7px 10px; }
 .edge-card-label { font-family: var(--font-mono), monospace; font-size: var(--fs-micro); font-weight: 600; color: var(--txt3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.edge-card-value { font-family: var(--font-mono), monospace; font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* min-height, so a card whose value uses a smaller font is still the same
+   height as its neighbours (#244).
+   QA measured three .edge-card in the Arena rail: VWAP and Funding 77px, Open
+   Interest 74px, with its third row 3px out of step. Cause is an inline
+   font-size on the OI value only - 13px against the 15px the other two inherit.
+   The owner reported the FUNDING card; the funding card is correct. A fix aimed
+   at the complaint would have changed the one that already matched.
+   Equalising the BOX rather than the font, because the smaller font is doing a
+   job: the OI value can read "Short covering" where the others hold a number,
+   and at 15px that ellipsises. This keeps the rail aligned in every state
+   without forcing a word to compete with a number for width. */
+.edge-card-value { font-family: var(--font-mono), monospace; font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: calc(var(--fs-data) * 1.1); display: flex; align-items: center; }
 .edge-card-sub   { font-size: var(--fs-caption); color: var(--txt3); margin-top: 2px; line-height: 1.4; }
 .edge-card-signal { font-size: var(--fs-caption); font-weight: 600; margin-top: 2px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
