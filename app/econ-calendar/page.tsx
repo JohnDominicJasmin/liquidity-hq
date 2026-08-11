@@ -8,6 +8,8 @@ import { econImpactKey, type EconImpact } from '@/lib/classify';
 
 type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
+  /* Computed date, not a published one (#245). */
+  estimated?: boolean;
   previous?: string; estimate?: string; actual?: string;
 };
 
@@ -141,7 +143,20 @@ export default function EconCalendarPage() {
                 {released ? t('ECON_CALENDAR_LATEST_RELEASE') : t('ECON_CALENDAR_NEXT_EVENT')}
               </div>
               <div style={{ fontSize: 'var(--fs-body)', fontWeight: 700, color: 'var(--txt)' }}>{next.name}</div>
-              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>{fmtTime(next.isoDate)}</div>
+              {/* The hero date is the most prominent claim on this page, so an
+                  estimated one says so in words rather than only a tilde (#245). */}
+              <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 2 }}>
+                {next.estimated ? '~' : ''}{fmtTime(next.isoDate)}
+                {next.estimated && (
+                  <span
+                    title="This date is computed from a typical release pattern, not a published schedule. It can be off by several days."
+                    style={{ marginLeft: 6, fontSize: 'var(--fs-micro)', fontWeight: 700, letterSpacing: '.04em',
+                             textTransform: 'uppercase', color: 'var(--amber)' }}
+                  >
+                    estimated
+                  </span>
+                )}
+              </div>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
               <div style={{ fontSize: '1.5rem', fontWeight: 800, color: ic.color, lineHeight: 1, letterSpacing: '-0.5px' }}>{ct}</div>
@@ -212,8 +227,11 @@ export default function EconCalendarPage() {
                     }}
                   >
                     {/* TIME */}
-                    <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
-                      {fmtTime(e.isoDate)}
+                    <div
+                      title={e.estimated ? 'Estimated date - computed from a typical release pattern, not a published schedule' : undefined}
+                      style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt2)', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}
+                    >
+                      {e.estimated ? '~' : ''}{fmtTime(e.isoDate)}
                       {!isPast && !ctObj.released && (
                         <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt3)', marginTop: 1 }}>{t('ECON_CALENDAR_IN_COUNTDOWN', { countdown: ct })}</div>
                       )}

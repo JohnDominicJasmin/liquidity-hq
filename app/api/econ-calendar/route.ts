@@ -42,6 +42,15 @@ const DISPLAY_NAMES: Record<string, string> = {
 export type CalEvent = {
   name: string; type: string; isoDate: string; impact: string;
   previous?: string; estimate?: string; actual?: string;
+  /* True when the DATE was computed by computeMacroSchedule rather than read
+     from a real source (#245).
+     Nothing in this payload used to distinguish a computed entry from a real
+     one - same shape, same `impact: 'high'`, no flag - so the UI could not tell
+     them apart and neither could the user. A computed entry also carries a real
+     FRED `actual`, which makes it look MORE authoritative than a genuine entry
+     with no number yet, while being the one that is wrong.
+     Absent on entries from Finnhub, ForexFactory and the Fed. */
+  estimated?: boolean;
 };
 
 const MONTHS = ['January','February','March','April','May','June','July','August',
@@ -282,13 +291,45 @@ async function enrichWithFRED(events: CalEvent[], now: Date): Promise<void> {
 // ── Source 4: Computed schedule for key US macro releases ─────────────────────
 // Approximate release patterns - accurate within a few days. Used when no live
 // feed is available. Covers the 8 most market-moving releases.
+/* Move a computed date off a weekend (#245).
+ *
+ * The hardcoded day-of-month entries below - CPI on the 12th, PPI on the 11th,
+ * Retail on the 15th, GDP on the 25th - have no idea what a weekend is. Over the
+ * next twelve months that emitted, among others:
+ *
+ *     RETAIL 2026-08-15 = Saturday        CPI 2026-09-12 = Saturday
+ *     PPI    2026-10-11 = Sunday          GDP 2026-10-25 = Sunday
+ *
+ * Two of those were live on staging when QA reproduced this. No US statistical
+ * agency has ever released data on a Saturday, so those are not "approximate
+ * within a few days" - they are dates that cannot exist.
+ *
+ * Nearest weekday, not "next business day": these are approximations either way,
+ * and BLS moves a release earlier as often as later. Saturday goes back to
+ * Friday, Sunday forward to Monday - the smallest change that removes an
+ * impossible date. It does NOT make the date correct, which is why every entry
+ * from this function is also flagged `estimated`. */
+function offWeekend(dt: Date): Date {
+  const day = dt.getUTCDay();
+  if (day === 6) dt.setUTCDate(dt.getUTCDate() - 1);   // Sat -> Fri
+  else if (day === 0) dt.setUTCDate(dt.getUTCDate() + 1); // Sun -> Mon
+  return dt;
+}
+
 function computeMacroSchedule(now: Date): CalEvent[] {
   const events: CalEvent[] = [];
   const maxH = 90 * 24;
 
+  /* EVERY entry from this function is `estimated: true`. The dates are patterns,
+     not a schedule - the function's own header says "accurate within a few
+     days". Shipping that as indistinguishable from a real release date is the
+     defect in #245; the approximation itself is fine and clearly labelled. */
   const push = (name: string, type: string, dt: Date) => {
-    const h = (dt.getTime() - now.getTime()) / 3600000;
-    if (h >= 0 && h <= maxH) events.push({ name, type, isoDate: dt.toISOString(), impact: 'high' });
+    const when = offWeekend(dt);
+    const h = (when.getTime() - now.getTime()) / 3600000;
+    if (h >= 0 && h <= maxH) {
+      events.push({ name, type, isoDate: when.toISOString(), impact: 'high', estimated: true });
+    }
   };
 
   for (const y of [now.getUTCFullYear(), now.getUTCFullYear() + 1]) {
@@ -371,7 +412,32 @@ export async function GET(req: NextRequest) {
 
     for (const e of ffEvents)    add(e, `${e.type}|${e.isoDate.slice(0, 10)}`);
     for (const e of fomcEvents)  add(e, `FOMC|${e.isoDate.slice(0, 10)}`);
-    for (const e of macroEvents) add(e, `${e.type}|${e.isoDate.slice(0, 10)}`);
+
+    /* A COMPUTED ENTRY IS DROPPED WHEN A REAL ONE EXISTS FOR THAT MONTH (#245).
+     *
+     * The dedup key above is `type|YYYY-MM-DD`, so a real PPI on the 13th and a
+     * computed PPI on the 11th are different keys and BOTH survived. That is
+     * what the owner actually saw: PPI listed on Tuesday the 11th when the real
+     * release was Thursday the 13th. Both were in the payload, and the wrong one
+     * carried the FRED `actual` - so the fabricated row looked like the more
+     * complete of the two.
+     *
+     * Marking computed entries `estimated` was not enough on its own. A user
+     * seeing the same release twice, on two dates, cannot tell which to plan
+     * around, and the label does not resolve that - it only says one of them is
+     * a guess.
+     *
+     * MONTH, not day: these are monthly releases (GDP quarterly), so one real
+     * CPI in August means every computed CPI for August is redundant regardless
+     * of which day it landed on. Comparing by day would keep exactly the
+     * duplicate this is here to remove. */
+    const realByMonth = new Set(
+      [...ffEvents, ...fomcEvents].map(e => `${e.type}|${e.isoDate.slice(0, 7)}`),
+    );
+    for (const e of macroEvents) {
+      if (realByMonth.has(`${e.type}|${e.isoDate.slice(0, 7)}`)) continue;
+      add(e, `${e.type}|${e.isoDate.slice(0, 10)}`);
+    }
 
     await enrichWithFRED(merged, now);
 

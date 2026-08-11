@@ -34,6 +34,10 @@ export interface EconEvent {
   previous?: string;
   estimate?: string;
   actual?: string;
+  /* The DATE is a computed approximation, not a published release date (#245).
+     Distinct from `estimate`, which is a forecast VALUE - these two are easy to
+     confuse and mean opposite things. */
+  estimated?: boolean;
 }
 
 export interface GeoEvent {
@@ -74,6 +78,8 @@ interface NewsRow {
 export interface CalEvent {
   name: string; type: string; isoDate: string; impact: string;
   previous?: string; estimate?: string; actual?: string;
+  /* Mirrors the API type (#245). A computed date, not a published one. */
+  estimated?: boolean;
 }
 
 interface NewsCtx {
@@ -235,7 +241,7 @@ export default function NewsProvider({ children }: { children: React.ReactNode }
         const h = (dt.getTime() - now.getTime()) / 3600000;
         if (h < -24) return [];
         seen.add(key);
-        return [{ name: e.name, type: e.type, impact: e.impact, dt, h, dateStr: toLocalTime(dt), previous: e.previous, estimate: e.estimate, actual: e.actual }];
+        return [{ name: e.name, type: e.type, impact: e.impact, dt, h, dateStr: toLocalTime(dt), previous: e.previous, estimate: e.estimate, actual: e.actual, estimated: e.estimated }];
       })
       .sort((a, b) => a.dt.getTime() - b.dt.getTime());
     setEconRaw(raw);
