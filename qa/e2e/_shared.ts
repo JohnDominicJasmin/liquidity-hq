@@ -453,8 +453,47 @@ export const CLS_UNSTABLE = new Set<string>([]);
  * was visible at 375px and all elements collapsed to inline size. Numbers from
  * an unstyled render are worse than no numbers, because they look real.
  */
+/**
+ * Prefix for a failure the code under test did not cause.
+ *
+ * A spec that walks every route reports one slow response once per assertion, so
+ * a single cold container multiplies into as many failures as that spec makes
+ * checks. On 2026-08-11 that turned ONE navigation timeout into SEVEN failures
+ * spread across two spec files, which read as four separate problem areas until
+ * the error class was compared rather than the test names.
+ *
+ * Marking it at the throw site is what makes the triage mechanical: group a red
+ * run by this prefix first, and what remains is the actual finding count. Without
+ * it the reader is left inferring intent from a stack trace, and a plausible
+ * explanation for a red run is also how a real regression gets waved through.
+ */
+export const ENV_FAILURE = 'ENVIRONMENT';
+
 export async function settle(page: Page, path: string): Promise<void> {
-  const res = await page.goto(path, { waitUntil: 'domcontentloaded' });
+  let res;
+  try {
+    res = await page.goto(path, { waitUntil: 'domcontentloaded' });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    /* Playwright raises TimeoutError by name; the socket-level failures below
+       carry no distinct type, so they are matched on the message. All of them
+       mean "the service did not answer", never "the assertion is wrong". */
+    const environmental =
+      (e instanceof Error && e.name === 'TimeoutError') ||
+      /ERR_CONNECTION_(REFUSED|RESET)|ERR_NETWORK_CHANGED|ECONNREFUSED|ERR_EMPTY_RESPONSE|socket hang up/i.test(msg);
+
+    if (!environmental) throw e;
+
+    throw new Error(
+      `${ENV_FAILURE}: navigation to ${path} never completed - ${msg.split('\n')[0]}\n` +
+      `This is NOT a finding about ${path}. The service did not answer in time; the ` +
+      `assertions below it never ran. Free-plan Render sleeps when idle and the first ` +
+      `request after that is slow, and a long sweep keeps containers under load.\n` +
+      `Before reporting: count how many failures in this run carry the ${ENV_FAILURE} ` +
+      `prefix. They are one cause, not one each.`,
+    );
+  }
+
   if (res && res.status() >= 400) {
     throw new Error(`${path} returned HTTP ${res.status()}`);
   }
