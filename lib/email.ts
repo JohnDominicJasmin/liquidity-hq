@@ -33,6 +33,7 @@ interface TrialEndingArgs {
 }
 
 import { reportHealth, healthError } from '@/lib/apiHealth';
+import { isCheckoutConfigured } from './checkout';
 
 /* Every sender in this file ends in `return res.ok` inside a try/catch that
    returns false - so a bounced welcome email, an expired Brevo key or a
@@ -305,10 +306,7 @@ export async function sendTrialEndingEmail(args: TrialEndingArgs): Promise<boole
      env check /upgrade and UpgradeGateModal already use, so the three agree by
      construction. The rest of the email still sends either way: its real job is
      warning that features are about to lock, which is true regardless. */
-  const checkoutLive = !!(
-    process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL &&
-    process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL !== '#'
-  );
+  const checkoutLive = isCheckoutConfigured();
   const cta = checkoutLive
     ? `<p style="margin:0 0 12px">Keep Pro: <a href="${upgradeUrl}">${upgradeUrl}</a></p>`
     : `<p style="margin:0 0 12px">Pro is not on sale yet, so there is nothing to buy today - the features above still lock ${when}, and we will email you as soon as there is a way to keep them.</p>`;

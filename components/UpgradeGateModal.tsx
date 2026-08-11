@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { getCheckoutUrl } from '@/lib/checkout';
+import { getCheckoutUrl, isCheckoutConfigured } from '@/lib/checkout';
 import { useLabels } from '@/lib/labels';
 
 interface Props {
@@ -62,10 +62,7 @@ export function LockedFeatureCard({ title, description, onUnlock }: {
 // signup with /upgrade as the destination.
 function useCheckoutHref() {
   const { user } = useAuth();
-  const checkoutConfigured = !!(
-    process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL &&
-    process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL !== '#'
-  );
+  const checkoutConfigured = isCheckoutConfigured();
   return checkoutConfigured
     ? getCheckoutUrl(user)
     : user ? '/upgrade' : '/login?signup=1&next=/upgrade';
