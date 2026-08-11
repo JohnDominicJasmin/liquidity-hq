@@ -74,11 +74,22 @@ test.describe('api security', () => {
     }
   });
 
-  test('security headers are present on the document', async () => {
+  test('security headers are present on the document', async ({ baseURL }) => {
     // A fresh context: fixture `request` shares cookie state, and we want the
     // raw document response here.
+    //
+    // ADDRESS `baseURL`, NOT localhost. This used to hardcode
+    // `http://localhost:${E2E_PORT ?? 3100}`, which meant that with
+    // E2E_BASE_URL set - the whole point of #203 - it tried to reach a local
+    // server that was never started and died with ECONNREFUSED. So the security
+    // headers on every DEPLOYED service were checked by nothing, and the failure
+    // read as a broken assertion rather than a spec addressing the wrong host.
+    //
+    // Found on 2026-08-11 in the first full remote run. The headers themselves
+    // are fine - CSP, HSTS, x-frame-options, permissions-policy and nosniff are
+    // all present on qa. This test simply was not looking at them.
     const ctx = await pwRequest.newContext();
-    const r = await ctx.get(`http://localhost:${process.env.E2E_PORT ?? 3100}/`);
+    const r = await ctx.get(baseURL ?? `http://localhost:${process.env.E2E_PORT ?? 3100}/`);
     const h = r.headers();
 
     expect(h['x-frame-options']).toBe('DENY');

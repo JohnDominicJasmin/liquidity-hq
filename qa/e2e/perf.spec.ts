@@ -171,11 +171,32 @@ test.describe('performance', () => {
   //
   // Baseline is deliberately set just above today's measurement so it cannot
   // get worse, and should be driven towards ~0 for static routes.
-  test('a static legal page does not fan out to market-data APIs', async ({ page }, testInfo) => {
+  test('a static legal page does not fan out to market-data APIs', async ({ page, baseURL }, testInfo) => {
+    /* THIRD PARTY MEANS "NOT OUR ORIGIN", and that origin is not always
+     * localhost.
+     *
+     * This used to test `!url.startsWith('http://localhost')`, which is correct
+     * for a local run and silently wrong for every remote one: with
+     * E2E_BASE_URL set, EVERY same-origin request counts as third-party and the
+     * number is nonsense.
+     *
+     * The dangerous part is that it does not fail - it inflates. A baseline
+     * comparison against an inflated count either fails for the wrong reason or,
+     * worse, passes because the baseline was itself recorded remotely.
+     *
+     * Found 2026-08-11 alongside the same bug in security.spec.ts, which at
+     * least had the decency to ECONNREFUSED. */
+    /* `baseURL`, not `page.url()` - the listener is registered BEFORE the
+       navigation, so page.url() is still `about:blank` here and every request
+       would look foreign. Caught while writing this fix, which is a fair
+       indication of how easy the original mistake was to make. */
+    const ownOrigin = new URL(baseURL ?? `http://localhost:${process.env.E2E_PORT ?? 3100}`).origin;
     const thirdParty: string[] = [];
     page.on('request', r => {
       const url = r.url();
-      if (!url.startsWith('http://localhost') && !url.startsWith('data:')) thirdParty.push(url);
+      if (url.startsWith('data:') || url.startsWith('blob:')) return;
+      if (url.startsWith(ownOrigin)) return;
+      thirdParty.push(url);
     });
 
     await page.goto('/refund', { waitUntil: 'domcontentloaded' });
