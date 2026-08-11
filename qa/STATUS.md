@@ -129,9 +129,32 @@ gh issue list --state open
   (#221), which is not reproducible on any deployed service because the footer
   sits below the fold there.
 
-  Consequence: **the four gates in `CONTRIBUTING` are now entirely manual.** Run
-  `npm run lint && npx tsc --noEmit && npm test && npm run build` before every PR.
-  Nothing is underneath you.
+  **Three of the four gates are now enforced locally** — `.githooks/pre-push`
+  runs lint, tsc and the unit tests before every push (#246, shipped in #248).
+  One line per clone, and it is NOT automatic because `.git/` is not versioned:
+
+  ```bash
+  git config core.hooksPath .githooks
+  ```
+
+  **It is a convenience, not a replacement.** `--no-verify` bypasses it, and it
+  runs on the developer's own machine with the developer's own env — so it can
+  never catch the keyless-build class of defect above. **`npm run build` is
+  deliberately not in it** (~90s against ~25s for the other three; a gate people
+  disable protects nothing), so build stays manual before every PR.
+
+  When someone asks whether CI is still needed, the answer is yes, and the
+  paragraph above is why.
+- **`lib/apiCache.ts` holds an unbounded Map.** `store` has no eviction, no cap
+  and no TTL sweep — expiry stops an entry being *served*, it does not free it.
+  Any `cached()` caller whose key includes a user-controllable value can mint
+  permanent entries. Found via `/api/proxy` and fixed **for that route only**
+  (#242's per-request `CURSOR_PARAMS` check); the primitive is unchanged. #253.
+- **The browser now makes ZERO calls to any exchange** — measured 10/10 routes on
+  merged `dev`, 2026-08-11 (#238, from a 2,246 baseline). The consequence is that
+  `/api/proxy` carries fifteen passthrough types behind **one** shared rate limit
+  and **one** shared cache. If that route fails, far more of the app goes quiet
+  than before. That is the accepted cost of the consolidation, not an oversight.
 - **`perf.spec`'s LCP budget was calibrated on a laptop.** `< 2500ms` against a
   local 84–720ms measurement — 3× headroom over a dev machine and none over a
   GitHub runner, where the five heaviest routes land at 2740–4456ms. It fails in

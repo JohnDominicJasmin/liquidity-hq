@@ -1,5 +1,21 @@
 import { test, expect } from '@playwright/test';
 import crypto from 'node:crypto';
+/* SIDE-EFFECT IMPORT, and it is load-bearing. `_auth.ts` reads `.env.e2e.local`
+ * and `.env.local` into process.env at module scope. Without it this file sees
+ * no LEMONSQUEEZY_WEBHOOK_SECRET locally, and ALL THREE signed tests skip -
+ * including the BOLA-of-payments one, which is the most important assertion in
+ * the file.
+ *
+ * That was the actual state until 2026-08-11: they passed in CI, where the job
+ * supplies env directly, and skipped everywhere else. With CI disabled for cost
+ * since 2026-08-10, "everywhere else" is the only place they run - so the
+ * payments security surface was verified by nothing, anywhere, and the only
+ * symptom was `3 skipped` scrolling past.
+ *
+ * Exactly the trap `_auth.ts` documents at length about E2E_B_PRICE_ALERT_ID
+ * skipping all twenty authenticated tests. Same shape, different file, found by
+ * adding a fourth test and noticing it skipped too. */
+import './_auth';
 
 /* The LemonSqueezy webhook — signature, replay guard, ownership check.
  *
@@ -122,6 +138,63 @@ test.describe('LemonSqueezy webhook', () => {
      * that would make the route a denial-of-service surface. */
     expect(r.status(), 'a malformed signature produced something other than 401').toBe(401);
     expect(r.status(), 'a malformed signature crashed the route').not.toBe(500);
+  });
+
+  /* ── A signed event with no user of ours attached ──────────────────────────
+   *
+   * Needs the SECRET and nothing else: `if (!userId) return` sits at
+   * route.ts:56, BEFORE `getSupabaseAdmin()`, so this never touches the
+   * database. That is why it is here rather than in `payments-write-path.spec.ts`
+   * where I first said it would go - putting it there would have made it skip
+   * whenever the service-role key was absent, for a branch that does not use it.
+   *
+   * WHY IT MATTERS, and it is about to matter for real. `custom_data.user_id` is
+   * written by `getCheckoutUrl`, so it is present on events from orders that went
+   * through our checkout and ABSENT on an event simulated from the LemonSqueezy
+   * dashboard against an order created any other way. Simulation is how the
+   * cancelled/expired/refunded branches get exercised without waiting out a real
+   * billing period (#243), so this path is about to be hit deliberately.
+   *
+   * It used to return a bare `{received: true}`, which LemonSqueezy renders as a
+   * green delivery - so "the handler ignored this" and "the handler worked" were
+   * the same picture, on the payments path, in the run whose purpose is deciding
+   * whether payments work. Fixed in #251; this is what stops it regressing.
+   *
+   * Still 2xx on purpose: a non-2xx makes LemonSqueezy RETRY, and an event with
+   * no user of ours attached is not a failure to retry - it is correctly not
+   * ours. Asserting the STATUS as well as the reason, because a later "tidy-up"
+   * to 4xx would turn every such delivery into a retry storm. */
+  test.describe('signed, but no user attached', () => {
+    test.skip(!SECRET,
+      'LEMONSQUEEZY_WEBHOOK_SECRET is not set, so no correctly-signed payload can be built. ' +
+      'Skipping rather than passing: this asserts a REASON string, and a test that never ' +
+      'reaches the handler cannot tell a missing reason from a wrong one.');
+
+    test('is refused with a reason, not a bare 200', async ({ request }) => {
+      /* Deliberately no `custom_data.user_id`, and a nonce so the replay guard
+         does not answer first on a re-run. The guard is downstream of this
+         branch, but the nonce costs nothing and the failure it prevents is the
+         confusing kind. */
+      const body = JSON.stringify({
+        meta: { event_name: 'subscription_created', custom_data: { qa_nonce: crypto.randomUUID() } },
+        data: { id: 'sub_no_user', attributes: { status: 'active', user_email: 'nobody@example.test' } },
+      });
+
+      const r = await request.post(ENDPOINT, {
+        headers: { 'Content-Type': 'application/json', 'x-signature': sign(body) },
+        data: body,
+        failOnStatusCode: false,
+      });
+
+      expect(r.status(), 'a non-2xx makes LemonSqueezy retry an event that will never succeed').toBe(200);
+
+      const text = await r.text();
+      expect(text,
+        'the handler accepted an event with no user attached and said nothing about it. ' +
+        'That renders as a green delivery in the LemonSqueezy log, so a silent no-op is ' +
+        'indistinguishable from a successful write - the #228 empty-200 on the payments path.')
+        .toContain('no custom_data.user_id');
+    });
   });
 
   test.describe('with a valid signature', () => {
