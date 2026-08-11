@@ -53,6 +53,7 @@ morning and done by lunchtime. They live on the issue that needs them.
 | **The suite can address a deployed service.** `E2E_BASE_URL=https://…` sets `baseURL` and drops the `webServer`. Before this, every "verified on qa" claim was measured against a *local build of the same commit* | 2026-08-10 | #203; comment in `playwright.config.ts` |
 | **A cache assertion must measure the DATA, not a header and not a clock.** Both market routes stamp `ts: Date.now()`, so whole-body diffs vary however well the data is cached | 2026-08-10 | `qa/e2e/cache-effective.spec.ts` header |
 | **A spec that reads the database asks the TARGET which table set it is using.** `lib/tables.ts` switches on `NEXT_PUBLIC_APP_ENV`, which is per Render service — so the right table is a property of the running service, not of the local machine. `/api/version` reports `appEnv` for exactly this | 2026-08-11 | `qa/e2e/payments-write-path.spec.ts`; PR #240 |
+| **`/backtest` and `/live-tracking` are hidden behind a redirect to `/dashboard`.** Owner's call — the routes are blocked, not merely dropped from the nav. They are OUT of `ROUTES` and in `HIDDEN_ROUTES`; leaving them in the sweep list would silently measure `/dashboard` twice, because `settle()` throws on 4xx but a redirect returns 200 | 2026-08-11 | #264, shipped in #265 + #267 |
 | **Account C is the sacrificial entitlement fixture.** A and B stay pinned (`pro` / `free`) and `entitlements.spec.ts` fails if either drifts, so anything that flips a role uses C | 2026-08-11 | #239, closed |
 | **`next@16.3.0` is SCHEDULED, not deferred.** Owner decision. Trigger: **#243 passes AND the current release reaches `main`.** Its own release, nothing else in it, **CI temporarily re-enabled** for the duration — a keyless build is the gate that catches upgrade breakage and is the one thing local gates cannot replace. Until then two **build-time** highs are knowingly accepted (`next`'s bundled `postcss`, `sharp`); neither is reachable by a visitor | 2026-08-11 | #257, open by design |
 
@@ -173,6 +174,57 @@ gh issue list --state open
   that the page rendered — and must *name* the routes it could not measure
   rather than counting them as zero. The corrected run matched the previous
   figure exactly, which is how the bug was confirmed rather than argued about.
+- **A render guard proves the measurement HAPPENED. It says nothing about whether
+  the measurement MEANS anything.** Added 2026-08-11 after I told the owner not to
+  start a payment run on evidence that could not exist.
+
+  I checked `/upgrade` for `a[href*="checkout"]`, found zero, and reported the
+  checkout URL had not reached the build. My probe had a render guard and it
+  passed — 118 controls, styled, not signed out — so I trusted the zero.
+
+  **The CTA is a `<button onClick>` that builds the URL at click time**
+  (`app/upgrade/page.tsx:159`). The URL is never in the DOM, so that selector
+  returns **0 on a working build and a broken one alike.** Dev measured the same
+  zero and read it correctly; the number was never the disagreement.
+
+  This is a DIFFERENT defect from the one below and the distinction is the whole
+  point: the instrument reached the page, and was then asked a question it had no
+  way to answer. Before trusting any zero, ask **what a positive result would have
+  looked like** — if you cannot describe it, the assertion is not measuring what
+  you think.
+
+  The check that worked was grepping the served JS chunks for the URL, because a
+  string cannot appear in a bundle it was not inlined into. Method-independent
+  beats DOM-shaped when the two disagree.
+- **Specs that hardcode `localhost` test nothing on a deployed service**, and one
+  of the two failure modes is silent. Found 2026-08-11 in the first full suite run
+  against deployed `qa`:
+
+  - `security.spec.ts` requested `http://localhost:3100` explicitly, so with
+    `E2E_BASE_URL` set it died `ECONNREFUSED`. **The security headers on qa,
+    staging and production had therefore been asserted by nothing.** They are
+    correct — but "correct when curled by hand" and "checked by the suite" are
+    different claims and only the first was ever true.
+  - `perf.spec.ts` treated `!url.startsWith('http://localhost')` as "third party",
+    so on a remote run **every same-origin request counted as foreign.** That one
+    does not error, it inflates — and a baseline recorded remotely would be
+    inflated to match.
+
+  Both fixed in #266. The lesson generalises: after #203 made the suite
+  addressable at a deployed service, anything holding a URL constant became a
+  spec that silently only ever tested one environment.
+- **A metric that counts rendered elements has more uncontrolled inputs than
+  market data.** `a11y.spec.ts`'s tap-target sweep moved 122 → 148 with no code
+  change. Dev measured why: browser **consent state** shifts it by ~32, because
+  `a.consent-link` is 73x14 and renders on every route while the banner is up.
+  Market fixtures alone were not enough (#268); consent had to be pinned too
+  (#270).
+
+  Pinned to `denied`, matching `layout.spec.ts`'s ordinary sweep — first-visit
+  banner coverage lives there and belongs there. **The baseline was deliberately
+  NOT re-set in the same change**: picking a number in the commit that first makes
+  it measurable means the baseline comes from a run nobody has looked at twice.
+  #263 holds that.
 - **An empty result is not evidence unless something proves the instrument works.**
   This bit **seven** separate times on 2026-08-10 and is by a distance the most
   repeated defect in this suite: `cache-policy` asserted headers that cached
