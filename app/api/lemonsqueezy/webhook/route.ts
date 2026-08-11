@@ -38,7 +38,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true, ignored: 'test_mode' });
   }
 
-  if (!userId) return NextResponse.json({ received: true });
+  /* SAY WHY, rather than a bare 200 (#243).
+   *
+   * `custom_data.user_id` is put there by getCheckoutUrl, so it is present on
+   * any event from an order that went through our checkout - and ABSENT on an
+   * event simulated from the Lemon Squeezy dashboard against an order created
+   * some other way. Simulated events are how the cancelled/expired/refunded
+   * branches get exercised without waiting for a real billing period, so this
+   * path is about to be hit deliberately.
+   *
+   * It used to return a bare `{received: true}`. Lemon Squeezy shows that as a
+   * green delivery, so "nothing happened" looked identical to "it worked" -
+   * the same failure shape as the empty-200 in #228, on the payments path.
+   *
+   * Still 2xx on purpose: a non-2xx makes Lemon Squeezy RETRY, and an event with
+   * no user of ours attached is not a failure to retry - it is correctly not
+   * ours. The reason string is what makes it visible. */
+  if (!userId) {
+    return NextResponse.json({ received: true, ignored: 'no custom_data.user_id' });
+  }
 
   const sb = getSupabaseAdmin();
 
