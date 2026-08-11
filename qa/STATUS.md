@@ -54,6 +54,7 @@ morning and done by lunchtime. They live on the issue that needs them.
 | **A cache assertion must measure the DATA, not a header and not a clock.** Both market routes stamp `ts: Date.now()`, so whole-body diffs vary however well the data is cached | 2026-08-10 | `qa/e2e/cache-effective.spec.ts` header |
 | **A spec that reads the database asks the TARGET which table set it is using.** `lib/tables.ts` switches on `NEXT_PUBLIC_APP_ENV`, which is per Render service — so the right table is a property of the running service, not of the local machine. `/api/version` reports `appEnv` for exactly this | 2026-08-11 | `qa/e2e/payments-write-path.spec.ts`; PR #240 |
 | **Account C is the sacrificial entitlement fixture.** A and B stay pinned (`pro` / `free`) and `entitlements.spec.ts` fails if either drifts, so anything that flips a role uses C | 2026-08-11 | #239, closed |
+| **`next@16.3.0` is SCHEDULED, not deferred.** Owner decision. Trigger: **#243 passes AND the current release reaches `main`.** Its own release, nothing else in it, **CI temporarily re-enabled** for the duration — a keyless build is the gate that catches upgrade breakage and is the one thing local gates cannot replace. Until then two **build-time** highs are knowingly accepted (`next`'s bundled `postcss`, `sharp`); neither is reachable by a visitor | 2026-08-11 | #257, open by design |
 
 ---
 
