@@ -55,7 +55,7 @@ async function fetchAllBinanceFR(): Promise<Record<string, FRPoint[]>> {
 async function fetchBybitFR(sym: string): Promise<FRPoint[]> {
   try {
     const res  = await fetch(
-      `https://api.bybit.com/v5/market/funding/history?category=linear&symbol=${sym}&limit=42`,
+      `/api/proxy?type=funding-history&symbol=${sym}&limit=42`,
     );
     const data = await res.json();
     return ((data?.result?.list ?? []) as Array<{ fundingRate: string; fundingRateTimestamp: string }>)

@@ -37,7 +37,7 @@ export function useOI1h(coin: CoinId): OI1hData {
 
         if (binSym) {
           const r = await fetch(
-            `https://fapi.binance.com/futures/data/openInterestHist?symbol=${binSym}&period=5m&limit=13`,
+            `/api/proxy?type=oi-hist&symbol=${binSym}&period=5m&limit=13`,
             { cache: 'no-store' }
           );
           if (r.ok) {
@@ -53,7 +53,7 @@ export function useOI1h(coin: CoinId): OI1hData {
           }
         } else if (bbtSym) {
           const r = await fetch(
-            `https://api.bybit.com/v5/market/open-interest?category=linear&symbol=${bbtSym}&intervalTime=5min&limit=13`,
+            `/api/proxy?type=open-interest-1&symbol=${bbtSym}&intervalTime=5min&limit=13`,
             { cache: 'no-store' }
           );
           if (r.ok) {

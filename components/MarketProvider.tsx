@@ -165,7 +165,7 @@ export default function MarketProvider(
     try {
       const syms = Object.values(BINANCE_SYMS).filter(s => s !== 'HYPEUSDT');
       const batch = encodeURIComponent(JSON.stringify(syms));
-      const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbols=${batch}`);
+      const res = await fetch(`/api/proxy?type=binance-24hr&symbols=${batch}`);
       const data = await res.json();
       if (!Array.isArray(data)) return;
       data.forEach((d: Record<string, string>) => {
@@ -275,7 +275,7 @@ export default function MarketProvider(
   /* ── Bybit: all coins - single bulk fetch instead of per-symbol calls ── */
   const fetchBybit = useCallback(async () => {
     try {
-      const res = await fetch('https://api.bybit.com/v5/market/tickers?category=linear');
+      const res = await fetch('/api/proxy?type=bybit-tickers');
       const d = await res.json();
       // Build symbol → ticker map for O(1) lookup
       const bySymbol: Record<string, Record<string, string>> = {};
@@ -522,7 +522,7 @@ export default function MarketProvider(
         // Taker buy ratio from recent trades (Bybit klines don't split maker/taker)
         try {
           const tradeRes = await fetch(
-            `https://api.bybit.com/v5/market/recent-trade?category=linear&symbol=${sym}&limit=500`
+            `/api/proxy?type=recent-trade&symbol=${sym}&limit=500`
           );
           const tradeData = await tradeRes.json();
           const trades: Array<{ side: string; size: string }> = tradeData?.result?.list ?? [];
@@ -666,7 +666,7 @@ export default function MarketProvider(
       (async () => {
         try {
           const res = await fetch(
-            'https://api.bybit.com/v5/market/recent-trade?category=linear&symbol=HYPEUSDT&limit=200',
+            '/api/proxy?type=recent-trade&symbol=HYPEUSDT&limit=200',
             { cache: 'no-store' }
           );
           const data = await res.json();
@@ -720,7 +720,7 @@ export default function MarketProvider(
         const sym = BINANCE_SYMS[coin];
         try {
           const res = await fetch(
-            `https://api.binance.com/api/v3/depth?symbol=${sym}&limit=50`
+            `/api/proxy?type=depth&symbol=${sym}&limit=50`
           );
           const data = await res.json();
           if (!data.bids || !data.asks) return;
@@ -744,7 +744,7 @@ export default function MarketProvider(
   const fetchDeribitOptions = useCallback(async () => {
     try {
       const res = await fetch(
-        'https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=BTC&kind=option'
+        '/api/proxy?type=deribit-book&currency=BTC&kind=option'
       );
       const data = await res.json();
       const summaries: Array<{
@@ -898,7 +898,7 @@ export default function MarketProvider(
   const fetchStablecoinFlows = useCallback(async () => {
     try {
       const res = await fetch(
-        'https://stablecoins.llama.fi/stablecoins?includePrices=true',
+        '/api/proxy?type=llama-stables&includePrices=true',
         { cache: 'no-cache' }
       );
       const data = await res.json();
@@ -1025,7 +1025,7 @@ export default function MarketProvider(
   /* ── Binance premium index → next FR estimate (Binance perps) ── */
   const fetchPremiumIndex = useCallback(async () => {
     try {
-      const res = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex', { cache: 'no-store' });
+      const res = await fetch('/api/proxy?type=premium-index', { cache: 'no-store' });
       if (!res.ok) return;
       const data: Array<{
         symbol: string; markPrice: string; indexPrice: string;
@@ -1074,7 +1074,7 @@ export default function MarketProvider(
   /* ── Fear & Greed ── */
   const fetchFNG = useCallback(async () => {
     try {
-      const res = await fetch('https://api.alternative.me/fng/?limit=2&format=json', { cache: 'no-cache' });
+      const res = await fetch('/api/proxy?type=fng&?limit=2&format=json', { cache: 'no-cache' });
       const d = await res.json();
       const items = d.data;
       if (!items?.[0]?.value) return;
@@ -1086,7 +1086,7 @@ export default function MarketProvider(
       }));
     } catch {
       try {
-        const res = await fetch('https://api.alternative.me/fng/?limit=2&format=json', { cache: 'no-cache' });
+        const res = await fetch('/api/proxy?type=fng&?limit=2&format=json', { cache: 'no-cache' });
         const d = await res.json();
         const items = d.data;
         if (!items?.[0]?.value) return;
