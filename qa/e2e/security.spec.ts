@@ -1,4 +1,5 @@
 import { test, expect, request as pwRequest } from '@playwright/test';
+import { getGuarded } from './_shared';
 
 // Unauthenticated OWASP API probes. All 33 of these passed in the 2026-08-04
 // audit, so every one is a STRICT assertion - this suite exists to make sure a
@@ -21,7 +22,7 @@ test.describe('api security', () => {
 
   for (const path of OPS) {
     test(`BFLA: ${path} rejects an unauthenticated request`, async ({ request }) => {
-      const r = await request.get(path, { failOnStatusCode: false });
+      const r = await getGuarded(request, path, { failOnStatusCode: false });
       expect([401, 403], `${path} must not serve admin data anonymously`).toContain(r.status());
     });
   }
@@ -30,7 +31,7 @@ test.describe('api security', () => {
     test(`cron: ${path} fails closed without the secret`, async ({ request }) => {
       // lib/cronAuth.ts denies when CRON_SECRET is unset - deliberately
       // fail-closed, unlike the fail-open version this replaced.
-      const r = await request.get(path, { failOnStatusCode: false });
+      const r = await getGuarded(request, path, { failOnStatusCode: false });
       expect([401, 403]).toContain(r.status());
     });
   }
@@ -49,7 +50,7 @@ test.describe('api security', () => {
     };
 
     for (const [name, token] of Object.entries(tokens)) {
-      const r = await request.get('/api/ops/users', {
+      const r = await getGuarded(request, '/api/ops/users', {
         headers: { Authorization: `Bearer ${token}` },
         failOnStatusCode: false,
       });
@@ -59,7 +60,7 @@ test.describe('api security', () => {
 
   test('/api/admin/* is a honeypot returning 404', async ({ request }) => {
     for (const path of ['/api/admin', '/api/admin/users']) {
-      const r = await request.get(path, { failOnStatusCode: false });
+      const r = await getGuarded(request, path, { failOnStatusCode: false });
       expect(r.status(), `${path} should look like it never existed`).toBe(404);
     }
   });
@@ -69,7 +70,7 @@ test.describe('api security', () => {
     // fetch/undici BEFORE the request leaves, so it never tests traversal at
     // all - that mistake produced a false "failure" during the audit.
     for (const path of ['/api/admin/%2e%2e/ops/users', '/api/ops/%2e%2e/admin', '/api/OPS/users']) {
-      const r = await request.get(path, { failOnStatusCode: false });
+      const r = await getGuarded(request, path, { failOnStatusCode: false });
       expect([401, 403, 404], `${path} leaked`).toContain(r.status());
     }
   });
@@ -109,7 +110,7 @@ test.describe('api security', () => {
   });
 
   test('API does not echo an arbitrary Origin back', async ({ request }) => {
-    const r = await request.get('/api/config', {
+    const r = await getGuarded(request, '/api/config', {
       headers: { Origin: 'https://evil.example' },
       failOnStatusCode: false,
     });
@@ -120,7 +121,7 @@ test.describe('api security', () => {
   test('injection payloads do not 500 or leak database errors', async ({ request }) => {
     const payloads = ["' OR '1'='1", "'; DROP TABLE lhq_user_subscriptions; --", "' UNION SELECT NULL--"];
     for (const p of payloads) {
-      const r = await request.get(`/api/labels?locale=${encodeURIComponent(p)}`, { failOnStatusCode: false });
+      const r = await getGuarded(request, `/api/labels?locale=${encodeURIComponent(p)}`, { failOnStatusCode: false });
       expect(r.status(), `payload ${p} caused a server error`).not.toBe(500);
       const body = await r.text();
       expect(body).not.toMatch(/syntax error|postgres|pg_|relation .* does not exist/i);

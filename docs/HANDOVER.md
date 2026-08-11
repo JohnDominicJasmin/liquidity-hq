@@ -37,6 +37,32 @@ file.**
 > `clock`, `payments-webhook` and `checkout` were covered **nowhere**. Fixed by #210,
 > which runs the suite on every push to `staging`; tracked on **#207** until a promotion
 > has been observed to actually fire one. `TEST_GAPS.md` §11 has the detail.
+>
+> ### CI IS OFF ON PURPOSE. Updated 2026-08-12.
+>
+> All three workflows are `disabled_manually` and `RELEASE_PR_PAUSED = 1`. The repo is
+> private, so **every Actions minute is billed to the owner personally**, and they said so
+> directly. **Do not enable a workflow, do not dispatch a run, and do not file the
+> disabled state as an outage** — that was filed once (#285) on a wrong guess about
+> billing quota and closed as not-a-defect. #210 above is therefore describing a
+> capability that exists but is currently switched off.
+>
+> This is not a coverage hole. Everything runs locally, for free, on the QA machine:
+> lint, `tsc`, unit tests via the pre-push hook, and the full Playwright suite pointed at
+> a **deployed** host with `E2E_BASE_URL`. A run against a real deployed service is
+> stronger evidence than CI's own ephemeral build. Prefer one targeted spec over a sweep —
+> a long run also wakes the free-plan Render services.
+>
+> ### THERE ARE NO REAL USERS YET, and `staging` is the destination
+>
+> Production is live and nobody depends on it. Bugs on prod are worth fixing and are **not
+> emergencies**; do not argue priority from user harm. Verified work **parks on `staging`
+> and stays there** — the owner opens the gates when changes have piled up, on their
+> schedule, not on anyone's sense of urgency.
+>
+> Consequently an issue **closes on `qa` + `staging` evidence**; production is not
+> required. Say in the close comment that it is parked on staging and not yet live, so
+> nobody reads it as shipped.
 
 ---
 

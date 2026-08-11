@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { gotoGuarded } from './_shared';
+import { gotoGuarded, getGuarded } from './_shared';
 
 /* WCAG 2.2 SC 3.1.1 "Language of Page" is Level A - the lowest bar there is -
  * and this app failed it on every page until 2026-08-08.
@@ -97,7 +97,7 @@ test.describe('i18n: locale offering and page language', () => {
    * inverts when fixed is the only form of "we know about this" that cannot rot.
    * A skip would have stayed silent forever. */
   test('/ar returns a real 404, not a 200 with a not-found page', async ({ request }) => {
-    const res = await request.get('/ar');
+    const res = await getGuarded(request, '/ar');
     expect(res.status(),
       '/ar must 404. It renders the not-found page either way, so a 200 here means ' +
       '`dynamicParams = false` was removed from app/[locale]/page.tsx and every unknown ' +
@@ -222,7 +222,7 @@ test.describe('i18n: locale offering and page language', () => {
    * corrects it. Asserted so that a change here is announced rather than
    * discovered by someone reading view-source and filing a duplicate of #138. */
   test('KNOWN: the server-rendered HTML still says lang="en" on /ko', async ({ request }) => {
-    const html = await (await request.get('/ko')).text();
+    const html = await (await getGuarded(request, '/ko')).text();
     const m = /<html[^>]*\slang="([^"]*)"/.exec(html);
     expect(m, '/ko served no lang attribute at all - that is a real regression').toBeTruthy();
     expect(m![1],

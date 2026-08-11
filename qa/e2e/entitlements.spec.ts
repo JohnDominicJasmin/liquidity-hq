@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { getGuarded } from './_shared';
 import { ENTITLEMENT_READY, ENTITLEMENT_SKIP_REASON, FIXTURES, SUPABASE_URL, SUPABASE_ANON, signIn } from './_auth';
 
 /* The Pro boundary — 15 routes, HTTP level.
@@ -130,7 +131,7 @@ test.describe('Pro entitlement boundary', () => {
    * The ungated GET proves the token authenticates before anything else is
    * concluded from a status code. */
   test('the fixture token actually authenticates (guards against a vacuous pass)', async ({ request }) => {
-    const r = await request.get('/api/price-alerts', {
+    const r = await getGuarded(request, '/api/price-alerts', {
       headers: { Authorization: `Bearer ${freeToken}` },
       failOnStatusCode: false,
     });
@@ -144,7 +145,7 @@ test.describe('Pro entitlement boundary', () => {
         data: {},
         failOnStatusCode: false,
       };
-      const r = method === 'GET'   ? await request.get(path, opts)
+      const r = method === 'GET'   ? await getGuarded(request, path, opts)
               : method === 'PATCH' ? await request.patch(path, opts)
               :                      await request.post(path, opts);
       const status = r.status();
@@ -172,7 +173,7 @@ test.describe('Pro entitlement boundary', () => {
         data: {},
         failOnStatusCode: false,
       };
-      const r = method === 'GET'   ? await request.get(path, opts)
+      const r = method === 'GET'   ? await getGuarded(request, path, opts)
               : method === 'PATCH' ? await request.patch(path, opts)
               :                      await request.post(path, opts);
 
@@ -191,7 +192,7 @@ test.describe('Pro entitlement boundary', () => {
     const failures: string[] = [];
     for (const { method, path } of GATED) {
       const opts = { headers: { 'Content-Type': 'application/json' }, data: {}, failOnStatusCode: false };
-      const r = method === 'GET'   ? await request.get(path, opts)
+      const r = method === 'GET'   ? await getGuarded(request, path, opts)
               : method === 'PATCH' ? await request.patch(path, opts)
               :                      await request.post(path, opts);
       if (r.status() === 403) failures.push(`${method} ${path} -> 403 with no token`);

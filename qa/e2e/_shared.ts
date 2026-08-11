@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Page, APIRequestContext, APIResponse } from '@playwright/test';
 
 /** Every route the suite sweeps. Public + app routes, signed out. */
 /* Every route the sweeping specs measure — contrast, layout, a11y, seo, perf.
@@ -474,6 +474,35 @@ export const ENV_FAILURE = 'ENVIRONMENT';
  * context is offline on purpose - a failed navigation there IS the assertion, and
  * labelling it environmental would hide the one place the failure is the point.
  */
+/**
+ * Rethrow a "the service did not answer" failure with the ENVIRONMENT prefix, or
+ * rethrow the original untouched if it is anything else.
+ *
+ * Shared by the navigation guard and the API guard so the two cannot drift.
+ * `what` names the thing that did not answer - a route, an endpoint - and goes
+ * into the message so the reader does not have to work it out from a stack.
+ */
+function rethrowIfEnvironmental(e: unknown, what: string): never {
+  const msg = e instanceof Error ? e.message : String(e);
+  /* Playwright raises TimeoutError by name; the socket-level failures below
+     carry no distinct type, so they are matched on the message. All of them
+     mean "the service did not answer", never "the assertion is wrong". */
+  const environmental =
+    (e instanceof Error && e.name === 'TimeoutError') ||
+    /ERR_CONNECTION_(REFUSED|RESET)|ERR_NETWORK_CHANGED|ECONNREFUSED|ERR_EMPTY_RESPONSE|socket hang up/i.test(msg);
+
+  if (!environmental) throw e;
+
+  throw new Error(
+    `${ENV_FAILURE}: ${what} never answered - ${msg.split('\n')[0]}\n` +
+    `This is NOT a finding about ${what}. The service did not respond; the ` +
+    `assertions below it never ran. Free-plan Render sleeps when idle and the first ` +
+    `request after that is slow, and a long sweep keeps containers under load.\n` +
+    `Before reporting: count how many failures in this run carry the ${ENV_FAILURE} ` +
+    `prefix. They are one cause, not one each.`,
+  );
+}
+
 export async function gotoGuarded(
   page: Page,
   path: string,
@@ -482,24 +511,34 @@ export async function gotoGuarded(
   try {
     return await page.goto(path, opts);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    /* Playwright raises TimeoutError by name; the socket-level failures below
-       carry no distinct type, so they are matched on the message. All of them
-       mean "the service did not answer", never "the assertion is wrong". */
-    const environmental =
-      (e instanceof Error && e.name === 'TimeoutError') ||
-      /ERR_CONNECTION_(REFUSED|RESET)|ERR_NETWORK_CHANGED|ECONNREFUSED|ERR_EMPTY_RESPONSE|socket hang up/i.test(msg);
+    rethrowIfEnvironmental(e, `navigation to ${path}`);
+  }
+}
 
-    if (!environmental) throw e;
-
-    throw new Error(
-      `${ENV_FAILURE}: navigation to ${path} never completed - ${msg.split('\n')[0]}\n` +
-      `This is NOT a finding about ${path}. The service did not answer in time; the ` +
-      `assertions below it never ran. Free-plan Render sleeps when idle and the first ` +
-      `request after that is slow, and a long sweep keeps containers under load.\n` +
-      `Before reporting: count how many failures in this run carry the ${ENV_FAILURE} ` +
-      `prefix. They are one cause, not one each.`,
-    );
+/**
+ * `request.get` with the same classification as `gotoGuarded`.
+ *
+ * The navigation guard alone left a gap I found while testing it: several specs
+ * hit an API before they ever touch a page - `seo`, `econ-calendar`,
+ * `cache-policy`, `klines-route` - and against an unreachable host those failed
+ * with a bare `apiRequestContext.get: connect ECONNREFUSED` and no prefix. A run
+ * where the service is down then produces a MIX of labelled and unlabelled
+ * failures, which is worse than either alone: the reader concludes the labelled
+ * ones are environmental and the rest are real.
+ *
+ * Note this only catches a THROWN failure. A 500 or a 502 resolves normally and
+ * is a finding about the route, correctly - `settle()` and the specs assert on
+ * status themselves.
+ */
+export async function getGuarded(
+  request: APIRequestContext,
+  url: string,
+  opts?: Parameters<APIRequestContext['get']>[1],
+): Promise<APIResponse> {
+  try {
+    return await request.get(url, opts);
+  } catch (e) {
+    rethrowIfEnvironmental(e, url);
   }
 }
 

@@ -1,4 +1,5 @@
 import { test, expect, type APIResponse } from '@playwright/test';
+import { getGuarded } from './_shared';
 
 /* `/api/version`'s `configured` block, asserted against the RUNNING SERVICE (#282).
  *
@@ -50,7 +51,7 @@ let raw = '';
 
 test.describe('/api/version configured block', () => {
   test.beforeAll(async ({ request }) => {
-    res = await request.get('/api/version');
+    res = await getGuarded(request, '/api/version');
     raw = await res.text();
     body = JSON.parse(raw) as VersionBody;
   });

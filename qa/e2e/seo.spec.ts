@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { ROUTES, BASELINE, settle } from './_shared';
+import { ROUTES, BASELINE, settle, getGuarded } from './_shared';
 
 // SEO / head metadata. Public marketing surface, so these matter commercially.
 // Mixed strict + baseline, same rule as a11y.
@@ -10,13 +10,13 @@ test.describe('seo', () => {
   });
 
   test('robots.txt and sitemap.xml are served', async ({ request }) => {
-    const robots = await request.get('/robots.txt');
+    const robots = await getGuarded(request, '/robots.txt');
     expect(robots.status()).toBe(200);
     const body = await robots.text();
     expect(body, 'API routes should not be crawled').toContain('Disallow: /api/');
     expect(body).toContain('Sitemap:');
 
-    const sitemap = await request.get('/sitemap.xml');
+    const sitemap = await getGuarded(request, '/sitemap.xml');
     expect(sitemap.status()).toBe(200);
     expect(await sitemap.text()).toContain('<urlset');
   });
@@ -54,7 +54,7 @@ test.describe('seo', () => {
 
     const wrong: string[] = [];
     for (const [path, why] of cases) {
-      const status = (await request.get(path)).status();
+      const status = (await getGuarded(request, path)).status();
       if (status !== 404) wrong.push(`${path} -> ${status} (${why})`);
     }
 
@@ -141,7 +141,7 @@ test.describe('seo', () => {
     const robotsMeta = hasRobotsMeta
       ? await page.getAttribute('meta[name="robots"]', 'content')
       : null;
-    const robotsTxt = await (await request.get('/robots.txt')).text();
+    const robotsTxt = await (await getGuarded(request, '/robots.txt')).text();
     const blocked = /noindex/i.test(robotsMeta ?? '') || /Disallow:\s*\/ops/i.test(robotsTxt);
     // Known gap as of the audit - internal admin login is currently crawlable.
     test.info().annotations.push({

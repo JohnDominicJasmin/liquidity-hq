@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { getGuarded } from './_shared';
 
 /* Does each API route return the cache policy it is supposed to?
  *
@@ -104,7 +105,7 @@ test.describe('API cache policy', () => {
 
   for (const { path, expect: pattern, note } of SHIPPED) {
     test(`${path} still caches at the edge (${note})`, async ({ request }) => {
-      const res = await request.get(path);
+      const res = await getGuarded(request, path);
 
       /* A 4xx/5xx can carry no cache header for reasons that have nothing to do
        * with policy, so a failing route must not read as a missing policy.
@@ -185,7 +186,7 @@ test.describe('API cache policy', () => {
   /* KNOWN, and written to fail when it is fixed. */
   for (const { path, proposed, why } of PROPOSED) {
     test(`KNOWN: ${path} has no cache policy yet`, async ({ request }) => {
-      const res = await request.get(path);
+      const res = await getGuarded(request, path);
       const cc = res.headers()['cache-control'] ?? '';
 
       expect(cc,
