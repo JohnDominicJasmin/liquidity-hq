@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { settle, CLS_BUDGET, CLS_GOOD, CLS_UNSTABLE } from './_shared';
+import { settle, CLS_BUDGET, CLS_GOOD, CLS_UNSTABLE, gotoGuarded } from './_shared';
 
 // Core Web Vitals + third-party request volume.
 //
@@ -199,7 +199,7 @@ test.describe('performance', () => {
       thirdParty.push(url);
     });
 
-    await page.goto('/refund', { waitUntil: 'domcontentloaded' });
+    await gotoGuarded(page, '/refund', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(8000);
 
     const byHost = thirdParty.reduce<Record<string, number>>((acc, u) => {

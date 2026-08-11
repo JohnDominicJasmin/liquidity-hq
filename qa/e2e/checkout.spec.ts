@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { gotoGuarded } from './_shared';
 import { AUTH_READY, AUTH_SKIP_REASON, FIXTURES, signedInContext, gotoSignedIn } from './_auth';
 
 /* Does the checkout button actually carry the signed-in user's identity?
@@ -117,7 +118,7 @@ test.describe('checkout hand-off', () => {
     await page.route(`**${CHECKOUT_HOST}**`, route => { reachedCheckout = true; return route.abort(); });
 
     try {
-      await page.goto('/upgrade', { waitUntil: 'domcontentloaded' });
+      await gotoGuarded(page, '/upgrade', { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(2500);
 
       const cta = page.locator('button', { hasText: /upgrade|pro|checkout|continue/i }).first();

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { gotoGuarded } from './_shared';
 
 /* WCAG 2.2 SC 3.1.1 "Language of Page" is Level A - the lowest bar there is -
  * and this app failed it on every page until 2026-08-08.
@@ -59,13 +60,13 @@ test.describe('i18n: locale offering and page language', () => {
      * The landing page carries the language picker; the not-found page does
      * not. That difference is structural, present at the same moment for both,
      * and does not move when someone rewrites the 404 copy. */
-    await page.goto('/ko', { waitUntil: 'domcontentloaded' });
+    await gotoGuarded(page, '/ko', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('button.lp-lang-btn'),
       'the POSITIVE CONTROL failed: /ko is a supported locale and must render the landing page. ' +
       'Without this, "the picker is absent on /ar" would also be satisfied by a blank page.',
     ).toBeVisible({ timeout: 20_000 });
 
-    await page.goto('/ar', { waitUntil: 'domcontentloaded' });
+    await gotoGuarded(page, '/ar', { waitUntil: 'domcontentloaded' });
     await expect(page.locator('button.lp-lang-btn'),
       '/ar rendered the LANDING page. It is serving some other language under an Arabic URL, ' +
       'which is worse than the original bug - a user who picked Arabic gets English silently.',
@@ -106,7 +107,7 @@ test.describe('i18n: locale offering and page language', () => {
 
   for (const [path, expected] of [['/', 'en'], ['/ko', 'ko'], ['/zh', 'zh']] as const) {
     test(`${path} sets documentElement.lang to "${expected}"`, async ({ page }) => {
-      const res = await page.goto(path, { waitUntil: 'domcontentloaded' });
+      const res = await gotoGuarded(page, path, { waitUntil: 'domcontentloaded' });
       expect(res!.status(), `${path} did not load`).toBeLessThan(400);
 
       /* HtmlLangSync runs on hydration, so the attribute is not correct at
@@ -150,7 +151,7 @@ test.describe('i18n: locale offering and page language', () => {
       }, stored);
       const page = await ctx.newPage();
       try {
-        await page.goto('/upgrade', { waitUntil: 'domcontentloaded' });
+        await gotoGuarded(page, '/upgrade', { waitUntil: 'domcontentloaded' });
         await expect
           .poll(() => page.evaluate(() => document.documentElement.lang), { timeout: 10_000 })
           .toBe(expected);
@@ -176,7 +177,7 @@ test.describe('i18n: locale offering and page language', () => {
     });
     const page = await ctx.newPage();
     try {
-      await page.goto('/upgrade', { waitUntil: 'domcontentloaded' });
+      await gotoGuarded(page, '/upgrade', { waitUntil: 'domcontentloaded' });
       await expect
         .poll(() => page.evaluate(() => document.documentElement.lang), { timeout: 10_000 })
         .toBe('en');
@@ -197,7 +198,7 @@ test.describe('i18n: locale offering and page language', () => {
   });
 
   test('the language picker offers exactly English, Korean and Chinese', async ({ page }) => {
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await gotoGuarded(page, '/', { waitUntil: 'domcontentloaded' });
 
     const btn = page.locator('button.lp-lang-btn');
     /* Positive control. Every assertion below is about what is ABSENT, and an

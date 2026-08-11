@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { HIDDEN_ROUTES } from './_shared';
+import { HIDDEN_ROUTES, gotoGuarded } from './_shared';
 
 /* Do not sell what nobody can reach.
  *
@@ -40,7 +40,7 @@ test.describe('do not sell hidden features', () => {
 
   for (const surface of SALES_SURFACES) {
     test(`${surface} does not advertise a hidden route`, async ({ page }) => {
-      await page.goto(surface, { waitUntil: 'domcontentloaded' });
+      await gotoGuarded(page, surface, { waitUntil: 'domcontentloaded' });
       await page.waitForTimeout(5000);
 
       const text = (await page.evaluate(() => document.body.innerText || '')).toLowerCase();

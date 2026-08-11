@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Browser, Page } from '@playwright/test';
-import { ROUTES, BASELINE } from './_shared';
+import { ROUTES, BASELINE, gotoGuarded } from './_shared';
 import { installMarketFixtures } from './_fixtures';
 
 /**
@@ -167,7 +167,7 @@ async function measure(page: Page, theme: string, route: string): Promise<Violat
    *
    * Installed per page rather than once, because each measurement runs in its
    * own context. */
-  await page.goto(route, { waitUntil: 'domcontentloaded' });
+  await gotoGuarded(page, route, { waitUntil: 'domcontentloaded' });
   await settleForMeasurement(page);
 
   // Return null rather than [] when the theme did not take. An empty array here
@@ -518,7 +518,7 @@ Same triage as the dark test: a state that had not rendered before (add it, with
     const page = await ctx.newPage();
 
     try {
-      await page.goto('/offline', { waitUntil: 'domcontentloaded' });
+      await gotoGuarded(page, '/offline', { waitUntil: 'domcontentloaded' });
 
       /* #767676 on #808080 is ~1.1:1 - far below the 4.5:1 of SC 1.4.3, and not
        * a colour this app uses, so it cannot collide with a real token in the

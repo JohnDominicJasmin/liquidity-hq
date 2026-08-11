@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { HIDDEN_ROUTES } from './_shared';
+import { HIDDEN_ROUTES, gotoGuarded } from './_shared';
 
 /* /backtest and /live-tracking are hidden (#264, shipped in #265).
  *
@@ -19,7 +19,7 @@ test.describe('hidden routes', () => {
 
   for (const route of HIDDEN_ROUTES) {
     test(`${route} does not serve its page`, async ({ page }) => {
-      const res = await page.goto(route, { waitUntil: 'domcontentloaded' });
+      const res = await gotoGuarded(page, route, { waitUntil: 'domcontentloaded' });
 
       /* A redirect, not a 404 — the owner's call, and the reason is bookmarks:
          anyone who saved the page lands somewhere useful. Asserting the
@@ -41,7 +41,7 @@ test.describe('hidden routes', () => {
    * Same shape as the snapshot control that caught a fully dead endpoint
    * reporting as a correctly-handled partial failure. */
   test('control: a route that is NOT hidden still serves itself', async ({ page }) => {
-    const res = await page.goto('/markets', { waitUntil: 'domcontentloaded' });
+    const res = await gotoGuarded(page, '/markets', { waitUntil: 'domcontentloaded' });
     expect(res?.status(), '/markets did not load').toBe(200);
     expect(page.url(), '/markets redirected - the hiding is not specific to the two routes, ' +
       'so every assertion above passes for the wrong reason').toContain('/markets');
@@ -51,7 +51,7 @@ test.describe('hidden routes', () => {
      that bounces is worse than no link: it reads as a broken feature rather than
      a removed one. */
   test('no navigation link points at a hidden route', async ({ page }) => {
-    await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
+    await gotoGuarded(page, '/dashboard', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(3000);
 
     const offenders = await page.evaluate((hidden: readonly string[]) =>

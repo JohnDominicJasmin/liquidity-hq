@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { BASELINE } from './_shared';
+import { BASELINE, gotoGuarded } from './_shared';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 
 /**
@@ -159,7 +159,7 @@ test.describe('accessibility (signed in)', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
-      await page.goto('/journal', { waitUntil: 'domcontentloaded' });
+      await gotoGuarded(page, '/journal', { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('[data-testid="journal-input"]', { state: 'visible', timeout: 40_000 });
 
       const pairs = await page.evaluate(() =>
@@ -198,7 +198,7 @@ test.describe('accessibility (signed in)', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
-      await page.goto('/journal', { waitUntil: 'domcontentloaded' });
+      await gotoGuarded(page, '/journal', { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('[data-testid="journal-tab"]', { state: 'visible', timeout: 40_000 });
       await page.evaluate(() => {
         const b = [...document.querySelectorAll('[data-testid="journal-tab"]')]
@@ -228,7 +228,7 @@ test.describe('accessibility (signed in)', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
-      await page.goto('/journal', { waitUntil: 'domcontentloaded' });
+      await gotoGuarded(page, '/journal', { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('[data-testid="journal-tab"]', { state: 'visible', timeout: 40_000 });
       await page.evaluate(() => {
         const b = [...document.querySelectorAll('[data-testid="journal-tab"]')]
@@ -316,7 +316,7 @@ test.describe('accessibility (signed in)', () => {
     ];
 
     for (const { label, path, toPassword, act } of forms) {
-      await page.goto(path, { waitUntil: 'domcontentloaded' });
+      await gotoGuarded(page, path, { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('[data-testid="login-email"]', { state: 'visible', timeout: 40_000 });
       if (toPassword) {
         await page.evaluate(() => {
@@ -392,7 +392,7 @@ test.describe('accessibility (signed in)', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
-      await page.goto('/dashboard', { waitUntil: 'domcontentloaded' });
+      await gotoGuarded(page, '/dashboard', { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('[data-testid="grok-launcher"]', { state: 'visible', timeout: 40_000 });
       await page.evaluate(() => (document.querySelector('[data-testid="grok-launcher"]') as HTMLElement).click());
       await page.waitForSelector('[data-testid="grok-messages"]', { state: 'visible', timeout: 20_000 });

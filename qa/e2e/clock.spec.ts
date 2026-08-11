@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { gotoGuarded } from './_shared';
 import type { Browser } from '@playwright/test';
 import { installMarketFixtures } from './_fixtures';
 
@@ -47,7 +48,7 @@ async function pinnedTo(browser: Browser, iso: string, timezoneId?: string) {
 async function bodyTextOf(browser: Browser, iso: string, route = '/hours') {
   const { page, close } = await pinnedTo(browser, iso);
   try {
-    await page.goto(route, { waitUntil: 'domcontentloaded' });
+    await gotoGuarded(page, route, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2500);
     return (await page.evaluate(() => document.body.innerText || '')).replace(/\s+/g, ' ');
   } finally { await close(); }
@@ -68,7 +69,7 @@ test.describe('clock-dependent behaviour', () => {
   test('the fake clock is actually installed (guards against a vacuous pass)', async ({ browser }) => {
     const { page, close } = await pinnedTo(browser, '2026-08-10T02:00:00Z');
     try {
-      await page.goto('/hours', { waitUntil: 'domcontentloaded' });
+      await gotoGuarded(page, '/hours', { waitUntil: 'domcontentloaded' });
       const seen = await page.evaluate(() => new Date().toISOString());
       expect(seen.slice(0, 13),
         `the page reported ${seen} - page.clock did not take effect, so every assertion in this ` +
@@ -93,7 +94,7 @@ test.describe('clock-dependent behaviour', () => {
   async function sessionPill(browser: Browser, iso: string): Promise<string> {
     const { page, close } = await pinnedTo(browser, iso);
     try {
-      await page.goto('/hours', { waitUntil: 'domcontentloaded' });
+      await gotoGuarded(page, '/hours', { waitUntil: 'domcontentloaded' });
       const pill = page.locator('div.session-pill');
       await expect(pill, 'the session pill never rendered - nothing can be concluded from its text')
         .toBeVisible({ timeout: 20_000 });
@@ -138,7 +139,7 @@ test.describe('clock-dependent behaviour', () => {
     test(`${zone} at ${instant} renders local time, DST included`, async ({ browser }) => {
       const { page, close } = await pinnedTo(browser, instant, zone);
       try {
-        await page.goto('/hours', { waitUntil: 'domcontentloaded' });
+        await gotoGuarded(page, '/hours', { waitUntil: 'domcontentloaded' });
         const local = await page.evaluate(() =>
           new Date().toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }));
         expect(local,

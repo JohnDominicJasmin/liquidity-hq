@@ -444,16 +444,6 @@ export const CLS_GOOD = 0.1;
 export const CLS_UNSTABLE = new Set<string>([]);
 
 /**
- * Settle a page: wait for hydration, then assert the stylesheet actually
- * applied.
- *
- * This guard is not optional. During the audit an entire run reported 3,315
- * sub-24px tap targets (true value: 159) and a phantom horizontal overflow,
- * because a CSS chunk 404'd and every page rendered unstyled - the desktop nav
- * was visible at 375px and all elements collapsed to inline size. Numbers from
- * an unstyled render are worse than no numbers, because they look real.
- */
-/**
  * Prefix for a failure the code under test did not cause.
  *
  * A spec that walks every route reports one slow response once per assertion, so
@@ -469,10 +459,28 @@ export const CLS_UNSTABLE = new Set<string>([]);
  */
 export const ENV_FAILURE = 'ENVIRONMENT';
 
-export async function settle(page: Page, path: string): Promise<void> {
-  let res;
+/**
+ * `page.goto` that tells a dead service apart from a real finding.
+ *
+ * USE THIS INSTEAD OF `page.goto` IN EVERY SPEC. The classifier first lived
+ * inside settle(), which left the seven spec files that navigate directly still
+ * reporting a cold container as a defect - and dev pointed out that the two worst
+ * placed were `hidden-routes` and `no-selling-hidden-features`. Those gate the
+ * release, so a timeout there reads as *"/backtest did not redirect"* or
+ * *"/upgrade advertises a hidden route"*: the two conclusions most likely to stop
+ * a release, and both wrong.
+ *
+ * DELIBERATELY NOT USED IN `offline.spec.ts`. That spec navigates while the
+ * context is offline on purpose - a failed navigation there IS the assertion, and
+ * labelling it environmental would hide the one place the failure is the point.
+ */
+export async function gotoGuarded(
+  page: Page,
+  path: string,
+  opts: Parameters<Page['goto']>[1] = { waitUntil: 'domcontentloaded' },
+): Promise<Awaited<ReturnType<Page['goto']>>> {
   try {
-    res = await page.goto(path, { waitUntil: 'domcontentloaded' });
+    return await page.goto(path, opts);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     /* Playwright raises TimeoutError by name; the socket-level failures below
@@ -493,6 +501,20 @@ export async function settle(page: Page, path: string): Promise<void> {
       `prefix. They are one cause, not one each.`,
     );
   }
+}
+
+/**
+ * Settle a page: wait for hydration, then assert the stylesheet actually
+ * applied.
+ *
+ * This guard is not optional. During the audit an entire run reported 3,315
+ * sub-24px tap targets (true value: 159) and a phantom horizontal overflow,
+ * because a CSS chunk 404'd and every page rendered unstyled - the desktop nav
+ * was visible at 375px and all elements collapsed to inline size. Numbers from
+ * an unstyled render are worse than no numbers, because they look real.
+ */
+export async function settle(page: Page, path: string): Promise<void> {
+  const res = await gotoGuarded(page, path);
 
   if (res && res.status() >= 400) {
     throw new Error(`${path} returned HTTP ${res.status()}`);

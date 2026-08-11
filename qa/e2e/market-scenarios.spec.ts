@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { gotoGuarded } from './_shared';
 import { installMarketFixtures } from './_fixtures';
 
 /* The first tests in this suite that assert against a KNOWN market input.
@@ -24,7 +25,7 @@ test.describe('market data scenarios', () => {
 
   test('fixtures are actually served (guards against a vacuous pass)', async ({ page }) => {
     const served = await installMarketFixtures(page, 'as-recorded');
-    await page.goto('/funding', { waitUntil: 'domcontentloaded' });
+    await gotoGuarded(page, '/funding', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(6000);
 
     /* Without this the whole file is worthless: if no route matched, every test
@@ -60,7 +61,7 @@ test.describe('market data scenarios', () => {
    * is ever true again. */
   test('funding-positive puts POSITIVE rates on screen', async ({ page }) => {
     const served = await installMarketFixtures(page, 'funding-positive');
-    await page.goto('/funding', { waitUntil: 'domcontentloaded' });
+    await gotoGuarded(page, '/funding', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(10000);
 
     expect(served.byKey['bybit-tickers'] ?? 0,
@@ -75,7 +76,7 @@ test.describe('market data scenarios', () => {
 
   test('funding-negative puts NO positive rate on screen', async ({ page }) => {
     const served = await installMarketFixtures(page, 'funding-negative');
-    await page.goto('/funding', { waitUntil: 'domcontentloaded' });
+    await gotoGuarded(page, '/funding', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(10000);
 
     expect(served.byKey['bybit-tickers'] ?? 0, 'bybit tickers was not intercepted').toBeGreaterThan(0);
@@ -94,7 +95,7 @@ test.describe('market data scenarios', () => {
     const pageErrors: string[] = [];
     page.on('pageerror', e => pageErrors.push(String(e).slice(0, 200)));
 
-    await page.goto('/funding', { waitUntil: 'domcontentloaded' });
+    await gotoGuarded(page, '/funding', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(8000);
 
     expect(served.count, 'fixtures were not served').toBeGreaterThan(0);
