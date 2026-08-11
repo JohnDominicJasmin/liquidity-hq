@@ -108,6 +108,29 @@ interface CacheEntry { result: CombinedResult; priceAtAnalysis: number; mode: 'q
 const PRICE_MOVE_PCT    = 0.5;             // re-analyze when price moves >0.5%
 const ARENA_RESULTS_KEY = 'arena-results-v2';
 const CACHE_MAX_AGE_MS  = 4 * 60 * 60 * 1000; // 4 hours - older results are discarded
+
+/* LEGACY SIGNAL VOCABULARY (#260).
+ *
+ * Results and history are persisted in the browser, so a user who ran an
+ * analysis before the rename still has LONG / LEAN LONG / SHORT / LEAN SHORT
+ * sitting in sessionStorage and localStorage. Every comparison in this file now
+ * tests the new words, and each of those chains ends in a fallback - so an
+ * un-migrated row does not error, it renders as FLAT and goes grey. A bullish
+ * call the user made an hour ago silently becomes "no opinion", which is worse
+ * than a crash because nothing anywhere says it happened.
+ *
+ * Normalising on READ rather than migrating the stored blob is deliberate: the
+ * blob is rewritten on the next change anyway, and a read-side map keeps working
+ * for anyone whose tab has been open across the deploy. */
+const LEGACY_SIGNALS: Record<string, string> = {
+  'LONG': 'BULLISH',
+  'LEAN LONG': 'LEAN BULLISH',
+  'SHORT': 'BEARISH',
+  'LEAN SHORT': 'LEAN BEARISH',
+};
+function normalizeSignal<T extends string>(signal: T): T {
+  return (LEGACY_SIGNALS[signal] ?? signal) as T;
+}
 /** Dynamic TTL: tighter during NY/pre-NY session (volatile), relaxed off-hours */
 function getCacheTTL(): number {
   const utcHour = new Date().getUTCHours();
@@ -455,7 +478,9 @@ function ArenaContent() {
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem(ARENA_HIST_KEY);
-      if (saved) setHistory(JSON.parse(saved));
+      // Rows stored before the #260 rename carry LONG/SHORT and would render as
+      // FLAT-and-grey, turning a directional call the user made into "no view".
+      if (saved) setHistory((JSON.parse(saved) as HistItem[]).map(h => ({ ...h, signal: normalizeSignal(h.signal) })));
     } catch { /* ignore */ }
   }, []);
   useEffect(() => {
@@ -471,7 +496,13 @@ function ArenaContent() {
         const now = Date.now();
         const fresh: Partial<Record<CoinId, CacheEntry>> = {};
         Object.entries(parsed).forEach(([k, v]) => {
-          if (v && now - v.result.analyzedAt < CACHE_MAX_AGE_MS) fresh[k as CoinId] = v;
+          // Same #260 migration as the history above, and it matters more here:
+          // this is the main result card, so a pre-rename cached result would
+          // show the wrong verdict word and the wrong colour on the page's most
+          // prominent element.
+          if (v && now - v.result.analyzedAt < CACHE_MAX_AGE_MS) {
+            fresh[k as CoinId] = { ...v, result: { ...v.result, signal: normalizeSignal(v.result.signal) } };
+          }
         });
         setResultsCache(fresh);
       }
