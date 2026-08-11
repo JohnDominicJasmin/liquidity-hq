@@ -1,13 +1,32 @@
 import type { Page } from '@playwright/test';
 
 /** Every route the suite sweeps. Public + app routes, signed out. */
+/* Every route the sweeping specs measure — contrast, layout, a11y, seo, perf.
+ *
+ * `/backtest` and `/live-tracking` were REMOVED on 2026-08-11 (#264, shipped in
+ * #265): both now redirect to `/dashboard`, so leaving them here would not fail
+ * loudly — it would silently measure `/dashboard` twice and report a clean sweep
+ * over a surface two routes smaller than the list claims.
+ *
+ * That is the quieter half of the problem. `settle()` throws on `HTTP >= 400`, so
+ * a 404 would have been obvious; a redirect is the case that passes while
+ * measuring the wrong thing.
+ *
+ * PUT THEM BACK if the redirect is lifted. The pages still exist in `app/` — they
+ * are hidden, not deleted — so this list and the redirect have to move together
+ * in both directions. */
 export const ROUTES = [
   '/', '/about', '/login', '/forgot-password', '/faq', '/learn', '/disclaimer',
   '/privacy', '/terms', '/refund', '/upgrade', '/markets', '/news', '/calc',
   '/hours', '/econ-calendar', '/playbook', '/arena', '/dashboard', '/scanner',
-  '/backtest', '/correlation', '/funding', '/liq', '/research', '/briefing',
-  '/journal', '/alerts', '/settings', '/live-tracking', '/offline', '/ops/login',
+  '/correlation', '/funding', '/liq', '/research', '/briefing',
+  '/journal', '/alerts', '/settings', '/offline', '/ops/login',
 ] as const;
+
+/* Hidden behind a redirect, and asserted as such by `hidden-routes.spec.ts`.
+ * Kept as a named list so "which routes are hidden" has one answer rather than
+ * living in a redirect config, a nav component and a test file separately. */
+export const HIDDEN_ROUTES = ['/backtest', '/live-tracking'] as const;
 
 /**
  * BASELINES — known-failing counts as of the 2026-08-04 audit.
