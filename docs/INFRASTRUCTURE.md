@@ -344,7 +344,7 @@ deliberate exceptions. Set as of 2026-08-05:
 |---|---|
 | `NEXT_PUBLIC_POSTHOG_KEY` | QA test runs would land in product analytics and corrupt the numbers. **Also enforced in code since 2026-08-08** — `analyticsKey()` in `lib/analytics.ts` returns `''` whenever `NEXT_PUBLIC_APP_ENV` is `dev`, so a non-prod build cannot write into the single shared PostHog project even if someone sets the variable. dev and prod were found serving the *same* key that day |
 | `NEXT_PUBLIC_SENTRY_DSN` | Prod only. All environments share one GlitchTip project on the free tier; non-prod traffic exhausted the quota once and production reported nothing at all — every envelope came back 429 |
-| `LEMONSQUEEZY_WEBHOOK_SECRET` etc. | Payments. Staging has no business holding these |
+| `LEMONSQUEEZY_WEBHOOK_SECRET` etc. | Payments. **This row is about the QA service and is still true there.** It said "staging has no business holding these" until 2026-08-11, which stopped being true that day: staging now holds a **test-mode** secret and checkout URL for the #243 purchase run. Test mode, on a service using the dev database — see §4d |
 | `CRON_SECRET` | Cron routes fail **closed** without it (`lib/cronAuth.ts`), which is the desired state on any non-prod host. Was wrongly set on qa 2026-08-05 → 2026-08-08; removed, see below |
 
 ### Brevo is set on EVERY environment, on purpose
@@ -475,6 +475,73 @@ side-effect credentials of its own. `CRON_SECRET` is correctly unset there
 `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is domain-locked. Copying dev's value is not
 enough — add `liquidity-hq-qa.onrender.com` to that widget's allowed domains in
 Cloudflare, or the login captcha fails on the qa host only.
+
+---
+
+## 4d. Staging has almost no integrations, and that shrank QA's coverage
+
+**`liquidity-hq-staging` was created with a fraction of the env vars the app
+reads.** The app reads **32** distinct variables
+(`grep -rhoE "process\.env\.[A-Z0-9_]+" app lib components proxy.ts | sort -u`);
+staging was stood up with the core config and little else.
+
+**Why this is not a tidiness problem.** QA's sign-off target moved from the qa
+service to the staging service when the fourth branch landed. The qa service
+shares dev's Telegram bot, so it can at least deliver an alert; **staging cannot
+deliver anything.** Adding `staging` therefore *reduced* what QA is able to
+verify before a release, and it did so silently — nothing failed, a class of
+tests simply stopped being runnable on the environment that signs off.
+
+**The named gap: alert delivery is verified on no environment that matters.** A
+Telegram or push test passing on `qa` is evidence about dev's bot, not about the
+release candidate. That should be a decision, not a leftover of how the services
+were created. Asked on issue #280.
+
+### What is set, and how much of that is actually known
+
+`NEXT_PUBLIC_*` is inlined into the client bundle at build time, so its presence
+can be read off the **deployed** build without a dashboard or a secret. Measured
+2026-08-11:
+
+| | Sentry | PostHog | LemonSqueezy checkout |
+|---|---|---|---|
+| `qa` | – | – | – |
+| `staging` | – | – | **set** |
+| `prod` | **set** | **set** | – |
+
+**Read a blank as "not detected", never as "not set".** Bundle coverage differs
+per service (356 KB scanned on qa against 1 MB on prod), and a first pass using
+tighter patterns reported prod as having **no Sentry**, which a looser probe
+immediately disproved. The technique is sound for a positive and weak for a
+negative.
+
+Server-side secrets — `TELEGRAM_BOT_TOKEN`, `BREVO_*`, `ADMIN_EMAILS`,
+`COINGLASS_API_KEY` — cannot be read this way at all. **The Render dashboard is
+the only authority**, and the Render MCP integration can *write* environment
+variables but not read them, so no session can produce this table from the API.
+
+### Payments on staging, since 2026-08-11
+
+`LEMONSQUEEZY_WEBHOOK_SECRET`, `NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL` and
+`E2E_USER_C_PASSWORD` are set on staging for the #243 test-mode purchase run.
+**Test mode**, a separate webhook object from any live one, on a service pointed
+at the dev database. §4c's "staging has no business holding these" was written
+before this and describes the qa service.
+
+**`NEXT_PUBLIC_*` is inlined at build time**, so setting the checkout URL did
+nothing until the service rebuilt — and `/api/version` reports the same commit
+either side of an env-only rebuild, so it cannot distinguish "deployed" from
+"deployed with the new value". That gap is real for every `NEXT_PUBLIC_*` change
+and cost a false "the URL has not landed" report on #243.
+
+### Turning any of these on
+
+| Integration | Prerequisite |
+|---|---|
+| Web Push | `npx web-push generate-vapid-keys`, set the trio. Free, self-generated, no third party |
+| `/ops` console | `ADMIN_EMAILS` — a list of addresses. Grants admin access, so treat it as a permission change |
+| Telegram | **A SECOND bot via BotFather.** A bot has one webhook: share dev's and whoever registers last silently steals the other's messages. It fails in the direction of "the test passed because someone else's message arrived" |
+| Brevo / PostHog / Coinglass | Real sends, polluted analytics, shared quota respectively. Leave off unless a test plan names the flow |
 
 ---
 
