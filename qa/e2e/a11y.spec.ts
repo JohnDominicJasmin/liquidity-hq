@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { ROUTES, BASELINE, settle, runAxe, INTERACTIVE_SELECTOR } from './_shared';
+import { installMarketFixtures } from './_fixtures';
 
 // Accessibility. Mixed strategy on purpose:
 //   - things that currently pass (alt text, duplicate ids, lang) -> hard assert
@@ -49,6 +50,34 @@ test.describe('accessibility', () => {
   // (.pf-footer-bottom-link at 15px tall, .pf-footer-expand at 18px).
   test('tap targets below 24px do not increase', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'touch target sizing is a mobile concern');
+
+    /* FIXED MARKET DATA, and this is the whole point of #263.
+     *
+     * This sweep counts CONTROLS, and how many controls render depends on how
+     * much data arrives. Without fixtures the number moves with the live market,
+     * so the baseline was a snapshot of one afternoon and any comparison against
+     * it measures the market as much as the code.
+     *
+     * Measured on 2026-08-11 against two builds, minutes apart:
+     *
+     *     24e8c3b  (pre-release)   148
+     *     ff9704d  (the release)   149
+     *     BASELINE                 122
+     *
+     * The pre-release build failed identically, so the 26-count gap was drift
+     * that nothing caught - and the 1-count difference between the builds is
+     * inside the noise this fixes. A ratcheting baseline over an uncontrolled
+     * input cannot distinguish "someone added a small control" from "more rows
+     * rendered today", which is the only question it exists to answer.
+     *
+     * `contrast.spec.ts` and `layout.spec.ts` already do this for the same
+     * reason. This one was missed.
+     *
+     * The baseline is NOT raised here. A controlled number has to be measured
+     * first, and raising it in the same change would convert "we cannot measure
+     * this reliably" into "this is the new normal" - the thing qa/STATUS.md
+     * warns about for perf.spec. */
+    await installMarketFixtures(page, 'as-recorded');
 
     const found: string[] = [];
     for (const route of ROUTES) {
