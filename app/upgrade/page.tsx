@@ -3,16 +3,13 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { getCheckoutUrl } from '@/lib/checkout';
+import { getCheckoutUrl, isCheckoutConfigured } from '@/lib/checkout';
 import LoadingState from '@/components/LoadingState';
 import { AI_LIMITS } from '@/lib/limits';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
 
-const CHECKOUT_CONFIGURED = !!(
-  process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL &&
-  process.env.NEXT_PUBLIC_LEMONSQUEEZY_CHECKOUT_URL !== '#'
-);
+const CHECKOUT_CONFIGURED = isCheckoutConfigured();
 
 const F = AI_LIMITS.free, P = AI_LIMITS.pro; // limit numbers derived, not hand-typed
 
