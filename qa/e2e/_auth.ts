@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { gotoGuarded } from './_shared';
 
 /**
  * Credentials + token minting for the authenticated specs.
@@ -211,7 +212,7 @@ export async function gotoSignedIn(
   page: import('@playwright/test').Page,
   path: string,
 ): Promise<void> {
-  await page.goto(path, { waitUntil: 'domcontentloaded' });
+  await gotoGuarded(page, path);
   await page.waitForTimeout(4000);
 
   const state = await page.evaluate(() => {

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
-import { ROUTES } from './_shared';
+import { ROUTES, gotoGuarded } from './_shared';
 import { installMarketFixtures } from './_fixtures';
 
 /* Does the page LAY OUT correctly — not "is the DOM right".
@@ -216,7 +216,7 @@ test.describe('layout', () => {
   test('the detector actually detects (guards against a vacuous pass)', async ({ browser }, testInfo) => {
     const { page, close } = await preparedPage(browser, testInfo.project.use.viewport ?? { width: 1440, height: 900 });
     try {
-      await page.goto('/', { waitUntil: 'domcontentloaded' });
+      await gotoGuarded(page, '/', { waitUntil: 'domcontentloaded' });
       await settleForGeometry(page);
 
       const clean = await findLayoutDefects(page);
@@ -278,7 +278,7 @@ test.describe('layout', () => {
     const zero: string[] = [];
     try {
       for (const route of ROUTES) {
-        await page.goto(route, { waitUntil: 'domcontentloaded' });
+        await gotoGuarded(page, route, { waitUntil: 'domcontentloaded' });
         await settleForGeometry(page);
         const { obscured, zeroSized } = await findLayoutDefects(page);
         for (const o of obscured) found.add(`${route}: ${o}`);
@@ -387,7 +387,7 @@ test.describe('layout', () => {
     const found = new Set<string>();
     try {
       for (const route of ROUTES) {
-        await page.goto(route, { waitUntil: 'domcontentloaded' });
+        await gotoGuarded(page, route, { waitUntil: 'domcontentloaded' });
         await settleForGeometry(page);
         const { obscured } = await findLayoutDefects(page);
         for (const o of obscured) found.add(`${route}: ${o}`);
