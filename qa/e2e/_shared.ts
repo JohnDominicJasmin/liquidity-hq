@@ -106,8 +106,58 @@ export const BASELINE = {
    *
    * So this stays as the loose "small touch targets on a PWA" signal it actually
    * is, and axeTargetSizeViolations below is what guards conformance.
+   *
+   * ── 122 -> 84, 2026-08-11 (#263). The first REPRODUCIBLE number this has had ──
+   *
+   * 122 was recorded against uncontrolled inputs, so it drifted: the same commit
+   * measured 148 locally and 149 on the release build, and the PRE-release build
+   * measured 148 too - proving the gap was never a regression, just drift nobody
+   * caught while CI was off.
+   *
+   * Three inputs are now pinned (#268, #270): market data via
+   * `installMarketFixtures`, browser consent state, and routes that render
+   * almost nothing are named rather than counted as zero violations.
+   *
+   * The new number is not an improvement in the app. It is the same surface,
+   * measured without the noise - and the composition above says exactly what it
+   * is:
+   *
+   *     122 = 84 a.pf-footer-bottom-link + 31 a.consent-link + 7 bare <a>
+   *      84 = a.pf-footer-bottom-link
+   *
+   * **84 is the shared footer component and nothing else.** The 31 consent links
+   * disappear because consent is now pinned to `denied`; the 7 bare anchors were
+   * data-dependent. So this metric now measures ONE component, which is both its
+   * honest scope and the reason it will barely move again.
+   *
+   * MEASURED TWICE, identically, against deployed `staging` at `714af38`, with
+   * zero unmeasured routes both times. One measurement is not a baseline.
+   *
+   * The environment belongs beside the number: **mobile project, consent denied,
+   * market fixtures installed.** A first-visit run is NOT comparable.
+   *
+   * ── 84 -> 85, and the +1 is an ENVIRONMENT DIFFERENCE, not slack ────────────
+   *
+   * Deployed measures 84. A local run measures 85, twice, identically. So the
+   * three pinned inputs removed the drift but did not make the two environments
+   * agree - there is one element present locally and not on the deployed build,
+   * and neither of us has identified it.
+   *
+   * 85 is set so `toBeLessThanOrEqual` is green in BOTH. Dev's argument, and it
+   * is this file's own rule turned around: `perf`'s LCP note says "a test that is
+   * always red is indistinguishable from a test nobody reads". A baseline that is
+   * honest on the deployed service and red on every developer's machine is that
+   * test, and it would be ignored within a week.
+   *
+   * The cost is ONE element of slack on deployed runs. A real regression still
+   * fails at 86. That is a better trade than a gate nobody trusts.
+   *
+   * **The +1 is not explained and should not be treated as understood.** If
+   * someone identifies it, the right move is to pin it like the other three and
+   * drop back to a single number for both environments - not to widen this
+   * further.
    */
-  tapTargetsUnder24: 122,
+  tapTargetsUnder24: 85,
   /**
    * SC 2.5.8 failures per axe-core's own `target-size` rule, which models BOTH
    * exceptions (spacing and inline) rather than re-deriving them by hand.
