@@ -1,4 +1,5 @@
 import { test, expect, request as pwRequest } from '@playwright/test';
+import { getGuarded } from './_shared';
 import { AUTH_READY, AUTH_SKIP_REASON, FIXTURES, SUPABASE_URL, SUPABASE_ANON, signIn } from './_auth';
 
 /**
@@ -89,7 +90,7 @@ test.describe('BOLA / IDOR - cross-account access', () => {
   // Everything below is meaningless if A's rows do not exist. This runs first
   // and fails the file rather than letting later tests pass vacuously.
   test('A can read its own seeded rows (guards against a vacuous pass)', async ({ request }) => {
-    const hyp = await request.get('/api/hypotheses', { headers: auth(tokenA), failOnStatusCode: false });
+    const hyp = await getGuarded(request, '/api/hypotheses', { headers: auth(tokenA), failOnStatusCode: false });
     expect(hyp.status(), 'A should be able to list its hypotheses').toBe(200);
     const hypBody = await hyp.json();
     const hypRows = Array.isArray(hypBody) ? hypBody : (hypBody.hypotheses ?? hypBody.data ?? []);
@@ -98,7 +99,7 @@ test.describe('BOLA / IDOR - cross-account access', () => {
       `A's seeded hypothesis ${FIXTURES.hypothesisId} must be visible to A, or this file proves nothing`,
     ).toContain(FIXTURES.hypothesisId);
 
-    const alerts = await request.get('/api/price-alerts', { headers: auth(tokenA), failOnStatusCode: false });
+    const alerts = await getGuarded(request, '/api/price-alerts', { headers: auth(tokenA), failOnStatusCode: false });
     expect(alerts.status()).toBe(200);
     expect(JSON.stringify(await alerts.json())).toContain(FIXTURES.priceAlertId);
   });
@@ -117,7 +118,7 @@ test.describe('BOLA / IDOR - cross-account access', () => {
     ].filter(([, v]) => v.length >= 8) as Array<[string, string]>;
 
     for (const path of ['/api/hypotheses', '/api/price-alerts', '/api/settings']) {
-      const r = await request.get(path, { headers: auth(tokenB), failOnStatusCode: false });
+      const r = await getGuarded(request, path, { headers: auth(tokenB), failOnStatusCode: false });
       expect([200, 404], `${path} should answer B`).toContain(r.status());
       const text = await r.text();
       for (const [what, needle] of needles) {
@@ -271,7 +272,7 @@ test.describe('BOLA / IDOR - cross-account access', () => {
   // failure cannot masquerade as "access correctly denied" above.
   test('the same requests without a token are rejected', async ({ request }) => {
     for (const path of ['/api/hypotheses', '/api/price-alerts', '/api/settings']) {
-      const r = await request.get(path, { failOnStatusCode: false });
+      const r = await getGuarded(request, path, { failOnStatusCode: false });
       const body = await r.text();
 
       // /api/hypotheses and /api/settings answer 401. /api/price-alerts answers
@@ -301,7 +302,7 @@ test.describe('BOLA / IDOR - cross-account access', () => {
   test("a forged token for A's user id is rejected", async ({ request }) => {
     const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
     const forged = `${b64({ alg: 'none', typ: 'JWT' })}.${b64({ sub: FIXTURES.aId, role: 'authenticated', email: FIXTURES.aEmail })}.`;
-    const r = await request.get('/api/hypotheses', {
+    const r = await getGuarded(request, '/api/hypotheses', {
       headers: { Authorization: `Bearer ${forged}` }, failOnStatusCode: false,
     });
     expect([401, 403], 'an unsigned token claiming to be A was accepted').toContain(r.status());

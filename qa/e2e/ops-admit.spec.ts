@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { getGuarded } from './_shared';
 import { AUTH_READY, AUTH_SKIP_REASON, FIXTURES, signIn } from './_auth';
 
 /* Does `/ops` ADMIT the people it is supposed to admit? (#280)
@@ -84,7 +85,7 @@ test.describe('/ops admit path', () => {
 
   for (const path of OPS_ROUTES) {
     test(`ADMITS an authenticated admin: ${path}`, async ({ request }) => {
-      const res = await request.get(path, {
+      const res = await getGuarded(request, path, {
         headers: { Authorization: `Bearer ${adminToken}` },
       });
       expect(res.status(),
@@ -101,7 +102,7 @@ test.describe('/ops admit path', () => {
          Anonymous refusal is already covered in security.spec.ts; a SIGNED-IN
          non-admin is the case that distinguishes "checks the role" from
          "checks for any token at all". */
-      const res = await request.get(path, {
+      const res = await getGuarded(request, path, {
         headers: { Authorization: `Bearer ${freeToken}` },
       });
       expect([401, 403],

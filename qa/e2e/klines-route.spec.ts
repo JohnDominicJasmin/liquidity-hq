@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { getGuarded } from './_shared';
 
 /* The server-side klines route (#200 batch 1, added in #231, sliced in #232).
  *
@@ -70,7 +71,7 @@ test.describe('server-side klines route', () => {
        * newest, whatever order the upstream uses. Comparing against this instead
        * of against a hardcoded direction means the test does not assume the
        * thing it is testing. */
-      const refRes = await request.get(`${ROUTE}?source=${source}&symbol=${symbol}&interval=${interval}&limit=300`);
+      const refRes = await getGuarded(request, `${ROUTE}?source=${source}&symbol=${symbol}&interval=${interval}&limit=300`);
       test.skip(refRes.status() !== 200,
         `${source} reference request returned ${refRes.status()} - upstream refused this IP, ` +
         'so slicing cannot be judged. That is a real condition (Binance IP-banned qa and staging ' +
@@ -83,7 +84,7 @@ test.describe('server-side klines route', () => {
       const observed: string[] = [];
 
       for (const limit of LIMITS) {
-        const res = await request.get(`${ROUTE}?source=${source}&symbol=${symbol}&interval=${interval}&limit=${limit}`);
+        const res = await getGuarded(request, `${ROUTE}?source=${source}&symbol=${symbol}&interval=${interval}&limit=${limit}`);
         expect(res.status(), `${source} limit=${limit} returned ${res.status()}`).toBe(200);
 
         const body = await res.json();
@@ -122,7 +123,7 @@ test.describe('server-side klines route', () => {
     /* #228 is the whole reason this assertion exists: /api/market/snapshot
      * returned klines:{} with HTTP 200 for hours while Binance IP-banned the
      * egress address. This route was built after that and must not repeat it. */
-    const res = await request.get(`${ROUTE}?source=bybit&symbol=BTCUSDT&interval=60&limit=50`);
+    const res = await getGuarded(request, `${ROUTE}?source=bybit&symbol=BTCUSDT&interval=60&limit=50`);
 
     if (res.status() === 200) {
       expect(count('bybit', await res.json()),
@@ -144,12 +145,12 @@ test.describe('server-side klines route', () => {
      * the 300s TTL for a 60-minute interval must be byte-identical, because the
      * second is served from cached(). */
     const url = `${ROUTE}?source=bybit&symbol=ETHUSDT&interval=60&limit=100`;
-    const a = await request.get(url);
+    const a = await getGuarded(request, url);
     test.skip(a.status() !== 200, `upstream unavailable (${a.status()}), cannot judge caching`);
     const first = JSON.stringify(await a.json());
 
     await new Promise(r => setTimeout(r, 1500));
-    const b = await request.get(url);
+    const b = await getGuarded(request, url);
     const second = JSON.stringify(await b.json());
 
     expect(second,
@@ -173,7 +174,7 @@ test.describe('server-side klines route', () => {
     ];
 
     for (const [name, url] of cases) {
-      const res = await request.get(url);
+      const res = await getGuarded(request, url);
       expect(res.status(),
         `${name} was NOT rejected - it returned ${res.status()}. Every accepted value becomes a ` +
         'cache key that is never evicted, so an open validation is a slow leak rather than a ' +
@@ -183,7 +184,7 @@ test.describe('server-side klines route', () => {
 
     /* THE CONTROL. Four 400s prove nothing if the route 400s everything - a
      * broken handler would satisfy the block above completely. */
-    const ok = await request.get(`${ROUTE}?source=bybit&symbol=BTCUSDT&interval=60&limit=10`);
+    const ok = await getGuarded(request, `${ROUTE}?source=bybit&symbol=BTCUSDT&interval=60&limit=10`);
     expect([200, 429, 502, 503],
       `a VALID request returned ${ok.status()}. The four rejections above are meaningless if the ` +
       'route refuses everything - this control is what separates "validation works" from ' +

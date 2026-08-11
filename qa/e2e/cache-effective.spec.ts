@@ -1,4 +1,5 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type APIRequestContext } from '@playwright/test';
+import { getGuarded } from './_shared';
 import { createHash } from 'node:crypto';
 
 /* Does the server-side cache actually SERVE repeat callers?
@@ -80,7 +81,11 @@ function stableDigest(raw: string): string {
 
 interface Probe { stable: string[]; raw: string[]; statuses: number[] }
 
-type Req = { get: (u: string) => Promise<{ status(): number; text(): Promise<string> }> };
+/* Was a hand-written structural type covering only `.get`. Widened to the real
+   fixture type so this can go through getGuarded, which needs the full context -
+   a narrowed alias here meant a dead service showed up as a bare ECONNREFUSED
+   rather than an ENVIRONMENT failure. */
+type Req = APIRequestContext;
 
 async function probe(request: Req, path: string): Promise<Probe> {
   const stable: string[] = [];
@@ -88,7 +93,7 @@ async function probe(request: Req, path: string): Promise<Probe> {
   const statuses: number[] = [];
 
   for (let i = 0; i < SAMPLES; i++) {
-    const res = await request.get(path);
+    const res = await getGuarded(request, path);
     statuses.push(res.status());
     const body = await res.text();
     raw.push(createHash('sha1').update(body).digest('hex').slice(0, 10));
@@ -253,7 +258,7 @@ test.describe('cache effectiveness', () => {
       'the CoinGecko per-IP limit is specific to the deployed non-prod services',
     );
 
-    const res = await request.get('/api/ath');
+    const res = await getGuarded(request, '/api/ath');
     const status = res.status();
     const body = await res.text().catch(() => '');
 
@@ -318,7 +323,7 @@ test.describe('/api/market/snapshot partial contract', () => {
   const PARTS = ['ticker', 'klines', 'lsr'] as const;
 
   test('an empty part is named in `partial`, and a named part is empty', async ({ request }, testInfo) => {
-    const res = await request.get('/api/market/snapshot');
+    const res = await getGuarded(request, '/api/market/snapshot');
     expect(res.status(), 'cannot judge the contract from a failing route').toBe(200);
 
     const body = await res.json() as Record<string, unknown> & { partial?: string[] };
@@ -373,7 +378,7 @@ test.describe('/api/market/snapshot partial contract', () => {
    * absence reporting as normal; this is the sixth place that could have
    * happened and the control is why it will not. */
   test('control: at least one part carries data, so the assertion is not vacuous', async ({ request }) => {
-    const res = await request.get('/api/market/snapshot');
+    const res = await getGuarded(request, '/api/market/snapshot');
     const body = await res.json() as Record<string, unknown>;
     const sizes = PARTS.map(p => Object.keys((body[p] ?? {}) as object).length);
 

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { getGuarded } from './_shared';
 import crypto from 'node:crypto';
 import { SUPABASE_URL } from './_auth';
 
@@ -236,7 +237,7 @@ test.describe('LemonSqueezy write path (account C)', () => {
 
     /* Ask the SERVICE which table set it is using, rather than deriving it from
      * this machine's environment. See the comment on TABLE. */
-    const v = await request.get('/api/version', { failOnStatusCode: false });
+    const v = await getGuarded(request, '/api/version', { failOnStatusCode: false });
     expect(v.status(), '/api/version was unreachable, so the target table cannot be resolved').toBe(200);
     const { appEnv, branch, commit } = await v.json();
     expect(appEnv, '/api/version reports appEnv `unset`, so which table set the service writes ' +

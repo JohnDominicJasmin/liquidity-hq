@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { getGuarded } from './_shared';
 
 /* /api/econ-calendar — the invariants that hold whatever the upstreams do.
  *
@@ -54,7 +55,7 @@ test.describe('/api/econ-calendar', () => {
   let source = '';
 
   test.beforeAll(async ({ request }) => {
-    const res = await request.get(ENDPOINT, { failOnStatusCode: false });
+    const res = await getGuarded(request, ENDPOINT, { failOnStatusCode: false });
     expect(res.status(), 'the calendar route did not answer').toBe(200);
     const body = await res.json();
     events = Array.isArray(body.events) ? body.events : [];
