@@ -1,5 +1,5 @@
 'use client';
-import { useMarket, CoinId, fmtPrice, COIN_DEC } from '@/lib/marketStore';
+import { useMarket, CoinId, fmtPrice, COIN_DEC, classifyFunding, FUNDING_TIP_KEY } from '@/lib/marketStore';
 import { useOI1h, oi1hSignal } from '@/lib/useOI1h';
 import Tip from '@/components/Tip';
 import { SkeletonBar } from '@/components/Skeleton';
@@ -98,7 +98,8 @@ export default function CoinMarketSnapshot({ coin }: { coin: CoinId }) {
       </div>
 
       <div className="edge-card">
-        <div className="edge-card-label"><Tip text={t('COIN_MARKET_SNAPSHOT_FUNDING_TOOLTIP')}>{t('COIN_MARKET_SNAPSHOT_FUNDING_LABEL')}</Tip></div>
+        {/* Tooltip follows the SIGN (#244) - see the dashboard card for why. */}
+        <div className="edge-card-label"><Tip text={t(fr != null ? FUNDING_TIP_KEY[classifyFunding(fr).band] : 'COIN_MARKET_SNAPSHOT_FUNDING_TOOLTIP')}>{t('COIN_MARKET_SNAPSHOT_FUNDING_LABEL')}</Tip></div>
         <div className="edge-card-value" style={{ color: frCol }}>
           {frPct != null ? (frPct >= 0 ? '+' : '') + frPct.toFixed(4) + '%' : '-'}
         </div>
