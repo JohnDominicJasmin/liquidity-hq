@@ -192,7 +192,10 @@ export default function UpgradeGateModal({ open, onClose, feature }: Props) {
           {([
             'UPGRADE_GATE_BULLET_1',
             'UPGRADE_GATE_BULLET_2',
-            'UPGRADE_GATE_BULLET_3',
+            /* BULLET_3 is "Full backtesting across every coin and timeframe" and is
+               omitted while /backtest is hidden (#273) - same reason as the
+               /upgrade Pro list. Key and default kept so restoring it is this one
+               line. Must come back in step with the redirect in proxy.ts. */
             'UPGRADE_GATE_BULLET_4',
           ] as const).map(k => (
             <li key={k} style={{ display: 'flex', gap: 10, alignItems: 'baseline', fontSize: 'var(--fs-label)', color: 'var(--txt2)', lineHeight: 1.5 }}>
