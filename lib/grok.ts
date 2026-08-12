@@ -146,6 +146,8 @@ export interface GrokContext {
   absorptionScore: string;
   /* Yen carry trade risk */
   yenWatch: string;
+  /* Perps vs spot - is the move real buying or leverage (#340) */
+  perpSpot: string;
   /* EMA Ribbon Strategy (Triple EMA 9/20/50, 4H) */
   emaStrategy: string;
   /* Anti-chop filters - ATR(14) buffer + EMA50 slope + EMA9/20 spread */
@@ -243,6 +245,10 @@ export function buildPrompt(ctx: GrokContext): string {
     `US 10Y Bond Yield: ${ctx.bonds10y}`,
     `DXY (US Dollar Index): ${ctx.dxyLine}`,
     `USD/JPY (Yen Carry Trade): ${ctx.yenWatch}`,
+    /* Deliberately the SAME sentence the dashboard card shows. One vocabulary
+       across every surface - if the model phrases this differently from the
+       card, a user reading both sees two facts where there is one. */
+    `Perps vs Spot: ${ctx.perpSpot}`,
     `S&P 500: ${ctx.spxLine}`,
     `Gold (XAU/USD): ${ctx.goldLine}`,
     `BTC Dominance (trend): ${ctx.btcDomTrend}`,

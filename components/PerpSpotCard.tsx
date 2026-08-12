@@ -1,8 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
 import { useMarket } from '@/lib/marketStore';
-import { BINANCE_SYMS } from '@/lib/coins';
-import { computePerpSpot, type PerpSpotReading } from '@/lib/perpSpot';
+import { usePerpSpot } from '@/lib/usePerpSpot';
 
 /* Perps vs spot (#328) - "is there a real buyer, or is the pump just futures?"
  *
@@ -33,61 +31,14 @@ import { computePerpSpot, type PerpSpotReading } from '@/lib/perpSpot';
  * have the score change underneath them, and QA was explicit on #328.
  */
 
-const HOUR = 3600_000;
-const BARS = 168;   // 7 days of hourly bars - enough for a stable median
-
-type Kline = [number, string, string, string, string, string, number, string, ...unknown[]];
-
-async function fetchBars(source: 'binance' | 'binance-futures', symbol: string) {
-  const r = await fetch(
-    `/api/market/klines?source=${source}&symbol=${symbol}&interval=1h&limit=${BARS}`,
-    { signal: AbortSignal.timeout(12_000) },
-  );
-  if (!r.ok) throw new Error(`${source} ${r.status}`);
-  const rows = (await r.json()) as Kline[];
-  // Index 7 is quote-asset volume (USDT) - comparable across the two venues in
-  // a way base volume is not. Index 0 is the bar's open time.
-  return rows.map(k => ({ time: k[0], quoteVolume: parseFloat(k[7]) }));
-}
-
 const LABEL = 'FUTURES ACTIVITY VS NORMAL';
 
 export default function PerpSpotCard() {
   const { store } = useMarket();
   const coin = store.selectedCoin;
-  const [reading, setReading] = useState<PerpSpotReading | null>(null);
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    const sym = BINANCE_SYMS[coin];
-
-    (async () => {
-      // No Binance spot pair means the question cannot be answered for this
-      // coin at all. With a single number there is nowhere for a missing half
-      // to show up, so it has to be said outright - otherwise the perp side
-      // alone renders as though it had been measured against something.
-      if (!sym) { if (!cancelled) setReading(computePerpSpot([], [])); return; }
-      try {
-        const [spot, perp] = await Promise.all([
-          fetchBars('binance', sym),
-          fetchBars('binance-futures', sym),
-        ]);
-        if (!cancelled) setReading(computePerpSpot(spot, perp, HOUR, Date.now()));
-      } catch {
-        // A failed fetch is not a quiet market.
-        if (!cancelled) setReading(computePerpSpot([], []));
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [coin, tick]);
-
-  // Hourly bars, so refresh on the bar close rather than a rolling timer -
-  // same reasoning as #316. Re-arms itself via `tick`.
-  useEffect(() => {
-    const id = setTimeout(() => setTick(t => t + 1), HOUR - (Date.now() % HOUR) + 3_000);
-    return () => clearTimeout(id);
-  }, [tick]);
+  // Shared with the Arena prompts and the chart signal (#340) - one fetch, one
+  // reading, so the card and the AI cannot disagree on screen.
+  const reading = usePerpSpot(coin);
 
   if (!reading) return null;
 

@@ -38,6 +38,7 @@ import type { LabelKey } from '@/lib/labelKeys';
 import { GATED_TFS as LIMIT_GATED_TFS, FREE_FALLBACK_TF as LIMIT_FREE_FALLBACK_TF } from '@/lib/limits';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal, type PASignal } from '@/lib/priceAction';
+import { usePerpSpot } from '@/lib/usePerpSpot';
 
 /* ── Pattern detection - delegates to shared lib/patterns.ts ── */
 function detectPatterns(candles: Candle[]): string { return detectPatternsStr(candles); }
@@ -236,6 +237,15 @@ function ArenaContent() {
   const [coinCat, setCoinCat]           = useState<'all' | 'majors' | 'alts' | 'defi' | 'meme'>('all');
   const [copiedKey, setCopiedKey]           = useState<string | null>(null);
   const [jpyUsd, setJpyUsd]                 = useState<number | null>(null);
+  /* Perps vs spot (#340) - the same reading the dashboard card shows, from the
+     shared hook so the card and the AI cannot disagree about it. */
+  const perpSpot = usePerpSpot(selectedCoin);
+  /* Mirrored into a ref because the prompt payload is built inside a callback
+     that reads refs rather than closing over state - same pattern as
+     emaSignalRef and absDataRef beside it. Closing over `perpSpot` directly
+     would freeze it at whatever it was when the callback was created. */
+  const perpSpotRef = useRef(perpSpot);
+  useEffect(() => { perpSpotRef.current = perpSpot; }, [perpSpot]);
   const scannerRef      = useRef<HTMLDivElement>(null);
   const hoverOpenTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   /* Whether the scanner was opened by hover rather than by a click. Only a
@@ -984,6 +994,10 @@ function ArenaContent() {
           : jpyUsd >= 158
             ? `${jpyUsd.toFixed(2)} - WARNING: Approaching 160 danger zone, watch for BOJ signals`
             : `${jpyUsd.toFixed(2)} - Safe: below 158, carry trade stable, low JPY liquidation risk`,
+      /* The card's own sentence, verbatim. Rewording it for the prompt would
+         give the model a second vocabulary for one fact, and a user reading the
+         dashboard and the AI answer would see two claims instead of one. */
+      perpSpot: perpSpotRef.current?.explanation ?? 'Perps vs spot could not be measured for this coin.',
       emaStrategy: strategyToGrokLine(emaSignalRef.current, readTf),
       emaATR: emaSignalRef.current.atrLast != null
         ? `ATR(14) = $${emaSignalRef.current.atrLast.toFixed(2)} · 35% buf = $${(emaSignalRef.current.atrLast * 0.35).toFixed(2)} min clearance above/below EMA50`
