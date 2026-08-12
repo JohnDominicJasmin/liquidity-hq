@@ -263,6 +263,40 @@ gh issue list --state open
   file, and say how many *distinct* causes there are — "10 failures" and "3
   problems, one of them environmental" are different reports and only the second
   is actionable.
+- **A COMMENT DESCRIBING AN INVARIANT IS THE THING THAT GOES STALE. The durable
+  version is a check, not a note.** Three separate times on 2026-08-12, and each
+  one was CORRECT WHEN WRITTEN:
+
+  ```
+  entitlements.spec.ts header  "pro -> 503 VAPID not configured ... no real push
+                               is sent. If the 503 ever becomes a 200, someone has
+                               put credentials in CI. Worth noticing."
+                               -> it became true on qa. Nothing noticed, because
+                                  the assertion was not.toBe(403) and 200 passes
+                                  it identically. The sweep was posting a real
+                                  message into dev's Telegram on every run.
+
+  INFRASTRUCTURE.md            recorded CRON_SECRET as unset on qa. It was wrongly
+                               SET for three days in August. The doc's own row
+                               records the correction - after the fact.
+
+  /ops route comments          described routes as Pro-only that turned out to be
+                               enforced differently.
+  ```
+
+  Nothing edited any of them. **The world moved and the prose did not.** A note
+  describes the state at the moment someone typed it; a check describes the state
+  at the moment it runs.
+
+  The general fix is #283's shape: **ask the host, do not encode a belief about
+  it.** `entitlements.spec.ts` now reads `configured.telegram` before calling a
+  delivery route, and defaults to NOT calling when the answer is unknown - a build
+  that cannot answer gets the safe branch rather than the historical assumption.
+
+  Applies to this file too. Everything here is prose, so anything expensive enough
+  to be wrong about belongs in an assertion instead - and the entries that survived
+  are the ones nothing could check.
+
 - **An empty result is not evidence unless something proves the instrument works.**
   This bit **seven** separate times on 2026-08-10 and is by a distance the most
   repeated defect in this suite: `cache-policy` asserted headers that cached
