@@ -662,10 +662,15 @@ the other session re-derives them.
 
 The pattern that repeatedly worked:
 
-- **QA writes the invariant BEFORE the feature.** `score-perps-coupling.spec.ts` pinned "the
-  score must not move with the perps reading" *before* the weighting existed, with a constant
-  to flip when it did. Dev would not have written it — the change was "hand a sentence to a
-  model", which nobody expects to move a number, so nobody checks.
+- **QA writes the invariant BEFORE the feature — and proves it discriminates before reporting
+  anything from it.** `score-perps-coupling.spec.ts` pinned "the score must not move with the
+  perps reading" *before* the weighting existed. Dev would not have written it: the change was
+  "hand a sentence to a model", which nobody expects to move a number, so nobody checks.
+  **The second half of that sentence is not optional.** That same file then produced a false
+  finding — it reported coupling that did not exist, held a PR for ninety minutes, and needed
+  three instrument fixes before it was sound. Writing an invariant early means it has never run
+  against a build where the property holds, so *nothing has confirmed it can tell the two states
+  apart*. Get it red on a known-bad build and green on a known-good one before you believe it.
 - **Dev traces the data path; QA captures the state.** These find different things.
 - **Whoever is wrong says so on the issue, in the same thread.** Both sessions retracted
   findings on 2026-08-12. The retractions were more useful than the findings.
