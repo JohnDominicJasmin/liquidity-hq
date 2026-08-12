@@ -106,7 +106,7 @@ async function pinPerps(page: Page, mode: 'leading' | 'absent' | 'spotled') {
 }
 
 /** The signed number in the Confluence card's verdict badge (ConfluenceScore.tsx:159). */
-async function readScore(page: Page, mode: 'leading' | 'absent' | 'spotled'): Promise<string> {
+async function readScore(page: Page, mode: 'leading' | 'absent' | 'spotled'): Promise<{ score: string; rest: string }> {
   await pinPerps(page, mode);
   await gotoSignedIn(page, '/arena');
   await page.waitForTimeout(9000);
@@ -122,58 +122,48 @@ async function readScore(page: Page, mode: 'leading' | 'absent' | 'spotled'): Pr
   const verdict = card.locator('.sms-verdict').first();
   await expect(verdict, 'the Confluence card rendered without its score badge').toBeVisible({ timeout: 10_000 });
 
-  /* WAIT FOR IT TO SETTLE, do not just read it.
+  /* WAIT FOR THE WHOLE CARD TO SETTLE, not just the number.
    *
-   * The first version read after a flat 9s and got `+0`, then `-49` on the two
-   * loads after. That looked like live-data drift and it was not: `+0` is the
-   * card before its inputs have arrived, and `-49` is the settled value. Nine
-   * seconds was simply too early on a cold service.
+   * THIS IS THE CORRECTION THAT MATTERS. Watching only the score badge produced
+   * a retracted finding: I reported that the perps reading moved the score, and
+   * it did not. Capturing the full card showed why -
    *
-   * A placeholder read as a real measurement is the same failure as every other
-   * one on this project this week - so this polls until the value stops moving
-   * rather than trusting a fixed wait. */
-  /* STABLE IS NOT THE SAME AS LOADED, and the first version conflated them.
+   *     futures-led   score -53   EMA Ribbon  -       Choppiness clear
+   *     spot-led      score -58   EMA Ribbon  down 30 Choppiness -15 confidence
    *
-   * `+0` is what the badge shows before its inputs arrive, and it is perfectly
-   * stable while it waits - so "three identical reads" settled on the
-   * placeholder whenever the data took longer than 4.5s. Observed exactly that
-   * against qa @ 69bfe39: leading=+0, absent=-73, leading-again=-58.
+   * The card's factors arrive ASYNCHRONOUSLY and the score reflects however
+   * many have landed. Two loads differ for that reason alone, and the factors
+   * that differed were EMA ribbon, choppiness and RSI divergence - none of them
+   * perps, none of them touched by this fixture.
    *
-   * So the score must also have MOVED OFF its initial value before a reading
-   * counts. A card whose real score genuinely is +0 will time out here and skip
-   * rather than report - the wrong-but-quiet answer is the one worth avoiding. */
-  /* Two attempts at this were wrong in opposite directions, so the reasoning
-     matters more than the code:
-   *
-   *   "stable for 4.5s"        settled on the `+0` PLACEHOLDER whenever the
-   *                            inputs took longer than that - it is perfectly
-   *                            stable while it waits
-   *   "must MOVE off its       skipped a load whose real score happened to be
-   *    first value"            there before the first read, which is a false
-   *                            skip on a correct reading
-   *
-   * `+0` is the placeholder specifically, so that is what to wait out. The
-   * trade: a card whose genuine score is exactly zero will time out and SKIP.
-   * That is the safe direction - a missed measurement costs a re-run, a
-   * placeholder read as a measurement costs a false finding, and this file
-   * exists to stop the second one. */
-  const PLACEHOLDER = '+0';
-  let last = (await verdict.innerText()).trim();
+   * A stable NUMBER is not a loaded CARD. So this waits for the entire card
+   * text to stop changing, which cannot be satisfied while factors are still
+   * arriving. */
+  let last = (await card.innerText()).replace(/\s+/g, ' ').trim();
   let stableFor = 0;
-  for (let i = 0; i < 40 && !(last !== PLACEHOLDER && stableFor >= 3); i++) {   // up to ~60s
+  for (let i = 0; i < 40 && stableFor < 4; i++) {          // up to ~60s
     await page.waitForTimeout(1500);
-    const now = (await verdict.innerText()).trim();
+    const now = (await card.innerText()).replace(/\s+/g, ' ').trim();
     stableFor = now === last ? stableFor + 1 : 0;
     last = now;
   }
-  test.skip(last === PLACEHOLDER,
-    `the score badge still reads ${PLACEHOLDER} after 60s - that is the state before its ` +
-    `inputs arrive, not a measurement. (A genuine score of zero also lands here, and skipping ` +
-    `is the right answer for both.)`);
   expect(stableFor,
-    `the score never stopped changing (last value ${last}). It cannot be compared across ` +
-    `loads if it does not settle within a single one.`).toBeGreaterThanOrEqual(3);
-  return last;
+    `the Confluence card never stopped changing in 60s - its factors are still arriving, so ` +
+    `nothing read from it is comparable across loads.`).toBeGreaterThanOrEqual(4);
+
+  const score = (await card.locator('.sms-verdict').first().innerText()).trim();
+  /* `+0` is the badge before its inputs arrive. A genuine zero also lands here
+     and skipping is right for both: a missed measurement costs a re-run, a
+     placeholder read as a measurement costs a false finding. */
+  test.skip(score === '+0',
+    `the score badge reads +0 - that is the pre-input state, not a measurement.`);
+
+  /* Everything EXCEPT the score. Two loads are only comparable if every other
+     factor matches; if EMA ribbon or choppiness differ, the score difference is
+     theirs and not the perps reading's. This is the control the retracted
+     finding lacked. */
+  const rest = last.replace(score, '#SCORE#');
+  return { score, rest };
 }
 
 test.describe('perps reading and the Confluence Score', () => {
@@ -183,40 +173,34 @@ test.describe('perps reading and the Confluence Score', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
-      const first = await readScore(page, 'leading');
+      const a = await readScore(page, 'leading');
       await page.unrouteAll({ behavior: 'ignoreErrors' });
-
-      const absent = await readScore(page, 'spotled');
-      await page.unrouteAll({ behavior: 'ignoreErrors' });
-
-      /* INSTRUMENT CHECK, and the reason this test can say anything at all.
-         The score is computed from live market data. If it drifts between two
-         loads under the SAME perps reading, then a difference under different
-         readings is not attributable to the reading, and the honest outcome is
-         "could not measure" rather than a verdict. */
-      const repeat = await readScore(page, 'leading');
+      const b = await readScore(page, 'spotled');
 
       // eslint-disable-next-line no-console
-      console.log(`[score] leading=${first} absent=${absent} leading-again=${repeat}`);
+      console.log(`[score] leading=${a.score} spotled=${b.score} otherFactorsMatch=${a.rest === b.rest}`);
 
-      test.skip(first !== repeat,
-        `the score moved from ${first} to ${repeat} under IDENTICAL perps input, so live market ` +
-        `data is drifting between loads and nothing here is attributable. Not a finding either ` +
-        `way - re-run when the market is quieter.`);
+      /* THE CONTROL THE RETRACTED FINDING LACKED. If any other factor differs
+         between the two loads, the score difference is not attributable to the
+         perps reading and this run cannot conclude. Skipping is the honest
+         outcome - a difference that LOOKS like coupling is exactly what cost
+         dev ninety minutes. */
+      test.skip(a.rest !== b.rest,
+        `the two loads differ in factors other than the score, so nothing is attributable. ` +
+        `The card's factors arrive asynchronously and this run caught them in different ` +
+        `states. Re-run; if it never settles, the card is too slow on this host to compare.`);
 
       if (EXPECT_COUPLED) {
-        expect(absent,
-          `the score is ${absent} whether the perps reading is FUTURES LEADING or CANNOT ` +
-          `MEASURE. Step 3 was supposed to make this input count, and it does not. Worse: a ` +
-          `coin with no spot data is scoring exactly as though it had been measured.`)
-          .not.toEqual(first);
+        expect(b.score,
+          `every other factor is identical and the score is ${b.score} under BOTH a futures-led ` +
+          `and a spot-led reading. Step 3 was supposed to make this input count.`)
+          .not.toEqual(a.score);
       } else {
-        expect(absent,
-          `the score changed from ${first} to ${absent} when only the perps reading changed. ` +
-          `If step 3 has landed and the score is SUPPOSED to use this input, flip ` +
-          `EXPECT_COUPLED at the top of this file - this failure is then the feature working. ` +
-          `If only the text surfaces were wired, this is accidental coupling and a real defect.`)
-          .toEqual(first);
+        expect(b.score,
+          `every other factor on the card is identical and only the perps reading changed, yet ` +
+          `the score moved from ${a.score} to ${b.score}. If step 3 has landed, flip ` +
+          `EXPECT_COUPLED at the top of this file. If not, this is accidental coupling.`)
+          .toEqual(a.score);
       }
     } finally { await ctx.close(); }
   });
