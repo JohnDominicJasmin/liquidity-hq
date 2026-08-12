@@ -1,4 +1,4 @@
-import { test, expect, type Page, type BrowserContext } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { gotoGuarded } from './_shared';
 
 /* Does the app resume after a network drop? (#306, dev's fix in #309)
@@ -24,74 +24,37 @@ import { gotoGuarded } from './_shared';
  * simply does not poll reads as the defect.
  */
 
-const WINDOW = 70_000;      // longer than the arena's 60s funding interval
-const OFFLINE = 20_000;
-
-/** Endpoint identity: path plus `type`, since /api/proxy is many upstreams. */
-function endpointOf(url: string): string {
-  const path = url.replace(/^https?:\/\/[^/]+/, '').split('?')[0];
-  const type = /[?&]type=([a-z0-9-]+)/.exec(url);
-  return type ? `${path}?type=${type[1]}` : path;
-}
-
-async function measure(page: Page, ms: number) {
-  const seen = new Set<string>();
-  let count = 0;
-  const onReq = (r: { url(): string }) => {
-    const u = r.url();
-    if (!/\/api\//.test(u)) return;
-    count++; seen.add(endpointOf(u));
-  };
-  page.on('request', onReq);
-  await page.waitForTimeout(ms);
-  page.off('request', onReq);
-  return { count, seen };
-}
-
 test.describe('network reconnection', () => {
-  test('the endpoints that polled before a disconnect poll again after it', async ({ browser }) => {
-    /* Long by necessity: two 70s windows plus a 20s outage plus load. The
-       windows must exceed the slowest poller's interval or a healthy endpoint
-       reads as dead. */
-    test.setTimeout(300_000);
-
-    const ctx: BrowserContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-    await ctx.addInitScript(() => {
-      try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
-    });
-    const page = await ctx.newPage();
-
-    try {
-      await gotoGuarded(page, '/arena');
-      await page.waitForTimeout(8000);
-
-      const online = await measure(page, WINDOW);
-
-      /* CONTROL. Without this the assertion below is satisfied by a page that
-         never polls at all - the empty-result trap, and the reason my first
-         version of the econ-staleness spec produced four meaningless results. */
-      expect(online.count,
-        `no api requests at all in ${WINDOW / 1000}s while ONLINE - the page does not poll here, ` +
-        `so nothing below would be measuring reconnection`).toBeGreaterThan(10);
-
-      await ctx.setOffline(true);
-      await page.waitForTimeout(OFFLINE);
-      await ctx.setOffline(false);
-
-      const after = await measure(page, WINDOW);
-      const dead = [...online.seen].filter(e => !after.seen.has(e));
-
-      // eslint-disable-next-line no-console
-      console.log(`[reconnect] online ${online.count} req / ${online.seen.size} endpoints`
-        + ` -> after ${after.count} req / ${after.seen.size} endpoints`
-        + (dead.length ? `\n  did not resume: ${dead.join(', ')}` : '\n  all resumed'));
-
-      expect(dead,
-        `these endpoints polled before the disconnect and never came back. Before #309 the set was ` +
-        `/api/market/klines, /api/macro and /api/cmc?type=global - the chart being the one the owner ` +
-        `reported. A shorter list is progress; a non-empty one is still the bug.`).toEqual([]);
-    } finally { await ctx.close(); }
-  });
+  /* THE REST TEST THAT USED TO LIVE HERE WAS REMOVED, and the reason matters
+   * more than the test did.
+   *
+   * It asserted that every endpoint polling before a disconnect polls again
+   * after it, and reported three that did not:
+   *
+   *     /api/cmc?type=global   MarketProvider.tsx:1326   every 5 minutes
+   *     /api/macro             MarketProvider.tsx:1328   every 10 minutes
+   *     /api/market/klines     KLineProChart              history fetch, no timer
+   *
+   * The measurement window is 70 SECONDS. None of the three would fire inside
+   * it whether the network dropped or not. They appeared in the "online" set
+   * only because a window opened at page load catches the MOUNT-TIME fetch,
+   * which is a one-off rather than the interval.
+   *
+   * So the assertion compared a mount-time fetch against a steady-state window
+   * and called the difference a defect. The same red would appear on a machine
+   * that never went offline. Dev caught it; it is the mirror of the USD/JPY
+   * problem on econ-staleness.spec.ts - an uncontrolled variable producing a
+   * difference that looks like the effect under test.
+   *
+   * A sound version would need a window longer than the slowest interval (10
+   * minutes each side), which is not worth the runtime for what it proves. The
+   * socket test below covers the thing the owner actually reported.
+   *
+   * WHAT REMAINS GENUINELY UNCOVERED: the socket resumes and appends new
+   * candles, but bars that elapsed DURING the outage are never backfetched, so
+   * the chart can carry a gap until the next symbol or timeframe change.
+   * Narrower than "three endpoints did not resume", and real. Tracked on #306.
+   */
 
   test('CONTROL: a live candle socket exists and is replaced after a drop', async ({ browser }) => {
     /* Dev's fix is specifically the Binance kline WebSocket, which the REST
