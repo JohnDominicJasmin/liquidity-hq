@@ -132,6 +132,34 @@ test.describe('stale econ calendar reaches the screen', () => {
     } finally { await ctx.close(); }
   });
 
+  test('CONTROL: a STALE calendar with a real imminent event still reports the RISK', async ({ browser }) => {
+    const ctx = await signedInContext(browser, 'a');
+    const page = await ctx.newPage();
+    try {
+    /* THE MUTATION THE OTHER FOUR CANNOT CATCH, and dev named it on the PR.
+     *
+     * A guard that fires on `stale` REGARDLESS of what was found would replace
+     * every real warning with "cannot be checked" - and all four other tests
+     * here would still pass, because none of them has both a stale calendar and
+     * something to find.
+     *
+     * Dev mutation-tested exactly this in macroRiskStale.test.mts:
+     *   guard never fires        -> the unknown assertions fail  (covered above)
+     *   guard fires always       -> the CONTROLs fail            (only this one)
+     *
+     * The unit tests catch both but exercise computeMacroRisk in isolation. This
+     * is the only thing that would notice the wiring through NewsProvider and
+     * ConfluenceScore degrading into "always stale". */
+    await installSnapshot(page, { ageHours: 48, events: [event(1)] });
+    const text = await macroText(page);
+
+    expect(text, 'a stale calendar that still contains an imminent release reported "cannot be checked" ' +
+      'instead of the risk it found - the guard is firing regardless of the result, which replaces real ' +
+      'warnings with an unfalsifiable one')
+      .not.toMatch(STALE_TEXT);
+    } finally { await ctx.close(); }
+  });
+
   test('an UNKNOWN age counts as stale', async ({ browser }) => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
