@@ -218,7 +218,10 @@ export function buildPrompt(ctx: GrokContext): string {
     `OI Trend vs Price:  ${ctx.oiTrend}`,
     '',
     '=== DERIVATIVES - EXTENDED ===',
-    `Basis (perp premium vs spot):  ${ctx.basis}`,
+    /* PRICE premium. Distinct from the ACTIVITY line in the MACRO block below,
+       which is a volume ratio - both were called "perp vs spot" until #340 and
+       a model handed both can reasonably contradict itself between them. */
+    `Perp basis - PRICE premium of perps over spot: ${ctx.basis}`,
     `Squeeze score:  ${ctx.squeezeScore}`,
     `Setup Scanner: ${ctx.setupScan}`,
     '(Setup Scanner score 0-100: measures how overcrowded longs or shorts are. High Long Liq Risk = too many longs, whales incentivised to dump. High Short Squeeze = too many shorts, whales incentivised to pump.)',
@@ -247,8 +250,11 @@ export function buildPrompt(ctx: GrokContext): string {
     `USD/JPY (Yen Carry Trade): ${ctx.yenWatch}`,
     /* Deliberately the SAME sentence the dashboard card shows. One vocabulary
        across every surface - if the model phrases this differently from the
-       card, a user reading both sees two facts where there is one. */
-    `Perps vs Spot: ${ctx.perpSpot}`,
+       card, a user reading both sees two facts where there is one.
+       Labelled ACTIVITY to keep it distinct from the basis line above, which is
+       a price premium. They measure different things and can point opposite
+       ways at the same moment. */
+    `Perp vs spot ACTIVITY - trading volume, not price: ${ctx.perpSpot}`,
     `S&P 500: ${ctx.spxLine}`,
     `Gold (XAU/USD): ${ctx.goldLine}`,
     `BTC Dominance (trend): ${ctx.btcDomTrend}`,
@@ -388,6 +394,11 @@ export function buildPrompt(ctx: GrokContext): string {
     '9. FIBONACCI: In NEUTRAL regime, fib levels (61.8%, 38.2%) are high-probability reversal zones. In BEARISH REGIME, fib supports are likely to fail - treat them as pause zones only.',
     '10. ORDER FLOW (CVD): Positive CVD = net buying. Negative = selling pressure. In BEARISH REGIME, CVD bullish divergence is often a temporary absorption trap - require price confirmation before treating as reversal.',
     '11. OPTIONS (DERIBIT): P/C ratio > 1.2 = bearish positioning. Max pain acts as price magnet near expiry. Positive basis = healthy bull market.',
+    /* Added with #340. Rule 11 gives a bullish reading for positive basis, and
+       the activity line can say "leverage-led" at the same instant - both true,
+       measuring different things. Without this the model can assert both in one
+       answer and the user cannot tell which the app believes. */
+    '11b. PERP BASIS vs PERP ACTIVITY are DIFFERENT and may disagree. Basis is the PRICE premium of perps over spot. Activity is how much perp trading VOLUME there is against spot, measured against its own normal for that coin. Positive basis with normal activity = healthy demand for leverage. Positive basis with elevated activity = the move is leverage-led and unwinds faster. If they conflict, say so explicitly rather than choosing one silently.',
     '12. GEX (GAMMA EXPOSURE) - PRIMARY REGIME FILTER for BTC, weight it above the oscillators: Positive net GEX = dealers LONG gamma = range-bound/mean-reverting → fade extremes toward max pain, size down on breakout calls. Negative net GEX = moves amplified = trending/explosive volatility → trust breakouts, size up on momentum. Zero-gamma flip level crossing = regime shift; a call that ignores the GEX regime is low-conviction.',
     '13. ORDER BOOK: Large bid walls = support. Large ask walls = resistance. Price often hunts walls before reversing.',
     '14. STABLECOIN FLOWS: Growing USDT+USDC supply = dry powder entering = bullish medium-term. Shrinking = cashing out.',
