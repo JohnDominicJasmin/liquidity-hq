@@ -174,6 +174,23 @@ export function computePerpSpot(
 
 /* ── Option B weighting (#340) ───────────────────────────────────────────────
  *
+ * FIRST, THE DEFINITION, because everything below multiplies off it. The owner
+ * restated it twice, unprompted:
+ *
+ *     "that perps and spot is volume take note"
+ *     "perpetual and spot trading volume"
+ *
+ * PERPETUAL TRADING VOLUME AGAINST SPOT TRADING VOLUME. Not price, not basis,
+ * not open interest, not funding. All four are plausible things to call "perps
+ * vs spot" and three of them are already in this app - `basis` was sitting in
+ * the same Grok prompt under nearly the same name until #343.
+ *
+ * If anything in the path below starts blending basis, funding or OI into this
+ * factor, the number stops meaning what the owner defined and it would still
+ * look reasonable. The type is the structural guard: OHLCVLike carries
+ * `quoteVolume` and no price field at all, so price cannot enter without
+ * someone widening it deliberately.
+ *
  * THE OWNER'S NUMBERS, chosen from worked examples rather than coefficients:
  *
  *     a signal at 8/10 confidence, futures-led   ->  6/10

@@ -264,3 +264,27 @@ test('#340 THE CORRECTNESS PROPERTY: no weighting can flip a verdict direction',
     }
   }
 });
+
+test('#340 THE DEFINITION: the reading is VOLUME, and price cannot reach it', () => {
+  // The owner restated this twice, unprompted: "perpetual and spot trading
+  // volume". Basis, funding and open interest are all plausible things to call
+  // "perps vs spot" and all three exist elsewhere in this app - one of them was
+  // in the same prompt under nearly the same name until #343.
+  //
+  // Structural, not stylistic: OHLCVLike has no price field, so a future edit
+  // would have to widen the type on purpose rather than drift into it.
+  const { spot, perp, nowMs } = series(48, 8, 8 * 1.6);
+  const withPrices = spot.map(c => ({ ...c, close: 61000, open: 60000 }));
+  assert.deepEqual(
+    computePerpSpot(withPrices, perp, HOUR, nowMs),
+    computePerpSpot(spot, perp, HOUR, nowMs),
+    'price fields on the input must make no difference to the reading',
+  );
+
+  // And the sentence the user reads must describe volume, never a price claim.
+  for (const bp of [-40, 0, 40]) {
+    const r = computePerpSpot(...Object.values(series(48, 8, 8 + bp / 100)).slice(0, 2) as [never, never], HOUR, nowMs);
+    assert.doesNotMatch(r.explanation, /premium|priced above|price of/i,
+      `explanation makes a PRICE claim: ${r.explanation}`);
+  }
+});
