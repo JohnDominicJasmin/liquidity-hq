@@ -279,6 +279,41 @@ gh issue list --state open
   passed on `mobile` in the same run, on identical fixtures. A real defect does
   not pick one project and spare the other when the fixture is the same — so when
   a run is red, check whether the other project agrees before reporting anything.
+- **SIX SILENT INSTRUMENT FAILURES vs THIRTY SECONDS OF A HUMAN. When the
+  instrument keeps failing quietly, stop building instruments and ask someone to
+  look.** Added 2026-08-13, on #306 closing.
+
+  *"App does not resume when the network comes back — arena chart stays frozen."*
+  Both sessions tried to verify the fix automatically. Every attempt produced a
+  believable result from an instrument that was not doing what it appeared to:
+
+  ```
+  dev  1-3  context.setOffline      sockets stayed OPEN - nothing disconnected
+  dev  4    routeWebSocket(all)     counted every socket page-wide, null result
+  dev  5    route.close(1006)       1006 is RESERVED - the page got no close event
+  QA   6    CDP offline             fired 1 run in 4; the one success used a TOTAL
+                                    count that could not say WHICH socket returned
+  ```
+
+  **None of them threw. None errored.** Playwright neither rejected the reserved
+  close code nor delivered it. The instrument's own health was the variable
+  nobody was measuring, and each failure looked exactly like data.
+
+  The owner turned airplane mode on and off on a real phone and reported
+  *"it auto updates after airplane mode was turned off"*. Done.
+
+  **The rule is not "ask a human first"** — automation is repeatable and a manual
+  check is not. It is: **count the attempts.** After two mechanisms have failed
+  silently at the same property, the next thing to question is whether the
+  property is reachable from a spec at all, not which mechanism to try third.
+  Six attempts across two sessions cost most of a day; the answer cost thirty
+  seconds and nobody asked for it until then.
+
+  **And say what a manual result does NOT cover.** The owner observed the chart
+  RESUMING. Whether the candles that elapsed during the outage are backfilled is
+  a different claim - that is #313, still open. A hand check settles exactly what
+  was watched and nothing adjacent to it.
+
 - **CONTROLS THAT DO NOT ADDRESS THE CONFOUND ARE WORSE THAN NO CONTROLS. They
   buy confidence without buying correctness.** Added 2026-08-13, after the most
   expensive false finding of the week.
