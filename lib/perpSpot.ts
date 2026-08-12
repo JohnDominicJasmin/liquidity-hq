@@ -28,6 +28,8 @@
  * comparable across the two venues.
  */
 
+import { dropForming } from './candles.ts';
+
 export interface OHLCVLike {
   time: number;
   /** Quote-asset volume - USDT, comparable between spot and perp. */
@@ -92,6 +94,23 @@ const UNAVAILABLE: PerpSpotReading = {
 /**
  * Compare spot and perp activity for one coin.
  *
+ * THE STILL-FORMING BAR IS DROPPED FIRST, and it is not a detail. QA measured
+ * both readings two minutes into an hour:
+ *
+ *     FORMING bar   spot  1.6M  perp  15.7M  ratio  9.76  relative 1.26x -> balanced
+ *     LAST CLOSED   spot 48.9M  perp 539.0M  ratio 11.01  relative 1.42x -> PERP-LED
+ *
+ * Same coin, same instant, opposite verdicts. At two minutes past, the forming
+ * hour holds ~3% of a normal hour's volume, so its ratio is a thin noisy slice
+ * being compared against a median built from 167 COMPLETE hours. The comparison
+ * was not like-for-like, and PERP_LED_AT sits close enough to the middle that
+ * the noise crosses it.
+ *
+ * This is #316 again in a new place - a live reading taken from an incomplete
+ * bar while everything it is measured against uses closed ones. Costs up to one
+ * bar of freshness on a series whose baseline is a 7-day median; the number is
+ * not trying to be real-time.
+ *
  * Bars are matched on `time`. Comparing the latest spot bar against the latest
  * perp bar when one venue is a beat behind produces a ratio that is really a
  * clock difference - the sort of number that looks like a finding and is not.
@@ -102,12 +121,16 @@ const UNAVAILABLE: PerpSpotReading = {
  */
 export function computePerpSpot(
   spot: readonly OHLCVLike[], perp: readonly OHLCVLike[],
+  intervalMs = 3_600_000, nowMs = Date.now(),
 ): PerpSpotReading {
   if (spot.length === 0 || perp.length === 0) return UNAVAILABLE;
 
-  const perpByTime = new Map(perp.map(c => [c.time, c.quoteVolume]));
+  const closedSpot = dropForming(spot, intervalMs, nowMs);
+  const closedPerp = dropForming(perp, intervalMs, nowMs);
+
+  const perpByTime = new Map(closedPerp.map(c => [c.time, c.quoteVolume]));
   const paired: Array<{ time: number; s: number; p: number }> = [];
-  for (const c of spot) {
+  for (const c of closedSpot) {
     const p = perpByTime.get(c.time);
     if (p !== undefined && c.quoteVolume > 0 && p > 0) {
       paired.push({ time: c.time, s: c.quoteVolume, p });

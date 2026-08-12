@@ -73,7 +73,7 @@ export default function PerpSpotCard() {
           fetchBars('binance', sym),
           fetchBars('binance-futures', sym),
         ]);
-        if (!cancelled) setReading(computePerpSpot(spot, perp));
+        if (!cancelled) setReading(computePerpSpot(spot, perp, HOUR, Date.now()));
       } catch {
         // A failed fetch is not a quiet market.
         if (!cancelled) setReading(computePerpSpot([], []));
