@@ -279,6 +279,53 @@ gh issue list --state open
   passed on `mobile` in the same run, on identical fixtures. A real defect does
   not pick one project and spare the other when the fixture is the same — so when
   a run is red, check whether the other project agrees before reporting anything.
+- **CONTROLS THAT DO NOT ADDRESS THE CONFOUND ARE WORSE THAN NO CONTROLS. They
+  buy confidence without buying correctness.** Added 2026-08-13, after the most
+  expensive false finding of the week.
+
+  Reported to dev: *"the Confluence Score already moves with the perps reading,
+  on a build where you have not wired it yet."* Held their PR. It was wrong, and
+  **three controls had passed before I said it**:
+
+  ```
+  the market is not moving        third load repeated the first exactly
+  no other consumer of the feed   measured: 2 requests, both the perps card's
+  not a fixture side-effect       re-ran with two VALID payloads, not valid-vs-404
+  ```
+
+  Every one of those was a real control, correctly run, and **none of them
+  addressed the actual confound.** The Confluence card's factors arrive
+  asynchronously and the score reflects however many have landed:
+
+  ```
+  futures-led   score -53   EMA Ribbon  -        Choppiness clear
+  spot-led      score -58   EMA Ribbon  ▼ 30     Choppiness −15 confidence
+  ```
+
+  EMA ribbon, choppiness and RSI divergence differed between the loads. None of
+  them is perps. The score difference was theirs.
+
+  **The stability control was a single repeated load.** One repeat is not a
+  stability check — it is one sample, and two samples matching is not unlikely.
+  It was the weakest link and it was the one carrying the whole finding.
+
+  Two things worth keeping:
+
+  **Count what your controls actually rule out, not how many there are.** Three
+  passing controls felt like strong evidence. The right question was never "how
+  many did I run" but "which alternative explanation does each one eliminate" —
+  and written out, all three eliminated the same *kind* of alternative and left
+  the real one untouched.
+
+  **Watch the whole artefact, not the number you care about.** The bug was
+  invisible while reading only the score badge and obvious the moment the full
+  card text was captured. A stable NUMBER is not a LOADED CARD, and reading one
+  field of a partially-populated view is the same class of error as reading a
+  placeholder — which happened twice more the same afternoon.
+
+  The retraction took an hour and cost dev ninety minutes. Both were cheaper
+  than the alternative, which was a weighting the owner approved being silently
+  wrong because an accidental coupling got absorbed into it.
 - **AUTOMATION THAT IS OFF LOOKS EXACTLY LIKE AUTOMATION THAT IS WORKING. Check
   the switch, not the absence of failures.** Added 2026-08-13.
 
