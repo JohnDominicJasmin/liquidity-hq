@@ -390,9 +390,27 @@ one environment.** Two found this way now; worth grepping for a third.
 
 **What genuinely remains uncovered:**
 
-- **the `mobile` project** for everything above — these were desktop-only runs.
-  `a11y`'s tap-target test is mobile-only and was run separately; the rest were
-  not.
+- ~~the `mobile` project~~ — **CLOSED for `staging` on 2026-08-12.** Every spec
+  that has a mobile project was run against deployed `staging` at `0ab7034`:
+
+  ```
+  layout          3 passed    2 known entries "not seen" - both already recorded
+                              in the baseline comment as flipping between runs
+  responsive     31 passed
+  a11y            5 passed    incl. tap targets and WCAG 2.2 SC 2.5.8 target-size
+  contrast        3 skipped   desktop-only by design
+  a11y-auth      13 skipped   desktop-only by design
+  seo                         desktop-only by design
+  ```
+
+  **Read the skips before reading this as partial.** `contrast`, `a11y-auth` and
+  `seo` skip the mobile project deliberately — they assert colour values, HTTP
+  responses and head tags, none of which change with viewport, and running them
+  twice would double the time for an identical answer. The ones that genuinely
+  differ by viewport all ran.
+
+  Still desktop-only on **`qa`**: the mobile runs there covered `layout` and
+  `responsive` only, during the coverer-identity work (#300).
 - **a REAL purchase granting Pro** (§5). Unchanged, and no amount of local running
   closes it.
 - **`perf`'s LCP budget**, which passed here but is laptop-calibrated and has
