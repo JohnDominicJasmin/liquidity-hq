@@ -280,8 +280,12 @@ gh issue list --state open
                                SET for three days in August. The doc's own row
                                records the correction - after the fact.
 
-  /ops route comments          described routes as Pro-only that turned out to be
-                               enforced differently.
+  lib/labelDefaults.en.json    every string in it describes what users read, and
+                               none of them do - LabelsProvider overwrites them
+                               from lhq_labels after mount. Structural rather than
+                               a one-off: the whole file is a first-paint seed
+                               permanently describing a state that lasts
+                               milliseconds. It cost real time on #274 and #277.
   ```
 
   Nothing edited any of them. **The world moved and the prose did not.** A note
