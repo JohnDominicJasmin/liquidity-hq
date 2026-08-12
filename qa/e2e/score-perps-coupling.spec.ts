@@ -38,7 +38,7 @@ import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_
  */
 
 /* Flip to true when step 3 lands and the owner-approved weighting is in. */
-const EXPECT_COUPLED = false;
+const EXPECT_COUPLED = true;
 
 const KLINES = '**/api/market/klines**';
 const HOUR = 3_600_000;
