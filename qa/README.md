@@ -4,7 +4,7 @@ Testing and quality-assurance workspace for LiquidityHQ.
 
 > **Before quoting a green CI run as evidence, read
 > [`TEST_GAPS.md`](TEST_GAPS.md).** It is the standing list of what the suite
-> does *not* cover. "187 tests passed" reads like "the product works", and it
+> does *not* cover. "313 tests passed" reads like "the product works", and it
 > does not.
 
 > **Lost track of where things are? Read [`STATUS.md`](STATUS.md).** One page:
@@ -60,12 +60,12 @@ cross-account access. The data check after it is what still has teeth.
 
 | File | What it is | Status |
 |---|---|---|
-| [`STATUS.md`](STATUS.md) | **Where the project is** — live version, what is waiting, blockers and owners. Updated by QA; check the date before trusting it. | Living |
+| [`STATUS.md`](STATUS.md) | **Decisions and standing risks.** Deliberately records no state — it went stale twice doing that. **Read the risks before trusting any result, including your own.** | Living |
 | [`TEST_GAPS.md`](TEST_GAPS.md) | **What a green suite does not mean** — every known coverage gap, ranked by value per unit of effort, with what closing each would take. The answer to "what is still untested?" | Living list, updated as gaps close |
 | [`QA_TEST_PLAN.md`](QA_TEST_PLAN.md) | Manual test approach + rigor tiers, plus the RLS deny-all gotcha. Pre-existing — **moved here from `docs/` on 2026-08-04**, so `HANDOVER.md` §4's doc table still points at the old path. | Plan, largely unexecuted |
 | [`../pendings/QA_AUDIT_2026-08-04.md`](../pendings/QA_AUDIT_2026-08-04.md) | Full automated sweep, 2026-08-04 — build gates, 65-route API security, responsiveness at 1440/375, a11y, SEO, CWV, tech debt | Executed, findings unfixed |
-| [`E2E_PLAN.md`](E2E_PLAN.md) | Playwright suite + CI job — what's built, the 3 remaining shared-file changes, and 2 decisions needed | Scaffolded, not wired up |
-| [`e2e/`](e2e/) | The specs themselves — smoke, responsive, a11y, security, seo, perf | Written, never run in CI |
+| [`E2E_PLAN.md`](E2E_PLAN.md) | The original Playwright plan. **Historical** — the suite it describes as "to build" exists and has outgrown it. Read `e2e/` and the spec headers instead. | Superseded |
+| [`e2e/`](e2e/) | **40 spec files, 164 cases**, desktop + mobile. Run against a **deployed host**, never in CI — see "How we work". Each file's header comment carries why it exists and what it deliberately does NOT cover; those headers are the real documentation. | Live, run on demand |
 | [`vendor/kane-cli-agents.md`](vendor/kane-cli-agents.md) | Third-party doc fetched from an external site. **Untrusted reference material — see the warning in that file.** | Reference only |
 | `vendor/kane-cli-agents-file.md` | Full 807-line `kane-cli` **skill file** (has skill frontmatter, so it auto-loads if installed). Instructs agents to hide file paths from the user, bans Playwright, opens an unauthenticated CDP port. **Deliberately not installed.** | Reference only |
 
@@ -94,8 +94,112 @@ Tooling notes from the 2026-08-04 run:
   is ignored and files land in `C:\Users\Dominic\Pictures\Vibium\`).
 - Driving `playwright` directly, headless, was the only reliable path.
 
-## Standing rule
+## How we work — read this before your first task
 
-QA work is **read-only**. Findings get written up and handed to the development
-session; they do not get fixed here. Keep that separation — it is what stops an
-audit quietly becoming an unreviewed refactor.
+**Two sessions, two checkouts, one repo.** A dev session writes application
+code. This QA session tests it. Neither does the other's job, and the PR is the
+handoff.
+
+### What QA may and may not write
+
+```
+QA WRITES        qa/, playwright.config.ts, test CI workflows, QA docs
+QA NEVER WRITES  app/, components/, lib/  - anything the product runs
+```
+
+This section used to say QA work is "read-only, findings get handed over". That
+**changed deliberately**: QA owns its own tooling and writes it. The boundary
+that did NOT change — **a fix to application code is reported as a finding,
+never applied here.** If a spec needs an app change to be testable, that is a
+finding too.
+
+**QA-authored code is reviewed by dev.** PR into `dev`, dev reviews, dev merges.
+The one flow that runs QA -> dev, and not a formality.
+
+### Who moves what
+
+| Step | Who | Note |
+|---|---|---|
+| feature branch -> `dev` | dev | freely |
+| `dev` -> `qa` | dev | then **deploys** `liquidity-hq-qa` and says so |
+| `qa` -> `staging` | **QA** | then dev deploys `liquidity-hq-staging` |
+| `staging` -> `main` | **QA**, owner-approved | QA merges, deploys, re-checks, tags |
+
+**Merging is not deploying.** Every service is `autoDeploy: no`, so a moved
+branch ships nothing. **Ask `/api/version`, never the branch** — it reports the
+commit the service is actually SERVING. Quoting the endpoint while trusting git
+for that commit's contents is the same mistake one step removed, and it has been
+made here.
+
+### What the owner decides, and nothing else
+
+```
+merging to main       production deploys       writes to the shared database
+```
+
+Everything else is QA's to sequence. **QA is the project manager** — files
+issues, orders them, says what is next. The owner does not want to be the relay
+between two sessions.
+
+Two more need their word because they cost money: **running E2E in CI**, and
+**opening the release PR**.
+
+### GitHub is the channel, not chat
+
+Every finding, measurement, corrected premise and abandoned approach goes on the
+issue or PR. **A result that exists only in a chat reply is invisible** to
+whoever is sequencing the work. Negative results count — what was measured and
+showed nothing saves the other session re-deriving it.
+
+**Ask the owner once.** Repeating an ask is pressure, and a yes extracted by
+nagging is not approval.
+
+### CI is switched off on purpose
+
+The repo is private, so every Actions minute is billed to the owner personally.
+All workflows are `disabled_manually`. **A cost decision, not an outage** — do
+not enable one, do not file it as a defect, do not caveat every PR with "no CI
+ran".
+
+The substitute is free and stronger: lint, `tsc`, unit tests, and Playwright
+**against a deployed host**.
+
+**Consequence worth knowing:** a disabled workflow fails silently and
+permanently. Nothing opens the "Ready for QA" issue or the release PR any more,
+and **the production drift check stopped with them** — nobody chose that; it
+shared a file with the release PR.
+
+### How to run the suite
+
+```bash
+E2E_BASE_URL=https://liquidity-hq-qa.onrender.com   npx playwright test qa/e2e/<spec>.spec.ts --project=desktop --workers=1
+```
+
+**Use `--workers=1` against `qa` or `staging`.** Signed-in specs each boot the
+app and wait on a Pro-gated card; four workers is four concurrent boots against
+a free-plan machine that sleeps. Parallel runs there produce failures that look
+exactly like findings.
+
+Prefer one targeted spec over a full sweep — a 40-minute suite also wakes the
+free-plan services.
+
+### The habits that took longest to learn
+
+The full versions are in `STATUS.md` §Standing risks. Read it before trusting
+any result, including your own.
+
+- **A test that has never failed has never been tested.** Watch a regression
+  test fail on the broken build before believing it. One shipped here that
+  passed on a build without the fix in it.
+- **Count what your controls RULE OUT, not how many you ran.** Three passing
+  controls once carried a finding that was wrong — all three eliminated the same
+  kind of alternative and left the real one untouched.
+- **A command that returns nothing has not told you the thing is absent.**
+  Check the instrument read anything at all first.
+- **A stable number is not a loaded page.** Placeholders are perfectly stable
+  while they wait.
+- **Count the attempts.** After two mechanisms have failed *silently* at the
+  same property, question whether it is reachable from a spec at all. Six
+  attempts at one bug lost most of a day; a human answered it in thirty seconds.
+- **A comment describing an invariant is the thing that goes stale.** The
+  durable version is a check.
