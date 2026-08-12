@@ -159,3 +159,88 @@ test('#304: a 500 from the logout endpoint also leaves the session behind', asyn
     global.fetch = realFetch;
   }
 });
+
+/* ── the follow-up QA caught: every OTHER caller had the same defect ────────
+ *
+ * The first fix changed AuthProvider.signOut and nothing else. Three sites
+ * still called sb.auth.signOut() directly - the ops console, the >7-day
+ * inactivity expiry, and ban enforcement. All three kept the original bug.
+ *
+ * "Sweep the whole area, not the one symptom" is the rule I missed, so this
+ * pins the sweep rather than trusting the next edit to remember it.
+ */
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { forceSignOut, clearStoredSession } from '../lib/authSession.ts';
+
+function sourceFiles(dir: string, out: string[] = []): string[] {
+  for (const e of readdirSync(dir)) {
+    if (e === 'node_modules' || e === '.next' || e.startsWith('.')) continue;
+    const full = join(dir, e);
+    if (statSync(full).isDirectory()) sourceFiles(full, out);
+    else if (/\.tsx?$/.test(e)) out.push(full);
+  }
+  return out;
+}
+
+test('lib/authSession.ts is the only place that calls auth.signOut() directly', () => {
+  const offenders = ['app', 'components', 'lib']
+    .flatMap(d => sourceFiles(d))
+    .filter(f => !f.endsWith(join('lib', 'authSession.ts')))
+    .filter(f => /\bauth\s*\.\s*signOut\s*\(/.test(
+      // Strip comments first - several files DISCUSS auth.signOut in prose.
+      readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''),
+    ));
+  assert.deepEqual(offenders, [],
+    'these bypass forceSignOut and will not clear the session when logout fails');
+});
+
+test('forceSignOut clears the stored session when the call fails', async () => {
+  const removed: string[] = [];
+  const keys = ['sb-abcdefghijklmnop-auth-token', 'theme'];
+  (globalThis as { localStorage?: unknown }).localStorage = {
+    removeItem: (k: string) => { removed.push(k); },
+    ...Object.fromEntries(keys.map((k, i) => [i, k])),
+    length: keys.length,
+  };
+  Object.defineProperty(globalThis.localStorage, 'length', { value: keys.length });
+  Object.keys = ((o: object) => (o === globalThis.localStorage ? keys : Reflect.ownKeys(o))) as typeof Object.keys;
+
+  const err = await forceSignOut({ auth: { signOut: async () => ({ error: new Error('offline') }) } });
+  assert.ok(err, 'the error is returned, not swallowed');
+  assert.deepEqual(removed, ['sb-abcdefghijklmnop-auth-token'], 'only the session key');
+});
+
+test('forceSignOut leaves storage alone when the call succeeds', async () => {
+  const removed: string[] = [];
+  (globalThis as { localStorage?: unknown }).localStorage = {
+    removeItem: (k: string) => { removed.push(k); },
+  };
+  const err = await forceSignOut({ auth: { signOut: async () => ({ error: null }) } });
+  assert.equal(err, null);
+  assert.deepEqual(removed, [], 'a healthy sign-out needs no local surgery');
+});
+
+test('forceSignOut turns a REJECTION into the same cleanup, not an escape', async () => {
+  let cleared = false;
+  (globalThis as { localStorage?: unknown }).localStorage = {
+    removeItem: () => { cleared = true; },
+  };
+  Object.keys = ((o: object) => (o === globalThis.localStorage ? ['sb-x-auth-token'] : Reflect.ownKeys(o))) as typeof Object.keys;
+  const err = await forceSignOut({ auth: { signOut: async () => { throw new Error('boom'); } } });
+  assert.ok(err instanceof Error);
+  assert.equal(cleared, true, 'a rejection must not skip the cleanup or the caller navigation');
+});
+
+test('forceSignOut tolerates a null client', async () => {
+  assert.equal(await forceSignOut(null), null);
+  assert.equal(await forceSignOut(undefined), null);
+});
+
+test('clearStoredSession never throws, even when storage does', () => {
+  (globalThis as { localStorage?: unknown }).localStorage = {
+    removeItem: () => { throw new Error('quota'); },
+  };
+  Object.keys = ((o: object) => (o === globalThis.localStorage ? ['sb-x-auth-token'] : Reflect.ownKeys(o))) as typeof Object.keys;
+  assert.doesNotThrow(() => clearStoredSession());
+});
