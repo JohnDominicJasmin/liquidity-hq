@@ -22,6 +22,7 @@ import { GlobalSpotlight, useMobile } from '@/components/MagicBento';
 import { SkeletonBar } from '@/components/Skeleton';
 import { useLabels } from '@/lib/labels';
 import type { LabelKey } from '@/lib/labelKeys';
+import PerpSpotCard from '@/components/PerpSpotCard';
 
 const OI_TREND_META: Record<string, { txtKey: LabelKey; subKey: LabelKey; col: string }> = {
   strong_up:   { txtKey: 'OI_TREND_STRONG_UP_TXT',   subKey: 'OI_TREND_STRONG_UP_SUB',   col: 'var(--green)' },
@@ -549,6 +550,13 @@ export default function Dashboard() {
       <aside className="dash-right" ref={rightRef}>
         <CoinSidebar />
         <MarketPulseStrip />
+        {/* Perps vs spot (#328) - "is this a real buyer or just futures traders".
+            Above the macro card because it is per-coin and follows the coin
+            selection, where the macro backdrop is the same whatever is picked. */}
+        <div className="macro-rail-card">
+          <PerpSpotCard />
+        </div>
+
         {/* Macro backdrop - answers "what's the broad market doing", which nothing
             else on the dashboard covers. Last in the rail so it never pushes the
             per-coin essentials down on mobile. */}
