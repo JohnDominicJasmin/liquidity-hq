@@ -6,6 +6,7 @@ import {
 } from '@/lib/marketStore';
 import { bybitPriceFactor } from '@/lib/coins';
 import { computeRSI14 } from '@/lib/rsi';
+import type { RealYield } from '@/lib/realYield';
 import { detectPatterns } from '@/lib/patterns';
 import { getAuthToken } from '@/lib/supabase';
 
@@ -1047,7 +1048,7 @@ export default function MarketProvider(
     } catch { /* */ }
   }, [updateCoin]);
 
-  /* ── Oil + DXY + SPX + Gold - fetched via /api/macro (server-side, no CORS) ── */
+  /* ── Oil + DXY + SPX + Gold + 10Y real yield - via /api/macro (no CORS) ── */
   const fetchMacro = useCallback(async () => {
     try {
       const res = await fetch('/api/macro', { cache: 'no-store' });
@@ -1058,6 +1059,7 @@ export default function MarketProvider(
         spx:  { price: number; chg: number } | null;
         gold: { price: number; chg: number } | null;
         jpy:  { price: number; chg: number } | null;
+        real10y: RealYield | null;
       } = await res.json();
 
       setStore(s => ({
@@ -1067,6 +1069,9 @@ export default function MarketProvider(
         ...(d.spx  ? { spx:  d.spx.price,  spxChg:  d.spx.chg  }       : {}),
         ...(d.gold ? { gold: d.gold.price, goldChg: d.gold.chg  }       : {}),
         ...(d.jpy  ? { jpy:  d.jpy.price,  jpyChg:  d.jpy.chg  }       : {}),
+        // No truthiness guard: the route always returns an object, and its
+        // `unknown` state is information we want to keep rather than skip.
+        ...(d.real10y ? { real10y: d.real10y } : {}),
       }));
     } catch { /* fail silently */ }
   }, []);

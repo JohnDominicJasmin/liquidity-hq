@@ -134,7 +134,9 @@ export default function ConfluenceScore(
 
   const result = computeConfluence(factors);
   const cfg = VERDICT_CONFIG[result.verdict];
-  const macro = computeMacroRisk(econEvents, jpyUsd, Date.now(), econStale);
+  // store.real10y is the 10Y real yield (#311). It adds a line to the macro
+  // band and nothing to `result.score` - see the note in computeMacroRisk.
+  const macro = computeMacroRisk(econEvents, jpyUsd, Date.now(), econStale, store.real10y);
   /* `unknown` renders in the same amber band as `caution` on purpose (#298).
      "We could not check for upcoming releases" is a reason to size down, which
      is what amber already means here - and giving it a colour of its own would

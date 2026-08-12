@@ -15,6 +15,7 @@
 // a real v2 feature, not a keyword-matching stand-in).
 
 import type { Bias } from '@/components/StopLossZone';
+import type { RealYield } from './realYield';
 
 // Mirrors app/api/econ-calendar/route.ts's CalEvent - kept local rather than imported
 // since that file is a server route (matches the convention in app/econ-calendar/page.tsx).
@@ -113,7 +114,10 @@ const EVENT_CAUTION_MS = 2 * 3600_000;
  * That is a false negative delivered with the same confidence as a true one -
  * the card says there is no macro risk, on a calendar that could not have told
  * us there was. Defaults to false so every existing caller is unaffected. */
-export function computeMacroRisk(events: CalEvent[], jpyUsd: number | null, nowMs: number = Date.now(), stale = false): MacroRisk {
+export function computeMacroRisk(
+  events: CalEvent[], jpyUsd: number | null, nowMs: number = Date.now(),
+  stale = false, real10y: RealYield | null = null,
+): MacroRisk {
   const reasons: string[] = [];
   let level: MacroRisk['level'] = 'none';
 
@@ -145,16 +149,43 @@ export function computeMacroRisk(events: CalEvent[], jpyUsd: number | null, nowM
     }
   }
 
+  /* ── 10Y real yield (#311) - the rates backdrop, on its own line ─────────
+   *
+   * Sits beside the USD/JPY line and DOES NOT MOVE THE SCORE. The score comes
+   * from computeConfluence(factors) and this never enters `factors`. That is
+   * deliberate and was the explicit ask: the number people have learned to
+   * read keeps meaning what it meant, and this adds context next to it rather
+   * than silently re-weighting it.
+   *
+   * Only 'tightening' and 'unknown' surface here. This is the card's RISK band
+   * - amber and red - and an easing real yield is a tailwind, not a risk.
+   * Putting good news inside a warning box teaches people to read the colour as
+   * decoration, which costs more than the missing line gains. 'neutral' is
+   * silent for the same reason a quiet market needs no banner. */
+  let yieldUnknown = false;
+  if (real10y) {
+    if (real10y.signal === 'tightening') {
+      if (level !== 'danger') level = 'caution';
+      reasons.push(real10y.note);
+    } else if (real10y.signal === 'unknown') {
+      yieldUnknown = true;
+      reasons.push(real10y.note);
+    }
+  }
+
   /* Only when NOTHING was found. A stale calendar that still surfaced a real
      event has done its job for that event, and the USD/JPY factor above does not
      come from the calendar at all - downgrading either to "unknown" would be
      less informative, not more. */
-  if (stale && level === 'none') {
-    return {
-      level: 'none',
-      unknown: true,
-      reasons: ['Economic calendar is out of date - upcoming releases cannot be checked'],
-    };
+  const calendarUnknown = stale && level === 'none';
+  if (calendarUnknown) {
+    reasons.push('Economic calendar is out of date - upcoming releases cannot be checked');
+  }
+
+  // Two independent things can be unmeasurable at once, and the band shows both
+  // rather than letting whichever is checked first hide the other.
+  if (level === 'none' && (calendarUnknown || yieldUnknown)) {
+    return { level: 'none', unknown: true, reasons };
   }
 
   return { level, reasons };
