@@ -49,6 +49,61 @@ async function verdict(page: Page): Promise<string> {
 const verdictWord = (t: string) =>
   ((/TRENDING (LONG|SHORT)|CHOPPY|MIXED|FREEZE/i.exec(t) || [])[0] ?? '(none)').toUpperCase();
 
+
+/* ── The DISCRIMINATING case, dev's idea (#323) ────────────────────────────
+ *
+ * Live market data cannot be made to cross on cue, so the sampling tests below
+ * pass on both builds and prove nothing about the fix. Dev's route: do not wait
+ * for the market - SERVE the candles, the same technique used to abort
+ * `**\/auth\/v1\/logout*` on the sign-out spec.
+ *
+ * A fixture whose FINAL bar is still forming and carries an extreme close
+ * separates the two builds in one shot:
+ *
+ *   pre-#322   the forming bar is included  -> the verdict reflects the extreme
+ *   post-#322  the forming bar is dropped   -> the verdict ignores it
+ *
+ * That states the property directly - a value that never closed cannot move the
+ * signal - instead of inferring it from two minutes of not observing a flip.
+ *
+ * FIXTURE CONSTRAINTS, so it cannot fail for the wrong reason:
+ *   >= 55 candles   useEMAStrategy bails with "Not enough candle data" below
+ *                   this, and that bail would read as a pass
+ *   the first 59 bars flat, so the closed-bar verdict is unambiguous
+ *   the 60th bar extreme, and still inside the current interval so it is
+ *   genuinely the FORMING bar rather than a closed one
+ */
+const TF_MIN = 60;                       // the 1h chart the other tests use
+const N = 60;
+
+function candles(extremeLast: boolean) {
+  const now = Date.now();
+  const step = TF_MIN * 60_000;
+  /* Bar 0..N-2 closed and flat at 1000. Bar N-1 opens at the current interval
+     boundary - so it is the forming bar - and closes far above if extreme. */
+  const openOfForming = Math.floor(now / step) * step;
+  const out: { t: number; c: number }[] = [];
+  for (let i = N - 1; i >= 1; i--) out.push({ t: openOfForming - i * step, c: 1000 });
+  out.push({ t: openOfForming, c: extremeLast ? 5000 : 1000 });
+  return out;
+}
+
+async function serveCandles(page: Page, extremeLast: boolean) {
+  const rows = candles(extremeLast);
+  await page.route('**/api/market/klines**', route => {
+    const url = route.request().url();
+    if (/source=bybit/.test(url)) {
+      /* Bybit: { result: { list: [...] } }, newest-first, index 4 = close. */
+      const list = rows.slice().reverse().map(r =>
+        [String(r.t), String(r.c), String(r.c + 1), String(r.c - 1), String(r.c), '10', '10000']);
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ result: { list } }) });
+    }
+    /* Binance futures: bare array, index 0 = time, 4 = close. */
+    const arr = rows.map(r => [r.t, String(r.c), String(r.c + 1), String(r.c - 1), String(r.c), '10']);
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(arr) });
+  });
+}
+
 test.describe('signal freshness', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
@@ -116,5 +171,35 @@ test.describe('signal freshness', () => {
       `the verdict changed across a reload within one candle: ${before} -> ${after}. ` +
       `That is the owner's report - state that only appears once the page is rebuilt.`)
       .toBe(before);
+  });
+
+  test('a FORMING bar with an extreme close does NOT move the verdict', async ({ page }) => {
+    /* THE DISCRIMINATING TEST. Serves 60 candles: 59 flat and closed, the 60th
+       still forming. Runs it twice - once with the forming bar flat, once with
+       it extreme - and the verdict must be identical, because a value that
+       never closed cannot move a closed-candle signal.
+
+       On a build that includes the forming bar the two runs differ, which is
+       the defect stated as an observation rather than inferred. */
+    test.setTimeout(180_000);
+
+    await serveCandles(page, false);
+    await gotoGuarded(page, '/arena');
+    await page.waitForTimeout(10_000);
+    const flat = verdictWord(await verdict(page));
+    expect(flat, 'no verdict on the flat fixture - the fixture may be too short ' +
+      '(useEMAStrategy needs >= 55 candles and bails otherwise, which reads as a pass)')
+      .not.toBe('(none)');
+
+    await page.unroute('**/api/market/klines**');
+    await serveCandles(page, true);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(10_000);
+    const extreme = verdictWord(await verdict(page));
+
+    expect(extreme,
+      `the forming bar changed the verdict: ${flat} -> ${extreme}. A close of 5000 on a bar ` +
+      `that has not closed moved the signal, so the signal is being computed over the forming ` +
+      `candle - the defect #322 fixes.`).toBe(flat);
   });
 });
