@@ -102,34 +102,85 @@ test.describe('Ask AI button visibility', () => {
     } finally { await ctx.close(); }
   });
 
-  test('the FAB returns after opening and closing the panel', async ({ browser }) => {
-    /* The timer race, independent of consent and reachable on any browser: the
-       restore was cancelled if `open` changed during the 400ms hide window,
-       stranding the button at opacity 0 with pointer-events none. */
-    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-    const page = await ctx.newPage();
-    await ctx.addInitScript(() => {
+  test('the FAB survives the panel opening mid-scroll', async ({ page }) => {
+    /* THE TIMER RACE. The first version of this test asserted the wrong thing in
+       the wrong place and passed on the broken build - see the note at the
+       bottom of this file. The mechanism, from GrokChat.tsx:
+     *
+     *     const mq = window.matchMedia('(max-width: 639px)');    // MOBILE ONLY
+     *     const onScroll = () => {
+     *       if (!mq.matches || openRef.current) return;          // and only while CLOSED
+     *       setFabVisible(false);
+     *       scrollTimer.current = setTimeout(() => setFabVisible(true), 400);
+     *     };
+     *
+     * SCROLLING starts the 400ms window, not clicking. Pre-fix the effect
+     * depended on [open] and its cleanup cleared that timer, so `open` flipping
+     * inside the window cancelled the restore and left fabVisible false - until
+     * the user happened to scroll again.
+     *
+     * `open` flips without the user touching the FAB because Arena opens the
+     * panel programmatically via the `grok-chat` event. That is dev's own
+     * account of how it happens in the wild, so it is what this fires. */
+    test.skip(test.info().project.name !== 'mobile',
+      'the scroll-hide effect is guarded by max-width:639px - there is no race to lose on desktop');
+
+    await page.addInitScript(() => {
       try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
     });
-    try {
-      await gotoGuarded(page, '/arena');
-      await page.waitForTimeout(9000);
+    await gotoGuarded(page, '/arena');
+    await page.waitForTimeout(9000);
 
-      const fab = page.locator(FAB).first();
-      await expect(fab, 'no FAB to open - this run measured nothing').toBeVisible({ timeout: 20_000 });
+    const before = await fabState(page);
+    expect(before.present, 'no FAB on the page - this run measured nothing').toBe(true);
+    expect(Number(before.opacity),
+      'the FAB was already hidden before the scroll - nothing to race').toBeGreaterThan(0.1);
 
-      await fab.click();
-      await page.waitForTimeout(300);          // inside the 400ms hide window
-      const close = page.locator('.gchat-icon-btn', { hasText: '✕' }).first();
-      if (await close.isVisible().catch(() => false)) await close.click();
-      else await page.keyboard.press('Escape');
+    /* Panel closed, so the scroll handler engages and arms the 400ms timer. */
+    await page.mouse.wheel(0, 600);
+    await page.waitForTimeout(120);            // inside the 400ms window
 
-      await page.waitForTimeout(6000);
-      const s = await fabState(page);
-      expect(Number(s.opacity),
-        `the FAB is stranded at opacity ${s.opacity} after a fast open/close - the restore timer ` +
-        `was cancelled by the state change and never re-armed`).toBeGreaterThan(0.1);
-      expect(s.pointer, 'the FAB is visible but not clickable after a fast open/close').not.toBe('none');
-    } finally { await ctx.close(); }
+    /* Flip `open` while the restore is still pending. */
+    await page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent('grok-chat', { detail: { coin: 'bitcoin' } }));
+    });
+    await page.waitForTimeout(400);
+
+    /* Close it again and give the restore far longer than it needs. */
+    await page.keyboard.press('Escape');
+    const closeBtn = page.locator('.gchat-icon-btn').filter({ hasText: '✕' }).first();
+    if (await closeBtn.isVisible().catch(() => false)) await closeBtn.click();
+    await page.waitForTimeout(3000);
+
+    const after = await fabState(page);
+    expect(Number(after.opacity),
+      `the FAB is stranded at opacity ${after.opacity}. The panel opened during the 400ms ` +
+      `scroll-hide window, the restore timer was cancelled with it, and nothing re-armed it - ` +
+      `the button stays gone until the user scrolls again, which is exactly what "the FAB is ` +
+      `missing" looks like from the outside.`).toBeGreaterThan(0.1);
+    expect(after.pointer,
+      'the FAB is visible but unclickable after the panel opened mid-scroll').not.toBe('none');
   });
 });
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * WHAT THE FIRST VERSION OF THIS FILE GOT WRONG - kept because the mistake is
+ * more instructive than the test.
+ *
+ * The race test originally ran on the DESKTOP project and triggered the window
+ * by CLICKING the FAB. Both are wrong: the effect is guarded by
+ * `max-width: 639px`, and the window opens on SCROLL. So it exercised nothing,
+ * and it passed on qa @ d34377d - a build that did NOT contain the fix.
+ *
+ * It was reported as "verified on qa @ d34377d, which carries #327". The branch
+ * carried the fix; the RUNNING SERVICE was still serving the older commit. The
+ * check was `git show origin/qa:...` when it should have been the deployed
+ * build. CONTRIBUTING.md says exactly this - `/api/version` reports what the
+ * service is serving, quote it rather than the branch - and quoting the commit
+ * while trusting git for its contents is the same error one step removed.
+ *
+ * A test that passes on the broken build and the fixed build measures neither.
+ * Confirmed by measurement, not argument: 3/3 green on d34377d (no fix) and
+ * 3/3 green on 6a03e58 (fix). The only way to know a regression test works is
+ * to watch it fail.
+ * ───────────────────────────────────────────────────────────────────────────── */
