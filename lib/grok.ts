@@ -1,5 +1,5 @@
-import { getSupabase } from './supabase';
-import { nextResetLocalTime } from './resetTime';
+import { getSupabase } from './supabase.ts';
+import { nextResetLocalTime } from './resetTime.ts';
 
 export interface GrokUsageInfo {
   deep_used:     number; deep_limit:     number;
