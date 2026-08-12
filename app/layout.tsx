@@ -99,6 +99,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             paint (no flash of the wrong theme). Mirrors lib/theme.ts's
             getStoredTheme(): explicit localStorage choice wins, otherwise
             follow the device's prefers-color-scheme. */}
+        {/* SAFETY NET for consent-pending (#326).
+            body.consent-pending hides the Ask AI FAB outright
+            (visibility:hidden), it is set in this server markup, and the ONLY
+            thing that removes it is a useEffect in components/CookieConsent.tsx.
+            So anything that stops that component mounting - blocked script,
+            failed or delayed hydration, an aggressive shields setting - leaves
+            the FAB permanently invisible, with no error and nothing to see in
+            the console. The button is fine; it is waiting for a signal that
+            never arrives.
+            This clears it after 3s regardless. Deliberately NOT React: the
+            failure being guarded against is React not running. The normal path
+            still wins - CookieConsent removes it within a frame or two - and
+            this only ever fires when that did not happen. */}
+        <Script id="consent-pending-failsafe" strategy="beforeInteractive">
+          {`(function(){try{setTimeout(function(){try{document.body.classList.remove('consent-pending');}catch(e){}},3000);}catch(e){}})();`}
+        </Script>
         <Script id="theme-init" strategy="beforeInteractive">
           {`(function(){try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`}
         </Script>
