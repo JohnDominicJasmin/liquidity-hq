@@ -73,15 +73,27 @@ async function macroText(page: Page): Promise<string> {
   await gotoSignedIn(page, '/arena');
   /* The card is below the fold and renders after the provider hydrates. */
   await page.waitForTimeout(9000);
-  const text = (await page.locator('body').innerText()).replace(/\s+/g, ' ');
+  const body = (await page.locator('body').innerText()).replace(/\s+/g, ' ');
 
   /* POSITIVE CONTROL, run before every assertion. Without it a signed-out or
      broken page reports "no stale warning" perfectly. */
-  expect(text, 'the Confluence card is Pro-gated and did not render - this run measured nothing')
+  expect(body, 'the Confluence card is Pro-gated and did not render - this run measured nothing')
     .not.toMatch(/part of Pro|Unlock with Pro/i);
-  expect(text, 'the Confluence card did not appear at all - nothing below is meaningful')
-    .toMatch(/Confluence/i);
-  return text;
+
+  /* SCOPED TO THE CARD, not the page.
+   *
+   * Reading document.body made an assertion pass for the wrong reason: the
+   * Multi-TF block renders "Stay out or reduce size - no clear edge" on its own,
+   * so /reduce size/ matched text from a completely different component and the
+   * stale-with-event control passed without the macro row saying anything.
+   *
+   * `.sms-card` is the Confluence card (ConfluenceScore.tsx:141). Several cards
+   * share the class, so this picks the one that identifies itself. */
+  const card = page.locator('.sms-card').filter({ hasText: /Confluence/i }).first();
+  await expect(card, 'the Confluence card did not appear at all - nothing below is meaningful')
+    .toBeVisible({ timeout: 20_000 });
+
+  return (await card.innerText()).replace(/\s+/g, ' ');
 }
 
 test.describe('stale econ calendar reaches the screen', () => {
@@ -108,11 +120,31 @@ test.describe('stale econ calendar reaches the screen', () => {
     const ctx = await signedInContext(browser, 'a');
     const page = await ctx.newPage();
     try {
-    await installSnapshot(page, { ageHours: 1, events: [event(3)] });
+    /* ONE hour, not three. At three the release sits outside computeMacroRisk's
+       caution window, so the card legitimately says nothing about it - and the
+       positive assertion below would then fail on correct behaviour. Matching
+       the stale-with-event control's offset keeps both tests asserting against a
+       finding that genuinely exists. */
+    await installSnapshot(page, { ageHours: 1, events: [event(1)] });
     const text = await macroText(page);
 
     expect(text, 'a fresh calendar carrying a real event was reported as out of date')
       .not.toMatch(STALE_TEXT);
+
+    /* POSITIVE half. "The staleness text is absent" is satisfied by a macro row
+       that rendered NOTHING - the shared card control proves the card exists,
+       but the macro row is a conditional inside it. Dev caught this: without an
+       assertion that the seeded release is actually reported, a broken render
+       passes while looking like proof of correct behaviour.
+
+       Three states instead of two:
+         risk shown        PASS   the guard fired correctly
+         staleness shown   FAIL   the mutation being hunted
+         neither shown     FAIL   the row broke - previously a PASS */
+    expect(text, 'the imminent CPI release is not reported at all - the macro row rendered ' +
+      'neither the risk nor the staleness notice')
+      .toMatch(/CPI|reduce size|volatility spike/i);
+
     } finally { await ctx.close(); }
   });
 
@@ -157,6 +189,21 @@ test.describe('stale econ calendar reaches the screen', () => {
       'instead of the risk it found - the guard is firing regardless of the result, which replaces real ' +
       'warnings with an unfalsifiable one')
       .not.toMatch(STALE_TEXT);
+
+    /* POSITIVE half. "The staleness text is absent" is satisfied by a macro row
+       that rendered NOTHING - the shared card control proves the card exists,
+       but the macro row is a conditional inside it. Dev caught this: without an
+       assertion that the seeded release is actually reported, a broken render
+       passes while looking like proof of correct behaviour.
+
+       Three states instead of two:
+         risk shown        PASS   the guard fired correctly
+         staleness shown   FAIL   the mutation being hunted
+         neither shown     FAIL   the row broke - previously a PASS */
+    expect(text, 'the imminent CPI release is not reported at all - the macro row rendered ' +
+      'neither the risk nor the staleness notice')
+      .toMatch(/CPI|reduce size|volatility spike/i);
+
     } finally { await ctx.close(); }
   });
 
