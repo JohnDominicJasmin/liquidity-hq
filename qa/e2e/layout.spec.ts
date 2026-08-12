@@ -138,7 +138,24 @@ async function findLayoutDefects(page: Page): Promise<LayoutDefects> {
        * hit-tests to the icon, and a link inside a styled wrapper hit-tests to
        * the wrapper. Neither is a defect - only an UNRELATED element is. */
       if (hit && hit !== el && !el.contains(hit) && !hit.contains(el)) {
-        obscured.push(`${describe(el)} is covered by ${describe(hit)}`);
+        /* NORMALISE THE COVERER TO ITS INTERACTIVE ANCESTOR.
+         *
+         * `elementFromPoint` returns whatever is topmost at one pixel, so the
+         * same overlap is attributed to a parent or its child depending on
+         * sub-pixel layout. The bottom tab bar is `a.mobile-tab-item` wrapping
+         * `span.mobile-tab-label` (NavDrawer.tsx:441-447), and on 2026-08-12 a
+         * run reported `/scanner: button is covered by span.mobile-tab-label`
+         * as NEW while `/scanner: button is covered by a.mobile-tab-item`
+         * vanished from the same baseline. One overlap, two names, reported as
+         * a regression.
+         *
+         * The baseline keys on this string, so an unstable name is a false
+         * failure generator - and a false failure that looks this specific costs
+         * a real diagnosis every time. Walking up to the nearest interactive
+         * ancestor gives the covering CONTROL rather than whichever glyph
+         * happened to be under the point. */
+        const coverer = hit.closest('a,button,[role=button],[role=link],[role=tab]') ?? hit;
+        obscured.push(`${describe(el)} is covered by ${describe(coverer)}`);
       }
     }
 
@@ -154,25 +171,33 @@ async function findLayoutDefects(page: Page): Promise<LayoutDefects> {
 
 const KNOWN_OBSCURED: Record<string, string[]> = {
     desktop: [],
+    /* RE-DERIVED 2026-08-12 against deployed `qa` @ ae213e7, after the coverer
+     * normalisation above. Three entries were RENAMED rather than fixed, and one
+     * group was DELETED as unreachable:
+     *
+     *   /calc     span.mobile-tab-label -> a.mobile-tab-item
+     *   /news     span                  -> button.gchat-fab
+     *   /playbook span                  -> button.gchat-fab
+     *
+     * Same overlaps, stable names. Nothing about the app changed.
+     *
+     * DELETED: the /backtest and /live-tracking entries. Those routes left
+     * ROUTES on 2026-08-11 (#264, shipped in #265 + #267) and are now behind a
+     * redirect, so the sweep can never visit them - the entries could only ever
+     * report as "known, not seen this run" forever. A baseline entry that can
+     * never be observed is indistinguishable from one that was fixed, which is
+     * exactly the ambiguity the "not seen" line exists to surface. Put them back
+     * if the redirect is ever lifted, alongside ROUTES. */
     mobile: [
-      '/backtest: a.pf-footer-link is covered by a.mobile-tab-item',
-      '/backtest: a.pf-footer-link is covered by button.mobile-tab-item',
       '/briefing: a is covered by a.mobile-tab-item',
-      '/calc: input.ps-inp is covered by span.mobile-tab-label',
+      '/calc: input.ps-inp is covered by a.mobile-tab-item',
       '/dashboard: button.sotd-refresh is covered by a.mobile-tab-item',
       '/faq: button is covered by a.mobile-tab-item',
       '/funding: input is covered by a.mobile-tab-item',
       '/journal: a.pf-footer-link is covered by button.gchat-fab',
-      /* Added 2026-08-09 after it appeared on a later run. It is the SAME defect
-       * as the /offline entry below - the tab bar over a footer control - and
-       * its absence earlier was the drift, not its presence now. Routes whose
-       * content ends near the fold flip in and out between runs; the set is the
-       * union of what has been observed, which is why entries are only ever
-       * added when a run names them. */
-      '/live-tracking: button.pf-footer-expand is covered by a.mobile-tab-item',
-      '/news: a.pf-footer-link is covered by span',
+      '/news: a.pf-footer-link is covered by button.gchat-fab',
       '/offline: button.pf-footer-expand is covered by a.mobile-tab-item',
-      '/playbook: button.pb-star is covered by span',
+      '/playbook: button.pb-star is covered by button.gchat-fab',
       '/scanner: button is covered by a.mobile-tab-item',
     ],
   };
