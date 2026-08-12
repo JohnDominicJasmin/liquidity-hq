@@ -1,7 +1,7 @@
 'use client';
 import { createContext, useContext, useState, useEffect } from 'react';
 import { getSupabase } from '@/lib/supabase';
-import { authTokenKeys } from '@/lib/authSession';
+import { forceSignOut } from '@/lib/authSession';
 import type { User } from '@supabase/supabase-js';
 import posthog from 'posthog-js';
 import { T } from '@/lib/tables';
@@ -66,7 +66,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     sb.auth.getSession().then(async ({ data }) => {
       const sessionUser = data.session?.user ?? null;
       if (sessionUser && isSessionExpired()) {
-        await sb.auth.signOut();
+        // forceSignOut, not sb.auth.signOut: this path exists to END a session
+        // that has outlived its window, so it failing quietly would keep the
+        // user signed in past the expiry it is enforcing (#304).
+        await forceSignOut(sb);
         localStorage.removeItem(LAST_ACTIVE_KEY);
         setUser(null);
       } else {
@@ -127,7 +130,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             // without it, this signOut() just silently drops the user with
             // no explanation for why their own open tab went dark.
             sessionStorage.setItem(BAN_NOTICE_KEY, '1');
-            sb.auth.signOut();
+            // Ban enforcement is a security control, so it must not depend on
+            // the logout request succeeding. Before #304's follow-up, a banned
+            // user whose request happened to fail simply stayed signed in and
+            // nothing said so.
+            void forceSignOut(sb);
           }
         },
       )
@@ -154,53 +161,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const signOut = async () => {
     const sb = getSupabase();
     localStorage.removeItem(LAST_ACTIVE_KEY);
-    /* Two ways this call can report failure, and it must survive both.
+    /* The stored session is dropped locally when the server call fails - see
+     * forceSignOut in lib/authSession.ts for why, and for the two other paths
+     * that need the same guarantee.
      *
-     * Measured against auth-js 2.106.2 rather than assumed: a network
-     * TypeError and an AbortError both RESOLVE with an AuthRetryableFetchError
-     * in `error` - they do not reject. So the `if (error)` branch below is the
-     * live path for the reported bug, and QA's spec exercises it.
-     *
-     * The catch is still here. GoTrueAdminApi.signOut only converts what
-     * passes isAuthError() into a returned error and rethrows anything else,
-     * so a non-AuthError escaping the client rejects instead. Nothing fetch
-     * throws today lands there - but if one ever does, an uncaught rejection
-     * here would skip the local cleanup AND the caller's navigation, which is
-     * the original bug wearing a different hat. Cheap to make impossible. */
-    let error: unknown = null;
-    try {
-      ({ error } = (await sb?.auth.signOut()) ?? { error: null });
-    } catch (e) {
-      error = e ?? new Error('signOut rejected');
-    }
-
-    /* A FAILED SIGN-OUT LOOKED EXACTLY LIKE A SUCCESSFUL ONE (#304).
-     *
-     * GoTrueClient._signOut only drops the stored session after its POST
-     * /logout returns. It treats 401/403/404 as "already gone" and clears
-     * anyway - but on a network error, timeout or 5xx it returns the error and
-     * never reaches _removeSession(). The token stays in localStorage, no
-     * SIGNED_OUT event fires, `user` stays set, and the app carries on fully
-     * signed in. We discarded that return value, so the two outcomes were
-     * indistinguishable: the button ran, nothing happened, nothing was said.
-     * That is the reported symptom - "after sign out the UI still same".
-     *
-     * Navigating harder does not fix it, because /login bounces a signed-in
-     * user straight back (app/login/page.tsx). The session has to actually go.
-     * It is ours to drop whatever the server says, so clear it locally and let
-     * the next document load start signed out.
-     *
-     * Matched by prefix: we never set a custom storageKey, so the name is
-     * `sb-<project-ref>-auth-token` and the ref differs per environment. */
-    if (error) {
-      try {
-        authTokenKeys(Object.keys(localStorage)).forEach(k => localStorage.removeItem(k));
-      } catch {
-        // Storage can throw (private mode, quota). The hard navigation that
-        // follows is still worth attempting - do not let this abort it.
-      }
-      setUser(null);
-    }
+     * Callers hard-navigate afterwards rather than router.push, because /login
+     * bounces a signed-in user straight back (app/login/page.tsx:57) and a soft
+     * navigation keeps every provider alive to be bounced by. */
+    if (await forceSignOut(sb)) setUser(null);
   };
 
   // Trial expiry is compared against a clock held in state rather than a
