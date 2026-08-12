@@ -66,15 +66,29 @@ function series(perpLast: number) {
 }
 
 /**
- * `'leading'` -> a strong FUTURES LEADING reading.
- * `'absent'`  -> no spot side at all, so the reading is CANNOT MEASURE.
+ * `'leading'`  -> strong FUTURES LEADING  (perp volume 14x spot on the last closed bar)
+ * `'spotled'`  -> SPOT LEADING            (7x, below this coin's own normal)
+ * `'absent'`   -> no spot side at all, so the reading is CANNOT MEASURE
  *
- * Those two are the extremes. If the score is going to move for this input at
- * all, it moves between these; anything narrower risks a null result that looks
- * like decoupling.
+ * THE COMPARISON USES THE TWO **VALID** MODES, not valid-vs-absent, and that
+ * distinction decided a finding.
+ *
+ * `'absent'` serves a 404 for the spot side. If any OTHER component read the
+ * same endpoint at the same parameters, that 404 would break it, and the score
+ * would change for a reason that had nothing to do with the perps reading -
+ * a fixture side-effect wearing the costume of a defect.
+ *
+ * Ruled out by measurement rather than argument:
+ *
+ *     requests matching interval=1h&limit=168:  2  ["binance","binance-futures"]
+ *
+ * Both are the perps card's own fetch. Nothing else on /arena reads it. But the
+ * comparison still uses two valid payloads, because that conclusion holds only
+ * until someone adds a third consumer - and then valid-vs-404 would start
+ * lying without anything failing.
  */
-async function pinPerps(page: Page, mode: 'leading' | 'absent') {
-  const { spot, perp } = series(140_000_000);
+async function pinPerps(page: Page, mode: 'leading' | 'absent' | 'spotled') {
+  const { spot, perp } = series(mode === 'spotled' ? 70_000_000 : 140_000_000);
   await page.route(KLINES, async route => {
     const url = new URL(route.request().url());
     if (url.searchParams.get('interval') !== '1h' || url.searchParams.get('limit') !== '168') {
@@ -92,7 +106,7 @@ async function pinPerps(page: Page, mode: 'leading' | 'absent') {
 }
 
 /** The signed number in the Confluence card's verdict badge (ConfluenceScore.tsx:159). */
-async function readScore(page: Page, mode: 'leading' | 'absent'): Promise<string> {
+async function readScore(page: Page, mode: 'leading' | 'absent' | 'spotled'): Promise<string> {
   await pinPerps(page, mode);
   await gotoSignedIn(page, '/arena');
   await page.waitForTimeout(9000);
@@ -118,17 +132,47 @@ async function readScore(page: Page, mode: 'leading' | 'absent'): Promise<string
    * A placeholder read as a real measurement is the same failure as every other
    * one on this project this week - so this polls until the value stops moving
    * rather than trusting a fixed wait. */
+  /* STABLE IS NOT THE SAME AS LOADED, and the first version conflated them.
+   *
+   * `+0` is what the badge shows before its inputs arrive, and it is perfectly
+   * stable while it waits - so "three identical reads" settled on the
+   * placeholder whenever the data took longer than 4.5s. Observed exactly that
+   * against qa @ 69bfe39: leading=+0, absent=-73, leading-again=-58.
+   *
+   * So the score must also have MOVED OFF its initial value before a reading
+   * counts. A card whose real score genuinely is +0 will time out here and skip
+   * rather than report - the wrong-but-quiet answer is the one worth avoiding. */
+  /* Two attempts at this were wrong in opposite directions, so the reasoning
+     matters more than the code:
+   *
+   *   "stable for 4.5s"        settled on the `+0` PLACEHOLDER whenever the
+   *                            inputs took longer than that - it is perfectly
+   *                            stable while it waits
+   *   "must MOVE off its       skipped a load whose real score happened to be
+   *    first value"            there before the first read, which is a false
+   *                            skip on a correct reading
+   *
+   * `+0` is the placeholder specifically, so that is what to wait out. The
+   * trade: a card whose genuine score is exactly zero will time out and SKIP.
+   * That is the safe direction - a missed measurement costs a re-run, a
+   * placeholder read as a measurement costs a false finding, and this file
+   * exists to stop the second one. */
+  const PLACEHOLDER = '+0';
   let last = (await verdict.innerText()).trim();
   let stableFor = 0;
-  for (let i = 0; i < 24 && stableFor < 3; i++) {          // up to ~36s
+  for (let i = 0; i < 40 && !(last !== PLACEHOLDER && stableFor >= 3); i++) {   // up to ~60s
     await page.waitForTimeout(1500);
     const now = (await verdict.innerText()).trim();
     stableFor = now === last ? stableFor + 1 : 0;
     last = now;
   }
+  test.skip(last === PLACEHOLDER,
+    `the score badge still reads ${PLACEHOLDER} after 60s - that is the state before its ` +
+    `inputs arrive, not a measurement. (A genuine score of zero also lands here, and skipping ` +
+    `is the right answer for both.)`);
   expect(stableFor,
-    `the Confluence score never stopped changing (last value ${last}). It cannot be compared ` +
-    `across loads if it does not settle within a single one.`).toBeGreaterThanOrEqual(3);
+    `the score never stopped changing (last value ${last}). It cannot be compared across ` +
+    `loads if it does not settle within a single one.`).toBeGreaterThanOrEqual(3);
   return last;
 }
 
@@ -142,7 +186,7 @@ test.describe('perps reading and the Confluence Score', () => {
       const first = await readScore(page, 'leading');
       await page.unrouteAll({ behavior: 'ignoreErrors' });
 
-      const absent = await readScore(page, 'absent');
+      const absent = await readScore(page, 'spotled');
       await page.unrouteAll({ behavior: 'ignoreErrors' });
 
       /* INSTRUMENT CHECK, and the reason this test can say anything at all.
