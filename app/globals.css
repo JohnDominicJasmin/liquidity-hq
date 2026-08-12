@@ -5186,3 +5186,42 @@ body.nav-drawer-open .mobile-tab-bar { display: none !important; }
   .edge-card { display: flex; flex-direction: column; }
   .edge-card-label { min-width: 0; }
 }
+
+/* ── MOBILE: form controls never below 16px (#326) ─────────────────────────
+ *
+ * Android and iOS ZOOM THE PAGE when a text field under 16px takes focus. That
+ * is documented browser behaviour, not a bug - but nothing resets the zoom on
+ * navigation, so it persists onto whatever page comes next.
+ *
+ * That is the owner's report, end to end:
+ *
+ *     autoFocus on the login email field (app/login/page.tsx:272)
+ *       -> field is 13px (--fs-label), so the browser zooms
+ *       -> sign in, navigate to /dashboard
+ *       -> the zoom is still applied: a cropped region of the mobile layout,
+ *          which reads as "desktop view"
+ *       -> .gchat-fab is position:fixed bottom-right, now outside the visual
+ *          viewport: "fab ask ai is missing"
+ *
+ * One mechanism, three symptoms, and it explains why the trigger was "after I
+ * log in" rather than on every page.
+ *
+ * ELEVEN rules were under the threshold, not just the login field - the chat
+ * composer, journal edits, the calculators, onboarding. Login was merely the
+ * only one that fires without the user tapping anything. So this is written as
+ * a floor on the element types rather than a fix to the eleven, which also
+ * covers whatever gets added next.
+ *
+ * NOT `maximum-scale=1` / `user-scalable=no` on the viewport. That is the
+ * shorter fix and it works by taking pinch-zoom away from everyone, which
+ * breaks WCAG 1.4.4 and is exactly the trade this project should not make to
+ * save a CSS rule.
+ *
+ * Mobile-only, so the desktop type scale is untouched. */
+@media (max-width: 639px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
