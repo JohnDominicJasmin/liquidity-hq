@@ -171,3 +171,65 @@ export function computePerpSpot(
 
   return { spotVol: latest.s, perpVol: latest.p, ratio, baseline, relative, lean, pair, explanation };
 }
+
+/* ── Option B weighting (#340) ───────────────────────────────────────────────
+ *
+ * THE OWNER'S NUMBERS, chosen from worked examples rather than coefficients:
+ *
+ *     a signal at 8/10 confidence, futures-led   ->  6/10
+ *     a Confluence score of +12, futures-led     ->  +8
+ *     spot-led                                    the mirror at half size
+ *
+ * Those examples are kept here deliberately. A bare `0.75` is not checkable by
+ * anyone later; "8/10 becomes 6/10, set with the owner on #340" is. Same
+ * reasoning as REAL_YIELD_THRESHOLD_BP on #311.
+ *
+ * DIRECTION IS NEVER AFFECTED. Futures-led means the evidence behind the
+ * existing read is weaker - it does not mean the trade is the other way. On the
+ * Confluence side that is structural rather than a promise: penalties feed
+ * `raw *= shrink` with shrink in [0,1], which cannot change a sign.
+ */
+
+/** 8/10 -> 6/10. Applied to the chart signal's confidence. */
+export const PERP_LED_CONFIDENCE = 0.75;
+/** The mirror at half size: 8/10 -> 9/10. */
+export const SPOT_LED_CONFIDENCE = 1.125;
+
+/**
+ * +12 -> +8 through `shrink = 1 - penaltyW / 100`, so 33 is the weight that
+ * reproduces the owner's example exactly (12 * (1 - 0.33) = 8.04).
+ *
+ * Larger than the existing penalties (GEX 12, choppiness 15, divergence 15)
+ * because it is answering a different question - those say the setup is
+ * lower-quality, this says the move underneath it may not be real.
+ */
+export const PERP_LED_SCORE_PENALTY = 33;
+
+/**
+ * Confidence multiplier for the chart signal.
+ *
+ * `unknown` returns 1 and the CALLER must say the input is missing. It does not
+ * silently discount, because a quietly-lowered number is its own misstatement -
+ * the user sees a reduced figure and reasonably assumes the evidence was
+ * weighed and found wanting, when it was never available. Reduced certainty and
+ * "we could not check" are different claims and the surface has to make both.
+ */
+export function perpConfidenceMultiplier(lean: PerpSpotLean): number {
+  return lean === 'perp' ? PERP_LED_CONFIDENCE
+       : lean === 'spot' ? SPOT_LED_CONFIDENCE
+       : 1;
+}
+
+/**
+ * Confluence penalty weight for the perps reading.
+ *
+ * ONLY the futures-led case penalises. There is deliberately no spot-led bonus:
+ * `computeConfluence` shrinks toward zero and has no mechanism to push a score
+ * ABOVE its natural value, and inventing one would change how every existing
+ * factor composes. The owner approved a mirror at half size; that half is
+ * honoured on the confidence multiplier, where the mechanism exists, and is
+ * flagged on #340 rather than silently dropped.
+ */
+export function perpScorePenalty(lean: PerpSpotLean): number {
+  return lean === 'perp' ? PERP_LED_SCORE_PENALTY : 0;
+}
