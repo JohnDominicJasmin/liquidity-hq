@@ -135,6 +135,61 @@ test.describe('sign-out resilience', () => {
     } finally { await ctx.close(); }
   });
 
+  test('the OPS console sign-out also clears on a failed logout', async ({ browser }) => {
+    /* The second user-pressable sign-out, and #317 did not cover it.
+     *
+     * Dev swept the codebase after I flagged this and found FOUR callers of
+     * sb.auth.signOut(), of which #317 fixed one:
+     *
+     *   app/ops/layout.tsx:60         ops console, two buttons     bypassed
+     *   AuthProvider.tsx:69           >7-day inactivity expiry     bypassed
+     *   AuthProvider.tsx:130          BAN ENFORCEMENT              bypassed
+     *   AuthProvider.tsx:172          the button in #317           fixed
+     *
+     * The other two are not reachable from any button, which is exactly why
+     * testing the button would never have found them - dev's unit test covers
+     * those. This covers the second button, because a UI path deserves a UI
+     * assertion. Requires the admin fixture from #280. */
+    const adminEmail = process.env.E2E_USER_ADMIN_EMAIL ?? '';
+    const adminPw = process.env.E2E_USER_ADMIN_PASSWORD ?? '';
+    test.skip(!adminEmail || !adminPw,
+      'admin fixture absent - E2E_USER_ADMIN_EMAIL / E2E_USER_ADMIN_PASSWORD, see #280');
+
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: adminEmail, password: adminPw }),
+    });
+    const s = await res.json();
+    test.skip(!s?.access_token, `admin sign-in failed: HTTP ${res.status}`);
+
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await ctx.newPage();
+    try {
+      await seedSession(page, s as Record<string, unknown>, new URL(SUPABASE_URL).hostname.split('.')[0]);
+
+      let logoutHits = 0;
+      await page.route(LOGOUT, route => { logoutHits++; return route.abort('connectionfailed'); });
+
+      await page.goto('/ops', { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(8000);
+
+      expect((await state(page)).token, 'not signed in on /ops - this run measured nothing').toBe(true);
+
+      const btn = page.locator('button', { hasText: /sign out/i }).first();
+      const found = await btn.isVisible().catch(() => false);
+      test.skip(!found, 'no sign-out button rendered on /ops - the admit path may have changed');
+
+      await btn.click();
+      await page.waitForTimeout(9000);
+
+      expect(logoutHits, 'the logout request was never attempted from /ops').toBeGreaterThan(0);
+      expect((await state(page)).token,
+        'the ops console sign-out left the session intact after a failed logout - it bypasses ' +
+        'the resilient path that the settings button uses').toBe(false);
+    } finally { await ctx.close(); }
+  });
+
   test('CONTROL: a HEALTHY sign-out still works and lands on the sign-in form', async ({ browser }) => {
     /* Stops the fix being "clear the session and never call logout". The
        request must still be made, and the normal path must still end on /login
