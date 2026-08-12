@@ -54,15 +54,23 @@ export interface PerpSpotReading {
   explanation: string;
 }
 
-/* PROVISIONAL, and flagged as such on #328 rather than presented as settled.
+/* THE OWNER'S NUMBERS, not ours. Approved on #333.
  *
- * From the 168-bar sample, BTC's ratio ranged 2.29-19.07 around a median of
- * 7.80, so `relative` spans roughly 0.29-2.44 in a normal week. 1.3 and 0.75
- * sit inside that range without firing constantly.
+ * QA put three options to them framed in BEHAVIOUR rather than in figures -
+ * "fires most days" against "only on a genuinely unusual session" - and the
+ * balanced one was chosen. That framing is why the answer is usable: someone
+ * can pick between those without knowing what a volume ratio is, where the
+ * version I originally drafted asked them to bless a number.
  *
- * They are still numbers we chose. #311's threshold came from the owner, and QA
- * was right that "a threshold invented by us is a threshold nobody can verify" -
- * so these are defaults pending the same conversation, not a hidden judgement. */
+ * Recorded here because #311 established the rule and QA was right about it:
+ * a threshold invented by us is a threshold nobody can verify. If these ever
+ * need changing, that is another conversation with the owner, not a tuning
+ * exercise.
+ *
+ * Both remain reachable on the measured range - BTC's `relative` spans roughly
+ * 0.29-2.44 across a normal week - and there is a control test asserting that,
+ * because a threshold outside the observed range gives the feature a state it
+ * can never display. */
 export const PERP_LED_AT = 1.30;
 export const SPOT_LED_AT = 0.75;
 
