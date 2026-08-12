@@ -92,12 +92,28 @@ export function multiTfRsiFactor(rsi14: number | null, rsi1h: number | null, rsi
 export interface MacroRisk {
   level: 'none' | 'caution' | 'danger';
   reasons: string[];
+  /* True when the verdict was computed from a calendar we cannot vouch for
+     (#298). `level: 'none'` then means "nothing found in an incomplete set",
+     which is not the same claim as "nothing scheduled" - and the two are
+     indistinguishable to a reader unless one of them says so. */
+  unknown?: boolean;
 }
 
 const EVENT_DANGER_MS = 30 * 60_000;
 const EVENT_CAUTION_MS = 2 * 3600_000;
 
-export function computeMacroRisk(events: CalEvent[], jpyUsd: number | null, nowMs: number = Date.now()): MacroRisk {
+/* `stale` marks the CALENDAR as untrustworthy, not the events in it (#298).
+ *
+ * When the econ snapshot's writer stops, expired events are still filtered out
+ * correctly - NewsProvider drops anything past 24h and the window below ignores
+ * anything more than five minutes old. What breaks is the SET: a release
+ * scheduled or corrected since the writer stopped is simply absent, so the
+ * `upcoming` search below finds nothing and this returns `level: 'none'`.
+ *
+ * That is a false negative delivered with the same confidence as a true one -
+ * the card says there is no macro risk, on a calendar that could not have told
+ * us there was. Defaults to false so every existing caller is unaffected. */
+export function computeMacroRisk(events: CalEvent[], jpyUsd: number | null, nowMs: number = Date.now(), stale = false): MacroRisk {
   const reasons: string[] = [];
   let level: MacroRisk['level'] = 'none';
 
@@ -127,6 +143,18 @@ export function computeMacroRisk(events: CalEvent[], jpyUsd: number | null, nowM
       level = 'caution';
       reasons.push(`USD/JPY ${jpyUsd.toFixed(1)} - approaching the 160 carry-trade danger zone`);
     }
+  }
+
+  /* Only when NOTHING was found. A stale calendar that still surfaced a real
+     event has done its job for that event, and the USD/JPY factor above does not
+     come from the calendar at all - downgrading either to "unknown" would be
+     less informative, not more. */
+  if (stale && level === 'none') {
+    return {
+      level: 'none',
+      unknown: true,
+      reasons: ['Economic calendar is out of date - upcoming releases cannot be checked'],
+    };
   }
 
   return { level, reasons };

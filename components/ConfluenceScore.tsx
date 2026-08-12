@@ -33,7 +33,7 @@ export default function ConfluenceScore(
   const d = store.coins[coin];
   // Reads the calendar NewsProvider already holds instead of fetching it again
   // on a 5-minute timer. Same data, one shared push-fed copy per tab.
-  const { econRaw: econEvents } = useNews();
+  const { econRaw: econEvents, econStale } = useNews();
 
   if (!d?.price) return null;
 
@@ -134,8 +134,13 @@ export default function ConfluenceScore(
 
   const result = computeConfluence(factors);
   const cfg = VERDICT_CONFIG[result.verdict];
-  const macro = computeMacroRisk(econEvents, jpyUsd);
-  const macroCol = macro.level === 'danger' ? 'var(--red)' : macro.level === 'caution' ? 'var(--amber)' : null;
+  const macro = computeMacroRisk(econEvents, jpyUsd, Date.now(), econStale);
+  /* `unknown` renders in the same amber band as `caution` on purpose (#298).
+     "We could not check for upcoming releases" is a reason to size down, which
+     is what amber already means here - and giving it a colour of its own would
+     add a fourth state to a card whose whole job is to be read in a second. */
+  const macroCol = macro.level === 'danger' ? 'var(--red)'
+    : (macro.level === 'caution' || macro.unknown) ? 'var(--amber)' : null;
 
   return (
     <div className="sms-card">
