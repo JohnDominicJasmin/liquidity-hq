@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { classifyEcon } from '@/lib/classify';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
+import { fetchFredRows, FRED_TTL_DEFAULT } from '@/lib/fred';
 
 const FINNHUB_KEY = process.env.FINNHUB_KEY ?? '';
 
@@ -226,9 +227,8 @@ async function tryFedFOMC(now: Date): Promise<CalEvent[]> {
 }
 
 // ── FRED: Free actual values for recently-released events ────────────────────
-// FRED graph CSV: no API key needed; daily update lag ~1 day for daily series
-const _fredCache: Record<string, { rows: [number, number][]; ts: number }> = {};
-const FRED_TTL = 12 * 3600_000;
+// The fetch/parse/cache lives in lib/fred.ts - /api/macro needs the same thing
+// for the 10Y real yield (#311), and two copies of a CSV parser is one too many.
 
 const FRED_CFG: Record<string, { id: string; fmt: 'rate' | 'mom_change' | 'mom_pct' | 'qoq_ann' }> = {
   FOMC:   { id: 'DFEDTARU', fmt: 'rate' },       // Fed Funds target upper bound (daily)
@@ -239,22 +239,6 @@ const FRED_CFG: Record<string, { id: string; fmt: 'rate' | 'mom_change' | 'mom_p
   GDP:    { id: 'GDP',      fmt: 'qoq_ann' },     // GDP (quarterly)
   RETAIL: { id: 'RSAFS',   fmt: 'mom_pct' },      // Retail sales (monthly)
 };
-
-async function fetchFREDRows(seriesId: string): Promise<[number, number][]> {
-  const c = _fredCache[seriesId];
-  if (c && Date.now() - c.ts < FRED_TTL) return c.rows;
-  try {
-    const r = await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`,
-      { next: { revalidate: 43200 } });
-    if (!r.ok) return [];
-    const rows: [number, number][] = (await r.text()).split('\n').slice(1)
-      .filter(l => l.includes(','))
-      .map(l => { const [d, v] = l.trim().split(','); return [new Date(d + 'T00:00:00Z').getTime(), parseFloat(v)] as [number, number]; })
-      .filter(([d, v]) => !isNaN(d) && !isNaN(v));
-    _fredCache[seriesId] = { rows, ts: Date.now() };
-    return rows;
-  } catch { return []; }
-}
 
 function fredActual(rows: [number, number][], eventTs: number, fmt: string): string | undefined {
   if (rows.length < 2) return undefined;
@@ -278,7 +262,7 @@ async function enrichWithFRED(events: CalEvent[], now: Date): Promise<void> {
   if (past.length === 0) return;
 
   const needed = [...new Set(past.map(e => FRED_CFG[e.type]?.id).filter(Boolean))] as string[];
-  const data = Object.fromEntries(await Promise.all(needed.map(async id => [id, await fetchFREDRows(id)])));
+  const data = Object.fromEntries(await Promise.all(needed.map(async id => [id, await fetchFredRows(id, FRED_TTL_DEFAULT)])));
 
   for (const e of past) {
     const cfg = FRED_CFG[e.type];

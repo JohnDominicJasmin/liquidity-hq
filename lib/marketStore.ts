@@ -1,6 +1,7 @@
 'use client';
 import { createContext, useContext } from 'react';
 import type { CoinId } from './coins';
+import type { RealYield } from './realYield';
 export type { CoinId } from './coins';
 export { COINS, BINANCE_SYMS, BYBIT_SYMS, COIN_DEC, COIN_LABELS } from './coins';
 
@@ -154,6 +155,11 @@ export type MarketStore = {
   dxyChg: number | null;     // 24h % change
   jpy: number | null;        // USD/JPY spot
   jpyChg: number | null;     // 24h % change - yen carry-trade direction
+  /* 10Y real yield (#311). Whole object, not a number + change pair like the
+     others, because this one carries its own staleness: FRED publishes it once
+     per business day and crypto trades through the weekend, so "how old is
+     this" is part of the reading rather than metadata about it. */
+  real10y: RealYield | null;
   spx: number | null;        // S&P 500
   spxChg: number | null;
   gold: number | null;       // Gold spot $/oz
@@ -198,6 +204,7 @@ export const defaultStore: MarketStore = {
   btcLiqLevels: [],
   dxy: null, dxyChg: null,
   jpy: null, jpyChg: null,
+  real10y: null,
   spx: null, spxChg: null,
   gold: null, goldChg: null,
   cbPremium: null, cbPremiumPct: null,
