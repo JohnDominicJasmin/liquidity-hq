@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { isGatedTf } from '@/lib/limits';
 import { useSettings } from '@/lib/settings';
@@ -106,7 +105,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 
 export default function SettingsPage() {
-  const router = useRouter();
   const { t } = useLabels();
   const { user, loading: authLoading, signOut, entitled } = useAuth();
   const { settings, saveStatus, update } = useSettings();
@@ -338,7 +336,19 @@ export default function SettingsPage() {
           onClick={async () => {
             track.signOut();
             await signOut();
-            router.push('/login');
+            /* HARD navigation, not router.push (#304).
+             *
+             * The owner reported signing out on liquidity-hq.com and seeing "the
+             * UI still same". The handler already pushed to /login and the code
+             * is byte-identical on production, so the soft navigation is
+             * reaching a client that has not fully torn down: router.push keeps
+             * the React tree, every provider and every cached fetch alive, so
+             * anything holding a stale user renders on regardless of the URL.
+             *
+             * assign() discards the document. There is no state left to be
+             * stale, which is the one guarantee worth having on a sign-out -
+             * and the cost is a page load the user is expecting anyway. */
+            window.location.assign('/login');
           }}
         >
           {t('SETTINGS_SIGN_OUT_BUTTON')}

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useMarket } from '@/lib/marketStore';
 import { useAuth } from './AuthProvider';
 import { track } from '@/lib/analytics';
@@ -252,7 +252,6 @@ export default function NavDrawer() {
   const [usageOpen, setUsageOpen] = useState(false);
   const { theme, toggleTheme }          = useTheme();
   const pathname = usePathname();
-  const router   = useRouter();
   const dot      = useStatusDot();
   const { user, loading: authLoading, signOut } = useAuth();
   const authRef  = useRef<HTMLDivElement>(null);
@@ -395,7 +394,8 @@ export default function NavDrawer() {
                           setAuthOpen(false);
                           track.signOut();
                           await signOut();
-                          router.push('/login');
+                          // Hard navigation - see the note on the Settings control (#304).
+                          window.location.assign('/login');
                         }}
                       >
                         {t('NAV_SIGN_OUT_MENU')}
@@ -556,7 +556,8 @@ export default function NavDrawer() {
                   setDrawerOpen(false);
                   track.signOut();
                   await signOut();
-                  router.push('/login');
+                  // Hard navigation - see the note on the Settings control (#304).
+                  window.location.assign('/login');
                 }}
               >
                 {t('NAV_SIGN_OUT_DRAWER')}
