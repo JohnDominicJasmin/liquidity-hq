@@ -279,6 +279,63 @@ gh issue list --state open
   passed on `mobile` in the same run, on identical fixtures. A real defect does
   not pick one project and spare the other when the fixture is the same — so when
   a run is red, check whether the other project agrees before reporting anything.
+- **AUTOMATION THAT IS OFF LOOKS EXACTLY LIKE AUTOMATION THAT IS WORKING. Check
+  the switch, not the absence of failures.** Added 2026-08-13.
+
+  All four workflows are disabled, and two independent brakes stop the release
+  PR specifically:
+
+  ```
+  ci.yml               disabled_manually
+  ready-for-qa.yml     disabled_manually
+  release-signals.yml  disabled_manually
+  RELEASE_PR_PAUSED  = 1                    repo variable
+  ```
+
+  Both dev and QA spent 2026-08-13 referring to the "Ready for QA" issue and the
+  self-opening release PR as though they existed. **Neither has opened since the
+  workflows were switched off.** Every promotion announcement that day was made
+  by hand, and it worked only because someone happened to do it.
+
+  The general shape is the expensive part. A **failing** workflow produces a red
+  tick, an email, a run record. A **disabled** one produces nothing at all —
+  which is indistinguishable from a workflow that passed. So "no failures" is
+  not evidence of health, and the docs describing what the automation does keep
+  reading as true long after it stopped running.
+
+  This is the same error as `#285`, where a disabled workflow was diagnosed as
+  spent Actions quota and sent the owner to check their billing — the missing
+  signal got an explanation instead of a measurement.
+
+  **When something is supposed to happen automatically and you have not SEEN it
+  happen, check whether the automation is enabled before believing anything
+  built on top of it.** `gh workflow list --all` answers it in one call.
+
+  Consequence worth stating plainly, because it is not a fault: **the
+  `staging` → `main` release PR must be opened by hand.** It is not delayed, it
+  is impossible in this configuration. `staging` sitting hundreds of commits
+  ahead of `main` is the intended state — the owner decides when to ship, and
+  nothing opens on their behalf.
+
+  **The second consequence WAS NOT CHOSEN, and it is the one worth knowing.**
+  `release-signals.yml` holds two unrelated jobs: the release PR, and the
+  **production drift check** — daily cron, reads `/api/version` on
+  liquidity-hq.com, opens a `release-drift` issue when production is not serving
+  `main` or the deployed commit is untagged. It caught a real one on 2026-08-09
+  (#159, *"Production is not running `main`"*).
+
+  Disabling the workflow to stop the release PR **also turned off drift
+  monitoring.** Two functions, one switch, and only one of them was the
+  decision. Low impact today — nothing is being deployed to production and there
+  are no users — but the file `CLAUDE.md` points at as the answer to *"what is
+  in production?"* is not running, so that question now has no automated answer.
+
+  How this was nearly reported wrong: `git show origin/dev:.github/workflows/release-signals.yml | grep -c drift`
+  returned **0**, and the same command printed no content at all. The file is
+  16KB with ten `drift` references. **The grep did not measure the file, it
+  measured an empty stream** — and taken at face value it would have become
+  "the drift check does not exist". A command that returns nothing has not told
+  you the thing is absent; check that it read anything at all first.
 - **A COMMENT DESCRIBING AN INVARIANT IS THE THING THAT GOES STALE. The durable
   version is a check, not a note.** Three separate times on 2026-08-12, and each
   one was CORRECT WHEN WRITTEN:
