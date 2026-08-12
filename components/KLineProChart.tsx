@@ -1181,18 +1181,76 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
 
           if (bnSym) {
             const iv = periodToBnInterval(period);
-            const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${bnSym.toLowerCase()}@kline_${iv}`);
-            ws.onopen    = () => setWsStatus('live');
-            ws.onerror   = () => setWsStatus('error');
-            ws.onclose   = (e) => { if (!e.wasClean) setWsStatus('connecting'); };
-            ws.onmessage = (e: MessageEvent) => {
-              const { k } = JSON.parse(e.data as string) as { k: Record<string, string | number> };
-              const bar = { timestamp: Number(k.t), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c), volume: Number(k.v) };
-              lastCloseRef.current = bar.close;
-              upsertEmaBar(bar);
-              callback(bar);
+
+            /* RECONNECT (#306).
+             *
+             * This socket used to be opened once. On a network drop it closed,
+             * `onclose` set the status dot to 'connecting', and nothing ever
+             * connected - so the chart froze at the last bar and stayed there
+             * until the user reloaded. The dot was honest and permanent.
+             *
+             * Why only some things came back: the Bybit branch below polls on a
+             * setInterval, which survives an outage and simply succeeds again,
+             * and six other endpoints recover the same incidental way. The
+             * WebSocket had no such loop, which is why the owner saw the chart
+             * specifically stop while the rest of the page carried on.
+             *
+             * Backoff so a server-side rejection cannot become a reconnect
+             * storm, capped so a long outage still recovers promptly. `online`
+             * short-circuits the wait: the browser knows the network returned
+             * before any timer would have fired. */
+            let attempt = 0;
+            let timer: ReturnType<typeof setTimeout> | null = null;
+            let cancelled = false;
+            /* Declared before `connect`, which captures it. Ordering matters:
+               relying on the call happening later would break the moment someone
+               moved it. */
+            let live: WebSocket | null = null;
+
+            const connect = () => {
+              if (cancelled) return;
+              const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${bnSym.toLowerCase()}@kline_${iv}`);
+              live = ws;
+              ws.onopen    = () => { attempt = 0; setWsStatus('live'); };
+              ws.onerror   = () => setWsStatus('error');
+              ws.onclose   = (e) => {
+                if (cancelled || e.wasClean) return;   // a clean close is us, not the network
+                setWsStatus('connecting');
+                attempt += 1;
+                const delay = Math.min(1000 * 2 ** (attempt - 1), 30_000);
+                if (timer) clearTimeout(timer);
+                timer = setTimeout(connect, delay);
+              };
+              ws.onmessage = (e: MessageEvent) => {
+                const { k } = JSON.parse(e.data as string) as { k: Record<string, string | number> };
+                const bar = { timestamp: Number(k.t), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c), volume: Number(k.v) };
+                lastCloseRef.current = bar.close;
+                upsertEmaBar(bar);
+                callback(bar);
+              };
             };
-            wsRef.current = ws;
+
+            /* Nothing in this app listened for `online` before this (#306) - the
+               endpoints that recovered did so by accident of having a timer. */
+            const onOnline = () => {
+              if (cancelled) return;
+              if (live && live.readyState === WebSocket.OPEN) return;
+              attempt = 0;                       // the network is back; do not serve out a long backoff
+              if (timer) clearTimeout(timer);
+              connect();
+            };
+            window.addEventListener('online', onOnline);
+
+            connect();
+
+            wsRef.current = {
+              close: () => {
+                cancelled = true;
+                window.removeEventListener('online', onOnline);
+                if (timer) clearTimeout(timer);
+                live?.close();
+              },
+            };
           } else if (bybitSym) {
             // Bybit: 5s polling
             setWsStatus('live');
