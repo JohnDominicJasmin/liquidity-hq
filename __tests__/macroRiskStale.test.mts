@@ -84,6 +84,7 @@ test('the default is unchanged, so every existing caller behaves as before', () 
  * than trusted to stay true through the next edit of this file.
  */
 import { computeConfluence } from '../lib/confluence.ts';
+import type { ConfluenceFactorInput } from '../lib/confluence.ts';
 import { computeRealYield } from '../lib/realYield.ts';
 
 const DAY = 86_400_000;
@@ -135,9 +136,9 @@ test('omitting the real yield reproduces the previous behaviour exactly', () => 
 });
 
 test('THE CONDITION OF APPROVAL: the real yield never moves the score', () => {
-  const factors = [
-    { key: 'a', label: 'A', weight: 30, active: true },
-    { key: 'b', label: 'B', weight: -20, active: true },
+  const factors: ConfluenceFactorInput[] = [
+    { kind: 'directional', label: 'A', dir: 'bull', weight: 30 },
+    { kind: 'penalty',     label: 'B', weight: 12, active: true },
   ];
   const baseline = computeConfluence(factors).score;
   // computeMacroRisk is a separate overlay - it cannot reach `factors` at all.
