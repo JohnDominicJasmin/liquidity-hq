@@ -35,6 +35,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { cached } from '@/lib/apiCache';
+import { intervalToMs, msUntilNextClose, CLOSE_SKEW_MS } from '@/lib/candles';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
@@ -213,8 +214,42 @@ export async function GET(req: NextRequest) {
   };
 
   try {
-    const key = `klines:${source}:${symbol}:${interval}:${limit}`;
-    const raw = isRange ? await fetchUpstream() : await cached(key, ttlFor(interval), fetchUpstream);
+    /* BOUNDARY-ALIGNED EXPIRY for closed-candle callers (#325).
+     *
+     * `ttlFor` is a stopwatch with no relationship to the data: on a 4h chart
+     * it expires 16 times per candle to observe one change, and a caller that
+     * recomputes ON the close still gets a response up to 15 minutes old.
+     *
+     * A bypass was the obvious fix and is the wrong one. Since #316 the signal
+     * path recomputes when a candle closes, and a candle close is a GLOBAL
+     * event - every client on a timeframe crosses it in the same instant. So
+     * bypassing there converts a smooth trickle into a thundering herd, once
+     * per candle, aimed at the endpoint whose own header records that 418 is
+     * Binance's ban code.
+     *
+     * Expiring AT the boundary instead means everyone shares one cached
+     * response until the candle closes, and then it is stale for all of them at
+     * once - which is precisely the case #201's single-flight exists to
+     * collapse. Fewer upstream requests AND less delay: one fetch per candle
+     * instead of 2 (1m) to 96 (1d).
+     *
+     * OPT-IN, because it cannot apply globally. Anything wanting the forming
+     * bar to keep moving must not be pinned to the last close - freezing a
+     * chart until the next 4h boundary would be a far worse bug than the one
+     * being fixed. `closed=1` is the request shape that has already dropped the
+     * forming bar and only cares about closed candles.
+     *
+     * Falls back to ttlFor when the interval has no computable boundary (W, M)
+     * rather than guessing at one. */
+    const closedOnly = q.get('closed') === '1';
+    const ivMs = closedOnly ? intervalToMs(interval) : null;
+    const ttl = ivMs != null
+      ? msUntilNextClose(ivMs, Date.now()) + CLOSE_SKEW_MS
+      : ttlFor(interval);
+    // Distinct key: a boundary-aligned entry must never be served to a caller
+    // that asked for the default behaviour, or the chart inherits the freeze.
+    const key = `klines:${source}:${symbol}:${interval}:${limit}${ivMs != null ? ':closed' : ''}`;
+    const raw = isRange ? await fetchUpstream() : await cached(key, ttl, fetchUpstream);
     /* Slice AFTER the cache read, using the caller's own limit. The cache holds
        one bucket-sized copy that every caller in that bucket shares; each gets
        back the length it asked for. Range requests are returned untouched -
