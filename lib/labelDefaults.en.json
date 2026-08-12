@@ -1771,6 +1771,7 @@
   "CONFLUENCE_SCORE_TOOLTIP": "Weighted blend of the EMA Ribbon verdict, the 9-signal Order Flow bias, and 15m/1h/4h RSI alignment. For BTC, options gamma (GEX) acts as a regime modifier - in a long-gamma (ranging) market it dampens confidence since these trend signals are less reliable, and stays clear in a short-gamma (trending) market. Choppiness and an active RSI-divergence warning likewise reduce confidence without flipping direction. Macro/event risk is shown separately below - it's not blended into this number since an FOMC print doesn't change the technicals, only the risk of holding through it.",
   "CONFLUENCE_SCORE_SUBTITLE": "{coin} · technical signals combined",
   "CONFLUENCE_SCORE_FACTOR_EMA_RIBBON": "EMA Ribbon Strategy",
+  "CONFLUENCE_SCORE_FACTOR_PERP_LED": "Futures-Led Move",
   "CONFLUENCE_SCORE_FACTOR_CHOPPINESS": "Choppiness Index",
   "CONFLUENCE_SCORE_FACTOR_RSI_DIVERGENCE": "RSI Divergence Warning",
   "CONFLUENCE_SCORE_PENALTY_ACTIVE": "−{weight} confidence",

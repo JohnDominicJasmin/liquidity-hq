@@ -417,6 +417,17 @@ export function buildPrompt(ctx: GrokContext): string {
     'LEAN BULLISH:  2+ exhaustion signals OR bullish regime + at least 1 exhaustion signal. Direction clear but not yet confirmed. State what would confirm BULLISH.',
     'BULLISH:       3+ exhaustion signals + reversal candle at support.',
     '',
+    /* #340, Option B, chosen by the owner from worked examples: a signal at
+       8/10 confidence that is futures-led becomes 6/10. On this 0-100 scale
+       that is -20. The spot-led mirror is half, +10.
+       Phrased as a confidence adjustment rather than a direction rule because
+       futures-led means the evidence behind the read is weaker, NOT that the
+       trade is the other way - the same reason the Confluence side uses a
+       penalty rather than a directional vote. */
+    'PERPS VS SPOT WEIGHTING - adjusts confidence only, NEVER the direction:',
+    '  - Futures-led (perp activity elevated vs its own normal): subtract 20 from confidence. The move is driven by leverage rather than by people buying the coin, so it unwinds faster. Do NOT flip the signal direction for this.',
+    '  - Spot-led (perp activity unusually quiet): add 10 to confidence. More of the move is real buying.',
+    '  - Could not be measured: do NOT adjust confidence, and SAY in your reasoning that the perps-vs-spot check was unavailable for this coin. A number quietly left unchanged reads as though the check passed.',
     'SESSION WEIGHTING - session timing adjusts confidence only, NOT the signal tier:',
     '  • NY / London: standard confidence, all tiers available.',
     '  • Pre-NY / Asia: subtract 10 from confidence. LEAN BEARISH and LEAN BULLISH are fully valid.',
