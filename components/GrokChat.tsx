@@ -367,10 +367,27 @@ export default function GrokChat() {
   }, [coin, open]);
 
   /* ── Hide FAB while scrolling (mobile only) ── */
+  /* `open` is read through a ref rather than a dependency (#326).
+   *
+   * This effect used to depend on [open], and its cleanup clears the pending
+   * restore timer. So if `open` changed during the 400ms the FAB was hidden,
+   * the restore was cancelled and `fabVisible` stayed false - leaving the
+   * button at opacity 0 with pointer-events none until the user happened to
+   * scroll again. It reads as the Ask AI button being gone.
+   *
+   * Not hypothetical: the `grok-chat` custom event below opens the panel
+   * programmatically, so `open` can flip while the user is mid-scroll and has
+   * not touched the FAB at all.
+   *
+   * With a ref the listener is installed once and the timer is only cleared on
+   * unmount, when the state is being discarded anyway. */
+  const openRef = useRef(open);
+  useEffect(() => { openRef.current = open; }, [open]);
+
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 639px)');
     const onScroll = () => {
-      if (!mq.matches || open) return;
+      if (!mq.matches || openRef.current) return;
       setFabVisible(false);
       if (scrollTimer.current) clearTimeout(scrollTimer.current);
       scrollTimer.current = setTimeout(() => setFabVisible(true), 400);
@@ -380,7 +397,12 @@ export default function GrokChat() {
       window.removeEventListener('scroll', onScroll);
       if (scrollTimer.current) clearTimeout(scrollTimer.current);
     };
-  }, [open]);
+  }, []);
+
+  /* Closing the panel always restores the FAB. Belt and braces alongside the
+   * ref above: whatever else happened, the button must be reachable once the
+   * thing it opens is shut. */
+  useEffect(() => { if (!open) setFabVisible(true); }, [open]);
 
 
   /* ── Auto-save current conversation whenever messages change ── */
