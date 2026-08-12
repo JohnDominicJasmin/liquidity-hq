@@ -10,6 +10,7 @@ import {
 } from './strategyCore';
 import { detectRSIDivergence } from './divergence';
 import { simulateTrades } from './backtestEngine';
+import { TF_MS, CLOSE_SKEW_MS, dropForming, msUntilNextClose, sameCandle } from './candles';
 import { getWaveTrendConfirmation } from './waveTrend';
 
 export type { SignalFilterParams } from './strategyCore';
@@ -132,7 +133,10 @@ export const STRATEGY_LOADING: StrategySignal = {
 /* ── Module-level kline cache - survives component unmount/remount ───────── */
 interface KlineCacheEntry { cRibbon: OHLCV[]; c1d: OHLCV[]; fetchedAt: number }
 const klineCache = new Map<string, KlineCacheEntry>();
-const KLINE_CACHE_TTL_MS = 5 * 60_000; // matches the 5-min refresh interval
+/* The cache entry is valid while no candle has CLOSED since it was written,
+   not for a fixed number of minutes (#316). The old 5-minute TTL had no
+   relationship to the data it guarded: on a 1m chart it served a candle five
+   periods old, and on a 1d chart it refetched 96 times to observe one change. */
 
 /* ── TF → exchange interval strings ─────────────────────────────────────── */
 const TF_BN: Record<string, string> = {
@@ -488,7 +492,8 @@ export function useEMAStrategy(
 
     const cacheKey = `${coin}:${tf}`;
     const cached = klineCache.get(cacheKey);
-    const cacheHit = !!cached && (Date.now() - cached.fetchedAt < KLINE_CACHE_TTL_MS);
+    const intervalMs = TF_MS[tf] ?? TF_MS['4h'];
+    const cacheHit = !!cached && sameCandle(cached.fetchedAt, intervalMs, Date.now());
 
     if (cacheHit) {
       candlesRef.current = { coin, tf, cRibbon: cached.cRibbon, c1d: cached.c1d };
@@ -501,31 +506,78 @@ export function useEMAStrategy(
     const bnInterval = TF_BN[tf] ?? '4h';
     const byInterval = TF_BY[tf] ?? '240';
 
-    const load = async () => {
+    const load = async (): Promise<boolean> => {
       try {
-        const [cRibbon, c1d] = await Promise.all([
+        const [rawRibbon, raw1d] = await Promise.all([
           fetchOHLCV(coin, bnInterval, byInterval, 1000),
           fetchOHLCV(coin, '1d', 'D', 1000),
         ]);
-        if (!mountedRef.current) return;
+        if (!mountedRef.current) return false;
+
+        /* CLOSED CANDLES ONLY (#316) - dropped here, at the single point every
+         * consumer downstream reads from, rather than in each of them.
+         *
+         * The exchange returns the in-progress bar as the last element and we
+         * used the array as-is, so the EMA/ATR/choppiness arrays all had a
+         * partial final value, a cross could appear mid-candle and vanish
+         * before the close, and simulateTrades resolved outcomes against a bar
+         * that had not finished printing. The signal shown was not necessarily
+         * a signal any candle ever closed on.
+         *
+         * FORMING is unaffected: `pending` means the PERSIST hold is
+         * incomplete, not "this is the live bar", so the hollow marker still
+         * appears on a signal awaiting confirmation. */
+        const nowMs = Date.now();
+        const cRibbon = dropForming(rawRibbon, intervalMs, nowMs);
+        const c1d     = dropForming(raw1d, TF_MS['1d'], nowMs);
         if (cRibbon.length < 55 || c1d.length < 5) {
           setSig({ ...STRATEGY_LOADING, loading: false, error: 'Not enough candle data', signalTimestamp: null, signalAnchorPrice: null, signalDir: null });
-          return;
+          return false;
         }
         klineCache.set(cacheKey, { cRibbon, c1d, fetchedAt: Date.now() });
         candlesRef.current = { coin, tf, cRibbon, c1d };
         computeRef.current();
+        return true;
       } catch (err) {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current) return false;
         setSig({ ...STRATEGY_LOADING, loading: false, error: String(err) });
+        return false;
       }
     };
 
-    load();
-    const iv = setInterval(load, KLINE_CACHE_TTL_MS);
+    /* Recompute WHEN A CANDLE CLOSES, not every five minutes (#316).
+     *
+     * The old fixed interval was wrong in both directions at once: on 1m it
+     * missed four closes out of five, and on 1d it woke 96 times to observe a
+     * single change. Signals only change on a close, so that is when to look.
+     *
+     * CLOSE_SKEW_MS of grace after the boundary - the exchange does not have
+     * the closed candle at boundary+0ms and our clock is not theirs. Asking
+     * too early returns the previous candle and leaves the signal a full
+     * period behind, which is this bug approached from the other side.
+     *
+     * A failed load retries on the shorter of the next close and a minute,
+     * rather than waiting out a 4h period on a transient network error.
+     *
+     * Still a timer, not the chart's WebSocket. The socket is the better
+     * trigger and QA is right that it is the real answer - it is a larger
+     * change than this one and is tracked separately on #316. */
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleNext = (ok: boolean) => {
+      if (!mountedRef.current) return;
+      const untilClose = msUntilNextClose(intervalMs, Date.now()) + CLOSE_SKEW_MS;
+      timer = setTimeout(tick, ok ? untilClose : Math.min(untilClose, 60_000));
+    };
+    // Driven by the RESOLVED value, not by a rejection: load() catches its own
+    // errors to surface them in the UI, so the rejection branch would be dead
+    // code and every failure would wait out a full candle period.
+    const tick = () => { void load().then(scheduleNext); };
+
+    void load().then(scheduleNext);
+
     return () => {
       mountedRef.current = false;
-      clearInterval(iv);
+      if (timer) clearTimeout(timer);
     };
   }, [coin, tf]);
 
