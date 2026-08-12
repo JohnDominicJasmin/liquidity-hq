@@ -154,7 +154,25 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const signOut = async () => {
     const sb = getSupabase();
     localStorage.removeItem(LAST_ACTIVE_KEY);
-    const { error } = (await sb?.auth.signOut()) ?? { error: null };
+    /* Two ways this call can report failure, and it must survive both.
+     *
+     * Measured against auth-js 2.106.2 rather than assumed: a network
+     * TypeError and an AbortError both RESOLVE with an AuthRetryableFetchError
+     * in `error` - they do not reject. So the `if (error)` branch below is the
+     * live path for the reported bug, and QA's spec exercises it.
+     *
+     * The catch is still here. GoTrueAdminApi.signOut only converts what
+     * passes isAuthError() into a returned error and rethrows anything else,
+     * so a non-AuthError escaping the client rejects instead. Nothing fetch
+     * throws today lands there - but if one ever does, an uncaught rejection
+     * here would skip the local cleanup AND the caller's navigation, which is
+     * the original bug wearing a different hat. Cheap to make impossible. */
+    let error: unknown = null;
+    try {
+      ({ error } = (await sb?.auth.signOut()) ?? { error: null });
+    } catch (e) {
+      error = e ?? new Error('signOut rejected');
+    }
 
     /* A FAILED SIGN-OUT LOOKED EXACTLY LIKE A SUCCESSFUL ONE (#304).
      *

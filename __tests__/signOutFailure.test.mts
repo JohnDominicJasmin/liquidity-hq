@@ -102,3 +102,60 @@ test('authTokenKeys matches any project ref, and chunked sessions, and nothing e
     'sb-wdtjhrilakoitfcezxpx-auth-token.1',
   ]);
 });
+
+/* Which of the two failure modes actually happens, measured (QA's #318 point).
+ *
+ * QA's spec drives two: a 500 from the server, and an aborted request. They
+ * reasoned the abort would REJECT, which would slip past a handler that only
+ * inspects a resolved `{ error }`. That would have been a real gap, so it is
+ * worth pinning rather than reasoning about - both resolve.
+ */
+test('#304: network failure and abort both RESOLVE with an error, they do not reject', async () => {
+  for (const thrown of [
+    new TypeError('Failed to fetch'),
+    Object.assign(new Error('The user aborted a request.'), { name: 'AbortError' }),
+  ]) {
+    const { sb, storage, key } = seededClient();
+    const realFetch = global.fetch;
+    global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('/logout')) throw thrown;
+      return realFetch(input, init);
+    }) as typeof fetch;
+
+    try {
+      const settled = await sb.auth.signOut().then(
+        r => ({ rejected: false as const, error: r.error }),
+        e => ({ rejected: true as const, error: e }),
+      );
+      assert.equal(settled.rejected, false, `${thrown.name} rejected instead of resolving`);
+      assert.ok(settled.error, `${thrown.name} resolved with no error`);
+      assert.equal((settled.error as Error).constructor.name, 'AuthRetryableFetchError');
+      assert.ok(storage.store.has(key), `${thrown.name}: session should have survived`);
+    } finally {
+      global.fetch = realFetch;
+    }
+  }
+});
+
+test('#304: a 500 from the logout endpoint also leaves the session behind', async () => {
+  // The other half of QA's spec. 401/403/404 are treated as "already gone" and
+  // DO clear; 500 is not in that list, so it takes the early return.
+  const { sb, storage, key } = seededClient();
+  const realFetch = global.fetch;
+  global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes('/logout')) {
+      return new Response(JSON.stringify({ message: 'boom' }), {
+        status: 500, headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return realFetch(input, init);
+  }) as typeof fetch;
+
+  try {
+    const { error } = await sb.auth.signOut();
+    assert.ok(error, '500 must surface as an error');
+    assert.ok(storage.store.has(key), '500: session should have survived');
+  } finally {
+    global.fetch = realFetch;
+  }
+});
