@@ -263,6 +263,22 @@ gh issue list --state open
   file, and say how many *distinct* causes there are — "10 failures" and "3
   problems, one of them environmental" are different reports and only the second
   is actionable.
+
+  **The specific trigger, measured 2026-08-13.** Signed-in specs run in parallel
+  against a free-plan host produce failures that look exactly like findings:
+
+  ```
+  parallel (4 workers)   3 desktop failures, and the PASSING tests took 54-72s each
+  serial   (1 worker)    9/9 pass, 10-30s each
+  ```
+
+  Every signed-in spec mints a session, boots the app, and waits on a Pro-gated
+  card, so four workers means four full app boots at once against a machine that
+  sleeps when idle. **Run signed-in specs against `qa` or `staging` with
+  `--workers=1`.** The tell that it was environmental: all three desktop failures
+  passed on `mobile` in the same run, on identical fixtures. A real defect does
+  not pick one project and spare the other when the fixture is the same — so when
+  a run is red, check whether the other project agrees before reporting anything.
 - **A COMMENT DESCRIBING AN INVARIANT IS THE THING THAT GOES STALE. The durable
   version is a check, not a note.** Three separate times on 2026-08-12, and each
   one was CORRECT WHEN WRITTEN:
