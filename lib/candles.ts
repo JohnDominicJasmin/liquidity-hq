@@ -84,31 +84,3 @@ export function sameCandle(fetchedAt: number, intervalMs: number, nowMs: number)
   if (!(intervalMs > 0)) return false;
   return Math.floor(fetchedAt / intervalMs) === Math.floor(nowMs / intervalMs);
 }
-
-/**
- * Exchange interval string to milliseconds, across both dialects (#325).
- *
- * Bybit takes minutes as bare integers plus D/W/M; Binance takes suffixed
- * strings. The klines route deliberately does not translate between them - each
- * caller knows which dialect it wants - so this reads both rather than forcing
- * one.
- *
- * Returns null for anything it does not recognise, including W and M. A week is
- * not a divisor of the epoch offset and months vary in length, so the boundary
- * arithmetic in this file does not hold for them; callers must fall back to a
- * plain TTL rather than compute a wrong boundary.
- */
-export function intervalToMs(interval: string): number | null {
-  const suffixed = /^(\d+)(m|h|d)$/.exec(interval);
-  if (suffixed) {
-    const n = Number(suffixed[1]);
-    const unit = { m: 60_000, h: 3_600_000, d: 86_400_000 }[suffixed[2] as 'm' | 'h' | 'd'];
-    return n > 0 ? n * unit : null;
-  }
-  if (/^\d+$/.test(interval)) {               // bybit minutes
-    const n = Number(interval);
-    return n > 0 ? n * 60_000 : null;
-  }
-  if (interval === 'D') return 86_400_000;    // bybit daily
-  return null;                                 // W, M, anything unexpected
-}
