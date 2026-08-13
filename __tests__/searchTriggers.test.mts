@@ -7,7 +7,41 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { needsLiveSearch, SEARCH_TRIGGERS } from '../lib/searchTriggers.ts';
+import { needsLiveSearch, SEARCH_TRIGGERS, quotaLabel } from '../lib/searchTriggers.ts';
+
+/* ── 0. the quota line the user reads ───────────────────────────────────── */
+
+test('the plural of "search" is "searches" - it shipped as "searchs"', () => {
+  // Found by QA on qa@6fe3f6c, signed in, on the one surface a user reads
+  // while deciding whether to spend a scarce quota. The first version derived
+  // the plural with `unit + 's'`, which is right for `message` and wrong for
+  // `search` - so the unit tests passed and the render was wrong.
+  assert.equal(quotaLabel(10, true), '10 searches left');
+  assert.equal(quotaLabel(50, false), '50 messages left');
+});
+
+test('one is singular, zero is a word', () => {
+  assert.equal(quotaLabel(1, true),  '1 search left');
+  assert.equal(quotaLabel(1, false), '1 message left');
+  assert.equal(quotaLabel(0, true),  'No searches left');
+  assert.equal(quotaLabel(0, false), 'No messages left');
+});
+
+test('a negative count reads as none, never as a negative number', () => {
+  // The counters are server-side; a limit lowered mid-day makes used exceed
+  // limit. "-2 searches left" is worse than useless.
+  assert.equal(quotaLabel(-2, true), 'No searches left');
+});
+
+test('CONTROL: no label ends in the wrong plural', () => {
+  // The specific defect, stated as a property rather than as three examples.
+  for (const n of [0, 1, 2, 5, 40]) {
+    for (const live of [true, false]) {
+      assert.doesNotMatch(quotaLabel(n, live), /searchs|messagess|1 (searches|messages)/,
+        `bad plural at n=${n} live=${live}: ${quotaLabel(n, live)}`);
+    }
+  }
+});
 
 /* ── 1. the behaviour the owner approved ────────────────────────────────── */
 
