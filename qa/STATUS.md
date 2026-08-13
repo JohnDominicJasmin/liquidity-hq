@@ -87,6 +87,8 @@ gh issue list --state open
 
 ---
 
+| **`CI Gate` is NO LONGER a required status check on `main`.** Removed 2026-08-13 with the owner, in the browser, after it deadlocked the release. It required E2E to pass on a GitHub runner - and **Binance blocks cloud egress**, so the suite could never go green there. A required check that cannot report is not a protection, it is a locked door with no key, and it teaches everyone to override red gates. **Still enforced on `main`:** no deletion, no force-push, PR required | 2026-08-13 | #374, and the ruleset backup in the session scratchpad |
+
 ## Standing risks
 
 - **No REAL PURCHASE has ever granted Pro.** Still the highest launch risk, and
@@ -386,6 +388,36 @@ gh issue list --state open
   Practical form: when something breaks near your own activity, say **what you
   did** and **what you have not ruled out**, and let the other session measure.
   Do not hand them a conclusion wearing an apology.
+
+- **A REQUIRED CHECK FROM A DISABLED WORKFLOW IS A DEADLOCK, AND IT LOOKS LIKE A
+  POLICY.** Added 2026-08-13.
+
+  `main` required `CI Gate`. `CI Gate` comes from `ci.yml`. `ci.yml` was
+  `disabled_manually` for cost control. **So no release could ever merge**, and
+  the failure mode was silent - the merge button is simply greyed out with
+  "Required" beside a check that never ran.
+
+  ```
+  gh pr merge --admin           "Required status check CI Gate is expected"
+  GitHub UI                     merge button DISABLED, no override offered
+  ```
+
+  Neither an admin merge nor the UI offers a way past a required check that has
+  never reported. **The only exits are to run the workflow or to drop the
+  requirement.**
+
+  Two lessons, and the second is the general one:
+
+  **A cost decision can have a consequence nobody chose.** Disabling CI to stop
+  Actions charges also sealed the door to production - and separately stopped
+  the production drift check, which shared a file with the release PR workflow.
+  **Ask what else lives in the thing you are switching off.**
+
+  **When the gate cannot pass for environmental reasons, fix the gate, not the
+  release.** Overriding once teaches everyone that red gates are advisory. The
+  suite was fixed first (#375, #378, #380 - skip when the upstream refuses the
+  deployment), and the requirement was removed second, deliberately, with the
+  owner present.
 
 - **CONTROLS THAT DO NOT ADDRESS THE CONFOUND ARE WORSE THAN NO CONTROLS. They
   buy confidence without buying correctness.** Added 2026-08-13, after the most
