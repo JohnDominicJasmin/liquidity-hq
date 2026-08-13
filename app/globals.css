@@ -411,7 +411,18 @@ body::after {
 .csb2-top .csb2-price { margin-left: auto; }
 .csb2-name      { font-family: var(--font-mono), monospace; font-size: var(--fs-caption); font-weight: 700; color: var(--txt); letter-spacing: 0.02em; }
 .csb2-price     { font-size: var(--fs-data); font-weight: 700; color: var(--txt); font-family: var(--font-mono), monospace; font-variant-numeric: tabular-nums; }
-.csb2-bottom    { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+/* GRID, not space-between (#401). `space-between` distributes leftover space
+   BETWEEN children, so with a fixed-width change badge on the left and a
+   variable-width signal on the right, the middle child absorbed every
+   difference - the sparkline drifted 9.5px and landed on a different x for
+   every distinct signal string. A middle item under space-between has no
+   column of its own by construction.
+   The middle column reads --csb2-spark-w, set inline from SPARK_W in
+   app/dashboard/page.tsx, so the column and the chart cannot drift apart.
+   The last column is 1fr and .csb2-sig keeps its own ellipsis, so a long
+   signal truncates instead of pushing anything. It also fixes the rows where
+   `sig` is absent entirely, which used to shove the sparkline to the right. */
+.csb2-bottom    { display: grid; grid-template-columns: auto var(--csb2-spark-w, 36px) 1fr; align-items: center; gap: 8px; margin-bottom: 8px; }
 .csb2-chg       { font-size: var(--fs-data); font-weight: 700; font-variant-numeric: tabular-nums; }
 /* 0.04 -> 0.02. This chip is the one surface in the app where the muted text
    tokens land short: 4% white over --bg3 computes to #191b1e, and on that
