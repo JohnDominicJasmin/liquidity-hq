@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { gotoGuarded } from './_shared';
+import { gotoGuarded, marketDataUnavailable } from './_shared';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 
 /* Are the gated timeframes hidden from FREE accounts and visible to PRO? (#310)
@@ -114,6 +114,13 @@ test.describe('gated timeframes', () => {
   });
 
   test('a FREE visitor gets the gated timeframes blurred AND uncoloured', async ({ page }) => {
+    /* The RSI route is pinned below, but the 15m row also needs KLINES, which
+       come from Binance. On a runner that cannot reach it the row renders the
+       neutral grey for lack of data - which looks exactly like the gating bug
+       this file exists to catch. Skip rather than report it. */
+    const down = await marketDataUnavailable(page.request);
+    test.skip(down !== null, down ?? '');
+
     const rows = await multiTf(page, false);
 
     for (const tf of GATED) {
