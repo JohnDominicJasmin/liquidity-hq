@@ -66,24 +66,42 @@ test('a plain market question does NOT escalate', () => {
 
 /* ── 2. the collisions - substring, not word boundary ───────────────────── */
 
-test('COLLISION: ordinary chart questions cost a live search', () => {
-  // MEASURED, not guessed - my first draft of this test asserted `wait`
-  // contains `war`, which it does not, and the test caught me. Every pair
-  // below was run before being written down.
-  //
-  // Documented, not endorsed. Each costs a SEARCH from a message that has
-  // nothing to do with live web data. Pinned so a future edit to
-  // SEARCH_TRIGGERS cannot widen the set unnoticed.
-  const collisions: Array<[string, string]> = [
+test('FIXED (#387): a trigger inside an unrelated word no longer escalates', () => {
+  // These all cost a live search until word boundaries landed. This test
+  // asserted `true` for one commit - it was the record of the defect, and
+  // flipping it is the record of the fix.
+  const wasCollision: Array<[string, string]> = [
     ['is the trend upward',            'war inside "upward" - a pure chart question'],
     ['is this a warning sign',         'war inside "warning"'],
     ['what does forward guidance mean', 'war inside "forward"'],
     ['what is a secondary market',     'sec inside "secondary"'],
     ['show me the seconds chart',      'sec inside "seconds"'],
   ];
-  for (const [q, why] of collisions) {
-    assert.equal(needsLiveSearch(q), true, `${JSON.stringify(q)} escalates: ${why}`);
+  for (const [q, why] of wasCollision) {
+    assert.equal(needsLiveSearch(q), false, `${JSON.stringify(q)} must NOT escalate (was: ${why})`);
   }
+});
+
+test('the words themselves still escalate - the fix must not gut the feature', () => {
+  // The failure mode opposite to #387: boundaries so tight that nothing
+  // matches and every question quietly becomes cheap-and-wrong.
+  for (const q of [
+    'any news on the war',
+    'what did the SEC say',
+    'is the Fed cutting',
+    'why is BTC down',
+    'what happened today',
+  ]) {
+    assert.equal(needsLiveSearch(q), true, `${JSON.stringify(q)} must still escalate`);
+  }
+});
+
+test('plurals and possessives still match - \\b alone would drop them', () => {
+  // `\betf\b` does NOT match "ETFs": `s` is a word character, so there is no
+  // boundary after `etf`. The trailing `s?` in the pattern is what covers it.
+  assert.equal(needsLiveSearch('anything on ETFs?'), true, 'plural');
+  assert.equal(needsLiveSearch("what is the CPI's effect"), true, "possessive - the apostrophe is already a boundary");
+  assert.equal(needsLiveSearch('are there sanctions'), true, 'sanction + s');
 });
 
 test('the shortest triggers are the ones that collide', () => {
