@@ -314,6 +314,47 @@ gh issue list --state open
   a different claim - that is #313, still open. A hand check settles exactly what
   was watched and nothing adjacent to it.
 
+- **AN INSTRUMENT WHOSE RESOLUTION EQUALS THE EFFECT CANNOT DISTINGUISH THE
+  HYPOTHESES. A working instrument is not automatically a useful one.** Added
+  2026-08-13.
+
+  `binance-futures` 418-banned both non-prod services simultaneously, twice.
+  Hypothesis: Render free-plan services share an egress IP, so the quota is
+  consumed by traffic that is not ours. Confirming it needs the outbound IPs,
+  which nothing available exposes.
+
+  So a cheaper discriminator: **if both unban at the same instant, one quota is
+  more likely; if they unban minutes apart, separate ones.** Polled both until
+  each returned 200:
+
+  ```
+  staging UNBANNED at +306s
+  qa      UNBANNED at +366s
+  gap                  60s        <- and the POLL INTERVAL was 60s
+  ```
+
+  **One sample.** A shared IP unbanning both at once and two separate IPs
+  unbanning a minute apart produce the *same reading* at that resolution. The
+  instrument ran, returned a number, and the number could not tell the
+  hypotheses apart.
+
+  This is a different failure from the ones already listed. The instrument was
+  not broken, did not silently no-op, and did not measure the wrong thing — it
+  measured the right thing too coarsely. **"It returned a plausible number" is
+  not evidence it could have returned a different one.**
+
+  Two practical forms:
+
+  **Before running a discriminator, ask what reading each hypothesis predicts.**
+  If they predict the same output at your resolution, the run is decided before
+  it starts. That check costs seconds and would have saved this one.
+
+  **The measurement window opens at the INCIDENT, not when someone gets round to
+  it.** The 60s interval was chosen to be gentle on an already-banned service;
+  5s would have been trivial load and resolved it. Starting during the
+  investigation rather than at first notice is what made the coarse interval
+  feel necessary.
+
 - **SELF-BLAME IS STILL AN UNMEASURED ATTRIBUTION. It feels like caution; it is
   a claim.** Added 2026-08-13, after it nearly buried a real bug.
 
