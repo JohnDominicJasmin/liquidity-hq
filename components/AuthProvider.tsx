@@ -76,8 +76,28 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         if (sessionUser) touchActivity();
         setUser(sessionUser);
       }
-      setLoading(false);
-    });
+    }).finally(() => setLoading(false));
+    /* .finally, NOT a trailing statement inside the .then (QA, on #377).
+     *
+     * `touchActivity` and `isSessionExpired` above both read localStorage bare,
+     * and storage throws for real users - Safari private mode, blocked site
+     * data, quota. `lib/authSession.ts:43` already wraps its own storage access
+     * for exactly this reason.
+     *
+     * If any of them throws, the handler dies and `loading` stays true for the
+     * life of the page. That was harmless until this PR, because a stuck
+     * `loading` produced `entitled === false` and the paywall showed. The three
+     * call sites now read `authLoading || entitled`, which inverts it:
+     *
+     *   before   stuck loading -> paywall shown      FAIL CLOSED
+     *   after    stuck loading -> Pro content shown  FAIL OPEN
+     *
+     * A signed-in FREE user whose storage throws would get Arena's Confluence
+     * card and both Alerts sections unlocked until they reloaded. The bug is
+     * pre-existing; this PR removes the accident that was covering it.
+     *
+     * `.finally` makes "auth finished trying" true regardless of outcome, which
+     * is what `authLoading` means at all three call sites. */
 
     // Keep in sync on sign-in / sign-out / token refresh
     const { data: { subscription } } = sb.auth.onAuthStateChange((event, session) => {
