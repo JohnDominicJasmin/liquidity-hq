@@ -89,6 +89,34 @@ gh issue list --state open
 
 ## Standing risks
 
+- **`reuseExistingServer` will serve you a build from before your `git checkout`,
+  silently.** Measured 2026-08-14 while validating `text-under-control.spec.ts`
+  against `fd17cbc`. Playwright's local config is `reuseExistingServer: !CI`, so
+  a dev server left running from an earlier run is reused — and **a git checkout
+  does not restart it**. Three consecutive runs reported a clean PASS on a commit
+  that provably had the defect.
+
+  The tell was not the result, which looked ordinary. It was a direct read of the
+  bytes:
+
+  ```
+  git show fd17cbc:app/globals.css     .gchat-mode-opt::after { ... height: 48px }
+  served CSS on :3100                  no ::after rule at all
+  ```
+
+  **`/api/version` does NOT rescue you here** — it reports `commit: "unknown"` on
+  a local dev server, so the endpoint that solves this for deployed services
+  answers nothing locally. Grep the served asset for something the commit
+  introduced, or kill the port first:
+
+  ```
+  netstat -ano | grep :3100 | grep LISTENING   # then taskkill //F //PID <pid> //T
+  ```
+
+  **This is the same failure as verifying against the wrong deployed build**, and
+  it is worse locally because nothing in the output names a commit. Any run that
+  crosses a checkout boundary is suspect until the server has been restarted.
+
 - **No REAL PURCHASE has ever granted Pro.** Still the highest launch risk, and
   narrowed on 2026-08-11 rather than cleared — be precise about which half is
   which, because "payments are tested" is now half true and that is the dangerous

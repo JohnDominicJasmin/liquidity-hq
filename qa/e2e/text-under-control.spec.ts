@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { ROUTES, gotoGuarded } from './_shared';
+import { signedInContext } from './_auth';
 import { installMarketFixtures } from './_fixtures';
 
 /* THE MIRROR OF `layout.spec.ts`, AND IT EXISTS BECAUSE THAT FILE FACES ONE WAY.
@@ -27,11 +28,20 @@ import { installMarketFixtures } from './_fixtures';
  * it is how you honour a 44px target without repainting a 26px control. It just
  * has a blast radius that nothing in this suite was looking at.
  *
- * WHAT THIS DOES NOT COVER. Only the text's CENTRE point is sampled, so a
- * control overlapping a caption's left edge and nothing else is missed. Centre
- * sampling is what `layout.spec.ts` does and is what keeps the sweep to one
- * hit-test per element. A four-corner probe is the obvious next step and is
- * deliberately not in the first version - measure the cheap one, then decide.
+ * IT SAMPLES EDGES, AND THE FIRST VERSION DID NOT. I wrote this sampling the
+ * centre point - the way `layout.spec.ts` does - and flagged that as a known
+ * limitation to revisit. Dev then measured the real instance and the limitation
+ * was fatal, not cosmetic: the counter's centre sits 1-2px BELOW the deepest
+ * point the overlay reached, so the first version read CLEAN on `fd17cbc`, the
+ * commit that actually shipped the bug. See `findTextUnderControls` for the
+ * numbers. A detector that passes on its own motivating example is worse than
+ * no detector, because it also reports "checked".
+ *
+ * WHAT THIS STILL DOES NOT COVER. Five points per element - four edges and the
+ * centre - not an exhaustive hit-test. An overlay clipping only a corner is
+ * missed. That is a real gap and it is stated rather than fixed, because the
+ * five-point version is already ~5x the hit-tests of the sweep it sits beside
+ * and no measured instance yet needs more.
  */
 
 const TEXT_SELECTOR = 'span, p, small, label, dd, dt, td, th, li, figcaption, time';
@@ -91,18 +101,61 @@ async function findTextUnderControls(page: Page): Promise<string[]> {
       if (b.width < 2 || b.height < 2) continue;
       if (b.bottom < 0 || b.top > innerHeight || b.right < 0 || b.left > innerWidth) continue;
 
-      const x = Math.min(Math.max(b.left + b.width / 2, 1), innerWidth - 1);
-      const y = Math.min(Math.max(b.top + b.height / 2, 1), innerHeight - 1);
-      const hit = document.elementFromPoint(x, y);
-      if (!hit || hit === el || el.contains(hit) || hit.contains(el)) continue;
+      /* EDGES, NOT THE CENTRE - and the first version of this file got it wrong.
+       *
+       * I sampled the centre point, the way `layout.spec.ts` does, and named
+       * centre-sampling as a known limitation. Dev then measured the real
+       * instance on `fd17cbc` and the limitation turned out to be fatal:
+       *
+       *     counter top       +4.0px below the pill
+       *     counter height    16.6px
+       *     counter CENTRE    +12.3px
+       *     overlay reached   +9 to +11px      <- covered the top ~7px
+       *
+       * The centre sits 1-2px BELOW the deepest point the overlay reached, so a
+       * centre sample returns the counter itself and reads clean on the exact
+       * commit that shipped the defect.
+       *
+       * The structural reason matters more than those numbers. **An overlay
+       * creeps into a neighbour from one side; it does not swallow it whole.**
+       * The harm in this bug class lives at an edge by construction, so a centre
+       * sample is blind to the common case rather than unlucky in one instance.
+       *
+       * Do NOT read "it missed by 2px" as "the centre nearly worked". That gap
+       * is a function of the counter's rendered height, `--fs-caption`, font
+       * metrics and the panel's 0.92 scale. At a different font size the centre
+       * would catch this one and miss the next.
+       *
+       * Inset by 2px so a probe on the boundary does not hit-test the neighbour
+       * legitimately abutting it. */
+      const I = 2;
+      const probes: [string, number, number][] = [
+        ['top',    b.left + b.width / 2, b.top + I],
+        ['bottom', b.left + b.width / 2, b.bottom - I],
+        ['left',   b.left + I,           b.top + b.height / 2],
+        ['right',  b.right - I,          b.top + b.height / 2],
+        ['centre', b.left + b.width / 2, b.top + b.height / 2],
+      ];
 
-      /* The coverer must be a CONTROL. Text covered by other text is a layout
-       * bug and layout.spec.ts's zero-size half is closer to it; text covered by
-       * something clickable is the one that spends the user's quota. */
-      const control = hit.closest(CONTROL_SELECTOR);
-      if (!control) continue;
+      for (const [edge, px, py] of probes) {
+        const x = Math.min(Math.max(px, 1), innerWidth - 1);
+        const y = Math.min(Math.max(py, 1), innerHeight - 1);
+        const hit = document.elementFromPoint(x, y);
+        if (!hit || hit === el || el.contains(hit) || hit.contains(el)) continue;
 
-      found.push(`${describe(el)} "${text.slice(0, 32)}" is tappable as ${describe(control)}`);
+        /* The coverer must be a CONTROL. Text covered by other text is a layout
+         * bug and layout.spec.ts's zero-size half is closer to it; text covered
+         * by something clickable is the one that spends the user's quota. */
+        const control = hit.closest(CONTROL_SELECTOR);
+        if (!control) continue;
+
+        /* FIRST HIT ONLY. Reporting every edge that overlaps would make the
+         * message length depend on how deep the overhang reaches, and the same
+         * one defect would read as four. The edge name is kept because it says
+         * which side to shrink. */
+        found.push(`${describe(el)} "${text.slice(0, 32)}" is tappable as ${describe(control)} (at its ${edge} edge)`);
+        break;
+      }
     }
     return found;
   }, { TEXT_SELECTOR, CONTROL_SELECTOR, MIN_TEXT_LENGTH });
@@ -138,22 +191,52 @@ test.describe('text is not silently tappable as a control', () => {
       await gotoGuarded(page, '/');
       await settleForGeometry(page);
 
-      const before = (await findTextUnderControls(page)).length;
+      const beforeFindings = await findTextUnderControls(page);
+      const beforeSet = new Set(beforeFindings);
 
       await page.evaluate(() => {
         const host = document.createElement('div');
         host.style.cssText = 'position:fixed;left:40px;top:200px;z-index:9999;';
-        /* The real shape: a small button whose ::after-equivalent overhang
-         * reaches down over an inert caption 1px below it. Written as a child
-         * div rather than a pseudo-element so it can be injected at runtime -
-         * the hit-testing is identical, which is the property under test. */
+        /* THE BAIT REPRODUCES `fd17cbc`'s GEOMETRY, not a convenient version of
+         * it. An overlay that swallows the caption whole is caught by a centre
+         * sample too, so a fixture like that would let a centre-only detector
+         * pass its own self-test - which is exactly the failure this file just
+         * had. The numbers below are dev's measurements from the real commit:
+         *
+         *     caption top      +4px below the button
+         *     caption height   ~16.6px  (centre at +12.3px)
+         *     overlay reach    +9px     <- covers the top ~5px only
+         *
+         * So the centre of this caption is NOT covered and only its top edge is.
+         * A centre-sampling probe returns clean here, and must. */
         host.innerHTML = `
-          <button style="position:relative;display:block;width:90px;height:26px">Live
-            <span style="position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:48px"></span>
+          <button class="tuc-injected" style="position:relative;display:block;width:90px;height:26px">Live
+            <span style="position:absolute;left:0;right:0;top:-9px;bottom:-9px"></span>
           </button>
-          <span id="tuc-bait" style="display:block;width:90px;font-size:11px">40 messages left</span>`;
+          <span id="tuc-bait" style="display:block;width:90px;margin-top:4px;font-size:13px;line-height:16.6px">40 messages left</span>`;
         document.body.appendChild(host);
       });
+
+      /* CONTROL ON THE FIXTURE ITSELF, and it asserts a NEGATIVE.
+       *
+       * Everything below only proves the detector catches this bait. It proves
+       * nothing about EDGES unless the bait is genuinely edge-only - and if a
+       * later refactor made the overlay swallow the caption whole, this file
+       * would keep passing while silently going back to testing the easy case.
+       *
+       * So: measure the caption's centre point directly and require it to be
+       * clean. If this fails, the fixture drifted, not the detector. */
+      const centreIsClean = await page.evaluate(() => {
+        const bait = document.getElementById('tuc-bait')!;
+        const b = bait.getBoundingClientRect();
+        const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        return { clean: hit === bait, hit: hit?.tagName.toLowerCase() ?? 'null', h: Math.round(b.height) };
+      });
+      expect(centreIsClean.clean,
+        `the injected caption's CENTRE is covered (hit ${centreIsClean.hit}, height ${centreIsClean.h}px), ` +
+        `so this fixture is catchable by centre-sampling and does not test edge probing at all. ` +
+        `fd17cbc covered the top ~5px of a 16.6px caption - reproduce that, not a full overlap.`)
+        .toBe(true);
 
       const after = await findTextUnderControls(page);
       expect(after.some(f => f.includes('40 messages left')),
@@ -162,10 +245,28 @@ test.describe('text is not silently tappable as a control', () => {
         after.join('\n'))
         .toBe(true);
 
-      /* And it must not have started reporting everything. A detector that
-       * flags the whole page also "catches" the injected case. */
-      expect(after.length, 'injecting one defect changed the count by more than one')
-        .toBe(before + 1);
+      /* AND IT MUST NOT HAVE STARTED REPORTING EVERYTHING. A detector that flags
+       * the whole page also "catches" the injected case, so the bait passing
+       * alone proves very little.
+       *
+       * ATTRIBUTED, NOT COUNTED, and the first version counted. It asserted
+       * `after.length === before + 1`, which failed on mobile at 390px - the
+       * fixed-position host lands on top of real page text there, so the
+       * injected button legitimately covers a second element. That finding is
+       * TRUE; it is just caused by the fixture rather than by the app.
+       *
+       * Loosening this to `>=` would have hidden exactly what it exists to
+       * catch. Instead every new finding must be attributable to the injection -
+       * either it IS the bait, or its coverer is the injected button - so a
+       * detector that started flagging unrelated page elements still fails. */
+      const fresh = after.filter(f => !beforeSet.has(f));
+      const unattributed = fresh.filter(f =>
+        !f.includes('40 messages left') && !f.includes('button.tuc-injected'));
+      expect(unattributed,
+        'injecting one defect produced findings that are neither the bait nor caused by the ' +
+        'injected control, so the detector is reporting unrelated elements')
+        .toEqual([]);
+      expect(fresh.length, 'the injection produced no new findings at all').toBeGreaterThan(0);
     } finally {
       await close();
     }
@@ -184,10 +285,70 @@ test.describe('text is not silently tappable as a control', () => {
    * finished. This opens the panel first, which makes the subtree live, then
    * runs the same probe against it. */
   test('the chat panel: opening it makes its text reachable, and none of it is tappable', async ({ browser }, testInfo) => {
-    const { page, close } = await preparedPage(browser, testInfo.project.use.viewport ?? { width: 1440, height: 900 });
+    /* SIGNED IN, AND ON AN APP ROUTE. The first version did neither and hung for
+     * the full 240s test timeout.
+     *
+     * `GrokChat` is mounted by `AppShell` (`components/AppShell.tsx:141`), which
+     * does not wrap the marketing landing page - so on `/` while signed out
+     * there is no `.gchat-fab` at all and Playwright's auto-wait sat on a
+     * locator that was never going to resolve.
+     *
+     * Worth naming the failure mode rather than just fixing it: **the test did
+     * not lie, it hung** - which is the better of the two outcomes, but it is
+     * the same root cause as a vacuous pass. I pointed a probe at a page that
+     * could not contain the thing and did not assert that it did. The explicit
+     * FAB check below is what makes the difference permanent. */
+    const ctx = await signedInContext(browser, 'a', {
+      viewport: testInfo.project.use.viewport ?? { width: 1440, height: 900 },
+    });
+    await ctx.addInitScript(() => {
+      try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
+    });
+    const page = await ctx.newPage();
+    page.on('dialog', d => d.dismiss());
+    await installMarketFixtures(page, 'as-recorded');
+    const close = () => ctx.close();
+
+    /* PIN THE QUOTA, BECAUSE THE ELEMENT UNDER TEST IS CONDITIONAL - and the
+     * first version of this test passed without it, meaninglessly.
+     *
+     * `GrokChat` renders the counter only when `activeRemaining !== null`
+     * (`GrokChat.tsx:605`), and `activeRemaining` comes from `/api/grok` via
+     * `fetchGrokUsage`. On the seeded test account that call returned nothing,
+     * so `.gchat-mode-count` was never in the DOM - and a probe looking for
+     * "text covered by a control" found no text, reported zero, and went green
+     * on `fd17cbc`, the commit that HAD the defect.
+     *
+     * That is the same vacuous pass this file's self-test guards against,
+     * arriving through the app's own conditional rendering rather than through
+     * the detector. Nothing was broken; the thing being measured was absent.
+     *
+     * 10 searches / 50 messages reproduces what QA saw rendered on qa@6fe3f6c,
+     * so the counter is the same width as the real one - which matters here,
+     * because the whole question is what its edges touch. */
+    await page.route('**/api/grok', route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ usage: {
+        deep_used: 0, deep_limit: 5, quick_used: 0, quick_limit: 20,
+        chat_used: 0, chat_limit: 50, search_used: 0, search_limit: 10,
+        briefing_used: 0, briefing_limit: 3,
+      } }),
+    }));
+
     try {
-      await gotoGuarded(page, '/');
+      await gotoGuarded(page, '/dashboard');
       await settleForGeometry(page);
+
+      /* ASSERT THE LAUNCHER EXISTS BEFORE CLICKING IT. A missing FAB means the
+       * app shell did not render or the session did not take, and clicking a
+       * locator that will never resolve turns that into a 4-minute timeout
+       * whose message says nothing about the cause. */
+      const fabs = await page.locator('.gchat-fab').count();
+      expect(fabs,
+        'no .gchat-fab on /dashboard - GrokChat is mounted by AppShell, so this means the ' +
+        'app shell did not render or the seeded session did not take. Nothing below is measurable.')
+        .toBeGreaterThan(0);
 
       /* CONTROL, and it runs before the assertion. If the panel does not open,
        * the probe returns nothing and nothing reads as a pass - the same vacuous
@@ -215,6 +376,23 @@ test.describe('text is not silently tappable as a control', () => {
       expect(live.controls,
         'the open panel reports no controls, so the probe has nothing to hit-test against')
         .toBeGreaterThan(2);
+
+      /* THE ELEMENT THIS TEST IS ABOUT MUST BE PRESENT. Everything above proves
+       * the panel is open; none of it proves the counter rendered. Without this
+       * the sweep below returns [] whenever the quota fails to load, which is
+       * indistinguishable from "nothing covers it". */
+      const counter = await page.evaluate(() => {
+        const el = document.querySelector('.gchat-mode-count');
+        if (!el) return null;
+        const b = el.getBoundingClientRect();
+        return { h: Math.round(b.height * 10) / 10, txt: (el.textContent || '').trim() };
+      });
+      expect(counter,
+        'no .gchat-mode-count in the open panel. It renders only when /api/grok supplies a ' +
+        'quota, which this test pins - so this means the route stub did not take or the ' +
+        'condition at GrokChat.tsx:605 changed. The sweep below would report a clean zero ' +
+        'for the wrong reason.')
+        .not.toBeNull();
 
       const found = await findTextUnderControls(page);
       testInfo.attach('chat-panel-text-under-control.txt', {
