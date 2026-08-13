@@ -1532,8 +1532,10 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
 .ncard-grid-img  { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .ncard-grid-body     { flex: 1; padding: 12px 14px 12px; display: flex; flex-direction: column; }
-/* Text-first (no image) cards - the headline leads, no empty image block */
-.ncard-grid--text .ncard-grid-body { padding-top: 14px; }
+/* .ncard-grid--text is GONE (#398). Every card in .nfeed now renders an
+   image block - article, hero, whale alert and geo event - so the grid rows
+   line up and there is no text-first variant left to style. The class had
+   four consumers, not one; all four were converted before these rules went. */
 .ncard-grid-top      { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 8px; }
 .ncard-tags          { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; min-width: 0; }
 .ncard-grid-headline {
@@ -1541,9 +1543,7 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
   letter-spacing: -0.1px; margin: 0 0 10px; flex: 1;
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
-.ncard-grid--text .ncard-grid-headline { font-size: var(--fs-body); -webkit-line-clamp: 4; }
 .ncard-grid-hero .ncard-grid-headline  { font-size: var(--fs-card-title); font-weight: 700; -webkit-line-clamp: 2; }
-.ncard-grid--text.ncard-grid-hero .ncard-grid-headline { -webkit-line-clamp: 3; }
 
 /* Stretched link - the whole card is a real anchor to the article (keyboard
    focusable, cmd-clickable, screen-reader friendly) while the Ask-AI button
