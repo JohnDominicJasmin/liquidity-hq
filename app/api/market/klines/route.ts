@@ -35,6 +35,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { cached } from '@/lib/apiCache';
+import { intervalToMs, closedCandleTtl } from '@/lib/candles';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { apiError } from '@/lib/apiError';
 import { reportHealth } from '@/lib/apiHealth';
@@ -213,8 +214,36 @@ export async function GET(req: NextRequest) {
   };
 
   try {
-    const key = `klines:${source}:${symbol}:${interval}:${limit}`;
-    const raw = isRange ? await fetchUpstream() : await cached(key, ttlFor(interval), fetchUpstream);
+    /* BOUNDARY-ALIGNED EXPIRY for closed-candle callers (#325), FLOORED.
+     *
+     * ttlFor is a stopwatch unrelated to the data: on a 4h chart it expires 16
+     * times per candle to observe one change, and since #316 the signal path
+     * recomputes ON the close and then gets a response up to 15 minutes old.
+     *
+     * A bypass is the wrong fix - candle close is a global event, so the moment
+     * you would bypass is the moment the cache matters most.
+     *
+     * THE FIRST ATTEMPT AT THIS GOT BOTH NON-PROD ENVIRONMENTS BANNED. Without
+     * a floor the TTL bottoms out at CLOSE_SKEW_MS just before any close - four
+     * seconds, on every interval, at exactly the instant #316 synchronises
+     * clients onto. Binance replied 418.
+     *
+     * closedCandleTtl takes the MAXIMUM of the boundary distance and the
+     * caller's existing TTL, so this can only ever lengthen the cache. More
+     * upstream traffic than the pre-#325 baseline is impossible by
+     * construction rather than by anyone remembering.
+     *
+     * OPT-IN: it cannot apply globally. Anything wanting the forming bar to
+     * keep moving must not be pinned to the last close. Distinct cache key so a
+     * boundary-aligned entry is never served to a default caller. Falls back
+     * entirely for intervals with no computable boundary (W, M). */
+    const closedOnly = q.get('closed') === '1';
+    const ivMs = closedOnly ? intervalToMs(interval) : null;
+    const ttl = ivMs != null
+      ? closedCandleTtl(ivMs, ttlFor(interval), Date.now())
+      : ttlFor(interval);
+    const key = `klines:${source}:${symbol}:${interval}:${limit}${ivMs != null ? ':closed' : ''}`;
+    const raw = isRange ? await fetchUpstream() : await cached(key, ttl, fetchUpstream);
     /* Slice AFTER the cache read, using the caller's own limit. The cache holds
        one bucket-sized copy that every caller in that bucket shares; each gets
        back the length it asked for. Range requests are returned untouched -

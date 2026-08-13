@@ -105,3 +105,64 @@ test('the worst-case client staleness is now the skew, not the timeframe', () =>
       'a fetch from before the close must not be reused after it');
   }
 });
+
+/* ── #325 second attempt: the TTL floor, swept ───────────────────────────────
+ *
+ * The first attempt shipped and got both non-prod environments banned by
+ * Binance. Its tests asserted the TTL was positive and never exceeded one
+ * period; a four-second trough at one end of the range passes both.
+ *
+ * These SWEEP the offset across the whole period instead of sampling it. The
+ * bug lived at one end and no mid-candle sample could see it - which is the
+ * "controls answer the questions you already thought of" failure, in the test
+ * that was supposed to be the control.
+ */
+import { intervalToMs, closedCandleTtl } from '../lib/candles.ts';
+
+/** The route's own TTLs, so the floor is compared against the real fallback. */
+const ttlFor = (iv: string): number =>
+  /^(1|3|5)$|^(1|3|5)m$/.test(iv) ? 30_000
+  : /^(15|30)$|^(15|30)m$/.test(iv) ? 60_000
+  : /^(60|120)$|^(1|2)h$/.test(iv) ? 300_000
+  : 900_000;
+
+test('#325 THE BAN: TTL never drops below the pre-feature fallback, swept', () => {
+  // 200 offsets per interval, INCLUDING the last millisecond of the candle -
+  // which is where the four-second trough was and where every client lands.
+  for (const iv of ['1m', '5m', '15m', '30m', '1h', '4h', '1d']) {
+    const ms = intervalToMs(iv)!;
+    const floor = ttlFor(iv);
+    for (let i = 0; i <= 200; i++) {
+      const offset = Math.min(ms - 1, Math.round((i / 200) * ms));
+      const ttl = closedCandleTtl(ms, floor, 1_000_000 * ms + offset);
+      assert.ok(ttl >= floor,
+        `${iv} at +${offset}ms: TTL ${ttl}ms is BELOW the ${floor}ms fallback - this is the ban`);
+    }
+  }
+});
+
+test('#325: TTL never exceeds one period plus the skew', () => {
+  for (const iv of ['1m', '15m', '1h', '4h', '1d']) {
+    const ms = intervalToMs(iv)!;
+    for (let i = 0; i <= 200; i++) {
+      const offset = Math.min(ms - 1, Math.round((i / 200) * ms));
+      const ttl = closedCandleTtl(ms, ttlFor(iv), 1_000_000 * ms + offset);
+      assert.ok(ttl <= ms + CLOSE_SKEW_MS, `${iv} at +${offset}ms: TTL ${ttl} exceeds a period`);
+    }
+  }
+});
+
+test('#325: the benefit survives - mid-candle still expires AT the close', () => {
+  // The floor must not swallow the feature. Mid-candle on a slow interval, the
+  // boundary distance dominates and the entry still dies when the candle does.
+  const ms = intervalToMs('4h')!;
+  const ttl = closedCandleTtl(ms, ttlFor('4h'), 1_000_000 * ms + ms / 2);
+  assert.equal(ttl, ms / 2 + CLOSE_SKEW_MS, 'mid-candle should be boundary-aligned, not floored');
+  assert.ok(ttl > ttlFor('4h'), 'and longer than the old fixed TTL, which is the point');
+});
+
+test('#325: near the close the floor takes over, which is the safe direction', () => {
+  const ms = intervalToMs('4h')!;
+  const ttl = closedCandleTtl(ms, ttlFor('4h'), 1_000_000 * ms + ms - 1000);
+  assert.equal(ttl, ttlFor('4h'), 'the last moments fall back to the pre-feature TTL');
+});

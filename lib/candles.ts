@@ -84,3 +84,54 @@ export function sameCandle(fetchedAt: number, intervalMs: number, nowMs: number)
   if (!(intervalMs > 0)) return false;
   return Math.floor(fetchedAt / intervalMs) === Math.floor(nowMs / intervalMs);
 }
+
+/**
+ * Exchange interval string to milliseconds, across both dialects (#325).
+ *
+ * Bybit takes minutes as bare integers plus D/W/M; Binance takes suffixed
+ * strings. The klines route deliberately does not translate between them, so
+ * this reads both. Returns null for W and M: a week is not a divisor of the
+ * epoch offset and months vary in length, so the boundary arithmetic here does
+ * not hold and a caller must fall back rather than compute a wrong boundary.
+ */
+export function intervalToMs(interval: string): number | null {
+  const suffixed = /^(\d+)(m|h|d)$/.exec(interval);
+  if (suffixed) {
+    const n = Number(suffixed[1]);
+    const unit = { m: 60_000, h: 3_600_000, d: 86_400_000 }[suffixed[2] as 'm' | 'h' | 'd'];
+    return n > 0 ? n * unit : null;
+  }
+  if (/^\d+$/.test(interval)) { const n = Number(interval); return n > 0 ? n * 60_000 : null; }
+  if (interval === 'D') return 86_400_000;
+  return null;
+}
+
+/**
+ * Cache TTL for a closed-candle klines request (#325, second attempt).
+ *
+ * ── THE FLOOR IS THE WHOLE POINT ────────────────────────────────────────────
+ *
+ * The first attempt was `msUntilNextClose + CLOSE_SKEW_MS` with no floor. That
+ * bottoms out at the skew - four seconds - just before any close, on every
+ * interval, and #316 synchronises every client onto exactly that instant.
+ * Binance answered with 418, their ban code, on both non-prod environments.
+ *
+ *     4h  mid-candle          7203 s
+ *     4h  1s before close        4 s      <- the ban
+ *
+ * `fallbackTtlMs` is the caller's existing TTL - `ttlFor(interval)` in the
+ * route. Taking the MAXIMUM means this can only ever make the cache live
+ * LONGER than it did before the feature existed, so more upstream traffic than
+ * the pre-#325 baseline is impossible by construction rather than by anyone
+ * remembering to check.
+ *
+ * The cost is honest: an entry written in the last moments of a candle serves
+ * the old candle for up to `fallbackTtlMs` past the close, which is exactly the
+ * behaviour before #325. The feature degrades to the old behaviour in the
+ * narrow window where being aggressive is dangerous, and keeps the benefit
+ * across the rest of the candle, where an entry written mid-candle still
+ * expires at the close.
+ */
+export function closedCandleTtl(intervalMs: number, fallbackTtlMs: number, nowMs: number): number {
+  return Math.max(msUntilNextClose(intervalMs, nowMs) + CLOSE_SKEW_MS, fallbackTtlMs);
+}
