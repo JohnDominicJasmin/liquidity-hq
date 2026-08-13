@@ -87,7 +87,7 @@ gh issue list --state open
 
 ---
 
-| **`CI Gate` is NO LONGER a required status check on `main`.** Removed 2026-08-13 with the owner, in the browser, after it deadlocked the release. It required E2E to pass on a GitHub runner - and **Binance blocks cloud egress**, so the suite could never go green there. A required check that cannot report is not a protection, it is a locked door with no key, and it teaches everyone to override red gates. **Still enforced on `main`:** no deletion, no force-push, PR required | 2026-08-13 | #374, and the ruleset backup in the session scratchpad |
+| **`CI Gate` is NO LONGER a required status check on `main`.** Removed 2026-08-13 with the owner, in the browser, after it deadlocked the release. It required E2E to pass on a GitHub runner, and **`fapi.binance.com` bans the shared egress IPs Render's free plan uses** - so the market-dependent half of the suite could never go green there. NOT "Binance blocks cloud egress": `api.binance.com` (spot) answers 200 from the same hosts, and prod's `starter` plan gets futures fine. Measured on three hosts, 18 requests, #368. A required check that cannot report is not a protection, it is a locked door with no key, and it teaches everyone to override red gates. **Still enforced on `main`:** no deletion, no force-push, PR required | 2026-08-13 | #374, and the ruleset backup in the session scratchpad |
 
 ## Standing risks
 
