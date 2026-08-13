@@ -37,6 +37,29 @@ import { gotoGuarded } from './_shared';
 const ROUTES = ['/briefing', '/hours', '/arena'] as const;
 
 /**
+ * Pin USD/JPY so the briefing's yen scale actually renders.
+ *
+ * `app/briefing/page.tsx:651` gates the whole block on `jpyUsd == null`, so the
+ * exempt container does not exist until the macro data arrives. The first run
+ * against step 2 reported "no dir=ltr containers on /briefing" - which reads
+ * exactly like a missing exemption and was a DATA DEPENDENCY in this spec.
+ * The exemption was in the deployed commit the whole time.
+ *
+ * 150 is a quiet value: below the 158 warning and 160 danger thresholds, so the
+ * scale renders in its ordinary state rather than an alert variant.
+ */
+async function pinMacro(page: Page) {
+  await page.route('**/api/macro**', async route => {
+    let body: Record<string, unknown> = {};
+    try { body = await (await route.fetch()).json(); } catch { /* upstream down */ }
+    await route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ...body, jpy: { value: 150, changePct: 0.1 } }),
+    });
+  });
+}
+
+/**
  * For every exempt axis, where its markers sit WITHIN it - as a fraction of the
  * container's own width.
  *
@@ -92,8 +115,9 @@ test.describe('quantitative axes are exempt from RTL mirroring', () => {
       await page.addInitScript(() => {
         try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
       });
+      await pinMacro(page);
       await gotoGuarded(page, route);
-      await page.waitForTimeout(9000);
+      await page.waitForTimeout(12_000);
 
       await setDir(page, 'ltr');
       await page.waitForTimeout(1200);
@@ -135,8 +159,9 @@ test.describe('quantitative axes are exempt from RTL mirroring', () => {
     await page.addInitScript(() => {
       try { localStorage.setItem('lhq_analytics_consent_v1', 'denied'); } catch { /* private mode */ }
     });
+    await pinMacro(page);
     await gotoGuarded(page, '/briefing');
-    await page.waitForTimeout(9000);
+    await page.waitForTimeout(12_000);
 
     const probe = async () => page.evaluate(() => {
       const el = document.querySelector('h1, h2, p');
