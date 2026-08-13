@@ -64,6 +64,7 @@ morning and done by lunchtime. They live on the issue that needs them.
 | **Non-prod's CRON-FED tables are frozen, and that is ACCEPTED - not a bug to fix.** `econ_snapshot`, `news` and `live_signals` on the dev project are 8-23 days stale; prod's refresh every few minutes. The scheduler works and only ever targeted prod. **Fixing it requires setting `CRON_SECRET` on a non-prod host, which `lib/cronAuth.ts` unlocks ALL NINE cron routes with - including `telegram/setup-webhook`, and a bot has one webhook.** Blast radius of leaving it: a human browsing qa/staging sees an old calendar. Specs use fixtures, `econ-calendar.spec` asserts the route, and market data is user-driven and current. **A stale calendar on qa says NOTHING about the market data beside it** - do not discount both | 2026-08-12 | #261, with the side-by-side measurement |
 | **Coinglass fixtures are NOT needed - nothing calls Coinglass.** `/api/proxy` supports four types: `coinglass-flow`, `coinglass-liq`, `etf`, `trends`. Both `coinglass-*` branches hit the retired `/public/v2/` API, return 500 even with a key, and **no caller in `app/`, `components/` or `lib/` references either** - measured, not assumed. `etf` is SosoValue and `trends` is Google; neither needs a key. There is no Coinglass-backed panel for a sweep to depend on, so fixturing one would invent coverage for a surface that never renders | 2026-08-12 | `app/api/proxy/route.ts` header; `pendings/PENDING.md` holds the v4 migration |
 | **Ask once, then drop it.** A request repeated every message is pressure, and a yes obtained that way is not approval — it happened on 2026-08-12 and cost the owner money. Pending asks live on the relevant issue and are mentioned in chat once | 2026-08-12 | owner, in session |
+| **`CI Gate` is NO LONGER a required status check on `main`.** Removed 2026-08-13 with the owner, in the browser, after it deadlocked the release. It required E2E to pass on a GitHub runner, and **`fapi.binance.com` bans the shared egress IPs Render's free plan uses** - so the market-dependent half of the suite could never go green there. NOT "Binance blocks cloud egress": `api.binance.com` (spot) answers 200 from the same hosts, and prod's `starter` plan gets futures fine. Measured on three hosts, 18 requests, #368. A required check that cannot report is not a protection, it is a locked door with no key, and it teaches everyone to override red gates. **Still enforced on `main`:** no deletion, no force-push, PR required | 2026-08-13 | #374, where `gh pr merge --admin` was confirmed NOT to bypass a never-reported required check; the ruleset backup is in the session scratchpad |
 
 ---
 
@@ -84,8 +85,6 @@ gh issue list --state open
   re-anchor second. Reversing that leaves the suite broken in between.
 - **Owner items** are usually a dashboard click and a sentence. They are only
   slow when nobody names which dashboard.
-
----
 
 ## Standing risks
 
@@ -386,6 +385,36 @@ gh issue list --state open
   Practical form: when something breaks near your own activity, say **what you
   did** and **what you have not ruled out**, and let the other session measure.
   Do not hand them a conclusion wearing an apology.
+
+- **A REQUIRED CHECK FROM A DISABLED WORKFLOW IS A DEADLOCK, AND IT LOOKS LIKE A
+  POLICY.** Added 2026-08-13.
+
+  `main` required `CI Gate`. `CI Gate` comes from `ci.yml`. `ci.yml` was
+  `disabled_manually` for cost control. **So no release could ever merge**, and
+  the failure mode was silent - the merge button is simply greyed out with
+  "Required" beside a check that never ran.
+
+  ```
+  gh pr merge --admin           "Required status check CI Gate is expected"
+  GitHub UI                     merge button DISABLED, no override offered
+  ```
+
+  Neither an admin merge nor the UI offers a way past a required check that has
+  never reported. **The only exits are to run the workflow or to drop the
+  requirement.**
+
+  Two lessons, and the second is the general one:
+
+  **A cost decision can have a consequence nobody chose.** Disabling CI to stop
+  Actions charges also sealed the door to production - and separately stopped
+  the production drift check, which shared a file with the release PR workflow.
+  **Ask what else lives in the thing you are switching off.**
+
+  **When the gate cannot pass for environmental reasons, fix the gate, not the
+  release.** Overriding once teaches everyone that red gates are advisory. The
+  suite was fixed first (#375, #378, #380 - skip when the upstream refuses the
+  deployment), and the requirement was removed second, deliberately, with the
+  owner present.
 
 - **CONTROLS THAT DO NOT ADDRESS THE CONFOUND ARE WORSE THAN NO CONTROLS. They
   buy confidence without buying correctness.** Added 2026-08-13, after the most
