@@ -629,6 +629,40 @@ Context for the move off the desktop GUI.
 - **Docs go stale in specific, repeated ways.** Several past audits were sent down detours by
   confidently-worded but outdated notes. `docs/INFRASTRUCTURE.md`'s own header says it best:
   a stale version of a file is worse than no file, because it actively misleads.
+- **A BROKEN INSTRUMENT RETURNS A CLEAN RESULT, NOT AN ERROR. This is the most expensive
+  pattern in the project and it recurred five times on 2026-08-13 alone.** Every instance
+  produced a confident answer from a tool that was not looking at the right thing:
+
+  | instrument | reported | actually |
+  |---|---|---|
+  | `grep /_next/static/css/` | "feature absent from the deploy" | wrong path - CSS is under `/chunks/` |
+  | rule matcher on `style.color` | "no rules match this element" | `style.color` is `''` for any `var()` value |
+  | `elementFromPoint` probe | geometry that contradicted itself | measured off-screen and clipped rects |
+  | a 7s wait on a free-plan host | "the rail is not in the DOM" | it renders later than that |
+  | Playwright `reuseExistingServer` | 3 consecutive PASSes | served a build from before the checkout |
+
+  **The defence is a positive control: break the thing on purpose and confirm the instrument
+  goes red.** A detector that has never failed has never been tested. Assert the precondition
+  before trusting a zero - "found nothing" and "looked in the wrong place" are the same output.
+- **`/api/version` does not protect you locally** — it reports `commit: "unknown"` on a dev
+  server. The local equivalent of quoting it is to **grep the SERVED asset for a string the
+  commit introduced**. A branch name proves nothing about what a browser received.
+- **Fixing the reported instance and leaving the class is the default failure, even when you
+  know the rule.** #404 took three passes - grid card, then the hero sixty lines above it,
+  then two more renderers sharing the same grid. The tell is closing a ticket rather than
+  looking for a class: search for the BEHAVIOUR (`grep` the destructive call), not the
+  component you were sent to.
+- **Logic that decides something important must live where it can be unit-tested.** Three
+  times in one week the deciding branch sat somewhere untestable: `needsLiveSearch` inside a
+  `.tsx`, `perpNoticeTone` inline in a component, `paidPeriodLapsed` behind the `@/lib` alias
+  the test runner cannot resolve. Each moved to `lib/` and each move immediately found a bug
+  the code review had not. **If it cannot be tested where it is, that is the finding.**
+- **NEWS CANNOT BE TESTED OUTSIDE PRODUCTION.** `lhq_dev_news` is fed by a cron that only
+  ever targeted prod, so it is permanently stale (67 rows, newest 2026-08-03 as of
+  2026-08-13). **localhost, `liquidity-hq-dev`, `qa` and `staging` all render zero news
+  cards** - qa and staging share the dev database. Missing local API keys are *not* the
+  cause and deploying to dev does not help. Any change to `/news` reaches production
+  unverified; say so in the PR rather than letting the reader assume it was checked.
 
 ---
 
