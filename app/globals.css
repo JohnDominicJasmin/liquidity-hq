@@ -737,7 +737,11 @@ body::after {
 
 /* Macro Context rail wrapper - GlobalMacroContext has its own inner padding,
    this just gives it the flat-card frame the other rail items carry. */
-.macro-rail-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 10px; }
+/* The rail card owns its inset (#392). It drew a border and a background but
+   no padding, so every child had to remember to add its own - and the one
+   that did not sat flush against the border. A container that paints an edge
+   owns the gap to that edge; the alternative is this bug once per new card. */
+.macro-rail-card { background: var(--bg1); border: 0.5px solid var(--bdr); border-radius: 10px; padding: 12px 14px; }
 
 /* ── COLLAPSE TOGGLE - shared style for breakdown/show-more buttons ── */
 
