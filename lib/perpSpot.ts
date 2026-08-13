@@ -164,7 +164,7 @@ export function computePerpSpot(
      the explanation explicitly, which means it is the part they will read. */
   const explanation =
     lean === 'perp'
-      ? `Futures trading is ${times} its usual share against spot. The move is being driven by leveraged traders more than by people buying the coin itself, which unwinds faster if it turns.`
+      ? `Futures trading is ${times} its usual share against spot.`
       : lean === 'spot'
         ? `Futures trading is unusually quiet at ${times} its usual share. More of this move is people actually buying the coin, which tends to hold better.`
         : `Futures and spot are trading in their usual proportions for this coin. Nothing unusual about who is driving the move.`;
