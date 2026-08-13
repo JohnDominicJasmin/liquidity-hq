@@ -34,18 +34,43 @@ export const SEARCH_TRIGGERS = [
   'stablecoin', 'usdt', 'usdc',
 ];
 
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/* WORD BOUNDARIES, not substrings (#387).
+ *
+ * This matched with `includes` until 2026-08-13, so `is the trend upward` spent
+ * a live search because `upward` contains `war`. Every collision found came
+ * from a three-letter entry: why fed cpi ppi nfp gdp war boj yen etf sec okx.
+ *
+ * The owner's decision on #385 - that auto-escalation stays because those
+ * questions genuinely need live data - is about MEANING. `upward` has no
+ * meaning relationship to war, so this fixes the mechanism rather than
+ * reopening the ruling.
+ *
+ * The trailing `s?` is load-bearing and the boundary alone is not enough:
+ *
+ *     \betf\b     does NOT match "ETFs"   - `s` is a word char, no boundary
+ *     \betfs?\b   matches "ETF" and "ETFs"
+ *     \bcpi\b     ALREADY matches "CPI's" - the apostrophe is a boundary
+ *
+ * Built once at module load, not per call - this runs on every keystroke now
+ * that the chat panel prices the message in the box (#386).
+ */
+const TRIGGER_RE = new RegExp(
+  `\\b(?:${SEARCH_TRIGGERS.map(escapeRe).join('|')})s?\\b`,
+  'i',
+);
+
 /**
  * True when this message will be sent as a live search, spending
  * `chat_search_count` rather than `chat_count`.
  *
- * Substring match, NOT word-boundary - so `sec` matches inside `second` and
- * `war` inside `warning`. That is the shipped behaviour and this function does
- * not change it; `__tests__/searchTriggers.test.mts` pins the collisions that
- * exist so a future edit to the list cannot widen them unnoticed.
+ * Matches whole words only. `__tests__/searchTriggers.test.mts` pins both
+ * directions - the questions that must still escalate, and the ones that must
+ * not - so a future edit to the list cannot quietly widen either.
  */
 export function needsLiveSearch(text: string): boolean {
-  const t = text.toLowerCase();
-  return SEARCH_TRIGGERS.some(k => t.includes(k));
+  return TRIGGER_RE.test(text);
 }
 
 /* Plurals are stored, not derived. The first version of this appended "s" to
