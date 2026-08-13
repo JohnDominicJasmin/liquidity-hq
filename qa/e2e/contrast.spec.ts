@@ -259,7 +259,32 @@ test.describe('colour contrast', () => {
    */
 
   test.beforeEach(({ }, testInfo) => {
-    test.skip(testInfo.project.name === 'mobile', 'same tokens as desktop; mobile doubles runtime for no extra signal');
+    /* MOBILE IS SKIPPED, AND THE REASON IS NOW MEASURED RATHER THAN ASSUMED.
+     *
+     * This said "same tokens as desktop; mobile doubles runtime for no extra
+     * signal" from the day it was written, and nobody had checked it. The
+     * premise is not obviously true: `.mobile-tab-bar` and `.mobile-tab-item`
+     * render ONLY below 900px, and light theme gives the bar its own override
+     *
+     *     .mobile-tab-item                       color: var(--txt3)
+     *     [data-theme="light"] .mobile-tab-bar   background: #ffffff
+     *
+     * - a pairing that exists at no other viewport or theme, so a desktop-only
+     * sweep could never have seen it.
+     *
+     * MEASURED 2026-08-14 (#403), by removing this skip and running the full
+     * sweep at 390px in both themes: **3 passed**. Mobile produces no more
+     * failing colours than the desktop-derived baseline, mobile-only chrome
+     * included. The skip is justified.
+     *
+     * Cost of confirming it: 9.5 minutes, against 5.8 for desktop. That is the
+     * runtime this skip buys back on every run, which is why it stays - but it
+     * stays as a measured trade rather than an assumption.
+     *
+     * RE-MEASURE IF mobile-only components gain their own colours, rather than
+     * inheriting tokens. That is the condition under which this stops holding,
+     * and it is not something the suite can notice on its own. */
+    test.skip(testInfo.project.name === 'mobile', 'same tokens as desktop - measured 2026-08-14, see comment');
   });
 
   /**
