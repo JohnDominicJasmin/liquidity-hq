@@ -78,7 +78,7 @@ interface OHLCV { time: number; open: number; high: number; low: number; close: 
 /* ── Fetch helpers ───────────────────────────────────────────────────────── */
 async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: number): Promise<OHLCV[]> {
   const r = await fetch(
-    `/api/market/klines?source=binance-futures&symbol=${sym}&interval=${interval}&limit=${limit}`,
+    `/api/market/klines?source=binance-futures&symbol=${sym}&interval=${interval}&limit=${limit}&closed=1`,
     { signal: AbortSignal.timeout(12_000) }
   );
   if (!r.ok) throw new Error(`Binance futures klines ${r.status}`);
@@ -90,7 +90,7 @@ async function fetchBinanceFuturesKlines(sym: string, interval: string, limit: n
 
 async function fetchBybitKlines(sym: string, interval: string, limit: number): Promise<OHLCV[]> {
   const r = await fetch(
-    `/api/market/klines?source=bybit&symbol=${sym}&interval=${interval}&limit=${limit}`,
+    `/api/market/klines?source=bybit&symbol=${sym}&interval=${interval}&limit=${limit}&closed=1`,
     { signal: AbortSignal.timeout(12_000) }
   );
   if (!r.ok) throw new Error(`Bybit klines ${r.status}`);
