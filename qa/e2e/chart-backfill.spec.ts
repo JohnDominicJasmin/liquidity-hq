@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { gotoGuarded } from './_shared';
+import { gotoGuarded, marketDataUnavailable } from './_shared';
 
 /* Do the candles that closed during an outage get BACKFILLED? (#313, dev's #358)
  *
@@ -88,9 +88,12 @@ test.describe('chart backfills candles missed during an outage', () => {
 
     const opensBefore = (await page.evaluate(
       () => ((window as unknown as { __k: unknown[] }).__k ?? []).length));
-    expect(opensBefore,
-      'the chart never opened a kline socket - Binance is unreachable from here, so this run ' +
-      'cannot say anything about backfilling. Not a finding.').toBeGreaterThan(0);
+    /* SKIP, not fail. CI runs on a GitHub runner and Binance blocks cloud
+       egress, so no socket ever opens there. A run that cannot reach the data
+       has not found a defect. */
+    test.skip(opensBefore === 0,
+      'the chart never opened a kline socket - the upstream is unreachable from this runner, ' +
+      'so nothing here measures backfilling. Not a finding.');
 
     const beforeGap = backfills.length;
 
