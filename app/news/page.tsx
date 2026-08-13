@@ -232,14 +232,19 @@ function HeroCard({ a }: { a: AlertItem }) {
   const title = decodeEntities(a.headline);
 
   return (
-    <article className={`ncard-grid ncard-grid-hero${a.image ? '' : ' ncard-grid--text'}`}>
-      {a.image && (
-        <div className="ncard-grid-img-wrap">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+    <article className="ncard-grid ncard-grid-hero">
+      {/* Same treatment as the grid card below (#398). The hero spans
+          `grid-column: 1 / -1`, so a missing image cannot leave a side gap -
+          but the destructive onError was NOT cosmetic here: a 404 deleted a
+          300px block after first paint, shifting the whole feed under the
+          largest card on the page. */}
+      <div className="ncard-grid-img-wrap">
+        {a.image && (
+          /* eslint-disable-next-line @next/next/no-img-element */
           <img src={a.image} alt="" className="ncard-grid-img"
-            onError={e => { (e.target as HTMLImageElement).closest('.ncard-grid-img-wrap')?.remove(); }} />
-        </div>
-      )}
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+        )}
+      </div>
       <div className="ncard-grid-body">
         <div className="ncard-grid-top">
           <div className="ncard-tags">

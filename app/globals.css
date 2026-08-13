@@ -1543,7 +1543,10 @@ body.ticker-on .breaking-alert { top: calc(84px + var(--banner-h)); }
 }
 .ncard-grid--text .ncard-grid-headline { font-size: var(--fs-body); -webkit-line-clamp: 4; }
 .ncard-grid-hero .ncard-grid-headline  { font-size: var(--fs-card-title); font-weight: 700; -webkit-line-clamp: 2; }
-.ncard-grid--text.ncard-grid-hero .ncard-grid-headline { -webkit-line-clamp: 3; }
+/* .ncard-grid--text.ncard-grid-hero removed with #398 - the hero always
+   renders an image block now, so it never carries --text. The plain
+   .ncard-grid--text rules above stay: whale alerts and geo events still use
+   them (app/news/page.tsx:501, :536). */
 
 /* Stretched link - the whole card is a real anchor to the article (keyboard
    focusable, cmd-clickable, screen-reader friendly) while the Ask-AI button
