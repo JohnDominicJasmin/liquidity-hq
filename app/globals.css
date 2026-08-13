@@ -1969,20 +1969,28 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   display: inline-flex; align-items: center; justify-content: center;
   position: relative;
 }
-/* The hit area is 48px; the PAINTED control stays 28px (#388).
-   The owner asked for a smaller control and 44px is the accessibility bar -
-   those only conflict if the visual box and the touch box are the same box.
-   This extends the target without moving a pixel on screen.
+/* The hit area is ~47px; the PAINTED control stays 28px (#388).
+   The owner asked for a smaller control and 44px is the AAA target - those only
+   conflict if the visual box and the touch box are the same box.
 
-   48, not 44, because .gchat-panel.gchat-open carries transform: scale(0.92):
-   a declared 44 measures 41.8 and misses the bar. 48 renders 44.2. An invisible
-   target that is slightly generous costs nothing if that scale ever changes.
+   ASYMMETRIC on purpose, and the numbers are measured, not chosen:
 
-   Measured: the overhang is 11px per side and the gap to .gchat-coins is 19.6px,
-   so the coin chips still receive their own clicks. */
+     above the pill   15.3px to the panel edge, then it is OUTSIDE the panel
+                      and would eat clicks on the page behind it
+     below the pill   the quota counter, 4px away at the old gap: 1
+
+   A symmetric overlay cannot reach 44 between those two walls. The first
+   version was symmetric and covered the top ~7px of the counter, so tapping
+   the words "10 searches left" silently switched Fast to Live and changed
+   which quota the next message billed - QA caught it by reading the DOM
+   (#389). A mis-routed tap costs a search; a small target costs a second tap.
+
+   So: 14 up (inside the panel), 9 down (into the widened column gap, which
+   also un-cramps a 1px gap that should never have been 1px). Declared
+   28+14+9 = 51 renders 46.9 under .gchat-panel.gchat-open's scale(0.92). */
 .gchat-mode-opt::after {
   content: ''; position: absolute; left: 0; right: 0;
-  top: 50%; transform: translateY(-50%); height: 48px;
+  top: -14px; bottom: -9px;
 }
 .gchat-mode-opt:hover:not(.off) { color: var(--txt2); }
 .gchat-mode-opt.on      { background: var(--purple-bg); color: var(--purple); }

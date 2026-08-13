@@ -708,7 +708,7 @@ export default function GrokChat() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {!histView && (
               <>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
                   <div className="gchat-mode" role="radiogroup" aria-label="Response mode" onKeyDown={onModeKeys}>
                     {MODES.map((m, i) => {
                       const selected = m.live === liveActive;
