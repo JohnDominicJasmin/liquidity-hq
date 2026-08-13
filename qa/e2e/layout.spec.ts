@@ -154,7 +154,35 @@ async function findLayoutDefects(page: Page): Promise<LayoutDefects> {
          * a real diagnosis every time. Walking up to the nearest interactive
          * ancestor gives the covering CONTROL rather than whichever glyph
          * happened to be under the point. */
-        const coverer = hit.closest('a,button,[role=button],[role=link],[role=tab]') ?? hit;
+        /* THE FIXED CONTAINER WINS, and this is the SECOND fix to this line.
+         *
+         * Walking to the nearest interactive ancestor stabilised
+         * `span.mobile-tab-label` vs `a.mobile-tab-item`. It did not stabilise
+         * the case where the pixel lands in the BAR rather than on a tab:
+         * `nav.mobile-tab-bar` is not interactive, so `closest` returns null and
+         * the fallback reports the container. Measured 2026-08-14:
+         *
+         *     DISAPPEARED  /briefing: a is covered by a.mobile-tab-item
+         *     NEW          /briefing: a is covered by nav.mobile-tab-bar
+         *
+         * Same overlap, same build, two names - and the run reported it as a
+         * regression, which is a false failure of exactly the kind the earlier
+         * comment warns about. A gate that cries wolf gets re-run rather than
+         * read.
+         *
+         * The stable answer is the FIXED/STICKY ancestor when there is one. What
+         * covers the control is the bar, not whichever of its children happened
+         * to own that pixel - the bar is what would have to move for the overlap
+         * to stop. Interactive-ancestor stays as the fallback for overlaps that
+         * are not inside a fixed container. */
+        let fixedAncestor: Element | null = null;
+        for (let p: Element | null = hit; p; p = p.parentElement) {
+          const pos = getComputedStyle(p).position;
+          if (pos === 'fixed' || pos === 'sticky') { fixedAncestor = p; break; }
+        }
+        const coverer = fixedAncestor
+          ?? hit.closest('a,button,[role=button],[role=link],[role=tab]')
+          ?? hit;
         obscured.push(`${describe(el)} is covered by ${describe(coverer)}`);
       }
     }
@@ -169,6 +197,16 @@ async function findLayoutDefects(page: Page): Promise<LayoutDefects> {
   });
 }
 
+/* THE MOBILE ENTRIES MOVED FROM `a.mobile-tab-item` TO `nav.mobile-tab-bar`
+ * on 2026-08-14, and NOT because anything in the app changed.
+ *
+ * The coverer is now attributed to the nearest FIXED/STICKY ancestor rather
+ * than the nearest interactive one - see the comment in findLayoutDefects. The
+ * overlaps are the same overlaps; only the name is stable now. A run that
+ * lands a pixel between two tabs no longer reports a new defect.
+ *
+ * If a future diff shows these flipping back, the attribution changed - not
+ * the layout. */
 const KNOWN_OBSCURED: Record<string, string[]> = {
     desktop: [],
     /* RE-DERIVED 2026-08-12 against deployed `qa` @ ae213e7, after the coverer
@@ -189,16 +227,16 @@ const KNOWN_OBSCURED: Record<string, string[]> = {
      * exactly the ambiguity the "not seen" line exists to surface. Put them back
      * if the redirect is ever lifted, alongside ROUTES. */
     mobile: [
-      '/briefing: a is covered by a.mobile-tab-item',
-      '/calc: input.ps-inp is covered by a.mobile-tab-item',
-      '/dashboard: button.sotd-refresh is covered by a.mobile-tab-item',
-      '/faq: button is covered by a.mobile-tab-item',
-      '/funding: input is covered by a.mobile-tab-item',
+      '/briefing: a is covered by nav.mobile-tab-bar',
+      '/calc: input.ps-inp is covered by nav.mobile-tab-bar',
+      '/dashboard: button.sotd-refresh is covered by nav.mobile-tab-bar',
+      '/faq: button is covered by nav.mobile-tab-bar',
+      '/funding: input is covered by nav.mobile-tab-bar',
       '/journal: a.pf-footer-link is covered by button.gchat-fab',
       '/news: a.pf-footer-link is covered by button.gchat-fab',
-      '/offline: button.pf-footer-expand is covered by a.mobile-tab-item',
+      '/offline: button.pf-footer-expand is covered by nav.mobile-tab-bar',
       '/playbook: button.pb-star is covered by button.gchat-fab',
-      '/scanner: button is covered by a.mobile-tab-item',
+      '/scanner: button is covered by nav.mobile-tab-bar',
     ],
   };
 
