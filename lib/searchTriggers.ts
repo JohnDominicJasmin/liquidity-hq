@@ -47,3 +47,27 @@ export function needsLiveSearch(text: string): boolean {
   const t = text.toLowerCase();
   return SEARCH_TRIGGERS.some(k => t.includes(k));
 }
+
+/* Plurals are stored, not derived. The first version of this appended "s" to
+ * the unit and shipped `10 searchs left` to the one surface a user reads while
+ * deciding whether to spend a scarce quota (QA, on #385). English is not
+ * regular enough for `+ 's'` and a second unit would have hit the same wall. */
+const QUOTA_UNITS = {
+  search:  { one: 'search',  many: 'searches' },
+  message: { one: 'message', many: 'messages' },
+} as const;
+
+/**
+ * The quota line beside the Fast/Live control: `40 messages left`,
+ * `1 search left`, `No searches left`.
+ *
+ * Negative remaining is treated as none rather than rendered - the counters are
+ * server-side and a clock skew or a limit lowered mid-day can make used exceed
+ * limit, and `-2 searches left` is worse than useless.
+ */
+export function quotaLabel(remaining: number, willSearch: boolean): string {
+  const u = willSearch ? QUOTA_UNITS.search : QUOTA_UNITS.message;
+  if (remaining <= 0)  return `No ${u.many} left`;
+  if (remaining === 1) return `1 ${u.one} left`;
+  return `${remaining} ${u.many} left`;
+}

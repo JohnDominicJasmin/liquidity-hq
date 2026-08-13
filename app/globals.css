@@ -1967,6 +1967,22 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
   border: none; background: none; color: var(--txt3); cursor: pointer;
   white-space: nowrap; transition: background 0.15s, color 0.15s;
   display: inline-flex; align-items: center; justify-content: center;
+  position: relative;
+}
+/* The hit area is 48px; the PAINTED control stays 28px (#388).
+   The owner asked for a smaller control and 44px is the accessibility bar -
+   those only conflict if the visual box and the touch box are the same box.
+   This extends the target without moving a pixel on screen.
+
+   48, not 44, because .gchat-panel.gchat-open carries transform: scale(0.92):
+   a declared 44 measures 41.8 and misses the bar. 48 renders 44.2. An invisible
+   target that is slightly generous costs nothing if that scale ever changes.
+
+   Measured: the overhang is 11px per side and the gap to .gchat-coins is 19.6px,
+   so the coin chips still receive their own clicks. */
+.gchat-mode-opt::after {
+  content: ''; position: absolute; left: 0; right: 0;
+  top: 50%; transform: translateY(-50%); height: 48px;
 }
 .gchat-mode-opt:hover:not(.off) { color: var(--txt2); }
 .gchat-mode-opt.on      { background: var(--purple-bg); color: var(--purple); }

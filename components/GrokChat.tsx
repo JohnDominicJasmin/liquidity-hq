@@ -14,7 +14,7 @@ import { nextResetLocalTime } from '@/lib/resetTime';
 import { withAlpha } from '@/lib/color';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
-import { needsLiveSearch } from '@/lib/searchTriggers';
+import { needsLiveSearch, quotaLabel } from '@/lib/searchTriggers';
 
 // A 429 from /api/grok-chat can mean the caller's own daily cap OR the
 // app-wide circuit breaker (AI_GLOBAL_DAILY_MAX) - the server already words
@@ -602,12 +602,11 @@ export default function GrokChat() {
    * pure local substring match, so this is free and needs no network. */
   const willSearch      = liveActive || needsLiveSearch(input);
   const activeRemaining = willSearch ? searchRemaining : chatRemaining;
-  const activeUnit      = willSearch ? 'search' : 'message';
   const counterText     = activeRemaining === null
     ? null
     : activeRemaining <= 0
-      ? `No ${activeUnit}s left · resets ${nextResetLocalTime()}`
-      : `${activeRemaining} ${activeUnit}${activeRemaining === 1 ? '' : 's'} left`;
+      ? `${quotaLabel(activeRemaining, willSearch)} · resets ${nextResetLocalTime()}`
+      : quotaLabel(activeRemaining, willSearch);
 
   const selectMode = (live: boolean) => {
     if (live && searchExhausted) return;
