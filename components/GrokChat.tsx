@@ -316,6 +316,14 @@ export default function GrokChat() {
 
   const [fabVisible,    setFabVisible]    = useState(true);
 
+  /* The string the badge should PRICE, when it is not the one in the box (#382).
+   *
+   * Three call sites send text the user never typed - the `grok-chat` window
+   * event (EMASignal, arena, the news feed), follow-up chips and suggested
+   * chips. The badge priced `input`, which is empty on all three, so it showed
+   * the CHAT pool while the request billed the SEARCH pool. A user clicking a
+   * chip we wrote, reading "40 messages left", spent one of ten searches. */
+  const [pendingText,  setPendingText]  = useState<string | null>(null);
   const modeRefs       = useRef<(HTMLButtonElement | null)[]>([]);
   const bottomRef      = useRef<HTMLDivElement>(null);
   const inputRef       = useRef<HTMLTextAreaElement>(null);
@@ -433,6 +441,9 @@ export default function GrokChat() {
       return;
     }
 
+    // Price what is actually being sent, before anything can clear the box.
+    setPendingText(text);
+
     const activeCoin = coinOverride ?? coin;
     const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -544,6 +555,7 @@ export default function GrokChat() {
       setError(e instanceof Error ? e.message : 'Unknown error');
     } finally {
       setLoading(false);
+      setPendingText(null);
     }
   }, [msgs, coin, liveActive, store, latestHeadlines, geoEvents, user, usage, setUsage]);
 
@@ -600,7 +612,10 @@ export default function GrokChat() {
    * still misreport the cost of exactly the messages that prompted #382 -
    * "why is BTC down today" spends a search from Fast. `needsLiveSearch` is a
    * pure local substring match, so this is free and needs no network. */
-  const willSearch      = liveActive || needsLiveSearch(input);
+  /* `pendingText` wins while a send is in flight - it is the string the route
+     will bill. Falls back to the box, which is correct for typed messages. */
+  const pricedText      = pendingText ?? input;
+  const willSearch      = liveActive || needsLiveSearch(pricedText);
   const activeRemaining = willSearch ? searchRemaining : chatRemaining;
   const counterText     = activeRemaining === null
     ? null
