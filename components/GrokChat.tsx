@@ -14,6 +14,7 @@ import { nextResetLocalTime } from '@/lib/resetTime';
 import { withAlpha } from '@/lib/color';
 import { computeSectorRotation } from '@/lib/sectorRotation';
 import { latestStructureSignal, describeStructureSignal } from '@/lib/priceAction';
+import { needsLiveSearch } from '@/lib/searchTriggers';
 
 // A 429 from /api/grok-chat can mean the caller's own daily cap OR the
 // app-wide circuit breaker (AI_GLOBAL_DAILY_MAX) - the server already words
@@ -42,6 +43,15 @@ interface SavedConvo {
   messages: Msg[];
   ts: number;      // Date.now()
 }
+
+/* Both options stay on screen (#383). The old control was a single pill showing
+ * one word, which left the user to work out whether "Live" was the state or the
+ * action - and it was styled lighter than the coin chips 8px below it, so it did
+ * not read as interactive at all. */
+const MODES = [
+  { id: 'fast', live: false, label: 'Fast', title: 'Fast - answers from data already loaded. Spends your daily chat messages.' },
+  { id: 'live', live: true,  label: 'Live', title: 'Live - searches the web and X. Spends your daily live searches.' },
+] as const;
 
 /* ── localStorage helpers ──────────────────────────────────────── */
 const HIST_KEY   = 'grok-chat-history-v1';
@@ -146,33 +156,6 @@ function renderMd(raw: string): string {
 }
 
 /* ── Smart detectors ──────────────────────────────────────────── */
-
-// Auto-enable live search when message clearly needs current web data
-const SEARCH_TRIGGERS = [
-  // Questions about why / what
-  'why', 'what happened', 'happening', 'reason', 'cause', 'catalyst',
-  // Time-anchored
-  'today', 'right now', 'just now', 'recently', 'yesterday', 'this week', 'latest',
-  // News / narrative
-  'news', 'narrative', 'breaking', 'announcement',
-  // People / institutions
-  'trump', 'elon', 'powell', 'jerome', 'blackrock', 'saylor',
-  // Macro events
-  'fed', 'fomc', 'cpi', 'ppi', 'nfp', 'jobs', 'inflation', 'gdp',
-  'rate cut', 'rate hike', 'interest rate', 'tariff', 'sanction',
-  // Geo / political
-  'war', 'conflict', 'russia', 'ukraine', 'china', 'japan', 'boj', 'yen',
-  // Crypto-specific events
-  'etf', 'sec', 'regulation', 'hack', 'exploit', 'halving',
-  'binance', 'coinbase', 'bybit', 'okx',
-  'liquidation', 'liquidated', 'whale',
-  'dump', 'dumping', 'pump', 'pumping', 'crash', 'crashing', 'rally',
-  'stablecoin', 'usdt', 'usdc',
-];
-function needsLiveSearch(text: string): boolean {
-  const t = text.toLowerCase();
-  return SEARCH_TRIGGERS.some(k => t.includes(k));
-}
 
 // Educational questions don't need the full market snapshot - saves ~350 tokens
 const EDUCATIONAL_TRIGGERS = [
@@ -317,12 +300,23 @@ export default function GrokChat() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const { usage, setUsage }                 = useGrokUsage();
 
+  /* ── Quotas ────────────────────────────────────────────────────────────
+   * Derived, never stored. `liveActive` is the mode that will ACTUALLY be
+   * used: selecting Live cannot survive the search quota running out, and
+   * deriving that (rather than resetting the state in an effect) keeps the
+   * request path and the control from ever disagreeing. */
+  const searchRemaining = usage ? usage.search_limit - usage.search_used : null;
+  const chatRemaining   = usage ? usage.chat_limit   - usage.chat_used   : null;
+  const searchExhausted = searchRemaining !== null && searchRemaining <= 0;
+  const liveActive      = liveSearch && !searchExhausted;
+
   /* conversation history */
   const [convos,     setConvos]     = useState<SavedConvo[]>([]);
   const currentIdRef                = useRef<string>(genId());
 
   const [fabVisible,    setFabVisible]    = useState(true);
 
+  const modeRefs       = useRef<(HTMLButtonElement | null)[]>([]);
   const bottomRef      = useRef<HTMLDivElement>(null);
   const inputRef       = useRef<HTMLTextAreaElement>(null);
   const msgsRef        = useRef<HTMLDivElement>(null);
@@ -458,8 +452,8 @@ export default function GrokChat() {
 
     try {
       // Auto-detect live search first - needed before context decision
-      const autoSearch = !liveSearch && needsLiveSearch(text);
-      const useSearch  = liveSearch || autoSearch;
+      const autoSearch = !liveActive && needsLiveSearch(text);
+      const useSearch  = liveActive || autoSearch;
 
       // Smart context: educational + no search = minimal (~20 tokens)
       // Anything with live search = full context so Grok can correlate web findings with live data
@@ -551,7 +545,7 @@ export default function GrokChat() {
     } finally {
       setLoading(false);
     }
-  }, [msgs, coin, liveSearch, store, latestHeadlines, geoEvents, user, usage, setUsage]);
+  }, [msgs, coin, liveActive, store, latestHeadlines, geoEvents, user, usage, setUsage]);
 
   /* ── Open-with-prompt event from Arena ── */
   useEffect(() => {
@@ -595,9 +589,39 @@ export default function GrokChat() {
   const closeAll     = () => { setOpen(false); setExpanded(false); setHistView(false); setShowLoginModal(false); };
   const toggleExpand = () => setExpanded(v => !v);
 
-  const searchRemaining = usage
-    ? usage.search_limit - usage.search_used
-    : null;
+  /* ── Mode + the quota it spends ────────────────────────────────────────
+   * The counter follows the SELECTED mode, because that is the quota the next
+   * message actually bills (#382). It used to read `search` in both modes and
+   * only dim to 0.5 opacity in Fast - so a user with searches exhausted but 40
+   * chat messages left was told "None left". The meter and the limiter
+   * (grok-chat/route.ts:117) now read the same field. */
+  /* EFFECTIVE mode, not the selected one. Fast silently escalates to search
+   * when the text trips SEARCH_TRIGGERS, so following the toggle alone would
+   * still misreport the cost of exactly the messages that prompted #382 -
+   * "why is BTC down today" spends a search from Fast. `needsLiveSearch` is a
+   * pure local substring match, so this is free and needs no network. */
+  const willSearch      = liveActive || needsLiveSearch(input);
+  const activeRemaining = willSearch ? searchRemaining : chatRemaining;
+  const activeUnit      = willSearch ? 'search' : 'message';
+  const counterText     = activeRemaining === null
+    ? null
+    : activeRemaining <= 0
+      ? `No ${activeUnit}s left · resets ${nextResetLocalTime()}`
+      : `${activeRemaining} ${activeUnit}${activeRemaining === 1 ? '' : 's'} left`;
+
+  const selectMode = (live: boolean) => {
+    if (live && searchExhausted) return;
+    setLiveSearch(live);
+    modeRefs.current[live ? 1 : 0]?.focus();
+  };
+
+  /* Two options, so any arrow key moves to the other one - the radiogroup
+   * pattern's expected keyboard behaviour. */
+  const onModeKeys = (e: React.KeyboardEvent) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+    e.preventDefault();
+    selectMode(!liveActive);
+  };
 
   /* ── Coin badge color ── */
   const COIN_COLORS: Record<string, string> = {
@@ -685,23 +709,50 @@ export default function GrokChat() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {!histView && (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <button
-                    className={`gchat-search-toggle${liveSearch ? ' on' : ''}`}
-                    onClick={() => setLiveSearch(v => !v)}
-                    title={liveSearch ? 'Live web+X search ON - click to turn off' : 'Search OFF - click to enable live web+X search'}
-                  >
-                    {liveSearch ? 'Live' : 'Fast'}
-                  </button>
-                  {searchRemaining !== null && (
-                    <span style={{
-                      fontSize: 'var(--fs-caption)',
-                      color: searchRemaining === 0 ? 'var(--red-soft)' : searchRemaining === 1 ? '#f59e0b' : '#666',
-                      opacity: liveSearch ? 1 : 0.5,
-                      fontVariantNumeric: 'tabular-nums',
-                    }}>
-                      {searchRemaining === 0 ? '✕ None left' : searchRemaining === 1 ? <><Warn size={11} /> 1 left</> : `${searchRemaining} left`}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                  <div className="gchat-mode" role="radiogroup" aria-label="Response mode" onKeyDown={onModeKeys}>
+                    {MODES.map((m, i) => {
+                      const selected = m.live === liveActive;
+                      const disabled = m.live && searchExhausted;
+                      return (
+                        <button
+                          key={m.id}
+                          ref={el => { modeRefs.current[i] = el; }}
+                          role="radio"
+                          aria-checked={selected}
+                          aria-disabled={disabled || undefined}
+                          tabIndex={selected ? 0 : -1}
+                          data-testid={`grok-mode-${m.id}`}
+                          className={`gchat-mode-opt${m.live ? ' live' : ''}${selected ? ' on' : ''}${disabled ? ' off' : ''}`}
+                          onClick={() => selectMode(m.live)}
+                          title={disabled ? `No searches left - resets ${nextResetLocalTime()}` : m.title}
+                        >
+                          {m.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {counterText && (
+                    <span
+                      data-testid="grok-mode-count"
+                      className={`gchat-mode-count${activeRemaining !== null && activeRemaining <= 0 ? ' zero' : ''}`}
+                    >
+                      {activeRemaining === 1 && <Warn size={10} />}
+                      {counterText}
                     </span>
+                  )}
+                  {/* The escalation the user never consented to. Fast spends a
+                      SEARCH when the text trips a trigger word, so say it while
+                      the message is still editable rather than after the 429. */}
+                  {!liveActive && willSearch && (
+                    <span className="gchat-mode-note" data-testid="grok-auto-search">
+                      This question uses a live search
+                    </span>
+                  )}
+                  {/* Why the Live half is dead. A control that is present and
+                      explains itself beats one that silently refuses. */}
+                  {searchExhausted && !liveActive && !willSearch && (
+                    <span className="gchat-mode-note">No searches left · resets {nextResetLocalTime()}</span>
                   )}
                 </div>
                 {msgs.length > 0 && (
@@ -858,7 +909,7 @@ export default function GrokChat() {
                         {coin.toUpperCase()}/USDT
                       </div>
                       <div style={{ fontSize: 'var(--fs-caption)', color: 'var(--txt-dim)' }}>
-                        {liveSearch ? 'Live search ON' : 'Fast mode · toggle Live for web search'}
+                        {liveActive ? 'Live search ON' : 'Fast mode · toggle Live for web search'}
                       </div>
                     </>
                   ) : (

@@ -1947,19 +1947,41 @@ body.nav-drawer-open .gchat-fab { opacity: 0; pointer-events: none; }
 .gchat-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; border-bottom: 0.5px solid var(--bdr); flex-shrink: 0; }
 .gchat-icon-btn { font-size: 0.8125rem; color: var(--txt3); cursor: pointer; background: none; border: none; padding: 0; width: 36px; height: 36px; border-radius: 6px; transition: color 0.15s; display: inline-flex; align-items: center; justify-content: center; }
 .gchat-icon-btn:hover { color: var(--txt2); }
-/* Live search toggle pill */
-.gchat-search-toggle {
-  font-size: var(--fs-caption); font-weight: 700; padding: 5px 10px; border-radius: 20px; cursor: pointer;
-  border: 0.5px solid var(--bdr); background: var(--bg2); color: var(--txt3);
-  transition: all 0.15s; white-space: nowrap; letter-spacing: .02em;
-  min-height: 32px; display: inline-flex; align-items: center;
+/* Fast / Live mode segment (#383).
+   Deliberately borrows the .gchat-coin affordance below rather than inventing
+   one: same radius, same fill weight, same 44px target. The old pill was
+   min-height 32px sitting 8px above 44px chips, which is why it read as a
+   status badge and not a control. */
+.gchat-mode {
+  display: inline-flex; align-items: stretch; padding: 2px;
+  border: 0.5px solid var(--bdr); background: var(--bg2); border-radius: 16px;
 }
-.gchat-search-toggle:hover { color: var(--txt2); border-color: var(--bdr2); }
-.gchat-search-toggle.on {
-  background: rgba(52,211,153,0.12); color: var(--green);
-  border-color: rgba(52,211,153,0.3);
-  box-shadow: 0 0 8px rgba(52,211,153,0.15);
+/* Sized down at the owner's request after seeing it in place - it sat as tall as
+   the coin chips and dominated a header it only shares with icon buttons.
+   Colours are TOKENS, not literals: --purple-bg / --green-bg are redefined under
+   [data-theme="light"], so this follows the theme the way .gchat-coin does. The
+   control it replaced hardcoded rgba(52,211,153,...) and could not. */
+.gchat-mode-opt {
+  font-size: var(--fs-micro); font-weight: 700; letter-spacing: .02em;
+  padding: 3px 10px; min-width: 42px; min-height: 28px; border-radius: 14px;
+  border: none; background: none; color: var(--txt3); cursor: pointer;
+  white-space: nowrap; transition: background 0.15s, color 0.15s;
+  display: inline-flex; align-items: center; justify-content: center;
 }
+.gchat-mode-opt:hover:not(.off) { color: var(--txt2); }
+.gchat-mode-opt.on      { background: var(--purple-bg); color: var(--purple); }
+.gchat-mode-opt.live.on { background: var(--green-bg);  color: var(--green); }
+/* Kept visible, not hidden - a control that vanishes reads as a bug, one that
+   stays and explains itself reads as an upsell. */
+.gchat-mode-opt.off { opacity: 0.4; cursor: not-allowed; }
+.gchat-mode-opt:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.gchat-mode-count {
+  font-size: var(--fs-caption); color: var(--txt3);
+  font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 3px;
+}
+.gchat-mode-count.zero { color: var(--red-soft); }
+.gchat-mode-note { font-size: var(--fs-micro); color: var(--txt3); }
 .gchat-coins { display: flex; gap: 4px; padding: 8px 14px 6px; overflow-x: auto; scrollbar-width: none; flex-shrink: 0; border-bottom: 0.5px solid rgba(255,255,255,0.04); }
 .gchat-coins::-webkit-scrollbar { display: none; }
 .gchat-coin { font-size: var(--fs-caption); font-weight: 700; padding: 5px 10px; border-radius: 20px; border: 0.5px solid var(--bdr); background: var(--bg2); color: var(--txt3); cursor: pointer; white-space: nowrap; transition: all 0.12s; flex-shrink: 0; min-height: 44px; display: inline-flex; align-items: center; }
