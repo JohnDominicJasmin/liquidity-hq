@@ -417,6 +417,9 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
      reconnect (#313) fetches everything after it - without this there is no way
      to know how much of the series the outage cost. */
   const lastBarTsRef   = useRef<number>(0);
+  /* Which feed produced the chart's history. The gap backfill reads it so a
+     recovery never mixes feeds - see the note at the getBars fallback (#359). */
+  const histSourceRef  = useRef<'binance' | 'binance-futures'>('binance');
   const [showSR, setShowSR]       = useState(true);
   const [srLevels, setSrLevels]   = useState<SRLevel[]>([]);
   const srSetRef                  = useRef(setSrLevels);
@@ -1096,9 +1099,15 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               // used to live in MarketProvider.fetchKlines). The chart just never
               // got the same treatment.
               //
-              // Futures is also the better default on its own merits - this is a
-              // perp-trading app, and fapi's candles are the ones the funding,
-              // OI and liquidation data all refer to.
+              // That reasoning was about the BROWSER calling Binance directly.
+              // These now go through /api/market/klines, so the fetch happens
+              // server-side and a client-side geo-block or filter list never
+              // touches it - which is why spot can lead again (#359).
+              //
+              // Futures candles are still what the funding, OI and liquidation
+              // data refer to. That argues for showing futures ALONGSIDE, not
+              // for silently joining futures history to a spot stream, which is
+              // what this used to do.
               const tryFetch = async (url: string): Promise<(string | number)[][] | null> => {
                 try {
                   const res = await fetch(url);
@@ -1107,10 +1116,28 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                   return Array.isArray(j) && j.length ? j as (string | number)[][] : null;
                 } catch { return null; }
               };
-              const raw =
-                await tryFetch(`/api/market/klines?source=binance-futures&symbol=${bnSym}&interval=${iv}&limit=1500`)
-                ?? await tryFetch(`/api/market/klines?source=binance&symbol=${bnSym}&interval=${iv}&limit=1500`)
-                ?? [];
+              /* SPOT FIRST (#359). The live stream is spot - wss://stream.binance.com
+                 - so futures history joined to it produced a chart whose bars
+                 changed feed partway along, invisibly. Measured at 4.4bp on BTC
+                 (~$28) and ~9bp on ETH: small, permanent, and in the one place a
+                 user reads price. Owner's decision: spot throughout.
+                 Futures stays as the FALLBACK rather than being deleted - it is
+                 a different host, and it is the reason a Binance-spot outage or
+                 block does not blank the chart. Ordering changed; resilience
+                 kept. */
+              let raw = await tryFetch(`/api/market/klines?source=binance&symbol=${bnSym}&interval=${iv}&limit=1500`);
+              if (raw) {
+                histSourceRef.current = 'binance';
+              } else {
+                raw = await tryFetch(`/api/market/klines?source=binance-futures&symbol=${bnSym}&interval=${iv}&limit=1500`);
+                /* Remember WHICH feed the history came from, so the gap backfill
+                   (#313) refills from the same one. Without this, a spot outage
+                   would give futures history and a spot backfill - the exact
+                   mismatch #359 is about, re-created in the recovery path and
+                   only on the day something else was already broken. */
+                if (raw) histSourceRef.current = 'binance-futures';
+              }
+              raw = raw ?? [];
               if (stale()) return; // superseded by a newer switch - drop it
               let bars = raw.map(k => ({
                 timestamp: Number(k[0]), open: Number(k[1]), high: Number(k[2]),
@@ -1228,7 +1255,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
               if (!since) return;                       // nothing streamed yet - getBars owns it
               try {
                 const r = await fetch(
-                  `/api/market/klines?source=binance&symbol=${sym}&interval=${interval}&limit=500`,
+                  `/api/market/klines?source=${histSourceRef.current}&symbol=${sym}&interval=${interval}&limit=500`,
                   { signal: AbortSignal.timeout(12_000) },
                 );
                 if (!r.ok || cancelled) return;
