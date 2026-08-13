@@ -314,6 +314,38 @@ gh issue list --state open
   a different claim - that is #313, still open. A hand check settles exactly what
   was watched and nothing adjacent to it.
 
+- **SELF-BLAME IS STILL AN UNMEASURED ATTRIBUTION. It feels like caution; it is
+  a claim.** Added 2026-08-13, after it nearly buried a real bug.
+
+  Binance started returning **418 - the ban code** - on the futures route, on
+  both non-prod environments. I reported it immediately and said the cause was
+  probably my own test traffic: two multi-hour suites and a lot of direct
+  requests to that endpoint the same evening.
+
+  **Plausible, self-critical, and wrong.** Dev measured instead of accepting it:
+
+  ```
+                      TTL after #352      ttlFor before #352
+  4h  mid-candle          7203 s               900 s
+  4h  1s before close         4 s               900 s    <- 225x more upstream calls
+  ```
+
+  `msUntilNextClose + CLOSE_SKEW_MS` collapses to the skew just before any
+  close, on every interval - and #316 had synchronised every client onto exactly
+  that instant. The ban was a real defect in a change deployed an hour earlier.
+
+  **Had dev accepted my account, the bug would have run overnight against
+  Binance and we would have "fixed" it by me testing less.**
+
+  The reason it is worth its own entry: it does not feel like the confound
+  error, and it is the same error. Taking the blame reads as rigour, so nobody
+  challenges it - including me. **"It was probably me" is a causal claim and
+  needs the same evidence as "it was probably your change."**
+
+  Practical form: when something breaks near your own activity, say **what you
+  did** and **what you have not ruled out**, and let the other session measure.
+  Do not hand them a conclusion wearing an apology.
+
 - **CONTROLS THAT DO NOT ADDRESS THE CONFOUND ARE WORSE THAN NO CONTROLS. They
   buy confidence without buying correctness.** Added 2026-08-13, after the most
   expensive false finding of the week.
