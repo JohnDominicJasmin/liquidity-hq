@@ -611,3 +611,43 @@ export async function runAxe(
     }));
   }, opts);
 }
+
+/**
+ * Is the app's market-data upstream answering at all?
+ *
+ * WHY THIS EXISTS. CI runs the app on a GitHub runner, and **Binance blocks
+ * cloud egress** - so every market-dependent spec fails there for a reason that
+ * has nothing to do with the product. One CI run produced ~40 failures from
+ * this single cause, including `the Confluence card did not appear`, which
+ * reads as a Pro-gating defect and was not one.
+ *
+ * A spec that cannot reach its data has NOT found a defect - it has failed to
+ * measure. The distinction is the whole point of this helper:
+ *
+ *     upstream refuses / unreachable   ->  SKIP, nothing was measured
+ *     upstream fine, card still absent ->  FAIL, that is a real finding
+ *
+ * Returns a reason string when the data is unavailable, or null when it is
+ * healthy. Callers pass it straight to `test.skip()`.
+ *
+ * Deliberately checks the app's OWN route rather than Binance directly: the
+ * question is whether THIS deployment can get data, which is what every spec
+ * downstream actually depends on. Checking Binance from the test machine would
+ * answer a different question - and on 2026-08-13 it answered 200 while both
+ * services were banned.
+ */
+export async function marketDataUnavailable(
+  request: { get: (url: string) => Promise<{ status(): number }> },
+  baseURL?: string,
+): Promise<string | null> {
+  const url = `${baseURL ?? ''}/api/market/klines?source=binance&symbol=BTCUSDT&interval=1h&limit=3`;
+  try {
+    const res = await request.get(url);
+    if (res.status() === 200) return null;
+    return `the app's market-data route returned ${res.status()} - the upstream is refusing this ` +
+      `deployment, so nothing below measures the product. Not a finding.`;
+  } catch (e) {
+    return `the app's market-data route could not be reached (${String(e).slice(0, 80)}) - ` +
+      `nothing below measures the product. Not a finding.`;
+  }
+}

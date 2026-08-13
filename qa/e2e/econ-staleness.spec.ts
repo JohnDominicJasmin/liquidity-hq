@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { gotoGuarded } from './_shared';
+import { gotoGuarded, marketDataUnavailable } from './_shared';
 import { AUTH_READY, AUTH_SKIP_REASON, signedInContext, gotoSignedIn } from './_auth';
 
 /* Does the STALE-CALENDAR state reach the screen? (#298, dev's PR #307)
@@ -77,6 +77,13 @@ async function macroText(page: Page): Promise<string> {
 
   /* POSITIVE CONTROL, run before every assertion. Without it a signed-out or
      broken page reports "no stale warning" perfectly. */
+  /* SKIP if the upstream is refusing THIS deployment. A spec that cannot reach
+     its data has not found a defect - it failed to measure. CI on a GitHub
+     runner cannot reach Binance at all, and one run turned that single cause
+     into ~40 failures, several of which read as Pro-gating defects. */
+  const down = await marketDataUnavailable(page.request);
+  test.skip(down !== null, down ?? '');
+
   expect(body, 'the Confluence card is Pro-gated and did not render - this run measured nothing')
     .not.toMatch(/part of Pro|Unlock with Pro/i);
 
