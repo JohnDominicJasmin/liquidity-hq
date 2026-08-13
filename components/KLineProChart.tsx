@@ -7,6 +7,7 @@ import type { CombinedResult } from '@/lib/grok';
 import type { StrategySignal } from '@/lib/useEMAStrategy';
 import { detectStructureSignals, type PASignal } from '@/lib/priceAction';
 import { Warn } from '@/components/icons';
+import { barsAfter } from '@/lib/candles';
 
 // ── v10 Period mapping ────────────────────────────────────────────────────
 
@@ -412,6 +413,10 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
   const [countdown,    setCountdown]   = useState('-');
   const [priceLabelY,  setPriceLabelY] = useState<number | null>(null);
   const lastCloseRef   = useRef<number>(0);
+  /* Newest bar timestamp the live stream has delivered. The backfill on
+     reconnect (#313) fetches everything after it - without this there is no way
+     to know how much of the series the outage cost. */
+  const lastBarTsRef   = useRef<number>(0);
   const [showSR, setShowSR]       = useState(true);
   const [srLevels, setSrLevels]   = useState<SRLevel[]>([]);
   const srSetRef                  = useRef(setSrLevels);
@@ -1206,12 +1211,63 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                relying on the call happening later would break the moment someone
                moved it. */
             let live: WebSocket | null = null;
+            /* False until the first connect completes, so the initial open does
+               not trigger a backfill that getBars has already done. */
+            let reconnected = false;
+
+            /* Fetch what closed while we were away and push it through the same
+               callback the stream uses.
+               Ascending order matters: klinecharts' update path upserts by
+               timestamp, so bars must arrive oldest-first or a later bar is
+               overwritten by an earlier one. */
+            const backfillGap = async (
+              sym: string, interval: string,
+              cb: (bar: { timestamp: number; open: number; high: number; low: number; close: number; volume: number }) => void,
+            ) => {
+              const since = lastBarTsRef.current;
+              if (!since) return;                       // nothing streamed yet - getBars owns it
+              try {
+                const r = await fetch(
+                  `/api/market/klines?source=binance&symbol=${sym}&interval=${interval}&limit=500`,
+                  { signal: AbortSignal.timeout(12_000) },
+                );
+                if (!r.ok || cancelled) return;
+                const rows = (await r.json()) as Array<[number, string, string, string, string, string]>;
+                if (cancelled) return;
+                const missed = barsAfter(
+                  rows.map(k => ({ timestamp: Number(k[0]), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] })),
+                  since,
+                );
+                for (const bar of missed) {
+                  lastBarTsRef.current = bar.timestamp;
+                  lastCloseRef.current = bar.close;
+                  upsertEmaBar(bar);
+                  cb(bar);
+                }
+              } catch { /* the stream is already live; a failed backfill leaves
+                           the gap rather than breaking the chart */ }
+            };
 
             const connect = () => {
               if (cancelled) return;
               const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${bnSym.toLowerCase()}@kline_${iv}`);
               live = ws;
-              ws.onopen    = () => { attempt = 0; setWsStatus('live'); };
+              ws.onopen    = () => {
+                attempt = 0;
+                setWsStatus('live');
+                /* BACKFILL THE GAP (#313).
+                 *
+                 * #309 restores the stream; it does not recover the candles that
+                 * closed while it was down. getBars only runs on mount and on a
+                 * symbol/period change, so before this the chart resumed live and
+                 * kept a hole where the outage was - and a hole in a candle series
+                 * is not visibly a hole, it is a chart that looks fine and is wrong.
+                 *
+                 * Only after a real gap: `reconnected` is false on the first
+                 * connect, so a normal page load does not fire a second fetch. */
+                if (reconnected) void backfillGap(bnSym, iv, callback);
+                reconnected = true;
+              };
               ws.onerror   = () => setWsStatus('error');
               ws.onclose   = (e) => {
                 if (cancelled || e.wasClean) return;   // a clean close is us, not the network
@@ -1225,6 +1281,7 @@ export default function KLineProChart({ coin, tf, onTfChange, result, emaSignal,
                 const { k } = JSON.parse(e.data as string) as { k: Record<string, string | number> };
                 const bar = { timestamp: Number(k.t), open: Number(k.o), high: Number(k.h), low: Number(k.l), close: Number(k.c), volume: Number(k.v) };
                 lastCloseRef.current = bar.close;
+                lastBarTsRef.current = bar.timestamp;
                 upsertEmaBar(bar);
                 callback(bar);
               };

@@ -135,3 +135,29 @@ export function intervalToMs(interval: string): number | null {
 export function closedCandleTtl(intervalMs: number, fallbackTtlMs: number, nowMs: number): number {
   return Math.max(msUntilNextClose(intervalMs, nowMs) + CLOSE_SKEW_MS, fallbackTtlMs);
 }
+
+export interface Bar {
+  timestamp: number; open: number; high: number; low: number; close: number; volume: number;
+}
+
+/**
+ * The bars that closed while the stream was down (#313).
+ *
+ * #309 restores the socket; it does not recover the candles that closed while it
+ * was gone. getBars only runs on mount and on a symbol/period change, so the
+ * chart resumed live with a hole where the outage was — and **a hole in a candle
+ * series is not visibly a hole.** It is a chart that looks fine and is wrong.
+ *
+ * ASCENDING ORDER IS LOAD-BEARING. klinecharts' update path upserts by
+ * timestamp, so bars must arrive oldest-first; delivered newest-first, each
+ * older bar overwrites the newer one and the chart ends up showing the START of
+ * the gap as its latest candle.
+ *
+ * STRICTLY AFTER `since`, never inclusive. Re-delivering the bar the stream
+ * already gave us would rewrite a candle the user watched form, with a version
+ * fetched later — same timestamp, different close.
+ */
+export function barsAfter(rows: readonly Bar[], since: number): Bar[] {
+  if (!since) return [];        // nothing streamed yet: getBars owns the series
+  return rows.filter(b => b.timestamp > since).sort((a, b) => a.timestamp - b.timestamp);
+}
