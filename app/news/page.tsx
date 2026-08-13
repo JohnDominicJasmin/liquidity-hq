@@ -503,7 +503,12 @@ export default function NewsPage() {
             const isBuy = w.side === 'BUY';
             const col   = isBuy ? 'var(--green)' : 'var(--red)';
             return (
-              <article key={w.id} className="ncard-grid ncard-grid--text">
+              <article key={w.id} className="ncard-grid">
+                {/* Whale alerts share the .nfeed grid with article cards, so
+                    without this block they were ~172px shorter and left the
+                    same hole the owner reported (#398). They have no image by
+                    nature - the tile is the point, not a fallback. */}
+                <div className="ncard-grid-img-wrap" />
                 <div className="ncard-grid-body">
                   <div className="ncard-grid-top">
                     <span className="ncard-type-badge" style={{ color: col }}>
@@ -538,7 +543,9 @@ export default function NewsPage() {
 
           {/* Extra geo events */}
           {extraGeo.map((g, i) => (
-            <article key={i} className="ncard-grid ncard-grid--text">
+            <article key={i} className="ncard-grid">
+              {/* Same as the whale cards above - siblings in the same grid. */}
+              <div className="ncard-grid-img-wrap" />
               <div className="ncard-grid-body">
                 <div className="ncard-grid-top">
                   <div className="ncard-tags">
