@@ -5,6 +5,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { T } from '@/lib/tables';
 import type { UsageTier } from '@/lib/limits';
+import { paidPeriodLapsed } from '@/lib/paidPeriod';
+
+/* Re-exported so call sites keep one import. The logic lives in lib/paidPeriod
+   because this file cannot be unit-tested - see the note at the top of it. */
+export { paidPeriodLapsed, PAID_GRACE_MS } from '@/lib/paidPeriod';
 
 export type Role = 'free' | 'pro';
 
@@ -47,14 +52,19 @@ export interface Entitlement {
   proFeatures: boolean;
 }
 
-// Single source of truth for "does this token get Pro features". Reads role +
-// trial_ends_at in one RLS-scoped query (a token can only read its own row).
+// Single source of truth for "does this token get Pro features". Reads role,
+// trial_ends_at and current_period_end in one RLS-scoped query (a token can
+// only ever read its own row).
 export async function getEntitlement(token: string, userId: string): Promise<Entitlement> {
   const { data } = await sb(token).from(T.user_subscriptions)
-    .select('role, trial_ends_at')
+    .select('role, trial_ends_at, current_period_end')
     .eq('user_id', userId)
     .maybeSingle();
-  const role: Role = data?.role === 'pro' ? 'pro' : 'free';
+  const stored: Role = data?.role === 'pro' ? 'pro' : 'free';
+  // The backstop runs BEFORE trialActive is computed, so a lapsed paid account
+  // falls back to whatever its trial window says rather than straight to free.
+  const lapsed = paidPeriodLapsed(stored, data?.current_period_end as string | null);
+  const role: Role = lapsed ? 'free' : stored;
   const trialEnds = data?.trial_ends_at ? new Date(data.trial_ends_at as string).getTime() : 0;
   const trialActive = role !== 'pro' && trialEnds > Date.now();
   return { role, trialActive, proFeatures: role === 'pro' || trialActive };
