@@ -250,3 +250,20 @@ export function perpConfidenceMultiplier(lean: PerpSpotLean): number {
 export function perpScorePenalty(lean: PerpSpotLean): number {
   return lean === 'perp' ? PERP_LED_SCORE_PENALTY : 0;
 }
+
+/**
+ * How the Confluence card should DRESS the perps line - never whether the score
+ * moves. `perpScorePenalty` above owns that, and only `perp` moves it.
+ *
+ * `caution` is the amber band: `perp` is a reason to size down, and `unknown`
+ * means the check could not run, which is also a reason to size down.
+ *
+ * `neutral` is a plain row: `normal` and `spot` are not warnings. Until this
+ * existed both fell through to null and rendered NOTHING - so "spot is doing
+ * the buying", the most confirming thing this measure can say, appeared nowhere
+ * on the arena page (owner, in session). Showing them in amber instead would
+ * turn a confirmation into a warning, which is the opposite error.
+ */
+export function perpNoticeTone(lean: PerpSpotLean): 'caution' | 'neutral' {
+  return lean === 'perp' || lean === 'unknown' ? 'caution' : 'neutral';
+}

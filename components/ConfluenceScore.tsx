@@ -16,7 +16,7 @@ import { useNews } from './NewsProvider';
 import { computeSectorRotation, isAlt } from '@/lib/sectorRotation';
 import type { PASignal } from '@/lib/priceAction';
 import { usePerpSpot } from '@/lib/usePerpSpot';
-import { perpScorePenalty } from '@/lib/perpSpot';
+import { perpScorePenalty, perpNoticeTone } from '@/lib/perpSpot';
 
 const VERDICT_CONFIG: Record<string, { labelKey: LabelKey; color: string }> = {
   STRONG_BULL:  { labelKey: 'CONFLUENCE_SCORE_VERDICT_STRONG_BULL',  color: 'var(--green-2)' },
@@ -169,13 +169,26 @@ export default function ConfluenceScore(
     perpSpot?.lean === 'perp' ? perpSpot.explanation
     : perpSpot?.lean === 'unknown'
       ? 'Perps vs spot could not be measured for this coin - the score does not account for whether this move is real buying or leverage.'
-      : null;
+      : perpSpot?.explanation ?? null;
+
+  /* Only two of the four readings are a REASON TO SIZE DOWN, and only those two
+   * colour the band amber. `balanced` and `spot` are now shown too (owner, in
+   * session) - previously they fell through to null, so "spot is doing the
+   * buying" - the most confirming thing this measure can say - appeared nowhere
+   * on this page. Showing them in amber would turn a confirmation into a
+   * warning, so they get a neutral row instead.
+   *
+   * NONE of this touches `result.score`: the line is rendered from the same
+   * reading the score already ignores for these leans. `perpScorePenalty` is
+   * unchanged and still fires only for `perp`, which is what
+   * qa/e2e/score-perps-coupling.spec.ts pins. */
+  const perpCaution = !!perpSpot && perpNoticeTone(perpSpot.lean) === 'caution';
   /* `unknown` renders in the same amber band as `caution` on purpose (#298).
      "We could not check for upcoming releases" is a reason to size down, which
      is what amber already means here - and giving it a colour of its own would
      add a fourth state to a card whose whole job is to be read in a second. */
   const macroCol = macro.level === 'danger' ? 'var(--red)'
-    : (macro.level === 'caution' || macro.unknown || perpLine) ? 'var(--amber)' : null;
+    : (macro.level === 'caution' || macro.unknown || perpCaution) ? 'var(--amber)' : null;
 
   return (
     <div className="sms-card">
@@ -200,7 +213,18 @@ export default function ConfluenceScore(
           background: withAlpha(macroCol, '14'), border: `0.5px solid ${withAlpha(macroCol, '44')}`,
         }}>
           {macro.reasons.map((r, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Warn /> {r}</div>)}
-          {perpLine && <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Warn /> {perpLine}</div>}
+          {perpCaution && perpLine && <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Warn /> {perpLine}</div>}
+        </div>
+      )}
+
+      {/* balanced / spot-led: shown, but not dressed as a warning. */}
+      {!perpCaution && perpLine && (
+        <div data-testid="confluence-perp-line" style={{
+          margin: '0 14px 10px', fontSize: 'var(--fs-caption)', fontWeight: 600, lineHeight: 1.5,
+          color: 'var(--txt3)', padding: '8px 10px', borderRadius: 8,
+          background: 'var(--bg2)', border: '0.5px solid var(--bdr)',
+        }}>
+          {perpLine}
         </div>
       )}
 
