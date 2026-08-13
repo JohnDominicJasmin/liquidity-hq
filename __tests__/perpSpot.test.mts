@@ -10,6 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   computePerpSpot, fmtVol, PERP_LED_AT, SPOT_LED_AT, MIN_BARS,
+  perpNoticeTone,
 } from '../lib/perpSpot.ts';
 
 const HOUR = 3600_000;
@@ -287,4 +288,37 @@ test('#340 THE DEFINITION: the reading is VOLUME, and price cannot reach it', ()
     assert.doesNotMatch(r.explanation, /premium|priced above|price of/i,
       `explanation makes a PRICE claim: ${r.explanation}`);
   }
+});
+
+/* ── the Confluence card's perps line (owner, in session) ────────────────── */
+
+test('every lean produces a line - none falls through to nothing', () => {
+  // Before this, `normal` and `spot` rendered NOTHING on the arena page. The
+  // reading was computed, fed to the score and to the AI, and never shown.
+  // The owner found it by looking for it and not finding it.
+  for (const lean of ['perp', 'spot', 'normal', 'unknown'] as const) {
+    assert.ok(['caution', 'neutral'].includes(perpNoticeTone(lean)),
+      `${lean} must resolve to a tone, not to nothing`);
+  }
+});
+
+test('only perp-led and unmeasurable are dressed as warnings', () => {
+  assert.equal(perpNoticeTone('perp'), 'caution');
+  assert.equal(perpNoticeTone('unknown'), 'caution');
+  // Spot-led is CONFIRMING - real buying rather than leverage. Amber would
+  // invert its meaning.
+  assert.equal(perpNoticeTone('spot'), 'neutral');
+  assert.equal(perpNoticeTone('normal'), 'neutral');
+});
+
+test('CONTROL: the tone does not track the score penalty', () => {
+  // These two answer different questions and must not be wired together.
+  // `unknown` is amber but carries NO penalty - that is the whole point of
+  // the #340 note in ConfluenceScore, and a refactor that "simplifies" one
+  // into the other would silently start docking the score for a failed fetch.
+  assert.equal(perpNoticeTone('unknown'), 'caution');
+  assert.equal(perpScorePenalty('unknown'), 0);
+  assert.equal(perpScorePenalty('spot'), 0);
+  assert.equal(perpScorePenalty('normal'), 0);
+  assert.ok(perpScorePenalty('perp') > 0);
 });
