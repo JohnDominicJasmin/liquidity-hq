@@ -166,3 +166,38 @@ test('#325: near the close the floor takes over, which is the safe direction', (
   const ttl = closedCandleTtl(ms, ttlFor('4h'), 1_000_000 * ms + ms - 1000);
   assert.equal(ttl, ttlFor('4h'), 'the last moments fall back to the pre-feature TTL');
 });
+
+/* ── #313: the gap left behind after an outage ─────────────────────────────── */
+import { barsAfter, type Bar } from '../lib/candles.ts';
+
+const gapBar = (t: number, close = 100): Bar =>
+  ({ timestamp: t, open: 99, high: 101, low: 98, close, volume: 5 });
+
+test('#313: returns exactly the candles that closed during the outage', () => {
+  const rows = [gapBar(1000), gapBar(2000), gapBar(3000), gapBar(4000), gapBar(5000)];
+  assert.deepEqual(barsAfter(rows, 2000).map(b => b.timestamp), [3000, 4000, 5000]);
+});
+
+test('#313: the bar the stream already delivered is NOT re-sent', () => {
+  // Same timestamp, fetched later, would have a different close - it would
+  // rewrite a candle the user watched form.
+  const rows = [gapBar(2000, 111), gapBar(3000)];
+  assert.deepEqual(barsAfter(rows, 2000).map(b => b.timestamp), [3000]);
+});
+
+test('#313: ascending order, even when the upstream returns newest-first', () => {
+  // Bybit returns newest-first. Delivered in that order through an upsert path,
+  // each older bar overwrites the newer one and the chart ends up showing the
+  // START of the gap as its latest candle.
+  const rows = [gapBar(5000), gapBar(4000), gapBar(3000)];
+  assert.deepEqual(barsAfter(rows, 2000).map(b => b.timestamp), [3000, 4000, 5000]);
+});
+
+test('#313: nothing streamed yet means getBars owns the series, not the backfill', () => {
+  assert.deepEqual(barsAfter([gapBar(1000), gapBar(2000)], 0), []);
+});
+
+test('#313: a drop with no elapsed candles backfills nothing', () => {
+  // Reconnecting inside the same candle must not re-push it.
+  assert.deepEqual(barsAfter([gapBar(1000), gapBar(2000)], 2000), []);
+});
