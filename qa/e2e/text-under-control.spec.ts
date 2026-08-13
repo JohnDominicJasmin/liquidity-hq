@@ -71,6 +71,26 @@ async function findTextUnderControls(page: Page): Promise<string[]> {
   return page.evaluate(({ TEXT_SELECTOR, CONTROL_SELECTOR, MIN_TEXT_LENGTH }) => {
     const found: string[] = [];
 
+    /** True if (x, y) lies outside any clipping ancestor's visible box. */
+    const clippedOut = (el: Element, x: number, y: number): boolean => {
+      for (let p = el.parentElement; p; p = p.parentElement) {
+        const s = getComputedStyle(p);
+        if (!/auto|scroll|hidden|clip/.test(s.overflowX + ' ' + s.overflowY)) continue;
+        const r = p.getBoundingClientRect();
+        if (x < r.left || x > r.right || y < r.top || y > r.bottom) return true;
+      }
+      return false;
+    };
+
+    /** True if the element or any ancestor is fixed or sticky positioned. */
+    const isFixedish = (el: Element): boolean => {
+      for (let p: Element | null = el; p; p = p.parentElement) {
+        const pos = getComputedStyle(p).position;
+        if (pos === 'fixed' || pos === 'sticky') return true;
+      }
+      return false;
+    };
+
     const describe = (el: Element) => {
       const cls = typeof el.className === 'string' && el.className.trim()
         ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '';
@@ -140,6 +160,27 @@ async function findTextUnderControls(page: Page): Promise<string[]> {
       for (const [edge, px, py] of probes) {
         const x = Math.min(Math.max(px, 1), innerWidth - 1);
         const y = Math.min(Math.max(py, 1), innerHeight - 1);
+
+        /* IS THE TEXT ACTUALLY PAINTED AT THIS POINT? (dev, on #391)
+         *
+         * `getBoundingClientRect()` reports an element's LOGICAL box even when a
+         * scrollable ancestor has clipped it out of view. So a row scrolled out
+         * of `overflowY: auto` still has a rect - one that can sit over unrelated
+         * controls elsewhere on the page. `elementFromPoint` then correctly
+         * reports a control there, and the finding is real about the coordinates
+         * and false about the user: **the text is not painted there and cannot
+         * be tapped there.**
+         *
+         * `checkVisibility()` does NOT cover this. It answers "is this element
+         * displayed", not "is this POINT inside every clip between it and the
+         * viewport". Those differ exactly for scrolled-out content, which is why
+         * the first version passed the visibility gate and still reported it.
+         *
+         * dev spotted the pattern before I did: every `/funding` finding sat at
+         * a `top` or `bottom` edge, which is where a clip boundary falls.
+         * `app/funding/page.tsx:448` is `maxHeight: 220, overflowY: auto`. */
+        if (clippedOut(el, x, y)) continue;
+
         const hit = document.elementFromPoint(x, y);
         if (!hit || hit === el || el.contains(hit) || hit.contains(el)) continue;
 
@@ -148,6 +189,30 @@ async function findTextUnderControls(page: Page): Promise<string[]> {
          * by something clickable is the one that spends the user's quota. */
         const control = hit.closest(CONTROL_SELECTOR);
         if (!control) continue;
+
+        /* CAN THE USER SCROLL IT CLEAR? (dev, on #391 - and it is the right
+         * question, sharper than the one I built the detector around.)
+         *
+         * A `position: fixed` bottom tab bar always has page content beneath it
+         * mid-scroll. That is normal, not a defect - #173 already reserves a band
+         * at the document end so nothing is permanently unreachable. Reporting it
+         * made the mobile sweep 29 findings of which 20 were the tab bar.
+         *
+         * **#389 was different in kind, and the difference is the test:** that
+         * overlay was a `::after` on a button in normal flow, so it moved WITH
+         * the counter and no amount of scrolling separated them. A fixed coverer
+         * over in-flow text can always be scrolled clear; an in-flow coverer over
+         * in-flow text never can.
+         *
+         * So: skip when the COVERER is fixed/sticky and the TEXT is not. If both
+         * are fixed they move together and it is the #389 shape again.
+         *
+         * WHAT THIS GIVES UP, stated rather than hidden: a fixed overlay that
+         * covers text which CANNOT be scrolled (a short page, or a modal that
+         * locks the body) is now missed. That is a real gap. It is narrower than
+         * the 20 false positives it removes, and unlike them it does not train
+         * anyone to ignore the output. */
+        if (isFixedish(control) && !isFixedish(el)) continue;
 
         /* FIRST HIT ONLY. Reporting every edge that overlaps would make the
          * message length depend on how deep the overhang reaches, and the same
