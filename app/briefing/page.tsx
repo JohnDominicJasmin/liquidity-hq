@@ -665,7 +665,13 @@ export default function MorningBriefing() {
             </div>
 
             {/* Danger zone bar */}
-            <div style={{ position: 'relative', paddingBottom: 18, marginBottom: 6 }}>
+            {/* dir="ltr": a QUANTITATIVE AXIS DOES NOT MIRROR (#353).
+                 Arabic text reads right-to-left; a 140-165 USD/JPY scale does not.
+                 Flipping this would put the low end on the right and every
+                 marker at a position meaning a different value - rendering
+                 perfectly and lying. Explicit rather than inherited so it stays
+                 true when the document direction changes. */}
+            <div dir="ltr" style={{ position: 'relative', paddingBottom: 18, marginBottom: 6 }}>
               <div style={{
                 height: 6, borderRadius: 3, overflow: 'hidden',
                 background: `linear-gradient(to right,

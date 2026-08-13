@@ -72,7 +72,14 @@ function RsiRow({ tf, rsi, bias, last, locked }: { tf: string; rsi: number | nul
           free user can see that 5m and 15m exist and are Pro rather than facing
           an unexplained smear. aria-hidden on each blurred part keeps a screen
           reader from reading out a value the screen is deliberately hiding. */}
-      <div aria-hidden={locked || undefined} style={{ position: 'relative', height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.08)', ...(locked ? { filter: 'blur(5px)' } : {}) }}>
+      {/* dir="ltr": a QUANTITATIVE AXIS DOES NOT MIRROR (#353).
+           An RSI track runs 0 on the left to 100 on the right, with the 50
+           midline fixed at 50%. Mirroring it inverts the reading - an
+           oversold bar would render as overbought, perfectly, and lie.
+           This one is STATIC (left: '50%'), which is why the #353 survey
+           missed it: that enumeration filtered for COMPUTED offsets, and a
+           hardcoded percentage on an axis mirrors just as wrongly. */}
+      <div dir="ltr" aria-hidden={locked || undefined} style={{ position: 'relative', height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.08)', ...(locked ? { filter: 'blur(5px)' } : {}) }}>
         <div style={{
           position: 'absolute', left: 0, top: 0, bottom: 0,
           width: `${pct}%`, borderRadius: 3,

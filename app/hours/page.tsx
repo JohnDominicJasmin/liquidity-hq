@@ -131,7 +131,13 @@ export default function BestHours() {
         </div>
 
         {/* Bar + needle wrapper - overflow visible so needle tip shows */}
-        <div style={{ position: 'relative', marginBottom: 6 }}>
+        {/* dir="ltr": a QUANTITATIVE AXIS DOES NOT MIRROR (#353).
+             Arabic text reads right-to-left; a 24-hour TIME axis does not.
+             Flipping it puts every session bar at an hour it does not mean -
+             rendering perfectly and lying. Covers the bar, its marker and its
+             label together: they are three layers of one axis and any
+             treatment applied to fewer than all three separates them. */}
+        <div dir="ltr" style={{ position: 'relative', marginBottom: 6 }}>
           {/* Segment strips */}
           <div style={{ position: 'relative', height: 44, borderRadius: 8, background: 'var(--bg3)', overflow: 'hidden' }}>
             {/* Client-only: the viewer's UTC offset both shifts the blocks and can
