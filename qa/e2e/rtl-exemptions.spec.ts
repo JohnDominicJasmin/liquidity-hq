@@ -36,10 +36,30 @@ import { gotoGuarded } from './_shared';
 
 const ROUTES = ['/briefing', '/hours', '/arena'] as const;
 
-/** Every element carrying an explicit dir="ltr", with its box. */
+/**
+ * For every exempt axis, where its markers sit WITHIN it - as a fraction of the
+ * container's own width.
+ *
+ * NOT absolute page position. The first version asserted that, and dev caught
+ * why it is unsatisfiable: `dir="ltr"` stops a container's CONTENTS mirroring;
+ * it does not stop the container moving when the page around it mirrors. And
+ * the page moving is the feature.
+ *
+ *     the page mirrors           correct - that IS RTL working
+ *     a card inside it moves     unavoidable consequence
+ *     the axis inside the card   holds its orientation   <- the requirement
+ *
+ * So an assertion that absolute x is unchanged could only pass on a build where
+ * RTL does not work. **A test whose success implies the feature is broken.**
+ * That is the third wrong requirement on this issue and none of the three were
+ * code bugs - see the note at the bottom.
+ *
+ * A fraction of container width is direction-invariant: a marker 30% along a
+ * 140->165 scale is 30% along it in either direction, however the card moved.
+ */
 async function exempt(page: Page) {
   return page.evaluate(() => {
-    const out: Array<{ id: string; x: number; y: number; w: number; h: number }> = [];
+    const out: Array<{ id: string; frac: number[] }> = [];
     /* EXCLUDE <html>. Step 1's plumbing sets dir on the document root, so a
        bare [dir="ltr"] selector matches the root itself - and flipping
        document.dir makes it stop matching, which reads as "an exempt container
@@ -47,13 +67,17 @@ async function exempt(page: Page) {
        reported as shifted, and it was <html>. The exemptions are containers
        INSIDE the document, never the document. */
     for (const el of Array.from(document.querySelectorAll('body [dir="ltr"]'))) {
-      const r = (el as HTMLElement).getBoundingClientRect();
-      if (r.width < 2 || r.height < 2) continue;
-      out.push({
-        id: `${el.tagName}.${(el.className || '').toString().slice(0, 30)}`,
-        x: Math.round(r.x), y: Math.round(r.y),
-        w: Math.round(r.width), h: Math.round(r.height),
-      });
+      const box = (el as HTMLElement).getBoundingClientRect();
+      if (box.width < 2 || box.height < 2) continue;
+      /* Every descendant that is positioned - the markers, bars and midlines
+         whose place along the axis is the thing that must not flip. */
+      const frac: number[] = [];
+      for (const kid of Array.from(el.querySelectorAll('*'))) {
+        const k = (kid as HTMLElement).getBoundingClientRect();
+        if (k.width < 1 || k.height < 1) continue;
+        frac.push(Math.round(((k.x - box.x) / box.width) * 1000) / 1000);
+      }
+      out.push({ id: `${el.tagName}.${(el.className || '').toString().slice(0, 30)}`, frac });
     }
     return out;
   });
@@ -87,17 +111,19 @@ test.describe('quantitative axes are exempt from RTL mirroring', () => {
       await page.waitForTimeout(1200);
       const after = await exempt(page);
 
-      const moved = before.filter((b, i) => {
+      /* Compare WITHIN each container. The container itself is expected to move
+         - that is the page mirroring, which is the feature working. */
+      const flipped = before.filter((b, i) => {
         const a = after[i];
-        return !a || Math.abs(a.x - b.x) > 2 || Math.abs(a.w - b.w) > 2;
+        if (!a || a.frac.length !== b.frac.length) return true;
+        return b.frac.some((f, j) => Math.abs(a.frac[j] - f) > 0.02);
       });
 
-      expect(moved,
-        `${moved.length} quantitative container(s) shifted when the document went RTL: ` +
-        `${moved.map(m => m.id).join(', ')}. These are value and time axes - a 140->165 scale ` +
-        `reads left-to-right in Arabic too, and a pointer coordinate has no reading direction ` +
-        `at all. They must hold their PHYSICAL position, which is what dir="ltr" on the ` +
-        `container is for.`).toEqual([]);
+      expect(flipped,
+        `${flipped.length} quantitative axis/axes had their contents move under RTL: ` +
+        `${flipped.map(m => m.id).join(', ')}. A marker 30% along a 140->165 scale must be 30% ` +
+        `along it in either direction - the scale reads low-to-high in Arabic too. The card ` +
+        `moving is FINE and expected; the marker moving within it is not.`).toEqual([]);
     });
   }
 
@@ -133,3 +159,27 @@ test.describe('quantitative axes are exempt from RTL mirroring', () => {
       `resist it.`).toBe('rtl');
   });
 });
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * THREE WRONG REQUIREMENTS ON THIS FEATURE, AND NOT ONE WAS A CODE BUG.
+ *
+ *   1  dev   "each site needs 100 - x as well as a property change"
+ *            -> wrong: these are quantitative axes and must not mirror at all
+ *
+ *   2  QA    "assert the marker is at the MIRRORED position"
+ *            -> would have PINNED the bug. A 140->165 scale reversed.
+ *
+ *   3  QA    "assert absolute page-x is unchanged"
+ *            -> could only pass on a build where RTL does not work. A test
+ *               whose SUCCESS implies the feature is broken.
+ *
+ * Each was caught by the other session reading the requirement, never by a
+ * failing test - because each would have produced a PASSING test enforcing
+ * wrong behaviour.
+ *
+ * Writing the invariant before the implementation stops it being shaped by the
+ * code. It does nothing to stop it being wrong about the requirement, and this
+ * file is the third worked example in two days. The check that works is the
+ * other session reading what you asserted and asking what it would mean if it
+ * passed.
+ * ───────────────────────────────────────────────────────────────────────────── */
