@@ -1973,6 +1973,46 @@ function ArenaContent() {
         <div className="arena-ws-chart">
       {/* ── CHART - KLineChart with auto Entry/SL/TP overlays ── */}
       <KLineProChart coin={selectedCoin} tf={readTf} onTfChange={handleTfChange} result={result} emaSignal={emaSignal} chartAlerts={chartAlerts} onAlertMove={handleAlertMove} gexLevels={selectedCoin === 'btc' ? { flip: store.btcGexFlip, maxPain: store.btcMaxPain } : null} onStructure={setChartStructure} />
+      {/* Directly under the chart, on the owner's request (#370). The read
+          refers to what the chart shows - "price below EMAs", "closing below
+          the swing low", "lower wick at Fib support" - so anything between
+          them makes the reader hold the chart in their head while scrolling.
+
+          This pushes the EMA Ribbon card down one slot. The comment there
+          says it "sits directly under the chart"; that was true and is no
+          longer, and the owner asked for this order explicitly. */}
+      {/* AI long-form reasoning / chart read / patterns - only when a read has run */}
+      {result && (
+        <>
+          {result.chartAnalysis && (
+            <div className="arena-reasoning" style={{ margin: '10px 0' }}>
+              <div className="arena-reasoning-title">{t('ARENA_REASONING_CHART_TITLE')}</div>
+              <div className="arena-reasoning-text"><ReasoningText text={result.chartAnalysis} /></div>
+            </div>
+          )}
+          {result.patterns && result.patterns.length > 0 && (
+            <div style={{ margin: '10px 0' }}>
+              <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>{t('ARENA_REASONING_PATTERNS_TITLE')}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {result.patterns.map((p, i) => {
+                  const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
+                  const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
+                  const col = isBull ? 'var(--green-2)' : isBear ? 'var(--red)' : '#1a7aff';
+                  const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
+                  const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
+                  return (
+                    <span key={i} style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <div className="arena-reasoning">
+            <div className="arena-reasoning-title">{t('ARENA_REASONING_TITLE')}</div>
+            <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
+          </div>
+        </>
+      )}
 
       {/* Anti-chop filter toggle */}
       <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -2127,38 +2167,6 @@ function ArenaContent() {
           the 4h has already moved a lot, so a same-direction lower-TF signal doesn't
           look more trustworthy than it is. Only shows on 1m/5m/15m/30m. */}
       <HigherTfMoveBadge coin={selectedCoin} tf={readTf} signalDir={emaSignal.signalDir} />
-      {/* AI long-form reasoning / chart read / patterns - only when a read has run */}
-      {result && (
-        <>
-          {result.chartAnalysis && (
-            <div className="arena-reasoning" style={{ margin: '10px 0' }}>
-              <div className="arena-reasoning-title">{t('ARENA_REASONING_CHART_TITLE')}</div>
-              <div className="arena-reasoning-text"><ReasoningText text={result.chartAnalysis} /></div>
-            </div>
-          )}
-          {result.patterns && result.patterns.length > 0 && (
-            <div style={{ margin: '10px 0' }}>
-              <div className="arena-reasoning-title" style={{ marginBottom: 8 }}>{t('ARENA_REASONING_PATTERNS_TITLE')}</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {result.patterns.map((p, i) => {
-                  const isBull = /bull|higher high|engulf.*bull|hammer|morning/i.test(p);
-                  const isBear = /bear|lower high|engulf.*bear|shooting|evening|head.*shoulder|double top/i.test(p);
-                  const col = isBull ? 'var(--green-2)' : isBear ? 'var(--red)' : '#1a7aff';
-                  const bg  = isBull ? 'rgba(52,211,153,0.08)' : isBear ? 'rgba(248,113,113,0.08)' : 'rgba(26,122,255,0.08)';
-                  const bdr = isBull ? 'rgba(52,211,153,0.25)' : isBear ? 'rgba(248,113,113,0.25)' : 'rgba(26,122,255,0.25)';
-                  return (
-                    <span key={i} style={{ fontSize: 'var(--fs-caption)', fontWeight: 600, padding: '3px 10px', borderRadius: 6, background: bg, color: col, border: `0.5px solid ${bdr}` }}>{p}</span>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          <div className="arena-reasoning">
-            <div className="arena-reasoning-title">{t('ARENA_REASONING_TITLE')}</div>
-            <div className="arena-reasoning-text"><ReasoningText text={result.reasoning} /></div>
-          </div>
-        </>
-      )}
       {/* ── SESSION HISTORY ── */}
       {history.length > 0 && (
         <div style={{ marginTop: 20 }}>
